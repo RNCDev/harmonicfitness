@@ -1,16 +1,20 @@
 # My Profile
 
-Claude reads this before every workout. It holds the stable facts: setup, equipment, interests, style, and the standing rules for each injury. Day-to-day status comes from the check-in at the start of each session, and the workout log and running feedback live in project memory. Edit this file when something lasting changes, such as a new injury, a clinician's new rules, or new equipment.
+Claude reads this before every workout. It holds the stable facts: setup, equipment, interests, style, and the standing rules for each injury. Day-to-day status comes from the check-in at the start of each session, and the workout log and running feedback live in `log.md`. Edit this file when something lasting changes, such as a new injury, a clinician's new rules, or new equipment.
 
 ## Basics
 - Neighborhood: Washington West, Philadelphia (use this for local news, events, and infrastructure)
 - Training background and current fitness: just getting back into it
 - Goals right now:
 ## Listening setup
-- Eleven Reader voice: Sarah, with expressiveness around the middle of the slider
-- Playback speed: one times
-- Measured words per minute (from calibration): 170, measured on 2026-10-18 with Sarah at one times speed (280 words in one minute thirty-eight seconds)
-- VoiceStudio voice: profile id demo0001 (the bundled demo voice, a placeholder until I pick or clone one), speed one times. Measured about 172 words per minute on 2026-10-19, so the 170 target holds.
+- Earbuds, one times speed. The MP3 that `tools/build.sh` renders is the workout.
+- Measured words per minute (drafting guide): 185. The five voices below spoke a typical draft at 177 to 209 on 2026-10-19. This only sizes the first draft; the lint then predicts each segment's spoken seconds and word guide for the chosen voice.
+- Voices (VoiceStudio profile names; the first is the default; how to add one: `knowledge/voices.md`):
+  - The Upbeat: young American woman, high pitch, bright.
+  - The Promo Voice: middle-aged man, low pitch.
+  - The Game Host: middle-aged man, moderate pitch.
+  - The Podcaster: young Australian woman, high pitch. Fast.
+  - The Explainer: young British man, moderate pitch. Fastest.
 ## Default session
 - Usual length: twenty-five to thirty minutes
 - Time of day: varies. Go by the time of the request: in the morning, preview the day ahead; in the evening, recap it.
