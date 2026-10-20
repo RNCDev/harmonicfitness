@@ -39,4 +39,20 @@ set +e
 STATUS=$?
 # Model loading is chatty on stderr; only surface it when something went wrong.
 [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 2 ] && tail -20 "$LOG"
+
+# A finished MP3 also goes to the profile's Google Drive folder, which syncs to the phone.
+DRIVE_FOLDER="$(sed -n 's/^- Google Drive folder[^:]*: \([^.]*\)\..*/\1/p' "$PROFILE" | head -1)"
+if [ "$STATUS" -eq 0 ] && [ -n "$DRIVE_FOLDER" ]; then
+  FOUND=""
+  for DEST in "$HOME"/Library/CloudStorage/GoogleDrive-*/"My Drive/$DRIVE_FOLDER"; do
+    [ -d "$DEST" ] || continue
+    FOUND=1
+    if cp "$ROOT/workouts/$NAME.mp3" "$DEST/"; then
+      echo "Copied to Google Drive: My Drive/$DRIVE_FOLDER/$NAME.mp3"
+    else
+      echo "Couldn't copy to $DEST; the MP3 is only in workouts/"
+    fi
+  done
+  [ -n "$FOUND" ] || echo "Google Drive folder My Drive/$DRIVE_FOLDER not found; the MP3 is only in workouts/"
+fi
 exit "$STATUS"

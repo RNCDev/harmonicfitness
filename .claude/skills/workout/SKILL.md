@@ -5,34 +5,45 @@ description: Build a narrated workout script and MP3. Use whenever the user asks
 
 # Workout: request to MP3
 
-Goal: get from request to finished MP3 with the fewest round-trips. Ask only for what the request didn't say, do research while the user answers, and render in the background.
+Goal: the check-in is the only time the user is needed. They answer it in the first minute and step away; research, script, render and the copy to Google Drive all run unattended, and the finished MP3 reaches their phone.
 
-## Step 0: kick off everything that doesn't need answers (one message, in parallel)
+## Step 0: read (one message, in parallel; takes seconds)
 
 In a single message, send all of these tool calls together:
 - `date "+%Y-%m-%d %A %H:%M"`, so you know today's date and whether it's morning (preview the day) or evening (recap it).
-- Read `knowledge/profile.md`, `knowledge/tts-rules.md`, `log.md`, `knowledge/injury-playbook.md`, `knowledge/equipment-library.md`.
+- Read `knowledge/profile.md`, `knowledge/tts-rules.md`, `log.md`, `knowledge/injury-playbook.md`, `knowledge/equipment-library.md`, `knowledge/exercise-science.md`.
 
-Then, in the next message, send these two together:
-1. **Research agent** (Agent tool, `general-purpose`, `run_in_background: true`), using the prompt template at the bottom of this file. Research doesn't depend on the check-in answers, so it runs while the user is answering.
-2. **Check-in** (AskUserQuestion), covered next.
+## Step 1: check-in first, with research launched alongside (one message)
 
-## Step 1: check-in (ask only what's missing, in one AskUserQuestion call)
+In the next message, send these together, the Agent calls first (they return at once, so the question appears right away):
+1. **Research**, in the background. It doesn't depend on the answers, so it runs while the user answers:
+   - The deep dive alternates by session. If the last session in `log.md` had `deep dive: news` (or there's no session yet), this one's is a video, and the other way around.
+   - **Headlines agent** (Agent tool, `general-purpose`, `model: "sonnet"`, `run_in_background: true`), using the headlines template at the bottom of this file. On a news session it also researches the deep dive.
+   - **Video agent**, on a video session only (same settings), using the video template at the bottom of this file. It picks a video from the profile's YouTube favorites, saves the transcript and writes the deep-dive sheet.
+2. **Check-in** (AskUserQuestion): everything the session needs from the user, in one call, so there's nothing to come back for.
 
-Pull the following out of the request. Ask only about the ones it doesn't settle, all as questions in a single AskUserQuestion call, up to four:
+Pull the following out of the request. Ask only about the ones it doesn't settle, as up to four questions:
 
 | Slot | Settled by | If missing, ask with options |
 |---|---|---|
 | Length | "25 minute", "half hour", "quick" (15) | 25 min (Recommended, profile default), 15 min, 30 min, 45 min |
 | Kit | "home", "hotel", "gym", "Fitler" | Home (Recommended), Hotel room, Hotel gym, Fitler Club |
-| Each active injury in profile.md | "ankle feels better", "shoulder's fine" | Same as last time (Recommended), Better, Worse, New problem |
+| Each active injury in profile.md | "ankle feels better", "shoulder's fine" | Same as last time (Recommended); Better, and [the profile's criteria for the next phase]; Better, but not there yet; Worse. A new problem goes under Other. |
 | Voice | "in the British voice", a voice's name | Ask only if fewer than four other questions are needed: the default (Recommended) and three others from profile.md; the rest are reachable through Other |
 
 - Voice otherwise defaults to the first one under Voices in profile.md.
 - "Just go" (or similar) means don't ask anything. Use profile defaults, assume injuries are unchanged, and state the assumptions in one line.
-- Worse, or new: go gentler and say so. Better: still don't advance a phase unless the profile's criteria are met (from the profile). If unsure, ask one follow-up.
-- Any red flag from the playbook (can't bear weight, rapidly increasing swelling, numbness, giving way, getting worse after a week or two): say so in chat and suggest a clinician before building.
+- Better, with the criteria met: move to the next phase. Better but not there yet: same phase. Worse, or a new problem: go gentler and say so.
+- Any red flag from the playbook (can't bear weight, rapidly increasing swelling, numbness, giving way, getting worse after a week or two): say so in chat and suggest a clinician before building. This is the one case that stops the run.
 - If the user reports lasting changes (a new phase, clinician rules, new equipment), update `knowledge/profile.md`.
+
+## Unattended from here to the MP3
+
+Once the check-in is answered, don't ask the user anything else or wait on them:
+- Every choice from here has a default in this skill or the profile. Take it, and mention it in the final summary if it matters.
+- Every command and file write this skill uses is allow-listed in `.claude/settings.json`, so nothing prompts for permission. Run commands exactly as written (no leading `cd`, no absolute paths), use Read rather than shell commands to look at files, and keep writes to `workouts/`, `log.md`, `knowledge/exercise-science.md` and `knowledge/profile.md`.
+- Problems get fixed, not escalated: lint flags mean edit and rerun, and a render that exits 2 means trim and rerun.
+- Time box research: once the plan is posted, if an agent still hasn't reported, SendMessage it to stop searching and return what it has verified. Script around any gaps with form cues; never fill them by guessing.
 
 ## Step 2: plan (show it, don't wait for approval)
 
@@ -42,16 +53,16 @@ Rules:
 - Apply the injury playbook first, then pick only from what remains in today's kit. Where profile, playbook and library disagree, the strictest wins. Anything the profile bans is out.
 - No repeated exercises within a session. Avoid the main movements from the last session in `log.md`.
 
-Post the plan as a short table (block, minutes, format, movements) plus the equipment list, then go straight to scripting. The user can interrupt if they want changes.
+Post the plan as a short table (block, minutes, format, movements) plus the equipment list, then go straight to scripting. Don't wait for approval; the user may already have stepped away.
 
 ## Step 3: script
 
-Wait for the research agent's notification if it hasn't arrived yet. Then write the draft to `workouts/drafts/<YYYY-MM-DD>-<slug>.draft.txt`:
+Wait for the research agents' notifications if they haven't arrived yet (see the time box in Step 0). Then write the draft to `workouts/drafts/<YYYY-MM-DD>-<slug>.draft.txt`:
 - An `@@ <seconds> | <label>` line before every segment. Use one segment per spoken block (per minute for rolling minutes; work and transition can share a segment).
 - Draft to about measured wpm × seconds ÷ 60 words per segment. That's only a guide: the lint predicts each segment's spoken seconds for the chosen voice, wants 90 to 100 percent of the slot, and its guide column gives each segment's word count at the rate that voice actually speaks the draft. Size fixes to the guide; voices differ by ten percent or more. Each 60-second segment splits roughly 20 / 60 / 20: locator ("Minute nine of twenty-five"), movement, equipment and setup; then narrative; then form cue, injury cue if relevant, one countdown, and what to grab next. Scale longer segments.
 - Opening: the plan in a sentence or two, the injury rule, the stop rule (pain stays around two or three out of ten, sharp pain or new swelling means stop that movement), and setup time.
 - Close: box breathing with a short cue and a `[pause]` for each four-second phase (see tts-rules), a one-line recap, a sign-off.
-- Filler comes only from the research sheet. Never invent scores, prices, quotes or events. Use a few quick headlines plus one deep-dive thread told across several segments, and tie science to the movement happening that minute. Tone per profile: calm and focused, light humor, no hype.
+- Filler comes only from the research sheet, the video sheet and `knowledge/exercise-science.md`. Never invent scores, prices, quotes or events. Use a few quick headlines plus one deep-dive thread told across several segments, and tie science to the movement happening that minute (a movement with no entry in exercise-science gets a form cue instead). Credit a video deep dive to its channel when it starts ("This one comes from Asianometry's latest video"), and paraphrase it rather than quoting. Tone per profile: calm and focused, light humor, no hype.
 - Follow `knowledge/tts-rules.md` exactly: no digits at all (spell years as spoken: "seventeen eighty-one"), no symbols or brackets except `[pause 3s]` markers, no abbreviations, paragraph breaks between cue, narrative and handoff. Safety and form cues get their own short sentences; they're what must survive the voice.
 
 ## Step 4: build (one command, in the background)
@@ -64,20 +75,29 @@ tools/build.sh "workouts/drafts/<file>.draft.txt" "Workout <YYYY-MM-DD> <Focus> 
 - The lint runs first and stops the script if anything is flagged. "Overruns by" means cut words from that segment; "dead air" means add a little. Check quickly with `LINT_ONLY=1 tools/build.sh ...` before committing to a render.
 - Once the lint is clean, run it with `run_in_background: true`. Rendering takes about 0.7 times the length of the speech (a 25-minute workout takes about 17 minutes) and needs no server. Clips are cached, so reruns only render edits.
 - If it exits with code 2 (a segment overran its slot), trim that segment's words and rerun; it finishes in seconds. With the lint's prediction this should be rare; it can happen the first time a voice is used, before its exact pace is recorded.
+- After a successful render it copies the MP3 to the profile's Google Drive folder (My Drive/Workouts), which syncs to the user's phone, and prints where it went.
 - Options: `--voice <name or id>`, `--speed 1.05` (also slows or speeds the lint's prediction), `--steps 16` (the default 12 transcribed as clean as 16 or 32 in testing; 8 garbled cue words; time grows in proportion to steps).
 
 While it renders, post the log line and anything else useful. Don't wait idle.
 
 ## Step 5: deliver and log
 
-- Chat: plan table, equipment, voice, estimated runtime, and paths to `workouts/<name>.txt` and `workouts/<name>.mp3`. If SendUserFile is available, send the MP3 so it lands on the user's phone.
-- Append to `log.md` under Sessions: `- <date> | <N> min | <kit> | <voice> | <main movements> | <topics>`. No injury details.
+- Chat: plan table, equipment, voice, estimated runtime, paths to `workouts/<name>.txt` and `workouts/<name>.mp3`, and whether the build copied it to Google Drive (My Drive/Workouts). If SendUserFile is available, send the MP3 with `status: "proactive"` so it reaches the user's phone while they're away.
+- Append to `log.md` under Sessions: `- <date> | <N> min | <kit> | <voice> | <main movements> | <topics>`. Topics start with the deep dive, as `deep dive: video, <channel>, <title>` or `deep dive: news, <story>`, so the next session knows which kind comes next and which channel to skip. No injury details.
 - Feedback about a session (too long, too easy, a topic they loved) goes under Feedback in `log.md`, and applies from then on.
 
-## Research agent prompt template
+## Research prompt templates
 
-Fill in the bracketed parts. Neighborhood, pillars and the never-bring-up list come from profile.md (Basics and Content), so the template never drifts from the profile:
+Fill in the bracketed parts. Neighborhood, pillars and the never-bring-up list come from profile.md (Basics and Content), so the templates never drift from the profile. Keep the scope and the budget as written: a wide scope with no budget took ten minutes and seventy tool calls.
 
-> Research filler for a narrated workout on [weekday, date], [morning: preview today / evening: recap today]. The listener lives in [neighborhood]. Content pillars, rotated across sessions (recently used, so favor the others: [topics from the last two log entries]): [each Content pillar from profile.md, with its detail]; on this day in history ([month day]); fun facts. Never include: [the never-bring-up list, if any]. Also: one exercise-science fact for each of these movements: [movements, if known; otherwise skip].
+**Headlines agent.** Choose the three pillars yourself: Content pillars (not counting YouTube favorites) that don't appear in the last two log entries' topics, favoring sports in season. Include the bracketed news-session parts only on a news session.
+
+> Research quick headlines for a narrated workout on [weekday, date], [morning: preview today / evening: recap today]. The listener lives in [neighborhood]. Cover exactly these pillars, one headline each: [three pillars, each with its detail from profile.md]; plus one on-this-day item for [month day]. [News session: Also one deep-dive story from [a fourth pillar], with enough verified material to tell across five or more minutes: how it started, the key turns, the numbers, what's next.] Never include: [the never-bring-up list, or "nothing, the list is empty"]. [If the kit is already known: Also one exercise-science fact each for at most two of these movements, which aren't in knowledge/exercise-science.md: [movements]. Append the confirmed ones to that file in its format.]
 >
-> Search the web. Return a plain fact sheet: for each item, two to four sentences of verified facts with exact scores, numbers, names and dates, plus the source URL. Pick four or five pillars, about three quick headlines and one deep-dive story with enough material to tell across five or more minutes. Only include what you verified today. Never guess scores, prices or quotes; if a result isn't confirmed, leave it out. Write the sheet to workouts/research/[date].md and return it.
+> Budget: at most ten web searches and four page fetches in all [news session: sixteen and six]. Stop as soon as you have what's listed. One authoritative source per item is enough: the team or league site, AP, ESPN, a company's own release, a city or transit agency page. For each item, give two to four sentences of facts with exact scores, numbers, names and dates, plus the source URL and its date. Never guess scores, prices or quotes; leave out anything you can't confirm within the budget. Write the sheet to workouts/research/[date].md and return it.
+
+**Video agent** (video sessions only):
+
+> Prepare the deep dive for a narrated workout from the listener's favorite YouTube channels. Run `python3 tools/youtube.py pick` to list recent unused videos. Choose one that works by ear alone (a story, a history, how something works; skip anything that depends on watching an equation or diagram), from a channel other than [the channel of the last video deep dive in log.md, or "any"], and preferably under an hour. Run `python3 tools/youtube.py transcript <id>` and read the saved transcript in full.
+>
+> Write workouts/research/videos/<id>.md: the title, channel, upload date and URL; then six to eight story beats in the video's order, each two to four sentences, using only facts, names, numbers and dates the video states; then two or three plain-language explanations of its key technical ideas, each short enough to say in thirty seconds. Paraphrase rather than quote. If the captions are automatic, flag any name or number that looks misheard instead of guessing. Return the sheet.

@@ -5,7 +5,12 @@
       "Bash(LINT_ONLY=1 tools/build.sh:*)",
       "Bash(python3 tools/tts_build.py:*)",
       "Bash(python3 tools/voices.py:*)",
+      "Bash(python3 tools/youtube.py:*)",
       "Bash(date:*)",
+      "Edit(/workouts/**)",
+      "Edit(/log.md)",
+      "Edit(/knowledge/exercise-science.md)",
+      "Edit(/knowledge/profile.md)",
       "WebSearch",
       "WebFetch"
     ]
