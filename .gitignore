@@ -1,0 +1,5 @@
+workouts/.audio-cache/
+__pycache__/
+.DS_Store
+workouts/*.mp3
+workouts/samples/

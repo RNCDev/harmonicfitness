@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tools/build.sh:*)",
+      "Bash(LINT_ONLY=1 tools/build.sh:*)",
+      "Bash(python3 tools/tts_build.py:*)",
+      "Bash(date:*)",
+      "WebSearch",
+      "WebFetch"
+    ]
+  }
+}
