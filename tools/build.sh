@@ -27,11 +27,12 @@ for ARG in "$@"; do
 done
 if [ -z "$VOICE" ]; then VOICE="${DEFAULT_VOICE:-demo0001}"; set -- "$@" --voice "$VOICE"; fi
 
-python3 "$HERE/tts_build.py" "$DRAFT" --voice "$VOICE" ${SPEED:+--speed "$SPEED"} \
-  --wpm "${WPM:-170}" --out "$ROOT/workouts/$NAME.txt"
+# Both steps run on VoiceStudio's bundled Python, so no other Python is needed.
+[ -x "$VS_PY" ] || { echo "VoiceStudio runtime not found at $VS_PY (open the VoiceStudio app once to install it)"; exit 1; }
+"$VS_PY" "$HERE/tts_build.py" "$DRAFT" --voice "$VOICE" ${SPEED:+--speed "$SPEED"} \
+  --wpm "${WPM:-185}" --out "$ROOT/workouts/$NAME.txt"
 [ -n "$LINT_ONLY" ] && exit 0
 
-[ -x "$VS_PY" ] || { echo "VoiceStudio runtime not found at $VS_PY (open the VoiceStudio app once to install it)"; exit 1; }
 LOG="${TMPDIR:-/tmp}/workout-render.log"
 set +e
 "$VS_PY" "$HERE/render.py" "$DRAFT" --out "$ROOT/workouts/$NAME.mp3" "$@" 2>"$LOG"

@@ -28,6 +28,7 @@ import wave
 
 VS_DATA = os.path.expanduser("~/Library/Application Support/OmniVoice")
 VS_PROJECT = os.path.expanduser("~/Library/Application Support/VoiceStudio/runtime/project")
+VS_PYTHON = os.path.join(VS_PROJECT, ".venv", "bin", "python")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACE_FILE = os.path.join(ROOT, "workouts", ".audio-cache", "voice-pace.json")
 
@@ -36,6 +37,13 @@ EDGE_PAD = 0.2           # fade_and_pad_audio adds 0.1 s of silence at each end
 CHUNK_THRESHOLD = 30.0   # OmniVoiceGenerationConfig.audio_chunk_threshold
 CHUNK_DURATION = 15.0    # OmniVoiceGenerationConfig.audio_chunk_duration
 CHUNK_GAP = 0.3          # cross_fade_chunks silence between chunks
+
+
+def use_voicestudio_python():
+    """OmniVoice's text helpers need Python 3.11 or newer, and stock macOS ships 3.9.
+    When a tool is run directly on an older Python, rerun it under VoiceStudio's."""
+    if sys.version_info < (3, 11) and os.access(VS_PYTHON, os.X_OK):
+        os.execv(VS_PYTHON, [VS_PYTHON, *sys.argv])
 
 
 @functools.lru_cache(maxsize=None)
@@ -185,4 +193,5 @@ def main():
 
 
 if __name__ == "__main__":
+    use_voicestudio_python()
     sys.exit(main())

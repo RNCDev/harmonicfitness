@@ -212,4 +212,6 @@ def main():
 
 
 if __name__ == "__main__":
+    from voices import use_voicestudio_python
+    use_voicestudio_python()
     main()
