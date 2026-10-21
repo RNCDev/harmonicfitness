@@ -17,11 +17,15 @@ Both run on this Mac through `mlx-audio` in VoiceStudio's bundled Python. Their 
 
 | Engine | Strength | Speed on this M3 |
 |---|---|---|
-| Chatterbox Turbo (`mlx-community/chatterbox-turbo-fp16`), Coach E's default | Most natural, human delivery | About 0.75 times the speech's length |
+| Chatterbox Turbo (`mlx-community/chatterbox-turbo-fp16`), Coach E's default | Most natural, human delivery | About 0.7 times the speech's length |
 | Chatterbox (`mlx-community/Chatterbox-TTS-fp16`), the full-size model | Sounds as good as Turbo; also takes an expressiveness setting | About 1.8 times |
-| Qwen3-TTS (`mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`) | Clearest diction | About 1.3 times |
+| Qwen3-TTS (`mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`) | Clearest diction | About 1.45 times |
 
 Neither decides a clip's length in advance, so the lint predicts it from each voice's measured rate (recorded by every render) and the render pads or borrows a little from the next segment. Expect each segment within a few percent of plan.
+
+Until a voice's first render, the lint assumes the median rate of the voices already measured (both coach voices measure about 14.6 to 14.8 weighted characters a second). A reference clip's own rate is a poor guess: for Coach E it said 10.3, about 30 percent slow, which would script a session a third short. So `tools/build.sh` won't render a session with an unmeasured voice; render the smoke test with it first.
+
+Chatterbox Turbo encodes the reference clip once per render and reuses it for every clip (it takes about half a second each time). The full-size Chatterbox and Qwen3 are given the clip on every call, since the full-size model forgets it between calls and Qwen3 caches it internally. There's no quantized Turbo build on Hugging Face; the 8-bit and 4-bit builds of the full-size model were slower than Turbo.
 
 Tried and dropped on 2026-10-20: the VoiceStudio Gallery voices on OmniVoice (mechanical), Kokoro (flat), Qwen3-TTS preset speakers (fine, but Ryan far too slow), VoxCPM2 (good but nearly four times real time), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower).
 
@@ -43,4 +47,4 @@ What didn't: "upbeat, natural energy, like leading a class" came out goofy and h
 1. Design takes as above, or record ten to fifteen seconds of a real person (only yourself, or someone who has agreed) reading a coaching line in a quiet room.
 2. Save the clip as `voices/<name>.wav`, its words as `voices/<name>.txt`, and the engine as `voices/<name>.json`.
 3. Add it under Voices in `profile.md`; the first listed is the default.
-4. Render the smoke test with it: `tools/build.sh workouts/drafts/smoke-test.draft.txt "smoke-test" --voice "<name>"`. The first render records its pace, which makes the lint's predictions closer from then on.
+4. Render the smoke test with it: `tools/build.sh workouts/drafts/smoke-test.draft.txt "smoke-test" --voice "<name>"`. The first render downloads the engine's weights if needed and records the voice's pace. Session builds refuse the voice until this has run (exit code 3); `ALLOW_ESTIMATED=1` overrides that.

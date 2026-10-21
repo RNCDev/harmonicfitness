@@ -7,12 +7,17 @@ by @handle on the "YouTube favorites" line under Content in knowledge/profile.md
 workouts/research/videos/<id>.txt. A video counts as used once its summary sheet,
 workouts/research/videos/<id>.md, exists; `pick` skips it from then on.
 
+A long video can be told as a series, one part per video session: its sheet
+says "- Parts: 3" and "- Parts done: 1" in its header, `pick` lists it first as a
+series to continue, and `done` marks the next part told.
+
 yt-dlp ships with VoiceStudio's bundled Python, so the tool reruns itself there
 when the system python3 doesn't have it.
 
     python3 tools/youtube.py pick                 # recent unused videos per channel
     python3 tools/youtube.py pick --recent 6      # look further back
     python3 tools/youtube.py transcript <id or URL>
+    python3 tools/youtube.py done <id>            # after a session tells a series part
 """
 import argparse
 import html
@@ -31,12 +36,22 @@ MIN_SECONDS, MAX_SECONDS = 5 * 60, 3 * 60 * 60   # skip Shorts and marathon stre
 PARAGRAPH_WORDS = 120                             # break at the next sentence end after this
 TAG_RE = re.compile(r"\[(?:music|applause|laughter)\]", re.IGNORECASE)
 
-try:
-    import yt_dlp
-except ImportError:
-    if os.access(VS_PYTHON, os.X_OK) and sys.executable != VS_PYTHON:
-        os.execv(VS_PYTHON, [VS_PYTHON, *sys.argv])
-    raise SystemExit("yt-dlp not found (open the VoiceStudio app once to install its runtime)")
+PARTS_RE = re.compile(r"^- Parts:\s*(\d+)\s*$", re.MULTILINE)
+DONE_RE = re.compile(r"^- Parts done:\s*(\d+)\s*$", re.MULTILINE)
+TITLE_RE = re.compile(r"^# (.+)$", re.MULTILINE)
+yt_dlp = None
+
+
+def load_yt_dlp():
+    """Import yt-dlp, rerunning under VoiceStudio's Python if this one lacks it."""
+    global yt_dlp
+    try:
+        import yt_dlp as module
+    except ImportError:
+        if os.access(VS_PYTHON, os.X_OK) and sys.executable != VS_PYTHON:
+            os.execv(VS_PYTHON, [VS_PYTHON, *sys.argv])
+        raise SystemExit("yt-dlp not found (open the VoiceStudio app once to install its runtime)")
+    yt_dlp = module
 
 
 def handles():
@@ -55,11 +70,58 @@ def used():
     return {name[:-3] for name in os.listdir(VIDEOS) if name.endswith(".md")}
 
 
+def series_state(sheet):
+    """(parts, parts done) from a sheet's text; a sheet without a Parts line is one part, done."""
+    parts = PARTS_RE.search(sheet)
+    if not parts:
+        return 1, 1
+    done = DONE_RE.search(sheet)
+    return int(parts.group(1)), int(done.group(1)) if done else 0
+
+
+def in_progress(folder=VIDEOS):
+    """[(id, next part, parts, title)] for series with parts still to tell."""
+    out = []
+    if not os.path.isdir(folder):
+        return out
+    for name in sorted(os.listdir(folder)):
+        if name.endswith(".md"):
+            with open(os.path.join(folder, name), encoding="utf-8") as f:
+                sheet = f.read()
+            parts, done = series_state(sheet)
+            if done < parts:
+                title = TITLE_RE.search(sheet)
+                out.append((name[:-3], done + 1, parts, title.group(1) if title else ""))
+    return out
+
+
+def mark_done(video, folder=VIDEOS):
+    """Record that the next part of a series was told. Returns (parts done, parts)."""
+    path = os.path.join(folder, f"{video}.md")
+    if not os.path.exists(path):
+        raise SystemExit(f"No sheet at {os.path.relpath(path, ROOT)}")
+    with open(path, encoding="utf-8") as f:
+        sheet = f.read()
+    parts, done = series_state(sheet)
+    if not PARTS_RE.search(sheet):
+        raise SystemExit(f"{video} isn't a series (its sheet has no '- Parts:' line)")
+    done = min(done + 1, parts)
+    if DONE_RE.search(sheet):
+        sheet = DONE_RE.sub(f"- Parts done: {done}", sheet, count=1)
+    else:
+        sheet = PARTS_RE.sub(lambda m: f"{m.group(0)}\n- Parts done: {done}", sheet, count=1)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(sheet)
+    return done, parts
+
+
 def ydl(**opts):
     return yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True, **opts})
 
 
 def pick(recent):
+    for vid, part, parts, title in in_progress():
+        print(f"{'continue series':<29} {vid}  part {part} of {parts}  {title}")
     seen = used()
     with ydl(extract_flat=True, playlistend=recent * 3) as y:
         for h in handles():
@@ -142,7 +204,14 @@ def main():
     p.add_argument("--recent", type=int, default=3, help="videos per channel (default 3)")
     t = sub.add_parser("transcript", help="save a video's transcript for the deep dive")
     t.add_argument("video", help="video id or URL")
+    d = sub.add_parser("done", help="mark the next part of a series as told")
+    d.add_argument("video", help="video id")
     args = ap.parse_args()
+    if args.cmd == "done":
+        done, parts = mark_done(args.video)
+        print(f"{args.video}: part {done} of {parts} told" + ("; series finished" if done == parts else ""))
+        return
+    load_yt_dlp()
     if args.cmd == "pick":
         pick(args.recent)
     else:

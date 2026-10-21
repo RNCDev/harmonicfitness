@@ -4,7 +4,12 @@
 The workout skill plans whole-body sessions: anything the last session left out
 comes first next time, and the last session's main movements are avoided. This
 reads the Sessions list in log.md, maps each movement to the groups it trains, and
-prints what to prioritize and what to avoid.
+prints what to prioritize and what to avoid. It also prints the last session's
+format (today's should differ) and each movement's last logged load and tempo, so
+the plan can progress from it.
+
+A session line is six fields, then optional named ones:
+    - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format> | loads: <movement> = <load and tempo>; ...
 
     python3 tools/coverage.py            # the last session, plus a look further back
     python3 tools/coverage.py --last 3   # groups across the last three sessions
@@ -37,8 +42,8 @@ GROUPS = [
 NOT_STRENGTH = r"finisher|stickhandling|punch|breathing|stretch|mobility|bike|march"
 
 
-def sessions(path=LOG):
-    """Each logged session as (date, [movements]), oldest first."""
+def entries(path=LOG):
+    """Each logged session as a dict (date, movements, format, loads), oldest first."""
     out, in_sessions = [], False
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -47,8 +52,35 @@ def sessions(path=LOG):
                 continue
             if in_sessions and line.startswith("- "):
                 fields = [x.strip() for x in line[2:].split("|")]
-                if len(fields) >= 5:
-                    out.append((fields[0], [m.strip() for m in fields[4].split(",") if m.strip()]))
+                if len(fields) < 5:
+                    continue
+                e = {"date": fields[0], "movements": [m.strip() for m in fields[4].split(",") if m.strip()],
+                     "format": None, "loads": {}}
+                for extra in fields[6:]:
+                    key, _, value = extra.partition(":")
+                    key, value = key.strip().lower(), value.strip()
+                    if key == "format" and value:
+                        e["format"] = value
+                    elif key == "loads":
+                        for item in value.split(";"):
+                            mv, _, load = item.partition("=")
+                            if mv.strip() and load.strip():
+                                e["loads"][mv.strip()] = load.strip()
+                out.append(e)
+    return out
+
+
+def sessions(path=LOG):
+    """Each logged session as (date, [movements]), oldest first."""
+    return [(e["date"], e["movements"]) for e in entries(path)]
+
+
+def last_loads(log, look_back=6):
+    """{movement: (date, load)}: the newest logged load per movement in recent sessions."""
+    out = {}
+    for e in log[-look_back:]:
+        for mv, load in e["loads"].items():
+            out[mv] = (e["date"], load)
     return out
 
 
@@ -75,10 +107,11 @@ def main():
     ap.add_argument("--log", default=LOG)
     args = ap.parse_args()
 
-    log = sessions(args.log)
-    if not log:
+    full = entries(args.log)
+    if not full:
         print("No sessions in log.md yet: every group is open, nothing to avoid.")
         return 0
+    log = [(e["date"], e["movements"]) for e in full]
     recent = log[-args.last:]
     movements = [mv for _, mvs in recent for mv in mvs]
     hit, unmapped = coverage(movements)
@@ -91,6 +124,13 @@ def main():
     print("Avoid (last session's main movements): " + ", ".join(log[-1][1]))
     if unmapped:
         print("Unmapped (judge these by hand): " + ", ".join(unmapped))
+    fmt = full[-1]["format"]
+    print("Last format: " + (f"{fmt} (use a different one today)" if fmt else "not logged"))
+    loads = last_loads(full)
+    if loads:
+        print("Last loads (progress from these):")
+        for mv, (date, load) in sorted(loads.items(), key=lambda kv: kv[1][0], reverse=True):
+            print(f"  {mv}: {load} ({date})")
     return 0
 
 

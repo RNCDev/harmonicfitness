@@ -24,8 +24,13 @@ Qwen3-TTS and Chatterbox decide their length as they speak, so for them the
 prediction is the voice's measured rate (weighted characters per second, recorded
 by each render) applied to the text. It is an estimate, typically within a few
 percent over a whole segment; render.py absorbs the difference in the padding.
+Until a voice's first render, its rate is seeded from the other voices' measured
+rates: a reference clip's own rate came out about 30 percent slow for Coach E.
+The character weights are vendored in char_weight.py, so this path needs no
+VoiceStudio files.
 
-    python3 tools/voices.py        # list voices with their engine and pace
+    python3 tools/voices.py                     # list voices with their engine and pace
+    python3 tools/voices.py --measured "Coach G"   # exit 0 if its rate is measured, 1 if estimated
 """
 import functools
 import hashlib
@@ -34,9 +39,13 @@ import json
 import os
 import re
 import sqlite3
+import statistics
 import subprocess
 import sys
 import wave
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from char_weight import weight  # noqa: E402  (OmniVoice's weights, vendored)
 
 VS_DATA = os.path.expanduser("~/Library/Application Support/OmniVoice")
 VS_PROJECT = os.path.expanduser("~/Library/Application Support/VoiceStudio/runtime/project")
@@ -46,6 +55,8 @@ PACE_FILE = os.path.join(ROOT, "workouts", ".audio-cache", "voice-pace.json")
 VOICES_DIR = os.path.join(ROOT, "voices")
 ENGINES = ("omnivoice", "qwen3", "chatterbox")
 MLX_EDGE = 0.08          # render.py trims engine silence to 40 ms at each end
+MIN_MEASURED = 30.0      # seconds of rendered speech before a voice's rate counts as measured
+DEFAULT_PACE = 14.5      # weighted chars/s for a new voice when no voice has been measured yet
 
 FRAME_RATE = 25          # OmniVoice audio tokens per second
 EDGE_PAD = 0.2           # fade_and_pad_audio adds 0.1 s of silence at each end
@@ -126,6 +137,11 @@ def lookup(voice):
     if found:
         return found
     db = os.path.join(VS_DATA, "omnivoice.db")
+    if not os.path.exists(db):
+        here = sorted(os.path.splitext(f)[0] for f in os.listdir(VOICES_DIR) if f.endswith(".wav")) \
+            if os.path.isdir(VOICES_DIR) else []
+        raise SystemExit(f"No voice '{voice}' in voices/ ({', '.join(here) or 'none'}), "
+                         "and no VoiceStudio voice database to look in.")
     with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM voice_profiles WHERE id=? OR name=? COLLATE NOCASE",
@@ -210,18 +226,24 @@ def record_rate(v, weight, seconds):
         json.dump(data, f, indent=1)
 
 
-def weight(text):
-    return _estimator().calculate_total_weight(text)
+def seed_pace(data=None):
+    """A starting rate for a voice no render has measured: the median of the measured
+    rates on file (only entries with both weight and seconds; OmniVoice entries hold
+    reference tokens instead), else DEFAULT_PACE. The reference clip's own rate is
+    not used: for Coach E it was 10.3 chars/s against a measured 14.6."""
+    data = _recorded() if data is None else data
+    rates = [r["weight"] / r["seconds"] for r in data.values()
+             if isinstance(r, dict) and r.get("weight") and (r.get("seconds") or 0) > MIN_MEASURED]
+    return statistics.median(rates) if rates else DEFAULT_PACE
 
 
 def pace(v):
-    """Weighted characters per second: the voice's speaking rate."""
+    """Weighted characters per second: the voice's speaking rate, and whether it's measured."""
     if v["engine"] != "omnivoice":
         rec = _recorded().get(_rate_key(v))
-        if rec and rec["seconds"] > 30:
+        if rec and rec["seconds"] > MIN_MEASURED:
             return rec["weight"] / rec["seconds"], True
-        # Until a render measures it, assume it speaks at its reference clip's rate.
-        return weight(v["ref_text"]) / _audio_seconds(v["ref_audio"]), False
+        return seed_pace(), False
     ref_text, ref_tokens, exact = reference(v)
     return _estimator().calculate_total_weight(ref_text) / (ref_tokens / FRAME_RATE), exact
 
@@ -251,9 +273,15 @@ def clip_seconds(text, v, speed=None):
 
 
 def main():
+    if sys.argv[1:2] == ["--measured"]:
+        if len(sys.argv) != 3:
+            raise SystemExit("usage: python3 tools/voices.py --measured <voice>")
+        return 0 if pace(lookup(sys.argv[2]))[1] else 1
     db = os.path.join(VS_DATA, "omnivoice.db")
-    with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
-        ids = [r[0] for r in conn.execute("SELECT id FROM voice_profiles ORDER BY created_at")]
+    ids = []
+    if os.path.exists(db):
+        with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
+            ids = [r[0] for r in conn.execute("SELECT id FROM voice_profiles ORDER BY created_at")]
     if os.path.isdir(VOICES_DIR):
         ids = sorted(os.path.splitext(f)[0] for f in os.listdir(VOICES_DIR) if f.endswith(".wav")) + ids
     print(f"{'name':28} {'id':10} {'engine':10} pace")

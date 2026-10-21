@@ -7,6 +7,7 @@
       "Bash(python3 tools/voices.py:*)",
       "Bash(python3 tools/youtube.py:*)",
       "Bash(python3 tools/coverage.py:*)",
+      "Bash(python3 tools/feeds.py:*)",
       "Bash(python3 -m unittest:*)",
       "Bash(date:*)",
       "Edit(/workouts/**)",
