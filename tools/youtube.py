@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 """YouTube deep dives: find a fresh video on a favorite channel and save its transcript.
 
 Every other session's deep dive retells a video from one of the channels listed
-by @handle on the "YouTube favorites" line under Content in me/profile.md.
+by @handle in youtube_favorites, in the settings at the top of me/profile.md.
 `transcript` saves the video's English captions as plain paragraphs in
 me/workouts/research/videos/<id>.txt. A video counts as used once its summary sheet,
 me/workouts/research/videos/<id>.md, exists; `pick` skips it from then on.
@@ -11,18 +10,15 @@ A long video can be told as a series, one part per video session: its sheet
 says "- Parts: 3" and "- Parts done: 1" in its header, `pick` lists it first as a
 series to continue, and `done` marks the next part told.
 
-The quiz beat can come from a puzzle channel, listed by @handle on the "Puzzles"
-line under Content. `puzzles` lists its recent videos not yet used as a quiz; one
+The quiz beat can come from a puzzle channel, listed by @handle in puzzles in the
+same settings. `puzzles` lists its recent videos not yet used as a quiz; one
 counts as used once me/workouts/research/puzzles/<id>.md exists.
 
-yt-dlp is installed in the project's environment (.venv, made by tools/setup.sh), so
-the tool reruns itself there when the system python3 doesn't have it.
-
-    python3 tools/youtube.py pick                 # recent unused videos per channel
-    python3 tools/youtube.py pick --recent 6      # look further back
-    python3 tools/youtube.py transcript <id or URL>
-    python3 tools/youtube.py done <id>            # after a session tells a series part
-    python3 tools/youtube.py puzzles              # recent unused puzzles for the quiz
+    ./sweatcast youtube pick                 # recent unused videos per channel
+    ./sweatcast youtube pick --recent 6      # look further back
+    ./sweatcast youtube transcript <id or URL>
+    ./sweatcast youtube done <id>            # after a session tells a series part
+    ./sweatcast youtube puzzles              # recent unused puzzles for the quiz
 """
 import argparse
 import html
@@ -34,7 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
-from paths import PUZZLES, VENV_PYTHON, VIDEOS, show  # noqa: E402
+from paths import PUZZLES, VIDEOS, show  # noqa: E402
 
 MIN_SECONDS, MAX_SECONDS = 5 * 60, 3 * 60 * 60   # skip Shorts and marathon streams
 PUZZLE_MAX_SECONDS = 30 * 60                      # a quiz puzzle is short
@@ -49,21 +45,20 @@ yt_dlp = None
 
 
 def load_yt_dlp():
-    """Import yt-dlp, rerunning under the project's environment if this Python lacks it."""
+    """Import yt-dlp, which the project's environment has (./sweatcast runs this there)."""
     global yt_dlp
     try:
         import yt_dlp as module
     except ImportError:
-        if os.access(VENV_PYTHON, os.X_OK) and os.path.realpath(sys.executable) != os.path.realpath(VENV_PYTHON):
-            os.execv(VENV_PYTHON, [VENV_PYTHON, *sys.argv])
-        raise SystemExit("yt-dlp not found: run tools/setup.sh to make the project's environment")
+        raise SystemExit("yt-dlp not found: run this as ./sweatcast youtube ..., after ./sweatcast setup")
     yt_dlp = module
 
 
 def handles(label="YouTube favorites", profile=None):
     found = context.handles(context.profile(profile), label)
     if not found:
-        raise SystemExit(f"No '{label}' line with @handles under Content in profile.md.")
+        key = context.HANDLE_KEYS.get(label, label)
+        raise SystemExit(f"No @handles in {key} in the settings at the top of profile.md.")
     return found
 
 

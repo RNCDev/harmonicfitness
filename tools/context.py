@@ -1,23 +1,23 @@
-#!/usr/bin/env python3
 """The listener's context files: the one place that reads and writes them.
 
 me/profile.md, health.md, log.md and exercise-science.md are Markdown that Claude
 reads and the tools parse. Every tool goes through this module, so a format lives in
-one place. Each file opens with front matter naming its format's version:
+one place. Each file opens with TOML front matter naming its format's version:
 
-    ---
-    schema: 1
-    ---
+    +++
+    schema = 2
+    +++
 
-A file from an older sweatcast (no front matter is schema 0) stops the tools with
-the command that brings it up to date, `python3 tools/migrate.py`.
+The profile's front matter also holds every setting a tool reads (voices, delivery
+folder, words per minute, YouTube channels, puzzles, feeds), so the prose below it
+is free-form and only Claude reads it. A file from an older sweatcast (schema 1 used
+`---` front matter, schema 0 had none) stops the tools with the command that brings
+it up to date, `./sweatcast migrate`.
 
-Standard library only, so the skills can run it with the system python3.
-
-    python3 tools/context.py get default-voice     # also: wpm, voices
-    python3 tools/context.py deliver               # existing delivery folders, one per line
-    python3 tools/context.py check                 # every file's format, with line numbers
-    python3 tools/context.py log-session --date 2026-10-21 --minutes 25 --kit Home \\
+    ./sweatcast get default-voice     # also: wpm, voices
+    ./sweatcast deliver               # existing delivery folders, one per line
+    ./sweatcast check                 # every file's format, and lines not filled in yet
+    ./sweatcast log-session --date 2026-10-21 --minutes 25 --kit Home \\
         --voice "Chatterbox Coach" --movements "goblet squat, seated row" \\
         --topics "deep dive: news, a story" --format "rolling minutes" \\
         --loads "goblet squat = twenties, three down; seated row = fifteens"
@@ -25,23 +25,31 @@ Standard library only, so the skills can run it with the system python3.
 import argparse
 import datetime as dt
 import glob
+import json
 import os
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, NamedTuple, Optional
+
+try:
+    import tomllib
+except ImportError:   # Python before 3.11, such as the Mac's own python3
+    raise SystemExit("sweatcast's tools need Python 3.11, which ./sweatcast runs them with. "
+                     "Use ./sweatcast <command> (./sweatcast help lists them).")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
-SCHEMA = 1
-FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)
-SCHEMA_RE = re.compile(r"^schema:\s*(\d+)\s*$", re.MULTILINE)
+SCHEMA = 2
+TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
+YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
+SCHEMA_LINE_RE = re.compile(r"^schema:\s*(\d+)\s*$", re.MULTILINE)
 FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday")
-FEED_RE = re.compile(r"^- (.+?) \((\w+)\):\s*(.+?)\s*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+HANDLE_KEYS = {"YouTube favorites": "youtube_favorites", "Puzzles": "puzzles"}
 
 
 def files():
@@ -49,26 +57,78 @@ def files():
     return [paths.PROFILE, paths.HEALTH, paths.LOG, paths.EXERCISE_SCIENCE]
 
 
-# ---- schema and front matter ---------------------------------------------------------
+# ---- front matter --------------------------------------------------------------------
+
+def front(text):
+    """(settings dict, body). Schema-1 `---` front matter gives {"schema": 1}; none gives {}."""
+    m = TOML_FRONT_RE.match(text)
+    if m:
+        try:
+            return tomllib.loads(m.group(1)), text[m.end():]
+        except tomllib.TOMLDecodeError as e:
+            raise SystemExit(f"The settings block at the top of the file isn't valid TOML: {e}")
+    m = YAML_FRONT_RE.match(text)
+    if m:
+        s = SCHEMA_LINE_RE.search(m.group(1))
+        return ({"schema": int(s.group(1))} if s else {}), text[m.end():]
+    return {}, text
+
 
 def schema_of(text):
     """The schema a file's front matter names; 0 when it has none (before 2.0.0)."""
-    m = FRONT_RE.match(text)
-    if not m:
+    try:
+        settings, _ = front(text)
+    except SystemExit:
+        return SCHEMA   # a TOML block, just a broken one: check() says what's wrong
+    try:
+        return int(settings.get("schema", 0))
+    except (TypeError, ValueError):
         return 0
-    s = SCHEMA_RE.search(m.group(1))
-    return int(s.group(1)) if s else 0
 
 
 def body(text):
     """A file's text without its front matter."""
-    m = FRONT_RE.match(text)
-    return text[m.end():] if m else text
+    return front(text)[1]
 
 
-def with_front_matter(text, schema=SCHEMA):
-    """Text with front matter naming `schema`, replacing any it already has."""
-    return f"---\nschema: {schema}\n---\n" + body(text)
+def toml_value(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, str):
+        return json.dumps(v, ensure_ascii=False)   # JSON's string escapes are valid TOML
+    if isinstance(v, list):
+        return "[" + ", ".join(toml_value(x) for x in v) + "]"
+    raise TypeError(f"can't write {type(v).__name__} as TOML")
+
+
+def dump_settings(settings, comments=None):
+    """Settings as TOML: plain keys first, then each list of tables ([[voices]], [[feeds]])."""
+    comments = comments or {}
+    plain = {k: v for k, v in settings.items() if not (isinstance(v, list) and v and isinstance(v[0], dict))}
+    tables = {k: v for k, v in settings.items() if k not in plain}
+    out = []
+    for k, v in plain.items():
+        if k in comments:
+            out.append(f"# {comments[k]}")
+        out.append(f"{k} = {toml_value(v)}")
+    for k, rows in tables.items():
+        if k in comments:
+            out += ["", f"# {comments[k]}"]
+        for row in rows:
+            out += ["", f"[[{k}]]"] + [f"{rk} = {toml_value(rv)}" for rk, rv in row.items()]
+    return "\n".join(out)
+
+
+def with_front_matter(text, schema=SCHEMA, settings=None, comments=None):
+    """Text with front matter for `schema`, replacing any it already has. Schema 1 is
+    the old `---` form; 2 and later are TOML, carrying `settings` when given."""
+    rest = body(text)
+    if schema < 2:
+        return f"---\nschema: {schema}\n---\n" + rest
+    merged = {"schema": schema, **{k: v for k, v in (settings or {}).items() if k != "schema"}}
+    return f"+++\n{dump_settings(merged, comments)}\n+++\n" + rest
 
 
 def schema_problem(path, text):
@@ -78,15 +138,19 @@ def schema_problem(path, text):
         return None
     if found < SCHEMA:
         return (f"{show(path)} is in an older sweatcast format (schema {found}; this engine reads "
-                f"schema {SCHEMA}). Bring the context folder up to date with: python3 tools/migrate.py")
+                f"schema {SCHEMA}). Bring the context folder up to date with: ./sweatcast migrate")
     return (f"{show(path)} is in a newer format (schema {found}) than this engine reads (schema {SCHEMA}). "
             "Pull the latest sweatcast.")
 
 
-def read(path, what="file"):
-    """A context file's text, without front matter, after checking its schema."""
+def read_raw(path, what="file"):
     with open(paths.require(path, what), encoding="utf-8") as f:
-        text = f.read()
+        return f.read()
+
+
+def read(path, what="file"):
+    """A context file's body (without front matter), after checking its schema."""
+    text = read_raw(path, what)
     problem = schema_problem(path, text)
     if problem:
         raise SystemExit(problem)
@@ -94,13 +158,16 @@ def read(path, what="file"):
 
 
 def write(path, text):
-    """Replace a context file's text atomically, keeping its front matter."""
-    with open(path, encoding="utf-8") as f:
-        current = f.read()
-    m = FRONT_RE.match(current)
+    """Replace a context file's body atomically, keeping its front matter."""
+    current = read_raw(path)
+    m = TOML_FRONT_RE.match(current) or YAML_FRONT_RE.match(current)
+    _atomic_write(path, (m.group(0) if m else "") + text)
+
+
+def _atomic_write(path, text):
     tmp = path + ".part"
     with open(tmp, "w", encoding="utf-8") as f:
-        f.write((m.group(0) if m else "") + text)
+        f.write(text)
     os.replace(tmp, path)
 
 
@@ -117,36 +184,167 @@ def section(text, heading):
     return out
 
 
-# ---- the profile -----------------------------------------------------------------------
-
-def profile(path=None):
-    return read(path or paths.PROFILE, "profile")
-
-
 def placeholder(value):
     """True for a value still showing me.example's [bracketed] hint."""
-    return value.startswith("[")
+    return isinstance(value, str) and value.strip().startswith("[")
 
 
-def bullet(text, label):
-    """The value after `- <label>...:` on the first such line, or None."""
-    for line in text.splitlines():
-        if line.startswith("- " + label):
-            _, sep, value = line.partition(":")
-            if sep:
-                return value.strip()
-    return None
+def unfilled(value):
+    return value is None or (isinstance(value, str) and (not value.strip() or placeholder(value)))
 
 
-def wpm(text):
-    """The drafting guide's words per minute ("- Measured words per minute ...: 165"), or None."""
+# ---- the profile -----------------------------------------------------------------------
+
+@dataclass
+class Profile:
+    settings: dict
+    body: str
+    path: str = ""
+
+
+def profile(path=None):
+    """The profile: its settings (the TOML at the top) and its prose."""
+    path = path or paths.PROFILE
+    text = read_raw(path, "profile")
+    problem = schema_problem(path, text)
+    if problem:
+        raise SystemExit(problem)
+    settings, rest = front(text)
+    return Profile(settings, rest, path)
+
+
+def voices(p):
+    """[(name, description)] from [[voices]]; the first is the default."""
+    return [(v["name"].strip(), str(v.get("description", "")).strip())
+            for v in p.settings.get("voices") or [] if isinstance(v, dict) and not unfilled(v.get("name"))]
+
+
+def default_voice(p):
+    found = voices(p)
+    return found[0][0] if found else None
+
+
+def wpm(p):
+    v = p.settings.get("words_per_minute")
+    return int(v) if isinstance(v, (int, float)) and v > 0 else None
+
+
+def delivery(p):
+    """The deliver_to folder with ~ expanded, or None (unset, or still the hint)."""
+    value = p.settings.get("deliver_to")
+    if unfilled(value):
+        return None
+    return os.path.expanduser(value.strip())
+
+
+def delivery_folders(p):
+    """(pattern, [existing folders it matches]); * in the pattern matches anything."""
+    pattern = delivery(p)
+    if not pattern:
+        return None, []
+    found = sorted(glob.glob(pattern)) if glob.has_magic(pattern) else [pattern]
+    return pattern, [d for d in found if os.path.isdir(d)]
+
+
+def feed_sources(p):
+    """[(label, kind, value)] from [[feeds]], skipping entries not filled in yet."""
+    out = []
+    for f in p.settings.get("feeds") or []:
+        if not isinstance(f, dict):
+            continue
+        label, kind, value = (str(f.get(k, "")).strip() for k in ("label", "kind", "value"))
+        if kind.lower() in FEED_KINDS and not unfilled(value) and not unfilled(label):
+            out.append((label, kind.lower(), value))
+    return out
+
+
+def handles(p, label):
+    """The @handles for "YouTube favorites" or "Puzzles" (youtube_favorites, puzzles)."""
+    key = HANDLE_KEYS.get(label, label)
+    return [h.strip().lstrip("@") for h in p.settings.get(key) or [] if isinstance(h, str) and not unfilled(h)]
+
+
+def add_voice_to_profile(name, description="", default=False, path=None):
+    """List a voice in the profile's [[voices]], first when it's to be the default.
+    Edits the settings block as text, so its comments and order survive."""
+    path = path or paths.PROFILE
+    text = read_raw(path, "profile")
+    problem = schema_problem(path, text)
+    if problem:
+        raise SystemExit(problem)
+    m = TOML_FRONT_RE.match(text)
+    lines = m.group(1).split("\n")
+    entry = ["[[voices]]", f"name = {toml_value(name)}", f"description = {toml_value(description)}"]
+    starts = [i for i, line in enumerate(lines) if line.strip() == "[[voices]]"]
+    # Drop an existing entry of the same name, so keeping a voice again replaces it.
+    for i in reversed(starts):
+        end = next((j for j in range(i + 1, len(lines)) if lines[j].lstrip().startswith("[")), len(lines))
+        block = tomllib.loads("\n".join(lines[i + 1:end]))
+        if str(block.get("name", "")).lower() == name.lower():
+            while end > i and (not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")):
+                end -= 1
+            del lines[i:end]
+    starts = [i for i, line in enumerate(lines) if line.strip() == "[[voices]]"]
+    if starts and default:
+        lines[starts[0]:starts[0]] = entry + [""]
+    elif starts:
+        last = starts[-1]
+        end = next((j for j in range(last + 1, len(lines)) if lines[j].lstrip().startswith("[")), len(lines))
+        while end > last and (not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")):
+            end -= 1   # stop before the next table's comment
+        lines[end:end] = [""] + entry
+    else:
+        lines += [""] + entry
+    settings_text = "\n".join(lines).strip("\n")
+    tomllib.loads(settings_text)   # never write a block that doesn't parse
+    _atomic_write(path, f"+++\n{settings_text}\n+++\n" + text[m.end():])
+
+
+SETTINGS_COMMENTS = {
+    "words_per_minute": "The drafting guide's starting rate; the lint then uses each voice's measured pace.",
+    "deliver_to": "Where finished MP3s are copied: a folder that syncs to your phone. ~ is your home "
+                  "folder and * matches anything (any Google account). Empty keeps them in me/workouts/.",
+    "youtube_favorites": "Channels (@handles) for the deep dives retold from a video's transcript.",
+    "puzzles": "Channels (@handles) whose puzzles can be the session's quiz.",
+    "voices": "Voices from ./sweatcast voices; the first is the default. The description is what the "
+              "check-in offers.",
+    "feeds": "Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, "
+             "longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), "
+             "onthisday (selected).",
+}
+
+
+# ---- schema 1 (sweatcast 2.0.x): settings as lines in the prose, kept for migrate.py ----
+
+LEGACY_FEED_RE = re.compile(r"^- (.+?) \((\w+)\):\s*(.+?)\s*$")
+
+
+def legacy_settings(text):
+    """The settings a schema-1 profile held as Markdown lines, as a schema-2 settings dict."""
+    settings = {}
     m = re.search(r"^- Measured words per minute[^:]*:\s*(\d+)", text, re.MULTILINE)
-    return int(m.group(1)) if m else None
-
-
-def voices(text):
-    """[(name, description)] from the `- Voices` list; the first is the default."""
-    out, inside = [], False
+    if m:
+        settings["words_per_minute"] = int(m.group(1))
+    deliver = None
+    for line in text.splitlines():
+        if line.startswith("- Copy finished MP3s to"):
+            _, sep, value = line.partition(":")
+            deliver = value.strip() if sep else None
+            break
+    settings["deliver_to"] = "" if not deliver or placeholder(deliver) else deliver
+    for label, key in HANDLE_KEYS.items():
+        found = []
+        content = "\n".join(line for _, line in section(text, "Content"))
+        for scope in (content, text):
+            for line in scope.splitlines():
+                if line.lstrip("- ").startswith(label):
+                    found = re.findall(r"@([\w.-]*[\w-])", line)
+                    if found:
+                        break
+            if found:
+                break
+        settings[key] = found
+    vs, inside = [], False
     for line in text.splitlines():
         if line.startswith("- Voices"):
             inside = True
@@ -154,55 +352,54 @@ def voices(text):
         if inside:
             if line.startswith("  - "):
                 name, _, desc = line[4:].partition(":")
-                out.append((name.strip(), desc.strip()))
+                vs.append({"name": name.strip(), "description": desc.strip()})
             elif not line.startswith("  "):
                 break
-    return out
-
-
-def default_voice(text):
-    found = voices(text)
-    return found[0][0] if found else None
-
-
-def delivery(text):
-    """The "Copy finished MP3s to:" value with ~ expanded, or None (no line, or the hint)."""
-    value = bullet(text, "Copy finished MP3s to")
-    if not value or placeholder(value):
-        return None
-    return os.path.expanduser(value)
-
-
-def delivery_folders(text):
-    """(pattern, [existing folders it matches]); * in the pattern matches anything."""
-    pattern = delivery(text)
-    if not pattern:
-        return None, []
-    found = sorted(glob.glob(pattern)) if glob.has_magic(pattern) else [pattern]
-    return pattern, [d for d in found if os.path.isdir(d)]
-
-
-def feed_sources(text):
-    """[(label, kind, value)] from the profile's Feeds section."""
-    out = []
+    settings["voices"] = vs
+    feeds = []
     for _, line in section(text, "Feeds"):
-        m = FEED_RE.match(line)
+        m = LEGACY_FEED_RE.match(line)
         if m and m.group(2).lower() in FEED_KINDS:
-            out.append((m.group(1), m.group(2).lower(), m.group(3)))
-    return out
+            feeds.append({"label": m.group(1), "kind": m.group(2).lower(), "value": m.group(3)})
+    settings["feeds"] = feeds
+    return settings
 
 
-def handles(text, label):
-    """The @handles on the line starting with `label` (such as "YouTube favorites" or
-    "Puzzles"), looked for under Content first, then anywhere."""
-    content = "\n".join(line for _, line in section(text, "Content"))
-    for scope in (content, text):
-        for line in scope.splitlines():
-            if line.lstrip("- ").startswith(label):
-                found = re.findall(r"@([\w.-]*[\w-])", line)   # not a sentence's final period
-                if found:
-                    return found
-    return []
+LEGACY_LINE_PREFIXES = ("- Copy finished MP3s to", "- Measured words per minute", "- Voices",
+                        "- YouTube favorites", "- Puzzles")
+SETTINGS_NOTE = ("The settings the tools read (voices, where MP3s are copied, words per minute, YouTube "
+                 "channels, puzzles and feeds) are in the `+++` block at the top of this file.")
+
+
+def legacy_body(text):
+    """A schema-1 profile's prose without the lines the settings block now holds: those
+    setting lines (with their indented continuation lines), the Feeds section, and the
+    old note about keeping line formats; plus one sentence saying where they went."""
+    lines, out, i = text.splitlines(), [], 0
+    while i < len(lines):
+        line = lines[i]
+        if line.startswith(LEGACY_LINE_PREFIXES) or line.startswith("Keep the line formats as they are"):
+            i += 1
+            while i < len(lines) and lines[i].startswith((" ", "\t")) and lines[i].strip():
+                i += 1
+            continue
+        if line.strip().lower() == "## feeds":
+            i += 1
+            while i < len(lines) and not lines[i].startswith("## "):
+                i += 1
+            continue
+        out.append(line)
+        i += 1
+    title = next((n for n, line in enumerate(out) if line.startswith("# ")), None)
+    if SETTINGS_NOTE in out:
+        pass
+    elif title is not None:
+        out[title + 1:title + 1] = ["", SETTINGS_NOTE]
+    else:
+        out[:0] = [SETTINGS_NOTE, ""]
+    text = "\n".join(out)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.rstrip("\n") + "\n"
 
 
 # ---- the log ---------------------------------------------------------------------------
@@ -298,7 +495,7 @@ def sessions(path=None, text=None, warn=True):
             if isinstance(s, Session):
                 out.append(s)
             elif warn:
-                print(f"Skipped {show(path)} session line {n} (counting after the front matter): {s}. "
+                print(f"Skipped {show(path)} session line {n} (counting after the settings block): {s}. "
                       "Fix it so the plan sees that session.", file=sys.stderr)
     return out
 
@@ -327,43 +524,88 @@ def append_session(session, path=None):
 
 # ---- check ----------------------------------------------------------------------------
 
+class Issue(NamedTuple):
+    path: str
+    line: int        # 0 means the whole file
+    message: str
+    note: bool = False   # True: worth knowing, but nothing breaks
+
+
+BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*\[")   # "- Neighborhood: [neighborhood, city]"
+
+
+def _check_profile(path, text):
+    out = []
+    try:
+        settings, rest = front(text)
+    except SystemExit as e:
+        return [Issue(path, 1, str(e.code))]
+    offset = len(text.splitlines()) - len(rest.splitlines())
+    p = Profile(settings, rest, path)
+    if not voices(p):
+        out.append(Issue(path, 0, "no voices: add a [[voices]] entry (name and description); the first is the default"))
+    if wpm(p) is None:
+        out.append(Issue(path, 0, "no words_per_minute (the drafting guide assumes 185)", note=True))
+    if unfilled(settings.get("deliver_to")):
+        out.append(Issue(path, 0, "no deliver_to folder, so finished MP3s stay in me/workouts/", note=True))
+    for i, f in enumerate(settings.get("feeds") or [], 1):
+        if not isinstance(f, dict):
+            continue
+        kind = str(f.get("kind", "")).lower()
+        name = f.get("label") or f"feed {i}"
+        if kind not in FEED_KINDS:
+            out.append(Issue(path, 0, f"feed '{name}': unknown kind '{f.get('kind', '')}' "
+                                      f"(one of {', '.join(FEED_KINDS)})"))
+        elif unfilled(f.get("value")) or unfilled(f.get("label")):
+            out.append(Issue(path, 0, f"feed '{name}' isn't filled in yet ({kind}: "
+                                      f"{f.get('value') or 'no value'}); fill it in or remove it"))
+    if not feed_sources(p):
+        out.append(Issue(path, 0, "no feeds, so research searches for everything", note=True))
+    for key in HANDLE_KEYS.values():
+        for h in settings.get(key) or []:
+            if placeholder(h):
+                out.append(Issue(path, 0, f"{key}: '{h}' isn't filled in yet"))
+    for n, line in enumerate(rest.splitlines(), 1):
+        m = BODY_HINT_RE.match(line)
+        if m:
+            out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet "
+                                               "(still the template's [hint]); fill it in or delete the line"))
+    return out
+
+
 def check(home_files=None):
-    """[(path, line, problem)] across the context files: schema, then the formats the
-    tools read. Line 0 means the whole file."""
+    """[Issue] across the context files: schema, the formats the tools read, and
+    template lines not filled in yet. Issues with note=True don't stop anything."""
     out = []
     for path in home_files or files():
         if not os.path.exists(path):
-            out.append((path, 0, "missing; tools/setup.sh copies it from me.example/"))
+            out.append(Issue(path, 0, "missing; ./sweatcast setup copies it from me.example/"))
             continue
         with open(path, encoding="utf-8") as f:
             text = f.read()
         problem = schema_problem(path, text)
         if problem:
-            out.append((path, 0, problem))
+            out.append(Issue(path, 0, problem))
             continue
-        offset = len(text.splitlines()) - len(body(text).splitlines())
-        text = body(text)
-        if os.path.basename(path) == "profile.md":
-            if not voices(text):
-                out.append((path, 0, "no '- Voices' list with indented '  - <name>: ...' lines"))
-            if wpm(text) is None:
-                out.append((path, 0, "no '- Measured words per minute ...: <n>' line (the guide assumes 185)"))
-            for n, line in section(text, "Feeds"):
-                m = FEED_RE.match(line)
-                if line.startswith("- ") and not m:
-                    out.append((path, n + offset, "a Feeds line isn't '- <label> (<kind>): <value>'"))
-                elif m and m.group(2).lower() not in FEED_KINDS:
-                    out.append((path, n + offset, f"unknown feed kind '{m.group(2)}' "
-                                                  f"(one of {', '.join(FEED_KINDS)})"))
-        if os.path.basename(path) == "log.md":
-            if not any(line.strip().lower() == "## sessions" for line in text.splitlines()):
-                out.append((path, 0, "no '## Sessions' heading"))
-            for n, line in section(text, "Sessions"):
+        name = os.path.basename(path)
+        if name == "profile.md":
+            out += _check_profile(path, text)
+        elif name == "log.md":
+            rest = body(text)
+            offset = len(text.splitlines()) - len(rest.splitlines())
+            if not any(line.strip().lower() == "## sessions" for line in rest.splitlines()):
+                out.append(Issue(path, 0, "no '## Sessions' heading"))
+            for n, line in section(rest, "Sessions"):
                 if line.startswith("- "):
                     s = parse_session(line, n)
                     if not isinstance(s, Session):
-                        out.append((path, n + offset, s))
+                        out.append(Issue(path, n + offset, s))
     return out
+
+
+def describe(issue):
+    where = f"{show(issue.path)}{f':{issue.line}' if issue.line else ''}"
+    return f"{where}: {'note: ' if issue.note else ''}{issue.message}"
 
 
 # ---- command line ----------------------------------------------------------------------
@@ -374,7 +616,7 @@ def main(argv=None):
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
     g.add_argument("what", choices=("default-voice", "wpm", "voices"))
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
-    sub.add_parser("check", help="check every context file's format")
+    sub.add_parser("check", help="check every context file, and list lines not filled in yet")
     s = sub.add_parser("log-session", help="add a session to log.md, checked")
     s.add_argument("--date", default=dt.date.today().isoformat())
     s.add_argument("--minutes", type=int, required=True)
@@ -387,31 +629,31 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.cmd == "get":
-        text = profile()
-        value = {"default-voice": default_voice, "wpm": wpm}.get(args.what)
-        if value:
-            v = value(text)
+        p = profile()
+        if args.what == "voices":
+            for name, _ in voices(p):
+                print(name)
+        else:
+            v = default_voice(p) if args.what == "default-voice" else wpm(p)
             if v is not None:
                 print(v)
-        else:
-            for name, _ in voices(text):
-                print(name)
         return cli.OK
     if args.cmd == "deliver":
         pattern, found = delivery_folders(profile())
         if not pattern:
-            print("No copy made: the profile has no '- Copy finished MP3s to: <folder>' line.", file=sys.stderr)
+            print("No copy made: the profile's settings have no deliver_to folder.", file=sys.stderr)
         elif not found:
             print(f"Delivery folder {pattern} not found.", file=sys.stderr)
         for d in found:
             print(d)
         return cli.OK
     if args.cmd == "check":
-        problems = check()
-        for path, n, msg in problems:
-            print(f"{show(path)}{f':{n}' if n else ''}: {msg}")
+        issues = check()
+        for issue in issues:
+            print(describe(issue))
+        problems = [i for i in issues if not i.note]
         if not problems:
-            print(f"Context folder {show(paths.HOME)}: schema {SCHEMA}, every format as the tools expect.")
+            print(f"Context folder {show(paths.HOME)}: schema {SCHEMA}, every file reads as the tools expect.")
         return cli.ISSUES if problems else cli.OK
     loads = {}
     for item in args.loads.split(";"):

@@ -1,18 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tools/build.sh:*)",
-      "Bash(LINT_ONLY=1 tools/build.sh:*)",
+      "Bash(./sweatcast:*)",
       "Bash(tools/setup.sh:*)",
-      "Bash(python3 tools/tts_build.py:*)",
-      "Bash(python3 tools/voices.py:*)",
-      "Bash(python3 tools/youtube.py:*)",
-      "Bash(python3 tools/coverage.py:*)",
-      "Bash(python3 tools/feeds.py:*)",
-      "Bash(python3 tools/context.py:*)",
-      "Bash(python3 tools/cache.py:*)",
-      "Bash(python3 tools/migrate.py:*)",
-      "Bash(python3 -m unittest:*)",
       "Bash(date:*)",
       "Edit(/me/**)",
       "Write(/me/**)",

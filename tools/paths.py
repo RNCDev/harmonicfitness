@@ -5,7 +5,7 @@ about one listener (profile, health, log, workouts, research, private voices,
 rendered clips) lives in one context folder, `me/` at the repo root by default.
 Set SWEATCAST_HOME to keep it somewhere else. `me/` is ignored by the engine's git,
 so pulling engine updates never touches it; `me.example/` is the template that
-`tools/setup.sh` copies to start one.
+`./sweatcast setup` copies to start one.
 
 Every tool takes its paths from here, so a different context folder needs no edits.
 """
@@ -29,7 +29,9 @@ LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log,
 BUILDS = os.path.join(LOGS, "builds.jsonl")           # one record per rendered MP3
 
 # Private voices (a cloned real voice belongs here) come before the shipped ones.
-VOICE_DIRS = (os.path.join(HOME, "voices"), os.path.join(ROOT, "voices"))
+PRIVATE_VOICES = os.path.join(HOME, "voices")
+VOICE_TAKES = os.path.join(PRIVATE_VOICES, ".takes")   # designed takes, before one is kept
+VOICE_DIRS = (PRIVATE_VOICES, os.path.join(ROOT, "voices"))
 SMOKE_DRAFT = os.path.join(ROOT, "voices", "smoke-test.draft.txt")
 EXAMPLE = os.path.join(ROOT, "me.example")
 VENV_PYTHON = os.path.join(ROOT, ".venv", "bin", "python")
@@ -40,7 +42,7 @@ def require(path, what="file"):
     """Exit with a setup hint when a context file is missing."""
     if not os.path.exists(path):
         raise SystemExit(f"No {what} at {show(path)}. A new copy of sweatcast starts its context "
-                         "folder with tools/setup.sh, which copies me.example/ to me/.")
+                         "folder with ./sweatcast setup, which copies me.example/ to me/.")
     return path
 
 

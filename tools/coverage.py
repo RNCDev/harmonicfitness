@@ -9,10 +9,10 @@ format (today's should differ) and each movement's last logged load and tempo, s
 the plan can progress from it.
 
 Sessions are read through tools/context.py, which owns the log's line format (and
-writes it: `python3 tools/context.py log-session ...`).
+writes it: `./sweatcast log-session ...`).
 
-    python3 tools/coverage.py            # the last session, plus a look further back
-    python3 tools/coverage.py --last 3   # groups across the last three sessions
+    ./sweatcast coverage            # the last session, plus a look further back
+    ./sweatcast coverage --last 3   # groups across the last three sessions
 
 A movement that matches no group is listed as unmapped, so the planner can judge
 it; add a keyword below when a new movement becomes a regular.

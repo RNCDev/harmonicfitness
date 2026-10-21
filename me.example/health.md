@@ -1,6 +1,6 @@
----
-schema: 1
----
++++
+schema = 2
++++
 # Health
 
 Injuries and limitations, with the standing rules for each. Claude reads this before every workout; the check-in updates the phase, and red flags in `knowledge/injury-playbook.md` stop the session. Where this file, the playbook and the equipment library disagree, the strictest wins. This file is private: it lives only in `me/`.

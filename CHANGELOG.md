@@ -2,6 +2,34 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [3.0.0] - 2026-10-21
+
+Simpler to set up and to run: one `./sweatcast` command, the profile's settings in one block at the top, a check that says what's still to fill in, and a voice designer for a coach that sounds the way you want.
+
+### For forks
+Breaking: commands, the profile's format and the Python they run on all change. After pulling:
+1. Run `./sweatcast setup`. It migrates `me/` (backing it up to `me/.backup-<date and time>/` first). In `profile.md`, the Voices list, "Copy finished MP3s to:", "Measured words per minute", the YouTube favorites and Puzzles handles, and the Feeds section move into a TOML block between `+++` lines at the top. Their lines leave the prose, and one sentence says where they went. The other context files only change their front matter. `./sweatcast migrate --dry-run` shows what would change. A 1.x folder migrates in the same run.
+2. Run `./sweatcast check`. It lists anything the tools can't read and any line still showing the template's `[hint]`.
+3. Call tools as `./sweatcast <command>`: `python3 tools/feeds.py` is `./sweatcast feeds`, `tools/build.sh` is `./sweatcast build`, `LINT_ONLY=1 tools/build.sh` is `./sweatcast build ... --lint-only`, `ALLOW_ESTIMATED=1` is `--allow-estimated`, `python3 tools/context.py log-session` is `./sweatcast log-session`, and `voices.py --measured` and `--download` are `voices measured` and `voices download`. `./sweatcast help` lists everything. The project permissions now allow `./sweatcast` instead of each tool.
+4. The tools need Python 3.11 (the project's `.venv`); the Mac's own `python3` no longer runs them. Tests run with `./sweatcast test`.
+
+### Added
+- **`./sweatcast`**, one command for everything, run in the project's environment: `setup`, `build`, `lint`, `render`, `voices`, `feeds`, `coverage`, `youtube`, `check`, `get`, `deliver`, `log-session`, `migrate`, `cache`, `test`. `./sweatcast setup` needs no Python first. One permission rule covers every command the skills run.
+- **Voice design:** `./sweatcast voices design "<name>" "<description>"` renders takes of a coaching line in a voice made from a written description (Qwen3-TTS VoiceDesign, pinned; about 4.5 GB the first time). `./sweatcast voices keep <take> --engine chatterbox --default` makes the chosen take a private voice in `me/voices/` and adds it to the profile. The setup skill offers it during the interview, for a woman's voice, say, or another accent; `knowledge/voices.md` has a "Design a voice" section.
+- `./sweatcast check` flags every profile line still showing the template's `[hint]`, any feed not filled in, and a missing voice. It also notes, without failing, a missing delivery folder or no feeds.
+- Schema 2 and its migration step, chained after 2.0.0's, with tests that migrate 1.x and 2.x folders.
+- Tests for the wrapper, voice design and keeping, adding a voice without losing the settings' comments, and the new check: 102 in all.
+
+### Changed
+- The profile's settings live in TOML front matter (`+++`), read with Python's own `tomllib`: `voices` (`[[voices]]` name and description; the first is the default), `deliver_to`, `words_per_minute`, `youtube_favorites`, `puzzles` and `[[feeds]]` (label, kind, value). The tools no longer depend on how a line in the prose is worded.
+- `./sweatcast feeds` skips feeds that aren't filled in yet, rather than listing them as failures.
+- `tools/youtube.py` no longer restarts itself under `.venv`; `./sweatcast` runs everything there.
+- The README's getting started is three steps: install ffmpeg and uv, clone, say "set me up". There's also a commands table.
+- The setup skill writes the settings block, offers a designed voice, and runs `./sweatcast check` until it passes. The workout skill uses `./sweatcast` throughout.
+
+### Removed
+- Running the tools with the system `python3`, the `LINT_ONLY` and `ALLOW_ESTIMATED` environment switches, and `voices.py --measured` and `--download`.
+
 ## [2.0.0] - 2026-10-21
 
 The engine's audit, fixed: one owner for the listener's files with a versioned format and a migration, safer state on disk, a privacy guard that checks every commit, consistent exit codes, and a record of how each MP3 was made.

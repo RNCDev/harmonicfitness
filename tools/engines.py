@@ -59,10 +59,10 @@ def pinned_extras(engine, hub=None):
             hub.snapshot_download(repo, revision=rev)
         except Exception as e:
             raise SystemExit(f"Couldn't fetch {repo} at {rev[:8]}, which {engine} needs: {e}. "
-                             "Check the network and rerun; tools/setup.sh downloads it ahead of time.")
+                             "Check the network and rerun; ./sweatcast setup downloads it ahead of time.")
     if pins and not callable(getattr(hub, "hf_hub_download", None)):
         raise SystemExit("huggingface_hub no longer has hf_hub_download, which tools/engines.py pins "
-                         "the engine's extra downloads through. Rerun tools/setup.sh to restore the "
+                         "the engine's extra downloads through. Rerun ./sweatcast setup to restore the "
                          "locked versions.")
     original = hub.hf_hub_download
 
@@ -88,7 +88,7 @@ def speaker(voice):
     found = mlx_audio_version()
     if found and found != TESTED_MLX_AUDIO:
         print(f"Warning: mlx-audio {found} is installed; sweatcast is tested with {TESTED_MLX_AUDIO}. "
-              "Rerun tools/setup.sh to restore the locked version if a voice sounds wrong.", file=sys.stderr)
+              "Rerun ./sweatcast setup to restore the locked version if a voice sounds wrong.", file=sys.stderr)
     engine = voice["engine"]
     with pinned_extras(engine):
         model = load_model(voice["model"], revision=voice["revision"])
@@ -119,6 +119,27 @@ def speaker(voice):
         a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
         return (np.clip(trim(a), -1.0, 1.0) * 32767).astype("<i2").tobytes()
     return say
+
+
+def design_takes(model_repo, revision, description, line, takes, seed):
+    """Qwen3-TTS VoiceDesign: `takes` takes of `line` spoken by a voice made from
+    `description`, as 16-bit mono PCM at SR. Each take uses its own seed."""
+    import mlx.core as mx
+    import numpy as np
+    from mlx_audio.tts.utils import load_model
+    model = load_model(model_repo, revision=revision)
+    out = []
+    for n in range(takes):
+        mx.random.seed(seed + n)
+        with contextlib.redirect_stdout(io.StringIO()):
+            results = list(model.generate(text=line, instruct=description, verbose=False))
+        if not results or results[0].sample_rate != SR:
+            raise SystemExit("The design model returned no audio, or not at 24 kHz.")
+        a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
+        out.append((np.clip(trim(a), -1.0, 1.0) * 32767).astype("<i2").tobytes())
+    del model
+    release()
+    return out
 
 
 def release():

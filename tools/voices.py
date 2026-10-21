@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Voices: look one up, predict how long it will speak, and fetch its model.
+"""Voices: look one up, predict how long it will speak, fetch its model, and design new ones.
 
 A voice is a reference clip plus its transcript, kept as three files:
 <name>.wav, <name>.txt (what the clip says) and <name>.json, which names its
@@ -18,22 +17,34 @@ Until a voice's first render, its rate is seeded from the other voices' measured
 rates: a reference clip's own rate came out about 30 percent slow for Chatterbox Coach.
 The character weights are vendored in char_weight.py.
 
-    python3 tools/voices.py                      # list voices with their engine and pace
-    python3 tools/voices.py --measured "Qwen3 Coach"    # exit 0 if measured, 1 if estimated, 64 if no such voice
-    .venv/bin/python tools/voices.py --download "Chatterbox Coach"   # fetch its pinned model (setup.sh does this)
+A new voice can be designed from a written description (Qwen3-TTS VoiceDesign, the
+way the shipped coaches were made): `design` renders a few takes of a coaching line
+in that voice, you listen and `keep` the best one, which becomes a private voice in
+me/voices/ on the engine you choose and is added to your profile's voices.
+
+    ./sweatcast voices                                  # list voices with their engine and pace
+    ./sweatcast voices measured "Qwen3 Coach"           # exit 0 if measured, 1 if estimated, 64 if no such voice
+    ./sweatcast voices download "Chatterbox Coach"      # fetch its pinned model (setup does this)
+    ./sweatcast voices design "Coach Maya" "A woman in her thirties with a warm, mid-low voice ..." --play
+    ./sweatcast voices keep "me/voices/.takes/Coach Maya-2.wav" --engine chatterbox --default
 """
+import argparse
 import contextlib
 import fcntl
 import hashlib
 import json
 import os
+import shutil
 import statistics
+import subprocess
 import sys
 import time
+import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from char_weight import weight  # noqa: E402,F401  (re-exported for render.py)
 import cli  # noqa: E402
+import paths  # noqa: E402
 from paths import PACE_FILE, ROOT, VOICE_DIRS, show  # noqa: E402,F401
 
 ENGINES = ("qwen3", "chatterbox")
@@ -43,8 +54,13 @@ ENGINES = ("qwen3", "chatterbox")
 STANDARD_MODELS = {"qwen3": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
                    "chatterbox": "mlx-community/Chatterbox-TTS-fp16"}
 ENGINE_EXTRAS = {"chatterbox": [("mlx-community/S3TokenizerV2", "e0c9886f0e1c35ae85b1f27277416fb19fc72bec")]}
+# Qwen3-TTS VoiceDesign: makes a voice from a description, pinned like the rest.
+VOICE_DESIGN = ("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16", "7d3824abff87e49756bb0f83fb5411de75d160c4")
+DESIGN_LINE = ("Okay, set your feet. Chest up, elbows in, and press. Good. Stay with it, two more. "
+               "Breathe out as you drive. That's the pace we want.")
 SIZES_GB = {"mlx-community/chatterbox-turbo-fp16": 2.8, "mlx-community/S3TokenizerV2": 0.5,
-            "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 4.2}   # download sizes, for the message
+            "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 4.2,
+            VOICE_DESIGN[0]: 4.5}   # download sizes, for the message
 MLX_EDGE = 0.08          # render.py trims engine silence to 40 ms at each end
 MIN_MEASURED = 30.0      # seconds of rendered speech before a voice's rate counts as measured
 DEFAULT_PACE = 14.5      # weighted chars/s for a new voice when no voice has been measured yet
@@ -204,8 +220,7 @@ def clip_seconds(text, v, rate=None):
 
 def download(v):
     """Fetch the voice's model at its pinned revision, plus what its engine loads on its
-    own, into the shared Hugging Face cache. Needs the project's environment. Files
-    already in the cache aren't fetched again."""
+    own, into the shared Hugging Face cache. Files already in the cache aren't fetched again."""
     from huggingface_hub import snapshot_download
     for repo, rev in [(v["model"], v["revision"]), *ENGINE_EXTRAS.get(v["engine"], [])]:
         size = f", about {SIZES_GB[repo]} GB" if repo in SIZES_GB else ""
@@ -214,25 +229,146 @@ def download(v):
         snapshot_download(repo, revision=rev)
 
 
+def write_wav(path, pcm, rate=24000):
+    """16-bit mono PCM to a .wav file."""
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(pcm)
+
+
+def design(name, description, line=DESIGN_LINE, takes=2, seed=7, folder=None, make_takes=None):
+    """Render `takes` takes of `line` in a voice made from `description`. Each take is
+    <name>-<n>.wav in me/voices/.takes, with <name>-<n>.txt holding the line and
+    <name>-<n>.take.json how it was made. Returns the .wav paths. `make_takes` stands in
+    for the model in tests."""
+    folder = folder or paths.VOICE_TAKES
+    os.makedirs(folder, exist_ok=True)
+    if make_takes is None:
+        import engines
+        from render import render_lock
+
+        def make_takes(desc, text, n, s):
+            with render_lock(paths.CACHE):   # another model: one at a time in 16 GB
+                return engines.design_takes(VOICE_DESIGN[0], VOICE_DESIGN[1], desc, text, n, s)
+    out = []
+    for n, pcm in enumerate(make_takes(description, line, takes, seed), 1):
+        stem = os.path.join(folder, f"{name}-{n}")
+        write_wav(stem + ".wav", pcm)
+        with open(stem + ".txt", "w", encoding="utf-8") as f:
+            f.write(line + "\n")
+        with open(stem + ".take.json", "w", encoding="utf-8") as f:
+            json.dump({"description": description, "line": line, "seed": seed + n - 1,
+                       "model": VOICE_DESIGN[0], "revision": VOICE_DESIGN[1]}, f, indent=1)
+        out.append(stem + ".wav")
+    return out
+
+
+def shipped_model(engine):
+    """(model, revision) of the shipped voice on `engine`, so a new voice renders with
+    the same tested weights."""
+    folder = os.path.join(ROOT, "voices")
+    for f in sorted(os.listdir(folder)):
+        if f.endswith(".json"):
+            with open(os.path.join(folder, f), encoding="utf-8") as j:
+                conf = json.load(j)
+            if conf.get("engine") == engine and conf.get("revision"):
+                return conf.get("model") or STANDARD_MODELS[engine], conf["revision"]
+    return STANDARD_MODELS[engine], None
+
+
+def keep(take, engine, name=None, description="", default=False, folder=None, profile_path=None, force=False):
+    """Make a designed take (or any clip with a .txt of its words beside it) a private
+    voice: me/voices/<name>.wav, .txt and .json, on `engine` at the shipped voice's
+    model and revision, and add it to the profile's voices. Returns the voice's name."""
+    import context
+    if not os.path.exists(take):
+        raise SystemExit(f"No take at {take}.")
+    stem = os.path.splitext(take)[0]
+    meta = {}
+    if os.path.exists(stem + ".take.json"):
+        with open(stem + ".take.json", encoding="utf-8") as f:
+            meta = json.load(f)
+    if not os.path.exists(stem + ".txt"):
+        raise SystemExit(f"No {os.path.basename(stem)}.txt beside the take: it holds the clip's exact words.")
+    name = name or os.path.basename(stem).rsplit("-", 1)[0]
+    if engine not in ENGINES:
+        raise SystemExit(f"engine must be one of {', '.join(ENGINES)}")
+    folder = folder or paths.PRIVATE_VOICES
+    dest = os.path.join(folder, name)
+    if os.path.exists(dest + ".wav") and not force:
+        raise SystemExit(f"{show(dest)}.wav already exists; pick another name or pass --force.")
+    os.makedirs(folder, exist_ok=True)
+    shutil.copyfile(take, dest + ".wav")
+    shutil.copyfile(stem + ".txt", dest + ".txt")
+    model, revision = shipped_model(engine)
+    conf = {"engine": engine, "model": model, "revision": revision}
+    if meta.get("description"):
+        conf["designed_from"] = meta["description"]
+    with open(dest + ".json", "w", encoding="utf-8") as f:
+        json.dump(conf, f, indent=1)
+    context.add_voice_to_profile(name, description or meta.get("description", ""), default,
+                                 profile_path or paths.PROFILE)
+    return name
+
+
 def main():
-    args = sys.argv[1:]
-    if args[:1] == ["--measured"]:
-        if len(args) != 2:
-            print("usage: python3 tools/voices.py --measured <voice>", file=sys.stderr)
-            return cli.USAGE
+    ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd")
+    sub.add_parser("list", help="every voice with its engine, pace and model (the default)")
+    m = sub.add_parser("measured", help="exit 0 if the voice's pace is measured, 1 if estimated, 64 if unknown")
+    m.add_argument("voice")
+    d = sub.add_parser("download", help="fetch voices' pinned models (all voices without a name)")
+    d.add_argument("voice", nargs="*")
+    g = sub.add_parser("design", help="render takes of a new voice made from a description")
+    g.add_argument("name", help="the new voice's name, such as 'Coach Maya'")
+    g.add_argument("description", help="who it is and how they sound (see knowledge/voices.md)")
+    g.add_argument("--takes", type=int, default=2)
+    g.add_argument("--line", default=DESIGN_LINE, help="what the takes say (the default is a coaching line)")
+    g.add_argument("--seed", type=int, default=7)
+    g.add_argument("--play", action="store_true", help="play each take after rendering (macOS afplay)")
+    k = sub.add_parser("keep", help="make a take a voice in me/voices/ and add it to your profile")
+    k.add_argument("take", help="the take's .wav (from design), or any clip with its words in a .txt beside it")
+    k.add_argument("--engine", choices=ENGINES, default="chatterbox",
+                   help="the model that speaks it: chatterbox (most natural, faster) or qwen3 (clearest)")
+    k.add_argument("--name", help="the voice's name (default: the take's)")
+    k.add_argument("--description", default="", help="for the check-in's voice question (default: the design description)")
+    k.add_argument("--default", action="store_true", help="make it the default voice")
+    k.add_argument("--force", action="store_true", help="replace a private voice of the same name")
+    args = ap.parse_args()
+
+    if args.cmd == "measured":
         try:
-            v = lookup(args[1])
+            v = lookup(args.voice)
         except SystemExit as e:   # an unknown voice or broken settings: a command mistake
             print(e.code, file=sys.stderr)
             return cli.USAGE
         return cli.OK if pace(v)[1] else cli.ISSUES
-    if args[:1] == ["--download"]:
-        for name in args[1:] or names():
+    if args.cmd == "download":
+        for name in args.voice or names():
             download(lookup(name))
-        return 0
-    if args:
-        print("usage: python3 tools/voices.py [--measured <voice> | --download [<voice>...]]", file=sys.stderr)
-        return cli.USAGE
+        return cli.OK
+    if args.cmd == "design":
+        print(f"Designing {args.name}: {args.takes} takes with {VOICE_DESIGN[0]} "
+              f"(about {SIZES_GB[VOICE_DESIGN[0]]} GB the first time).", flush=True)
+        takes = design(args.name, args.description, args.line, args.takes, args.seed)
+        for t in takes:
+            print(f"  {show(t)}")
+            if args.play and shutil.which("afplay"):
+                subprocess.run(["afplay", t])
+        print(f"Listen, then keep the best one, for example:\n"
+              f"  ./sweatcast voices keep \"{show(takes[0])}\" --engine chatterbox --default\n"
+              f"Not right? Run design again with a reworded description, or another --seed. The design "
+              f"model can be removed from ~/.cache/huggingface/hub (models--{VOICE_DESIGN[0].replace('/', '--')}) "
+              "once you're done.")
+        return cli.OK
+    if args.cmd == "keep":
+        name = keep(args.take, args.engine, args.name, args.description, args.default, force=args.force)
+        print(f"Kept {name} in {show(paths.PRIVATE_VOICES)} on {args.engine}, and added it to your profile"
+              f"{' as the default voice' if args.default else ''}. Measure its pace with the smoke test:\n"
+              f"  ./sweatcast build voices/smoke-test.draft.txt \"smoke-test\" --voice \"{name}\"")
+        return cli.OK
     print(f"{'name':24} {'engine':10} {'pace':16} model")
     estimated = False
     for name in names():
@@ -246,7 +382,7 @@ def main():
         print(f"{v['name'][:24]:24} {v['engine']:10} {p:5.2f} chars/s{'' if exact else '*':1}   {v['model']}")
     if estimated:
         print("* estimated until the voice's first render (render the smoke test with it)")
-    return 0
+    return cli.OK
 
 
 if __name__ == "__main__":

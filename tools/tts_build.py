@@ -16,9 +16,9 @@ lint() returns a Report; main() only prints it. Exit codes are in cli.py: 1 when
 there are issues (nothing exported), 64 for a mistyped command.
 
 Usage:
-    python3 tools/tts_build.py draft.txt --voice "Chatterbox Coach" --out "Workout 2026-10-18.txt"
-    python3 tools/tts_build.py draft.txt --wpm 170 --out final.txt --force   # export despite issues
-    python3 tools/tts_build.py draft.txt --voice "Chatterbox Coach" --out x.txt --strict  # structure warnings count
+    ./sweatcast lint draft.txt --voice "Chatterbox Coach" --out "Workout 2026-10-18.txt"
+    ./sweatcast lint draft.txt --wpm 170 --out final.txt --force   # export despite issues
+    ./sweatcast lint draft.txt --voice "Chatterbox Coach" --out x.txt --strict  # structure warnings count
 """
 import os
 import re

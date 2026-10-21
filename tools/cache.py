@@ -6,9 +6,9 @@ speech), so editing a draft re-renders only what changed. render.py marks a clip
 used whenever a build reads it, so `prune` removes the clips no build has touched in
 a while. The voices' measured pace (voice-pace.json) is never touched.
 
-    python3 tools/cache.py                  # how big the cache is
-    python3 tools/cache.py prune            # remove clips unused for 45 days
-    python3 tools/cache.py prune --days 0   # remove every clip (the next build renders all)
+    ./sweatcast cache                  # how big the cache is
+    ./sweatcast cache prune            # remove clips unused for 45 days
+    ./sweatcast cache prune --days 0   # remove every clip (the next build renders all)
 """
 import os
 import sys

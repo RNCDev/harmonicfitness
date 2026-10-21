@@ -1,14 +1,15 @@
 #!/bin/sh
 # One step from draft to deliverables: lint + export the .txt, then render the .mp3.
+# Run it as ./sweatcast build (which runs this script).
 #
-#   tools/build.sh <draft> "<name>" [--voice <name>] [render options...]
-#   tools/build.sh me/workouts/drafts/x.draft.txt "Workout 2026-10-19 Bench 25 min" --voice "Chatterbox Coach"
+#   ./sweatcast build <draft> "<name>" [--voice <name>] [--lint-only] [render options...]
+#   ./sweatcast build me/workouts/drafts/x.draft.txt "Workout 2026-10-19 Bench 25 min" --voice "Chatterbox Coach"
 #
 # Writes me/workouts/<name>.txt and me/workouts/<name>.mp3 (the context folder is
 # SWEATCAST_HOME if set). Stops after the lint if it finds issues (fix and rerun).
-# Set LINT_ONLY=1 to skip rendering. Without --voice, uses the first voice listed
-# under Voices in me/profile.md. After a render, copies the MP3 to the profile's
-# "Copy finished MP3s to:" folder, if it names one. The profile is read through
+# --lint-only skips rendering. Without --voice, uses the first voice in the
+# profile's settings. After a render, copies the MP3 to the deliver_to folder
+# the settings name, if any. The profile is read through
 # tools/context.py, which also checks the context folder's format.
 #
 # --clips-only renders and caches the clips of whatever the draft holds so far, with
@@ -22,12 +23,22 @@
 # Exit codes (tools/cli.py): 0 done, 1 issues to fix, 2 the rendered total ran more
 # than the tolerance off plan (the MP3 is written but not copied), 3 the voice's pace
 # hasn't been measured yet (render the smoke test with it first, which measures it,
-# or set ALLOW_ESTIMATED=1), 64 the command was wrong (a mistyped option, an unknown
+# or pass --allow-estimated), 64 the command was wrong (a mistyped option, an unknown
 # voice): fix the command, not the draft. The render's stderr (model loading, errors)
 # goes to me/workouts/.logs/<name>.log, and its last lines print on a failure.
 set -e
-[ $# -ge 2 ] || { echo "usage: tools/build.sh <draft> \"<name>\" [--voice <name>] [render options]" >&2; exit 64; }
+[ $# -ge 2 ] || { echo "usage: ./sweatcast build <draft> \"<name>\" [--voice <name>] [--lint-only] [render options]" >&2; exit 64; }
 DRAFT="$1"; NAME="$2"; shift 2
+# The build's own flags; everything else goes to the render.
+LINT_ONLY=""; ALLOW_ESTIMATED=""
+for ARG do
+  shift
+  case "$ARG" in
+    --lint-only) LINT_ONLY=1 ;;
+    --allow-estimated) ALLOW_ESTIMATED=1 ;;
+    *) set -- "$@" "$ARG" ;;
+  esac
+done
 case "$NAME" in */*) echo "The name can't contain a slash: $NAME" >&2; exit 64 ;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
@@ -36,8 +47,8 @@ PROFILE="$CONTEXT/profile.md"
 OUT_DIR="$CONTEXT/workouts"
 PY="${SWEATCAST_PYTHON:-$ROOT/.venv/bin/python}"
 
-[ -f "$PROFILE" ] || { echo "No profile at $PROFILE. Run tools/setup.sh first (it copies me.example/ to me/)."; exit 1; }
-[ -x "$PY" ] || { echo "No Python environment at $PY. Run tools/setup.sh first (it makes .venv with uv)."; exit 1; }
+[ -f "$PROFILE" ] || { echo "No profile at $PROFILE. Run ./sweatcast setup first (it copies me.example/ to me/)."; exit 1; }
+[ -x "$PY" ] || { echo "No Python environment at $PY. Run ./sweatcast setup first (it makes .venv with uv)."; exit 1; }
 [ -f "$DRAFT" ] || { echo "No draft at $DRAFT" >&2; exit 64; }
 
 # The drafting guide (words per minute) and the default voice live in the profile.
@@ -56,10 +67,10 @@ done
 SMOKE=""; [ "$(basename "$DRAFT")" = "smoke-test.draft.txt" ] && SMOKE=1
 if [ -z "$VOICE" ]; then
   [ -n "$DEFAULT_VOICE" ] || { echo "No --voice given, and no default voice found in $PROFILE."
-    echo "Expected a '- Voices' line followed by indented '  - <name>: ...' lines; the first is the default."; exit 1; }
+    echo "Expected at least one [[voices]] entry in the settings at the top of the profile; the first is the default."; exit 1; }
   VOICE="$DEFAULT_VOICE"; set -- "$@" --voice "$VOICE"
 fi
-[ -n "$WPM" ] || echo "Note: no '- Measured words per minute ...: <n>' line in the profile; the word guide assumes 185."
+[ -n "$WPM" ] || echo "Note: no words_per_minute in the profile's settings; the word guide assumes 185."
 mkdir -p "$OUT_DIR/.logs"
 LOG="$OUT_DIR/.logs/$NAME.log"
 
@@ -76,18 +87,18 @@ fi
 
 if [ -z "$SMOKE" ] && [ -z "$LINT_ONLY" ]; then
   set +e
-  "$PY" "$HERE/voices.py" --measured "$VOICE"
+  "$PY" "$HERE/voices.py" measured "$VOICE"
   MEASURED=$?
   set -e
   if [ "$MEASURED" -eq 64 ]; then
-    echo "Voices on file: $("$PY" "$HERE/context.py" get voices | tr '\n' ',' | sed 's/,$//; s/,/, /g') (see python3 tools/voices.py)."
+    echo "Voices in your profile: $("$PY" "$HERE/context.py" get voices | tr '\n' ',' | sed 's/,$//; s/,/, /g') (all voices: ./sweatcast voices)."
     exit 64
   fi
   if [ "$MEASURED" -ne 0 ] && [ -z "$ALLOW_ESTIMATED" ]; then
     echo "$VOICE's speaking rate hasn't been measured yet, so this draft's timing is a guess."
     echo "Render the smoke test with it first, which measures it, then rerun:"
-    echo "  tools/build.sh voices/smoke-test.draft.txt \"smoke-test\" --voice \"$VOICE\""
-    echo "(or set ALLOW_ESTIMATED=1 to render anyway)"
+    echo "  ./sweatcast build voices/smoke-test.draft.txt \"smoke-test\" --voice \"$VOICE\""
+    echo "(or pass --allow-estimated to render anyway)"
     exit 3
   fi
 fi

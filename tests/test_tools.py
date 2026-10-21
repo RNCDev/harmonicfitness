@@ -1,7 +1,7 @@
 """Fast checks for the text, timing, log and feed logic. No models, no audio rendering,
-no network.
+no network. Python 3.11 or later (the project's environment).
 
-    python3 -m unittest discover tests
+    ./sweatcast test        # or, in CI: python -m unittest discover tests
 """
 import datetime as dt
 import glob
@@ -47,6 +47,11 @@ def secs(pcm):
 def with_schema(text):
     """A context file's text as the current engine writes it, front matter first."""
     return context.with_front_matter(text)
+
+
+def profile_text(settings_toml, prose="# Profile\n"):
+    """A schema-2 profile: TOML settings, then prose."""
+    return f"+++\nschema = {context.SCHEMA}\n{settings_toml}\n+++\n{prose}"
 
 
 def write_file(path, text):
@@ -413,34 +418,33 @@ class FreshFork(unittest.TestCase):
     """A new copy of the repo, with only me.example/ copied: the tools run on it."""
 
     def run_tool(self, home, *args):
-        env = dict(os.environ, SWEATCAST_HOME=home)
-        return subprocess.run([sys.executable, *args], cwd=ROOT, env=env,
+        env = dict(os.environ, SWEATCAST_HOME=home, SWEATCAST_PYTHON=sys.executable)
+        return subprocess.run(["sh", "sweatcast", *args], cwd=ROOT, env=env,
                               capture_output=True, text=True, timeout=60)
 
     def test_example_context_works(self):
         with tempfile.TemporaryDirectory() as d:
             home = os.path.join(d, "me")
             shutil.copytree(paths.EXAMPLE, home)
-            out = self.run_tool(home, "tools/coverage.py")
+            out = self.run_tool(home, "coverage")
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertIn("No sessions", out.stdout)
-            out = self.run_tool(home, "tools/tts_build.py", os.path.join("tests", "fixtures", "example.draft.txt"),
+            out = self.run_tool(home, "lint", os.path.join("tests", "fixtures", "example.draft.txt"),
                                 "--out", os.path.join(d, "x.txt"), "--force")   # short on purpose
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
             self.assertNotIn("  line ", out.stdout)   # no text-to-speech problems
             self.assertTrue(os.path.exists(os.path.join(d, "x.txt")))
-            with open(os.path.join(home, "profile.md"), encoding="utf-8") as f:
-                prof = f.read()
-            self.assertTrue(feeds.config(prof))
+            prof = context.profile(os.path.join(home, "profile.md"))
+            self.assertEqual(len(feeds.config(prof)), 6)          # the three [hint] feeds are skipped
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
-            self.assertIn("- Copy finished MP3s to:", prof)
-            self.assertIn("- Voices", prof)
+            self.assertEqual(context.default_voice(prof), "Chatterbox Coach")
+            self.assertIn("deliver_to", prof.settings)
 
     def test_missing_context_says_run_setup(self):
         with tempfile.TemporaryDirectory() as d:
-            out = self.run_tool(os.path.join(d, "nowhere"), "tools/coverage.py")
+            out = self.run_tool(os.path.join(d, "nowhere"), "coverage")
             self.assertNotEqual(out.returncode, 0)
-            self.assertIn("tools/setup.sh", out.stderr)
+            self.assertIn("./sweatcast setup", out.stderr)
 
     def test_nothing_personal_is_tracked(self):
         if not os.path.isdir(os.path.join(ROOT, ".git")):
@@ -486,9 +490,8 @@ class YouTube(unittest.TestCase):
     def test_puzzles_line_and_fresh_filter(self):
         with tempfile.TemporaryDirectory() as d:
             prof = os.path.join(d, "profile.md")
-            with open(prof, "w") as f:
-                f.write(with_schema("- YouTube favorites (x): A @chanA, B @chanB.\n"
-                                    "- Puzzles (quiz): Presh's MindYourDecisions @MindYourDecisions.\n"))
+            write_file(prof, profile_text('youtube_favorites = ["chanA", "@chanB"]\n'
+                                          'puzzles = ["MindYourDecisions", "[a channel]"]'))
             self.assertEqual(youtube.handles(profile=prof), ["chanA", "chanB"])
             self.assertEqual(youtube.handles("Puzzles", profile=prof), ["MindYourDecisions"])
             os.makedirs(os.path.join(d, "puzzles"))
@@ -538,12 +541,16 @@ class Feeds(unittest.TestCase):
     NOW = dt.datetime(2026, 10, 21, 16, 0, tzinfo=dt.timezone.utc)
 
     def test_config(self):
-        text = ("## Content\n- (rss): ignored outside the section\n## Feeds\nIntro line.\n"
-                "- Weather, home (weather): 39.9, -75.1\n- Devils (espn): hockey/nhl/nj\n"
-                "- Local (rss): https://example.org/feed/\n- Bad (ftp): x\n## Narrator\n- Tone: calm\n")
-        self.assertEqual(feeds.config(text), [("Weather, home", "weather", "39.9, -75.1"),
-                                              ("Devils", "espn", "hockey/nhl/nj"),
-                                              ("Local", "rss", "https://example.org/feed/")])
+        p = context.Profile({"feeds": [
+            {"label": "Weather, home", "kind": "weather", "value": "39.9, -75.1"},
+            {"label": "Devils", "kind": "ESPN", "value": "hockey/nhl/nj"},
+            {"label": "Local", "kind": "rss", "value": "https://example.org/feed/"},
+            {"label": "Bad", "kind": "ftp", "value": "x"},
+            {"label": "[Team]", "kind": "espn", "value": "[sport/league/team]"},   # not filled in: skipped
+            {"label": "Empty", "kind": "rss", "value": ""}]}, "")
+        self.assertEqual(feeds.config(p), [("Weather, home", "weather", "39.9, -75.1"),
+                                           ("Devils", "espn", "hockey/nhl/nj"),
+                                           ("Local", "rss", "https://example.org/feed/")])
 
     def test_rss_and_atom(self):
         rss = b"""<?xml version="1.0"?><rss><channel>
@@ -574,8 +581,8 @@ class Feeds(unittest.TestCase):
         self.assertEqual(len(lines), 2)
         self.assertIn("This week", lines[0])
         self.assertIn("Older", lines[1])
-        self.assertIn(("Puzzle, x", "weekly", "https://p/feed"),
-                      feeds.config("## Feeds\n- Puzzle, x (weekly): https://p/feed\n"))
+        self.assertIn(("Puzzle, x", "weekly", "https://p/feed"), feeds.config(context.Profile(
+            {"feeds": [{"label": "Puzzle, x", "kind": "weekly", "value": "https://p/feed"}]}, "")))
 
     def test_espn_results_and_upcoming(self):
         def ev(i, date, home, away, hs=None, as_=None, done=True, hw=None):
@@ -647,13 +654,13 @@ class ExitCodes(unittest.TestCase):
                      ["tools/tts_build.py", fixture],                       # --out is missing
                      ["tools/coverage.py", "--bogus"],
                      ["tools/context.py", "get", "nothing"],
-                     ["tools/voices.py", "--measured", "Nobody At All"]):
+                     ["tools/voices.py", "measured", "Nobody At All"]):
             out = run([sys.executable, *args])
             self.assertEqual(out.returncode, cli.USAGE, (args, out.stdout, out.stderr))
 
     def test_voices_measured_codes(self):
         with tempfile.TemporaryDirectory() as d:
-            out = run([sys.executable, "tools/voices.py", "--measured", "Chatterbox Coach"], home=fresh_home(d))
+            out = run([sys.executable, "tools/voices.py", "measured", "Chatterbox Coach"], home=fresh_home(d))
             self.assertEqual(out.returncode, cli.ISSUES)   # estimated: nothing measured in a fresh copy
 
 
@@ -685,7 +692,7 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
         prof = os.path.join(self.home, "profile.md")
         with open(prof, encoding="utf-8") as f:
             text = f.read()
-        text = re.sub(r"^- Copy finished MP3s to: .*$", f"- Copy finished MP3s to: {self.phone}", text, flags=re.M)
+        text = re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone)}", text, flags=re.M)
         write_file(prof, text)
         self.stub = os.path.join(d, "python")
         write_file(self.stub, self.STUB.format(python=sys.executable))
@@ -697,10 +704,9 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
 
     def build(self, *extra, render_exit=0, estimated_ok=True):
         env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": str(render_exit)}
-        if estimated_ok:
-            env["ALLOW_ESTIMATED"] = "1"
-        return run(["sh", "tools/build.sh", os.path.join("tests", "fixtures", "example.draft.txt"), "Test build", *extra],
-                   home=self.home, env=env)
+        flags = ["--allow-estimated"] if estimated_ok else []
+        return run(["sh", "sweatcast", "build", os.path.join("tests", "fixtures", "example.draft.txt"), "Test build",
+                    *flags, *extra], home=self.home, env=env)
 
     def calls(self):
         with open(self.log, encoding="utf-8") as f:
@@ -711,6 +717,7 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertTrue(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
         self.assertIn("--voice Chatterbox Coach", self.calls())   # the profile's default voice
+        self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
 
     def test_drift_exits_2_without_a_copy_or_the_log(self):
         out = self.build(render_exit=2)
@@ -733,6 +740,11 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
         out = self.build(estimated_ok=False)
         self.assertEqual(out.returncode, 3, out.stdout + out.stderr)
 
+    def test_lint_only_stops_before_the_render(self):
+        out = self.build("--lint-only")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual([c.split()[0] for c in self.calls().splitlines()], ["tts_build.py"])
+
     def test_tolerance_reaches_the_lint_and_the_render(self):
         self.build("--tolerance", "0.05")
         lint, render_call = self.calls().splitlines()[:2]
@@ -745,7 +757,7 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
             write_file(prof, context.body(f.read()))
         out = self.build()
         self.assertNotEqual(out.returncode, 0)
-        self.assertIn("tools/migrate.py", out.stdout + out.stderr)
+        self.assertIn("./sweatcast migrate", out.stdout + out.stderr)
 
 
 class PaceFile(unittest.TestCase):
@@ -878,49 +890,74 @@ class Hooks(unittest.TestCase):
 
 
 class Context(unittest.TestCase):
-    PROFILE = with_schema("""# Profile
-## Listening setup
-- Copy finished MP3s to: [a folder]
-- Measured words per minute (drafting guide): 170. Starting estimate.
-- Voices (names):
-  - Qwen3 Coach: crisp.
-  - Chatterbox Coach: warm.
-- Delivery wanted: a coach.
-## Content
-- YouTube favorites: A @chanA.
-## Feeds
-- Weather (weather): 40.1, -75.2
-- Bad line without a kind
-- Thing (smoke): x
-""")
+    SETTINGS = """# A comment that must survive edits.
+words_per_minute = 170
+deliver_to = "[a folder]"
+youtube_favorites = ["chanA"]
+
+[[voices]]
+name = "Qwen3 Coach"
+description = "crisp"
+
+[[voices]]
+name = "Chatterbox Coach"
+description = "warm"
+
+# Feeds come next.
+
+[[feeds]]
+label = "Weather"
+kind = "weather"
+value = "40.1, -75.2"
+
+[[feeds]]
+label = "Thing"
+kind = "smoke"
+value = "x\""""
+    PROSE = "# Profile\n\n## Basics\n- Neighborhood: [neighborhood, city]\n- Goals right now: strength\n"
     LOG = with_schema("# Workout log\n\n## Sessions\n\n## Feedback\n- loved it\n")
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         d = self.tmp.name
         self.profile, self.log = os.path.join(d, "profile.md"), os.path.join(d, "log.md")
-        write_file(self.profile, self.PROFILE)
+        write_file(self.profile, profile_text(self.SETTINGS, self.PROSE))
         write_file(self.log, self.LOG)
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def test_profile_values(self):
-        text = context.profile(self.profile)
-        self.assertEqual(context.default_voice(text), "Qwen3 Coach")
-        self.assertEqual([n for n, _ in context.voices(text)], ["Qwen3 Coach", "Chatterbox Coach"])
-        self.assertEqual(context.wpm(text), 170)
-        self.assertIsNone(context.delivery(text))                 # the template's hint isn't a folder
-        self.assertEqual(context.handles(text, "YouTube favorites"), ["chanA"])
-        self.assertEqual(context.feed_sources(text), [("Weather", "weather", "40.1, -75.2")])
+        p = context.profile(self.profile)
+        self.assertEqual(context.default_voice(p), "Qwen3 Coach")
+        self.assertEqual([n for n, _ in context.voices(p)], ["Qwen3 Coach", "Chatterbox Coach"])
+        self.assertEqual(context.wpm(p), 170)
+        self.assertIsNone(context.delivery(p))                 # the template's hint isn't a folder
+        self.assertEqual(context.handles(p, "YouTube favorites"), ["chanA"])
+        self.assertEqual(context.feed_sources(p), [("Weather", "weather", "40.1, -75.2")])
+        self.assertTrue(p.body.startswith("# Profile"))
 
     def test_delivery_folders_expand_stars(self):
         a, b = os.path.join(self.tmp.name, "GoogleDrive-a", "W"), os.path.join(self.tmp.name, "GoogleDrive-b", "W")
         os.makedirs(a)
         os.makedirs(b)
-        text = f"- Copy finished MP3s to: {self.tmp.name}/GoogleDrive-*/W\n"
-        self.assertEqual(context.delivery_folders(text)[1], [a, b])
-        self.assertEqual(context.delivery_folders(f"- Copy finished MP3s to: {self.tmp.name}/nope\n")[1], [])
+        p = context.Profile({"deliver_to": f"{self.tmp.name}/GoogleDrive-*/W"}, "")
+        self.assertEqual(context.delivery_folders(p)[1], [a, b])
+        self.assertEqual(context.delivery_folders(context.Profile({"deliver_to": f"{self.tmp.name}/no"}, ""))[1], [])
+
+    def test_add_voice_keeps_comments_and_order(self):
+        context.add_voice_to_profile("Coach Maya", "a woman in her thirties", default=True, path=self.profile)
+        context.add_voice_to_profile("Coach Calm", "slow", path=self.profile)
+        p = context.profile(self.profile)
+        self.assertEqual([n for n, _ in context.voices(p)], ["Coach Maya", "Qwen3 Coach", "Chatterbox Coach", "Coach Calm"])
+        with open(self.profile, encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn("# A comment that must survive edits.", text)
+        self.assertLess(text.index('name = "Coach Calm"'), text.index("# Feeds come next."))
+        self.assertEqual(len(context.feed_sources(p)), 1)
+        context.add_voice_to_profile("coach maya", "again", path=self.profile)   # same name: replaced, moved last
+        names = [n for n, _ in context.voices(context.profile(self.profile))]
+        self.assertEqual(names, ["Qwen3 Coach", "Chatterbox Coach", "Coach Calm", "coach maya"])
 
     def test_log_session_round_trip(self):
         s = context.Session("2026-10-21", 25, "Home", "Chatterbox Coach", ["goblet squat", "seated row"],
@@ -953,66 +990,187 @@ class Context(unittest.TestCase):
             got = context.sessions(self.log)
         self.assertEqual([s.date for s in got], ["2026-10-20"])     # not read with its fields shifted
         self.assertIn("5 fields", err.getvalue())
-        problems = context.check([self.profile, self.log])
-        self.assertTrue(any(p == self.log and n == 5 for p, n, _ in problems), problems)
+        issues = context.check([self.profile, self.log])
+        self.assertTrue(any(i.path == self.log and i.line == 5 for i in issues), issues)
 
-    def test_check_reports_profile_problems_with_lines(self):
-        problems = [(n, msg) for p, n, msg in context.check([self.profile, self.log]) if p == self.profile]
-        self.assertTrue(any("isn't '- <label>" in m for _, m in problems))
-        self.assertTrue(any("unknown feed kind 'smoke'" in m and n == 17 for n, m in problems), problems)
+    def test_check_flags_unfilled_lines_and_bad_feeds(self):
+        issues = [i for i in context.check([self.profile, self.log]) if i.path == self.profile]
+        problems = [i.message for i in issues if not i.note]
+        notes = [i.message for i in issues if i.note]
+        self.assertTrue(any("unknown kind 'smoke'" in m for m in problems), issues)
+        hint = [i for i in issues if "'Neighborhood' isn't filled in" in i.message]
+        self.assertEqual(len(hint), 1)
+        with open(self.profile, encoding="utf-8") as f:
+            self.assertIn("- Neighborhood:", f.read().splitlines()[hint[0].line - 1])   # the right line number
+        self.assertTrue(any("deliver_to" in m for m in notes))
+        self.assertFalse(any("Goals" in m for m in problems))
 
     def test_old_and_new_schemas_are_refused(self):
-        write_file(self.profile, context.body(self.PROFILE))
+        write_file(self.profile, self.PROSE)
         with self.assertRaises(SystemExit) as e:
             context.profile(self.profile)
-        self.assertIn("tools/migrate.py", str(e.exception.code))
-        write_file(self.profile, context.with_front_matter(self.PROFILE, context.SCHEMA + 1))
+        self.assertIn("./sweatcast migrate", str(e.exception.code))
+        write_file(self.profile, f"+++\nschema = {context.SCHEMA + 1}\n+++\n" + self.PROSE)
         with self.assertRaises(SystemExit) as e:
             context.profile(self.profile)
         self.assertIn("newer", str(e.exception.code))
 
 
 class Migrate(unittest.TestCase):
-    def test_migrate_backs_up_then_converts_once(self):
+    """1.x (schema 0) and 2.x (schema 1) folders migrate to the current schema in one run."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = fresh_home(self.tmp.name)
+        with open(os.path.join(ROOT, "tests", "fixtures", "profile-schema1.md"), encoding="utf-8") as f:
+            self.v1_profile = f.read()                      # me.example's profile as 2.0.0 shipped it
+        self.bodies = {}
+        for name in ("health.md", "log.md", "exercise-science.md"):
+            path = os.path.join(self.home, name)
+            with open(path, encoding="utf-8") as f:
+                self.bodies[name] = context.body(f.read())
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def as_schema(self, n):
+        write_file(os.path.join(self.home, "profile.md"),
+                   context.with_front_matter(self.v1_profile, n) if n else context.body(self.v1_profile))
+        for name, text in self.bodies.items():
+            write_file(os.path.join(self.home, name), context.with_front_matter(text, n) if n else text)
+
+    def migrated_profile(self):
+        return context.profile(os.path.join(self.home, "profile.md"))
+
+    def test_both_older_schemas_migrate(self):
+        for start in (0, 1):
+            self.as_schema(start)
+            out = run([sys.executable, "tools/coverage.py"], home=self.home)
+            self.assertIn("./sweatcast migrate", out.stderr)
+            out = run([sys.executable, "tools/migrate.py"], home=self.home)
+            self.assertIn("schema", out.stdout, out.stderr)
+            p = self.migrated_profile()
+            self.assertEqual(context.default_voice(p), "Chatterbox Coach")
+            self.assertEqual([n for n, _ in context.voices(p)], ["Chatterbox Coach", "Qwen3 Coach"])
+            self.assertEqual(context.wpm(p), 165)
+            self.assertEqual(context.handles(p, "YouTube favorites"),
+                             ["Asianometry", "BranchEducation", "PracticalEngineeringChannel"])
+            self.assertEqual(len(context.feed_sources(p)), 6)
+            self.assertIsNone(context.delivery(p))
+            for gone in ("- Voices", "- Copy finished MP3s", "## Feeds", "- Measured words", "@Asianometry"):
+                self.assertNotIn(gone, p.body)
+            self.assertEqual(p.body.count(context.SETTINGS_NOTE), 1)
+            self.assertIn("## Equipment kits", p.body)                 # the rest of the prose stays
+            for name, text in self.bodies.items():
+                with open(os.path.join(self.home, name), encoding="utf-8") as f:
+                    self.assertEqual(context.body(f.read()), text)
+            self.assertEqual(run([sys.executable, "tools/coverage.py"], home=self.home).returncode, 0)
+
+    def test_backup_dry_run_and_idempotence(self):
+        self.as_schema(1)
+        profile = os.path.join(self.home, "profile.md")
+        out = run([sys.executable, "tools/migrate.py", "--dry-run"], home=self.home)
+        self.assertIn("Dry run", out.stdout)
+        with open(profile, encoding="utf-8") as f:
+            self.assertEqual(f.read(), context.with_front_matter(self.v1_profile, 1))
+        run([sys.executable, "tools/migrate.py"], home=self.home)
+        backups = glob.glob(os.path.join(self.home, ".backup-*"))
+        self.assertEqual(len(backups), 1)
+        with open(os.path.join(backups[0], "profile.md"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), context.with_front_matter(self.v1_profile, 1))
+        with open(profile, encoding="utf-8") as f:
+            once = f.read()
+        out = run([sys.executable, "tools/migrate.py"], home=self.home)
+        self.assertIn("already at schema", out.stdout)
+        with open(profile, encoding="utf-8") as f:
+            self.assertEqual(f.read(), once)
+        self.assertEqual(len(glob.glob(os.path.join(self.home, ".backup-*"))), 1)
+
+    def test_the_template_is_current_and_says_what_to_fill_in(self):
+        out = run([sys.executable, "tools/context.py", "check"], home=fresh_home(self.tmp.name + "/t"))
+        self.assertEqual(out.returncode, cli.ISSUES, out.stdout)
+        self.assertNotIn("schema", out.stdout)
+        self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
+        self.assertIn("feed '[Team]' isn't filled in yet", out.stdout)
+
+
+class VoiceDesign(unittest.TestCase):
+    """design and keep, with the model replaced by a stand-in."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = fresh_home(self.tmp.name)
+        self.takes = os.path.join(self.home, "voices", ".takes")
+        self.voices = os.path.join(self.home, "voices")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_design_then_keep(self):
+        calls = []
+
+        def fake(desc, line, n, seed):
+            calls.append((desc, line, n, seed))
+            return [b"\x01\x00" * 24000 * (i + 1) for i in range(n)]
+        takes = voices.design("Coach Maya", "A woman in her thirties", takes=2, folder=self.takes, make_takes=fake)
+        self.assertEqual([os.path.basename(t) for t in takes], ["Coach Maya-1.wav", "Coach Maya-2.wav"])
+        self.assertEqual(calls[0][2:], (2, 7))
+        import wave as wv
+        with wv.open(takes[1]) as w:
+            self.assertEqual((w.getframerate(), w.getnframes()), (24000, 48000))
+
+        profile = os.path.join(self.home, "profile.md")
+        with mock.patch.object(voices, "VOICE_DIRS", (self.voices, os.path.join(ROOT, "voices"))):
+            name = voices.keep(takes[1], "chatterbox", default=True, folder=self.voices, profile_path=profile)
+            self.assertEqual(name, "Coach Maya")
+            v = voices.lookup("coach maya")
+            self.assertEqual((v["engine"], v["model"]), ("chatterbox", "mlx-community/chatterbox-turbo-fp16"))
+            self.assertRegex(v["revision"], r"^[0-9a-f]{40}$")
+            self.assertEqual(v["ref_text"], voices.DESIGN_LINE)
+            with self.assertRaises(SystemExit):                       # no silent overwrite
+                voices.keep(takes[0], "qwen3", folder=self.voices, profile_path=profile)
+        p = context.profile(profile)
+        self.assertEqual(context.default_voice(p), "Coach Maya")
+        self.assertEqual(dict(context.voices(p))["Coach Maya"], "A woman in her thirties")
+
+    def test_keep_needs_the_words(self):
+        clip = os.path.join(self.tmp.name, "mine.wav")
+        voices.write_wav(clip, b"\x00\x00" * 100)
+        with self.assertRaises(SystemExit):
+            voices.keep(clip, "qwen3", folder=self.voices, profile_path=os.path.join(self.home, "profile.md"))
+
+
+class Wrapper(unittest.TestCase):
+    """./sweatcast, the one command."""
+
+    def sweatcast(self, *args, home=None):
+        return run(["sh", "sweatcast", *args], home=home, env={"SWEATCAST_PYTHON": sys.executable})
+
+    def test_help_and_unknown_commands(self):
+        out = self.sweatcast("help")
+        self.assertEqual(out.returncode, 0)
+        for cmd in ("build", "voices", "check", "log-session", "migrate"):
+            self.assertIn(cmd, out.stdout)
+        self.assertEqual(self.sweatcast("nonsense").returncode, cli.USAGE)
+
+    def test_subcommands_reach_their_tools(self):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
-            originals = {}
-            for name in ("profile.md", "health.md", "log.md", "exercise-science.md"):
-                path = os.path.join(home, name)
-                with open(path, encoding="utf-8") as f:
-                    originals[name] = context.body(f.read())
-                write_file(path, originals[name])            # as a 1.x copy has it
-            out = run([sys.executable, "tools/coverage.py"], home=home)
-            self.assertNotEqual(out.returncode, 0)
-            self.assertIn("tools/migrate.py", out.stderr)
+            self.assertEqual(self.sweatcast("get", "default-voice", home=home).stdout.strip(), "Chatterbox Coach")
+            out = self.sweatcast("voices", "measured", "Nobody", home=home)
+            self.assertEqual(out.returncode, cli.USAGE)
+            out = self.sweatcast("lint", "--bogus", home=home)
+            self.assertEqual(out.returncode, cli.USAGE)
+            self.assertIn("sweatcast lint", out.stderr)                # usage names the command
+            out = self.sweatcast("log-session", "--minutes", "10", "--kit", "Home", "--voice", "V",
+                                 "--movements", "squat", "--topics", "t", home=home)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertEqual(len(context.sessions(os.path.join(home, "log.md"))), 1)
 
-            out = run([sys.executable, "tools/migrate.py", "--dry-run"], home=home)
-            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-            self.assertIn("Dry run", out.stdout)
-            with open(os.path.join(home, "log.md"), encoding="utf-8") as f:
-                self.assertEqual(f.read(), originals["log.md"])
-
-            out = run([sys.executable, "tools/migrate.py"], home=home)
-            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-            backups = glob.glob(os.path.join(home, ".backup-*"))
-            self.assertEqual(len(backups), 1)
-            for name, text in originals.items():
-                with open(os.path.join(backups[0], name), encoding="utf-8") as f:
-                    self.assertEqual(f.read(), text)
-                with open(os.path.join(home, name), encoding="utf-8") as f:
-                    migrated = f.read()
-                self.assertEqual(context.schema_of(migrated), context.SCHEMA)
-                self.assertEqual(context.body(migrated), text)   # nothing else changed
-
-            out = run([sys.executable, "tools/migrate.py"], home=home)
-            self.assertIn("already at schema", out.stdout)
-            self.assertEqual(len(glob.glob(os.path.join(home, ".backup-*"))), 1)
-            self.assertEqual(run([sys.executable, "tools/coverage.py"], home=home).returncode, 0)
-
-    def test_the_template_is_current(self):
-        with tempfile.TemporaryDirectory() as d:
-            out = run([sys.executable, "tools/context.py", "check"], home=fresh_home(d))
-        self.assertEqual(out.returncode, 0, out.stdout)
+    def test_without_an_environment_it_says_run_setup(self):
+        out = run(["sh", "sweatcast", "check"], env={"SWEATCAST_PYTHON": "/nonexistent/python"})
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("./sweatcast setup", out.stderr)
 
 
 class CachePrune(unittest.TestCase):

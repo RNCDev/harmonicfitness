@@ -18,11 +18,11 @@ For example, Chatterbox Coach:
  "revision": "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75"}
 ```
 
-`python3 tools/voices.py` lists the voices with their engine, measured pace and model. `tools/setup.sh` downloads the default voice's model at its pinned revision (`--all` for every voice), and `.venv/bin/python tools/voices.py --download "<name>"` fetches one.
+`./sweatcast voices` lists the voices with their engine, measured pace and model. `./sweatcast setup` downloads the default voice's model at its pinned revision (`--all` for every voice), and `./sweatcast voices download "<name>"` fetches one.
 
 ## Engines
 
-Both run on Apple Silicon through `mlx-audio`, in the project's own Python environment (`.venv`, made by `tools/setup.sh` from `uv.lock`). Their weights download from Hugging Face into `~/.cache/huggingface/hub`, shared with other apps; Chatterbox Turbo also loads a speech tokenizer (`mlx-community/S3TokenizerV2`), pinned in `tools/voices.py`.
+Both run on Apple Silicon through `mlx-audio`, in the project's own Python environment (`.venv`, made by `./sweatcast setup` from `uv.lock`). Their weights download from Hugging Face into `~/.cache/huggingface/hub`, shared with other apps; Chatterbox Turbo also loads a speech tokenizer (`mlx-community/S3TokenizerV2`), pinned in `tools/voices.py`.
 
 | Engine | Strength | Speed on an M3 with 16 GB |
 |---|---|---|
@@ -32,7 +32,7 @@ Both run on Apple Silicon through `mlx-audio`, in the project's own Python envir
 
 Neither decides a clip's length in advance, so the lint predicts it from each voice's measured rate (recorded by every render) and the render lays segments on the plan's clock, ending a short one early and paying back a long one from the next. The whole workout is held within three percent of plan.
 
-Until a voice's first render, the lint assumes the median rate of the voices already measured (both coach voices measure about 14.6 to 14.8 weighted characters a second). A reference clip's own rate is a poor guess: for Chatterbox Coach it said 10.3, about 30 percent slow, which would script a session a third short. So `tools/build.sh` won't render a session with an unmeasured voice; render the smoke test with it first.
+Until a voice's first render, the lint assumes the median rate of the voices already measured (both coach voices measure about 14.6 to 14.8 weighted characters a second). A reference clip's own rate is a poor guess: for Chatterbox Coach it said 10.3, about 30 percent slow, which would script a session a third short. So `./sweatcast build` won't render a session with an unmeasured voice; render the smoke test with it first.
 
 Chatterbox Turbo encodes the reference clip once per render and reuses it for every clip (it takes about half a second each time). The full-size Chatterbox and Qwen3 are given the clip on every call, since the full-size model forgets it between calls and Qwen3 caches it internally. There's no quantized Turbo build on Hugging Face; the 8-bit and 4-bit builds of the full-size model were slower than Turbo.
 
@@ -47,7 +47,7 @@ Model weights never go in git. They download once from Hugging Face into `~/.cac
 | Chatterbox Coach | `mlx-community/chatterbox-turbo-fp16` and its speech tokenizer, `mlx-community/S3TokenizerV2` | About 3.3 GB |
 | Qwen3 Coach | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` | About 4.2 GB |
 
-- **When:** `tools/setup.sh` fetches the default voice's model (the first under Voices in `me/profile.md`); `--all` fetches every voice's, and rerunning it after changing the default fetches the new one. `.venv/bin/python tools/voices.py --download "<name>"` fetches one voice. A voice whose model isn't there yet downloads it on its first render, so a smoke test can take several minutes the first time.
+- **When:** `./sweatcast setup` fetches the default voice's model (the first of the voices in `me/profile.md`'s settings); `--all` fetches every voice's, and rerunning it after changing the default fetches the new one. `./sweatcast voices download "<name>"` fetches one voice. A voice whose model isn't there yet downloads it on its first render, so a smoke test can take several minutes the first time.
 - **No account:** the models aren't gated, so no Hugging Face account or token is needed. The "unauthenticated requests" warning during a download is harmless; setting `HF_TOKEN` only makes downloads faster.
 - **Pinned:** each voice downloads the revision its `.json` names, and Chatterbox's tokenizer the revision `tools/voices.py` pins, so every copy of sweatcast renders with the same weights. A render stops with a clear message if a pinned file can't be fetched, rather than carrying on with the wrong one.
 - **Offline:** once downloaded, rendering needs no network.
@@ -67,9 +67,24 @@ The descriptions that worked:
 
 What didn't: "upbeat, natural energy, like leading a class" came out goofy and high-pitched; "calm, relaxed, unhurried" came out sleepy, or far too slow.
 
-## Make a new one
+## Design a voice
 
-1. Design takes as above, or record ten to fifteen seconds of a real person (only yourself, or someone who has agreed) reading a coaching line in a quiet room.
-2. Save the clip as `me/voices/<name>.wav`, its words as `me/voices/<name>.txt`, and the engine, model and revision as `me/voices/<name>.json` (copy a shipped voice's file). A synthetic voice worth sharing can go in `voices/` instead, in a pull request.
-3. Add it under Voices in `me/profile.md`; the first listed is the default.
-4. Render the smoke test with it: `tools/build.sh voices/smoke-test.draft.txt "smoke-test" --voice "<name>"`. The first render downloads the engine's weights if needed and records the voice's pace. Session builds refuse the voice until this has run (exit code 3); `ALLOW_ESTIMATED=1` overrides that.
+`./sweatcast voices design` does what's described above in one command: it loads Qwen3-TTS VoiceDesign (`mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16`, pinned in `tools/voices.py`, about 4.5 GB the first time), renders two takes of the coaching line in a voice made from your description, and saves them in `me/voices/.takes/`. Only one model runs at a time, so a design waits for a render that's going.
+
+```
+./sweatcast voices design "Coach Maya" "A woman in her thirties with a warm, mid-low voice and an American accent. An experienced strength coach: grounded, encouraging and steady. Calm authority, no hype. Crisp diction, natural pace." --play
+./sweatcast voices keep "me/voices/.takes/Coach Maya-2.wav" --engine chatterbox --default
+./sweatcast build voices/smoke-test.draft.txt "smoke-test" --voice "Coach Maya"
+```
+
+- `--play` plays each take (macOS `afplay`); `--takes 3` makes more; `--seed` gives different takes of the same description; `--line` changes what they say.
+- `keep` copies the take to `me/voices/<name>.wav` with its words in `.txt`, writes the `.json` with the engine you choose at the same model and revision as the shipped voice on that engine, and adds the voice to your profile's settings (`--default` lists it first). `--engine chatterbox` (Turbo) gives the most natural delivery and renders fastest; `--engine qwen3` the clearest diction.
+- Describe the person and the role, not adjectives alone, and say what to avoid. What worked and what didn't for the coach voices is above.
+- The smoke test measures the new voice's pace, which session builds need.
+- When you're done designing, the design model can be deleted from `~/.cache/huggingface/hub` (`models--mlx-community--Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16`); it downloads again if you design another voice.
+
+## Make a new one by hand
+
+1. Record ten to fifteen seconds of a real person (only yourself, or someone who has agreed) reading a coaching line in a quiet room, or design takes as above.
+2. Save the clip as `<name>.wav` with its exact words in `<name>.txt` beside it, then `./sweatcast voices keep <name>.wav --engine chatterbox` (it writes the `.json` and adds the voice to your profile). Or write the three files in `me/voices/` yourself (copy a shipped voice's `.json`) and add a `[[voices]]` entry to the settings at the top of `me/profile.md`; the first listed is the default. A synthetic voice worth sharing can go in `voices/` instead, in a pull request.
+3. Render the smoke test with it: `./sweatcast build voices/smoke-test.draft.txt "smoke-test" --voice "<name>"`. The first render downloads the engine's weights if needed and records the voice's pace. Session builds refuse the voice until this has run (exit code 3); `--allow-estimated` overrides that.

@@ -1,0 +1,19 @@
+#!/bin/sh
+# sweatcast: every command, in the project's own Python environment (.venv).
+#
+#   ./sweatcast setup                     # first run: environment, me/, privacy hook, voice model
+#   ./sweatcast build <draft> "<name>"    # lint, render and deliver a workout
+#   ./sweatcast help                      # every command
+#
+# Set SWEATCAST_PYTHON to use another interpreter (the tests do).
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+if [ "$1" = "setup" ]; then
+  shift
+  exec sh "$ROOT/tools/setup.sh" "$@"   # makes .venv, so it can't need it
+fi
+PY="${SWEATCAST_PYTHON:-$ROOT/.venv/bin/python}"
+if [ ! -x "$PY" ]; then
+  echo "sweatcast isn't set up on this Mac yet: run ./sweatcast setup (or ask Claude Code to \"set me up\")." >&2
+  exit 1
+fi
+exec "$PY" "$ROOT/tools/sweatcast.py" "$@"

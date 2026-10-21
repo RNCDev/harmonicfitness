@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Render a segmented workout draft to one MP3, voicing each paragraph in-process.
 
-Runs in the project's own environment, .venv (tools/setup.sh makes it; tools/build.sh
-picks it). Each voice is cloned from its reference clip with Chatterbox Turbo or
+Runs in the project's own environment, .venv (./sweatcast setup makes it; ./sweatcast
+runs it there). Each voice is cloned from its reference clip with Chatterbox Turbo or
 Qwen3-TTS through mlx-audio (tools/engines.py), using the model revision its
 voices/<name>.json pins. A soft chime opens each segment after the first, a [chime]
 marker rings it inside a segment, and a three-note tone marks the end of the
@@ -20,9 +20,9 @@ in me/workouts/.logs/builds.jsonl.
 Exit codes (cli.py): 0 done, 2 the workout ran more than --tolerance off plan (the MP3
 is written), 64 a mistyped command, 1 anything else.
 
-Usage (normally via tools/build.sh):
-    .venv/bin/python tools/render.py draft.txt --voice "Chatterbox Coach" --out "me/workouts/Workout ....mp3"
-    .venv/bin/python tools/render.py draft.txt --voice "Chatterbox Coach" --clips-only   # fill the cache, no MP3
+Usage (normally via ./sweatcast build):
+    ./sweatcast render draft.txt --voice "Chatterbox Coach" --out "me/workouts/Workout ....mp3"
+    ./sweatcast render draft.txt --voice "Chatterbox Coach" --clips-only   # fill the cache, no MP3
 """
 import contextlib
 import datetime as dt
