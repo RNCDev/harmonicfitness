@@ -3,6 +3,7 @@
     "allow": [
       "Bash(tools/build.sh:*)",
       "Bash(LINT_ONLY=1 tools/build.sh:*)",
+      "Bash(tools/setup.sh:*)",
       "Bash(python3 tools/tts_build.py:*)",
       "Bash(python3 tools/voices.py:*)",
       "Bash(python3 tools/youtube.py:*)",
@@ -10,10 +11,8 @@
       "Bash(python3 tools/feeds.py:*)",
       "Bash(python3 -m unittest:*)",
       "Bash(date:*)",
-      "Edit(/workouts/**)",
-      "Edit(/log.md)",
-      "Edit(/knowledge/exercise-science.md)",
-      "Edit(/knowledge/profile.md)",
+      "Edit(/me/**)",
+      "Write(/me/**)",
       "WebSearch",
       "WebFetch"
     ]

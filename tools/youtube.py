@@ -2,10 +2,10 @@
 """YouTube deep dives: find a fresh video on a favorite channel and save its transcript.
 
 Every other session's deep dive retells a video from one of the channels listed
-by @handle on the "YouTube favorites" line under Content in knowledge/profile.md.
+by @handle on the "YouTube favorites" line under Content in me/profile.md.
 `transcript` saves the video's English captions as plain paragraphs in
-workouts/research/videos/<id>.txt. A video counts as used once its summary sheet,
-workouts/research/videos/<id>.md, exists; `pick` skips it from then on.
+me/workouts/research/videos/<id>.txt. A video counts as used once its summary sheet,
+me/workouts/research/videos/<id>.md, exists; `pick` skips it from then on.
 
 A long video can be told as a series, one part per video session: its sheet
 says "- Parts: 3" and "- Parts done: 1" in its header, `pick` lists it first as a
@@ -13,10 +13,10 @@ series to continue, and `done` marks the next part told.
 
 The quiz beat can come from a puzzle channel, listed by @handle on the "Puzzles"
 line under Content. `puzzles` lists its recent videos not yet used as a quiz; one
-counts as used once workouts/research/puzzles/<id>.md exists.
+counts as used once me/workouts/research/puzzles/<id>.md exists.
 
-yt-dlp ships with VoiceStudio's bundled Python, so the tool reruns itself there
-when the system python3 doesn't have it.
+yt-dlp is installed in the project's environment (.venv, made by tools/setup.sh), so
+the tool reruns itself there when the system python3 doesn't have it.
 
     python3 tools/youtube.py pick                 # recent unused videos per channel
     python3 tools/youtube.py pick --recent 6      # look further back
@@ -31,12 +31,8 @@ import os
 import re
 import sys
 
-VS_PYTHON = os.path.expanduser(
-    "~/Library/Application Support/VoiceStudio/runtime/project/.venv/bin/python")
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROFILE = os.path.join(ROOT, "knowledge", "profile.md")
-VIDEOS = os.path.join(ROOT, "workouts", "research", "videos")
-PUZZLES = os.path.join(ROOT, "workouts", "research", "puzzles")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from paths import PROFILE, PUZZLES, VENV_PYTHON, VIDEOS, require, show  # noqa: E402
 
 MIN_SECONDS, MAX_SECONDS = 5 * 60, 3 * 60 * 60   # skip Shorts and marathon streams
 PUZZLE_MAX_SECONDS = 30 * 60                      # a quiz puzzle is short
@@ -50,19 +46,19 @@ yt_dlp = None
 
 
 def load_yt_dlp():
-    """Import yt-dlp, rerunning under VoiceStudio's Python if this one lacks it."""
+    """Import yt-dlp, rerunning under the project's environment if this Python lacks it."""
     global yt_dlp
     try:
         import yt_dlp as module
     except ImportError:
-        if os.access(VS_PYTHON, os.X_OK) and sys.executable != VS_PYTHON:
-            os.execv(VS_PYTHON, [VS_PYTHON, *sys.argv])
-        raise SystemExit("yt-dlp not found (open the VoiceStudio app once to install its runtime)")
+        if os.access(VENV_PYTHON, os.X_OK) and os.path.realpath(sys.executable) != os.path.realpath(VENV_PYTHON):
+            os.execv(VENV_PYTHON, [VENV_PYTHON, *sys.argv])
+        raise SystemExit("yt-dlp not found: run tools/setup.sh to make the project's environment")
     yt_dlp = module
 
 
 def handles(label="YouTube favorites", profile=PROFILE):
-    with open(profile) as f:
+    with open(require(profile, "profile")) as f:
         for line in f:
             if line.lstrip("- ").startswith(label):
                 found = re.findall(r"@([\w.-]*[\w-])", line)   # not a sentence's final period
@@ -106,7 +102,7 @@ def mark_done(video, folder=VIDEOS):
     """Record that the next part of a series was told. Returns (parts done, parts)."""
     path = os.path.join(folder, f"{video}.md")
     if not os.path.exists(path):
-        raise SystemExit(f"No sheet at {os.path.relpath(path, ROOT)}")
+        raise SystemExit(f"No sheet at {show(path)}")
     with open(path, encoding="utf-8") as f:
         sheet = f.read()
     parts, done = series_state(sheet)
@@ -212,7 +208,7 @@ def transcript(ref):
     with open(path, "w") as f:
         f.write("\n".join(header) + "\n\n" + "\n\n".join(body) + "\n")
     words = sum(len(p.split()) for p in body)
-    print(f"{os.path.relpath(path, ROOT)}  ({words} words)  {info.get('title', '')}")
+    print(f"{show(path)}  ({words} words)  {info.get('title', '')}")
 
 
 def main():

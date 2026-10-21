@@ -4,18 +4,25 @@ A voice is a short reference clip plus its transcript. The engine clones it for 
 
 ## Where voices live
 
-`voices/` in this repo, three files per voice:
+Three files per voice, in `voices/` for the voices that ship with sweatcast, or in `me/voices/` for private ones (a voice cloned from a real person belongs there, never in the public repo; `me/voices/` wins a name clash):
 - `<name>.wav`: the reference clip, about ten seconds.
 - `<name>.txt`: exactly what the clip says.
-- `<name>.json`: the engine, `{"engine": "chatterbox"}` or `{"engine": "qwen3"}`, and optionally `"model"` (a Hugging Face repo) to use a different build of that engine and `"generate"`, extra settings passed to the engine for every clip, such as `{"exaggeration": 0.55, "cfg_weight": 0.5}` for the full-size Chatterbox. Chatterbox Turbo ignores `exaggeration` and `cfg_weight`. Changing any of these re-renders the voice's clips instead of reusing cached ones.
+- `<name>.json`: the engine, `"chatterbox"` or `"qwen3"`; the `"model"` (a Hugging Face repo; without one, the engine's standard build); the `"revision"`, the model's commit on Hugging Face, so every copy of sweatcast renders with the same weights; and optionally `"generate"`, extra settings passed to the engine for every clip, such as `{"exaggeration": 0.55, "cfg_weight": 0.5}` for the full-size Chatterbox. Chatterbox Turbo ignores `exaggeration` and `cfg_weight`. Changing any of these re-renders the voice's clips instead of reusing cached ones.
 
-`python3 tools/voices.py` lists them with their engine and measured pace. Voices saved in the VoiceStudio app also still work, rendered with OmniVoice, but they sounded mechanical next to these.
+For example, Coach E:
+
+```json
+{"engine": "chatterbox", "model": "mlx-community/chatterbox-turbo-fp16",
+ "revision": "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75"}
+```
+
+`python3 tools/voices.py` lists the voices with their engine, measured pace and model. `tools/setup.sh` downloads the default voice's model at its pinned revision (`--all` for every voice), and `.venv/bin/python tools/voices.py --download "<name>"` fetches one.
 
 ## Engines
 
-Both run on this Mac through `mlx-audio` in VoiceStudio's bundled Python. Their weights download from Hugging Face on first use into `~/.cache/huggingface/hub`.
+Both run on Apple Silicon through `mlx-audio`, in the project's own Python environment (`.venv`, made by `tools/setup.sh` from `uv.lock`). Their weights download from Hugging Face into `~/.cache/huggingface/hub`, shared with other apps; Chatterbox Turbo also loads a speech tokenizer (`mlx-community/S3TokenizerV2`), pinned in `tools/voices.py`.
 
-| Engine | Strength | Speed on this M3 |
+| Engine | Strength | Speed on an M3 with 16 GB |
 |---|---|---|
 | Chatterbox Turbo (`mlx-community/chatterbox-turbo-fp16`), Coach E's default | Most natural, human delivery | About 0.7 times the speech's length |
 | Chatterbox (`mlx-community/Chatterbox-TTS-fp16`), the full-size model | Sounds as good as Turbo; also takes an expressiveness setting | About 1.8 times |
@@ -27,7 +34,7 @@ Until a voice's first render, the lint assumes the median rate of the voices alr
 
 Chatterbox Turbo encodes the reference clip once per render and reuses it for every clip (it takes about half a second each time). The full-size Chatterbox and Qwen3 are given the clip on every call, since the full-size model forgets it between calls and Qwen3 caches it internally. There's no quantized Turbo build on Hugging Face; the 8-bit and 4-bit builds of the full-size model were slower than Turbo.
 
-Tried and dropped on 2026-10-20: the VoiceStudio Gallery voices on OmniVoice (mechanical), Kokoro (flat), Qwen3-TTS preset speakers (fine, but Ryan far too slow), VoxCPM2 (good but nearly four times real time), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower).
+Tried and dropped on 2026-10-20: OmniVoice's gallery voices (mechanical; OmniVoice support was removed in 1.0.0), Kokoro (flat), Qwen3-TTS preset speakers (fine, but Ryan far too slow), VoxCPM2 (good but nearly four times real time), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower).
 
 ## How the coach voices were made
 
@@ -45,6 +52,6 @@ What didn't: "upbeat, natural energy, like leading a class" came out goofy and h
 ## Make a new one
 
 1. Design takes as above, or record ten to fifteen seconds of a real person (only yourself, or someone who has agreed) reading a coaching line in a quiet room.
-2. Save the clip as `voices/<name>.wav`, its words as `voices/<name>.txt`, and the engine as `voices/<name>.json`.
-3. Add it under Voices in `profile.md`; the first listed is the default.
-4. Render the smoke test with it: `tools/build.sh workouts/drafts/smoke-test.draft.txt "smoke-test" --voice "<name>"`. The first render downloads the engine's weights if needed and records the voice's pace. Session builds refuse the voice until this has run (exit code 3); `ALLOW_ESTIMATED=1` overrides that.
+2. Save the clip as `me/voices/<name>.wav`, its words as `me/voices/<name>.txt`, and the engine, model and revision as `me/voices/<name>.json` (copy a shipped voice's file). A synthetic voice worth sharing can go in `voices/` instead, in a pull request.
+3. Add it under Voices in `me/profile.md`; the first listed is the default.
+4. Render the smoke test with it: `tools/build.sh voices/smoke-test.draft.txt "smoke-test" --voice "<name>"`. The first render downloads the engine's weights if needed and records the voice's pace. Session builds refuse the voice until this has run (exit code 3); `ALLOW_ESTIMATED=1` overrides that.

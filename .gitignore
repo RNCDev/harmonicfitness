@@ -1,6 +1,7 @@
-workouts/.audio-cache/
+# Your context: profile, health, log, workouts, research, clips. Never pushed with the
+# engine; back it up as its own private repo if you like (see README).
+me/
+.venv/
+.codegraph/
 __pycache__/
 .DS_Store
-workouts/*.mp3
-workouts/smoke-test.txt
-workouts/research/videos/*.txt

@@ -1,0 +1,18 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # The tests need no models, audio or network, and no personal context:
+      # they run on me.example/ and tests/fixtures/.
+      - run: python -m unittest discover tests -v
+      - name: Nothing personal is tracked
+        run: |
+          if git ls-files | grep -E '^(me/|workouts/|log\.md$|knowledge/profile\.md$)'; then
+            echo "Personal context belongs in me/, which is git-ignored."; exit 1
+          fi

@@ -1,5 +1,6 @@
 {
  "engine": "chatterbox",
  "model": "mlx-community/chatterbox-turbo-fp16",
- "notes": "Turbo ignores exaggeration and cfg_weight (it says so when they're passed). To use them, switch model to mlx-community/Chatterbox-TTS-fp16 and add, for example, \"generate\": {\"exaggeration\": 0.55, \"cfg_weight\": 0.5}"
+ "revision": "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75",
+ "notes": "Turbo ignores exaggeration and cfg_weight (it says so when they're passed). To use them, switch model to mlx-community/Chatterbox-TTS-fp16 (and its revision) and add, for example, \"generate\": {\"exaggeration\": 0.55, \"cfg_weight\": 0.5}"
 }

@@ -1,0 +1,20 @@
+[project]
+name = "sweatcast"
+version = "1.0.0"
+description = "Narrated workout podcasts, written by Claude Code and voiced on your own Mac."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    # Text to speech on Apple Silicon: Chatterbox Turbo and Qwen3-TTS through MLX.
+    "mlx-audio==0.5.0",
+    "mlx==0.32.1",
+    "numpy==2.2.6",
+    # Video transcripts for the deep dive and puzzle videos.
+    "yt-dlp==2026.8.19",
+    # TLS roots for tools/feeds.py on a python.org Python.
+    "certifi",
+]
+
+[tool.uv]
+package = false

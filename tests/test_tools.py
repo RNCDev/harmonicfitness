@@ -5,7 +5,8 @@ no network.
 """
 import datetime as dt
 import glob
-import importlib.util
+import shutil
+import subprocess
 import json
 import os
 import sys
@@ -18,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import char_weight  # noqa: E402
 import coverage  # noqa: E402
 import feeds  # noqa: E402
+import paths  # noqa: E402
 import render  # noqa: E402
 import tts_build  # noqa: E402
 import voices  # noqa: E402
@@ -27,9 +29,8 @@ from tts_build import (CHIME, CHIME_SECONDS, PARAGRAPH_GAP, lint_line, parse, pl
                        structure_warnings, word_count)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DRAFTS = sorted(glob.glob(os.path.join(ROOT, "workouts", "drafts", "*.draft.txt")))
-OMNIVOICE_DURATION = os.path.expanduser(
-    "~/Library/Application Support/VoiceStudio/runtime/project/omnivoice/utils/duration.py")
+# Drafts that ship with the engine; personal drafts in me/ are never test fixtures.
+DRAFTS = sorted(glob.glob(os.path.join(ROOT, "tests", "fixtures", "*.draft.txt"))) + [paths.SMOKE_DRAFT]
 
 
 def secs(pcm):
@@ -281,18 +282,6 @@ class CharWeight(unittest.TestCase):
         self.assertAlmostEqual(char_weight.weight("é"), 1.0)
         self.assertAlmostEqual(char_weight.weight("e\u0301"), 1.0)   # NFC composes the accent
 
-    @unittest.skipUnless(os.path.exists(OMNIVOICE_DURATION), "VoiceStudio's OmniVoice isn't installed")
-    def test_matches_omnivoice_on_every_draft(self):
-        # voice-pace.json was accumulated with OmniVoice's table; any drift shifts every prediction.
-        spec = importlib.util.spec_from_file_location("_ov_duration", OMNIVOICE_DURATION)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        est = mod.RuleDurationEstimator()
-        for path in DRAFTS:
-            with open(path, encoding="utf-8") as f:
-                text = f.read()
-            self.assertEqual(char_weight.weight(text), est.calculate_total_weight(text), path)
-
 
 class SeedPace(unittest.TestCase):
     def test_median_of_measured_voices_only(self):
@@ -300,11 +289,91 @@ class SeedPace(unittest.TestCase):
                 "b|qwen3|m": {"weight": 1200.0, "seconds": 100.0},
                 "c|qwen3|m": {"weight": 1600.0, "seconds": 100.0},
                 "short|qwen3|m": {"weight": 10.0, "seconds": 5.0},       # too little speech to count
-                "omni": {"name": "x", "ref_text": "hi", "ref_tokens": 250}}  # OmniVoice entry, no rate
+                "old": {"name": "x", "ref_text": "hi", "ref_tokens": 250}}  # an entry with no rate
         self.assertAlmostEqual(voices.seed_pace(data), 14.6)
 
     def test_default_when_nothing_is_measured(self):
         self.assertEqual(voices.seed_pace({}), voices.DEFAULT_PACE)
+
+
+class Voices(unittest.TestCase):
+    def make(self, folder, name, conf):
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, name + ".wav"), "wb") as f:
+            f.write(b"RIFF" + name.encode())
+        with open(os.path.join(folder, name + ".txt"), "w") as f:
+            f.write("Set your feet.")
+        if conf is not None:
+            with open(os.path.join(folder, name + ".json"), "w") as f:
+                json.dump(conf, f)
+
+    def test_private_voice_wins_and_models_default(self):
+        with tempfile.TemporaryDirectory() as d:
+            mine, shipped = os.path.join(d, "me"), os.path.join(d, "repo")
+            self.make(shipped, "Coach", {"engine": "qwen3"})
+            self.make(mine, "coach", {"engine": "chatterbox", "model": "x/turbo", "revision": "abc"})
+            self.make(shipped, "Other", {"engine": "qwen3"})
+            with mock.patch.object(voices, "VOICE_DIRS", (mine, shipped)):
+                v = voices.lookup("COACH")
+                self.assertEqual((v["engine"], v["model"], v["revision"]), ("chatterbox", "x/turbo", "abc"))
+                self.assertEqual(voices.lookup("other")["model"], voices.STANDARD_MODELS["qwen3"])
+                self.assertEqual(voices.names(), ["Other", "coach"])
+
+    def test_missing_settings_or_bad_engine(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.make(d, "NoJson", None)
+            self.make(d, "Omni", {"engine": "omnivoice"})
+            with mock.patch.object(voices, "VOICE_DIRS", (d,)):
+                for name in ("NoJson", "Omni", "Nobody"):
+                    with self.assertRaises(SystemExit):
+                        voices.lookup(name)
+
+    def test_shipped_voices_pin_a_revision(self):
+        for name in voices.names():
+            v = voices.lookup(name)
+            if v["ref_audio"].startswith(os.path.join(ROOT, "voices")):
+                self.assertRegex(v["revision"] or "", r"^[0-9a-f]{40}$", name)
+
+
+class FreshFork(unittest.TestCase):
+    """A new copy of the repo, with only me.example/ copied: the tools run on it."""
+
+    def run_tool(self, home, *args):
+        env = dict(os.environ, SWEATCAST_HOME=home)
+        return subprocess.run([sys.executable, *args], cwd=ROOT, env=env,
+                              capture_output=True, text=True, timeout=60)
+
+    def test_example_context_works(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(paths.EXAMPLE, home)
+            out = self.run_tool(home, "tools/coverage.py")
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertIn("No sessions", out.stdout)
+            out = self.run_tool(home, "tools/tts_build.py", os.path.join("tests", "fixtures", "example.draft.txt"),
+                                "--out", os.path.join(d, "x.txt"), "--force")   # short on purpose
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            self.assertNotIn("  line ", out.stdout)   # no text-to-speech problems
+            self.assertTrue(os.path.exists(os.path.join(d, "x.txt")))
+            with open(os.path.join(home, "profile.md"), encoding="utf-8") as f:
+                prof = f.read()
+            self.assertTrue(feeds.config(prof))
+            self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
+            self.assertIn("- Copy finished MP3s to:", prof)
+            self.assertIn("- Voices", prof)
+
+    def test_missing_context_says_run_setup(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = self.run_tool(os.path.join(d, "nowhere"), "tools/coverage.py")
+            self.assertNotEqual(out.returncode, 0)
+            self.assertIn("tools/setup.sh", out.stderr)
+
+    def test_nothing_personal_is_tracked(self):
+        if not os.path.isdir(os.path.join(ROOT, ".git")):
+            self.skipTest("not a git checkout")
+        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split("\n")
+        bad = [p for p in tracked if p.startswith(("me/", "workouts/")) or p in ("log.md", "knowledge/profile.md")]
+        self.assertEqual(bad, [])
 
 
 class LogFields(unittest.TestCase):

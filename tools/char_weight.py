@@ -17,9 +17,9 @@
 #
 # Vendored into sweatcast from OmniVoice's omnivoice/utils/duration.py
 # (RuleDurationEstimator: the weights table, the Unicode ranges and the per-character
-# rule, unchanged), so the lint predicts Chatterbox and Qwen3 voices without
-# VoiceStudio's files. tests/test_tools.py checks it still matches OmniVoice's copy
-# whenever VoiceStudio is installed.
+# rule, unchanged). Every voice's measured pace is counted in these weights, so the
+# table must not change without measuring the voices again. OmniVoice itself is no
+# longer used.
 
 """Weighted character count: relative speaking time of text, 1.0 per Latin letter."""
 import bisect

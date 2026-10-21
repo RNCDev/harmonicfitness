@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Which muscle groups recent sessions covered, read from log.md.
+"""Which muscle groups recent sessions covered, read from me/log.md.
 
 The workout skill plans whole-body sessions: anything the last session left out
 comes first next time, and the last session's main movements are avoided. This
@@ -22,8 +22,8 @@ import os
 import re
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOG = os.path.join(ROOT, "log.md")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from paths import LOG, require  # noqa: E402
 
 # The skill's whole-body checklist, in its order. A movement can train several groups.
 GROUPS = [
@@ -107,7 +107,7 @@ def main():
     ap.add_argument("--log", default=LOG)
     args = ap.parse_args()
 
-    full = entries(args.log)
+    full = entries(require(args.log, "log"))
     if not full:
         print("No sessions in log.md yet: every group is open, nothing to avoid.")
         return 0

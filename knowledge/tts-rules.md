@@ -79,4 +79,4 @@ After: "Body in one line. Lower slow. Now push the bench away."
 
 ## Tone
 
-Tone and humor come from the Narrator section of `profile.md`. Whatever the tone, avoid hype words and repeated catchphrases, and vary praise; "Nice work" eight times in one session becomes noise.
+Tone and humor come from the Narrator section of `me/profile.md`. Whatever the tone, avoid hype words and repeated catchphrases, and vary praise; "Nice work" eight times in one session becomes noise.

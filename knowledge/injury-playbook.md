@@ -1,6 +1,6 @@
 # Injury Playbook
 
-How to program around an injury or limitation. This is a general guide for a healthy adult working around a known, already-assessed problem, not a substitute for a clinician. Anything a doctor or physical therapist has told the user overrides this file; record those instructions in the profile's injury entry and follow them literally.
+How to program around an injury or limitation. This is a general guide for a healthy adult working around a known, already-assessed problem, not a substitute for a clinician. Anything a doctor or physical therapist has told the user overrides this file; record those instructions in the injury's entry in `me/health.md` and follow them literally.
 
 ## Procedure for every active injury
 1. Identify the body part, side, what happened, and roughly when.

@@ -12,14 +12,14 @@ Structure checks (a locator opening each segment, one countdown per segment, few
 exclamation points, no praise line used over and over) print as warnings; with
 --strict they count as issues.
 
-With --voice, each segment's spoken length is predicted for that VoiceStudio
-voice (see voices.py) and checked against its planned seconds. Without it, word
+With --voice, each segment's spoken length is predicted for that voice (see
+voices.py) and checked against its planned seconds. Without it, word
 count against --wpm is the rough fallback.
 
 Usage:
-    python3 tts_build.py draft.txt --voice demo0001 --out "Workout 2026-10-18.txt"
-    python3 tts_build.py draft.txt --wpm 170 --out final.txt --force   # export despite issues
-    python3 tts_build.py draft.txt --voice "Coach E" --out x.txt --strict  # structure warnings count
+    python3 tools/tts_build.py draft.txt --voice "Coach E" --out "Workout 2026-10-18.txt"
+    python3 tools/tts_build.py draft.txt --wpm 170 --out final.txt --force   # export despite issues
+    python3 tools/tts_build.py draft.txt --voice "Coach E" --out x.txt --strict  # structure warnings count
 """
 import argparse
 import re
@@ -30,7 +30,7 @@ PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IG
 CHIME_RE = re.compile(r"\[\s*chime\s*\]", re.IGNORECASE)
 MARK_RE = re.compile(PAUSE_RE.pattern + "|" + CHIME_RE.pattern, re.IGNORECASE)
 CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
-PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds, as in VoiceStudio's pause dialect
+PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds: a bare [pause], and the longest one
 PARAGRAPH_GAP = 0.35                    # least silence between paragraphs within a segment
 MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
 CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segment after the first
@@ -124,11 +124,11 @@ def plan(seg):
     return [spans(p) for p in paragraphs(seg["lines"])]
 
 
-def spoken_seconds(seg, voice, speed=None, lead=0.0):
+def spoken_seconds(seg, voice, lead=0.0):
     """Predicted seconds for a segment; `lead` is the chime that opens it, if any."""
     from voices import clip_seconds
     paras = plan(seg)
-    return lead + sum(clip_seconds(text, voice, speed) if spoken(text) else
+    return lead + sum(clip_seconds(text, voice) if spoken(text) else
                       (CHIME_SECONDS if text == CHIME else 0.0)
                       for para in paras for text, _ in para) \
         + sum(pause for para in paras for _, pause in para) \
@@ -227,8 +227,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("draft")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--voice", help="VoiceStudio voice id or name: check predicted spoken seconds")
-    ap.add_argument("--speed", type=float, default=None, help="the speed factor the render will use")
+    ap.add_argument("--voice", help="a voice's name: check predicted spoken seconds")
     ap.add_argument("--wpm", type=float, default=185, help="word guide without --voice, words per minute")
     ap.add_argument("--min-fill", type=float, default=MIN_FILL, help="below this, the segment is far too short")
     ap.add_argument("--max-fill", type=float, default=MAX_FILL, help="above this, the segment is far too long")
@@ -252,7 +251,7 @@ def main():
     total_words, total_seconds, total_spoken = 0, 0, 0.0
     wpm = args.wpm
     if voice:
-        spokens = [spoken_seconds(seg, voice, args.speed, CHIME_SECONDS if i else 0.0)
+        spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i else 0.0)
                    for i, seg in enumerate(segments)]
         # The rate this voice actually speaks this draft at, so the guide column
         # says how many words each segment wants with this voice.
@@ -274,12 +273,11 @@ def main():
                 flag = f"  <-- ends {seg['seconds'] - seg_secs:.1f}s early; add a little"
             total_spoken += seg_secs
             print(f"{i:>3} {seg['seconds']:>5} {words:>5} {guide:>5} {seg_secs:>6.1f} {fill:>5.0%}  {seg['label']}{flag}")
-            # OmniVoice splits a clip over thirty seconds into pieces and stitches
-            # them, and the seams can glitch. Keep every clip comfortably under.
+            # Long clips drift and glitch. Keep every clip comfortably short.
             from voices import clip_seconds
             for para in plan(seg):
                 for text, _ in para:
-                    secs = clip_seconds(text, voice, args.speed) if spoken(text) else 0.0
+                    secs = clip_seconds(text, voice) if spoken(text) else 0.0
                     if secs > MAX_CLIP:
                         print(f"  paragraph \"{' '.join(text.split()[:6])}...\" speaks for {secs:.0f}s; "
                               f"split it into paragraphs under {MAX_CLIP:.0f}s")
@@ -338,6 +336,4 @@ def main():
 
 
 if __name__ == "__main__":
-    from voices import use_voicestudio_python
-    use_voicestudio_python()
     main()
