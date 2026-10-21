@@ -7,7 +7,7 @@ A voice is a short reference clip plus its transcript. The engine clones it for 
 `voices/` in this repo, three files per voice:
 - `<name>.wav`: the reference clip, about ten seconds.
 - `<name>.txt`: exactly what the clip says.
-- `<name>.json`: the engine, `{"engine": "chatterbox"}` or `{"engine": "qwen3"}`, and optionally `"model"` (a Hugging Face repo) to use a different build of that engine.
+- `<name>.json`: the engine, `{"engine": "chatterbox"}` or `{"engine": "qwen3"}`, and optionally `"model"` (a Hugging Face repo) to use a different build of that engine and `"generate"`, extra settings passed to the engine for every clip, such as `{"exaggeration": 0.55, "cfg_weight": 0.5}` for the full-size Chatterbox. Chatterbox Turbo ignores `exaggeration` and `cfg_weight`. Changing any of these re-renders the voice's clips instead of reusing cached ones.
 
 `python3 tools/voices.py` lists them with their engine and measured pace. Voices saved in the VoiceStudio app also still work, rendered with OmniVoice, but they sounded mechanical next to these.
 

@@ -4,7 +4,7 @@
 Runs under VoiceStudio's bundled Python (tools/build.sh picks it). A voice from
 voices/ is cloned from its reference clip with Chatterbox (Turbo by default for
 Coach E) or Qwen3-TTS through mlx-audio; a voice saved in the VoiceStudio app
-renders with OmniVoice. Each segment's spare seconds are spread over its
+renders with OmniVoice. A soft chime opens each segment after the first. Each segment's spare seconds are spread over its
 paragraph breaks, a slightly long segment borrows from the next one's padding, and
 the result is loudness-normalized for earbuds.
 
@@ -19,8 +19,10 @@ import contextlib
 import hashlib
 import io
 import json
+import math
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -28,13 +30,15 @@ import time
 import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tts_build import PARAGRAPH_GAP, parse, plan  # noqa: E402  (one source of truth for text)
+from tts_build import CHIME_SECONDS, PARAGRAPH_GAP, parse, plan  # noqa: E402  (one source of truth for text)
 from voices import MLX_EDGE, ROOT, lookup, record, record_rate, weight  # noqa: E402
 
 CACHE_DIR = os.path.join(ROOT, "workouts", ".audio-cache")
 SR = 24000
 END_TAIL = 1.5        # seconds of a segment's spare time kept before the next segment
 MAX_EXTRA_GAP = 1.5   # most spare time added to any one paragraph break
+CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
+CHIME_LEVEL = 0.12    # peak; at 0.2 the bell averaged as loud as the voice, so this sits about 4 dB under
 LOUDNESS = "I=-16:TP=-1.5:LRA=11"   # podcast level, with headroom under 0 dBFS
 CODECS = {".mp3": ["-c:a", "libmp3lame", "-b:a", "96k"],
           ".m4a": ["-c:a", "aac", "-b:a", "96k"],
@@ -49,6 +53,58 @@ def to_pcm16(tensor):
 
 def silence(seconds):
     return b"\x00\x00" * max(int(seconds * SR), 0)
+
+
+def chime():
+    """A soft two-note bell that marks a new segment, so the ear has a timing anchor
+    even if a spoken cue gets mangled. Followed by a short quiet before the voice."""
+    n = int(CHIME_TONE * SR)
+    samples = []
+    for i in range(n):
+        t = i / SR
+        env = min(t / 0.005, 1.0) * math.exp(-9.0 * t)   # quick attack, bell-like decay
+        v = 0.6 * math.sin(2 * math.pi * 880 * t) + 0.4 * math.sin(2 * math.pi * 1320 * t)
+        samples.append(int(CHIME_LEVEL * env * v * 32767))
+    return struct.pack(f"<{n}h", *samples) + silence(CHIME_SECONDS - CHIME_TONE)
+
+
+def assemble(segments, clip, tolerance=0.05, lead=b""):
+    """Lay the clips out on the plan's clock: one slot per segment.
+
+    clip(text) returns a clip's PCM. `lead` (the chime) opens every segment after
+    the first. Returns (pcm, rows, overruns), rows as (n, planned, spoken, label, flag)."""
+    pcm_all, overruns, rows, late = bytearray(), 0, [], 0.0
+    for i, seg in enumerate(segments, 1):
+        paras = []
+        for para in plan(seg):
+            p = bytearray()
+            for text, pause in para:
+                if text:
+                    p += clip(text)
+                p += silence(pause)
+            paras.append(p)
+        head = lead if i > 1 else b""
+        gaps = len(paras) - 1
+        spoken = (len(head) + sum(len(p) for p in paras)) / 2 / SR + PARAGRAPH_GAP * gaps
+        # Spread the slot's spare seconds over the paragraph breaks, so the voice
+        # breathes between cue and story instead of rushing and then going quiet
+        # before the next segment. A short tail stays at the end.
+        slot = seg["seconds"] - late   # running late from earlier segments shortens this slot
+        slack = max(slot - spoken, 0.0)
+        extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
+        seg_pcm = bytearray(head)
+        for j, p in enumerate(paras):
+            if j:
+                seg_pcm += silence(PARAGRAPH_GAP + extra)
+            seg_pcm += p
+        flag = ""
+        if spoken > seg["seconds"] * (1 + tolerance):
+            flag, overruns = "  <-- overrun", overruns + 1
+        seg_pcm += silence(slot - len(seg_pcm) / 2 / SR)
+        late = max(late + len(seg_pcm) / 2 / SR - seg["seconds"], 0.0)
+        rows.append((i, seg["seconds"], spoken, seg["label"], flag))
+        pcm_all += seg_pcm
+    return pcm_all, rows, overruns
 
 
 def encode(pcm, out, title):
@@ -119,16 +175,15 @@ def mlx_speaker(voice, engine, repo):
     import numpy as np
     from mlx_audio.tts.utils import load_model
     model = load_model(repo)
+    gen = voice.get("generate") or {}   # per-voice engine settings, from voices/<name>.json
 
     def say(text, seed):
         mx.random.seed(seed)
         if engine == "qwen3":
             results = model.generate(text=text, ref_audio=voice["ref_audio"], ref_text=voice["ref_text"],
-                                     verbose=False)
+                                     verbose=False, **gen)
         else:
-            # Chosen by ear on 2026-10-20: a little more expressive than the default 0.1.
-            results = model.generate(text=text, ref_audio=voice["ref_audio"], exaggeration=0.55,
-                                     cfg_weight=0.5, verbose=False)
+            results = model.generate(text=text, ref_audio=voice["ref_audio"], verbose=False, **gen)
         with contextlib.redirect_stdout(io.StringIO()):   # the models print progress per clip
             results = list(results)
         if results[0].sample_rate != SR:
@@ -162,6 +217,7 @@ def main():
     ap.add_argument("--seed", type=int, default=None, help="default: the voice's pinned seed, else 42")
     ap.add_argument("--tolerance", type=float, default=0.05,
                     help="allowed overrun past a segment's planned seconds")
+    ap.add_argument("--no-chime", action="store_true", help="leave out the bell at each new segment")
     args = ap.parse_args()
 
     with open(args.draft, encoding="utf-8") as f:
@@ -182,8 +238,12 @@ def main():
         from omnivoice.utils.voice_design import heal_design_instruct
         instruct = heal_design_instruct(voice["instruct"], voice["vd_states"])
     instruct = instruct or None
+    # Everything that changes how a clip sounds goes in its cache key, so changing a
+    # setting re-renders instead of silently reusing old clips.
     settings = (f"{args.steps}|{args.speed}|{instruct}|{args.guidance}|{args.class_temperature}|"
-                f"{args.position_temperature}" if engine == "omnivoice" else model_repo)
+                f"{args.position_temperature}" if engine == "omnivoice" else
+                f"{model_repo}|{json.dumps(voice.get('generate') or {}, sort_keys=True)}|"
+                f"trim {TRIM_DB} {TRIM_KEEP}")
 
     def cache_path(text):
         key = f"{voice['key']}|{engine}|{seed}|{settings}|{text}"
@@ -222,37 +282,12 @@ def main():
         print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min "
               f"({took / audio_secs:.2f} times its length, not counting the model load)", flush=True)
 
-    pcm_all, overruns, rows, late = bytearray(), 0, [], 0.0
-    for i, seg in enumerate(segments, 1):
-        paras = []
-        for para in plan(seg):
-            p = bytearray()
-            for text, pause in para:
-                if text:
-                    with open(cache_path(text), "rb") as f:
-                        p += f.read()
-                p += silence(pause)
-            paras.append(p)
-        gaps = len(paras) - 1
-        spoken = sum(len(p) for p in paras) / 2 / SR + PARAGRAPH_GAP * gaps
-        # Spread the slot's spare seconds over the paragraph breaks, so the voice
-        # breathes between cue and story instead of rushing and then going quiet
-        # before the next segment. A short tail stays at the end.
-        slot = seg["seconds"] - late   # running late from earlier segments shortens this slot
-        slack = max(slot - spoken, 0.0)
-        extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
-        seg_pcm = bytearray()
-        for j, p in enumerate(paras):
-            if j:
-                seg_pcm += silence(PARAGRAPH_GAP + extra)
-            seg_pcm += p
-        flag = ""
-        if spoken > seg["seconds"] * (1 + args.tolerance):
-            flag, overruns = "  <-- overrun", overruns + 1
-        seg_pcm += silence(slot - len(seg_pcm) / 2 / SR)
-        late = max(late + len(seg_pcm) / 2 / SR - seg["seconds"], 0.0)
-        rows.append((i, seg["seconds"], spoken, seg["label"], flag))
-        pcm_all += seg_pcm
+    def clip(text):
+        with open(cache_path(text), "rb") as f:
+            return f.read()
+
+    pcm_all, rows, overruns = assemble(segments, clip, args.tolerance,
+                                       lead=b"" if args.no_chime else chime())
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
     for i, planned, spoken, label, flag in rows:

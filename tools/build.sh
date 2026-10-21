@@ -15,7 +15,9 @@ ROOT="$(dirname "$HERE")"
 PROFILE="$ROOT/knowledge/profile.md"
 VS_PY="$HOME/Library/Application Support/VoiceStudio/runtime/project/.venv/bin/python"
 
-# The drafting guide (words per minute) and the default voice live in the profile.
+# The drafting guide (words per minute), the default voice and the Drive folder live in
+# the profile. If a line is reworded so it can't be found, say so instead of guessing.
+[ -f "$PROFILE" ] || { echo "Profile not found at $PROFILE"; exit 1; }
 WPM="$(sed -n 's/^- Measured words per minute[^:]*: \([0-9][0-9]*\).*/\1/p' "$PROFILE" | head -1)"
 DEFAULT_VOICE="$(awk '/^- Voices/ {v=1; next} v && /^  - / {sub(/^  - /, ""); sub(/:.*/, ""); print; exit} v && !/^  / {exit}' "$PROFILE")"
 
@@ -25,7 +27,12 @@ for ARG in "$@"; do
   case "$PREV" in --voice) VOICE="$ARG" ;; --speed) SPEED="$ARG" ;; esac
   PREV="$ARG"
 done
-if [ -z "$VOICE" ]; then VOICE="${DEFAULT_VOICE:-demo0001}"; set -- "$@" --voice "$VOICE"; fi
+if [ -z "$VOICE" ]; then
+  [ -n "$DEFAULT_VOICE" ] || { echo "No --voice given, and no default voice found in $PROFILE."
+    echo "Expected a '- Voices' line followed by indented '  - <name>: ...' lines; the first is the default."; exit 1; }
+  VOICE="$DEFAULT_VOICE"; set -- "$@" --voice "$VOICE"
+fi
+[ -n "$WPM" ] || echo "Note: no '- Measured words per minute ...: <n>' line in the profile; the word guide assumes 185."
 
 # Both steps run on VoiceStudio's bundled Python, so no other Python is needed.
 [ -x "$VS_PY" ] || { echo "VoiceStudio runtime not found at $VS_PY (open the VoiceStudio app once to install it)"; exit 1; }
@@ -42,6 +49,9 @@ STATUS=$?
 
 # A finished MP3 also goes to the profile's Google Drive folder, which syncs to the phone.
 DRIVE_FOLDER="$(sed -n 's/^- Google Drive folder[^:]*: \([^.]*\)\..*/\1/p' "$PROFILE" | head -1)"
+if [ "$STATUS" -eq 0 ] && [ -z "$DRIVE_FOLDER" ]; then
+  echo "No Drive copy: no '- Google Drive folder ...: <folder>.' line found in the profile; the MP3 is only in workouts/"
+fi
 if [ "$STATUS" -eq 0 ] && [ -n "$DRIVE_FOLDER" ]; then
   FOUND=""
   for DEST in "$HOME"/Library/CloudStorage/GoogleDrive-*/"My Drive/$DRIVE_FOLDER"; do

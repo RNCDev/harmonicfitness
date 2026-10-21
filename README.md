@@ -20,7 +20,7 @@ Then ask for a workout, as below.
 3. Claude plans a whole-body session around your injuries, then writes a segmented draft (`@@ <seconds> | <label>` before each segment) in short paragraphs.
 4. `tools/build.sh` lints the draft for text-to-speech problems, predicts each segment's spoken length for the chosen voice, exports a clean `.txt`, renders a loudness-normalized `.mp3` into `workouts/`, and copies it to a Google Drive folder that syncs to your phone.
 
-Each paragraph is voiced by cloning the voice's ten-second reference clip. Spare seconds in a segment are spread over its paragraph breaks, and a segment that runs slightly long borrows from the next one's padding, so the whole workout lands within a few percent of plan. With the default voice, a 30-minute workout renders in about 20 minutes in the background. Edits re-render only the clips that changed.
+Each paragraph is voiced by cloning the voice's ten-second reference clip. A soft chime marks the start of each segment, so you can keep time by ear even if a word comes out garbled. Spare seconds in a segment are spread over its paragraph breaks, and a segment that runs slightly long borrows from the next one's padding, so the whole workout lands within a few percent of plan. With the default voice, a 30-minute workout renders in about 20 minutes in the background. Edits re-render only the clips that changed.
 
 ## Layout
 
@@ -35,6 +35,8 @@ Each paragraph is voiced by cloning the voice's ten-second reference clip. Spare
 | `tools/voices.py` | Voice lookup and spoken-length prediction; run it to list voices |
 | `tools/render.py` | Renderer (Chatterbox Turbo or Qwen3-TTS via `mlx-audio`) with clip cache, timing and loudness normalization |
 | `tools/youtube.py` | Picks a recent video from your favorite channels and saves its transcript |
+| `tools/coverage.py` | Reads the log and lists the muscle groups the last session left out |
+| `tests/` | Fast checks for the lint, timing layout and coverage (`python3 -m unittest discover tests`) |
 | `workouts/` | Scripts, drafts, research sheets (MP3s are git-ignored) |
 | `VERSION`, `CHANGELOG.md` | Release number and history |
 

@@ -23,6 +23,7 @@ PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IG
 PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds, as in VoiceStudio's pause dialect
 PARAGRAPH_GAP = 0.35                    # least silence between paragraphs within a segment
 MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
+CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segment after the first
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -93,10 +94,11 @@ def plan(seg):
     return [spans(p) for p in paragraphs(seg["lines"])]
 
 
-def spoken_seconds(seg, voice, speed=None):
+def spoken_seconds(seg, voice, speed=None, lead=0.0):
+    """Predicted seconds for a segment; `lead` is the chime that opens it, if any."""
     from voices import clip_seconds
     paras = plan(seg)
-    return sum(clip_seconds(text, voice, speed) if text else 0.0
+    return lead + sum(clip_seconds(text, voice, speed) if text else 0.0
                for para in paras for text, _ in para) \
         + sum(pause for para in paras for _, pause in para) \
         + PARAGRAPH_GAP * max(len(paras) - 1, 0)
@@ -155,7 +157,8 @@ def main():
     total_words, total_seconds, total_spoken = 0, 0, 0.0
     wpm = args.wpm
     if voice:
-        spokens = [spoken_seconds(seg, voice, args.speed) for seg in segments]
+        spokens = [spoken_seconds(seg, voice, args.speed, CHIME_SECONDS if i else 0.0)
+                   for i, seg in enumerate(segments)]
         # The rate this voice actually speaks this draft at, so the guide column
         # says how many words each segment wants with this voice.
         if sum(spokens):

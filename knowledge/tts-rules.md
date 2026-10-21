@@ -51,7 +51,7 @@ The lint predicts each segment's spoken length for the chosen voice, pauses incl
 
 ## Orientation without timestamps
 
-The listener can't see a clock, so the voice provides it. Open each segment with a spoken locator: "Minute nine of twenty-five." or "Round two of three." or "Halfway there." Name transitions explicitly: "Next up, in fifteen seconds, goblet squats. Grab the heavier dumbbell."
+The listener can't see a clock, so the voice provides it. A soft chime opens every segment after the first (`tools/render.py` adds it, and the lint counts its six tenths of a second), so the locator lands right after the bell. Open each segment with a spoken locator: "Minute nine of twenty-five." or "Round two of three." or "Halfway there." Name transitions explicitly: "Next up, in fifteen seconds, goblet squats. Grab the heavier dumbbell."
 
 ## Words that trip up the voice
 
@@ -59,6 +59,19 @@ The listener can't see a clock, so the voice provides it. Open each segment with
 - Exercise names with symbols: "push-up" is fine. "T-spine" reads as "tee spine", which is fine. "90/90 hip switch" becomes "ninety-ninety hip switch".
 - Names likely to be mangled: rephrase around them ("the Flyers' captain") rather than adding phonetic spellings.
 - Quotes: paraphrase rather than quote. If a quote is used, keep it short and introduce it ("as he put it,") so it doesn't sound like the narrator's own opinion.
+
+## Coaching voice
+
+The engines copy the delivery the text suggests: long, smooth sentences come out like a radio announcer reading copy. Cues should sound like a coach standing beside the listener.
+
+- Cue sentences are short: two to five words, a verb first. "Hands under the shoulders. Brace. Lower slow. Push."
+- Mid-set check-ins, one or two in each long working set: "Halfway there.", "Breathe out on the push.", "Last few. Keep the shape.", "Good. Stay with it."
+- Talk to the listener, not about the movement: "Keep your ribs down", not "The ribs should stay down."
+- Save the long sentences for the stories, where an even, conversational read is right.
+- Exclamation points sparingly, at most one or two a session; they can make the voice shout.
+
+Before: "Keep the body in one straight line as you lower your chest toward the bench and then push it away."
+After: "Body in one line. Lower slow. Now push the bench away."
 
 ## Tone
 

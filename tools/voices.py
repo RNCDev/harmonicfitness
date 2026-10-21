@@ -3,7 +3,8 @@
 
 A voice is a reference clip plus its transcript: one saved in the VoiceStudio app,
 or one kept in this repo's voices/ folder (<name>.wav, <name>.txt, and optionally
-<name>.json naming its engine: omnivoice, qwen3 or chatterbox; omnivoice if absent).
+<name>.json naming its engine: omnivoice, qwen3 or chatterbox; omnivoice if absent;
+optionally the engine's model repo and "generate", extra settings for each clip).
 
 For OmniVoice voices:
 
@@ -101,15 +102,17 @@ def _repo_voice(voice):
                 ref_text = t.read().strip()
             with open(path, "rb") as a:
                 audio_hash = hashlib.sha256(a.read()).hexdigest()
-            engine, model = "omnivoice", None
+            engine, model, generate = "omnivoice", None, {}
             settings = os.path.join(VOICES_DIR, name + ".json")
             if os.path.exists(settings):
                 with open(settings, encoding="utf-8") as j:
                     conf = json.load(j)
                 engine, model = conf.get("engine", engine), conf.get("model")
+                generate = conf.get("generate") or {}
             if engine not in ENGINES:
                 raise SystemExit(f"{settings}: engine must be one of {', '.join(ENGINES)}")
             return {"id": name, "name": name, "kind": "repo", "engine": engine, "model": model,
+                    "generate": generate,
                     "ref_audio": path, "ref_text": ref_text,
                     "instruct": "", "vd_states": None, "seed": None,
                     "key": hashlib.sha256(f"{audio_hash}|{ref_text}".encode()).hexdigest()[:12]}
