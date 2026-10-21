@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """Lint a segmented workout draft and export a clean transcript.
 
-Draft format: each segment starts with a marker line
-    @@ <seconds> | <label>
-followed by the spoken text. Markers are stripped on export. Inside the text,
-[pause 3s] inserts that much silence (also [pause 500ms]; at most ten seconds),
-and [chime] rings the segment bell at that point, for example when work starts
-in a forty-five-and-fifteen interval.
+The draft format (`@@ <seconds> | <label>` markers, [pause] and [chime]) is defined in
+draft.py. Markers are stripped on export.
 
 Structure checks (a locator opening each segment, one countdown per segment, few
 exclamation points, no praise line used over and over) print as warnings; with
@@ -16,33 +12,24 @@ With --voice, each segment's spoken length is predicted for that voice (see
 voices.py) and checked against its planned seconds. Without it, word
 count against --wpm is the rough fallback.
 
+lint() returns a Report; main() only prints it. Exit codes are in cli.py: 1 when
+there are issues (nothing exported), 64 for a mistyped command.
+
 Usage:
     python3 tools/tts_build.py draft.txt --voice "Chatterbox Coach" --out "Workout 2026-10-18.txt"
     python3 tools/tts_build.py draft.txt --wpm 170 --out final.txt --force   # export despite issues
     python3 tools/tts_build.py draft.txt --voice "Chatterbox Coach" --out x.txt --strict  # structure warnings count
 """
-import argparse
+import os
 import re
 import sys
+from dataclasses import dataclass, field
+from typing import List, Optional
 
-MARKER = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*)$")
-PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
-CHIME_RE = re.compile(r"\[\s*chime\s*\]", re.IGNORECASE)
-MARK_RE = re.compile(PAUSE_RE.pattern + "|" + CHIME_RE.pattern, re.IGNORECASE)
-CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
-PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds: a bare [pause], and the longest one
-PARAGRAPH_GAP = 0.35                    # least silence between paragraphs within a segment
-MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
-CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segment after the first
-
-# Timing. A segment's spare time widens its paragraph breaks (up to MAX_EXTRA_GAP each)
-# and leaves a short tail; past that it ends early rather than going quiet, so the
-# workout runs a little under plan instead of padding with silence. Only the total is
-# held to plan, within TOTAL_TOLERANCE; a segment is flagged only when far off.
-END_TAIL = 1.5          # seconds of spare time kept at a segment's end, at most
-MAX_EXTRA_GAP = 1.5     # most spare time added to any one paragraph break
-TOTAL_TOLERANCE = 0.03  # the whole workout may run this fraction over or under plan
-MIN_FILL, MAX_FILL = 0.80, 1.10   # a segment outside these (speech over planned seconds) is flagged
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cli  # noqa: E402
+from draft import (CHIME, CHIME_SECONDS, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, PARAGRAPH_GAP,  # noqa: E402
+                   TOTAL_TOLERANCE, layout, paragraphs, parse, plan, spoken)
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -58,98 +45,20 @@ ABBREV_RE = re.compile(r"(?<![A-Za-z])(" + "|".join(ABBREVIATIONS) + r")(?![A-Za
 DIGIT_RE = re.compile(r"\d")
 MD_LINE_RE = re.compile(r"^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|\|)")
 SSML_RE = re.compile(r"<[^>]+>")
+DEFAULT_WPM = 185
+WORD_TOLERANCE = 0.08
 
 
-def parse(text):
-    segments, current = [], None
-    for lineno, line in enumerate(text.splitlines(), 1):
-        m = MARKER.match(line.strip())
-        if m:
-            current = {"seconds": int(m.group(1)), "label": m.group(2).strip(),
-                       "lines": [], "start": lineno}
-            segments.append(current)
-        elif current is None:
-            if line.strip():
-                raise SystemExit(f"Line {lineno}: text before the first @@ marker.")
-        else:
-            current["lines"].append((lineno, line))
-    if not segments:
-        raise SystemExit("No @@ segment markers found.")
-    return segments
-
-
-def paragraphs(lines):
-    out, buf = [], []
-    for _, line in lines + [(0, "")]:
-        if line.strip():
-            buf.append(line.strip())
-        elif buf:
-            out.append(" ".join(buf))
-            buf = []
-    return out
-
-
-def spans(paragraph):
-    """Split a paragraph at [pause] and [chime] markers: [(text, seconds of silence after)].
-    Text may be empty (a leading pause), or CHIME for the bell. One source of truth
-    for lint and render."""
-    out, last = [], 0
-    for m in MARK_RE.finditer(paragraph):
-        text = paragraph[last:m.start()].strip()
-        last = m.end()
-        if CHIME_RE.fullmatch(m.group(0)):
-            if text:
-                out.append((text, 0.0))
-            out.append((CHIME, 0.0))
-            continue
-        num, unit = m.group(1), (m.group(2) or "").lower()
-        secs = PAUSE_DEFAULT if num is None else float(num) / (1 if unit == "s" else 1000)
-        if not text and out:
-            out[-1] = (out[-1][0], min(out[-1][1] + secs, PAUSE_MAX))
-        else:
-            out.append((text, min(secs, PAUSE_MAX)))
-    tail = paragraph[last:].strip()
-    if tail or not out:
-        out.append((tail, 0.0))
-    return out
-
-
-def spoken(text):
-    """True for a span the voice speaks (not a bare pause or the bell)."""
-    return bool(text) and text != CHIME
-
-
-def plan(seg):
-    """A segment as paragraphs of spans, exactly as render.py will voice it."""
-    return [spans(p) for p in paragraphs(seg["lines"])]
-
-
-def spoken_seconds(seg, voice, lead=0.0):
-    """Predicted seconds for a segment; `lead` is the chime that opens it, if any."""
+def spoken_seconds(seg, voice, lead=0.0, rate=None):
+    """Predicted seconds for a segment; `lead` is the chime that opens it, if any.
+    `rate` is the voice's pace (read once per lint); without it, it's looked up."""
     from voices import clip_seconds
     paras = plan(seg)
-    return lead + sum(clip_seconds(text, voice) if spoken(text) else
+    return lead + sum(clip_seconds(text, voice, rate) if spoken(text) else
                       (CHIME_SECONDS if text == CHIME else 0.0)
                       for para in paras for text, _ in para) \
         + sum(pause for para in paras for _, pause in para) \
         + PARAGRAPH_GAP * max(len(paras) - 1, 0)
-
-
-def layout(segments):
-    """Lay segments on the clock. `segments` is [(spoken seconds, paragraph breaks,
-    planned seconds)]; returns [(extra seconds per break, laid-out seconds)].
-
-    A segment that runs over makes the next ones late, and their spare time pays it
-    back; a segment with time to spare widens its breaks, keeps a short tail and ends
-    early. Shared by the lint's prediction and the render, so they agree."""
-    out, late = [], 0.0
-    for spoken, gaps, planned in segments:
-        slack = max(planned - late - spoken, 0.0)
-        extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
-        length = spoken + extra * gaps + min(END_TAIL, slack - extra * gaps)
-        late = max(late + length - planned, 0.0)
-        out.append((extra, length))
-    return out
 
 
 def lint_line(lineno, line):
@@ -223,115 +132,199 @@ def structure_warnings(segments):
     return out
 
 
+@dataclass
+class Row:
+    """One segment's line in the lint table."""
+    index: int
+    label: str
+    seconds: int
+    words: int
+    guide: int
+    spoken: Optional[float] = None   # predicted seconds, with a voice
+    diff: Optional[float] = None     # word count over or under the guide, without one
+    flag: str = ""                   # "long" or "short" when far off its slot
+    clip_issues: List[str] = field(default_factory=list)
+    line_issues: List[str] = field(default_factory=list)
+
+    @property
+    def fill(self):
+        return self.spoken / self.seconds if self.spoken is not None and self.seconds else None
+
+
+@dataclass
+class Report:
+    rows: List[Row]
+    warnings: List[str]
+    strict: bool
+    wpm: float                          # the guide rate: the voice's rate on this draft, or --wpm
+    voice: Optional[dict] = None
+    pace: Optional[float] = None
+    exact: bool = False                 # the voice's pace is measured, not estimated
+    predicted: Optional[float] = None   # laid-out seconds of the whole workout, with a voice
+    total_tolerance: float = TOTAL_TOLERANCE
+    word_wpm: float = DEFAULT_WPM       # --wpm, for the estimate without a voice
+
+    @property
+    def total_seconds(self):
+        return sum(r.seconds for r in self.rows)
+
+    @property
+    def total_words(self):
+        return sum(r.words for r in self.rows)
+
+    @property
+    def total_spoken(self):
+        return sum(r.spoken or 0.0 for r in self.rows)
+
+    @property
+    def drift(self):
+        if self.predicted is None or not self.total_seconds:
+            return None
+        return self.predicted / self.total_seconds - 1
+
+    @property
+    def total_off(self):
+        return self.drift is not None and abs(self.drift) > self.total_tolerance
+
+    @property
+    def problems(self):
+        n = sum(len(r.clip_issues) + len(r.line_issues) + bool(r.flag) for r in self.rows)
+        n += int(self.total_off)
+        return n + (len(self.warnings) if self.strict else 0)
+
+
+def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_FILL,
+         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False):
+    """Check a parsed draft. With a voice, predicts spoken seconds from its pace,
+    which is read once for the whole lint."""
+    rate, exact, spokens = None, False, []
+    if voice:
+        from voices import clip_seconds, pace
+        rate, exact = pace(voice)
+        spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i else 0.0, rate)
+                   for i, seg in enumerate(segments)]
+        # The rate this voice actually speaks this draft at, so the guide column
+        # says how many words each segment wants with this voice.
+        guide_wpm = (sum(word_count(seg["lines"]) for seg in segments) / sum(spokens) * 60
+                     if sum(spokens) else wpm)
+    else:
+        guide_wpm = wpm
+    rows = []
+    for i, seg in enumerate(segments, 1):
+        guide = round(guide_wpm * seg["seconds"] / 60)
+        row = Row(i, seg["label"], seg["seconds"], word_count(seg["lines"]), guide)
+        if voice:
+            row.spoken = spokens[i - 1]
+            fill = row.fill
+            row.flag = "long" if fill > max_fill else "short" if fill < min_fill else ""
+            # Long clips drift and glitch. Keep every clip comfortably short.
+            for para in plan(seg):
+                for text, _ in para:
+                    secs = clip_seconds(text, voice, rate) if spoken(text) else 0.0
+                    if secs > MAX_CLIP:
+                        row.clip_issues.append(
+                            f"  paragraph \"{' '.join(text.split()[:6])}...\" speaks for {secs:.0f}s; "
+                            f"split it into paragraphs under {MAX_CLIP:.0f}s")
+        else:
+            row.diff = (row.words - guide) / guide if guide else 0
+            if abs(row.diff) > word_tolerance:
+                row.flag = "long" if row.diff > 0 else "short"
+        for lineno, line in seg["lines"]:
+            row.line_issues += lint_line(lineno, line)
+        rows.append(row)
+    report = Report(rows, structure_warnings(segments), strict, guide_wpm, voice, rate, exact,
+                    total_tolerance=total_tolerance, word_wpm=wpm)
+    if voice:
+        report.predicted = sum(length for _, length in layout(
+            [(spokens[i], max(len(plan(seg)) - 1, 0), seg["seconds"]) for i, seg in enumerate(segments)]))
+    return report
+
+
+def render_report(report):
+    """The lint's printed table and summary, as lines."""
+    out = []
+    voice = report.voice
+    if voice:
+        out.append(f"{'#':>3} {'secs':>5} {'words':>5} {'guide':>5} {'spoken':>6} {'fill':>5}  label")
+    else:
+        out.append(f"{'#':>3} {'secs':>5} {'target':>6} {'words':>5} {'diff':>6}  label")
+    for r in report.rows:
+        if voice:
+            flag = (f"  <-- runs {r.spoken - r.seconds:.1f}s long; trim it" if r.flag == "long" else
+                    f"  <-- ends {r.seconds - r.spoken:.1f}s early; add a little" if r.flag == "short" else "")
+            out.append(f"{r.index:>3} {r.seconds:>5} {r.words:>5} {r.guide:>5} {r.spoken:>6.1f} "
+                       f"{r.fill:>5.0%}  {r.label}{flag}")
+            out += r.clip_issues
+        else:
+            flag = "  <-- too long" if r.flag == "long" else "  <-- too short" if r.flag == "short" else ""
+            out.append(f"{r.index:>3} {r.seconds:>5} {r.guide:>6} {r.words:>5} {r.diff:>+6.0%}  {r.label}{flag}")
+        out += r.line_issues
+
+    summary = f"\nPlanned {report.total_seconds / 60:.1f} min | {report.total_words} words"
+    if voice:
+        summary += (f" | predicted speech {report.total_spoken / 60:.1f} min with {voice['name']} "
+                    f"({report.pace:.2f} chars/s{'' if report.exact else ', estimated until its first render'})")
+        drift = report.drift or 0.0
+        summary += (f"\nPredicted length {report.predicted / 60:.1f} min, {drift:+.1%} of plan "
+                    f"(within {report.total_tolerance:.0%} is fine)")
+        if report.total_off:
+            summary += ("  <-- too " + ("long: trim words" if drift > 0 else "short: add words")
+                        + " in the segments furthest off")
+        summary += (f"\n{voice['name']} speaks this draft at about {report.wpm:.0f} words a minute, pauses "
+                    f"included; the guide column uses that rate")
+    else:
+        summary += f" | estimated {report.total_words / report.word_wpm:.1f} min at {report.word_wpm:g} wpm"
+    out.append(summary)
+
+    if report.warnings:
+        out.append(f"\nStructure {'issues' if report.strict else 'warnings (not blocking; --strict to enforce)'}:")
+        out += ["  " + w for w in report.warnings]
+    return out
+
+
+def export_text(segments):
+    """The clean transcript: paragraphs with markers stripped."""
+    paras = [re.sub(r"\s{2,}", " ", MARK_RE.sub(" ", p)).strip()
+             for seg in segments for p in paragraphs(seg["lines"])]
+    return "\n\n".join(p for p in paras if p) + "\n", len([p for p in paras if p])
+
+
 def main():
-    ap = argparse.ArgumentParser()
+    ap = cli.ArgumentParser()
     ap.add_argument("draft")
     ap.add_argument("--out", required=True)
     ap.add_argument("--voice", help="a voice's name: check predicted spoken seconds")
-    ap.add_argument("--wpm", type=float, default=185, help="word guide without --voice, words per minute")
+    ap.add_argument("--wpm", type=float, default=DEFAULT_WPM, help="word guide without --voice, words per minute")
     ap.add_argument("--min-fill", type=float, default=MIN_FILL, help="below this, the segment is far too short")
     ap.add_argument("--max-fill", type=float, default=MAX_FILL, help="above this, the segment is far too long")
     ap.add_argument("--total-tolerance", type=float, default=TOTAL_TOLERANCE,
                     help="the whole workout may run this fraction over or under plan")
-    ap.add_argument("--tolerance", type=float, default=0.08, help="word-count tolerance without --voice")
+    ap.add_argument("--word-tolerance", type=float, default=WORD_TOLERANCE,
+                    help="word-count tolerance per segment without --voice")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--strict", action="store_true", help="structure warnings count as issues")
     args = ap.parse_args()
 
     with open(args.draft, encoding="utf-8") as f:
         segments = parse(f.read())
-
     voice = None
     if args.voice:
-        from voices import lookup, pace
+        from voices import lookup
         voice = lookup(args.voice)
-        voice_pace, exact = pace(voice)
 
-    problems = 0
-    total_words, total_seconds, total_spoken = 0, 0, 0.0
-    wpm = args.wpm
-    if voice:
-        spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i else 0.0)
-                   for i, seg in enumerate(segments)]
-        # The rate this voice actually speaks this draft at, so the guide column
-        # says how many words each segment wants with this voice.
-        if sum(spokens):
-            wpm = sum(word_count(seg["lines"]) for seg in segments) / sum(spokens) * 60
-        print(f"{'#':>3} {'secs':>5} {'words':>5} {'guide':>5} {'spoken':>6} {'fill':>5}  label")
-    else:
-        print(f"{'#':>3} {'secs':>5} {'target':>6} {'words':>5} {'diff':>6}  label")
-    for i, seg in enumerate(segments, 1):
-        guide = round(wpm * seg["seconds"] / 60)
-        words = word_count(seg["lines"])
-        flag = ""
-        if voice:
-            seg_secs = spokens[i - 1]
-            fill = seg_secs / seg["seconds"]
-            if fill > args.max_fill:
-                flag = f"  <-- runs {seg_secs - seg['seconds']:.1f}s long; trim it"
-            elif fill < args.min_fill:
-                flag = f"  <-- ends {seg['seconds'] - seg_secs:.1f}s early; add a little"
-            total_spoken += seg_secs
-            print(f"{i:>3} {seg['seconds']:>5} {words:>5} {guide:>5} {seg_secs:>6.1f} {fill:>5.0%}  {seg['label']}{flag}")
-            # Long clips drift and glitch. Keep every clip comfortably short.
-            from voices import clip_seconds
-            for para in plan(seg):
-                for text, _ in para:
-                    secs = clip_seconds(text, voice) if spoken(text) else 0.0
-                    if secs > MAX_CLIP:
-                        print(f"  paragraph \"{' '.join(text.split()[:6])}...\" speaks for {secs:.0f}s; "
-                              f"split it into paragraphs under {MAX_CLIP:.0f}s")
-                        problems += 1
-        else:
-            diff = (words - guide) / guide if guide else 0
-            if abs(diff) > args.tolerance:
-                flag = "  <-- " + ("too long" if diff > 0 else "too short")
-            print(f"{i:>3} {seg['seconds']:>5} {guide:>6} {words:>5} {diff:>+6.0%}  {seg['label']}{flag}")
-        problems += bool(flag)
-        for lineno, line in seg["lines"]:
-            for msg in lint_line(lineno, line):
-                print(msg)
-                problems += 1
-        total_words += words
-        total_seconds += seg["seconds"]
+    report = lint(segments, voice, args.wpm, args.min_fill, args.max_fill,
+                  args.total_tolerance, args.word_tolerance, args.strict)
+    print("\n".join(render_report(report)))
 
-    summary = f"\nPlanned {total_seconds / 60:.1f} min | {total_words} words"
-    if voice:
-        summary += (f" | predicted speech {total_spoken / 60:.1f} min with {voice['name']} "
-                    f"({voice_pace:.2f} chars/s{'' if exact else ', estimated until its first render'})")
-        laid = sum(length for _, length in layout(
-            [(spokens[i], max(len(plan(seg)) - 1, 0), seg["seconds"]) for i, seg in enumerate(segments)]))
-        drift = laid / total_seconds - 1 if total_seconds else 0.0
-        summary += (f"\nPredicted length {laid / 60:.1f} min, {drift:+.1%} of plan "
-                    f"(within {args.total_tolerance:.0%} is fine)")
-        if abs(drift) > args.total_tolerance:
-            summary += ("  <-- too " + ("long: trim words" if drift > 0 else "short: add words")
-                        + " in the segments furthest off")
-            problems += 1
-        summary += (f"\n{voice['name']} speaks this draft at about {wpm:.0f} words a minute, pauses "
-                    f"included; the guide column uses that rate")
-    else:
-        summary += f" | estimated {total_words / args.wpm:.1f} min at {args.wpm:g} wpm"
-    print(summary)
-
-    warnings = structure_warnings(segments)
-    if warnings:
-        print(f"\nStructure {'issues' if args.strict else 'warnings (not blocking; --strict to enforce)'}:")
-        for w in warnings:
-            print("  " + w)
-        if args.strict:
-            problems += len(warnings)
-
+    problems = report.problems
     if problems and not args.force:
         print(f"\n{problems} issue(s). Fix and rerun (or --force). Nothing exported.")
-        sys.exit(1)
+        sys.exit(cli.ISSUES)
 
-    paras = [re.sub(r"\s{2,}", " ", MARK_RE.sub(" ", p)).strip()
-             for seg in segments for p in paragraphs(seg["lines"])]
-    paras = [p for p in paras if p]
+    text, count = export_text(segments)
     with open(args.out, "w", encoding="utf-8") as f:
-        f.write("\n\n".join(paras) + "\n")
-    print(f"\nExported {len(paras)} paragraphs to {args.out}"
+        f.write(text)
+    print(f"\nExported {count} paragraphs to {args.out}"
           + (f" despite {problems} issue(s)" if problems else ""))
 
 

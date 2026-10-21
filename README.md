@@ -24,7 +24,7 @@ Three layers, so your own details never mix with the code:
 | **Voices**: each voice's ten-second reference clip, transcript and settings, with the model pinned to an exact revision | `voices/` | Yes, about 1 MB. Model weights download to `~/.cache/huggingface/hub` |
 | **You**: profile, health, workout log and feedback, drafts, research, rendered MP3s, private voices | `me/` (or wherever `SWEATCAST_HOME` points) | No: ignored, and the pre-push hook and CI block it |
 
-Pulling upstream changes never touches `me/`, so merges stay clean. To back up your context and keep its history, make `me/` its own private repo: `cd me && git init && git add -A && git commit -m "My sweatcast context"`, then push it to a private remote.
+Pulling upstream changes never touches `me/`, so merges stay clean. When a major release changes a context file's format, `python3 tools/migrate.py` (or rerunning `tools/setup.sh`) brings `me/` up to date, backing up the originals first. To back up your context and keep its history, make `me/` its own private repo: `cd me && git init && git add -A && git commit -m "My sweatcast context"`, then push it to a private remote.
 
 ## Voice models
 
@@ -64,14 +64,20 @@ Each paragraph is voiced by cloning the voice's reference clip with Chatterbox T
 | `tools/setup.sh` | One-time setup: environment, `me/`, privacy hook, models |
 | `tools/build.sh` | Draft to `.txt` and `.mp3` in one step, then the copy to your phone's folder |
 | `tools/tts_build.py` | Draft linter (predicted spoken seconds per segment, paragraph length, coaching structure) and `.txt` exporter |
-| `tools/render.py` | Renderer with clip cache, timing and loudness normalization |
+| `tools/draft.py` | The draft format and the timing layout the lint and the render share |
+| `tools/render.py` | Renderer with clip cache, timing, loudness normalization, a one-at-a-time lock and a record of each build |
+| `tools/engines.py` | The voice engines (Chatterbox Turbo, Qwen3-TTS) through mlx-audio |
+| `tools/context.py` | Reads and writes your context files: profile values, `log-session`, `check` |
+| `tools/migrate.py` | Brings a context folder from an older release up to date, backing it up first |
+| `tools/cache.py` | The clip cache's size, and `prune` for clips no build has used in a while |
+| `tools/cli.py` | Exit codes and the argument parser every tool shares |
 | `tools/voices.py` | Voice lookup, spoken-length prediction and model download; run it to list voices |
 | `tools/char_weight.py` | OmniVoice's character-weight rule (Apache 2.0), vendored for the prediction |
 | `tools/feeds.py` | Fetches your feeds (results, schedules, weather, headlines, weekly podcasts and puzzles) into a dated sheet |
 | `tools/youtube.py` | Picks a recent video from your favorite channels or continues a series, lists unused puzzles, saves a transcript |
 | `tools/coverage.py` | Reads your log and lists the muscle groups the last session left out, its format and the last loads |
 | `tools/paths.py` | Where everything lives; `SWEATCAST_HOME` moves your context folder |
-| `tools/hooks/pre-push` | Refuses to push personal context |
+| `tools/hooks/` | The pre-push hook and `check-private.sh`, which refuse any commit holding personal context (CI runs the same check), and `private-paths`, the list they share |
 | `tests/` | Fast checks with no models, network or personal files (`python3 -m unittest discover tests`), run by CI on every push |
 | `pyproject.toml`, `uv.lock` | The pinned Python environment |
 | `docs/research/` | Design notes |

@@ -8,8 +8,8 @@ prints what to prioritize and what to avoid. It also prints the last session's
 format (today's should differ) and each movement's last logged load and tempo, so
 the plan can progress from it.
 
-A session line is six fields, then optional named ones:
-    - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format> | loads: <movement> = <load and tempo>; ...
+Sessions are read through tools/context.py, which owns the log's line format (and
+writes it: `python3 tools/context.py log-session ...`).
 
     python3 tools/coverage.py            # the last session, plus a look further back
     python3 tools/coverage.py --last 3   # groups across the last three sessions
@@ -17,13 +17,13 @@ A session line is six fields, then optional named ones:
 A movement that matches no group is listed as unmapped, so the planner can judge
 it; add a keyword below when a new movement becomes a regular.
 """
-import argparse
 import os
 import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import LOG, require  # noqa: E402
+import cli  # noqa: E402
+import context  # noqa: E402
 
 # The skill's whole-body checklist, in its order. A movement can train several groups.
 GROUPS = [
@@ -42,45 +42,12 @@ GROUPS = [
 NOT_STRENGTH = r"finisher|stickhandling|punch|breathing|stretch|mobility|bike|march"
 
 
-def entries(path=LOG):
-    """Each logged session as a dict (date, movements, format, loads), oldest first."""
-    out, in_sessions = [], False
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("## "):
-                in_sessions = line.strip().lower() == "## sessions"
-                continue
-            if in_sessions and line.startswith("- "):
-                fields = [x.strip() for x in line[2:].split("|")]
-                if len(fields) < 5:
-                    continue
-                e = {"date": fields[0], "movements": [m.strip() for m in fields[4].split(",") if m.strip()],
-                     "format": None, "loads": {}}
-                for extra in fields[6:]:
-                    key, _, value = extra.partition(":")
-                    key, value = key.strip().lower(), value.strip()
-                    if key == "format" and value:
-                        e["format"] = value
-                    elif key == "loads":
-                        for item in value.split(";"):
-                            mv, _, load = item.partition("=")
-                            if mv.strip() and load.strip():
-                                e["loads"][mv.strip()] = load.strip()
-                out.append(e)
-    return out
-
-
-def sessions(path=LOG):
-    """Each logged session as (date, [movements]), oldest first."""
-    return [(e["date"], e["movements"]) for e in entries(path)]
-
-
 def last_loads(log, look_back=6):
     """{movement: (date, load)}: the newest logged load per movement in recent sessions."""
     out = {}
     for e in log[-look_back:]:
-        for mv, load in e["loads"].items():
-            out[mv] = (e["date"], load)
+        for mv, load in e.loads.items():
+            out[mv] = (e.date, load)
     return out
 
 
@@ -102,16 +69,16 @@ def coverage(movements):
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = cli.ArgumentParser()
     ap.add_argument("--last", type=int, default=1, help="how many recent sessions to pool (default 1)")
-    ap.add_argument("--log", default=LOG)
+    ap.add_argument("--log", default=None)
     args = ap.parse_args()
 
-    full = entries(require(args.log, "log"))
+    full = context.sessions(args.log)
     if not full:
         print("No sessions in log.md yet: every group is open, nothing to avoid.")
         return 0
-    log = [(e["date"], e["movements"]) for e in full]
+    log = [(e.date, e.movements) for e in full]
     recent = log[-args.last:]
     movements = [mv for _, mvs in recent for mv in mvs]
     hit, unmapped = coverage(movements)
@@ -124,7 +91,7 @@ def main():
     print("Avoid (last session's main movements): " + ", ".join(log[-1][1]))
     if unmapped:
         print("Unmapped (judge these by hand): " + ", ".join(unmapped))
-    fmt = full[-1]["format"]
+    fmt = full[-1].format
     print("Last format: " + (f"{fmt} (use a different one today)" if fmt else "not logged"))
     loads = last_loads(full)
     if loads:

@@ -5,14 +5,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the privacy check reads every pushed commit
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       # The tests need no models, audio or network, and no personal context:
       # they run on me.example/ and tests/fixtures/.
       - run: python -m unittest discover tests -v
-      - name: Nothing personal is tracked
+      - name: Nothing personal in the files
         run: |
-          if git ls-files | grep -E '^(me/|workouts/|log\.md$|knowledge/profile\.md$)'; then
+          PATTERN="$(grep -v '^#' tools/hooks/private-paths | grep -v '^[[:space:]]*$' | head -1)"
+          if git ls-files | grep -E "$PATTERN"; then
             echo "Personal context belongs in me/, which is git-ignored."; exit 1
           fi
+      - name: Nothing personal in the pushed commits
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          # Only the new commits: history already pushed is a separate matter.
+          if [ "$EVENT" = "pull_request" ]; then
+            RANGE="origin/$BASE..HEAD"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            RANGE="$BEFORE..HEAD"
+          else
+            RANGE="origin/main..HEAD"   # a new branch
+          fi
+          tools/hooks/check-private.sh "$RANGE"

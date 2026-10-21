@@ -1,6 +1,6 @@
 # Productization research: a forkable sweatcast
 
-Status: written 2026-10-21 against v0.6.0. Most of phases 0 to 3 shipped in v1.0.0: the three layers with `me/` and `me.example/`, `tools/paths.py`, the project's own `uv` environment with pinned model revisions (VoiceStudio and OmniVoice removed), delivery to any folder, the `setup` skill, the pre-push privacy guard, CI and synthetic test fixtures. Still open: the private podcast feed, the context schema version and `tools/migrate.py`, a rolling log summary, `tools/upgrade.sh`, the plugin, and the PyTorch backend. The rest of this document is the original exploration, kept as written.
+Status: written 2026-10-21 against v0.6.0. Most of phases 0 to 3 shipped in v1.0.0: the three layers with `me/` and `me.example/`, `tools/paths.py`, the project's own `uv` environment with pinned model revisions (VoiceStudio and OmniVoice removed), delivery to any folder, the `setup` skill, the pre-push privacy guard, CI and synthetic test fixtures. The context schema version and `tools/migrate.py` shipped in v2.0.0. Still open: the private podcast feed, a rolling log summary, `tools/upgrade.sh`, the plugin, and the PyTorch backend. The rest of this document is the original exploration, kept as written.
 
 ## The question
 

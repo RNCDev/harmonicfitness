@@ -1,3 +1,6 @@
+---
+schema: 1
+---
 # My Profile
 
 Claude reads this before every workout. It holds the stable facts: setup, equipment, interests, feeds and style. Injuries and the rules around them are in `health.md`, day-to-day status comes from the check-in at the start of each session, and the workout log and running feedback live in `log.md`. Edit this file when something lasting changes, such as new equipment or a new interest. The `setup` skill fills it in with you ("set me up").

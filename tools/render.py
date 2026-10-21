@@ -3,9 +3,8 @@
 
 Runs in the project's own environment, .venv (tools/setup.sh makes it; tools/build.sh
 picks it). Each voice is cloned from its reference clip with Chatterbox Turbo or
-Qwen3-TTS through mlx-audio, using the model revision its voices/<name>.json pins,
-and the engine's extra downloads (Chatterbox's speech tokenizer) at the revision
-tools/voices.py pins. A soft chime opens each segment after the first, a [chime]
+Qwen3-TTS through mlx-audio (tools/engines.py), using the model revision its
+voices/<name>.json pins. A soft chime opens each segment after the first, a [chime]
 marker rings it inside a segment, and a three-note tone marks the end of the
 workout. A segment's spare seconds widen its paragraph breaks and then it ends
 early, a slightly long segment is paid back from the next ones' spare time, the
@@ -13,19 +12,26 @@ whole workout is held within three percent of plan, and the result is
 loudness-normalized for earbuds.
 
 No app or server needed. Clips are cached in me/workouts/.audio-cache, so rerunning
-after editing a few segments only re-renders what changed.
+after editing a few segments only re-renders what changed. Only one render runs at
+a time: a second one waits for the first (two voice models don't fit in 16 GB).
+Each MP3 gets a record of how it was made: <name>.build.json beside it, and a line
+in me/workouts/.logs/builds.jsonl.
+
+Exit codes (cli.py): 0 done, 2 the workout ran more than --tolerance off plan (the MP3
+is written), 64 a mistyped command, 1 anything else.
 
 Usage (normally via tools/build.sh):
     .venv/bin/python tools/render.py draft.txt --voice "Chatterbox Coach" --out "me/workouts/Workout ....mp3"
     .venv/bin/python tools/render.py draft.txt --voice "Chatterbox Coach" --clips-only   # fill the cache, no MP3
 """
-import argparse
 import contextlib
+import datetime as dt
+import fcntl
 import hashlib
-import io
 import json
 import math
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -35,12 +41,14 @@ import time
 import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tts_build import (CHIME, CHIME_SECONDS, END_TAIL, MAX_EXTRA_GAP, MAX_FILL, MIN_FILL,  # noqa: E402,F401
-                       PARAGRAPH_GAP, TOTAL_TOLERANCE, layout, parse, plan, spoken as is_spoken)  # noqa: E402  (one source of truth for text)
-from paths import CACHE as CACHE_DIR  # noqa: E402
-from voices import ENGINE_EXTRAS, MLX_EDGE, lookup, record_rate, weight  # noqa: E402
+import cli  # noqa: E402
+import engines  # noqa: E402
+from draft import (CHIME, CHIME_SECONDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, layout,  # noqa: E402
+                   parse, plan, spoken as is_spoken)
+from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
+from paths import BUILDS, CACHE as CACHE_DIR, VERSION_FILE, show  # noqa: E402
+from voices import MLX_EDGE, check_pace_file, lookup, record_rate, weight  # noqa: E402
 
-SR = 24000
 CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
 CHIME_LEVEL = 0.12    # peak; at 0.2 the bell averaged as loud as the voice, so this sits about 4 dB under
 END_NOTES = (660, 880, 1320)   # Hz, rising, so the end can't be mistaken for a segment bell
@@ -80,7 +88,7 @@ def end_tone():
 
 
 def assemble(segments, clip, lead=b"", bell=None, tail=b""):
-    """Lay the clips out on the plan's clock, as tts_build.layout predicts.
+    """Lay the clips out on the plan's clock, as draft.layout predicts.
 
     clip(text) returns a clip's PCM. `lead` (the chime) opens every segment after
     the first, `bell` rings at each [chime] marker (default: the chime), and `tail`
@@ -115,14 +123,40 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b""):
                 seg_pcm += silence(PARAGRAPH_GAP + extra)
             seg_pcm += p
         seg_pcm += silence(length - len(seg_pcm) / 2 / SR)
-        fill = spoken / seg["seconds"]
-        flag = "  <-- long" if fill > MAX_FILL else "  <-- short" if fill < MIN_FILL else ""
-        rows.append((i, seg["seconds"], spoken, seg["label"], flag))
+        flag = fill_flag(spoken, seg["seconds"])
+        rows.append((i, seg["seconds"], spoken, seg["label"], f"  <-- {flag}" if flag else ""))
         pcm_all += seg_pcm
+    built.clear()   # the per-paragraph copies aren't needed once laid out
     planned = sum(seg["seconds"] for seg in segments)
     drift = len(pcm_all) / 2 / SR / planned - 1 if planned else 0.0
     pcm_all += tail
     return pcm_all, rows, drift
+
+
+def loudness_stats(stderr):
+    """The measurements ffmpeg's loudnorm prints as the last JSON object on stderr."""
+    m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", stderr or "")
+    try:
+        stats = json.loads(m.group(0)) if m else None
+        if stats:
+            for key in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset"):
+                stats[key]
+            return stats
+    except (ValueError, KeyError):
+        pass
+    raise SystemExit(f"Couldn't read ffmpeg's loudness measurement ({ffmpeg_version() or 'ffmpeg'}). "
+                     f"The end of its output was: {(stderr or '')[-300:].strip()}")
+
+
+def ffmpeg_version():
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    try:
+        out = subprocess.run([ffmpeg, "-version"], capture_output=True, text=True, timeout=10).stdout
+        return out.splitlines()[0] if out else None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def encode(pcm, out, title):
@@ -139,100 +173,77 @@ def encode(pcm, out, title):
             w.setnchannels(1)
             w.setsampwidth(2)
             w.setframerate(SR)
-            w.writeframes(bytes(pcm))
+            w.writeframes(pcm)
         probe = subprocess.run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
                                 f"loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"],
                                capture_output=True, text=True, check=True)
-        m = json.loads(probe.stderr[probe.stderr.rindex("{"):probe.stderr.rindex("}") + 1])
+        m = loudness_stats(probe.stderr)
         af = (f"loudnorm={LOUDNESS}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
               f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}")
         subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", raw, "-af", af, "-ar", str(SR),
                         "-metadata", f"title={title}", *codec, out], check=True)
 
 
-TRIM_DB = -40.0       # engine silence below this level is trimmed from each clip's ends
-TRIM_KEEP = 0.04      # seconds of it kept at each end
-
-
-def trim(a):
-    """Cut the engine's lead-in and tail silence, keeping a short natural edge."""
-    import numpy as np
-    loud = np.flatnonzero(np.abs(a) > 10 ** (TRIM_DB / 20))
-    if not len(loud):
-        return a
-    keep = int(TRIM_KEEP * SR)
-    return a[max(loud[0] - keep, 0):loud[-1] + keep]
-
-
 @contextlib.contextmanager
-def pinned_extras(engine, hub=None):
-    """While a model loads, fetch the repos its engine pulls in on its own (Chatterbox
-    Turbo's speech tokenizer) at the revisions tools/voices.py pins. mlx-audio asks for
-    their latest version and only warns if that fails, which would leave the voice
-    quietly wrong; this fetches the pinned one first, failing loudly, and points
-    mlx-audio's own request at it."""
-    if hub is None:
-        import huggingface_hub as hub
-    pins = dict(ENGINE_EXTRAS.get(engine, []))
-    for repo, rev in pins.items():
+def render_lock(folder, wait_message=True):
+    """One render at a time: two voice models don't fit in 16 GB. A second render
+    waits here for the first to finish, then reuses the clips it cached."""
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, ".render.lock")
+    with open(path, "a+") as f:
         try:
-            hub.snapshot_download(repo, revision=rev)
-        except Exception as e:
-            raise SystemExit(f"Couldn't fetch {repo} at {rev[:8]}, which {engine} needs: {e}. "
-                             "Check the network and rerun; tools/setup.sh downloads it ahead of time.")
-    original = hub.hf_hub_download
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            f.seek(0)
+            holder = f.read().strip() or "unknown"
+            if wait_message:
+                print(f"Another render is running (pid {holder}); waiting for it to finish.", flush=True)
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        f.seek(0)
+        f.truncate()
+        f.write(str(os.getpid()))
+        f.flush()
+        try:
+            yield
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
-    def pinned(*args, **kwargs):
-        repo = kwargs.get("repo_id", args[0] if args else None)
-        if repo in pins:
-            kwargs["revision"] = pins[repo]
-        return original(*args, **kwargs)
 
-    hub.hf_hub_download = pinned
+def engine_version():
     try:
-        yield
-    finally:
-        hub.hf_hub_download = original
+        with open(VERSION_FILE, encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return None
 
 
-def mlx_speaker(voice, engine, repo, revision=None):
-    """Qwen3-TTS or Chatterbox through mlx-audio, cloning the voice's reference clip."""
-    import mlx.core as mx
-    import numpy as np
-    from mlx_audio.tts.utils import load_model
-    with pinned_extras(engine):
-        model = load_model(repo, revision=revision)
-    gen = voice.get("generate") or {}   # per-voice engine settings, from voices/<name>.json
-    # Chatterbox Turbo re-encodes the reference clip on every call that passes it
-    # (about half a second each) and keeps the result on the model. So pass it on the
-    # first clip only: the same code path computes the same conditioning, once.
-    # The full-size Chatterbox keeps nothing (without the clip it falls back to its
-    # built-in voice), and Qwen3 caches its reference codes itself, so both pass it
-    # every time.
-    keeps_conditioning = type(model).__name__ == "ChatterboxTurboTTS"
-    primed = []
+def build_record(draft_path, out, voice, seed, clips_total, clips_rendered, planned, actual, drift,
+                 render_seconds, started):
+    """How an MP3 was made: enough to tell later what produced it."""
+    with open(draft_path, "rb") as f:
+        draft_hash = hashlib.sha256(f.read()).hexdigest()
+    return {"out": show(os.path.abspath(out)), "engine_version": engine_version(), "draft": show(os.path.abspath(draft_path)),
+            "draft_sha256": draft_hash, "voice": voice["name"], "voice_key": voice["key"],
+            "engine": voice["engine"], "model": voice["model"], "revision": voice["revision"],
+            "mlx_audio": engines.mlx_audio_version(), "ffmpeg": ffmpeg_version(), "seed": seed,
+            "clips_total": clips_total, "clips_rendered": clips_rendered,
+            "planned_s": round(planned, 2), "actual_s": round(actual, 2), "drift": round(drift, 4),
+            "render_s": round(render_seconds, 1),
+            "started_at": dt.datetime.fromtimestamp(started).astimezone().isoformat(timespec="seconds")}
 
-    def say(text, seed):
-        mx.random.seed(seed)
-        if engine == "qwen3":
-            results = model.generate(text=text, ref_audio=voice["ref_audio"], ref_text=voice["ref_text"],
-                                     verbose=False, **gen)
-        elif keeps_conditioning and primed:
-            results = model.generate(text=text, verbose=False, **gen)
-        else:
-            results = model.generate(text=text, ref_audio=voice["ref_audio"], verbose=False, **gen)
-            primed.append(True)
-        with contextlib.redirect_stdout(io.StringIO()):   # the models print progress per clip
-            results = list(results)
-        if results[0].sample_rate != SR:
-            raise SystemExit(f"{engine} returned {results[0].sample_rate} Hz audio; expected {SR}")
-        a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
-        return (np.clip(trim(a), -1.0, 1.0) * 32767).astype("<i2").tobytes()
-    return say
+
+def save_build_record(record, out, log=None):
+    """Write <out>.build.json beside the MP3 and append the record to builds.jsonl."""
+    log = log or BUILDS
+    with open(os.path.splitext(out)[0] + ".build.json", "w", encoding="utf-8") as f:
+        json.dump(record, f, indent=1)
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    with open(log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = cli.ArgumentParser()
     ap.add_argument("draft")
     ap.add_argument("--out", help=".mp3, .m4a or .wav (not needed with --clips-only)")
     ap.add_argument("--voice", required=True, help="a voice from voices/ or me/voices/")
@@ -251,7 +262,7 @@ def main():
 
     with open(args.draft, encoding="utf-8") as f:
         segments = parse(f.read())
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    check_pace_file()   # a damaged pace file stops the render now, not after it
     started = time.time()
 
     voice = lookup(args.voice)
@@ -260,52 +271,59 @@ def main():
         voice["model"], voice["revision"] = args.model, None
     model_repo, revision, seed = voice["model"], voice["revision"], args.seed
     # Everything that changes how a clip sounds goes in its cache key, so changing a
-    # setting re-renders instead of silently reusing old clips.
+    # setting (or upgrading mlx-audio) re-renders instead of silently reusing old clips.
     settings = (f"{model_repo}@{revision or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
-                f"trim {TRIM_DB} {TRIM_KEEP}")
+                f"trim {TRIM_DB} {TRIM_KEEP}|mlx-audio {engines.mlx_audio_version()}")
 
     def cache_path(text):
         key = f"{voice['key']}|{engine}|{seed}|{settings}|{text}"
         return os.path.join(CACHE_DIR, hashlib.sha256(key.encode()).hexdigest()[:24] + ".pcm")
 
     clips = [text for seg in segments for para in plan(seg) for text, _ in para if is_spoken(text)]
-    todo = list(dict.fromkeys(t for t in clips if not os.path.exists(cache_path(t))))
-    print(f"{len(clips)} clips, {len(todo)} to render ({len(clips) - len(todo)} cached), "
-          f"voice {voice['name']} on {engine}", flush=True)
+    with render_lock(CACHE_DIR):
+        # Counted after the lock, so clips a render that ran first cached aren't redone.
+        todo = list(dict.fromkeys(t for t in clips if not os.path.exists(cache_path(t))))
+        print(f"{len(clips)} clips, {len(todo)} to render ({len(clips) - len(todo)} cached), "
+              f"voice {voice['name']} on {engine}", flush=True)
 
-    if todo:
-        say = mlx_speaker(voice, engine, model_repo, revision)
-        print(f"model ready in {time.time() - started:.0f}s", flush=True)
-        speaking_started = time.time()
-        audio_secs, measured_weight = 0.0, 0.0
-        for n, text in enumerate(todo, 1):
-            t0 = time.time()
-            pcm = say(text, seed)
-            tmp = cache_path(text) + ".part"
-            with open(tmp, "wb") as f:
-                f.write(pcm)
-            os.replace(tmp, cache_path(text))
-            secs = len(pcm) / 2 / SR
-            audio_secs += secs
-            measured_weight += weight(text)
-            print(f"  [{n}/{len(todo)}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
-        # The lint predicts this voice's length from its measured rate.
-        record_rate(voice, measured_weight, audio_secs - MLX_EDGE * len(todo))
-        took = time.time() - speaking_started
-        print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min "
-              f"({took / audio_secs:.2f} times its length, not counting the model load)", flush=True)
+        if todo:
+            say = engines.speaker(voice)
+            print(f"model ready in {time.time() - started:.0f}s", flush=True)
+            speaking_started = time.time()
+            audio_secs, measured_weight = 0.0, 0.0
+            for n, text in enumerate(todo, 1):
+                t0 = time.time()
+                pcm = say(text, seed)
+                tmp = cache_path(text) + ".part"
+                with open(tmp, "wb") as f:
+                    f.write(pcm)
+                os.replace(tmp, cache_path(text))
+                secs = len(pcm) / 2 / SR
+                audio_secs += secs
+                measured_weight += weight(text)
+                print(f"  [{n}/{len(todo)}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
+            del say
+            engines.release()   # the model's memory isn't needed to assemble and encode
+            # The lint predicts this voice's length from its measured rate.
+            record_rate(voice, measured_weight, audio_secs - MLX_EDGE * len(todo))
+            took = time.time() - speaking_started
+            print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min "
+                  f"({took / audio_secs:.2f} times its length, not counting the model load)", flush=True)
 
-    if args.clips_only:
-        print(f"Clips cached for {len(segments)} segment(s); the full build reuses them.")
-        return
+        if args.clips_only:
+            print(f"Clips cached for {len(segments)} segment(s); the full build reuses them.")
+            return
 
-    def clip(text):
-        with open(cache_path(text), "rb") as f:
-            return f.read()
+        def clip(text):
+            path = cache_path(text)
+            with open(path, "rb") as f:
+                pcm = f.read()
+            os.utime(path)   # marks the clip as recently used, for tools/cache.py prune
+            return pcm
 
-    pcm_all, rows, drift = assemble(segments, clip,
-                                    lead=b"" if args.no_chime else chime(), bell=chime(),
-                                    tail=b"" if args.no_chime else end_tone())
+        pcm_all, rows, drift = assemble(segments, clip,
+                                        lead=b"" if args.no_chime else chime(), bell=chime(),
+                                        tail=b"" if args.no_chime else end_tone())
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
     for i, planned, spoken, label, flag in rows:
@@ -316,13 +334,16 @@ def main():
     encode(pcm_all, out, os.path.splitext(os.path.basename(out))[0])
 
     total = len(pcm_all) / 2 / SR
+    planned_total = sum(seg["seconds"] for seg in segments)
+    save_build_record(build_record(args.draft, out, voice, seed, len(clips), len(todo), planned_total,
+                                   planned_total * (1 + drift), drift, time.time() - started, started), out)
     print(f"\nWrote {out}: {total / 60:.1f} min audio, {drift:+.1%} of plan, "
           f"total time {(time.time() - started) / 60:.1f} min")
     if abs(drift) > args.tolerance:
         print(f"The workout runs {'long' if drift > 0 else 'short'} by more than {args.tolerance:.0%}. "
               f"{'Trim' if drift > 0 else 'Add'} words in the segments marked or furthest off and rerun; "
               "unchanged clips come from cache.")
-        sys.exit(2)
+        sys.exit(cli.DRIFT)
 
 
 if __name__ == "__main__":

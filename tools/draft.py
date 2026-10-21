@@ -1,0 +1,117 @@
+"""A segmented workout draft: its format, and how its segments sit on the plan's clock.
+
+Draft format: each segment starts with a marker line
+    @@ <seconds> | <label>
+followed by the spoken text. Inside the text, [pause 3s] inserts that much silence
+(also [pause 500ms]; at most ten seconds), and [chime] rings the segment bell at
+that point, for example when work starts in a forty-five-and-fifteen interval.
+
+This is the one source of truth for the draft: the lint (tts_build.py) predicts
+from it and the render (render.py) lays clips out with it, so they agree.
+"""
+import re
+
+MARKER = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*)$")
+PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
+CHIME_RE = re.compile(r"\[\s*chime\s*\]", re.IGNORECASE)
+MARK_RE = re.compile(PAUSE_RE.pattern + "|" + CHIME_RE.pattern, re.IGNORECASE)
+CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
+PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds: a bare [pause], and the longest one
+PARAGRAPH_GAP = 0.35                    # least silence between paragraphs within a segment
+MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
+CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segment after the first
+
+# Timing. A segment's spare time widens its paragraph breaks (up to MAX_EXTRA_GAP each)
+# and leaves a short tail; past that it ends early rather than going quiet, so the
+# workout runs a little under plan instead of padding with silence. Only the total is
+# held to plan, within TOTAL_TOLERANCE; a segment is flagged only when far off.
+END_TAIL = 1.5          # seconds of spare time kept at a segment's end, at most
+MAX_EXTRA_GAP = 1.5     # most spare time added to any one paragraph break
+TOTAL_TOLERANCE = 0.03  # the whole workout may run this fraction over or under plan
+MIN_FILL, MAX_FILL = 0.80, 1.10   # a segment outside these (speech over planned seconds) is flagged
+
+
+def parse(text):
+    segments, current = [], None
+    for lineno, line in enumerate(text.splitlines(), 1):
+        m = MARKER.match(line.strip())
+        if m:
+            current = {"seconds": int(m.group(1)), "label": m.group(2).strip(),
+                       "lines": [], "start": lineno}
+            segments.append(current)
+        elif current is None:
+            if line.strip():
+                raise SystemExit(f"Line {lineno}: text before the first @@ marker.")
+        else:
+            current["lines"].append((lineno, line))
+    if not segments:
+        raise SystemExit("No @@ segment markers found.")
+    return segments
+
+
+def paragraphs(lines):
+    out, buf = [], []
+    for _, line in lines + [(0, "")]:
+        if line.strip():
+            buf.append(line.strip())
+        elif buf:
+            out.append(" ".join(buf))
+            buf = []
+    return out
+
+
+def spans(paragraph):
+    """Split a paragraph at [pause] and [chime] markers: [(text, seconds of silence after)].
+    Text may be empty (a leading pause), or CHIME for the bell."""
+    out, last = [], 0
+    for m in MARK_RE.finditer(paragraph):
+        text = paragraph[last:m.start()].strip()
+        last = m.end()
+        if CHIME_RE.fullmatch(m.group(0)):
+            if text:
+                out.append((text, 0.0))
+            out.append((CHIME, 0.0))
+            continue
+        num, unit = m.group(1), (m.group(2) or "").lower()
+        secs = PAUSE_DEFAULT if num is None else float(num) / (1 if unit == "s" else 1000)
+        if not text and out:
+            out[-1] = (out[-1][0], min(out[-1][1] + secs, PAUSE_MAX))
+        else:
+            out.append((text, min(secs, PAUSE_MAX)))
+    tail = paragraph[last:].strip()
+    if tail or not out:
+        out.append((tail, 0.0))
+    return out
+
+
+def spoken(text):
+    """True for a span the voice speaks (not a bare pause or the bell)."""
+    return bool(text) and text != CHIME
+
+
+def plan(seg):
+    """A segment as paragraphs of spans, exactly as render.py will voice it."""
+    return [spans(p) for p in paragraphs(seg["lines"])]
+
+
+def layout(segments):
+    """Lay segments on the clock. `segments` is [(spoken seconds, paragraph breaks,
+    planned seconds)]; returns [(extra seconds per break, laid-out seconds)].
+
+    A segment that runs over makes the next ones late, and their spare time pays it
+    back; a segment with time to spare widens its breaks, keeps a short tail and ends
+    early."""
+    out, late = [], 0.0
+    for spoken_secs, gaps, planned in segments:
+        slack = max(planned - late - spoken_secs, 0.0)
+        extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
+        length = spoken_secs + extra * gaps + min(END_TAIL, slack - extra * gaps)
+        late = max(late + length - planned, 0.0)
+        out.append((extra, length))
+    return out
+
+
+def fill_flag(spoken_secs, planned, min_fill=MIN_FILL, max_fill=MAX_FILL):
+    """"long" or "short" when a segment's speech is far off its slot, else ""."""
+    fill = spoken_secs / planned if planned else 0.0
+    return "long" if fill > max_fill else "short" if fill < min_fill else ""

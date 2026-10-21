@@ -1,0 +1,4 @@
+# Paths that hold a listener's personal context and must never be pushed, as one
+# extended regular expression matched against each committed path. Read by
+# tools/hooks/check-private.sh (the pre-push hook and CI) and by the tests.
+^(me/|workouts/|log\.md$|knowledge/(profile|health)\.md$)

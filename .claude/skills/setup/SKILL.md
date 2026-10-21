@@ -9,7 +9,7 @@ Goal: in one short conversation, turn `me.example/` into a filled-in `me/` folde
 
 ## Step 1: the machine
 
-Run `tools/setup.sh --no-models`. It makes the Python environment with uv, copies `me.example/` to `me/` if there's no `me/profile.md` yet, and installs the git hook that refuses to push `me/`. The voice model comes later, once the user has picked a voice, so nothing large downloads for a voice they won't use. If it stops, relay its one-line fix (install ffmpeg or uv with Homebrew) and rerun it once they say it's done. It runs in the background while you interview: start it with `run_in_background: true`.
+Run `tools/setup.sh --no-models`. It makes the Python environment with uv, copies `me.example/` to `me/` if there's no `me/profile.md` yet (or brings an existing one up to this version's format, backing it up first), and installs the git hook that refuses to push `me/` in any commit. The voice model comes later, once the user has picked a voice, so nothing large downloads for a voice they won't use. If it stops, relay its one-line fix (install ffmpeg or uv with Homebrew) and rerun it once they say it's done. It runs in the background while you interview: start it with `run_in_background: true`.
 
 If `me/profile.md` already has real answers, this is an update: ask only about what the user wants to change, and skip to Step 3.
 
@@ -26,9 +26,9 @@ Read `me.example/profile.md` and `me.example/health.md` first, so the questions 
 
 ## Step 3: write the files
 
-- `me/profile.md` and `me/health.md`: fill in every bracketed placeholder from the answers, and delete lines the user has nothing for. Keep the line formats the tools read exactly: the `- Voices` list with indented `  - <name>: ...` lines (the default first), `- Copy finished MP3s to: <path>`, `- Measured words per minute ...: <n>`, the `YouTube favorites` and `Puzzles` lines with `@handles`, and the Feeds lines `- <label> (<kind>): <value>`.
+- `me/profile.md` and `me/health.md`: fill in every bracketed placeholder from the answers, and delete lines the user has nothing for. Keep the front matter at the top of each file (`---`, `schema: 1`, `---`) as it is. Writing `me/health.md` asks the user for permission; that's expected, since it's the most private file. Keep the line formats the tools read exactly: the `- Voices` list with indented `  - <name>: ...` lines (the default first), `- Copy finished MP3s to: <path>`, `- Measured words per minute ...: <n>`, the `YouTube favorites` and `Puzzles` lines with `@handles`, and the Feeds lines `- <label> (<kind>): <value>`.
 - **Feeds.** Weather: the neighborhood's latitude and longitude, rounded to two decimals. Teams: find each team's ESPN path (the `sport/league/team` part of its ESPN team page URL, such as `hockey/nhl/nj` or `soccer/usa.1/10739`) with a web search. Local news: one or two outlets' RSS feeds for the city. Keep the shipped science and puzzle feeds unless the user doesn't want them. YouTube handles: check each one resolves (`https://www.youtube.com/@<handle>`).
-- Then run `python3 tools/feeds.py` once. Fix or remove any source it lists under "Couldn't fetch", and run it again.
+- Then run `python3 tools/context.py check`, which lists any line the tools can't read, with its line number; fix those. Run `python3 tools/feeds.py` once, fix or remove any source it lists under "Couldn't fetch", and run it again.
 
 ## Step 4: first audio
 

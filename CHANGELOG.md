@@ -2,6 +2,43 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [2.0.0] - 2026-10-21
+
+The engine's audit, fixed: one owner for the listener's files with a versioned format and a migration, safer state on disk, a privacy guard that checks every commit, consistent exit codes, and a record of how each MP3 was made.
+
+### For forks
+Breaking: the context files now carry a format version, and tools refuse an older folder until it's migrated. After pulling:
+1. Run `tools/setup.sh` (or `python3 tools/migrate.py`). It backs up `profile.md`, `health.md`, `log.md` and `exercise-science.md` to `me/.backup-<date and time>/`, then adds a three-line front matter (`---`, `schema: 1`, `---`) to the top of each. Nothing else in them changes. `--dry-run` shows what it would do.
+2. Run `python3 tools/context.py check`. It lists any line the tools can't read, such as a log line with a field missing, with its line number.
+3. Clips cached before 2.0.0 render once more, since the cache key now includes the mlx-audio version. Right after upgrading, `python3 tools/cache.py prune --days 0` frees the old ones (it removes every cached clip, so run it before your next build, not after).
+4. If you call the tools from your own scripts: a mistyped command now exits 64, not 2. The lint's word-count option is `--word-tolerance` (it was `--tolerance`). `tools/feeds.py` prints only the weather unless you pass `--print`. The draft functions (`parse`, `plan`, `spans`, `layout` and the timing constants) moved from `tts_build.py` to `tools/draft.py`, and the engine code from `render.py` to `tools/engines.py`.
+
+### Added
+- `tools/context.py`, the one reader and writer of the context files: the schema check, `get default-voice | wpm | voices`, `deliver` (the delivery folders that exist), `log-session` (adds a checked session line to `me/log.md`) and `check`. `build.sh`, `setup.sh`, `coverage.py`, `feeds.py` and `youtube.py` read the profile and log through it instead of six separate parsers. The workout skill logs sessions with `log-session` instead of editing the log by hand.
+- `tools/migrate.py`, with a backup and `--dry-run`. `tools/setup.sh` runs it when a context folder already exists.
+- A record of each build: `<name>.build.json` beside the MP3 and a line in `me/workouts/.logs/builds.jsonl`, with the draft's hash, voice, model and revision, mlx-audio and ffmpeg versions, seed, clip counts, timing and drift. Each build's render log is `me/workouts/.logs/<name>.log` instead of one shared temporary file.
+- `tools/cache.py`: the clip cache's size, and `prune [--days 45]` for clips no build has read in that long. Renders mark each clip they read.
+- `tools/cli.py`: the exit codes in one place (0 done, 1 issues, 2 drift, 3 unmeasured voice, 64 command mistake) and an argument parser that exits 64.
+- `tools/draft.py` (the draft model and timing layout) and `tools/engines.py` (everything tied to mlx-audio and huggingface_hub internals, with a warning when the installed mlx-audio isn't the tested one).
+- `tts_build.lint()` returns a `Report` (rows, issues, drift, warnings), so the lint's findings can be checked without reading its printout. The printed output is unchanged.
+- Tests for all of the above, `build.sh`'s exit codes (through a stand-in Python), the pace file, the privacy hook on temporary repositories, the render lock, migration, and the feed limits: 94 in all, passing on Python 3.9 to 3.14.
+
+### Changed
+- Only one render runs at a time: a second one, such as a full build started while the prerender is still going, waits for the first and then reuses its clips.
+- `tools/feeds.py` prints only the weather and any failed sources. Headlines and captions are outside text, so they stay in the sheet for the research agent, and the main session no longer reads them. The workout skill takes the weather from that printout. `--print` prints the whole sheet.
+- Editing `me/health.md` asks for permission (an `ask` rule in `.claude/settings.json`). The workout skill only edits it at the check-in, while the listener is there, so the unattended part of a session still runs without prompts.
+- The render releases the voice model's memory before assembling and encoding the MP3.
+- `--tolerance` passed to `tools/build.sh` now sets the allowance for the lint as well as the render.
+
+### Fixed
+- One damaged write to `voice-pace.json` could erase every voice's measured pace: an unreadable file was treated as empty, then overwritten. The pace file is now written under a lock, to a temporary file that's renamed into place. A damaged one is moved aside as `voice-pace.json.corrupt-<time>` instead of overwritten, and the render checks it before loading a model rather than after rendering.
+- The pre-push hook checked only the last commit of a push, so a personal file committed and then removed in a later commit still went out. It now checks every pushed commit, and so does CI. The three copies of the private-path list (hook, CI, test) are now one file, `tools/hooks/private-paths`. CI and the test had been missing the old-layout `knowledge/health.md`. A commit that only deletes such a file is allowed, so a leak can be cleaned up.
+- A mistyped render option exited 2, which `build.sh` and the skill read as "the workout ran long". It now exits 64 and shows the error. An unknown voice exits 64 with the list of voices, instead of reporting that the voice "hasn't been measured".
+- The lint re-read the pace file twice for every clip. It now reads it once per lint, so a render finishing mid-lint can't change the prediction partway through.
+- `tools/feeds.py` fetches only http and https addresses, reads at most 5 MB of each, and builds its TLS settings on first use rather than on import.
+- `tools/youtube.py` refuses a video id with path characters, finds `@handles` under Content first, and writes transcripts as UTF-8.
+- The render finds ffmpeg's loudness figures by their keys and explains a failure, rather than taking the last `{` in its output.
+
 ## [1.1.0] - 2026-10-21
 
 The voices are named for the models that speak them, the model downloads are explained, and Chatterbox's speech tokenizer is held to its pinned version at render time too.

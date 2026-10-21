@@ -32,7 +32,9 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import PROFILE, PUZZLES, VENV_PYTHON, VIDEOS, require, show  # noqa: E402
+import cli  # noqa: E402
+import context  # noqa: E402
+from paths import PUZZLES, VENV_PYTHON, VIDEOS, show  # noqa: E402
 
 MIN_SECONDS, MAX_SECONDS = 5 * 60, 3 * 60 * 60   # skip Shorts and marathon streams
 PUZZLE_MAX_SECONDS = 30 * 60                      # a quiz puzzle is short
@@ -42,6 +44,7 @@ TAG_RE = re.compile(r"\[(?:music|applause|laughter)\]", re.IGNORECASE)
 PARTS_RE = re.compile(r"^- Parts:\s*(\d+)\s*$", re.MULTILINE)
 DONE_RE = re.compile(r"^- Parts done:\s*(\d+)\s*$", re.MULTILINE)
 TITLE_RE = re.compile(r"^# (.+)$", re.MULTILINE)
+ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")   # a video id: no slashes or dots, so no path tricks
 yt_dlp = None
 
 
@@ -57,14 +60,11 @@ def load_yt_dlp():
     yt_dlp = module
 
 
-def handles(label="YouTube favorites", profile=PROFILE):
-    with open(require(profile, "profile")) as f:
-        for line in f:
-            if line.lstrip("- ").startswith(label):
-                found = re.findall(r"@([\w.-]*[\w-])", line)   # not a sentence's final period
-                if found:
-                    return found
-    raise SystemExit(f"No '{label}' line with @handles under Content in profile.md.")
+def handles(label="YouTube favorites", profile=None):
+    found = context.handles(context.profile(profile), label)
+    if not found:
+        raise SystemExit(f"No '{label}' line with @handles under Content in profile.md.")
+    return found
 
 
 def used(folder=VIDEOS):
@@ -205,14 +205,14 @@ def transcript(ref):
     ]
     os.makedirs(VIDEOS, exist_ok=True)
     path = os.path.join(VIDEOS, f"{info['id']}.txt")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(header) + "\n\n" + "\n\n".join(body) + "\n")
     words = sum(len(p.split()) for p in body)
     print(f"{show(path)}  ({words} words)  {info.get('title', '')}")
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pick", help="list recent unused videos from each favorite channel")
     p.add_argument("--recent", type=int, default=3, help="videos per channel (default 3)")
@@ -223,7 +223,11 @@ def main():
     z = sub.add_parser("puzzles", help="list recent puzzle videos not yet used as a quiz")
     z.add_argument("--recent", type=int, default=8, help="videos to list (default 8)")
     args = ap.parse_args()
+    if args.cmd in ("done", "transcript") and not (args.video.startswith("http") or ID_RE.match(args.video)):
+        ap.error(f"'{args.video}' isn't a video id or URL")
     if args.cmd == "done":
+        if not ID_RE.match(args.video):
+            ap.error("done takes a video id, not a URL")
         done, parts = mark_done(args.video)
         print(f"{args.video}: part {done} of {parts} told" + ("; series finished" if done == parts else ""))
         return

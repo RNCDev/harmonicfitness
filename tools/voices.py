@@ -19,17 +19,21 @@ rates: a reference clip's own rate came out about 30 percent slow for Chatterbox
 The character weights are vendored in char_weight.py.
 
     python3 tools/voices.py                      # list voices with their engine and pace
-    python3 tools/voices.py --measured "Qwen3 Coach"    # exit 0 if its rate is measured, 1 if estimated
+    python3 tools/voices.py --measured "Qwen3 Coach"    # exit 0 if measured, 1 if estimated, 64 if no such voice
     .venv/bin/python tools/voices.py --download "Chatterbox Coach"   # fetch its pinned model (setup.sh does this)
 """
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
 import statistics
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from char_weight import weight  # noqa: E402,F401  (re-exported for render.py)
+import cli  # noqa: E402
 from paths import PACE_FILE, ROOT, VOICE_DIRS, show  # noqa: E402,F401
 
 ENGINES = ("qwen3", "chatterbox")
@@ -76,7 +80,8 @@ def names():
 
 
 def lookup(voice):
-    """A voice by name or one of its aliases (case doesn't matter)."""
+    """A voice by name or one of its aliases (case doesn't matter). Stops with a message
+    when there's no such voice or its settings are broken."""
     files = _files()
     hit = files.get(voice.lower()) or _aliases(files).get(voice.lower())
     if not hit:
@@ -104,53 +109,97 @@ def lookup(voice):
             "key": hashlib.sha256(f"{audio_hash}|{ref_text}".encode()).hexdigest()[:12]}
 
 
-def _recorded():
+def _recorded(path=None, strict=False):
+    """Every voice's recorded speech, from the pace file. A missing file is empty. A file
+    that won't parse is never silently treated as empty when it's about to be written
+    (strict): it's set aside as voice-pace.json.corrupt-<time> and the tool stops, so one
+    bad write can't erase every voice's measurements."""
+    path = path or PACE_FILE
     try:
-        with open(PACE_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("not a JSON object")
+        return data
+    except FileNotFoundError:
         return {}
+    except (OSError, ValueError) as e:
+        if not strict:
+            print(f"Warning: couldn't read {show(path)} ({e}); treating every voice as unmeasured.",
+                  file=sys.stderr)
+            return {}
+        bad = f"{path}.corrupt-{time.strftime('%Y%m%d%H%M%S')}"
+        os.replace(path, bad)
+        raise SystemExit(f"{show(path)} was damaged ({e}), so it was moved to {show(bad)} rather than "
+                         "overwritten. Fix it by hand and move it back, or delete it and render the "
+                         "smoke test with each voice to measure them again.")
+
+
+def check_pace_file(path=None):
+    """Stop now, not after a long render, if the pace file can't be read (render.py calls this first)."""
+    _recorded(path, strict=True)
+
+
+@contextlib.contextmanager
+def _locked(path):
+    """An exclusive lock beside `path`, held while its contents are read, changed and written."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".lock", "a") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 def _rate_key(v):
     return f"{v['key']}|{v['engine']}|{v['model']}"
 
 
-def record_rate(v, weight, seconds):
-    """Fold a render's measured speech into the voice's rate (called by render.py)."""
-    data = _recorded()
-    rec = data.get(_rate_key(v), {"weight": 0.0, "seconds": 0.0})
-    rec["name"] = v["name"]
-    rec["weight"] += weight
-    rec["seconds"] += seconds
-    data[_rate_key(v)] = rec
-    os.makedirs(os.path.dirname(PACE_FILE), exist_ok=True)
-    with open(PACE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=1)
+def record_rate(v, weight, seconds, path=None):
+    """Fold a render's measured speech into the voice's rate (called by render.py).
+    Locked, and written to a temporary file then renamed, so it's never half-written."""
+    path = path or PACE_FILE
+    with _locked(path):
+        data = _recorded(path, strict=True)
+        rec = data.get(_rate_key(v), {"weight": 0.0, "seconds": 0.0})
+        rec["name"] = v["name"]
+        rec["weight"] += weight
+        rec["seconds"] += seconds
+        data[_rate_key(v)] = rec
+        tmp = path + ".part"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
 
 
-def seed_pace(data=None):
+def seed_pace(data=None, path=None):
     """A starting rate for a voice no render has measured: the median of the measured
     rates on file (entries with enough speech behind them), else DEFAULT_PACE. The
     reference clip's own rate is not used: for Chatterbox Coach it was 10.3 chars/s
     against a measured 14.6."""
-    data = _recorded() if data is None else data
+    data = _recorded(path) if data is None else data
     rates = [r["weight"] / r["seconds"] for r in data.values()
              if isinstance(r, dict) and r.get("weight") and (r.get("seconds") or 0) > MIN_MEASURED]
     return statistics.median(rates) if rates else DEFAULT_PACE
 
 
-def pace(v):
-    """Weighted characters per second: the voice's speaking rate, and whether it's measured."""
-    rec = _recorded().get(_rate_key(v))
+def pace(v, path=None):
+    """Weighted characters per second: the voice's speaking rate, and whether it's measured.
+    Reads the pace file once."""
+    data = _recorded(path)
+    rec = data.get(_rate_key(v))
     if rec and rec.get("seconds", 0) > MIN_MEASURED:
         return rec["weight"] / rec["seconds"], True
-    return seed_pace(), False
+    return seed_pace(data), False
 
 
-def clip_seconds(text, v):
-    """Predicted length of one clip of `text`, including its trimmed edges."""
-    return weight(text) / pace(v)[0] + MLX_EDGE
+def clip_seconds(text, v, rate=None):
+    """Predicted length of one clip of `text`, including its trimmed edges. Pass `rate`
+    (from pace()) when predicting many clips, so the pace file is read once."""
+    return weight(text) / (rate if rate is not None else pace(v)[0]) + MLX_EDGE
 
 
 def download(v):
@@ -169,12 +218,21 @@ def main():
     args = sys.argv[1:]
     if args[:1] == ["--measured"]:
         if len(args) != 2:
-            raise SystemExit("usage: python3 tools/voices.py --measured <voice>")
-        return 0 if pace(lookup(args[1]))[1] else 1
+            print("usage: python3 tools/voices.py --measured <voice>", file=sys.stderr)
+            return cli.USAGE
+        try:
+            v = lookup(args[1])
+        except SystemExit as e:   # an unknown voice or broken settings: a command mistake
+            print(e.code, file=sys.stderr)
+            return cli.USAGE
+        return cli.OK if pace(v)[1] else cli.ISSUES
     if args[:1] == ["--download"]:
         for name in args[1:] or names():
             download(lookup(name))
         return 0
+    if args:
+        print("usage: python3 tools/voices.py [--measured <voice> | --download [<voice>...]]", file=sys.stderr)
+        return cli.USAGE
     print(f"{'name':24} {'engine':10} {'pace':16} model")
     estimated = False
     for name in names():

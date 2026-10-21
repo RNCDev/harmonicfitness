@@ -9,24 +9,31 @@ import shutil
 import subprocess
 import json
 import os
+import re
 import sys
+import time
 import tempfile
 import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
+import cache  # noqa: E402
 import char_weight  # noqa: E402
+import cli  # noqa: E402
+import context  # noqa: E402
 import coverage  # noqa: E402
+import draft  # noqa: E402
+import engines  # noqa: E402
 import feeds  # noqa: E402
 import paths  # noqa: E402
 import render  # noqa: E402
 import tts_build  # noqa: E402
 import voices  # noqa: E402
 import youtube  # noqa: E402
+from draft import CHIME, CHIME_SECONDS, PARAGRAPH_GAP, parse, plan, spans  # noqa: E402
 from render import SR, assemble, chime, end_tone, silence  # noqa: E402
-from tts_build import (CHIME, CHIME_SECONDS, PARAGRAPH_GAP, lint_line, parse, plan, spans,  # noqa: E402
-                       structure_warnings, word_count)
+from tts_build import lint_line, structure_warnings, word_count  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Drafts that ship with the engine; personal drafts in me/ are never test fixtures.
@@ -35,6 +42,22 @@ DRAFTS = sorted(glob.glob(os.path.join(ROOT, "tests", "fixtures", "*.draft.txt")
 
 def secs(pcm):
     return len(pcm) / 2 / SR
+
+
+def with_schema(text):
+    """A context file's text as the current engine writes it, front matter first."""
+    return context.with_front_matter(text)
+
+
+def write_file(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def private_pattern():
+    with open(os.path.join(ROOT, "tools", "hooks", "private-paths"), encoding="utf-8") as f:
+        return next(l.strip() for l in f if l.strip() and not l.startswith("#"))
 
 
 class Parse(unittest.TestCase):
@@ -55,10 +78,10 @@ class Parse(unittest.TestCase):
 class Spans(unittest.TestCase):
     def test_pause_units_and_default(self):
         self.assertEqual(spans("Set up. [pause 3s] Go. [pause 500ms] Now [pause] end"),
-                         [("Set up.", 3.0), ("Go.", 0.5), ("Now", tts_build.PAUSE_DEFAULT), ("end", 0.0)])
+                         [("Set up.", 3.0), ("Go.", 0.5), ("Now", draft.PAUSE_DEFAULT), ("end", 0.0)])
 
     def test_pause_is_capped(self):
-        self.assertEqual(spans("Rest. [pause 30s]"), [("Rest.", tts_build.PAUSE_MAX)])
+        self.assertEqual(spans("Rest. [pause 30s]"), [("Rest.", draft.PAUSE_MAX)])
 
     def test_leading_and_back_to_back_pauses(self):
         self.assertEqual(spans("[pause 2s] Breathe."), [("", 2.0), ("Breathe.", 0.0)])
@@ -72,9 +95,9 @@ class Spans(unittest.TestCase):
         self.assertEqual(spans("Rest. [pause 2s] [Chime]"), [("Rest.", 2.0), (CHIME, 0.0)])
 
     def test_chime_is_not_spoken_or_counted(self):
-        self.assertFalse(tts_build.spoken(CHIME))
-        self.assertFalse(tts_build.spoken(""))
-        self.assertTrue(tts_build.spoken("Go."))
+        self.assertFalse(draft.spoken(CHIME))
+        self.assertFalse(draft.spoken(""))
+        self.assertTrue(draft.spoken("Go."))
         self.assertEqual(lint_line(1, "Work starts at the bell. [chime] Go."), [])
         self.assertEqual(word_count([(1, "Ready. [chime] Go now.")]), 3)
 
@@ -158,8 +181,8 @@ class Assemble(unittest.TestCase):
         pcm, rows, drift = assemble(segs, self.fake_clip)
         self.assertAlmostEqual(rows[0][2], 5 + PARAGRAPH_GAP, places=3)
         # A: speech, one break widened by the cap, a short tail. B: speech and a tail.
-        a = 5 + PARAGRAPH_GAP + render.MAX_EXTRA_GAP + render.END_TAIL
-        b = 1 + render.END_TAIL
+        a = 5 + PARAGRAPH_GAP + draft.MAX_EXTRA_GAP + draft.END_TAIL
+        b = 1 + draft.END_TAIL
         self.assertAlmostEqual(secs(pcm), a + b, places=3)
         self.assertAlmostEqual(drift, (a + b) / 35 - 1, places=3)
         self.assertEqual(rows[0][4], "  <-- short")
@@ -174,7 +197,7 @@ class Assemble(unittest.TestCase):
     def test_spare_time_goes_into_paragraph_breaks_up_to_the_cap(self):
         segs = self.segs("@@ 20 | A\none\n\ntwo\n")
         pcm, _, _ = assemble(segs, self.fake_clip)
-        gap = render.MAX_EXTRA_GAP + PARAGRAPH_GAP
+        gap = draft.MAX_EXTRA_GAP + PARAGRAPH_GAP
         # The second word starts after one second of speech plus the widened break.
         self.assertEqual(pcm[int((1 + gap) * SR) * 2 - 2:int((1 + gap) * SR) * 2], b"\x00\x00")
         self.assertEqual(pcm[int((1 + gap) * SR) * 2 + 2:int((1 + gap) * SR) * 2 + 4], b"\x01\x00")
@@ -184,7 +207,7 @@ class Assemble(unittest.TestCase):
         pcm, rows, _ = assemble(segs, self.fake_clip)
         self.assertEqual(rows[0][4], "  <-- long")
         # A runs two seconds late, so B keeps only what's left of its spare time.
-        self.assertAlmostEqual(secs(pcm), 5 + 1 + render.END_TAIL, places=3)
+        self.assertAlmostEqual(secs(pcm), 5 + 1 + draft.END_TAIL, places=3)
 
     def test_small_overrun_is_not_flagged(self):
         segs = self.segs("@@ 20 | A\n" + " ".join(["w"] * 21) + "\n")
@@ -195,7 +218,7 @@ class Assemble(unittest.TestCase):
     def test_layout_matches_assemble(self):
         segs = self.segs("@@ 20 | A\none two\n\nthree\n@@ 4 | B\nfour five six\n\nseven\n@@ 30 | C\neight\n")
         pcm, _, _ = assemble(segs, self.fake_clip)
-        predicted = tts_build.layout([(3 + PARAGRAPH_GAP, 1, 20), (4 + PARAGRAPH_GAP, 1, 4), (1, 0, 30)])
+        predicted = draft.layout([(3 + PARAGRAPH_GAP, 1, 20), (4 + PARAGRAPH_GAP, 1, 4), (1, 0, 30)])
         self.assertAlmostEqual(secs(pcm), sum(length for _, length in predicted), places=3)
 
     def test_chime_opens_every_segment_but_the_first(self):
@@ -204,10 +227,10 @@ class Assemble(unittest.TestCase):
         self.assertAlmostEqual(secs(lead), CHIME_SECONDS, places=3)
         pcm, rows, _ = assemble(segs, self.fake_clip, lead=lead)
         self.assertEqual(bytes(pcm[:4]), b"\x01\x00\x01\x00")          # A starts with the voice
-        b_start = int((1 + render.END_TAIL) * SR) * 2                    # A ends early, after its tail
+        b_start = int((1 + draft.END_TAIL) * SR) * 2                    # A ends early, after its tail
         self.assertEqual(bytes(pcm[b_start:b_start + len(lead)]), lead)   # B starts with the bell
         self.assertAlmostEqual(rows[1][2], 1 + CHIME_SECONDS, places=3)
-        self.assertAlmostEqual(secs(pcm), 2 * (1 + render.END_TAIL) + CHIME_SECONDS, places=3)
+        self.assertAlmostEqual(secs(pcm), 2 * (1 + draft.END_TAIL) + CHIME_SECONDS, places=3)
 
     def test_chime_is_soft(self):
         import struct
@@ -226,13 +249,13 @@ class Assemble(unittest.TestCase):
         at = 1 * SR * 2   # after one second of speech
         self.assertEqual(bytes(pcm[at:at + len(bell)]), bell)
         self.assertAlmostEqual(rows[0][2], 2 + CHIME_SECONDS, places=3)
-        self.assertAlmostEqual(secs(pcm), 2 + CHIME_SECONDS + render.END_TAIL, places=3)
+        self.assertAlmostEqual(secs(pcm), 2 + CHIME_SECONDS + draft.END_TAIL, places=3)
 
     def test_end_tone_follows_the_last_segment(self):
         segs = self.segs("@@ 5 | A\none\n")
         tail = end_tone()
         pcm, _, _ = assemble(segs, self.fake_clip, tail=tail)
-        self.assertAlmostEqual(secs(pcm), 1 + render.END_TAIL + secs(tail), places=3)
+        self.assertAlmostEqual(secs(pcm), 1 + draft.END_TAIL + secs(tail), places=3)
         self.assertEqual(bytes(pcm[-len(tail):]), tail)
         self.assertGreater(secs(tail), secs(chime()))   # longer and rising, so it can't pass for a bell
 
@@ -251,17 +274,17 @@ class Coverage(unittest.TestCase):
     def setUp(self):
         fd, self.path = tempfile.mkstemp(suffix=".md")
         with os.fdopen(fd, "w") as f:
-            f.write(self.LOG)
+            f.write(with_schema(self.LOG))
 
     def tearDown(self):
         os.remove(self.path)
 
     def test_reads_only_the_sessions_section(self):
-        log = coverage.sessions(self.path)
-        self.assertEqual([d for d, _ in log], ["2026-10-19", "2026-10-20"])
+        log = context.sessions(self.path)
+        self.assertEqual([s.date for s in log], ["2026-10-19", "2026-10-20"])
 
     def test_groups_and_gaps(self):
-        hit, unmapped = coverage.coverage(coverage.sessions(self.path)[-1][1])
+        hit, unmapped = coverage.coverage(context.sessions(self.path)[-1].movements)
         self.assertEqual(hit["arms"], ["seated curl"])
         self.assertEqual(hit["hamstrings"], ["right single-leg glute bridge"])
         self.assertEqual(hit["lateral or anti-rotation core"], ["side plank from the knee"])
@@ -367,7 +390,7 @@ class PinnedExtras(unittest.TestCase):
         hub, calls = self.fake_hub()
         repo, rev = voices.ENGINE_EXTRAS["chatterbox"][0]
         original = hub.hf_hub_download
-        with render.pinned_extras("chatterbox", hub):
+        with engines.pinned_extras("chatterbox", hub):
             hub.hf_hub_download(repo_id=repo, filename="model.safetensors")
             hub.hf_hub_download(repo_id="other/repo", filename="x")
         self.assertEqual(calls, [("snapshot", repo, rev), ("file", repo, rev), ("file", "other/repo", None)])
@@ -376,12 +399,12 @@ class PinnedExtras(unittest.TestCase):
     def test_a_pinned_extra_that_cant_be_fetched_stops_the_render(self):
         hub, _ = self.fake_hub(fail=True)
         with self.assertRaises(SystemExit):
-            with render.pinned_extras("chatterbox", hub):
+            with engines.pinned_extras("chatterbox", hub):
                 pass
 
     def test_qwen3_has_no_extras(self):
         hub, calls = self.fake_hub(fail=True)
-        with render.pinned_extras("qwen3", hub):
+        with engines.pinned_extras("qwen3", hub):
             pass
         self.assertEqual(calls, [])
 
@@ -423,8 +446,9 @@ class FreshFork(unittest.TestCase):
         if not os.path.isdir(os.path.join(ROOT, ".git")):
             self.skipTest("not a git checkout")
         tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split("\n")
-        bad = [p for p in tracked if p.startswith(("me/", "workouts/")) or p in ("log.md", "knowledge/profile.md")]
-        self.assertEqual(bad, [])
+        pattern = private_pattern()
+        self.assertTrue(re.search(pattern, "knowledge/health.md"))   # the one CI used to miss
+        self.assertEqual([p for p in tracked if re.search(pattern, p)], [])
 
 
 class LogFields(unittest.TestCase):
@@ -439,21 +463,21 @@ class LogFields(unittest.TestCase):
     def setUp(self):
         fd, self.path = tempfile.mkstemp(suffix=".md")
         with os.fdopen(fd, "w") as f:
-            f.write(self.LOG)
+            f.write(with_schema(self.LOG))
 
     def tearDown(self):
         os.remove(self.path)
 
     def test_format_and_loads(self):
-        e = coverage.entries(self.path)
-        self.assertIsNone(e[0]["format"])
-        self.assertEqual(e[0]["loads"], {})
-        self.assertEqual(e[1]["format"], "circuits")
-        self.assertEqual(e[1]["loads"], {"seated curl": "fifteens, three down", "squat": "bodyweight"})
-        self.assertEqual(coverage.sessions(self.path)[1], ("2026-10-20", ["seated curl", "squat"]))
+        e = context.sessions(self.path)
+        self.assertIsNone(e[0].format)
+        self.assertEqual(e[0].loads, {})
+        self.assertEqual(e[1].format, "circuits")
+        self.assertEqual(e[1].loads, {"seated curl": "fifteens, three down", "squat": "bodyweight"})
+        self.assertEqual((e[1].date, e[1].minutes, e[1].movements), ("2026-10-20", 20, ["seated curl", "squat"]))
 
     def test_newest_load_wins(self):
-        loads = coverage.last_loads(coverage.entries(self.path))
+        loads = coverage.last_loads(context.sessions(self.path))
         self.assertEqual(loads["seated curl"], ("2026-10-21", "twenties"))
         self.assertEqual(loads["squat"], ("2026-10-20", "bodyweight"))
 
@@ -463,8 +487,8 @@ class YouTube(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             prof = os.path.join(d, "profile.md")
             with open(prof, "w") as f:
-                f.write("- YouTube favorites (x): A @chanA, B @chanB.\n"
-                        "- Puzzles (quiz): Presh's MindYourDecisions @MindYourDecisions.\n")
+                f.write(with_schema("- YouTube favorites (x): A @chanA, B @chanB.\n"
+                                    "- Puzzles (quiz): Presh's MindYourDecisions @MindYourDecisions.\n"))
             self.assertEqual(youtube.handles(profile=prof), ["chanA", "chanB"])
             self.assertEqual(youtube.handles("Puzzles", profile=prof), ["MindYourDecisions"])
             os.makedirs(os.path.join(d, "puzzles"))
@@ -598,6 +622,488 @@ class Feeds(unittest.TestCase):
         self.assertEqual(feeds.parse_date("2026-10-20T12:00:00Z"), dt.datetime(2026, 10, 20, 12, tzinfo=dt.timezone.utc))
         self.assertIsNone(feeds.parse_date("soon"))
         self.assertTrue(feeds.clean("word " * 100, limit=20).endswith("…"))
+
+
+def run(args, home=None, cwd=ROOT, env=None, stdin=None):
+    """Run a command with the context folder at `home`; returns CompletedProcess."""
+    e = dict(os.environ, **(env or {}))
+    if home:
+        e["SWEATCAST_HOME"] = home
+    return subprocess.run(args, cwd=cwd, env=e, capture_output=True, text=True, input=stdin, timeout=120)
+
+
+def fresh_home(d):
+    home = os.path.join(d, "me")
+    shutil.copytree(paths.EXAMPLE, home)
+    return home
+
+
+class ExitCodes(unittest.TestCase):
+    """A mistyped command exits 64, never 2, which means 'the workout ran long'."""
+
+    def test_mistyped_options_exit_64(self):
+        fixture = os.path.join("tests", "fixtures", "example.draft.txt")
+        for args in (["tools/render.py", fixture, "--voice", "Chatterbox Coach", "--sed", "5", "--out", "x.mp3"],
+                     ["tools/tts_build.py", fixture],                       # --out is missing
+                     ["tools/coverage.py", "--bogus"],
+                     ["tools/context.py", "get", "nothing"],
+                     ["tools/voices.py", "--measured", "Nobody At All"]):
+            out = run([sys.executable, *args])
+            self.assertEqual(out.returncode, cli.USAGE, (args, out.stdout, out.stderr))
+
+    def test_voices_measured_codes(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = run([sys.executable, "tools/voices.py", "--measured", "Chatterbox Coach"], home=fresh_home(d))
+            self.assertEqual(out.returncode, cli.ISSUES)   # estimated: nothing measured in a fresh copy
+
+
+class BuildScript(unittest.TestCase):
+    """tools/build.sh with a stand-in Python that fakes the lint and render."""
+
+    STUB = """#!{python}
+import os, sys
+script = os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else ""
+args = sys.argv[2:]
+if script in ("tts_build.py", "render.py"):
+    with open(os.environ["STUB_LOG"], "a") as f:
+        f.write(script + " " + " ".join(args) + "\\n")
+    if "--out" in args:
+        open(args[args.index("--out") + 1], "w").write("x")
+    if script == "render.py":
+        print("render failed for a test reason", file=sys.stderr)
+        sys.exit(int(os.environ.get("STUB_RENDER_EXIT", "0")))
+    sys.exit(0)
+os.execv({python!r}, [{python!r}] + sys.argv[1:])
+"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = self.tmp.name
+        self.home = fresh_home(d)
+        self.phone = os.path.join(d, "phone")
+        os.makedirs(self.phone)
+        prof = os.path.join(self.home, "profile.md")
+        with open(prof, encoding="utf-8") as f:
+            text = f.read()
+        text = re.sub(r"^- Copy finished MP3s to: .*$", f"- Copy finished MP3s to: {self.phone}", text, flags=re.M)
+        write_file(prof, text)
+        self.stub = os.path.join(d, "python")
+        write_file(self.stub, self.STUB.format(python=sys.executable))
+        os.chmod(self.stub, 0o755)
+        self.log = os.path.join(d, "calls.txt")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def build(self, *extra, render_exit=0, estimated_ok=True):
+        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": str(render_exit)}
+        if estimated_ok:
+            env["ALLOW_ESTIMATED"] = "1"
+        return run(["sh", "tools/build.sh", os.path.join("tests", "fixtures", "example.draft.txt"), "Test build", *extra],
+                   home=self.home, env=env)
+
+    def calls(self):
+        with open(self.log, encoding="utf-8") as f:
+            return f.read()
+
+    def test_success_copies_to_the_delivery_folder(self):
+        out = self.build()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
+        self.assertIn("--voice Chatterbox Coach", self.calls())   # the profile's default voice
+
+    def test_drift_exits_2_without_a_copy_or_the_log(self):
+        out = self.build(render_exit=2)
+        self.assertEqual(out.returncode, 2)
+        self.assertFalse(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
+        self.assertNotIn("test reason", out.stdout + out.stderr)
+
+    def test_a_command_mistake_exits_64_and_shows_the_log(self):
+        out = self.build(render_exit=64)
+        self.assertEqual(out.returncode, 64)
+        self.assertIn("render failed for a test reason", out.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", ".logs", "Test build.log")))
+
+    def test_unknown_voice_exits_64(self):
+        out = self.build("--voice", "Nobody At All", estimated_ok=False)
+        self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
+        self.assertNotIn("measured", out.stdout)
+
+    def test_unmeasured_voice_exits_3(self):
+        out = self.build(estimated_ok=False)
+        self.assertEqual(out.returncode, 3, out.stdout + out.stderr)
+
+    def test_tolerance_reaches_the_lint_and_the_render(self):
+        self.build("--tolerance", "0.05")
+        lint, render_call = self.calls().splitlines()[:2]
+        self.assertIn("--total-tolerance 0.05", lint)
+        self.assertIn("--tolerance 0.05", render_call)
+
+    def test_an_old_context_folder_stops_with_the_fix(self):
+        prof = os.path.join(self.home, "profile.md")
+        with open(prof, encoding="utf-8") as f:
+            write_file(prof, context.body(f.read()))
+        out = self.build()
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("tools/migrate.py", out.stdout + out.stderr)
+
+
+class PaceFile(unittest.TestCase):
+    V1 = {"name": "One", "key": "k1", "engine": "chatterbox", "model": "m"}
+    V2 = {"name": "Two", "key": "k2", "engine": "qwen3", "model": "m"}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.tmp.name, "cache", "voice-pace.json")
+        self.patch = mock.patch.object(voices, "PACE_FILE", self.path)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def test_two_voices_are_both_kept(self):
+        voices.record_rate(self.V1, 600.0, 40.0)
+        voices.record_rate(self.V2, 700.0, 50.0)
+        voices.record_rate(self.V1, 600.0, 40.0)
+        with open(self.path) as f:
+            data = json.load(f)
+        self.assertEqual(sorted(r["name"] for r in data.values()), ["One", "Two"])
+        self.assertEqual(voices.pace(self.V1), (15.0, True))
+
+    def test_a_damaged_file_is_set_aside_not_overwritten(self):
+        voices.record_rate(self.V1, 600.0, 40.0)
+        with open(self.path, "a") as f:
+            f.write("\n{garbage")
+        with open(self.path) as f:
+            damaged = f.read()
+        with self.assertRaises(SystemExit):
+            voices.record_rate(self.V2, 700.0, 50.0)
+        kept = glob.glob(self.path + ".corrupt-*")
+        self.assertEqual(len(kept), 1)
+        with open(kept[0]) as f:
+            self.assertEqual(f.read(), damaged)
+        self.assertFalse(os.path.exists(self.path))
+        with self.assertRaises(SystemExit):
+            write_file(self.path, "{nope")
+            voices.check_pace_file()      # what render.py calls before loading a model
+
+    def test_one_read_per_lint(self):
+        segs = parse("@@ 20 | A\nOne line. [pause 2s] Two lines.\n\nThree.\n@@ 20 | B\nMinute two. Four.\n")
+        voices.record_rate(self.V1, 600.0, 40.0)
+        for v in (self.V1, self.V2):   # measured, and estimated from the others
+            with mock.patch.object(voices, "_recorded", wraps=voices._recorded) as reads:
+                tts_build.lint(segs, v)
+            self.assertEqual(reads.call_count, 1, v["name"])
+
+
+class LintReport(unittest.TestCase):
+    def test_report_fields_without_printing(self):
+        segs = parse("@@ 60 | A\nWarm up. Ten lbs.\n@@ 60 | B\nSquats now.\n")
+        report = tts_build.lint(segs, wpm=60)
+        self.assertEqual([r.flag for r in report.rows], ["short", "short"])
+        self.assertTrue(any("abbreviation" in i for i in report.rows[0].line_issues))
+        self.assertTrue(report.warnings)                        # B has no locator
+        self.assertEqual(report.problems, 3)                     # two segments far off, one abbreviation
+        strict = tts_build.lint(segs, wpm=60, strict=True)
+        self.assertEqual(strict.problems, report.problems + len(report.warnings))
+
+    def test_with_a_voice_the_total_is_held_to_plan(self):
+        segs = parse("@@ 10 | A\n" + "word " * 40 + "\n")
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        with mock.patch("voices.pace", return_value=(10.0, True)):
+            report = tts_build.lint(segs, v)
+        self.assertGreater(report.drift, 0.03)
+        self.assertTrue(report.total_off)
+        self.assertEqual(report.rows[0].flag, "long")
+
+
+class Hooks(unittest.TestCase):
+    """The pre-push hook checks every pushed commit."""
+    ZERO = "0" * 40
+
+    def git(self, *args):
+        out = subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com",
+                              "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
+                             cwd=self.repo, capture_output=True, text=True, check=True)
+        return out.stdout.strip()
+
+    def commit(self, msg, add=None, remove=None):
+        if add:
+            write_file(os.path.join(self.repo, add), "x\n")
+            self.git("add", "-f", add)
+        if remove:
+            self.git("rm", "-q", "--cached", remove)
+        self.git("commit", "-q", "--allow-empty", "-m", msg)
+        return self.git("rev-parse", "HEAD")
+
+    def push(self, local, remote):
+        hook = os.path.join(ROOT, "tools", "hooks", "pre-push")
+        return subprocess.run(["sh", hook, "origin", "url"], cwd=self.repo, capture_output=True, text=True,
+                              input=f"refs/heads/main {local} refs/heads/main {remote}\n")
+
+    def setUp(self):
+        if not shutil.which("git"):
+            self.skipTest("no git")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        self.git("init", "-q")
+        self.base = self.commit("base")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_added_then_removed_is_still_refused(self):
+        self.commit("oops", add="me/health.md")
+        head = self.commit("remove", remove="me/health.md")
+        out = self.push(head, self.ZERO)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("me/health.md", out.stdout)
+
+    def test_old_layout_health_file_is_refused(self):
+        head = self.commit("old layout", add="knowledge/health.md")
+        self.assertEqual(self.push(head, self.base).returncode, 1)
+
+    def test_removing_an_already_pushed_file_is_allowed(self):
+        added = self.commit("oops", add="me/log.md")
+        self.git("update-ref", "refs/remotes/origin/main", added)
+        head = self.commit("remove", remove="me/log.md")
+        out = self.push(head, added)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+    def test_clean_pushes_pass(self):
+        head = self.commit("engine change", add="tools/x.py")
+        self.assertEqual(self.push(head, self.ZERO).returncode, 0)
+        self.assertEqual(self.push(head, self.base).returncode, 0)
+
+
+class Context(unittest.TestCase):
+    PROFILE = with_schema("""# Profile
+## Listening setup
+- Copy finished MP3s to: [a folder]
+- Measured words per minute (drafting guide): 170. Starting estimate.
+- Voices (names):
+  - Qwen3 Coach: crisp.
+  - Chatterbox Coach: warm.
+- Delivery wanted: a coach.
+## Content
+- YouTube favorites: A @chanA.
+## Feeds
+- Weather (weather): 40.1, -75.2
+- Bad line without a kind
+- Thing (smoke): x
+""")
+    LOG = with_schema("# Workout log\n\n## Sessions\n\n## Feedback\n- loved it\n")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = self.tmp.name
+        self.profile, self.log = os.path.join(d, "profile.md"), os.path.join(d, "log.md")
+        write_file(self.profile, self.PROFILE)
+        write_file(self.log, self.LOG)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_profile_values(self):
+        text = context.profile(self.profile)
+        self.assertEqual(context.default_voice(text), "Qwen3 Coach")
+        self.assertEqual([n for n, _ in context.voices(text)], ["Qwen3 Coach", "Chatterbox Coach"])
+        self.assertEqual(context.wpm(text), 170)
+        self.assertIsNone(context.delivery(text))                 # the template's hint isn't a folder
+        self.assertEqual(context.handles(text, "YouTube favorites"), ["chanA"])
+        self.assertEqual(context.feed_sources(text), [("Weather", "weather", "40.1, -75.2")])
+
+    def test_delivery_folders_expand_stars(self):
+        a, b = os.path.join(self.tmp.name, "GoogleDrive-a", "W"), os.path.join(self.tmp.name, "GoogleDrive-b", "W")
+        os.makedirs(a)
+        os.makedirs(b)
+        text = f"- Copy finished MP3s to: {self.tmp.name}/GoogleDrive-*/W\n"
+        self.assertEqual(context.delivery_folders(text)[1], [a, b])
+        self.assertEqual(context.delivery_folders(f"- Copy finished MP3s to: {self.tmp.name}/nope\n")[1], [])
+
+    def test_log_session_round_trip(self):
+        s = context.Session("2026-10-21", 25, "Home", "Chatterbox Coach", ["goblet squat", "seated row"],
+                            "deep dive: news, a story", "rolling minutes",
+                            {"goblet squat": "twenties, three down"})
+        context.append_session(s, self.log)
+        context.append_session(context.Session("2026-10-22", 15, "Travel", "Qwen3 Coach", ["push-up"], "x"), self.log)
+        got = context.sessions(self.log)
+        self.assertEqual([(g.date, g.minutes, g.movements, g.format, g.loads) for g in got],
+                         [("2026-10-21", 25, ["goblet squat", "seated row"], "rolling minutes",
+                           {"goblet squat": "twenties, three down"}),
+                          ("2026-10-22", 15, ["push-up"], None, {})])
+        with open(self.log, encoding="utf-8") as f:
+            text = f.read()
+        self.assertEqual(context.schema_of(text), context.SCHEMA)
+        self.assertIn("## Feedback\n- loved it", text)            # the rest of the file is untouched
+        self.assertLess(text.index("2026-10-22"), text.index("## Feedback"))
+
+    def test_bad_sessions_are_refused_on_write(self):
+        for bad in (context.Session("21 Oct", 25, "Home", "V", ["squat"], "t"),
+                    context.Session("2026-10-21", 25, "Home", "V", [], "t"),
+                    context.Session("2026-10-21", 25, "Home | Gym", "V", ["squat"], "t")):
+            with self.assertRaises(SystemExit):
+                context.append_session(bad, self.log)
+
+    def test_a_shifted_log_line_is_skipped_and_reported(self):
+        write_file(self.log, with_schema("## Sessions\n- 2026-10-19 | 15 min | Home | squat, row | topics\n"
+                                         "- 2026-10-20 | 20 min | Home | V | squat | topics | format: circuits\n"))
+        with mock.patch("sys.stderr", new_callable=__import__("io").StringIO) as err:
+            got = context.sessions(self.log)
+        self.assertEqual([s.date for s in got], ["2026-10-20"])     # not read with its fields shifted
+        self.assertIn("5 fields", err.getvalue())
+        problems = context.check([self.profile, self.log])
+        self.assertTrue(any(p == self.log and n == 5 for p, n, _ in problems), problems)
+
+    def test_check_reports_profile_problems_with_lines(self):
+        problems = [(n, msg) for p, n, msg in context.check([self.profile, self.log]) if p == self.profile]
+        self.assertTrue(any("isn't '- <label>" in m for _, m in problems))
+        self.assertTrue(any("unknown feed kind 'smoke'" in m and n == 17 for n, m in problems), problems)
+
+    def test_old_and_new_schemas_are_refused(self):
+        write_file(self.profile, context.body(self.PROFILE))
+        with self.assertRaises(SystemExit) as e:
+            context.profile(self.profile)
+        self.assertIn("tools/migrate.py", str(e.exception.code))
+        write_file(self.profile, context.with_front_matter(self.PROFILE, context.SCHEMA + 1))
+        with self.assertRaises(SystemExit) as e:
+            context.profile(self.profile)
+        self.assertIn("newer", str(e.exception.code))
+
+
+class Migrate(unittest.TestCase):
+    def test_migrate_backs_up_then_converts_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = fresh_home(d)
+            originals = {}
+            for name in ("profile.md", "health.md", "log.md", "exercise-science.md"):
+                path = os.path.join(home, name)
+                with open(path, encoding="utf-8") as f:
+                    originals[name] = context.body(f.read())
+                write_file(path, originals[name])            # as a 1.x copy has it
+            out = run([sys.executable, "tools/coverage.py"], home=home)
+            self.assertNotEqual(out.returncode, 0)
+            self.assertIn("tools/migrate.py", out.stderr)
+
+            out = run([sys.executable, "tools/migrate.py", "--dry-run"], home=home)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            self.assertIn("Dry run", out.stdout)
+            with open(os.path.join(home, "log.md"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), originals["log.md"])
+
+            out = run([sys.executable, "tools/migrate.py"], home=home)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            backups = glob.glob(os.path.join(home, ".backup-*"))
+            self.assertEqual(len(backups), 1)
+            for name, text in originals.items():
+                with open(os.path.join(backups[0], name), encoding="utf-8") as f:
+                    self.assertEqual(f.read(), text)
+                with open(os.path.join(home, name), encoding="utf-8") as f:
+                    migrated = f.read()
+                self.assertEqual(context.schema_of(migrated), context.SCHEMA)
+                self.assertEqual(context.body(migrated), text)   # nothing else changed
+
+            out = run([sys.executable, "tools/migrate.py"], home=home)
+            self.assertIn("already at schema", out.stdout)
+            self.assertEqual(len(glob.glob(os.path.join(home, ".backup-*"))), 1)
+            self.assertEqual(run([sys.executable, "tools/coverage.py"], home=home).returncode, 0)
+
+    def test_the_template_is_current(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = run([sys.executable, "tools/context.py", "check"], home=fresh_home(d))
+        self.assertEqual(out.returncode, 0, out.stdout)
+
+
+class CachePrune(unittest.TestCase):
+    def test_prunes_only_clips_unused_for_the_window(self):
+        with tempfile.TemporaryDirectory() as d:
+            old, new, pace = (os.path.join(d, n) for n in ("old.pcm", "new.pcm", "voice-pace.json"))
+            for p in (old, new, pace):
+                write_file(p, "abcd")
+            month = time.time() - 60 * 86400
+            os.utime(old, (month, month))
+            os.utime(pace, (month, month))
+            self.assertEqual(cache.prune(45, d), (1, 4))
+            self.assertEqual(sorted(os.listdir(d)), ["new.pcm", "voice-pace.json"])
+            self.assertEqual(cache.size(d), (1, 4))
+
+
+class Engines(unittest.TestCase):
+    def test_tested_mlx_audio_matches_the_lock(self):
+        with open(os.path.join(ROOT, "uv.lock"), encoding="utf-8") as f:
+            lock = f.read()
+        m = re.search(r'name = "mlx-audio"\nversion = "([^"]+)"', lock)
+        self.assertEqual(m.group(1), engines.TESTED_MLX_AUDIO)
+
+    def test_loudness_stats(self):
+        stderr = ('[Parsed_loudnorm_0 @ 0x1] \n{\n\t"input_i" : "-27.61",\n\t"input_tp" : "-4.47",\n'
+                  '\t"input_lra" : "18.06",\n\t"input_thresh" : "-39.20",\n\t"output_i" : "-16.58",\n'
+                  '\t"target_offset" : "0.58"\n}\n')
+        self.assertEqual(render.loudness_stats(stderr)["input_i"], "-27.61")
+        with self.assertRaises(SystemExit) as e:
+            render.loudness_stats("Error opening input")
+        self.assertIn("Error opening input", str(e.exception.code))
+
+
+class RenderLock(unittest.TestCase):
+    def test_a_second_render_waits_for_the_first(self):
+        with tempfile.TemporaryDirectory() as d:
+            ready = os.path.join(d, "ready")
+            holder = subprocess.Popen([sys.executable, "-c", (
+                "import sys, time; sys.path.insert(0, 'tools'); import render\n"
+                f"with render.render_lock({d!r}):\n"
+                f"    open({ready!r}, 'w').close(); time.sleep(1.0)\n")], cwd=ROOT)
+            try:
+                deadline = time.time() + 20
+                while not os.path.exists(ready) and time.time() < deadline:
+                    time.sleep(0.02)
+                started = time.time()
+                with mock.patch("sys.stdout", new_callable=__import__("io").StringIO) as out:
+                    with render.render_lock(d):
+                        waited = time.time() - started
+                self.assertGreater(waited, 0.5)
+                self.assertIn("waiting", out.getvalue())
+            finally:
+                holder.wait(timeout=20)
+
+
+class BuildRecord(unittest.TestCase):
+    def test_record_written_beside_the_mp3_and_to_the_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            draft_path = os.path.join(d, "x.draft.txt")
+            write_file(draft_path, "@@ 10 | A\nGo.\n")
+            out = os.path.join(d, "Workout.mp3")
+            v = {"name": "V", "key": "k", "engine": "qwen3", "model": "m", "revision": "r"}
+            rec = render.build_record(draft_path, out, v, 42, 3, 1, 600, 606, 0.01, 12.3, time.time())
+            log = os.path.join(d, ".logs", "builds.jsonl")
+            render.save_build_record(rec, out, log)
+            with open(os.path.join(d, "Workout.build.json"), encoding="utf-8") as f:
+                self.assertEqual(json.load(f)["draft_sha256"], rec["draft_sha256"])
+            with open(log, encoding="utf-8") as f:
+                self.assertEqual(json.loads(f.readline())["seed"], 42)
+
+
+class FeedLimits(unittest.TestCase):
+    def test_only_web_addresses(self):
+        for url in ("file:///etc/hosts", "ftp://example.org/x", "/etc/hosts"):
+            with self.assertRaises(ValueError):
+                feeds.fetch(url)
+
+    def test_oversized_responses_are_skipped(self):
+        class Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self, n=-1):
+                return b"x" * (n if n > 0 else 10)
+        with mock.patch("urllib.request.urlopen", return_value=Resp()):
+            with self.assertRaises(ValueError):
+                feeds.fetch("https://example.org/feed", limit=100)
+            self.assertEqual(len(Resp().read(50)), 50)
 
 
 if __name__ == "__main__":

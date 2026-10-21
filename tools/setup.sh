@@ -32,7 +32,8 @@ echo "1. Python environment (.venv, pinned by uv.lock)"
 
 echo "2. Your context folder ($CONTEXT)"
 if [ -e "$CONTEXT/profile.md" ]; then
-  echo "   already there; left as is"
+  echo "   already there; brought up to this version's format if it was older (backed up first):"
+  .venv/bin/python tools/migrate.py | sed 's/^/   /' || true
 else
   mkdir -p "$CONTEXT"
   cp -R "$ROOT/me.example/." "$CONTEXT/"
@@ -40,7 +41,7 @@ else
   echo "   copied from me.example/. Fill it in by asking Claude Code to \"set me up\"."
 fi
 
-echo "3. Privacy guard (a git pre-push hook that refuses to push me/)"
+echo "3. Privacy guard (a git pre-push hook that refuses to push me/ in any commit)"
 git config core.hooksPath tools/hooks
 
 echo "4. Voice models (once, from Hugging Face into ~/.cache/huggingface/hub; no account needed,"
@@ -50,7 +51,7 @@ if [ "$1" = "--no-models" ]; then
 elif [ "$1" = "--all" ]; then
   .venv/bin/python tools/voices.py --download
 else
-  DEFAULT_VOICE="$(awk '/^- Voices/ {v=1; next} v && /^  - / {sub(/^  - /, ""); sub(/:.*/, ""); print; exit} v && !/^  / {exit}' "$CONTEXT/profile.md")"
+  DEFAULT_VOICE="$(.venv/bin/python tools/context.py get default-voice 2>/dev/null || true)"
   .venv/bin/python tools/voices.py --download "${DEFAULT_VOICE:-Chatterbox Coach}"
 fi
 

@@ -25,12 +25,15 @@ VIDEOS = os.path.join(RESEARCH, "videos")
 PUZZLES = os.path.join(RESEARCH, "puzzles")
 CACHE = os.path.join(WORKOUTS, ".audio-cache")
 PACE_FILE = os.path.join(CACHE, "voice-pace.json")
+LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log, and builds.jsonl
+BUILDS = os.path.join(LOGS, "builds.jsonl")           # one record per rendered MP3
 
 # Private voices (a cloned real voice belongs here) come before the shipped ones.
 VOICE_DIRS = (os.path.join(HOME, "voices"), os.path.join(ROOT, "voices"))
 SMOKE_DRAFT = os.path.join(ROOT, "voices", "smoke-test.draft.txt")
 EXAMPLE = os.path.join(ROOT, "me.example")
 VENV_PYTHON = os.path.join(ROOT, ".venv", "bin", "python")
+VERSION_FILE = os.path.join(ROOT, "VERSION")
 
 
 def require(path, what="file"):

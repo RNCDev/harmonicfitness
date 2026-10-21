@@ -8,18 +8,27 @@
 # SWEATCAST_HOME if set). Stops after the lint if it finds issues (fix and rerun).
 # Set LINT_ONLY=1 to skip rendering. Without --voice, uses the first voice listed
 # under Voices in me/profile.md. After a render, copies the MP3 to the profile's
-# "Copy finished MP3s to:" folder, if it names one.
+# "Copy finished MP3s to:" folder, if it names one. The profile is read through
+# tools/context.py, which also checks the context folder's format.
 #
 # --clips-only renders and caches the clips of whatever the draft holds so far, with
 # no lint, MP3 or copy: start it in the background on the first half of a draft,
-# and the full build later renders only what's new or edited.
+# and the full build later renders only what's new or edited. A build started while
+# it's still running waits for it.
 #
-# A voice no render has measured yet would be timed from a guess, so a session
-# render refuses it (exit 3): render the smoke test with it first
-# (voices/smoke-test.draft.txt, which measures it), or set ALLOW_ESTIMATED=1.
+# --tolerance <fraction> sets how far the total may run off plan, for the lint and
+# the render alike (default three percent).
+#
+# Exit codes (tools/cli.py): 0 done, 1 issues to fix, 2 the rendered total ran more
+# than the tolerance off plan (the MP3 is written but not copied), 3 the voice's pace
+# hasn't been measured yet (render the smoke test with it first, which measures it,
+# or set ALLOW_ESTIMATED=1), 64 the command was wrong (a mistyped option, an unknown
+# voice): fix the command, not the draft. The render's stderr (model loading, errors)
+# goes to me/workouts/.logs/<name>.log, and its last lines print on a failure.
 set -e
-[ $# -ge 2 ] || { echo "usage: tools/build.sh <draft> \"<name>\" [--voice <name>] [render options]"; exit 64; }
+[ $# -ge 2 ] || { echo "usage: tools/build.sh <draft> \"<name>\" [--voice <name>] [render options]" >&2; exit 64; }
 DRAFT="$1"; NAME="$2"; shift 2
+case "$NAME" in */*) echo "The name can't contain a slash: $NAME" >&2; exit 64 ;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 CONTEXT="${SWEATCAST_HOME:-$ROOT/me}"
@@ -29,16 +38,18 @@ PY="${SWEATCAST_PYTHON:-$ROOT/.venv/bin/python}"
 
 [ -f "$PROFILE" ] || { echo "No profile at $PROFILE. Run tools/setup.sh first (it copies me.example/ to me/)."; exit 1; }
 [ -x "$PY" ] || { echo "No Python environment at $PY. Run tools/setup.sh first (it makes .venv with uv)."; exit 1; }
+[ -f "$DRAFT" ] || { echo "No draft at $DRAFT" >&2; exit 64; }
 
-# The drafting guide (words per minute), the default voice and the delivery folder live
-# in the profile. If a line is reworded so it can't be found, say so instead of guessing.
-WPM="$(sed -n 's/^- Measured words per minute[^:]*: \([0-9][0-9]*\).*/\1/p' "$PROFILE" | head -1)"
-DEFAULT_VOICE="$(awk '/^- Voices/ {v=1; next} v && /^  - / {sub(/^  - /, ""); sub(/:.*/, ""); print; exit} v && !/^  / {exit}' "$PROFILE")"
+# The drafting guide (words per minute) and the default voice live in the profile.
+# context.py stops here, with the fix, if the context folder needs migrating.
+WPM="$("$PY" "$HERE/context.py" get wpm)"
+DEFAULT_VOICE="$("$PY" "$HERE/context.py" get default-voice)"
 
-# The lint predicts spoken length, so it needs the same voice as the render.
-VOICE=""; PREV=""; CLIPS_ONLY=""
+# The lint predicts spoken length, so it needs the same voice and tolerance as the render.
+VOICE=""; PREV=""; CLIPS_ONLY=""; TOLERANCE=""
 for ARG in "$@"; do
   [ "$PREV" = "--voice" ] && VOICE="$ARG"
+  [ "$PREV" = "--tolerance" ] && TOLERANCE="$ARG"
   [ "$ARG" = "--clips-only" ] && CLIPS_ONLY=1
   PREV="$ARG"
 done
@@ -49,61 +60,66 @@ if [ -z "$VOICE" ]; then
   VOICE="$DEFAULT_VOICE"; set -- "$@" --voice "$VOICE"
 fi
 [ -n "$WPM" ] || echo "Note: no '- Measured words per minute ...: <n>' line in the profile; the word guide assumes 185."
-mkdir -p "$OUT_DIR"
-LOG="${TMPDIR:-/tmp}/sweatcast-render.log"
+mkdir -p "$OUT_DIR/.logs"
+LOG="$OUT_DIR/.logs/$NAME.log"
+
+show_log() { echo "--- last lines of $LOG:" >&2; tail -20 "$LOG" >&2; }
 
 if [ -n "$CLIPS_ONLY" ]; then
   # Rendering ahead while the rest of the draft is written: no lint, no MP3.
   set +e
   "$PY" "$HERE/render.py" "$DRAFT" "$@" 2>"$LOG"
   STATUS=$?
-  [ "$STATUS" -ne 0 ] && tail -20 "$LOG"
+  [ "$STATUS" -ne 0 ] && show_log
   exit "$STATUS"
 fi
 
-if [ -z "$SMOKE" ] && [ -z "$ALLOW_ESTIMATED" ] && [ -z "$LINT_ONLY" ] \
-   && ! "$PY" "$HERE/voices.py" --measured "$VOICE"; then
-  echo "$VOICE's speaking rate hasn't been measured yet, so this draft's timing is a guess."
-  echo "Render the smoke test with it first, which measures it, then rerun:"
-  echo "  tools/build.sh voices/smoke-test.draft.txt \"smoke-test\" --voice \"$VOICE\""
-  echo "(or set ALLOW_ESTIMATED=1 to render anyway)"
-  exit 3
+if [ -z "$SMOKE" ] && [ -z "$LINT_ONLY" ]; then
+  set +e
+  "$PY" "$HERE/voices.py" --measured "$VOICE"
+  MEASURED=$?
+  set -e
+  if [ "$MEASURED" -eq 64 ]; then
+    echo "Voices on file: $("$PY" "$HERE/context.py" get voices | tr '\n' ',' | sed 's/,$//; s/,/, /g') (see python3 tools/voices.py)."
+    exit 64
+  fi
+  if [ "$MEASURED" -ne 0 ] && [ -z "$ALLOW_ESTIMATED" ]; then
+    echo "$VOICE's speaking rate hasn't been measured yet, so this draft's timing is a guess."
+    echo "Render the smoke test with it first, which measures it, then rerun:"
+    echo "  tools/build.sh voices/smoke-test.draft.txt \"smoke-test\" --voice \"$VOICE\""
+    echo "(or set ALLOW_ESTIMATED=1 to render anyway)"
+    exit 3
+  fi
 fi
 
 # The smoke test exists to measure a voice, so its lint never blocks the render.
-"$PY" "$HERE/tts_build.py" "$DRAFT" --voice "$VOICE" \
-  --wpm "${WPM:-185}" --out "$OUT_DIR/$NAME.txt" ${SMOKE:+--force}
+"$PY" "$HERE/tts_build.py" "$DRAFT" --voice "$VOICE" --wpm "${WPM:-185}" \
+  ${TOLERANCE:+--total-tolerance "$TOLERANCE"} --out "$OUT_DIR/$NAME.txt" ${SMOKE:+--force}
 [ -n "$LINT_ONLY" ] && exit 0
 
 set +e
 "$PY" "$HERE/render.py" "$DRAFT" --out "$OUT_DIR/$NAME.mp3" "$@" 2>"$LOG"
 STATUS=$?
-# Model loading is chatty on stderr; only surface it when something went wrong.
-[ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 2 ] && tail -20 "$LOG"
+# Model loading is chatty on stderr, so it goes to the log; show it on any failure but drift.
+[ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 2 ] && show_log
 [ -n "$SMOKE" ] && exit "$STATUS"   # a voice check, not a workout: no copy
+[ "$STATUS" -eq 0 ] || exit "$STATUS"
 
-# A finished MP3 also goes to the profile's delivery folder: any path, such as a
-# Google Drive, iCloud Drive or Dropbox folder that syncs to the phone. A leading ~
-# means the home folder, and a * matches (for example, any Google account).
-DELIVER="$(sed -n 's/^- Copy finished MP3s to: *//p' "$PROFILE" | head -1 | sed 's/[[:space:]]*$//')"
-case "$DELIVER" in "~"*) DELIVER="$HOME${DELIVER#\~}" ;; esac
-if [ "$STATUS" -eq 0 ] && [ -z "$DELIVER" ]; then
-  echo "No copy made: the profile has no '- Copy finished MP3s to: <folder>' line; the MP3 is in $OUT_DIR"
-fi
-if [ "$STATUS" -eq 0 ] && [ -n "$DELIVER" ]; then
-  FOUND=""
-  OLD_IFS="$IFS"; IFS='
+# A finished MP3 also goes to the profile's delivery folders: any path, such as a
+# Google Drive, iCloud Drive or Dropbox folder that syncs to the phone. context.py
+# expands a leading ~ and any *, prints the folders that exist, and says why when none do.
+FOUND=""
+DIRS="$("$PY" "$HERE/context.py" deliver)"
+OLD_IFS="$IFS"; IFS='
 '
-  for DEST in $DELIVER; do   # unquoted on purpose: expands the *, never splits on spaces
-    [ -d "$DEST" ] || continue
-    FOUND=1
-    if cp "$OUT_DIR/$NAME.mp3" "$DEST/"; then
-      echo "Copied to $DEST/$NAME.mp3"
-    else
-      echo "Couldn't copy to $DEST; the MP3 is in $OUT_DIR"
-    fi
-  done
-  IFS="$OLD_IFS"
-  [ -n "$FOUND" ] || echo "Delivery folder $DELIVER not found; the MP3 is in $OUT_DIR"
-fi
-exit "$STATUS"
+for DEST in $DIRS; do
+  FOUND=1
+  if cp "$OUT_DIR/$NAME.mp3" "$DEST/"; then
+    echo "Copied to $DEST/$NAME.mp3"
+  else
+    echo "Couldn't copy to $DEST; the MP3 is in $OUT_DIR"
+  fi
+done
+IFS="$OLD_IFS"
+[ -n "$FOUND" ] || echo "The MP3 is in $OUT_DIR"
+exit 0
