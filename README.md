@@ -16,7 +16,7 @@ Then ask for a workout, as below.
 ## How it works
 
 1. In Claude Code, open this folder and ask for a workout ("I'd like a workout", "25 minutes at the hotel, just go"). The `workout` skill (`.claude/skills/workout/SKILL.md`) asks only for what you didn't say.
-2. `tools/feeds.py` pulls your teams' results and schedules, the weather, and recent local, science and tech headlines from the feeds listed in your profile in about a second. Background agents then research the rest while you answer: two current science and technology breakthroughs, on this day, and a deep dive that alternates between a news story and a video from your favorite YouTube channels. A long video becomes a series, one part per session.
+2. `tools/feeds.py` pulls your teams' results and schedules, the weather, recent local, science and tech headlines, and the week's podcasts and puzzles from the feeds listed in your profile in about a second. Background agents then research the rest while you answer: two current science and technology breakthroughs, on this day, and a deep dive that alternates between a news story and a video from your favorite YouTube channels. A long video becomes a series, one part per session. The quiz uses a puzzle that works by ear when one turns up (The Fiddler, NPR's Sunday Puzzle, MindYourDecisions).
 3. Claude plans a whole-body session around your injuries, progressing from the loads it logged last time, then writes a segmented draft (`@@ <seconds> | <label>` before each segment) in short paragraphs, and starts rendering the first half while it writes the rest.
 4. `tools/build.sh` lints the draft for text-to-speech problems, predicts each segment's spoken length for the chosen voice, exports a clean `.txt`, renders a loudness-normalized `.mp3` into `workouts/`, and copies it to a Google Drive folder that syncs to your phone.
 
@@ -36,7 +36,7 @@ Each paragraph is voiced by cloning the voice's ten-second reference clip. A sof
 | `tools/char_weight.py` | OmniVoice's character-weight rule (Apache 2.0), vendored for the prediction |
 | `tools/render.py` | Renderer (Chatterbox Turbo or Qwen3-TTS via `mlx-audio`) with clip cache, timing and loudness normalization |
 | `tools/youtube.py` | Picks a recent video from your favorite channels or continues a series, lists unused puzzles for the quiz, and saves a transcript |
-| `tools/feeds.py` | Fetches the profile's feeds (results, schedules, weather, headlines) into a dated sheet |
+| `tools/feeds.py` | Fetches the profile's feeds (results, schedules, weather, headlines, weekly podcasts and puzzles) into a dated sheet |
 | `tools/coverage.py` | Reads the log and lists the muscle groups the last session left out, its format and the last loads |
 | `tests/` | Fast checks for the lint, timing layout, log, feeds and series (`python3 -m unittest discover tests`) |
 | `workouts/` | Scripts, drafts, research sheets (MP3s are git-ignored) |
@@ -45,3 +45,7 @@ Each paragraph is voiced by cloning the voice's ten-second reference clip. A sof
 ## Versioning
 
 sweatcast follows [Semantic Versioning](https://semver.org). Each release is tagged `vX.Y.Z` and published on the GitHub releases page; `CHANGELOG.md` says what changed.
+
+## License
+
+MIT, see [LICENSE](LICENSE). `tools/char_weight.py` is vendored from OmniVoice under the Apache License 2.0, with its header kept.

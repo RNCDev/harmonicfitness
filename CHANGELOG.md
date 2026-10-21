@@ -2,6 +2,21 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.6.0] - 2026-10-21
+
+New content sources, a weekly feed kind for them, and an open-source license.
+
+### Added
+- A `weekly` feed kind in `tools/feeds.py`: the newest two items from the last eight days, for weekly podcasts and puzzles that the 72-hour news window would miss.
+- New feeds in `knowledge/profile.md`: The Fiddler and NPR's Sunday Puzzle (puzzles), BBC's More or Less (numbers in the news) and No Such Thing As A Fish (fun facts).
+- New YouTube favorites for deep dives: Freakonomics Radio and Marginal Revolution University.
+- The quiz can now use a puzzle from The Fiddler or the Sunday Puzzle as well as MindYourDecisions. Since their answers come out a week later, research takes the earlier puzzle that the newest post solves, and credits the source.
+- `LICENSE` (MIT), and a License section in the README.
+- A test for the weekly feed kind: 50 tests in all.
+
+### Changed
+- Video transcripts (`workouts/research/videos/*.txt`) are kept out of git, since they're the channels' own text. The deep-dive summary sheets are still committed.
+
 ## [0.5.0] - 2026-10-21
 
 Timing that holds the whole workout to plan instead of every segment, and brain teasers for the quiz.

@@ -418,6 +418,21 @@ class Feeds(unittest.TestCase):
         items = feeds.parse_rss(atom, since)
         self.assertEqual((items[0]["title"], items[0]["link"], items[0]["summary"]), ("Paper", "https://b/1", "Qubits."))
 
+    def test_weekly_feed_reaches_back_eight_days_and_keeps_two(self):
+        rss = b"""<?xml version="1.0"?><rss><channel>
+            <item><title>This week</title><link>https://p/1</link><pubDate>Sun, 18 Oct 2026 07:00:00 -0400</pubDate></item>
+            <item><title>Last week</title><link>https://p/2</link><pubDate>Sun, 11 Oct 2026 07:00:00 -0400</pubDate></item>
+            <item><title>Older</title><link>https://p/3</link><pubDate>Fri, 16 Oct 2026 07:00:00 -0400</pubDate></item>
+            <item><title>Ancient</title><link>https://p/4</link><pubDate>Sun, 04 Oct 2026 07:00:00 -0400</pubDate></item>
+            </channel></rss>"""
+        with mock.patch.object(feeds, "fetch", return_value=rss):
+            lines = feeds.gather(("Puzzle", "weekly", "https://p/feed"), self.NOW, self.NOW - dt.timedelta(hours=72))
+        self.assertEqual(len(lines), 2)
+        self.assertIn("This week", lines[0])
+        self.assertIn("Older", lines[1])
+        self.assertIn(("Puzzle, x", "weekly", "https://p/feed"),
+                      feeds.config("## Feeds\n- Puzzle, x (weekly): https://p/feed\n"))
+
     def test_espn_results_and_upcoming(self):
         def ev(i, date, home, away, hs=None, as_=None, done=True, hw=None):
             return {"id": i, "date": date, "competitions": [{

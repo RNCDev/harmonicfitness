@@ -7,6 +7,8 @@ with these kinds:
     weather    latitude, longitude          today and tomorrow, from Open-Meteo (no key)
     espn       sport/league/team            a team's recent results and next games
     rss        feed URL                     recent items from an RSS or Atom feed
+    weekly     feed URL                     the newest items from the last eight days, for weekly
+                                            podcasts and puzzles that a 72-hour window would miss
     onthisday  selected                     Wikipedia's selected events for today's date
 
 Everything is fetched in parallel with the standard library, and the sheet goes to
@@ -36,9 +38,10 @@ RESEARCH = os.path.join(ROOT, "workouts", "research")
 USER_AGENT = "sweatcast feeds (personal workout audio; github.com/RNCDev/sweatcast)"
 TIMEOUT = 12            # seconds per request
 PER_FEED = 5            # newest items kept per RSS feed
+WEEKLY_DAYS, PER_WEEKLY = 8, 2   # how far back a weekly feed looks, and how many items it keeps
 SUMMARY = 240           # characters of each item's summary
 RESULT_DAYS, UPCOMING_DAYS, GAMES = 7, 7, 3
-KINDS = ("weather", "espn", "rss", "onthisday")
+KINDS = ("weather", "espn", "rss", "weekly", "onthisday")
 LINE_RE = re.compile(r"^- (.+?) \((\w+)\):\s*(.+?)\s*$")
 ATOM = "{http://www.w3.org/2005/Atom}"
 DC = "{http://purl.org/dc/elements/1.1/}"
@@ -114,7 +117,7 @@ def parse_date(value):
     return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
 
 
-def parse_rss(data, since):
+def parse_rss(data, since, keep=PER_FEED):
     """Items newer than `since` from RSS or Atom, newest first: [{title, link, date, summary}]."""
     root = ET.fromstring(data)
     items = []
@@ -131,7 +134,7 @@ def parse_rss(data, since):
                       "date": parse_date(it.findtext(ATOM + "published") or it.findtext(ATOM + "updated")),
                       "summary": clean(it.findtext(ATOM + "summary") or it.findtext(ATOM + "content"))})
     items = [i for i in items if i["date"] and i["date"] >= since and i["title"]]
-    return sorted(items, key=lambda i: i["date"], reverse=True)[:PER_FEED]
+    return sorted(items, key=lambda i: i["date"], reverse=True)[:keep]
 
 
 def espn_urls(value):
@@ -218,8 +221,10 @@ def parse_onthisday(d, limit=8):
 def gather(source, now, since):
     """One source's section of the sheet, as markdown lines."""
     label, kind, value = source
-    if kind == "rss":
-        items = parse_rss(fetch(value), since)
+    if kind in ("rss", "weekly"):
+        if kind == "weekly":
+            since = now - dt.timedelta(days=WEEKLY_DAYS)
+        items = parse_rss(fetch(value), since, PER_WEEKLY if kind == "weekly" else PER_FEED)
         if not items:
             return [f"- nothing new since {since:%a %b %d}"]
         return [f"- {i['date'].astimezone():%a %b %d %H:%M} | {i['title']}: {i['summary']} ({i['link']})"
