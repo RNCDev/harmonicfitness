@@ -1,6 +1,6 @@
 # Writing for Text-to-Speech
 
-The script is read aloud by OmniVoice, through `tools/render.py`, exactly as written. It does no number or abbreviation normalization and guesses at symbols, so a pound sign, slash or digit can come out as noise or a wrong word. Write exactly what should be heard, as if dictating to someone who will read it verbatim. `tools/tts_build.py` enforces the mechanical rules below.
+The script is read aloud by the voice's engine (Chatterbox or Qwen3-TTS, through `tools/render.py`) exactly as written. Nothing expands numbers or abbreviations first, and the engine guesses at symbols, so a pound sign, slash or digit can come out as noise or a wrong word. Write exactly what should be heard, as if dictating to someone who will read it verbatim. `tools/tts_build.py` enforces the mechanical rules below.
 
 ## The final file contains only
 
@@ -39,14 +39,15 @@ Spell everything out: "for example" not "e.g.", "that is" not "i.e.", "versus" n
 
 ## Pacing and pauses
 
-- A paragraph break gives a pause of about a third of a second. Start a new paragraph for each part of a segment (cue, narrative, handoff).
+- A paragraph break gives a pause of at least a third of a second, and the render spreads the segment's spare time over its breaks (up to about two seconds each). Start a new paragraph for each part of a segment (cue, narrative, handoff).
+- Keep each paragraph under about twenty seconds spoken, about fifty words. Long clips are where engines drift, rush or glitch, and short paragraphs give the voice natural breaths. The lint flags paragraphs over twenty-two seconds.
 - `[pause 3s]` inserts exactly that much silence (also `[pause 500ms]`; at most ten seconds). Use it where the listener needs real time, such as box breathing or getting into position, not as decoration.
 - An ellipsis gives a short beat, at most half a second: "Three... two... one... switch." Keep countdowns to one per segment.
 - Commas give short breaths. Long sentences without commas sound rushed.
 - Short sentences land cues. "Hands on the bars. Chest tall. Easy spin." is better than one long sentence.
 - Box breathing: give each four-second phase a short cue and a pause. A one-word cue like "Hold." takes about a second, and a five-word cue about two, so: "Breathe in through your nose. [pause 2s] Hold. [pause 3s] Out through your mouth. [pause 2s] Hold. [pause 3s]" Pauses are exact; the cues run a little shorter with some voices. Vary the cue wording between rounds.
 
-The lint predicts each segment's spoken length for the chosen voice, pauses included, so timing doesn't need to be counted by hand. The prediction never runs short, but segments made of many one-to-three-word cues can come in a second or two under it.
+The lint predicts each segment's spoken length for the chosen voice, pauses included, so timing doesn't need to be counted by hand. It's an estimate from the voice's measured rate, usually within a few percent; the render pads short segments and lets a slightly long one borrow from the next.
 
 ## Orientation without timestamps
 

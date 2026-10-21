@@ -1,29 +1,46 @@
 # Voices
 
-The VoiceStudio app is only used to make voices. Workouts render through `tools/render.py`, so the app's settings (performance profile, models, speech recognition) have no effect on them. Quit the app before a render; two copies of the model don't fit comfortably in 16 GB.
+A voice is a short reference clip plus its transcript. The engine clones it for every line of the workout, and it copies the clip's delivery as well as its sound: a sleepy clip clones sleepy, an announcer clip clones like an announcer. So the reference line is written the way a coach talks, and the clip is picked by ear.
 
-## Make a voice
+## Where voices live
 
-From the Gallery (quickest): open a Gallery voice and click **Use voice**. It's saved under the Gallery name ("The Explainer") with a sample the app renders once. The five in `profile.md` came from here.
+`voices/` in this repo, three files per voice:
+- `<name>.wav`: the reference clip, about ten seconds.
+- `<name>.txt`: exactly what the clip says.
+- `<name>.json`: the engine, `{"engine": "chatterbox"}` or `{"engine": "qwen3"}`, and optionally `"model"` (a Hugging Face repo) to use a different build of that engine.
 
-By design:
-1. In VoiceStudio, create a voice and choose **By design**.
-2. Type a description into **Describe your voice** ("calm, middle-aged male, low pitch, American accent"), or pick a starting point.
-3. Preview it with one workout-style sentence under 100 characters, such as "Minute nine. Sit tall on the bench and keep your back tall."
-4. Reroll until it sounds right, then **Keep this seed** and **Save design as profile** with a short name ("Coach").
+`python3 tools/voices.py` lists them with their engine and measured pace. Voices saved in the VoiceStudio app also still work, rendered with OmniVoice, but they sounded mechanical next to these.
 
-From audio (a clone): five to fifteen seconds of clean speech, in a quiet room with no music, read at the pace you want; the hard limit is twenty seconds. Add the transcript or let the app transcribe it. Only clone your own voice, or someone who has agreed.
+## Engines
 
-Lock it (recommended): when a take sounds right, **Lock voice identity** pins that exact take as the voice's reference, which keeps it the same across a whole workout. Lock a take whose text is under 100 characters, because locking keeps only the first 100 characters as the transcript, and a transcript cut short against the full audio throws off the voice's pace.
+Both run on this Mac through `mlx-audio` in VoiceStudio's bundled Python. Their weights download from Hugging Face on first use into `~/.cache/huggingface/hub`.
 
-## Pace
+| Engine | Strength | Speed on this M3 |
+|---|---|---|
+| Chatterbox Turbo (`mlx-community/chatterbox-turbo-fp16`), Coach E's default | Most natural, human delivery | About 0.75 times the speech's length |
+| Chatterbox (`mlx-community/Chatterbox-TTS-fp16`), the full-size model | Sounds as good as Turbo; also takes an expressiveness setting | About 1.8 times |
+| Qwen3-TTS (`mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`) | Clearest diction | About 1.3 times |
 
-OmniVoice speaks at the pace of the voice's reference take: it sets each clip's length from the text and that pace. So choose a take read at the speed you want to hear mid-workout; calm and unhurried beats an announcer read. `--speed 0.95` slows any voice slightly.
+Neither decides a clip's length in advance, so the lint predicts it from each voice's measured rate (recorded by every render) and the render pads or borrows a little from the next segment. Expect each segment within a few percent of plan.
 
-## Use it in workouts
+Tried and dropped on 2026-10-20: the VoiceStudio Gallery voices on OmniVoice (mechanical), Kokoro (flat), Qwen3-TTS preset speakers (fine, but Ryan far too slow), VoxCPM2 (good but nearly four times real time), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower).
 
-1. Quit VoiceStudio and run `python3 tools/voices.py` to see each voice's name and pace.
-2. Add it under Voices in `profile.md`, one line per voice: `  - Coach: default, calm and steady.` The first line is the default. Names match the app's, ignoring case; avoid colons in names.
-3. Ask for it by name ("use the Coach voice"), or pass `--voice Coach` to `tools/build.sh`.
+## How the coach voices were made
 
-The first render with a new voice records its exact pace in `workouts/.audio-cache/`. Until then the lint estimates the pace from the raw take, which errs toward predicting slightly longer speech.
+Qwen3-TTS's VoiceDesign model (`mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16`, about 4 GB, deleted after use; it downloads again if needed) reads one coaching line in a voice built from a description. Two takes per description, then the best take is kept as the reference.
+
+The line: "Okay, set your feet. Chest up, elbows in, and press. Good. Stay with it, two more. Breathe out as you drive. That's the pace we want."
+
+The descriptions that worked:
+- Coach D (shortlisted, then removed): "A man in his late thirties with a deep, low-pitched, resonant voice and an American accent. An experienced strength coach: grounded, confident and steady. Motivates through calm authority, not excitement. Crisp, clear diction. Natural, even pace."
+- Coach E: "A man in his forties with a low, warm baritone voice and an American accent. A seasoned personal trainer talking to one client: direct, encouraging and focused. No hype, nothing silly. Clear diction, natural pace."
+- Coach G: "A man in his thirties with a lower-moderate pitch and an American accent, like a cycling instructor in a focused moment: purposeful, motivating, confident, steady energy. Not shouting, not goofy. Crisp diction."
+
+What didn't: "upbeat, natural energy, like leading a class" came out goofy and high-pitched; "calm, relaxed, unhurried" came out sleepy, or far too slow.
+
+## Make a new one
+
+1. Design takes as above, or record ten to fifteen seconds of a real person (only yourself, or someone who has agreed) reading a coaching line in a quiet room.
+2. Save the clip as `voices/<name>.wav`, its words as `voices/<name>.txt`, and the engine as `voices/<name>.json`.
+3. Add it under Voices in `profile.md`; the first listed is the default.
+4. Render the smoke test with it: `tools/build.sh workouts/drafts/smoke-test.draft.txt "smoke-test" --voice "<name>"`. The first render records its pace, which makes the lint's predictions closer from then on.

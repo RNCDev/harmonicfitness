@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""VoiceStudio voices: look one up, and predict how long OmniVoice will speak.
+"""Voices: look one up, and predict how long it will speak.
+
+A voice is a reference clip plus its transcript: one saved in the VoiceStudio app,
+or one kept in this repo's voices/ folder (<name>.wav, <name>.txt, and optionally
+<name>.json naming its engine: omnivoice, qwen3 or chatterbox; omnivoice if absent).
+
+For OmniVoice voices:
 
 OmniVoice fixes each clip's length before it generates anything: the text's
 weighted character count divided by the reference clip's pace
@@ -13,7 +19,12 @@ paragraphs, but a cue of one to three words can come out up to a second shorter
 with some voices, because OmniVoice stretches very short text and then trims the
 silence it leaves.
 
-    python3 tools/voices.py        # list VoiceStudio voices with their pace
+Qwen3-TTS and Chatterbox decide their length as they speak, so for them the
+prediction is the voice's measured rate (weighted characters per second, recorded
+by each render) applied to the text. It is an estimate, typically within a few
+percent over a whole segment; render.py absorbs the difference in the padding.
+
+    python3 tools/voices.py        # list voices with their engine and pace
 """
 import functools
 import hashlib
@@ -31,6 +42,9 @@ VS_PROJECT = os.path.expanduser("~/Library/Application Support/VoiceStudio/runti
 VS_PYTHON = os.path.join(VS_PROJECT, ".venv", "bin", "python")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACE_FILE = os.path.join(ROOT, "workouts", ".audio-cache", "voice-pace.json")
+VOICES_DIR = os.path.join(ROOT, "voices")
+ENGINES = ("omnivoice", "qwen3", "chatterbox")
+MLX_EDGE = 0.08          # render.py trims engine silence to 40 ms at each end
 
 FRAME_RATE = 25          # OmniVoice audio tokens per second
 EDGE_PAD = 0.2           # fade_and_pad_audio adds 0.1 s of silence at each end
@@ -77,8 +91,37 @@ def _design_sample_script():
     return "Here's a quick sample of this voice so you can hear how it sounds."
 
 
+def _repo_voice(voice):
+    """A voice kept in this repo: voices/<name>.wav plus its transcript, voices/<name>.txt."""
+    for f in os.listdir(VOICES_DIR) if os.path.isdir(VOICES_DIR) else []:
+        name, ext = os.path.splitext(f)
+        if ext == ".wav" and name.lower() == voice.lower():
+            path = os.path.join(VOICES_DIR, f)
+            with open(os.path.join(VOICES_DIR, name + ".txt"), encoding="utf-8") as t:
+                ref_text = t.read().strip()
+            with open(path, "rb") as a:
+                audio_hash = hashlib.sha256(a.read()).hexdigest()
+            engine, model = "omnivoice", None
+            settings = os.path.join(VOICES_DIR, name + ".json")
+            if os.path.exists(settings):
+                with open(settings, encoding="utf-8") as j:
+                    conf = json.load(j)
+                engine, model = conf.get("engine", engine), conf.get("model")
+            if engine not in ENGINES:
+                raise SystemExit(f"{settings}: engine must be one of {', '.join(ENGINES)}")
+            return {"id": name, "name": name, "kind": "repo", "engine": engine, "model": model,
+                    "ref_audio": path, "ref_text": ref_text,
+                    "instruct": "", "vd_states": None, "seed": None,
+                    "key": hashlib.sha256(f"{audio_hash}|{ref_text}".encode()).hexdigest()[:12]}
+    return None
+
+
 def lookup(voice):
-    """A VoiceStudio voice profile by id or name, resolved the way the app does."""
+    """A voice by name: one kept in this repo's voices/ folder, else a VoiceStudio
+    voice profile by id or name, resolved the way the app does."""
+    found = _repo_voice(voice)
+    if found:
+        return found
     db = os.path.join(VS_DATA, "omnivoice.db")
     with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
         conn.row_factory = sqlite3.Row
@@ -103,7 +146,7 @@ def lookup(voice):
     if not ref_text:
         raise SystemExit(f"Voice '{row['name']}' has no transcript. Add one to it in VoiceStudio and rerun.")
     return {
-        "id": row["id"], "name": row["name"], "kind": row["kind"] or "clone",
+        "id": row["id"], "name": row["name"], "kind": row["kind"] or "clone", "engine": "omnivoice",
         "ref_audio": path, "ref_text": ref_text,
         "instruct": row["instruct"] or "", "vd_states": row["vd_states"], "seed": row["seed"],
         "key": hashlib.sha256(f"{audio_hash}|{ref_text}".encode()).hexdigest()[:12],
@@ -148,8 +191,34 @@ def reference(v):
     return text, _audio_seconds(v["ref_audio"]) * FRAME_RATE, False
 
 
+def _rate_key(v):
+    return f"{v['key']}|{v['engine']}|{v.get('model') or 'standard'}"
+
+
+def record_rate(v, weight, seconds):
+    """Fold a render's measured speech into the voice's rate (non-OmniVoice engines)."""
+    data = _recorded()
+    rec = data.get(_rate_key(v), {"name": v["name"], "weight": 0.0, "seconds": 0.0})
+    rec["weight"] += weight
+    rec["seconds"] += seconds
+    data[_rate_key(v)] = rec
+    os.makedirs(os.path.dirname(PACE_FILE), exist_ok=True)
+    with open(PACE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1)
+
+
+def weight(text):
+    return _estimator().calculate_total_weight(text)
+
+
 def pace(v):
-    """Weighted characters per second: the voice's speaking rate as OmniVoice sees it."""
+    """Weighted characters per second: the voice's speaking rate."""
+    if v["engine"] != "omnivoice":
+        rec = _recorded().get(_rate_key(v))
+        if rec and rec["seconds"] > 30:
+            return rec["weight"] / rec["seconds"], True
+        # Until a render measures it, assume it speaks at its reference clip's rate.
+        return weight(v["ref_text"]) / _audio_seconds(v["ref_audio"]), False
     ref_text, ref_tokens, exact = reference(v)
     return _estimator().calculate_total_weight(ref_text) / (ref_tokens / FRAME_RATE), exact
 
@@ -164,6 +233,8 @@ def _tokens(text, ref_text, ref_tokens, speed):
 
 def clip_seconds(text, v, speed=None):
     """Predicted length of one generate() call on `text`, including edge padding."""
+    if v["engine"] != "omnivoice":
+        return weight(text) / pace(v)[0] + MLX_EDGE
     ref_text, ref_tokens, _ = reference(v)
     tokens = _tokens(text, ref_text, ref_tokens, speed)
     if tokens <= CHUNK_THRESHOLD * FRAME_RATE:
@@ -180,7 +251,9 @@ def main():
     db = os.path.join(VS_DATA, "omnivoice.db")
     with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
         ids = [r[0] for r in conn.execute("SELECT id FROM voice_profiles ORDER BY created_at")]
-    print(f"{'name':28} {'id':10} {'kind':7} pace")
+    if os.path.isdir(VOICES_DIR):
+        ids = sorted(os.path.splitext(f)[0] for f in os.listdir(VOICES_DIR) if f.endswith(".wav")) + ids
+    print(f"{'name':28} {'id':10} {'engine':10} pace")
     for vid in ids:
         try:
             v = lookup(vid)
@@ -188,7 +261,7 @@ def main():
             print(f"{vid:39} {e}")
             continue
         p, exact = pace(v)
-        print(f"{v['name'][:28]:28} {v['id']:10} {v['kind']:7} {p:5.2f} chars/s"
+        print(f"{v['name'][:28]:28} {v['id'][:10]:10} {v['engine']:10} {p:5.2f} chars/s"
               + ("" if exact else " (estimated until its first render)"))
 
 

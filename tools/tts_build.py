@@ -21,7 +21,8 @@ import sys
 MARKER = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*)$")
 PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
 PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds, as in VoiceStudio's pause dialect
-PARAGRAPH_GAP = 0.35                    # silence between paragraphs within a segment
+PARAGRAPH_GAP = 0.35                    # least silence between paragraphs within a segment
+MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -175,6 +176,16 @@ def main():
                 flag = f"  <-- {seg['seconds'] - spoken:.1f}s of dead air"
             total_spoken += spoken
             print(f"{i:>3} {seg['seconds']:>5} {words:>5} {guide:>5} {spoken:>6.1f} {fill:>5.0%}  {seg['label']}{flag}")
+            # OmniVoice splits a clip over thirty seconds into pieces and stitches
+            # them, and the seams can glitch. Keep every clip comfortably under.
+            from voices import clip_seconds
+            for para in plan(seg):
+                for text, _ in para:
+                    secs = clip_seconds(text, voice, args.speed) if text else 0.0
+                    if secs > MAX_CLIP:
+                        print(f"  paragraph \"{' '.join(text.split()[:6])}...\" speaks for {secs:.0f}s; "
+                              f"split it into paragraphs under {MAX_CLIP:.0f}s")
+                        problems += 1
         else:
             diff = (words - guide) / guide if guide else 0
             if abs(diff) > args.tolerance:
