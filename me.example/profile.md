@@ -17,8 +17,8 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
   (`tools/build.sh` copies each finished MP3 to the path above. A leading `~` is your home folder and `*` matches anything, such as any Google account.)
 - Measured words per minute (drafting guide): 165. A starting estimate; it only sizes the first draft, and the lint then predicts each segment's spoken seconds from the chosen voice's measured rate.
 - Voices (names from `python3 tools/voices.py`; the first is the default; how to add one: `knowledge/voices.md`):
-  - Coach E: Chatterbox Turbo. Man in his forties, warm baritone, a seasoned trainer talking to one client. The most natural delivery.
-  - Coach G: Qwen3-TTS. Man in his thirties, a focused class instructor. The clearest diction.
+  - Chatterbox Coach: man in his forties, warm baritone, a seasoned trainer talking to one client. The most natural delivery.
+  - Qwen3 Coach: man in his thirties, a focused class instructor. The clearest diction.
 - Delivery wanted: a coach or instructor, grounded and motivating. Not an announcer, not sleepy, not goofy or high-pitched.
 ## Default session
 - Usual length: twenty-five minutes

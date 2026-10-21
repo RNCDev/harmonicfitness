@@ -2,9 +2,10 @@
 """Render a segmented workout draft to one MP3, voicing each paragraph in-process.
 
 Runs in the project's own environment, .venv (tools/setup.sh makes it; tools/build.sh
-picks it). Each voice is cloned from its reference clip with Chatterbox (Turbo for
-Coach E) or Qwen3-TTS through mlx-audio, using the model revision its
-voices/<name>.json pins. A soft chime opens each segment after the first, a [chime]
+picks it). Each voice is cloned from its reference clip with Chatterbox Turbo or
+Qwen3-TTS through mlx-audio, using the model revision its voices/<name>.json pins,
+and the engine's extra downloads (Chatterbox's speech tokenizer) at the revision
+tools/voices.py pins. A soft chime opens each segment after the first, a [chime]
 marker rings it inside a segment, and a three-note tone marks the end of the
 workout. A segment's spare seconds widen its paragraph breaks and then it ends
 early, a slightly long segment is paid back from the next ones' spare time, the
@@ -15,8 +16,8 @@ No app or server needed. Clips are cached in me/workouts/.audio-cache, so rerunn
 after editing a few segments only re-renders what changed.
 
 Usage (normally via tools/build.sh):
-    .venv/bin/python tools/render.py draft.txt --voice "Coach E" --out "me/workouts/Workout ....mp3"
-    .venv/bin/python tools/render.py draft.txt --voice "Coach E" --clips-only   # fill the cache, no MP3
+    .venv/bin/python tools/render.py draft.txt --voice "Chatterbox Coach" --out "me/workouts/Workout ....mp3"
+    .venv/bin/python tools/render.py draft.txt --voice "Chatterbox Coach" --clips-only   # fill the cache, no MP3
 """
 import argparse
 import contextlib
@@ -37,7 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tts_build import (CHIME, CHIME_SECONDS, END_TAIL, MAX_EXTRA_GAP, MAX_FILL, MIN_FILL,  # noqa: E402,F401
                        PARAGRAPH_GAP, TOTAL_TOLERANCE, layout, parse, plan, spoken as is_spoken)  # noqa: E402  (one source of truth for text)
 from paths import CACHE as CACHE_DIR  # noqa: E402
-from voices import MLX_EDGE, lookup, record_rate, weight  # noqa: E402
+from voices import ENGINE_EXTRAS, MLX_EDGE, lookup, record_rate, weight  # noqa: E402
 
 SR = 24000
 CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
@@ -163,12 +164,44 @@ def trim(a):
     return a[max(loud[0] - keep, 0):loud[-1] + keep]
 
 
+@contextlib.contextmanager
+def pinned_extras(engine, hub=None):
+    """While a model loads, fetch the repos its engine pulls in on its own (Chatterbox
+    Turbo's speech tokenizer) at the revisions tools/voices.py pins. mlx-audio asks for
+    their latest version and only warns if that fails, which would leave the voice
+    quietly wrong; this fetches the pinned one first, failing loudly, and points
+    mlx-audio's own request at it."""
+    if hub is None:
+        import huggingface_hub as hub
+    pins = dict(ENGINE_EXTRAS.get(engine, []))
+    for repo, rev in pins.items():
+        try:
+            hub.snapshot_download(repo, revision=rev)
+        except Exception as e:
+            raise SystemExit(f"Couldn't fetch {repo} at {rev[:8]}, which {engine} needs: {e}. "
+                             "Check the network and rerun; tools/setup.sh downloads it ahead of time.")
+    original = hub.hf_hub_download
+
+    def pinned(*args, **kwargs):
+        repo = kwargs.get("repo_id", args[0] if args else None)
+        if repo in pins:
+            kwargs["revision"] = pins[repo]
+        return original(*args, **kwargs)
+
+    hub.hf_hub_download = pinned
+    try:
+        yield
+    finally:
+        hub.hf_hub_download = original
+
+
 def mlx_speaker(voice, engine, repo, revision=None):
     """Qwen3-TTS or Chatterbox through mlx-audio, cloning the voice's reference clip."""
     import mlx.core as mx
     import numpy as np
     from mlx_audio.tts.utils import load_model
-    model = load_model(repo, revision=revision)
+    with pinned_extras(engine):
+        model = load_model(repo, revision=revision)
     gen = voice.get("generate") or {}   # per-voice engine settings, from voices/<name>.json
     # Chatterbox Turbo re-encodes the reference clip on every call that passes it
     # (about half a second each) and keeps the result on the model. So pass it on the

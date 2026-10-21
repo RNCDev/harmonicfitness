@@ -4,7 +4,9 @@
 A voice is a reference clip plus its transcript, kept as three files:
 <name>.wav, <name>.txt (what the clip says) and <name>.json, which names its
 engine (chatterbox or qwen3), the model repo and the pinned revision on Hugging
-Face, and optionally "generate", extra settings passed to the engine for each clip.
+Face, and optionally "aliases" (older names that still find it) and "generate",
+extra settings passed to the engine for each clip. A voice is not a tuned model: the
+model is used as published, and copies the reference clip's voice for every line.
 Shipped voices live in the repo's voices/ folder; private ones (a cloned real voice,
 say) go in me/voices/, which is looked in first.
 
@@ -13,12 +15,12 @@ is the voice's measured rate (weighted characters per second, recorded by each
 render) applied to the text. It is an estimate, typically within a few percent over
 a whole segment; render.py absorbs the difference in the next segments' spare time.
 Until a voice's first render, its rate is seeded from the other voices' measured
-rates: a reference clip's own rate came out about 30 percent slow for Coach E.
+rates: a reference clip's own rate came out about 30 percent slow for Chatterbox Coach.
 The character weights are vendored in char_weight.py.
 
     python3 tools/voices.py                      # list voices with their engine and pace
-    python3 tools/voices.py --measured "Coach G"    # exit 0 if its rate is measured, 1 if estimated
-    .venv/bin/python tools/voices.py --download "Coach E"   # fetch its pinned model (tools/setup.sh does this)
+    python3 tools/voices.py --measured "Qwen3 Coach"    # exit 0 if its rate is measured, 1 if estimated
+    .venv/bin/python tools/voices.py --download "Chatterbox Coach"   # fetch its pinned model (setup.sh does this)
 """
 import hashlib
 import json
@@ -37,6 +39,8 @@ ENGINES = ("qwen3", "chatterbox")
 STANDARD_MODELS = {"qwen3": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
                    "chatterbox": "mlx-community/Chatterbox-TTS-fp16"}
 ENGINE_EXTRAS = {"chatterbox": [("mlx-community/S3TokenizerV2", "e0c9886f0e1c35ae85b1f27277416fb19fc72bec")]}
+SIZES_GB = {"mlx-community/chatterbox-turbo-fp16": 2.8, "mlx-community/S3TokenizerV2": 0.5,
+            "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 4.2}   # download sizes, for the message
 MLX_EDGE = 0.08          # render.py trims engine silence to 40 ms at each end
 MIN_MEASURED = 30.0      # seconds of rendered speech before a voice's rate counts as measured
 DEFAULT_PACE = 14.5      # weighted chars/s for a new voice when no voice has been measured yet
@@ -54,13 +58,27 @@ def _files():
     return found
 
 
+def _aliases(files):
+    """{lowercased alias: (name, folder)} from each voice's "aliases" setting."""
+    out = {}
+    for name, folder in files.values():
+        try:
+            with open(os.path.join(folder, name + ".json"), encoding="utf-8") as j:
+                for alias in json.load(j).get("aliases") or []:
+                    out.setdefault(alias.lower(), (name, folder))
+        except (OSError, ValueError):
+            pass
+    return out
+
+
 def names():
     return sorted(name for name, _ in _files().values())
 
 
 def lookup(voice):
-    """A voice by name (case doesn't matter)."""
-    hit = _files().get(voice.lower())
+    """A voice by name or one of its aliases (case doesn't matter)."""
+    files = _files()
+    hit = files.get(voice.lower()) or _aliases(files).get(voice.lower())
     if not hit:
         raise SystemExit(f"No voice '{voice}'. Available: {', '.join(names()) or 'none'} "
                          f"(in {', '.join(show(d) for d in VOICE_DIRS)}).")
@@ -101,7 +119,8 @@ def _rate_key(v):
 def record_rate(v, weight, seconds):
     """Fold a render's measured speech into the voice's rate (called by render.py)."""
     data = _recorded()
-    rec = data.get(_rate_key(v), {"name": v["name"], "weight": 0.0, "seconds": 0.0})
+    rec = data.get(_rate_key(v), {"weight": 0.0, "seconds": 0.0})
+    rec["name"] = v["name"]
     rec["weight"] += weight
     rec["seconds"] += seconds
     data[_rate_key(v)] = rec
@@ -113,8 +132,8 @@ def record_rate(v, weight, seconds):
 def seed_pace(data=None):
     """A starting rate for a voice no render has measured: the median of the measured
     rates on file (entries with enough speech behind them), else DEFAULT_PACE. The
-    reference clip's own rate is not used: for Coach E it was 10.3 chars/s against a
-    measured 14.6."""
+    reference clip's own rate is not used: for Chatterbox Coach it was 10.3 chars/s
+    against a measured 14.6."""
     data = _recorded() if data is None else data
     rates = [r["weight"] / r["seconds"] for r in data.values()
              if isinstance(r, dict) and r.get("weight") and (r.get("seconds") or 0) > MIN_MEASURED]
@@ -136,10 +155,13 @@ def clip_seconds(text, v):
 
 def download(v):
     """Fetch the voice's model at its pinned revision, plus what its engine loads on its
-    own, into the shared Hugging Face cache. Needs the project's environment."""
+    own, into the shared Hugging Face cache. Needs the project's environment. Files
+    already in the cache aren't fetched again."""
     from huggingface_hub import snapshot_download
     for repo, rev in [(v["model"], v["revision"]), *ENGINE_EXTRAS.get(v["engine"], [])]:
-        print(f"{v['name']}: {repo}" + (f" at {rev[:8]}" if rev else " (latest; no revision pinned)"), flush=True)
+        size = f", about {SIZES_GB[repo]} GB" if repo in SIZES_GB else ""
+        print(f"{v['name']}: {repo}" + (f" at {rev[:8]}" if rev else " (latest; no revision pinned)") + size,
+              flush=True)
         snapshot_download(repo, revision=rev)
 
 

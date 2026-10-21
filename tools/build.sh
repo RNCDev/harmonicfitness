@@ -2,7 +2,7 @@
 # One step from draft to deliverables: lint + export the .txt, then render the .mp3.
 #
 #   tools/build.sh <draft> "<name>" [--voice <name>] [render options...]
-#   tools/build.sh me/workouts/drafts/x.draft.txt "Workout 2026-10-19 Bench 25 min" --voice "Coach E"
+#   tools/build.sh me/workouts/drafts/x.draft.txt "Workout 2026-10-19 Bench 25 min" --voice "Chatterbox Coach"
 #
 # Writes me/workouts/<name>.txt and me/workouts/<name>.mp3 (the context folder is
 # SWEATCAST_HOME if set). Stops after the lint if it finds issues (fix and rerun).

@@ -9,7 +9,7 @@ Goal: in one short conversation, turn `me.example/` into a filled-in `me/` folde
 
 ## Step 1: the machine
 
-Run `tools/setup.sh`. It makes the Python environment with uv, copies `me.example/` to `me/` if there's no `me/profile.md` yet, installs the git hook that refuses to push `me/`, and downloads the default voice's model. If it stops, relay its one-line fix (install ffmpeg or uv with Homebrew) and rerun it once they say it's done. It runs in the background while you interview: start it with `run_in_background: true`.
+Run `tools/setup.sh --no-models`. It makes the Python environment with uv, copies `me.example/` to `me/` if there's no `me/profile.md` yet, and installs the git hook that refuses to push `me/`. The voice model comes later, once the user has picked a voice, so nothing large downloads for a voice they won't use. If it stops, relay its one-line fix (install ffmpeg or uv with Homebrew) and rerun it once they say it's done. It runs in the background while you interview: start it with `run_in_background: true`.
 
 If `me/profile.md` already has real answers, this is an update: ask only about what the user wants to change, and skip to Step 3.
 
@@ -21,7 +21,7 @@ Read `me.example/profile.md` and `me.example/health.md` first, so the questions 
 2. **Equipment kits.** What's at home, and when travelling or at a gym. Each kit becomes one line under Equipment kits; the first is the default.
 3. **Health.** Any current injuries or limitations, what a clinician said about them, and how it feels today. Say plainly, once: sweatcast isn't medical advice, a clinician's instructions override everything, and red flags (can't bear weight, rapidly increasing swelling, numbness, giving way, getting worse after a week or two) mean seeing a clinician before training. Write each injury in `me/health.md` in the format its comment shows, with its phase from `knowledge/injury-playbook.md` and the criteria for the next phase. No injuries: leave "None right now."
 4. **Interests.** Teams, topics, YouTube channels for deep dives, puzzles, books, local news, and anything never to bring up.
-5. **Voice.** The shipped voices are Coach E (warm, most natural) and Coach G (crisp class instructor). Their reference clips are `voices/Coach E.wav` and `voices/Coach G.wav`; suggest the user plays them. A voice of their own: follow `knowledge/voices.md` and save it in `me/voices/` (private), never in `voices/`.
+5. **Voice.** Each shipped voice is named for the model that speaks it: Chatterbox Coach (Chatterbox Turbo; warm, the most natural delivery; a 3.3 GB download, renders at about 0.7 times real time) and Qwen3 Coach (Qwen3-TTS; a crisp class instructor, the clearest diction; a 4.2 GB download, about 1.3 to 1.45 times real time). The models are used as published; the voice comes from a ten-second reference clip each model copies. Suggest the user plays the clips, `voices/Chatterbox Coach.wav` and `voices/Qwen3 Coach.wav`. A voice of their own: follow `knowledge/voices.md` and save it in `me/voices/` (private), never in `voices/`.
 6. **Delivery.** Where finished MP3s should go: a folder that syncs to their phone (iCloud Drive is `~/Library/Mobile Documents/com~apple~CloudDocs/<folder>`, Google Drive for desktop is `~/Library/CloudStorage/GoogleDrive-*/My Drive/<folder>`, Dropbox is `~/Library/CloudStorage/Dropbox/<folder>`), or nowhere, keeping them only in `me/workouts/`. Check the folder exists with `ls`, and offer to create the subfolder.
 
 ## Step 3: write the files
@@ -32,8 +32,9 @@ Read `me.example/profile.md` and `me.example/health.md` first, so the questions 
 
 ## Step 4: first audio
 
-1. Once `tools/setup.sh` has finished, render the smoke test with the chosen voice: `tools/build.sh voices/smoke-test.draft.txt "smoke-test" --voice "<voice>"`. It downloads the model if needed and measures the voice's pace, which session builds require. Send `me/workouts/smoke-test.mp3` with SendUserFile if it's available, and ask how it sounds.
-2. Offer a ten-minute first session (the `workout` skill, strength at ten minutes) as the end-to-end check, including the copy to the delivery folder.
+1. Download the chosen voice's model: say its size first (above), then run `tools/setup.sh` with `run_in_background: true`. It skips everything already done and fetches the default voice's model at its pinned revision, from Hugging Face with no account needed (its "unauthenticated requests" warning is harmless). On a slow connection this takes a while; finish Step 3's feeds while it runs.
+2. Once it has finished, render the smoke test with the chosen voice: `tools/build.sh voices/smoke-test.draft.txt "smoke-test" --voice "<voice>"`. It measures the voice's pace, which session builds require. Send `me/workouts/smoke-test.mp3` with SendUserFile if it's available, and ask how it sounds.
+3. Offer a ten-minute first session (the `workout` skill, strength at ten minutes) as the end-to-end check, including the copy to the delivery folder.
 
 ## Step 5: keep it safe
 

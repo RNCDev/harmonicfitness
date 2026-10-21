@@ -319,6 +319,17 @@ class Voices(unittest.TestCase):
                 self.assertEqual(voices.lookup("other")["model"], voices.STANDARD_MODELS["qwen3"])
                 self.assertEqual(voices.names(), ["Other", "coach"])
 
+    def test_aliases_find_the_renamed_voice(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.make(d, "Chatterbox Coach", {"engine": "chatterbox", "aliases": ["Coach E"]})
+            with mock.patch.object(voices, "VOICE_DIRS", (d,)):
+                self.assertEqual(voices.lookup("coach e")["name"], "Chatterbox Coach")
+                self.assertEqual(voices.names(), ["Chatterbox Coach"])
+
+    def test_old_names_still_work_for_shipped_voices(self):
+        self.assertEqual(voices.lookup("Coach E")["name"], "Chatterbox Coach")
+        self.assertEqual(voices.lookup("Coach G")["name"], "Qwen3 Coach")
+
     def test_missing_settings_or_bad_engine(self):
         with tempfile.TemporaryDirectory() as d:
             self.make(d, "NoJson", None)
@@ -333,6 +344,46 @@ class Voices(unittest.TestCase):
             v = voices.lookup(name)
             if v["ref_audio"].startswith(os.path.join(ROOT, "voices")):
                 self.assertRegex(v["revision"] or "", r"^[0-9a-f]{40}$", name)
+
+
+class PinnedExtras(unittest.TestCase):
+    def fake_hub(self, fail=False):
+        calls = []
+
+        class Hub:
+            @staticmethod
+            def snapshot_download(repo, revision=None):
+                if fail:
+                    raise OSError("offline")
+                calls.append(("snapshot", repo, revision))
+
+            @staticmethod
+            def hf_hub_download(repo_id=None, filename=None, revision=None):
+                calls.append(("file", repo_id, revision))
+                return "/cache/" + filename
+        return Hub, calls
+
+    def test_engine_extras_load_at_the_pinned_revision(self):
+        hub, calls = self.fake_hub()
+        repo, rev = voices.ENGINE_EXTRAS["chatterbox"][0]
+        original = hub.hf_hub_download
+        with render.pinned_extras("chatterbox", hub):
+            hub.hf_hub_download(repo_id=repo, filename="model.safetensors")
+            hub.hf_hub_download(repo_id="other/repo", filename="x")
+        self.assertEqual(calls, [("snapshot", repo, rev), ("file", repo, rev), ("file", "other/repo", None)])
+        self.assertIs(hub.hf_hub_download, original)   # restored afterwards
+
+    def test_a_pinned_extra_that_cant_be_fetched_stops_the_render(self):
+        hub, _ = self.fake_hub(fail=True)
+        with self.assertRaises(SystemExit):
+            with render.pinned_extras("chatterbox", hub):
+                pass
+
+    def test_qwen3_has_no_extras(self):
+        hub, calls = self.fake_hub(fail=True)
+        with render.pinned_extras("qwen3", hub):
+            pass
+        self.assertEqual(calls, [])
 
 
 class FreshFork(unittest.TestCase):

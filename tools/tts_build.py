@@ -17,9 +17,9 @@ voices.py) and checked against its planned seconds. Without it, word
 count against --wpm is the rough fallback.
 
 Usage:
-    python3 tools/tts_build.py draft.txt --voice "Coach E" --out "Workout 2026-10-18.txt"
+    python3 tools/tts_build.py draft.txt --voice "Chatterbox Coach" --out "Workout 2026-10-18.txt"
     python3 tools/tts_build.py draft.txt --wpm 170 --out final.txt --force   # export despite issues
-    python3 tools/tts_build.py draft.txt --voice "Coach E" --out x.txt --strict  # structure warnings count
+    python3 tools/tts_build.py draft.txt --voice "Chatterbox Coach" --out x.txt --strict  # structure warnings count
 """
 import argparse
 import re

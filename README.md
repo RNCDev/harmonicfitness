@@ -10,7 +10,7 @@ You need an Apple Silicon Mac, [Claude Code](https://claude.com/claude-code), an
 
 1. **Fork** this repo (a fork keeps the link to upstream, so you can pull improvements), clone it, and open the folder in Claude Code.
 2. **Install the two tools** setup needs: `brew install ffmpeg uv`.
-3. **Run `tools/setup.sh`.** It builds the project's Python environment from `uv.lock` (about 430 MB; uv fetches Python 3.11 itself), copies `me.example/` to `me/`, installs a git hook that refuses to push `me/`, and downloads the default voice's model (about 3 GB for Coach E; `--all` for every voice).
+3. **Run `tools/setup.sh`.** It builds the project's Python environment from `uv.lock` (about 430 MB; uv fetches Python 3.11 itself), copies `me.example/` to `me/`, installs a git hook that refuses to push `me/`, and downloads the default voice's model (see Voice models below; `--all` for every voice).
 4. **Say "set me up"** in Claude Code. The `setup` skill interviews you (neighborhood, equipment, injuries, interests and teams, voice, where MP3s should go), fills in `me/`, checks your feeds, and renders a one-minute smoke test, which also measures the voice's pace.
 5. **Ask for a workout**: "I'd like a workout", "25 minutes at the hotel, just go".
 
@@ -25,6 +25,22 @@ Three layers, so your own details never mix with the code:
 | **You**: profile, health, workout log and feedback, drafts, research, rendered MP3s, private voices | `me/` (or wherever `SWEATCAST_HOME` points) | No: ignored, and the pre-push hook and CI block it |
 
 Pulling upstream changes never touches `me/`, so merges stay clean. To back up your context and keep its history, make `me/` its own private repo: `cd me && git init && git add -A && git commit -m "My sweatcast context"`, then push it to a private remote.
+
+## Voice models
+
+Two voices ship with sweatcast, each named for the model that speaks it. The models are used exactly as published, and the voice comes from a ten-second reference clip that the model copies for every line:
+
+| Voice | Model | Sound | Download | Render speed (M3) |
+|---|---|---|---|---|
+| Chatterbox Coach (default) | Chatterbox Turbo | Warm baritone, a trainer talking to one client; the most natural | About 3.3 GB | About 0.7 times real time |
+| Qwen3 Coach | Qwen3-TTS | A focused class instructor; the clearest diction | About 4.2 GB | About 1.3 to 1.45 times |
+
+- **Getting them:** `tools/setup.sh` downloads the default voice's model once, from Hugging Face into `~/.cache/huggingface/hub`, at the exact revision the voice pins. `tools/setup.sh --all` gets both (about 7.5 GB). The `setup` skill waits until you've picked a voice, then downloads only that one.
+- **No account needed:** the models aren't gated. Ignore Hugging Face's "unauthenticated requests" warning.
+- **Offline afterwards:** rendering needs no network once a model is downloaded.
+- **Freeing space:** delete a model's folder under `~/.cache/huggingface/hub`; it downloads again if a voice needs it.
+
+More in [knowledge/voices.md](knowledge/voices.md), including how to make your own voice.
 
 ## How a session works
 
