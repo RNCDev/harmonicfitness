@@ -11,6 +11,10 @@ A long video can be told as a series, one part per video session: its sheet
 says "- Parts: 3" and "- Parts done: 1" in its header, `pick` lists it first as a
 series to continue, and `done` marks the next part told.
 
+The quiz beat can come from a puzzle channel, listed by @handle on the "Puzzles"
+line under Content. `puzzles` lists its recent videos not yet used as a quiz; one
+counts as used once workouts/research/puzzles/<id>.md exists.
+
 yt-dlp ships with VoiceStudio's bundled Python, so the tool reruns itself there
 when the system python3 doesn't have it.
 
@@ -18,6 +22,7 @@ when the system python3 doesn't have it.
     python3 tools/youtube.py pick --recent 6      # look further back
     python3 tools/youtube.py transcript <id or URL>
     python3 tools/youtube.py done <id>            # after a session tells a series part
+    python3 tools/youtube.py puzzles              # recent unused puzzles for the quiz
 """
 import argparse
 import html
@@ -31,8 +36,10 @@ VS_PYTHON = os.path.expanduser(
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROFILE = os.path.join(ROOT, "knowledge", "profile.md")
 VIDEOS = os.path.join(ROOT, "workouts", "research", "videos")
+PUZZLES = os.path.join(ROOT, "workouts", "research", "puzzles")
 
 MIN_SECONDS, MAX_SECONDS = 5 * 60, 3 * 60 * 60   # skip Shorts and marathon streams
+PUZZLE_MAX_SECONDS = 30 * 60                      # a quiz puzzle is short
 PARAGRAPH_WORDS = 120                             # break at the next sentence end after this
 TAG_RE = re.compile(r"\[(?:music|applause|laughter)\]", re.IGNORECASE)
 
@@ -54,20 +61,20 @@ def load_yt_dlp():
     yt_dlp = module
 
 
-def handles():
-    with open(PROFILE) as f:
+def handles(label="YouTube favorites", profile=PROFILE):
+    with open(profile) as f:
         for line in f:
-            if line.lstrip("- ").startswith("YouTube favorites"):
+            if line.lstrip("- ").startswith(label):
                 found = re.findall(r"@([\w.-]*[\w-])", line)   # not a sentence's final period
                 if found:
                     return found
-    raise SystemExit("No 'YouTube favorites' line with @handles under Content in profile.md.")
+    raise SystemExit(f"No '{label}' line with @handles under Content in profile.md.")
 
 
-def used():
-    if not os.path.isdir(VIDEOS):
+def used(folder=VIDEOS):
+    if not os.path.isdir(folder):
         return set()
-    return {name[:-3] for name in os.listdir(VIDEOS) if name.endswith(".md")}
+    return {name[:-3] for name in os.listdir(folder) if name.endswith(".md")}
 
 
 def series_state(sheet):
@@ -119,22 +126,33 @@ def ydl(**opts):
     return yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True, **opts})
 
 
-def pick(recent):
-    for vid, part, parts, title in in_progress():
-        print(f"{'continue series':<29} {vid}  part {part} of {parts}  {title}")
-    seen = used()
+def fresh(entries, seen, low, high, recent):
+    """The first `recent` entries not in `seen` whose length is within [low, high] seconds."""
+    return [e for e in entries or []
+            if e.get("id") not in seen and low <= (e.get("duration") or 0) <= high][:recent]
+
+
+def list_recent(channels, seen, low, high, recent):
     with ydl(extract_flat=True, playlistend=recent * 3) as y:
-        for h in handles():
+        for h in channels:
             try:
                 info = y.extract_info(f"https://www.youtube.com/@{h}/videos", download=False)
             except yt_dlp.utils.DownloadError as e:
                 print(f"@{h}: couldn't list videos ({e})", file=sys.stderr)
                 continue
-            fresh = [e for e in info.get("entries") or []
-                     if e.get("id") not in seen
-                     and MIN_SECONDS <= (e.get("duration") or 0) <= MAX_SECONDS][:recent]
-            for e in fresh:
+            for e in fresh(info.get("entries"), seen, low, high, recent):
                 print(f"@{h:<28} {e['id']}  {round(e['duration'] / 60):>3} min  {e.get('title', '')}")
+
+
+def pick(recent):
+    for vid, part, parts, title in in_progress():
+        print(f"{'continue series':<29} {vid}  part {part} of {parts}  {title}")
+    list_recent(handles(), used(), MIN_SECONDS, MAX_SECONDS, recent)
+
+
+def puzzles(recent):
+    # Puzzle videos can be short, so only YouTube Shorts (under a minute) are skipped.
+    list_recent(handles("Puzzles"), used(PUZZLES), 60, PUZZLE_MAX_SECONDS, recent)
 
 
 def caption_track(info):
@@ -206,6 +224,8 @@ def main():
     t.add_argument("video", help="video id or URL")
     d = sub.add_parser("done", help="mark the next part of a series as told")
     d.add_argument("video", help="video id")
+    z = sub.add_parser("puzzles", help="list recent puzzle videos not yet used as a quiz")
+    z.add_argument("--recent", type=int, default=8, help="videos to list (default 8)")
     args = ap.parse_args()
     if args.cmd == "done":
         done, parts = mark_done(args.video)
@@ -214,6 +234,8 @@ def main():
     load_yt_dlp()
     if args.cmd == "pick":
         pick(args.recent)
+    elif args.cmd == "puzzles":
+        puzzles(args.recent)
     else:
         transcript(args.video)
 

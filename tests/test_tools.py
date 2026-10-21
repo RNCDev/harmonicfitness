@@ -152,12 +152,23 @@ class Assemble(unittest.TestCase):
     def segs(self, draft):
         return parse(draft)
 
-    def test_each_segment_fills_its_slot(self):
+    def test_short_segment_widens_breaks_then_ends_early(self):
         segs = self.segs("@@ 20 | A\none two three\n\nfour five\n@@ 15 | B\nsix\n")
-        pcm, rows, overruns = assemble(segs, self.fake_clip)
-        self.assertAlmostEqual(secs(pcm), 35.0, places=3)
-        self.assertEqual(overruns, 0)
+        pcm, rows, drift = assemble(segs, self.fake_clip)
         self.assertAlmostEqual(rows[0][2], 5 + PARAGRAPH_GAP, places=3)
+        # A: speech, one break widened by the cap, a short tail. B: speech and a tail.
+        a = 5 + PARAGRAPH_GAP + render.MAX_EXTRA_GAP + render.END_TAIL
+        b = 1 + render.END_TAIL
+        self.assertAlmostEqual(secs(pcm), a + b, places=3)
+        self.assertAlmostEqual(drift, (a + b) / 35 - 1, places=3)
+        self.assertEqual(rows[0][4], "  <-- short")
+
+    def test_little_spare_time_fills_the_slot(self):
+        segs = self.segs("@@ 5 | A\none two three four\n")
+        pcm, rows, drift = assemble(segs, self.fake_clip)
+        self.assertAlmostEqual(secs(pcm), 5.0, places=3)
+        self.assertAlmostEqual(drift, 0.0, places=3)
+        self.assertEqual(rows[0][4], "")
 
     def test_spare_time_goes_into_paragraph_breaks_up_to_the_cap(self):
         segs = self.segs("@@ 20 | A\none\n\ntwo\n")
@@ -167,18 +178,24 @@ class Assemble(unittest.TestCase):
         self.assertEqual(pcm[int((1 + gap) * SR) * 2 - 2:int((1 + gap) * SR) * 2], b"\x00\x00")
         self.assertEqual(pcm[int((1 + gap) * SR) * 2 + 2:int((1 + gap) * SR) * 2 + 4], b"\x01\x00")
 
-    def test_overrun_is_flagged_and_borrows_from_the_next_slot(self):
+    def test_long_segment_is_flagged_and_the_next_pays_it_back(self):
         segs = self.segs("@@ 3 | A\none two three four five\n@@ 10 | B\nsix\n")
-        pcm, rows, overruns = assemble(segs, self.fake_clip)
-        self.assertEqual(overruns, 1)
-        self.assertIn("overrun", rows[0][4])
-        # The whole workout still lands on plan: B gives up the two seconds A ran over.
-        self.assertAlmostEqual(secs(pcm), 13.0, places=3)
+        pcm, rows, _ = assemble(segs, self.fake_clip)
+        self.assertEqual(rows[0][4], "  <-- long")
+        # A runs two seconds late, so B keeps only what's left of its spare time.
+        self.assertAlmostEqual(secs(pcm), 5 + 1 + render.END_TAIL, places=3)
 
-    def test_small_overrun_within_tolerance_is_not_flagged(self):
+    def test_small_overrun_is_not_flagged(self):
         segs = self.segs("@@ 20 | A\n" + " ".join(["w"] * 21) + "\n")
-        _, rows, overruns = assemble(segs, self.fake_clip, tolerance=0.06)
-        self.assertEqual(overruns, 0)
+        _, rows, drift = assemble(segs, self.fake_clip)
+        self.assertEqual(rows[0][4], "")
+        self.assertAlmostEqual(drift, 0.05, places=3)
+
+    def test_layout_matches_assemble(self):
+        segs = self.segs("@@ 20 | A\none two\n\nthree\n@@ 4 | B\nfour five six\n\nseven\n@@ 30 | C\neight\n")
+        pcm, _, _ = assemble(segs, self.fake_clip)
+        predicted = tts_build.layout([(3 + PARAGRAPH_GAP, 1, 20), (4 + PARAGRAPH_GAP, 1, 4), (1, 0, 30)])
+        self.assertAlmostEqual(secs(pcm), sum(length for _, length in predicted), places=3)
 
     def test_chime_opens_every_segment_but_the_first(self):
         segs = self.segs("@@ 5 | A\none\n@@ 5 | B\ntwo\n")
@@ -186,10 +203,10 @@ class Assemble(unittest.TestCase):
         self.assertAlmostEqual(secs(lead), CHIME_SECONDS, places=3)
         pcm, rows, _ = assemble(segs, self.fake_clip, lead=lead)
         self.assertEqual(bytes(pcm[:4]), b"\x01\x00\x01\x00")          # A starts with the voice
-        b_start = 5 * SR * 2
+        b_start = int((1 + render.END_TAIL) * SR) * 2                    # A ends early, after its tail
         self.assertEqual(bytes(pcm[b_start:b_start + len(lead)]), lead)   # B starts with the bell
         self.assertAlmostEqual(rows[1][2], 1 + CHIME_SECONDS, places=3)
-        self.assertAlmostEqual(secs(pcm), 10.0, places=3)
+        self.assertAlmostEqual(secs(pcm), 2 * (1 + render.END_TAIL) + CHIME_SECONDS, places=3)
 
     def test_chime_is_soft(self):
         import struct
@@ -208,13 +225,13 @@ class Assemble(unittest.TestCase):
         at = 1 * SR * 2   # after one second of speech
         self.assertEqual(bytes(pcm[at:at + len(bell)]), bell)
         self.assertAlmostEqual(rows[0][2], 2 + CHIME_SECONDS, places=3)
-        self.assertAlmostEqual(secs(pcm), 10.0, places=3)
+        self.assertAlmostEqual(secs(pcm), 2 + CHIME_SECONDS + render.END_TAIL, places=3)
 
-    def test_end_tone_follows_the_plan(self):
+    def test_end_tone_follows_the_last_segment(self):
         segs = self.segs("@@ 5 | A\none\n")
         tail = end_tone()
         pcm, _, _ = assemble(segs, self.fake_clip, tail=tail)
-        self.assertAlmostEqual(secs(pcm), 5.0 + secs(tail), places=3)
+        self.assertAlmostEqual(secs(pcm), 1 + render.END_TAIL + secs(tail), places=3)
         self.assertEqual(bytes(pcm[-len(tail):]), tail)
         self.assertGreater(secs(tail), secs(chime()))   # longer and rising, so it can't pass for a bell
 
@@ -322,6 +339,23 @@ class LogFields(unittest.TestCase):
 
 
 class YouTube(unittest.TestCase):
+    def test_puzzles_line_and_fresh_filter(self):
+        with tempfile.TemporaryDirectory() as d:
+            prof = os.path.join(d, "profile.md")
+            with open(prof, "w") as f:
+                f.write("- YouTube favorites (x): A @chanA, B @chanB.\n"
+                        "- Puzzles (quiz): Presh's MindYourDecisions @MindYourDecisions.\n")
+            self.assertEqual(youtube.handles(profile=prof), ["chanA", "chanB"])
+            self.assertEqual(youtube.handles("Puzzles", profile=prof), ["MindYourDecisions"])
+            os.makedirs(os.path.join(d, "puzzles"))
+            open(os.path.join(d, "puzzles", "used1.md"), "w").close()
+            seen = youtube.used(os.path.join(d, "puzzles"))
+        entries = [{"id": "used1", "duration": 300}, {"id": "short", "duration": 40},
+                   {"id": "ok1", "duration": 240}, {"id": "long", "duration": 3600}, {"id": "ok2", "duration": 600}]
+        got = youtube.fresh(entries, seen, 60, youtube.PUZZLE_MAX_SECONDS, 5)
+        self.assertEqual([e["id"] for e in got], ["ok1", "ok2"])
+        self.assertEqual([e["id"] for e in youtube.fresh(entries, seen, 60, 1800, 1)], ["ok1"])
+
     def test_series_state(self):
         self.assertEqual(youtube.series_state("# T\n- Channel: x\n"), (1, 1))
         self.assertEqual(youtube.series_state("# T\n- Parts: 3\n"), (3, 0))

@@ -1,6 +1,6 @@
 # Workout audio studio
 
-I listen to narrated workouts through earbuds, with no screen and no timer. The audio is the workout: it tells me what to do, keeps me company, and moves me along on time. Every segment is padded to its planned seconds, and the lint predicts each segment's spoken length for the chosen voice, so a segment can't overrun or go quiet unnoticed. Within five percent of plan is fine; a natural, human voice matters more than exact timing.
+I listen to narrated workouts through earbuds, with no screen and no timer. The audio is the workout: it tells me what to do, keeps me company, and moves me along on time. The lint predicts each segment's spoken length for the chosen voice, and the render lays segments on the plan's clock: a segment with time to spare breathes a little between paragraphs, then ends early rather than going quiet. Only the total is held to plan, within three percent either way; a natural, human voice matters more than exact timing.
 
 Priorities, in order: safe for my body today, clean to the ear, worth listening to.
 
@@ -18,8 +18,8 @@ Priorities, in order: safe for my body today, clean to the ear, worth listening 
 - `tools/coverage.py`: reads `log.md` and lists the muscle groups the last session left out, the movements to avoid, the last format and each movement's last load, for the plan.
 - `tools/feeds.py`: fetches the profile's Feeds (team results and schedules, weather, local and science headlines, on this day) into `workouts/research/<date>-feeds.md`, which research reads before it searches.
 - `tests/`: fast checks for the lint, the timing layout, the log, the feed parsers and the YouTube series, with no models or network; run `python3 -m unittest discover tests` after changing a tool.
-- `tools/youtube.py`: lists recent unused videos from the profile's YouTube favorites and any series in progress, saves a video's transcript, and marks a series part as told, for the deep dive every other session.
-- `workouts/`: deliverables. `drafts/` holds `@@`-marked drafts (`smoke-test.draft.txt` is a twenty-second check for a new voice), `research/` holds filler fact sheets (`videos/` holds transcripts and video deep-dive sheets), and `.audio-cache/` holds rendered clips and each voice's measured pace (safe to delete; the next render measures again).
+- `tools/youtube.py`: lists recent unused videos from the profile's YouTube favorites and any series in progress, saves a video's transcript, and marks a series part as told, for the deep dive every other session; `puzzles` lists recent unused videos from the profile's Puzzles channel for the quiz (a puzzle's sheet goes in `workouts/research/puzzles/`).
+- `workouts/`: deliverables. `drafts/` holds `@@`-marked drafts (`smoke-test.draft.txt` is a twenty-second check for a new voice), `research/` holds filler fact sheets (`videos/` holds transcripts and video deep-dive sheets, `puzzles/` the quiz puzzles used), and `.audio-cache/` holds rendered clips and each voice's measured pace (safe to delete; the next render measures again).
 - `VERSION`, `CHANGELOG.md`: the release number and what changed in each release.
 
 ## Audio

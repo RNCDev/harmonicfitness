@@ -35,6 +35,15 @@ PARAGRAPH_GAP = 0.35                    # least silence between paragraphs withi
 MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
 CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segment after the first
 
+# Timing. A segment's spare time widens its paragraph breaks (up to MAX_EXTRA_GAP each)
+# and leaves a short tail; past that it ends early rather than going quiet, so the
+# workout runs a little under plan instead of padding with silence. Only the total is
+# held to plan, within TOTAL_TOLERANCE; a segment is flagged only when far off.
+END_TAIL = 1.5          # seconds of spare time kept at a segment's end, at most
+MAX_EXTRA_GAP = 1.5     # most spare time added to any one paragraph break
+TOTAL_TOLERANCE = 0.03  # the whole workout may run this fraction over or under plan
+MIN_FILL, MAX_FILL = 0.80, 1.10   # a segment outside these (speech over planned seconds) is flagged
+
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
 ALLOWED_NON_ASCII = set("’‘“”…—–é")  # curly quotes, ellipsis, dashes, common accent
@@ -126,6 +135,23 @@ def spoken_seconds(seg, voice, speed=None, lead=0.0):
         + PARAGRAPH_GAP * max(len(paras) - 1, 0)
 
 
+def layout(segments):
+    """Lay segments on the clock. `segments` is [(spoken seconds, paragraph breaks,
+    planned seconds)]; returns [(extra seconds per break, laid-out seconds)].
+
+    A segment that runs over makes the next ones late, and their spare time pays it
+    back; a segment with time to spare widens its breaks, keeps a short tail and ends
+    early. Shared by the lint's prediction and the render, so they agree."""
+    out, late = [], 0.0
+    for spoken, gaps, planned in segments:
+        slack = max(planned - late - spoken, 0.0)
+        extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
+        length = spoken + extra * gaps + min(END_TAIL, slack - extra * gaps)
+        late = max(late + length - planned, 0.0)
+        out.append((extra, length))
+    return out
+
+
 def lint_line(lineno, line):
     issues = []
     if MD_LINE_RE.match(line):
@@ -204,8 +230,10 @@ def main():
     ap.add_argument("--voice", help="VoiceStudio voice id or name: check predicted spoken seconds")
     ap.add_argument("--speed", type=float, default=None, help="the speed factor the render will use")
     ap.add_argument("--wpm", type=float, default=185, help="word guide without --voice, words per minute")
-    ap.add_argument("--min-fill", type=float, default=0.90, help="below this, the segment has dead air")
-    ap.add_argument("--max-fill", type=float, default=1.00, help="above this, the segment overruns")
+    ap.add_argument("--min-fill", type=float, default=MIN_FILL, help="below this, the segment is far too short")
+    ap.add_argument("--max-fill", type=float, default=MAX_FILL, help="above this, the segment is far too long")
+    ap.add_argument("--total-tolerance", type=float, default=TOTAL_TOLERANCE,
+                    help="the whole workout may run this fraction over or under plan")
     ap.add_argument("--tolerance", type=float, default=0.08, help="word-count tolerance without --voice")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--strict", action="store_true", help="structure warnings count as issues")
@@ -241,9 +269,9 @@ def main():
             seg_secs = spokens[i - 1]
             fill = seg_secs / seg["seconds"]
             if fill > args.max_fill:
-                flag = f"  <-- overruns by {seg_secs - seg['seconds']:.1f}s"
+                flag = f"  <-- runs {seg_secs - seg['seconds']:.1f}s long; trim it"
             elif fill < args.min_fill:
-                flag = f"  <-- {seg['seconds'] - seg_secs:.1f}s of dead air"
+                flag = f"  <-- ends {seg['seconds'] - seg_secs:.1f}s early; add a little"
             total_spoken += seg_secs
             print(f"{i:>3} {seg['seconds']:>5} {words:>5} {guide:>5} {seg_secs:>6.1f} {fill:>5.0%}  {seg['label']}{flag}")
             # OmniVoice splits a clip over thirty seconds into pieces and stitches
@@ -273,6 +301,15 @@ def main():
     if voice:
         summary += (f" | predicted speech {total_spoken / 60:.1f} min with {voice['name']} "
                     f"({voice_pace:.2f} chars/s{'' if exact else ', estimated until its first render'})")
+        laid = sum(length for _, length in layout(
+            [(spokens[i], max(len(plan(seg)) - 1, 0), seg["seconds"]) for i, seg in enumerate(segments)]))
+        drift = laid / total_seconds - 1 if total_seconds else 0.0
+        summary += (f"\nPredicted length {laid / 60:.1f} min, {drift:+.1%} of plan "
+                    f"(within {args.total_tolerance:.0%} is fine)")
+        if abs(drift) > args.total_tolerance:
+            summary += ("  <-- too " + ("long: trim words" if drift > 0 else "short: add words")
+                        + " in the segments furthest off")
+            problems += 1
         summary += (f"\n{voice['name']} speaks this draft at about {wpm:.0f} words a minute, pauses "
                     f"included; the guide column uses that rate")
     else:

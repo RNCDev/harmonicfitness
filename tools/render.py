@@ -6,8 +6,9 @@ voices/ is cloned from its reference clip with Chatterbox (Turbo by default for
 Coach E) or Qwen3-TTS through mlx-audio; a voice saved in the VoiceStudio app
 renders with OmniVoice. A soft chime opens each segment after the first, a [chime]
 marker rings it inside a segment, and a three-note tone marks the end of the
-workout. Each segment's spare seconds are spread over its paragraph breaks, a
-slightly long segment borrows from the next one's padding, and the result is
+workout. A segment's spare seconds widen its paragraph breaks and then it ends
+early, a slightly long segment is paid back from the next ones' spare time, the
+whole workout is held within three percent of plan, and the result is
 loudness-normalized for earbuds.
 
 No VoiceStudio app or server needed. Clips are cached, so rerunning after editing
@@ -33,13 +34,12 @@ import time
 import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tts_build import CHIME, CHIME_SECONDS, PARAGRAPH_GAP, parse, plan, spoken as is_spoken  # noqa: E402  (one source of truth for text)
+from tts_build import (CHIME, CHIME_SECONDS, END_TAIL, MAX_EXTRA_GAP, MAX_FILL, MIN_FILL,  # noqa: E402,F401
+                       PARAGRAPH_GAP, TOTAL_TOLERANCE, layout, parse, plan, spoken as is_spoken)  # noqa: E402  (one source of truth for text)
 from voices import MLX_EDGE, ROOT, lookup, record, record_rate, weight  # noqa: E402
 
 CACHE_DIR = os.path.join(ROOT, "workouts", ".audio-cache")
 SR = 24000
-END_TAIL = 1.5        # seconds of a segment's spare time kept before the next segment
-MAX_EXTRA_GAP = 1.5   # most spare time added to any one paragraph break
 CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
 CHIME_LEVEL = 0.12    # peak; at 0.2 the bell averaged as loud as the voice, so this sits about 4 dB under
 END_NOTES = (660, 880, 1320)   # Hz, rising, so the end can't be mistaken for a segment bell
@@ -84,15 +84,17 @@ def end_tone():
                                         for f in END_NOTES) + silence(0.5)
 
 
-def assemble(segments, clip, tolerance=0.05, lead=b"", bell=None, tail=b""):
-    """Lay the clips out on the plan's clock: one slot per segment.
+def assemble(segments, clip, lead=b"", bell=None, tail=b""):
+    """Lay the clips out on the plan's clock, as tts_build.layout predicts.
 
     clip(text) returns a clip's PCM. `lead` (the chime) opens every segment after
     the first, `bell` rings at each [chime] marker (default: the chime), and `tail`
-    (the end tone) follows the last segment, past the plan's clock.
-    Returns (pcm, rows, overruns), rows as (n, planned, spoken, label, flag)."""
+    (the end tone) follows the last segment, past the plan's clock. A segment with
+    time to spare widens its breaks and ends early instead of padding with silence.
+    Returns (pcm, rows, drift): rows as (n, planned, spoken, label, flag), drift as
+    the whole workout's fraction over (+) or under (-) plan, not counting the tail."""
     bell = chime() if bell is None else bell
-    pcm_all, overruns, rows, late = bytearray(), 0, [], 0.0
+    built = []
     for i, seg in enumerate(segments, 1):
         paras = []
         for para in plan(seg):
@@ -107,26 +109,25 @@ def assemble(segments, clip, tolerance=0.05, lead=b"", bell=None, tail=b""):
         head = lead if i > 1 else b""
         gaps = len(paras) - 1
         spoken = (len(head) + sum(len(p) for p in paras)) / 2 / SR + PARAGRAPH_GAP * gaps
-        # Spread the slot's spare seconds over the paragraph breaks, so the voice
-        # breathes between cue and story instead of rushing and then going quiet
-        # before the next segment. A short tail stays at the end.
-        slot = seg["seconds"] - late   # running late from earlier segments shortens this slot
-        slack = max(slot - spoken, 0.0)
-        extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
+        built.append((head, paras, spoken, gaps))
+
+    pcm_all, rows = bytearray(), []
+    timeline = layout([(spoken, gaps, seg["seconds"]) for seg, (_, _, spoken, gaps) in zip(segments, built)])
+    for i, (seg, (head, paras, spoken, gaps), (extra, length)) in enumerate(zip(segments, built, timeline), 1):
         seg_pcm = bytearray(head)
         for j, p in enumerate(paras):
             if j:
                 seg_pcm += silence(PARAGRAPH_GAP + extra)
             seg_pcm += p
-        flag = ""
-        if spoken > seg["seconds"] * (1 + tolerance):
-            flag, overruns = "  <-- overrun", overruns + 1
-        seg_pcm += silence(slot - len(seg_pcm) / 2 / SR)
-        late = max(late + len(seg_pcm) / 2 / SR - seg["seconds"], 0.0)
+        seg_pcm += silence(length - len(seg_pcm) / 2 / SR)
+        fill = spoken / seg["seconds"]
+        flag = "  <-- long" if fill > MAX_FILL else "  <-- short" if fill < MIN_FILL else ""
         rows.append((i, seg["seconds"], spoken, seg["label"], flag))
         pcm_all += seg_pcm
+    planned = sum(seg["seconds"] for seg in segments)
+    drift = len(pcm_all) / 2 / SR / planned - 1 if planned else 0.0
     pcm_all += tail
-    return pcm_all, rows, overruns
+    return pcm_all, rows, drift
 
 
 def encode(pcm, out, title):
@@ -248,8 +249,8 @@ def main():
     ap.add_argument("--model", default=None,
                     help="Qwen3 or Chatterbox model repo; default: the voice's, else the engine's standard one")
     ap.add_argument("--seed", type=int, default=None, help="default: the voice's pinned seed, else 42")
-    ap.add_argument("--tolerance", type=float, default=0.05,
-                    help="allowed overrun past a segment's planned seconds")
+    ap.add_argument("--tolerance", type=float, default=TOTAL_TOLERANCE,
+                    help="how far the whole workout may run over or under plan, as a fraction")
     ap.add_argument("--no-chime", action="store_true",
                     help="leave out the bell at each new segment and the end tone ([chime] markers still ring)")
     ap.add_argument("--clips-only", action="store_true",
@@ -328,9 +329,9 @@ def main():
         with open(cache_path(text), "rb") as f:
             return f.read()
 
-    pcm_all, rows, overruns = assemble(segments, clip, args.tolerance,
-                                       lead=b"" if args.no_chime else chime(), bell=chime(),
-                                       tail=b"" if args.no_chime else end_tone())
+    pcm_all, rows, drift = assemble(segments, clip,
+                                    lead=b"" if args.no_chime else chime(), bell=chime(),
+                                    tail=b"" if args.no_chime else end_tone())
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
     for i, planned, spoken, label, flag in rows:
@@ -341,10 +342,12 @@ def main():
     encode(pcm_all, out, os.path.splitext(os.path.basename(out))[0])
 
     total = len(pcm_all) / 2 / SR
-    print(f"\nWrote {out}: {total / 60:.1f} min audio, total time {(time.time() - started) / 60:.1f} min"
-          + (f", {overruns} segment(s) overran their slot" if overruns else ""))
-    if overruns:
-        print("Overruns push later segments late. Trim those segments' words and rerun; unchanged clips come from cache.")
+    print(f"\nWrote {out}: {total / 60:.1f} min audio, {drift:+.1%} of plan, "
+          f"total time {(time.time() - started) / 60:.1f} min")
+    if abs(drift) > args.tolerance:
+        print(f"The workout runs {'long' if drift > 0 else 'short'} by more than {args.tolerance:.0%}. "
+              f"{'Trim' if drift > 0 else 'Add'} words in the segments marked or furthest off and rerun; "
+              "unchanged clips come from cache.")
         sys.exit(2)
 
 

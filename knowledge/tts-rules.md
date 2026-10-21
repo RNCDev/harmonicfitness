@@ -47,7 +47,7 @@ Spell everything out: "for example" not "e.g.", "that is" not "i.e.", "versus" n
 - Short sentences land cues. "Hands on the bars. Chest tall. Easy spin." is better than one long sentence.
 - Box breathing: give each four-second phase a short cue and a pause. A one-word cue like "Hold." takes about a second, and a five-word cue about two, so: "Breathe in through your nose. [pause 2s] Hold. [pause 3s] Out through your mouth. [pause 2s] Hold. [pause 3s]" Pauses are exact; the cues run a little shorter with some voices. Vary the cue wording between rounds.
 
-The lint predicts each segment's spoken length for the chosen voice, pauses included, so timing doesn't need to be counted by hand. It's an estimate from the voice's measured rate, usually within a few percent; the render pads short segments and lets a slightly long one borrow from the next.
+The lint predicts each segment's spoken length for the chosen voice, pauses included, so timing doesn't need to be counted by hand. It's an estimate from the voice's measured rate, usually within a few percent; a segment with time to spare ends a little early instead of going quiet, one that runs a little long is paid back from the next ones' spare time, and only the whole workout is held to plan, within three percent.
 
 ## Orientation without timestamps
 

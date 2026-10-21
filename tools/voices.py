@@ -23,7 +23,7 @@ silence it leaves.
 Qwen3-TTS and Chatterbox decide their length as they speak, so for them the
 prediction is the voice's measured rate (weighted characters per second, recorded
 by each render) applied to the text. It is an estimate, typically within a few
-percent over a whole segment; render.py absorbs the difference in the padding.
+percent over a whole segment; render.py absorbs the difference in the next segments' spare time.
 Until a voice's first render, its rate is seeded from the other voices' measured
 rates: a reference clip's own rate came out about 30 percent slow for Coach E.
 The character weights are vendored in char_weight.py, so this path needs no
