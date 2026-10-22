@@ -51,5 +51,22 @@ class CatalogFormat(unittest.TestCase):
         self.assertIsNone(catalog.resolve(cat, "mystery move"))
 
 
+class RealCatalog(unittest.TestCase):
+    def test_real_catalog_has_no_problems(self):
+        self.assertEqual(catalog.problems(catalog.load()), [])
+
+    def test_every_kind_of_strength_work_is_there(self):
+        cat = catalog.load()
+        for g in cat.groups:
+            self.assertTrue(any(g in m.groups for m in cat.movements.values()), g)
+
+    def test_names_the_skill_and_tests_rely_on(self):
+        cat = catalog.load()
+        for said in ("seated bent-over rowing", "lying leg curl", "dead bug", "side plank from the knee",
+                     "single-leg glute bridge", "clamshell", "straight-leg raise", "incline push-up",
+                     "goblet squat", "farmer carry", "suitcase carry", "pallof press", "hammer curl"):
+            self.assertIsNotNone(catalog.resolve(cat, said), said)
+
+
 if __name__ == "__main__":
     unittest.main()

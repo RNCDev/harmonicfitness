@@ -1,0 +1,1685 @@
+# The movement catalog: every movement a session can use, in one vocabulary.
+#
+# The fixed lists come first (groups, kinds, equipment, tags, kit presets), then each [[movement]].
+# Tools read this file through tools/catalog.py; `./sweatcast test` checks it. Tags say what a
+# movement loads, and the injury rules ban movements by them, so when in doubt, tag more.
+# `setup` and `cues` are spoken: words only, no digits, symbols or brackets (knowledge/tts-rules.md).
+format = 1   # the catalog's own format; the context schema is separate
+
+groups = ["horizontal push", "horizontal pull", "hip hinge or glutes", "hamstrings", "quads",
+          "hip abductors and adductors", "anti-extension core", "lateral or anti-rotation core", "arms"]
+
+kinds = ["strength", "cardio", "mobility", "breathing", "skill", "rehab", "finisher"]
+
+[equipment]   # floor and wall are always available, so they aren't listed
+dumbbells = { aliases = ["dumbbell", "dumbbells", "adjustable dumbbells", "free weights"], about = "fixed or adjustable dumbbells" }
+kettlebell = { aliases = ["kettlebell", "kettlebells", "kettle bell"], about = "one or more kettlebells" }
+bench = { aliases = ["bench", "weight bench", "flat bench", "adjustable bench", "incline bench"], about = "a flat or adjustable bench" }
+band = { aliases = ["band", "bands", "resistance band", "resistance bands", "loop band", "mini band", "tube band"], about = "resistance bands, long or loop" }
+mat = { aliases = ["mat", "yoga mat", "exercise mat", "floor mat"], about = "an exercise mat" }
+chair = { aliases = ["chair", "sturdy chair", "dining chair"], about = "a sturdy chair without wheels" }
+towel = { aliases = ["towel", "bath towel", "hand towel"], about = "a towel, for rows around a door handle or slides on a hard floor" }
+foam-roller = { aliases = ["foam roller", "roller"], about = "a foam roller" }
+strap = { aliases = ["strap", "yoga strap", "stretching strap", "stretch strap"], about = "a stretching strap" }
+bike = { aliases = ["bike", "exercise bike", "stationary bike", "spin bike", "indoor bike", "upright bike", "recumbent bike"], about = "a stationary bike, upright or recumbent" }
+rower = { aliases = ["rower", "rowing machine", "rowing erg"], about = "a rowing machine" }
+cable = { aliases = ["cable", "cables", "cable machine", "cable station", "pulley"], about = "a cable station with adjustable pulleys" }
+machines = { aliases = ["machine", "machines", "weight machines", "selectorized machines", "plate-loaded machines"], about = "weight machines: leg press, leg extension and curl, chest press, pulldown and the like" }
+barbell = { aliases = ["barbell", "barbells", "olympic bar", "weight plates"], about = "a barbell with plates" }
+rack = { aliases = ["rack", "squat rack", "power rack", "squat stands"], about = "a squat rack or stands for the barbell" }
+ski-erg = { aliases = ["ski erg", "ski machine", "ski ergometer"], about = "a ski ergometer" }
+air-bike = { aliases = ["air bike", "fan bike"], about = "a fan-resistance bike that works the arms and legs" }
+sled = { aliases = ["sled", "push sled", "drag sled"], about = "a push or drag sled" }
+treadmill = { aliases = ["treadmill", "running machine"], about = "a treadmill" }
+elliptical = { aliases = ["elliptical", "elliptical trainer", "cross trainer"], about = "an elliptical trainer" }
+stair-climber = { aliases = ["stair climber", "stair machine", "stair stepper"], about = "a stair climber" }
+stick-and-ball = { aliases = ["stick and ball", "dryland ball", "stickhandling ball"], about = "a stick and a dryland ball for stickhandling drills" }
+
+[tags]   # what a movement loads; the injury rules ban these
+impact = "jumping, hopping, landing or running"
+standing = "weight on both feet"
+single-leg-stance = "weight on one foot"
+ankle-push = "pushing hard through the ball of the foot: calf raises, step-ups, standing pedal efforts, sled, leg press"
+ankle-bend = "deep ankle bend under body weight: squats, lunges, split squats"
+lateral = "side-to-side, shuffling or pivoting footwork"
+knee-deep-bend = "knee bent past about ninety degrees under load"
+knee-load = "loaded knee straightening or holding: leg extension, wall sit"
+kneeling = "weight on a knee"
+floor-transition = "getting down to the floor and back up"
+spine-flexion = "curling the spine against resistance: crunches, sit-ups, reverse crunches, hollow holds"
+spine-load = "hinging or bent-over loading of the low back"
+spine-twist = "turning the trunk under load"
+overhead = "arms overhead under load"
+shoulder-end-range = "dips, wide-grip pressing, behind-the-neck work, loaded end-range stretch"
+hanging = "hanging from the hands"
+wrist-load = "weight on the hands with the wrist bent back: push-ups, planks on hands, all fours, front rack"
+grip = "heavy or long gripping"
+neck-load = "load on, or fast movement of, the neck"
+hip-deep-bend = "hip bent sharply under load"
+hip-wide = "wide stance or deep side-to-side hip motion"
+kick = "kicking or fast leg swings"
+lying-side = "lying on one side"
+
+[presets.bodyweight]
+equipment = []
+
+[presets.hotel-room]
+equipment = ["chair", "towel"]
+
+[presets.hotel-gym]
+equipment = ["dumbbells", "bench", "treadmill", "elliptical", "bike", "mat"]
+
+[presets.full-gym]   # everything but the stick and ball
+equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "chair", "towel", "foam-roller", "strap",
+             "bike", "rower", "cable", "machines", "barbell", "rack", "ski-erg", "air-bike", "sled",
+             "treadmill", "elliptical", "stair-climber"]
+
+# Strength: legs, bodyweight and light load ------------------------------------------------
+
+[[movement]]
+id = "air-squat"
+name = "air squat"
+aliases = ["bodyweight squat", "squat"]
+kind = "strength"
+needs = []
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "knee-deep-bend", "ankle-bend", "hip-deep-bend"]
+setup = "Stand with your feet a little wider than your hips, toes turned out slightly."
+cues = ["Sit back and down between your heels.", "Knees track over your toes.", "Drive the floor away to stand."]
+easier = ["box-squat"]
+harder = ["goblet-squat"]
+
+[[movement]]
+id = "box-squat"
+name = "box squat"
+aliases = ["chair squat", "bench squat", "squat to a box", "sit to stand"]
+kind = "strength"
+needs = ["bench|chair"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "knee-deep-bend", "ankle-bend", "hip-deep-bend"]
+setup = "Stand in front of a bench or a sturdy chair, feet about hip width apart."
+cues = ["Hips back, then sit down softly.", "Tap the seat, don't flop.", "Stand up tall and squeeze."]
+easier = []
+harder = ["air-squat"]
+
+[[movement]]
+id = "goblet-squat"
+name = "goblet squat"
+aliases = ["dumbbell goblet squat", "kettlebell goblet squat"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "knee-deep-bend", "ankle-bend", "hip-deep-bend"]
+setup = "Hold one weight upright at your chest, feet a little wider than your hips."
+cues = ["Sit between your heels.", "Elbows inside the knees.", "Chest tall."]
+easier = ["air-squat", "box-squat"]
+harder = []
+
+[[movement]]
+id = "reverse-lunge"
+name = "reverse lunge"
+aliases = ["reverse lunges", "back lunge", "step-back lunge"]
+kind = "strength"
+needs = []
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "single-leg-stance", "knee-deep-bend", "ankle-bend", "ankle-push", "hip-deep-bend"]
+setup = "Stand tall, feet under your hips, hands on your hips or holding light weights at your sides."
+cues = ["Step back and lower the back knee toward the floor.", "Front heel stays down.", "Push through the front foot to come back up."]
+easier = ["split-squat"]
+harder = []
+
+[[movement]]
+id = "split-squat"
+name = "split squat"
+aliases = ["static lunge", "dumbbell split squat"]
+kind = "strength"
+needs = []
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "single-leg-stance", "knee-deep-bend", "ankle-bend", "ankle-push", "hip-deep-bend"]
+setup = "Take a long stride, back heel lifted, with light weights at your sides if you have them."
+cues = ["Drop straight down, like an elevator.", "Front knee over the middle of the foot.", "Stay tall through the chest."]
+easier = []
+harder = ["reverse-lunge", "bulgarian-split-squat"]
+
+[[movement]]
+id = "bulgarian-split-squat"
+name = "bulgarian split squat"
+aliases = ["rear-foot elevated split squat", "bulgarian squat"]
+kind = "strength"
+needs = ["bench|chair"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "single-leg-stance", "knee-deep-bend", "ankle-bend", "hip-deep-bend"]
+setup = "Stand a long stride in front of a bench or chair and rest the top of your back foot on it."
+cues = ["Lower straight down on the front leg.", "Most of your weight in the front heel.", "Slow down, strong up."]
+easier = ["split-squat"]
+harder = []
+
+[[movement]]
+id = "step-up"
+name = "step-up"
+aliases = ["step up", "step-ups", "bench step-up", "box step-up", "dumbbell step-up"]
+kind = "strength"
+needs = ["bench|chair"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "single-leg-stance", "knee-deep-bend", "ankle-push", "hip-deep-bend"]
+setup = "Face a sturdy bench or chair and plant one whole foot on top of it."
+cues = ["Drive through the top heel, not the bottom toes.", "Stand all the way up.", "Lower yourself slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "wall-sit"
+name = "wall sit"
+aliases = ["wall squat"]
+kind = "strength"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = ["quads"]
+tags = ["standing", "knee-load"]
+setup = "Lean your back flat against a wall and walk your feet out, then slide down until your thighs are near level."
+cues = ["Knees over your ankles.", "Back flat on the wall.", "Breathe steadily."]
+easier = []
+harder = []
+
+[[movement]]
+id = "straight-leg-raise"
+name = "straight-leg raise"
+aliases = ["straight leg raise", "lying straight-leg raise", "leg raise"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = true
+measure = "reps"
+groups = ["quads"]
+tags = ["floor-transition"]
+setup = "Lie on your back, one knee bent with that foot flat, the other leg long."
+cues = ["Tighten the front of the long thigh first.", "Lift it to the height of the bent knee.", "Lower slowly, no bounce."]
+easier = []
+harder = []
+
+[[movement]]
+id = "glute-bridge"
+name = "glute bridge"
+aliases = ["bridge", "hip bridge", "bodyweight glute bridge"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["floor-transition"]
+setup = "Lie on your back, knees bent, feet flat and hip width apart."
+cues = ["Ribs down, then lift the hips.", "Squeeze the glutes at the top and hold one beat.", "Lower one notch at a time."]
+easier = []
+harder = ["single-leg-glute-bridge", "dumbbell-glute-bridge", "hip-thrust"]
+
+[[movement]]
+id = "single-leg-glute-bridge"
+name = "single-leg glute bridge"
+aliases = ["single leg glute bridge", "single-leg bridge", "one-leg glute bridge"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = true
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["floor-transition"]
+setup = "Lie on your back, one foot flat, the other knee hugged in or that leg held straight up."
+cues = ["Push through the planted heel.", "Hips stay level, like a tray of water.", "Pause at the top."]
+easier = ["glute-bridge"]
+harder = []
+
+[[movement]]
+id = "dumbbell-glute-bridge"
+name = "dumbbell glute bridge"
+aliases = ["weighted glute bridge", "loaded glute bridge"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["floor-transition"]
+setup = "Lie on your back, knees bent, and rest one weight across your hip bones, holding it in place."
+cues = ["Drive through your heels.", "Squeeze hard at the top.", "Keep your ribs down."]
+easier = ["glute-bridge"]
+harder = ["hip-thrust"]
+
+[[movement]]
+id = "pillow-squeeze-bridge"
+name = "pillow-squeeze bridge"
+aliases = ["pillow squeeze bridge", "bridge with a squeeze", "adductor squeeze bridge"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings", "hip abductors and adductors"]
+tags = ["floor-transition"]
+setup = "Lie on your back, knees bent, with a pillow or a folded towel between your knees."
+cues = ["Squeeze the pillow first.", "Keep squeezing as you lift your hips.", "Lower slowly, still squeezing."]
+easier = ["glute-bridge"]
+harder = []
+
+[[movement]]
+id = "hip-thrust"
+name = "hip thrust"
+aliases = ["bench hip thrust", "dumbbell hip thrust", "bodyweight hip thrust"]
+kind = "strength"
+needs = ["bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes"]
+tags = ["floor-transition"]
+setup = "Sit on the floor with your upper back against the long side of a bench, knees bent, a weight across your hips if you have one."
+cues = ["Chin tucked, eyes forward.", "Drive the hips up until your body is a flat table.", "Squeeze, then lower with control."]
+easier = ["glute-bridge"]
+harder = ["barbell-hip-thrust"]
+
+[[movement]]
+id = "donkey-kick"
+name = "donkey kick"
+aliases = ["donkey kicks", "quadruped hip extension"]
+kind = "strength"
+needs = []
+position = "all-fours"
+sided = true
+measure = "reps"
+groups = ["hip hinge or glutes"]
+tags = ["floor-transition", "kneeling", "wrist-load", "kick"]
+setup = "Come onto your hands and knees, hands under shoulders, knees under hips."
+cues = ["Keep the knee bent and press the heel toward the ceiling.", "Don't let the low back sag.", "Slow and controlled, no swinging."]
+easier = []
+harder = []
+
+[[movement]]
+id = "face-down-hip-extension"
+name = "face-down hip extension"
+aliases = ["prone hip extension", "bench prone hip extension", "reverse hyper on the bench"]
+kind = "strength"
+needs = ["bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = []
+setup = "Lie face down along the bench with your hips at the end and your feet resting on the floor, hands holding the bench."
+cues = ["Squeeze the glutes and lift both legs to level.", "Stop at level, don't arch.", "Lower with control."]
+easier = []
+harder = []
+
+[[movement]]
+id = "lying-dumbbell-hamstring-curl"
+name = "lying dumbbell hamstring curl"
+aliases = ["lying hamstring curl", "dumbbell hamstring curl", "dumbbell leg curl"]
+kind = "strength"
+needs = ["dumbbells", "bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hamstrings"]
+tags = []
+setup = "Lie face down on the bench, knees just past the end, with a light dumbbell held between your feet."
+cues = ["Curl your heels toward your glutes.", "Hips stay pressed into the bench.", "Lower slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "towel-hamstring-curl"
+name = "towel hamstring curl"
+aliases = ["towel slide hamstring curl", "slider hamstring curl", "sliding leg curl"]
+kind = "strength"
+needs = ["towel"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hamstrings", "hip hinge or glutes"]
+tags = ["floor-transition"]
+setup = "Lie on your back on a hard floor, heels on a folded towel, knees bent, then lift your hips."
+cues = ["Slide the heels out slowly.", "Keep the hips up.", "Pull the heels back in."]
+easier = ["glute-bridge"]
+harder = []
+
+[[movement]]
+id = "seated-calf-raise"
+name = "seated calf raise"
+aliases = ["seated dumbbell calf raise", "seated calf raise machine"]
+kind = "strength"
+needs = ["dumbbells", "bench|chair"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = []
+tags = ["ankle-push"]
+setup = "Sit tall with your feet flat and a dumbbell resting on each knee."
+cues = ["Press up onto the balls of your feet.", "Pause at the top.", "Lower the heels all the way."]
+easier = []
+harder = []
+
+# Strength: hips and hinges with load ------------------------------------------------------
+
+[[movement]]
+id = "romanian-deadlift"
+name = "romanian deadlift"
+aliases = ["rdl", "dumbbell romanian deadlift", "barbell romanian deadlift", "kettlebell romanian deadlift", "dumbbell rdl", "stiff-leg deadlift"]
+kind = "strength"
+needs = ["dumbbells|kettlebell|barbell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["standing", "spine-load", "hip-deep-bend", "grip"]
+setup = "Stand tall with the weight in front of your thighs, feet hip width apart, a soft bend in your knees."
+cues = ["Hinge from the hips like you're closing a car door with your backside.", "Weight slides down close to your legs.", "Stand up by squeezing the glutes."]
+easier = ["kettlebell-deadlift"]
+harder = []
+
+[[movement]]
+id = "kettlebell-deadlift"
+name = "kettlebell deadlift"
+aliases = ["dumbbell deadlift"]
+kind = "strength"
+needs = ["kettlebell|dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["standing", "spine-load", "hip-deep-bend", "grip"]
+setup = "Stand over the weight, feet hip width apart, the handle between your ankles."
+cues = ["Push your hips back and grab the handle.", "Flat back, chest proud.", "Push the floor away to stand."]
+easier = []
+harder = ["romanian-deadlift", "kettlebell-swing"]
+
+[[movement]]
+id = "kettlebell-swing"
+name = "kettlebell swing"
+aliases = ["swing", "russian swing", "two-hand kettlebell swing"]
+kind = "strength"
+needs = ["kettlebell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["standing", "spine-load", "hip-deep-bend", "grip"]
+setup = "Stand with your feet a little wider than your hips, the kettlebell on the floor a step in front of you."
+cues = ["Hike it back between your thighs.", "Snap the hips forward, the arms just float.", "Stand tall and squeeze at the top."]
+easier = ["kettlebell-deadlift"]
+harder = []
+
+# Strength: upper body push ----------------------------------------------------------------
+
+[[movement]]
+id = "push-up"
+name = "push-up"
+aliases = ["pushup", "push up", "press-up", "floor push-up"]
+kind = "strength"
+needs = []
+position = "all-fours"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = ["floor-transition", "wrist-load"]
+setup = "Hands under your shoulders, body in one long line from head to heels, or from head to knees."
+cues = ["Push the floor away.", "Ribs down, glutes tight.", "Elbows at a gentle angle, not flared."]
+easier = ["incline-push-up"]
+harder = []
+
+[[movement]]
+id = "incline-push-up"
+name = "incline push-up"
+aliases = ["incline pushup", "incline push up", "bench push-up", "chair push-up", "wall push-up"]
+kind = "strength"
+needs = []
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = ["standing", "wrist-load"]
+setup = "Put your hands on a bench, a sturdy chair or a wall, and walk your feet back until your body makes one long line."
+cues = ["Lower your chest to the edge.", "Push the surface away.", "Body moves in one piece."]
+easier = []
+harder = ["push-up"]
+
+[[movement]]
+id = "pike-push-up"
+name = "pike push-up"
+aliases = ["pike pushup", "pike press"]
+kind = "strength"
+needs = []
+position = "all-fours"
+sided = false
+measure = "reps"
+groups = []
+tags = ["floor-transition", "wrist-load", "overhead"]
+setup = "Start in a push-up, then walk your feet in and lift your hips high, like an upside-down letter V."
+cues = ["Lower the top of your head toward the floor between your hands.", "Elbows point back, not out.", "Press back up to the V."]
+easier = []
+harder = []
+
+[[movement]]
+id = "bench-dip"
+name = "bench dip"
+aliases = ["chair dip", "tricep dip", "triceps dip", "bench dips"]
+kind = "strength"
+needs = ["bench|chair"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["horizontal push", "arms"]
+tags = ["wrist-load", "shoulder-end-range"]
+setup = "Sit on the edge of a bench or a sturdy chair, hands beside your hips, then slide your hips off the front."
+cues = ["Bend the elbows straight back.", "Stop when the upper arms are level, no deeper.", "Shoulders down away from the ears."]
+easier = []
+harder = []
+
+[[movement]]
+id = "floor-press"
+name = "floor press"
+aliases = ["dumbbell floor press", "kettlebell floor press", "neutral-grip floor press"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = ["floor-transition"]
+setup = "Lie on your back, knees bent, a weight in each hand with your upper arms resting on the floor."
+cues = ["Press straight up over your chest.", "Lower until the elbows kiss the floor.", "Palms can face each other to spare the shoulders."]
+easier = []
+harder = ["dumbbell-bench-press"]
+
+[[movement]]
+id = "dumbbell-bench-press"
+name = "dumbbell bench press"
+aliases = ["dumbbell chest press", "flat dumbbell press"]
+kind = "strength"
+needs = ["dumbbells", "bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = []
+setup = "Lie on the bench with your feet flat on the floor, a dumbbell in each hand beside your chest."
+cues = ["Shoulder blades pinned back and down.", "Press up and slightly in.", "Lower slowly to chest height."]
+easier = ["floor-press"]
+harder = []
+
+[[movement]]
+id = "incline-dumbbell-press"
+name = "incline dumbbell press"
+aliases = ["incline dumbbell bench press"]
+kind = "strength"
+needs = ["dumbbells", "bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = []
+setup = "Set the bench to a low incline and lie back, a dumbbell in each hand at the top of your chest."
+cues = ["Press up over your upper chest.", "Elbows a little in from your sides.", "Lower with control."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-shoulder-press"
+name = "seated shoulder press"
+aliases = ["seated dumbbell press", "seated overhead press", "seated dumbbell shoulder press", "seated press"]
+kind = "strength"
+needs = ["dumbbells|kettlebell", "bench|chair"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = []
+tags = ["overhead"]
+setup = "Sit tall with your back supported, a weight in each hand at shoulder height."
+cues = ["Press up and slightly in.", "Ribs stay down, no arching.", "Lower to your shoulders slowly."]
+easier = []
+harder = ["overhead-press"]
+
+[[movement]]
+id = "overhead-press"
+name = "overhead press"
+aliases = ["standing overhead press", "dumbbell overhead press", "shoulder press", "standing shoulder press"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = []
+tags = ["standing", "overhead"]
+setup = "Stand tall, feet hip width apart, a weight in each hand at shoulder height."
+cues = ["Squeeze the glutes and brace.", "Press up until your arms frame your ears.", "Don't lean back."]
+easier = ["seated-shoulder-press"]
+harder = []
+
+[[movement]]
+id = "half-kneeling-kettlebell-press"
+name = "half-kneeling kettlebell press"
+aliases = ["half-kneeling press", "kneeling kettlebell press", "half-kneeling shoulder press"]
+kind = "strength"
+needs = ["kettlebell|dumbbells"]
+position = "kneeling"
+sided = true
+measure = "reps"
+groups = ["lateral or anti-rotation core"]
+tags = ["kneeling", "overhead"]
+setup = "Kneel on one knee, the other foot flat in front, the weight at your shoulder on the side of the down knee."
+cues = ["Squeeze the glute of the down leg.", "Press straight up, no leaning.", "Lower it back to the shoulder."]
+easier = ["seated-shoulder-press"]
+harder = []
+
+[[movement]]
+id = "lateral-raise"
+name = "lateral raise"
+aliases = ["side raise", "dumbbell lateral raise", "standing lateral raise"]
+kind = "strength"
+needs = ["dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = []
+tags = ["standing"]
+setup = "Stand tall with a light dumbbell in each hand at your sides."
+cues = ["Lift out to the sides, leading with the elbows.", "Stop at shoulder height.", "Lower slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-lateral-raise"
+name = "seated lateral raise"
+aliases = ["seated side raise", "seated dumbbell lateral raise"]
+kind = "strength"
+needs = ["dumbbells", "bench|chair"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = []
+tags = []
+setup = "Sit tall on a bench or chair with a light dumbbell in each hand at your sides."
+cues = ["Lift out to the sides to shoulder height.", "Soft bend in the elbows.", "Take three counts to lower."]
+easier = []
+harder = []
+
+[[movement]]
+id = "dumbbell-pullover"
+name = "dumbbell pullover"
+aliases = ["pullover", "lying pullover"]
+kind = "strength"
+needs = ["dumbbells", "bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = []
+tags = ["overhead", "shoulder-end-range"]
+setup = "Lie on the bench holding one dumbbell with both hands above your chest."
+cues = ["Lower it back behind your head in an arc.", "Stop before your shoulders complain.", "Pull it back over your chest."]
+easier = []
+harder = []
+
+# Strength: upper body pull ----------------------------------------------------------------
+
+[[movement]]
+id = "single-arm-row"
+name = "single-arm row"
+aliases = ["single-arm dumbbell row", "one-arm row", "dumbbell row", "kettlebell row", "single-arm kettlebell row"]
+kind = "strength"
+needs = ["dumbbells|kettlebell", "bench|chair"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["standing", "wrist-load"]
+setup = "Stand beside a bench with one hand on it, feet staggered, back flat, the weight hanging in the other hand."
+cues = ["Elbow drives toward the back pocket.", "Don't twist open.", "Lower to a full stretch."]
+easier = []
+harder = []
+
+[[movement]]
+id = "bent-over-row"
+name = "bent-over row"
+aliases = ["bent over row", "dumbbell bent-over row", "two-arm dumbbell row"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["standing", "spine-load"]
+setup = "Hinge forward with a flat back, knees soft, a weight in each hand hanging below your shoulders."
+cues = ["Pull the elbows back past your ribs.", "Squeeze the shoulder blades together.", "Keep the back flat the whole time."]
+easier = ["chest-supported-row"]
+harder = ["barbell-row"]
+
+[[movement]]
+id = "seated-bent-over-row"
+name = "seated bent-over row"
+aliases = ["seated bent-over rowing", "seated bent over row", "seated dumbbell row"]
+kind = "strength"
+needs = ["dumbbells", "bench|chair"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["spine-load"]
+setup = "Sit on the end of a bench or chair, lean forward with your chest toward your thighs, a dumbbell in each hand by your ankles."
+cues = ["Row the elbows up and back.", "Squeeze and hold one beat.", "Lower slowly."]
+easier = ["chest-supported-row"]
+harder = []
+
+[[movement]]
+id = "chest-supported-row"
+name = "chest-supported row"
+aliases = ["chest supported row", "incline bench row", "chest-supported dumbbell row"]
+kind = "strength"
+needs = ["dumbbells", "bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = []
+setup = "Set the bench to an incline and lie face down on it, a dumbbell in each hand hanging straight down."
+cues = ["Chest stays on the pad.", "Row the elbows back to your lower ribs.", "Lower all the way."]
+easier = []
+harder = ["bent-over-row"]
+
+[[movement]]
+id = "renegade-row"
+name = "renegade row"
+aliases = ["plank row"]
+kind = "strength"
+needs = ["dumbbells"]
+position = "all-fours"
+sided = false
+measure = "reps"
+groups = ["horizontal pull", "anti-extension core", "lateral or anti-rotation core"]
+tags = ["floor-transition", "wrist-load"]
+setup = "Hold a high plank with your hands on two dumbbells, feet wide for balance."
+cues = ["Row one weight to your ribs without letting the hips turn.", "Set it down softly, then the other side.", "Glutes tight."]
+easier = []
+harder = []
+
+[[movement]]
+id = "towel-door-row"
+name = "towel door row"
+aliases = ["towel row", "door row"]
+kind = "strength"
+needs = ["towel"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["standing", "grip"]
+setup = "Loop a towel around the handle of a solid door that closes toward you, hold both ends, and lean back with your arms long."
+cues = ["Only on a solid door closed toward you.", "Pull your chest to your hands.", "Body stays in one straight line."]
+easier = []
+harder = []
+
+[[movement]]
+id = "prone-y-t-w-raise"
+name = "prone y t w raise"
+aliases = ["prone ytw", "y t w raises", "prone y t w", "y t w"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["floor-transition"]
+setup = "Lie face down, forehead resting on a folded towel or your hands, arms long."
+cues = ["Lift the arms in a Y, then a T, then a W.", "Thumbs up, shoulders away from your ears.", "Small and slow, no weight needed."]
+easier = []
+harder = []
+
+# Strength: arms ----------------------------------------------------------------------------
+
+[[movement]]
+id = "hammer-curl"
+name = "hammer curl"
+aliases = ["hammer curls", "dumbbell hammer curl"]
+kind = "strength"
+needs = ["dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["arms"]
+tags = ["standing"]
+setup = "Stand tall with a dumbbell in each hand, palms facing each other."
+cues = ["Elbows pinned to your sides.", "Curl up without swinging.", "Lower all the way down."]
+easier = []
+harder = []
+
+[[movement]]
+id = "biceps-curl"
+name = "biceps curl"
+aliases = ["bicep curl", "dumbbell curl", "standing curl", "curl"]
+kind = "strength"
+needs = ["dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["arms"]
+tags = ["standing"]
+setup = "Stand tall with a dumbbell in each hand, palms facing forward."
+cues = ["Elbows stay by your ribs.", "Squeeze at the top.", "Take three counts to lower."]
+easier = ["seated-dumbbell-curl"]
+harder = []
+
+[[movement]]
+id = "seated-dumbbell-curl"
+name = "seated dumbbell curl"
+aliases = ["seated curl", "seated curls", "seated biceps curl", "seated bicep curl", "seated hammer curl"]
+kind = "strength"
+needs = ["dumbbells", "bench|chair"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["arms"]
+tags = []
+setup = "Sit tall on a bench or chair, a dumbbell in each hand, arms long by your sides."
+cues = ["Curl without leaning back.", "Pause at the top.", "Lower slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-triceps-kickback"
+name = "seated triceps kickback"
+aliases = ["seated kickback", "triceps kickback", "tricep kickback", "kickback", "dumbbell kickback"]
+kind = "strength"
+needs = ["dumbbells", "bench|chair"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["arms"]
+tags = ["spine-load"]
+setup = "Sit near the end of a bench or chair and lean forward, a light dumbbell in each hand, elbows bent at your sides."
+cues = ["Upper arms stay still.", "Straighten the elbows back behind you.", "Squeeze, then bend slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "overhead-triceps-extension"
+name = "overhead triceps extension"
+aliases = ["overhead tricep extension", "dumbbell overhead extension", "overhead extension"]
+kind = "strength"
+needs = ["dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["arms"]
+tags = ["standing", "overhead"]
+setup = "Stand or sit tall, holding one dumbbell with both hands straight above your head."
+cues = ["Lower it behind your head by bending only the elbows.", "Elbows point forward.", "Ribs stay down."]
+easier = []
+harder = []
+
+# Strength: core --------------------------------------------------------------------------
+
+[[movement]]
+id = "dead-bug"
+name = "dead bug"
+aliases = ["deadbug", "dead bugs"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["anti-extension core"]
+tags = ["floor-transition"]
+setup = "Lie on your back, arms straight up, knees bent over your hips."
+cues = ["Ribs down, low back gently pressed into the floor.", "Reach one arm and the opposite leg away, slowly.", "Breathe out as you reach."]
+easier = []
+harder = ["hollow-hold"]
+
+[[movement]]
+id = "bench-dead-bug"
+name = "bench dead bug"
+aliases = ["dead bug on the bench"]
+kind = "strength"
+needs = ["bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["anti-extension core"]
+tags = []
+setup = "Lie on your back along the bench, arms straight up, knees bent over your hips."
+cues = ["Low back stays heavy on the bench.", "Reach opposite arm and leg away.", "Return and switch, slow and smooth."]
+easier = []
+harder = []
+
+[[movement]]
+id = "bird-dog"
+name = "bird dog"
+aliases = ["birddog", "bird dogs"]
+kind = "strength"
+needs = []
+position = "all-fours"
+sided = false
+measure = "reps"
+groups = ["anti-extension core"]
+tags = ["floor-transition", "kneeling", "wrist-load"]
+setup = "Come onto your hands and knees, hands under shoulders, knees under hips."
+cues = ["Reach one arm forward and the opposite leg back.", "Back stays flat, like a tabletop.", "Pause, then switch sides."]
+easier = []
+harder = []
+
+[[movement]]
+id = "forearm-plank"
+name = "forearm plank"
+aliases = ["plank", "front plank", "elbow plank"]
+kind = "strength"
+needs = []
+position = "all-fours"
+sided = false
+measure = "time"
+groups = ["anti-extension core"]
+tags = ["floor-transition"]
+setup = "Forearms on the floor, elbows under your shoulders, legs long behind you, or knees down for an easier version."
+cues = ["Squeeze the glutes.", "Ribs down, long line from head to heels.", "Breathe steadily."]
+easier = []
+harder = []
+
+[[movement]]
+id = "side-plank-from-the-knee"
+name = "side plank from the knee"
+aliases = ["side plank from knee", "kneeling side plank", "knee side plank", "modified side plank"]
+kind = "strength"
+needs = []
+position = "side-lying"
+sided = true
+measure = "time"
+groups = ["lateral or anti-rotation core"]
+tags = ["floor-transition", "lying-side", "kneeling"]
+setup = "Lie on your side, elbow under your shoulder, knees bent behind you."
+cues = ["Lift your hips off the floor.", "Long line from head to knees.", "Top hip reaches forward a touch."]
+easier = []
+harder = ["side-plank"]
+
+[[movement]]
+id = "side-plank"
+name = "side plank"
+aliases = ["side plank from the foot", "full side plank"]
+kind = "strength"
+needs = []
+position = "side-lying"
+sided = true
+measure = "time"
+groups = ["lateral or anti-rotation core"]
+tags = ["floor-transition", "lying-side"]
+setup = "Lie on your side, elbow under your shoulder, legs long and feet stacked or staggered."
+cues = ["Lift your hips into one straight line.", "Push the floor away with the forearm.", "Breathe."]
+easier = ["side-plank-from-the-knee"]
+harder = []
+
+[[movement]]
+id = "hollow-hold"
+name = "hollow hold"
+aliases = ["hollow body hold", "hollow body"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = false
+measure = "time"
+groups = ["anti-extension core"]
+tags = ["floor-transition", "spine-flexion", "neck-load"]
+setup = "Lie on your back, press your low back down, and lift your shoulders and legs a little off the floor."
+cues = ["Low back glued to the floor.", "Bend the knees to make it easier.", "Chin gently tucked."]
+easier = ["dead-bug"]
+harder = []
+
+[[movement]]
+id = "reverse-crunch"
+name = "reverse crunch"
+aliases = ["reverse crunches"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["anti-extension core"]
+tags = ["floor-transition", "spine-flexion"]
+setup = "Lie on your back, hands by your sides, knees bent over your hips."
+cues = ["Curl the hips off the floor toward your ribs.", "Lower slowly, no swinging.", "Breathe out as you curl."]
+easier = []
+harder = []
+
+[[movement]]
+id = "bicycle-crunch"
+name = "bicycle crunch"
+aliases = ["bicycle crunches", "bicycles"]
+kind = "strength"
+needs = []
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["anti-extension core"]
+tags = ["floor-transition", "spine-flexion", "spine-twist", "neck-load"]
+setup = "Lie on your back, fingertips lightly behind your ears, knees bent over your hips."
+cues = ["Turn one shoulder toward the opposite knee as the other leg reaches long.", "Don't pull on your head.", "Slow and smooth."]
+easier = []
+harder = []
+
+[[movement]]
+id = "pallof-press"
+name = "pallof press"
+aliases = ["anti-rotation press", "band pallof press", "cable pallof press"]
+kind = "strength"
+needs = ["cable|band"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["lateral or anti-rotation core"]
+tags = ["standing"]
+setup = "Stand side-on to the band or cable anchor at chest height, both hands holding the handle at your chest."
+cues = ["Press straight out from your chest.", "Don't let it pull you around.", "Bring it back slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "woodchop"
+name = "woodchop"
+aliases = ["cable woodchop", "wood chop", "band woodchop", "cable chop"]
+kind = "strength"
+needs = ["cable|band"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["lateral or anti-rotation core"]
+tags = ["standing", "spine-twist", "overhead"]
+setup = "Stand side-on to a high anchor, both hands on the handle above your shoulder, feet wider than your hips."
+cues = ["Pull down and across toward the opposite hip.", "Pivot the back foot, turn from the hips and ribs together.", "Return slowly."]
+easier = ["pallof-press"]
+harder = []
+
+# Strength: carries and full body ---------------------------------------------------------
+
+[[movement]]
+id = "farmer-carry"
+name = "farmer carry"
+aliases = ["farmer's carry", "farmers carry", "farmer walk", "farmer's walk"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "grip"]
+setup = "Pick up a heavy weight in each hand and stand tall."
+cues = ["Shoulders down and back.", "Short, quiet steps.", "Weight stays over the middle of the foot."]
+easier = []
+harder = []
+
+[[movement]]
+id = "suitcase-carry"
+name = "suitcase carry"
+aliases = ["suitcase walk", "single-arm carry", "one-arm carry"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = true
+measure = "time"
+groups = ["lateral or anti-rotation core"]
+tags = ["standing", "single-leg-stance", "grip"]
+setup = "Pick up one heavy weight in one hand and stand tall, the other arm free."
+cues = ["Don't lean toward the weight.", "Shoulders level.", "Slow, steady steps."]
+easier = []
+harder = []
+
+[[movement]]
+id = "thruster"
+name = "thruster"
+aliases = ["dumbbell thruster", "squat to press"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "knee-deep-bend", "ankle-bend", "hip-deep-bend", "overhead", "wrist-load"]
+setup = "Stand with your feet a little wider than your hips, a weight in each hand resting at your shoulders."
+cues = ["Squat down, chest tall.", "Drive up and use that push to press overhead.", "Bring the weights back to your shoulders as you sit."]
+easier = ["goblet-squat"]
+harder = []
+
+[[movement]]
+id = "man-maker"
+name = "man maker"
+aliases = ["man makers"]
+kind = "strength"
+needs = ["dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes", "horizontal pull", "horizontal push"]
+tags = ["impact", "standing", "floor-transition", "wrist-load", "knee-deep-bend", "ankle-bend", "hip-deep-bend", "overhead"]
+setup = "Stand with a dumbbell in each hand, then squat and set them on the floor under your shoulders."
+cues = ["Jump or step back to a plank, row each side.", "Jump or step the feet in and stand.", "Press overhead, then start again."]
+easier = []
+harder = []
+
+# Strength: kettlebell -------------------------------------------------------------------
+
+[[movement]]
+id = "kettlebell-halo"
+name = "kettlebell halo"
+aliases = ["halo", "halos"]
+kind = "strength"
+needs = ["kettlebell|dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = []
+tags = ["standing", "overhead"]
+setup = "Hold a light kettlebell upside down by the horns at your chest."
+cues = ["Circle it slowly around your head.", "Keep it close, ribs down.", "Change direction each round."]
+easier = []
+harder = []
+
+[[movement]]
+id = "around-the-world-pass"
+name = "around-the-world pass"
+aliases = ["around the world", "around the world pass", "kettlebell around the world"]
+kind = "strength"
+needs = ["kettlebell|dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["lateral or anti-rotation core"]
+tags = ["standing", "grip"]
+setup = "Stand tall holding a kettlebell in one hand in front of your hips."
+cues = ["Pass it around your waist, hand to hand.", "Hips stay still and square.", "Change direction halfway."]
+easier = []
+harder = []
+
+[[movement]]
+id = "turkish-get-up"
+name = "turkish get-up"
+aliases = ["turkish get up", "get-up", "get up"]
+kind = "strength"
+needs = ["kettlebell|dumbbells"]
+position = "lying"
+sided = true
+measure = "reps"
+groups = ["lateral or anti-rotation core"]
+tags = ["floor-transition", "overhead", "wrist-load", "kneeling", "knee-deep-bend", "ankle-bend", "standing"]
+setup = "Lie on your back with the weight pressed straight up in one hand, that knee bent, eyes on the weight."
+cues = ["Roll to your elbow, then your hand.", "Sweep the leg through to a kneel, then stand.", "Reverse every step slowly to lie back down."]
+easier = []
+harder = []
+
+[[movement]]
+id = "kettlebell-windmill"
+name = "kettlebell windmill"
+aliases = ["windmill"]
+kind = "strength"
+needs = ["kettlebell|dumbbells"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["lateral or anti-rotation core"]
+tags = ["standing", "overhead", "spine-load", "spine-twist", "hip-deep-bend"]
+setup = "Press the weight overhead in one hand, feet angled away from that side, eyes on the weight."
+cues = ["Push the hip out and slide the free hand down your leg.", "Arm stays straight up.", "Stand back up through the hips."]
+easier = []
+harder = []
+
+# Strength: bands -------------------------------------------------------------------------
+
+[[movement]]
+id = "band-pull-apart"
+name = "band pull-apart"
+aliases = ["pull-apart", "pull apart", "band pull apart", "pull-aparts"]
+kind = "strength"
+needs = ["band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["standing"]
+setup = "Hold a band in front of your chest with both hands, arms long."
+cues = ["Pull the band apart until it touches your chest.", "Squeeze the shoulder blades.", "Return slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "face-pull"
+name = "face pull"
+aliases = ["face pulls", "band face pull", "cable face pull"]
+kind = "strength"
+needs = ["cable|band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["standing"]
+setup = "Anchor a band or rope at face height and hold it with both hands, palms facing in."
+cues = ["Pull toward your forehead, elbows high.", "Finish with the fists by your ears.", "Return slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "band-row"
+name = "band row"
+aliases = ["banded row", "resistance band row", "standing band row"]
+kind = "strength"
+needs = ["band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["standing"]
+setup = "Anchor a band at chest height in a closed door or round a post, and step back until it pulls."
+cues = ["Pull the elbows back past your ribs.", "Shoulders down, chest tall.", "Let it out slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "band-chest-press"
+name = "band chest press"
+aliases = ["banded chest press", "resistance band chest press"]
+kind = "strength"
+needs = ["band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = ["standing"]
+setup = "Anchor a band behind you at chest height and hold a handle in each hand beside your chest."
+cues = ["Press straight forward.", "Ribs down, don't lean.", "Let it back slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "band-external-rotation"
+name = "band external rotation"
+aliases = ["external rotation", "banded external rotation", "shoulder external rotation"]
+kind = "strength"
+needs = ["band"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = []
+tags = ["standing"]
+setup = "Anchor a band at elbow height beside you and hold it in the far hand, elbow bent and tucked to your side."
+cues = ["Rotate the forearm out like a door opening.", "Elbow stays glued to your side.", "Slow on the way back."]
+easier = []
+harder = []
+
+[[movement]]
+id = "banded-clamshell"
+name = "banded clamshell"
+aliases = ["clamshell with a band", "band clamshell"]
+kind = "strength"
+needs = ["band"]
+position = "side-lying"
+sided = true
+measure = "reps"
+groups = ["hip abductors and adductors"]
+tags = ["floor-transition", "lying-side"]
+setup = "Lie on your side with a loop band just above your knees, knees bent and heels together."
+cues = ["Open the top knee against the band.", "Don't roll your hips back.", "Close slowly."]
+easier = ["clamshell"]
+harder = []
+
+[[movement]]
+id = "monster-walk"
+name = "monster walk"
+aliases = ["monster walks", "band walk", "lateral band walk", "banded side step"]
+kind = "strength"
+needs = ["band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["hip abductors and adductors"]
+tags = ["standing", "single-leg-stance", "lateral", "hip-wide"]
+setup = "Put a loop band just above your knees or ankles and sink into a quarter squat."
+cues = ["Step wide to the side, then follow.", "Keep tension on the band the whole time.", "Toes point forward."]
+easier = []
+harder = []
+
+# Strength: hips, floor -------------------------------------------------------------------
+
+[[movement]]
+id = "clamshell"
+name = "clamshell"
+aliases = ["clamshells", "clam shell", "clams"]
+kind = "strength"
+needs = []
+position = "side-lying"
+sided = true
+measure = "reps"
+groups = ["hip abductors and adductors"]
+tags = ["floor-transition", "lying-side"]
+setup = "Lie on your side, knees bent, heels together, head resting on your arm."
+cues = ["Lift the top knee like a shell opening.", "Heels stay together.", "Hips stacked, don't roll back."]
+easier = []
+harder = ["banded-clamshell"]
+
+[[movement]]
+id = "side-lying-leg-raise"
+name = "side-lying leg raise"
+aliases = ["side lying leg raise", "side-lying hip abduction", "side leg raise"]
+kind = "strength"
+needs = []
+position = "side-lying"
+sided = true
+measure = "reps"
+groups = ["hip abductors and adductors"]
+tags = ["floor-transition", "lying-side"]
+setup = "Lie on your side, bottom knee bent for balance, top leg long."
+cues = ["Lift the top leg, heel leading.", "Toes point forward, not up.", "Lower slowly."]
+easier = ["clamshell"]
+harder = []
+
+# Strength: full gym, barbell -------------------------------------------------------------
+
+[[movement]]
+id = "back-squat"
+name = "back squat"
+aliases = ["barbell back squat", "barbell squat"]
+kind = "strength"
+needs = ["barbell", "rack"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "knee-deep-bend", "ankle-bend", "hip-deep-bend", "spine-load", "shoulder-end-range"]
+setup = "Set the bar in the rack at chest height, step under it so it rests on your upper back, and walk it out."
+cues = ["Brace, then sit between your heels.", "Knees track over your toes.", "Drive up, chest leading."]
+easier = ["goblet-squat"]
+harder = []
+
+[[movement]]
+id = "front-squat"
+name = "front squat"
+aliases = ["barbell front squat"]
+kind = "strength"
+needs = ["barbell", "rack"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "knee-deep-bend", "ankle-bend", "hip-deep-bend", "spine-load", "wrist-load"]
+setup = "Set the bar in the rack at chest height and rest it across the front of your shoulders, elbows high."
+cues = ["Elbows up the whole way.", "Sit straight down.", "Stand tall through the chest."]
+easier = ["goblet-squat"]
+harder = []
+
+[[movement]]
+id = "deadlift"
+name = "deadlift"
+aliases = ["barbell deadlift", "conventional deadlift"]
+kind = "strength"
+needs = ["barbell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["standing", "spine-load", "hip-deep-bend", "grip"]
+setup = "Stand with the bar over the middle of your feet, hinge down and grip it just outside your legs."
+cues = ["Pull the slack out of the bar first.", "Push the floor away, bar close to your legs.", "Stand tall, then lower the same way."]
+easier = ["kettlebell-deadlift"]
+harder = []
+
+[[movement]]
+id = "bench-press"
+name = "bench press"
+aliases = ["barbell bench press", "flat bench press"]
+kind = "strength"
+needs = ["barbell", "bench", "rack"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = []
+setup = "Lie on the bench with your eyes under the bar, feet flat, hands a little wider than your shoulders. With no spotter, stop each set with two reps still in you."
+cues = ["Shoulder blades pinned back.", "Lower to the middle of your chest.", "Press up and slightly back."]
+easier = ["dumbbell-bench-press"]
+harder = []
+
+[[movement]]
+id = "incline-bench-press"
+name = "incline bench press"
+aliases = ["incline barbell press", "incline barbell bench press"]
+kind = "strength"
+needs = ["barbell", "bench", "rack"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = []
+setup = "Set the bench to a low incline under the bar, feet flat, hands a little wider than your shoulders."
+cues = ["Lower to the top of your chest.", "Elbows a little in from your sides.", "Press up over your shoulders."]
+easier = ["incline-dumbbell-press"]
+harder = []
+
+[[movement]]
+id = "barbell-row"
+name = "barbell row"
+aliases = ["bent-over barbell row", "barbell bent-over row"]
+kind = "strength"
+needs = ["barbell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = ["standing", "spine-load", "grip"]
+setup = "Hold the bar with your hands just outside your legs and hinge forward to a flat back, knees soft."
+cues = ["Pull the bar to your lower ribs.", "Back stays flat, no jerking.", "Lower it slowly."]
+easier = ["bent-over-row"]
+harder = []
+
+[[movement]]
+id = "barbell-hip-thrust"
+name = "barbell hip thrust"
+aliases = ["weighted hip thrust"]
+kind = "strength"
+needs = ["barbell", "bench"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes"]
+tags = ["floor-transition"]
+setup = "Sit with your upper back on the side of the bench and roll a padded bar over your hips."
+cues = ["Chin tucked, ribs down.", "Drive the bar up until your body is flat.", "Squeeze, then lower slowly."]
+easier = ["hip-thrust"]
+harder = []
+
+# Strength: full gym, machines ------------------------------------------------------------
+
+[[movement]]
+id = "leg-press"
+name = "leg press"
+aliases = ["leg press machine", "machine leg press"]
+kind = "strength"
+needs = ["machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["ankle-push", "knee-deep-bend", "knee-load", "hip-deep-bend"]
+setup = "Sit back in the leg press with your whole feet flat on the plate, hip width apart."
+cues = ["Lower until your knees are near your chest, back stays on the pad.", "Push through the whole foot.", "Don't lock the knees at the top."]
+easier = []
+harder = []
+
+[[movement]]
+id = "leg-extension"
+name = "leg extension"
+aliases = ["leg extension machine", "machine leg extension"]
+kind = "strength"
+needs = ["machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["quads"]
+tags = ["knee-load"]
+setup = "Sit in the leg extension with the pad on your lower shins and your knees in line with the machine's pivot."
+cues = ["Straighten the legs and squeeze the thighs.", "Pause at the top.", "Lower slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "leg-curl-machine"
+name = "lying leg curl"
+aliases = ["leg curl", "machine leg curl", "hamstring curl", "seated leg curl", "seated hamstring curl", "leg curl machine"]
+kind = "strength"
+needs = ["machines"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["hamstrings"]
+tags = []
+setup = "Set yourself in the seated or lying leg curl machine with the pad just above your heels."
+cues = ["Curl the heels in toward you.", "Hips stay down on the pad.", "Lower slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "hip-abduction-machine"
+name = "hip abduction machine"
+aliases = ["hip abduction", "abductor machine", "seated hip abduction"]
+kind = "strength"
+needs = ["machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["hip abductors and adductors"]
+tags = ["hip-wide"]
+setup = "Sit in the abduction machine with the pads on the outside of your knees."
+cues = ["Press the knees apart.", "Pause wide.", "Let them come back slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "hip-adduction-machine"
+name = "hip adduction machine"
+aliases = ["hip adduction", "adductor machine", "seated hip adduction"]
+kind = "strength"
+needs = ["machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["hip abductors and adductors"]
+tags = ["hip-wide"]
+setup = "Sit in the adduction machine with the pads on the inside of your knees, set to a comfortable width."
+cues = ["Squeeze the knees together.", "Pause.", "Open slowly, only as wide as is comfortable."]
+easier = []
+harder = []
+
+[[movement]]
+id = "machine-chest-press"
+name = "machine chest press"
+aliases = ["chest press", "chest press machine", "seated chest press"]
+kind = "strength"
+needs = ["machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = []
+setup = "Sit with your back on the pad and the handles level with the middle of your chest."
+cues = ["Press forward without shrugging.", "Stop just short of locking out.", "Return slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-cable-row"
+name = "seated cable row"
+aliases = ["seated row", "cable row", "machine row", "seated row machine", "low row"]
+kind = "strength"
+needs = ["cable|machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = []
+setup = "Sit tall at the row station, feet braced, holding the handle with your arms long."
+cues = ["Pull the handle to your lower ribs.", "Squeeze the shoulder blades, don't lean back.", "Let it forward slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "lat-pulldown"
+name = "lat pulldown"
+aliases = ["pulldown", "lat pull-down", "cable pulldown"]
+kind = "strength"
+needs = ["machines|cable"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = []
+tags = ["overhead"]
+setup = "Sit with your thighs under the pad and hold the bar a little wider than your shoulders."
+cues = ["Pull the bar to your upper chest.", "Elbows drive down to your sides.", "Let it up slowly."]
+easier = []
+harder = ["assisted-pull-up"]
+
+[[movement]]
+id = "assisted-pull-up"
+name = "assisted pull-up"
+aliases = ["assisted pullup", "assisted pull up", "assisted chin-up"]
+kind = "strength"
+needs = ["machines"]
+position = "kneeling"
+sided = false
+measure = "reps"
+groups = []
+tags = ["overhead", "hanging", "grip", "kneeling"]
+setup = "Kneel on the platform of the assisted pull-up machine and take the handles above you."
+cues = ["Pull your chest toward the bar.", "Shoulders down, away from your ears.", "Lower all the way, slowly."]
+easier = ["lat-pulldown"]
+harder = []
+
+[[movement]]
+id = "pec-deck"
+name = "pec deck"
+aliases = ["pec fly", "machine fly", "chest fly machine"]
+kind = "strength"
+needs = ["machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["horizontal push"]
+tags = ["shoulder-end-range"]
+setup = "Sit with your back on the pad and your forearms or hands on the handles at chest height."
+cues = ["Bring the hands together in front of you.", "Squeeze the chest.", "Open only as far as feels easy."]
+easier = []
+harder = []
+
+[[movement]]
+id = "rear-delt-fly"
+name = "rear-delt fly"
+aliases = ["rear delt fly", "reverse fly", "reverse pec deck", "rear-delt machine"]
+kind = "strength"
+needs = ["machines"]
+position = "seated"
+sided = false
+measure = "reps"
+groups = ["horizontal pull"]
+tags = []
+setup = "Sit facing the pad of the reverse fly machine, holding the handles in front of you."
+cues = ["Sweep the arms out and back.", "Lead with the elbows.", "Return slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "back-extension"
+name = "back extension"
+aliases = ["back extensions", "hyperextension", "forty-five degree back extension"]
+kind = "strength"
+needs = ["machines"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["standing", "spine-load", "hip-deep-bend"]
+setup = "Set the pad of the back extension bench just below your hip bones and hook your heels."
+cues = ["Hinge down from the hips, back flat.", "Rise until your body is a straight line, no further.", "Squeeze the glutes at the top."]
+easier = []
+harder = []
+
+# Strength: full gym, cables --------------------------------------------------------------
+
+[[movement]]
+id = "single-arm-cable-press"
+name = "single-arm cable press"
+aliases = ["one-arm cable press", "cable chest press", "single-arm cable chest press"]
+kind = "strength"
+needs = ["cable"]
+position = "standing"
+sided = true
+measure = "reps"
+groups = ["horizontal push", "lateral or anti-rotation core"]
+tags = ["standing"]
+setup = "Stand facing away from the cable at chest height, handle in one hand beside your chest, feet staggered."
+cues = ["Press straight forward.", "Don't let your body turn.", "Return slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "straight-arm-pulldown"
+name = "straight-arm pulldown"
+aliases = ["straight arm pulldown", "cable straight-arm pulldown", "band straight-arm pulldown"]
+kind = "strength"
+needs = ["cable|band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = []
+tags = ["standing", "overhead"]
+setup = "Face a high anchor, hold the bar or band with straight arms in front of your forehead, and hinge forward slightly."
+cues = ["Sweep the arms down to your thighs.", "Elbows stay almost straight.", "Let them rise slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "triceps-pushdown"
+name = "triceps pushdown"
+aliases = ["tricep pushdown", "cable pushdown", "band pushdown", "rope pushdown"]
+kind = "strength"
+needs = ["cable|band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["arms"]
+tags = ["standing"]
+setup = "Face a high anchor and hold the rope or bar with your elbows bent at your sides."
+cues = ["Straighten the elbows down to your thighs.", "Elbows stay pinned.", "Bend back slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "cable-curl"
+name = "cable curl"
+aliases = ["cable biceps curl", "cable bicep curl", "band curl"]
+kind = "strength"
+needs = ["cable|band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["arms"]
+tags = ["standing"]
+setup = "Face a low anchor and hold the bar or handles with your arms long, palms up."
+cues = ["Curl up with your elbows by your ribs.", "Squeeze at the top.", "Lower slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "cable-pull-through"
+name = "cable pull-through"
+aliases = ["pull-through", "pull through", "cable pull through", "band pull-through"]
+kind = "strength"
+needs = ["cable|band"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["hip hinge or glutes", "hamstrings"]
+tags = ["standing", "spine-load", "hip-deep-bend"]
+setup = "Face away from a low anchor, rope between your legs, and walk out a couple of steps."
+cues = ["Hinge back, letting the rope pull your hips.", "Back stays flat.", "Snap the hips forward to stand tall."]
+easier = []
+harder = []
