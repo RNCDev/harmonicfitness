@@ -20,7 +20,7 @@ COMMANDS = {
     "voices":      ("voices", None, "list, measure, download, design and keep voices"),
     "feeds":       ("feeds", None, "fetch the profile's feeds into today's sheet"),
     "coverage":    ("coverage", None, "movement patterns the last sessions left out, last format and loads"),
-    "movements":   ("movements", None, "movements allowed today, by group, for a kit and injuries"),
+    "movements":   ("movements", None, "the movements a kit allows, by movement pattern (the plan itself comes from session)"),
     "session":     ("session", None, "a session skeleton: method, timing and ranked movements for a request"),
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
     "check":       ("context", "check", "check every context file in me/ (format, unfilled lines)"),
