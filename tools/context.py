@@ -734,7 +734,7 @@ def _check_health(path, text):
                                                   "in the catalog (or is still a draft)", note=True))
     if cat and prose_injuries(h) and not limits(h, cat.areas):
         out.append(Issue(path, 0, "injuries written in prose have no [[limits]] entry, so the session "
-                                  "tool applies no rule for them", note=True))
+                                  "tool applies no rule for them"))
     return out
 
 

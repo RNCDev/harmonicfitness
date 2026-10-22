@@ -1217,14 +1217,14 @@ note = "Therapist: no weight through the hand."
         self.assertTrue(any(i.note and "no-such-move" in i.message for i in issues))
         self.assertFalse(any(not i.note for i in issues))
 
-    def test_prose_injuries_without_limits_is_a_note(self):
+    def test_prose_injuries_without_limits_is_an_issue(self):
         path = self.health_file("")
         h = context.health(path)
         self.assertTrue(context.prose_injuries(h))
-        notes = [i for i in context.check([path]) if "no rule" in i.message or "[[limits]]" in i.message]
-        self.assertEqual(len(notes), 1)
-        self.assertTrue(notes[0].note)
-        self.assertIn("injuries written in prose have no [[limits]] entry", notes[0].message)
+        found = [i for i in context.check([path]) if "no rule" in i.message or "[[limits]]" in i.message]
+        self.assertEqual(len(found), 1)
+        self.assertFalse(found[0].note)
+        self.assertIn("injuries written in prose have no [[limits]] entry", found[0].message)
         with_row = context.health(self.health_file(self.ROW))
         self.assertTrue(context.prose_injuries(with_row))
         self.assertFalse(any("have no [[limits]]" in i.message for i in context.check([with_row.path])))
@@ -1306,7 +1306,10 @@ class Migrate3(unittest.TestCase):
                     write_file(path, context.with_front_matter(context.body(f.read()), 2))
             out = run([sys.executable, "tools/migrate.py"], home=home)
             self.assertIn("schema 2 to 3", out.stdout, out.stderr)
-            self.assertEqual([i for i in context.check([os.path.join(home, "health.md")]) if not i.note], [])
+            # the migrated prose injury has no [[limits]] row yet: the one issue left to fix
+            issues = [i for i in context.check([os.path.join(home, "health.md")]) if not i.note]
+            self.assertEqual(len(issues), 1)
+            self.assertIn("injuries written in prose have no [[limits]] entry", issues[0].message)
 
     def test_example_is_schema_3(self):
         issues = context.check([os.path.join(paths.EXAMPLE, n) for n in
