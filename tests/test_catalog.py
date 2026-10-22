@@ -67,6 +67,14 @@ class RealCatalog(unittest.TestCase):
                      "goblet squat", "farmer carry", "suitcase carry", "pallof press", "hammer curl"):
             self.assertIsNotNone(catalog.resolve(cat, said), said)
 
+    def test_non_strength_kinds_and_presets(self):
+        cat = catalog.load()
+        kinds = {m.kind for m in cat.movements.values()}
+        self.assertTrue({"cardio", "mobility", "breathing", "skill", "rehab", "finisher"} <= kinds)
+        self.assertEqual(set(cat.presets), {"bodyweight", "hotel-room", "hotel-gym", "full-gym"})
+        self.assertIsNotNone(catalog.resolve(cat, "box breathing"))
+        self.assertIsNotNone(catalog.resolve(cat, "seated ankle alphabet"))
+
 
 if __name__ == "__main__":
     unittest.main()

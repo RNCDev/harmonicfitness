@@ -1683,3 +1683,1235 @@ setup = "Face away from a low anchor, rope between your legs, and walk out a cou
 cues = ["Hinge back, letting the rope pull your hips.", "Back stays flat.", "Snap the hips forward to stand tall."]
 easier = []
 harder = []
+
+# Cardio and warm-up: no equipment ------------------------------------------------------------
+
+[[movement]]
+id = "marching-in-place"
+name = "marching in place"
+aliases = ["march in place", "marching", "standing march"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance"]
+setup = "Stand tall with your feet under your hips and your arms loose."
+cues = ["Lift one knee, then the other, at an easy rhythm.", "Swing the opposite arm.", "Land softly and quietly."]
+easier = ["seated-march"]
+harder = ["high-knees"]
+
+[[movement]]
+id = "seated-march"
+name = "seated march"
+aliases = ["seated marching", "marching seated", "seated knee lifts"]
+kind = "cardio"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall toward the front of a chair, the bench or the edge of the bed, feet flat."
+cues = ["Lift one knee a few inches, then the other.", "Pump the arms to match.", "Stay tall, no slumping."]
+easier = []
+harder = ["marching-in-place"]
+
+[[movement]]
+id = "arm-circles"
+name = "arm circles"
+aliases = ["arm swings", "shoulder circles"]
+kind = "cardio"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit or stand tall and reach your arms out to the sides at shoulder height."
+cues = ["Start with small circles and let them grow.", "Shoulders stay down away from the ears.", "Reverse the direction halfway."]
+easier = []
+harder = []
+
+[[movement]]
+id = "jumping-jacks"
+name = "jumping jacks"
+aliases = ["jumping jack", "star jumps"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["impact", "standing", "ankle-push", "lateral", "hip-wide"]
+setup = "Stand tall with your feet together and your arms by your sides."
+cues = ["Jump the feet wide as the arms sweep up.", "Land light on the balls of your feet.", "Find a steady rhythm."]
+easier = ["step-jack"]
+harder = []
+
+[[movement]]
+id = "step-jack"
+name = "step jacks"
+aliases = ["step jack", "low-impact jacks", "low impact jumping jacks", "no-jump jacks"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "lateral", "hip-wide"]
+setup = "Stand tall with your feet together, no jumping, so it stays quiet."
+cues = ["Step one foot out to the side as the arms rise.", "Bring it back and switch sides.", "Keep a brisk, even pace."]
+easier = []
+harder = ["jumping-jacks"]
+
+[[movement]]
+id = "high-knees"
+name = "high knees"
+aliases = ["high knee", "high-knee run", "running in place"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["impact", "standing", "single-leg-stance", "ankle-push"]
+setup = "Stand tall with your feet under your hips and your hands at waist height."
+cues = ["Drive each knee up toward your hands.", "Stay light on the balls of your feet.", "Quick arms, tall chest."]
+easier = ["marching-in-place"]
+harder = []
+
+[[movement]]
+id = "butt-kicks"
+name = "butt kicks"
+aliases = ["butt kickers", "heel flicks"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["impact", "standing", "single-leg-stance", "ankle-push"]
+setup = "Stand tall and jog lightly in place."
+cues = ["Flick each heel up toward your seat.", "Knees point at the floor.", "Short, quick steps."]
+easier = ["marching-in-place"]
+harder = []
+
+[[movement]]
+id = "shadow-boxing"
+name = "shadow boxing"
+aliases = ["standing shadow boxing", "shadowboxing", "boxing in place"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "ankle-push", "lateral", "spine-twist"]
+setup = "Stand in a boxing stance, one foot a half step ahead, hands up by your cheeks."
+cues = ["Light on your feet, bounce a little.", "Punch straight out and snap it back.", "Turn the hips into each cross."]
+easier = ["seated-shadow-boxing"]
+harder = []
+
+[[movement]]
+id = "lateral-shuffle"
+name = "lateral shuffle"
+aliases = ["side shuffle", "shuffles", "side shuffles"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "lateral", "ankle-push", "ankle-bend", "hip-wide"]
+setup = "Drop into a shallow athletic stance, feet wider than your hips, chest up."
+cues = ["Shuffle a few steps one way, then back.", "Feet never cross.", "Stay low and stay quiet."]
+easier = []
+harder = []
+
+[[movement]]
+id = "leg-swings"
+name = "leg swings"
+aliases = ["leg swing", "front leg swings", "side leg swings"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = true
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "kick", "hip-wide"]
+setup = "Stand side on to a wall and rest one hand on it for balance."
+cues = ["Swing the outside leg forward and back, easy to start.", "Let the range grow a little each swing.", "Stand tall on the other leg."]
+easier = []
+harder = []
+
+[[movement]]
+id = "inchworm"
+name = "inchworm"
+aliases = ["inchworms", "inch worm", "walkout", "walk-out"]
+kind = "cardio"
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "wrist-load", "floor-transition", "hip-deep-bend", "spine-load"]
+setup = "Stand tall with your feet hip width apart."
+cues = ["Fold down and put your hands on the floor.", "Walk the hands out to a plank.", "Walk them back and roll up tall."]
+easier = []
+harder = []
+
+# Cardio: stationary bike and air bike --------------------------------------------------------
+
+[[movement]]
+id = "bike-easy-spin"
+name = "easy spin"
+aliases = ["bike easy spin", "easy bike", "bike warm-up", "recovery spin", "easy pedaling"]
+kind = "cardio"
+needs = ["bike"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit on the bike with light resistance, the ball of each foot centered on the pedal."
+cues = ["Easy circles, you could chat.", "Relax the grip.", "Shoulders down away from the ears."]
+easier = []
+harder = ["bike-steady"]
+
+[[movement]]
+id = "bike-steady"
+name = "steady ride"
+aliases = ["bike steady", "steady endurance ride", "steady bike", "endurance spin"]
+kind = "cardio"
+needs = ["bike"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Stay seated and add resistance until it feels moderate, a five or six out of ten."
+cues = ["Smooth circles, not stomping.", "Breathe through your nose if you can.", "Quiet upper body."]
+easier = ["bike-easy-spin"]
+harder = ["bike-cadence-surge", "bike-seated-climb"]
+
+[[movement]]
+id = "bike-cadence-surge"
+name = "cadence surge"
+aliases = ["bike surge", "seated surge", "spin-up", "cadence spin-up", "seated sprint at light resistance"]
+kind = "cardio"
+needs = ["bike"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Stay seated and keep the resistance light to moderate, then pick up the pace."
+cues = ["Legs fast, upper body still.", "Hips stay quiet on the seat.", "If you start to bounce, ease off a touch."]
+easier = ["bike-steady"]
+harder = ["bike-seated-sprint"]
+
+[[movement]]
+id = "bike-seated-climb"
+name = "seated climb"
+aliases = ["bike seated climb", "seated hill", "heavy seated climb", "resistance climb"]
+kind = "cardio"
+needs = ["bike"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["ankle-push", "knee-load"]
+setup = "Stay seated and turn the resistance up until each stroke takes real work."
+cues = ["Slow, strong circles.", "Push through the whole foot, not just the toes.", "Relax the grip and the jaw."]
+easier = ["bike-steady"]
+harder = []
+
+[[movement]]
+id = "bike-seated-sprint"
+name = "seated sprint"
+aliases = ["bike sprint", "all-out sprint", "bike seated sprint"]
+kind = "cardio"
+needs = ["bike"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["ankle-push", "knee-load"]
+setup = "Stay seated with moderate resistance and get ready to go all out."
+cues = ["Everything you've got.", "Stay in the saddle.", "Breathe out hard."]
+easier = ["bike-cadence-surge"]
+harder = []
+
+[[movement]]
+id = "bike-standing-climb"
+name = "standing climb"
+aliases = ["bike standing climb", "out of the saddle climb", "standing hill"]
+kind = "cardio"
+needs = ["bike"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "ankle-push", "knee-load"]
+setup = "Turn the resistance up and rise out of the saddle, hands resting on the bars."
+cues = ["Hips over the pedals.", "Let the bike rock a little under you.", "Sit back down if your form slips."]
+easier = ["bike-seated-climb"]
+harder = []
+
+[[movement]]
+id = "bike-standing-sprint"
+name = "standing sprint"
+aliases = ["bike standing sprint", "out of the saddle sprint"]
+kind = "cardio"
+needs = ["bike"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "ankle-push", "knee-load"]
+setup = "Moderate resistance, then rise out of the saddle for a short, hard push."
+cues = ["Fast and strong.", "Hold the bars lightly.", "Settle back into the seat when it's done."]
+easier = ["bike-seated-sprint"]
+harder = []
+
+[[movement]]
+id = "air-bike-steady"
+name = "air bike steady"
+aliases = ["fan bike steady", "air bike easy", "steady air bike"]
+kind = "cardio"
+needs = ["air-bike"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit on the air bike, feet centered on the pedals, hands on the handles."
+cues = ["Push and pull with the arms as the legs turn.", "Find a pace you can hold.", "Relax the shoulders."]
+easier = []
+harder = ["air-bike-sprint"]
+
+[[movement]]
+id = "air-bike-sprint"
+name = "air bike sprint"
+aliases = ["fan bike sprint", "air bike intervals"]
+kind = "cardio"
+needs = ["air-bike"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["ankle-push", "knee-load", "grip"]
+setup = "Sit tall on the air bike, hands on the handles, ready to go hard."
+cues = ["Arms and legs together, all out.", "The harder you push, the harder it pushes back.", "Breathe out hard."]
+easier = ["air-bike-steady"]
+harder = []
+
+# Cardio: rower, treadmill, elliptical and other machines -------------------------------------
+
+[[movement]]
+id = "rower-steady"
+name = "steady row"
+aliases = ["steady rowing", "easy row", "rowing machine steady", "rower steady"]
+kind = "cardio"
+needs = ["rower"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["spine-load", "hip-deep-bend", "knee-deep-bend", "ankle-bend", "ankle-push", "grip"]
+setup = "Sit on the rower, strap your feet in, and take the handle with a relaxed grip."
+cues = ["Legs, then body, then arms.", "Arms, body, then legs on the way back.", "Long, smooth strokes."]
+easier = []
+harder = ["rower-intervals"]
+
+[[movement]]
+id = "rower-intervals"
+name = "rowing intervals"
+aliases = ["hard row", "row sprint", "rowing sprint", "rower intervals", "rowing pieces"]
+kind = "cardio"
+needs = ["rower"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["spine-load", "hip-deep-bend", "knee-deep-bend", "ankle-bend", "ankle-push", "grip"]
+setup = "Sit on the rower, feet strapped in, and get ready for a hard piece."
+cues = ["Push hard with the legs first.", "Swing back, then pull to the ribs.", "Keep the back long, not rounded."]
+easier = ["rower-steady"]
+harder = []
+
+[[movement]]
+id = "treadmill-walk"
+name = "treadmill walk"
+aliases = ["treadmill walking", "brisk walk", "walking on the treadmill"]
+kind = "cardio"
+needs = ["treadmill"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance"]
+setup = "Step on the treadmill and start it at an easy walking pace."
+cues = ["Tall posture, eyes ahead.", "Let the arms swing.", "Hands off the rails if you can."]
+easier = []
+harder = ["treadmill-incline-walk", "treadmill-run"]
+
+[[movement]]
+id = "treadmill-incline-walk"
+name = "incline walk"
+aliases = ["treadmill incline walk", "incline walking", "uphill walk"]
+kind = "cardio"
+needs = ["treadmill"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "ankle-push", "ankle-bend"]
+setup = "Raise the incline and walk at a pace that makes you breathe a little harder."
+cues = ["Stand tall, don't lean on the rails.", "Push through the whole foot.", "Shorter steps if your calves complain."]
+easier = ["treadmill-walk"]
+harder = []
+
+[[movement]]
+id = "treadmill-run"
+name = "treadmill run"
+aliases = ["treadmill running", "jog", "jogging", "run"]
+kind = "cardio"
+needs = ["treadmill"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["impact", "standing", "single-leg-stance", "ankle-push"]
+setup = "Bring the treadmill up to an easy jog."
+cues = ["Quick, light steps.", "Land under your hips.", "Relax the hands and shoulders."]
+easier = ["treadmill-walk"]
+harder = []
+
+[[movement]]
+id = "elliptical"
+name = "elliptical"
+aliases = ["elliptical trainer", "cross trainer", "elliptical intervals"]
+kind = "cardio"
+needs = ["elliptical"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "ankle-push"]
+setup = "Step onto the pedals, take the handles, and start at an easy pace."
+cues = ["Push and pull with the arms too.", "Keep the whole foot on the pedal.", "Tall posture, no hunching."]
+easier = []
+harder = []
+
+[[movement]]
+id = "stair-climber"
+name = "stair climber"
+aliases = ["stair machine", "stair stepper", "stairs"]
+kind = "cardio"
+needs = ["stair-climber"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "ankle-push", "ankle-bend", "knee-load"]
+setup = "Step on and start at a slow, steady pace."
+cues = ["Whole foot on each step.", "Stand tall, light hands on the rails.", "Drive through the heel."]
+easier = []
+harder = []
+
+[[movement]]
+id = "ski-erg"
+name = "ski erg"
+aliases = ["ski erg intervals", "ski machine", "skiing"]
+kind = "cardio"
+needs = ["ski-erg"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "spine-load", "spine-flexion", "hip-deep-bend", "overhead", "grip"]
+setup = "Stand facing the machine, feet hip width apart, a handle in each hand above your head."
+cues = ["Pull down with straight arms as the hips hinge back.", "Finish with the hands by your thighs.", "Rise tall and reach up again."]
+easier = []
+harder = []
+
+[[movement]]
+id = "sled-push"
+name = "sled push"
+aliases = ["sled pushes"]
+kind = "cardio"
+needs = ["sled"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "ankle-push", "ankle-bend", "knee-load"]
+setup = "Hands on the sled's poles, arms long, body leaning forward in a straight line."
+cues = ["Short, driving steps.", "Push through the balls of the feet.", "Back flat, head neutral."]
+easier = []
+harder = []
+
+[[movement]]
+id = "sled-pull"
+name = "sled pull"
+aliases = ["sled drag", "backward sled drag", "sled pulls"]
+kind = "cardio"
+needs = ["sled"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "ankle-push", "ankle-bend", "knee-load", "grip"]
+setup = "Hold the straps or rope, face the sled, and sit back into a quarter squat."
+cues = ["Walk backward with small steps.", "Keep tension on the strap.", "Chest up."]
+easier = []
+harder = []
+
+# Mobility: mat work and stretches ------------------------------------------------------------
+
+[[movement]]
+id = "worlds-greatest-stretch"
+name = "world's greatest stretch"
+aliases = ["worlds greatest stretch", "world's greatest", "lunge with a twist"]
+kind = "mobility"
+needs = []
+position = "kneeling"
+sided = true
+measure = "time"
+groups = []
+tags = ["kneeling", "floor-transition", "wrist-load", "hip-deep-bend", "knee-deep-bend", "ankle-bend", "spine-twist"]
+setup = "Step into a long lunge, back knee down, and put both hands on the floor inside the front foot."
+cues = ["Drop the elbow toward the front instep.", "Turn and reach the same arm to the ceiling.", "Follow your hand with your eyes."]
+easier = []
+harder = []
+
+[[movement]]
+id = "cat-cow"
+name = "cat-cow"
+aliases = ["cat cow", "cat camel", "cat and cow"]
+kind = "mobility"
+needs = []
+position = "all-fours"
+sided = false
+measure = "time"
+groups = []
+tags = ["kneeling", "floor-transition", "wrist-load"]
+setup = "Come onto your hands and knees, hands under shoulders, knees under hips."
+cues = ["Breathe in, let the belly drop and look up.", "Breathe out, round the back and tuck the chin.", "Slow, one breath each way."]
+easier = []
+harder = []
+
+[[movement]]
+id = "thread-the-needle"
+name = "thread the needle"
+aliases = ["thread-the-needle", "thread the needle stretch"]
+kind = "mobility"
+needs = []
+position = "all-fours"
+sided = true
+measure = "time"
+groups = []
+tags = ["kneeling", "floor-transition", "wrist-load", "shoulder-end-range", "spine-twist", "neck-load"]
+setup = "Come onto your hands and knees."
+cues = ["Slide one arm under the other, palm up.", "Let the shoulder and the side of the head rest on the mat.", "Breathe into the upper back."]
+easier = []
+harder = []
+
+[[movement]]
+id = "ninety-ninety-hip-switch"
+name = "ninety-ninety hip switches"
+aliases = ["ninety-ninety", "ninety ninety hip switch", "hip switches", "windshield wipers"]
+kind = "mobility"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["floor-transition", "hip-wide", "knee-deep-bend"]
+setup = "Sit on the floor with both knees bent at right angles, feet wide, hands behind you for support."
+cues = ["Let both knees fall to one side.", "Then rotate them over to the other side.", "Sit tall and go slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "childs-pose"
+name = "child's pose"
+aliases = ["childs pose", "child pose", "resting pose"]
+kind = "mobility"
+needs = []
+position = "kneeling"
+sided = false
+measure = "time"
+groups = []
+tags = ["kneeling", "floor-transition", "knee-deep-bend", "hip-deep-bend"]
+setup = "Kneel on the mat, big toes together, knees apart."
+cues = ["Sit the hips back toward the heels.", "Reach the arms forward and rest the forehead down.", "Let the breath widen your back."]
+easier = []
+harder = []
+
+[[movement]]
+id = "supine-twist"
+name = "supine twist"
+aliases = ["lying twist", "lying spinal twist", "supine spinal twist"]
+kind = "mobility"
+needs = []
+position = "lying"
+sided = true
+measure = "time"
+groups = []
+tags = ["floor-transition", "spine-twist"]
+setup = "Lie on your back, knees bent, arms out wide on the floor."
+cues = ["Let both knees fall slowly to one side.", "Shoulders stay heavy on the floor.", "Breathe and let gravity do the work."]
+easier = []
+harder = []
+
+[[movement]]
+id = "figure-four-stretch"
+name = "figure-four stretch"
+aliases = ["figure four stretch", "figure four", "lying figure four", "supine figure four"]
+kind = "mobility"
+needs = []
+position = "lying"
+sided = true
+measure = "time"
+groups = []
+tags = ["floor-transition", "hip-deep-bend", "knee-deep-bend"]
+setup = "Lie on your back, knees bent, and cross one ankle over the opposite knee."
+cues = ["Reach through and hold behind the bottom thigh.", "Draw it gently toward you.", "Keep the crossed foot flexed."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-figure-four"
+name = "seated figure four"
+aliases = ["seated figure-four stretch", "chair figure four", "seated pigeon"]
+kind = "mobility"
+needs = ["chair|bench"]
+position = "seated"
+sided = true
+measure = "time"
+groups = []
+tags = ["hip-deep-bend", "knee-deep-bend"]
+setup = "Sit tall on a chair and rest one ankle on the opposite knee."
+cues = ["Lean forward a little with a long spine.", "Stop where you feel the stretch.", "Breathe slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "strap-hamstring-stretch"
+name = "hamstring stretch with a strap"
+aliases = ["strap hamstring stretch", "lying hamstring stretch", "towel hamstring stretch", "supine hamstring stretch"]
+kind = "mobility"
+needs = ["strap|towel"]
+position = "lying"
+sided = true
+measure = "time"
+groups = []
+tags = ["floor-transition", "hip-deep-bend"]
+setup = "Lie on your back with a strap or towel around one foot, the other leg bent or long."
+cues = ["Raise the leg until you feel the back of the thigh.", "Keep the knee soft, not locked.", "Ease in on each breath out."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-hamstring-stretch"
+name = "seated hamstring stretch"
+aliases = ["chair hamstring stretch", "seated forward reach"]
+kind = "mobility"
+needs = ["chair|bench"]
+position = "seated"
+sided = true
+measure = "time"
+groups = []
+tags = ["hip-deep-bend"]
+setup = "Sit at the front edge of a chair, one leg out straight with the heel down."
+cues = ["Hinge forward from the hips with a long back.", "Stop at a gentle stretch.", "Breathe and hold."]
+easier = []
+harder = []
+
+[[movement]]
+id = "foam-roller-thoracic-extension"
+name = "thoracic extension over a foam roller"
+aliases = ["thoracic extension", "foam roller thoracic extension", "upper back extension on the roller"]
+kind = "mobility"
+needs = ["foam-roller"]
+position = "lying"
+sided = false
+measure = "time"
+groups = []
+tags = ["floor-transition"]
+setup = "Sit on the floor and lie back over the roller so it sits across your upper back, hands behind your head."
+cues = ["Keep the hips down and the ribs soft.", "Let the upper back arch over the roller.", "Move the roller a little and repeat."]
+easier = []
+harder = []
+
+[[movement]]
+id = "knees-to-chest"
+name = "knees to chest"
+aliases = ["knees-to-chest stretch", "double knee to chest", "knee hug"]
+kind = "mobility"
+needs = []
+position = "lying"
+sided = false
+measure = "time"
+groups = []
+tags = ["floor-transition", "hip-deep-bend", "knee-deep-bend"]
+setup = "Lie on your back and draw both knees in toward your chest."
+cues = ["Hold behind the thighs.", "Let the low back settle into the floor.", "Rock gently side to side if it feels good."]
+easier = []
+harder = []
+
+[[movement]]
+id = "sphinx-stretch"
+name = "sphinx stretch"
+aliases = ["sphinx", "sphinx pose", "prone press on the forearms"]
+kind = "mobility"
+needs = []
+position = "lying"
+sided = false
+measure = "time"
+groups = []
+tags = ["floor-transition"]
+setup = "Lie face down and prop yourself up on your forearms, elbows under your shoulders."
+cues = ["Let the belly stay heavy on the mat.", "Shoulders down, neck long.", "Breathe slowly."]
+easier = []
+harder = []
+
+[[movement]]
+id = "half-kneeling-hip-flexor-stretch"
+name = "half-kneeling hip flexor stretch"
+aliases = ["hip flexor stretch", "kneeling hip flexor stretch", "kneeling lunge stretch"]
+kind = "mobility"
+needs = []
+position = "kneeling"
+sided = true
+measure = "time"
+groups = []
+tags = ["kneeling", "floor-transition"]
+setup = "Kneel on one knee on a mat or folded towel, the other foot flat in front."
+cues = ["Tuck the tailbone and squeeze the back glute.", "Shift the hips forward just a little.", "Stay tall through the chest."]
+easier = []
+harder = []
+
+[[movement]]
+id = "standing-quad-stretch"
+name = "standing quad stretch"
+aliases = ["quad stretch", "standing quadriceps stretch"]
+kind = "mobility"
+needs = []
+position = "standing"
+sided = true
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "knee-deep-bend"]
+setup = "Stand by a wall with one hand on it for balance."
+cues = ["Hold one ankle and draw the heel toward your seat.", "Knees side by side.", "Stand tall, don't arch."]
+easier = []
+harder = []
+
+[[movement]]
+id = "standing-calf-stretch"
+name = "standing calf stretch"
+aliases = ["calf stretch", "wall calf stretch"]
+kind = "mobility"
+needs = []
+position = "standing"
+sided = true
+measure = "time"
+groups = []
+tags = ["standing", "ankle-bend"]
+setup = "Face a wall, hands on it, one foot stepped back with the heel down."
+cues = ["Lean in until you feel the back of the calf.", "Back heel stays on the floor.", "Toes point straight ahead."]
+easier = []
+harder = []
+
+[[movement]]
+id = "doorway-chest-stretch"
+name = "doorway chest stretch"
+aliases = ["chest stretch", "door frame chest stretch", "pec stretch"]
+kind = "mobility"
+needs = []
+position = "standing"
+sided = true
+measure = "time"
+groups = []
+tags = ["standing", "shoulder-end-range"]
+setup = "Stand in a doorway with one forearm on the frame, elbow at shoulder height."
+cues = ["Step through gently until you feel the front of the chest.", "Shoulder stays down.", "Ease off if you feel pinching."]
+easier = []
+harder = []
+
+[[movement]]
+id = "cross-body-shoulder-stretch"
+name = "cross-body shoulder stretch"
+aliases = ["cross body shoulder stretch", "shoulder stretch", "across the chest stretch"]
+kind = "mobility"
+needs = []
+position = "seated"
+sided = true
+measure = "time"
+groups = []
+tags = []
+setup = "Sit or stand tall."
+cues = ["Bring one arm across your chest.", "Hold it above the elbow with the other hand.", "Keep the shoulder down."]
+easier = []
+harder = []
+
+[[movement]]
+id = "shoulder-rolls"
+name = "shoulder rolls"
+aliases = ["seated shoulder rolls", "shoulder shrugs and rolls"]
+kind = "mobility"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall with your arms hanging by your sides."
+cues = ["Lift the shoulders toward the ears.", "Roll them back and down.", "Slow and smooth."]
+easier = []
+harder = []
+
+[[movement]]
+id = "neck-rolls"
+name = "neck rolls"
+aliases = ["neck circles", "half neck circles", "neck stretch"]
+kind = "mobility"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["neck-load"]
+setup = "Sit tall and let your shoulders relax."
+cues = ["Lower the chin toward your chest.", "Roll the ear slowly toward one shoulder, then the other.", "Go gently, never force it."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-side-bend"
+name = "seated side bend"
+aliases = ["side bend", "seated side stretch", "seated lateral stretch"]
+kind = "mobility"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall on a chair or the floor."
+cues = ["Reach one arm up and over toward the other side.", "Keep both sit bones down.", "Breathe into the long side."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-twist"
+name = "seated twist"
+aliases = ["seated spinal twist", "chair twist", "seated rotation"]
+kind = "mobility"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["spine-twist"]
+setup = "Sit tall on a chair with your feet flat."
+cues = ["Turn your chest toward one side.", "Use the chair back lightly, don't crank.", "Grow tall on each breath in."]
+easier = []
+harder = []
+
+# Breathing -----------------------------------------------------------------------------------
+
+[[movement]]
+id = "box-breathing"
+name = "box breathing"
+aliases = ["square breathing", "box breath", "four-square breathing"]
+kind = "breathing"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall or lie back comfortably and let your shoulders drop."
+cues = ["Breathe in for four.", "Hold for four.", "Breathe out for four.", "Hold for four."]
+easier = []
+harder = []
+
+[[movement]]
+id = "long-exhale-breathing"
+name = "long exhale breathing"
+aliases = ["long exhale", "extended exhale breathing", "slow exhale breathing"]
+kind = "breathing"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit comfortably and rest your hands in your lap."
+cues = ["Breathe in through the nose for four.", "Breathe out slowly through the mouth for six.", "Let each breath out be a little longer."]
+easier = []
+harder = []
+
+[[movement]]
+id = "belly-breathing"
+name = "belly breathing"
+aliases = ["diaphragmatic breathing", "deep belly breathing"]
+kind = "breathing"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall with one hand on your chest and one on your belly."
+cues = ["Breathe in and let the belly rise.", "The chest hand stays still.", "Breathe out slowly and let it fall."]
+easier = []
+harder = []
+
+# Skill: stick and ball (seated first, standing when the injury rules allow) ------------------
+
+[[movement]]
+id = "seated-side-to-side-dribble"
+name = "seated side-to-side dribble"
+aliases = ["seated side to side dribble", "seated side-to-side stickhandling", "seated stickhandling"]
+kind = "skill"
+needs = ["stick-and-ball", "bench|chair"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["grip", "hip-deep-bend"]
+setup = "Sit tall at the front of the bench or chair, the ball in front of you on the blade."
+cues = ["Soft hands, the ball whispers on the blade.", "Eyes up, feel it, don't watch it.", "Bottom hand loose and quiet."]
+easier = []
+harder = ["standing-stickhandling"]
+
+[[movement]]
+id = "seated-front-to-back-dribble"
+name = "seated front-to-back dribble"
+aliases = ["seated front to back dribble", "front-to-back dribble"]
+kind = "skill"
+needs = ["stick-and-ball", "bench|chair"]
+position = "seated"
+sided = true
+measure = "time"
+groups = []
+tags = ["grip", "hip-deep-bend"]
+setup = "Sit tall and bring the ball beside one foot."
+cues = ["Push and pull the ball along the side of your foot.", "Roll the wrists to cup the ball.", "Elbows away from the ribs so the hands can move."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-figure-eight"
+name = "seated figure eights"
+aliases = ["seated figure eight", "figure eights", "figure eight dribble"]
+kind = "skill"
+needs = ["stick-and-ball", "bench|chair"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["grip", "hip-deep-bend"]
+setup = "Sit tall and set a shoe or a water bottle on the floor in front of you."
+cues = ["Steer the ball around it in a figure eight.", "Smooth, then a little faster.", "Eyes up between loops."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-wide-narrow-dribble"
+name = "seated wide and narrow dribble"
+aliases = ["wide and narrow dribble", "wide narrow dribble", "wide and narrow stickhandling"]
+kind = "skill"
+needs = ["stick-and-ball", "bench|chair"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["grip", "hip-deep-bend"]
+setup = "Sit tall with the ball in front of you."
+cues = ["Two wide pulls, then two quick narrow ones.", "Reach out without leaning off the seat.", "Soft hands."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-toe-drag"
+name = "seated toe drags"
+aliases = ["seated toe drag", "toe drags", "toe drag"]
+kind = "skill"
+needs = ["stick-and-ball", "bench|chair"]
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["grip", "hip-deep-bend"]
+setup = "Sit tall with the ball out to one side."
+cues = ["Pull the ball in with the toe of the blade.", "Roll the blade over and push it back out.", "Slow and clean before fast."]
+easier = []
+harder = []
+
+[[movement]]
+id = "standing-stickhandling"
+name = "standing stickhandling"
+aliases = ["standing side-to-side dribble", "athletic stance stickhandling", "standing dribble"]
+kind = "skill"
+needs = ["stick-and-ball"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "grip", "ankle-bend"]
+setup = "Stand in an athletic stance, knees soft, the ball in front of you."
+cues = ["Side to side, then front to back.", "Eyes up.", "Stay low through the hips."]
+easier = ["seated-side-to-side-dribble"]
+harder = []
+
+[[movement]]
+id = "stickhandling-weight-shift"
+name = "stickhandling with weight shifts"
+aliases = ["weight shift stickhandling", "stickhandling weight shifts"]
+kind = "skill"
+needs = ["stick-and-ball"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "grip", "ankle-bend", "lateral"]
+setup = "Stand in an athletic stance with the ball in front of you."
+cues = ["Shift your weight to one foot as the ball goes that way.", "Then shift back.", "Hands stay soft and quiet."]
+easier = ["standing-stickhandling"]
+harder = []
+
+[[movement]]
+id = "puck-protection-turn"
+name = "puck-protection turns"
+aliases = ["puck protection turn", "protection turns", "stickhandling turns"]
+kind = "skill"
+needs = ["stick-and-ball"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "grip", "ankle-bend", "lateral", "spine-twist"]
+setup = "Stand in an athletic stance with the ball on your forehand side."
+cues = ["Pivot and turn your back to an imaginary defender.", "Keep the ball out wide, away from your body.", "Turn back and repeat."]
+easier = ["stickhandling-weight-shift"]
+harder = []
+
+[[movement]]
+id = "walking-stickhandling"
+name = "walking stickhandling"
+aliases = ["stickhandling while walking", "walking dribble"]
+kind = "skill"
+needs = ["stick-and-ball"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "grip"]
+setup = "Clear a short lane and stand at one end with the ball on your blade."
+cues = ["Walk slowly, moving the ball side to side.", "Eyes up, not down.", "Turn at the end and come back."]
+easier = ["standing-stickhandling"]
+harder = []
+
+[[movement]]
+id = "wrist-shot-follow-through"
+name = "wrist-shot follow-through"
+aliases = ["wrist shot follow through", "shooting motion", "wrist shot without release"]
+kind = "skill"
+needs = ["stick-and-ball"]
+position = "standing"
+sided = false
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance", "grip", "spine-twist"]
+setup = "Stand side on in a shooting stance, the ball on the blade beside your back foot."
+cues = ["Sweep forward and shift your weight to the front foot.", "Roll the wrists and finish low, no release.", "Never wind up over your head."]
+easier = []
+harder = []
+
+# Rehab: ankle --------------------------------------------------------------------------------
+
+[[movement]]
+id = "seated-ankle-alphabet"
+name = "seated ankle alphabet"
+aliases = ["ankle alphabet", "ankle alphabets", "foot alphabet"]
+kind = "rehab"
+needs = []
+position = "seated"
+sided = true
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall and lift one foot a little off the floor, or rest the calf on your other knee."
+cues = ["Trace the letters of the alphabet with your big toe.", "Move from the ankle, not the knee.", "Small and slow."]
+easier = []
+harder = ["band-ankle-eversion"]
+
+[[movement]]
+id = "seated-ankle-circles"
+name = "seated ankle circles"
+aliases = ["ankle circles", "ankle rolls", "ankle rotations"]
+kind = "rehab"
+needs = []
+position = "seated"
+sided = true
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall and lift one foot a little off the floor."
+cues = ["Draw slow circles with your toes.", "Make them as big as feels easy.", "Switch direction halfway."]
+easier = []
+harder = []
+
+[[movement]]
+id = "band-ankle-eversion"
+name = "band ankle eversion"
+aliases = ["banded ankle eversion", "ankle eversion", "band eversion"]
+kind = "rehab"
+needs = ["band"]
+position = "seated"
+sided = true
+measure = "reps"
+groups = []
+tags = []
+setup = "Sit tall, loop a band around the outside of one foot, and anchor the other end under your other foot."
+cues = ["Turn the sole outward against the band.", "Move only at the ankle.", "Return slowly."]
+easier = ["seated-ankle-alphabet"]
+harder = []
+
+[[movement]]
+id = "band-ankle-inversion"
+name = "band ankle inversion"
+aliases = ["banded ankle inversion", "ankle inversion", "band inversion"]
+kind = "rehab"
+needs = ["band"]
+position = "seated"
+sided = true
+measure = "reps"
+groups = []
+tags = []
+setup = "Sit tall, loop a band around the inside of one foot, and anchor the other end to the side."
+cues = ["Turn the sole inward against the band.", "Keep the knee still.", "Return slowly."]
+easier = ["seated-ankle-alphabet"]
+harder = []
+
+[[movement]]
+id = "band-ankle-dorsiflexion"
+name = "band ankle dorsiflexion"
+aliases = ["banded dorsiflexion", "ankle dorsiflexion", "band toe pull"]
+kind = "rehab"
+needs = ["band"]
+position = "seated"
+sided = true
+measure = "reps"
+groups = []
+tags = []
+setup = "Sit tall with one leg out straight and a band looped over the top of the foot, anchored low in front."
+cues = ["Pull the toes back toward you.", "Pause at the top.", "Let them return slowly."]
+easier = ["seated-ankle-alphabet"]
+harder = []
+
+[[movement]]
+id = "band-ankle-plantar-flexion"
+name = "band ankle plantar flexion"
+aliases = ["banded plantar flexion", "band ankle push", "band foot press"]
+kind = "rehab"
+needs = ["band"]
+position = "seated"
+sided = true
+measure = "reps"
+groups = []
+tags = ["ankle-push"]
+setup = "Sit tall with one leg out straight and a band around the ball of the foot, ends held in your hands."
+cues = ["Press the foot away like pressing a pedal.", "Smooth and controlled.", "Return slowly."]
+easier = ["seated-ankle-alphabet"]
+harder = []
+
+[[movement]]
+id = "towel-scrunch"
+name = "towel scrunches"
+aliases = ["towel scrunch", "towel curls", "toe scrunches"]
+kind = "rehab"
+needs = ["towel"]
+position = "seated"
+sided = true
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall with one bare foot on a towel laid flat on the floor."
+cues = ["Curl your toes to gather the towel toward you.", "Heel stays down.", "Spread it out and go again."]
+easier = []
+harder = []
+
+# Finishers: seated punching and arm drills ---------------------------------------------------
+
+[[movement]]
+id = "seated-shadow-boxing"
+name = "seated shadow boxing"
+aliases = ["seated punching finisher", "seated punching", "seated punches", "seated boxing"]
+kind = "finisher"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall at the front of a chair, the bench or the edge of the bed, fists up by your cheeks."
+cues = ["Straight punches, out and back.", "Snap the hand back to your face.", "Breathe out on every punch."]
+easier = []
+harder = ["shadow-boxing"]
+
+[[movement]]
+id = "seated-arm-pump"
+name = "seated arm pumping"
+aliases = ["seated arm pumping drill", "seated arm pumps", "seated sprint arms", "seated arm drill"]
+kind = "finisher"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall, elbows bent at your sides, hands loose."
+cues = ["Pump the arms like a sprinter.", "Elbows drive back.", "As fast as you can keep it clean."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-speed-bag"
+name = "seated speed bag"
+aliases = ["speed bag arms", "speed bag", "seated speed bag punches"]
+kind = "finisher"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall and bring your fists up in front of your chin."
+cues = ["Roll the fists in small fast circles around each other.", "Shoulders down.", "Switch direction when I call it."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-overhead-punches"
+name = "seated overhead punches"
+aliases = ["overhead punches", "seated punch-ups", "seated sky punches"]
+kind = "finisher"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = ["overhead"]
+setup = "Sit tall, fists by your shoulders."
+cues = ["Punch one fist straight up, then the other.", "Ribs down, don't arch.", "Quick and light."]
+easier = []
+harder = []
