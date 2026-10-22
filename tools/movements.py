@@ -53,11 +53,11 @@ def line(cat: catalog.Catalog, m: catalog.Movement) -> str:
 
 
 def sections(cat: catalog.Catalog, movements: List[catalog.Movement]) -> List[tuple]:
-    """[(heading, [lines])]: strength movements by group (in full under the first, a pointer under
-    the rest), then the other kinds."""
+    """[(heading, [lines])]: strength movements by group (in full under the movement's own first-listed
+    group, a pointer under the rest), then the other kinds."""
     out = []
     strength = [m for m in movements if m.kind == "strength"]
-    first = {m.id: next((g for g in cat.groups if g in m.groups), None) for m in strength}
+    first = {m.id: next((g for g in m.groups if g in cat.groups), None) for m in strength}
     for g in cat.groups:
         rows = [line(cat, m) if first[m.id] == g else f"  {m.name} (see {first[m.id]})"
                 for m in strength if g in m.groups]

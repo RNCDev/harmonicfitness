@@ -151,6 +151,14 @@ class Filter(unittest.TestCase):
         self.assertNotIn("\nhorizontal push\n", "\n" + only)   # a "(see horizontal push)" pointer is fine
         self.assertIn("quads", only)
 
+    def test_full_line_sits_under_the_movements_own_first_group(self):
+        out = run_movements(["--preset", "full-gym"]).stdout.splitlines()
+        quads = out[out.index("quads") + 1:]
+        quads = quads[:next(i for i, l in enumerate(quads) if not l.startswith("  "))]
+        self.assertTrue(any(l.startswith("  goblet squat (standing)") for l in quads))
+        hinge = out[out.index("hip hinge or glutes") + 1:]
+        self.assertIn("  goblet squat (see quads)", hinge[:next(i for i, l in enumerate(hinge) if not l.startswith("  "))])
+
 
 if __name__ == "__main__":
     unittest.main()
