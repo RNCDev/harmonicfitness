@@ -9,26 +9,32 @@ A voice is not a tuned model. The models are used exactly as published; what mak
 Three files per voice, in `voices/` for the voices that ship with sweatcast, or in `me/voices/` for private ones (a voice cloned from a real person belongs there, never in the public repo; `me/voices/` wins a name clash):
 - `<name>.wav`: the reference clip, about ten seconds.
 - `<name>.txt`: exactly what the clip says.
-- `<name>.json`: the engine, `"chatterbox"` or `"qwen3"`; the `"model"` (a Hugging Face repo; without one, the engine's standard build); the `"revision"`, the model's commit on Hugging Face, so every copy of sweatcast renders with the same weights; and optionally `"generate"`, extra settings passed to the engine for every clip, such as `{"exaggeration": 0.55, "cfg_weight": 0.5}` for the full-size Chatterbox. Chatterbox Turbo ignores `exaggeration` and `cfg_weight`. Changing any of these re-renders the voice's clips instead of reusing cached ones.
+- `<name>.json`: the engine, `"chatterbox"` or `"qwen3"`; the `"model"` (a Hugging Face repo; without one, the engine's standard build); the `"revision"`, the model's commit on Hugging Face, so every copy of sweatcast renders with the same weights; and optionally `"generate"`, extra settings passed to the engine for every clip, such as `{"exaggeration": 0.55, "cfg_weight": 0.5}` for the full-size Chatterbox. Chatterbox Turbo ignores `exaggeration` and `cfg_weight`. Changing any of these re-renders the voice's clips instead of reusing cached ones. Those top-level settings are the Mac's (MLX); `"torch"` holds the Windows PC's PyTorch model and revision (and its own `"generate"` if any), for an engine that has one.
 
 For example, Chatterbox Coach:
 
 ```json
 {"engine": "chatterbox", "model": "mlx-community/chatterbox-turbo-fp16",
- "revision": "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75"}
+ "revision": "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75",
+ "torch": {"model": "ResembleAI/chatterbox-turbo",
+           "revision": "749d1c1a46eb10492095d68fbcf55691ccf137cd"}}
 ```
 
 `./sweatcast voices` lists the voices with their engine, measured pace and model. `./sweatcast setup` downloads the default voice's model at its pinned revision (`--all` for every voice), and `./sweatcast voices download "<name>"` fetches one.
 
 ## Engines
 
-Both run on Apple Silicon through `mlx-audio`, in the project's own Python environment (`.venv`, made by `./sweatcast setup` from `uv.lock`). Their weights download from Hugging Face into `~/.cache/huggingface/hub`, shared with other apps; Chatterbox Turbo also loads a speech tokenizer (`mlx-community/S3TokenizerV2`), pinned in `tools/voices.py`.
+On a Mac both run on Apple Silicon through `mlx-audio`, in the project's own Python environment (`.venv`, made by `./sweatcast setup` from `uv.lock`). Their weights download from Hugging Face into `~/.cache/huggingface/hub`, shared with other apps; Chatterbox Turbo also loads a speech tokenizer (`mlx-community/S3TokenizerV2`), pinned in `tools/voices.py`.
+
+On a Windows PC with an NVIDIA GPU, Chatterbox Turbo runs from Resemble AI's own PyTorch release (`chatterbox-tts`, on CUDA 12.4 builds of PyTorch 2.6), with the original weights (`ResembleAI/chatterbox-turbo`, about 4 GB, everything in one repo). It's the same model from the same reference clip, so the voice sounds very close to the Mac's, though not identical, and Resemble's package adds its inaudible Perth watermark to each clip. Each voice's pace is measured separately per model, so the Windows voice needs its own smoke test. Qwen3-TTS and voice design are Mac-only for now: on Windows a Qwen3 voice still lints, and its render says to pick a Chatterbox voice. `tools/voices.py` picks the backend from the system; `SWEATCAST_BACKEND=mlx` or `torch` overrides it.
 
 | Engine | Strength | Speed on an M3 with 16 GB |
 |---|---|---|
 | Chatterbox Turbo (`mlx-community/chatterbox-turbo-fp16`), used by Chatterbox Coach | Most natural, human delivery | About 0.7 times the speech's length |
 | Chatterbox (`mlx-community/Chatterbox-TTS-fp16`), the full-size model | Sounds as good as Turbo; also takes an expressiveness setting | About 1.8 times |
 | Qwen3-TTS (`mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`), used by Qwen3 Coach | Clearest diction | About 1.3 to 1.45 times |
+
+On Windows, Chatterbox Turbo on an RTX 2080 Super (8 GB) rendered at about 0.52 times the speech's length, after a model load of about forty seconds.
 
 Neither decides a clip's length in advance, so the lint predicts it from each voice's measured rate (recorded by every render) and the render lays segments on the plan's clock, ending a short one early and paying back a long one from the next. The whole workout is held within three percent of plan.
 
@@ -46,6 +52,7 @@ Model weights never go in git. They download once from Hugging Face into `~/.cac
 |---|---|---|
 | Chatterbox Coach | `mlx-community/chatterbox-turbo-fp16` and its speech tokenizer, `mlx-community/S3TokenizerV2` | About 3.3 GB |
 | Qwen3 Coach | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16` | About 4.2 GB |
+| Chatterbox Coach, on Windows | `ResembleAI/chatterbox-turbo` | About 4 GB |
 
 - **When:** `./sweatcast setup` fetches the default voice's model (the first of the voices in `me/profile.md`'s settings); `--all` fetches every voice's, and rerunning it after changing the default fetches the new one. `./sweatcast voices download "<name>"` fetches one voice. A voice whose model isn't there yet downloads it on its first render, so a smoke test can take several minutes the first time.
 - **No account:** the models aren't gated, so no Hugging Face account or token is needed. The "unauthenticated requests" warning during a download is harmless; setting `HF_TOKEN` only makes downloads faster.

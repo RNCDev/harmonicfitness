@@ -1,15 +1,22 @@
 [project]
 name = "sweatcast"
-version = "5.4.0"
-description = "Narrated workout podcasts, written by Claude Code and voiced on your own Mac."
+version = "6.0.0"
+description = "Narrated workout podcasts, written by Claude Code and voiced on your own Mac or Windows PC."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11,<3.12"
 dependencies = [
     # Text to speech on Apple Silicon: Chatterbox Turbo and Qwen3-TTS through MLX.
-    "mlx-audio==0.5.0",
-    "mlx==0.32.1",
-    "numpy==2.2.6",
+    "mlx-audio==0.5.0; sys_platform == 'darwin'",
+    "mlx==0.32.1; sys_platform == 'darwin'",
+    "numpy==2.2.6; sys_platform == 'darwin'",
+    # Text to speech on Windows with an NVIDIA GPU: Resemble AI's own PyTorch Chatterbox
+    # Turbo on CUDA (tools/engines.py). It pins torch 2.6.0 and numpy below 2.
+    "chatterbox-tts==0.1.7; sys_platform == 'win32'",
+    "torch==2.6.0; sys_platform == 'win32'",
+    "torchaudio==2.6.0; sys_platform == 'win32'",
+    # Its watermarker (resemble-perth) still imports pkg_resources, which setuptools 81 dropped.
+    "setuptools<81; sys_platform == 'win32'",
     # Video transcripts for the deep dive and puzzle videos.
     "yt-dlp==2026.8.19",
     # TLS roots for tools/feeds.py on a python.org Python.
@@ -18,3 +25,15 @@ dependencies = [
 
 [tool.uv]
 package = false
+# The two systems sweatcast renders on: an Apple Silicon Mac (MLX) and Windows with CUDA.
+environments = ["sys_platform == 'darwin'", "sys_platform == 'win32'"]
+
+# PyTorch's CUDA 12.4 builds, for Windows only (they run on NVIDIA cards from the RTX 20 series on).
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu124", marker = "sys_platform == 'win32'" }]
+torchaudio = [{ index = "pytorch-cu124", marker = "sys_platform == 'win32'" }]

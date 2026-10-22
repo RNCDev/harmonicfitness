@@ -1,14 +1,14 @@
 # sweatcast
 
-Your own workout podcast, made fresh each session. Ask Claude Code for a workout, and sweatcast checks in on how you feel, builds a plan around your injuries and equipment, writes a narrated script with real news, science and stories, and renders it to an MP3 in a natural coach's voice on your own Mac. The audio is the timer: every segment starts on the clock.
+Your own workout podcast, made fresh each session. Ask Claude Code for a workout, and sweatcast checks in on how you feel, builds a plan around your injuries and equipment, writes a narrated script with real news, science and stories, and renders it to an MP3 in a natural coach's voice on your own Mac or Windows PC. The audio is the timer: every segment starts on the clock.
 
 Current version: see `VERSION` and `CHANGELOG.md`.
 
 ## Get started
 
-You need an Apple Silicon Mac, [Claude Code](https://claude.com/claude-code), and Homebrew.
+You need [Claude Code](https://claude.com/claude-code) and either an Apple Silicon Mac with Homebrew, or a Windows PC with an NVIDIA GPU (RTX 20 series or later, 8 GB) and Git for Windows, whose Git Bash runs `./sweatcast`. On Windows only the Chatterbox voices render so far; everything else works the same.
 
-1. **Install the two tools** sweatcast needs: `brew install ffmpeg uv`.
+1. **Install the two tools** sweatcast needs: on a Mac, `brew install ffmpeg uv`; on Windows, `winget install Gyan.FFmpeg.Essentials astral-sh.uv`.
 2. **Fork** this repo (a fork keeps the link to upstream, so you can pull improvements), clone it, and open the folder in Claude Code.
 3. **Say "set me up".** The `setup` skill runs `./sweatcast setup` for you (the project's Python environment, about 430 MB; `me/` from `me.example/`; a git hook that refuses to push `me/`), interviews you (neighborhood, equipment, injuries, interests and teams, voice, where MP3s should go), fills in `me/`, checks your feeds, downloads your voice's model (see Voice models below) and renders a one-minute smoke test, which also measures the voice's pace. It can design you a voice of your own, too.
 4. **Ask for a workout**: "I'd like a workout", "25 minutes at the hotel, just go".
@@ -97,4 +97,4 @@ sweatcast follows [Semantic Versioning](https://semver.org). Each release is tag
 
 ## License
 
-MIT, see [LICENSE](LICENSE). `tools/char_weight.py` is vendored from [OmniVoice](https://github.com/k2-fsa/OmniVoice) under the Apache License 2.0, with its header kept. The voice models are downloaded, not distributed here: Chatterbox Turbo ([ResembleAI/chatterbox-turbo](https://huggingface.co/ResembleAI/chatterbox-turbo), MIT; MLX build [mlx-community/chatterbox-turbo-fp16](https://huggingface.co/mlx-community/chatterbox-turbo-fp16), Apache 2.0) and Qwen3-TTS ([Qwen/Qwen3-TTS-12Hz-1.7B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base), Apache 2.0; MLX build [mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16)).
+MIT, see [LICENSE](LICENSE). `tools/char_weight.py` is vendored from [OmniVoice](https://github.com/k2-fsa/OmniVoice) under the Apache License 2.0, with its header kept. The voice models are downloaded, not distributed here: Chatterbox Turbo ([ResembleAI/chatterbox-turbo](https://huggingface.co/ResembleAI/chatterbox-turbo), MIT, used as is on Windows through Resemble's `chatterbox-tts`; MLX build [mlx-community/chatterbox-turbo-fp16](https://huggingface.co/mlx-community/chatterbox-turbo-fp16), Apache 2.0) and Qwen3-TTS ([Qwen/Qwen3-TTS-12Hz-1.7B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base), Apache 2.0; MLX build [mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16)).

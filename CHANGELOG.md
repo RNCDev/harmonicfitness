@@ -2,6 +2,33 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [6.0.0] - 2026-10-22
+
+sweatcast renders on a Windows PC with an NVIDIA GPU as well as on an Apple Silicon Mac. Chatterbox Coach runs there from Resemble AI's own PyTorch Chatterbox Turbo on CUDA, cloned from the same reference clip.
+
+### For forks
+Breaking: the Python environment and the voice settings change shape.
+1. Rerun `./sweatcast setup` after pulling. `pyproject.toml` now gives MLX to macOS and PyTorch to Windows, and `uv.lock` resolves for those two systems only, so an environment synced on any other system needs `SWEATCAST_PYTHON` (as CI does) or a fork of its own. The Mac's locked versions are unchanged.
+2. A voice's `.json` may carry a `"torch"` table (`model`, `revision`, optional `generate`) for Windows; the top-level settings stay the Mac's. A private Chatterbox voice in `me/voices/` gets one from `voices keep`; add it by hand to an existing one (copy it from `voices/Chatterbox Coach.json`) to render that voice on Windows.
+3. On Windows, render the smoke test once per voice: each backend's model is measured on its own.
+4. Context files don't change format; there is nothing to migrate. `deliver_to` may now be a list, one folder per computer.
+
+### Added
+- A PyTorch backend in `tools/engines.py`: Chatterbox Turbo (`ResembleAI/chatterbox-turbo`, pinned) through `chatterbox-tts` 0.1.7 on CUDA 12.4 builds of PyTorch 2.6, with the reference clip encoded once per render. On an RTX 2080 Super it rendered at about 0.52 times the speech's length.
+- `tools/voices.py` picks the backend from the system (`SWEATCAST_BACKEND` overrides it), takes each voice's model for it, lists it in `./sweatcast voices`, and downloads it with `voices download`.
+- `tools/locks.py`: one exclusive file lock for the render lock and the pace file, flock on a Mac and msvcrt on Windows.
+- `deliver_to` takes a list of folders; each build copies to the ones that exist on the computer it runs on.
+- The build record names the backend and its runtime versions.
+
+### Changed
+- `./sweatcast`, `build.sh` and `setup.sh` find the Windows venv's Python (`.venv/Scripts/python.exe`); `./sweatcast build` and `setup` run through Git Bash's `sh` on Windows and keep their exit codes. Setup checks for an NVIDIA GPU on Windows and names the winget packages for ffmpeg and uv.
+- A render on Windows marks the `coverage` package absent before loading the model, since `tools/coverage.py` would otherwise pass for it and break numba's import under librosa.
+- The build-script tests run on Windows too (no `execv` in the stub, forward slashes in the test profile's TOML); the read-only-folder test is skipped there. The tests pin the Mac backend unless a test asks for PyTorch.
+- README, CLAUDE.md, `knowledge/voices.md` and the setup skill describe both systems.
+
+### Not yet on Windows
+- Qwen3 Coach and voice design (`voices design`) stay Mac-only: a Qwen3 voice lints on Windows, and its render says to pick a Chatterbox voice.
+
 ## [5.4.0] - 2026-10-22
 
 ### For forks

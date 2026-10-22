@@ -17,6 +17,8 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+# The same voice settings on every system: the Mac's (MLX) unless a test patches voices.BACKEND.
+os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import cache  # noqa: E402
 import catalog  # noqa: E402
@@ -750,7 +752,8 @@ if script in ("tts_build.py", "render.py"):
         print("render failed for a test reason", file=sys.stderr)
         sys.exit(int(os.environ.get("STUB_RENDER_EXIT", "0")))
     sys.exit(0)
-os.execv({python!r}, [{python!r}] + sys.argv[1:])
+import subprocess
+sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows it loses the exit code
 """
 
     def setUp(self):
@@ -762,7 +765,8 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
         prof = os.path.join(self.home, "profile.md")
         with open(prof, encoding="utf-8") as f:
             text = f.read()
-        text = re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone)}", text, flags=re.M)
+        text = re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone.replace(os.sep, '/'))}", text,
+                      flags=re.M)   # forward slashes: a Windows path's backslashes aren't valid in TOML
         write_file(prof, text)
         self.stub = os.path.join(d, "python")
         write_file(self.stub, self.STUB.format(python=sys.executable))
@@ -792,6 +796,7 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
         self.assertIn("--voice Chatterbox Coach", self.calls())   # the profile's default voice
         self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
 
+    @unittest.skipIf(os.name == "nt", "chmod can't make a folder read-only on Windows")
     def test_a_failed_copy_keeps_the_local_mp3(self):
         os.chmod(self.phone, 0o500)   # the delivery folder can't be written
         try:
@@ -1027,6 +1032,15 @@ value = "x\""""
         p = context.Profile({"deliver_to": f"{self.tmp.name}/GoogleDrive-*/W"}, "")
         self.assertEqual(context.delivery_folders(p)[1], [a, b])
         self.assertEqual(context.delivery_folders(context.Profile({"deliver_to": f"{self.tmp.name}/no"}, ""))[1], [])
+
+    def test_delivery_can_name_a_folder_per_computer(self):
+        here = os.path.join(self.tmp.name, "Drive", "W")
+        os.makedirs(here)
+        p = context.Profile({"deliver_to": [f"{self.tmp.name}/Mac-*/W", f"{self.tmp.name}/Drive/W", "[a folder]"]}, "")
+        pattern, found = context.delivery_folders(p)
+        self.assertEqual([os.path.normpath(f) for f in found], [here])   # only the folder this computer has
+        self.assertIn(" or ", pattern)
+        self.assertIsNone(context.delivery(context.Profile({"deliver_to": []}, "")))
 
     def test_add_voice_keeps_comments_and_order(self):
         context.add_voice_to_profile("Coach Maya", "a woman in her thirties", default=True, path=self.profile)
@@ -1514,6 +1528,31 @@ class Engines(unittest.TestCase):
         with self.assertRaises(SystemExit) as e:
             render.loudness_stats("Error opening input")
         self.assertIn("Error opening input", str(e.exception.code))
+
+
+class TorchBackend(unittest.TestCase):
+    def test_lookup_takes_the_voices_torch_model(self):
+        with mock.patch.object(voices, "BACKEND", "torch"):
+            v = voices.lookup("Chatterbox Coach")
+            self.assertEqual((v["backend"], v["model"]), ("torch", "ResembleAI/chatterbox-turbo"))
+            self.assertRegex(v["revision"], r"^[0-9a-f]{40}$")
+            self.assertTrue(engines.runtime(v).startswith("chatterbox-tts "))
+            q = voices.lookup("Qwen3 Coach")                   # no PyTorch model: the lint still works
+            self.assertIsNone(q["model"])
+            self.assertNotEqual(voices._rate_key(v), voices._rate_key(voices.lookup("Chatterbox Coach") | {"model": "m"}))
+            with self.assertRaises(SystemExit) as e:
+                engines.speaker(q)
+            self.assertIn("Mac", str(e.exception.code))
+
+    def test_mlx_keeps_its_cache_key(self):
+        v = voices.lookup("Chatterbox Coach")
+        self.assertEqual(v["backend"], "mlx")
+        self.assertEqual(v["model"], "mlx-community/chatterbox-turbo-fp16")
+        self.assertEqual(engines.runtime(v), f"mlx-audio {engines.mlx_audio_version()}")
+
+    def test_kept_voice_carries_the_torch_model(self):
+        self.assertEqual(voices.shipped_torch_model("chatterbox")["model"], "ResembleAI/chatterbox-turbo")
+        self.assertIsNone(voices.shipped_torch_model("qwen3"))
 
 
 class RenderLock(unittest.TestCase):

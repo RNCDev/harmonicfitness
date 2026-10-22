@@ -235,21 +235,31 @@ def wpm(p):
     return int(v) if isinstance(v, (int, float)) and v > 0 else None
 
 
-def delivery(p):
-    """The deliver_to folder with ~ expanded, or None (unset, or still the hint)."""
+def delivery_patterns(p):
+    """The deliver_to folders with ~ expanded: one string, or a list of them (say one per
+    computer, a Mac's Google Drive path and a Windows PC's); unset or hint lines dropped."""
     value = p.settings.get("deliver_to")
-    if unfilled(value):
-        return None
-    return os.path.expanduser(value.strip())
+    values = value if isinstance(value, list) else [value]
+    return [os.path.expanduser(v.strip()) for v in values if isinstance(v, str) and not unfilled(v)]
+
+
+def delivery(p):
+    """The deliver_to folder (or folders, joined with "or") with ~ expanded, or None
+    (unset, or still the hint)."""
+    return " or ".join(delivery_patterns(p)) or None
 
 
 def delivery_folders(p):
-    """(pattern, [existing folders it matches]); * in the pattern matches anything."""
-    pattern = delivery(p)
-    if not pattern:
+    """(pattern, [existing folders it matches]); * in a pattern matches anything. Of a
+    list, the folders that exist on this computer."""
+    patterns = delivery_patterns(p)
+    if not patterns:
         return None, []
-    found = sorted(glob.glob(pattern)) if glob.has_magic(pattern) else [pattern]
-    return pattern, [d for d in found if os.path.isdir(d)]
+    found = []
+    for pattern in patterns:
+        hits = sorted(glob.glob(pattern)) if glob.has_magic(pattern) else [pattern]
+        found += [d for d in hits if os.path.isdir(d) and d not in found]
+    return " or ".join(patterns), found
 
 
 def feed_sources(p):
@@ -341,7 +351,7 @@ SETTINGS_COMMENTS = {
     "dislikes": "Movements to leave out (ids or names); the session tool never picks them.",
     "deliver_to": "Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * "
                   "matches anything (any Google account). Once the copy is there the local MP3 is removed; "
-                  "empty keeps MP3s in me/workouts/.",
+                  "empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has.",
     "youtube_favorites": "Channels (@handles) for the deep dives retold from a video's transcript.",
     "puzzles": "Channels (@handles) whose puzzles can be the session's quiz.",
     "voices": "Voices from ./sweatcast voices; the first is the default. The description is what the "
@@ -697,7 +707,7 @@ def _check_profile(path, text):
         out.append(Issue(path, 0, "no voices: add a [[voices]] entry (name and description); the first is the default"))
     if wpm(p) is None:
         out.append(Issue(path, 0, "no words_per_minute (./sweatcast lint without a voice assumes 185)", note=True))
-    if unfilled(settings.get("deliver_to")):
+    if not delivery_patterns(Profile(settings, rest, path)):
         out.append(Issue(path, 0, "no deliver_to folder, so finished MP3s stay in me/workouts/", note=True))
     for i, f in enumerate(settings.get("feeds") or [], 1):
         if not isinstance(f, dict):

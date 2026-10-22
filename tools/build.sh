@@ -45,7 +45,9 @@ ROOT="$(dirname "$HERE")"
 CONTEXT="${SWEATCAST_HOME:-$ROOT/me}"
 PROFILE="$CONTEXT/profile.md"
 OUT_DIR="$CONTEXT/workouts"
-PY="${SWEATCAST_PYTHON:-$ROOT/.venv/bin/python}"
+VENV_PY="$ROOT/.venv/bin/python"
+[ -x "$VENV_PY" ] || VENV_PY="$ROOT/.venv/Scripts/python.exe"   # Windows (Git Bash)
+PY="${SWEATCAST_PYTHON:-$VENV_PY}"
 
 [ -f "$PROFILE" ] || { echo "No profile at $PROFILE. Run ./sweatcast setup first (it copies me.example/ to me/)."; exit 1; }
 [ -x "$PY" ] || { echo "No Python environment at $PY. Run ./sweatcast setup first (it makes .venv with uv)."; exit 1; }

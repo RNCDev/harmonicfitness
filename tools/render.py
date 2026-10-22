@@ -3,8 +3,9 @@
 
 Runs in the project's own environment, .venv (./sweatcast setup makes it; ./sweatcast
 runs it there). Each voice is cloned from its reference clip with Chatterbox Turbo or
-Qwen3-TTS through mlx-audio (tools/engines.py), using the model revision its
-voices/<name>.json pins. A soft chime opens each segment after the first, a [chime]
+Qwen3-TTS through mlx-audio on a Mac, or with Resemble AI's PyTorch Chatterbox Turbo on
+a Windows PC's NVIDIA GPU (tools/engines.py), using the model revision its
+voices/<name>.json pins for that system. A soft chime opens each segment after the first, a [chime]
 marker rings it inside a segment, and a three-note tone marks the end of the
 workout. A segment's spare seconds widen its paragraph breaks and then it ends
 early, a slightly long segment is paid back from the next ones' spare time, the
@@ -26,7 +27,6 @@ Usage (normally via ./sweatcast build):
 """
 import contextlib
 import datetime as dt
-import fcntl
 import hashlib
 import json
 import math
@@ -43,6 +43,7 @@ import wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import engines  # noqa: E402
+import locks  # noqa: E402
 from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, layout,  # noqa: E402
                    parse, plan, spoken as is_spoken)
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
@@ -171,7 +172,8 @@ def encode(pcm, out, title):
     """Two-pass loudness normalization, then encode by the output's extension."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
-        raise SystemExit("ffmpeg not found; install it with: brew install ffmpeg")
+        raise SystemExit("ffmpeg not found; install it with: brew install ffmpeg (Mac) "
+                         "or winget install Gyan.FFmpeg.Essentials (Windows)")
     codec = CODECS.get(os.path.splitext(out)[1].lower())
     if not codec:
         raise SystemExit(f"--out must end in one of: {', '.join(CODECS)}")
@@ -199,14 +201,12 @@ def render_lock(folder, wait_message=True):
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, ".render.lock")
     with open(path, "a+") as f:
-        try:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        if not locks.acquire(f, block=False):
             f.seek(0)
             holder = f.read().strip() or "unknown"
             if wait_message:
                 print(f"Another render is running (pid {holder}); waiting for it to finish.", flush=True)
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            locks.acquire(f)
         f.seek(0)
         f.truncate()
         f.write(str(os.getpid()))
@@ -214,7 +214,7 @@ def render_lock(folder, wait_message=True):
         try:
             yield
         finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            locks.release(f)
 
 
 def engine_version():
@@ -233,6 +233,7 @@ def build_record(draft_path, out, voice, seed, clips_total, clips_rendered, plan
     return {"out": show(os.path.abspath(out)), "engine_version": engine_version(), "draft": show(os.path.abspath(draft_path)),
             "draft_sha256": draft_hash, "voice": voice["name"], "voice_key": voice["key"],
             "engine": voice["engine"], "model": voice["model"], "revision": voice["revision"],
+            "backend": voice.get("backend", "mlx"), "runtime": engines.runtime(voice),
             "mlx_audio": engines.mlx_audio_version(), "ffmpeg": ffmpeg_version(), "seed": seed,
             "clips_total": clips_total, "clips_rendered": clips_rendered,
             "planned_s": round(planned, 2), "actual_s": round(actual, 2), "drift": round(drift, 4),
@@ -281,7 +282,7 @@ def main():
     # Everything that changes how a clip sounds goes in its cache key, so changing a
     # setting (or upgrading mlx-audio) re-renders instead of silently reusing old clips.
     settings = (f"{model_repo}@{revision or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
-                f"trim {TRIM_DB} {TRIM_KEEP}|mlx-audio {engines.mlx_audio_version()}")
+                f"trim {TRIM_DB} {TRIM_KEEP}|{engines.runtime(voice)}")
 
     def cache_path(text):
         key = f"{voice['key']}|{engine}|{seed}|{settings}|{text}"

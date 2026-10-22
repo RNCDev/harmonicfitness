@@ -3,8 +3,12 @@
 Everything that depends on another library's internals lives here, so an upgrade
 breaks in one place: mlx-audio's model classes, huggingface_hub's download function
 (patched while a model loads, to hold its extra downloads to their pinned revisions),
-and MLX's memory cache. render.py calls speaker() and release(), and nothing else
-here touches mlx, mlx_audio or huggingface_hub.
+MLX's memory cache, and on Windows Resemble AI's PyTorch Chatterbox Turbo
+(chatterbox-tts) on CUDA. render.py calls speaker(), runtime() and release(), and
+nothing else touches mlx, mlx_audio, torch, chatterbox or huggingface_hub's loaders.
+
+Which one runs is the voice's "backend" (tools/voices.py: mlx on a Mac, torch on
+Windows), and with it the model: each voice's .json pins both.
 
 The engines are tested with the mlx-audio version in uv.lock (TESTED_MLX_AUDIO; a
 test keeps the two in step). Another version still runs, with a one-line warning.
@@ -15,7 +19,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from voices import ENGINE_EXTRAS  # noqa: E402
+from voices import ENGINE_EXTRAS, TORCH_ENGINES, TORCH_PATTERNS  # noqa: E402
 
 SR = 24000                     # every engine's output rate, in samples per second
 TESTED_MLX_AUDIO = "0.5.0"     # the mlx-audio version uv.lock pins
@@ -32,6 +36,24 @@ def mlx_audio_version():
         return None
     except Exception:   # an odd install shouldn't stop a lint or a cache lookup
         return None
+
+
+def _version(package):
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+        return version(package)
+    except (ImportError, PackageNotFoundError):
+        return None
+    except Exception:
+        return None
+
+
+def runtime(voice):
+    """What speaks the voice, with versions, for the clip cache key and the build record.
+    On a Mac it stays "mlx-audio <version>", as it always was, so cached clips still match."""
+    if voice.get("backend") == "torch":
+        return f"chatterbox-tts {_version('chatterbox-tts')} torch {_version('torch')}"
+    return f"mlx-audio {mlx_audio_version()}"
 
 
 def trim(a):
@@ -79,9 +101,18 @@ def pinned_extras(engine, hub=None):
         hub.hf_hub_download = original
 
 
+def to_pcm(a):
+    """Float samples to 16-bit mono PCM, with the engine's edge silence trimmed."""
+    import numpy as np
+    return (np.clip(trim(np.asarray(a, dtype=np.float32).reshape(-1)), -1.0, 1.0) * 32767).astype("<i2").tobytes()
+
+
 def speaker(voice):
-    """Load the voice's model (Qwen3-TTS or Chatterbox through mlx-audio) and return
-    say(text, seed) -> 16-bit mono PCM at SR, cloning the voice's reference clip."""
+    """Load the voice's model (Qwen3-TTS or Chatterbox through mlx-audio, or Chatterbox
+    Turbo through PyTorch) and return say(text, seed) -> 16-bit mono PCM at SR, cloning
+    the voice's reference clip."""
+    if voice.get("backend") == "torch":
+        return _torch_speaker(voice)
     import mlx.core as mx
     import numpy as np
     from mlx_audio.tts.utils import load_model
@@ -121,9 +152,49 @@ def speaker(voice):
     return say
 
 
+def _torch_speaker(voice):
+    """Chatterbox Turbo on an NVIDIA GPU, with Resemble AI's own PyTorch release. The
+    reference clip is encoded once and kept on the model, as the MLX path does."""
+    if voice["engine"] not in TORCH_ENGINES or not voice["model"]:
+        raise SystemExit(f"{voice['name']} runs on {voice['engine']}, which has no PyTorch model here yet, "
+                         "so it only renders on a Mac. On this PC, pick a Chatterbox voice with --voice.")
+    import numpy as np
+    import torch
+    if not torch.cuda.is_available():
+        raise SystemExit("PyTorch can't see an NVIDIA GPU (CUDA). Check the graphics driver with nvidia-smi, "
+                         "then rerun ./sweatcast setup.")
+    # tools/ is on sys.path, so its coverage.py would pass for the coverage package that
+    # numba (under librosa) probes for, and break its import. Mark that package absent.
+    if "coverage" not in sys.modules:
+        sys.modules["coverage"] = None
+    from huggingface_hub import snapshot_download
+    try:
+        path = snapshot_download(voice["model"], revision=voice["revision"], allow_patterns=TORCH_PATTERNS)
+    except Exception as e:
+        raise SystemExit(f"Couldn't fetch {voice['model']} at {(voice['revision'] or 'latest')[:8]}: {e}. "
+                         "Check the network and rerun; ./sweatcast setup downloads it ahead of time.")
+    from chatterbox.tts_turbo import ChatterboxTurboTTS
+    with contextlib.redirect_stdout(io.StringIO()):
+        model = ChatterboxTurboTTS.from_local(path, "cuda")
+        model.prepare_conditionals(voice["ref_audio"])
+    if model.sr != SR:
+        raise SystemExit(f"chatterbox returned {model.sr} Hz audio; expected {SR}")
+    gen = voice.get("generate") or {}
+
+    def say(text, seed):
+        torch.manual_seed(seed)   # seeds the GPU too
+        with torch.inference_mode(), contextlib.redirect_stdout(io.StringIO()):
+            wav = model.generate(text, **gen)
+        return to_pcm(wav.squeeze(0).cpu().numpy())
+    return say
+
+
 def design_takes(model_repo, revision, description, line, takes, seed):
     """Qwen3-TTS VoiceDesign: `takes` takes of `line` spoken by a voice made from
     `description`, as 16-bit mono PCM at SR. Each take uses its own seed."""
+    from voices import BACKEND
+    if BACKEND != "mlx":
+        raise SystemExit("Designing a voice needs Qwen3-TTS VoiceDesign on MLX, so it runs on a Mac only for now.")
     import mlx.core as mx
     import numpy as np
     from mlx_audio.tts.utils import load_model
@@ -147,6 +218,11 @@ def release():
     assembling and encoding the MP3 don't run with the model still loaded."""
     import gc
     gc.collect()
+    if "torch" in sys.modules:
+        try:
+            sys.modules["torch"].cuda.empty_cache()
+        except Exception:
+            pass
     try:
         import mlx.core as mx
         clear = getattr(mx, "clear_cache", None) or getattr(getattr(mx, "metal", None), "clear_cache", None)

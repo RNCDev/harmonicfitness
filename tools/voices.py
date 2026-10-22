@@ -30,7 +30,6 @@ me/voices/ on the engine you choose and is added to your profile's voices.
 """
 import argparse
 import contextlib
-import fcntl
 import hashlib
 import json
 import os
@@ -44,10 +43,17 @@ import wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from char_weight import weight  # noqa: E402,F401  (re-exported for render.py)
 import cli  # noqa: E402
+import locks  # noqa: E402
 import paths  # noqa: E402
 from paths import PACE_FILE, ROOT, VOICE_DIRS, show  # noqa: E402,F401
 
 ENGINES = ("qwen3", "chatterbox")
+# What runs the models here: MLX on a Mac, PyTorch on CUDA on Windows. A voice's .json
+# names its MLX model at the top level and its PyTorch one under "torch", each pinned.
+# SWEATCAST_BACKEND overrides the choice (the tests set it).
+BACKENDS = ("mlx", "torch")
+BACKEND = os.environ.get("SWEATCAST_BACKEND") or ("torch" if sys.platform == "win32" else "mlx")
+TORCH_ENGINES = ("chatterbox",)   # engines with a PyTorch path in tools/engines.py so far
 # The engine's standard model when a voice names none, and the extra repos an
 # engine loads on its own (Chatterbox Turbo's speech tokenizer), pinned so a
 # fresh machine downloads exactly what was tested.
@@ -60,7 +66,9 @@ DESIGN_LINE = ("Okay, set your feet. Chest up, elbows in, and press. Good. Stay 
                "Breathe out as you drive. That's the pace we want.")
 SIZES_GB = {"mlx-community/chatterbox-turbo-fp16": 2.8, "mlx-community/S3TokenizerV2": 0.5,
             "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 4.2,
-            VOICE_DESIGN[0]: 4.5}   # download sizes, for the message
+            VOICE_DESIGN[0]: 4.5, "ResembleAI/chatterbox-turbo": 4.0}   # download sizes, for the message
+# The files Resemble's own loader fetches from its Turbo repo (chatterbox.tts_turbo).
+TORCH_PATTERNS = ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"]
 MLX_EDGE = 0.08          # render.py trims engine silence to 40 ms at each end
 MIN_MEASURED = 30.0      # seconds of rendered speech before a voice's rate counts as measured
 DEFAULT_PACE = 14.5      # weighted chars/s for a new voice when no voice has been measured yet
@@ -118,9 +126,18 @@ def lookup(voice):
     engine = conf.get("engine")
     if engine not in ENGINES:
         raise SystemExit(f"{show(settings)}: engine must be one of {', '.join(ENGINES)}")
-    return {"name": name, "engine": engine,
-            "model": conf.get("model") or STANDARD_MODELS[engine], "revision": conf.get("revision"),
-            "generate": conf.get("generate") or {},
+    if BACKEND not in BACKENDS:
+        raise SystemExit(f"SWEATCAST_BACKEND must be one of {', '.join(BACKENDS)}")
+    if BACKEND == "torch":
+        # No PyTorch model yet (Qwen3): the lint still works, and the render says why it can't.
+        t = conf.get("torch") or {}
+        model, revision, gen = t.get("model"), t.get("revision"), t.get("generate") or {}
+    else:
+        model, revision = conf.get("model") or STANDARD_MODELS[engine], conf.get("revision")
+        gen = conf.get("generate") or {}
+    return {"name": name, "engine": engine, "backend": BACKEND,
+            "model": model, "revision": revision,
+            "generate": gen,
             "ref_audio": path, "ref_text": ref_text,
             "key": hashlib.sha256(f"{audio_hash}|{ref_text}".encode()).hexdigest()[:12]}
 
@@ -161,15 +178,15 @@ def _locked(path):
     """An exclusive lock beside `path`, held while its contents are read, changed and written."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".lock", "a") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        locks.acquire(lock)
         try:
             yield
         finally:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            locks.release(lock)
 
 
 def _rate_key(v):
-    return f"{v['key']}|{v['engine']}|{v['model']}"
+    return f"{v['key']}|{v['engine']}|{v['model']}"   # the model differs by backend, so each is measured
 
 
 def record_rate(v, weight, seconds, path=None):
@@ -221,11 +238,16 @@ def download(v):
     """Fetch the voice's model at its pinned revision, plus what its engine loads on its
     own, into the shared Hugging Face cache. Files already in the cache aren't fetched again."""
     from huggingface_hub import snapshot_download
-    for repo, rev in [(v["model"], v["revision"]), *ENGINE_EXTRAS.get(v["engine"], [])]:
+    if not v["model"]:
+        print(f"{v['name']}: no {v['backend']} model for its engine ({v['engine']}) yet; skipped.", flush=True)
+        return
+    torch = v.get("backend") == "torch"
+    extras = [] if torch else ENGINE_EXTRAS.get(v["engine"], [])   # the MLX port's own extra downloads
+    for repo, rev in [(v["model"], v["revision"]), *extras]:
         size = f", about {SIZES_GB[repo]} GB" if repo in SIZES_GB else ""
         print(f"{v['name']}: {repo}" + (f" at {rev[:8]}" if rev else " (latest; no revision pinned)") + size,
               flush=True)
-        snapshot_download(repo, revision=rev)
+        snapshot_download(repo, revision=rev, allow_patterns=TORCH_PATTERNS if torch else None)
 
 
 def write_wav(path, pcm, rate=24000):
@@ -277,6 +299,18 @@ def shipped_model(engine):
     return STANDARD_MODELS[engine], None
 
 
+def shipped_torch_model(engine):
+    """The shipped voice's PyTorch model on `engine` ({"model", "revision"}), or None."""
+    folder = os.path.join(ROOT, "voices")
+    for f in sorted(os.listdir(folder)):
+        if f.endswith(".json"):
+            with open(os.path.join(folder, f), encoding="utf-8") as j:
+                conf = json.load(j)
+            if conf.get("engine") == engine and (conf.get("torch") or {}).get("model"):
+                return {k: conf["torch"][k] for k in ("model", "revision") if k in conf["torch"]}
+    return None
+
+
 def keep(take, engine, name=None, description="", default=False, folder=None, profile_path=None, force=False):
     """Make a designed take (or any clip with a .txt of its words beside it) a private
     voice: me/voices/<name>.wav, .txt and .json, on `engine` at the shipped voice's
@@ -303,6 +337,9 @@ def keep(take, engine, name=None, description="", default=False, folder=None, pr
     shutil.copyfile(stem + ".txt", dest + ".txt")
     model, revision = shipped_model(engine)
     conf = {"engine": engine, "model": model, "revision": revision}
+    torch_model = shipped_torch_model(engine)
+    if torch_model:
+        conf["torch"] = torch_model
     if meta.get("description"):
         conf["designed_from"] = meta["description"]
     with open(dest + ".json", "w", encoding="utf-8") as f:
@@ -356,6 +393,8 @@ def main():
             print(f"  {show(t)}")
             if args.play and shutil.which("afplay"):
                 subprocess.run(["afplay", t])
+            elif args.play and os.name == "nt":
+                os.startfile(t)   # the default player; it plays alongside rather than in turn
         print(f"Listen, then keep the best one, for example:\n"
               f"  ./sweatcast voices keep \"{show(takes[0])}\" --engine chatterbox --default\n"
               f"Not right? Run design again with a reworded description, or another --seed. The design "
@@ -368,7 +407,7 @@ def main():
               f"{' as the default voice' if args.default else ''}. Measure its pace with the smoke test:\n"
               f"  ./sweatcast build voices/smoke-test.draft.txt \"smoke-test\" --voice \"{name}\"")
         return cli.OK
-    print(f"{'name':24} {'engine':10} {'pace':16} model")
+    print(f"{'name':24} {'engine':10} {'pace':16} model ({BACKEND})")
     estimated = False
     for name in names():
         try:
@@ -378,7 +417,8 @@ def main():
             continue
         p, exact = pace(v)
         estimated = estimated or not exact
-        print(f"{v['name'][:24]:24} {v['engine']:10} {p:5.2f} chars/s{'' if exact else '*':1}   {v['model']}")
+        print(f"{v['name'][:24]:24} {v['engine']:10} {p:5.2f} chars/s{'' if exact else '*':1}   "
+              f"{v['model'] or 'none on ' + BACKEND + ' yet (the lint still works)'}")
     if estimated:
         print("* estimated until the voice's first render (render the smoke test with it)")
     return cli.OK

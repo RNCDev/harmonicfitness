@@ -5,6 +5,7 @@ environment (.venv, Python 3.11, made by `./sweatcast setup`).
 """
 import importlib
 import os
+import shutil
 import subprocess
 import sys
 
@@ -51,10 +52,11 @@ def main(argv=None):
     if cmd not in COMMANDS:
         print(f"Unknown command '{cmd}'.\n\n{usage()}", file=sys.stderr)
         return 64
-    if cmd == "build":
-        os.execv("/bin/sh", ["sh", os.path.join(HERE, "build.sh"), *rest])
-    if cmd == "setup":
-        os.execv("/bin/sh", ["sh", os.path.join(HERE, "setup.sh"), *rest])
+    if cmd in ("build", "setup"):
+        script = os.path.join(HERE, f"{cmd}.sh")
+        if os.name == "nt":   # Git Bash's sh; Windows has no exec that keeps the exit code
+            return subprocess.call([shutil.which("sh") or "sh", script, *rest])
+        os.execv("/bin/sh", ["sh", script, *rest])
     if cmd == "test":
         return subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT)
     module, sub, _ = COMMANDS[cmd]
