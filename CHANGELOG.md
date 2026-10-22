@@ -2,6 +2,37 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [4.0.0] - 2026-10-22
+
+Sessions built from atomic movement data: the catalog says what each movement loads, a tool picks the method, the timing and the candidates, and a judged grid of forty cases measures how the result reads.
+
+### For forks
+Breaking: the context files move to schema 3, the catalog's tags and groups are gone, and one command flag changes. After pulling:
+1. Run `./sweatcast migrate` (`./sweatcast setup` runs it too). It backs up your folder first, then adds the new fields to `profile.md` and `health.md`.
+2. Run `./sweatcast check`. It lists the experience level to fill in (novice, experienced or advanced; a profile with none is planned as a novice until it is set) and each injury that needs a `[[limits]]` row in `health.md`. It exits 1 until they are written. An injury outside the thirteen areas takes no row: list it as "- Unlisted: <what>" and put any movement ids or flags to avoid on an "Avoid:" line under `## Clinician rules`.
+3. `./sweatcast movements --group` is now `--pattern`, and `--avoid` takes movement ids or flags, not tags.
+4. A private `me/movements.toml` entry needs `patterns`, and the other new fields, to leave draft.
+5. The log's `format:` now records the method's name.
+
+### Added
+- `./sweatcast session`: given a goal, minutes and a kit (`--kit`, `--preset` or `--equipment`), it prints the health limits and warnings, the method, the timed slots with ranked candidates, the warm-up, finisher and cool-down candidates (screened against the limits), the patterns dropped for time and the equipment that would open up more movements. `--draft` prints only the `@@ <seconds> | <title>` markers. Options: `--method`, `--level`, `--target`, `--limit area=level[:side]` and `--avoid`.
+- `knowledge/sessions.toml` and `tools/sessions.py`: the session methods (straight-sets, paired-sets, circuit, intervals, tabata, bike-intervals, flow, skill) and the dose rules per intensity and level, every number marked as sourced or a house default.
+- `[[limits]]` rows in `health.md`: an area, side, level (off-limits or delicate), optional `flags` and `rehab` (both validated), and a note. Both-side limits also check the load on the resting side.
+- The profile's `[[kits]]`, `experience`, `likes` and `dislikes`, and `./sweatcast get experience`.
+- An optional `rpe:` on log lines, reserved for later progress tracking.
+- The judged eval grid in `docs/eval/`: forty cases over four invented listeners, a judge prompt, and `results-2026-10-22.md`. Means over the forty cases: safety 4.70, efficacy 2.33, adherence 2.80, ease 3.53. No case scored safety 1.
+- `knowledge/programming.md`: the programming reference behind the dose rules.
+
+### Changed
+- Catalog format 2: each movement carries its patterns, muscles, how much it loads each joint area (with `support` for the resting side), flags, intensity, level and timing; unfinished entries are drafts.
+- `./sweatcast movements` filters by pattern, with `--level`, `--pattern` and `--avoid` (ids or flags). `./sweatcast coverage` reports by pattern.
+- The injury playbook is organized by area and tolerance: what off-limits and delicate mean, the signs that let a limit loosen, and the red flags that stop a session.
+- The workout skill plans from `./sweatcast session`; the setup skill collects experience, kits and limits. One check-in rule, and the check runs first.
+- `./sweatcast check` lists a missing experience level, malformed limit rows, and prose injuries without a limit (an issue).
+
+### Removed
+- `knowledge/injury-rules.toml` and the phase model, the catalog's tags and groups, and `./sweatcast movements --group`.
+
 ## [3.1.0] - 2026-10-21
 
 ### Added
