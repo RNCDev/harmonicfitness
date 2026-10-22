@@ -2,6 +2,12 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [3.0.1] - 2026-10-21
+
+### Fixed
+- Inconsistent injury tags in `knowledge/equipment-library.md`: a movement now carries the same tags everywhere it appears (the strictest set), and movements that load a joint but had no tags now have them.
+- Removed listener-specific names: a named gym and a bike brand left two headings, which now read "Full gym" and "Stationary bike".
+
 ## [3.0.0] - 2026-10-21
 
 Simpler to set up and to run: one `./sweatcast` command, the profile's settings in one block at the top, a check that says what's still to fill in, and a voice designer for a coach that sounds the way you want.
