@@ -10,6 +10,7 @@ import catalog  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "movements.toml")
+PHASES = ("protect", "restore", "rebuild", "return")
 
 
 def run_movements(args, home=None):
@@ -168,6 +169,41 @@ class KnowledgeFiles(unittest.TestCase):
                         "## Session templates"):
             self.assertIn(heading, text)
         self.assertGreaterEqual(text.count("Source: https://"), 8)
+
+
+class InjuryRules(unittest.TestCase):
+    def test_rules_have_no_problems(self):
+        playbook = open(os.path.join(ROOT, "knowledge", "injury-playbook.md")).read()
+        self.assertEqual(catalog.rule_problems(catalog.load_rules(), catalog.load(), playbook), [])
+
+    def test_later_phases_never_ban_more(self):
+        for area, r in catalog.load_rules().items():
+            for a, b in zip(PHASES, PHASES[1:]):
+                self.assertLessEqual(set(r[b]["ban"]), set(r[a]["ban"]), f"{area} {b}")
+
+    def test_every_phase_but_return_says_when_to_move_on(self):
+        for area, r in catalog.load_rules().items():
+            for p in PHASES[:-1]:
+                self.assertTrue(r[p]["advance_when"], f"{area} {p}")
+                self.assertTrue(r[p]["sources"], f"{area} {p}")
+
+    def test_rule_problems_name_each_fault(self):
+        cat = catalog.load(FIXTURE)
+        phase = {"ban": [], "ban_injured_side": [], "ban_ids": [], "caution": {}, "include": [],
+                 "advance_when": [], "sources": []}
+        rules = {"knee": {"playbook": "Knee", "protect": dict(phase, ban=["wobbly"]),
+                          "restore": dict(phase, include=["goblet-squat"], ban_ids=["goblet-squat"],
+                                          caution={"goblet-squat": "Light; slow."}),
+                          "rebuild": dict(phase)}}
+        out = catalog.rule_problems(rules, cat, "# Playbook\n\n## Ankle\n")
+        self.assertTrue(any("wobbly" in p for p in out), out)
+        self.assertTrue(any("return" in p for p in out), out)
+        self.assertTrue(any("Knee" in p and "heading" in p for p in out), out)
+        self.assertTrue(any("goblet-squat" in p and "include" in p for p in out), out)
+        self.assertTrue(any("caution" in p and "symbol" in p for p in out), out)
+        self.assertEqual(catalog.rule_problems({"knee": dict(rules["knee"], **{
+            "protect": dict(phase), "restore": dict(phase), "return": dict(phase)})},
+            cat, "## Knee\n"), [])
 
 
 if __name__ == "__main__":

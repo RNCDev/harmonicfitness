@@ -3,7 +3,7 @@
 What each kind of kit usually holds, and how to script around it. The movements themselves live in the catalog, `knowledge/movements.toml`, each with its equipment, spoken setup, cues and the tags the injury rules ban by. Don't pick from memory: after the check-in, run `./sweatcast movements` for today's kit and choose from what it prints.
 
 ## Choosing the kit for the filter
-Four kits have a preset in the catalog: `--preset bodyweight`, `--preset hotel-room`, `--preset hotel-gym` and `--preset full-gym`. For any other kit, such as the one at home, pass its equipment instead: `--equipment dumbbells,bench,band`, using the keys or aliases in the catalog's `[equipment]` table ("resistance bands" and "band" both work). Floor and wall space are always assumed. Add `--avoid` with the injury playbook's "Tags to avoid early" for each injury still in an early phase.
+Four kits have a preset in the catalog: `--preset bodyweight`, `--preset hotel-room`, `--preset hotel-gym` and `--preset full-gym`. For any other kit, such as the one at home, pass its equipment instead: `--equipment dumbbells,bench,band`, using the keys or aliases in the catalog's `[equipment]` table ("resistance bands" and "band" both work). Floor and wall space are always assumed. Add `--avoid` with the `ban` tags from `knowledge/injury-rules.toml` for each active injury's area and phase; the workout skill's Step 2 says how.
 
 ## No equipment
 Bodyweight and some floor space. Everything still works: legs, glutes, core and pushing, with a chair or a wall to make it easier or harder.

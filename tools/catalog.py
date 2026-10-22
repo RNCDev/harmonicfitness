@@ -2,7 +2,8 @@
 
 `load` reads knowledge/movements.toml (plus any private movements) and `problems` checks it,
 one plain sentence per fault. `resolve` turns a name from the log or a script into a movement.
-Library only; the command line lives elsewhere.
+`load_rules` reads knowledge/injury-rules.toml and `rule_problems` checks it against the catalog
+and the playbook. Library only; the command line lives elsewhere.
 """
 import re
 import tomllib
@@ -15,6 +16,8 @@ POSITIONS = ("standing", "seated", "lying", "side-lying", "kneeling", "all-fours
 MEASURES = ("reps", "time")
 SIDE_WORDS = ("left ", "right ", "both sides ")
 SPOKEN_OK = re.compile(r"[A-Za-z .,'?!-]*")
+PHASES = ("protect", "restore", "rebuild", "return")
+RULE_LISTS = ("ban", "ban_injured_side", "ban_ids", "include", "advance_when", "sources")
 
 
 @dataclass
@@ -183,3 +186,53 @@ def select(cat: Catalog, equipment: Set[str], avoid: Set[str], avoid_injured_sid
         else:
             allowed.append(m)
     return Selection(allowed, healthy, left_out)
+
+
+def load_rules(path: Optional[str] = None) -> Dict[str, dict]:
+    """The injury rules: area -> {"playbook": heading, phase -> {"ban", "ban_injured_side", "ban_ids",
+    "caution", "include", "advance_when", "sources"}}, with any missing list or table left empty."""
+    with open(path or paths.INJURY_RULES, "rb") as f:
+        data = tomllib.load(f)
+    out: Dict[str, dict] = {}
+    for area, raw in data.get("areas", {}).items():
+        rule: dict = {"playbook": raw.get("playbook", "")}
+        for phase in PHASES:
+            if phase in raw:
+                given = raw[phase]
+                rule[phase] = {key: list(given.get(key, [])) for key in RULE_LISTS}
+                rule[phase]["caution"] = dict(given.get("caution", {}))
+        out[area] = rule
+    return out
+
+
+def rule_problems(rules: Dict[str, dict], cat: Catalog, playbook_text: str) -> List[str]:
+    """Faults in the injury rules, one plain sentence each: unknown tags or movements, a missing
+    phase, a playbook heading that isn't there, a caution that can't be spoken, and a rehab movement
+    both banned and included."""
+    out: List[str] = []
+    headings = {line[3:].strip() for line in playbook_text.splitlines() if line.startswith("## ")}
+    for area, rule in rules.items():
+        heading = rule.get("playbook", "")
+        if heading not in headings:
+            out.append(f"The {area} rules point to the playbook heading \"{heading}\", which is not a ## heading in the playbook.")
+        for phase in PHASES:
+            r = rule.get(phase)
+            if r is None:
+                out.append(f"The {area} rules have no {phase} phase.")
+                continue
+            for key in ("ban", "ban_injured_side"):
+                for tag in r.get(key, []):
+                    if tag not in cat.tags:
+                        out.append(f"The {area} {phase} {key} list names the unknown tag \"{tag}\".")
+            for key, ids in (("ban_ids", r.get("ban_ids", [])), ("caution", list(r.get("caution", {}))),
+                             ("include", r.get("include", []))):
+                for mid in ids:
+                    if mid not in cat.movements:
+                        out.append(f"The {area} {phase} {key} list names \"{mid}\", which is not a movement in the catalog.")
+            for mid, condition in r.get("caution", {}).items():
+                if _spoken_fault(condition):
+                    out.append(f"The {area} {phase} caution for \"{mid}\" has {_spoken_fault(condition)} in it, and it is spoken.")
+            for mid in r.get("include", []):
+                if mid in r.get("ban_ids", []):
+                    out.append(f"The {area} {phase} phase lists \"{mid}\" under both include and ban_ids.")
+    return out

@@ -1008,7 +1008,7 @@ position = "standing"
 sided = true
 measure = "reps"
 groups = ["lateral or anti-rotation core"]
-tags = ["standing", "spine-twist", "overhead"]
+tags = ["standing", "spine-twist", "overhead", "lateral"]
 setup = "Stand side-on to a high anchor, both hands on the handle above your shoulder, feet wider than your hips."
 cues = ["Pull down and across toward the opposite hip.", "Pivot the back foot, turn from the hips and ribs together.", "Return slowly."]
 easier = ["pallof-press"]
@@ -2847,6 +2847,22 @@ groups = []
 tags = []
 setup = "Sit tall with one bare foot on a towel laid flat on the floor."
 cues = ["Curl your toes to gather the towel toward you.", "Heel stays down.", "Spread it out and go again."]
+easier = []
+harder = []
+
+[[movement]]
+id = "single-leg-balance"
+name = "single-leg balance"
+aliases = ["single leg balance", "one-leg balance", "one leg stand", "balance on one leg"]
+kind = "rehab"
+needs = []
+position = "standing"
+sided = true
+measure = "time"
+groups = []
+tags = ["standing", "single-leg-stance"]
+setup = "Stand beside a wall or a sturdy chair, fingertips resting on it, and lift one foot just off the floor."
+cues = ["Soft knee, tall chest, eyes on a spot ahead.", "Lift the fingertips off the wall when you feel steady.", "Touch down whenever you need to, then go again."]
 easier = []
 harder = []
 
