@@ -18,6 +18,7 @@ PROFILE = os.path.join(HOME, "profile.md")
 HEALTH = os.path.join(HOME, "health.md")
 LOG = os.path.join(HOME, "log.md")
 EXERCISE_SCIENCE = os.path.join(HOME, "exercise-science.md")   # the listener's verified additions
+MY_MOVEMENTS = os.path.join(HOME, "movements.toml")   # the listener's private movements
 WORKOUTS = os.path.join(HOME, "workouts")
 DRAFTS = os.path.join(WORKOUTS, "drafts")
 RESEARCH = os.path.join(WORKOUTS, "research")
@@ -36,6 +37,8 @@ SMOKE_DRAFT = os.path.join(ROOT, "voices", "smoke-test.draft.txt")
 EXAMPLE = os.path.join(ROOT, "me.example")
 VENV_PYTHON = os.path.join(ROOT, ".venv", "bin", "python")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
+MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the shared movement catalog
+INJURY_RULES = os.path.join(ROOT, "knowledge", "injury-rules.toml")     # banned tags per area and phase
 
 
 def require(path, what="file"):

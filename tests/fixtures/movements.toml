@@ -1,0 +1,158 @@
+# A small synthetic catalog for tests: the full fixed lists and a few movements.
+format = 1
+
+groups = ["horizontal push", "horizontal pull", "hip hinge or glutes", "hamstrings", "quads",
+          "hip abductors and adductors", "anti-extension core", "lateral or anti-rotation core", "arms"]
+
+kinds = ["strength", "cardio", "mobility", "breathing", "skill", "rehab", "finisher"]
+
+[equipment]
+dumbbells = { aliases = ["dumbbell", "dumbbells"], about = "fixed or adjustable dumbbells" }
+kettlebell = { aliases = ["kettlebell", "kettlebells"], about = "one or more kettlebells" }
+bench = { aliases = ["bench"], about = "a flat or adjustable bench" }
+band = { aliases = ["band", "resistance band"], about = "resistance bands" }
+mat = { aliases = ["mat", "yoga mat"], about = "an exercise mat" }
+chair = { aliases = ["chair"], about = "a sturdy chair" }
+towel = { aliases = ["towel"], about = "a bath towel" }
+foam-roller = { aliases = ["foam roller"], about = "a foam roller" }
+strap = { aliases = ["strap"], about = "a stretching strap" }
+bike = { aliases = ["bike", "exercise bike"], about = "a stationary bike" }
+rower = { aliases = ["rower", "rowing machine"], about = "a rowing machine" }
+cable = { aliases = ["cable", "cables"], about = "a cable station" }
+machines = { aliases = ["machine", "machines"], about = "weight machines" }
+barbell = { aliases = ["barbell"], about = "a barbell with plates" }
+rack = { aliases = ["rack", "squat rack"], about = "a squat rack" }
+ski-erg = { aliases = ["ski erg"], about = "a ski ergometer" }
+air-bike = { aliases = ["air bike"], about = "a fan-resistance bike" }
+sled = { aliases = ["sled"], about = "a push or drag sled" }
+treadmill = { aliases = ["treadmill"], about = "a treadmill" }
+elliptical = { aliases = ["elliptical"], about = "an elliptical trainer" }
+stair-climber = { aliases = ["stair climber"], about = "a stair climber" }
+stick-and-ball = { aliases = ["stick and ball"], about = "a massage stick and a ball" }
+
+[tags]
+impact = "jumping, hopping, landing or running"
+standing = "weight on both feet"
+single-leg-stance = "weight on one foot"
+ankle-push = "pushing hard through the ball of the foot: calf raises, step-ups, standing pedal efforts, sled, leg press"
+ankle-bend = "deep ankle bend under body weight: squats, lunges, split squats"
+lateral = "side-to-side, shuffling or pivoting footwork"
+knee-deep-bend = "knee bent past about ninety degrees under load"
+knee-load = "loaded knee straightening or holding: leg extension, wall sit"
+kneeling = "weight on a knee"
+floor-transition = "getting down to the floor and back up"
+spine-flexion = "curling the spine against resistance: crunches, sit-ups, reverse crunches, hollow holds"
+spine-load = "hinging or bent-over loading of the low back"
+spine-twist = "turning the trunk under load"
+overhead = "arms overhead under load"
+shoulder-end-range = "dips, wide-grip pressing, behind-the-neck work, loaded end-range stretch"
+hanging = "hanging from the hands"
+wrist-load = "weight on the hands with the wrist bent back: push-ups, planks on hands, all fours, front rack"
+grip = "heavy or long gripping"
+neck-load = "load on, or fast movement of, the neck"
+hip-deep-bend = "hip bent sharply under load"
+hip-wide = "wide stance or deep side-to-side hip motion"
+kick = "kicking or fast leg swings"
+lying-side = "lying on one side"
+
+[presets.bodyweight]
+equipment = []
+
+[presets.full-gym]
+equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "barbell", "rack", "cable", "machines"]
+
+[[movement]]
+id = "goblet-squat"
+name = "goblet squat"
+aliases = ["dumbbell goblet squat", "kettlebell goblet squat"]
+kind = "strength"
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "knee-deep-bend", "ankle-bend"]
+setup = "Hold one weight upright at your chest, feet a little wider than your hips."
+cues = ["Sit between your heels.", "Elbows inside the knees.", "Chest tall."]
+easier = ["box-squat"]
+harder = []
+
+[[movement]]
+id = "box-squat"
+name = "box squat"
+aliases = ["chair squat"]
+kind = "strength"
+needs = ["chair"]
+position = "standing"
+sided = false
+measure = "reps"
+groups = ["quads", "hip hinge or glutes"]
+tags = ["standing", "ankle-bend"]
+setup = "Stand in front of a chair, feet about hip width apart."
+cues = ["Hips back, then sit.", "Stand up tall."]
+easier = []
+harder = ["goblet-squat"]
+
+[[movement]]
+id = "single-leg-balance"
+name = "single leg balance"
+aliases = ["one leg balance"]
+kind = "skill"
+needs = []
+position = "standing"
+sided = true
+measure = "time"
+groups = []
+tags = ["single-leg-stance"]
+setup = "Stand tall near a wall, ready to steady yourself."
+cues = ["Eyes on one spot.", "Soft knee."]
+easier = []
+harder = []
+
+[[movement]]
+id = "push-up"
+name = "push-up"
+aliases = ["pushup", "press-up"]
+kind = "strength"
+needs = []
+position = "all-fours"
+sided = false
+measure = "reps"
+groups = ["horizontal push", "anti-extension core"]
+tags = ["wrist-load"]
+setup = "Hands under your shoulders, body in one long line."
+cues = ["Ribs down.", "Elbows at a gentle angle."]
+easier = []
+harder = []
+
+[[movement]]
+id = "dead-bug"
+name = "dead bug"
+aliases = []
+kind = "strength"
+needs = ["mat"]
+position = "lying"
+sided = false
+measure = "reps"
+groups = ["anti-extension core"]
+tags = ["floor-transition"]
+setup = "Lie on your back, arms up, knees bent over your hips."
+cues = ["Low back stays heavy.", "Slow and smooth."]
+easier = []
+harder = []
+
+[[movement]]
+id = "box-breathing"
+name = "box breathing"
+aliases = ["square breathing"]
+kind = "breathing"
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+groups = []
+tags = []
+setup = "Sit tall and let your shoulders drop."
+cues = ["In through the nose.", "Hold, then slowly out."]
+easier = []
+harder = []
