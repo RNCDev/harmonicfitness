@@ -2,6 +2,18 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [3.1.0] - 2026-10-21
+
+### Added
+- The movement catalog, `knowledge/movements.toml`: every movement a session can use, with its equipment, muscle groups, spoken setup and cues, and tags for what it loads, plus kit presets. `tools/catalog.py` reads and checks it.
+- `./sweatcast movements`: lists the movements a kit allows (`--preset` or `--equipment`), minus any `--avoid` tags, by group.
+- Weekly counts in `./sweatcast coverage`: a group the last seven days neglected comes first, even when the last session touched it.
+- Plural-tolerant name matching: a logged "goblet squats" or "right glute bridge" resolves to the catalog movement.
+
+### Changed
+- The equipment library is now `knowledge/kits.md`: what each kit usually holds and how to script around it. Its movement lists moved to the catalog.
+- The workout skill picks movements from the filter's output, avoiding the injury playbook's new "Tags to avoid early" for each injury in an early phase, then applies the health file and the playbook on top.
+
 ## [3.0.1] - 2026-10-21
 
 ### Fixed
