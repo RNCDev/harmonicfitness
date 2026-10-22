@@ -1,0 +1,200 @@
+# Session methods and dose rules (format 1), read only through tools/sessions.py.
+#
+# A method is the shape of a session's main work: how its time is shared between warm-up, work,
+# an optional finisher and cool-down; which movement patterns fill its slots, in order; and the
+# kind of work (sets, pairs, rounds, intervals or holds). The dose tables give each intensity's
+# ranges by level. Every number says where it comes from: `# source:` names an opened source with
+# its URL, `# house default:` is a planning choice with its reason. Sources are those cited in
+# knowledge/programming.md and in docs/research/2026-10-21-session-structure-notes.md, nothing else.
+#
+# Shares are fractions of the session's minutes; each `seconds = [least, most]` clamps them.
+# Block shares split what is left for the work and sum to one.
+
+format = 1
+
+goals = ["strength", "general", "targeted", "conditioning", "mobility", "skill"]
+
+# Strength methods -------------------------------------------------------------------------------
+
+[methods.straight-sets]
+about = "One movement at a time, every set of it with rest between, then the next movement."
+goals = ["strength", "targeted", "general"]
+minutes = [25, 60]   # house default: from the research note's synthesis table, a proposal, not a finding
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
+finisher = { share = 0.10, seconds = [90, 300], from_minutes = 25 }   # house default: the finisher is house policy in programming.md
+work = "sets"
+min_slots = 3   # house default: three multi-joint movements cover the major muscles, after Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+# Multi-joint lower and upper patterns first, as HPRC's summary of the NSCA order puts them
+# https://www.hprc-online.org/physical-fitness/training-performance/choosing-right-exercises-optimize-your-resistance-training
+blocks = [
+  { intensity = "strength", share = 1.0, patterns = ["squat", "hinge", "horizontal-push", "horizontal-pull", "lunge", "vertical-push", "vertical-pull", "anti-extension"] },   # house default: one block holds all the work
+]
+
+[methods.paired-sets]
+about = "Two movements in turn, a push with a pull or an upper with a lower, so one side rests while the other works."
+goals = ["strength", "targeted", "general"]
+minutes = [20, 60]   # house default: pairing roughly halves session time, after Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772, so it starts shorter than straight sets
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
+finisher = { share = 0.10, seconds = [90, 300], from_minutes = 25 }   # house default: the finisher is house policy in programming.md
+work = "pairs"
+min_slots = 3   # house default: three multi-joint movements cover the major muscles, after Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+blocks = [
+  { intensity = "strength", share = 1.0, patterns = ["squat", "hinge", "horizontal-push", "horizontal-pull", "lunge", "vertical-push", "vertical-pull", "anti-extension"] },   # house default: one block holds all the work
+]
+
+[methods.circuit]
+about = "A short loop of movements, one after another with little rest, repeated for a few rounds."
+goals = ["general", "conditioning", "strength"]
+minutes = [10, 45]   # house default: from the research note's synthesis table, a proposal, not a finding
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
+work = "rounds"   # rounds come from the strength dose's sets
+min_slots = 3   # house default: a loop needs at least three stations to rest each one between rounds
+# Upper and lower alternate, push with pull, after HPRC's summary
+# https://www.hprc-online.org/physical-fitness/training-performance/choosing-right-exercises-optimize-your-resistance-training
+blocks = [
+  { intensity = "strength", share = 1.0, patterns = ["squat", "horizontal-push", "hinge", "horizontal-pull", "lunge", "anti-extension"] },   # house default: one block holds all the work
+]
+
+# Conditioning methods ---------------------------------------------------------------------------
+
+[methods.intervals]
+about = "Hard efforts with easy recovery between them, a few rounds, paced by the coach."
+goals = ["conditioning"]
+minutes = [10, 45]   # house default: from the research note's synthesis table, a proposal, not a finding; Gillen's sessions ran ten minutes https://pubmed.ncbi.nlm.nih.gov/27115137/
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: an easy lead-in; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy then slow breathing; no opened source gives a length
+work = "intervals"
+min_slots = 1   # house default: one locomotion pattern may fill every slot
+blocks = [
+  { intensity = "conditioning", share = 1.0, patterns = ["locomotion"] },   # house default: one block holds all the work
+]
+
+[methods.tabata]
+about = "Twenty seconds hard, ten seconds easy, eight rounds, about four minutes of hard work."
+goals = ["conditioning"]
+minutes = [10, 30]   # house default: one or a few four minute blocks fit a short session
+# Not for novices: all out efforts may not suit every listener, the caveat programming.md records on
+# Gillen https://pubmed.ncbi.nlm.nih.gov/27115137/
+levels = ["experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: an easy lead-in; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy then slow breathing; no opened source gives a length
+work = "intervals"
+min_slots = 1   # house default: one pattern may fill every slot
+fixed = { work_seconds = 20, rest_seconds = 10, rounds = 8 }   # house default: the well known Tabata shape; the original study was not opened
+blocks = [
+  { intensity = "conditioning", share = 1.0, patterns = ["locomotion", "squat", "hinge", "horizontal-push", "anti-extension"] },   # house default: one block holds all the work
+]
+
+[methods.bike-intervals]
+about = "Thirty seconds hard on the bike, then a long easy spin, five times."
+goals = ["conditioning"]
+minutes = [15, 45]   # house default: five efforts with long easy spins need at least a quarter hour with warm-up and cool-down
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: an easy spin; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy spin then slow breathing; no opened source gives a length
+work = "intervals"
+needs = ["bike|air-bike"]
+min_slots = 1   # house default: one locomotion pattern may fill every slot
+# Short hard efforts with long easy spins between, after Gillen's twenty second sprints within a ten minute
+# session https://pubmed.ncbi.nlm.nih.gov/27115137/
+fixed = { work_seconds = 30, rest_seconds = 90, rounds = 5 }   # house default: longer than Gillen's twenty seconds, not all out, with three times the easy
+blocks = [
+  { intensity = "conditioning", share = 1.0, patterns = ["locomotion"] },   # house default: one block holds all the work
+]
+
+# Mobility and skill methods ---------------------------------------------------------------------
+
+[methods.flow]
+about = "Slow holds and easy range work, ending with calm breathing."
+goals = ["mobility"]
+minutes = [15, 45]   # house default: from the research note's synthesis table, a proposal, not a finding
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: easy movement first; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
+work = "holds"
+min_slots = 1   # house default: one pattern may fill several slots
+blocks = [
+  { intensity = "mobility", share = 1.0, patterns = ["mobility", "breathing"] },   # house default: one block holds all the work
+]
+
+[methods.skill]
+about = "Drill rounds that build a skill, then a short block of supporting strength."
+goals = ["skill"]
+minutes = [15, 45]   # house default: the range of the old session templates
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
+work = "rounds"
+min_slots = 3   # house default: a skill drill and at least two supporting movements
+blocks = [
+  { intensity = "skill", share = 0.6, patterns = ["skill"] },   # house default: most of the time on the skill, as the old templates had it
+  { intensity = "strength", share = 0.4, patterns = ["squat", "hinge", "horizontal-push", "horizontal-pull"] },   # house default: the rest on supporting strength
+]
+
+# Dose ---------------------------------------------------------------------------------------------
+# Each value is [least, most]. Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 and the
+# American College of Sports Medicine https://pubmed.ncbi.nlm.nih.gov/19204579/ as programming.md cites them.
+
+[dose.strength.novice]
+sets = [2, 3]                      # house default: few sets while technique settles
+reps = [8, 12]                     # source: inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+rest_seconds = [60, 90]            # source: one to two minutes is enough for untrained people, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+hard_sets_per_session = [6, 12]    # house default: programming.md's session arithmetic, about two minutes a set, not a study
+
+[dose.strength.experienced]
+sets = [3, 4]                      # house default: a step up from novice
+reps = [6, 10]                     # source: inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+rest_seconds = [90, 120]           # source: one to two minutes for muscle work, ACSM https://pubmed.ncbi.nlm.nih.gov/19204579/
+hard_sets_per_session = [10, 16]   # house default: programming.md's session arithmetic, about two minutes a set, not a study
+
+[dose.strength.advanced]
+sets = [3, 5]                      # house default: a step up from experienced
+reps = [4, 8]                      # house default: below Iversen's six for heavier sets; home kit rarely allows it
+rest_seconds = [120, 180]          # source: trained people probably need two minutes or more, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+hard_sets_per_session = [12, 20]   # house default: programming.md's session arithmetic, about twenty at forty five minutes
+
+[dose.conditioning.novice]
+work_seconds = [20, 30]            # source: Gillen's efforts lasted twenty seconds https://pubmed.ncbi.nlm.nih.gov/27115137/; the upper bound is a house default
+rest_seconds = [40, 60]            # house default: twice the work or more while fitness builds
+rounds = [4, 6]                    # house default: Gillen used three efforts https://pubmed.ncbi.nlm.nih.gov/27115137/ at all out; a few more at a lower effort
+
+[dose.conditioning.experienced]
+work_seconds = [30, 45]            # house default: longer efforts as fitness grows
+rest_seconds = [30, 45]            # house default: about equal work and rest
+rounds = [6, 8]                    # house default: a step up from novice
+
+[dose.conditioning.advanced]
+work_seconds = [30, 60]            # house default: longer efforts as fitness grows
+rest_seconds = [15, 30]            # house default: less rest than work
+rounds = [8, 10]                   # house default: a step up from experienced
+
+[dose.mobility.novice]
+hold_seconds = [30, 60]            # house default: programming.md lists mobility hold length as not searched
+rounds = [2, 3]                    # house default: a few passes, no opened source
+
+[dose.mobility.experienced]
+hold_seconds = [30, 60]            # house default: programming.md lists mobility hold length as not searched
+rounds = [2, 3]                    # house default: a few passes, no opened source
+
+[dose.mobility.advanced]
+hold_seconds = [30, 60]            # house default: programming.md lists mobility hold length as not searched
+rounds = [2, 3]                    # house default: a few passes, no opened source
+
+[dose.skill.novice]
+drill_seconds = [45, 60]           # house default: long enough for a few clean tries, no opened source
+rounds = [4, 8]                    # house default: rounds that get harder, no opened source
+
+[dose.skill.experienced]
+drill_seconds = [45, 60]           # house default: long enough for a few clean tries, no opened source
+rounds = [4, 8]                    # house default: rounds that get harder, no opened source
+
+[dose.skill.advanced]
+drill_seconds = [45, 60]           # house default: long enough for a few clean tries, no opened source
+rounds = [4, 8]                    # house default: rounds that get harder, no opened source

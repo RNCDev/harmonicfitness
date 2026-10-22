@@ -71,17 +71,7 @@ Rule: train both sides by default. When an injury rules out one side, training t
 
 Two studies support short conditioning blocks: Gillen and colleagues (2016) found three 20-second all-out cycle sprints within a ten-minute session, three times a week for 12 weeks, raised fitness (peak oxygen uptake up 19 percent) as much as 50 minutes of steady cycling. Source: https://pubmed.ncbi.nlm.nih.gov/27115137/ Small study (9 sedentary young men in the sprint group), warm-up and cool-down included; all-out sprints may not suit every listener. Jenkins and colleagues (2019) found three short stair climbs a day, three days a week for six weeks, raised fitness modestly in sedentary young adults. Source: https://pubmed.ncbi.nlm.nih.gov/30649897/ It shows fitness snacks help, not that ten minutes builds strength.
 
-The shapes below are worked out from the sections above and the skill's split; they're planning defaults, not findings.
-
-| Type | 15 minutes | 25 minutes | 45 minutes |
-|---|---|---|---|
-| Strength | 3 min warm-up; one merged block of two or three pairs, about 6 hard sets; 2 min finisher; 2 min breathing | 4 min warm-up; two blocks of two pairs each, 10 to 12 hard sets; 3 min finisher; 3 min breathing | 6 min warm-up; three blocks, about 20 hard sets; 5 min finisher; 5 min breathing |
-| Mobility and breathing | 3 min easy warm-up; 9 min of holds of 30 to 60 seconds; 3 min breathing | 4 min warm-up; 16 min of holds and slow range work; 5 min breathing | 6 min warm-up; 30 min of holds and range work; 9 min breathing |
-| Skills | 3 min warm-up; 8 min of drill rounds that get harder; 2 min supporting strength; 2 min breathing | 4 min warm-up; 12 min of drills; 6 min supporting strength; 3 min breathing | 6 min warm-up; 20 min of drills; 14 min supporting strength; 5 min breathing |
-| Bike intervals | 3 min easy; 3 to 4 hard efforts of 20 to 30 seconds with 2 min easy between; 2 min easy; 2 min breathing | 4 min easy; 5 to 6 efforts of 30 to 60 seconds with equal or double easy; 3 min easy; 3 min breathing | 6 min easy; two sets of efforts with a steady block between; 5 min easy; 5 min breathing |
-| Ten-minute snack | 1 min warm-up; 8 min of one block of three or four movements; 1 min breathing | — | — |
-
-Rule: pick the row for the session type and the column nearest the requested length, then fill it from today's kit after the injury rules.
+Session shapes now live in `knowledge/sessions.toml`: each method's goals, length, levels, warm-up, cool-down and finisher shares, the patterns that fill its blocks, and the dose ranges for each level, every number marked as sourced or as a house default. `tools/sessions.py` reads it and picks the method for today's goal, length, level and kit, rotating away from the last session's.
 
 ## Searched without a confirmed source
 

@@ -38,6 +38,7 @@ EXAMPLE = os.path.join(ROOT, "me.example")
 VENV_PYTHON = os.path.join(ROOT, ".venv", "bin", "python")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
 MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the shared movement catalog
+SESSIONS = os.path.join(ROOT, "knowledge", "sessions.toml")             # session methods and dose rules
 
 
 def require(path, what="file"):
