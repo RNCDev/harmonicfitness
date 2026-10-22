@@ -24,7 +24,7 @@ A hockey stick and a dryland ball, for stickhandling: hand speed, coordination, 
 Full-body cardio. Strokes per minute in words. Cue "legs, then body, then arms; arms, body, then legs on the way back".
 
 ## Resistance bands
-Long bands or loop bands. A long band needs a solid anchor: a closed door with a door anchor, or a heavy post.
+Long bands or loop bands. A long band needs a solid anchor: a closed door with a door anchor, or a heavy post. Banded ankle rehab (eversion, inversion, dorsiflexion) is used only if the injury's current phase allows it.
 
 ## Bench
 A flat or adjustable bench, for supported rows, presses, step-ups and seated work.

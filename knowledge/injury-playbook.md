@@ -24,7 +24,7 @@ Rebuild phase adds: double-leg calf raises, supported single-leg balance on the 
 
 Return phase adds: light hops on two feet, then single-leg hops, then lateral movement, one at a time across sessions.
 
-Tags to avoid early: impact, standing, single-leg-stance, ankle-push, ankle-bend, lateral. They hold through Protect and Restore; in Restore, the movements its paragraph adds come back on top of the filter. No tag covers the easy seated bike, which waits for the Restore phase.
+Tags to avoid early: impact, standing, single-leg-stance, ankle-push, ankle-bend, lateral. They hold through Protect and Restore; in Restore, the movements its paragraph adds come back on top of the filter. Some ankle bans have no tag, so check these by hand: the ankle rehab movements (alphabet, circles, band work, towel scrunches) and all bike work wait for the Restore phase; the bike stays at light resistance until Rebuild; and band inversion, which rolls the foot inward, is out in Protect.
 
 ## Knee
 Banned early: deep loaded knee bending, lunges, jumping, pivoting, kneeling on the sore knee, high bike resistance. Substitutes: hip hinges (Romanian deadlifts if pain-free), glute bridges, hamstring curls, straight-leg raises, side-lying hip work, upper body, core, light seated bike with seat set slightly high.
