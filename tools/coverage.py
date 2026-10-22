@@ -32,19 +32,6 @@ import catalog  # noqa: E402
 import cli  # noqa: E402
 import context  # noqa: E402
 
-# The skill's whole-body checklist, in its order. A movement can train several groups.
-GROUPS = [
-    ("horizontal push", r"push-?up|(?<!overhead )(?<!leg )press"),
-    ("horizontal pull", r"\brow(?:s|ing)?\b|face pull|band pull-apart"),
-    ("hip hinge or glutes", r"bridge|hip thrust|deadlift|\brdl\b|hip extension|good morning|kettlebell swing"),
-    ("hamstrings", r"bridge|deadlift|\brdl\b|hamstring|leg curl|good morning|nordic"),
-    ("quads", r"squat|lunge|step-?up|straight-leg raise|leg extension|wall sit|quad set"),
-    ("hip abductors and adductors", r"clamshell|abduct|adduct|side-lying leg|fire hydrant|copenhagen|squeeze"),
-    ("anti-extension core", r"dead ?bug|(?<!side )plank|rollout|hollow|bird ?dog|reverse crunch"),
-    ("lateral or anti-rotation core", r"side plank|pallof|suitcase|woodchop|anti-rotation|side bend"),
-    ("arms", r"(?<!leg )(?<!hamstring )curl|kickback|triceps|biceps"),
-]
-
 # Movements that train no checklist group on purpose (finishers, skills).
 NOT_STRENGTH = r"finisher|stickhandling|punch|breathing|stretch|mobility|bike|march"
 
@@ -72,20 +59,17 @@ def groups_of(movement: str, cat: Optional[catalog.Catalog] = None) -> List[str]
     """The checklist groups a movement trains: the catalog's word if it knows the
     movement, else the keywords above."""
     found = catalog.resolve(cat or _shared_catalog(), movement)
-    if found:
-        return list(found.groups)
-    m = movement.lower()
-    return [name for name, pattern in GROUPS if re.search(pattern, m)]
+    return list(found.patterns) if found else []
 
 
 def coverage(movements, cat: Optional[catalog.Catalog] = None):
     """({group: [movements]}, [unmapped movements])."""
     cat = cat or _shared_catalog()
-    hit, unmapped = {name: [] for name, _ in GROUPS}, []
+    hit, unmapped = {name: [] for name in cat.patterns}, []
     for mv in movements:
         gs = groups_of(mv, cat)
         for g in gs:
-            hit[g].append(mv)
+            hit.setdefault(g, []).append(mv)
         if gs or catalog.resolve(cat, mv) or re.search(NOT_STRENGTH, mv.lower()):
             continue
         unmapped.append(mv)
@@ -95,14 +79,14 @@ def coverage(movements, cat: Optional[catalog.Catalog] = None):
 def week(sessions, today: datetime.date, days: int = 7, cat: Optional[catalog.Catalog] = None) -> Dict[str, int]:
     """{group: sessions in the last `days` days that trained it}, every group present."""
     cat = cat or _shared_catalog()
-    counts = {name: 0 for name, _ in GROUPS}
+    counts = {name: 0 for name in cat.patterns}
     first = today - datetime.timedelta(days=days)
     for e in sessions:
         if not first < datetime.date.fromisoformat(e.date) <= today:
             continue
         trained = {g for mv in e.movements for g in groups_of(mv, cat)}
         for g in trained:
-            counts[g] += 1
+            counts[g] = counts.get(g, 0) + 1
     return counts
 
 
@@ -123,14 +107,14 @@ def main():
     hit, unmapped = coverage(movements, cat)
     span = recent[0][0] if len(recent) == 1 else f"{recent[0][0]} to {recent[-1][0]}"
     print(f"Coverage, {len(recent)} session(s), {span}:")
-    for name, _ in GROUPS:
+    for name in cat.patterns:
         print(f"  {'yes' if hit[name] else ' no'}  {name}" + (f": {', '.join(hit[name])}" if hit[name] else ""))
-    missed = [name for name, _ in GROUPS if not hit[name]]
+    missed = [name for name in cat.patterns if not hit[name]]
     counts = week(full, datetime.date.today(), cat=cat)
-    thin = [name for name, _ in GROUPS if counts[name] < 2 and name not in missed]
+    thin = [name for name in cat.patterns if counts[name] < 2 and name not in missed]
     print("\nPrioritize: " + (", ".join(missed + thin) if missed + thin else "nothing, all groups covered"))
     print("Last 7 days, sessions per group:")
-    for name, _ in GROUPS:
+    for name in cat.patterns:
         print(f"  {counts[name]}  {name}")
     print("Avoid (last session's main movements): " + ", ".join(log[-1][1]))
     if unmapped:

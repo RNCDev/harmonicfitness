@@ -1,10 +1,18 @@
 # A small synthetic catalog for tests: the full fixed lists and a few movements.
-format = 1
+format = 2
 
-groups = ["horizontal push", "horizontal pull", "hip hinge or glutes", "hamstrings", "quads",
-          "hip abductors and adductors", "anti-extension core", "lateral or anti-rotation core", "arms"]
+patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
+            "carry", "rotation", "anti-rotation", "anti-extension", "locomotion", "balance", "arms", "hips",
+            "mobility", "breathing", "skill"]
 
-kinds = ["strength", "cardio", "mobility", "breathing", "skill", "rehab", "finisher"]
+muscles = ["quads", "hamstrings", "glutes", "adductors", "abductors", "calves", "chest", "back", "lats",
+           "shoulders", "biceps", "triceps", "forearms", "core", "neck"]
+
+areas = ["foot", "ankle", "calf", "knee", "hamstring", "hip", "groin", "low-back", "rib", "shoulder", "elbow",
+         "wrist", "neck"]
+
+flags = ["impact", "single-leg", "kneeling", "floor", "lying-side", "hanging", "overhead", "spine-flexion",
+         "spine-twist", "lateral", "fast", "grip"]
 
 [equipment]
 dumbbells = { aliases = ["dumbbell", "dumbbells"], about = "fixed or adjustable dumbbells" }
@@ -30,33 +38,14 @@ elliptical = { aliases = ["elliptical"], about = "an elliptical trainer" }
 stair-climber = { aliases = ["stair climber"], about = "a stair climber" }
 stick-and-ball = { aliases = ["stick and ball"], about = "a massage stick and a ball" }
 
-[tags]
-impact = "jumping, hopping, landing or running"
-standing = "weight on both feet"
-single-leg-stance = "weight on one foot"
-ankle-push = "pushing hard through the ball of the foot: calf raises, step-ups, standing pedal efforts, sled, leg press"
-ankle-bend = "deep ankle bend under body weight: squats, lunges, split squats"
-lateral = "side-to-side, shuffling or pivoting footwork"
-knee-deep-bend = "knee bent past about ninety degrees under load"
-knee-load = "loaded knee straightening or holding: leg extension, wall sit"
-kneeling = "weight on a knee"
-floor-transition = "getting down to the floor and back up"
-spine-flexion = "curling the spine against resistance: crunches, sit-ups, reverse crunches, hollow holds"
-spine-load = "hinging or bent-over loading of the low back"
-spine-twist = "turning the trunk under load"
-overhead = "arms overhead under load"
-shoulder-end-range = "dips, wide-grip pressing, behind-the-neck work, loaded end-range stretch"
-hanging = "hanging from the hands"
-wrist-load = "weight on the hands with the wrist bent back: push-ups, planks on hands, all fours, front rack"
-grip = "heavy or long gripping"
-neck-load = "load on, or fast movement of, the neck"
-hip-deep-bend = "hip bent sharply under load"
-hip-wide = "wide stance or deep side-to-side hip motion"
-kick = "kicking or fast leg swings"
-lying-side = "lying on one side"
-
 [presets.bodyweight]
 equipment = []
+
+[presets.hotel-room]
+equipment = ["chair", "towel"]
+
+[presets.hotel-gym]
+equipment = ["dumbbells", "bench", "treadmill", "elliptical", "bike", "mat"]
 
 [presets.full-gym]
 equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "barbell", "rack", "cable", "machines"]
@@ -65,94 +54,164 @@ equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "barbell", "rack
 id = "goblet-squat"
 name = "goblet squat"
 aliases = ["dumbbell goblet squat", "kettlebell goblet squat"]
-kind = "strength"
 needs = ["dumbbells|kettlebell"]
 position = "standing"
 sided = false
 measure = "reps"
-groups = ["quads", "hip hinge or glutes"]
-tags = ["standing", "knee-deep-bend", "ankle-bend"]
+patterns = ["squat"]
+muscles = ["quads", "glutes"]
+loads = { knee = 3, hip = 2, ankle = 2, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
 setup = "Hold one weight upright at your chest, feet a little wider than your hips."
 cues = ["Sit between your heels.", "Elbows inside the knees.", "Chest tall."]
-easier = ["box-squat"]
+easier = ["air-squat"]
 harder = []
+draft = false
 
 [[movement]]
-id = "box-squat"
-name = "box squat"
-aliases = ["chair squat"]
-kind = "strength"
-needs = ["chair"]
-position = "standing"
-sided = false
-measure = "reps"
-groups = ["quads", "hip hinge or glutes"]
-tags = ["standing", "ankle-bend"]
-setup = "Stand in front of a chair, feet about hip width apart."
-cues = ["Hips back, then sit.", "Stand up tall."]
-easier = []
-harder = ["goblet-squat"]
-
-[[movement]]
-id = "single-leg-balance"
-name = "single leg balance"
-aliases = ["one leg balance"]
-kind = "skill"
+id = "split-squat"
+name = "split squat"
+aliases = ["static lunge"]
 needs = []
 position = "standing"
 sided = true
-measure = "time"
-groups = []
-tags = ["single-leg-stance"]
-setup = "Stand tall near a wall, ready to steady yourself."
-cues = ["Eyes on one spot.", "Soft knee."]
+measure = "reps"
+patterns = ["lunge"]
+muscles = ["quads", "glutes"]
+loads = { knee = 3 }
+support = { knee = 1, ankle = 1 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+setup = "Step one foot well forward and stand tall."
+cues = ["Drop straight down.", "Front heel stays heavy."]
 easier = []
 harder = []
+draft = false
+
+[[movement]]
+id = "air-squat"
+name = "air squat"
+aliases = ["bodyweight squat", "chair squat"]
+needs = []
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["squat"]
+muscles = ["quads", "glutes"]
+loads = { knee = 3 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+setup = "Stand with your feet a little wider than your hips."
+cues = ["Hips back, then sit.", "Stand up tall."]
+easier = []
+harder = ["goblet-squat"]
+draft = false
+
+[[movement]]
+id = "glute-bridge"
+name = "glute bridge"
+aliases = ["hip bridge"]
+needs = ["mat"]
+position = "lying"
+sided = false
+measure = "reps"
+patterns = ["hinge"]
+muscles = ["glutes", "hamstrings"]
+loads = { knee = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+setup = "Lie on your back, knees bent, feet flat."
+cues = ["Push the floor away.", "Squeeze at the top."]
+easier = []
+harder = []
+draft = false
 
 [[movement]]
 id = "push-up"
 name = "push-up"
 aliases = ["pushup", "press-up"]
-kind = "strength"
 needs = []
 position = "all-fours"
 sided = false
 measure = "reps"
-groups = ["horizontal push", "anti-extension core"]
-tags = ["wrist-load"]
+patterns = ["horizontal-push"]
+muscles = ["chest", "triceps", "core"]
+loads = { wrist = 2, shoulder = 2 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
 setup = "Hands under your shoulders, body in one long line."
 cues = ["Ribs down.", "Elbows at a gentle angle."]
 easier = []
 harder = []
+draft = false
 
 [[movement]]
-id = "dead-bug"
-name = "dead bug"
-aliases = []
-kind = "strength"
-needs = ["mat"]
-position = "lying"
-sided = false
+id = "one-arm-row"
+name = "one arm row"
+aliases = ["dumbbell row"]
+needs = ["dumbbells"]
+position = "standing"
+sided = true
 measure = "reps"
-groups = ["anti-extension core"]
-tags = ["floor-transition"]
-setup = "Lie on your back, arms up, knees bent over your hips."
-cues = ["Low back stays heavy.", "Slow and smooth."]
+patterns = ["horizontal-pull"]
+muscles = ["back", "lats", "biceps"]
+loads = { shoulder = 1, elbow = 1 }
+support = { low-back = 1 }
+flags = ["grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+setup = "Hold a weight in one hand and hinge forward with a flat back."
+cues = ["Pull the elbow to your hip.", "Lower slowly."]
 easier = []
 harder = []
+draft = false
 
 [[movement]]
-id = "box-breathing"
-name = "box breathing"
-aliases = ["square breathing"]
-kind = "breathing"
-needs = []
+id = "bike-easy-spin"
+name = "easy bike spin"
+aliases = ["easy spin"]
+needs = ["bike"]
 position = "seated"
 sided = false
 measure = "time"
-groups = []
-tags = []
-setup = "Sit tall and let your shoulders drop."
-cues = ["In through the nose.", "Hold, then slowly out."]
+patterns = ["locomotion"]
+muscles = ["quads", "calves"]
+loads = { knee = 1 }
+flags = []
+intensity = "conditioning"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 20
+setup = "Sit tall on the bike and settle your feet on the pedals."
+cues = ["Smooth circles.", "Breathe easily."]
 easier = []
 harder = []
+draft = false
+
+[[movement]]
+id = "old-style"
+name = "old style"
+patterns = ["arms"]
+position = "standing"
+measure = "reps"
+setup = "Stand tall."
+cues = ["Curl up.", "Lower slowly."]
+draft = true

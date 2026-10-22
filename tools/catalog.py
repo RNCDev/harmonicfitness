@@ -1,23 +1,25 @@
-"""The movement catalog: one TOML file of equipment, tags, groups, kit presets and movements.
+"""The movement catalog (format 2): one TOML file of equipment, kit presets, the fixed lists of
+movement patterns, muscles, joint areas and flags, and every movement with its loads and timing.
 
-`load` reads knowledge/movements.toml (plus any private movements) and `problems` checks it,
-one plain sentence per fault. `resolve` turns a name from the log or a script into a movement.
-`load_rules` reads knowledge/injury-rules.toml and `rule_problems` checks it against the catalog
-and the playbook. Library only; the command line lives elsewhere.
+`load` reads knowledge/movements.toml (plus any private movements) and `problems` checks it, one
+plain sentence per fault. `resolve` turns a name from the log or a script into a movement. An entry
+is a draft until it carries every field; drafts are checked lightly and never planned from.
+Library only; the command line lives elsewhere.
 """
 import re
 import tomllib
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import paths
 
 POSITIONS = ("standing", "seated", "lying", "side-lying", "kneeling", "all-fours")
 MEASURES = ("reps", "time")
+LEVELS = ("novice", "experienced", "advanced")
+INTENSITIES = ("strength", "conditioning", "mobility", "skill", "breathing")
+LOAD_MAX = 3
 SIDE_WORDS = ("left ", "right ", "both sides ")
 SPOKEN_OK = re.compile(r"[A-Za-z .,'?!-]*")
-PHASES = ("protect", "restore", "rebuild", "return")
-RULE_LISTS = ("ban", "ban_injured_side", "ban_ids", "include", "advance_when", "sources")
 
 
 @dataclass
@@ -25,26 +27,37 @@ class Movement:
     id: str
     name: str
     aliases: List[str]
-    kind: str
     needs: List[str]
     position: str
     sided: bool
     measure: str
-    groups: List[str]
-    tags: List[str]
+    patterns: List[str]
+    muscles: List[str]
+    loads: Dict[str, int]
+    support: Dict[str, int]
+    flags: List[str]
+    intensity: str
+    level: str
+    seconds_per_rep: int
+    hold_seconds: int
+    transition_seconds: int
+    rehab: bool
+    draft: bool
     setup: str
     cues: List[str]
     easier: List[str]
     harder: List[str]
     private: bool = False
+    has_loads: bool = True   # False when the entry has no `loads` key at all (an empty table is fine)
 
 
 @dataclass
 class Catalog:
-    groups: List[str]
-    kinds: List[str]
+    patterns: List[str]
+    muscles: List[str]
+    areas: List[str]
+    flags: List[str]
     equipment: Dict[str, dict]
-    tags: Dict[str, str]
     presets: Dict[str, List[str]]
     movements: Dict[str, Movement]
     entries: List[Movement] = field(default_factory=list)   # every entry in order, repeats included
@@ -53,11 +66,17 @@ class Catalog:
 def _movement(raw: dict, private: bool) -> Movement:
     return Movement(
         id=raw["id"], name=raw.get("name", raw["id"]), aliases=list(raw.get("aliases", [])),
-        kind=raw.get("kind", ""), needs=list(raw.get("needs", [])), position=raw.get("position", ""),
+        needs=list(raw.get("needs", [])), position=raw.get("position", ""),
         sided=bool(raw.get("sided", False)), measure=raw.get("measure", ""),
-        groups=list(raw.get("groups", [])), tags=list(raw.get("tags", [])),
+        patterns=list(raw.get("patterns", [])), muscles=list(raw.get("muscles", [])),
+        loads=dict(raw.get("loads", {})), support=dict(raw.get("support", {})),
+        flags=list(raw.get("flags", [])), intensity=raw.get("intensity", ""), level=raw.get("level", ""),
+        seconds_per_rep=int(raw.get("seconds_per_rep", 0)), hold_seconds=int(raw.get("hold_seconds", 0)),
+        transition_seconds=int(raw.get("transition_seconds", 0)), rehab=bool(raw.get("rehab", False)),
+        draft=bool(raw.get("draft", False)) or "patterns" not in raw,
         setup=raw.get("setup", ""), cues=list(raw.get("cues", [])),
-        easier=list(raw.get("easier", [])), harder=list(raw.get("harder", [])), private=private)
+        easier=list(raw.get("easier", [])), harder=list(raw.get("harder", [])), private=private,
+        has_loads="loads" in raw)
 
 
 def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Catalog:
@@ -70,8 +89,9 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
     for m in entries:
         movements.setdefault(m.id, m)
     return Catalog(
-        groups=list(data.get("groups", [])), kinds=list(data.get("kinds", [])),
-        equipment=dict(data.get("equipment", {})), tags=dict(data.get("tags", {})),
+        patterns=list(data.get("patterns", [])), muscles=list(data.get("muscles", [])),
+        areas=list(data.get("areas", [])), flags=list(data.get("flags", [])),
+        equipment=dict(data.get("equipment", {})),
         presets={k: list(v.get("equipment", [])) for k, v in data.get("presets", {}).items()},
         movements=movements, entries=entries)
 
@@ -95,18 +115,51 @@ def problems(cat: Catalog) -> List[str]:
             key = word.lower()
             if seen.setdefault(key, n) != n:
                 out.append(f"The {label} \"{word}\" on movement {m.id} is already used by movement {entries[seen[key]].id}.")
-        if m.kind not in cat.kinds:
-            out.append(f"Movement {m.id} has the unknown kind \"{m.kind}\".")
+        if not m.patterns:
+            out.append(f"Movement {m.id} has no patterns; every entry, draft or not, needs at least one.")
+        for p in m.patterns:
+            if p not in cat.patterns:
+                out.append(f"Movement {m.id} has the unknown pattern \"{p}\".")
+        for mu in m.muscles:
+            if mu not in cat.muscles:
+                out.append(f"Movement {m.id} has the unknown muscle \"{mu}\".")
+        for label, table in (("loads", m.loads), ("support", m.support)):
+            for area, value in table.items():
+                if area not in cat.areas:
+                    out.append(f"Movement {m.id} has the unknown area \"{area}\" in its {label}.")
+                if not isinstance(value, int) or not 0 <= value <= LOAD_MAX:
+                    out.append(f"Movement {m.id} has the {label} value {value} for {area}, outside 0 to {LOAD_MAX}.")
+        if m.support and not m.sided:
+            out.append(f"Movement {m.id} has support but is not sided; support is the load on the resting side.")
+        for f in m.flags:
+            if f not in cat.flags:
+                out.append(f"Movement {m.id} has the unknown flag \"{f}\".")
+        if m.intensity and m.intensity not in INTENSITIES:
+            out.append(f"Movement {m.id} has the unknown intensity \"{m.intensity}\".")
+        if m.level and m.level not in LEVELS:
+            out.append(f"Movement {m.id} has the unknown level \"{m.level}\".")
         if m.position not in POSITIONS:
             out.append(f"Movement {m.id} has the unknown position \"{m.position}\".")
         if m.measure not in MEASURES:
             out.append(f"Movement {m.id} has the unknown measure \"{m.measure}\".")
-        for g in m.groups:
-            if g not in cat.groups:
-                out.append(f"Movement {m.id} has the unknown group \"{g}\".")
-        for t in m.tags:
-            if t not in cat.tags:
-                out.append(f"Movement {m.id} has the unknown tag \"{t}\".")
+        if not m.draft:
+            missing = []
+            if not m.has_loads:
+                missing.append("loads")
+            if not m.muscles:
+                missing.append("muscles")
+            if not m.intensity:
+                missing.append("intensity")
+            if not m.level:
+                missing.append("level")
+            if m.transition_seconds <= 0:
+                missing.append("transition_seconds")
+            if m.measure == "reps" and m.seconds_per_rep <= 0:
+                missing.append("seconds_per_rep")
+            if m.measure == "time" and m.hold_seconds <= 0:
+                missing.append("hold_seconds")
+            if missing:
+                out.append(f"Movement {m.id} is not a draft but is missing {', '.join(missing)}.")
         for need in m.needs:
             for alt in need.split("|"):
                 if alt not in cat.equipment:
@@ -145,12 +198,6 @@ def resolve(cat: Catalog, name: str) -> Optional[Movement]:
     return None
 
 
-class Selection(NamedTuple):
-    allowed: List[Movement]
-    healthy_side_only: List[Movement]
-    left_out: Dict[str, List[str]]   # movement id -> every reason it was ruled out
-
-
 def kit_equipment(cat: Catalog, kit: dict) -> Set[str]:
     """The equipment keys a kit stands for: its preset's list, its own `equipment`, or both."""
     out: Set[str] = set()
@@ -159,80 +206,4 @@ def kit_equipment(cat: Catalog, kit: dict) -> Set[str]:
             raise ValueError(f"unknown preset \"{kit['preset']}\" (choose from: {', '.join(sorted(cat.presets))})")
         out |= set(cat.presets[kit["preset"]])
     out |= set(kit.get("equipment", []))
-    return out
-
-
-def select(cat: Catalog, equipment: Set[str], avoid: Set[str], avoid_injured_side: Set[str] = frozenset(),
-           ban_ids: Set[str] = frozenset()) -> Selection:
-    """Split the catalog into what is allowed with this kit and these bans, what is allowed on the
-    healthy side only, and what is left out (with every reason)."""
-    allowed: List[Movement] = []
-    healthy: List[Movement] = []
-    left_out: Dict[str, List[str]] = {}
-    for m in cat.movements.values():
-        reasons: List[str] = []
-        if any(not any(alt in equipment for alt in need.split("|")) for need in m.needs):
-            reasons.append("equipment")
-        reasons += [t for t in m.tags if t in avoid]
-        if m.id in ban_ids:
-            reasons.append("banned")
-        side = [t for t in m.tags if t in avoid_injured_side and t not in avoid]
-        if side and not m.sided:
-            reasons += side
-        if reasons:
-            left_out[m.id] = reasons
-        elif side:
-            healthy.append(m)
-        else:
-            allowed.append(m)
-    return Selection(allowed, healthy, left_out)
-
-
-def load_rules(path: Optional[str] = None) -> Dict[str, dict]:
-    """The injury rules: area -> {"playbook": heading, phase -> {"ban", "ban_injured_side", "ban_ids",
-    "caution", "include", "advance_when", "sources"}}, with any missing list or table left empty."""
-    with open(path or paths.INJURY_RULES, "rb") as f:
-        data = tomllib.load(f)
-    out: Dict[str, dict] = {}
-    for area, raw in data.get("areas", {}).items():
-        rule: dict = {"playbook": raw.get("playbook", "")}
-        for phase in PHASES:
-            if phase in raw:
-                given = raw[phase]
-                rule[phase] = {key: list(given.get(key, [])) for key in RULE_LISTS}
-                rule[phase]["caution"] = dict(given.get("caution", {}))
-        out[area] = rule
-    return out
-
-
-def rule_problems(rules: Dict[str, dict], cat: Catalog, playbook_text: str) -> List[str]:
-    """Faults in the injury rules, one plain sentence each: unknown tags or movements, a missing
-    phase, a playbook heading that isn't there, a caution that can't be spoken, and a rehab movement
-    both banned and included."""
-    out: List[str] = []
-    headings = {line[3:].strip() for line in playbook_text.splitlines() if line.startswith("## ")}
-    for area, rule in rules.items():
-        heading = rule.get("playbook", "")
-        if heading not in headings:
-            out.append(f"The {area} rules point to the playbook heading \"{heading}\", which is not a ## heading in the playbook.")
-        for phase in PHASES:
-            r = rule.get(phase)
-            if r is None:
-                out.append(f"The {area} rules have no {phase} phase.")
-                continue
-            for key in ("ban", "ban_injured_side"):
-                for tag in r.get(key, []):
-                    if tag not in cat.tags:
-                        out.append(f"The {area} {phase} {key} list names the unknown tag \"{tag}\".")
-            for key, ids in (("ban_ids", r.get("ban_ids", [])), ("caution", list(r.get("caution", {}))),
-                             ("include", r.get("include", []))):
-                for mid in ids:
-                    if mid not in cat.movements:
-                        out.append(f"The {area} {phase} {key} list names \"{mid}\", which is not a movement in the catalog.")
-            for mid, condition in r.get("caution", {}).items():
-                if _spoken_fault(condition):
-                    out.append(f"The {area} {phase} caution for \"{mid}\" has {_spoken_fault(condition)} in it, and it is spoken.")
-            for mid in r.get("include", []):
-                if mid in r.get("ban_ids", []):
-                    out.append(f"The {area} {phase} phase lists \"{mid}\" under both include and ban_ids.")
     return out

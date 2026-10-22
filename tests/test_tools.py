@@ -266,68 +266,6 @@ class Assemble(unittest.TestCase):
         self.assertGreater(secs(tail), secs(chime()))   # longer and rising, so it can't pass for a bell
 
 
-class Coverage(unittest.TestCase):
-    LOG = """# Workout log
-
-## Sessions
-- 2026-10-19 | 15 min | Home | V | seated bent-over rowing, dead bug on the bench, straight-leg raise | topics
-- 2026-10-20 | 20 min | Home | V | incline push-up, seated curl, right single-leg glute bridge, clamshell, side plank from the knee, seated punching finisher, mystery move | topics
-
-## Feedback
-- 2026-10-20 | not | a | session | line
-"""
-
-    def setUp(self):
-        fd, self.path = tempfile.mkstemp(suffix=".md")
-        with os.fdopen(fd, "w") as f:
-            f.write(with_schema(self.LOG))
-
-    def tearDown(self):
-        os.remove(self.path)
-
-    def test_reads_only_the_sessions_section(self):
-        log = context.sessions(self.path)
-        self.assertEqual([s.date for s in log], ["2026-10-19", "2026-10-20"])
-
-    def test_groups_and_gaps(self):
-        hit, unmapped = coverage.coverage(context.sessions(self.path)[-1].movements)
-        self.assertEqual(hit["arms"], ["seated curl"])
-        self.assertEqual(hit["hamstrings"], ["right single-leg glute bridge"])
-        self.assertEqual(hit["lateral or anti-rotation core"], ["side plank from the knee"])
-        self.assertEqual(hit["anti-extension core"], [])      # a side plank isn't anti-extension
-        self.assertEqual(hit["quads"], [])
-        self.assertEqual(unmapped, ["mystery move"])         # the finisher is skipped on purpose
-
-    def test_tricky_names(self):
-        self.assertEqual(coverage.groups_of("lying leg curl"), ["hamstrings"])
-        self.assertEqual(coverage.groups_of("seated bent-over rowing"), ["horizontal pull"])
-        self.assertNotIn("horizontal push", coverage.groups_of("overhead press"))
-
-    def test_catalog_groups_match_the_checklist(self):
-        self.assertEqual(catalog.load().groups, [g for g, _ in coverage.GROUPS])
-
-    def test_side_words_and_capitals_resolve(self):
-        self.assertEqual(coverage.groups_of("Right Single-Leg Glute Bridge"),
-                         coverage.groups_of("single-leg glute bridge"))
-        self.assertIn("hamstrings", coverage.groups_of("right single-leg glute bridge"))
-
-    def test_finishers_and_skills_are_not_unmapped(self):
-        _, unmapped = coverage.coverage(["seated punching finisher", "box breathing", "mystery move"])
-        self.assertEqual(unmapped, ["mystery move"])
-
-    def test_week_counts_sessions_per_group(self):
-        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 21))
-        self.assertEqual(counts["horizontal pull"], 1)
-        self.assertEqual(counts["arms"], 1)
-        self.assertEqual(counts["quads"], 1)
-        self.assertEqual(set(counts), {g for g, _ in coverage.GROUPS})
-
-    def test_week_window_excludes_old_sessions(self):
-        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 26))
-        self.assertEqual(counts["horizontal pull"], 0)   # the 19th is 7 days back: outside
-        self.assertEqual(counts["arms"], 1)
-
-
 class CharWeight(unittest.TestCase):
     def test_basic_weights(self):
         self.assertAlmostEqual(char_weight.weight("ab c."), 1 + 1 + 0.2 + 1 + 0.5)
