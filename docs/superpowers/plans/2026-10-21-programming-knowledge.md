@@ -1,3 +1,5 @@
+> Superseded from Phase 2 on by `docs/superpowers/plans/2026-10-21-session-builder.md`.
+
 # Programming Knowledge Refactor Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -305,6 +305,22 @@ class KnowledgeFiles(unittest.TestCase):
             self.assertIn(heading, text)
         self.assertGreaterEqual(text.count("Source: https://"), 8)
 
+    def test_playbook_has_a_section_per_area_and_no_phases(self):
+        with open(os.path.join(ROOT, "knowledge", "injury-playbook.md")) as f:
+            text = f.read()
+        headings = {line[3:].strip() for line in text.splitlines() if line.startswith("## ")}
+        for area in catalog.load().areas:
+            title = area.replace("-", " ").capitalize()
+            self.assertIn(title, headings, area)
+        self.assertIn("Red flags", headings)
+        for word in ("protect", "rebuild", "ban_ids"):
+            self.assertNotIn(word, text.lower(), word)
+
+    def test_docs_name_no_removed_files(self):
+        for rel in ("CLAUDE.md", "README.md", os.path.join("knowledge", "kits.md")):
+            with open(os.path.join(ROOT, rel)) as f:
+                self.assertFalse("injury-rules.toml" in f.read(), rel)
+
 
 if __name__ == "__main__":
     unittest.main()

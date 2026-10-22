@@ -1,9 +1,9 @@
 # Equipment Kits
 
-What each kind of kit usually holds, and how to script around it. The movements themselves live in the catalog, `knowledge/movements.toml`, each with its equipment, spoken setup, cues and the tags the injury rules ban by. Don't pick from memory: after the check-in, run `./sweatcast movements` for today's kit and choose from what it prints.
+What each kind of kit usually holds, and how to script around it. The movements themselves live in the catalog, `knowledge/movements.toml`, each with its equipment, spoken setup, cues and how much it loads each joint area. Don't pick from memory: after the check-in, run `./sweatcast session` for today's request and kit (or `./sweatcast movements` to browse) and choose from what it prints.
 
 ## Choosing the kit for the filter
-Four kits have a preset in the catalog: `--preset bodyweight`, `--preset hotel-room`, `--preset hotel-gym` and `--preset full-gym`. For any other kit, such as the one at home, pass its equipment instead: `--equipment dumbbells,bench,band`, using the keys or aliases in the catalog's `[equipment]` table ("resistance bands" and "band" both work). Floor and wall space are always assumed. Add `--avoid` with the `ban` tags from `knowledge/injury-rules.toml` for each active injury's area and phase; the workout skill's Step 2 says how.
+Four kits have a preset in the catalog: `--preset bodyweight`, `--preset hotel-room`, `--preset hotel-gym` and `--preset full-gym`. For any other kit, such as the one at home, pass its equipment instead: `--equipment dumbbells,bench,band`, using the keys or aliases in the catalog's `[equipment]` table ("resistance bands" and "band" both work). Floor and wall space are always assumed. `./sweatcast session` applies the limits in `me/health.md` itself (the injury playbook explains them); `--avoid` takes any further movement ids or flags to rule out.
 
 ## No equipment
 Bodyweight and some floor space. Everything still works: legs, glutes, core and pushing, with a chair or a wall to make it easier or harder.
@@ -24,7 +24,7 @@ A hockey stick and a dryland ball, for stickhandling: hand speed, coordination, 
 Full-body cardio. Strokes per minute in words. Cue "legs, then body, then arms; arms, body, then legs on the way back".
 
 ## Resistance bands
-Long bands or loop bands. A long band needs a solid anchor: a closed door with a door anchor, or a heavy post. Banded ankle rehab (eversion, inversion, dorsiflexion) is used only if the injury's current phase allows it.
+Long bands or loop bands. A long band needs a solid anchor: a closed door with a door anchor, or a heavy post. Banded ankle rehab (eversion, inversion, dorsiflexion) is used only when the ankle's limit allows it or names it under `rehab`.
 
 ## Bench
 A flat or adjustable bench, for supported rows, presses, step-ups and seated work.
