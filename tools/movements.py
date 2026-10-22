@@ -49,9 +49,10 @@ def render(cat: catalog.Catalog, sel: catalog.Selection, only: Optional[str] = N
     then the "Left out today" line. `only` limits the output to one pattern."""
     out: List[str] = []
     blocks = [(p, [line(cat, m) for m in sel.allowed if m.patterns[0] == p]) for p in cat.patterns]
-    blocks.append(("Healthy side only", [line(cat, m) for m in sel.healthy_side_only]))
+    blocks.append(("Healthy side only", [line(cat, m) for m in sel.healthy_side_only
+                                          if only is None or m.patterns[0] == only]))
     for heading, rows in blocks:
-        if rows and (only is None or heading == only):
+        if rows and (only is None or heading == only or heading == "Healthy side only"):
             out += [heading] + rows
     counts = Counter(r for reasons in sel.left_out.values() for r in reasons)
     why = ", ".join(f"{r}: {n}" for r, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))

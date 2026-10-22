@@ -195,6 +195,37 @@ class Select(unittest.TestCase):
         self.assertIn("floor", sel.left_out["glute-bridge"])
         self.assertEqual(sel.left_out["old-style"], ["draft"])   # rehab bypasses limits, never draft
 
+    def test_limits_on_both_sides_leave_no_healthy_side(self):
+        cat = catalog.load(FIXTURE)
+        both = [catalog.Limit("knee", "left", "delicate", [], [], ""),
+                catalog.Limit("knee", "right", "delicate", [], [], "")]
+        sel = catalog.select(cat, set(), "novice", both)
+        self.assertEqual(sel.left_out["split-squat"], ["knee delicate"])
+        self.assertNotIn("split-squat", {m.id for m in sel.healthy_side_only})
+        mixed = [catalog.Limit("knee", "left", "delicate", [], [], ""),
+                 catalog.Limit("ankle", "right", "off-limits", [], [], "")]
+        cat.movements["split-squat"].loads["ankle"] = 2
+        cat.movements["split-squat"].support["ankle"] = 0
+        sel = catalog.select(cat, set(), "novice", mixed)
+        self.assertEqual(sel.left_out["split-squat"], ["knee delicate", "ankle off limits"])
+
+    def test_delicate_boundary_is_exactly_two(self):
+        cat = catalog.load(FIXTURE)
+        lim = [catalog.Limit("wrist", "both", "delicate", [], [], "")]   # push-up wrist = 2
+        self.assertEqual(catalog.select(cat, set(), "novice", lim).left_out["push-up"], ["wrist delicate"])
+
+    def test_sided_limit_below_threshold_allows_sided_movement(self):
+        cat = catalog.load(FIXTURE)
+        lim = [catalog.Limit("low-back", "left", "delicate", [], [], "")]   # one-arm-row support 1, load 0
+        sel = catalog.select(cat, {"dumbbells"}, "novice", lim)
+        self.assertIn("one-arm-row", {m.id for m in sel.allowed})
+
+    def test_unknown_limit_values_raise(self):
+        cat = catalog.load(FIXTURE)
+        for lim in (catalog.Limit("knee", "both", "soft", [], [], ""), catalog.Limit("knee", "up", "delicate", [], [], "")):
+            with self.assertRaises(ValueError):
+                catalog.select(cat, set(), "novice", [lim])
+
     def test_reasons_accumulate_and_threshold(self):
         cat = catalog.load(FIXTURE)
         lim = [catalog.Limit("knee", "both", "delicate", [], [], "")]
@@ -225,6 +256,14 @@ class Select(unittest.TestCase):
 
 
 class Filter(unittest.TestCase):
+    def test_pattern_keeps_healthy_side_block(self):
+        import movements
+        cat = catalog.load(FIXTURE)
+        sel = catalog.select(cat, set(), "novice", [catalog.Limit("knee", "left", "delicate", [], [], "")])
+        out = movements.render(cat, sel, "lunge")
+        self.assertIn("Healthy side only", out)
+        self.assertNotIn("Healthy side only", movements.render(cat, sel, "squat"))
+
     def test_preset_prints_by_pattern(self):
         r = run_movements(["--preset", "full-gym"])
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -258,7 +297,8 @@ class Filter(unittest.TestCase):
 
 class KnowledgeFiles(unittest.TestCase):
     def test_programming_reference_is_sourced(self):
-        text = open(os.path.join(ROOT, "knowledge", "programming.md")).read()
+        with open(os.path.join(ROOT, "knowledge", "programming.md")) as f:
+            text = f.read()
         for heading in ("## Effort", "## Load range", "## Weekly dose", "## Rest and pairing", "## Tempo",
                         "## Progression", "## Warm-up, finisher and cool-down", "## One-sided training",
                         "## Session templates"):

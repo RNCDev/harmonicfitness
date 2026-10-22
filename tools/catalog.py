@@ -240,6 +240,11 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
     allowed: List[Movement] = []
     healthy: List[Movement] = []
     left_out: Dict[str, List[str]] = {}
+    for lim in limits:
+        if lim.level not in ("off-limits", "delicate"):
+            raise ValueError(f"unknown limit level \"{lim.level}\" (choose from: off-limits, delicate)")
+        if lim.side not in ("left", "right", "both"):
+            raise ValueError(f"unknown limit side \"{lim.side}\" (choose from: left, right, both)")
     named = {i for lim in limits for i in lim.rehab}
     for m in cat.movements.values():
         if m.draft:
@@ -249,7 +254,7 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
             left_out[m.id] = ["equipment"]
             continue
         reasons: List[str] = []
-        one_side = False
+        one_side: List[tuple] = []   # (limited side, reason) where only the working side is loaded
         if LEVELS.index(m.level) > LEVELS.index(level):
             reasons.append("level")
         if m.id in dislikes:
@@ -266,15 +271,19 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
             if lim.level == "delicate":
                 bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad]
             reasons += bad   # a flag is its own reason
+            why = f"{lim.area} {'off limits' if lim.level == 'off-limits' else 'delicate'}"
             if lim.side == "both" or not m.sided:
                 hit = m.loads.get(lim.area, 0) >= need
             elif m.support.get(lim.area, 0) >= need:
                 hit = True
             else:
                 hit = False
-                one_side = one_side or m.loads.get(lim.area, 0) >= need
+                if m.loads.get(lim.area, 0) >= need:
+                    one_side.append((lim.side, why))
             if hit:
-                reasons.append(f"{lim.area} {'off limits' if lim.level == 'off-limits' else 'delicate'}")
+                reasons.append(why)
+        if {side for side, _ in one_side} >= {"left", "right"}:
+            reasons += [why for _, why in one_side]   # no healthy side is left to work
         if reasons:
             left_out[m.id] = list(dict.fromkeys(reasons))
         elif one_side:
