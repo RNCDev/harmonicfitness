@@ -22,6 +22,7 @@ Steps:
         prose). The other files only change their schema number.
 """
 import os
+import re
 import shutil
 import sys
 import time
@@ -47,8 +48,8 @@ def to_2(text, path):
                                      context.SETTINGS_COMMENTS)
 
 
-HEALTH_NOTE = ("# Each injury listed below needs a [[limits]] entry here (area, side, level, note); "
-               "see me.example/health.md. The session tool reads only these rows.")
+HEALTH_NOTE = ("# Each injury listed below needs a [[limits]] entry here (area, side, level, note); the session tool\n"
+               "# reads only these rows. Move old \"Clinician rules:\" sub-bullets to the ## Clinician rules section.")
 
 
 def to_3(text, path):
@@ -58,11 +59,13 @@ def to_3(text, path):
     m = context.TOML_FRONT_RE.match(text)
     if not m:
         return context.with_front_matter(text, 3)
-    lines = [ln for ln in m.group(1).split("\n") if ln.strip() != "schema = 2"]
+    lines = [ln for ln in m.group(1).split("\n") if not re.match(r"\s*schema\s*=\s*2\b", ln)]
     name = os.path.basename(path)
     if name == "profile.md":
         new = []
         for key, value in (("experience", '""'), ("likes", "[]"), ("dislikes", "[]")):
+            if any(re.match(rf"{key}\s*=", ln) for ln in lines):
+                continue
             new += [f"# {context.SETTINGS_COMMENTS[key]}", f"{key} = {value}"]
         at = next((i + 1 for i, ln in enumerate(lines) if ln.startswith("words_per_minute")), None)
         if at is None:   # no rate: the new keys go before the first table

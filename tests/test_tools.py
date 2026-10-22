@@ -1147,7 +1147,7 @@ description = "crisp"
     HEALTH = """# Health
 
 ## Active injuries and limitations
-- Left ankle: invented sprain.
+- Right wrist: invented strain.
 
 ## Clinician rules
 - No jumping until cleared.
@@ -1171,11 +1171,11 @@ description = "crisp"
         return path
 
     ROW = """[[limits]]
-area = "ankle"
-side = "left"
+area = "wrist"
+side = "right"
 level = "delicate"
 rehab = ["calf-raise"]
-note = "Therapist: no impact."
+note = "Therapist: no weight through the hand."
 """
 
     def test_profile_settings(self):
@@ -1193,9 +1193,9 @@ note = "Therapist: no impact."
 
     def test_health_limits_and_clinician_lines(self):
         h = context.health(self.health_file(self.ROW))
-        self.assertEqual(context.limits(h), [catalog.Limit("ankle", "left", "delicate", [], ["calf-raise"],
-                                                           "Therapist: no impact.")])
-        self.assertEqual(context.clinician_lines(h), ["Therapist: no impact.", "No jumping until cleared."])
+        self.assertEqual(context.limits(h), [catalog.Limit("wrist", "right", "delicate", [], ["calf-raise"],
+                                                           "Therapist: no weight through the hand.")])
+        self.assertEqual(context.clinician_lines(h), ["Therapist: no weight through the hand.", "No jumping until cleared."])
         self.assertEqual(context.limits(context.health(self.health_file(""))), [])
 
     def test_bad_limit_row_is_reported(self):
@@ -1228,10 +1228,10 @@ note = "Therapist: no impact."
         with_row = context.health(self.health_file(self.ROW))
         self.assertTrue(context.prose_injuries(with_row))
         self.assertFalse(any("have no [[limits]]" in i.message for i in context.check([with_row.path])))
-        none = self.HEALTH.replace("- Left ankle: invented sprain.", "- None right now.")
+        none = self.HEALTH.replace("- Right wrist: invented strain.", "- None right now.")
         self.assertFalse(context.prose_injuries(context.health(self.health_file("", none))))
-        commented = self.HEALTH.replace("- Left ankle: invented sprain.",
-                                        "- None right now.\n<!-- e.g.\n- Left ankle: sprain\n-->")
+        commented = self.HEALTH.replace("- Right wrist: invented strain.",
+                                        "- None right now.\n<!-- e.g.\n- Right wrist: strain\n-->")
         self.assertFalse(context.prose_injuries(context.health(self.health_file("", commented))))
 
     def test_profile_check_notes(self):
@@ -1249,7 +1249,7 @@ note = "Therapist: no impact."
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
             out = run([sys.executable, "tools/context.py", "get", "experience"], home=home)
-            self.assertEqual((out.returncode, out.stdout), (0, "\n"), out.stderr)
+            self.assertEqual((out.returncode, out.stdout), (0, ""), out.stderr)
             path = os.path.join(home, "profile.md")
             with open(path, encoding="utf-8") as f:
                 text = f.read()
@@ -1264,7 +1264,7 @@ class Migrate3(unittest.TestCase):
     PROFILE2 = ('+++\nschema = 2\n# rate\nwords_per_minute = 165\ndeliver_to = ""\n\n[[voices]]\n'
                 'name = "V"\ndescription = "d"\n+++\n# My Profile\n')
     HEALTH2 = ("+++\nschema = 2\n+++\n# Health\n\n## Active injuries and limitations\n"
-               "- Left ankle: invented sprain.\n")
+               "- Right wrist: invented strain.\n")
 
     def test_migrate_2_to_3_adds_the_keys(self):
         p = migrate.to_3(self.PROFILE2, "profile.md")
@@ -1287,13 +1287,13 @@ class Migrate3(unittest.TestCase):
 
     def test_limits_row_after_migration_parses(self):
         h = migrate.to_3(self.HEALTH2, "health.md")
-        h = h.replace("\n+++\n# Health", ('\n[[limits]]\narea = "ankle"\nside = "left"\n'
+        h = h.replace("\n+++\n# Health", ('\n[[limits]]\narea = "wrist"\nside = "right"\n'
                                           'level = "off-limits"\n+++\n# Health'), 1)
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "health.md")
             write_file(path, h)
             got = context.limits(context.health(path))
-        self.assertEqual(got, [catalog.Limit("ankle", "left", "off-limits", [], [], "")])
+        self.assertEqual(got, [catalog.Limit("wrist", "right", "off-limits", [], [], "")])
 
     def test_migrate_runs_through_the_command(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1303,7 +1303,7 @@ class Migrate3(unittest.TestCase):
             for name in ("log.md", "exercise-science.md"):
                 path = os.path.join(home, name)
                 with open(path, encoding="utf-8") as f:
-                    write_file(path, context.with_front_matter(context.body(f.read()), 2,))
+                    write_file(path, context.with_front_matter(context.body(f.read()), 2))
             out = run([sys.executable, "tools/migrate.py"], home=home)
             self.assertIn("schema 2 to 3", out.stdout, out.stderr)
             self.assertEqual([i for i in context.check([os.path.join(home, "health.md")]) if not i.note], [])
@@ -1312,7 +1312,9 @@ class Migrate3(unittest.TestCase):
         issues = context.check([os.path.join(paths.EXAMPLE, n) for n in
                                 ("profile.md", "health.md", "log.md", "exercise-science.md")])
         self.assertFalse([i for i in issues if "schema" in i.message])
-        self.assertFalse([i for i in issues if os.path.basename(i.path) != "profile.md" and not i.note], issues)
+        hard = [i for i in issues if not i.note]
+        self.assertTrue(all(os.path.basename(i.path) == "profile.md" and "isn't filled in yet" in i.message
+                            for i in hard), hard)
         h = context.health(os.path.join(paths.EXAMPLE, "health.md"))
         self.assertEqual((context.limits(h), context.clinician_lines(h)), ([], []))
         p = context.profile(os.path.join(paths.EXAMPLE, "profile.md"))

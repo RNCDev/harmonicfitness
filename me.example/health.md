@@ -5,12 +5,12 @@ schema = 3
 # loads); knowledge/injury-playbook.md explains both. An example, with an invented area:
 #
 # [[limits]]
-# area = "ankle"
-# side = "left"
+# area = "wrist"
+# side = "right"
 # level = "delicate"
 # flags = []
 # rehab = []
-# note = "Physio: no jumping or hopping until cleared."
+# note = "Physio: no weight through the hand until cleared."
 +++
 # Health
 
@@ -22,7 +22,7 @@ sweatcast is not medical advice. Anything a doctor or physical therapist has tol
 - None right now.
 
 <!-- An entry looks like this, and each one also needs a [[limits]] row in the settings block above:
-- Left ankle: lateral sprain, date of injury.
+- Right wrist: strain, date of injury.
   - Programming: <what's banned and what's allowed>.
 -->
 

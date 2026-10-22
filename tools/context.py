@@ -413,7 +413,7 @@ def clinician_lines(h, areas=None):
     out = [lim.note for lim in limits(h, areas) if lim.note]
     for line in _section_lines(h, CLINICIAN_HEADING):
         line = line[2:].strip() if line.startswith("- ") else line
-        if line and not line.startswith(("[", "#")):
+        if line and not line.startswith("#") and not (placeholder(line) and "]" in line):
             out.append(line)
     return out
 
@@ -519,7 +519,8 @@ def legacy_body(text):
 @dataclass
 class Session:
     """One line under `## Sessions` in log.md:
-    - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format> | loads: <m> = <load>; ... | rpe: <m> = <n>; ..."""
+    - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format>
+      | loads: <m> = <load>; ... | rpe: <m> = <n>; ...   (all on one line)"""
     date: str
     minutes: int
     kit: str
@@ -731,7 +732,7 @@ def _check_health(path, text):
                     if m is None or m.draft:
                         out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a movement "
                                                   "in the catalog (or is still a draft)", note=True))
-    if prose_injuries(h) and not limits(h, cat.areas if cat else []):
+    if cat and prose_injuries(h) and not limits(h, cat.areas):
         out.append(Issue(path, 0, "injuries written in prose have no [[limits]] entry, so the session "
                                   "tool applies no rule for them", note=True))
     return out
@@ -804,8 +805,6 @@ def main(argv=None):
             v = {"default-voice": default_voice, "wpm": wpm, "experience": experience}[args.what](p)
             if v is not None:
                 print(v)
-            elif args.what == "experience":
-                print()
         return cli.OK
     if args.cmd == "deliver":
         pattern, found = delivery_folders(profile())
