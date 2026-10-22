@@ -38,7 +38,7 @@
 
 | File | Responsibility |
 |---|---|
-| `knowledge/movements.toml` | format 2: fixed lists (`patterns`, `muscles`, `areas`, `flags`, `levels`, `intensities`), equipment, presets, every movement |
+| `knowledge/movements.toml` | format 2: fixed lists (`patterns`, `muscles`, `areas`, `flags`), equipment, presets, every movement |
 | `knowledge/sessions.toml` | methods and dose rules, each number sourced or marked house default |
 | `tools/catalog.py` | load, `problems`, `resolve`, `Limit`, `select`, `kit_equipment` |
 | `tools/sessions.py` | load `sessions.toml`, `problems`, `choose_method`, `dose` |
@@ -69,11 +69,11 @@ Spec amendment (ruling, recorded here): the pattern list gains `arms` and `hips`
 
 **Interfaces:**
 - Produces `catalog.Movement` fields: `id, name, aliases, needs, position, sided, measure, patterns: List[str], muscles: List[str], loads: Dict[str,int], support: Dict[str,int], flags: List[str], intensity: str, level: str, seconds_per_rep: int, hold_seconds: int, transition_seconds: int, rehab: bool, draft: bool, setup, cues, easier, harder, private`. Missing numeric fields load as 0; missing `intensity`/`level` as `""`.
-- Produces `catalog.Catalog` fields: `patterns, muscles, areas, flags, levels, intensities: List[str]`, `equipment, presets, movements, entries` as now. `groups`, `kinds`, `tags` gone.
+- Produces `catalog.Catalog` fields: `patterns, muscles, areas, flags: List[str]`, `equipment, presets, movements, entries` as now. `groups`, `kinds`, `tags` gone. Levels and intensities are module constants, not file lists.
 - Produces module constants `LEVELS = ("novice", "experienced", "advanced")`, `INTENSITIES = ("strength", "conditioning", "mobility", "skill", "breathing")`, `LOAD_MAX = 3`.
 - Removes `select`, `Selection`, `load_rules`, `rule_problems`, `PHASES`, `RULE_LISTS` (Task 3 adds the new `select`).
 
-- [ ] **Step 1: Rewrite the fixture** `tests/fixtures/movements.toml` as format 2: `format = 2`, the six fixed lists, the same equipment table, the four presets, and eight movements: `goblet-squat` (squat, loads knee 3 hip 2 ankle 2 low-back 1, level novice, reps 3 s, transition 15), `split-squat` (sided, lunge, loads knee 3, support knee 1 ankle 1), `air-squat` (unsided, squat, knee 3, draft = false), `glute-bridge` (hinge, knee 1, flags floor), `push-up` (horizontal-push, wrist 2 shoulder 2, flags floor), `one-arm-row` (sided, horizontal-pull, needs dumbbells, support low-back 1), `bike-easy-spin` (locomotion, intensity conditioning, measure time, hold 60, needs bike), `old-style` (draft = true with only `patterns = ["arms"]`, no other new fields).
+- [ ] **Step 1: Rewrite the fixture** `tests/fixtures/movements.toml` as format 2: `format = 2`, the four fixed lists, the same equipment table, the four presets, and eight movements: `goblet-squat` (squat, loads knee 3 hip 2 ankle 2 low-back 1, level novice, reps 3 s, transition 15), `split-squat` (sided, lunge, loads knee 3, support knee 1 ankle 1), `air-squat` (unsided, squat, knee 3, draft = false), `glute-bridge` (hinge, knee 1, flags floor), `push-up` (horizontal-push, wrist 2 shoulder 2, flags floor), `one-arm-row` (sided, horizontal-pull, needs dumbbells, support low-back 1), `bike-easy-spin` (locomotion, intensity conditioning, measure time, hold 60, needs bike), `old-style` (draft = true with only `patterns = ["arms"]`, no other new fields).
 
 - [ ] **Step 2: Write the failing tests** in `tests/test_catalog.py`:
 
@@ -124,7 +124,7 @@ Keep the existing resolve, duplicate and spoken-text tests, adjusted to the new 
 
 - [ ] **Step 4: Implement format 2 in `tools/catalog.py`.** Replace the `Movement` and `Catalog` dataclasses with the fields above; `_movement` reads the new keys with the defaults above and sets `draft = bool(raw.get("draft", False)) or "patterns" not in raw`. `problems(cat)` checks: every entry has non-empty `patterns` in `cat.patterns`; `muscles` in `cat.muscles`; `loads` and `support` keys in `cat.areas` with values 0 to `LOAD_MAX`; `support` only on `sided` entries; `flags` in `cat.flags`; `intensity` in `INTENSITIES` and `level` in `LEVELS` when given; for a non-draft entry: `loads` present (may be empty table), `muscles` non-empty, `intensity`, `level`, `transition_seconds > 0`, and `seconds_per_rep > 0` when `measure == "reps"` or `hold_seconds > 0` when `measure == "time"`; a non-draft `rehab` entry is fine. Keep duplicate, position, measure, needs, easier/harder and spoken checks. Delete `select`, `Selection`, `load_rules`, `rule_problems`, `PHASES`, `RULE_LISTS`. Update the module docstring.
 
-- [ ] **Step 5: Convert `knowledge/movements.toml` mechanically.** `format = 2`; replace `groups`, `kinds` and `[tags]` with the six fixed lists (`patterns` as amended, `muscles = ["quads", "hamstrings", "glutes", "adductors", "abductors", "calves", "chest", "back", "lats", "shoulders", "biceps", "triceps", "forearms", "core", "neck"]`, `areas`, `flags`, `levels`, `intensities`). On every entry: `draft = true`; replace `groups` with `patterns` using this default map and the entry's name as a tie-breaker: horizontal push→horizontal-push; horizontal pull→horizontal-pull; hip hinge or glutes→hinge; hamstrings→hinge; quads→squat (lunges, split squats and step-ups→lunge); hip abductors and adductors→hips; anti-extension core→anti-extension; lateral or anti-rotation core→anti-rotation (carries→carry; woodchops→rotation); arms→arms; kind cardio→locomotion; mobility→mobility; breathing→breathing; skill→skill; rehab→the pattern its name says (balance drills→balance, ankle and knee drills→hips or mobility); finisher→locomotion or rotation by name. Remove `kind` and `tags`; keep a `rehab = true` field where `kind` was `rehab`. The header comment explains format 2 in the same voice as today. Write a throwaway script in the scratchpad for the conversion; do not commit it.
+- [ ] **Step 5: Convert `knowledge/movements.toml` mechanically.** `format = 2`; replace `groups`, `kinds` and `[tags]` with the four fixed lists (`patterns` as amended, `muscles = ["quads", "hamstrings", "glutes", "adductors", "abductors", "calves", "chest", "back", "lats", "shoulders", "biceps", "triceps", "forearms", "core", "neck"]`, `areas`, `flags`). On every entry: `draft = true`; replace `groups` with `patterns` using this default map and the entry's name as a tie-breaker: horizontal push→horizontal-push; horizontal pull→horizontal-pull; hip hinge or glutes→hinge; hamstrings→hinge; quads→squat (lunges, split squats and step-ups→lunge); hip abductors and adductors→hips; anti-extension core→anti-extension; lateral or anti-rotation core→anti-rotation (carries→carry; woodchops→rotation); arms→arms; kind cardio→locomotion; mobility→mobility; breathing→breathing; skill→skill; rehab→the pattern its name says (balance drills→balance, ankle and knee drills→hips or mobility); finisher→locomotion or rotation by name. Remove `kind` and `tags`; keep a `rehab = true` field where `kind` was `rehab`. The header comment explains format 2 in the same voice as today. Write a throwaway script in the scratchpad for the conversion; do not commit it.
 
 - [ ] **Step 6: Remove the injury-rules references** that break the import: delete `INJURY_RULES` from `tools/paths.py` and `knowledge/injury-rules.toml`; `tools/movements.py` and `tools/coverage.py` will not run until Tasks 3 and 4 (they still import `select` and `groups`): stub them minimally so `./sweatcast test` collects (`movements.py` prints "movements: rewritten in the next task" and exits `cli.USAGE`; `coverage.py` `groups_of` returns `found.patterns`). Delete the `Coverage` class from `tests/test_tools.py`; Task 4 writes it anew by pattern.
 
@@ -140,7 +140,7 @@ Keep the existing resolve, duplicate and spoken-text tests, adjusted to the new 
 
 **Interfaces:**
 - Consumes Task 1's fields.
-- Produces: at least one non-draft entry for every (preset, core pattern, level) triple, where core patterns are `squat, hinge, lunge, horizontal-push, horizontal-pull, anti-extension, anti-rotation, locomotion, mobility, breathing`, and `vertical-push, vertical-pull, carry` on every preset but bodyweight and hotel-room.
+- Produces: at least one non-draft entry for every (preset, core pattern, level) triple, where core patterns are `squat, hinge, lunge, horizontal-push, horizontal-pull, anti-extension, anti-rotation, locomotion, mobility, breathing` (bodyweight's horizontal pull is the prone Y T W raise), plus `vertical-push, carry` on hotel-gym and `vertical-push, vertical-pull, carry` on full-gym. Bodyweight and hotel-room have no vertical pull: that is what "Would open up" is for.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -149,9 +149,9 @@ def test_every_preset_covers_the_core_patterns_at_every_level(self):
     cat = catalog.load()
     core = ["squat", "hinge", "lunge", "horizontal-push", "horizontal-pull", "anti-extension",
             "anti-rotation", "locomotion", "mobility", "breathing"]
-    loaded = ["vertical-push", "vertical-pull", "carry"]
+    extra = {"hotel-gym": ["vertical-push", "carry"], "full-gym": ["vertical-push", "vertical-pull", "carry"]}
     for preset, equipment in cat.presets.items():
-        want = core + (loaded if preset not in ("bodyweight", "hotel-room") else [])
+        want = core + extra.get(preset, [])
         for pattern in want:
             for level in catalog.LEVELS:
                 ok = [m for m in cat.movements.values() if not m.draft and m.patterns[0] == pattern
@@ -225,13 +225,13 @@ def test_limit_flags_and_rehab(self):
     lim = [catalog.Limit("wrist", "both", "delicate", ["floor"], ["old-style"], "")]
     sel = catalog.select(cat, {"mat"}, "novice", lim)
     self.assertIn("floor", sel.left_out["glute-bridge"])
-    self.assertNotIn("old-style", sel.left_out)   # named as rehab, so offered even though draft
+    self.assertEqual(sel.left_out["old-style"], ["draft"])   # rehab bypasses limits, never draft
 ```
 In `Filter` (real catalog, through `./sweatcast movements`): `test_preset_prints_by_pattern` (output's first heading is `squat`), `test_avoid_flag_and_id`, `test_unknown_equipment_is_usage` (exit 64).
 
 - [ ] **Step 2: Run** `./sweatcast test -k Select` and see it fail.
 
-- [ ] **Step 3: Implement `select` and `Limit` in `tools/catalog.py`.** Order of reasons per movement: draft (unless named in a limit's `rehab`, which also bypasses the limit checks for that entry), equipment, level (`LEVELS.index(m.level) > LEVELS.index(level)`), disliked, avoided (id or any flag in `avoid`), then each limit: flags in `limit.flags`, delicate's `impact`/`fast`, then loads: for `side == "both"` or an unsided movement, `m.loads.get(area, 0) >= threshold` excludes; for a sided limit on a sided movement, `m.support.get(area, 0) >= threshold` excludes, else if `m.loads.get(area, 0) >= threshold` it goes to `healthy_side_only`. A `rehab = true` entry not named by any limit gets reason `"rehab"`.
+- [ ] **Step 3: Implement `select` and `Limit` in `tools/catalog.py`.** Order of reasons per movement: draft (always; a draft named in a limit's `rehab` stays out, and `context.check` notes it), equipment, then for an entry named in a limit's `rehab` the limit checks are skipped; level (`LEVELS.index(m.level) > LEVELS.index(level)`), disliked, avoided (id or any flag in `avoid`), then each limit: flags in `limit.flags`, delicate's `impact`/`fast`, then loads: for `side == "both"` or an unsided movement, `m.loads.get(area, 0) >= threshold` excludes; for a sided limit on a sided movement, `m.support.get(area, 0) >= threshold` excludes, else if `m.loads.get(area, 0) >= threshold` it goes to `healthy_side_only`. A `rehab = true` entry not named by any limit gets reason `"rehab"`.
 
 - [ ] **Step 4: Rewrite `tools/movements.py`** on the new `select`: `--preset | --equipment`, `--avoid` (ids or flags), `--level` (default `experienced`), `--group` renamed `--pattern`. Docstring updated.
 
@@ -242,7 +242,7 @@ In `Filter` (real catalog, through `./sweatcast movements`): `test_preset_prints
 ### Task 4: Coverage by pattern, and the log's `rpe:` field
 
 **Files:**
-- Modify: `tools/coverage.py`, `tools/context.py` (`Session`, `parse_session`)
+- Modify: `tools/coverage.py`, `tools/context.py` (`Session`, `parse_session`), `tools/sweatcast.py` (the `coverage` description says patterns, not muscle groups)
 - Test: `tests/test_tools.py` (class `Coverage`, class `LogSession` or the existing log tests)
 
 **Interfaces:**
@@ -271,14 +271,14 @@ In `Filter` (real catalog, through `./sweatcast movements`): `test_preset_prints
 - Produces `context.experience(p) -> Optional[str]` (one of `catalog.LEVELS`, else None), `context.likes(p) -> List[str]`, `context.dislikes(p) -> List[str]`, `context.kits(p) -> Dict[str, List[str]]` from `[[kits]]` (`name`, `equipment`).
 - Produces `context.Health(settings, body, path)` and `context.health(path=None)`, `context.limits(h) -> List[catalog.Limit]` (a `[[limits]]` row with a bad `area`, `side` or `level` is dropped and reported by `check`), `context.clinician_lines(h) -> List[str]` (each limit's `note`, then every non-empty line under `## Clinician rules`).
 - Produces `context.prose_injuries(h) -> bool`: True when `## Active injuries and limitations` has a bullet other than "None right now".
-- `check`: profile notes empty or unknown `experience` ("no experience level: novice, experienced or advanced"), unknown ids in `likes`/`dislikes` (resolved through the catalog, note), kit equipment not in the catalog; health: bad limit rows (issue), and `prose_injuries and not limits` as a note "injuries written in prose have no [[limits]] entry, so the session tool applies no rule for them" (Review Focus 3).
-- `migrate.to_3(text, path)`: profile gains `experience = ""`, `likes = []`, `dislikes = []` after `words_per_minute` with `SETTINGS_COMMENTS` lines; health gains `limits = []` with a comment line above it saying each injury below needs a `[[limits]]` entry; other files only change the schema number. `STEPS[2] = to_3`; the docstring gains the step.
+- `check`: profile notes empty or unknown `experience` ("no experience level: novice, experienced or advanced"), unknown ids in `likes`/`dislikes` (resolved through the catalog, note), kit equipment not in the catalog; health: bad limit rows (issue), a `rehab` id that is unknown or a draft (note), and `prose_injuries and not limits` as a note "injuries written in prose have no [[limits]] entry, so the session tool applies no rule for them" (Review Focus 3).
+- `migrate.to_3(text, path)`: profile gains `experience = ""`, `likes = []`, `dislikes = []` after `words_per_minute` with `SETTINGS_COMMENTS` lines (never a `kits = []` key: `[[kits]]` is an array of tables, and TOML forbids both forms of one key); health gains only a comment line in the block saying each injury below needs a `[[limits]]` entry (never `limits = []`, for the same reason; `context.limits` returns `[]` when the key is absent); other files only change the schema number. `STEPS[2] = to_3`; the docstring gains the step.
 
-- [ ] **Step 1: Write the failing tests** against invented text: `test_profile_settings` (experience, likes, dislikes, a kit named "garage"), `test_health_limits_and_clinician_lines` (one limit row plus a `## Clinician rules` line), `test_bad_limit_row_is_reported`, `test_prose_injuries_without_limits_is_a_note`, `test_migrate_2_to_3_adds_the_keys` (run `migrate.to_3` on the schema-2 example texts; assert the keys and the schema), `test_example_is_schema_3` (`me.example` passes `check` with only notes).
+- [ ] **Step 1: Write the failing tests** against invented text: `test_profile_settings` (experience, likes, dislikes, a kit named "garage"), `test_health_limits_and_clinician_lines` (one limit row plus a `## Clinician rules` line), `test_bad_limit_row_is_reported`, `test_prose_injuries_without_limits_is_a_note`, `test_migrate_2_to_3_adds_the_keys` (run `migrate.to_3` on the schema-2 example texts; assert the keys and the schema), `test_limits_row_after_migration_parses` (append a `[[limits]]` row to the migrated health text and `context.limits` returns it), `test_example_is_schema_3` (`me.example` passes `check` with only notes).
 
 - [ ] **Step 2: Run** and see them fail.
 
-- [ ] **Step 3: Implement** the readers, `check` additions, `to_3`, and update `me.example/profile.md` (add the three settings with comments, one `[[kits]]` example `name = "home"`, `equipment = ["dumbbells", "band", "mat"]`) and `me.example/health.md` (schema 3; `limits = []` in the block; the comment example in the prose becomes a `[[limits]]` example with an invented area; a `## Clinician rules` section with a hint line). `./sweatcast get` gains `experience`.
+- [ ] **Step 3: Implement** the readers, `check` additions, `to_3`, and update `me.example/profile.md` (add the three settings with comments, one `[[kits]]` example `name = "home"`, `equipment = ["dumbbells", "band", "mat"]`) and `me.example/health.md` (schema 3; one commented-out `[[limits]]` example with an invented area inside the block, no `limits` key; a `## Clinician rules` section with a hint line). `./sweatcast get` gains `experience`.
 
 - [ ] **Step 4: Run** `./sweatcast test`; pass (including `FreshFork`).
 
@@ -288,12 +288,13 @@ In `Filter` (real catalog, through `./sweatcast movements`): `test_preset_prints
 
 **Files:**
 - Create: `knowledge/sessions.toml`, `tools/sessions.py`
+- Read: `docs/research/2026-10-21-session-structure-notes.md` (the opened sources; cite only these and `programming.md`'s)
 - Modify: `tools/paths.py` (`SESSIONS`), `knowledge/programming.md` (template table replaced by a pointer)
 - Test: `tests/test_session.py` (class `Methods`)
 
 **Interfaces:**
-- File shape (`format = 1`): `goals = ["strength", "general", "targeted", "conditioning", "mobility", "skill"]`; `[methods.<name>]` with `about` (spoken-safe), `goals`, `minutes = [least, most]`, `levels`, `warmup = { share, seconds = [least, most] }`, `cooldown = { share, seconds = [least, most] }`, optional `finisher = { share, seconds = [least, most], from_minutes }`, `work` in `("sets", "pairs", "rounds", "intervals", "holds")`, `blocks = [{ intensity, patterns, share }]`, optional `fixed = { work_seconds, rest_seconds, rounds }` for presets; `[dose.strength.<level>]` with `sets, reps, rest_seconds, hard_sets_per_session` as `[least, most]`; `[dose.conditioning.<level>]` with `work_seconds, rest_seconds, rounds`; `[dose.mobility.<level>]` with `hold_seconds, rounds`; `[dose.skill.<level>]` with `drill_seconds, rounds`. Every table has a `# source:` or `# house default:` comment.
-- Methods, in file order: `straight-sets` (strength, targeted, general; 25 to 60; pattern order `squat, hinge, horizontal-push, horizontal-pull, lunge, vertical-push, vertical-pull, anti-extension`), `paired-sets` (same goals; 20 to 60; same patterns; `work = "pairs"`), `circuit` (general, conditioning; 10 to 45; `work = "rounds"`; no finisher), `intervals` (conditioning; 10 to 45; `work = "intervals"`; patterns `locomotion`), `tabata` (conditioning; 10 to 30; `fixed = { work_seconds = 20, rest_seconds = 10, rounds = 8 }`), `bike-intervals` (conditioning; 15 to 45; `fixed = { work_seconds = 30, rest_seconds = 90, rounds = 5 }`; requires `bike|air-bike`, as a `needs` field on the method), `flow` (mobility; 15 to 45; `work = "holds"`; patterns `mobility, breathing`), `skill` (skill; 15 to 45; `work = "rounds"`; blocks `skill` share 0.6 then `strength` share 0.4).
+- File shape (`format = 1`): `goals = ["strength", "general", "targeted", "conditioning", "mobility", "skill"]`; `[methods.<name>]` with `about` (spoken-safe), `goals`, `minutes = [least, most]`, `levels`, `warmup = { share, seconds = [least, most] }`, `cooldown = { share, seconds = [least, most] }`, optional `finisher = { share, seconds = [least, most], from_minutes }`, `work` in `("sets", "pairs", "rounds", "intervals", "holds")`, `blocks = [{ intensity, patterns, share }]`, optional `fixed = { work_seconds, rest_seconds, rounds }` for presets; `min_slots` (3 for `sets`, `pairs` and `rounds`; 1 for `intervals` and `holds`); for `intervals` and `holds` one pattern may fill several slots, each with its own candidates; `[dose.strength.<level>]` with `sets, reps, rest_seconds, hard_sets_per_session` as `[least, most]`; `[dose.conditioning.<level>]` with `work_seconds, rest_seconds, rounds`; `[dose.mobility.<level>]` with `hold_seconds, rounds`; `[dose.skill.<level>]` with `drill_seconds, rounds`. Every table has a `# source:` or `# house default:` comment.
+- Methods, in file order: `straight-sets` (strength, targeted, general; 25 to 60; pattern order `squat, hinge, horizontal-push, horizontal-pull, lunge, vertical-push, vertical-pull, anti-extension`), `paired-sets` (same goals; 20 to 60; same patterns; `work = "pairs"`), `circuit` (general, conditioning, strength; 10 to 45; `work = "rounds"`; patterns `squat, horizontal-push, hinge, horizontal-pull, lunge, anti-extension`; rounds come from the strength dose's `sets`; no finisher), `intervals` (conditioning; 10 to 45; `work = "intervals"`; patterns `locomotion`), `tabata` (conditioning; 10 to 30; `fixed = { work_seconds = 20, rest_seconds = 10, rounds = 8 }`), `bike-intervals` (conditioning; 15 to 45; `fixed = { work_seconds = 30, rest_seconds = 90, rounds = 5 }`; requires `bike|air-bike`, as a `needs` field on the method), `flow` (mobility; 15 to 45; `work = "holds"`; patterns `mobility, breathing`), `skill` (skill; 15 to 45; `work = "rounds"`; blocks `skill` share 0.6 then `strength` share 0.4).
 - House defaults (from `programming.md`'s template table and load-range section; the builder checks each against the cited sections and marks any that a source supports): warm-up share 0.15 within 120 to 360 s; cool-down 0.10 within 120 to 300 s; finisher 0.10 within 90 to 300 s from 25 minutes. Strength dose: novice sets 2–3, reps 8–12, rest 60–90, hard sets 6–12; experienced 3–4, 6–10, 90–120, 10–16; advanced 3–5, 4–8, 120–180, 12–20. Conditioning: novice work 20–30, rest 40–60, rounds 4–6; experienced 30–45, 30–45, 6–8; advanced 30–60, 15–30, 8–10. Mobility: hold 30–60, rounds 2–3 at every level. Skill: drill 45–60, rounds 4–8.
 - Produces `sessions.Method` dataclass (`name` plus the fields as the file), `sessions.load(path=None) -> Sessions` (`goals, methods: Dict[str, Method], dose: Dict[str, Dict[str, dict]]`), `sessions.problems(s, cat) -> List[str]` (unknown goal, level, pattern, intensity or need; `about` spoken fault; a level missing from a dose table; minutes or ranges inverted), `sessions.choose_method(s, goal, minutes, level, last_format: Optional[str], equipment: Set[str]) -> Optional[Method]` (file order, first fitting whose name differs from `last_format`; if every fitting one equals it, the first fitting), `sessions.dose(s, intensity, level) -> dict`.
 
@@ -320,10 +321,10 @@ In `Filter` (real catalog, through `./sweatcast movements`): `test_preset_prints
 - Produces `session.Skeleton(NamedTuple)`: `method: Method, minutes: int, warmup: int, blocks: List[Tuple[str, List[Slot]]], finisher: int, cooldown: int, dropped: List[str], warnings: List[str], would_open: List[Tuple[str, int]]`.
 - Produces `session.slot_seconds(m: Movement, dose: dict, work: str) -> int`: `transition_seconds + sets * work_each + (sets - 1) * rest` where `work_each = reps * seconds_per_rep` or `hold_seconds`; for `pairs` the two movements' transitions and work add and one rest follows each pair; for `rounds` one transition per movement per round and one rest per round; for `intervals` `rounds * (work + rest)`; for `holds` `rounds * hold + transition`.
 - Produces `session.compose(request: dict, cat, sess, profile, health, log, today) -> Skeleton` and `session.render(sk) -> List[str]`, `session.render_draft(sk) -> List[str]`. Draft granularity: one `@@` segment for the warm-up; for `sets` and `pairs` one per slot (its sets and rests inside); for `rounds` one per round; for `intervals` one per work-and-rest pair; for `holds` one per slot; one for the finisher when present; one for the cool-down. Each title names the slot's default movement.
-- CLI: `--goal` (required, from `sess.goals`), `--minutes` (required, int), one of `--preset | --kit | --equipment`, `--method`, `--level`, `--target` (comma-separated patterns or muscles), `--limit area=level[:side]` (repeatable), `--avoid`, `--draft`, `--log`, `--today YYYY-MM-DD` (tests). Unknown values exit `cli.USAGE` naming the choices (Review Focus 5). Exit `cli.ISSUES` when no method fits or fewer than three slots fit.
-- Output order: clinician lines (prefixed "Health: "), warnings, the method line ("Method: paired-sets, because ..."), the skeleton with seconds per block, each slot's pattern, dose and top three candidates with reasons, "Dropped:" if any, "Would open up:" with up to three equipment items and counts.
+- CLI: `--goal` (required, from `sess.goals`), `--minutes` (required, int), one of `--preset | --kit | --equipment`, `--method`, `--level`, `--target` (comma-separated patterns or muscles), `--limit area=level[:side]` (repeatable), `--avoid`, `--draft`, `--log`, `--today YYYY-MM-DD` (tests). Unknown values exit `cli.USAGE` naming the choices (Review Focus 5). Exit `cli.ISSUES` when no method fits or fewer than the method's `min_slots` fit.
+- Output order: clinician lines (prefixed "Health: "), warnings, the method line; with `--draft` the health lines and warnings go to stderr so stdout is paste-clean for `draft.parse`; ("Method: paired-sets, because ..."), the skeleton with seconds per block, each slot's pattern, dose and top three candidates with reasons, "Dropped:" if any, "Would open up:" with up to three equipment items and counts.
 
-- [ ] **Step 1: Write the failing tests** against the fixture listener (`--home` via `SWEATCAST_HOME` in `run_session` helper, like `run_movements`) and the real catalog:
+- [ ] **Step 1: Write the failing tests.** `Compose` runs `session.compose` against the fixture listener and `tests/fixtures/movements.toml`, extended in this task with enough non-draft entries to fill a strength session on the home kit (add at least: `one-arm-row` already there, a `dumbbell-romanian-deadlift` hinge, a `reverse-lunge` sided lunge with `support` wrist 0, a `dead-bug` anti-extension, a `band-pallof-press` anti-rotation, a `bear-crawl` locomotion with wrist 3 unsided, a `one-arm-plank` sided with wrist 3 and support wrist 1, a `box-breathing` breathing entry, and a `hip-flexor-stretch` mobility entry; `goblet-squat` carries wrist 1); `Cli` runs `./sweatcast session` on the real catalog and asserts structure only (`--home` via `SWEATCAST_HOME` in a `run_session` helper, like `run_movements`). `compose_for(**request)` is a test-local helper that loads the fixture catalog, `sessions.load()`, the fixture listener and `today = 2026-10-21`:
 
 ```python
 def test_total_within_tolerance(self):
@@ -340,7 +341,7 @@ def test_wrist_limit_shapes_candidates(self):
     for m, _ in offered:
         if not m.sided:
             self.assertLess(m.loads.get("wrist", 0), 2, m.id)
-    self.assertTrue(any("healthy side only" in r for _, r in offered))
+    self.assertTrue(any("healthy side only" in r for _, r in offered))   # one-arm-plank
 
 def test_liked_ranks_first_and_disliked_never_appears(self):
     sk = compose_for(goal="strength", minutes=45)
@@ -367,7 +368,7 @@ def test_would_open_up_names_equipment(self):
     sk = compose_for(goal="strength", minutes=30, preset="bodyweight")
     self.assertTrue(sk.would_open and all(isinstance(n, int) for _, n in sk.would_open))
 ```
-`Cli`: `test_usage_on_unknown_goal` (exit 64, "strength" in stderr), `test_runs_with_draft` (exit 0, output starts with "Health: " line from the fixture's note).
+`Cli`: `test_usage_on_unknown_goal` (exit 64, "strength" in stderr), `test_runs_with_draft` (exit 0; stdout's first line matches `draft.MARKER`; stderr carries the "Health: " line from the fixture's note).
 
 - [ ] **Step 2: Run** and see them fail.
 
@@ -414,7 +415,7 @@ def test_would_open_up_names_equipment(self):
 
 **Files:**
 - Create: `docs/eval/README.md` (how to run it, three commands), `docs/eval/cases.toml`, `docs/eval/judge.md`, `docs/eval/listeners/{a,b,c,d}/{profile.md,health.md,log.md,exercise-science.md}` (four invented listeners: novice bodyweight no limits; experienced hotel-gym with left ankle delicate; advanced full-gym with low-back off limits; experienced hotel-room with likes and dislikes and an empty log)
-- Test: `tests/test_session.py` (class `Eval`): `test_cases_are_forty_and_valid` (parse `cases.toml`; 40 `[[case]]` rows with `id, listener, goal, minutes, preset, level?, target?, limit?`; every goal and level and preset count matches the spec's rule: nine goal-and-level cells times two kits times two lengths is 36, plus four mobility or targeted; every kit in at least four cells; every third case has a limit), `test_every_case_composes` (run `compose` for each case with its listener; exit not USAGE; at least three slots).
+- Test: `tests/test_session.py` (class `Eval`): `test_cases_are_forty_and_valid` (parse `cases.toml`; 40 `[[case]]` rows with `id, listener, goal, minutes, preset, level?, target?, limit?`; every goal and level and preset count matches the spec's rule: nine goal-and-level cells times two kits times two lengths is 36, plus four mobility or targeted; every kit in at least four cells; every third case has a limit), `test_every_case_composes` (run `compose` for each case with its listener; exit not USAGE; at least the method's `min_slots` slots).
 
 - [ ] **Step 1: Write the tests; run; fail.**
 
@@ -427,7 +428,7 @@ def test_would_open_up_names_equipment(self):
 **Files:**
 - Create: `docs/eval/out/*.draft.txt` (git-ignored), `docs/eval/results-2026-10-21.md` (committed)
 
-- [ ] **Step 1: Write the scripts.** Dispatch script writers in batches of five cases each, each with the workout skill's Step 3 rules and the case's skeleton; no research, no feeds, no build: the topic beats are a one-line placeholder. Each script is linted with `./sweatcast build <draft> --lint-only` against the listener's home and must pass.
+- [ ] **Step 1: Write the scripts.** Dispatch script writers in batches of five cases each, each with the workout skill's Step 3 rules and the case's skeleton; no research, no feeds, no build: the topic beats are a one-line placeholder. Each script is linted with `./sweatcast build <draft> --lint-only --allow-estimated` against the listener's home (no voice is measured there) and must pass.
 
 - [ ] **Step 2: Judge.** One reviewing agent on the most capable model, with `judge.md`, every case, skeleton and script. Write `results-2026-10-21.md`: the table, then the five lowest-scoring cases with the reason, then what the scores say about the catalog, the dose rules and the methods.
 
