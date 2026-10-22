@@ -155,13 +155,18 @@ def fitting(s: Sessions, goal: str, minutes: float, level: str, equipment: Set[s
             and all(any(alt in equipment for alt in need.split("|")) for need in m.needs)]
 
 
+def ranked(s: Sessions, goal: str, minutes: float, level: str, equipment: Set[str],
+           last_format: Optional[str] = None) -> List[Method]:
+    """The fitting methods, best first: by where the goal sits in each method's goals (first goal
+    first), then file order; within that, the last session's method moves to the back."""
+    fits = sorted(fitting(s, goal, minutes, level, equipment), key=lambda m: m.goals.index(goal))
+    return [m for m in fits if m.name != last_format] + [m for m in fits if m.name == last_format]
+
+
 def choose_method(s: Sessions, goal: str, minutes: float, level: str, last_format: Optional[str],
                   equipment: Set[str]) -> Optional[Method]:
-    """The first fitting method unlike the last session's; the first fitting if all match it; or None."""
-    fits = fitting(s, goal, minutes, level, equipment)
-    for m in fits:
-        if m.name != last_format:
-            return m
+    """The best-ranked fitting method (see `ranked`), or None."""
+    fits = ranked(s, goal, minutes, level, equipment, last_format)
     return fits[0] if fits else None
 
 

@@ -26,7 +26,7 @@ docs/eval/skeletons.sh
 
 For each case it runs `SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast session --goal ...
 --minutes ... --preset ... [--level ...] [--target ...] [--limit ...] --today 2026-10-21` into
-`docs/eval/out/<id>.skeleton.txt`, and the same with `--draft` into `docs/eval/out/<id>.markers.txt`
+`docs/eval/out/<id>.skeleton.txt` (its stderr into `<id>.skeleton.stderr.txt`), and the same with `--draft` into `docs/eval/out/<id>.markers.txt`
 (the `@@` markers a script is written under). The date is fixed, so the skeletons are the same on
 every run until the catalog, the dose rules or the composer change.
 

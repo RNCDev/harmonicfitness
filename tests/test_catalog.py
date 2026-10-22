@@ -106,6 +106,32 @@ class RealCatalog(unittest.TestCase):
     def test_real_catalog_is_clean(self):
         self.assertEqual(catalog.problems(catalog.load()), [])
 
+    def test_groin_calf_and_neck_limits_filter(self):
+        cat = catalog.load()
+        everything = set(cat.equipment)
+        out = lambda area, side="both", level="delicate": set(catalog.select(  # noqa: E731
+            cat, everything, "advanced", [catalog.Limit(area, side, level, [], [], "")]).left_out)
+        groin = out("groin")
+        for mid in ("reverse-lunge", "split-squat", "bulgarian-split-squat", "worlds-greatest-stretch", "childs-pose"):
+            self.assertIn(mid, groin)
+        self.assertIn("figure-four-stretch", out("groin", level="off-limits"))
+        calf = out("calf")
+        for mid in ("split-squat", "bulgarian-split-squat", "step-up"):
+            self.assertIn(mid, calf)
+        self.assertIn("reverse-lunge", out("calf", level="off-limits"))
+        self.assertIn("split-squat", out("calf", side="left"))   # the rear foot is on its toes
+        self.assertIn("pike-push-up", out("neck"))
+        for mid in ("glute-bridge", "prone-y-t-w-raise"):
+            self.assertIn(mid, out("neck", level="off-limits"))
+
+    def test_incline_push_up_needs_a_surface_and_bodyweight_has_a_wall_push_up(self):
+        cat = catalog.load()
+        self.assertEqual(cat.movements["incline-push-up"].needs, ["bench|chair"])
+        bodyweight = catalog.select(cat, catalog.kit_equipment(cat, {"preset": "bodyweight"}), "novice", [])
+        pushes = [m.id for m in bodyweight.allowed if m.patterns[0] == "horizontal-push"]
+        self.assertIn("wall-push-up", pushes)
+        self.assertNotIn("incline-push-up", pushes)
+
     def test_real_catalog_has_the_fixed_lists(self):
         cat = catalog.load()
         self.assertEqual(cat.patterns, [

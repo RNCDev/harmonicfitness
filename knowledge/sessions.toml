@@ -48,7 +48,7 @@ blocks = [
 
 [methods.circuit]
 about = "A short loop of movements, one after another with little rest, repeated for a few rounds."
-goals = ["general", "conditioning", "strength"]
+goals = ["general", "strength", "conditioning"]   # conditioning last: the conditioning methods fit it better
 minutes = [10, 45]   # house default: the research note's table says fifteen; lowered to ten so a ten-minute snack has a method
 levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length

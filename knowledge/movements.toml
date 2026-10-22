@@ -164,8 +164,8 @@ sided = true
 measure = "reps"
 patterns = ["lunge"]
 muscles = ["quads", "glutes", "adductors", "hamstrings"]
-loads = { knee = 3, hip = 2, ankle = 2 }
-support = { knee = 2, ankle = 1, hip = 1 }
+loads = { knee = 3, hip = 2, ankle = 2, groin = 2, calf = 1 }
+support = { knee = 2, ankle = 1, hip = 1, groin = 2, calf = 1 }
 flags = ["single-leg"]
 intensity = "strength"
 level = "novice"
@@ -187,8 +187,8 @@ sided = true
 measure = "reps"
 patterns = ["lunge"]
 muscles = ["quads", "glutes", "adductors"]
-loads = { knee = 3, hip = 2, ankle = 2 }
-support = { knee = 2, ankle = 1, hip = 1 }
+loads = { knee = 3, hip = 2, ankle = 2, groin = 2, calf = 2 }
+support = { knee = 2, ankle = 1, hip = 1, groin = 2, calf = 2 }
 flags = ["single-leg"]
 intensity = "strength"
 level = "novice"
@@ -210,8 +210,8 @@ sided = true
 measure = "reps"
 patterns = ["lunge"]
 muscles = ["quads", "glutes", "adductors"]
-loads = { knee = 3, hip = 2, ankle = 2 }
-support = { hip = 2, knee = 2, ankle = 1 }
+loads = { knee = 3, hip = 2, ankle = 2, groin = 2, calf = 2 }
+support = { hip = 2, knee = 2, ankle = 1, groin = 2, calf = 1 }
 flags = ["single-leg"]
 intensity = "strength"
 level = "experienced"
@@ -233,8 +233,8 @@ sided = true
 measure = "reps"
 patterns = ["lunge"]
 muscles = ["quads", "glutes", "calves"]
-loads = { knee = 3, hip = 2, ankle = 1 }
-support = { ankle = 1, knee = 1 }
+loads = { knee = 3, hip = 2, ankle = 1, groin = 1, calf = 2 }
+support = { ankle = 1, knee = 1, groin = 1, calf = 1 }
 flags = ["single-leg"]
 intensity = "strength"
 level = "novice"
@@ -293,7 +293,7 @@ sided = false
 measure = "reps"
 patterns = ["hinge"]
 muscles = ["glutes", "hamstrings", "core"]
-loads = { hip = 3, knee = 1, low-back = 1 }
+loads = { hip = 3, knee = 1, low-back = 1, neck = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
@@ -550,7 +550,29 @@ harder = []
 [[movement]]
 id = "incline-push-up"
 name = "incline push-up"
-aliases = ["incline pushup", "incline push up", "bench push-up", "chair push-up", "wall push-up"]
+aliases = ["incline pushup", "incline push up", "bench push-up", "chair push-up"]
+needs = ["bench|chair"]
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["horizontal-push"]
+muscles = ["chest", "triceps", "shoulders", "core"]
+loads = { wrist = 2, shoulder = 2, elbow = 2 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
+setup = "Put your hands on a bench or a sturdy chair set against a wall, and walk your feet back until your body makes one long line."
+cues = ["Lower your chest to the edge.", "Push the surface away.", "Body moves in one piece."]
+easier = ["wall-push-up"]
+harder = ["push-up"]
+
+[[movement]]
+id = "wall-push-up"
+name = "wall push-up"
+aliases = ["wall pushup", "wall push up", "standing push-up"]
 needs = []
 position = "standing"
 sided = false
@@ -564,10 +586,10 @@ level = "novice"
 seconds_per_rep = 3
 transition_seconds = 10
 draft = false
-setup = "Put your hands on a bench, a sturdy chair or a wall, and walk your feet back until your body makes one long line."
-cues = ["Lower your chest to the edge.", "Push the surface away.", "Body moves in one piece."]
+setup = "Stand about an arm's length from a wall and put your hands flat on it at shoulder height, a little wider than your shoulders."
+cues = ["Lower your chest toward the wall.", "Body moves in one piece.", "Push the wall away."]
 easier = []
-harder = ["push-up"]
+harder = ["incline-push-up"]
 
 [[movement]]
 id = "pike-push-up"
@@ -579,7 +601,7 @@ sided = false
 measure = "reps"
 patterns = ["vertical-push"]
 muscles = ["shoulders", "triceps", "chest"]
-loads = { shoulder = 3, wrist = 2, elbow = 2, hamstring = 1, neck = 1 }
+loads = { shoulder = 3, wrist = 2, elbow = 2, hamstring = 1, neck = 2 }
 flags = ["floor", "overhead"]
 intensity = "strength"
 level = "experienced"
@@ -908,7 +930,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
 muscles = ["back", "shoulders"]
-loads = { shoulder = 2, low-back = 1 }
+loads = { shoulder = 2, low-back = 1, neck = 1 }
 flags = ["floor", "overhead"]
 intensity = "strength"
 level = "novice"
@@ -2489,8 +2511,8 @@ sided = true
 measure = "time"
 patterns = ["mobility"]
 muscles = ["glutes", "adductors", "hamstrings", "back"]
-loads = { hip = 2, wrist = 2, shoulder = 1, low-back = 1, knee = 2 }
-support = { knee = 2, hip = 1 }
+loads = { hip = 2, wrist = 2, shoulder = 1, low-back = 1, knee = 2, groin = 2 }
+support = { knee = 2, hip = 1, groin = 2 }
 flags = ["floor", "kneeling", "spine-twist"]
 intensity = "mobility"
 level = "novice"
@@ -2572,7 +2594,7 @@ sided = false
 measure = "time"
 patterns = ["mobility"]
 muscles = ["back", "lats", "glutes"]
-loads = { knee = 2, hip = 2, ankle = 1 }
+loads = { knee = 2, hip = 2, ankle = 1, groin = 2 }
 flags = ["floor", "kneeling", "spine-flexion"]
 intensity = "mobility"
 level = "novice"
@@ -2617,7 +2639,7 @@ sided = true
 measure = "time"
 patterns = ["mobility"]
 muscles = ["glutes", "abductors"]
-loads = { hip = 2, knee = 1 }
+loads = { hip = 2, knee = 1, groin = 1 }
 support = {}
 flags = ["floor"]
 intensity = "mobility"

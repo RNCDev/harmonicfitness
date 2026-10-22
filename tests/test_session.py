@@ -37,6 +37,15 @@ class Methods(unittest.TestCase):
         pick = sessions.choose_method(self.s, "strength", 30, "experienced", None, set())
         self.assertEqual(pick.name, "straight-sets")
 
+    def test_choose_prefers_goal_fit_over_file_order(self):
+        self.assertEqual(self.s.methods["circuit"].goals[-1], "conditioning")
+        pick = lambda level, last: sessions.choose_method(self.s, "conditioning", 30, level, last, set()).name  # noqa: E731
+        self.assertEqual(pick("novice", None), "intervals")
+        self.assertEqual(pick("novice", "circuit"), "intervals")
+        self.assertEqual(pick("novice", "intervals"), "circuit")     # circuit only after intervals was last
+        self.assertEqual(pick("experienced", "intervals"), "tabata")   # a better-fitting method comes first
+        self.assertEqual([m.name for m in sessions.ranked(self.s, "general", 30, "novice", set())][0], "circuit")
+
     def test_choose_respects_minutes_and_needs(self):
         pick = sessions.choose_method(self.s, "strength", 15, "experienced", None, set())
         self.assertIsNotNone(pick)
@@ -220,6 +229,33 @@ class Compose(unittest.TestCase):
         self.assertLess(ids.index("one-arm-plank"), ids.index("dead-bug"))   # dead bug was in the last session
         self.assertNotIn("fresh", dict((m.id, r) for m, r in core.candidates)["dead-bug"])
 
+    def test_request_limit_prints_as_a_health_line(self):
+        import session
+        sk = compose_for(goal="strength", minutes=30, limits=[catalog.Limit("knee", "right", "delicate", [], [], ""),
+                                                              catalog.Limit("calf", "both", "off-limits", [], [], "")])
+        lines = session.render(sk)
+        self.assertIn("Health: today: knee delicate right", lines)
+        self.assertIn("Health: today: calf off-limits", lines)
+        self.assertNotIn("today:", " ".join(session.render(compose_for(goal="strength", minutes=30))))
+
+    def test_sided_slots_say_each_side_or_the_healthy_side(self):
+        import session
+        sk = compose_for(goal="strength", minutes=30)   # the fixture's left wrist is delicate
+        slots = [s for _, ss in sk.blocks for s in ss]
+        lunge = next(s for s in slots if s.pattern == "lunge")
+        core = next(s for s in slots if s.pattern == "anti-extension")
+        self.assertTrue(lunge.candidates[0][0].sided)
+        self.assertEqual(core.candidates[0][0].id, "one-arm-plank")   # healthy side only
+        text = "\n".join(session.render(sk))
+        self.assertRegex(text, r"lunge \(\d+ sets of \d+ \(each side\)")
+        self.assertRegex(text, r"anti-extension \(\d+ sets of \d+ s \(right side only\)")
+        titles = [line.split("|", 1)[1].strip() for line in session.render_draft(sk)]
+        self.assertIn(lunge.candidates[0][0].name[:1].upper() + lunge.candidates[0][0].name[1:] + " each side", titles)
+        self.assertIn("One arm plank right side only", titles)
+        squat = next(s for s in slots if s.pattern == "squat")
+        self.assertFalse(squat.candidates[0][0].sided)
+        self.assertNotIn("each side", next(t for t in titles if t.lower().startswith(squat.candidates[0][0].name.lower())))
+
     def test_short_request_drops_slots_not_time(self):   # Review Focus 2
         sk = compose_for(goal="general", minutes=12)
         self.assertGreaterEqual(len(sk.dropped), 1)
@@ -318,6 +354,18 @@ class Compose(unittest.TestCase):
         hinge = next(s for _, ss in sk.blocks for s in ss if s.pattern == "hinge")
         self.assertEqual(hinge.candidates[0][0].id, "dumbbell-romanian-deadlift")   # no knee load, despite heavy hips
 
+    def test_level_closeness_ranks_after_fresh_and_liked(self):
+        # bike-easy-spin (novice) comes before bear-crawl (experienced) in the file; both are fresh and unliked
+        none = context.Health({}, "")
+        sk = compose_for(goal="conditioning", minutes=20, equipment={"bike"}, health=none)
+        self.assertEqual(sk.method.name, "intervals")
+        first = next(s for _, ss in sk.blocks for s in ss)
+        self.assertEqual([m.id for m, _ in first.candidates][:2], ["bear-crawl", "bike-easy-spin"])
+        sk = compose_for(goal="conditioning", minutes=20, equipment={"bike"}, health=none,
+                         profile=listener_profile(likes=["bike-easy-spin"]))
+        first = next(s for _, ss in sk.blocks for s in ss)
+        self.assertEqual(first.candidates[0][0].id, "bike-easy-spin")   # liked outranks level
+
     def test_slot_seconds(self):
         import session
         cat = catalog.load(os.path.join(FIXTURES, "movements.toml"))
@@ -408,6 +456,20 @@ class Eval(unittest.TestCase):
         self.assertEqual(set(presets), set(self.cat.presets))
         self.assertTrue(all(n >= 4 for n in presets.values()), presets)
 
+    def test_next_method_when_the_first_cannot_fill_its_slots(self):
+        # advanced, low back off limits, bodyweight, no single-leg work today: circuit fits the goal best
+        # but has only a squat and a push; paired-sets adds a vertical push, so it is tried next
+        import session
+        profile, health, log = eval_listener("c")
+        request = {"goal": "general", "minutes": 30, "preset": "bodyweight", "avoid": {"single-leg"}, "limits": []}
+        self.assertEqual(sessions.ranked(self.sess, "general", 30, "advanced", set(), log[-1].format)[0].name, "circuit")
+        sk = session.compose(request, self.cat, self.sess, profile, health, log, TODAY)
+        self.assertNotEqual(sk.method.name, "circuit")
+        self.assertEqual(sk.why, "circuit did not fit")
+        self.assertIn("because circuit did not fit", "\n".join(session.render(sk)))
+        with self.assertRaises(session.Unfit):   # asked for by name, no fallback
+            session.compose(dict(request, method="circuit"), self.cat, self.sess, profile, health, log, TODAY)
+
     def test_every_case_composes(self):
         import session
         _, cases = eval_cases()
@@ -466,6 +528,26 @@ class Cli(unittest.TestCase):
         self.assertTrue(lines[0].startswith("Health: "))
         self.assertTrue(any(line.startswith("Method: ") for line in lines))
         self.assertTrue(any(line.startswith("Total: ") for line in lines))
+
+    def test_issues_when_a_limits_row_is_dropped(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            for name in os.listdir(LISTENER):
+                src = os.path.join(LISTENER, name)
+                (shutil.copytree if os.path.isdir(src) else shutil.copy)(src, os.path.join(home, name))
+            path = os.path.join(home, "health.md")
+            with open(path) as f:
+                text = f.read()
+            with open(path, "w") as f:
+                f.write(text.replace('level = "delicate"', 'level = "sore"', 1))
+            env = dict(os.environ, SWEATCAST_PYTHON=sys.executable, SWEATCAST_HOME=home)
+            r = subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), "session", "--goal", "strength", "--minutes",
+                                "30", "--kit", "home", "--today", "2026-10-21"],
+                               capture_output=True, text=True, env=env, cwd=ROOT)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("health.md: a [[limits]] row was ignored (run ./sweatcast check)", r.stderr)
+        self.assertEqual(r.stdout, "")
 
     def test_issues_when_no_method_fits(self):
         r = run_session(["--goal", "strength", "--minutes", "5", "--kit", "home"])

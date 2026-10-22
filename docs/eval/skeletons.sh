@@ -2,6 +2,7 @@
 # Generate the judged grid's skeletons: for each case in docs/eval/cases.toml, run
 # ./sweatcast session as that case's invented listener and write
 #   docs/eval/out/<id>.skeleton.txt   the skeleton (methods, doses, candidates, health lines)
+#   docs/eval/out/<id>.skeleton.stderr.txt   that run's warnings and errors
 #   docs/eval/out/<id>.markers.txt    the same with --draft: only the @@ markers, for the script
 # Run from anywhere; it works from the repo root. docs/eval/out/ is git-ignored.
 set -eu
@@ -30,12 +31,12 @@ while IFS="$(printf '\t')" read -r id listener flags; do
     # shellcheck disable=SC2086
     set -- $flags
     if SWEATCAST_HOME="docs/eval/listeners/$listener" ./sweatcast session "$@" --today 2026-10-21 \
-            > "$OUT/$id.skeleton.txt" 2>&1 &&
+            > "$OUT/$id.skeleton.txt" 2> "$OUT/$id.skeleton.stderr.txt" &&
        SWEATCAST_HOME="docs/eval/listeners/$listener" ./sweatcast session "$@" --today 2026-10-21 --draft \
             > "$OUT/$id.markers.txt" 2> "$OUT/$id.markers.stderr.txt"; then
         echo "$id: ok"
     else
-        echo "$id: failed, see $OUT/$id.skeleton.txt" >&2
+        echo "$id: failed, see $OUT/$id.skeleton.stderr.txt" >&2
         failed=1
     fi
 done < "$OUT/cases.tsv"

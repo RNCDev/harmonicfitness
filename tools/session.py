@@ -3,9 +3,10 @@
 
 The workout skill writes its script under the skeleton instead of planning from memory. From the
 request (goal, minutes, kit) and the listener's profile, health limits and log, this picks today's
-method (rotating away from the last session's format), shares the minutes between warm-up, work,
-finisher and cool-down, fills the method's movement-pattern slots with the movements the kit,
-level and limits allow, ranked, and doses them so the planned total lands on the request.
+method (the best fit for the goal, rotating away from the last session's format, and the next one when
+it cannot fill its slots), shares the minutes between warm-up, work, finisher and cool-down, fills
+the method's movement-pattern slots with the movements the kit, level and limits allow, ranked, and
+doses them so the planned total lands on the request.
 With --draft it prints only the `@@ <seconds> | <title>` markers the script is written under.
 
     ./sweatcast session --goal strength --minutes 30 --kit home
@@ -38,6 +39,7 @@ SPARE_WARNING = 0.10   # spare beyond this share of the request, after everythin
 STEP = {"sets": 1, "rounds": 1, "reps": 1, "rest_seconds": 15}   # other keys (seconds of work) step by 5
 LIMIT_SIDES = ("left", "right", "both")
 LIMIT_LEVELS = ("off-limits", "delicate")
+OTHER_SIDE = {"left": "right", "right": "left"}
 
 
 class Unfit(Exception):
@@ -64,6 +66,7 @@ class Skeleton(NamedTuple):
     would_open: List[Tuple[str, int]]      # (equipment not on hand, movements it would admit)
     health: Tuple[str, ...] = ()           # the clinician lines, to follow literally
     why: str = ""                          # why this method today
+    healthy_sides: Optional[Dict[str, str]] = None   # healthy-side-only movement id -> the side to work
 
 
 # ---- timing ------------------------------------------------------------------------------
@@ -310,6 +313,9 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
         if lim.level not in LIMIT_LEVELS or lim.side not in LIMIT_SIDES:
             raise ValueError(f"a limit needs a level ({', '.join(LIMIT_LEVELS)}) and a side ({', '.join(LIMIT_SIDES)})")
     own = context.limits(health, cat.areas)
+    rows = health.settings.get("limits") or []
+    if len(rows if isinstance(rows, list) else [rows]) > len(own):   # a dropped row protects nothing
+        raise Unfit("health.md: a [[limits]] row was ignored (run ./sweatcast check)")
     if context.prose_injuries(health) and not own:
         warnings.append("health.md lists injuries in prose but has no [[limits]] rows, so no limit is "
                         "applied for them; add a row for each")
@@ -323,19 +329,38 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
 
     last = log[-1] if log else None
     last_format = last.format if last else None
+    env = {"minutes": minutes, "sess": sess, "cat": cat, "request": request, "level": level, "log": log,
+           "today": today, "sel": sel, "limits": limits, "likes": likes, "last": last, "health": health,
+           "equipment": equipment, "avoid": avoid, "dislikes": dislikes, "warnings": warnings}
     if request.get("method"):
         method = sess.methods.get(request["method"])
         if method is None or goal not in method.goals:
             fit = [m.name for m in sess.methods.values() if goal in m.goals]
             raise ValueError(f"method \"{request['method']}\" is not one for {goal} (choose from: {', '.join(fit)})")
-        why = "it was asked for"
-    else:
-        method = sessions.choose_method(sess, goal, minutes, level, last_format, equipment)
-        if method is None:
-            raise Unfit(f"no method fits a {minutes} minute {goal} session at the {level} level with this kit")
-        why = (f"the last session was {last_format}" if last_format and method.name != last_format
-               else f"it suits {goal} in {minutes} minutes")
+        return _build(method, "it was asked for", env)
+    ranked = sessions.ranked(sess, goal, minutes, level, equipment, last_format)
+    if not ranked:
+        raise Unfit(f"no method fits a {minutes} minute {goal} session at the {level} level with this kit")
+    first = ranked[0]
+    rotated = last_format and sessions.ranked(sess, goal, minutes, level, equipment)[0].name == last_format
+    why = (f"the last session was {last_format}" if rotated and first.name != last_format
+           else f"it suits {goal} in {minutes} minutes")
+    for i, method in enumerate(ranked):   # the next method when one cannot fill its slots today
+        try:
+            return _build(method, why if i == 0 else f"{first.name} did not fit", env)
+        except Unfit as e:
+            if i == 0:
+                failed = e
+    raise failed
 
+
+def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
+    """The skeleton for one method, from compose's request, selection and log (`env`)."""
+    minutes, sess, cat, request, level, log, today = (env[k] for k in (
+        "minutes", "sess", "cat", "request", "level", "log", "today"))
+    sel, limits, likes, last, health = env["sel"], env["limits"], env["likes"], env["last"], env["health"]
+    equipment, avoid, dislikes = env["equipment"], env["avoid"], env["dislikes"]
+    warnings = list(env["warnings"])
     total = minutes * 60
     warmup, cooldown = _clamp(method.warmup, total), _clamp(method.cooldown, total)
     fin = method.finisher
@@ -351,7 +376,8 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
     last_ids = _ids(cat, last.movements) if last else set()
     areas = list(dict.fromkeys(lim.area for lim in limits))
     limited = lambda m: sum(m.loads.get(a, 0) + (m.support.get(a, 0) if m.sided else 0) for a in areas)  # noqa: E731
-    rank = lambda m: (m.id in last_ids, m.id not in likes, limited(m), order[m.id])  # noqa: E731
+    closeness = lambda m: catalog.LEVELS.index(level) - catalog.LEVELS.index(m.level)  # noqa: E731
+    rank = lambda m: (m.id in last_ids, m.id not in likes, closeness(m), limited(m), order[m.id])  # noqa: E731
     ctx = {"likes": likes, "last": last_ids if last else None, "healthy": healthy, "areas": areas,
            "week": week, "rehab": {i for lim in limits for i in lim.rehab}}
     leads = lambda p: {m.muscles[0] for m in pool if m.muscles and p in m.patterns}  # noqa: E731
@@ -414,8 +440,20 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
         warnings.append(f"method filled early: {spare} s spare went to the cool-down")
     cooldown += spare
 
+    today_lines = [f"today: {lim.area} {lim.level}" + (f" {lim.side}" if lim.side != "both" else "")
+                   for lim in request.get("limits") or []]
     return Skeleton(method, minutes, warmup, blocks, finisher, cooldown, dropped, warnings,
-                    _would_open(cat, sel, equipment, level, limits, avoid, dislikes), tuple(context.clinician_lines(health, cat.areas)), why)
+                    _would_open(cat, sel, equipment, level, limits, avoid, dislikes),
+                    tuple(context.clinician_lines(health, cat.areas)) + tuple(today_lines), why,
+                    {m.id: _healthy_side(m, limits) for m in sel.healthy_side_only})
+
+
+def _healthy_side(m: catalog.Movement, limits: List[catalog.Limit]) -> str:
+    """The side a healthy-side-only movement works: the one opposite the sided limit that loads it."""
+    for lim in limits:
+        if lim.side in OTHER_SIDE and m.id not in lim.rehab and m.loads.get(lim.area, 0) >= catalog.threshold(lim):
+            return OTHER_SIDE[lim.side]
+    return "healthy"
 
 
 def _would_open(cat: catalog.Catalog, sel: catalog.Selection, equipment: Set[str], level: str,
@@ -436,13 +474,27 @@ def _would_open(cat: catalog.Catalog, sel: catalog.Selection, equipment: Set[str
 
 # ---- output ------------------------------------------------------------------------------
 
-def _dose_text(slot: Slot, work: str) -> str:
-    d, m = slot.dose, slot.candidates[0][0]
+def _side_words(m: catalog.Movement, sk: Skeleton) -> str:
+    """"each side" for a sided movement, "<side> side only" for a healthy-side-only one, else ""."""
+    if not m.sided:
+        return ""
+    side = (sk.healthy_sides or {}).get(m.id)
+    return f"{side} side only" if side else "each side"
+
+
+def _named(m: catalog.Movement, sk: Skeleton) -> str:
+    """A movement's name with its side words, for a draft title."""
+    words = _side_words(m, sk)
+    return f"{m.name} {words}" if words else m.name
+
+
+def _dose_text(slot: Slot, sk: Skeleton) -> str:
+    d, m, work = slot.dose, slot.candidates[0][0], sk.method.work
     if work == "intervals":
         return f"{d['rounds']} rounds of {d['work_seconds']} s on, {d.get('rest_seconds', 0)} s off"
     count, label = (d["sets"], "sets") if "sets" in d else (d.get("rounds", 1), "rounds")
     each = str(d["reps"]) if m.measure == "reps" and "reps" in d else f"{_work_each(m, d)} s"
-    text = f"{count} {label} of {each}"
+    text = f"{count} {label} of {each}" + (f" ({_side_words(m, sk)})" if _side_words(m, sk) else "")
     return text + (f", rest {d['rest_seconds']} s" if d.get("rest_seconds") else "")
 
 
@@ -460,7 +512,7 @@ def render(sk: Skeleton) -> List[str]:
         out.append(f"{intensity} block, {sum(s.seconds for s in slots)} s:")
         for s in slots:
             picks = "; ".join(f"{m.id} [{why}]" if why else m.id for m, why in s.candidates[:3])
-            out.append(f"  {s.pattern} ({_dose_text(s, sk.method.work)}, {s.seconds} s): {picks}")
+            out.append(f"  {s.pattern} ({_dose_text(s, sk)}, {s.seconds} s): {picks}")
     if sk.finisher:
         out.append(f"Finisher: {sk.finisher} s")
     out.append(f"Cool-down: {sk.cooldown} s")
@@ -472,12 +524,12 @@ def render(sk: Skeleton) -> List[str]:
     return out
 
 
-def _round_markers(slots: List[Slot]) -> List[str]:
+def _round_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
     """One marker per round of a `rounds` block; the rests and spare go to the rounds before the last."""
     rounds = slots[0].dose.get("rounds", 1)
     base = sum(s.candidates[0][0].transition_seconds + _work_time(s.candidates[0][0], s.dose) for s in slots)
     extra = sum(s.seconds for s in slots) - rounds * base
-    names = ", ".join(s.candidates[0][0].name for s in slots)
+    names = ", ".join(_named(s.candidates[0][0], sk) for s in slots)
     out = []
     for i in range(rounds):
         secs = base
@@ -492,15 +544,18 @@ def _round_markers(slots: List[Slot]) -> List[str]:
 def render_draft(sk: Skeleton) -> List[str]:
     """Only the `@@ <seconds> | <title>` markers, in order: the warm-up, one per slot (one per round for
     rounds, one per work-and-rest pair for intervals), the finisher when there is one, the cool-down.
-    Each title names the slot's default movement; the seconds add up to the skeleton's total."""
+    Each title names the slot's default movement, with "each side" for a sided one or "<side> side only"
+    for a healthy-side-only one (not on intervals); the seconds add up to the skeleton's total."""
     out = [f"@@ {sk.warmup} | Warm-up"]
     work = sk.method.work
     for _, slots in sk.blocks:
         if work == "rounds" and slots:
-            out += _round_markers(slots)
+            out += _round_markers(slots, sk)
             continue
         for s in slots:
             name = s.candidates[0][0].name
+            if work != "intervals":   # an interval's work is the same seconds whichever side
+                name = _named(s.candidates[0][0], sk)
             if work == "intervals":
                 rounds, each = s.dose["rounds"], s.dose["work_seconds"] + s.dose.get("rest_seconds", 0)
                 out += [f"@@ {each + (s.seconds - rounds * each if i == rounds - 1 else 0)} | "

@@ -44,7 +44,7 @@ Write `docs/eval/results-<YYYY-MM-DD>.md` with:
    | id | safety | efficacy | adherence | ease | note |
    |----|--------|----------|-----------|------|------|
 
-   The note holds the four one-line reasons, shortest first, separated by semicolons.
+   The note holds the four one-line reasons, in the order safety, efficacy, adherence, ease, separated by semicolons.
 
 2. **The five lowest cases**, by the sum of their four scores (safety breaks ties), each with what went
    wrong and whether the fault lies in the skeleton or in the script.
