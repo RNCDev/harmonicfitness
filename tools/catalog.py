@@ -7,7 +7,7 @@ Library only; the command line lives elsewhere.
 import re
 import tomllib
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
 
 import paths
 
@@ -140,3 +140,46 @@ def resolve(cat: Catalog, name: str) -> Optional[Movement]:
             if word == m.name.lower() or word == m.id or word in (a.lower() for a in m.aliases):
                 return m
     return None
+
+
+class Selection(NamedTuple):
+    allowed: List[Movement]
+    healthy_side_only: List[Movement]
+    left_out: Dict[str, List[str]]   # movement id -> every reason it was ruled out
+
+
+def kit_equipment(cat: Catalog, kit: dict) -> Set[str]:
+    """The equipment keys a kit stands for: its preset's list, its own `equipment`, or both."""
+    out: Set[str] = set()
+    if "preset" in kit:
+        if kit["preset"] not in cat.presets:
+            raise ValueError(f"unknown preset \"{kit['preset']}\" (choose from: {', '.join(sorted(cat.presets))})")
+        out |= set(cat.presets[kit["preset"]])
+    out |= set(kit.get("equipment", []))
+    return out
+
+
+def select(cat: Catalog, equipment: Set[str], avoid: Set[str], avoid_injured_side: Set[str] = frozenset(),
+           ban_ids: Set[str] = frozenset()) -> Selection:
+    """Split the catalog into what is allowed with this kit and these bans, what is allowed on the
+    healthy side only, and what is left out (with every reason)."""
+    allowed: List[Movement] = []
+    healthy: List[Movement] = []
+    left_out: Dict[str, List[str]] = {}
+    for m in cat.movements.values():
+        reasons: List[str] = []
+        if any(not any(alt in equipment for alt in need.split("|")) for need in m.needs):
+            reasons.append("equipment")
+        reasons += [t for t in m.tags if t in avoid]
+        if m.id in ban_ids:
+            reasons.append("banned")
+        side = [t for t in m.tags if t in avoid_injured_side and t not in avoid]
+        if side and not m.sided:
+            reasons += side
+        if reasons:
+            left_out[m.id] = reasons
+        elif side:
+            healthy.append(m)
+        else:
+            allowed.append(m)
+    return Selection(allowed, healthy, left_out)

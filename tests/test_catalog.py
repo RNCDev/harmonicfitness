@@ -1,5 +1,6 @@
 """Checks for the movement catalog loader, against a small synthetic catalog."""
 import os
+import subprocess
 import sys
 import unittest
 
@@ -7,7 +8,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import catalog  # noqa: E402
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "movements.toml")
+
+
+def run_movements(args, home=None):
+    """Run `./sweatcast movements ...` against the real catalog; returns the CompletedProcess."""
+    env = dict(os.environ)
+    if home:
+        env["SWEATCAST_HOME"] = home
+    return subprocess.run([os.path.join(ROOT, "sweatcast"), "movements", *args],
+                          capture_output=True, text=True, env=env, cwd=ROOT)
 
 
 class CatalogFormat(unittest.TestCase):
@@ -79,6 +90,66 @@ class RealCatalog(unittest.TestCase):
         self.assertEqual(set(cat.presets), {"bodyweight", "hotel-room", "hotel-gym", "full-gym"})
         self.assertIsNotNone(catalog.resolve(cat, "box breathing"))
         self.assertIsNotNone(catalog.resolve(cat, "seated ankle alphabet"))
+
+
+class Filter(unittest.TestCase):
+    def setUp(self):
+        self.cat = catalog.load(FIXTURE)
+
+    def test_equipment_and_tags_narrow(self):
+        sel = catalog.select(self.cat, {"dumbbells"}, {"knee-deep-bend"})
+        ids = {m.id for m in sel.allowed}
+        self.assertNotIn("goblet-squat", ids)
+        self.assertIn("knee-deep-bend", sel.left_out["goblet-squat"])
+
+    def test_needs_alternatives(self):
+        self.assertIn("goblet-squat", {m.id for m in catalog.select(self.cat, {"kettlebell"}, set()).allowed})
+
+    def test_every_reason_is_listed(self):
+        sel = catalog.select(self.cat, set(), {"knee-deep-bend"}, ban_ids={"goblet-squat"})
+        self.assertEqual(sorted(sel.left_out["goblet-squat"]), ["banned", "equipment", "knee-deep-bend"])
+
+    def test_injured_side_only_affects_sided_movements(self):
+        sel = catalog.select(self.cat, set(), set(), avoid_injured_side={"single-leg-stance"})
+        self.assertIn("single-leg-balance", {m.id for m in sel.healthy_side_only})
+        self.assertNotIn("single-leg-balance", {m.id for m in sel.allowed})
+        self.assertNotIn("single-leg-balance", sel.left_out)
+
+    def test_injured_side_tag_on_a_non_sided_movement_leaves_it_out(self):
+        sel = catalog.select(self.cat, {"dumbbells"}, set(), avoid_injured_side={"knee-deep-bend"})
+        self.assertEqual(sel.left_out["goblet-squat"], ["knee-deep-bend"])
+
+    def test_kit_equipment(self):
+        self.assertEqual(catalog.kit_equipment(self.cat, {"preset": "full-gym"}),
+                         set(self.cat.presets["full-gym"]))
+        self.assertEqual(catalog.kit_equipment(self.cat, {"equipment": ["band"]}), {"band"})
+        self.assertEqual(catalog.kit_equipment(self.cat, {"preset": "bodyweight", "equipment": ["band"]}), {"band"})
+        with self.assertRaises(ValueError):
+            catalog.kit_equipment(self.cat, {"preset": "castle"})
+
+    def test_unknown_tag_or_preset_exits_64(self):
+        for args in (["--preset", "castle"], ["--equipment", "dumbbells", "--avoid", "wobbly"],
+                     ["--equipment", "anvil"], ["--preset", "full-gym", "--group", "calves"]):
+            r = run_movements(args)
+            self.assertEqual(r.returncode, 64, args)
+            self.assertTrue(r.stderr.strip(), args)
+
+    def test_equipment_alias_is_accepted(self):
+        self.assertEqual(run_movements(["--equipment", "yoga mat"]).returncode, 0)
+
+    def test_output_is_grouped_in_checklist_order(self):
+        out = run_movements(["--preset", "full-gym"]).stdout
+        self.assertLess(out.index("horizontal push"), out.index("arms"))
+
+    def test_output_layout(self):
+        out = run_movements(["--preset", "hotel-room", "--avoid", "impact"]).stdout
+        self.assertRegex(out.splitlines()[-1], r"^Left out today: \d+ \(")
+        self.assertIn("(see ", out)
+        self.assertIn("Cues: ", out)
+        self.assertIn("\nbreathing\n", out)
+        only = run_movements(["--preset", "full-gym", "--group", "quads"]).stdout
+        self.assertNotIn("\nhorizontal push\n", "\n" + only)   # a "(see horizontal push)" pointer is fine
+        self.assertIn("quads", only)
 
 
 if __name__ == "__main__":
