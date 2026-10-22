@@ -95,9 +95,9 @@ How to judge the criteria: no pain at rest and a loose fist without sharp pain e
 The rules treat these as what aggravates a sore neck: load on it (shrugs and heavy carries hang weight from the upper back), overhead loading, crunches that pull on the head, a bar across the shoulders next to the neck, and fast head turns. The catalog has no shrug yet; if one is ever added it needs the `neck-load` tag. Keep the head neutral in everything; cue "chin gently tucked, eyes on the floor a few feet ahead", and keep the head steady in punching drills and turning stretches.
 
 - **Protect** keeps load and fast movement off the neck: most lower-body and core work in a neutral head position, without heavy gripping, overhead work, hanging, crunches or jarring impact.
-- **Restore** brings back gripping, light carries with the shoulders down, and crunches that don't pull on the head. Impact still waits.
-- **Rebuild** brings back overhead work and a bar on the shoulders, at light loads. Impact still waits.
-- **Return** brings back impact, direct neck loading and fast head movement, one at a time.
+- **Restore** brings back gripping, light carries with the shoulders down, and crunches that don't pull on the head. Impact and swings still wait.
+- **Rebuild** brings back overhead work and a bar on the shoulders, at light loads. Impact and swings still wait.
+- **Return** brings back impact, swings, direct neck loading and fast head movement, one at a time.
 
 How to judge the criteria: turning the head slowly both ways without sharp pain, and no numbness or tingling in the arms, end protect (numbness or tingling is a red flag for a clinician, not a phase question). Most of the head's range without pain, and light rows and carries without neck pain, end restore. Full, pain-free head movement and no neck pain the day after light overhead work end rebuild.
 

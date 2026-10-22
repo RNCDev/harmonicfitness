@@ -181,6 +181,17 @@ class InjuryRules(unittest.TestCase):
             for a, b in zip(PHASES, PHASES[1:]):
                 self.assertLessEqual(set(r[b]["ban"]), set(r[a]["ban"]), f"{area} {b}")
 
+    def test_later_phases_never_leave_out_more_movements(self):
+        cat = catalog.load()
+        everything = set(cat.equipment)
+
+        def left_out(r):
+            avoid = set(r["ban"]) | set(r["ban_injured_side"])
+            return set(catalog.select(cat, everything, avoid, ban_ids=set(r["ban_ids"])).left_out)
+        for area, r in catalog.load_rules().items():
+            for a, b in zip(PHASES, PHASES[1:]):
+                self.assertEqual(left_out(r[b]) - left_out(r[a]), set(), f"{area} {b}")
+
     def test_every_phase_but_return_says_when_to_move_on(self):
         for area, r in catalog.load_rules().items():
             for p in PHASES[:-1]:
