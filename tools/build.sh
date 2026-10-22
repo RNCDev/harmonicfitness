@@ -51,9 +51,8 @@ PY="${SWEATCAST_PYTHON:-$ROOT/.venv/bin/python}"
 [ -x "$PY" ] || { echo "No Python environment at $PY. Run ./sweatcast setup first (it makes .venv with uv)."; exit 1; }
 [ -f "$DRAFT" ] || { echo "No draft at $DRAFT" >&2; exit 64; }
 
-# The drafting guide (words per minute) and the default voice live in the profile.
-# context.py stops here, with the fix, if the context folder needs migrating.
-WPM="$("$PY" "$HERE/context.py" get wpm)"
+# The default voice lives in the profile; context.py stops here, with the fix, if the
+# context folder needs migrating.
 DEFAULT_VOICE="$("$PY" "$HERE/context.py" get default-voice)"
 
 # The lint predicts spoken length, so it needs the same voice and tolerance as the render.
@@ -70,7 +69,6 @@ if [ -z "$VOICE" ]; then
     echo "Expected at least one [[voices]] entry in the settings at the top of the profile; the first is the default."; exit 1; }
   VOICE="$DEFAULT_VOICE"; set -- "$@" --voice "$VOICE"
 fi
-[ -n "$WPM" ] || echo "Note: no words_per_minute in the profile's settings; the word guide assumes 185."
 mkdir -p "$OUT_DIR/.logs"
 LOG="$OUT_DIR/.logs/$NAME.log"
 
@@ -104,7 +102,7 @@ if [ -z "$SMOKE" ] && [ -z "$LINT_ONLY" ]; then
 fi
 
 # The smoke test exists to measure a voice, so its lint never blocks the render.
-"$PY" "$HERE/tts_build.py" "$DRAFT" --voice "$VOICE" --wpm "${WPM:-185}" \
+"$PY" "$HERE/tts_build.py" "$DRAFT" --voice "$VOICE" \
   ${TOLERANCE:+--total-tolerance "$TOLERANCE"} --out "$OUT_DIR/$NAME.txt" ${SMOKE:+--force}
 [ -n "$LINT_ONLY" ] && exit 0
 

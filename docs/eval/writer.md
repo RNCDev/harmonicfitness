@@ -50,7 +50,7 @@ nothing here is personal data. Each writer takes five cases.
 
 ## Lint (must pass for each script)
 ```sh
-SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only --allow-estimated
+SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
 ```
 The build name argument (`"eval-<id>"`) is required; without it a render starts. Fix flagged segments
 until it exits 0 (total within three percent of plan). If a lint failure seems to be the harness's fault,

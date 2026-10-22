@@ -43,7 +43,7 @@ The lint also exports a `.txt` into the listener's `workouts/`, which is git-ign
 for f in docs/eval/out/c*.draft.txt; do
   id=$(basename "$f" .draft.txt)
   listener=$(grep -A1 "id = \"$id\"" docs/eval/cases.toml | sed -n 's/^listener = "\(.*\)"/\1/p')
-  SWEATCAST_HOME=docs/eval/listeners/$listener ./sweatcast build "$f" "eval-$id" --lint-only --allow-estimated || echo "$id: lint failed"
+  SWEATCAST_HOME=docs/eval/listeners/$listener ./sweatcast build "$f" "eval-$id" --lint-only || echo "$id: lint failed"
 done
 ```
 
