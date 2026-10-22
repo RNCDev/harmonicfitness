@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Which muscle groups recent sessions covered, read from me/log.md.
+"""Which movement patterns recent sessions covered, read from me/log.md.
 
 The workout skill plans whole-body sessions: anything the last session left out
 comes first next time, and the last session's main movements are avoided. This
-reads the Sessions list in log.md, maps each movement to the groups it trains, and
+reads the Sessions list in log.md, maps each movement to the patterns it trains, and
 prints what to prioritize and what to avoid. It also prints the last session's
 format (today's should differ) and each movement's last logged load and tempo, so
 the plan can progress from it.
@@ -12,13 +12,13 @@ Sessions are read through tools/context.py, which owns the log's line format (an
 writes it: `./sweatcast log-session ...`).
 
     ./sweatcast coverage            # the last session, plus a look further back
-    ./sweatcast coverage --last 3   # groups across the last three sessions
+    ./sweatcast coverage --last 3   # patterns across the last three sessions
 
 Each movement is looked up in the movement catalog (knowledge/movements.toml) first,
-and its groups come from there. A name the catalog doesn't know falls back to the
-keywords below. A name that matches no group is listed as unmapped, so the planner
+and its patterns come from there. A name the catalog doesn't know falls back to the
+keywords below. A name that matches no pattern is listed as unmapped, so the planner
 can judge it; add the movement, or an alias for it, to the catalog when it becomes a
-regular. The last seven days are counted too, so a group the week has neglected is
+regular. The last seven days are counted too, so a pattern the week has neglected is
 prioritized even when the last session touched it.
 """
 import datetime
@@ -32,7 +32,21 @@ import catalog  # noqa: E402
 import cli  # noqa: E402
 import context  # noqa: E402
 
-# Movements that train no checklist group on purpose (finishers, skills).
+# Fallback for names the catalog doesn't know: keywords per pattern (a movement can match several).
+KEYWORDS = [
+    ("horizontal-push", r"push-?up|(?<!overhead )(?<!leg )press"),
+    ("horizontal-pull", r"\brow(?:s|ing)?\b|face pull|band pull-apart"),
+    ("hinge", r"bridge|hip thrust|deadlift|\brdl\b|hip extension|good morning|kettlebell swing|hinge"),
+    ("squat", r"squat|lunge|step-?up|wall sit"),
+    ("anti-extension", r"dead ?bug|(?<!side )plank|rollout|hollow|bird ?dog"),
+    ("anti-rotation", r"side plank|pallof|suitcase|anti-rotation"),
+    ("arms", r"(?<!leg )(?<!hamstring )curl|kickback|triceps|biceps"),
+    ("locomotion", r"\bbike\b|row erg|\brun(?:ning)?\b|jog"),
+    ("mobility", r"stretch|mobility"),
+    ("breathing", r"breathing"),
+]
+
+# Movements that train no pattern on purpose (finishers, skills).
 NOT_STRENGTH = r"finisher|stickhandling|punch|breathing|stretch|mobility|bike|march"
 
 
@@ -55,38 +69,41 @@ def _shared_catalog():
     return _catalog
 
 
-def groups_of(movement: str, cat: Optional[catalog.Catalog] = None) -> List[str]:
-    """The checklist groups a movement trains: the catalog's word if it knows the
+def patterns_of(movement: str, cat: Optional[catalog.Catalog] = None) -> List[str]:
+    """The movement patterns a movement trains: the catalog's word if it knows the
     movement, else the keywords above."""
     found = catalog.resolve(cat or _shared_catalog(), movement)
-    return list(found.patterns) if found else []
+    if found:
+        return list(found.patterns)
+    m = movement.lower()
+    return [name for name, pattern in KEYWORDS if re.search(pattern, m)]
 
 
 def coverage(movements, cat: Optional[catalog.Catalog] = None):
-    """({group: [movements]}, [unmapped movements])."""
+    """({pattern: [movements]}, [unmapped movements])."""
     cat = cat or _shared_catalog()
     hit, unmapped = {name: [] for name in cat.patterns}, []
     for mv in movements:
-        gs = groups_of(mv, cat)
-        for g in gs:
-            hit.setdefault(g, []).append(mv)
-        if gs or catalog.resolve(cat, mv) or re.search(NOT_STRENGTH, mv.lower()):
+        ps = patterns_of(mv, cat)
+        for p in ps:
+            hit.setdefault(p, []).append(mv)
+        if ps or catalog.resolve(cat, mv) or re.search(NOT_STRENGTH, mv.lower()):
             continue
         unmapped.append(mv)
     return hit, unmapped
 
 
 def week(sessions, today: datetime.date, days: int = 7, cat: Optional[catalog.Catalog] = None) -> Dict[str, int]:
-    """{group: sessions in the last `days` days that trained it}, every group present."""
+    """{pattern: sessions in the last `days` days that trained it}, every pattern present."""
     cat = cat or _shared_catalog()
     counts = {name: 0 for name in cat.patterns}
     first = today - datetime.timedelta(days=days)
     for e in sessions:
         if not first < datetime.date.fromisoformat(e.date) <= today:
             continue
-        trained = {g for mv in e.movements for g in groups_of(mv, cat)}
-        for g in trained:
-            counts[g] = counts.get(g, 0) + 1
+        trained = {p for mv in e.movements for p in patterns_of(mv, cat)}
+        for p in trained:
+            counts[p] = counts.get(p, 0) + 1
     return counts
 
 
@@ -99,7 +116,7 @@ def main():
     cat = catalog.load()
     full = context.sessions(args.log)
     if not full:
-        print("No sessions in log.md yet: every group is open, nothing to avoid.")
+        print("No sessions in log.md yet: every pattern is open, nothing to avoid.")
         return 0
     log = [(e.date, e.movements) for e in full]
     recent = log[-args.last:]
@@ -112,8 +129,8 @@ def main():
     missed = [name for name in cat.patterns if not hit[name]]
     counts = week(full, datetime.date.today(), cat=cat)
     thin = [name for name in cat.patterns if counts[name] < 2 and name not in missed]
-    print("\nPrioritize: " + (", ".join(missed + thin) if missed + thin else "nothing, all groups covered"))
-    print("Last 7 days, sessions per group:")
+    print("\nPrioritize: " + (", ".join(missed + thin) if missed + thin else "nothing, all patterns covered"))
+    print("Last 7 days, sessions per pattern:")
     for name in cat.patterns:
         print(f"  {counts[name]}  {name}")
     print("Avoid (last session's main movements): " + ", ".join(log[-1][1]))

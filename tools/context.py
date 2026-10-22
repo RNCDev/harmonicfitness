@@ -20,7 +20,8 @@ it up to date, `./sweatcast migrate`.
     ./sweatcast log-session --date 2026-10-21 --minutes 25 --kit Home \\
         --voice "Chatterbox Coach" --movements "goblet squat, seated row" \\
         --topics "deep dive: news, a story" --format "rolling minutes" \\
-        --loads "goblet squat = twenties, three down; seated row = fifteens"
+        --loads "goblet squat = twenties, three down; seated row = fifteens" \\
+        --rpe "goblet squat = 7"
 """
 import argparse
 import datetime as dt
@@ -407,7 +408,7 @@ def legacy_body(text):
 @dataclass
 class Session:
     """One line under `## Sessions` in log.md:
-    - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format> | loads: <m> = <load>; ..."""
+    - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format> | loads: <m> = <load>; ... | rpe: <m> = <n>; ..."""
     date: str
     minutes: int
     kit: str
@@ -416,6 +417,7 @@ class Session:
     topics: str
     format: Optional[str] = None
     loads: Dict[str, str] = field(default_factory=dict)
+    rpe: Dict[str, str] = field(default_factory=dict)   # effort per movement; reserved for progress tracking
     line: int = 0   # where it was read from, for messages
 
     def problems(self):
@@ -435,13 +437,15 @@ class Session:
         if not self.movements:
             out.append("no movements")
         texts = [self.date, self.kit, self.voice, self.topics, self.format or "", *self.movements,
-                 *self.loads.keys(), *self.loads.values()]
+                 *self.loads.keys(), *self.loads.values(), *self.rpe.keys(), *self.rpe.values()]
         if any("|" in t or "\n" in t for t in texts):
             out.append("a field contains | or a line break")
         if any("," in m for m in self.movements):
             out.append("a movement contains a comma")
         if any(";" in t or "=" in t for t in [*self.loads.keys(), *self.loads.values()]):
             out.append("a load contains ; or =")
+        if any(";" in t or "=" in t for t in [*self.rpe.keys(), *self.rpe.values()]):
+            out.append("an rpe contains ; or =")
         return out
 
     def to_line(self):
@@ -451,6 +455,8 @@ class Session:
             out += f" | format: {self.format}"
         if self.loads:
             out += " | loads: " + "; ".join(f"{k} = {v}" for k, v in self.loads.items())
+        if self.rpe:
+            out += " | rpe: " + "; ".join(f"{k} = {v}" for k, v in self.rpe.items())
         return out
 
 
@@ -459,7 +465,7 @@ def parse_session(line, lineno=0):
     fields = [x.strip() for x in line[2:].split("|")]
     if len(fields) < 6:
         return (f"{len(fields)} fields; a session line has date, length, kit, voice, movements "
-                "and topics, then format and loads")
+                "and topics, then format, loads and rpe")
     m = re.match(r"^(\d+)\s*min", fields[1])
     s = Session(fields[0], int(m.group(1)) if m else fields[1], fields[2], fields[3],
                 [x.strip() for x in fields[4].split(",") if x.strip()], fields[5], line=lineno)
@@ -468,13 +474,13 @@ def parse_session(line, lineno=0):
         key, value = key.strip().lower(), value.strip()
         if key == "format" and value:
             s.format = value
-        elif key == "loads":
+        elif key in ("loads", "rpe"):
             for item in value.split(";"):
                 mv, _, load = item.partition("=")
                 if mv.strip() and load.strip():
-                    s.loads[mv.strip()] = load.strip()
+                    (s.loads if key == "loads" else s.rpe)[mv.strip()] = load.strip()
         elif extra.strip():
-            return f"unknown field '{extra.strip()[:30]}'; only format: and loads: follow the topics"
+            return f"unknown field '{extra.strip()[:30]}'; only format:, loads: and rpe: follow the topics"
     problems = s.problems()
     return "; ".join(problems) if problems else s
 
@@ -626,6 +632,7 @@ def main(argv=None):
     s.add_argument("--topics", required=True)
     s.add_argument("--format", default=None)
     s.add_argument("--loads", default="", help="'<movement> = <load and tempo>; ...'")
+    s.add_argument("--rpe", default="", help="'<movement> = <effort>; ...' (kept for progress tracking)")
     args = ap.parse_args(argv)
 
     if args.cmd == "get":
@@ -655,16 +662,20 @@ def main(argv=None):
         if not problems:
             print(f"Context folder {show(paths.HOME)}: schema {SCHEMA}, every file reads as the tools expect.")
         return cli.ISSUES if problems else cli.OK
-    loads = {}
-    for item in args.loads.split(";"):
-        mv, sep, load = item.partition("=")
-        if item.strip() and not (sep and mv.strip() and load.strip()):
-            raise SystemExit(f"Not logged: load '{item.strip()}' isn't '<movement> = <load and tempo>'.")
-        if sep:
-            loads[mv.strip()] = load.strip()
+    def pairs(text, what, shape):
+        out = {}
+        for item in text.split(";"):
+            mv, sep, val = item.partition("=")
+            if item.strip() and not (sep and mv.strip() and val.strip()):
+                raise SystemExit(f"Not logged: {what} '{item.strip()}' isn't '<movement> = <{shape}>'.")
+            if sep:
+                out[mv.strip()] = val.strip()
+        return out
+    loads = pairs(args.loads, "load", "load and tempo")
+    rpe = pairs(args.rpe, "rpe", "effort")
     session = Session(args.date, args.minutes, args.kit.strip(), args.voice.strip(),
                       [m.strip() for m in args.movements.split(",") if m.strip()], args.topics.strip(),
-                      (args.format or "").strip() or None, loads)
+                      (args.format or "").strip() or None, loads, rpe)
     print("Logged: " + append_session(session))
     return cli.OK
 

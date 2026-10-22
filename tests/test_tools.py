@@ -266,6 +266,65 @@ class Assemble(unittest.TestCase):
         self.assertGreater(secs(tail), secs(chime()))   # longer and rising, so it can't pass for a bell
 
 
+class Coverage(unittest.TestCase):
+    LOG = """# Workout log
+
+## Sessions
+- 2026-10-19 | 15 min | Home | V | goblet squat, seated bent-over rowing | topics
+- 2026-10-20 | 20 min | Home | V | incline push-up, goblet squat, seated punching finisher, mystery move | topics
+
+## Feedback
+- 2026-10-20 | not | a | session | line
+"""
+
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix=".md")
+        with os.fdopen(fd, "w") as f:
+            f.write(with_schema(self.LOG))
+
+    def tearDown(self):
+        os.remove(self.path)
+
+    def test_reads_only_the_sessions_section(self):
+        log = context.sessions(self.path)
+        self.assertEqual([s.date for s in log], ["2026-10-19", "2026-10-20"])
+
+    def test_patterns_and_gaps(self):
+        hit, unmapped = coverage.coverage(context.sessions(self.path)[-1].movements)
+        self.assertIn("goblet squat", hit["squat"])
+        self.assertIn("incline push-up", hit["horizontal-push"])
+        self.assertEqual(hit["hinge"], [])
+        self.assertEqual(list(hit), catalog.load().patterns)
+        self.assertEqual(unmapped, ["mystery move"])   # the finisher is skipped on purpose
+
+    def test_fallback_keywords_by_pattern(self):
+        cat = catalog.load()
+        self.assertEqual(coverage.patterns_of("seated bent-over rowing", cat), ["horizontal-pull"])
+        self.assertNotIn("horizontal-push", coverage.patterns_of("overhead press", cat))
+        self.assertEqual(coverage.patterns_of("mystery move", cat), [])
+
+    def test_side_words_and_capitals_resolve(self):
+        self.assertEqual(coverage.patterns_of("Right Goblet Squat"), coverage.patterns_of("goblet squat"))
+        self.assertIn("squat", coverage.patterns_of("right goblet squat"))
+
+    def test_finishers_and_skills_are_not_unmapped(self):
+        _, unmapped = coverage.coverage(["seated punching finisher", "box breathing", "mystery move"])
+        self.assertEqual(unmapped, ["mystery move"])
+
+    def test_week_counts_sessions_per_pattern(self):
+        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 21))
+        self.assertEqual(counts["squat"], 2)
+        self.assertEqual(counts["horizontal-push"], 1)
+        self.assertEqual(counts["horizontal-pull"], 1)
+        self.assertEqual(counts["hinge"], 0)
+        self.assertEqual(list(counts), catalog.load().patterns)
+
+    def test_week_window_excludes_old_sessions(self):
+        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 26))
+        self.assertEqual(counts["horizontal-pull"], 0)   # the 19th is 7 days back: outside
+        self.assertEqual(counts["horizontal-push"], 1)
+
+
 class CharWeight(unittest.TestCase):
     def test_basic_weights(self):
         self.assertAlmostEqual(char_weight.weight("ab c."), 1 + 1 + 0.2 + 1 + 0.5)
@@ -434,6 +493,18 @@ class LogFields(unittest.TestCase):
 
     def tearDown(self):
         os.remove(self.path)
+
+    def test_rpe_round_trips(self):
+        s = context.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "topics", rpe={"goblet squat": "7"})
+        line = s.to_line()
+        self.assertIn("| rpe: goblet squat = 7", line)
+        self.assertEqual(context.parse_session(line).rpe, {"goblet squat": "7"})
+        self.assertEqual(context.parse_session(line.replace("= 7", "= 7 to 8")).rpe, {"goblet squat": "7 to 8"})
+
+    def test_rpe_rejects_separators(self):
+        for bad in ("7; 8", "7 | 8"):
+            s = context.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "topics", rpe={"goblet squat": bad})
+            self.assertTrue(s.problems(), bad)
 
     def test_format_and_loads(self):
         e = context.sessions(self.path)

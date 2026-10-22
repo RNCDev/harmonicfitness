@@ -19,7 +19,7 @@ COMMANDS = {
     "render":      ("render", None, "render a draft to audio (build runs this for you)"),
     "voices":      ("voices", None, "list, measure, download, design and keep voices"),
     "feeds":       ("feeds", None, "fetch the profile's feeds into today's sheet"),
-    "coverage":    ("coverage", None, "muscle groups the last sessions left out, last format and loads"),
+    "coverage":    ("coverage", None, "movement patterns the last sessions left out, last format and loads"),
     "movements":   ("movements", None, "movements allowed today, by group, for a kit and injuries"),
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
     "check":       ("context", "check", "check every context file in me/ (format, unfilled lines)"),
