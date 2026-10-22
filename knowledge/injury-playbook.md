@@ -14,7 +14,7 @@ Mention these in chat, not in the audio, if the listener reports them: inability
 No source confirmed; off limits and delicate mean the same load rule as elsewhere. Loosen when barefoot walking is pain-free.
 
 ## Ankle
-Off limits keeps weight off the foot; delicate allows light two-footed work. Delicate once there's no limp, rest pain or swelling; clear once single-leg balance and calf raises match the other side, with no swelling next morning. Keep balance work in sessions for months (house judgment).
+Off limits keeps weight off the foot (`./sweatcast session` rules out anything done standing, and pedaling counts as a light ankle load); delicate allows light two-footed work. Delicate once there's no limp, rest pain or swelling; clear once single-leg balance and calf raises match the other side, with no swelling next morning. Keep balance work in sessions for months (house judgment).
 - Most common sports injury, often recurs; an expert consensus checks pain, range, strength, confidence, balance and hopping before sport, without pass marks. Source: https://pubmed.ncbi.nlm.nih.gov/34158354/
 - Brief immobilisation may ease pain; after an ankle ligament rupture, brace or tape plus exercise does best. Source: https://pubmed.ncbi.nlm.nih.gov/29514819/
 - Early mobilisation helps; moderate evidence that balance training prevents another sprain, dose unstated. Source: https://pubmed.ncbi.nlm.nih.gov/28053200/

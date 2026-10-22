@@ -2191,7 +2191,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
 flags = []
 intensity = "conditioning"
 effort = "easy"
@@ -2214,7 +2214,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
 flags = []
 intensity = "conditioning"
 effort = "moderate"
@@ -2237,7 +2237,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
 flags = ["fast"]
 intensity = "conditioning"
 effort = "hard"
@@ -2260,7 +2260,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 2, hip = 2 }
+loads = { knee = 2, hip = 2, ankle = 1, foot = 1 }
 flags = []
 intensity = "conditioning"
 effort = "hard"
@@ -2283,7 +2283,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 2, hip = 2 }
+loads = { knee = 2, hip = 2, ankle = 1, foot = 1 }
 flags = ["fast"]
 intensity = "conditioning"
 effort = "hard"
@@ -2344,7 +2344,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "shoulders", "back"]
-loads = { knee = 1, hip = 1, shoulder = 1, elbow = 1, low-back = 1 }
+loads = { knee = 1, hip = 1, shoulder = 1, elbow = 1, low-back = 1, ankle = 1, foot = 1 }
 flags = ["grip"]
 intensity = "conditioning"
 effort = "moderate"
@@ -2367,7 +2367,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "shoulders", "back"]
-loads = { knee = 2, hip = 2, shoulder = 2, elbow = 1, low-back = 1 }
+loads = { knee = 2, hip = 2, shoulder = 2, elbow = 1, low-back = 1, ankle = 1, foot = 1 }
 flags = ["fast", "grip"]
 intensity = "conditioning"
 effort = "hard"

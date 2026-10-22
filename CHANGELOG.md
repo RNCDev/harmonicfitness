@@ -2,6 +2,11 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [5.3.0] - 2026-10-22
+
+### Changed
+- Safety: an off-limits ankle or foot now rules out anything done standing, which puts weight through both feet whatever the catalog rates the ankle, and the seated bikes and air bikes rate ankle 1 and foot 1, so an off-limits ankle keeps them out while a delicate one still allows them. A case `--limit` line says "and nothing done standing", and the injury playbook says both.
+
 ## [5.2.0] - 2026-10-22
 
 ### Changed

@@ -210,6 +210,19 @@ class RealCatalog(unittest.TestCase):
         self.assertEqual(catalog.meaning("calf", "delicate", "left"),
                          "light loads only on the left calf, no impact or fast work")
 
+    def test_an_off_limits_ankle_rules_out_standing_and_pedaling(self):
+        cat = catalog.load()
+        kit = {"dumbbells", "kettlebell", "bench", "bike"}
+        off = [catalog.Limit("ankle", "left", "off-limits", [], [], "")]
+        sel = catalog.select(cat, kit, "experienced", off)
+        allowed = {m.id for m in sel.allowed + sel.healthy_side_only}
+        for mid in ("wall-sit", "romanian-deadlift", "goblet-squat", "bike-easy-spin", "bike-steady"):
+            self.assertNotIn(mid, allowed, mid)
+        self.assertIn("dead-bug", allowed)   # lying work stays
+        soft = [catalog.Limit("ankle", "left", "delicate", [], [], "")]
+        self.assertIn("bike-easy-spin", {m.id for m in catalog.select(cat, kit, "experienced", soft).allowed})
+        self.assertIn("nothing done standing", catalog.meaning("ankle", "off-limits", "left"))
+
     def test_delicate_neck_rules_out_overhead_pressing(self):
         cat = catalog.load()
         soft = [catalog.Limit("neck", "both", "delicate", [], [], "")]
@@ -357,7 +370,8 @@ class Select(unittest.TestCase):
         cat.movements["split-squat"].loads["ankle"] = 2
         cat.movements["split-squat"].support["ankle"] = 0
         sel = catalog.select(cat, set(), "novice", mixed)
-        self.assertEqual(sel.left_out["split-squat"], ["knee delicate", "ankle off limits"])
+        self.assertEqual(sel.left_out["split-squat"],   # standing is out with an ankle off limits, too
+                         ["standing with the ankle off limits", "knee delicate", "ankle off limits"])
 
     def test_both_side_limit_checks_support(self):
         cat = catalog.load(FIXTURE)

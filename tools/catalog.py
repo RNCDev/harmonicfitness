@@ -25,6 +25,9 @@ FORMAT = 3
 # Flags a limit rules out by default, by area and level, on top of the row's own flags: an off-limits
 # low back keeps out bending and twisting the spine (injury-playbook.md, Low back).
 AREA_FLAGS = {("low-back", "off-limits"): ("spine-flexion", "spine-twist")}
+# Positions a limit rules out by default: an off-limits ankle or foot keeps out anything done
+# standing, which puts weight through both feet whatever the catalog rates the ankle.
+AREA_POSITIONS = {("ankle", "off-limits"): ("standing",), ("foot", "off-limits"): ("standing",)}
 # Equipment that loads a movement; a movement needing none of it is bodyweight (a chair, bench, towel
 # or mat only holds or supports the body).
 LOAD_EQUIPMENT = ("dumbbells", "kettlebell", "band", "cable", "machines", "barbell", "sled")
@@ -297,7 +300,8 @@ def meaning(area: str, level: str, side: str = "both") -> str:
     else:
         text = f"light loads only on {where}, no impact or fast work"
     extra = AREA_FLAGS.get((area, level))
-    return text + (f", and no {' or '.join(f.replace('spine-', 'spine ') for f in extra)}" if extra else "")
+    text += f", and no {' or '.join(f.replace('spine-', 'spine ') for f in extra)}" if extra else ""
+    return text + (", and nothing done standing" if AREA_POSITIONS.get((area, level)) else "")
 
 
 def threshold(limit: Limit) -> int:
@@ -349,6 +353,8 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
             if lim.level == "delicate":
                 bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad]
             reasons += bad   # a flag is its own reason
+            if m.position in AREA_POSITIONS.get((lim.area, lim.level), ()):
+                reasons.append(f"{m.position} with the {lim.area} off limits")
             why = f"{lim.area} {'off limits' if lim.level == 'off-limits' else 'delicate'}"
             if lim.side == "both" or not m.sided:   # both sides limited: the resting side counts too
                 hit = max(m.loads.get(lim.area, 0), m.support.get(lim.area, 0) if m.sided else 0) >= need
