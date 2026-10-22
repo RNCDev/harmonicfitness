@@ -116,8 +116,9 @@ def station(m: catalog.Movement) -> Tuple[str, ...]:
 def slot_seconds(m: catalog.Movement, dose: dict, work: str, one_side: bool = False) -> int:
     """Seconds one movement takes at `dose` for the method's kind of work.
 
-    sets: transition, every set, a rest between sets. pairs: the same with half of the pair's rests,
-    since one rest follows each pass through the pair. rounds: one transition and one set per round
+    sets: transition, every set, a rest between sets. pairs: a transition before every set (the move
+    to the station, each pass through the pair) and half of the pair's rests, since one rest follows
+    each pass through the pair. rounds: one transition and one set per round
     (the rests between rounds belong to the block, see block_seconds). intervals: rounds of work
     and rest. holds: rounds of holds after one transition. A sided movement's work covers both sides,
     then one rest (one side only when `one_side`); an interval's work is the dose's work seconds,
@@ -127,7 +128,7 @@ def slot_seconds(m: catalog.Movement, dose: dict, work: str, one_side: bool = Fa
     if work == "sets":
         return t + dose["sets"] * w + (dose["sets"] - 1) * rest
     if work == "pairs":
-        return t + dose["sets"] * w + (dose["sets"] - 1) * rest // 2
+        return dose["sets"] * (t + w) + (dose["sets"] - 1) * rest // 2
     if work == "rounds":
         return dose["rounds"] * (t + w)
     if work == "intervals":
@@ -480,8 +481,10 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
     spent = 0
     for b, block in enumerate(method.blocks):
         budget = main - spent if b == len(method.blocks) - 1 else round(main * block["share"])
-        # interval work is never an easy movement
-        work_pool = [m for m in pool if not (method.work == "intervals" and m.effort == "easy")]
+        # interval work is never an easy movement, and a little-rest circuit takes no barbell lift,
+        # which wants a spotter and a rack set up for it
+        work_pool = [m for m in pool if not (method.work == "intervals" and m.effort == "easy")
+                     and not (method.work == "rounds" and "barbell" in m.needs)]
         aim = targets if b == 0 else []
         pats = _order(cat, block["patterns"], aim, week, leads, liked)
         filled = _fill(pats, work_pool, rank, used)
@@ -506,7 +509,7 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
             again = [(p, _rotate(ms, 1)) for p, ms in aimed if len(ms) > 1]   # a target gets two slots
             others = [(p, ms) for p, ms in filled if p not in wanted]
             first = len(aimed) + len(again) + len(others)
-            entries = aimed + again + others + [(p, _rotate(ms, 1)) for p, ms in others]
+            entries = aimed + again + others + [(p, _rotate(ms, 1)) for p, ms in others if len(ms) > 1]
         n, dose = _fit([ms[0] for _, ms in entries], _ranges(sess, method, block["intensity"], level),
                        method.work, budget, least, bool(method.fixed), f"a {minutes} minute session", first,
                        _cap(sess, method, block["intensity"], level), healthy)
@@ -561,7 +564,7 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
     warm = _extras(pool, _warmup_fit, 5, rank, used, ctx, sides,
                    lambda m: first_work is None or station(m) != station(first_work))
     extras = {"warmup": warm,   # the later lists leave out the warm-up's first picks
-              "finisher": (_extras(pool, _finisher_fit, 3, rank, used | {m.id for m, _ in warm[:1]}, ctx, sides)
+              "finisher": (_extras(pool, _finisher_fit(level), 3, rank, used | {m.id for m, _ in warm[:1]}, ctx, sides)
                            if finisher else []),
               # breathing may come back to close a session whose block already breathed
               "cooldown": _extras(pool, _cooldown_fit, 5, rank, {i for i in used if not _breathing(cat, i)}
@@ -603,7 +606,7 @@ def _steady(slots: List[Slot], pool: List[catalog.Movement], rank, ctx: dict, se
              and not {"fast", "impact"} & set(m.flags)]
     if not found:
         return None
-    found.sort(key=lambda m: (m.id in used, m.effort != "moderate", rank(m)))
+    found.sort(key=lambda m: (m.id in used, rank(m)[3], m.effort != "moderate", rank(m)))   # [3]: on the floor with a machine at hand
     change = CHANGE_SECONDS if last is not None and station(found[0]) != station(last) else 0
     if change:   # the change belongs to the last interval
         slots[-1] = slots[-1]._replace(seconds=slots[-1].seconds + change)
@@ -624,11 +627,12 @@ def _warmup_fit(m: catalog.Movement) -> Optional[int]:
     return 2 if first == "mobility" else None
 
 
-def _finisher_fit(m: catalog.Movement) -> Optional[int]:
-    """Hard conditioning first, then moderate; never an easy one."""
-    if m.intensity != "conditioning":
-        return None
-    return {"hard": 0, "moderate": 1}.get(m.effort)
+def _finisher_fit(level: str):
+    """Conditioning in the level's effort order (hard first above novice, moderate first at novice);
+    never an easy one."""
+    order = EFFORT_RANK[level]
+    return lambda m: (order[m.effort] if m.intensity == "conditioning" and m.effort in ("hard", "moderate")
+                      else None)
 
 
 def _cooldown_fit(m: catalog.Movement) -> Optional[int]:
@@ -791,7 +795,8 @@ def render(sk: Skeleton) -> List[str]:
             head += f", rest {_five(sum(rests) / (len(rests) - 1))} s between rounds"
         out.append(head + ":")
         for i, s in enumerate(slots):
-            pair = f"pair {i // 2 + 1}, " if sk.method.work == "pairs" else ""
+            alone = i == len(slots) - 1 and i % 2 == 0
+            pair = f"pair {i // 2 + 1}, " if sk.method.work == "pairs" and not alone else ""
             out.append(f"  {pair}{s.pattern} ({_dose_text(s, sk)}, {s.seconds} s): {_picks(s.candidates[:3])}")
     if sk.finisher:
         out += _extra_lines(_finisher_head(sk), extras.get("finisher"))
@@ -817,8 +822,9 @@ def _round_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
 
 
 def _pair_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
-    """One marker per set of each pair: the first movement's set, then the second's, then the rest; the
-    first set also holds both setups and the last the pair's spare. A lone last slot runs its sets alone."""
+    """One marker per set of each pair: the move to the first station and its set, the move to the second
+    and its set, then the rest; the last set also holds the pair's spare. A lone last slot runs its sets
+    alone."""
     out = []
     groups = [slots[i:i + 2] for i in range(0, len(slots), 2)]
     for g, group in enumerate(groups):
@@ -826,8 +832,7 @@ def _pair_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
         d = group[0].dose
         sets, rest = d["sets"], d.get("rest_seconds", 0)
         work = sum(_work_time(m, d, _one_side(m, sk)) for m in ms)
-        secs = [work + (sum(m.transition_seconds for m in ms) if k == 0 else 0) + (rest if k < sets - 1 else 0)
-                for k in range(sets)]
+        secs = [work + sum(m.transition_seconds for m in ms) + (rest if k < sets - 1 else 0) for k in range(sets)]
         secs[-1] += sum(s.seconds for s in group) - sum(secs)
         names = ", then ".join(_named(m, sk) for m in ms)
         head = f"Pair {g + 1} of {len(groups)}, " if len(group) == 2 else ""
@@ -852,7 +857,7 @@ def _interval_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
         rounds, each = s.dose["rounds"], s.dose["work_seconds"] + s.dose.get("rest_seconds", 0)
         nxt = slots[j + 1].candidates[0][0] if j + 1 < len(slots) else None
         move = f", then move to the {nxt.name}" if nxt and station(nxt) != station(m) else ""
-        block = f"block {j + 1} of {len(slots)}, " if many else ""
+        block = f"block {j + 1} of {sum(not x.dose.get('steady') for x in slots)}, " if many else ""
         for i in range(rounds):
             last = i == rounds - 1
             secs = each + (s.seconds - rounds * each if last else 0)

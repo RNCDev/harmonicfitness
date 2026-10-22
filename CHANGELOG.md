@@ -2,6 +2,41 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [5.0.0] - 2026-10-22
+
+The fixes from the second judged run of the grid: interval work that is hard enough, warm-ups that start easy, paired sets that can be spoken as pairs, rests that match the clock, and caps on volume. The catalog and the session rules each move up a format.
+
+### For forks
+Breaking: the catalog moves to format 3, `knowledge/sessions.toml` to format 2, and paired-sets drafts get a marker per pair set. After pulling:
+1. If you keep private movements in `me/movements.toml`, they are now loaded (4.x ignored the file). Run `./sweatcast check`: every finished conditioning entry needs `effort = "easy"`, `"moderate"` or `"hard"`, and it lists any entry missing one or carrying another fault.
+2. A fork that edits `knowledge/movements.toml` or `knowledge/sessions.toml`: set `format = 3` and `format = 2`, add `effort` to every finished conditioning movement, and keep the new dose keys (`bodyweight_reps` above novice, `efforts_per_session`) in every conditioning level. `./sweatcast test` names anything missing.
+3. Drafts written under 4.x markers still render. A new paired-sets draft is written under one marker per pair set ("Pair 1 of 3, set 2 of 3: ..."), a circuit round's marker names the rest that ends it, and interval markers are numbered by block.
+4. No context file changes; there is nothing to migrate.
+
+### Added
+- `effort` on every conditioning movement (easy, moderate, hard). Interval work never takes an easy movement; above novice the hard ones rank first.
+- An interval fallback: when fewer than two locomotion movements are hard enough today (a thin kit, a delicate limit), timed squat, lunge, hinge and core work joins the intervals, with a warning.
+- A steady block after the intervals for the time past the new `efforts_per_session` cap, and the `hard_sets_per_session` cap now holds for straight and paired sets.
+- A printed finisher dose (`Finisher: 240 s, 4 rounds of 30 s on, 30 s off`), in the skeleton and its marker.
+- `bodyweight_reps` above novice (10 to 15 experienced, 12 to 20 advanced), used for any movement with no load equipment.
+- A case `--limit` prints what it rules out ("light loads only on the left calf, no impact or fast work").
+- `me/movements.toml` is loaded, and `./sweatcast check` lists problems in it.
+- Finished entries: step jacks, air bike steady and sprint, stair climber, standing climb, leg extension, arm circles, shoulder rolls, leg swings, standing calf stretch.
+- `docs/eval/writer.md`, the script writers' brief, and `docs/eval/results-2026-10-22-run2.md`, the second judged run: safety 4.72, efficacy 3.05, adherence 3.45, ease 3.00 (first run 4.70, 2.33, 2.80, 3.52), with the ten lowest cases re-judged after these fixes.
+
+### Changed
+- Candidate ranking: with load on hand, strength movements that use it rank ahead of bodyweight ones at the same level (goblet squat before air squat, face pull before the towel door row); with a cardio machine on hand, conditioning on it ranks ahead of the floor.
+- The warm-up list starts with easy locomotion and never offers hard, fast or impact work; the finisher list takes hard, then moderate conditioning; the cool-down leads with box breathing; none leads with a movement the work uses.
+- Paired sets: one marker per pair set, a printed rest after each pair set, and pairs that cross families to the end.
+- Straight sets print the rest their seconds hold; a circuit prints the rest between its rounds, now its own 45 to 90 s, and its patterns add vertical push, vertical pull and anti-rotation.
+- Intervals keep one machine's blocks together, give thirty seconds to change equipment, number markers by block, and repeat no movement while another remains. Interval rounds per movement start at three or four.
+- Targeted sessions give each target pattern two slots; a muscle target matches a movement's first two muscles. Patterns holding a liked movement come right after the targets.
+- A healthy-side-only slot is timed for one side.
+- Flow runs two mobility drills to each breathing one.
+- Safety: a low back off limits also rules out spine flexion and twisting; the overhead presses rate neck 2, so a delicate neck rules them out; the face pull rates wrist 1. The playbook says both.
+- The towel door row's setup names the door to use (an inside door that opens away from you, never the room's entry door); the world's greatest stretch keeps the head in line.
+- The judge prompt reads the writer's notes, scores adherence on the coaching alone, and compares with an earlier run only after scoring blind. The workout skill describes the new markers and attributes clinician rules to the clinician.
+
 ## [4.0.0] - 2026-10-22
 
 Sessions built from atomic movement data: the catalog says what each movement loads, a tool picks the method, the timing and the candidates, and a judged grid of forty cases measures how the result reads.

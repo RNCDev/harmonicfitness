@@ -10,6 +10,9 @@ import unittest.mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
 import catalog  # noqa: E402
+
+# The shipped catalog only: a listener's private movements in me/ never change what the tests see.
+catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import context  # noqa: E402
 import draft  # noqa: E402
 import sessions  # noqa: E402
@@ -223,7 +226,7 @@ class Compose(unittest.TestCase):
         self.assertIn("health", str(caught.exception))
 
     def test_last_session_movements_rank_after_fresh_ones(self):
-        sk = compose_for(goal="strength", minutes=30)
+        sk = compose_for(goal="strength", minutes=40)
         core = next(s for _, slots in sk.blocks for s in slots if s.pattern == "anti-extension")
         ids = [m.id for m, _ in core.candidates]
         self.assertLess(ids.index("one-arm-plank"), ids.index("dead-bug"))   # dead bug was in the last session
@@ -240,7 +243,7 @@ class Compose(unittest.TestCase):
 
     def test_sided_slots_say_each_side_or_the_healthy_side(self):
         import session
-        sk = compose_for(goal="strength", minutes=30)   # the fixture's left wrist is delicate
+        sk = compose_for(goal="strength", minutes=40)   # the fixture's left wrist is delicate
         slots = [s for _, ss in sk.blocks for s in ss]
         lunge = next(s for s in slots if s.pattern == "lunge")
         core = next(s for s in slots if s.pattern == "anti-extension")
@@ -676,7 +679,7 @@ class Grid(unittest.TestCase):
         sets = self.slots("c03")[0].dose["sets"]
         self.assertEqual(sum(t.startswith("Pair 1 of") for t in titles), sets)
         self.assertIn(", then ", next(t for t in titles if t.startswith("Pair 1 of")))
-        self.assertIn("rest 90 s after each pair set", "\n".join(session.render(sk)))
+        self.assertRegex("\n".join(session.render(sk)), r"rest \d+ s after each pair set")
 
     def test_printed_rest_is_the_rest_the_slot_holds(self):
         import session
@@ -733,6 +736,12 @@ class Grid(unittest.TestCase):
             with self.subTest(case=cid):
                 ids = {m.id for s in self.slots(cid) for m, _ in s.candidates}
                 self.assertFalse(ids & {"overhead-press", "seated-shoulder-press"}, ids)
+
+    def test_circuits_take_no_barbell_lift(self):
+        for cid, sk in self.sk.items():
+            if sk.method.work == "rounds":
+                with self.subTest(case=cid):
+                    self.assertFalse(any("barbell" in m.needs for s in self.slots(cid) for m, _ in s.candidates))
 
     def test_today_limit_says_what_it_means(self):
         self.assertIn("today: calf delicate: light loads only on the calf, no impact or fast work",

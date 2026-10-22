@@ -161,7 +161,7 @@ sets = [3, 5]                      # house default: a step up from experienced
 reps = [4, 8]                      # house default: below Iversen's six for heavier sets; home kit rarely allows it
 rest_seconds = [120, 180]          # source: trained people probably need two minutes or more, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772; the upper bound is a house default
 hard_sets_per_session = [12, 20]   # house default: programming.md's session arithmetic, about twenty at forty five minutes
-bodyweight_reps = [12, 20]         # house default: a movement with no load needs more reps to be hard; above Iversen's fifteen for trained people, slow on the way down
+bodyweight_reps = [10, 20]         # house default: a movement with no load needs more reps to be hard; above Iversen's fifteen for trained people, slow on the way down
 
 [dose.conditioning.novice]
 work_seconds = [20, 30]            # source: Gillen's efforts lasted twenty seconds https://pubmed.ncbi.nlm.nih.gov/27115137/; the upper bound is a house default

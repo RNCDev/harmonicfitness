@@ -9,6 +9,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import catalog  # noqa: E402
 
+# The shipped catalog only: a listener's private movements in me/ never change what the tests see.
+catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EVERY_MOVEMENT_RULE = ("Every movement in every segment, including the warm-up, finisher and cool-down, comes from "
                        "the `./sweatcast session` output; nothing from memory or from `./sweatcast movements`.")
@@ -151,6 +154,31 @@ class RealCatalog(unittest.TestCase):
             self.assertNotIn("garage-sled-drag", catalog.load(FIXTURE).movements)   # an explicit path loads no private file
         with unittest.mock.patch.object(catalog.paths, "MY_MOVEMENTS", os.path.join(ROOT, "no-such-file.toml")):
             self.assertEqual(catalog.private_movements(), [])
+
+    def test_a_faulty_private_entry_is_never_planned(self):
+        import tempfile
+        import unittest.mock
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "movements.toml")
+            with open(path, "w") as f:   # no loads, so no limit could screen it
+                f.write('[[movement]]\nid = "my-jump-squat"\nname = "my jump squat"\nneeds = []\n'
+                        'position = "standing"\nmeasure = "reps"\npatterns = ["squat"]\nmuscles = ["quads"]\n'
+                        'flags = ["impact"]\nintensity = "strength"\nlevel = "novice"\nseconds_per_rep = 2\n'
+                        'transition_seconds = 10\ndraft = false\nsetup = "Stand tall."\ncues = ["Jump."]\n')
+            with unittest.mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
+                cat = catalog.load()
+            self.assertTrue(cat.movements["my-jump-squat"].draft)
+            off = [catalog.Limit("knee", "both", "off-limits", [], [], "")]
+            self.assertEqual(catalog.select(cat, set(), "novice", off).left_out["my-jump-squat"], ["draft"])
+            with open(path, "w") as f:
+                f.write("[[movement]\nid = ")
+            with unittest.mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
+                with unittest.mock.patch("sys.stderr"):
+                    cat = catalog.load()   # an unreadable file is skipped, not a crash
+            self.assertIn("air-squat", cat.movements)
+            sys.path.insert(0, os.path.join(ROOT, "tools"))
+            import context
+            self.assertIn("can't be read", context.check_movements(path)[0].message)
 
     def test_check_lists_a_private_entry_missing_its_effort(self):
         import tempfile

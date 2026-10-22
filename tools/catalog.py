@@ -9,6 +9,7 @@ Library only; the command line lives elsewhere.
 """
 import os
 import re
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
@@ -105,10 +106,17 @@ def private_movements(path: Optional[str] = None) -> List[dict]:
 
 def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Catalog:
     """Read the catalog at `path` (default: the shipped one) plus private movement tables: `extra`,
-    or, when neither is given, the listener's `movements.toml` (see `private_movements`). A shipped
-    id wins over a private one with the same id."""
-    if path is None and extra is None:
-        extra = private_movements()
+    or, when neither is given, the listener's `movements.toml` (see `private_movements`), where an
+    entry with any fault is held back as a draft and an unreadable file is skipped with a warning.
+    A shipped id wins over a private one with the same id."""
+    auto = path is None and extra is None
+    if auto:
+        try:
+            extra = private_movements()
+        except (tomllib.TOMLDecodeError, OSError):   # ./sweatcast check says what is wrong with it
+            print(f"sweatcast: {paths.show(paths.MY_MOVEMENTS)} can't be read, so its movements are left "
+                  "out (run ./sweatcast check)", file=sys.stderr)
+            extra = []
     with open(path or paths.MOVEMENTS, "rb") as f:
         data = tomllib.load(f)
     entries = [_movement(m, False) for m in data.get("movement", [])]
@@ -116,12 +124,27 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
     movements: Dict[str, Movement] = {}
     for m in entries:
         movements.setdefault(m.id, m)
-    return Catalog(
+    cat = Catalog(
         format=data.get("format", 0), patterns=list(data.get("patterns", [])), muscles=list(data.get("muscles", [])),
         areas=list(data.get("areas", [])), flags=list(data.get("flags", [])),
         equipment=dict(data.get("equipment", {})),
         presets={k: list(v.get("equipment", [])) for k, v in data.get("presets", {}).items()},
         movements=movements, entries=entries)
+    if auto:   # an explicit `extra` is being checked, so its faults stay visible
+        _hold_back_faulty_private(cat)
+    return cat
+
+
+def _hold_back_faulty_private(cat: Catalog) -> None:
+    """A private entry with any fault (a missing load table, an unknown level) is planned as a draft,
+    never with guessed values; `./sweatcast check` names the fault."""
+    private = [m for m in cat.entries if m.private and not m.draft]
+    if not private:
+        return
+    faults = problems(cat)
+    for m in private:
+        if any(re.search(rf"\b{re.escape(m.id)}\b", p) for p in faults):
+            m.draft = True
 
 
 def _spoken_fault(text: str) -> Optional[str]:

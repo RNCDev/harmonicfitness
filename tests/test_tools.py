@@ -20,6 +20,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import cache  # noqa: E402
 import catalog  # noqa: E402
+
+# The shipped catalog only: a listener's private movements in me/ never change what the tests see.
+catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import char_weight  # noqa: E402
 import cli  # noqa: E402
 import context  # noqa: E402
