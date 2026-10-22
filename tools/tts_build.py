@@ -29,7 +29,7 @@ from typing import List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 from draft import (CHIME, CHIME_SECONDS, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, PARAGRAPH_GAP,  # noqa: E402
-                   TOTAL_TOLERANCE, layout, paragraphs, parse, plan, spoken)
+                   TOTAL_TOLERANCE, fill_flag, holds, layout, paragraphs, parse, plan, spoken)
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -216,7 +216,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         if voice:
             row.spoken = spokens[i - 1]
             fill = row.fill
-            row.flag = "long" if fill > max_fill else "short" if fill < min_fill else ""
+            row.flag = fill_flag(row.spoken, seg["seconds"], min_fill, max_fill, held=holds(seg) > 0)
             # Long clips drift and glitch. Keep every clip comfortably short.
             for para in plan(seg):
                 for text, _ in para:
@@ -236,7 +236,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                     total_tolerance=total_tolerance, word_wpm=wpm)
     if voice:
         report.predicted = sum(length for _, length in layout(
-            [(spokens[i], max(len(plan(seg)) - 1, 0), seg["seconds"]) for i, seg in enumerate(segments)]))
+            [(spokens[i], max(len(plan(seg)) - 1, 0), seg["seconds"], holds(seg)) for i, seg in enumerate(segments)]))
     return report
 
 

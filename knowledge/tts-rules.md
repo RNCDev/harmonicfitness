@@ -6,8 +6,8 @@ The script is read aloud by the voice's engine (Chatterbox or Qwen3-TTS, through
 
 - Letters, spaces, and blank lines between paragraphs.
 - Periods, commas, question marks, exclamation points, apostrophes, quotation marks, hyphens inside words (single-leg, left-side), em dashes used sparingly, and ellipses.
-- Pause markers: `[pause 3s]` (see Pacing), and the bell marker `[chime]` (see Orientation).
-- Nothing else. No digits, headings, bullets, numbered lists, bold, italics, tables, links, emojis, brackets other than pause and chime markers, or symbols of any kind.
+- Pause markers: `[pause 3s]` (see Pacing), the bell marker `[chime]` and the hold marker `[hold]` (see Orientation).
+- Nothing else. No digits, headings, bullets, numbered lists, bold, italics, tables, links, emojis, brackets other than pause, chime and hold markers, or symbols of any kind.
 
 ## Numbers
 
@@ -53,7 +53,7 @@ The lint predicts each segment's spoken length for the chosen voice, pauses incl
 
 The listener can't see a clock, so the voice provides it. A soft chime opens every segment after the first (`tools/render.py` adds it, and the lint counts its six tenths of a second), so the locator lands right after the bell. Open each segment with a spoken locator: "Minute nine of twenty-five." or "Round two of three." or "Halfway there." Name transitions explicitly: "Next up, in fifteen seconds, goblet squats. Grab the heavier dumbbell."
 
-Inside a segment, `[chime]` rings the same bell at that point, for the changes in an interval (work starts, rest starts) that the clock would otherwise give: "At the bell, go. [chime] Push the floor away." The lint counts its time. Keep the spoken cue too; the bell confirms it, it doesn't replace it. The finished MP3 ends with a three-note rising tone, so silence after it means the workout is over.
+Inside a segment, `[chime]` rings the same bell at that point, for the changes in an interval (work starts, rest starts) that the clock would otherwise give: "At the bell, go. [chime] Push the floor away." The lint counts its time. Keep the spoken cue too; the bell confirms it, it doesn't replace it. A segment normally ends early when its speech runs out, so timed work would shrink; put `[hold]` where the listener works in silence, and the segment keeps its full length, its spare time silent at the hold: "At the bell, go. [chime] Drive the knees. [hold] Last five. [chime] Easy now." A held segment is never flagged short, so a thirty-second effort needs only its cues, not thirty seconds of talk. Use it in timed work and rests only, never to pad a story. The finished MP3 ends with a three-note rising tone, so silence after it means the workout is over.
 
 The lint warns (without blocking) when a segment opens without a locator, has more than one countdown, or when a short praise line ("Good.", "Nice work.") turns up three or more times; with `--strict` the warnings count as issues.
 

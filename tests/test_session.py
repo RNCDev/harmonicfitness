@@ -737,6 +737,25 @@ class Grid(unittest.TestCase):
                 ids = {m.id for s in self.slots(cid) for m, _ in s.candidates}
                 self.assertFalse(ids & {"overhead-press", "seated-shoulder-press"}, ids)
 
+    def test_a_sprint_works_its_own_seconds(self):
+        sprint = next(s for s in self.slots("c34") if s.candidates[0][0].id == "bike-seated-sprint")
+        m = sprint.candidates[0][0]
+        self.assertEqual(sprint.dose["work_seconds"], m.hold_seconds)
+        other = next(s for s in self.slots("c34") if s.candidates[0][0].hold_seconds >= 45)
+        self.assertEqual(sprint.dose["work_seconds"] + sprint.dose["rest_seconds"],
+                         other.dose["work_seconds"] + other.dose["rest_seconds"])   # same interval length
+
+    def test_the_fallback_runs_as_a_circuit(self):
+        import session
+        for cid in ("c30", "c36"):
+            with self.subTest(case=cid):
+                sk = self.sk[cid]
+                titles = [x.split("|", 1)[1].strip() for x in session.render_draft(sk)][1:-1]
+                work = [s for s in self.slots(cid) if not s.dose.get("steady")]
+                first = [t for t in titles if t.startswith("Round 1 of")]
+                self.assertEqual(len(first), len(work))
+                self.assertIn("as a circuit", "\n".join(session.render(sk)))
+
     def test_circuits_take_no_barbell_lift(self):
         for cid, sk in self.sk.items():
             if sk.method.work == "rounds":

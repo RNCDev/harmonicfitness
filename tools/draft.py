@@ -3,8 +3,10 @@
 Draft format: each segment starts with a marker line
     @@ <seconds> | <label>
 followed by the spoken text. Inside the text, [pause 3s] inserts that much silence
-(also [pause 500ms]; at most ten seconds), and [chime] rings the segment bell at
-that point, for example when work starts in a forty-five-and-fifteen interval.
+(also [pause 500ms]; at most ten seconds), [chime] rings the segment bell at
+that point, for example when work starts in a forty-five-and-fifteen interval, and
+[hold] marks where the listener works in silence: a segment with a [hold] keeps its
+full planned length, its spare time spoken as silence at its holds.
 
 This is the one source of truth for the draft: the lint (tts_build.py) predicts
 from it and the render (render.py) lays clips out with it, so they agree.
@@ -14,8 +16,10 @@ import re
 MARKER = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*)$")
 PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
 CHIME_RE = re.compile(r"\[\s*chime\s*\]", re.IGNORECASE)
-MARK_RE = re.compile(PAUSE_RE.pattern + "|" + CHIME_RE.pattern, re.IGNORECASE)
+HOLD_RE = re.compile(r"\[\s*hold\s*\]", re.IGNORECASE)
+MARK_RE = re.compile(PAUSE_RE.pattern + "|" + CHIME_RE.pattern + "|" + HOLD_RE.pattern, re.IGNORECASE)
 CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
+HOLD = "[hold]"     # a span whose text is this takes a share of the segment's spare time as silence
 PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds: a bare [pause], and the longest one
 PARAGRAPH_GAP = 0.35                    # least silence between paragraphs within a segment
 MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
@@ -23,8 +27,10 @@ CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segmen
 
 # Timing. A segment's spare time widens its paragraph breaks (up to MAX_EXTRA_GAP each)
 # and leaves a short tail; past that it ends early rather than going quiet, so the
-# workout runs a little under plan instead of padding with silence. Only the total is
-# held to plan, within TOTAL_TOLERANCE; a segment is flagged only when far off.
+# workout runs a little under plan instead of padding with silence. A segment with a
+# [hold] is the exception: timed work needs its full length, so all its spare time
+# becomes silence at its holds. Only the total is held to plan, within
+# TOTAL_TOLERANCE; a segment is flagged only when far off (a held one never as short).
 END_TAIL = 1.5          # seconds of spare time kept at a segment's end, at most
 MAX_EXTRA_GAP = 1.5     # most spare time added to any one paragraph break
 TOTAL_TOLERANCE = 0.03  # the whole workout may run this fraction over or under plan
@@ -61,16 +67,21 @@ def paragraphs(lines):
 
 
 def spans(paragraph):
-    """Split a paragraph at [pause] and [chime] markers: [(text, seconds of silence after)].
-    Text may be empty (a leading pause), or CHIME for the bell."""
+    """Split a paragraph at [pause], [chime] and [hold] markers: [(text, seconds of silence
+    after)]. Text may be empty (a leading pause), CHIME for the bell or HOLD for a hold."""
     out, last = [], 0
     for m in MARK_RE.finditer(paragraph):
         text = paragraph[last:m.start()].strip()
         last = m.end()
-        if CHIME_RE.fullmatch(m.group(0)):
-            if text:
-                out.append((text, 0.0))
-            out.append((CHIME, 0.0))
+        for mark_re, mark in ((CHIME_RE, CHIME), (HOLD_RE, HOLD)):
+            if mark_re.fullmatch(m.group(0)):
+                if text:
+                    out.append((text, 0.0))
+                out.append((mark, 0.0))
+                break
+        else:
+            mark = None
+        if mark:
             continue
         num, unit = m.group(1), (m.group(2) or "").lower()
         secs = PAUSE_DEFAULT if num is None else float(num) / (1 if unit == "s" else 1000)
@@ -85,8 +96,13 @@ def spans(paragraph):
 
 
 def spoken(text):
-    """True for a span the voice speaks (not a bare pause or the bell)."""
-    return bool(text) and text != CHIME
+    """True for a span the voice speaks (not a bare pause, the bell or a hold)."""
+    return bool(text) and text not in (CHIME, HOLD)
+
+
+def holds(seg):
+    """How many [hold] markers a segment has."""
+    return sum(text == HOLD for para in plan(seg) for text, _ in para)
 
 
 def plan(seg):
@@ -96,14 +112,20 @@ def plan(seg):
 
 def layout(segments):
     """Lay segments on the clock. `segments` is [(spoken seconds, paragraph breaks,
-    planned seconds)]; returns [(extra seconds per break, laid-out seconds)].
+    planned seconds[, holds])]; returns [(extra seconds per break, laid-out seconds)].
 
     A segment that runs over makes the next ones late, and their spare time pays it
     back; a segment with time to spare widens its breaks, keeps a short tail and ends
-    early."""
+    early, unless it has holds, which take all its spare time as silence (each hold
+    gets (laid-out seconds - spoken seconds) / holds)."""
     out, late = [], 0.0
-    for spoken_secs, gaps, planned in segments:
+    for spoken_secs, gaps, planned, *rest in segments:
         slack = max(planned - late - spoken_secs, 0.0)
+        if rest and rest[0]:
+            length = spoken_secs + slack
+            late = max(late + length - planned, 0.0)
+            out.append((0.0, length))
+            continue
         extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
         length = spoken_secs + extra * gaps + min(END_TAIL, slack - extra * gaps)
         late = max(late + length - planned, 0.0)
@@ -111,7 +133,8 @@ def layout(segments):
     return out
 
 
-def fill_flag(spoken_secs, planned, min_fill=MIN_FILL, max_fill=MAX_FILL):
-    """"long" or "short" when a segment's speech is far off its slot, else ""."""
+def fill_flag(spoken_secs, planned, min_fill=MIN_FILL, max_fill=MAX_FILL, held=False):
+    """"long" or "short" when a segment's speech is far off its slot, else ""; a held
+    segment (one with a [hold]) is never short, since its silence is planned."""
     fill = spoken_secs / planned if planned else 0.0
-    return "long" if fill > max_fill else "short" if fill < min_fill else ""
+    return "long" if fill > max_fill else "short" if fill < min_fill and not held else ""

@@ -490,7 +490,9 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
         aim = targets if b == 0 else []
         pats = _order(cat, block["patterns"], aim, week, leads, liked)
         filled = _fill(pats, work_pool, rank, used)
+        mixed = False
         if block.get("fallback") and sum(len(ms) for _, ms in filled) < 2:
+            mixed = True
             more = _order(cat, block["fallback"], aim, week, leads, liked)
             filled += _fill([p for p in more if p not in pats], work_pool, rank, used)
             warnings.append("few movements on today's kit are hard enough for intervals, so timed "
@@ -522,8 +524,11 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
             seen = list(dict.fromkeys(station(ms[0]) for _, ms in chosen))
             chosen = sorted(chosen, key=lambda e: seen.index(station(e[1][0])))
         secs = block_seconds([ms[0] for _, ms in chosen], dose, method.work, healthy)
-        slots = [Slot(p, block["intensity"], dict(dose), s, [(m, _reasons(m, ms, p, ctx)) for m in ms])
-                 for (p, ms), s in zip(chosen, secs)]
+        slots = [Slot(p, block["intensity"], _own_dose(ms[0], dose, method), s,
+                      [(m, _reasons(m, ms, p, ctx)) for m in ms]) for (p, ms), s in zip(chosen, secs)]
+        on_machine = lambda m: m.intensity == "conditioning" and bool(m.needs)  # noqa: E731
+        if mixed and not any(on_machine(s.candidates[0][0]) for s in slots):   # all on the floor: a circuit
+            slots = [s._replace(dose=dict(s.dose, mixed=1)) for s in slots]
         used |= {s.candidates[0][0].id for s in slots}
         dropped += [p for p, _ in filled if p not in {s.pattern for s in slots}]
         spent += sum(secs)
@@ -581,6 +586,17 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
 def _breathing(cat: catalog.Catalog, mid: str) -> bool:
     m = cat.movements.get(mid)
     return bool(m and m.patterns and m.patterns[0] == "breathing")
+
+
+def _own_dose(m: catalog.Movement, dose: dict, method: sessions.Method) -> dict:
+    """The block's dose for one slot. An interval on a timed movement shorter than the dose's work
+    (a twenty second sprint) works for its own seconds and rests the rest of the interval."""
+    out = dict(dose)
+    if (method.work == "intervals" and not method.fixed and m.measure == "time"
+            and 0 < m.hold_seconds < out.get("work_seconds", 0)):
+        out["rest_seconds"] = out.get("rest_seconds", 0) + out["work_seconds"] - m.hold_seconds
+        out["work_seconds"] = m.hold_seconds
+    return out
 
 
 def goal_is(request: dict, goal: str) -> bool:
@@ -795,6 +811,8 @@ def render(sk: Skeleton) -> List[str]:
         if sk.method.work == "rounds" and slots and slots[0].dose.get("rounds", 1) > 1:
             _, rests = _round_rests(slots, sk)
             head += f", rest {_five(sum(rests) / (len(rests) - 1))} s between rounds"
+        if slots and slots[0].dose.get("mixed"):
+            head += ", as a circuit: each round, one interval of each movement in turn"
         out.append(head + ":")
         for i, s in enumerate(slots):
             alone = i == len(slots) - 1 and i % 2 == 0
@@ -849,7 +867,18 @@ def _interval_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
     block's last interval names the next movement when it is on other equipment; a steady block is
     one marker."""
     out = []
-    many = len([s for s in slots if not s.dose.get("steady")]) > 1
+    work = [s for s in slots if not s.dose.get("steady")]
+    if work and all(s.dose.get("mixed") for s in work):   # a circuit: each round one interval of each
+        rounds = work[0].dose["rounds"]
+        for i in range(rounds):
+            for s in work:
+                each = s.dose["work_seconds"] + s.dose.get("rest_seconds", 0)
+                secs = each + (s.seconds - s.dose["rounds"] * each if i == rounds - 1 else 0)
+                name = _named(s.candidates[0][0], sk).removesuffix(" each side")
+                out.append(f"@@ {secs} | Round {i + 1} of {rounds}, {name}")
+        return out + [f"@@ {s.seconds} | {_named(s.candidates[0][0], sk)}, steady block"
+                      for s in slots if s.dose.get("steady")]
+    many = len(work) > 1
     for j, s in enumerate(slots):
         m = s.candidates[0][0]
         name = _named(m, sk).removesuffix(" each side")   # an interval's work is the same whichever side

@@ -225,6 +225,26 @@ class Assemble(unittest.TestCase):
         self.assertEqual(rows[0][4], "")
         self.assertAlmostEqual(drift, 0.05, places=3)
 
+    def test_a_hold_keeps_the_segment_full_and_silent_where_it_falls(self):
+        segs = self.segs("@@ 30 | A\ngo [chime] push [hold] [chime] easy\n@@ 10 | B\nsix\n")
+        pcm, rows, _ = assemble(segs, self.fake_clip, bell=b"\x02\x00" * SR)
+        # A: three words and two one-second bells, 25 s of hold; then B ends early as usual
+        self.assertAlmostEqual(secs(pcm), 30 + 1 + draft.END_TAIL, places=3)
+        self.assertEqual(rows[0][4], "")   # a held segment is never flagged short
+        quiet = pcm[int(4 * SR) * 2:int(28 * SR) * 2]   # after "go", bell, "push": the hold
+        self.assertEqual(set(bytes(quiet)), {0})
+        self.assertEqual(bytes(pcm[int(29.5 * SR) * 2:int(29.5 * SR) * 2 + 2]), b"\x01\x00")   # "easy" ends A
+        predicted = draft.layout([(5, 0, 30, 1), (1, 0, 10)])
+        self.assertAlmostEqual(secs(pcm), sum(length for _, length in predicted), places=3)
+
+    def test_hold_is_a_marker_not_speech(self):
+        spans = draft.spans("Push. [hold] [chime] Easy.")
+        self.assertEqual([t for t, _ in spans], ["Push.", draft.HOLD, CHIME, "Easy."])
+        self.assertFalse(draft.spoken(draft.HOLD))
+        self.assertEqual(draft.holds(parse("@@ 10 | A\none [hold] two [hold]\n")[0]), 2)
+        self.assertEqual(draft.fill_flag(2, 30, held=True), "")
+        self.assertEqual(draft.fill_flag(2, 30), "short")
+
     def test_layout_matches_assemble(self):
         segs = self.segs("@@ 20 | A\none two\n\nthree\n@@ 4 | B\nfour five six\n\nseven\n@@ 30 | C\neight\n")
         pcm, _, _ = assemble(segs, self.fake_clip)

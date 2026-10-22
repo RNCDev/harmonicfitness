@@ -43,7 +43,7 @@ import wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import engines  # noqa: E402
-from draft import (CHIME, CHIME_SECONDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, layout,  # noqa: E402
+from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, layout,  # noqa: E402
                    parse, plan, spoken as is_spoken)
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
 from paths import BUILDS, CACHE as CACHE_DIR, VERSION_FILE, show  # noqa: E402
@@ -93,37 +93,43 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b""):
     clip(text) returns a clip's PCM. `lead` (the chime) opens every segment after
     the first, `bell` rings at each [chime] marker (default: the chime), and `tail`
     (the end tone) follows the last segment, past the plan's clock. A segment with
-    time to spare widens its breaks and ends early instead of padding with silence.
+    time to spare widens its breaks and ends early instead of padding with silence,
+    unless it has a [hold]: its spare time is then silence at its holds.
     Returns (pcm, rows, drift): rows as (n, planned, spoken, label, flag), drift as
     the whole workout's fraction over (+) or under (-) plan, not counting the tail."""
     bell = chime() if bell is None else bell
     built = []
     for i, seg in enumerate(segments, 1):
-        paras = []
+        paras = []   # each paragraph: PCM pieces, with None where a hold falls
         for para in plan(seg):
-            p = bytearray()
+            p = [bytearray()]
             for text, pause in para:
                 if text == CHIME:
-                    p += bell
+                    p[-1] += bell
+                elif text == HOLD:
+                    p += [None, bytearray()]
                 elif text:
-                    p += clip(text)
-                p += silence(pause)
+                    p[-1] += clip(text)
+                p[-1] += silence(pause)
             paras.append(p)
         head = lead if i > 1 else b""
         gaps = len(paras) - 1
-        spoken = (len(head) + sum(len(p) for p in paras)) / 2 / SR + PARAGRAPH_GAP * gaps
-        built.append((head, paras, spoken, gaps))
+        spoken = (len(head) + sum(len(x) for p in paras for x in p if x is not None)) / 2 / SR \
+            + PARAGRAPH_GAP * gaps
+        built.append((head, paras, spoken, gaps, sum(x is None for p in paras for x in p)))
 
     pcm_all, rows = bytearray(), []
-    timeline = layout([(spoken, gaps, seg["seconds"]) for seg, (_, _, spoken, gaps) in zip(segments, built)])
-    for i, (seg, (head, paras, spoken, gaps), (extra, length)) in enumerate(zip(segments, built, timeline), 1):
+    timeline = layout([(spoken, gaps, seg["seconds"], n) for seg, (_, _, spoken, gaps, n) in zip(segments, built)])
+    for i, (seg, (head, paras, spoken, gaps, n), (extra, length)) in enumerate(zip(segments, built, timeline), 1):
+        hold = max(length - spoken, 0.0) / n if n else 0.0
         seg_pcm = bytearray(head)
         for j, p in enumerate(paras):
             if j:
                 seg_pcm += silence(PARAGRAPH_GAP + extra)
-            seg_pcm += p
+            for x in p:
+                seg_pcm += silence(hold) if x is None else x
         seg_pcm += silence(length - len(seg_pcm) / 2 / SR)
-        flag = fill_flag(spoken, seg["seconds"])
+        flag = fill_flag(spoken, seg["seconds"], held=n > 0)
         rows.append((i, seg["seconds"], spoken, seg["label"], f"  <-- {flag}" if flag else ""))
         pcm_all += seg_pcm
     built.clear()   # the per-paragraph copies aren't needed once laid out
