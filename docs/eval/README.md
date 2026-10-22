@@ -39,7 +39,7 @@ Write each case's script under its markers into `docs/eval/out/<id>.draft.txt`, 
 for f in docs/eval/out/c*.draft.txt; do
   id=$(basename "$f" .draft.txt)
   listener=$(grep -A1 "id = \"$id\"" docs/eval/cases.toml | sed -n 's/^listener = "\(.*\)"/\1/p')
-  SWEATCAST_HOME=docs/eval/listeners/$listener ./sweatcast build "$f" --lint-only --allow-estimated || echo "$id: lint failed"
+  SWEATCAST_HOME=docs/eval/listeners/$listener ./sweatcast build "$f" "eval-$id" --lint-only --allow-estimated || echo "$id: lint failed"
 done
 ```
 
