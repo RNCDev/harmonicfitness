@@ -19,6 +19,7 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
 import cache  # noqa: E402
+import catalog  # noqa: E402
 import char_weight  # noqa: E402
 import cli  # noqa: E402
 import context  # noqa: E402
@@ -301,6 +302,30 @@ class Coverage(unittest.TestCase):
         self.assertEqual(coverage.groups_of("lying leg curl"), ["hamstrings"])
         self.assertEqual(coverage.groups_of("seated bent-over rowing"), ["horizontal pull"])
         self.assertNotIn("horizontal push", coverage.groups_of("overhead press"))
+
+    def test_catalog_groups_match_the_checklist(self):
+        self.assertEqual(catalog.load().groups, [g for g, _ in coverage.GROUPS])
+
+    def test_side_words_and_capitals_resolve(self):
+        self.assertEqual(coverage.groups_of("Right Single-Leg Glute Bridge"),
+                         coverage.groups_of("single-leg glute bridge"))
+        self.assertIn("hamstrings", coverage.groups_of("right single-leg glute bridge"))
+
+    def test_finishers_and_skills_are_not_unmapped(self):
+        _, unmapped = coverage.coverage(["seated punching finisher", "box breathing", "mystery move"])
+        self.assertEqual(unmapped, ["mystery move"])
+
+    def test_week_counts_sessions_per_group(self):
+        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 21))
+        self.assertEqual(counts["horizontal pull"], 1)
+        self.assertEqual(counts["arms"], 1)
+        self.assertEqual(counts["quads"], 1)
+        self.assertEqual(set(counts), {g for g, _ in coverage.GROUPS})
+
+    def test_week_window_excludes_old_sessions(self):
+        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 26))
+        self.assertEqual(counts["horizontal pull"], 0)   # the 19th is 7 days back: outside
+        self.assertEqual(counts["arms"], 1)
 
 
 class CharWeight(unittest.TestCase):

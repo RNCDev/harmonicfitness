@@ -132,7 +132,11 @@ def resolve(cat: Catalog, name: str) -> Optional[Movement]:
         if said.startswith(side):
             said = said[len(side):]
             break
-    for m in cat.movements.values():
-        if said == m.name.lower() or said == m.id or said in (a.lower() for a in m.aliases):
-            return m
+    candidates = [said]
+    if said.endswith("s") and not said.endswith("ss"):
+        candidates.append(said[:-1])   # "goblet squats" means "goblet squat"
+    for word in candidates:
+        for m in cat.movements.values():
+            if word == m.name.lower() or word == m.id or word in (a.lower() for a in m.aliases):
+                return m
     return None

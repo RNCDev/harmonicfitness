@@ -16,6 +16,11 @@ class CatalogFormat(unittest.TestCase):
         self.assertEqual(cat.groups[0], "horizontal push")
         self.assertIn("goblet-squat", cat.movements)
 
+    def test_resolve_tolerates_a_plural(self):
+        cat = catalog.load(FIXTURE)
+        self.assertEqual(catalog.resolve(cat, "goblet squats").id, "goblet-squat")
+        self.assertIsNone(catalog.resolve(cat, "mystery moves"))
+
     def test_fixture_is_clean(self):
         self.assertEqual(catalog.problems(catalog.load(FIXTURE)), [])
 
