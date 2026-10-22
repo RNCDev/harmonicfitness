@@ -33,7 +33,7 @@ Read `me.example/profile.md` and `me.example/health.md` first, so the questions 
    - `./sweatcast voices keep "<take path>" --engine chatterbox --default` makes the chosen take a private voice in `me/voices/` and lists it first in the profile. Use `--engine qwen3` for the clearest diction.
    - Not right yet: reword the description (see what worked and what didn't in `knowledge/voices.md`) or pass another `--seed`, and design again.
    A recording of a real person goes in `me/voices/` too, and only with their consent: save the clip and its words, then `keep` it.
-7. **Delivery.** Where finished MP3s should go: a folder that syncs to their phone (iCloud Drive is `~/Library/Mobile Documents/com~apple~CloudDocs/<folder>`, Google Drive for desktop is `~/Library/CloudStorage/GoogleDrive-*/My Drive/<folder>`, Dropbox is `~/Library/CloudStorage/Dropbox/<folder>`), or nowhere, keeping them only in `me/workouts/`. Check the folder exists with `ls`, and offer to create the subfolder.
+7. **Delivery.** Where finished MP3s should go: a folder that syncs to their phone (iCloud Drive is `~/Library/Mobile Documents/com~apple~CloudDocs/<folder>`, Google Drive for desktop is `~/Library/CloudStorage/GoogleDrive-*/My Drive/<folder>`, Dropbox is `~/Library/CloudStorage/Dropbox/<folder>`), or nowhere, keeping them only in `me/workouts/`. Say that once a build's copy lands there, the local MP3 is removed and only the script's text stays in `me/workouts/`, so this folder is where the audio lives. Check the folder exists with `ls`, and offer to create the subfolder. It is the profile's `deliver_to` setting; a request to change where workouts go runs this step alone.
 
 ## Step 3: write the files
 

@@ -101,7 +101,7 @@ Wait for the research agents' notifications if they haven't arrived yet (see the
 - If a render fails for another reason, the build prints the end of its log, `me/workouts/.logs/<name>.log`. Each finished MP3 also gets `<name>.build.json` beside it, recording the voice, model, versions, seed and timing.
 - The lint also prints structure warnings (a missing locator, two countdowns, repeated praise). They don't block the build, but fix them if it's quick.
 - If it exits with code 2 (the whole workout ran more than three percent over or under plan), trim or add words in the segments the table marks or that are furthest off, and rerun; only the changed clips render again. A segment that runs a little long is paid back from the next ones' spare time, and one with time to spare ends early.
-- After a successful render it copies the MP3 to the profile's delivery folder (`deliver_to` in the profile's settings), which syncs to the user's phone, and prints where it went.
+- After a successful render it copies the MP3 to the profile's delivery folder (`deliver_to` in the profile's settings), which syncs to the user's phone, and prints where it went. Once every copy matches, it removes the local MP3; `me/workouts/` keeps the `.txt` and `.build.json`. With no delivery folder, or a copy that failed, the MP3 stays in `me/workouts/`.
 - Options: `--voice <name>` (from Voices in profile.md), `--model <repo>` to try another build of the voice's engine, `--seed <n>` for a different take of every line, `--tolerance <fraction>` to change the three percent allowance for both the lint and the render, `--no-chime` to drop the segment bells and the end tone (`[chime]` markers still ring).
 - The MP3 ends with a three-note rising tone after the last segment, so the end of the workout can't be mistaken for a dropped earbud.
 
@@ -109,7 +109,7 @@ While it renders, post the log line and anything else useful. Don't wait idle.
 
 ## Step 5: deliver and log
 
-- Chat: plan table, equipment, voice, estimated runtime, paths to `me/workouts/<name>.txt` and `me/workouts/<name>.mp3`, and where the build copied it (the delivery folder), if anywhere. If SendUserFile is available, send the MP3 with `status: "proactive"` so it reaches the user's phone while they're away.
+- Chat: plan table, equipment, voice, estimated runtime, the path to `me/workouts/<name>.txt`, and where the MP3 is (the delivery folder the build copied it to, or `me/workouts/<name>.mp3` when it stayed). If SendUserFile is available, send the MP3 from there with `status: "proactive"` so it reaches the user's phone while they're away.
 - Log the session with one command (never by editing `me/log.md` by hand; it checks every field and writes the line the tools read):
   ```
   ./sweatcast log-session --date <YYYY-MM-DD> --minutes <N> --kit "<kit>" --voice "<voice>" --movements "<movement>, <movement>" --topics "<topics>" --format "<method name>" --loads "<movement> = <load and tempo>; <movement> = <load and tempo>"

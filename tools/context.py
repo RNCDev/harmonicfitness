@@ -339,8 +339,9 @@ SETTINGS_COMMENTS = {
     "experience": "Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.",
     "likes": "Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.",
     "dislikes": "Movements to leave out (ids or names); the session tool never picks them.",
-    "deliver_to": "Where finished MP3s are copied: a folder that syncs to your phone. ~ is your home "
-                  "folder and * matches anything (any Google account). Empty keeps them in me/workouts/.",
+    "deliver_to": "Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * "
+                  "matches anything (any Google account). Once the copy is there the local MP3 is removed; "
+                  "empty keeps MP3s in me/workouts/.",
     "youtube_favorites": "Channels (@handles) for the deep dives retold from a video's transcript.",
     "puzzles": "Channels (@handles) whose puzzles can be the session's quiz.",
     "voices": "Voices from ./sweatcast voices; the first is the default. The description is what the "

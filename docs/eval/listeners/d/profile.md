@@ -8,7 +8,7 @@ experience = "experienced"
 likes = ["glute-bridge", "dead-bug"]
 # Movements to leave out (ids or names); the session tool never picks them.
 dislikes = ["jumping-jacks", "wall-sit"]
-# Where finished MP3s are copied: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Empty keeps them in me/workouts/.
+# Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Once the copy is there the local MP3 is removed; empty keeps MP3s in me/workouts/.
 deliver_to = ""
 # Channels (@handles) for the deep dives retold from a video's transcript.
 youtube_favorites = ["Asianometry", "BranchEducation", "PracticalEngineeringChannel"]

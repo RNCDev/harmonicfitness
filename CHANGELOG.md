@@ -2,6 +2,12 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [5.2.0] - 2026-10-22
+
+### Changed
+- `./sweatcast build` removes the local MP3 once every copy in the profile's `deliver_to` folder is in place and matches; `me/workouts/` keeps the script's `.txt` and `.build.json` as history. A failed copy, or no delivery folder, keeps the MP3 in `me/workouts/`.
+- The setup skill's delivery step says so, and a request to change where workouts go runs that step alone; the profile template's `deliver_to` comment matches.
+
 ## [5.1.0] - 2026-10-22
 
 Intervals that fit their movements and leave the work quiet, and a cleaner engine. Re-judged, the twelve conditioning cases rose from a mean total of 13.4 to 16.3 (efficacy 2.67 to 3.67, adherence 3.17 to 3.92, ease 2.75 to 3.67, safety 4.83 to 5.00); `docs/eval/results-2026-10-22-run3.md` has the run.

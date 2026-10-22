@@ -114,21 +114,29 @@ STATUS=$?
 [ -n "$SMOKE" ] && exit "$STATUS"   # a voice check, not a workout: no copy
 [ "$STATUS" -eq 0 ] || exit "$STATUS"
 
-# A finished MP3 also goes to the profile's delivery folders: any path, such as a
-# Google Drive, iCloud Drive or Dropbox folder that syncs to the phone. context.py
-# expands a leading ~ and any *, prints the folders that exist, and says why when none do.
-FOUND=""
+# A finished MP3 goes to the profile's delivery folders: any path, such as a Google
+# Drive, iCloud Drive or Dropbox folder that syncs to the phone. context.py expands a
+# leading ~ and any *, prints the folders that exist, and says why when none do. Once
+# every copy is in place and matches, the local MP3 is removed: the delivery folder
+# holds the finished audio, and me/workouts/ keeps the .txt and .build.json as history.
+FOUND=""; FAILED=""
 DIRS="$("$PY" "$HERE/context.py" deliver)"
 OLD_IFS="$IFS"; IFS='
 '
 for DEST in $DIRS; do
   FOUND=1
-  if cp "$OUT_DIR/$NAME.mp3" "$DEST/"; then
+  if cp "$OUT_DIR/$NAME.mp3" "$DEST/" && cmp -s "$OUT_DIR/$NAME.mp3" "$DEST/$NAME.mp3"; then
     echo "Copied to $DEST/$NAME.mp3"
   else
+    FAILED=1
     echo "Couldn't copy to $DEST; the MP3 is in $OUT_DIR"
   fi
 done
 IFS="$OLD_IFS"
-[ -n "$FOUND" ] || echo "The MP3 is in $OUT_DIR"
+if [ -n "$FOUND" ] && [ -z "$FAILED" ]; then
+  rm -f "$OUT_DIR/$NAME.mp3"
+  echo "Removed the local copy; the text and build record stay in $OUT_DIR"
+elif [ -z "$FOUND" ]; then
+  echo "The MP3 is in $OUT_DIR"
+fi
 exit 0

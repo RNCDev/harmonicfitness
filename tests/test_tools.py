@@ -786,8 +786,21 @@ os.execv({python!r}, [{python!r}] + sys.argv[1:])
         out = self.build()
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertTrue(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
+        local = os.path.join(self.home, "workouts", "Test build.mp3")
+        self.assertFalse(os.path.exists(local), "the local MP3 is removed once the copy is in place")
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "Test build.txt")))
         self.assertIn("--voice Chatterbox Coach", self.calls())   # the profile's default voice
         self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
+
+    def test_a_failed_copy_keeps_the_local_mp3(self):
+        os.chmod(self.phone, 0o500)   # the delivery folder can't be written
+        try:
+            out = self.build()
+        finally:
+            os.chmod(self.phone, 0o700)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("Couldn't copy", out.stdout)
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "Test build.mp3")))
 
     def test_drift_exits_2_without_a_copy_or_the_log(self):
         out = self.build(render_exit=2)
