@@ -1,5 +1,6 @@
 """Checks for the movement catalog loader, against a small synthetic catalog."""
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -320,6 +321,22 @@ class KnowledgeFiles(unittest.TestCase):
         for rel in ("CLAUDE.md", "README.md", os.path.join("knowledge", "kits.md")):
             with open(os.path.join(ROOT, rel)) as f:
                 self.assertFalse("injury-rules.toml" in f.read(), rel)
+
+    def test_skills_call_session_not_rules(self):
+        def skill(name):
+            with open(os.path.join(ROOT, ".claude", "skills", name, "SKILL.md")) as f:
+                return f.read()
+        workout, setup = skill("workout"), skill("setup")
+        for needle in ("./sweatcast session", "./sweatcast check", "--draft", "format: <method name>"):
+            self.assertIn(needle, workout, needle)
+        self.assertNotIn("--avoid", workout)
+        for needle in ("[[limits]]", "[[kits]]", "experience"):
+            self.assertIn(needle, setup, needle)
+        for name, text in (("workout", workout), ("setup", setup)):
+            low = text.lower()
+            for gone in ("injury-rules", "advance_when", "--group"):
+                self.assertNotIn(gone, low, f"{name}: {gone}")
+            self.assertIsNone(re.search(r"\bphases?\b", low), f"{name}: phase")
 
 
 if __name__ == "__main__":
