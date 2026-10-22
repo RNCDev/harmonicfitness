@@ -28,6 +28,7 @@ import cli  # noqa: E402
 import context  # noqa: E402
 import coverage  # noqa: E402
 import movements  # noqa: E402
+import paths  # noqa: E402
 import sessions  # noqa: E402
 
 BETWEEN_SLOTS = 30   # most spare seconds added as rest after any one slot
@@ -165,7 +166,8 @@ def _fit(movers: List[catalog.Movement], ranges: Dict[str, list], work: str, bud
         if count and not fixed and dose[count] > 2:
             dose[count] = 2
         if cost(n, dose) > budget:
-            raise Unfit(f"{what} is too short for {n} slots of this method even at two sets each; "
+            floor = f" even at two {count} each" if count and not fixed else ""
+            raise Unfit(f"{what} is too short for {n} slots of this method{floor}; "
                         "ask for more minutes or another method")
     while n < first and cost(n + 1, dose) <= budget:
         n += 1
@@ -198,6 +200,30 @@ def _candidates(pattern: str, pool: List[catalog.Movement], key, used: Set[str])
     if len(found) < 3:
         found += sorted((m for m in pool if pattern in m.patterns[1:]), key=key)
     return [m for m in found if m.id not in used] + [m for m in found if m.id in used]
+
+
+FAMILIES = {"lower": ("squat", "hinge", "lunge", "hips", "balance"),
+            "push": ("horizontal-push", "vertical-push", "arms"),
+            "pull": ("horizontal-pull", "vertical-pull"),
+            "core": ("anti-extension", "anti-rotation", "rotation", "carry")}
+
+
+def family(pattern: str) -> str:
+    """lower, push, pull, core or other: what a paired set alternates between."""
+    return next((name for name, ps in FAMILIES.items() if pattern in ps), "other")
+
+
+def _pair_up(entries: list) -> list:
+    """Slots in paired order: each next unpaired slot with the first later one of another family,
+    else with the next one."""
+    left, out = list(entries), []
+    while left:
+        a = left.pop(0)
+        out.append(a)
+        if left:
+            j = next((i for i, e in enumerate(left) if family(e[0]) != family(a[0])), 0)
+            out.append(left.pop(j))
+    return out
 
 
 def _rotate(ms: List[catalog.Movement], k: int) -> List[catalog.Movement]:
@@ -281,13 +307,19 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
     for lim in request.get("limits") or []:
         if lim.area not in cat.areas:
             raise ValueError(f"unknown area \"{lim.area}\" (choose from: {', '.join(cat.areas)})")
+        if lim.level not in LIMIT_LEVELS or lim.side not in LIMIT_SIDES:
+            raise ValueError(f"a limit needs a level ({', '.join(LIMIT_LEVELS)}) and a side ({', '.join(LIMIT_SIDES)})")
     own = context.limits(health, cat.areas)
     if context.prose_injuries(health) and not own:
         warnings.append("health.md lists injuries in prose but has no [[limits]] rows, so no limit is "
                         "applied for them; add a row for each")
     limits = own + list(request.get("limits") or [])
     likes, dislikes = _ids(cat, context.likes(profile)), _ids(cat, context.dislikes(profile))
-    sel = catalog.select(cat, equipment, level, limits, avoid=set(request.get("avoid") or ()), dislikes=dislikes)
+    avoid = set(request.get("avoid") or ())
+    try:
+        sel = catalog.select(cat, equipment, level, limits, avoid=avoid, dislikes=dislikes)
+    except ValueError as e:   # request limits are checked above, so this is a row in health.md
+        raise Unfit(f"{paths.show(health.path or paths.HEALTH)}: {e}; fix the [[limits]] row")
 
     last = log[-1] if log else None
     last_format = last.format if last else None
@@ -353,9 +385,10 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
             entries = filled + [(p, _rotate(ms, 1)) for p, ms in filled]
         n, dose = _fit([ms[0] for _, ms in entries], _ranges(sess, method, block["intensity"], level),
                        method.work, budget, least, bool(method.fixed), f"a {minutes} minute session", first)
-        secs = block_seconds([ms[0] for _, ms in entries[:n]], dose, method.work)
+        chosen = _pair_up(entries[:n]) if method.work == "pairs" else entries[:n]
+        secs = block_seconds([ms[0] for _, ms in chosen], dose, method.work)
         slots = [Slot(p, block["intensity"], dict(dose), s, [(m, _reasons(m, ms, p, ctx)) for m in ms])
-                 for (p, ms), s in zip(entries[:n], secs)]
+                 for (p, ms), s in zip(chosen, secs)]
         dropped += [p for p, _ in filled if p not in {s.pattern for s in slots}]
         spent += sum(secs)
         blocks.append((block["intensity"], slots))
@@ -364,7 +397,8 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
         raise Unfit(f"only {count} of the {method.min_slots} movement slots {method.name} needs fit today")
 
     spare = main - spent
-    flat = [(bi, si) for bi, (_, slots) in enumerate(blocks) for si in range(len(slots))]
+    flat = [(bi, si) for bi, (_, slots) in enumerate(blocks) for si in range(len(slots))
+            if method.work != "pairs" or si % 2 == 1 or si == len(slots) - 1]   # pairs rest only between pairs
     for bi, si in flat[:-1]:
         extra = min(BETWEEN_SLOTS, spare)
         if extra <= 0:
@@ -381,19 +415,20 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
     cooldown += spare
 
     return Skeleton(method, minutes, warmup, blocks, finisher, cooldown, dropped, warnings,
-                    _would_open(cat, sel, equipment), tuple(context.clinician_lines(health, cat.areas)), why)
+                    _would_open(cat, sel, equipment, level, limits, avoid, dislikes), tuple(context.clinician_lines(health, cat.areas)), why)
 
 
-def _would_open(cat: catalog.Catalog, sel: catalog.Selection, equipment: Set[str]) -> List[Tuple[str, int]]:
-    """Up to three equipment items not on hand, with how many movements ruled out by equipment alone
-    each would admit, most first."""
+def _would_open(cat: catalog.Catalog, sel: catalog.Selection, equipment: Set[str], level: str,
+                limits: List[catalog.Limit], avoid: Set[str], dislikes: Set[str]) -> List[Tuple[str, int]]:
+    """Up to three equipment items not on hand, with how many more movements each would allow today
+    (the same level, limits, avoid and dislikes), most first."""
+    now = {m.id for m in sel.allowed + sel.healthy_side_only}
     out = []
-    shut = [cat.movements[i] for i, why in sel.left_out.items() if why == ["equipment"]]
     for item in cat.equipment:
         if item in equipment:
             continue
-        have = equipment | {item}
-        n = sum(all(any(alt in have for alt in need.split("|")) for need in m.needs) for m in shut)
+        more = catalog.select(cat, equipment | {item}, level, limits, avoid=avoid, dislikes=dislikes)
+        n = len({m.id for m in more.allowed + more.healthy_side_only} - now)
         if n:
             out.append((item, n))
     return sorted(out, key=lambda kv: -kv[1])[:3]

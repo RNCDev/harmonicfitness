@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
@@ -101,15 +102,22 @@ class Methods(unittest.TestCase):
                          "flow", "breathing", "dose")
 
 
-def compose_for(health=None, **request):
+def compose_for(health=None, profile=None, **request):
     """session.compose for a request against the fixture catalog and the invented listener."""
     import session
     if not {"preset", "equipment"} & set(request):
         request.setdefault("kit", "home")
     cat = catalog.load(os.path.join(FIXTURES, "movements.toml"))
-    return session.compose(request, cat, sessions.load(), context.profile(os.path.join(LISTENER, "profile.md")),
+    return session.compose(request, cat, sessions.load(), profile or listener_profile(),
                            health or context.health(os.path.join(LISTENER, "health.md")),
                            context.sessions(os.path.join(LISTENER, "log.md")), TODAY)
+
+
+def listener_profile(**settings):
+    """The invented listener's profile, with some settings changed."""
+    p = context.profile(os.path.join(LISTENER, "profile.md"))
+    p.settings.update(settings)
+    return p
 
 
 def planned(sk):
@@ -150,6 +158,60 @@ class Compose(unittest.TestCase):
         self.assertEqual(squat.candidates[0][0].id, "goblet-squat")
         self.assertIn("liked", squat.candidates[0][1])
         self.assertFalse(any(m.id == "push-up" for _, slots in sk.blocks for s in slots for m, _ in s.candidates))
+
+    def test_dislike_and_like_bite_without_limits(self):
+        none = context.Health({}, "")
+        offered = lambda sk: [m.id for _, ss in sk.blocks for s in ss for m, _ in s.candidates]  # noqa: E731
+        self.assertIn("push-up", offered(compose_for(goal="strength", minutes=45, health=none,
+                                                     profile=listener_profile(dislikes=[]))))
+        self.assertNotIn("push-up", offered(compose_for(goal="strength", minutes=45, health=none)))
+        # reverse-lunge comes after split-squat in catalog order; both are fresh, so only the like puts it first
+        lunge = lambda sk: next(s for _, ss in sk.blocks for s in ss if s.pattern == "lunge")  # noqa: E731
+        plain = compose_for(goal="strength", minutes=45, health=none, profile=listener_profile(likes=[]))
+        self.assertEqual(lunge(plain).candidates[0][0].id, "split-squat")
+        liked = compose_for(goal="strength", minutes=45, health=none, profile=listener_profile(likes=["reverse lunge"]))
+        self.assertEqual(lunge(liked).candidates[0][0].id, "reverse-lunge")
+        self.assertIn("liked", lunge(liked).candidates[0][1])
+
+    def test_pairs_cross_families(self):
+        import session
+        for kw in ({}, {"health": context.Health({}, "")}):
+            sk = compose_for(goal="strength", minutes=45, **kw)
+            self.assertEqual(sk.method.work, "pairs")
+            slots = [s for _, ss in sk.blocks for s in ss]
+            for i in range(0, len(slots) - 1, 2):
+                a, b = session.family(slots[i].pattern), session.family(slots[i + 1].pattern)
+                later = {session.family(s.pattern) for s in slots[i + 2:]}
+                if a == b:
+                    self.assertEqual(later - {a}, set(), [s.pattern for s in slots])
+        mixed = [(p, None) for p in ("squat", "hinge", "horizontal-pull", "lunge", "horizontal-push")]
+        self.assertEqual([p for p, _ in session._pair_up(mixed)],
+                         ["squat", "horizontal-pull", "hinge", "horizontal-push", "lunge"])
+
+    def test_pairs_take_spare_rest_only_between_pairs(self):
+        sk = compose_for(goal="strength", minutes=30)
+        slots = [s for _, ss in sk.blocks for s in ss]
+        import session
+        bare = session.block_seconds([s.candidates[0][0] for s in slots], slots[0].dose, "pairs")
+        for i in range(0, len(slots) - 1, 2):
+            self.assertEqual(slots[i].seconds, bare[i], i)   # the first of a pair never carries spare rest
+
+    def test_would_open_up_counts_by_reselecting(self):
+        # a kettlebell would admit goblet squat, but the listener dislikes it here, so nothing opens
+        sk = compose_for(goal="strength", minutes=30, equipment={"mat", "band"},
+                         profile=listener_profile(dislikes=["push-up", "goblet-squat"]))
+        opened = dict(sk.would_open)
+        self.assertNotIn("kettlebell", opened)
+        self.assertEqual(opened.get("dumbbells"), 2)   # one arm row and the deadlift; goblet squat is disliked
+
+    def test_bad_health_row_is_unfit_not_usage(self):
+        import session
+        h = context.Health({}, "")
+        with self.assertRaises(session.Unfit) as caught:
+            with unittest.mock.patch.object(context, "limits",
+                                            return_value=[catalog.Limit("wrist", "both", "sore", [], [], "")]):
+                compose_for(goal="strength", minutes=30, health=h)
+        self.assertIn("health", str(caught.exception))
 
     def test_last_session_movements_rank_after_fresh_ones(self):
         sk = compose_for(goal="strength", minutes=30)
