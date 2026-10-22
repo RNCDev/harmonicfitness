@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""The movements allowed today for a kit, by movement pattern.
+"""The movements a kit allows, by movement pattern, for browsing the catalog.
 
-The workout skill plans from this list instead of from memory: every movement printed fits the
-equipment and level and breaks none of the movements or flags to avoid. Read from the movement
-catalog (knowledge/movements.toml). Limits from the health file are applied by the session
-builder, not here.
+This filter applies no health limits: every movement printed fits the equipment and level and
+breaks none of the movements or flags to avoid, but the limits in the health file are not checked.
+It is for browsing (such as finding a movement's name for likes and dislikes); a session's plan,
+warm-up and cool-down included, comes from `./sweatcast session`, which applies the limits. Read
+from the movement catalog (knowledge/movements.toml).
 
     ./sweatcast movements --preset hotel-room --avoid impact
     ./sweatcast movements --equipment dumbbells,mat --pattern squat --level novice
@@ -69,7 +70,9 @@ def avoid_set(cat: catalog.Catalog, words: List[str]) -> Set[str]:
 
 
 def main():
-    ap = cli.ArgumentParser(prog="sweatcast movements")
+    ap = cli.ArgumentParser(prog="sweatcast movements", description=(
+        "Browse the movements a kit allows, by pattern. This filter applies no health limits; "
+        "plan sessions with ./sweatcast session, which does."))
     kit = ap.add_mutually_exclusive_group(required=True)
     kit.add_argument("--preset", help="a kit preset from the catalog, such as hotel-room")
     kit.add_argument("--equipment", help="comma-separated equipment, as keys or aliases")

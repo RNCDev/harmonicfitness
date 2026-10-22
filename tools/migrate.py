@@ -19,7 +19,8 @@ Steps:
         settings (empty; fill them in, and add `[[kits]]` tables if you want named kits);
         health.md gains a comment in its settings block saying each injury needs a
         `[[limits]]` entry, which you write yourself (the tools can't read an injury from
-        prose). The other files only change their schema number.
+        prose), and that the old comment naming injury-rules.toml and phases is to be
+        deleted. The other files only change their schema number.
 """
 import os
 import re
@@ -49,7 +50,9 @@ def to_2(text, path):
 
 
 HEALTH_NOTE = ("# Each injury listed below needs a [[limits]] entry here (area, side, level, note); the session tool\n"
-               "# reads only these rows. Move old \"Clinician rules:\" sub-bullets to the ## Clinician rules section.")
+               "# reads only these rows. Move old \"Clinician rules:\" sub-bullets to the ## Clinician rules section.\n"
+               "# Delete the old comment below that names knowledge/injury-rules.toml, phases and advance_when, and\n"
+               "# any \"Phase\" or \"Move to the next phase\" sub-bullets: those files and phases are gone.")
 
 
 def to_3(text, path):

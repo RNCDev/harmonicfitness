@@ -20,6 +20,8 @@ LEVELS = ("novice", "experienced", "advanced")
 INTENSITIES = ("strength", "conditioning", "mobility", "skill", "breathing")
 LOAD_MAX = 3
 SIDE_WORDS = ("left ", "right ", "both sides ")
+LIMIT_SIDES = ("left", "right", "both")
+LIMIT_LEVELS = ("off-limits", "delicate")
 SPOKEN_OK = re.compile(r"[A-Za-z .,'?!-]*")
 
 
@@ -213,10 +215,10 @@ def kit_equipment(cat: Catalog, kit: dict) -> Set[str]:
 class Limit(NamedTuple):
     """One standing limit from the listener's health file."""
     area: str
-    side: str          # "left", "right" or "both"
-    level: str         # "off-limits" or "delicate"
+    side: str          # one of LIMIT_SIDES
+    level: str         # one of LIMIT_LEVELS
     flags: List[str]   # flags this limit rules out
-    rehab: List[str]   # movement ids the limit's rehab plan names; they skip this limit's checks
+    rehab: List[str]   # movement ids the limit's rehab plan names; rehab entries among them skip its checks
     note: str
 
 
@@ -235,16 +237,18 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
            avoid: Set[str] = frozenset(), dislikes: Set[str] = frozenset()) -> Selection:
     """Sort every movement into allowed, healthy-side-only or left out, with the reasons.
 
-    "draft" and "equipment" end the checks; the rest accumulate. A movement named in a limit's
-    `rehab` list skips that limit's checks. `avoid` holds movement ids or flags."""
+    "draft" and "equipment" end the checks; the rest accumulate. A rehab entry named in a limit's
+    `rehab` list skips that limit's checks (any other movement named there does not). A limit on
+    both sides counts a sided movement's support as well as its load. `avoid` holds movement ids
+    or flags."""
     allowed: List[Movement] = []
     healthy: List[Movement] = []
     left_out: Dict[str, List[str]] = {}
     for lim in limits:
-        if lim.level not in ("off-limits", "delicate"):
-            raise ValueError(f"unknown limit level \"{lim.level}\" (choose from: off-limits, delicate)")
-        if lim.side not in ("left", "right", "both"):
-            raise ValueError(f"unknown limit side \"{lim.side}\" (choose from: left, right, both)")
+        if lim.level not in LIMIT_LEVELS:
+            raise ValueError(f"unknown limit level \"{lim.level}\" (choose from: {', '.join(LIMIT_LEVELS)})")
+        if lim.side not in LIMIT_SIDES:
+            raise ValueError(f"unknown limit side \"{lim.side}\" (choose from: {', '.join(LIMIT_SIDES)})")
     named = {i for lim in limits for i in lim.rehab}
     for m in cat.movements.values():
         if m.draft:
@@ -264,7 +268,7 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
         if m.rehab and m.id not in named:
             reasons.append("rehab")
         for lim in limits:
-            if m.id in lim.rehab:
+            if m.rehab and m.id in lim.rehab:
                 continue
             need = threshold(lim)
             bad = [f for f in lim.flags if f in m.flags]
@@ -272,8 +276,8 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
                 bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad]
             reasons += bad   # a flag is its own reason
             why = f"{lim.area} {'off limits' if lim.level == 'off-limits' else 'delicate'}"
-            if lim.side == "both" or not m.sided:
-                hit = m.loads.get(lim.area, 0) >= need
+            if lim.side == "both" or not m.sided:   # both sides limited: the resting side counts too
+                hit = max(m.loads.get(lim.area, 0), m.support.get(lim.area, 0) if m.sided else 0) >= need
             elif m.support.get(lim.area, 0) >= need:
                 hit = True
             else:

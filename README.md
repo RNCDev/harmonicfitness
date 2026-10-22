@@ -26,7 +26,7 @@ Claude Code runs these for you, but they work on their own too. `./sweatcast hel
 | `./sweatcast build <draft> "<name>"` | Lints a draft, renders the MP3, copies it to your phone's folder (`--lint-only` to just lint) |
 | `./sweatcast voices` | Lists voices; `design` and `keep` make a new one from a description |
 | `./sweatcast session --goal strength --minutes 30 --preset hotel-room` | A session skeleton: the method, timed slots and ranked movements that fit the kit, your level and the limits in `me/health.md` |
-| `./sweatcast movements --preset hotel-room` | Lists the movements a kit allows, by movement pattern; `--avoid` rules out movement ids or flags |
+| `./sweatcast movements --preset hotel-room` | Lists the movements a kit allows, by movement pattern, for browsing; it applies no health limits (plan with `./sweatcast session`); `--avoid` rules out movement ids or flags |
 | `./sweatcast feeds`, `coverage`, `youtube`, `log-session` | What the workout skill uses to research, plan and log |
 | `./sweatcast migrate`, `cache prune`, `test` | Upkeep |
 
@@ -95,7 +95,7 @@ Each paragraph is voiced by cloning the voice's reference clip with Chatterbox T
 | `tools/feeds.py` | Fetches your feeds (results, schedules, weather, headlines, weekly podcasts and puzzles) into a dated sheet |
 | `tools/youtube.py` | Picks a recent video from your favorite channels or continues a series, lists unused puzzles, saves a transcript |
 | `tools/catalog.py` | Loads and checks the movement catalog, matches a logged name to a movement, and selects what a kit, level and injury limits allow |
-| `tools/movements.py` | The filter (`./sweatcast movements`): the movements a kit allows, minus any movement ids or flags to avoid |
+| `tools/movements.py` | The filter (`./sweatcast movements`): the movements a kit allows, minus any movement ids or flags to avoid; for browsing, with no health limits |
 | `tools/sessions.py` | Loads and checks the session methods and doses (`knowledge/sessions.toml`) and picks today's method |
 | `tools/session.py` | The session skeleton (`./sweatcast session`): method, timing and ranked movements; `--draft` prints the `@@` markers |
 | `tools/coverage.py` | Reads your log and lists the movement patterns the last session left out and the week neglected, its format and the last loads |

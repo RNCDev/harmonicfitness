@@ -37,8 +37,7 @@ CYCLING = ("holds", "intervals")   # work kinds whose patterns repeat to fill th
 CYCLE_CAP = 12       # most slots a cycling block holds
 SPARE_WARNING = 0.10   # spare beyond this share of the request, after everything else, is warned about
 STEP = {"sets": 1, "rounds": 1, "reps": 1, "rest_seconds": 15}   # other keys (seconds of work) step by 5
-LIMIT_SIDES = ("left", "right", "both")
-LIMIT_LEVELS = ("off-limits", "delicate")
+LIMIT_SIDES, LIMIT_LEVELS = catalog.LIMIT_SIDES, catalog.LIMIT_LEVELS
 OTHER_SIDE = {"left": "right", "right": "left"}
 
 
@@ -67,6 +66,8 @@ class Skeleton(NamedTuple):
     health: Tuple[str, ...] = ()           # the clinician lines, to follow literally
     why: str = ""                          # why this method today
     healthy_sides: Optional[Dict[str, str]] = None   # healthy-side-only movement id -> the side to work
+    extras: Optional[Dict[str, List[Tuple[catalog.Movement, str]]]] = None   # "warmup", "finisher",
+    #   "cooldown" -> ranked (movement, reasons), screened by the same kit, level and limits as the slots
 
 
 # ---- timing ------------------------------------------------------------------------------
@@ -299,8 +300,8 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
     warnings: List[str] = []
     level = request.get("level") or context.experience(profile)
     if not level:
-        level = "experienced"
-        warnings.append("no experience level in the profile; assuming experienced")
+        level = "novice"
+        warnings.append("no experience level in the profile; assuming novice")
     if level not in catalog.LEVELS:
         raise ValueError(f"unknown level \"{level}\" (choose from: {', '.join(catalog.LEVELS)})")
     for t in request.get("target") or []:
@@ -312,7 +313,7 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
             raise ValueError(f"unknown area \"{lim.area}\" (choose from: {', '.join(cat.areas)})")
         if lim.level not in LIMIT_LEVELS or lim.side not in LIMIT_SIDES:
             raise ValueError(f"a limit needs a level ({', '.join(LIMIT_LEVELS)}) and a side ({', '.join(LIMIT_SIDES)})")
-    own = context.limits(health, cat.areas)
+    own = context.limits(health, cat.areas, cat.flags)
     rows = health.settings.get("limits") or []
     if len(rows if isinstance(rows, list) else [rows]) > len(own):   # a dropped row protects nothing
         raise Unfit("health.md: a [[limits]] row was ignored (run ./sweatcast check)")
@@ -440,18 +441,44 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
         warnings.append(f"method filled early: {spare} s spare went to the cool-down")
     cooldown += spare
 
-    today_lines = [f"today: {lim.area} {lim.level}" + (f" {lim.side}" if lim.side != "both" else "")
-                   for lim in request.get("limits") or []]
+    today_lines = [f"today: {context.limit_line(lim)}" for lim in request.get("limits") or []]
+    sides = {m.id: _healthy_side(m, limits) for m in sel.healthy_side_only}
+    prefer = lambda order: lambda m: order.index(m.patterns[0]) if m.patterns[0] in order else None  # noqa: E731
+    extras = {"warmup": _extras(pool, prefer(WARMUP_PATTERNS), 5, rank, used, ctx, sides),
+              "finisher": (_extras(pool, lambda m: 0 if m.intensity == "conditioning" else None, 3, rank, used,
+                                   ctx, sides) if finisher else []),
+              "cooldown": _extras(pool, prefer(COOLDOWN_PATTERNS), 5, rank, used, ctx, sides)}
     return Skeleton(method, minutes, warmup, blocks, finisher, cooldown, dropped, warnings,
                     _would_open(cat, sel, equipment, level, limits, avoid, dislikes),
-                    tuple(context.clinician_lines(health, cat.areas)) + tuple(today_lines), why,
-                    {m.id: _healthy_side(m, limits) for m in sel.healthy_side_only})
+                    tuple(context.clinician_lines(health, cat.areas, cat.flags)) + tuple(today_lines), why,
+                    sides, extras)
+
+
+WARMUP_PATTERNS = ("locomotion", "mobility", "breathing")    # in the order the warm-up prefers them
+COOLDOWN_PATTERNS = ("breathing", "mobility", "locomotion")  # the cool-down closes on breathing
+
+
+def _extras(pool: List[catalog.Movement], fits, top: int, key, used: Set[str], ctx: dict,
+            sides: Dict[str, str]) -> List[Tuple[catalog.Movement, str]]:
+    """Up to `top` movements for the warm-up, finisher or cool-down: those of the screened pool that
+    `fits` (a number: earlier is preferred; None: left out), then ranked as the slots are (a slot's
+    default moves to the back); a healthy-side-only one says which side it works."""
+    found = sorted((m for m in pool if fits(m) is not None), key=lambda m: (fits(m), key(m)))
+    found = [m for m in found if m.id not in used] + [m for m in found if m.id in used]
+    out = []
+    for m in found[:top]:
+        why = _reasons(m, found, m.patterns[0], ctx)
+        if m.id in sides:
+            why = why.replace("healthy side only", f"{sides[m.id]} side only")
+        out.append((m, why))
+    return out
 
 
 def _healthy_side(m: catalog.Movement, limits: List[catalog.Limit]) -> str:
     """The side a healthy-side-only movement works: the one opposite the sided limit that loads it."""
     for lim in limits:
-        if lim.side in OTHER_SIDE and m.id not in lim.rehab and m.loads.get(lim.area, 0) >= catalog.threshold(lim):
+        skipped = m.rehab and m.id in lim.rehab   # as in catalog.select
+        if lim.side in OTHER_SIDE and not skipped and m.loads.get(lim.area, 0) >= catalog.threshold(lim):
             return OTHER_SIDE[lim.side]
     return "healthy"
 
@@ -490,8 +517,10 @@ def _named(m: catalog.Movement, sk: Skeleton) -> str:
 
 def _dose_text(slot: Slot, sk: Skeleton) -> str:
     d, m, work = slot.dose, slot.candidates[0][0], sk.method.work
-    if work == "intervals":
-        return f"{d['rounds']} rounds of {d['work_seconds']} s on, {d.get('rest_seconds', 0)} s off"
+    if work == "intervals":   # an interval's work is the same seconds whichever side, so only a lone side is named
+        side = _side_words(m, sk)
+        text = f"{d['rounds']} rounds of {d['work_seconds']} s on, {d.get('rest_seconds', 0)} s off"
+        return text + (f" ({side})" if side and side != "each side" else "")
     count, label = (d["sets"], "sets") if "sets" in d else (d.get("rounds", 1), "rounds")
     each = str(d["reps"]) if m.measure == "reps" and "reps" in d else f"{_work_each(m, d)} s"
     text = f"{count} {label} of {each}" + (f" ({_side_words(m, sk)})" if _side_words(m, sk) else "")
@@ -502,20 +531,30 @@ def _total(sk: Skeleton) -> int:
     return sk.warmup + sum(s.seconds for _, slots in sk.blocks for s in slots) + sk.finisher + sk.cooldown
 
 
+def _picks(candidates: List[Tuple[catalog.Movement, str]]) -> str:
+    return "; ".join(f"{m.id} [{why}]" if why else m.id for m, why in candidates)
+
+
+def _extra_lines(head: str, candidates) -> List[str]:
+    """A warm-up, finisher or cool-down line, with its screened candidates on the next line."""
+    return [head + ":", f"  {_picks(candidates)}"] if candidates else [head]
+
+
 def render(sk: Skeleton) -> List[str]:
     """The skeleton as lines: health rules, warnings, the method, then the timing and each slot's
-    pattern, dose and top three movements with the reasons they rank there."""
+    pattern, dose and top three movements with the reasons they rank there; the warm-up, finisher and
+    cool-down list their screened candidates on the line under them."""
     out = [f"Health: {line}" for line in sk.health] + list(sk.warnings)
     out.append(f"Method: {sk.method.name}, because {sk.why}. {sk.method.about}")
-    out.append(f"Warm-up: {sk.warmup} s")
+    extras = sk.extras or {}
+    out += _extra_lines(f"Warm-up: {sk.warmup} s", extras.get("warmup"))
     for intensity, slots in sk.blocks:
         out.append(f"{intensity} block, {sum(s.seconds for s in slots)} s:")
         for s in slots:
-            picks = "; ".join(f"{m.id} [{why}]" if why else m.id for m, why in s.candidates[:3])
-            out.append(f"  {s.pattern} ({_dose_text(s, sk)}, {s.seconds} s): {picks}")
+            out.append(f"  {s.pattern} ({_dose_text(s, sk)}, {s.seconds} s): {_picks(s.candidates[:3])}")
     if sk.finisher:
-        out.append(f"Finisher: {sk.finisher} s")
-    out.append(f"Cool-down: {sk.cooldown} s")
+        out += _extra_lines(f"Finisher: {sk.finisher} s", extras.get("finisher"))
+    out += _extra_lines(f"Cool-down: {sk.cooldown} s", extras.get("cooldown"))
     out.append(f"Total: {_total(sk)} s of {sk.minutes * 60} s")
     if sk.dropped:
         out.append(f"Dropped: {', '.join(sk.dropped)} (no time left for them)")
@@ -544,8 +583,8 @@ def _round_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
 def render_draft(sk: Skeleton) -> List[str]:
     """Only the `@@ <seconds> | <title>` markers, in order: the warm-up, one per slot (one per round for
     rounds, one per work-and-rest pair for intervals), the finisher when there is one, the cool-down.
-    Each title names the slot's default movement, with "each side" for a sided one or "<side> side only"
-    for a healthy-side-only one (not on intervals); the seconds add up to the skeleton's total."""
+    Each title names the slot's default movement, with "each side" for a sided one (not on intervals)
+    or "<side> side only" for a healthy-side-only one; the seconds add up to the skeleton's total."""
     out = [f"@@ {sk.warmup} | Warm-up"]
     work = sk.method.work
     for _, slots in sk.blocks:
@@ -553,10 +592,9 @@ def render_draft(sk: Skeleton) -> List[str]:
             out += _round_markers(slots, sk)
             continue
         for s in slots:
-            name = s.candidates[0][0].name
-            if work != "intervals":   # an interval's work is the same seconds whichever side
-                name = _named(s.candidates[0][0], sk)
-            if work == "intervals":
+            name = _named(s.candidates[0][0], sk)
+            if work == "intervals":   # an interval's work is the same seconds whichever side
+                name = name.removesuffix(" each side")
                 rounds, each = s.dose["rounds"], s.dose["work_seconds"] + s.dose.get("rest_seconds", 0)
                 out += [f"@@ {each + (s.seconds - rounds * each if i == rounds - 1 else 0)} | "
                         f"{name}, interval {i + 1} of {rounds}" for i in range(rounds)]

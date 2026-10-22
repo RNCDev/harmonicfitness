@@ -1,6 +1,6 @@
 # Equipment Kits
 
-What each kind of kit usually holds, and how to script around it. The movements themselves live in the catalog, `knowledge/movements.toml`, each with its equipment, spoken setup, cues and how much it loads each joint area. Don't pick from memory: after the check-in, run `./sweatcast session` for today's request and kit (or `./sweatcast movements` to browse) and choose from what it prints.
+What each kind of kit usually holds, and how to script around it. The movements themselves live in the catalog, `knowledge/movements.toml`, each with its equipment, spoken setup, cues and how much it loads each joint area. Don't pick from memory: after the check-in, run `./sweatcast session` for today's request and kit and choose every movement, warm-up, finisher and cool-down included, from what it prints. `./sweatcast movements` is only for browsing the catalog: it applies no health limits, so never plan from it.
 
 ## Choosing the kit for the filter
 Four kits have a preset in the catalog: `--preset bodyweight`, `--preset hotel-room`, `--preset hotel-gym` and `--preset full-gym`. For any other kit, such as the one at home, pass its equipment instead: `--equipment dumbbells,bench,band`, using the keys or aliases in the catalog's `[equipment]` table ("resistance bands" and "band" both work). Floor and wall space are always assumed. `./sweatcast session` applies the limits in `me/health.md` itself (the injury playbook explains them); `--avoid` takes any further movement ids or flags to rule out.

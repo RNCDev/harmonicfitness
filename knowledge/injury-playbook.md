@@ -51,7 +51,7 @@ No area-specific source confirmed. Off limits keeps grip and arm work off; delic
 
 ## Wrist
 No area-specific source confirmed. Off limits keeps weight and grip off the hand; delicate allows straight-wrist push-ups on handles. Delicate once a loose fist is pain-free; clear once grip matches the other hand.
-- Soft-tissue care runs on to loading, not just rest and ice; no timings. Applies to elbow and neck too. Source: https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-need-peace-love/
+- Soft-tissue care runs on to loading, not just rest and ice; no timings. Source: https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-need-peace-love/
 
 ## Neck
 No area-specific source confirmed. Off limits keeps load and fast head turns off; delicate allows light carries, head neutral. Delicate once slow head turns are pain-free; clear once overhead work leaves no neck pain next day.

@@ -256,6 +256,72 @@ class Compose(unittest.TestCase):
         self.assertFalse(squat.candidates[0][0].sided)
         self.assertNotIn("each side", next(t for t in titles if t.lower().startswith(squat.candidates[0][0].name.lower())))
 
+    def test_interval_slots_keep_the_healthy_side(self):
+        import session
+        sk = compose_for(goal="conditioning", minutes=20, method="tabata")   # the fixture's left wrist is delicate
+        self.assertEqual(sk.method.work, "intervals")
+        core = next(s for _, ss in sk.blocks for s in ss if s.pattern == "anti-extension")
+        self.assertEqual(core.candidates[0][0].id, "one-arm-plank")   # healthy side only
+        titles = [line.split("|", 1)[1].strip() for line in session.render_draft(sk)]
+        plank = [t for t in titles if t.startswith("one arm plank")]
+        self.assertTrue(plank)
+        self.assertTrue(all(t.startswith("one arm plank right side only, interval") for t in plank), plank)
+        self.assertFalse(any("each side" in t for t in titles), titles)
+        text = "\n".join(session.render(sk))
+        self.assertRegex(text, r"anti-extension \(8 rounds of 20 s on, 10 s off \(right side only\)")
+
+    def test_warmup_finisher_and_cooldown_candidates_are_screened(self):
+        import session
+        sk = compose_for(goal="strength", minutes=30, equipment={"mat", "dumbbells", "bike"})   # left wrist delicate
+        self.assertTrue(sk.finisher)
+        for part in ("warmup", "cooldown"):
+            picks = [m for m, _ in sk.extras[part]]
+            self.assertTrue(picks, part)
+            self.assertLessEqual(len(picks), 5)
+            for m in picks:
+                self.assertIn(m.patterns[0], ("mobility", "breathing", "locomotion"), m.id)
+                if not m.sided:
+                    self.assertLess(m.loads.get("wrist", 0), 2, (part, m.id))
+            self.assertNotIn("bear-crawl", [m.id for m in picks])
+        fin = [m for m, _ in sk.extras["finisher"]]
+        self.assertTrue(fin)
+        self.assertLessEqual(len(fin), 3)
+        self.assertTrue(all(m.intensity == "conditioning" for m in fin))
+        self.assertEqual(sk.extras["cooldown"][0][0].id, "box-breathing")   # the skill's close is box breathing
+        self.assertEqual(sk.extras["warmup"][0][0].patterns[0], "locomotion")
+        self.assertNotEqual(sk.extras["warmup"], sk.extras["cooldown"])
+        lines = session.render(sk)
+        at = lines.index(f"Warm-up: {sk.warmup} s:")
+        self.assertIn("box-breathing", lines[at + 1])
+        self.assertTrue(lines[at + 1].startswith("  "))
+        self.assertIn(f"Finisher: {sk.finisher} s:", lines)
+        self.assertIn(f"Cool-down: {sk.cooldown} s:", lines)
+        self.assertEqual(session.render_draft(sk)[0], f"@@ {sk.warmup} | Warm-up")
+        short = compose_for(goal="general", minutes=12)   # no finisher under twenty-five minutes
+        self.assertEqual((short.finisher, short.extras["finisher"]), (0, []))
+        self.assertFalse(any(line.startswith("Finisher") for line in session.render(short)))
+
+    def test_healthy_side_extras_name_the_side(self):
+        sk = compose_for(goal="strength", minutes=30, equipment={"mat", "dumbbells"},
+                         limits=[catalog.Limit("knee", "right", "delicate", [], [], "")])
+        stretch = dict((m.id, r) for m, r in sk.extras["warmup"]).get("hip-flexor-stretch")
+        self.assertIsNotNone(stretch)
+        self.assertIn("left side only", stretch)
+
+    def test_no_experience_assumes_novice(self):
+        sk = compose_for(goal="strength", minutes=30, profile=listener_profile(experience=""))
+        self.assertIn("no experience level in the profile; assuming novice", sk.warnings)
+        offered = [m for _, ss in sk.blocks for s in ss for m, _ in s.candidates]
+        self.assertTrue(all(m.level == "novice" for m in offered))
+
+    def test_limit_without_a_note_prints_a_health_line(self):
+        import session
+        h = context.Health({"limits": [{"area": "knee", "side": "left", "level": "delicate"},
+                                       {"area": "calf", "level": "off-limits", "note": "Physio: no calf raises."}]}, "")
+        lines = session.render(compose_for(goal="strength", minutes=30, health=h))
+        self.assertIn("Health: knee delicate left", lines)
+        self.assertIn("Health: calf off-limits: Physio: no calf raises.", lines)
+
     def test_short_request_drops_slots_not_time(self):   # Review Focus 2
         sk = compose_for(goal="general", minutes=12)
         self.assertGreaterEqual(len(sk.dropped), 1)

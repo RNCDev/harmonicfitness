@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import catalog  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+EVERY_MOVEMENT_RULE = ("Every movement in every segment, including the warm-up, finisher and cool-down, comes from "
+                       "the `./sweatcast session` output; nothing from memory or from `./sweatcast movements`.")
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "movements.toml")
 
 
@@ -121,8 +123,17 @@ class RealCatalog(unittest.TestCase):
         self.assertIn("reverse-lunge", out("calf", level="off-limits"))
         self.assertIn("split-squat", out("calf", side="left"))   # the rear foot is on its toes
         self.assertIn("pike-push-up", out("neck"))
-        for mid in ("glute-bridge", "prone-y-t-w-raise"):
+        for mid in ("glute-bridge", "prone-y-t-w-raise", "overhead-press", "seated-shoulder-press",
+                    "half-kneeling-kettlebell-press", "hip-thrust", "single-leg-glute-bridge"):
             self.assertIn(mid, out("neck", level="off-limits"))
+
+    def test_both_side_limits_count_the_support_side(self):
+        cat = catalog.load()
+        everything = set(cat.equipment)
+        sel = lambda area, level: catalog.select(  # noqa: E731
+            cat, everything, "advanced", [catalog.Limit(area, "both", level, [], [], "")])
+        self.assertIn("wrist delicate", sel("wrist", "delicate").left_out["thread-the-needle"])   # support wrist 2
+        self.assertIn("low-back off limits", sel("low-back", "off-limits").left_out["single-arm-row"])   # support 1
 
     def test_incline_push_up_needs_a_surface_and_bodyweight_has_a_wall_push_up(self):
         cat = catalog.load()
@@ -236,6 +247,28 @@ class Select(unittest.TestCase):
         sel = catalog.select(cat, set(), "novice", mixed)
         self.assertEqual(sel.left_out["split-squat"], ["knee delicate", "ankle off limits"])
 
+    def test_both_side_limit_checks_support(self):
+        cat = catalog.load(FIXTURE)
+        lim = [catalog.Limit("low-back", "both", "off-limits", [], [], "")]   # one-arm-row: support low-back 1, load 0
+        self.assertEqual(catalog.select(cat, {"dumbbells"}, "novice", lim).left_out["one-arm-row"], ["low-back off limits"])
+        cat.movements["one-arm-row"].support["wrist"] = 2
+        lim = [catalog.Limit("wrist", "both", "delicate", [], [], "")]
+        self.assertEqual(catalog.select(cat, {"dumbbells"}, "novice", lim).left_out["one-arm-row"], ["wrist delicate"])
+
+    def test_rehab_list_bypasses_only_rehab_entries(self):
+        cat = catalog.load(FIXTURE)
+        lim = [catalog.Limit("knee", "both", "off-limits", [], ["air-squat"], "")]   # air-squat is no rehab entry
+        self.assertEqual(catalog.select(cat, set(), "novice", lim).left_out["air-squat"], ["knee off limits"])
+
+    def test_limit_values_are_defined_once(self):
+        import context
+        import session
+        self.assertEqual(catalog.LIMIT_SIDES, ("left", "right", "both"))
+        self.assertEqual(catalog.LIMIT_LEVELS, ("off-limits", "delicate"))
+        for mod in (context, session):
+            self.assertIs(mod.LIMIT_SIDES, catalog.LIMIT_SIDES, mod.__name__)
+            self.assertIs(mod.LIMIT_LEVELS, catalog.LIMIT_LEVELS, mod.__name__)
+
     def test_delicate_boundary_is_exactly_two(self):
         cat = catalog.load(FIXTURE)
         lim = [catalog.Limit("wrist", "both", "delicate", [], [], "")]   # push-up wrist = 2
@@ -321,6 +354,14 @@ class Filter(unittest.TestCase):
     def test_equipment_alias_is_accepted(self):
         self.assertEqual(run_movements(["--equipment", "yoga mat"]).returncode, 0)
 
+    def test_filter_says_it_applies_no_health_limits(self):
+        import movements
+        r = run_movements(["--help"])
+        self.assertIn("applies no health limits", " ".join(r.stdout.split()))
+        self.assertIn("applies no health limits", " ".join(movements.__doc__.split()))
+        with open(os.path.join(ROOT, "knowledge", "kits.md")) as f:
+            self.assertIn("applies no health limits", " ".join(f.read().split()))
+
 
 class KnowledgeFiles(unittest.TestCase):
     def test_programming_reference_is_sourced(self):
@@ -342,6 +383,7 @@ class KnowledgeFiles(unittest.TestCase):
         self.assertIn("Red flags", headings)
         for word in ("protect", "rebuild", "ban_ids"):
             self.assertNotIn(word, text.lower(), word)
+        self.assertNotIn("Applies to elbow and neck too", text)
 
     def test_docs_name_no_removed_files(self):
         for rel in ("CLAUDE.md", "README.md", os.path.join("knowledge", "kits.md")):
@@ -355,9 +397,12 @@ class KnowledgeFiles(unittest.TestCase):
         workout, setup = skill("workout"), skill("setup")
         for needle in ("./sweatcast session", "./sweatcast check", "--draft", "format: <method name>"):
             self.assertIn(needle, workout, needle)
-        self.assertNotIn("--avoid", workout)
-        for needle in ("[[limits]]", "[[kits]]", "experience"):
+        for needle in ("[[limits]]", "[[kits]]", "experience", "Unlisted:", "Avoid:"):
             self.assertIn(needle, setup, needle)
+        for needle in ("--avoid", "Unlisted:", "Avoid:"):
+            self.assertIn(needle, workout, needle)
+        self.assertEqual(workout.count(EVERY_MOVEMENT_RULE), 2)   # Step 2 and Step 3
+        self.assertIn("default is novice", workout)
         for name, text in (("workout", workout), ("setup", setup)):
             low = text.lower()
             for gone in ("injury-rules", "advance_when", "--group"):

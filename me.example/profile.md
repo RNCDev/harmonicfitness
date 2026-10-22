@@ -2,7 +2,7 @@
 schema = 3
 # The drafting guide's starting rate; the lint then uses each voice's measured pace.
 words_per_minute = 165
-# Your training level: novice, experienced or advanced. The session tool picks movements to match.
+# Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.
 experience = ""
 # Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.
 likes = []

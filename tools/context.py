@@ -335,7 +335,7 @@ def add_voice_to_profile(name, description="", default=False, path=None):
 
 SETTINGS_COMMENTS = {
     "words_per_minute": "The drafting guide's starting rate; the lint then uses each voice's measured pace.",
-    "experience": "Your training level: novice, experienced or advanced. The session tool picks movements to match.",
+    "experience": "Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.",
     "likes": "Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.",
     "dislikes": "Movements to leave out (ids or names); the session tool never picks them.",
     "deliver_to": "Where finished MP3s are copied: a folder that syncs to your phone. ~ is your home "
@@ -352,8 +352,7 @@ SETTINGS_COMMENTS = {
 
 # ---- the health file -------------------------------------------------------------------
 
-LIMIT_SIDES = ("left", "right", "both")
-LIMIT_LEVELS = ("off-limits", "delicate")
+LIMIT_SIDES, LIMIT_LEVELS = catalog.LIMIT_SIDES, catalog.LIMIT_LEVELS
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 INJURIES_HEADING = "Active injuries and limitations"
 CLINICIAN_HEADING = "Clinician rules"
@@ -377,8 +376,9 @@ def health(path=None):
     return Health(settings, rest, path)
 
 
-def _limit_row(row, areas):
-    """(Limit, None) for a good [[limits]] row, else (None, a sentence saying what's wrong)."""
+def _limit_row(row, areas, flags=None):
+    """(Limit, None) for a good [[limits]] row, else (None, a sentence saying what's wrong).
+    `flags` are the catalog's; a flag outside them is wrong (None skips that check)."""
     if not isinstance(row, dict):
         return None, "isn't a table"
     area, side = row.get("area"), row.get("side", "both")
@@ -386,19 +386,35 @@ def _limit_row(row, areas):
     if area not in areas:
         return None, f"area '{area}' isn't one of: {', '.join(areas)}"
     if side not in LIMIT_SIDES:
-        return None, f"side '{side}' must be left, right or both"
+        return None, f"side '{side}' must be {', '.join(LIMIT_SIDES[:-1])} or {LIMIT_SIDES[-1]}"
     if level not in LIMIT_LEVELS:
-        return None, f"level '{level}' must be off-limits or delicate"
-    strings = lambda key: [x for x in row.get(key) or [] if isinstance(x, str)]  # noqa: E731
-    return catalog.Limit(area, side, level, strings("flags"), strings("rehab"),
+        return None, f"level '{level}' must be {' or '.join(LIMIT_LEVELS)}"
+    for key in ("flags", "rehab"):
+        value = row.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+            example = "floor" if key == "flags" else "a-movement-id"
+            return None, f"{key} must be a list of quoted names, such as {key} = [\"{example}\"]"
+    unknown = [f for f in row.get("flags", []) if flags is not None and f not in flags]
+    if unknown:
+        return None, f"flag '{unknown[0]}' isn't one of: {', '.join(flags)}"
+    return catalog.Limit(area, side, level, list(row.get("flags", [])), list(row.get("rehab", [])),
                          str(row.get("note") or "").strip()), None
 
 
-def limits(h, areas=None):
-    """The valid [[limits]] rows as catalog.Limit; a row with a bad area, side or level is
-    left out (`check` reports it)."""
-    areas = catalog.load().areas if areas is None else areas
-    found = (_limit_row(row, areas)[0] for row in h.settings.get("limits") or [])
+def _vocab(areas, flags):
+    """The catalog's areas and flags, loading the shipped catalog for whichever is None."""
+    if areas is None or flags is None:
+        cat = catalog.load()
+        areas = cat.areas if areas is None else areas
+        flags = cat.flags if flags is None else flags
+    return areas, flags
+
+
+def limits(h, areas=None, flags=None):
+    """The valid [[limits]] rows as catalog.Limit; a row with a bad area, side, level, flags or
+    rehab is left out (`check` reports it, and the session tool refuses to plan)."""
+    areas, flags = _vocab(areas, flags)
+    found = (_limit_row(row, areas, flags)[0] for row in h.settings.get("limits") or [])
     return [lim for lim in found if lim]
 
 
@@ -407,10 +423,17 @@ def _section_lines(h, heading):
     return [line.strip() for _, line in section(text, heading)]
 
 
-def clinician_lines(h, areas=None):
-    """Each limit's note, then every line under `## Clinician rules`, as rules to follow
-    literally. Blank lines and the template's [hint] don't count."""
-    out = [lim.note for lim in limits(h, areas) if lim.note]
+def limit_line(lim):
+    """`<area> <level>[ <side>][: <note>]`: how a limit reads as a health line."""
+    head = f"{lim.area} {lim.level}" + (f" {lim.side}" if lim.side != "both" else "")
+    return f"{head}: {lim.note}" if lim.note else head
+
+
+def clinician_lines(h, areas=None, flags=None):
+    """One line per limit (its area, level, side and note), then every line under
+    `## Clinician rules`, as rules to follow literally. Blank lines and the template's
+    [hint] don't count."""
+    out = [limit_line(lim) for lim in limits(h, areas, flags)]
     for line in _section_lines(h, CLINICIAN_HEADING):
         line = line[2:].strip() if line.startswith("- ") else line
         if line and not line.startswith("#") and not (placeholder(line) and "]" in line):
@@ -418,10 +441,18 @@ def clinician_lines(h, areas=None):
     return out
 
 
+UNLISTED = "unlisted:"
+
+
 def prose_injuries(h):
-    """True when `## Active injuries and limitations` lists anything but "None right now"."""
+    """True when `## Active injuries and limitations` lists anything but "None right now" or an
+    injury outside the catalog's areas, written "- Unlisted: <what>" (its avoids go under
+    `## Clinician rules` as "Avoid: <ids or flags>")."""
     for line in _section_lines(h, INJURIES_HEADING):
-        if line.startswith(("- ", "* ")) and line[2:].strip().rstrip(".").lower() != "none right now":
+        if not line.startswith(("- ", "* ")):
+            continue
+        item = line[2:].strip()
+        if item.rstrip(".").lower() != "none right now" and not item.lower().startswith(UNLISTED):
             return True
     return False
 
@@ -723,7 +754,7 @@ def _check_health(path, text):
         return [Issue(path, 0, "limits must be written as [[limits]] tables")]
     for i, row in enumerate(rows, 1):
         if cat:
-            _, problem = _limit_row(row, cat.areas)
+            _, problem = _limit_row(row, cat.areas, cat.flags)
             if problem:
                 out.append(Issue(path, 0, f"[[limits]] row {i}: {problem}; the row is ignored"))
             elif isinstance(row, dict):
@@ -732,7 +763,11 @@ def _check_health(path, text):
                     if m is None or m.draft:
                         out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a movement "
                                                   "in the catalog (or is still a draft)", note=True))
-    if cat and prose_injuries(h) and not limits(h, cat.areas):
+                    elif not m.rehab:
+                        out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a rehab movement, "
+                                                  "so naming it lets nothing through; name only rehab "
+                                                  "movements, or loosen the limit itself"))
+    if cat and prose_injuries(h) and not limits(h, cat.areas, cat.flags):
         out.append(Issue(path, 0, "injuries written in prose have no [[limits]] entry, so the session "
                                   "tool applies no rule for them"))
     return out

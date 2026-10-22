@@ -1195,7 +1195,10 @@ note = "Therapist: no weight through the hand."
         h = context.health(self.health_file(self.ROW))
         self.assertEqual(context.limits(h), [catalog.Limit("wrist", "right", "delicate", [], ["calf-raise"],
                                                            "Therapist: no weight through the hand.")])
-        self.assertEqual(context.clinician_lines(h), ["Therapist: no weight through the hand.", "No jumping until cleared."])
+        self.assertEqual(context.clinician_lines(h), ["wrist delicate right: Therapist: no weight through the hand.",
+                                                      "No jumping until cleared."])
+        bare = context.health(self.health_file('[[limits]]\narea = "knee"\nlevel = "off-limits"\n'))
+        self.assertEqual(context.clinician_lines(bare), ["knee off-limits", "No jumping until cleared."])
         self.assertEqual(context.limits(context.health(self.health_file(""))), [])
 
     def test_bad_limit_row_is_reported(self):
@@ -1210,6 +1213,31 @@ note = "Therapist: no weight through the hand."
         self.assertTrue(any("elbowish" in m and "knee" in m for m in msgs))     # names the valid areas
         self.assertTrue(any("left, right or both" in m for m in msgs))
         self.assertTrue(any("off-limits or delicate" in m for m in msgs))
+
+    def test_malformed_flags_or_rehab_drop_the_row(self):
+        for bad in ('flags = "floor"', 'rehab = "towel-scrunch"', 'flags = ["wobbly"]', 'rehab = [3]'):
+            with self.subTest(bad=bad):
+                path = self.health_file(f'[[limits]]\narea = "knee"\nlevel = "off-limits"\n{bad}\n')
+                self.assertEqual(context.limits(context.health(path)), [])
+                msgs = [i.message for i in context.check([path]) if not i.note]
+                self.assertTrue(any("[[limits]] row 1" in m and "ignored" in m for m in msgs), msgs)
+        good = self.health_file('[[limits]]\narea = "knee"\nlevel = "off-limits"\nflags = ["floor"]\n')
+        self.assertEqual(context.limits(context.health(good))[0].flags, ["floor"])
+
+    def test_non_rehab_id_in_rehab_is_an_issue(self):
+        issues = context.check([self.health_file(self.ROW.replace('"calf-raise"', '"goblet-squat"'))])
+        self.assertTrue(any(not i.note and "goblet-squat" in i.message for i in issues), issues)
+        issues = context.check([self.health_file(self.ROW.replace('"calf-raise"', '"towel-scrunch"'))])
+        self.assertFalse(any(not i.note and "towel-scrunch" in i.message for i in issues), issues)   # a rehab entry
+
+    def test_unlisted_injuries_need_no_limits_row(self):
+        for line in ("- Unlisted: invented jaw soreness.", "- unlisted: invented jaw soreness."):
+            prose = self.HEALTH.replace("- Right wrist: invented strain.", line)
+            path = self.health_file("", prose)
+            self.assertFalse(context.prose_injuries(context.health(path)), line)
+            self.assertFalse(any("have no [[limits]]" in i.message for i in context.check([path])))
+        both = self.HEALTH.replace("- Right wrist: invented strain.", "- Unlisted: invented jaw.\n- Left knee: invented.")
+        self.assertTrue(context.prose_injuries(context.health(self.health_file("", both))))
 
     def test_rehab_ids_are_checked_as_notes(self):
         row = self.ROW.replace('"calf-raise"', '"no-such-move"')
@@ -1281,6 +1309,11 @@ class Migrate3(unittest.TestCase):
         settings, rest = context.front(h)
         self.assertEqual(settings, {"schema": 3})
         self.assertIn("[[limits]]", h.split("+++")[1])                  # the comment line names it
+        note = " ".join(h.split("+++")[1].split())
+        self.assertIn("delete the old comment", note.lower())   # the 3.x template's comment named removed files
+        self.assertIn("injury-rules.toml", note)
+        self.assertIn("phase", note)
+        self.assertIn("assumes novice", context.SETTINGS_COMMENTS["experience"])
         self.assertEqual(rest, context.body(self.HEALTH2))
         log = migrate.to_3("+++\nschema = 2\n+++\n# Log\n", "log.md")
         self.assertEqual(log, "+++\nschema = 3\n+++\n# Log\n")
