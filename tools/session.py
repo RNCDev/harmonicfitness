@@ -12,8 +12,10 @@ With --draft it prints only the `@@ <seconds> | <title>` markers the script is w
     ./sweatcast session --goal general --minutes 20 --preset hotel-room --draft
     ./sweatcast session --goal targeted --minutes 25 --kit home --target glutes --limit knee=delicate:left
 
-Time a slot does not use goes first to rests between slots (up to thirty seconds each), then to
-the cool-down. A request too short for every slot drops slots, never squeezes the total.
+Time the slots do not use goes to a second pass through the patterns (once every dose is at its
+ceiling), then to rests between slots (up to thirty seconds each), then to the cool-down and warm-up
+up to their ceilings, and the rest to the cool-down with a warning past a tenth of the request.
+A request too short for every slot drops slots, never squeezes the total.
 """
 import datetime
 import os
@@ -29,6 +31,9 @@ import movements  # noqa: E402
 import sessions  # noqa: E402
 
 BETWEEN_SLOTS = 30   # most spare seconds added as rest after any one slot
+CYCLING = ("holds", "intervals")   # work kinds whose patterns repeat to fill the block
+CYCLE_CAP = 12       # most slots a cycling block holds
+SPARE_WARNING = 0.10   # spare beyond this share of the request, after everything else, is warned about
 STEP = {"sets": 1, "rounds": 1, "reps": 1, "rest_seconds": 15}   # other keys (seconds of work) step by 5
 LIMIT_SIDES = ("left", "right", "both")
 LIMIT_LEVELS = ("off-limits", "delicate")
@@ -72,14 +77,20 @@ def _work_each(m: catalog.Movement, dose: dict) -> int:
     return m.hold_seconds
 
 
+def _work_time(m: catalog.Movement, dose: dict) -> int:
+    """Seconds of work in one set or hold of `m`, both sides of a sided movement."""
+    return _work_each(m, dose) * (2 if m.sided else 1)
+
+
 def slot_seconds(m: catalog.Movement, dose: dict, work: str) -> int:
     """Seconds one movement takes at `dose` for the method's kind of work.
 
     sets: transition, every set, a rest between sets. pairs: the same with half of the pair's rests,
     since one rest follows each pass through the pair. rounds: one transition and one set per round
     (the rests between rounds belong to the block, see block_seconds). intervals: rounds of work
-    and rest. holds: rounds of holds after one transition. Sided work is not doubled."""
-    w, t = _work_each(m, dose), m.transition_seconds
+    and rest. holds: rounds of holds after one transition. A sided movement's work covers both sides,
+    then one rest; an interval's work is the dose's work seconds, whichever side."""
+    w, t = _work_time(m, dose), m.transition_seconds
     rest = dose.get("rest_seconds", 0)
     if work == "sets":
         return t + dose["sets"] * w + (dose["sets"] - 1) * rest
@@ -141,9 +152,11 @@ def _raise_order(ranges: Dict[str, list]) -> List[str]:
 
 
 def _fit(movers: List[catalog.Movement], ranges: Dict[str, list], work: str, budget: int,
-         least_slots: int, fixed: bool, what: str) -> Tuple[int, dict]:
-    """(slots, dose) for one block: grow the slot count at the floor dose while the next slot fits
-    (variety before volume), then raise the dose toward its ceilings while the block still fits."""
+         least_slots: int, fixed: bool, what: str, first: int) -> Tuple[int, dict]:
+    """(slots, dose) for one block: grow the slot count at the floor dose while the next slot fits, up to
+    `first` slots (variety before volume), then raise the dose toward its ceilings while the block still
+    fits. When every slot of the first pass and every ceiling are reached, slots past `first` (a second
+    pass through the patterns) are added while they fit."""
     dose = {k: v[0] for k, v in ranges.items()}
     cost = lambda n, d: sum(block_seconds(movers[:n], d, work))  # noqa: E731
     n = least_slots
@@ -154,17 +167,19 @@ def _fit(movers: List[catalog.Movement], ranges: Dict[str, list], work: str, bud
         if cost(n, dose) > budget:
             raise Unfit(f"{what} is too short for {n} slots of this method even at two sets each; "
                         "ask for more minutes or another method")
-    while n < len(movers) and cost(n + 1, dose) <= budget:
+    while n < first and cost(n + 1, dose) <= budget:
         n += 1
-    if fixed:
-        return n, dose
-    for key in _raise_order(ranges):
-        step = STEP.get(key, 5)
-        while dose[key] + step <= ranges[key][1]:
-            trial = dict(dose, **{key: dose[key] + step})
-            if cost(n, trial) > budget:
-                break
-            dose = trial
+    if not fixed:
+        for key in _raise_order(ranges):
+            step = STEP.get(key, 5)
+            while dose[key] + step <= ranges[key][1]:
+                trial = dict(dose, **{key: dose[key] + step})
+                if cost(n, trial) > budget:
+                    break
+                dose = trial
+    if n == first and all(dose[k] == v[1] for k, v in ranges.items()):
+        while n < len(movers) and cost(n + 1, dose) <= budget:
+            n += 1
     return n, dose
 
 
@@ -183,6 +198,12 @@ def _candidates(pattern: str, pool: List[catalog.Movement], key, used: Set[str])
     if len(found) < 3:
         found += sorted((m for m in pool if pattern in m.patterns[1:]), key=key)
     return [m for m in found if m.id not in used] + [m for m in found if m.id in used]
+
+
+def _rotate(ms: List[catalog.Movement], k: int) -> List[catalog.Movement]:
+    """The list turned so its k-th movement (counting round) comes first."""
+    k %= len(ms)
+    return ms[k:] + ms[:k]
 
 
 def _reasons(m: catalog.Movement, ms: List[catalog.Movement], pattern: str, ctx: dict) -> str:
@@ -297,7 +318,8 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
     pool = sorted(sel.allowed + sel.healthy_side_only, key=lambda m: order[m.id])
     last_ids = _ids(cat, last.movements) if last else set()
     areas = list(dict.fromkeys(lim.area for lim in limits))
-    rank = lambda m: (m.id in last_ids, m.id not in likes, sum(m.loads.values()) if limits else 0, order[m.id])  # noqa: E731
+    limited = lambda m: sum(m.loads.get(a, 0) + (m.support.get(a, 0) if m.sided else 0) for a in areas)  # noqa: E731
+    rank = lambda m: (m.id in last_ids, m.id not in likes, limited(m), order[m.id])  # noqa: E731
     ctx = {"likes": likes, "last": last_ids if last else None, "healthy": healthy, "areas": areas,
            "week": week, "rehab": {i for lim in limits for i in lim.rehab}}
     leads = lambda p: {m.muscles[0] for m in pool if m.muscles and p in m.patterns}  # noqa: E731
@@ -322,12 +344,19 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
         if len(filled) < least:
             raise Unfit(f"only {len(filled)} of the {least} movement slots {method.name} needs have a "
                         "movement that fits today's kit, level and limits")
-        n, dose = _fit([ms[0] for _, ms in filled], _ranges(sess, method, block["intensity"], level),
-                       method.work, budget, least, bool(method.fixed), f"a {minutes} minute session")
-        secs = block_seconds([ms[0] for _, ms in filled[:n]], dose, method.work)
+        if method.work in CYCLING:   # one pattern may fill several slots, each with the next movement first
+            first = CYCLE_CAP
+            entries = [(p, _rotate(ms, i // len(filled))) for i in range(first)
+                       for p, ms in [filled[i % len(filled)]]]
+        else:                        # a second pass through the patterns, only once the first is full
+            first = len(filled)
+            entries = filled + [(p, _rotate(ms, 1)) for p, ms in filled]
+        n, dose = _fit([ms[0] for _, ms in entries], _ranges(sess, method, block["intensity"], level),
+                       method.work, budget, least, bool(method.fixed), f"a {minutes} minute session", first)
+        secs = block_seconds([ms[0] for _, ms in entries[:n]], dose, method.work)
         slots = [Slot(p, block["intensity"], dict(dose), s, [(m, _reasons(m, ms, p, ctx)) for m in ms])
-                 for (p, ms), s in zip(filled[:n], secs)]
-        dropped += [p for p, _ in filled[n:]]
+                 for (p, ms), s in zip(entries[:n], secs)]
+        dropped += [p for p, _ in filled if p not in {s.pattern for s in slots}]
         spent += sum(secs)
         blocks.append((block["intensity"], slots))
     count = sum(len(slots) for _, slots in blocks)
@@ -343,6 +372,12 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
         slot = blocks[bi][1][si]
         blocks[bi][1][si] = slot._replace(seconds=slot.seconds + extra)
         spare -= extra
+    for part, name in ((method.cooldown, "cooldown"), (method.warmup, "warmup")):
+        extra = max(0, min(spare, part["seconds"][1] - (cooldown if name == "cooldown" else warmup)))
+        cooldown, warmup = (cooldown + extra, warmup) if name == "cooldown" else (cooldown, warmup + extra)
+        spare -= extra
+    if spare > SPARE_WARNING * total:
+        warnings.append(f"method filled early: {spare} s spare went to the cool-down")
     cooldown += spare
 
     return Skeleton(method, minutes, warmup, blocks, finisher, cooldown, dropped, warnings,
@@ -405,7 +440,7 @@ def render(sk: Skeleton) -> List[str]:
 def _round_markers(slots: List[Slot]) -> List[str]:
     """One marker per round of a `rounds` block; the rests and spare go to the rounds before the last."""
     rounds = slots[0].dose.get("rounds", 1)
-    base = sum(s.candidates[0][0].transition_seconds + _work_each(s.candidates[0][0], s.dose) for s in slots)
+    base = sum(s.candidates[0][0].transition_seconds + _work_time(s.candidates[0][0], s.dose) for s in slots)
     extra = sum(s.seconds for s in slots) - rounds * base
     names = ", ".join(s.candidates[0][0].name for s in slots)
     out = []

@@ -213,6 +213,49 @@ class Compose(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 compose_for(**request)
 
+    def test_sided_work_counts_both_sides(self):
+        import dataclasses
+        import session
+        cat = catalog.load(os.path.join(FIXTURES, "movements.toml"))
+        lunge = cat.movements["split-squat"]
+        one_side = dataclasses.replace(lunge, sided=False)
+        dose = {"sets": 3, "reps": 8, "rest_seconds": 90}
+        for work in ("sets", "pairs"):
+            self.assertGreater(session.slot_seconds(lunge, dose, work), session.slot_seconds(one_side, dose, work))
+        self.assertEqual(session.slot_seconds(lunge, dose, "sets") - session.slot_seconds(one_side, dose, "sets"), 3 * 24)
+        rounds = {"rounds": 3, "reps": 8, "rest_seconds": 90}
+        self.assertGreater(session.slot_seconds(lunge, rounds, "rounds"), session.slot_seconds(one_side, rounds, "rounds"))
+
+    def test_flow_fills_the_block_by_cycling(self):
+        sk = compose_for(goal="mobility", minutes=30)
+        self.assertEqual(sk.method.name, "flow")
+        slots = [s for _, ss in sk.blocks for s in ss]
+        self.assertGreaterEqual(len(slots), 4)
+        self.assertLessEqual(len(slots), 12)
+        self.assertLessEqual(sk.cooldown, sk.method.cooldown["seconds"][1])
+        self.assertWithinTolerance(sk, 30)
+
+    def test_second_pass_before_spare_and_warning_past_a_tenth(self):
+        sk = compose_for(goal="strength", minutes=60, equipment={"mat"}, level="novice")
+        self.assertWithinTolerance(sk, 60)
+        patterns = [s.pattern for _, ss in sk.blocks for s in ss]
+        self.assertGreater(len(patterns), len(set(patterns)))   # a second pass through the patterns
+        lunges = [s for _, ss in sk.blocks for s in ss if s.pattern == "lunge"]
+        self.assertNotEqual(lunges[0].candidates[0][0].id, lunges[1].candidates[0][0].id)
+        self.assertEqual(sk.warmup, sk.method.warmup["seconds"][1])
+        self.assertTrue(any(w.startswith("method filled early:") for w in sk.warnings), sk.warnings)
+        self.assertFalse(any("filled early" in w for w in compose_for(goal="strength", minutes=30).warnings))
+
+    def test_ranking_with_limits_counts_only_limited_areas(self):
+        sk = compose_for(goal="strength", minutes=30, limits=[catalog.Limit("knee", "both", "delicate", [], [], "")])
+        hinge = next(s for _, ss in sk.blocks for s in ss if s.pattern == "hinge")
+        # wrist and knee are limited: the bridge loads the knee (1); the deadlift loads the wrist (1); catalog order breaks the tie
+        self.assertEqual([m.id for m, _ in hinge.candidates][:2], ["glute-bridge", "dumbbell-romanian-deadlift"])
+        h = context.Health({}, "")
+        sk = compose_for(goal="strength", minutes=30, health=h, limits=[catalog.Limit("knee", "both", "delicate", [], [], "")])
+        hinge = next(s for _, ss in sk.blocks for s in ss if s.pattern == "hinge")
+        self.assertEqual(hinge.candidates[0][0].id, "dumbbell-romanian-deadlift")   # no knee load, despite heavy hips
+
     def test_slot_seconds(self):
         import session
         cat = catalog.load(os.path.join(FIXTURES, "movements.toml"))
