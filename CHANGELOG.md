@@ -2,6 +2,16 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [5.4.0] - 2026-10-22
+
+### For forks
+Nothing to migrate. To back up your context, make `me/` its own private repo (README, "Back up `me/`"); rerunning `./sweatcast setup` adds `me/.gitignore` if it has none.
+
+### Added
+- `./sweatcast backup` (`tools/backup.py`): commits everything in `me/` and pushes it, when `me/` is its own git repo, nested in the engine's folder and ignored by the engine's git. It changes nothing when `me/` isn't its own repo, and refuses to push to a repo GitHub reports as public.
+- The workout skill's last step runs it, after the build and the log, so each session lands in the listener's private repo.
+- `me.example/.gitignore`: leaves the clip cache (but not the voices' measured pace), MP3s, render logs, unkept voice takes and migration backups out of that repo. Setup copies it into a new `me/` and adds it to an existing one.
+
 ## [5.3.0] - 2026-10-22
 
 ### Changed

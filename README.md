@@ -28,6 +28,7 @@ Claude Code runs these for you, but they work on their own too. `./sweatcast hel
 | `./sweatcast session --goal strength --minutes 30 --preset hotel-room` | A session skeleton: the method, timed slots and ranked movements that fit the kit, your level and the limits in `me/health.md` |
 | `./sweatcast movements --preset hotel-room` | Browses the movements a kit allows, by movement pattern; it applies no health limits, so plans come from `./sweatcast session` |
 | `./sweatcast feeds`, `coverage`, `youtube`, `log-session` | What the workout skill uses to research, plan and log |
+| `./sweatcast backup` | Commits `me/` and pushes it to its own private repo (the workout skill runs it after each session) |
 | `./sweatcast migrate`, `cache prune`, `test` | Upkeep |
 
 ## How it's organized
@@ -40,7 +41,17 @@ Three layers, so your own details never mix with the code:
 | **Voices**: each voice's ten-second reference clip, transcript and settings, with the model pinned to an exact revision | `voices/` | Yes, about 1 MB; model weights download to `~/.cache/huggingface/hub` |
 | **You**: profile, health, workout log and feedback, drafts, research, rendered MP3s, private voices and movements | `me/` (or wherever `SWEATCAST_HOME` points) | No: ignored, and the pre-push hook and CI block it |
 
-Pulling upstream changes never touches `me/`, so merges stay clean. When a release changes a context file's format, `./sweatcast migrate` (or rerunning `./sweatcast setup`) brings `me/` up to date, backing up the originals first. Your settings (voices, delivery folder, kits, feeds, YouTube channels) sit in a TOML block at the top of `me/profile.md`; everything below it is free-form prose for Claude. To back up your context with its history, make `me/` its own private repo.
+Pulling upstream changes never touches `me/`, so merges stay clean. When a release changes a context file's format, `./sweatcast migrate` (or rerunning `./sweatcast setup`) brings `me/` up to date, backing up the originals first. Your settings (voices, delivery folder, kits, feeds, YouTube channels) sit in a TOML block at the top of `me/profile.md`; everything below it is free-form prose for Claude.
+
+### Back up `me/`
+
+Keep `me/` as its own private git repo, inside the engine's folder but separate from it: the engine's git ignores `me/`, and `me/` has its own history and remote. Then the workout skill's last step, `./sweatcast backup`, commits the session and pushes it, and another machine gets your profile and log by cloning it into `me/`. Not a submodule, which would record your private repo in the public one.
+
+```
+cd me && git init && gh repo create sweatcast-me --private --source . --push
+```
+
+`me/.gitignore` (from `me.example/`, and added by rerunning `./sweatcast setup`) leaves out the rendered clips, MP3s and render logs, and keeps the voices' measured pace. `./sweatcast backup` does nothing when `me/` isn't its own repo, and refuses to push to a repo GitHub reports as public.
 
 | Folder | What |
 |---|---|

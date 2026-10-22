@@ -35,6 +35,10 @@ echo "2. Your context folder ($CONTEXT)"
 if [ -e "$CONTEXT/profile.md" ]; then
   echo "   already there; brought up to this version's format if it was older (backed up first):"
   .venv/bin/python tools/migrate.py | sed 's/^/   /' || true
+  if [ ! -e "$CONTEXT/.gitignore" ]; then
+    cp "$ROOT/me.example/.gitignore" "$CONTEXT/.gitignore"
+    echo "   added .gitignore, for keeping it as its own private repo (./sweatcast backup)"
+  fi
 else
   mkdir -p "$CONTEXT"
   cp -R "$ROOT/me.example/." "$CONTEXT/"

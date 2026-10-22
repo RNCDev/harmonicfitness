@@ -117,6 +117,11 @@ While it renders, post the log line and anything else useful. Don't wait idle.
   Topics start with the deep dive, as `deep dive: video, <channel>, <title>` (adding `, part <n> of <total>` for a series) or `deep dive: news, <story>`, so the next session knows which kind comes next and which channel to skip. Format is the method name the session tool printed (`straight-sets`, `paired-sets`, `circuit`, `intervals`, `tabata`, `bike-intervals`, `flow` or `skill`), as `format: <method name>`, so the next session rotates away from it. Loads list each loaded or timed movement with its weight and tempo in words ("seated curl = fifteens, one second up and three down"). No `|` in any field, no commas inside a movement's name, and no injury details. If it refuses a field, fix that field and rerun.
 - After a session that told a part of a video series, run `./sweatcast youtube done <id>` so the next video session continues with the following part.
 - Feedback about a session (too long, too easy, a topic they loved) goes under Feedback in `me/log.md`, and applies from then on.
+- Last, once the build has finished and the session is logged, commit and push the context folder:
+  ```
+  ./sweatcast backup -m "Workout <YYYY-MM-DD> <Focus> <N> min"
+  ```
+  It commits everything in `me/` (its `.gitignore` leaves out clips and MP3s) and pushes to `me/`'s own private repo. If `me/` isn't its own repo, it says so and changes nothing; pass that on once, in one line. If it refuses a public remote or the push fails, tell the user in one line what it printed; the workout is already delivered, so don't retry or pull on their behalf. Run it again after any later change to `me/` in the same conversation, such as feedback.
 
 ## Research prompt templates
 
