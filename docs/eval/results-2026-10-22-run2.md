@@ -145,6 +145,38 @@ Each item names the finding it answers.
 16. **Private movements:** `me/movements.toml` is now loaded (it was ignored), and `./sweatcast check` lists any problem in it.
 17. **Harness:** `docs/eval/writer.md` is the writers' brief; `judge.md` reads the writer's notes, scores adherence on the coaching alone, and compares with an earlier run after scoring blind; the README names same-day runs with `-run2` and keeps the table's columns; the lint's exports into the listeners' `workouts/` are git-ignored.
 
+## After the fixes: the ten lowest cases re-judged
+
+The ten lowest cases of this run (c36, c30, c12, c28, c34, c38, c24, c40, c05, c22) were rewritten from skeletons built by items 1 to 17 above, by two writers from `writer.md`, and scored blind by two judges on `judge.md`, who then compared with this run's rows and scripts. Every score change was labelled skeleton but one (c34's safety, partly calibration).
+
+| id | this run | after the fixes | change |
+|----|----------|-----------------|--------|
+| c36 | 5, 1, 1, 1 (8) | 5, 3, 4, 4 (16) | +8: varied intervals (step jacks, bridges, dead bugs, squats, split squats) in place of thirty rounds of marching |
+| c30 | 5, 1, 2, 2 (10) | 4, 3, 4, 3 (14) | +4: the same, with the liked bridge and dead bug back; safety -1 for step jacks rated groin 0 |
+| c38 | 4, 2, 3, 3 (12) | 5, 4, 4, 4 (17) | +5: two pull slots and a deadlift for a back day, no overhead press on the delicate neck, a finisher dose |
+| c28 | 4, 3, 3, 2 (12) | 5, 3, 4, 3 (15) | +3: easy warm-up, distinct machine blocks with change time, a steady block |
+| c24 | 5, 2, 2, 3 (12) | 5, 3, 3, 4 (15) | +3: the circuit's own 45 to 90 s rest between rounds, bodyweight reps |
+| c40 | 5, 2, 3, 3 (13) | 5, 3, 4, 4 (16) | +3: squat, bridge and split squat, all glute work, and a finisher dose |
+| c05 | 4, 3, 4, 2 (13) | 5, 4, 4, 3 (16) | +3: one marker per pair set, goblet squat ranked first, no overhead press on the delicate neck |
+| c12 | 4, 3, 3, 2 (12) | 3, 3, 3, 3 (12) | 0: pair markers helped ease; safety -1 for a half-kneeling press rated low back 0 with the low back off limits |
+| c34 | 4, 3, 3, 2 (12) | 3, 3, 3, 3 (12) | 0: easy warm-up and change time helped ease; safety -1 for treadmill runs and standing climbs rated low back 0 |
+| c22 | 4, 3, 3, 3 (13) | 4, 3, 3, 3 (13) | 0: an unspotted barbell bench in a little-rest circuit |
+
+Means over the ten: **safety 4.4 (4.4), efficacy 3.2 (2.3), adherence 3.6 (2.7), ease 3.4 (2.3)**, mean total 14.6 against 11.7. Two judges scored these, not the four of the full run, so calibration may differ.
+
+Fixed after the re-judge, from its findings and a code review, and not scored again (the skeletons in `out/` were regenerated with them):
+
+- Low back 1 on `treadmill-run`, `jumping-jacks`, `high-knees`, `bike-standing-climb` and `half-kneeling-kettlebell-press`, so two of the three safety points lost above are screened out (c12, c34). `step-jack` now rates groin 1, which a delicate groin still allows as a light load, so c30's step jacks stay, rated honestly (c30).
+- A circuit takes no barbell lift (c22).
+- Paired sets get each station's transition every set, and the finisher thirty seconds to reach its equipment (c05, c38).
+- Intervals raise the rest before the work, so advanced sessions run 45 s on and 30 s off, not 60 and 15 (c34, c36).
+- The steady block takes only a moderate movement, on a machine when there is one, so marching stays free for the warm-up (c28, c30).
+- The finisher follows the level's effort order (moderate first for a novice); a second pass never repeats a pattern's only movement; interval block numbers leave out the steady block; a lone paired slot isn't labelled a pair.
+- A private movement with any fault (no `loads`, an unknown level) is held back as a draft instead of planned with guessed values, and an unreadable `me/movements.toml` is skipped with a warning instead of crashing every tool. Both came from the code review, not the judges.
+- Advanced bodyweight reps start at ten, so a ten-minute advanced bodyweight session composes again.
+
+Still open from the re-judge: the interval fallback runs each strength move as its own block rather than as a mixed circuit (c30, c36); sprints take the dose's work seconds rather than their own 20 s hold (c34); no novice-level hard machine entry, so a novice's machine pushes are moderate (c28); the glute and back-free drafts (clamshell, donkey kick, hip abduction and leg curl machines, barbell hip thrust, sled) are still unfinished (c22, c24, c40).
+
 ## Deferred
 
 - **The lint's 80 percent floor on short interval segments** forces near-continuous talk through 30 s efforts (c31, c33, c35, c36). It changes every real workout, so it needs its own look at `tools/tts_build.py`.
@@ -153,3 +185,4 @@ Each item names the finding it answers.
 - **What one rep is on the dead bug and the Y T W raise**, the hotel room's missing mat and chair bracing in `kits.md`, and the skill's guidance on counting reps (c13 to c18).
 - **A back-free loaded squat** (belt squat, hack squat) and the remaining conditioning drafts (rower intervals and ski erg load the low back; sled, seated drills).
 - **Method choice for general at experienced and advanced** with a loaded kit: paired sets may suit better than circuit (c21, c22).
+- **The re-judge's open items** above: a mixed fallback circuit, sprint work held to the movement's own seconds, novice hard machine entries, and the glute and back-free drafts.

@@ -201,11 +201,13 @@ def _cap(sess: sessions.Sessions, method: sessions.Method, intensity: str, level
     return next((table[k][1] for k in CAPS if k in table), None)
 
 
-def _raise_order(ranges: Dict[str, list]) -> List[str]:
-    """Count first (sets or rounds), then the work (reps or seconds), then rest."""
+def _raise_order(ranges: Dict[str, list], work: str = "sets") -> List[str]:
+    """Count first (sets or rounds), then the work (reps or seconds), then rest; intervals raise the
+    rest before the work, so a long session gets recovery before longer efforts."""
     count = [k for k in ("sets", "rounds") if k in ranges]
     rest = [k for k in ("rest_seconds",) if k in ranges]
-    return count + [k for k in ranges if k not in count + rest] + rest
+    middle = [k for k in ranges if k not in count + rest]
+    return count + (rest + middle if work == "intervals" else middle + rest)
 
 
 def _fit(movers: List[catalog.Movement], ranges: Dict[str, list], work: str, budget: int,
@@ -232,7 +234,7 @@ def _fit(movers: List[catalog.Movement], ranges: Dict[str, list], work: str, bud
     while n < first and cost(n + 1, dose) <= budget:
         n += 1
     if not fixed:
-        for key in _raise_order(ranges):
+        for key in _raise_order(ranges, work):
             step = STEP.get(key, 5)
             while dose[key] + step <= ranges[key][1]:
                 trial = dict(dose, **{key: dose[key] + step})
@@ -598,15 +600,15 @@ def _fill(patterns: List[str], pool: List[catalog.Movement], rank, used: Set[str
 
 def _steady(slots: List[Slot], pool: List[catalog.Movement], rank, ctx: dict, seconds: int,
             used: Set[str]) -> Optional[Slot]:
-    """A steady block of moderate (or easy) locomotion after the intervals, for the time past the efforts
-    cap: a movement no slot uses first, moderate before easy, ranked as the slots are. None when nothing
-    fits."""
+    """A steady block of moderate locomotion after the intervals, for the time past the efforts cap: a
+    movement no slot uses first, on a machine when there is one, ranked as the slots are. None when
+    nothing fits."""
     last = slots[-1].candidates[0][0] if slots else None
-    found = [m for m in pool if m.patterns and m.patterns[0] == "locomotion" and m.effort in ("moderate", "easy")
+    found = [m for m in pool if m.patterns and m.patterns[0] == "locomotion" and m.effort == "moderate"
              and not {"fast", "impact"} & set(m.flags)]
     if not found:
         return None
-    found.sort(key=lambda m: (m.id in used, rank(m)[3], m.effort != "moderate", rank(m)))   # [3]: on the floor with a machine at hand
+    found.sort(key=lambda m: (m.id in used, rank(m)[3], rank(m)))   # [3]: on the floor with a machine at hand
     change = CHANGE_SECONDS if last is not None and station(found[0]) != station(last) else 0
     if change:   # the change belongs to the last interval
         slots[-1] = slots[-1]._replace(seconds=slots[-1].seconds + change)
@@ -645,10 +647,10 @@ def _cooldown_fit(m: catalog.Movement) -> Optional[int]:
 
 def _finisher_dose(sess: sessions.Sessions, level: str, seconds: int) -> dict:
     """The finisher's shape from the level's conditioning dose: its shortest work and rest, as many
-    rounds as the seconds hold."""
+    rounds as the seconds hold after thirty to get to its equipment."""
     table = sessions.dose(sess, "conditioning", level)
     work, rest = table["work_seconds"][0], table["rest_seconds"][0]
-    return {"rounds": max(1, seconds // (work + rest)), "work_seconds": work, "rest_seconds": rest}
+    return {"rounds": max(1, (seconds - CHANGE_SECONDS) // (work + rest)), "work_seconds": work, "rest_seconds": rest}
 
 
 def _extras(pool: List[catalog.Movement], fits, top: int, key, used: Set[str], ctx: dict,

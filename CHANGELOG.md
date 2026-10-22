@@ -8,7 +8,7 @@ The fixes from the second judged run of the grid: interval work that is hard eno
 
 ### For forks
 Breaking: the catalog moves to format 3, `knowledge/sessions.toml` to format 2, and paired-sets drafts get a marker per pair set. After pulling:
-1. If you keep private movements in `me/movements.toml`, they are now loaded (4.x ignored the file). Run `./sweatcast check`: every finished conditioning entry needs `effort = "easy"`, `"moderate"` or `"hard"`, and it lists any entry missing one or carrying another fault.
+1. If you keep private movements in `me/movements.toml`, they are now loaded (4.x ignored the file). Run `./sweatcast check`: every finished conditioning entry needs `effort = "easy"`, `"moderate"` or `"hard"`, and it lists any entry missing one or carrying another fault. Until it is fixed, a faulty entry is held back as a draft and never planned.
 2. A fork that edits `knowledge/movements.toml` or `knowledge/sessions.toml`: set `format = 3` and `format = 2`, add `effort` to every finished conditioning movement, and keep the new dose keys (`bodyweight_reps` above novice, `efforts_per_session`) in every conditioning level. `./sweatcast test` names anything missing.
 3. Drafts written under 4.x markers still render. A new paired-sets draft is written under one marker per pair set ("Pair 1 of 3, set 2 of 3: ..."), a circuit round's marker names the rest that ends it, and interval markers are numbered by block.
 4. No context file changes; there is nothing to migrate.
@@ -22,18 +22,19 @@ Breaking: the catalog moves to format 3, `knowledge/sessions.toml` to format 2, 
 - A case `--limit` prints what it rules out ("light loads only on the left calf, no impact or fast work").
 - `me/movements.toml` is loaded, and `./sweatcast check` lists problems in it.
 - Finished entries: step jacks, air bike steady and sprint, stair climber, standing climb, leg extension, arm circles, shoulder rolls, leg swings, standing calf stretch.
-- `docs/eval/writer.md`, the script writers' brief, and `docs/eval/results-2026-10-22-run2.md`, the second judged run: safety 4.72, efficacy 3.05, adherence 3.45, ease 3.00 (first run 4.70, 2.33, 2.80, 3.52), with the ten lowest cases re-judged after these fixes.
+- `docs/eval/writer.md`, the script writers' brief, and `docs/eval/results-2026-10-22-run2.md`, the second judged run: safety 4.72, efficacy 3.05, adherence 3.45, ease 3.00 (first run 4.70, 2.33, 2.80, 3.52). Its ten lowest cases, rewritten and re-judged after these fixes, rose from a mean total of 11.7 to 14.6 (efficacy 2.3 to 3.2, adherence 2.7 to 3.6, ease 2.3 to 3.4, safety level at 4.4); two of the three safety points they still lost (low back loads on the half-kneeling press and the treadmill run) are fixed in the catalog since, and step jacks now carry a light groin rating.
 
 ### Changed
 - Candidate ranking: with load on hand, strength movements that use it rank ahead of bodyweight ones at the same level (goblet squat before air squat, face pull before the towel door row); with a cardio machine on hand, conditioning on it ranks ahead of the floor.
 - The warm-up list starts with easy locomotion and never offers hard, fast or impact work; the finisher list takes hard, then moderate conditioning; the cool-down leads with box breathing; none leads with a movement the work uses.
-- Paired sets: one marker per pair set, a printed rest after each pair set, and pairs that cross families to the end.
+- Paired sets: one marker per pair set, a printed rest after each pair set, each station's transition every set, and pairs that cross families to the end.
 - Straight sets print the rest their seconds hold; a circuit prints the rest between its rounds, now its own 45 to 90 s, and its patterns add vertical push, vertical pull and anti-rotation.
-- Intervals keep one machine's blocks together, give thirty seconds to change equipment, number markers by block, and repeat no movement while another remains. Interval rounds per movement start at three or four.
+- Intervals keep one machine's blocks together, give thirty seconds to change equipment, number markers by block, repeat no movement while another remains, and raise the rest before the work. Interval rounds per movement start at three or four. A circuit takes no barbell lift.
 - Targeted sessions give each target pattern two slots; a muscle target matches a movement's first two muscles. Patterns holding a liked movement come right after the targets.
 - A healthy-side-only slot is timed for one side.
 - Flow runs two mobility drills to each breathing one.
-- Safety: a low back off limits also rules out spine flexion and twisting; the overhead presses rate neck 2, so a delicate neck rules them out; the face pull rates wrist 1. The playbook says both.
+- Safety: a low back off limits also rules out spine flexion and twisting; the overhead presses rate neck 2, so a delicate neck rules them out; the face pull rates wrist 1; treadmill runs, jumping jacks, high knees, the standing climb and the half-kneeling press rate low back 1; step jacks rate groin 1. The playbook says the first two.
+- An unreadable `me/movements.toml` is skipped with a warning instead of stopping every tool.
 - The towel door row's setup names the door to use (an inside door that opens away from you, never the room's entry door); the world's greatest stretch keeps the head in line.
 - The judge prompt reads the writer's notes, scores adherence on the coaching alone, and compares with an earlier run only after scoring blind. The workout skill describes the new markers and attributes clinician rules to the clinician.
 
