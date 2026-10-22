@@ -1,5 +1,6 @@
 """Checks for the movement catalog loader, against a small synthetic catalog."""
 import os
+import subprocess
 import sys
 import unittest
 
@@ -9,6 +10,13 @@ import catalog  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "movements.toml")
+
+
+def run_movements(args):
+    """Run `./sweatcast movements ...` against the real catalog; returns the CompletedProcess."""
+    env = dict(os.environ, SWEATCAST_PYTHON=sys.executable)
+    return subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), "movements", *args],
+                          capture_output=True, text=True, env=env, cwd=ROOT)
 
 
 class CatalogFormat(unittest.TestCase):
@@ -143,6 +151,109 @@ class RealCatalog(unittest.TestCase):
     def test_at_least_sixty_entries_are_annotated(self):
         cat = catalog.load()
         self.assertGreaterEqual(sum(not m.draft for m in cat.movements.values()), 60)
+
+
+class Select(unittest.TestCase):
+    def test_level_and_draft_and_equipment(self):
+        cat = catalog.load(FIXTURE)
+        sel = catalog.select(cat, {"dumbbells"}, "novice", [])
+        ids = {m.id for m in sel.allowed}
+        self.assertIn("goblet-squat", ids)
+        self.assertEqual(sel.left_out["old-style"], ["draft"])
+        self.assertEqual(sel.left_out["bike-easy-spin"], ["equipment"])
+        sel = catalog.select(cat, {"dumbbells"}, "novice", [], dislikes={"goblet-squat"})
+        self.assertEqual(sel.left_out["goblet-squat"], ["disliked"])
+
+    def test_off_limits_excludes_any_load_and_delicate_moderate(self):
+        cat = catalog.load(FIXTURE)
+        off = [catalog.Limit("knee", "both", "off-limits", [], [], "")]
+        self.assertIn("glute-bridge", catalog.select(cat, {"mat"}, "novice", off).left_out)   # knee = 1
+        soft = [catalog.Limit("knee", "both", "delicate", [], [], "")]
+        sel = catalog.select(cat, {"mat"}, "novice", soft)
+        self.assertIn("glute-bridge", {m.id for m in sel.allowed})
+        self.assertEqual(sel.left_out["air-squat"], ["knee delicate"])
+
+    def test_sided_limit_on_unsided_movement_excludes(self):
+        cat = catalog.load(FIXTURE)
+        left = [catalog.Limit("knee", "left", "delicate", [], [], "")]
+        sel = catalog.select(cat, {"dumbbells", "mat"}, "novice", left)
+        self.assertIn("air-squat", sel.left_out)
+        self.assertIn("split-squat", {m.id for m in sel.healthy_side_only})   # support knee = 1 < 2
+        self.assertNotIn("split-squat", {m.id for m in sel.allowed})
+        self.assertNotIn("split-squat", sel.left_out)
+
+    def test_sided_limit_checks_the_support_side(self):
+        cat = catalog.load(FIXTURE)
+        left = [catalog.Limit("knee", "left", "off-limits", [], [], "")]
+        sel = catalog.select(cat, {"dumbbells", "mat"}, "novice", left)
+        self.assertIn("split-squat", sel.left_out)   # support knee = 1 >= 1
+
+    def test_limit_flags_and_rehab(self):
+        cat = catalog.load(FIXTURE)
+        lim = [catalog.Limit("wrist", "both", "delicate", ["floor"], ["old-style"], "")]
+        sel = catalog.select(cat, {"mat"}, "novice", lim)
+        self.assertIn("floor", sel.left_out["glute-bridge"])
+        self.assertEqual(sel.left_out["old-style"], ["draft"])   # rehab bypasses limits, never draft
+
+    def test_reasons_accumulate_and_threshold(self):
+        cat = catalog.load(FIXTURE)
+        lim = [catalog.Limit("knee", "both", "delicate", [], [], "")]
+        sel = catalog.select(cat, {"dumbbells"}, "novice", lim, dislikes={"goblet-squat"}, avoid={"goblet-squat"})
+        self.assertEqual(sel.left_out["goblet-squat"], ["disliked", "avoided", "knee delicate"])
+        self.assertEqual(catalog.threshold(lim[0]), 2)
+        self.assertEqual(catalog.threshold(catalog.Limit("knee", "both", "off-limits", [], [], "")), 1)
+
+    def test_delicate_excludes_impact_and_fast(self):
+        cat = catalog.load(FIXTURE)
+        cat.movements["air-squat"].flags = ["impact"]
+        cat.movements["push-up"].flags = ["fast"]
+        lim = [catalog.Limit("neck", "both", "delicate", [], [], "")]
+        sel = catalog.select(cat, set(), "novice", lim)
+        self.assertEqual(sel.left_out["air-squat"], ["impact"])
+        self.assertEqual(sel.left_out["push-up"], ["fast"])
+
+    def test_level_rehab_and_unrehabbed_rehab_entry(self):
+        cat = catalog.load(FIXTURE)
+        cat.movements["air-squat"].level = "advanced"
+        cat.movements["push-up"].rehab = True
+        sel = catalog.select(cat, set(), "experienced", [])
+        self.assertEqual(sel.left_out["air-squat"], ["level"])
+        self.assertEqual(sel.left_out["push-up"], ["rehab"])
+        lim = [catalog.Limit("wrist", "both", "off-limits", [], ["push-up"], "")]
+        sel = catalog.select(cat, set(), "experienced", lim)
+        self.assertIn("push-up", {m.id for m in sel.allowed})   # named by the limit's rehab list
+
+
+class Filter(unittest.TestCase):
+    def test_preset_prints_by_pattern(self):
+        r = run_movements(["--preset", "full-gym"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines()[0], "squat")
+        self.assertRegex(r.stdout.splitlines()[-1], r"^Left out today: \d+")
+
+    def test_avoid_flag_and_id(self):
+        base = run_movements(["--preset", "full-gym"]).stdout
+        self.assertIn("  goblet squat", base)
+        self.assertNotIn("  goblet squat", run_movements(["--preset", "full-gym", "--avoid", "goblet-squat"]).stdout)
+        flagged = run_movements(["--preset", "full-gym", "--avoid", "impact"])
+        self.assertEqual(flagged.returncode, 0)
+        self.assertIn("avoided", flagged.stdout.splitlines()[-1])
+
+    def test_pattern_and_level(self):
+        only = run_movements(["--preset", "full-gym", "--pattern", "hinge", "--level", "advanced"])
+        self.assertEqual(only.returncode, 0, only.stderr)
+        self.assertNotIn("\nsquat\n", "\n" + only.stdout)
+        self.assertIn("hinge", only.stdout)
+
+    def test_unknown_equipment_is_usage(self):
+        for args in (["--equipment", "anvil"], ["--preset", "castle"], ["--preset", "full-gym", "--avoid", "wobbly"],
+                     ["--preset", "full-gym", "--level", "godlike"], ["--preset", "full-gym", "--pattern", "calves"]):
+            r = run_movements(args)
+            self.assertEqual(r.returncode, 64, args)
+            self.assertTrue(r.stderr.strip(), args)
+
+    def test_equipment_alias_is_accepted(self):
+        self.assertEqual(run_movements(["--equipment", "yoga mat"]).returncode, 0)
 
 
 class KnowledgeFiles(unittest.TestCase):

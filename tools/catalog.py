@@ -4,12 +4,13 @@ movement patterns, muscles, joint areas and flags, and every movement with its l
 `load` reads knowledge/movements.toml (plus any private movements) and `problems` checks it, one
 plain sentence per fault. `resolve` turns a name from the log or a script into a movement. An entry
 is a draft until it carries every field; drafts are checked lightly and never planned from.
+`select` picks the movements a kit, level and the listener's limits allow.
 Library only; the command line lives elsewhere.
 """
 import re
 import tomllib
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
 
 import paths
 
@@ -207,3 +208,77 @@ def kit_equipment(cat: Catalog, kit: dict) -> Set[str]:
         out |= set(cat.presets[kit["preset"]])
     out |= set(kit.get("equipment", []))
     return out
+
+
+class Limit(NamedTuple):
+    """One standing limit from the listener's health file."""
+    area: str
+    side: str          # "left", "right" or "both"
+    level: str         # "off-limits" or "delicate"
+    flags: List[str]   # flags this limit rules out
+    rehab: List[str]   # movement ids the limit's rehab plan names; they skip this limit's checks
+    note: str
+
+
+class Selection(NamedTuple):
+    allowed: List[Movement]
+    healthy_side_only: List[Movement]   # sided movements whose working side is the limited one
+    left_out: Dict[str, List[str]]      # movement id -> reasons it is out
+
+
+def threshold(limit: Limit) -> int:
+    """The smallest load on the limit's area that rules a movement out."""
+    return 1 if limit.level == "off-limits" else 2
+
+
+def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
+           avoid: Set[str] = frozenset(), dislikes: Set[str] = frozenset()) -> Selection:
+    """Sort every movement into allowed, healthy-side-only or left out, with the reasons.
+
+    "draft" and "equipment" end the checks; the rest accumulate. A movement named in a limit's
+    `rehab` list skips that limit's checks. `avoid` holds movement ids or flags."""
+    allowed: List[Movement] = []
+    healthy: List[Movement] = []
+    left_out: Dict[str, List[str]] = {}
+    named = {i for lim in limits for i in lim.rehab}
+    for m in cat.movements.values():
+        if m.draft:
+            left_out[m.id] = ["draft"]
+            continue
+        if not all(any(alt in equipment for alt in need.split("|")) for need in m.needs):
+            left_out[m.id] = ["equipment"]
+            continue
+        reasons: List[str] = []
+        one_side = False
+        if LEVELS.index(m.level) > LEVELS.index(level):
+            reasons.append("level")
+        if m.id in dislikes:
+            reasons.append("disliked")
+        if m.id in avoid or any(f in avoid for f in m.flags):
+            reasons.append("avoided")
+        if m.rehab and m.id not in named:
+            reasons.append("rehab")
+        for lim in limits:
+            if m.id in lim.rehab:
+                continue
+            need = threshold(lim)
+            bad = [f for f in lim.flags if f in m.flags]
+            if lim.level == "delicate":
+                bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad]
+            reasons += bad   # a flag is its own reason
+            if lim.side == "both" or not m.sided:
+                hit = m.loads.get(lim.area, 0) >= need
+            elif m.support.get(lim.area, 0) >= need:
+                hit = True
+            else:
+                hit = False
+                one_side = one_side or m.loads.get(lim.area, 0) >= need
+            if hit:
+                reasons.append(f"{lim.area} {'off limits' if lim.level == 'off-limits' else 'delicate'}")
+        if reasons:
+            left_out[m.id] = list(dict.fromkeys(reasons))
+        elif one_side:
+            healthy.append(m)
+        else:
+            allowed.append(m)
+    return Selection(allowed, healthy, left_out)
