@@ -62,22 +62,33 @@ class Methods(unittest.TestCase):
         self.assertEqual(self.s.methods["bike-intervals"].needs, ["bike|air-bike"])
         self.assertIsNone(self.s.methods["circuit"].finisher)
 
-    def test_problems_name_bad_values(self):
+    def _problems_after(self, change):
+        """The problems of the real file after `change(s)` alters it."""
         s = sessions.load()
-        m = s.methods["circuit"]
-        m.goals = ["vibes"]
-        m.levels = ["wizard"]
-        m.work = "juggling"
-        m.min_slots = 0
-        m.needs = ["hovercraft"]
-        m.about = "Do it 3 times."
-        m.minutes = [40, 10]
-        m.blocks = [{"intensity": "chaos", "patterns": ["wiggle"], "share": 0.5}]
-        del s.dose["mobility"]["advanced"]
-        msgs = " ".join(sessions.problems(s, self.cat))
-        for word in ("vibes", "wizard", "juggling", "min_slots", "hovercraft", "digit", "minutes", "chaos",
-                     "wiggle", "sum", "advanced"):
-            self.assertIn(word, msgs)
+        change(s)
+        return sessions.problems(s, self.cat)
+
+    def assertNamed(self, change, *words):
+        msgs = self._problems_after(change)
+        self.assertTrue(any(all(w in msg for w in words) for msg in msgs), f"no message with {words}: {msgs}")
+
+    def test_problems_name_each_bad_value(self):
+        circuit = lambda s: s.methods["circuit"]  # noqa: E731
+        self.assertNamed(lambda s: setattr(circuit(s), "goals", ["vibes"]), "circuit", "goal", "vibes")
+        self.assertNamed(lambda s: setattr(circuit(s), "levels", ["wizard"]), "circuit", "level", "wizard")
+        self.assertNamed(lambda s: setattr(circuit(s), "work", "juggling"), "circuit", "work", "juggling")
+        self.assertNamed(lambda s: setattr(circuit(s), "min_slots", 0), "circuit", "min_slots")
+        self.assertNamed(lambda s: setattr(circuit(s), "needs", ["hovercraft"]), "circuit", "hovercraft")
+        self.assertNamed(lambda s: setattr(circuit(s), "about", "Do it 3 times."), "circuit", "about", "digit")
+        self.assertNamed(lambda s: setattr(circuit(s), "minutes", [40, 10]), "circuit", "minutes", "inverted")
+        self.assertNamed(lambda s: circuit(s).blocks[0].update(intensity="chaos"), "circuit", "intensity", "chaos")
+        self.assertNamed(lambda s: circuit(s).blocks[0].update(patterns=["wiggle"]), "circuit", "pattern", "wiggle")
+        self.assertNamed(lambda s: circuit(s).blocks[0].update(share=0.5), "circuit", "sum")
+        self.assertNamed(lambda s: s.dose["mobility"].pop("advanced"), "mobility", "advanced")
+
+    def test_problems_name_a_block_with_no_dose_table(self):
+        self.assertNamed(lambda s: s.methods["flow"].blocks[0].update(intensity="breathing"),
+                         "flow", "breathing", "dose")
 
 
 if __name__ == "__main__":

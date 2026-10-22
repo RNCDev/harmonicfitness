@@ -118,6 +118,8 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
         for b in m.blocks:
             if b.get("intensity") not in catalog.INTENSITIES:
                 out.append(f"Method {name} has a block with the unknown intensity \"{b.get('intensity')}\".")
+            elif b.get("intensity") not in s.dose:
+                out.append(f"Method {name} has a {b.get('intensity')} block, but there is no {b.get('intensity')} dose table.")
             for p in b.get("patterns", []):
                 if p not in cat.patterns:
                     out.append(f"Method {name} has the unknown pattern \"{p}\".")

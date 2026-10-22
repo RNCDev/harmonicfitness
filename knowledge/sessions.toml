@@ -49,7 +49,7 @@ blocks = [
 [methods.circuit]
 about = "A short loop of movements, one after another with little rest, repeated for a few rounds."
 goals = ["general", "conditioning", "strength"]
-minutes = [10, 45]   # house default: from the research note's synthesis table, a proposal, not a finding
+minutes = [10, 45]   # house default: the research note's table says fifteen; lowered to ten so a ten-minute snack has a method
 levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
@@ -77,12 +77,10 @@ blocks = [
 ]
 
 [methods.tabata]
-about = "Twenty seconds hard, ten seconds easy, eight rounds, about four minutes of hard work."
+about = "Twenty seconds hard, ten seconds easy, eight rounds, about four minutes in all."
 goals = ["conditioning"]
 minutes = [10, 30]   # house default: one or a few four minute blocks fit a short session
-# Not for novices: all out efforts may not suit every listener, the caveat programming.md records on
-# Gillen https://pubmed.ncbi.nlm.nih.gov/27115137/
-levels = ["experienced", "advanced"]
+levels = ["experienced", "advanced"]   # house default: all-out efforts are kept for listeners who already train; Gillen's sedentary group is not read as support either way
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: an easy lead-in; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy then slow breathing; no opened source gives a length
 work = "intervals"
@@ -157,7 +155,7 @@ hard_sets_per_session = [10, 16]   # house default: programming.md's session ari
 [dose.strength.advanced]
 sets = [3, 5]                      # house default: a step up from experienced
 reps = [4, 8]                      # house default: below Iversen's six for heavier sets; home kit rarely allows it
-rest_seconds = [120, 180]          # source: trained people probably need two minutes or more, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+rest_seconds = [120, 180]          # source: trained people probably need two minutes or more, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772; the upper bound is a house default
 hard_sets_per_session = [12, 20]   # house default: programming.md's session arithmetic, about twenty at forty five minutes
 
 [dose.conditioning.novice]
