@@ -5,8 +5,10 @@ Draft format: each segment starts with a marker line
 followed by the spoken text. Inside the text, [pause 3s] inserts that much silence
 (also [pause 500ms]; at most ten seconds), [chime] rings the segment bell at
 that point, for example when work starts in a forty-five-and-fifteen interval, and
-[hold] marks where the listener works in silence: a segment with a [hold] keeps its
-full planned length, its spare time spoken as silence at its holds.
+[hold] marks where the listener works in silence: a segment with a hold keeps its
+full planned length, its spare time silent at its bare holds, shared equally ([hold 20s]
+is exactly that much silence, with no ten-second cap, and the rest of the spare time
+goes to the bare holds, or to the end when there are none).
 
 This is the one source of truth for the draft: the lint (tts_build.py) predicts
 from it and the render (render.py) lays clips out with it, so they agree.
@@ -16,7 +18,7 @@ import re
 MARKER = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*)$")
 PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
 CHIME_RE = re.compile(r"\[\s*chime\s*\]", re.IGNORECASE)
-HOLD_RE = re.compile(r"\[\s*hold\s*\]", re.IGNORECASE)
+HOLD_RE = re.compile(r"\[\s*hold(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
 MARK_RE = re.compile(PAUSE_RE.pattern + "|" + CHIME_RE.pattern + "|" + HOLD_RE.pattern, re.IGNORECASE)
 CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
 HOLD = "[hold]"     # a span whose text is this takes a share of the segment's spare time as silence
@@ -74,10 +76,14 @@ def spans(paragraph):
         text = paragraph[last:m.start()].strip()
         last = m.end()
         for mark_re, mark in ((CHIME_RE, CHIME), (HOLD_RE, HOLD)):
-            if mark_re.fullmatch(m.group(0)):
+            got = mark_re.fullmatch(m.group(0))
+            if got:
                 if text:
                     out.append((text, 0.0))
-                out.append((mark, 0.0))
+                fixed = 0.0
+                if mark == HOLD and got.group(1):
+                    fixed = float(got.group(1)) / (1 if (got.group(2) or "s").lower() == "s" else 1000)
+                out.append((mark, fixed))   # a fixed hold is that much silence; a bare one shares the spare
                 break
         else:
             mark = None
@@ -101,8 +107,10 @@ def spoken(text):
 
 
 def holds(seg):
-    """How many [hold] markers a segment has."""
-    return sum(text == HOLD for para in plan(seg) for text, _ in para)
+    """(bare holds, all holds) in a segment: the bare ones share its spare time; any hold keeps
+    the segment its full length."""
+    marks = [secs for para in plan(seg) for text, secs in para if text == HOLD]
+    return sum(secs == 0 for secs in marks), len(marks)
 
 
 def plan(seg):
@@ -112,12 +120,12 @@ def plan(seg):
 
 def layout(segments):
     """Lay segments on the clock. `segments` is [(spoken seconds, paragraph breaks,
-    planned seconds[, holds])]; returns [(extra seconds per break, laid-out seconds)].
+    planned seconds[, held])]; returns [(extra seconds per break, laid-out seconds)].
 
     A segment that runs over makes the next ones late, and their spare time pays it
     back; a segment with time to spare widens its breaks, keeps a short tail and ends
-    early, unless it has holds, which take all its spare time as silence (each hold
-    gets (laid-out seconds - spoken seconds) / holds)."""
+    early, unless it is held (has a [hold]): then all its spare time is silence, at its bare
+    holds or, with none, at its end. Fixed holds count in its spoken seconds."""
     out, late = [], 0.0
     for spoken_secs, gaps, planned, *rest in segments:
         slack = max(planned - late - spoken_secs, 0.0)

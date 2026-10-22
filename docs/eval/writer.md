@@ -44,7 +44,8 @@ nothing here is personal data. Each writer takes five cases.
 - Intervals and timed work inside one segment: mark each work start and stop with `[chime]`, and the cue
   says it too ("At the bell, go. [chime] Push."). Each interval marker segment is one effort plus its
   recovery. Put `[hold]` where the listener works (or recovers) in silence: the segment then keeps its
-  full length and its spare time goes quiet there, so a short effort needs a few cues, not nonstop talk
+  full length and its spare time goes quiet there, so a short effort needs a few cues, not nonstop talk.
+  Time the work with a fixed hold (`[hold 20s]`) and give the rest one bare `[hold]`
   (`knowledge/tts-rules.md`, Orientation). Don't use it to pad stories or long rests in strength sets.
 - Keep the opening safety text tight in a short warm-up so the warm-up still warms up.
 

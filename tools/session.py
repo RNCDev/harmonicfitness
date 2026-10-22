@@ -295,12 +295,16 @@ def _pair_up(entries: list) -> list:
 
 def _cycle(filled: list, count: int) -> list:
     """`count` (pattern, movements) entries going round the patterns, each led by the first of its
-    pattern's movements no earlier entry leads with, else by the next one round."""
+    pattern's top-effort movements (all of them when none carries an effort) no earlier entry leads
+    with, else by the next of those round: a hard block repeats a hard movement before a moderate
+    one leads it."""
     out, leads = [], set()
     for i in range(count):
         p, ms = filled[i % len(filled)]
-        fresh = next((m for m in ms if m.id not in leads), None)
-        ms = [fresh] + [m for m in ms if m is not fresh] if fresh else _rotate(ms, i // len(filled))
+        tier = [m for m in ms if m.effort == ms[0].effort]
+        fresh = next((m for m in tier if m.id not in leads), None)
+        lead = fresh or _rotate(tier, i // len(filled))[0]
+        ms = [lead] + [m for m in ms if m is not lead]
         leads.add(ms[0].id)
         out.append((p, ms))
     return out
@@ -624,7 +628,9 @@ def _steady(slots: List[Slot], pool: List[catalog.Movement], rank, ctx: dict, se
              and not {"fast", "impact"} & set(m.flags)]
     if not found:
         return None
-    found.sort(key=lambda m: (m.id in used, rank(m)[3], rank(m)))   # [3]: on the floor with a machine at hand
+    # a machine first, even one an interval used (a steady ride after bike intervals), then a movement
+    # no slot uses; rank(m)[3] is "on the floor with a machine at hand"
+    found.sort(key=lambda m: (rank(m)[3], m.id in used, rank(m)))
     change = CHANGE_SECONDS if last is not None and station(found[0]) != station(last) else 0
     if change:   # the change belongs to the last interval
         slots[-1] = slots[-1]._replace(seconds=slots[-1].seconds + change)

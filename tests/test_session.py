@@ -652,13 +652,25 @@ class Grid(unittest.TestCase):
                     key = "sets" if "sets" in ss[0].dose else "rounds"
                     self.assertLessEqual(sum(s.dose[key] for s in ss if not s.dose.get("steady")), cap)
 
-    def test_no_slot_repeats_a_movement_while_others_remain(self):
+    def test_no_slot_repeats_a_movement_while_others_of_its_effort_remain(self):
         for cid in self.sk:
             with self.subTest(case=cid):
-                leads = [s.candidates[0][0].id for s in self.slots(cid)]
-                every = {m.id for s in self.slots(cid) for m, _ in s.candidates}
-                if len(every) >= len(leads):
-                    self.assertEqual(len(leads), len(set(leads)), leads)
+                work = [s for s in self.slots(cid) if not s.dose.get("steady")]
+                for effort in {s.candidates[0][0].effort for s in work}:
+                    leads = [s.candidates[0][0].id for s in work if s.candidates[0][0].effort == effort]
+                    every = {m.id for s in work for m, _ in s.candidates if m.effort == effort}
+                    if len(every) >= len(leads):
+                        self.assertEqual(len(leads), len(set(leads)), (effort, leads))
+
+    def test_hard_interval_blocks_never_drop_to_moderate_above_novice(self):
+        for cid, sk in self.sk.items():
+            if sk.method.work != "intervals" or eval_level(cid) == "novice":
+                continue
+            with self.subTest(case=cid):
+                work = [s.candidates[0][0] for s in self.slots(cid)
+                        if not s.dose.get("steady") and s.candidates[0][0].effort]
+                if any(m.effort == "hard" for m in work):
+                    self.assertEqual({m.effort for m in work}, {"hard"}, [m.id for m in work])
 
     def test_warmup_is_easy_and_the_lists_do_not_lead_with_the_work(self):
         for cid, sk in self.sk.items():

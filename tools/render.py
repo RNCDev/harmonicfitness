@@ -106,8 +106,9 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b""):
             for text, pause in para:
                 if text == CHIME:
                     p[-1] += bell
-                elif text == HOLD:
-                    p += [None, bytearray()]
+                elif text == HOLD:   # a fixed hold is its silence; a bare one takes its share of the spare
+                    if not pause:
+                        p += [None, bytearray()]
                 elif text:
                     p[-1] += clip(text)
                 p[-1] += silence(pause)
@@ -116,11 +117,12 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b""):
         gaps = len(paras) - 1
         spoken = (len(head) + sum(len(x) for p in paras for x in p if x is not None)) / 2 / SR \
             + PARAGRAPH_GAP * gaps
-        built.append((head, paras, spoken, gaps, sum(x is None for p in paras for x in p)))
+        held = any(text == HOLD for para in plan(seg) for text, _ in para)
+        built.append((head, paras, spoken, gaps, sum(x is None for p in paras for x in p), held))
 
     pcm_all, rows = bytearray(), []
-    timeline = layout([(spoken, gaps, seg["seconds"], n) for seg, (_, _, spoken, gaps, n) in zip(segments, built)])
-    for i, (seg, (head, paras, spoken, gaps, n), (extra, length)) in enumerate(zip(segments, built, timeline), 1):
+    timeline = layout([(spoken, gaps, seg["seconds"], held) for seg, (_, _, spoken, gaps, _, held) in zip(segments, built)])
+    for i, (seg, (head, paras, spoken, gaps, n, held), (extra, length)) in enumerate(zip(segments, built, timeline), 1):
         hold = max(length - spoken, 0.0) / n if n else 0.0
         seg_pcm = bytearray(head)
         for j, p in enumerate(paras):
@@ -129,7 +131,7 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b""):
             for x in p:
                 seg_pcm += silence(hold) if x is None else x
         seg_pcm += silence(length - len(seg_pcm) / 2 / SR)
-        flag = fill_flag(spoken, seg["seconds"], held=n > 0)
+        flag = fill_flag(spoken, seg["seconds"], held=held)
         rows.append((i, seg["seconds"], spoken, seg["label"], f"  <-- {flag}" if flag else ""))
         pcm_all += seg_pcm
     built.clear()   # the per-paragraph copies aren't needed once laid out

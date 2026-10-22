@@ -2,6 +2,28 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [5.1.0] - 2026-10-22
+
+Intervals that fit their movements and leave the work quiet, and a cleaner engine. Re-judged, the twelve conditioning cases rose from a mean total of 13.4 to 16.3 (efficacy 2.67 to 3.67, adherence 3.17 to 3.92, ease 2.75 to 3.67, safety 4.83 to 5.00); `docs/eval/results-2026-10-22-run3.md` has the run.
+
+### For forks
+Nothing to migrate. `knowledge/exercise-science.md` is gone and the tools no longer read `me/exercise-science.md`; `./sweatcast check` notes a leftover copy, which you can delete once anything worth keeping is copied out.
+
+### Added
+- `[hold]` in a draft: a segment with a hold keeps its full planned length, its spare time silent at its bare holds, so timed work isn't talked through; `[hold 20s]` is exactly that much silence. A held segment is never flagged short. The lint, the layout and the render share it, and `knowledge/tts-rules.md` and the workout skill say how to use it.
+- An intervals block whose strength fallback is all on the floor runs as a circuit: one interval of each movement a round ("Round 2 of 4, glute bridge").
+
+### Changed
+- A timed movement shorter than the interval's work (a twenty-second sprint) works for its own seconds and rests the rest of the interval.
+- Above novice, an interval block repeats the strongest hard movement before a moderate one leads it; the steady block goes on a machine, even one an interval used, before floor work.
+- The workout skill and research agent no longer draw exercise-science asides; form cues stay cues.
+- README and CLAUDE.md tightened: the README's layout is by folder, its voice section points at `knowledge/voices.md`, and both describe `[hold]`.
+- `./sweatcast build` no longer passes the profile's `words_per_minute`, which only `./sweatcast lint` without a voice uses; the template and the check say so.
+
+### Removed
+- `knowledge/exercise-science.md`, `me.example/exercise-science.md` and the listeners' copies; the completed plans and specs in `docs/superpowers/` and the old productization notes in `docs/research/` (the session-structure research the session rules cite stays).
+- Dead code: `paths.DRAFTS`, `paths.VENV_PYTHON`, `sessions.choose_method` (tests use `ranked`) and an unused branch of `voices.seed_pace`.
+
 ## [5.0.0] - 2026-10-22
 
 The fixes from the second judged run of the grid: interval work that is hard enough, warm-ups that start easy, paired sets that can be spoken as pairs, rests that match the clock, and caps on volume. The catalog and the session rules each move up a format.
