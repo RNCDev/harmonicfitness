@@ -5,3 +5,6 @@ me/
 .codegraph/
 __pycache__/
 .DS_Store
+
+# The judged grid's generated skeletons, scripts and lints (docs/eval/README.md).
+docs/eval/out/

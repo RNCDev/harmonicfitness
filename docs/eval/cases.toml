@@ -1,0 +1,304 @@
+# The judged grid: forty cases for ./sweatcast session, over the four invented listeners in
+# docs/eval/listeners/. Nine cells (strength, general and conditioning at the novice, experienced and
+# advanced levels), each at two presets and two lengths (a short one of ten to twenty minutes and a long
+# one of thirty to forty five), plus two mobility and two targeted cases. Every third case adds a --limit.
+# A case's level is its listener's (a novice, b and d experienced, c advanced) unless it names one.
+# tests/test_session.py (class Eval) checks the grid and that every case composes; README.md runs it.
+format = 1
+
+[[case]]
+id = "c01"
+listener = "a"
+goal = "strength"
+minutes = 15
+preset = "bodyweight"
+
+[[case]]
+id = "c02"
+listener = "a"
+goal = "strength"
+minutes = 40
+preset = "bodyweight"
+
+[[case]]
+id = "c03"
+listener = "a"
+goal = "strength"
+minutes = 20
+preset = "hotel-gym"
+limit = "wrist=delicate:left"
+
+[[case]]
+id = "c04"
+listener = "a"
+goal = "strength"
+minutes = 30
+preset = "hotel-gym"
+
+[[case]]
+id = "c05"
+listener = "b"
+goal = "strength"
+minutes = 20
+preset = "hotel-gym"
+
+[[case]]
+id = "c06"
+listener = "b"
+goal = "strength"
+minutes = 45
+preset = "hotel-gym"
+limit = "calf=delicate:right"
+
+[[case]]
+id = "c07"
+listener = "d"
+goal = "strength"
+minutes = 15
+preset = "hotel-room"
+
+[[case]]
+id = "c08"
+listener = "d"
+goal = "strength"
+minutes = 35
+preset = "hotel-room"
+
+[[case]]
+id = "c09"
+listener = "c"
+goal = "strength"
+minutes = 20
+preset = "full-gym"
+limit = "wrist=delicate:right"
+
+[[case]]
+id = "c10"
+listener = "c"
+goal = "strength"
+minutes = 45
+preset = "full-gym"
+
+[[case]]
+id = "c11"
+listener = "c"
+goal = "strength"
+minutes = 15
+preset = "hotel-gym"
+
+[[case]]
+id = "c12"
+listener = "c"
+goal = "strength"
+minutes = 40
+preset = "hotel-gym"
+limit = "groin=delicate:left"
+
+[[case]]
+id = "c13"
+listener = "a"
+goal = "general"
+minutes = 15
+preset = "bodyweight"
+
+[[case]]
+id = "c14"
+listener = "a"
+goal = "general"
+minutes = 30
+preset = "bodyweight"
+
+[[case]]
+id = "c15"
+listener = "a"
+goal = "general"
+minutes = 20
+preset = "hotel-room"
+limit = "neck=delicate"
+
+[[case]]
+id = "c16"
+listener = "a"
+goal = "general"
+minutes = 40
+preset = "hotel-room"
+
+[[case]]
+id = "c17"
+listener = "d"
+goal = "general"
+minutes = 20
+preset = "hotel-room"
+
+[[case]]
+id = "c18"
+listener = "d"
+goal = "general"
+minutes = 40
+preset = "hotel-room"
+limit = "low-back=delicate"
+
+[[case]]
+id = "c19"
+listener = "b"
+goal = "general"
+minutes = 15
+preset = "full-gym"
+
+[[case]]
+id = "c20"
+listener = "b"
+goal = "general"
+minutes = 30
+preset = "full-gym"
+
+[[case]]
+id = "c21"
+listener = "c"
+goal = "general"
+minutes = 20
+preset = "full-gym"
+limit = "calf=off-limits:left"
+
+[[case]]
+id = "c22"
+listener = "c"
+goal = "general"
+minutes = 45
+preset = "full-gym"
+
+[[case]]
+id = "c23"
+listener = "c"
+goal = "general"
+minutes = 15
+preset = "bodyweight"
+
+[[case]]
+id = "c24"
+listener = "c"
+goal = "general"
+minutes = 30
+preset = "bodyweight"
+limit = "neck=delicate"
+
+[[case]]
+id = "c25"
+listener = "a"
+goal = "conditioning"
+minutes = 10
+preset = "bodyweight"
+
+[[case]]
+id = "c26"
+listener = "a"
+goal = "conditioning"
+minutes = 30
+preset = "bodyweight"
+
+[[case]]
+id = "c27"
+listener = "a"
+goal = "conditioning"
+minutes = 15
+preset = "hotel-gym"
+limit = "calf=delicate:both"
+
+[[case]]
+id = "c28"
+listener = "a"
+goal = "conditioning"
+minutes = 40
+preset = "hotel-gym"
+
+[[case]]
+id = "c29"
+listener = "d"
+goal = "conditioning"
+minutes = 10
+preset = "hotel-room"
+
+[[case]]
+id = "c30"
+listener = "d"
+goal = "conditioning"
+minutes = 30
+preset = "hotel-room"
+limit = "groin=delicate:right"
+
+[[case]]
+id = "c31"
+listener = "b"
+goal = "conditioning"
+minutes = 20
+preset = "hotel-gym"
+
+[[case]]
+id = "c32"
+listener = "b"
+goal = "conditioning"
+minutes = 45
+preset = "hotel-gym"
+
+[[case]]
+id = "c33"
+listener = "c"
+goal = "conditioning"
+minutes = 12
+preset = "full-gym"
+limit = "neck=delicate"
+
+[[case]]
+id = "c34"
+listener = "c"
+goal = "conditioning"
+minutes = 35
+preset = "full-gym"
+
+[[case]]
+id = "c35"
+listener = "d"
+goal = "conditioning"
+minutes = 10
+preset = "hotel-room"
+level = "advanced"
+
+[[case]]
+id = "c36"
+listener = "d"
+goal = "conditioning"
+minutes = 30
+preset = "hotel-room"
+level = "advanced"
+limit = "low-back=delicate"
+
+[[case]]
+id = "c37"
+listener = "a"
+goal = "mobility"
+minutes = 20
+preset = "bodyweight"
+
+[[case]]
+id = "c38"
+listener = "b"
+goal = "targeted"
+minutes = 30
+preset = "hotel-gym"
+target = "horizontal-pull,back"
+
+[[case]]
+id = "c39"
+listener = "c"
+goal = "mobility"
+minutes = 30
+preset = "full-gym"
+limit = "groin=delicate:both"
+
+[[case]]
+id = "c40"
+listener = "d"
+goal = "targeted"
+minutes = 25
+preset = "hotel-room"
+target = "glutes"

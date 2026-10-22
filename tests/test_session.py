@@ -330,6 +330,111 @@ class Compose(unittest.TestCase):
                                               "holds"), 2 * 45 + 10)
 
 
+EVAL = os.path.join(ROOT, "docs", "eval")
+SHORT, LONG = range(10, 21), range(30, 46)
+
+
+def eval_cases():
+    import tomllib
+    with open(os.path.join(EVAL, "cases.toml"), "rb") as f:
+        data = tomllib.load(f)
+    return data, data.get("case", [])
+
+
+def eval_listener(name):
+    home = os.path.join(EVAL, "listeners", name)
+    return (context.profile(os.path.join(home, "profile.md")), context.health(os.path.join(home, "health.md")),
+            context.sessions(os.path.join(home, "log.md")))
+
+
+def eval_request(case, cat):
+    """The request `./sweatcast session` builds from a case's flags."""
+    import session
+    return {"goal": case["goal"], "minutes": case["minutes"], "method": case.get("method"),
+            "level": case.get("level"), "preset": case["preset"],
+            "target": session._words(case.get("target")),
+            "limits": [session._limit(case["limit"], cat)] if case.get("limit") else [], "avoid": set()}
+
+
+class Eval(unittest.TestCase):
+    """The judged grid in docs/eval/: forty cases over four invented listeners."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cat, cls.sess = catalog.load(), sessions.load()
+
+    def test_cases_are_forty_and_valid(self):
+        import session
+        data, cases = eval_cases()
+        self.assertEqual(data.get("format"), 1)
+        self.assertEqual(len(cases), 40)
+        self.assertEqual([c["id"] for c in cases], [f"c{i:02d}" for i in range(1, 41)])
+        allowed = {"id", "listener", "goal", "minutes", "preset", "level", "target", "limit", "method"}
+        cells, extra, presets = {}, [], {}
+        for i, c in enumerate(cases, 1):
+            self.assertLessEqual(set(c), allowed, c["id"])
+            self.assertTrue({"id", "listener", "goal", "minutes", "preset"} <= set(c), c["id"])
+            self.assertIn(c["goal"], self.sess.goals, c["id"])
+            self.assertIn(c["preset"], self.cat.presets, c["id"])
+            self.assertIsInstance(c["minutes"], int, c["id"])
+            profile, _, _ = eval_listener(c["listener"])
+            level = c.get("level") or context.experience(profile)
+            self.assertIn(level, catalog.LEVELS, c["id"])
+            for t in session._words(c.get("target")):
+                self.assertTrue(t in self.cat.patterns or t in self.cat.muscles, (c["id"], t))
+            if c.get("method"):
+                self.assertIn(c["method"], self.sess.methods, c["id"])
+            self.assertEqual(bool(c.get("limit")), i % 3 == 0, f"{c['id']}: every third case, and only those, has a limit")
+            if c.get("limit"):
+                lim = session._limit(c["limit"], self.cat)
+                self.assertIn(lim.area, {"neck", "low-back", "wrist", "groin", "calf"}, c["id"])
+            presets[c["preset"]] = presets.get(c["preset"], 0) + 1
+            if c["goal"] in ("strength", "general", "conditioning"):
+                cells.setdefault((c["goal"], level), []).append(c)
+            else:
+                extra.append(c)
+        self.assertEqual(len(cells), 9)
+        for cell, rows in cells.items():
+            self.assertEqual(len(rows), 4, cell)
+            by_preset = {}
+            for c in rows:
+                by_preset.setdefault(c["preset"], []).append(c["minutes"])
+            self.assertEqual(len(by_preset), 2, cell)
+            for preset, minutes in by_preset.items():
+                self.assertEqual(sorted(m in LONG for m in minutes), [False, True], (cell, preset))
+                self.assertTrue(all(m in SHORT or m in LONG for m in minutes), (cell, preset))
+        self.assertEqual(sorted(c["goal"] for c in extra), ["mobility", "mobility", "targeted", "targeted"])
+        self.assertTrue(all(c.get("target") for c in extra if c["goal"] == "targeted"))
+        self.assertEqual(set(presets), set(self.cat.presets))
+        self.assertTrue(all(n >= 4 for n in presets.values()), presets)
+
+    def test_every_case_composes(self):
+        import session
+        _, cases = eval_cases()
+        self.assertEqual(len(cases), 40)
+        for c in cases:
+            profile, health, log = eval_listener(c["listener"])
+            with self.subTest(case=c["id"]):
+                sk = session.compose(eval_request(c, self.cat), self.cat, self.sess, profile, health, log, TODAY)
+                self.assertIsNotNone(sk.method)
+                self.assertGreaterEqual(sum(len(slots) for _, slots in sk.blocks), sk.method.min_slots)
+
+    def test_listeners_are_clean(self):
+        for name in "abcd":
+            home = os.path.join(EVAL, "listeners", name)
+            files = [os.path.join(home, f) for f in ("profile.md", "health.md", "log.md", "exercise-science.md")]
+            issues = [context.describe(x) for x in context.check(files) if not x.note]
+            self.assertEqual(issues, [], name)
+            profile, _, _ = eval_listener(name)
+            self.assertTrue(context.voices(profile), name)
+            self.assertIsNotNone(context.wpm(profile), name)
+        likes, dislikes = context.likes(eval_listener("d")[0]), context.dislikes(eval_listener("d")[0])
+        self.assertEqual((len(likes), len(dislikes)), (2, 2))
+        self.assertFalse(set(likes) & set(dislikes))
+        for mid in likes + dislikes:
+            self.assertFalse(self.cat.movements[mid].draft, mid)
+
+
 class Cli(unittest.TestCase):
     def test_usage_on_unknown_goal(self):
         r = run_session(["--goal", "vibes", "--minutes", "30", "--kit", "home"])
