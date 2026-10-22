@@ -40,24 +40,24 @@ advance_when = ["The ankle no longer hurts at rest, and the swelling is going do
 sources = ["https://pubmed.ncbi.nlm.nih.gov/29514819/", "https://pubmed.ncbi.nlm.nih.gov/28053200/"]
 
 [areas.ankle.restore]
-ban = ["impact", "ankle-push", "ankle-bend", "lateral"]
-ban_injured_side = ["single-leg-stance"]
+ban = ["impact", "standing", "single-leg-stance", "ankle-push", "ankle-bend", "lateral"]
+ban_injured_side = []
 ban_ids = [
   "kettlebell-swing", "farmer-carry", "suitcase-carry",
   "bike-seated-sprint", "bike-standing-sprint", "air-bike-sprint", "bike-standing-climb",
-  "band-ankle-inversion", "childs-pose", "kettlebell-windmill",
+  "band-ankle-inversion", "childs-pose", "barbell-hip-thrust",
 ]
-caution = { glute-bridge = "Both feet down.", romanian-deadlift = "Light, both feet flat, only if pain-free.", kettlebell-deadlift = "Light, both feet flat, only if pain-free.", deadlift = "Light, both feet flat, only if pain-free.", side-plank = "Only with the healthy ankle underneath. Use the knee version on the injured side.", bike-easy-spin = "Light resistance, heel or midfoot centred on the pedal.", bike-steady = "Light resistance, heel or midfoot centred on the pedal.", bike-cadence-surge = "Light resistance, heel or midfoot centred on the pedal.", air-bike-steady = "Light resistance, heel or midfoot centred on the pedal." }
-include = ["seated-ankle-alphabet", "seated-ankle-circles", "band-ankle-dorsiflexion", "band-ankle-eversion", "band-ankle-plantar-flexion", "towel-scrunch"]
+caution = { glute-bridge = "Both feet down.", box-squat = "Supported, pain-free.", side-plank = "Only with the healthy ankle underneath. Use the knee version on the injured side.", bike-easy-spin = "Light resistance, heel or midfoot centred on the pedal.", bike-steady = "Light resistance, heel or midfoot centred on the pedal.", bike-cadence-surge = "Light resistance, heel or midfoot centred on the pedal.", air-bike-steady = "Light resistance, heel or midfoot centred on the pedal." }
+include = ["seated-ankle-alphabet", "seated-ankle-circles", "band-ankle-dorsiflexion", "band-ankle-eversion", "band-ankle-plantar-flexion", "towel-scrunch", "box-squat"]
 advance_when = ["Walks normally, without a limp, through a whole day.", "Traces the alphabet with the foot, seated, with little or no pain.", "No new swelling the morning after a session."]
 sources = ["https://pubmed.ncbi.nlm.nih.gov/29514819/", "https://pubmed.ncbi.nlm.nih.gov/28053200/"]
 
 [areas.ankle.rebuild]
-ban = ["impact", "lateral"]
+ban = ["impact", "ankle-push", "single-leg-stance", "lateral"]
 ban_injured_side = []
 ban_ids = ["kettlebell-swing", "bike-seated-sprint", "bike-standing-sprint", "air-bike-sprint", "bike-standing-climb"]
-caution = { split-squat = "Injured leg behind, only if comfortable.", reverse-lunge = "Short step, only if comfortable on the injured side.", bulgarian-split-squat = "Only if comfortable on the injured side.", step-up = "Low step, slow and controlled.", farmer-carry = "Flat floor, steady pace.", suitcase-carry = "Flat floor, steady pace." }
-include = ["single-leg-balance", "band-ankle-plantar-flexion", "band-ankle-inversion", "band-ankle-eversion", "band-ankle-dorsiflexion"]
+caution = { seated-calf-raise = "Both feet together, light, pain-free.", single-leg-balance = "Fingertips on the wall at first.", split-squat = "Injured leg behind, only if comfortable.", bike-easy-spin = "Seated, moderate resistance at most.", bike-steady = "Seated, moderate resistance at most.", bike-cadence-surge = "Seated, moderate resistance at most.", air-bike-steady = "Seated, moderate effort at most." }
+include = ["single-leg-balance", "seated-calf-raise", "split-squat", "band-ankle-plantar-flexion", "band-ankle-inversion", "band-ankle-eversion", "band-ankle-dorsiflexion"]
 advance_when = ["Balances on the injured leg, without a hand on the wall, about as long as on the other leg.", "Does calf raises on both feet, then on the injured foot alone, without pain.", "No pain through a normal day, and no swelling the morning after training."]
 sources = ["https://pubmed.ncbi.nlm.nih.gov/28053200/", "https://pubmed.ncbi.nlm.nih.gov/34158354/"]
 
@@ -131,7 +131,7 @@ advance_when = ["Gets out of bed and up from a chair without a sharp catch.", "W
 sources = ["https://www.nice.org.uk/guidance/ng59/chapter/Recommendations"]
 
 [areas."lower back".restore]
-ban = ["spine-flexion", "spine-load", "spine-twist"]
+ban = ["impact", "spine-flexion", "spine-load", "spine-twist"]
 ban_injured_side = []
 ban_ids = ["overhead-press", "thruster", "overhead-triceps-extension", "kettlebell-halo", "half-kneeling-kettlebell-press", "turkish-get-up"]
 caution = { forearm-plank = "Only if pain-free.", side-plank = "Only if pain-free.", seated-shoulder-press = "Back supported against the bench.", dumbbell-pullover = "Light. Ribs down, the low back stays on the bench.", leg-press = "Moderate depth. The low back stays flat on the pad." }
@@ -140,10 +140,10 @@ advance_when = ["Bends to pick something light up from the floor without pain.",
 sources = ["https://www.nice.org.uk/guidance/ng59/chapter/Recommendations"]
 
 [areas."lower back".rebuild]
-ban = ["spine-flexion", "spine-twist"]
+ban = ["impact", "spine-flexion", "spine-twist"]
 ban_injured_side = []
-ban_ids = []
-caution = { romanian-deadlift = "Light, back flat, pain-free.", kettlebell-deadlift = "Light, back flat, pain-free.", deadlift = "Light, back flat, pain-free.", kettlebell-swing = "Light, from the hips, pain-free.", overhead-press = "Light. Ribs down, no leaning back." }
+ban_ids = ["kettlebell-swing"]
+caution = { romanian-deadlift = "Light, back flat, pain-free.", kettlebell-deadlift = "Light, back flat, pain-free.", deadlift = "Light, back flat, pain-free.", overhead-press = "Light. Ribs down, no leaning back." }
 include = []
 advance_when = ["Hinges with a light weight without pain, during or the next morning.", "Sits and stands through a normal day without the pain building."]
 sources = ["https://www.nice.org.uk/guidance/ng59/chapter/Recommendations"]
@@ -180,7 +180,7 @@ sources = ["https://pmc.ncbi.nlm.nih.gov/articles/PMC9904825/", "https://pubmed.
 [areas.shoulder.restore]
 ban = ["overhead", "shoulder-end-range", "hanging"]
 ban_injured_side = ["lying-side"]
-ban_ids = ["push-up", "incline-push-up", "dumbbell-bench-press", "bench-press", "incline-bench-press", "incline-dumbbell-press", "machine-chest-press", "single-arm-cable-press", "lateral-raise", "seated-lateral-raise", "renegade-row"]
+ban_ids = ["push-up", "incline-push-up", "dumbbell-bench-press", "bench-press", "incline-bench-press", "incline-dumbbell-press", "machine-chest-press", "single-arm-cable-press", "lateral-raise", "seated-lateral-raise", "renegade-row", "seated-shadow-boxing", "seated-speed-bag", "shadow-boxing", "jumping-jacks", "step-jack"]
 caution = { floor-press = "Neutral grip, light, pain-free.", band-chest-press = "Light band, pain-free.", band-external-rotation = "Light band, pain-free range.", rear-delt-fly = "Light, pain-free range.", forearm-plank = "Skip it if the shoulder hurts. Dead bugs instead.", side-plank = "Skip it if the shoulder hurts.", side-plank-from-the-knee = "Skip it if the shoulder hurts.", childs-pose = "Arms resting by your sides, not reaching forward.", foam-roller-thoracic-extension = "Arms crossed on the chest, not behind the head." }
 include = []
 advance_when = ["Raises the arm overhead, without weight, without pain.", "Light rows and floor presses are pain-free during the session and the next day.", "Sleeps without shoulder pain."]
@@ -189,7 +189,7 @@ sources = ["https://pmc.ncbi.nlm.nih.gov/articles/PMC9904825/"]
 [areas.shoulder.rebuild]
 ban = ["shoulder-end-range", "hanging"]
 ban_injured_side = ["lying-side"]
-ban_ids = []
+ban_ids = ["seated-shadow-boxing", "seated-speed-bag", "seated-overhead-punches", "shadow-boxing", "jumping-jacks", "step-jack", "kettlebell-swing"]
 caution = { seated-shoulder-press = "Light, pain-free range.", overhead-press = "Light, pain-free range.", push-up = "Hands under the shoulders, pain-free.", lateral-raise = "Light, below shoulder height first.", dumbbell-bench-press = "Light, elbows tucked a little.", bench-press = "Light, shoulder-width grip." }
 include = []
 advance_when = ["Presses a light weight overhead without pain.", "The injured side lifts close to what the other side does.", "No shoulder pain the morning after an upper-body session."]
@@ -240,7 +240,7 @@ sources = ["https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-ne
 [areas."wrist and hand".rebuild]
 ban = ["hanging"]
 ban_injured_side = []
-ban_ids = []
+ban_ids = ["kettlebell-swing"]
 caution = { push-up = "On dumbbell handles first, wrists straight, pain-free.", incline-push-up = "Pain-free only.", farmer-carry = "Light and short.", suitcase-carry = "Light and short.", front-squat = "Arms crossed instead of the front rack." }
 include = []
 advance_when = ["Takes weight on the hands in a push-up position without pain.", "Grip on the injured side feels close to the other side."]
@@ -270,7 +270,7 @@ advance_when = ["Turns the head slowly both ways without sharp pain.", "No pain 
 sources = ["https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-need-peace-love/", "https://pubmed.ncbi.nlm.nih.gov/28666405/"]
 
 [areas.neck.restore]
-ban = ["neck-load", "overhead", "hanging"]
+ban = ["neck-load", "overhead", "hanging", "impact"]
 ban_injured_side = []
 ban_ids = ["back-squat", "front-squat"]
 caution = { farmer-carry = "Light, shoulders down away from the ears.", suitcase-carry = "Light, shoulders down away from the ears." }
@@ -279,7 +279,7 @@ advance_when = ["Turns and tilts the head through most of its range without pain
 sources = ["https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-need-peace-love/", "https://pubmed.ncbi.nlm.nih.gov/28666405/"]
 
 [areas.neck.rebuild]
-ban = ["neck-load"]
+ban = ["neck-load", "impact"]
 ban_injured_side = []
 ban_ids = []
 caution = { overhead-press = "Light. Chin gently tucked.", seated-shoulder-press = "Light. Chin gently tucked.", back-squat = "Light. Move the bar off the neck if it presses.", front-squat = "Light. Move the bar off the neck if it presses.", lat-pulldown = "Pull to the chest, never behind the neck." }
@@ -327,7 +327,7 @@ sources = ["https://pubmed.ncbi.nlm.nih.gov/27629403/"]
 [areas.hip.rebuild]
 ban = ["impact", "lateral", "kick"]
 ban_injured_side = []
-ban_ids = ["bike-seated-sprint", "bike-standing-sprint", "air-bike-sprint", "bike-standing-climb"]
+ban_ids = ["kettlebell-swing", "bike-seated-sprint", "bike-standing-sprint", "air-bike-sprint", "bike-standing-climb"]
 caution = { goblet-squat = "Only as deep as stays pain-free.", romanian-deadlift = "Only as far down as stays pain-free.", hip-abduction-machine = "Light, pain-free range.", hip-adduction-machine = "Light, pain-free range." }
 include = []
 advance_when = ["Squats and hinges with a weight without pain.", "Balances on the injured leg about as steadily as on the other.", "No hip pain the morning after a loaded session."]
@@ -366,7 +366,7 @@ sources = ["https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-ne
 [areas.elbow.restore]
 ban = ["grip", "hanging", "wrist-load", "shoulder-end-range"]
 ban_injured_side = []
-ban_ids = ["biceps-curl", "hammer-curl", "seated-dumbbell-curl", "cable-curl", "triceps-pushdown", "seated-triceps-kickback", "overhead-triceps-extension", "bench-press", "incline-bench-press"]
+ban_ids = ["biceps-curl", "hammer-curl", "seated-dumbbell-curl", "cable-curl", "triceps-pushdown", "seated-triceps-kickback", "overhead-triceps-extension", "bench-press", "incline-bench-press", "seated-shadow-boxing", "seated-speed-bag", "seated-overhead-punches", "shadow-boxing"]
 caution = { floor-press = "Light, pain-free.", dumbbell-bench-press = "Light, pain-free.", chest-supported-row = "Light, pain-free.", band-row = "Light band, pain-free.", seated-shoulder-press = "Light, pain-free." }
 include = []
 advance_when = ["Grips and lifts light things through the day without pain.", "Light presses and rows leave no elbow pain the next morning."]
@@ -375,7 +375,7 @@ sources = ["https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-ne
 [areas.elbow.rebuild]
 ban = ["grip", "hanging"]
 ban_injured_side = []
-ban_ids = []
+ban_ids = ["seated-shadow-boxing", "seated-speed-bag", "seated-overhead-punches", "shadow-boxing"]
 caution = { biceps-curl = "Light, slow on the way down.", hammer-curl = "Light, slow on the way down.", triceps-pushdown = "Light, pain-free.", push-up = "Pain-free only." }
 include = []
 advance_when = ["Grip on the injured side is close to the other side, without pain.", "Curls and presses with a moderate weight leave no pain the next day."]

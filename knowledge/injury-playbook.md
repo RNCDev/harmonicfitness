@@ -30,9 +30,9 @@ The criteria are things the listener can answer at the check-in from daily life:
 A consensus paper calls the lateral ankle sprain the most common sports injury, with a high rate of recurrence, and balance training is one of the two things with evidence for preventing a second one (bracing is the other). So the early phases keep weight off the ankle and keep everything else training, and the later phases rebuild balance on purpose before speed and impact come back.
 
 - **Protect** keeps the ankle unloaded: seated, lying and floor work, and upper-body cardio. Anything that puts weight through the foot waits, including the quiet ways it happens: toes on the floor in a full push-up or plank (do them from the knees), the bottom foot in a full side plank, kneeling with the foot pointed under the body, feet driving a loaded bridge or a hamstring curl. The ankle rehab movements and all pedalling wait for restore too. The guideline below says a short time of immobilisation can ease pain and swelling, but the ankle does best with an exercise programme soon after, so protect should be short.
-- **Restore** adds weight on both feet, gentle seated range of motion (the alphabet, circles, band work and a gentle band calf press, which the rules include even though it pushes through the ball of the foot) and easy seated pedalling at light resistance with the foot centred. Band work that rolls the foot inward, deep kneeling on a pointed foot, and standing lifts that turn the feet out wait for rebuild; standing lifts stay light.
-- **Rebuild** loads the ankle progressively: calf raises, squats, split squats with the injured leg behind, and single-leg balance on the injured side, starting with fingertips on a wall and made harder over sessions (fingertips off, eyes closed, a soft surface). This is the balance training that lowers the chance of a second sprain, so it belongs in every rebuild session, not as an extra; the rules include it.
-- **Return** brings back hops on two feet, then on one, then side-to-side movement, one at a time across sessions. Keep a short balance block in sessions for months afterwards.
+- **Restore** still keeps weight off the foot, as protect does, and adds back only what helps it move: gentle seated range of motion (the alphabet, circles, band work, and a gentle band calf press, which the rules include even though it pushes through the ball of the foot), easy seated pedalling at light resistance with the foot centred, bridges with both feet down, and supported squats to a box if pain-free (also included by the rules). Band work that rolls the foot inward and deep kneeling on a pointed foot wait for rebuild.
+- **Rebuild** loads the ankle progressively on both feet: squats such as the goblet squat, double-leg calf raises (seated, since that's the catalog's version), split squats with the injured leg behind, moderate seated pedalling, and supported single-leg balance on the injured side, starting with fingertips on a wall and made harder over sessions (fingertips off, eyes closed, a soft surface). The rules include the balance, calf raises and split squats even though their tags are still banned; other single-leg and push-off work (lunges, step-ups, the sled, stairs, an incline walk, the leg press) waits for return. The balance training is what lowers the chance of a second sprain, so it belongs in every rebuild session, not as an extra.
+- **Return** brings back single-leg and push-off work, then hops on two feet, then on one, then side-to-side movement, one at a time across sessions. Keep a short balance block in sessions for months afterwards.
 
 How to judge the criteria: limping and swelling decide protect and restore. For rebuild, compare the two legs: single-leg balance and single-leg calf raises on the injured side should be close to the other side, with no pain through the day and no swelling the morning after. The return-to-sport consensus below names pain over the last day, ankle range and strength, confidence in the ankle, balance, and hopping as what to check before full sport; the listener can judge each one roughly at home.
 
@@ -56,22 +56,22 @@ How to judge the criteria: walking without a limp and no pain at rest end protec
 ## Lower back
 The guideline below encourages people with low back pain to continue normal activities and to exercise. So nothing here keeps the listener still: walking, easy pedalling and core work in a neutral spine carry on throughout. The rules assume that what strains a sore back most is curling the spine against resistance, heavy hinging, twisting under load, and pressing overhead while standing, on the view that it arches the low back. Seated presses with the back supported are fine. Favour neutral spine and bracing cues: ribs down, the low back quiet, and the back flat on the pad in a leg press or a pullover.
 
-- **Protect** keeps the back in neutral and the session gentle: dead bugs, bird dogs and side planks if pain-free, glute bridges, rows with the chest on a bench, walking or easy bike. Running and jumping wait until the back settles, and so does the forearm plank, which arches a tired low back easily.
-- **Restore** brings back the forearm plank and running, still without loaded curling, hinging or twisting.
-- **Rebuild** brings back hinging with light weights and standing overhead pressing, with a flat back and ribs down, progressing over sessions.
-- **Return** brings back loaded curling and twisting.
+- **Protect** keeps the back in neutral and the session gentle: dead bugs, bird dogs and side planks if pain-free, glute bridges, rows with the chest on a bench, walking or easy bike. Running, jumping and other impact wait for return, and the forearm plank waits for restore, since it arches a tired low back easily.
+- **Restore** brings back the forearm plank, still without loaded curling, hinging, twisting or impact.
+- **Rebuild** brings back hinging with light weights and standing overhead pressing, with a flat back and ribs down, progressing over sessions. Swings, like running and jumping, are fast and wait for return.
+- **Return** brings back loaded curling and twisting, swings, running and jumping, one at a time.
 
 How to judge the criteria: getting out of bed and up from a chair without a sharp catch, and walking ten minutes without the pain building, end protect. Bending to pick something light up from the floor, and no worse the morning after a session, end restore. A light hinge with no pain during or the next morning, and a normal day of sitting and standing, end rebuild.
 
-- The NICE guideline recommends advice that encourages people with low back pain to continue normal activities, and suggests considering exercise (biomechanical, aerobic, mind–body or a mix) for an episode or flare-up, chosen around the person's needs, preferences and abilities. It also says to look for other causes, such as cancer, infection, trauma or inflammatory disease, especially with new or changed symptoms. Source: https://www.nice.org.uk/guidance/ng59/chapter/Recommendations. It doesn't say which movements to avoid, or give phases or criteria for progressing.
+- The NICE guideline recommends advice that encourages people with low back pain to continue normal activities, and suggests considering a group exercise programme (biomechanical, aerobic, mind–body or a mix) for an episode or flare-up, chosen around the person's needs, preferences and abilities. It also says to look for other causes, such as cancer, infection, trauma or inflammatory disease, especially with new or changed symptoms. Source: https://www.nice.org.uk/guidance/ng59/chapter/Recommendations. It doesn't say which movements to avoid, or give phases or criteria for progressing.
 
 ## Shoulder
 The rules treat load overhead, end-range positions (dips, wide-grip pressing, anything behind the neck), hanging and lying on the sore side as what aggravates a sore shoulder. For rotator cuff pain, the review below found exercise helps and light loads work about as well as heavy ones, so there's no reason to push through pain early.
 
 - **Protect** keeps load off the shoulder: pressing, raises, weight on the hands, and arm-driven cardio (punching, jacks, the air bike's handles, the sled) all wait. Heavy gripping waits too, because a heavy weight in the hand hangs from the shoulder; that is stricter than this file's earlier list, and it means deadlifts, swings and carries wait for restore even though they're lower-body work. Lying on either side waits, since the rules can't tell the sides apart. Light rows to the lower ribs, a neutral-grip floor press, band external rotation and shoulder-blade work are allowed only if pain-free. Lower-body and core training carry on, with dead bugs in place of planks and the arms kept down in stretches and crunches.
-- **Restore** brings back weight on the hands, gripping, light band pressing and planks if they don't hurt. Overhead work, end-range positions, hanging and most pressing still wait.
-- **Rebuild** brings back overhead pressing, push-ups and bench pressing at light loads, progressing as the shoulder allows. End-range positions and hanging still wait.
-- **Return** brings back end-range work and hanging, one at a time.
+- **Restore** brings back weight on the hands, gripping, light band pressing and planks if they don't hurt. Overhead work, end-range positions, hanging, most pressing and fast arm work still wait.
+- **Rebuild** brings back overhead pressing, push-ups and bench pressing at light loads, progressing as the shoulder allows. End-range positions, hanging and fast arm work (punching drills, jumping jacks, swings) still wait.
+- **Return** brings back end-range work, hanging and fast arm work, one at a time.
 
 How to judge the criteria: no pain at rest or at night, and lifting the arm to shoulder height without pain, end protect. Raising the arm overhead without weight, sleeping without pain, and light rows and floor presses that are fine the next day, end restore. A light overhead press without pain, near-equal strength on both sides, and no pain the morning after an upper-body session, end rebuild.
 
@@ -82,8 +82,8 @@ How to judge the criteria: no pain at rest or at night, and lifting the arm to s
 The rules treat these as what loads a sore wrist: weight on the hands with the wrist bent back (push-ups, planks on the hands, all fours, a front-rack hold), heavy or long gripping, and hanging. Anything held in both hands at once (a bar, a cable or band handle, a machine's grips, a single weight held two-handed) loads the injured hand too, so the rules keep those out early. The rules can't see which hand holds a dumbbell, so in protect and restore keep weights out of the injured hand in the script: one-arm work on the healthy side, or a goblet hold cradled on the forearms.
 
 - **Protect and restore** keep weight and grip off the hand: forearm planks, lower-body work, the bike. Restore adds gentle wrist range of motion. They ban the same things; what moves the listener from one to the other is pain at rest and swelling.
-- **Rebuild** brings back weight on the hands (push-ups on dumbbell handles first, with the wrist straight) and gripping at light loads. Hanging still waits.
-- **Return** brings back hanging and heavy grip work.
+- **Rebuild** brings back weight on the hands (push-ups on dumbbell handles first, with the wrist straight) and gripping at light loads. Hanging and swings still wait.
+- **Return** brings back hanging, swings and heavy grip work.
 
 How to judge the criteria: no pain at rest and a loose fist without sharp pain end protect. Full wrist range and holding a light dumbbell without pain end restore. A pain-free push-up position and grip close to the other hand end rebuild.
 
@@ -95,9 +95,9 @@ How to judge the criteria: no pain at rest and a loose fist without sharp pain e
 The rules treat these as what aggravates a sore neck: load on it (shrugs and heavy carries hang weight from the upper back), overhead loading, crunches that pull on the head, a bar across the shoulders next to the neck, and fast head turns. The catalog has no shrug yet; if one is ever added it needs the `neck-load` tag. Keep the head neutral in everything; cue "chin gently tucked, eyes on the floor a few feet ahead", and keep the head steady in punching drills and turning stretches.
 
 - **Protect** keeps load and fast movement off the neck: most lower-body and core work in a neutral head position, without heavy gripping, overhead work, hanging, crunches or jarring impact.
-- **Restore** brings back gripping, light carries with the shoulders down, crunches that don't pull on the head, and impact.
-- **Rebuild** brings back overhead work and a bar on the shoulders, at light loads.
-- **Return** brings back direct neck loading and fast head movement.
+- **Restore** brings back gripping, light carries with the shoulders down, and crunches that don't pull on the head. Impact still waits.
+- **Rebuild** brings back overhead work and a bar on the shoulders, at light loads. Impact still waits.
+- **Return** brings back impact, direct neck loading and fast head movement, one at a time.
 
 How to judge the criteria: turning the head slowly both ways without sharp pain, and no numbness or tingling in the arms, end protect (numbness or tingling is a red flag for a clinician, not a phase question). Most of the head's range without pain, and light rows and carries without neck pain, end restore. Full, pain-free head movement and no neck pain the day after light overhead work end rebuild.
 
@@ -110,8 +110,8 @@ The rules treat sharp bending under load, wide stances and deep side-to-side mot
 
 - **Protect** keeps load off the hip: partial-range bridges with body weight only, upper body, core in neutral, and only the easiest seated pedalling with a high seat if pain-free. Nothing standing, no lying on either side (the rules can't tell the sides apart), no stretching the front of the hip, and no loaded or single-leg bridges.
 - **Restore** brings back standing on both legs, lying on the healthy side, light loaded bridges through a partial range, and light pedalling, still without deep bends, wide stances, kicking or impact.
-- **Rebuild** brings back squats and hinges through a pain-free range, wide-stance and abductor work at light loads, and single-leg balance.
-- **Return** brings back landing, side-to-side movement and kicking, one at a time.
+- **Rebuild** brings back squats and hinges through a pain-free range, wide-stance and abductor work at light loads, and single-leg balance. Swings, being fast hinges, wait for return.
+- **Return** brings back landing, swings, side-to-side movement and kicking, one at a time.
 
 How to judge the criteria: no pain at rest or at night, and walking without a limp, end protect. Stairs and a full-range bridge without pain end restore. A loaded squat and hinge without pain, steady single-leg balance on the injured side, and no pain the morning after, end rebuild.
 
@@ -121,9 +121,9 @@ How to judge the criteria: no pain at rest or at night, and walking without a li
 The rules treat gripping, hanging, weight on the hands, and arm work that bends, straightens or braces the elbow under load as what aggravates a sore elbow. Tendon pain on the outside of the elbow comes back often, per the guideline below, so the later phases rebuild slowly and heavy gripping stays out until return. This area is new; there was no earlier elbow list to carry over.
 
 - **Protect** keeps load off the elbow. Lower body, core and arm-free cardio carry on, and light band work for the shoulder blades is allowed with a loose grip. Hold any weight for a leg movement close to the body, and skip it if the elbow complains.
-- **Restore** brings back light dumbbell pressing and rows, still without grip-heavy work, curls or triceps work.
-- **Rebuild** brings back curls and triceps work at light loads, lowering slowly, plus push-ups if pain-free. Heavy gripping and hanging still wait.
-- **Return** brings back heavy grip work and hanging.
+- **Restore** brings back light dumbbell pressing and rows, still without grip-heavy work, curls, triceps work or punching drills.
+- **Rebuild** brings back curls and triceps work at light loads, lowering slowly, plus push-ups if pain-free. Heavy gripping, hanging and punching drills still wait.
+- **Return** brings back heavy grip work, hanging and punching drills.
 
 How to judge the criteria: no pain at rest, and lifting a full cup or turning a door handle without sharp pain, end protect. Gripping and lifting light things through the day, and light presses and rows that leave no pain the next morning, end restore. Grip close to the other side without pain, and moderate curls and presses with no pain the next day, end rebuild.
 

@@ -12,8 +12,8 @@ sweatcast is not medical advice. Anything a doctor or physical therapist has tol
 
 <!-- An entry looks like this:
 - Left ankle: lateral sprain, date of injury.
-  - Phase is set at each check-in (protect, restore, rebuild, return; see the playbook). As of <date> it was <phase>.
+  - Phase is set at each check-in (protect, restore, rebuild or return, the phases in `knowledge/injury-rules.toml`). As of <date> it was <phase>.
   - Clinician rules: <what you were told, word for word where possible>.
   - Programming: <what's banned and what's allowed>.
-  - Move to the next phase only when <criteria>.
+  - Move to the next phase only when <criteria: that phase's `advance_when` in the rules file, plus any the clinician gave>.
 -->
