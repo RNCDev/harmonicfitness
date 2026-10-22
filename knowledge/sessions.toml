@@ -128,7 +128,7 @@ blocks = [
 [methods.skill]
 about = "Drill rounds that build a skill, then a short block of supporting strength."
 goals = ["skill"]
-minutes = [15, 45]   # house default: the range of the old session templates
+minutes = [15, 45]   # house default: a quarter hour of drills at least, up to a long session
 levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length

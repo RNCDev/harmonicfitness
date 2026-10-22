@@ -3,7 +3,7 @@
 A method is the shape of a session's main work: its goals, length, levels, how warm-up, cool-down
 and an optional finisher share the time, the kind of work and the blocks of patterns that fill it.
 The dose tables give each intensity's ranges by level. `load` reads the file, `problems` checks it
-against the movement catalog, one plain sentence per fault, `choose_method` picks today's method and
+against the movement catalog, one plain sentence per fault, `ranked` orders the methods that fit today and
 `dose` gives an intensity's ranges for a level. Library only; the command line lives elsewhere.
 """
 import tomllib
@@ -172,13 +172,6 @@ def ranked(s: Sessions, goal: str, minutes: float, level: str, equipment: Set[st
     first), then file order; within that, the last session's method moves to the back."""
     fits = sorted(fitting(s, goal, minutes, level, equipment), key=lambda m: m.goals.index(goal))
     return [m for m in fits if m.name != last_format] + [m for m in fits if m.name == last_format]
-
-
-def choose_method(s: Sessions, goal: str, minutes: float, level: str, last_format: Optional[str],
-                  equipment: Set[str]) -> Optional[Method]:
-    """The best-ranked fitting method (see `ranked`), or None."""
-    fits = ranked(s, goal, minutes, level, equipment, last_format)
-    return fits[0] if fits else None
 
 
 def dose(s: Sessions, intensity: str, level: str) -> dict:

@@ -1,6 +1,6 @@
 """The listener's context files: the one place that reads and writes them.
 
-me/profile.md, health.md, log.md and exercise-science.md are Markdown that Claude
+me/profile.md, health.md and log.md are Markdown that Claude
 reads and the tools parse. Every tool goes through this module, so a format lives in
 one place. Each file opens with TOML front matter naming its format's version:
 
@@ -60,7 +60,7 @@ HANDLE_KEYS = {"YouTube favorites": "youtube_favorites", "Puzzles": "puzzles"}
 
 def files():
     """The context files that carry a schema, in the order check() reports them."""
-    return [paths.PROFILE, paths.HEALTH, paths.LOG, paths.EXERCISE_SCIENCE]
+    return [paths.PROFILE, paths.HEALTH, paths.LOG]
 
 
 # ---- front matter --------------------------------------------------------------------
@@ -335,7 +335,7 @@ def add_voice_to_profile(name, description="", default=False, path=None):
 
 
 SETTINGS_COMMENTS = {
-    "words_per_minute": "The drafting guide's starting rate; the lint then uses each voice's measured pace.",
+    "words_per_minute": "The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.",
     "experience": "Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.",
     "likes": "Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.",
     "dislikes": "Movements to leave out (ids or names); the session tool never picks them.",
@@ -695,7 +695,7 @@ def _check_profile(path, text):
     if not voices(p):
         out.append(Issue(path, 0, "no voices: add a [[voices]] entry (name and description); the first is the default"))
     if wpm(p) is None:
-        out.append(Issue(path, 0, "no words_per_minute (the drafting guide assumes 185)", note=True))
+        out.append(Issue(path, 0, "no words_per_minute (./sweatcast lint without a voice assumes 185)", note=True))
     if unfilled(settings.get("deliver_to")):
         out.append(Issue(path, 0, "no deliver_to folder, so finished MP3s stay in me/workouts/", note=True))
     for i, f in enumerate(settings.get("feeds") or [], 1):
@@ -805,6 +805,10 @@ def check(home_files=None):
                         out.append(Issue(path, n + offset, s))
     if home_files is None:
         out += check_movements()
+        old = os.path.join(paths.HOME, "exercise-science.md")
+        if os.path.exists(old):   # 5.1.0 stopped reading it
+            out.append(Issue(old, 0, "no longer used (sessions draw no exercise-science asides now); "
+                                     "delete it once anything worth keeping is copied out", note=True))
     return out
 
 

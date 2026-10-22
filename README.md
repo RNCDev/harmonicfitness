@@ -26,7 +26,7 @@ Claude Code runs these for you, but they work on their own too. `./sweatcast hel
 | `./sweatcast build <draft> "<name>"` | Lints a draft, renders the MP3, copies it to your phone's folder (`--lint-only` to just lint) |
 | `./sweatcast voices` | Lists voices; `design` and `keep` make a new one from a description |
 | `./sweatcast session --goal strength --minutes 30 --preset hotel-room` | A session skeleton: the method, timed slots and ranked movements that fit the kit, your level and the limits in `me/health.md` |
-| `./sweatcast movements --preset hotel-room` | Lists the movements a kit allows, by movement pattern, for browsing; it applies no health limits (plan with `./sweatcast session`); `--avoid` rules out movement ids or flags |
+| `./sweatcast movements --preset hotel-room` | Browses the movements a kit allows, by movement pattern; it applies no health limits, so plans come from `./sweatcast session` |
 | `./sweatcast feeds`, `coverage`, `youtube`, `log-session` | What the workout skill uses to research, plan and log |
 | `./sweatcast migrate`, `cache prune`, `test` | Upkeep |
 
@@ -36,76 +36,41 @@ Three layers, so your own details never mix with the code:
 
 | Layer | Where | In git? |
 |---|---|---|
-| **Engine**: tools, skills, tests, shared knowledge (text-to-speech rules, movement catalog, injury playbook, equipment kits, exercise science) | `tools/`, `.claude/`, `tests/`, `knowledge/` | Yes, public |
-| **Voices**: each voice's ten-second reference clip, transcript and settings, with the model pinned to an exact revision | `voices/` | Yes, about 1 MB. Model weights download to `~/.cache/huggingface/hub` |
-| **You**: profile, health, workout log and feedback, drafts, research, rendered MP3s, private voices | `me/` (or wherever `SWEATCAST_HOME` points) | No: ignored, and the pre-push hook and CI block it |
+| **Engine**: the command, tools, skills, tests and shared knowledge (the movement catalog, session methods and doses, programming and injury references, text-to-speech rules) | `sweatcast`, `tools/`, `.claude/`, `tests/`, `knowledge/` | Yes, public |
+| **Voices**: each voice's ten-second reference clip, transcript and settings, with the model pinned to an exact revision | `voices/` | Yes, about 1 MB; model weights download to `~/.cache/huggingface/hub` |
+| **You**: profile, health, workout log and feedback, drafts, research, rendered MP3s, private voices and movements | `me/` (or wherever `SWEATCAST_HOME` points) | No: ignored, and the pre-push hook and CI block it |
 
-Pulling upstream changes never touches `me/`, so merges stay clean. When a major release changes a context file's format, `./sweatcast migrate` (or rerunning `./sweatcast setup`) brings `me/` up to date, backing up the originals first. Your settings (voices, delivery folder, feeds, YouTube channels) sit in a TOML block at the top of `me/profile.md`; everything below it is free-form prose for Claude. To back up your context and keep its history, make `me/` its own private repo: `cd me && git init && git add -A && git commit -m "My sweatcast context"`, then push it to a private remote.
+Pulling upstream changes never touches `me/`, so merges stay clean. When a release changes a context file's format, `./sweatcast migrate` (or rerunning `./sweatcast setup`) brings `me/` up to date, backing up the originals first. Your settings (voices, delivery folder, kits, feeds, YouTube channels) sit in a TOML block at the top of `me/profile.md`; everything below it is free-form prose for Claude. To back up your context with its history, make `me/` its own private repo.
 
-## Voice models
+| Folder | What |
+|---|---|
+| `.claude/skills/` | `workout` (request to MP3) and `setup` (onboarding and profile changes) |
+| `knowledge/` | The movement catalog (`movements.toml`), session methods and doses (`sessions.toml`), programming, the injury playbook, equipment kits, text-to-speech rules, how voices work |
+| `tools/` | One Python or shell file per job, all run through `./sweatcast`; `CLAUDE.md` lists what each does |
+| `voices/`, `me.example/` | The shipped voices and the smoke-test draft; the template for `me/` |
+| `tests/` | Fast checks with no models, network or personal files (`./sweatcast test`), run by CI on every push |
+| `docs/eval/` | The judged grid of forty sessions behind each release's quality, with each run's results |
+| `docs/research/` | The research notes the session rules cite |
 
-Two voices ship with sweatcast, each named for the model that speaks it. The models are used exactly as published, and the voice comes from a ten-second reference clip that the model copies for every line:
+## Voices
+
+Two voices ship, each named for the model that speaks it; a voice is a ten-second reference clip the model copies for every line:
 
 | Voice | Model | Sound | Download | Render speed (M3) |
 |---|---|---|---|---|
 | Chatterbox Coach (default) | Chatterbox Turbo | Warm baritone, a trainer talking to one client; the most natural | About 3.3 GB | About 0.7 times real time |
 | Qwen3 Coach | Qwen3-TTS | A focused class instructor; the clearest diction | About 4.2 GB | About 1.3 to 1.45 times |
 
-- **Getting them:** `./sweatcast setup` downloads the default voice's model once, from Hugging Face into `~/.cache/huggingface/hub`, at the exact revision the voice pins. `./sweatcast setup --all` gets both (about 7.5 GB). The `setup` skill waits until you've picked a voice, then downloads only that one.
-- **No account needed:** the models aren't gated. Ignore Hugging Face's "unauthenticated requests" warning.
-- **Offline afterwards:** rendering needs no network once a model is downloaded.
-- **Freeing space:** delete a model's folder under `~/.cache/huggingface/hub`; it downloads again if a voice needs it.
-
-- **A voice of your own:** a voice is just a ten-second clip the model copies, so a different voice (a woman, an older coach, another accent) is a description away: `./sweatcast voices design "<name>" "<who they are and how they sound>"` renders takes with Qwen3-TTS VoiceDesign (a 4.5 GB download), and `./sweatcast voices keep <take> --default` makes your pick a private voice. Or ask Claude Code to "design me a new coach voice".
-
-More in [knowledge/voices.md](knowledge/voices.md).
+`./sweatcast setup` downloads the default voice's model once (`--all` for both); no account is needed and rendering works offline afterwards. A voice of your own is a description away: `./sweatcast voices design "<name>" "<who they are and how they sound>"` renders takes (a 4.5 GB designer model), and `./sweatcast voices keep <take> --default` makes your pick a private voice. Or ask Claude Code to "design me a new coach voice". More in [knowledge/voices.md](knowledge/voices.md).
 
 ## How a session works
 
-1. The `workout` skill (`.claude/skills/workout/SKILL.md`) asks only for what you didn't say: how each injury feels, length, kit, how the last session went.
-2. `tools/feeds.py` pulls your teams' results and schedules, the weather, recent local, science and tech headlines, and the week's podcasts and puzzles from the feeds in your profile, in about a second. Background agents research the rest while you answer: two current science and technology breakthroughs, on this day, and a deep dive that alternates between a news story and a video from your favorite YouTube channels. A long video becomes a series, one part per session. The quiz uses a puzzle that works by ear when one turns up (The Fiddler, NPR's Sunday Puzzle, MindYourDecisions).
-3. Claude plans a whole-body session around your injuries, progressing from the loads it logged last time, then writes a segmented draft (`@@ <seconds> | <label>` before each segment) in short paragraphs, and starts rendering the first half while it writes the rest.
-4. `./sweatcast build` lints the draft for text-to-speech problems, predicts each segment's spoken length for the chosen voice, exports a clean `.txt`, renders a loudness-normalized `.mp3` into `me/workouts/`, and copies it to the folder your profile names (iCloud Drive, Google Drive, Dropbox: anything that syncs to your phone).
+1. The `workout` skill asks only for what you didn't say: how each injury feels, length, kit, how the last session went.
+2. `./sweatcast feeds` pulls your teams' results and schedules, the weather, recent local, science and tech headlines, and the week's podcasts and puzzles in about a second, while background agents research the rest: two current breakthroughs, on this day, and a deep dive that alternates between a news story and a video from your favorite YouTube channels (a long video becomes a series). The quiz uses a puzzle that works by ear.
+3. `./sweatcast session` builds the plan from the movement catalog: the method that suits your goal, length and level, timed slots, and ranked movements your kit allows and your injury limits permit. Claude writes the script under its `@@ <seconds> | <label>` markers, and starts rendering the first half while it writes the rest.
+4. `./sweatcast build` lints the draft for text-to-speech problems, predicts each segment's spoken length for the voice, renders a loudness-normalized MP3 into `me/workouts/`, and copies it to the folder your profile names (anything that syncs to your phone).
 
-Each paragraph is voiced by cloning the voice's reference clip with Chatterbox Turbo or Qwen3-TTS through [mlx-audio](https://github.com/Blaizzy/mlx-audio). A soft chime marks the start of each segment and each change inside an interval, and a rising three-note tone marks the end. Spare seconds in a segment widen its paragraph breaks a little, then the segment ends early rather than going quiet; a segment that runs slightly long is paid back from the next ones' spare time. The whole workout lands within three percent of plan. With the default voice, a 30-minute workout renders in under 20 minutes in the background, and edits re-render only the clips that changed.
-
-## Layout
-
-| Path | What |
-|---|---|
-| `CLAUDE.md` | Project instructions for Claude, including the release process |
-| `.claude/skills/` | `workout` (request to MP3) and `setup` (onboarding and profile changes) |
-| `knowledge/` | Shared references: text-to-speech rules, the movement catalog (`movements.toml`), session methods and doses (`sessions.toml`), programming, injury playbook, equipment kits (`kits.md`), exercise science, how voices work |
-| `voices/` | Shipped voices (clip, transcript, engine, model and revision) and the smoke-test draft |
-| `me.example/` | The template for your context folder |
-| `me/` | Your context (git-ignored) |
-| `sweatcast` | The one command (`./sweatcast help`); runs every tool in the project's environment |
-| `tools/setup.sh` | One-time setup (`./sweatcast setup`): environment, `me/`, privacy hook, models |
-| `tools/build.sh` | Draft to `.txt` and `.mp3` in one step (`./sweatcast build`), then the copy to your phone's folder |
-| `tools/tts_build.py` | Draft linter (predicted spoken seconds per segment, paragraph length, coaching structure) and `.txt` exporter |
-| `tools/draft.py` | The draft format and the timing layout the lint and the render share |
-| `tools/render.py` | Renderer with clip cache, timing, loudness normalization, a one-at-a-time lock and a record of each build |
-| `tools/engines.py` | The voice engines (Chatterbox Turbo, Qwen3-TTS) through mlx-audio |
-| `tools/context.py` | Reads and writes your context files: profile values, `log-session`, `check` |
-| `tools/migrate.py` | Brings a context folder from an older release up to date, backing it up first |
-| `tools/cache.py` | The clip cache's size, and `prune` for clips no build has used in a while |
-| `tools/cli.py` | Exit codes and the argument parser every tool shares |
-| `tools/voices.py` | Voice lookup, spoken-length prediction, model download, and designing and keeping new voices |
-| `tools/char_weight.py` | OmniVoice's character-weight rule (Apache 2.0), vendored for the prediction |
-| `tools/feeds.py` | Fetches your feeds (results, schedules, weather, headlines, weekly podcasts and puzzles) into a dated sheet |
-| `tools/youtube.py` | Picks a recent video from your favorite channels or continues a series, lists unused puzzles, saves a transcript |
-| `tools/catalog.py` | Loads and checks the movement catalog, matches a logged name to a movement, and selects what a kit, level and injury limits allow |
-| `tools/movements.py` | The filter (`./sweatcast movements`): the movements a kit allows, minus any movement ids or flags to avoid; for browsing, with no health limits |
-| `tools/sessions.py` | Loads and checks the session methods and doses (`knowledge/sessions.toml`) and picks today's method |
-| `tools/session.py` | The session skeleton (`./sweatcast session`): method, timing and ranked movements; `--draft` prints the `@@` markers |
-| `tools/coverage.py` | Reads your log and lists the movement patterns the last session left out and the week neglected, its format and the last loads |
-| `tools/paths.py` | Where everything lives; `SWEATCAST_HOME` moves your context folder |
-| `tools/hooks/` | The pre-push hook and `check-private.sh`, which refuse any commit holding personal context (CI runs the same check), and `private-paths`, the list they share |
-| `tests/` | Fast checks with no models, network or personal files (`./sweatcast test`), run by CI on every push |
-| `pyproject.toml`, `uv.lock` | The pinned Python environment |
-| `docs/research/` | Design notes |
-| `docs/eval/` | The judged eval grid behind each release's session quality |
-| `VERSION`, `CHANGELOG.md` | Release number and history |
+A soft chime marks the start of each segment and each change inside an interval, and a rising three-note tone marks the end. A segment with spare seconds widens its paragraph breaks, then ends early rather than going quiet, unless it holds timed work: a `[hold]` keeps that segment its full length, silent where you work. The whole workout lands within three percent of plan. With the default voice, a 30-minute workout renders in under 20 minutes in the background, and edits re-render only the clips that changed.
 
 ## Health and safety
 
@@ -117,7 +82,7 @@ The two shipped coach voices are synthetic: Qwen3-TTS VoiceDesign made them from
 
 ## Versioning
 
-sweatcast follows [Semantic Versioning](https://semver.org). Each release is tagged `vX.Y.Z` and published on the GitHub releases page; `CHANGELOG.md` says what changed, and a major release's "For forks" note says what to do after pulling it.
+sweatcast follows [Semantic Versioning](https://semver.org). Each release is tagged `vX.Y.Z` and published on the GitHub releases page; `CHANGELOG.md` says what changed, and a release's "For forks" note says what to do after pulling it.
 
 ## License
 

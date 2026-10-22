@@ -481,7 +481,7 @@ class KnowledgeFiles(unittest.TestCase):
             text = f.read()
         for heading in ("## Effort", "## Load range", "## Weekly dose", "## Rest and pairing", "## Tempo",
                         "## Progression", "## Warm-up, finisher and cool-down", "## One-sided training",
-                        "## Session templates"):
+                        "## Conditioning sources"):
             self.assertIn(heading, text)
         self.assertGreaterEqual(text.count("Source: https://"), 8)
 
@@ -498,9 +498,14 @@ class KnowledgeFiles(unittest.TestCase):
         self.assertNotIn("Applies to elbow and neck too", text)
 
     def test_docs_name_no_removed_files(self):
-        for rel in ("CLAUDE.md", "README.md", os.path.join("knowledge", "kits.md")):
+        gone = ("injury-rules.toml", "exercise-science.md", "docs/superpowers", "productization-research")
+        for rel in ("CLAUDE.md", "README.md", os.path.join("knowledge", "kits.md"),
+                    os.path.join(".claude", "skills", "workout", "SKILL.md"),
+                    os.path.join(".claude", "skills", "setup", "SKILL.md")):
             with open(os.path.join(ROOT, rel)) as f:
-                self.assertFalse("injury-rules.toml" in f.read(), rel)
+                text = f.read()
+            for name in gone:
+                self.assertNotIn(name, text, (rel, name))
 
     def test_skills_call_session_not_rules(self):
         def skill(name):

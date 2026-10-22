@@ -39,7 +39,7 @@ Spell everything out: "for example" not "e.g.", "that is" not "i.e.", "versus" n
 
 ## Pacing and pauses
 
-- A paragraph break gives a pause of at least a third of a second, and the render spreads the segment's spare time over its breaks (up to about two seconds each). Start a new paragraph for each part of a segment (cue, narrative, handoff).
+- A paragraph break gives a pause of at least a third of a second, and the render spreads the segment's spare time over its breaks (up to about one and a half seconds more each). Start a new paragraph for each part of a segment (cue, narrative, handoff).
 - Keep each paragraph under about twenty seconds spoken, about fifty words. Long clips are where engines drift, rush or glitch, and short paragraphs give the voice natural breaths. The lint flags paragraphs over twenty-two seconds.
 - `[pause 3s]` inserts exactly that much silence (also `[pause 500ms]`; at most ten seconds). Use it where the listener needs real time, such as box breathing or getting into position, not as decoration.
 - An ellipsis gives a short beat, at most half a second: "Three... two... one... switch." Keep countdowns to one per segment.

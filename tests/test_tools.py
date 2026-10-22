@@ -1083,7 +1083,7 @@ class Migrate(unittest.TestCase):
         with open(os.path.join(ROOT, "tests", "fixtures", "profile-schema1.md"), encoding="utf-8") as f:
             self.v1_profile = f.read()                      # me.example's profile as 2.0.0 shipped it
         self.bodies = {}
-        for name in ("health.md", "log.md", "exercise-science.md"):
+        for name in ("health.md", "log.md"):
             path = os.path.join(self.home, name)
             with open(path, encoding="utf-8") as f:
                 self.bodies[name] = context.body(f.read())
@@ -1356,7 +1356,7 @@ class Migrate3(unittest.TestCase):
             home = fresh_home(d)
             for name, text in (("profile.md", self.PROFILE2), ("health.md", self.HEALTH2)):
                 write_file(os.path.join(home, name), text)
-            for name in ("log.md", "exercise-science.md"):
+            for name in ("log.md",):
                 path = os.path.join(home, name)
                 with open(path, encoding="utf-8") as f:
                     write_file(path, context.with_front_matter(context.body(f.read()), 2))
@@ -1369,7 +1369,7 @@ class Migrate3(unittest.TestCase):
 
     def test_example_is_schema_3(self):
         issues = context.check([os.path.join(paths.EXAMPLE, n) for n in
-                                ("profile.md", "health.md", "log.md", "exercise-science.md")])
+                                ("profile.md", "health.md", "log.md")])
         self.assertFalse([i for i in issues if "schema" in i.message])
         hard = [i for i in issues if not i.note]
         self.assertTrue(all(os.path.basename(i.path) == "profile.md" and "isn't filled in yet" in i.message

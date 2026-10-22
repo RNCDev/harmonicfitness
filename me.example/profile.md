@@ -1,6 +1,6 @@
 +++
 schema = 3
-# The drafting guide's starting rate; the lint then uses each voice's measured pace.
+# The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
 # Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.
 experience = ""
@@ -105,7 +105,7 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
 - Gym:
 ## Content
 - Sports: [teams and leagues to follow]
-- Science and tech breakthroughs: every session carries two current ones. This is the session's science. Exercise science is only an occasional one-line aside explaining a cue.
+- Science and tech breakthroughs: every session carries two current ones. This is the session's science.
 - Books: [genres]
 - Local: [local politics, transit, events]. Keep politics factual and even-handed.
 - On this day in history.

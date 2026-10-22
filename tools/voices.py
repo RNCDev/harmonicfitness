@@ -191,12 +191,11 @@ def record_rate(v, weight, seconds, path=None):
         os.replace(tmp, path)
 
 
-def seed_pace(data=None, path=None):
+def seed_pace(data):
     """A starting rate for a voice no render has measured: the median of the measured
     rates on file (entries with enough speech behind them), else DEFAULT_PACE. The
     reference clip's own rate is not used: for Chatterbox Coach it was 10.3 chars/s
     against a measured 14.6."""
-    data = _recorded(path) if data is None else data
     rates = [r["weight"] / r["seconds"] for r in data.values()
              if isinstance(r, dict) and r.get("weight") and (r.get("seconds") or 0) > MIN_MEASURED]
     return statistics.median(rates) if rates else DEFAULT_PACE

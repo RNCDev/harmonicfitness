@@ -1,4 +1,4 @@
-# Draft: session structure research
+# Session structure research
 
 Scope: gaps not covered by knowledge/programming.md. Every cited source was fetched in this session; web-search summaries that I did not open are not cited. Where a fetch returned only an abstract/record, the source entry says so. Paraphrase is mine; quotes are short.
 

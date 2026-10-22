@@ -33,16 +33,16 @@ class Methods(unittest.TestCase):
         self.assertEqual(sessions.problems(self.s, self.cat), [])
 
     def test_choose_rotates_away_from_last_format(self):
-        pick = sessions.choose_method(self.s, "strength", 30, "experienced", "straight-sets", set())
+        pick = choose(self.s, "strength", 30, "experienced", "straight-sets", set())
         self.assertEqual(pick.name, "paired-sets")
-        pick = sessions.choose_method(self.s, "strength", 30, "experienced", "paired-sets", set())
+        pick = choose(self.s, "strength", 30, "experienced", "paired-sets", set())
         self.assertEqual(pick.name, "straight-sets")
-        pick = sessions.choose_method(self.s, "strength", 30, "experienced", None, set())
+        pick = choose(self.s, "strength", 30, "experienced", None, set())
         self.assertEqual(pick.name, "straight-sets")
 
     def test_choose_prefers_goal_fit_over_file_order(self):
         self.assertEqual(self.s.methods["circuit"].goals[-1], "conditioning")
-        pick = lambda level, last: sessions.choose_method(self.s, "conditioning", 30, level, last, set()).name  # noqa: E731
+        pick = lambda level, last: choose(self.s, "conditioning", 30, level, last, set()).name  # noqa: E731
         self.assertEqual(pick("novice", None), "intervals")
         self.assertEqual(pick("novice", "circuit"), "intervals")
         self.assertEqual(pick("novice", "intervals"), "circuit")     # circuit only after intervals was last
@@ -50,7 +50,7 @@ class Methods(unittest.TestCase):
         self.assertEqual([m.name for m in sessions.ranked(self.s, "general", 30, "novice", set())][0], "circuit")
 
     def test_choose_respects_minutes_and_needs(self):
-        pick = sessions.choose_method(self.s, "strength", 15, "experienced", None, set())
+        pick = choose(self.s, "strength", 15, "experienced", None, set())
         self.assertIsNotNone(pick)
         self.assertNotEqual(pick.name, "straight-sets")
         no_bike = [m.name for m in sessions.fitting(self.s, "conditioning", 40, "experienced", {"dumbbells"})]
@@ -60,12 +60,12 @@ class Methods(unittest.TestCase):
             self.assertIn("bike-intervals", names)
 
     def test_choose_returns_none_when_nothing_fits(self):
-        self.assertIsNone(sessions.choose_method(self.s, "conditioning", 5, "experienced", None, {"bike"}))
+        self.assertIsNone(choose(self.s, "conditioning", 5, "experienced", None, {"bike"}))
 
     def test_choose_falls_back_when_only_last_format_fits(self):
         fits = sessions.fitting(self.s, "mobility", 30, "novice", set())
         self.assertEqual([m.name for m in fits], ["flow"])
-        self.assertEqual(sessions.choose_method(self.s, "mobility", 30, "novice", "flow", set()).name, "flow")
+        self.assertEqual(choose(self.s, "mobility", 30, "novice", "flow", set()).name, "flow")
 
     def test_dose_has_every_level(self):
         for intensity, keys in (("strength", ("sets", "reps", "rest_seconds", "hard_sets_per_session")),
@@ -112,6 +112,12 @@ class Methods(unittest.TestCase):
     def test_problems_name_a_block_with_no_dose_table(self):
         self.assertNamed(lambda s: s.methods["flow"].blocks[0].update(intensity="breathing"),
                          "flow", "breathing", "dose")
+
+
+def choose(s, goal, minutes, level, last, equipment):
+    """The best-ranked fitting method, or None."""
+    fits = sessions.ranked(s, goal, minutes, level, equipment, last)
+    return fits[0] if fits else None
 
 
 def compose_for(health=None, profile=None, **request):
@@ -588,7 +594,7 @@ class Eval(unittest.TestCase):
     def test_listeners_are_clean(self):
         for name in "abcd":
             home = os.path.join(EVAL, "listeners", name)
-            files = [os.path.join(home, f) for f in ("profile.md", "health.md", "log.md", "exercise-science.md")]
+            files = [os.path.join(home, f) for f in ("profile.md", "health.md", "log.md")]
             issues = [context.describe(x) for x in context.check(files) if not x.note]
             self.assertEqual(issues, [], name)
             profile, _, _ = eval_listener(name)

@@ -25,7 +25,7 @@ Rule: with light dumbbells, use higher reps (15 to 30) and take sets closer to f
 - **A floor for busy weeks.** Iversen and colleagues advise at least four hard sets per muscle a week, say weekly volume matters more than how often, and note three multi-joint exercises can cover the major muscles. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 Four sets is a floor for progress, not the most growth.
 - **Frequency by experience.** The American College of Sports Medicine (2009 position stand) recommends two to three days a week for novices and three to four for intermediates. Source: https://pubmed.ncbi.nlm.nih.gov/19204579/ It dates from 2009, for healthy adults.
 
-What a session holds (worked out from the skill's split, not a study): a set takes about two minutes with its rest, about half that when paired. Fifteen minutes holds about six hard sets; twenty-five about ten to twelve; forty-five about twenty.
+What a session holds (house arithmetic, not a study): a set takes about two minutes with its rest, about half that when paired. Fifteen minutes holds about six hard sets; twenty-five about ten to twelve; forty-five about twenty.
 
 Rule: aim for at least four hard sets per major muscle group a week, spread over two or more sessions, and more when the week allows. The coverage check spreads groups across sessions.
 
@@ -67,11 +67,11 @@ Rule: keep the warm-up short and specific: easy movement, then a lighter first s
 
 Rule: train both sides by default. When an injury rules out one side, training the healthy side still helps the injured one a little; say so in the audio, and never present it as a replacement for the injured side's own rehab.
 
-## Session templates
+## Conditioning sources
 
 Two studies support short conditioning blocks: Gillen and colleagues (2016) found three 20-second all-out cycle sprints within a ten-minute session, three times a week for 12 weeks, raised fitness (peak oxygen uptake up 19 percent) as much as 50 minutes of steady cycling. Source: https://pubmed.ncbi.nlm.nih.gov/27115137/ Small study (9 sedentary young men in the sprint group), warm-up and cool-down included; all-out sprints may not suit every listener. Jenkins and colleagues (2019) found three short stair climbs a day, three days a week for six weeks, raised fitness modestly in sedentary young adults. Source: https://pubmed.ncbi.nlm.nih.gov/30649897/ It shows fitness snacks help, not that ten minutes builds strength.
 
-Session shapes now live in `knowledge/sessions.toml`: each method's goals, length, levels, warm-up, cool-down and finisher shares, the patterns that fill its blocks, and the dose ranges for each level, every number marked as sourced or as a house default. `tools/sessions.py` reads it and picks the method for today's goal, length, level and kit: the best fit for the goal first, rotating away from the last session's.
+Session shapes live in `knowledge/sessions.toml`: each method's goals, length, levels, warm-up, cool-down and finisher shares, the patterns that fill its blocks, and the dose ranges for each level, every number marked as sourced or as a house default. `tools/sessions.py` reads it and picks the method for today's goal, length, level and kit: the best fit for the goal first, rotating away from the last session's.
 
 ## Searched without a confirmed source
 
