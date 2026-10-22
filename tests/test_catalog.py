@@ -126,6 +126,24 @@ class RealCatalog(unittest.TestCase):
         self.assertIsNotNone(catalog.resolve(cat, "box breathing"))
         self.assertIsNotNone(catalog.resolve(cat, "seated ankle alphabet"))
 
+    def test_every_preset_covers_the_core_patterns_at_every_level(self):
+        cat = catalog.load()
+        core = ["squat", "hinge", "lunge", "horizontal-push", "horizontal-pull", "anti-extension",
+                "anti-rotation", "locomotion", "mobility", "breathing"]
+        extra = {"hotel-gym": ["vertical-push", "carry"], "full-gym": ["vertical-push", "vertical-pull", "carry"]}
+        for preset, equipment in cat.presets.items():
+            want = core + extra.get(preset, [])
+            for pattern in want:
+                for level in catalog.LEVELS:
+                    ok = [m for m in cat.movements.values() if not m.draft and m.patterns[0] == pattern
+                          and catalog.LEVELS.index(m.level) <= catalog.LEVELS.index(level)
+                          and all(any(alt in equipment for alt in need.split("|")) for need in m.needs)]
+                    self.assertTrue(ok, f"{preset} has no {pattern} at {level}")
+
+    def test_at_least_sixty_entries_are_annotated(self):
+        cat = catalog.load()
+        self.assertGreaterEqual(sum(not m.draft for m in cat.movements.values()), 60)
+
 
 class KnowledgeFiles(unittest.TestCase):
     def test_programming_reference_is_sourced(self):
