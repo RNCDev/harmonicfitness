@@ -24,7 +24,7 @@ class CatalogFormat(unittest.TestCase):
         cat = catalog.load(FIXTURE)
         self.assertEqual(cat.patterns[0], "squat")
         self.assertEqual(cat.movements["goblet-squat"].loads["knee"], 3)
-        self.assertEqual(cat.movements["goblet-squat"].loads.get("wrist", 0), 0)
+        self.assertEqual(cat.movements["goblet-squat"].loads.get("wrist", 0), 1)
         self.assertTrue(cat.movements["old-style"].draft)
         self.assertFalse(cat.movements["air-squat"].draft)
         self.assertEqual(cat.movements["split-squat"].support, {"knee": 1, "ankle": 1})

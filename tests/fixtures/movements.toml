@@ -60,7 +60,7 @@ sided = false
 measure = "reps"
 patterns = ["squat"]
 muscles = ["quads", "glutes"]
-loads = { knee = 3, hip = 2, ankle = 2, low-back = 1 }
+loads = { knee = 3, hip = 2, ankle = 2, low-back = 1, wrist = 1 }
 flags = []
 intensity = "strength"
 level = "novice"
@@ -202,6 +202,185 @@ hold_seconds = 60
 transition_seconds = 20
 setup = "Sit tall on the bike and settle your feet on the pedals."
 cues = ["Smooth circles.", "Breathe easily."]
+easier = []
+harder = []
+draft = false
+
+[[movement]]
+id = "dumbbell-romanian-deadlift"
+name = "dumbbell romanian deadlift"
+aliases = ["dumbbell rdl"]
+needs = ["dumbbells"]
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["hinge"]
+muscles = ["hamstrings", "glutes", "back"]
+loads = { hip = 3, low-back = 2, hamstring = 2, wrist = 1 }
+flags = ["grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+setup = "Hold a weight in each hand in front of your thighs, knees soft."
+cues = ["Push the hips back.", "Weights close to the legs.", "Stand up tall."]
+easier = ["glute-bridge"]
+harder = []
+draft = false
+
+[[movement]]
+id = "reverse-lunge"
+name = "reverse lunge"
+aliases = ["back lunge"]
+needs = []
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["lunge"]
+muscles = ["quads", "glutes"]
+loads = { knee = 3, hip = 2, ankle = 2 }
+support = { knee = 2, ankle = 1, wrist = 0 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+setup = "Stand tall with your feet under your hips."
+cues = ["Step back and lower the back knee.", "Push through the front foot."]
+easier = ["split-squat"]
+harder = []
+draft = false
+
+[[movement]]
+id = "dead-bug"
+name = "dead bug"
+aliases = ["deadbug"]
+needs = ["mat"]
+position = "lying"
+sided = false
+measure = "reps"
+patterns = ["anti-extension"]
+muscles = ["core"]
+loads = { low-back = 1, hip = 1, shoulder = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+setup = "Lie on your back, arms straight up, knees bent over your hips."
+cues = ["Ribs down.", "Reach one arm and the opposite leg away, slowly."]
+easier = []
+harder = []
+draft = false
+
+[[movement]]
+id = "band-pallof-press"
+name = "band pallof press"
+aliases = ["pallof press"]
+needs = ["band"]
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["anti-rotation"]
+muscles = ["core", "shoulders"]
+loads = { shoulder = 1, wrist = 1, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+setup = "Stand side on to the band's anchor, hands at your chest."
+cues = ["Press straight out.", "Do not let the band turn you."]
+easier = []
+harder = []
+draft = false
+
+[[movement]]
+id = "bear-crawl"
+name = "bear crawl"
+aliases = []
+needs = []
+position = "all-fours"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["core", "shoulders", "quads"]
+loads = { wrist = 3, shoulder = 2, knee = 1 }
+flags = ["floor"]
+intensity = "conditioning"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+setup = "On hands and feet, knees just off the floor."
+cues = ["Small steps.", "Hips level."]
+easier = []
+harder = []
+draft = false
+
+[[movement]]
+id = "one-arm-plank"
+name = "one arm plank"
+aliases = []
+needs = []
+position = "all-fours"
+sided = true
+measure = "time"
+patterns = ["anti-extension", "anti-rotation"]
+muscles = ["core", "shoulders"]
+loads = { wrist = 3, shoulder = 2, low-back = 1 }
+support = { wrist = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+setup = "From a wide high plank, lift one hand to your side."
+cues = ["Hips square to the floor.", "Push the floor away."]
+easier = ["dead-bug"]
+harder = []
+draft = false
+
+[[movement]]
+id = "box-breathing"
+name = "box breathing"
+aliases = ["square breathing"]
+needs = []
+position = "seated"
+sided = false
+measure = "time"
+patterns = ["breathing"]
+muscles = ["core"]
+loads = {}
+flags = []
+intensity = "breathing"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+setup = "Sit tall and let your hands rest."
+cues = ["In for four counts.", "Hold, then out for four."]
+easier = []
+harder = []
+draft = false
+
+[[movement]]
+id = "hip-flexor-stretch"
+name = "hip flexor stretch"
+aliases = ["kneeling hip flexor stretch"]
+needs = ["mat"]
+position = "kneeling"
+sided = true
+measure = "time"
+patterns = ["mobility"]
+muscles = ["quads"]
+loads = { knee = 2 }
+support = { knee = 1 }
+flags = ["kneeling", "floor"]
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+setup = "Kneel on one knee, the other foot flat in front."
+cues = ["Tuck the hips under.", "Breathe slowly."]
 easier = []
 harder = []
 draft = false

@@ -21,6 +21,7 @@ COMMANDS = {
     "feeds":       ("feeds", None, "fetch the profile's feeds into today's sheet"),
     "coverage":    ("coverage", None, "movement patterns the last sessions left out, last format and loads"),
     "movements":   ("movements", None, "movements allowed today, by group, for a kit and injuries"),
+    "session":     ("session", None, "a session skeleton: method, timing and ranked movements for a request"),
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
     "check":       ("context", "check", "check every context file in me/ (format, unfilled lines)"),
     "get":         ("context", "get", "print a profile setting: default-voice, wpm, voices"),
