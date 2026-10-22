@@ -3,7 +3,7 @@ schema = 2
 +++
 # Health
 
-Injuries and limitations, with the standing rules for each. Claude reads this before every workout; the check-in updates the phase, and red flags in `knowledge/injury-playbook.md` stop the session. Where this file, the playbook and the equipment library disagree, the strictest wins. This file is private: it lives only in `me/`.
+Injuries and limitations, with the standing rules for each. Claude reads this before every workout; the check-in updates the phase, and red flags in `knowledge/injury-playbook.md` stop the session. Where this file, the playbook and the movement catalog disagree, the strictest wins. This file is private: it lives only in `me/`.
 
 sweatcast is not medical advice. Anything a doctor or physical therapist has told you overrides everything here; write it down below and it will be followed literally.
 

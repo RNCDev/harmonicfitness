@@ -25,6 +25,7 @@ Claude Code runs these for you, but they work on their own too. `./sweatcast hel
 | `./sweatcast check` | Checks `me/`: anything still to fill in, or that the tools can't read |
 | `./sweatcast build <draft> "<name>"` | Lints a draft, renders the MP3, copies it to your phone's folder (`--lint-only` to just lint) |
 | `./sweatcast voices` | Lists voices; `design` and `keep` make a new one from a description |
+| `./sweatcast movements --preset hotel-room` | Lists the movements a kit allows, by group; `--avoid` rules out tags an injury bans |
 | `./sweatcast feeds`, `coverage`, `youtube`, `log-session` | What the workout skill uses to research, plan and log |
 | `./sweatcast migrate`, `cache prune`, `test` | Upkeep |
 
@@ -34,7 +35,7 @@ Three layers, so your own details never mix with the code:
 
 | Layer | Where | In git? |
 |---|---|---|
-| **Engine**: tools, skills, tests, shared knowledge (text-to-speech rules, injury playbook, equipment library, exercise science) | `tools/`, `.claude/`, `tests/`, `knowledge/` | Yes, public |
+| **Engine**: tools, skills, tests, shared knowledge (text-to-speech rules, movement catalog, injury playbook, equipment kits, exercise science) | `tools/`, `.claude/`, `tests/`, `knowledge/` | Yes, public |
 | **Voices**: each voice's ten-second reference clip, transcript and settings, with the model pinned to an exact revision | `voices/` | Yes, about 1 MB. Model weights download to `~/.cache/huggingface/hub` |
 | **You**: profile, health, workout log and feedback, drafts, research, rendered MP3s, private voices | `me/` (or wherever `SWEATCAST_HOME` points) | No: ignored, and the pre-push hook and CI block it |
 
@@ -73,7 +74,7 @@ Each paragraph is voiced by cloning the voice's reference clip with Chatterbox T
 |---|---|
 | `CLAUDE.md` | Project instructions for Claude, including the release process |
 | `.claude/skills/` | `workout` (request to MP3) and `setup` (onboarding and profile changes) |
-| `knowledge/` | Shared references: text-to-speech rules, injury playbook, equipment library, exercise science, how voices work |
+| `knowledge/` | Shared references: text-to-speech rules, the movement catalog (`movements.toml`), injury playbook, equipment kits (`kits.md`), exercise science, how voices work |
 | `voices/` | Shipped voices (clip, transcript, engine, model and revision) and the smoke-test draft |
 | `me.example/` | The template for your context folder |
 | `me/` | Your context (git-ignored) |
@@ -92,7 +93,9 @@ Each paragraph is voiced by cloning the voice's reference clip with Chatterbox T
 | `tools/char_weight.py` | OmniVoice's character-weight rule (Apache 2.0), vendored for the prediction |
 | `tools/feeds.py` | Fetches your feeds (results, schedules, weather, headlines, weekly podcasts and puzzles) into a dated sheet |
 | `tools/youtube.py` | Picks a recent video from your favorite channels or continues a series, lists unused puzzles, saves a transcript |
-| `tools/coverage.py` | Reads your log and lists the muscle groups the last session left out, its format and the last loads |
+| `tools/catalog.py` | Loads and checks the movement catalog, and matches a logged name to a movement |
+| `tools/movements.py` | The filter (`./sweatcast movements`): the movements a kit allows, minus the tags an injury bans |
+| `tools/coverage.py` | Reads your log and lists the muscle groups the last session left out and the week neglected, its format and the last loads |
 | `tools/paths.py` | Where everything lives; `SWEATCAST_HOME` moves your context folder |
 | `tools/hooks/` | The pre-push hook and `check-private.sh`, which refuse any commit holding personal context (CI runs the same check), and `private-paths`, the list they share |
 | `tests/` | Fast checks with no models, network or personal files (`./sweatcast test`), run by CI on every push |

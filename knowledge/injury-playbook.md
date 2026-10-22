@@ -24,23 +24,37 @@ Rebuild phase adds: double-leg calf raises, supported single-leg balance on the 
 
 Return phase adds: light hops on two feet, then single-leg hops, then lateral movement, one at a time across sessions.
 
+Tags to avoid early: impact, standing, single-leg-stance, ankle-push, ankle-bend, lateral. They hold through Protect and Restore; in Restore, the movements its paragraph adds come back on top of the filter. No tag covers the easy seated bike, which waits for the Restore phase.
+
 ## Knee
 Banned early: deep loaded knee bending, lunges, jumping, pivoting, kneeling on the sore knee, high bike resistance. Substitutes: hip hinges (Romanian deadlifts if pain-free), glute bridges, hamstring curls, straight-leg raises, side-lying hip work, upper body, core, light seated bike with seat set slightly high.
+
+Tags to avoid early: impact, single-leg-stance, knee-deep-bend, knee-load, kneeling, lateral.
 
 ## Lower back
 Banned early: loaded spinal flexion (sit-ups, crunches), heavy hinges, twisting under load, overhead pressing standing. Substitutes: dead bugs, bird dogs, side planks, glute bridges, supported rows (chest on bench), walking or easy bike, seated presses with back support. Favor neutral spine and bracing cues.
 
+Tags to avoid early: spine-flexion, spine-load, spine-twist. No tag covers standing overhead pressing (seated, back-supported pressing stays allowed), so check it by hand.
+
 ## Shoulder
 Banned early: overhead pressing, dips, wide-grip pressing, pull-ups, kipping, lying on the sore side, behind-the-neck anything. Substitutes: neutral-grip floor press with light weight if pain-free, rows to the lower ribs, band external rotation, scapular work, lower-body and core training (avoid planks if they hurt; use dead bugs).
+
+Tags to avoid early: overhead, shoulder-end-range, hanging, lying-side. No tag covers wide-grip pressing on a bench or machine, or planks that hurt, so check those by hand.
 
 ## Wrist and hand
 Banned early: push-ups and planks on hands, front squats with a front-rack grip, heavy gripping. Substitutes: forearm planks, push-ups on fists or dumbbell handles only if pain-free, goblet hold with forearms, lower-body bodyweight work, bike.
 
+Tags to avoid early: wrist-load, grip.
+
 ## Neck
 Banned early: shrugs, overhead loading, headstands, crunches with neck pulling, fast head turning. Substitutes: most lower-body and core work with neutral head position; cue "chin gently tucked, eyes on the floor a few feet ahead".
 
+Tags to avoid early: neck-load, overhead. No tag covers shrugs, so check them by hand.
+
 ## Hip
 Banned early: deep hip flexion under load, wide-stance squats, lateral lunges, kicking. Substitutes: partial-range bridges, upper body, seated bike with a high seat, core in neutral.
+
+Tags to avoid early: hip-deep-bend, hip-wide, lateral, kick.
 
 ## Unlisted injuries
 Ask what movement hurts and what doesn't. Ban anything that loads, stretches, or impacts the injured tissue; train around it; keep it conservative; and recommend checking with a clinician if it's new, severe, or not improving.
