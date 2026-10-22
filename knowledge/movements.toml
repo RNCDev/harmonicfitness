@@ -1,4 +1,4 @@
-# The movement catalog (format 2): every movement a session can use, in one vocabulary.
+# The movement catalog (format 3): every movement a session can use, in one vocabulary.
 #
 # The fixed lists come first (patterns, muscles, areas, flags), then equipment, kit presets and each
 # [[movement]]. Tools read this file through tools/catalog.py; `./sweatcast test` checks it.
@@ -22,6 +22,10 @@
 #   one-leg-dominant work), overhead, grip (carries, rows, deadlifts, pulldowns), impact and fast
 #   (jumping and sprinting; fast alone for swings, punches and surges), spine-flexion, spine-twist,
 #   lateral (side-to-side travel), hanging.
+# - `effort` (conditioning entries only, and every one of them): easy for a warm-up pace you could talk
+#   through (marching, an easy spin, a walk), moderate for a steady push of five or six out of ten
+#   (a steady ride, jumping jacks, an incline walk), hard for efforts of seven and up (sprints, climbs,
+#   high knees, swings). Interval work never takes an easy entry; warm-ups never take a hard one.
 # - `level`, the least experience it suits: novice for bodyweight and simple moves, plus the loaded
 #   ones a beginner is taught first, such as the goblet squat, kettlebell deadlift, hip thrust, floor
 #   press, supported rows, seated press, machine press, pulldown and leg press, and carries;
@@ -33,7 +37,7 @@
 #   blocks and breathing, 20 for sprints, 45 for skill drills.
 # - `transition_seconds`: 10 for bodyweight (and a chair or towel) and for the next block on a cardio
 #   machine, 15 for dumbbells, kettlebells or bands, 25 for barbell or strength machines.
-format = 2   # the catalog's own format; the context schema is separate
+format = 3   # the catalog's own format; the context schema is separate
 
 patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
             "carry", "rotation", "anti-rotation", "anti-extension", "locomotion", "balance", "arms", "hips",
@@ -514,6 +518,7 @@ muscles = ["glutes", "hamstrings", "back", "core", "forearms"]
 loads = { hip = 3, low-back = 2, hamstring = 2, knee = 1, shoulder = 1, wrist = 1 }
 flags = ["fast", "grip"]
 intensity = "conditioning"
+effort = "hard"
 level = "advanced"
 seconds_per_rep = 2
 transition_seconds = 15
@@ -697,7 +702,7 @@ sided = false
 measure = "reps"
 patterns = ["vertical-push"]
 muscles = ["shoulders", "triceps"]
-loads = { shoulder = 3, elbow = 2, wrist = 1, neck = 1 }
+loads = { shoulder = 3, elbow = 2, wrist = 1, neck = 2 }
 flags = ["overhead"]
 intensity = "strength"
 level = "novice"
@@ -719,7 +724,7 @@ sided = false
 measure = "reps"
 patterns = ["vertical-push"]
 muscles = ["shoulders", "triceps", "core"]
-loads = { shoulder = 3, elbow = 2, low-back = 2, wrist = 1, neck = 1 }
+loads = { shoulder = 3, elbow = 2, low-back = 2, wrist = 1, neck = 2 }
 flags = ["overhead"]
 intensity = "strength"
 level = "experienced"
@@ -741,7 +746,7 @@ sided = true
 measure = "reps"
 patterns = ["vertical-push", "anti-rotation"]
 muscles = ["shoulders", "triceps", "core", "glutes"]
-loads = { shoulder = 3, elbow = 2, knee = 2, wrist = 1, neck = 1 }
+loads = { shoulder = 3, elbow = 2, knee = 2, wrist = 1, neck = 2 }
 support = { knee = 1 }
 flags = ["floor", "kneeling", "overhead"]
 intensity = "strength"
@@ -915,8 +920,8 @@ level = "novice"
 seconds_per_rep = 3
 transition_seconds = 10
 draft = false
-setup = "Loop a towel around the handle of a solid door that closes toward you, hold both ends, and lean back with your arms long."
-cues = ["Only on a solid door closed toward you.", "Pull your chest to your hands.", "Body stays in one straight line."]
+setup = "Use a solid inside door that opens away from you, so your pull presses it into its frame, never the room's entry door. Shut it until it latches, loop a towel around the far handle, hold both ends, and lean back with your arms long."
+cues = ["The door opens away from you and stays latched.", "Pull your chest to your hands.", "Body stays in one straight line."]
 easier = []
 harder = []
 
@@ -1404,7 +1409,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
 muscles = ["shoulders", "back"]
-loads = { shoulder = 3, elbow = 2 }
+loads = { shoulder = 3, elbow = 2, wrist = 1 }
 flags = ["grip"]
 intensity = "strength"
 level = "novice"
@@ -1684,7 +1689,14 @@ position = "seated"
 sided = false
 measure = "reps"
 patterns = ["hips"]
-draft = true
+muscles = ["quads"]
+loads = { knee = 3 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
 setup = "Sit in the leg extension with the pad on your lower shins and your knees in line with the machine's pivot."
 cues = ["Straighten the legs and squeeze the thighs.", "Pause at the top.", "Lower slowly."]
 easier = []
@@ -1960,6 +1972,7 @@ muscles = ["quads", "glutes", "calves"]
 loads = { hip = 1, knee = 1, ankle = 1 }
 flags = []
 intensity = "conditioning"
+effort = "easy"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -1993,7 +2006,14 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["shoulders"]
+loads = { shoulder = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit or stand tall and reach your arms out to the sides at shoulder height."
 cues = ["Start with small circles and let them grow.", "Shoulders stay down away from the ears.", "Reverse the direction halfway."]
 easier = []
@@ -2012,6 +2032,7 @@ muscles = ["calves", "shoulders", "quads", "glutes"]
 loads = { ankle = 3, knee = 2, calf = 3, foot = 2, hip = 1, shoulder = 1 }
 flags = ["impact", "fast", "overhead"]
 intensity = "conditioning"
+effort = "moderate"
 level = "novice"
 hold_seconds = 30
 transition_seconds = 10
@@ -2030,7 +2051,15 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "glutes", "calves", "shoulders"]
+loads = { hip = 1, knee = 1, ankle = 1, calf = 1, shoulder = 1 }
+flags = ["overhead"]
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Stand tall with your feet together, no jumping, so it stays quiet."
 cues = ["Step one foot out to the side as the arms rise.", "Bring it back and switch sides.", "Keep a brisk, even pace."]
 easier = []
@@ -2049,6 +2078,7 @@ muscles = ["quads", "calves", "glutes", "core"]
 loads = { ankle = 3, knee = 2, calf = 3, foot = 2, hip = 2 }
 flags = ["impact", "fast"]
 intensity = "conditioning"
+effort = "hard"
 level = "novice"
 hold_seconds = 30
 transition_seconds = 10
@@ -2086,6 +2116,7 @@ muscles = ["shoulders", "core", "calves"]
 loads = { shoulder = 2, elbow = 2, ankle = 1 }
 flags = ["fast", "spine-twist"]
 intensity = "conditioning"
+effort = "moderate"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -2119,7 +2150,15 @@ position = "standing"
 sided = true
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["hamstrings", "glutes", "adductors"]
+loads = { hip = 2, hamstring = 1, groin = 1 }
+support = { ankle = 1, knee = 1, hip = 1 }
+flags = ["single-leg"]
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Stand side on to a wall and rest one hand on it for balance."
 cues = ["Swing the outside leg forward and back, easy to start.", "Let the range grow a little each swing.", "Stand tall on the other leg."]
 easier = []
@@ -2155,6 +2194,7 @@ muscles = ["quads", "glutes", "hamstrings", "calves"]
 loads = { knee = 1, hip = 1 }
 flags = []
 intensity = "conditioning"
+effort = "easy"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -2177,6 +2217,7 @@ muscles = ["quads", "glutes", "hamstrings", "calves"]
 loads = { knee = 1, hip = 1 }
 flags = []
 intensity = "conditioning"
+effort = "moderate"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -2199,6 +2240,7 @@ muscles = ["quads", "glutes", "hamstrings", "calves"]
 loads = { knee = 1, hip = 1 }
 flags = ["fast"]
 intensity = "conditioning"
+effort = "hard"
 level = "experienced"
 hold_seconds = 30
 transition_seconds = 10
@@ -2221,6 +2263,7 @@ muscles = ["quads", "glutes", "hamstrings", "calves"]
 loads = { knee = 2, hip = 2 }
 flags = []
 intensity = "conditioning"
+effort = "hard"
 level = "experienced"
 hold_seconds = 60
 transition_seconds = 10
@@ -2243,6 +2286,7 @@ muscles = ["quads", "glutes", "hamstrings", "calves"]
 loads = { knee = 2, hip = 2 }
 flags = ["fast"]
 intensity = "conditioning"
+effort = "hard"
 level = "advanced"
 hold_seconds = 20
 transition_seconds = 10
@@ -2261,7 +2305,15 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "glutes", "calves"]
+loads = { knee = 2, hip = 2, ankle = 1, calf = 1, wrist = 1 }
+flags = []
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Turn the resistance up and rise out of the saddle, hands resting on the bars."
 cues = ["Hips over the pedals.", "Let the bike rock a little under you.", "Sit back down if your form slips."]
 easier = ["bike-seated-climb"]
@@ -2291,7 +2343,15 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "glutes", "shoulders", "back"]
+loads = { knee = 1, hip = 1, shoulder = 1, elbow = 1, low-back = 1 }
+flags = ["grip"]
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
 setup = "Sit on the air bike, feet centered on the pedals, hands on the handles."
 cues = ["Push and pull with the arms as the legs turn.", "Find a pace you can hold.", "Relax the shoulders."]
 easier = []
@@ -2306,7 +2366,15 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "glutes", "shoulders", "back"]
+loads = { knee = 2, hip = 2, shoulder = 2, elbow = 1, low-back = 1 }
+flags = ["fast", "grip"]
+intensity = "conditioning"
+effort = "hard"
+level = "advanced"
+hold_seconds = 20
+transition_seconds = 10
+draft = false
 setup = "Sit tall on the air bike, hands on the handles, ready to go hard."
 cues = ["Arms and legs together, all out.", "The harder you push, the harder it pushes back.", "Breathe out hard."]
 easier = ["air-bike-steady"]
@@ -2327,6 +2395,7 @@ muscles = ["quads", "back", "lats", "glutes", "hamstrings"]
 loads = { knee = 2, hip = 2, low-back = 2, shoulder = 1 }
 flags = []
 intensity = "conditioning"
+effort = "moderate"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -2364,6 +2433,7 @@ muscles = ["quads", "glutes", "calves"]
 loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
 flags = []
 intensity = "conditioning"
+effort = "easy"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -2386,6 +2456,7 @@ muscles = ["glutes", "calves", "hamstrings", "quads"]
 loads = { ankle = 2, calf = 2, knee = 1, hip = 1, foot = 1 }
 flags = []
 intensity = "conditioning"
+effort = "moderate"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -2408,6 +2479,7 @@ muscles = ["quads", "calves", "glutes", "hamstrings"]
 loads = { knee = 2, ankle = 2, calf = 2, foot = 2, hip = 1 }
 flags = ["impact"]
 intensity = "conditioning"
+effort = "hard"
 level = "experienced"
 hold_seconds = 60
 transition_seconds = 10
@@ -2430,6 +2502,7 @@ muscles = ["quads", "glutes", "hamstrings", "calves"]
 loads = { knee = 1, hip = 1, ankle = 1 }
 flags = []
 intensity = "conditioning"
+effort = "moderate"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 10
@@ -2448,7 +2521,15 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "glutes", "calves"]
+loads = { knee = 2, hip = 2, ankle = 2, calf = 2, foot = 1 }
+flags = []
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
 setup = "Step on and start at a slow, steady pace."
 cues = ["Whole foot on each step.", "Stand tall, light hands on the rails.", "Drive through the heel."]
 easier = []
@@ -2520,7 +2601,7 @@ hold_seconds = 30
 transition_seconds = 10
 draft = false
 setup = "Step into a long lunge, back knee down, and put both hands on the floor inside the front foot."
-cues = ["Drop the elbow toward the front instep.", "Turn and reach the same arm to the ceiling.", "Follow your hand with your eyes."]
+cues = ["Drop the elbow toward the front instep.", "Turn and reach the same arm to the ceiling.", "Keep the head in line with the spine as you turn."]
 easier = []
 harder = []
 
@@ -2789,7 +2870,15 @@ position = "standing"
 sided = true
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["calves"]
+loads = { calf = 2, ankle = 1 }
+support = { calf = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Face a wall, hands on it, one foot stepped back with the heel down."
 cues = ["Lean in until you feel the back of the calf.", "Back heel stays on the floor.", "Toes point straight ahead."]
 easier = []
@@ -2842,7 +2931,14 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["shoulders", "neck"]
+loads = { shoulder = 1, neck = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit tall with your arms hanging by your sides."
 cues = ["Lift the shoulders toward the ears.", "Roll them back and down.", "Slow and smooth."]
 easier = []

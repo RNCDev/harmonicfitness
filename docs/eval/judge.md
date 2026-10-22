@@ -16,6 +16,12 @@ the engine.
 3. The skeleton: `docs/eval/out/<id>.skeleton.txt` (the method, the blocks, each slot's dose and
    candidate movements with reasons, the total).
 4. The script: `docs/eval/out/<id>.draft.txt`.
+5. The writer's notes: `docs/eval/out/<id>.writer-notes.md`, every place the writer left the skeleton or
+   had to invent something. They are evidence for ease and for whether a fault lies in the skeleton or
+   the script.
+
+The scripts are written without research, so topic beats are one-line placeholders: score adherence on
+the coaching (pace, cues, variety, fit with the listener), not on the topics.
 
 Look up any movement you are unsure of in `knowledge/movements.toml` (its `loads`, `flags`, `patterns`
 and `level`).
@@ -55,3 +61,11 @@ Write `docs/eval/results-<YYYY-MM-DD>.md` with:
    - the methods (a method chosen where another would serve better; methods that fit poorly at some lengths).
 
 Judge only what is in the files. Don't rewrite the scripts.
+
+## Comparing with an earlier run
+
+When the run is compared with an earlier one, score blind first, as above. Then read the earlier
+results file's rows for your cases (and its scripts, if they were kept), and add a `## Changes` section:
+one line per case where a score moved, naming each moved score (old to new) and its cause, **skeleton**
+(the skeleton changed), **script** (the writer did something differently) or **calibration** (judged
+differently). Don't change the blind scores.

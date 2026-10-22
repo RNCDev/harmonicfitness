@@ -1,4 +1,4 @@
-"""Session methods and dose rules (format 1): knowledge/sessions.toml.
+"""Session methods and dose rules (format 2): knowledge/sessions.toml.
 
 A method is the shape of a session's main work: its goals, length, levels, how warm-up, cool-down
 and an optional finisher share the time, the kind of work and the blocks of patterns that fill it.
@@ -13,11 +13,12 @@ from typing import Dict, List, Optional, Set
 import catalog
 import paths
 
-FORMAT = 1
+FORMAT = 2
 WORK = ("sets", "pairs", "rounds", "intervals", "holds")
+OPTIONAL_DOSE_KEYS = ("bodyweight_reps",)   # checked when present
 DOSE_KEYS = {
-    "strength": ("sets", "reps", "rest_seconds", "hard_sets_per_session"),
-    "conditioning": ("work_seconds", "rest_seconds", "rounds"),
+    "strength": ("sets", "reps", "rest_seconds", "hard_sets_per_session", "bodyweight_reps"),
+    "conditioning": ("work_seconds", "rest_seconds", "rounds", "efforts_per_session"),
     "mobility": ("hold_seconds", "rounds"),
     "skill": ("drill_seconds", "rounds"),
 }
@@ -38,6 +39,7 @@ class Method:
     finisher: Optional[dict] = None
     fixed: Optional[dict] = None
     needs: List[str] = field(default_factory=list)
+    rest_seconds: Optional[List[int]] = None   # rounds: the rest between rounds, in place of the dose's
 
 
 @dataclass
@@ -57,7 +59,8 @@ def _method(name: str, raw: dict) -> Method:
         min_slots=int(raw.get("min_slots", 0)),
         finisher=dict(raw["finisher"]) if "finisher" in raw else None,
         fixed=dict(raw["fixed"]) if "fixed" in raw else None,
-        needs=list(raw.get("needs", [])))
+        needs=list(raw.get("needs", [])),
+        rest_seconds=list(raw["rest_seconds"]) if "rest_seconds" in raw else None)
 
 
 def load(path: Optional[str] = None) -> Sessions:
@@ -120,7 +123,7 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
                 out.append(f"Method {name} has a block with the unknown intensity \"{b.get('intensity')}\".")
             elif b.get("intensity") not in s.dose:
                 out.append(f"Method {name} has a {b.get('intensity')} block, but there is no {b.get('intensity')} dose table.")
-            for p in b.get("patterns", []):
+            for p in b.get("patterns", []) + b.get("fallback", []):
                 if p not in cat.patterns:
                     out.append(f"Method {name} has the unknown pattern \"{p}\".")
             if not b.get("patterns"):
@@ -135,6 +138,12 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
             for alt in need.split("|"):
                 if alt not in cat.equipment:
                     out.append(f"Method {name} needs the unknown equipment \"{alt}\".")
+        if m.rest_seconds is not None:
+            fault = _range_fault(m.rest_seconds)
+            if fault:
+                out.append(f"The rest_seconds of method {name} {fault}: {m.rest_seconds}.")
+            elif m.work != "rounds":
+                out.append(f"Method {name} has rest_seconds, which only a rounds method uses.")
     for intensity, keys in DOSE_KEYS.items():
         table = s.dose.get(intensity, {})
         for lv in catalog.LEVELS:
@@ -142,6 +151,8 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
                 out.append(f"The {intensity} dose has no {lv} level.")
                 continue
             for key in keys:
+                if key in OPTIONAL_DOSE_KEYS and key not in table[lv]:
+                    continue
                 fault = _range_fault(table[lv].get(key))
                 if fault:
                     out.append(f"The {intensity} dose for {lv} {key} {fault}: {table[lv].get(key)}.")

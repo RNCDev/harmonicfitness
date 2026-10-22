@@ -15,6 +15,18 @@ EVERY_MOVEMENT_RULE = ("Every movement in every segment, including the warm-up, 
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "movements.toml")
 
 
+def json_value(v):
+    """A Python value as a TOML value (strings, numbers, booleans, lists and inline tables)."""
+    import json
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, dict):
+        return "{ " + ", ".join(f"{k} = {json_value(x)}" for k, x in v.items()) + " }"
+    if isinstance(v, list):
+        return "[" + ", ".join(json_value(x) for x in v) + "]"
+    return json.dumps(v)
+
+
 def run_movements(args):
     """Run `./sweatcast movements ...` against the real catalog; returns the CompletedProcess."""
     env = dict(os.environ, SWEATCAST_PYTHON=sys.executable)
@@ -105,6 +117,78 @@ class CatalogFormat(unittest.TestCase):
 
 
 class RealCatalog(unittest.TestCase):
+    def test_conditioning_needs_an_effort(self):
+        raw = dict(vars(catalog.load(FIXTURE).movements["bike-easy-spin"]))
+        bare = {k: v for k, v in raw.items() if k not in ("effort", "private", "has_loads")}
+        bare["id"] = "spin-two"
+        bare["name"] = "spin two"
+        bare["aliases"] = []
+        msgs = " ".join(catalog.problems(catalog.load(FIXTURE, extra=[bare])))
+        self.assertIn("spin-two is not a draft but is missing effort", msgs)
+        msgs = " ".join(catalog.problems(catalog.load(FIXTURE, extra=[dict(bare, effort="brisk")])))
+        self.assertIn("unknown effort \"brisk\"", msgs)
+        squat = dict(vars(catalog.load(FIXTURE).movements["air-squat"]), id="squat-two", name="squat two",
+                     aliases=[], effort="hard")
+        squat.pop("private"), squat.pop("has_loads")
+        msgs = " ".join(catalog.problems(catalog.load(FIXTURE, extra=[squat])))
+        self.assertIn("squat-two has an effort but is not a conditioning movement", msgs)
+
+    def test_format_is_checked(self):
+        cat = catalog.load(FIXTURE)
+        cat.format = 2
+        self.assertIn("format 2", " ".join(catalog.problems(cat)))
+
+    def test_private_movements_load_from_the_context_folder(self):
+        import tempfile
+        import unittest.mock
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "movements.toml")
+            with open(path, "w") as f:
+                f.write('[[movement]]\nid = "garage-sled-drag"\nname = "garage sled drag"\npatterns = ["locomotion"]\n')
+            with unittest.mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
+                cat = catalog.load()
+            self.assertTrue(cat.movements["garage-sled-drag"].private)
+            self.assertNotIn("garage-sled-drag", catalog.load(FIXTURE).movements)   # an explicit path loads no private file
+        with unittest.mock.patch.object(catalog.paths, "MY_MOVEMENTS", os.path.join(ROOT, "no-such-file.toml")):
+            self.assertEqual(catalog.private_movements(), [])
+
+    def test_check_lists_a_private_entry_missing_its_effort(self):
+        import tempfile
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import context
+        spin = dict(vars(catalog.load(FIXTURE).movements["bike-easy-spin"]), id="garage-spin", name="garage spin",
+                    aliases=[])
+        for k in ("effort", "private", "has_loads"):
+            spin.pop(k)
+        lines = [f"{k} = {json_value(v)}" for k, v in spin.items()]
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "movements.toml")
+            with open(path, "w") as f:
+                f.write("format = 3\n[[movement]]\n" + "\n".join(lines) + "\n")
+            issues = context.check_movements(path)
+            self.assertEqual(len(issues), 1, issues)
+            self.assertIn("garage-spin is not a draft but is missing effort", issues[0].message)
+            self.assertEqual(context.check_movements(os.path.join(d, "none.toml")), [])
+
+    def test_low_back_off_limits_rules_out_bending_and_twisting(self):
+        cat = catalog.load()
+        off = [catalog.Limit("low-back", "both", "off-limits", [], [], "")]
+        sel = catalog.select(cat, {"mat"}, "novice", off)
+        for mid in ("childs-pose", "thread-the-needle"):
+            self.assertIn(mid, sel.left_out)
+        soft = [catalog.Limit("low-back", "both", "delicate", [], [], "")]
+        self.assertIn("childs-pose", {m.id for m in catalog.select(cat, {"mat"}, "novice", soft).allowed})
+        self.assertIn("no spine flexion or spine twist", catalog.meaning("low-back", "off-limits"))
+        self.assertEqual(catalog.meaning("calf", "delicate", "left"),
+                         "light loads only on the left calf, no impact or fast work")
+
+    def test_delicate_neck_rules_out_overhead_pressing(self):
+        cat = catalog.load()
+        soft = [catalog.Limit("neck", "both", "delicate", [], [], "")]
+        sel = catalog.select(cat, {"dumbbells", "kettlebell", "bench", "mat", "barbell", "rack"}, "advanced", soft)
+        for mid in ("overhead-press", "seated-shoulder-press", "half-kneeling-kettlebell-press"):
+            self.assertIn(mid, sel.left_out)
+
     def test_real_catalog_is_clean(self):
         self.assertEqual(catalog.problems(catalog.load()), [])
 

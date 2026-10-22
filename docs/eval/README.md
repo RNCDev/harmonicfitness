@@ -12,7 +12,8 @@ scripts for safety, efficacy, adherence and ease of construction.
   a is a novice with a mat and no limits; b is experienced in hotel gyms with a delicate neck; c is advanced
   in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
   no log yet.
-- `judge.md`: the reviewer's prompt.
+- `writer.md`: the script writer's brief (five cases a writer).
+- `judge.md`: the reviewer's prompt (ten cases a judge).
 - `skeletons.sh`: the generation loop.
 - `out/` (git-ignored): the generated skeletons, markers, scripts and lints.
 
@@ -32,8 +33,11 @@ every run until the catalog, the dose rules or the composer change.
 
 ## 2. Write and lint the scripts
 
-Write each case's script under its markers into `docs/eval/out/<id>.draft.txt`, following the
-`workout` skill's script step (`.claude/skills/workout/SKILL.md`) for that listener, then lint it:
+Write each case's script under its markers into `docs/eval/out/<id>.draft.txt`, following
+`writer.md` (which points at the `workout` skill's script step), with the writer's notes beside it in
+`<id>.writer-notes.md`, then lint it. Eight writers of five cases each is the usual split. The build
+name (`"eval-<id>"`) is required: without it `--lint-only` is taken as the name and a render starts.
+The lint also exports a `.txt` into the listener's `workouts/`, which is git-ignored.
 
 ```sh
 for f in docs/eval/out/c*.draft.txt; do
@@ -45,6 +49,10 @@ done
 
 ## 3. Judge
 
-Give a reviewer `docs/eval/judge.md` as its prompt, with `cases.toml`, the listeners and `docs/eval/out/`
-to read; it writes `docs/eval/results-<YYYY-MM-DD>.md` (a row per case, the five lowest, and what the
-scores say about the catalog, the dose rules and the methods). The results file is committed; `out/` is not.
+Give four reviewers `docs/eval/judge.md` as their prompt, ten cases each in case order (c01 to c10,
+c11 to c20 and so on, so part means line up across runs), with `cases.toml`, the listeners and
+`docs/eval/out/` to read. Their rows make `docs/eval/results-<YYYY-MM-DD>.md` (a row per case, the five
+lowest, and what the scores say about the catalog, the dose rules and the methods); a second run on the
+same day adds `-run2`, and so on. Keep the table's columns (id, listener, goal, minutes, preset, method,
+safety, efficacy, adherence, ease, note) so runs can be compared row by row. Copy `out/`'s drafts aside
+before the next run if it will be compared with this one. The results file is committed; `out/` is not.

@@ -36,7 +36,7 @@ No area-specific source confirmed. Off limits keeps load off the hip; delicate a
 No source confirmed; off limits and delicate mean the same load rule as elsewhere. Loosen when side steps are pain-free.
 
 ## Low back
-Walking and neutral-spine core work continue throughout; delicate allows light flat-back hinging. Delicate once rising from bed and a ten-minute walk are pain-free; clear once a light hinge is pain-free that day and next.
+Walking and neutral-spine core work continue throughout; off limits also keeps out bending and twisting the spine (the catalog's `spine-flexion` and `spine-twist` flags, which `./sweatcast session` rules out on its own); delicate allows light flat-back hinging. Delicate once rising from bed and a ten-minute walk are pain-free; clear once a light hinge is pain-free that day and next.
 - Encourage normal activity and exercise; check other causes for new symptoms. Source: https://www.nice.org.uk/guidance/ng59/chapter/Recommendations
 
 ## Rib
@@ -54,7 +54,7 @@ No area-specific source confirmed. Off limits keeps weight and grip off the hand
 - Soft-tissue care runs on to loading, not just rest and ice; no timings. Source: https://blogs.bmj.com/bjsm/2019/04/26/soft-tissue-injuries-simply-need-peace-love/
 
 ## Neck
-No area-specific source confirmed. Off limits keeps load and fast head turns off; delicate allows light carries, head neutral. Delicate once slow head turns are pain-free; clear once overhead work leaves no neck pain next day.
+No area-specific source confirmed. Off limits keeps load and fast head turns off; delicate allows light carries, head neutral, and no overhead pressing (the catalog rates every overhead press neck 2, so a delicate neck rules it out), since overhead work is the test that clears it. Delicate once slow head turns are pain-free; clear once overhead work leaves no neck pain next day.
 
 ## Unlisted injuries
 Ask what hurts, pass the flags or ids that load it to `--avoid`, and suggest a clinician if it's new, severe or not improving.

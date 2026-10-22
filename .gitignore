@@ -8,3 +8,5 @@ __pycache__/
 
 # The judged grid's generated skeletons, scripts and lints (docs/eval/README.md).
 docs/eval/out/
+# Lint-only exports from the eval scripts, written into each invented listener's workouts/.
+docs/eval/listeners/*/workouts/

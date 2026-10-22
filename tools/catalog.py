@@ -1,4 +1,4 @@
-"""The movement catalog (format 2): one TOML file of equipment, kit presets, the fixed lists of
+"""The movement catalog (format 3): one TOML file of equipment, kit presets, the fixed lists of
 movement patterns, muscles, joint areas and flags, and every movement with its loads and timing.
 
 `load` reads knowledge/movements.toml (plus any private movements) and `problems` checks it, one
@@ -7,6 +7,7 @@ is a draft until it carries every field; drafts are checked lightly and never pl
 `select` picks the movements a kit, level and the listener's limits allow.
 Library only; the command line lives elsewhere.
 """
+import os
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -18,6 +19,14 @@ POSITIONS = ("standing", "seated", "lying", "side-lying", "kneeling", "all-fours
 MEASURES = ("reps", "time")
 LEVELS = ("novice", "experienced", "advanced")
 INTENSITIES = ("strength", "conditioning", "mobility", "skill", "breathing")
+EFFORTS = ("easy", "moderate", "hard")   # how hard a conditioning entry is; every one carries it
+FORMAT = 3
+# Flags a limit rules out by default, by area and level, on top of the row's own flags: an off-limits
+# low back keeps out bending and twisting the spine (injury-playbook.md, Low back).
+AREA_FLAGS = {("low-back", "off-limits"): ("spine-flexion", "spine-twist")}
+# Equipment that loads a movement; a movement needing none of it is bodyweight (a chair, bench, towel
+# or mat only holds or supports the body).
+LOAD_EQUIPMENT = ("dumbbells", "kettlebell", "band", "cable", "machines", "barbell", "sled")
 LOAD_MAX = 3
 SIDE_WORDS = ("left ", "right ", "both sides ")
 LIMIT_SIDES = ("left", "right", "both")
@@ -51,11 +60,13 @@ class Movement:
     easier: List[str]
     harder: List[str]
     private: bool = False
+    effort: str = ""         # easy, moderate or hard, on conditioning entries
     has_loads: bool = True   # False when the entry has no `loads` key at all (an empty table is fine)
 
 
 @dataclass
 class Catalog:
+    format: int
     patterns: List[str]
     muscles: List[str]
     areas: List[str]
@@ -79,11 +90,25 @@ def _movement(raw: dict, private: bool) -> Movement:
         draft=bool(raw.get("draft", False)) or "patterns" not in raw,
         setup=raw.get("setup", ""), cues=list(raw.get("cues", [])),
         easier=list(raw.get("easier", [])), harder=list(raw.get("harder", [])), private=private,
-        has_loads="loads" in raw)
+        has_loads="loads" in raw, effort=raw.get("effort", ""))
+
+
+def private_movements(path: Optional[str] = None) -> List[dict]:
+    """The listener's private [[movement]] tables (default: `movements.toml` in the context folder),
+    or none when the file is missing."""
+    path = path or paths.MY_MOVEMENTS
+    if not os.path.exists(path):
+        return []
+    with open(path, "rb") as f:
+        return list(tomllib.load(f).get("movement", []))
 
 
 def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Catalog:
-    """Read the catalog at `path` (default: the shipped one); `extra` are private movement tables."""
+    """Read the catalog at `path` (default: the shipped one) plus private movement tables: `extra`,
+    or, when neither is given, the listener's `movements.toml` (see `private_movements`). A shipped
+    id wins over a private one with the same id."""
+    if path is None and extra is None:
+        extra = private_movements()
     with open(path or paths.MOVEMENTS, "rb") as f:
         data = tomllib.load(f)
     entries = [_movement(m, False) for m in data.get("movement", [])]
@@ -92,7 +117,7 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
     for m in entries:
         movements.setdefault(m.id, m)
     return Catalog(
-        patterns=list(data.get("patterns", [])), muscles=list(data.get("muscles", [])),
+        format=data.get("format", 0), patterns=list(data.get("patterns", [])), muscles=list(data.get("muscles", [])),
         areas=list(data.get("areas", [])), flags=list(data.get("flags", [])),
         equipment=dict(data.get("equipment", {})),
         presets={k: list(v.get("equipment", [])) for k, v in data.get("presets", {}).items()},
@@ -108,8 +133,15 @@ def _spoken_fault(text: str) -> Optional[str]:
     return None
 
 
+def loaded(m: Movement) -> bool:
+    """True when the movement needs load equipment (dumbbells, a cable and the like), not just a body."""
+    return any(alt in LOAD_EQUIPMENT for need in m.needs for alt in need.split("|"))
+
+
 def problems(cat: Catalog) -> List[str]:
     out: List[str] = []
+    if cat.format != FORMAT:
+        out.append(f"The catalog has format {cat.format}; this version reads format {FORMAT}.")
     seen: Dict[str, int] = {}   # lowercase id, name or alias -> index of the entry that holds it
     ids = set(cat.movements)
     entries = cat.entries or list(cat.movements.values())
@@ -139,6 +171,10 @@ def problems(cat: Catalog) -> List[str]:
                 out.append(f"Movement {m.id} has the unknown flag \"{f}\".")
         if m.intensity and m.intensity not in INTENSITIES:
             out.append(f"Movement {m.id} has the unknown intensity \"{m.intensity}\".")
+        if m.effort and m.effort not in EFFORTS:
+            out.append(f"Movement {m.id} has the unknown effort \"{m.effort}\" (choose from: {', '.join(EFFORTS)}).")
+        if m.effort and m.intensity and m.intensity != "conditioning":
+            out.append(f"Movement {m.id} has an effort but is not a conditioning movement; only those carry one.")
         if m.level and m.level not in LEVELS:
             out.append(f"Movement {m.id} has the unknown level \"{m.level}\".")
         if m.position not in POSITIONS:
@@ -155,6 +191,8 @@ def problems(cat: Catalog) -> List[str]:
                 missing.append("intensity")
             if not m.level:
                 missing.append("level")
+            if m.intensity == "conditioning" and not m.effort:
+                missing.append("effort")
             if m.transition_seconds <= 0:
                 missing.append("transition_seconds")
             if m.measure == "reps" and m.seconds_per_rep <= 0:
@@ -228,6 +266,17 @@ class Selection(NamedTuple):
     left_out: Dict[str, List[str]]      # movement id -> reasons it is out
 
 
+def meaning(area: str, level: str, side: str = "both") -> str:
+    """What a limit rules out, in a plain sentence, for a limit given with no note."""
+    where = f"the {side} {area}" if side in ("left", "right") else f"the {area}"
+    if level == "off-limits":
+        text = f"nothing that loads {where}"
+    else:
+        text = f"light loads only on {where}, no impact or fast work"
+    extra = AREA_FLAGS.get((area, level))
+    return text + (f", and no {' or '.join(f.replace('spine-', 'spine ') for f in extra)}" if extra else "")
+
+
 def threshold(limit: Limit) -> int:
     """The smallest load on the limit's area that rules a movement out."""
     return 1 if limit.level == "off-limits" else 2
@@ -271,7 +320,9 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
             if m.rehab and m.id in lim.rehab:
                 continue
             need = threshold(lim)
-            bad = [f for f in lim.flags if f in m.flags]
+            bad = [f for f in list(lim.flags) + list(AREA_FLAGS.get((lim.area, lim.level), ()))
+                   if f in m.flags]
+            bad = list(dict.fromkeys(bad))
             if lim.level == "delicate":
                 bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad]
             reasons += bad   # a flag is its own reason

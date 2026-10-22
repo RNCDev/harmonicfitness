@@ -1,4 +1,4 @@
-# Session methods and dose rules (format 1), read only through tools/sessions.py.
+# Session methods and dose rules (format 2), read only through tools/sessions.py.
 #
 # A method is the shape of a session's main work: how its time is shared between warm-up, work,
 # an optional finisher and cool-down; which movement patterns fill its slots, in order; and the
@@ -10,7 +10,7 @@
 # Shares are fractions of the session's minutes; each `seconds = [least, most]` clamps them.
 # Block shares split what is left for the work and sum to one.
 
-format = 1
+format = 2
 
 goals = ["strength", "general", "targeted", "conditioning", "mobility", "skill"]
 
@@ -54,11 +54,12 @@ levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 work = "rounds"   # rounds come from the strength dose's sets
+rest_seconds = [45, 90]   # house default: the rest between rounds, short as a circuit's "little rest" asks; the strength dose's rest is for straight sets
 min_slots = 3   # house default: a loop needs at least three stations to rest each one between rounds
 # Upper and lower alternate, push with pull, after HPRC's summary
 # https://www.hprc-online.org/physical-fitness/training-performance/choosing-right-exercises-optimize-your-resistance-training
 blocks = [
-  { intensity = "strength", share = 1.0, patterns = ["squat", "horizontal-push", "hinge", "horizontal-pull", "lunge", "anti-extension"] },   # house default: one block holds all the work
+  { intensity = "strength", share = 1.0, patterns = ["squat", "horizontal-push", "hinge", "horizontal-pull", "lunge", "anti-extension", "vertical-push", "vertical-pull", "anti-rotation"] },   # house default: one block holds all the work; the last three keep a long circuit's second pass from repeating siblings
 ]
 
 # Conditioning methods ---------------------------------------------------------------------------
@@ -73,7 +74,9 @@ cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy then s
 work = "intervals"
 min_slots = 1   # house default: one locomotion pattern may fill every slot
 blocks = [
-  { intensity = "conditioning", share = 1.0, patterns = ["locomotion"] },   # house default: one block holds all the work
+  # house default: one block holds all the work; when fewer than two locomotion movements are hard enough
+  # for interval work today, timed bodyweight work from the fallback patterns joins in, as tabata has it
+  { intensity = "conditioning", share = 1.0, patterns = ["locomotion"], fallback = ["squat", "lunge", "hinge", "anti-extension"] },
 ]
 
 [methods.tabata]
@@ -119,7 +122,7 @@ cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breath
 work = "holds"
 min_slots = 1   # house default: one pattern may fill several slots
 blocks = [
-  { intensity = "mobility", share = 1.0, patterns = ["mobility", "breathing"] },   # house default: one block holds all the work
+  { intensity = "mobility", share = 1.0, patterns = ["mobility", "mobility", "breathing"] },   # house default: one block holds all the work, two mobility drills to each breathing one
 ]
 
 [methods.skill]
@@ -151,27 +154,32 @@ sets = [3, 4]                      # house default: a step up from novice
 reps = [6, 10]                     # source: inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 rest_seconds = [90, 120]           # source: one to two minutes for muscle work, ACSM https://pubmed.ncbi.nlm.nih.gov/19204579/
 hard_sets_per_session = [10, 16]   # house default: programming.md's session arithmetic, about two minutes a set, not a study
+bodyweight_reps = [10, 15]         # house default: a movement with no load needs more reps to be hard; inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 
 [dose.strength.advanced]
 sets = [3, 5]                      # house default: a step up from experienced
 reps = [4, 8]                      # house default: below Iversen's six for heavier sets; home kit rarely allows it
 rest_seconds = [120, 180]          # source: trained people probably need two minutes or more, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772; the upper bound is a house default
 hard_sets_per_session = [12, 20]   # house default: programming.md's session arithmetic, about twenty at forty five minutes
+bodyweight_reps = [12, 20]         # house default: a movement with no load needs more reps to be hard; above Iversen's fifteen for trained people, slow on the way down
 
 [dose.conditioning.novice]
 work_seconds = [20, 30]            # source: Gillen's efforts lasted twenty seconds https://pubmed.ncbi.nlm.nih.gov/27115137/; the upper bound is a house default
 rest_seconds = [40, 60]            # house default: twice the work or more while fitness builds
-rounds = [4, 6]                    # house default: Gillen used three efforts https://pubmed.ncbi.nlm.nih.gov/27115137/ at all out; a few more at a lower effort
+rounds = [3, 6]                    # house default: Gillen used three efforts https://pubmed.ncbi.nlm.nih.gov/27115137/ at all out; a few more at a lower effort
+efforts_per_session = [6, 12]      # house default: total hard efforts in a session; past it the time goes to a steady block, not more efforts
 
 [dose.conditioning.experienced]
 work_seconds = [30, 45]            # house default: longer efforts as fitness grows
 rest_seconds = [30, 45]            # house default: about equal work and rest
-rounds = [6, 8]                    # house default: a step up from novice
+rounds = [4, 8]                    # house default: a step up from novice; four lets a capped session hold more movements
+efforts_per_session = [8, 16]      # house default: total hard efforts in a session; past it the time goes to a steady block, not more efforts
 
 [dose.conditioning.advanced]
 work_seconds = [30, 60]            # house default: longer efforts as fitness grows
 rest_seconds = [15, 30]            # house default: less rest than work
-rounds = [8, 10]                   # house default: a step up from experienced
+rounds = [4, 10]                   # house default: a step up from experienced; four lets a capped session hold more movements
+efforts_per_session = [10, 20]     # house default: total hard efforts in a session; past it the time goes to a steady block, not more efforts
 
 [dose.mobility.novice]
 hold_seconds = [30, 60]            # house default: programming.md lists mobility hold length as not searched

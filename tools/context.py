@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from typing import Dict, List, NamedTuple, Optional
 
@@ -802,7 +803,25 @@ def check(home_files=None):
                     s = parse_session(line, n)
                     if not isinstance(s, Session):
                         out.append(Issue(path, n + offset, s))
+    if home_files is None:
+        out += check_movements()
     return out
+
+
+def check_movements(path=None):
+    """[Issue] for the listener's private movements file (`movements.toml` in the context folder):
+    each catalog problem that names one of its entries. None when there is no such file."""
+    path = path or paths.MY_MOVEMENTS
+    if not os.path.exists(path):
+        return []
+    try:
+        extra = catalog.private_movements(path)
+    except (tomllib.TOMLDecodeError, OSError) as e:
+        return [Issue(path, 0, f"can't be read: {e}")]
+    ids = {str(m.get("id", "")) for m in extra}
+    cat = catalog.load(paths.MOVEMENTS, extra=extra)
+    return [Issue(path, 0, p) for p in catalog.problems(cat)
+            if any(re.search(rf"\b{re.escape(i)}\b", p) for i in ids if i)]
 
 
 def describe(issue):

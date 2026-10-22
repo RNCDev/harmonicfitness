@@ -1,5 +1,5 @@
 # A small synthetic catalog for tests: the full fixed lists and a few movements.
-format = 2
+format = 3
 
 patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
             "carry", "rotation", "anti-rotation", "anti-extension", "locomotion", "balance", "arms", "hips",
@@ -197,12 +197,36 @@ muscles = ["quads", "calves"]
 loads = { knee = 1 }
 flags = []
 intensity = "conditioning"
+effort = "easy"
 level = "novice"
 hold_seconds = 60
 transition_seconds = 20
 setup = "Sit tall on the bike and settle your feet on the pedals."
 cues = ["Smooth circles.", "Breathe easily."]
 easier = []
+harder = []
+draft = false
+
+[[movement]]
+id = "bike-steady"
+name = "steady ride"
+aliases = []
+needs = ["bike"]
+position = "seated"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["quads", "glutes"]
+loads = { knee = 1, hip = 1 }
+flags = []
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+setup = "Stay seated and add resistance until it feels moderate."
+cues = ["Smooth circles.", "Quiet upper body."]
+easier = ["bike-easy-spin"]
 harder = []
 draft = false
 
@@ -308,6 +332,7 @@ muscles = ["core", "shoulders", "quads"]
 loads = { wrist = 3, shoulder = 2, knee = 1 }
 flags = ["floor"]
 intensity = "conditioning"
+effort = "hard"
 level = "experienced"
 hold_seconds = 30
 transition_seconds = 10
