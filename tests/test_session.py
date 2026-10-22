@@ -509,6 +509,90 @@ def eval_request(case, cat):
             "limits": [session._limit(case["limit"], cat)] if case.get("limit") else [], "avoid": set()}
 
 
+class Context61(unittest.TestCase):
+    """6.1.0: the clinician's Avoid lines, kit weights, muscle coverage and the coaching notes."""
+
+    def health_with(self, extra_rules):
+        import tempfile
+        with open(os.path.join(LISTENER, "health.md")) as f:
+            text = f.read()
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "health.md")
+        with open(path, "w") as f:
+            f.write(text.replace("- No pushing through wrist pain.", "- No pushing through wrist pain.\n" + extra_rules))
+        return context.health(path)
+
+    def test_clinician_avoid_lines_apply_without_a_flag(self):
+        base = compose_for(goal="strength", minutes=30)
+        squat = next(s for _, ss in base.blocks for s in ss if s.pattern == "squat")
+        self.assertEqual(squat.candidates[0][0].id, "goblet-squat")
+        h = self.health_with("- Avoid: goblet-squat, impact")
+        self.assertEqual(context.clinician_avoids(h), ["goblet-squat", "impact"])
+        sk = compose_for(health=h, goal="strength", minutes=30)
+        picks = {m.id for _, ss in sk.blocks for s in ss for m, _ in s.candidates}
+        self.assertNotIn("goblet-squat", picks)
+
+    def test_unknown_avoid_word_is_warned_not_fatal(self):
+        sk = compose_for(health=self.health_with("- Avoid: wobbly-thing"), goal="strength", minutes=30)
+        self.assertTrue(any("wobbly-thing" in w for w in sk.warnings), sk.warnings)
+        issues = context._check_health("health.md", open(self.health_with("- Avoid: wobbly-thing").path).read())
+        self.assertTrue(any("wobbly-thing" in i.message for i in issues))
+
+    def test_kit_weights_print_as_loads_on_hand(self):
+        import session
+        kits = [{"name": "home", "equipment": ["dumbbells", "band", "mat"],
+                 "weights": {"dumbbells": [20, 10, 15]}, "unit": "lb"}]
+        p = listener_profile(kits=kits)
+        self.assertEqual(context.kit_weights(p), {"home": ("lb", {"dumbbells": [10, 15, 20]})})
+        text = "\n".join(session.render(compose_for(profile=p, goal="strength", minutes=30)))
+        self.assertIn("Loads on hand: dumbbells 10, 15, 20 lb (heaviest 20)", text)
+        self.assertNotIn("Loads on hand", "\n".join(session.render(compose_for(goal="strength", minutes=30))))
+
+    def test_kit_weight_faults_are_listed(self):
+        k = {"name": "home", "equipment": ["dumbbells"], "weights": {"kettlebell": [16], "dumbbells": ["heavy"]},
+             "unit": "stone"}
+        problems = " ".join(context._weight_problems(k))
+        for word in ("kettlebell", "numbers above zero", "unit"):
+            self.assertIn(word, problems)
+        self.assertEqual(context._weight_problems({"name": "x", "equipment": ["dumbbells"],
+                                                   "weights": {"dumbbells": [5, 7.5]}}), [])
+
+    def test_muscles_line_names_what_is_left_out(self):
+        import session
+        sk = compose_for(goal="strength", minutes=30)
+        line = next(x for x in session.render(sk) if x.startswith("Muscles: "))
+        self.assertIn("glutes", line)
+        self.assertRegex(line, r"; (left out: |every major group)")
+
+    def test_coaching_notes_cover_each_first_pick(self):
+        import session
+        sk = compose_for(goal="strength", minutes=30)
+        text = session.render(sk)
+        start = text.index(next(x for x in text if x.startswith("Coaching (")))
+        notes = "\n".join(text[start:])
+        for _, ss in sk.blocks:
+            for s in ss:
+                self.assertIn(f"  {s.candidates[0][0].name} (", notes)
+        self.assertIn("    Setup: ", notes)
+        self.assertIn("    Cues: ", notes)
+        self.assertFalse(any(x.startswith("Coaching") for x in session.render_draft(sk)))
+
+    def test_straight_sets_give_way_to_pairs_that_keep_a_pattern(self):
+        import session
+        straight = compose_for(goal="strength", minutes=25, method="straight-sets")
+        paired = compose_for(goal="strength", minutes=25, method="paired-sets")
+        if not straight.dropped or len(paired.dropped) >= len(straight.dropped):
+            self.skipTest("the fixture fits every pattern either way at this length")
+        chosen = session._covering([straight, paired], None)
+        self.assertEqual(chosen.method.name, "paired-sets")
+        self.assertIn("would drop", chosen.why)
+        for p in paired.dropped:
+            self.assertIn(p, chosen.why.split(" and ", 1)[1])   # what pairing still drops is named
+        self.assertEqual(session._covering([straight, paired], "paired-sets").method.name, "straight-sets")
+        circuit = compose_for(goal="general", minutes=25, method="circuit")
+        self.assertEqual(session._covering([paired, circuit], None).method.name, "paired-sets")
+
+
 class Eval(unittest.TestCase):
     """The judged grid in docs/eval/: forty cases over four invented listeners."""
 
@@ -696,6 +780,8 @@ class Grid(unittest.TestCase):
         titles = [x.split("|", 1)[1].strip() for x in session.render_draft(sk)]
         sets = self.slots("c03")[0].dose["sets"]
         self.assertEqual(sum(t.startswith("Pair 1 of") for t in titles), sets)
+        pairs = {t.split(",")[0] for t in titles if t.startswith("Pair ")}
+        self.assertTrue(all(t.endswith(f" of {len(pairs)}") for t in pairs), pairs)   # a lone slot isn't counted
         self.assertIn(", then ", next(t for t in titles if t.startswith("Pair 1 of")))
         self.assertRegex("\n".join(session.render(sk)), r"rest \d+ s after each pair set")
 
@@ -732,10 +818,14 @@ class Grid(unittest.TestCase):
 
     def test_kit_load_ranks_ahead_of_bodyweight(self):
         for cid, pattern, want in (("c05", "squat", "goblet-squat"), ("c19", "squat", "goblet-squat"),
-                                   ("c10", "horizontal-pull", "face-pull"), ("c21", "horizontal-pull", "face-pull")):
-            with self.subTest(case=cid):
+                                   ("c10", "horizontal-pull", None), ("c21", "horizontal-pull", None)):
+            with self.subTest(case=cid):   # None: any loaded pull (a cable or band one) ahead of the towel row
                 slot = next(s for s in self.slots(cid) if s.pattern == pattern)
-                self.assertEqual(slot.candidates[0][0].id, want)
+                first = slot.candidates[0][0]
+                if want:
+                    self.assertEqual(first.id, want)
+                else:
+                    self.assertTrue(catalog.loaded(first), first.id)
 
     def test_target_gets_at_least_half_the_slots(self):
         back = [s.pattern for s in self.slots("c38")]
@@ -781,7 +871,7 @@ class Grid(unittest.TestCase):
                     self.assertFalse(any("barbell" in m.needs for s in self.slots(cid) for m, _ in s.candidates))
 
     def test_today_limit_says_what_it_means(self):
-        self.assertIn("today: calf delicate: light loads only on the calf, no impact or fast work",
+        self.assertIn("today: calf delicate: light loads only on the calf, no impact work or fast work that loads it",
                       self.sk["c27"].health)
 
 

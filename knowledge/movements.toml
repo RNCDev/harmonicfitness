@@ -37,6 +37,12 @@
 #   blocks and breathing, 20 for sprints, 45 for skill drills.
 # - `transition_seconds`: 10 for bodyweight (and a chair or towel) and for the next block on a cardio
 #   machine, 15 for dumbbells, kettlebells or bands, 25 for barbell or strength machines.
+# - Coaching, for a listener who can't see a demonstration or a mirror (spoken, like `setup` and `cues`;
+#   optional on a draft, expected on a finished entry): `rep`, what one rep is (and whether reps count
+#   per side), or for a timed entry what is held and what ends it, with a talk test on conditioning;
+#   `feel`, where it should be felt and where not; `faults`, one to three common mistakes, each with the
+#   cue that fixes it, safety first. `./sweatcast session` prints them for its first picks, and
+#   `./sweatcast movements --about <ids>` for any other.
 format = 3   # the catalog's own format; the context schema is separate
 
 patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
@@ -111,6 +117,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand with your feet a little wider than your hips, toes turned out slightly."
 cues = ["Sit back and down between your heels.", "Knees track over your toes.", "Drive the floor away to stand."]
+rep = "One rep is down until your thighs are about level and back up to standing."
+feel = "Feel it in the fronts of your thighs and your glutes, not pinching in the knees or the low back."
+faults = ["If your heels lift, sit back more and press your whole foot into the floor.", "If your knees cave in, push them out toward your little toes.", "If your chest drops, lift it and look straight ahead."]
 easier = ["box-squat"]
 harder = ["goblet-squat"]
 
@@ -133,6 +142,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand in front of a bench or a sturdy chair, feet about hip width apart."
 cues = ["Hips back, then sit down softly.", "Tap the seat, don't flop.", "Stand up tall and squeeze."]
+rep = "One rep is sitting back until you touch the seat, then standing all the way up."
+feel = "Feel it in the glutes and the thighs as you stand, not in the low back."
+faults = ["If you flop onto the seat, slow down and lower under control.", "If you rock forward to stand, keep your chest tall and push the floor away.", "If your knees drift in, press them out."]
 easier = []
 harder = ["air-squat"]
 
@@ -155,6 +167,9 @@ transition_seconds = 15
 draft = false
 setup = "Hold one weight upright at your chest, feet a little wider than your hips."
 cues = ["Sit between your heels.", "Elbows inside the knees.", "Chest tall."]
+rep = "One rep is down between your heels with the weight at your chest and back up to standing."
+feel = "Feel it in the thighs and glutes, with your upper back and core working to hold you tall, and no strain in the low back."
+faults = ["If you fold forward, hug the weight in and lift your chest.", "If your heels lift, sit back and press the whole foot down.", "If your knees cave, push them out toward your little toes."]
 easier = ["air-squat", "box-squat"]
 harder = []
 
@@ -178,6 +193,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand tall, feet under your hips, hands on your hips or holding light weights at your sides."
 cues = ["Step back and lower the back knee toward the floor.", "Front heel stays down.", "Push through the front foot to come back up."]
+rep = "One rep is a step back, the back knee lowered toward the floor, then back to standing. Count reps on each side."
+feel = "Feel it in the front thigh and glute, with the back leg helping, and no pinch in the front knee."
+faults = ["If the front heel lifts, take a bigger step back and keep the front foot flat.", "If you lean far forward, stand tall and keep your chest up.", "If you wobble side to side, step back a little wider, as if on train tracks."]
 easier = ["split-squat"]
 harder = []
 
@@ -201,6 +219,9 @@ transition_seconds = 10
 draft = false
 setup = "Take a long stride, back heel lifted, with light weights at your sides if you have them."
 cues = ["Drop straight down, like an elevator.", "Front knee over the middle of the foot.", "Stay tall through the chest."]
+rep = "One rep is straight down and straight back up with your feet staying put. Count reps on each side."
+feel = "Feel it in the front thigh and glute, with a stretch in the back hip, and no pinch in the front knee."
+faults = ["If you lean forward, stand tall and drop straight down.", "If the front knee dives past your toes, lengthen your stride.", "If you rock back and forth, slow down and stay in the front heel."]
 easier = []
 harder = ["reverse-lunge", "bulgarian-split-squat"]
 
@@ -224,6 +245,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand a long stride in front of a bench or chair and rest the top of your back foot on it."
 cues = ["Lower straight down on the front leg.", "Most of your weight in the front heel.", "Slow down, strong up."]
+rep = "One rep is straight down on the front leg and back up, with the back foot resting on the bench. Count reps on each side."
+feel = "Feel it in the front thigh and glute, with a stretch at the front of the back hip, and no pinch in the front knee."
+faults = ["If the front heel lifts, step a little farther from the bench and press the whole front foot down.", "If you lean far forward, lift your chest and lower straight down.", "If you push hard off the back foot, let it just rest and drive up through the front heel."]
 easier = ["split-squat"]
 harder = []
 
@@ -247,6 +271,9 @@ transition_seconds = 10
 draft = false
 setup = "Face a sturdy bench or chair and plant one whole foot on top of it."
 cues = ["Drive through the top heel, not the bottom toes.", "Stand all the way up.", "Lower yourself slowly."]
+rep = "One rep is stepping up until you stand tall on the bench, then lowering back down. Count reps on each side."
+feel = "Feel it in the thigh and glute of the leg on the bench, not in the foot pushing off the floor."
+faults = ["If you push off the bottom foot, think of the top leg doing all the lifting.", "If you drop down fast, lower slowly and touch the floor lightly.", "If your knee falls inward, press it out over your toes."]
 easier = []
 harder = []
 
@@ -269,6 +296,9 @@ transition_seconds = 10
 draft = false
 setup = "Lean your back flat against a wall and walk your feet out, then slide down until your thighs are near level."
 cues = ["Knees over your ankles.", "Back flat on the wall.", "Breathe steadily."]
+rep = "Hold the sit against the wall with your thighs near level. The hold ends when you stand up or your thighs rise."
+feel = "Feel a steady burn in the fronts of your thighs and glutes, not in your knees or low back."
+faults = ["If you push your hands on your thighs, let them hang or fold your arms.", "If your feet creep in close, walk them out so your knees stay over your ankles.", "If your thighs rise, slide back down to level."]
 easier = []
 harder = []
 
@@ -297,7 +327,7 @@ sided = false
 measure = "reps"
 patterns = ["hinge"]
 muscles = ["glutes", "hamstrings", "core"]
-loads = { hip = 3, knee = 1, low-back = 1, neck = 1 }
+loads = { hip = 3, knee = 1, low-back = 1, neck = 1, ankle = 1, foot = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
@@ -306,6 +336,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your back, knees bent, feet flat and hip width apart."
 cues = ["Ribs down, then lift the hips.", "Squeeze the glutes at the top and hold one beat.", "Lower one notch at a time."]
+rep = "One rep is lifting your hips until your body makes a straight line from knees to shoulders, then lowering back down."
+feel = "Feel it in the back of the hips and the hamstrings, not the low back."
+faults = ["If your low back arches, tuck your ribs down and stop the lift sooner.", "If you feel it in the hamstrings only, pull your heels a little closer.", "If your knees drift apart, keep them hip width."]
 easier = []
 harder = ["single-leg-glute-bridge", "dumbbell-glute-bridge", "hip-thrust"]
 
@@ -319,7 +352,7 @@ sided = true
 measure = "reps"
 patterns = ["hinge"]
 muscles = ["glutes", "hamstrings", "core"]
-loads = { hip = 3, knee = 1, low-back = 1, hamstring = 1, neck = 1 }
+loads = { hip = 3, knee = 1, low-back = 1, hamstring = 1, neck = 1, ankle = 1, foot = 1 }
 support = { hip = 1 }
 flags = ["floor", "single-leg"]
 intensity = "strength"
@@ -329,6 +362,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your back, one foot flat, the other knee hugged in or that leg held straight up."
 cues = ["Push through the planted heel.", "Hips stay level, like a tray of water.", "Pause at the top."]
+rep = "One rep is lifting your hips on one planted foot and lowering back down. Count reps on each side."
+feel = "Feel it in the glute of the planted leg, not the low back."
+faults = ["If your hips tip or twist, squeeze the glute and keep them level.", "If your low back arches, tuck your ribs down and lift a little less.", "If you push with your toes, press through the planted heel."]
 easier = ["glute-bridge"]
 harder = []
 
@@ -341,9 +377,19 @@ position = "lying"
 sided = false
 measure = "reps"
 patterns = ["hinge"]
-draft = true
+muscles = ["glutes", "hamstrings", "core"]
+loads = { hip = 3, knee = 1, low-back = 1, neck = 1, wrist = 1, ankle = 1, foot = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Lie on your back, knees bent, and rest one weight across your hip bones, holding it in place."
 cues = ["Drive through your heels.", "Squeeze hard at the top.", "Keep your ribs down."]
+rep = "One rep is hips up until your body is straight from knees to shoulders, then down to a light touch on the floor."
+feel = "Feel it in your glutes and the backs of your thighs, not in your low back."
+faults = ["If your low back arches at the top, stop the hips a little lower and pull your ribs down.", "If you feel it mostly in the hamstrings, walk your feet a little closer to your hips.", "If the weight slides or tips, hold it with both hands and keep it on the hip bones."]
 easier = ["glute-bridge"]
 harder = ["hip-thrust"]
 
@@ -372,7 +418,7 @@ sided = false
 measure = "reps"
 patterns = ["hinge"]
 muscles = ["glutes", "hamstrings", "quads"]
-loads = { hip = 3, knee = 1, low-back = 1, neck = 1 }
+loads = { hip = 3, knee = 1, low-back = 1, neck = 1, ankle = 1, foot = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
@@ -381,6 +427,9 @@ transition_seconds = 15
 draft = false
 setup = "Sit on the floor with your upper back against the long side of a bench, knees bent, a weight across your hips if you have one."
 cues = ["Chin tucked, eyes forward.", "Drive the hips up until your body is a flat table.", "Squeeze, then lower with control."]
+rep = "One rep is lifting your hips until your body is a flat table, then lowering them back down."
+feel = "Feel it in the glutes and the back of the thighs, not in the low back."
+faults = ["If your low back arches at the top, tuck your ribs down and squeeze the glutes.", "If your hips stop short, keep pushing through your heels until you are flat.", "If your feet are too far away, bring them in so your shins are about upright at the top."]
 easier = ["glute-bridge"]
 harder = ["barbell-hip-thrust"]
 
@@ -392,10 +441,21 @@ needs = []
 position = "all-fours"
 sided = true
 measure = "reps"
-patterns = ["hinge"]
-draft = true
+patterns = ["hips", "hinge"]
+muscles = ["glutes", "hamstrings", "core"]
+loads = { hip = 3, wrist = 2, knee = 1, shoulder = 1, low-back = 1 }
+support = { knee = 2, wrist = 2, shoulder = 1, hip = 1 }
+flags = ["floor", "kneeling"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
 setup = "Come onto your hands and knees, hands under shoulders, knees under hips."
 cues = ["Keep the knee bent and press the heel toward the ceiling.", "Don't let the low back sag.", "Slow and controlled, no swinging."]
+rep = "One rep is the bent leg lifting until the thigh is level with your back, then lowering until the knee nearly touches the floor."
+feel = "Feel it in the glute of the working leg, not in the low back."
+faults = ["If your low back arches as the leg lifts, stop the thigh at level and brace your belly.", "If your hips tip toward the working side, lift less and keep them square to the floor.", "If you swing the leg up, slow down and pause at the top."]
 easier = []
 harder = []
 
@@ -422,10 +482,20 @@ needs = ["dumbbells", "bench"]
 position = "lying"
 sided = false
 measure = "reps"
-patterns = ["hinge"]
-draft = true
+patterns = ["hips", "hinge"]
+muscles = ["hamstrings", "calves"]
+loads = { hamstring = 3, knee = 2, ankle = 2, foot = 1, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Lie face down on the bench, knees just past the end, with a light dumbbell held between your feet."
 cues = ["Curl your heels toward your glutes.", "Hips stay pressed into the bench.", "Lower slowly."]
+rep = "One rep is curling your heels up until your shins are nearly upright, then lowering slowly until your legs are almost straight."
+feel = "Feel it in the backs of your thighs, not in the low back."
+faults = ["If the dumbbell starts to slip, stop, lower it and grip it tighter with your feet, or use a lighter one.", "If your hips lift off the bench, use a lighter weight and press the hips down.", "If your shins pass upright, stop short so the weight stays over your feet."]
 easier = []
 harder = []
 
@@ -452,10 +522,20 @@ needs = ["dumbbells", "bench|chair"]
 position = "seated"
 sided = false
 measure = "reps"
-patterns = ["balance", "hips"]
-draft = true
+patterns = ["hips"]
+muscles = ["calves"]
+loads = { calf = 3, ankle = 2, foot = 2, knee = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Sit tall with your feet flat and a dumbbell resting on each knee."
 cues = ["Press up onto the balls of your feet.", "Pause at the top.", "Lower the heels all the way."]
+rep = "One rep is pressing the heels up as high as they go, a pause, and lowering them all the way down."
+feel = "Feel it deep in the calves, not in the toes or the knees."
+faults = ["If the ankles roll out, press through the big toe and keep the heels in line.", "If you bounce, pause at the top and lower slowly.", "If the dumbbells slide, hold them steady on the knees with your hands."]
 easier = []
 harder = []
 
@@ -480,6 +560,9 @@ transition_seconds = 15
 draft = false
 setup = "Stand tall with the weight in front of your thighs, feet hip width apart, a soft bend in your knees."
 cues = ["Hinge from the hips like you're closing a car door with your backside.", "Weight slides down close to your legs.", "Stand up by squeezing the glutes."]
+rep = "One rep is hinging back until you feel a stretch behind your legs, then standing tall again."
+feel = "Feel a stretch in the hamstrings and the glutes working to stand, not the low back."
+faults = ["If your back rounds, stop lower down and keep your chest proud.", "If the weight drifts away, drag it close down your legs.", "If you squat down instead, keep your knees soft and send your hips back."]
 easier = ["kettlebell-deadlift"]
 harder = []
 
@@ -502,6 +585,9 @@ transition_seconds = 15
 draft = false
 setup = "Stand over the weight, feet hip width apart, the handle between your ankles."
 cues = ["Push your hips back and grab the handle.", "Flat back, chest proud.", "Push the floor away to stand."]
+rep = "One rep is hinging down to lift the weight from the floor, standing tall, then setting it back down."
+feel = "Feel it in the glutes and hamstrings and the legs pushing the floor away, not the low back."
+faults = ["If your back rounds, brace your belly and lift your chest before you pull.", "If the weight swings out front, keep it close to your shins.", "If you yank it up, push the floor away and stand smoothly."]
 easier = []
 harder = ["romanian-deadlift", "kettlebell-swing"]
 
@@ -525,6 +611,9 @@ transition_seconds = 15
 draft = false
 setup = "Stand with your feet a little wider than your hips, the kettlebell on the floor a step in front of you."
 cues = ["Hike it back between your thighs.", "Snap the hips forward, the arms just float.", "Stand tall and squeeze at the top."]
+rep = "One rep is hiking the weight back between your thighs and snapping your hips forward until it floats to chest height."
+feel = "Feel it in the glutes and hamstrings snapping you tall, not the low back or the arms."
+faults = ["If your back rounds, brace your belly and hinge from the hips.", "If you lift with your arms, let them go loose and drive with the hips.", "If you lean back at the top, stand tall and squeeze the glutes, no farther."]
 easier = ["kettlebell-deadlift"]
 harder = []
 
@@ -540,7 +629,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-push"]
 muscles = ["chest", "triceps", "shoulders", "core"]
-loads = { wrist = 2, shoulder = 3, elbow = 2, low-back = 1 }
+loads = { wrist = 2, shoulder = 3, elbow = 2, low-back = 1, ankle = 1, foot = 2 }
 flags = ["floor"]
 intensity = "strength"
 level = "experienced"
@@ -549,6 +638,9 @@ transition_seconds = 10
 draft = false
 setup = "Hands under your shoulders, body in one long line from head to heels, or from head to knees."
 cues = ["Push the floor away.", "Ribs down, glutes tight.", "Elbows at a gentle angle, not flared."]
+rep = "One rep is lowering your chest toward the floor and pressing back up to straight arms."
+feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, with your core tight and no sag in the low back."
+faults = ["If your hips sag, squeeze the glutes and brace your belly.", "If your elbows flare wide, tuck them to a gentle angle.", "If you only go halfway, lower your chest a little closer to the floor."]
 easier = ["incline-push-up"]
 harder = []
 
@@ -571,6 +663,9 @@ transition_seconds = 10
 draft = false
 setup = "Put your hands on a bench or a sturdy chair set against a wall, and walk your feet back until your body makes one long line."
 cues = ["Lower your chest to the edge.", "Push the surface away.", "Body moves in one piece."]
+rep = "One rep is lowering your chest toward the bench edge and pressing back up to straight arms."
+feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, with your core tight."
+faults = ["If your hips sag, squeeze the glutes and brace your belly.", "If your elbows flare, tuck them to a gentle angle.", "If the bench slides, set it against a wall before you start."]
 easier = ["wall-push-up"]
 harder = ["push-up"]
 
@@ -593,6 +688,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand about an arm's length from a wall and put your hands flat on it at shoulder height, a little wider than your shoulders."
 cues = ["Lower your chest toward the wall.", "Body moves in one piece.", "Push the wall away."]
+rep = "One rep is leaning your chest toward the wall and pressing back to straight arms."
+feel = "Feel it in the chest and the backs of the arms, with no pinch at the front of the shoulders."
+faults = ["If your hips poke back, stand tall and keep your body in one line.", "If your elbows flare, tuck them to a gentle angle.", "If your heels lift, plant your feet flat."]
 easier = []
 harder = ["incline-push-up"]
 
@@ -606,7 +704,7 @@ sided = false
 measure = "reps"
 patterns = ["vertical-push"]
 muscles = ["shoulders", "triceps", "chest"]
-loads = { shoulder = 3, wrist = 2, elbow = 2, hamstring = 1, neck = 2 }
+loads = { shoulder = 3, wrist = 2, elbow = 2, hamstring = 1, neck = 2, ankle = 1, foot = 2 }
 flags = ["floor", "overhead"]
 intensity = "strength"
 level = "experienced"
@@ -615,6 +713,9 @@ transition_seconds = 10
 draft = false
 setup = "Start in a push-up, then walk your feet in and lift your hips high, like an upside-down letter V."
 cues = ["Lower the top of your head toward the floor between your hands.", "Elbows point back, not out.", "Press back up to the V."]
+rep = "One rep is lowering the top of your head toward the floor between your hands and pressing back up to the V."
+feel = "Feel it in the shoulders and the backs of the arms, not in the neck or the low back."
+faults = ["If your elbows flare, point them back along your sides.", "If your hips drop, keep them high and your body in the V.", "If your neck strains, look at your feet and lower only as far as feels steady."]
 easier = []
 harder = []
 
@@ -652,6 +753,9 @@ transition_seconds = 15
 draft = false
 setup = "Lie on your back, knees bent, a weight in each hand with your upper arms resting on the floor."
 cues = ["Press straight up over your chest.", "Lower until the elbows kiss the floor.", "Palms can face each other to spare the shoulders."]
+rep = "One rep is pressing the weights straight up over your chest and lowering until your elbows touch the floor."
+feel = "Feel it in the chest and the backs of the arms, with no pinch at the front of the shoulders."
+faults = ["If your elbows flare wide, tuck them to a gentle angle.", "If you bounce off the floor, pause lightly, then press.", "If your low back arches, plant your feet and keep your ribs down."]
 easier = []
 harder = ["dumbbell-bench-press"]
 
@@ -674,6 +778,9 @@ transition_seconds = 15
 draft = false
 setup = "Lie on the bench with your feet flat on the floor, a dumbbell in each hand beside your chest."
 cues = ["Shoulder blades pinned back and down.", "Press up and slightly in.", "Lower slowly to chest height."]
+rep = "One rep is lowering the weights to chest height and pressing them back up over your chest."
+feel = "Feel it in the chest and the backs of the arms, with no pinch at the front of the shoulders."
+faults = ["If your elbows flare wide, tuck them to a gentle angle.", "If your shoulders roll forward, pin your shoulder blades back and down.", "If your low back arches, plant your feet and keep your ribs down."]
 easier = ["floor-press"]
 harder = []
 
@@ -686,10 +793,20 @@ position = "lying"
 sided = false
 measure = "reps"
 patterns = ["horizontal-push"]
-draft = true
-setup = "Set the bench to a low incline and lie back, a dumbbell in each hand at the top of your chest."
+muscles = ["chest", "shoulders", "triceps"]
+loads = { shoulder = 3, elbow = 2, wrist = 1 }
+flags = []
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Set the bench to a low incline, about thirty degrees, and lie back, a dumbbell in each hand at the top of your chest."
 cues = ["Press up over your upper chest.", "Elbows a little in from your sides.", "Lower with control."]
-easier = []
+rep = "One rep is pressing the weights up over your upper chest and lowering them back to the top of your chest."
+feel = "Feel it in the upper chest and the front of the shoulders, with no pinch inside the shoulder joint."
+faults = ["If the elbows flare straight out, tuck them a little toward your sides to spare the shoulders.", "If the low back arches off the bench, plant your feet and keep the ribs down.", "If the weights drift up over your face, press up over the upper chest instead."]
+easier = ["floor-press"]
 harder = []
 
 [[movement]]
@@ -711,6 +828,9 @@ transition_seconds = 15
 draft = false
 setup = "Sit tall with your back supported, a weight in each hand at shoulder height."
 cues = ["Press up and slightly in.", "Ribs stay down, no arching.", "Lower to your shoulders slowly."]
+rep = "One rep is pressing the weights overhead until your arms are straight and lowering them back to your shoulders."
+feel = "Feel it in the shoulders and the backs of the arms, with no arch in the low back and no pinch at the top of the shoulder."
+faults = ["If your back arches, lower your ribs and squeeze your belly.", "If you shrug up to your ears, press the shoulders down as you lift.", "If the weights drift forward, press them straight up over your shoulders."]
 easier = []
 harder = ["overhead-press"]
 
@@ -733,6 +853,9 @@ transition_seconds = 15
 draft = false
 setup = "Stand tall, feet hip width apart, a weight in each hand at shoulder height."
 cues = ["Squeeze the glutes and brace.", "Press up until your arms frame your ears.", "Don't lean back."]
+rep = "One rep is pressing the weights overhead until your arms are straight and lowering them back to your shoulders."
+feel = "Feel it in the shoulders and the backs of the arms, with your glutes and belly holding you steady and no arch in the low back."
+faults = ["If you lean back, squeeze the glutes and brace your belly.", "If you shrug up to your ears, press the shoulders down as you lift.", "If the weights drift forward, press them straight up over your shoulders."]
 easier = ["seated-shoulder-press"]
 harder = []
 
@@ -747,7 +870,7 @@ measure = "reps"
 patterns = ["vertical-push", "anti-rotation"]
 muscles = ["shoulders", "triceps", "core", "glutes"]
 loads = { shoulder = 3, elbow = 2, knee = 2, wrist = 1, neck = 2, low-back = 1 }
-support = { knee = 1 }
+support = { knee = 1, ankle = 1, foot = 1 }
 flags = ["floor", "kneeling", "overhead"]
 intensity = "strength"
 level = "experienced"
@@ -756,6 +879,9 @@ transition_seconds = 15
 draft = false
 setup = "Kneel on one knee, the other foot flat in front, the weight at your shoulder on the side of the down knee."
 cues = ["Squeeze the glute of the down leg.", "Press straight up, no leaning.", "Lower it back to the shoulder."]
+rep = "One rep is pressing the weight overhead until your arm is straight and lowering it to your shoulder. Count reps on each side."
+feel = "Feel it in the shoulder and the back of the arm, with the glute of the down leg holding you tall and no arch in the low back."
+faults = ["If you lean to the side or back, squeeze the down glute and brace your belly.", "If you shrug up, press the shoulder down as you lift.", "If the weight drifts forward, press it straight up over your shoulder."]
 easier = ["seated-shoulder-press"]
 harder = []
 
@@ -826,6 +952,9 @@ transition_seconds = 15
 draft = false
 setup = "Stand beside a bench with one hand on it, feet staggered, back flat, the weight hanging in the other hand."
 cues = ["Elbow drives toward the back pocket.", "Don't twist open.", "Lower to a full stretch."]
+rep = "One rep is pulling the weight up toward your hip and lowering it to a full stretch. Count reps on each side."
+feel = "Feel it in the middle of your back and the back of the shoulder, not in the low back or the biceps alone."
+faults = ["If your back rounds, keep it flat and brace your belly.", "If you twist your chest open, keep your shoulders square to the floor.", "If you yank with the arm, lead with the elbow and pull it to your back pocket."]
 easier = []
 harder = []
 
@@ -848,6 +977,9 @@ transition_seconds = 15
 draft = false
 setup = "Hinge forward with a flat back, knees soft, a weight in each hand hanging below your shoulders."
 cues = ["Pull the elbows back past your ribs.", "Squeeze the shoulder blades together.", "Keep the back flat the whole time."]
+rep = "One rep is rowing the weights to your ribs and lowering them to straight arms."
+feel = "Feel it in the middle of your back and between the shoulder blades, not in the low back."
+faults = ["If your back rounds, hinge from the hips and keep it flat.", "If you stand up as you pull, hold your hinge still.", "If you shrug, pull your elbows back and keep your shoulders down."]
 easier = ["chest-supported-row"]
 harder = ["barbell-row"]
 
@@ -860,11 +992,21 @@ position = "seated"
 sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
-draft = true
-setup = "Sit on the end of a bench or chair, lean forward with your chest toward your thighs, a dumbbell in each hand by your ankles."
+muscles = ["back", "lats", "biceps", "shoulders"]
+loads = { shoulder = 3, elbow = 2, low-back = 2, wrist = 1, hip = 1 }
+flags = ["grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Sit on the end of a bench or chair, hinge forward with a flat back, chest toward your thighs, a dumbbell in each hand by your ankles."
 cues = ["Row the elbows up and back.", "Squeeze and hold one beat.", "Lower slowly."]
+rep = "One rep is rowing the weights up beside your ribs and lowering them back down by your ankles."
+feel = "Feel it between and below the shoulder blades, not in the low back or the neck."
+faults = ["If you sit up to lift the weights, keep your chest low toward your thighs and go lighter.", "If the back rounds hard, lengthen the spine before each rep.", "If the shoulders shrug up, pull the elbows back toward your hips instead."]
 easier = ["chest-supported-row"]
-harder = []
+harder = ["bent-over-row"]
 
 [[movement]]
 id = "chest-supported-row"
@@ -885,6 +1027,9 @@ transition_seconds = 15
 draft = false
 setup = "Set the bench to an incline and lie face down on it, a dumbbell in each hand hanging straight down."
 cues = ["Chest stays on the pad.", "Row the elbows back to your lower ribs.", "Lower all the way."]
+rep = "One rep is rowing the weights to your lower ribs and lowering them to straight arms."
+feel = "Feel it in the middle of your back and between the shoulder blades, not in the neck."
+faults = ["If your chest lifts off the pad, keep it down and pull only with the back.", "If you shrug, pull your elbows back and keep your shoulders down.", "If you cut the lowering short, let the arms go fully straight."]
 easier = []
 harder = ["bent-over-row"]
 
@@ -922,6 +1067,9 @@ transition_seconds = 10
 draft = false
 setup = "Use a solid inside door that opens away from you, so your pull presses it into its frame, never the room's entry door. Shut it until it latches, loop a towel around the far handle, hold both ends, and lean back with your arms long."
 cues = ["The door opens away from you and stays latched.", "Pull your chest to your hands.", "Body stays in one straight line."]
+rep = "One rep is leaning back with arms long, pulling your chest to your hands, and lowering back out."
+feel = "Feel it in the middle of your back and the backs of the shoulders, not in the low back."
+faults = ["If your hips sag, squeeze the glutes and keep your body in one line.", "If you shrug, pull your elbows back and keep your shoulders down.", "If the door shifts, stop and check that it is latched before you pull."]
 easier = []
 harder = []
 
@@ -944,6 +1092,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie face down, forehead resting on a folded towel or your hands, arms long."
 cues = ["Lift the arms in a Y, then a T, then a W.", "Thumbs up, shoulders away from your ears.", "Small and slow, no weight needed."]
+rep = "One rep is a Y, then a T, then a W, lifting and lowering each one. All three together count as one rep."
+feel = "Feel it in the upper back between the shoulder blades, not in the neck or the low back."
+faults = ["If your neck strains, keep your forehead resting and look at the floor.", "If you shrug, slide your shoulders away from your ears.", "If your low back arches, keep your legs and belly relaxed and lift only the arms."]
 easier = []
 harder = []
 
@@ -958,10 +1109,20 @@ position = "standing"
 sided = false
 measure = "reps"
 patterns = ["arms"]
-draft = true
+muscles = ["biceps", "forearms"]
+loads = { elbow = 3, wrist = 1, shoulder = 1, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Stand tall with a dumbbell in each hand, palms facing each other."
 cues = ["Elbows pinned to your sides.", "Curl up without swinging.", "Lower all the way down."]
-easier = []
+rep = "One rep is curling the weights up with palms facing in and lowering them until your arms are straight."
+feel = "Feel it in the front of the upper arms and the top of the forearms, not in the low back."
+faults = ["If your body rocks to swing the weight up, brace, stand still and go lighter.", "If the elbows slide forward, keep them pinned to your sides.", "If the wrists bend, hold them straight like the handle of a hammer."]
+easier = ["seated-dumbbell-curl"]
 harder = []
 
 [[movement]]
@@ -973,9 +1134,19 @@ position = "standing"
 sided = false
 measure = "reps"
 patterns = ["arms"]
-draft = true
+muscles = ["biceps", "forearms"]
+loads = { elbow = 3, wrist = 1, shoulder = 1, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Stand tall with a dumbbell in each hand, palms facing forward."
 cues = ["Elbows stay by your ribs.", "Squeeze at the top.", "Take three counts to lower."]
+rep = "One rep is curling the weights up to your shoulders and lowering them until your arms are straight."
+feel = "Feel it in the front of the upper arms, not in the low back or the front of the shoulders."
+faults = ["If you lean back to get the weight up, brace your stomach, soften the knees and pick a lighter weight.", "If the elbows drift forward, pin them to your ribs and let only the forearms move.", "If the wrists curl back, keep them straight and in line with your forearms."]
 easier = ["seated-dumbbell-curl"]
 harder = []
 
@@ -988,11 +1159,21 @@ position = "seated"
 sided = false
 measure = "reps"
 patterns = ["arms"]
-draft = true
+muscles = ["biceps", "forearms"]
+loads = { elbow = 3, wrist = 1, shoulder = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Sit tall on a bench or chair, a dumbbell in each hand, arms long by your sides."
 cues = ["Curl without leaning back.", "Pause at the top.", "Lower slowly."]
+rep = "One rep is curling the weights up to your shoulders and lowering them until your arms are straight by your sides."
+feel = "Feel it in the front of the upper arms, not in the front of the shoulders."
+faults = ["If you rock back to lift the weight, sit tall, brace and choose a lighter weight.", "If the elbows drift forward, keep them by your ribs so only the forearms move.", "If the wrists curl back, keep them straight and in line with your forearms."]
 easier = []
-harder = []
+harder = ["biceps-curl"]
 
 [[movement]]
 id = "seated-triceps-kickback"
@@ -1003,9 +1184,19 @@ position = "seated"
 sided = false
 measure = "reps"
 patterns = ["arms"]
-draft = true
+muscles = ["triceps"]
+loads = { elbow = 3, shoulder = 2, wrist = 1, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Sit near the end of a bench or chair and lean forward, a light dumbbell in each hand, elbows bent at your sides."
 cues = ["Upper arms stay still.", "Straighten the elbows back behind you.", "Squeeze, then bend slowly."]
+rep = "One rep is straightening the elbows until your arms point back behind you, then bending them until your forearms hang down."
+feel = "Feel it in the back of the upper arms, not in the elbow joint or the low back."
+faults = ["If the upper arms swing, keep them still by your sides and use a lighter weight.", "If your low back rounds, lean forward from the hips with a long, flat back.", "If you snap the elbows straight, slow down and stop just short of locking out."]
 easier = []
 harder = []
 
@@ -1045,6 +1236,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your back, arms straight up, knees bent over your hips."
 cues = ["Ribs down, low back gently pressed into the floor.", "Reach one arm and the opposite leg away, slowly.", "Breathe out as you reach."]
+rep = "One rep is one reach, an arm and the opposite leg out and back. The other pair is the next rep."
+feel = "Feel the deep belly muscles working to keep the low back down, not the neck or the hip flexors at the front of the hips."
+faults = ["If your low back arches off the floor, shorten the reach and press your ribs down before you go again.", "If you rush, slow the reach to a count of three out and three back.", "If your neck tenses, let your head rest heavy on the floor and soften the jaw."]
 easier = []
 harder = ["hollow-hold"]
 
@@ -1057,11 +1251,21 @@ position = "lying"
 sided = false
 measure = "reps"
 patterns = ["anti-extension"]
-draft = true
+muscles = ["core"]
+loads = { low-back = 1, hip = 1, shoulder = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
 setup = "Lie on your back along the bench, arms straight up, knees bent over your hips."
 cues = ["Low back stays heavy on the bench.", "Reach opposite arm and leg away.", "Return and switch, slow and smooth."]
-easier = []
-harder = []
+rep = "One rep is reaching one arm and the opposite leg away and back. Switch sides each rep."
+feel = "Feel it in the deep stomach muscles, not in the low back."
+faults = ["If the low back lifts off the bench, make the reach shorter and breathe out as you go.", "If you rush, slow down so each reach takes about three counts.", "If you wobble on the bench, keep your head and hips centred and the moves small."]
+easier = ["dead-bug"]
+harder = ["hollow-hold"]
 
 [[movement]]
 id = "bird-dog"
@@ -1082,6 +1286,9 @@ transition_seconds = 10
 draft = false
 setup = "Come onto your hands and knees, hands under shoulders, knees under hips."
 cues = ["Reach one arm forward and the opposite leg back.", "Back stays flat, like a tabletop.", "Pause, then switch sides."]
+rep = "One rep is one arm reaching forward with the opposite leg reaching back, a short pause, then back to all fours. Switching sides is the next rep."
+feel = "Feel the back of the hips and the muscles along your spine holding you level, not a pinch in the low back."
+faults = ["If your low back sags or arches, reach the leg only to hip height and brace your belly.", "If your hips rock to the side, slow down and imagine a cup of water on your low back.", "If your shoulder sinks, push the floor away with the planted hand."]
 easier = []
 harder = []
 
@@ -1095,7 +1302,7 @@ sided = false
 measure = "time"
 patterns = ["anti-extension"]
 muscles = ["core", "shoulders", "glutes"]
-loads = { shoulder = 2, elbow = 2, low-back = 1 }
+loads = { shoulder = 2, elbow = 2, low-back = 1, ankle = 1, foot = 2 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
@@ -1104,6 +1311,9 @@ transition_seconds = 10
 draft = false
 setup = "Forearms on the floor, elbows under your shoulders, legs long behind you, or knees down for an easier version."
 cues = ["Squeeze the glutes.", "Ribs down, long line from head to heels.", "Breathe steadily."]
+rep = "Hold the straight line from head to heels, or head to knees. The hold ends when your hips sag or your low back starts to ache."
+feel = "Feel it in the belly, the glutes and the front of the shoulders, not as a pinch in the low back."
+faults = ["If your hips sag, squeeze the glutes and pull your ribs down toward your hips.", "If your hips pike up high, lower them until your body is one long line.", "If your shoulders sink between the arms, press the forearms into the floor and push the floor away."]
 easier = []
 harder = []
 
@@ -1127,6 +1337,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your side, elbow under your shoulder, knees bent behind you."
 cues = ["Lift your hips off the floor.", "Long line from head to knees.", "Top hip reaches forward a touch."]
+rep = "Hold the lifted position on one side with your hips high and a straight line from head to knees. The hold ends when your hips drop. Then do the other side, and each side gets the full time."
+feel = "Feel the side of your waist and the outer hip on the bottom side working, not a strain in the shoulder or neck."
+faults = ["If your hips sink toward the floor, push the forearm down and squeeze the bottom glute.", "If your hips roll back, stack them over each other and bring the top hip forward.", "If your shoulder shrugs up to your ear, press the floor away and reach the head long."]
 easier = []
 harder = ["side-plank"]
 
@@ -1150,6 +1363,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your side, elbow under your shoulder, legs long and feet stacked or staggered."
 cues = ["Lift your hips into one straight line.", "Push the floor away with the forearm.", "Breathe."]
+rep = "Hold the lifted position on one side, hips high, in one straight line from head to heels. The hold ends when your hips drop. Then do the other side, and each side gets the full time."
+feel = "Feel the side of your waist and the outer hip on the bottom side working, not a strain in the shoulder or neck."
+faults = ["If your hips sag, push the forearm down hard and squeeze the glutes.", "If you tip forward or back, stack your hips and shoulders over each other.", "If it gets shaky, drop to the knees version rather than let the shoulder collapse."]
 easier = ["side-plank-from-the-knee"]
 harder = []
 
@@ -1172,6 +1388,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your back, press your low back down, and lift your shoulders and legs a little off the floor."
 cues = ["Low back glued to the floor.", "Bend the knees to make it easier.", "Chin gently tucked."]
+rep = "Hold the position with your low back pressed down and your shoulders and legs just off the floor. The hold ends when your low back starts to lift."
+feel = "Feel it low in the belly and the fronts of the thighs, not as an arch or a pinch in the low back."
+faults = ["If your low back lifts off the floor, bend your knees or raise your legs higher until it stays down.", "If your neck strains, tuck the chin gently and lower the head to rest.", "If you hold your breath, take short, steady breaths and keep the ribs pulled down."]
 easier = ["dead-bug"]
 harder = []
 
@@ -1184,10 +1403,20 @@ position = "lying"
 sided = false
 measure = "reps"
 patterns = ["anti-extension"]
-draft = true
+muscles = ["core"]
+loads = { low-back = 2, hip = 1 }
+flags = ["floor", "spine-flexion"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
 setup = "Lie on your back, hands by your sides, knees bent over your hips."
 cues = ["Curl the hips off the floor toward your ribs.", "Lower slowly, no swinging.", "Breathe out as you curl."]
-easier = []
+rep = "One rep is curling your hips up off the floor toward your ribs and lowering them back down slowly."
+feel = "Feel it in the lower stomach, not in the neck or the low back."
+faults = ["If you swing the legs to get up, slow down and make the curl smaller.", "If you push hard through your hands, keep them light on the floor and let the stomach do it.", "If the low back arches as you lower, stop before it lifts and keep the knees over your hips."]
+easier = ["dead-bug"]
 harder = []
 
 [[movement]]
@@ -1225,6 +1454,9 @@ transition_seconds = 15
 draft = false
 setup = "Stand side-on to the band or cable anchor at chest height, both hands holding the handle at your chest."
 cues = ["Press straight out from your chest.", "Don't let it pull you around.", "Bring it back slowly."]
+rep = "One rep is pressing the handle straight out from your chest and bringing it back to your chest. Finish all the reps on one side, then turn around and do the other side."
+feel = "Feel the belly and the sides of your waist resisting the pull, not the shoulder or the low back."
+faults = ["If the band turns you toward the anchor, stand firm and use less tension or step closer.", "If you lean away from the anchor, ribs down and stand tall through the hips.", "If you rush the return, take three slow seconds to bring it back."]
 easier = []
 harder = []
 
@@ -1264,6 +1496,9 @@ transition_seconds = 15
 draft = false
 setup = "Pick up a heavy weight in each hand and stand tall."
 cues = ["Shoulders down and back.", "Short, quiet steps.", "Weight stays over the middle of the foot."]
+rep = "Walk steadily with a weight in each hand and stand tall. The carry ends when your grip fades or your posture starts to slump."
+feel = "Feel your grip, the tops of your shoulders and the belly bracing, not a pull in the low back."
+faults = ["If you lean back or round forward, ribs down, chest tall and look ahead.", "If you hunch your shoulders up, pull them down and back away from your ears.", "If the weights swing, take shorter steps and keep your arms close to your sides."]
 easier = []
 harder = []
 
@@ -1287,6 +1522,9 @@ transition_seconds = 15
 draft = false
 setup = "Pick up one heavy weight in one hand and stand tall, the other arm free."
 cues = ["Don't lean toward the weight.", "Shoulders level.", "Slow, steady steps."]
+rep = "Walk steadily with one weight in one hand while you stand tall and level. The carry ends when your grip fades or you start to lean. Then swap hands, and each hand gets the full time."
+feel = "Feel the side of your waist on the opposite side to the weight working to keep you upright, not a pull in the low back."
+faults = ["If you lean toward the weight, stand tall and squeeze the side of your waist away from the weight.", "If your shoulder on the weighted side rides up, pull it down and keep your shoulders level.", "If the weight bangs against your leg, take smaller steps and hold it close to your side."]
 easier = []
 harder = []
 
@@ -1393,9 +1631,19 @@ position = "standing"
 sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
-draft = true
+muscles = ["back", "shoulders"]
+loads = { shoulder = 3, elbow = 1, wrist = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Hold a band in front of your chest with both hands, arms long."
 cues = ["Pull the band apart until it touches your chest.", "Squeeze the shoulder blades.", "Return slowly."]
+rep = "One rep is pulling the band apart until it touches your chest, then bringing the hands back in front of you."
+feel = "Feel it in the back of the shoulders and between the shoulder blades, not in the neck."
+faults = ["If the shoulders creep up to your ears, set them down and use a lighter band.", "If the ribs flare and the back arches, brace your stomach and keep the ribs down.", "If the elbows bend a lot, keep the arms almost straight and move from the shoulders."]
 easier = []
 harder = []
 
@@ -1418,6 +1666,9 @@ transition_seconds = 15
 draft = false
 setup = "Anchor a band or rope at face height and hold it with both hands, palms facing in."
 cues = ["Pull toward your forehead, elbows high.", "Finish with the fists by your ears.", "Return slowly."]
+rep = "One rep is pulling the handle toward your face with the elbows high, then letting it back out to straight arms."
+feel = "Feel the back of the shoulders and between the shoulder blades, not the neck or the tops of the shoulders."
+faults = ["If your shoulders shrug toward your ears, pull them down before every pull.", "If you lean back to yank it in, use less resistance and keep your ribs down.", "If your elbows drop low, lift them to shoulder height and pull the hands apart at the end."]
 easier = []
 harder = []
 
@@ -1430,9 +1681,19 @@ position = "standing"
 sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
-draft = true
-setup = "Anchor a band at chest height in a closed door or round a post, and step back until it pulls."
+muscles = ["back", "lats", "biceps"]
+loads = { shoulder = 3, elbow = 2, wrist = 1 }
+flags = ["grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Anchor a band at chest height in a shut door that opens away from you, or around a sturdy post, and step back until it pulls."
 cues = ["Pull the elbows back past your ribs.", "Shoulders down, chest tall.", "Let it out slowly."]
+rep = "One rep is pulling the hands back to your ribs and letting the band draw your arms long again."
+feel = "Feel it in the middle of your back and behind the shoulders, not in the neck or the front of the shoulders."
+faults = ["If you lean back to pull, stand tall and step closer to ease the band.", "If the shoulders shrug toward your ears, set them down before you pull.", "If the band snaps your arms forward, slow the return and fight it all the way out."]
 easier = []
 harder = []
 
@@ -1456,13 +1717,23 @@ id = "band-external-rotation"
 name = "band external rotation"
 aliases = ["external rotation", "banded external rotation", "shoulder external rotation"]
 needs = ["band"]
-position = "standing"
+position = "seated"
 sided = true
 measure = "reps"
 patterns = ["arms", "mobility"]
-draft = true
-setup = "Anchor a band at elbow height beside you and hold it in the far hand, elbow bent and tucked to your side."
+muscles = ["shoulders"]
+loads = { shoulder = 3, elbow = 1, wrist = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Sit tall at the front of a chair, the bench or the edge of the bed, side on to a band anchored at elbow height, and hold it in the far hand, elbow bent and tucked to your side."
 cues = ["Rotate the forearm out like a door opening.", "Elbow stays glued to your side.", "Slow on the way back."]
+rep = "One rep is turning the forearm out away from your body as far as is comfortable, then back to your stomach."
+feel = "Feel it deep in the back of the shoulder, not in the front of the shoulder or the neck."
+faults = ["If the elbow drifts away from your side, tuck it back in, or squeeze a folded towel between elbow and ribs.", "If you twist your body to move the band, keep the chest facing forward and use a lighter band.", "If the shoulder hikes up, let it sink down away from your ear."]
 easier = []
 harder = []
 
@@ -1475,9 +1746,20 @@ position = "side-lying"
 sided = true
 measure = "reps"
 patterns = ["hips"]
-draft = true
+muscles = ["glutes", "abductors"]
+loads = { hip = 3, low-back = 1 }
+support = { hip = 1 }
+flags = ["floor", "lying-side"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
 setup = "Lie on your side with a loop band just above your knees, knees bent and heels together."
 cues = ["Open the top knee against the band.", "Don't roll your hips back.", "Close slowly."]
+rep = "One rep is the top knee opening against the band without the hips rolling, then closing slowly back to the bottom knee."
+feel = "Feel a burn on the outside of the top hip, in the side of the glute, not in the low back."
+faults = ["If the hips roll back to get the knee higher, open less and keep the hips stacked.", "If the band snaps the knee shut, slow down and resist it all the way closed.", "If your heels come apart, press them together and let only the knee move."]
 easier = ["clamshell"]
 harder = []
 
@@ -1507,9 +1789,20 @@ position = "side-lying"
 sided = true
 measure = "reps"
 patterns = ["hips"]
-draft = true
+muscles = ["glutes", "abductors"]
+loads = { hip = 3, low-back = 1 }
+support = { hip = 1 }
+flags = ["floor", "lying-side"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
 setup = "Lie on your side, knees bent, heels together, head resting on your arm."
 cues = ["Lift the top knee like a shell opening.", "Heels stay together.", "Hips stacked, don't roll back."]
+rep = "One rep is the top knee lifting as high as it goes without the hips rolling, then closing to the bottom knee."
+feel = "Feel it on the outside of the top hip, in the side of the glute, not in the low back or the front of the thigh."
+faults = ["If your top hip rolls back as the knee opens, lift less and keep the hips stacked.", "If your heels come apart, press them together and let only the knee move.", "If you feel it in the front of the thigh, nudge your knees a little further forward."]
 easier = []
 harder = ["banded-clamshell"]
 
@@ -1549,6 +1842,9 @@ transition_seconds = 25
 draft = false
 setup = "Set the bar in the rack at chest height, step under it so it rests on your upper back, and walk it out."
 cues = ["Brace, then sit between your heels.", "Knees track over your toes.", "Drive up, chest leading."]
+rep = "One rep is lowering until your thighs are about level with the floor, or as deep as you can control, and standing all the way back up."
+feel = "Feel it in the thighs and the glutes, with the belly braced, not as a pinch in the low back or the front of the knees."
+faults = ["If your low back rounds at the bottom, stop a little higher and brace harder before each rep.", "If your knees cave in, push them out over your little toes.", "If your heels lift or you fold forward, keep your whole foot down and your chest up."]
 easier = ["goblet-squat"]
 harder = []
 
@@ -1586,6 +1882,9 @@ transition_seconds = 25
 draft = false
 setup = "Stand with the bar over the middle of your feet, hinge down and grip it just outside your legs."
 cues = ["Pull the slack out of the bar first.", "Push the floor away, bar close to your legs.", "Stand tall, then lower the same way."]
+rep = "One rep is lifting the bar from the floor to standing tall, then lowering it back to the floor under control."
+feel = "Feel it in the back of the hips and the hamstrings, with a tight back, not a rounded or aching low back."
+faults = ["If your back rounds, stop the set, reset with a tight, flat back and lighten the load.", "If the bar drifts away from you, drag it up your legs.", "If you yank it off the floor, take the slack out first and push the floor away smoothly."]
 easier = ["kettlebell-deadlift"]
 harder = []
 
@@ -1608,6 +1907,9 @@ transition_seconds = 25
 draft = false
 setup = "Lie on the bench with your eyes under the bar, feet flat, hands a little wider than your shoulders. With no spotter, stop each set with two reps still in you."
 cues = ["Shoulder blades pinned back.", "Lower to the middle of your chest.", "Press up and slightly back."]
+rep = "One rep is lowering the bar to the middle of your chest and pressing it back up to straight arms."
+feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, not a pinch at the front of the shoulder."
+faults = ["If your elbows flare wide, tuck them to about forty-five degrees from your body.", "If your hips or shoulder blades lift off the bench, keep your feet planted and your back pinned.", "If you bounce the bar off your chest, lower it slowly and pause briefly."]
 easier = ["dumbbell-bench-press"]
 harder = []
 
@@ -1650,9 +1952,19 @@ position = "lying"
 sided = false
 measure = "reps"
 patterns = ["hinge"]
-draft = true
+muscles = ["glutes", "hamstrings", "quads"]
+loads = { hip = 3, low-back = 2, knee = 1, neck = 1, shoulder = 1, wrist = 1, ankle = 1, foot = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "advanced"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
 setup = "Sit with your upper back on the side of the bench and roll a padded bar over your hips."
 cues = ["Chin tucked, ribs down.", "Drive the bar up until your body is flat.", "Squeeze, then lower slowly."]
+rep = "One rep is driving the bar up until your body is flat from knees to shoulders, then lowering the hips toward the floor."
+feel = "Feel it hard in your glutes, a little in the hamstrings, and not in your low back."
+faults = ["If your low back arches at the top, stop when the body is flat and keep the chin tucked and the ribs down.", "If you feel it mostly in the front of the thighs, walk your feet a little further out.", "If the bar rolls toward your belly, hold it in place with both hands just outside your hips."]
 easier = ["hip-thrust"]
 harder = []
 
@@ -1677,6 +1989,9 @@ transition_seconds = 25
 draft = false
 setup = "Sit back in the leg press with your whole feet flat on the plate, hip width apart."
 cues = ["Lower until your knees are near your chest, back stays on the pad.", "Push through the whole foot.", "Don't lock the knees at the top."]
+rep = "One rep is lowering the plate until your knees come toward your chest, then pressing back up to nearly straight legs."
+feel = "Feel it in the thighs and the glutes, not the low back or a pinch behind the knees."
+faults = ["If your hips curl off the pad at the bottom, stop the lowering a little sooner.", "If your knees cave in, push them out in line with your toes.", "If you lock your knees at the top, stop just short and keep the muscles working."]
 easier = []
 harder = []
 
@@ -1699,6 +2014,9 @@ transition_seconds = 25
 draft = false
 setup = "Sit in the leg extension with the pad on your lower shins and your knees in line with the machine's pivot."
 cues = ["Straighten the legs and squeeze the thighs.", "Pause at the top.", "Lower slowly."]
+rep = "One rep is straightening both legs until they are nearly flat, then lowering them back under control."
+feel = "Feel it in the front of the thighs, not as a pinch or ache at the knee."
+faults = ["If you swing the weight up, use less and straighten the legs smoothly.", "If your hips lift off the seat, press them back down and hold the handles.", "If the knee aches, stop and lighten the load before you go again."]
 easier = []
 harder = []
 
@@ -1710,10 +2028,20 @@ needs = ["machines"]
 position = "lying"
 sided = false
 measure = "reps"
-patterns = ["hinge"]
-draft = true
+patterns = ["hips", "hinge"]
+muscles = ["hamstrings", "calves"]
+loads = { hamstring = 3, knee = 2, ankle = 1, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
 setup = "Set yourself in the seated or lying leg curl machine with the pad just above your heels."
 cues = ["Curl the heels in toward you.", "Hips stay down on the pad.", "Lower slowly."]
+rep = "One rep is curling your heels in as far as they go, then lowering slowly until your legs are nearly straight."
+feel = "Feel it in the backs of your thighs, not in the low back or behind the knee."
+faults = ["If your hips lift off the pad, lighten the weight and press the hips down.", "If the weight drops on the way down, take three slow counts to lower it.", "If you feel a cramp in the calf, point your toes a little less and keep the pace slow."]
 easier = []
 harder = []
 
@@ -1726,9 +2054,19 @@ position = "seated"
 sided = false
 measure = "reps"
 patterns = ["hips"]
-draft = true
+muscles = ["abductors", "glutes"]
+loads = { hip = 3, knee = 1, groin = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
 setup = "Sit in the abduction machine with the pads on the outside of your knees."
 cues = ["Press the knees apart.", "Pause wide.", "Let them come back slowly."]
+rep = "One rep is pressing the knees out as wide as is comfortable, a short pause, then letting them come back together slowly."
+feel = "Feel it on the outside of your hips and the sides of your glutes, not in the knees or the low back."
+faults = ["If the weight stack slams on the way back, lighten it and control the return.", "If you rock your body to push the pads, sit tall against the back pad and use a lighter weight.", "If you feel the knees rather than the hips, check the pads sit on the outside of the thighs just above the knees."]
 easier = []
 harder = []
 
@@ -1741,9 +2079,19 @@ position = "seated"
 sided = false
 measure = "reps"
 patterns = ["hips"]
-draft = true
+muscles = ["adductors"]
+loads = { groin = 3, hip = 2, knee = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
 setup = "Sit in the adduction machine with the pads on the inside of your knees, set to a comfortable width."
 cues = ["Squeeze the knees together.", "Pause.", "Open slowly, only as wide as is comfortable."]
+rep = "One rep is squeezing the knees together until the pads meet, a short pause, then opening slowly to a comfortable width."
+feel = "Feel it along your inner thighs, and never a sharp pull in the groin."
+faults = ["If you feel a sharp pull in the groin as the legs open, set the machine narrower and lighten it.", "If the legs fly open on the way back, slow the return and resist it.", "If you lean or rock to squeeze, sit tall against the back pad and use a lighter weight."]
 easier = []
 harder = []
 
@@ -1766,6 +2114,9 @@ transition_seconds = 25
 draft = false
 setup = "Sit with your back on the pad and the handles level with the middle of your chest."
 cues = ["Press forward without shrugging.", "Stop just short of locking out.", "Return slowly."]
+rep = "One rep is pressing the handles forward to nearly straight arms, then letting them back until your elbows are just behind your body."
+feel = "Feel it in the chest and the backs of the arms, not the tops of the shoulders or the neck."
+faults = ["If your shoulders creep up, pull them down and back into the pad.", "If your back arches off the pad, keep it flat and your feet planted.", "If you let the weight slam back, take three slow seconds on the way back."]
 easier = []
 harder = []
 
@@ -1788,6 +2139,9 @@ transition_seconds = 25
 draft = false
 setup = "Sit tall at the row station, feet braced, holding the handle with your arms long."
 cues = ["Pull the handle to your lower ribs.", "Squeeze the shoulder blades, don't lean back.", "Let it forward slowly."]
+rep = "One rep is pulling the handle to your lower ribs and letting your arms slowly reach long again."
+feel = "Feel it between the shoulder blades and in the upper back, not in the low back or the neck."
+faults = ["If you rock back to heave the weight, sit tall and keep your torso still.", "If your shoulders shrug up, pull them down before each pull.", "If your back rounds as the arms reach forward, keep your chest proud through the whole rep."]
 easier = []
 harder = []
 
@@ -1810,6 +2164,9 @@ transition_seconds = 25
 draft = false
 setup = "Sit with your thighs under the pad and hold the bar a little wider than your shoulders."
 cues = ["Pull the bar to your upper chest.", "Elbows drive down to your sides.", "Let it up slowly."]
+rep = "One rep is pulling the bar down to your upper chest and letting it rise back up until your arms are long."
+feel = "Feel it along the sides of your back and the backs of your arms, not the neck or the front of the shoulders."
+faults = ["If you lean way back and swing, sit tall with only a slight lean.", "If your shoulders shrug up, pull them down first and then bend the elbows.", "If the bar goes behind your head, bring it in front to your upper chest."]
 easier = []
 harder = ["assisted-pull-up"]
 
@@ -1832,6 +2189,9 @@ transition_seconds = 25
 draft = false
 setup = "Kneel on the platform of the assisted pull-up machine and take the handles above you."
 cues = ["Pull your chest toward the bar.", "Shoulders down, away from your ears.", "Lower all the way, slowly."]
+rep = "One rep is pulling your chest toward the bar and lowering slowly until your arms are long again."
+feel = "Feel it along the sides of your back and the arms, not as a pinch at the top of the shoulders."
+faults = ["If your shoulders hunch up by your ears, pull them down before every rep.", "If you drop fast at the bottom, lower for three slow seconds.", "If you swing your legs, keep your core tight and your body still."]
 easier = ["lat-pulldown"]
 harder = []
 
@@ -1979,6 +2339,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand tall with your feet under your hips and your arms loose."
 cues = ["Lift one knee, then the other, at an easy rhythm.", "Swing the opposite arm.", "Land softly and quietly."]
+rep = "March at an easy, steady rhythm for the whole time. It should feel like a brisk walk, and you can talk in full sentences."
+feel = "Feel the legs warming up and the heart rate rising a little, with no strain in the knees, hips or back."
+faults = ["If you slump, stand tall and let the opposite arm swing.", "If your steps get heavy, lift the knees only as high as feels easy and land softly.", "If you are out of breath, slow the pace until you can chat easily."]
 easier = ["seated-march"]
 harder = ["high-knees"]
 
@@ -1991,9 +2354,20 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "core", "shoulders"]
+loads = { hip = 1, knee = 1, ankle = 1, foot = 1, shoulder = 1 }
+flags = []
+intensity = "conditioning"
+effort = "easy"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
 setup = "Sit tall toward the front of a chair, the bench or the edge of the bed, feet flat."
 cues = ["Lift one knee a few inches, then the other.", "Pump the arms to match.", "Stay tall, no slumping."]
+rep = "Keep marching at an easy, steady rhythm, sitting tall, and the block ends when I call time."
+feel = "Feel it in the front of the hips and a little in the belly, not the low back."
+faults = ["If you lean back to lift the knee, sit forward on the seat and lift a little lower.", "If the feet slap down, set them down softly and quietly.", "If you start to slump, lift the chest and keep the arms pumping."]
 easier = []
 harder = ["marching-in-place"]
 
@@ -2016,6 +2390,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit or stand tall and reach your arms out to the sides at shoulder height."
 cues = ["Start with small circles and let them grow.", "Shoulders stay down away from the ears.", "Reverse the direction halfway."]
+rep = "Make steady circles with both arms out to the sides, growing from small to big. Reverse halfway through the time."
+feel = "Feel the shoulders warming up and loosening, with no pinching on top and no tension in the neck."
+faults = ["If your shoulders hike up, press them down away from your ears.", "If your arms droop, keep them level with your shoulders.", "If a shoulder pinches, make the circles smaller."]
 easier = []
 harder = []
 
@@ -2039,6 +2416,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand tall with your feet together and your arms by your sides."
 cues = ["Jump the feet wide as the arms sweep up.", "Land light on the balls of your feet.", "Find a steady rhythm."]
+rep = "Jump the feet wide as the arms sweep overhead, then jump back together. The effort is moderate, so you can say a short sentence between breaths but not sing."
+feel = "Feel the heart rate rising and the legs and shoulders warming, with soft, light landings and no jarring in the knees or back."
+faults = ["If your landings are heavy or loud, land softly on the balls of your feet and bend the knees a little.", "If your knees feel jarred, switch to the step jack, no jumping.", "If your rhythm falls apart, slow down until the arms and legs move together."]
 easier = ["step-jack"]
 harder = []
 
@@ -2062,6 +2442,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand tall with your feet together, no jumping, so it stays quiet."
 cues = ["Step one foot out to the side as the arms rise.", "Bring it back and switch sides.", "Keep a brisk, even pace."]
+rep = "Step one foot out and the arms up, then step back in and switch sides. The effort is moderate, so you can say a short sentence between breaths but not sing."
+feel = "Feel the heart rate rising and the legs and shoulders warming, with no impact through the knees or back."
+faults = ["If you drift into a lazy shuffle, step wide and lift the arms fully overhead.", "If your shoulders hike toward your ears, press them down as the arms rise.", "If your breath is too easy, pick up the pace. If you cannot talk at all, slow it."]
 easier = []
 harder = ["jumping-jacks"]
 
@@ -2085,6 +2468,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand tall with your feet under your hips and your hands at waist height."
 cues = ["Drive each knee up toward your hands.", "Stay light on the balls of your feet.", "Quick arms, tall chest."]
+rep = "Run in place, driving each knee up toward your hands. The effort is hard, so you can only speak a few words at a time. If you can chat, go faster."
+feel = "Feel the front of the thighs and the heart rate working hard, with light, quick landings and no pounding in the heels or low back."
+faults = ["If your landings are heavy, stay on the balls of your feet and take quicker, lighter steps.", "If you lean back, stand tall with your chest up and your ribs over your hips.", "If your knee or ankle hurts, stop and switch to marching instead."]
 easier = ["marching-in-place"]
 harder = []
 
@@ -2123,6 +2509,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand in a boxing stance, one foot a half step ahead, hands up by your cheeks."
 cues = ["Feet stay on the floor, knees soft.", "Punch straight out and snap it back.", "Turn the hips into each cross."]
+rep = "Throw straight punches in a steady flow with your feet staying on the floor. The effort is moderate, so you can say a short sentence between breaths but not sing."
+feel = "Feel the shoulders, the turning hips and the belly working, with loose shoulders and no strain in the low back."
+faults = ["If your arms are locked at the end of each punch, snap the punch back before the elbow fully locks.", "If you tense your shoulders, breathe out on each punch and keep the shoulders down.", "If you drop your guard, bring your hands back up by your cheeks after every punch."]
 easier = ["seated-shadow-boxing"]
 harder = []
 
@@ -2161,6 +2550,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand side on to a wall and rest one hand on it for balance."
 cues = ["Swing the outside leg forward and back, easy to start.", "Let the range grow a little each swing.", "Stand tall on the other leg."]
+rep = "Swing one leg forward and back in a smooth arc while you hold the wall, then turn around and swing the other leg. Each leg gets the full time."
+feel = "Feel the hips and the hamstrings loosening, with no pull in the low back or the standing knee."
+faults = ["If your torso rocks with the swing, brace the belly and keep your chest tall.", "If you kick hard, start small and let the range grow a little each swing.", "If your standing knee locks, keep it soft."]
 easier = []
 harder = []
 
@@ -2201,6 +2593,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit on the bike with light resistance, the ball of each foot centered on the pedal."
 cues = ["Easy circles, you could chat.", "Relax the grip.", "Shoulders down away from the ears."]
+rep = "Pedal with light resistance at an easy, steady pace for the whole time. You should be able to chat in full sentences."
+feel = "Feel the thighs turning smoothly and a gentle warmth, with no strain in the knees, the shoulders or the hands."
+faults = ["If you grip the bars tight, relax the hands and soften the elbows.", "If you bounce on the seat, lower the speed and pedal in smooth circles.", "If you are breathing hard, slow down or ease the resistance until you can talk easily."]
 easier = []
 harder = ["bike-steady"]
 
@@ -2224,6 +2619,9 @@ transition_seconds = 10
 draft = false
 setup = "Stay seated and add resistance until it feels moderate, a five or six out of ten."
 cues = ["Smooth circles, not stomping.", "Breathe through your nose if you can.", "Quiet upper body."]
+rep = "Pedal at a steady, moderate effort for the whole time. You can say a short sentence between breaths but not sing, about a five or six out of ten."
+feel = "Feel the thighs and the glutes doing the work with a steady, deep breath, with no pulling at the knees or the low back."
+faults = ["If you stomp and bounce, ease the resistance and pedal in smooth circles.", "If you hunch over the bars, sit tall with relaxed shoulders and a light grip.", "If your knees ache, ease off and raise or lower the seat so your leg is nearly straight at the bottom."]
 easier = ["bike-easy-spin"]
 harder = ["bike-cadence-surge", "bike-seated-climb"]
 
@@ -2247,6 +2645,9 @@ transition_seconds = 10
 draft = false
 setup = "Stay seated and keep the resistance light to moderate, then pick up the pace."
 cues = ["Legs fast, upper body still.", "Hips stay quiet on the seat.", "If you start to bounce, ease off a touch."]
+rep = "Spin fast for the full surge. The surge ends when the time is up and you ease back to an easy pace."
+feel = "Feel the legs spinning quickly and your breath coming hard, with only a few words possible, and no bouncing in the seat."
+faults = ["If the saddle is too low, your knees bend too much, so stop and raise it before you go on.", "If you bounce in the saddle, the resistance is too light, so add a little and keep the hips quiet.", "If you grip the bars hard, relax the hands and shoulders."]
 easier = ["bike-steady"]
 harder = ["bike-seated-sprint"]
 
@@ -2270,6 +2671,9 @@ transition_seconds = 10
 draft = false
 setup = "Stay seated and turn the resistance up until each stroke takes real work."
 cues = ["Slow, strong circles.", "Push through the whole foot, not just the toes.", "Relax the grip and the jaw."]
+rep = "Stay seated and push a heavy gear in slow, strong circles. The climb ends when the time is up."
+feel = "Feel it in the thighs and glutes with hard breathing, a few words at most, and not in the hands or the low back."
+faults = ["If the saddle is too low, the knees crowd up and strain, so raise it so the leg nearly straightens at the bottom.", "If you rock the hips side to side, lighten the gear a touch and keep the pelvis level.", "If you pull hard on the bars, hold them lightly and let the legs do the work."]
 easier = ["bike-steady"]
 harder = []
 
@@ -2293,6 +2697,9 @@ transition_seconds = 10
 draft = false
 setup = "Stay seated with moderate resistance and get ready to go all out."
 cues = ["Everything you've got.", "Stay in the saddle.", "Breathe out hard."]
+rep = "Spin as hard and fast as you can in the saddle. The sprint ends when the time is up."
+feel = "Feel the legs burning and the lungs working so hard you can't speak, with the hips steady and not bouncing."
+faults = ["If you bounce on the seat, add a little resistance so your legs have something to push against.", "If you hold your breath, breathe out hard on every few strokes.", "If the saddle is too low, the knees take the strain, so stop and raise it before sprinting."]
 easier = ["bike-cadence-surge"]
 harder = []
 
@@ -2306,7 +2713,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "calves"]
-loads = { knee = 2, hip = 2, ankle = 1, calf = 1, wrist = 1, low-back = 1 }
+loads = { knee = 2, hip = 2, ankle = 2, calf = 2, foot = 1, wrist = 1, shoulder = 1, low-back = 1 }
 flags = []
 intensity = "conditioning"
 effort = "hard"
@@ -2316,6 +2723,9 @@ transition_seconds = 10
 draft = false
 setup = "Turn the resistance up and rise out of the saddle, hands resting on the bars."
 cues = ["Hips over the pedals.", "Let the bike rock a little under you.", "Sit back down if your form slips."]
+rep = "Stand over the pedals with a heavy gear and push through slow, strong strokes. The climb ends when the time is up."
+feel = "Feel it in the thighs and glutes with hard breathing, a few words at most, and not in the wrists or the low back."
+faults = ["If you hang your weight on the bars, keep the hands light and let the legs carry you.", "If the gear is too light and you bounce, add resistance until each stroke feels solid.", "If your form slips, sit back down and recover."]
 easier = ["bike-seated-climb"]
 harder = []
 
@@ -2344,7 +2754,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "shoulders", "back"]
-loads = { knee = 1, hip = 1, shoulder = 1, elbow = 1, low-back = 1, ankle = 1, foot = 1 }
+loads = { knee = 1, hip = 1, shoulder = 1, elbow = 1, wrist = 1, low-back = 1, ankle = 1, foot = 1 }
 flags = ["grip"]
 intensity = "conditioning"
 effort = "moderate"
@@ -2354,6 +2764,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit on the air bike, feet centered on the pedals, hands on the handles."
 cues = ["Push and pull with the arms as the legs turn.", "Find a pace you can hold.", "Relax the shoulders."]
+rep = "Keep arms and legs moving together at a pace you can hold. The effort ends when the time is up."
+feel = "Feel a steady effort in the legs, arms and breath, with short sentences still possible, and no strain in the neck or low back."
+faults = ["If you only pedal with the legs, push and pull with the arms so the whole body shares the work.", "If you hunch the shoulders, drop them and keep the chest tall.", "If the saddle is too low, the knees bend too much, so raise it before you start."]
 easier = []
 harder = ["air-bike-sprint"]
 
@@ -2367,7 +2780,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "shoulders", "back"]
-loads = { knee = 2, hip = 2, shoulder = 2, elbow = 1, low-back = 1, ankle = 1, foot = 1 }
+loads = { knee = 2, hip = 2, shoulder = 2, elbow = 1, wrist = 1, low-back = 1, ankle = 1, foot = 1 }
 flags = ["fast", "grip"]
 intensity = "conditioning"
 effort = "hard"
@@ -2377,6 +2790,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit tall on the air bike, hands on the handles, ready to go hard."
 cues = ["Arms and legs together, all out.", "The harder you push, the harder it pushes back.", "Breathe out hard."]
+rep = "Push and pull as hard as you can with arms and legs together. The sprint ends when the time is up."
+feel = "Feel the whole body working flat out, with breath so hard you can't talk, and no pain in the neck or low back."
+faults = ["If you lean back and yank the handles, sit tall and push and pull with control.", "If you hold your breath, breathe out hard with every few strokes.", "If form falls apart before the time is up, drop to an easy pace for a moment."]
 easier = ["air-bike-steady"]
 harder = []
 
@@ -2392,8 +2808,8 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "back", "lats", "glutes", "hamstrings"]
-loads = { knee = 2, hip = 2, low-back = 2, shoulder = 1 }
-flags = []
+loads = { knee = 2, hip = 2, low-back = 2, shoulder = 1, elbow = 1, wrist = 1, ankle = 1, foot = 1 }
+flags = ["grip"]
 intensity = "conditioning"
 effort = "moderate"
 level = "novice"
@@ -2402,6 +2818,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit on the rower, strap your feet in, and take the handle with a relaxed grip."
 cues = ["Legs, then body, then arms.", "Arms, body, then legs on the way back.", "Long, smooth strokes."]
+rep = "One stroke is push with the legs, lean back, pull the handle in, then reverse to slide forward. The effort ends when the time is up."
+feel = "Feel the push in the legs first, then the back and arms, with a steady breath and short sentences possible, and no pain in the low back."
+faults = ["If you pull with the arms before the legs finish, push with the legs first, then lean, then pull.", "If you round the back or lean far past upright at the finish, sit tall and stop at a slight lean.", "If you rush back to the front, take the recovery slowly, twice as long as the drive."]
 easier = []
 harder = ["rower-intervals"]
 
@@ -2414,9 +2833,20 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "back", "lats", "glutes", "hamstrings"]
+loads = { knee = 2, hip = 2, low-back = 2, shoulder = 1, elbow = 1, wrist = 1, ankle = 1, foot = 1 }
+flags = ["fast", "grip"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit on the rower, feet strapped in, and get ready for a hard piece."
 cues = ["Push hard with the legs first.", "Swing back, then pull to the ribs.", "Keep the back long, not rounded."]
+rep = "Row hard and smooth for the whole piece, and the effort ends at the time or when your back starts to round."
+feel = "Feel it in your legs first, then your upper back and arms, and never as strain in the low back."
+faults = ["If your back rounds at the front of the stroke, slide forward less and sit tall before the drive.", "If you yank with the arms first, push with the legs and let the arms finish the stroke.", "If you rush forward to the next stroke, slow the slide and let the effort come from the drive."]
 easier = ["rower-steady"]
 harder = []
 
@@ -2440,6 +2870,9 @@ transition_seconds = 10
 draft = false
 setup = "Step on the treadmill and start it at an easy walking pace."
 cues = ["Tall posture, eyes ahead.", "Let the arms swing.", "Hands off the rails if you can."]
+rep = "Walk at an easy, steady pace. The effort ends when the time is up."
+feel = "Feel an easy effort in the legs, with your breath calm enough to talk in full sentences, and no pull on the hands."
+faults = ["If you hold the rails, let go and swing the arms, since the rails take weight off the legs.", "If you take long, reaching steps, shorten them and land under your hips.", "If you look down at your feet, lift your eyes ahead and stand tall."]
 easier = []
 harder = ["treadmill-incline-walk", "treadmill-run"]
 
@@ -2463,6 +2896,9 @@ transition_seconds = 10
 draft = false
 setup = "Raise the incline and walk at a pace that makes you breathe a little harder."
 cues = ["Stand tall, don't lean on the rails.", "Push through the whole foot.", "Shorter steps if your calves complain."]
+rep = "Walk uphill at a steady pace. The effort ends when the time is up."
+feel = "Feel it in the glutes, hamstrings and calves, with breath a little harder but a few full sentences still possible, and not in the hands or low back."
+faults = ["If you hold the rails or lean on them, let go and stand tall, or lower the incline.", "If you lean forward from the waist, stand tall and keep the chest up.", "If your calves cramp up, shorten your steps and put the whole foot down."]
 easier = ["treadmill-walk"]
 harder = []
 
@@ -2484,8 +2920,11 @@ level = "experienced"
 hold_seconds = 60
 transition_seconds = 10
 draft = false
-setup = "Bring the treadmill up to an easy jog."
+setup = "Bring the treadmill up to a hard running pace, one you can hold to the end of the effort."
 cues = ["Quick, light steps.", "Land under your hips.", "Relax the hands and shoulders."]
+rep = "Run hard at a pace you can hold on the belt. The effort ends when the time is up."
+feel = "Feel hard breathing with only a few words possible, working the legs and lungs, and no sharp pain in the knees, shins or feet."
+faults = ["If you grab the rails, let go, slow the belt, and run with the arms swinging.", "If you reach with the feet out in front, take quicker, shorter steps and land under your hips.", "If you run on the front edge of the belt, drift back toward the middle so you have room."]
 easier = ["treadmill-walk"]
 harder = []
 
@@ -2509,6 +2948,9 @@ transition_seconds = 10
 draft = false
 setup = "Step onto the pedals, take the handles, and start at an easy pace."
 cues = ["Push and pull with the arms too.", "Keep the whole foot on the pedal.", "Tall posture, no hunching."]
+rep = "Glide the pedals in smooth circles with arms and legs together. The effort ends when the time is up."
+feel = "Feel a steady effort in the legs and arms, with breath harder but a few sentences still possible, and no pain in the knees or feet."
+faults = ["If you lean on the handles, stand tall and let the legs carry your weight.", "If your heels lift or your toes grip, press the whole foot down.", "If the pedals bounce, slow down and glide smoothly."]
 easier = []
 harder = []
 
@@ -2532,6 +2974,9 @@ transition_seconds = 10
 draft = false
 setup = "Step on and start at a slow, steady pace."
 cues = ["Whole foot on each step.", "Stand tall, light hands on the rails.", "Drive through the heel."]
+rep = "Step up on each stair in turn at a steady pace. The effort ends when the time is up."
+feel = "Feel it in the glutes and thighs, with breath harder but a few sentences possible, and not in the wrists or the low back."
+faults = ["If you lean on the rails or bear your weight on the arms, stand tall and use a light touch only.", "If you step only on the toes, put the whole foot down and push through the heel.", "If you take tiny steps and hunch over, lift the chest and step a little deeper."]
 easier = []
 harder = []
 
@@ -2544,9 +2989,20 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["lats", "triceps", "shoulders", "core", "glutes", "hamstrings"]
+loads = { shoulder = 2, low-back = 2, hip = 2, knee = 1, elbow = 1, wrist = 1, ankle = 1, foot = 1, neck = 2 }
+flags = ["overhead", "grip", "spine-flexion", "fast"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Stand facing the machine, feet hip width apart, a handle in each hand above your head."
 cues = ["Pull down with straight arms as the hips hinge back.", "Finish with the hands by your thighs.", "Rise tall and reach up again."]
+rep = "Pull hard and steady for the whole effort, and it ends at the time or when you can no longer keep your back long."
+feel = "Feel it in your lats, the backs of your arms and your core, and never as strain in the low back."
+faults = ["If you curl down over your belly, hinge at the hips instead and keep the chest proud.", "If your arms bend early and do all the work, keep them long and pull with the lats and the hips.", "If your shoulders creep up by your ears, set them down before each pull."]
 easier = []
 harder = []
 
@@ -2559,9 +3015,20 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["quads", "glutes", "calves", "hamstrings", "core"]
+loads = { knee = 2, hip = 2, ankle = 2, calf = 2, foot = 2, low-back = 1, shoulder = 2, elbow = 1, wrist = 2 }
+flags = []
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 15
+draft = false
 setup = "Hands on the sled's poles, arms long, body leaning forward in a straight line."
 cues = ["Short, driving steps.", "Push through the balls of the feet.", "Back flat, head neutral."]
+rep = "Hold a steady drive with the body in one straight lean, and the effort ends at the time or when your back starts to round."
+feel = "Feel it in your thighs, glutes and calves, and your breathing, not in your low back."
+faults = ["If your back starts to round or sag, take weight off the sled and lock the body into one straight line.", "If your steps get long and slow, shorten them and drive each one into the floor.", "If you feel it in your shoulders, straighten the arms and let the legs do the pushing."]
 easier = []
 harder = []
 
@@ -2592,9 +3059,9 @@ sided = true
 measure = "time"
 patterns = ["mobility"]
 muscles = ["glutes", "adductors", "hamstrings", "back"]
-loads = { hip = 2, wrist = 2, shoulder = 1, low-back = 1, knee = 2, groin = 2 }
-support = { knee = 2, hip = 1, groin = 2 }
-flags = ["floor", "kneeling", "spine-twist"]
+loads = { hip = 2, wrist = 2, shoulder = 1, low-back = 1, knee = 2, groin = 2, ankle = 2, foot = 1 }
+support = { knee = 2, hip = 1, groin = 2, ankle = 1, foot = 1 }
+flags = ["floor", "kneeling", "spine-twist", "overhead"]
 intensity = "mobility"
 level = "novice"
 hold_seconds = 30
@@ -2602,6 +3069,9 @@ transition_seconds = 10
 draft = false
 setup = "Step into a long lunge, back knee down, and put both hands on the floor inside the front foot."
 cues = ["Drop the elbow toward the front instep.", "Turn and reach the same arm to the ceiling.", "Keep the head in line with the spine as you turn."]
+rep = "Hold the lunge with the arm reaching up. The hold ends when the time is up, then switch sides."
+feel = "Feel a mild stretch in the front of the back hip, the inner thigh and the upper back, never pain."
+faults = ["If the back knee sinks and the low back arches, tuck the tailbone and squeeze the glute.", "If the front knee drifts inward, press it gently toward the little toe.", "If you hold your breath, breathe slowly and let the stretch ease a little further each time."]
 easier = []
 harder = []
 
@@ -2624,6 +3094,9 @@ transition_seconds = 10
 draft = false
 setup = "Come onto your hands and knees, hands under shoulders, knees under hips."
 cues = ["Breathe in, let the belly drop and look up.", "Breathe out, round the back and tuck the chin.", "Slow, one breath each way."]
+rep = "One rep is a breath in with the belly dropping, then a breath out with the back rounding."
+feel = "Feel the spine moving through its whole length, a gentle stretch along the back, and nothing pinching in the neck or wrists."
+faults = ["If you rush, slow down and link each movement to a full breath.", "If your elbows lock hard, soften them and press the floor away.", "If the neck cranks back, let the head follow the spine instead of leading it."]
 easier = []
 harder = []
 
@@ -2647,6 +3120,9 @@ transition_seconds = 10
 draft = false
 setup = "Come onto your hands and knees."
 cues = ["Slide one arm under the other, palm up.", "Let the shoulder and the side of the head rest on the mat.", "Breathe into the upper back."]
+rep = "Hold with one arm threaded under and the shoulder resting down. The hold ends when the time is up, then switch sides."
+feel = "Feel a mild stretch across the upper back and the back of the shoulder, never a pinch."
+faults = ["If your hips shift back toward your heels, keep them over the knees.", "If the shoulder feels pinched, slide the arm out less far.", "If you hold your breath, breathe slowly into the upper back."]
 easier = []
 harder = []
 
@@ -2684,6 +3160,9 @@ transition_seconds = 10
 draft = false
 setup = "Kneel on the mat, big toes together, knees apart."
 cues = ["Sit the hips back toward the heels.", "Reach the arms forward and rest the forehead down.", "Let the breath widen your back."]
+rep = "Hold the hips back toward the heels with the arms forward. The hold ends when the time is up."
+feel = "Feel a mild stretch along the low back, the hips and the shoulders, and no pinch in the knees."
+faults = ["If your knees feel pinched, open them wider or place a folded towel behind them.", "If the hips lift off the heels, only go back as far as feels comfortable.", "If your shoulders tense up, let the arms go heavy and breathe out."]
 easier = []
 harder = []
 
@@ -2697,7 +3176,7 @@ sided = true
 measure = "time"
 patterns = ["mobility"]
 muscles = ["back", "glutes"]
-loads = { low-back = 1, hip = 1 }
+loads = { low-back = 1, hip = 1, ankle = 1 }
 support = {}
 flags = ["floor", "spine-twist"]
 intensity = "mobility"
@@ -2707,6 +3186,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your back, knees bent, arms out wide on the floor."
 cues = ["Let both knees fall slowly to one side.", "Shoulders stay heavy on the floor.", "Breathe and let gravity do the work."]
+rep = "Hold the knees dropped to one side with the shoulders on the floor. The hold ends when the time is up, then switch sides."
+feel = "Feel a mild stretch through the low back and the side of the hip, never a sharp pull."
+faults = ["If the opposite shoulder lifts, bring the knees up higher or lower them less far.", "If you force the knees to the floor, let them rest wherever gravity takes them.", "If you hold your breath, take slow breaths out and let the twist deepen."]
 easier = []
 harder = []
 
@@ -2730,6 +3212,9 @@ transition_seconds = 10
 draft = false
 setup = "Lie on your back, knees bent, and cross one ankle over the opposite knee."
 cues = ["Reach through and hold behind the bottom thigh.", "Draw it gently toward you.", "Keep the crossed foot flexed."]
+rep = "Hold the crossed leg drawn toward you. The hold ends when the time is up, then switch sides."
+feel = "Feel a mild stretch deep in the glute of the crossed leg, and no pinch in the knee."
+faults = ["If the knee feels sore, keep the crossed foot flexed and ease the pull.", "If your head and shoulders lift, rest them down and relax the neck.", "If you pull hard, draw the leg gently until you feel mild tension."]
 easier = []
 harder = []
 
@@ -2742,11 +3227,22 @@ position = "seated"
 sided = true
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["glutes", "abductors"]
+loads = { hip = 2, knee = 1, groin = 1, low-back = 1 }
+support = { knee = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit tall on a chair and rest one ankle on the opposite knee."
 cues = ["Lean forward a little with a long spine.", "Stop where you feel the stretch.", "Breathe slowly."]
+rep = "Hold the crossed leg with a long spine leaning gently forward, the hold ends when time is up or the stretch turns sharp."
+feel = "Feel a stretch deep in the outside of the hip and seat, not in the knee."
+faults = ["If the knee aches, sit up a little and let the crossed knee drop lower.", "If the back rounds, lead with the chest and keep the spine long.", "If you strain, ease back to a gentle stretch and breathe."]
 easier = []
-harder = []
+harder = ["figure-four-stretch"]
 
 [[movement]]
 id = "strap-hamstring-stretch"
@@ -2772,9 +3268,19 @@ position = "seated"
 sided = true
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["hamstrings"]
+loads = { hamstring = 2, hip = 1, low-back = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit at the front edge of a chair, one leg out straight with the heel down."
 cues = ["Hinge forward from the hips with a long back.", "Stop at a gentle stretch.", "Breathe and hold."]
+rep = "Hold the forward lean with a long back, the hold ends when time is up or the back starts to round."
+feel = "Feel a stretch along the back of the straight thigh, not behind the knee or in the low back."
+faults = ["If the back rounds, sit taller and lean from the hips instead.", "If you feel it behind the knee, soften the knee a little.", "If you bounce, settle into a still hold and breathe."]
 easier = []
 harder = []
 
@@ -2802,9 +3308,19 @@ position = "lying"
 sided = false
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["back", "glutes"]
+loads = { hip = 2, knee = 2, low-back = 1 }
+flags = ["floor", "spine-flexion"]
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Lie on your back and draw both knees in toward your chest."
 cues = ["Hold behind the thighs.", "Let the low back settle into the floor.", "Rock gently side to side if it feels good."]
+rep = "Hold both knees in toward the chest, the hold ends when time is up or the stretch feels sharp."
+feel = "Feel a gentle stretch across the low back and seat, not pain in the knees or the hips."
+faults = ["If the knees ache, hold behind the thighs, not over the shins.", "If the head lifts, rest it down and relax the neck.", "If you pull hard, ease off and let the breath settle you in."]
 easier = []
 harder = []
 
@@ -2834,7 +3350,7 @@ measure = "time"
 patterns = ["mobility"]
 muscles = ["quads", "glutes", "core"]
 loads = { hip = 2, knee = 2 }
-support = {}
+support = { ankle = 1, foot = 1 }
 flags = ["floor", "kneeling"]
 intensity = "mobility"
 level = "novice"
@@ -2843,6 +3359,9 @@ transition_seconds = 10
 draft = false
 setup = "Kneel on one knee on a mat or folded towel, the other foot flat in front."
 cues = ["Tuck the tailbone and squeeze the back glute.", "Shift the hips forward just a little.", "Stay tall through the chest."]
+rep = "Hold the hips tucked and shifted slightly forward. The hold ends when the time is up, then switch sides."
+feel = "Feel a mild stretch in the front of the hip on the kneeling side, not in the low back or the front knee."
+faults = ["If the low back arches, tuck the tailbone and squeeze the back glute.", "If the front knee goes past the toes, step the front foot farther out.", "If the back knee hurts, add more padding under it."]
 easier = []
 harder = []
 
@@ -2881,6 +3400,9 @@ transition_seconds = 10
 draft = false
 setup = "Face a wall, hands on it, one foot stepped back with the heel down."
 cues = ["Lean in until you feel the back of the calf.", "Back heel stays on the floor.", "Toes point straight ahead."]
+rep = "Hold the lean into the wall with the back heel down. The hold ends when the time is up, then switch sides."
+feel = "Feel a mild stretch in the back of the calf of the back leg, not in the Achilles or the knee."
+faults = ["If the back heel lifts, step the foot in a little and press the heel down.", "If the back foot turns out, point the toes straight ahead.", "If you bounce, hold still and breathe slowly."]
 easier = []
 harder = []
 
@@ -2904,6 +3426,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand in a doorway with one forearm on the frame, elbow at shoulder height."
 cues = ["Step through gently until you feel the front of the chest.", "Shoulder stays down.", "Ease off if you feel pinching."]
+rep = "Hold with the forearm on the frame and the chest gently stepped through. The hold ends when the time is up, then switch sides."
+feel = "Feel a mild stretch across the front of the chest and shoulder, never pinching at the front of the shoulder."
+faults = ["If the shoulder pinches, lower the elbow or step through less far.", "If the ribs flare and the low back arches, brace the belly lightly.", "If the shoulder rides up toward the ear, press it down and away."]
 easier = []
 harder = []
 
@@ -2916,9 +3441,20 @@ position = "seated"
 sided = true
 measure = "time"
 patterns = ["mobility"]
-draft = true
-setup = "Sit or stand tall."
+muscles = ["shoulders", "back"]
+loads = { shoulder = 2 }
+support = { shoulder = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Sit tall on a chair or on the floor."
 cues = ["Bring one arm across your chest.", "Hold it above the elbow with the other hand.", "Keep the shoulder down."]
+rep = "Hold the arm across the chest with the shoulder down, the hold ends when time is up."
+feel = "Feel a stretch across the back of the shoulder, not a pinch at the front of it."
+faults = ["If the shoulder hikes toward the ear, drop it down before you pull.", "If the front of the shoulder pinches, lower the arm a little and pull less.", "If you twist the chest to follow the arm, keep the chest facing forward."]
 easier = []
 harder = []
 
@@ -2941,6 +3477,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit tall with your arms hanging by your sides."
 cues = ["Lift the shoulders toward the ears.", "Roll them back and down.", "Slow and smooth."]
+rep = "One rep is a slow circle, lifting the shoulders up, back, and down."
+feel = "Feel the muscles across the tops of the shoulders and upper back loosening, with no tension in the neck."
+faults = ["If you rush, slow the circle and make it as big as you can.", "If the neck tenses and the chin juts forward, keep the head still and the jaw loose.", "If it feels tight, make the circle smaller and breathe out as you roll back."]
 easier = []
 harder = []
 
@@ -2968,9 +3507,19 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["lats", "core"]
+loads = { rib = 2, low-back = 1, shoulder = 1 }
+flags = ["overhead", "spine-flexion"]
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit tall on a chair or the floor."
 cues = ["Reach one arm up and over toward the other side.", "Keep both sit bones down.", "Breathe into the long side."]
+rep = "Hold the reach over to one side, then switch sides halfway, the hold ends when time is up."
+feel = "Feel a long stretch down the side of the ribs and under the arm, not a pinch in the low back or shoulder."
+faults = ["If one hip lifts, press both sit bones down and reach a little less.", "If you lean forward, keep the chest open and bend straight to the side.", "If the shoulder pinches, bend the elbow and keep the arm lower."]
 easier = []
 harder = []
 
@@ -2978,14 +3527,24 @@ harder = []
 id = "seated-twist"
 name = "seated twist"
 aliases = ["seated spinal twist", "chair twist", "seated rotation"]
-needs = []
+needs = ["chair|bench"]
 position = "seated"
 sided = false
 measure = "time"
 patterns = ["mobility"]
-draft = true
-setup = "Sit tall on a chair with your feet flat."
-cues = ["Turn your chest toward one side.", "Use the chair back lightly, don't crank.", "Grow tall on each breath in."]
+muscles = ["back", "core"]
+loads = { low-back = 2, rib = 2, neck = 1 }
+flags = ["spine-twist"]
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Sit tall on a chair or bench with your feet flat."
+cues = ["Turn your chest toward one side.", "Rest a hand on the outside knee, don't crank.", "Grow tall on each breath in."]
+rep = "Hold the turn with a tall spine, then turn to the other side halfway, the hold ends when time is up."
+feel = "Feel a gentle stretch through the middle back and ribs, not a pinch in the low back."
+faults = ["If you slump, sit taller first and then turn.", "If you pull hard with the hands, let go and turn only as far as your body goes.", "If the knees slide across, keep them level and pointing ahead."]
 easier = []
 harder = []
 
@@ -3010,6 +3569,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit tall or lie back comfortably and let your shoulders drop."
 cues = ["Breathe in for four.", "Hold for four.", "Breathe out for four.", "Hold for four."]
+rep = "One cycle is a breath in for four, a hold for four, a breath out for four, and a hold for four."
+feel = "Feel the belly and lower ribs expand on the way in, with the chest and shoulders staying still and calm."
+faults = ["If the holds feel tight or uncomfortable, shorten the count to three.", "If your shoulders rise as you breathe in, let the belly expand instead.", "If you feel dizzy, stop the holds and breathe normally."]
 easier = []
 harder = []
 
@@ -3032,6 +3594,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit comfortably and rest your hands in your lap."
 cues = ["Breathe in through the nose for four.", "Breathe out slowly through the mouth for six.", "Let each breath out be a little longer."]
+rep = "One cycle is a breath in through the nose for four, then a slow breath out through the mouth for six."
+feel = "Feel the belly rise gently on the way in and the body soften on the long breath out."
+faults = ["If you run out of air before six, shorten both counts a little.", "If you force the breath out, let it flow out softly, like fogging a mirror.", "If your shoulders rise as you breathe in, let the belly expand instead."]
 easier = []
 harder = []
 
@@ -3054,6 +3619,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit tall with one hand on your chest and one on your belly."
 cues = ["Breathe in and let the belly rise.", "The chest hand stays still.", "Breathe out slowly and let it fall."]
+rep = "One cycle is a slow breath in as the belly rises, then a slow breath out as it falls."
+feel = "Feel the belly hand rise and fall while the chest hand stays almost still."
+faults = ["If the chest hand moves first, slow down and send the breath lower.", "If you strain or gulp air, make the breath smaller and softer.", "If you feel dizzy, breathe normally for a moment."]
 easier = []
 harder = []
 
@@ -3069,7 +3637,7 @@ sided = false
 measure = "time"
 patterns = ["skill"]
 muscles = ["forearms", "shoulders"]
-loads = { wrist = 1 }
+loads = { wrist = 1, elbow = 1, shoulder = 1 }
 flags = []
 intensity = "skill"
 level = "novice"
@@ -3078,6 +3646,9 @@ transition_seconds = 10
 draft = false
 setup = "Sit tall at the front of the bench or chair, the ball in front of you on the blade."
 cues = ["Soft hands, the ball whispers on the blade.", "Eyes up, feel it, don't watch it.", "Bottom hand loose and quiet."]
+rep = "Keep the ball moving from side to side on the blade, with your eyes up. The drill ends when the time is up."
+feel = "Feel it in the wrists and fingers, with light hands and no tension in the shoulders or neck."
+faults = ["If you stare at the ball, lift your eyes and trust the feel of it on the blade.", "If the ball bounces off, soften your hands and use a smaller stroke.", "If your shoulders tighten, shake out the arms and keep the top hand loose."]
 easier = []
 harder = ["standing-stickhandling"]
 
@@ -3090,11 +3661,21 @@ position = "seated"
 sided = true
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders", "core"]
+loads = { wrist = 1, elbow = 1, shoulder = 1, low-back = 1 }
+flags = []
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Sit tall and bring the ball beside one foot."
 cues = ["Push and pull the ball along the side of your foot.", "Roll the wrists to cup the ball.", "Elbows away from the ribs so the hands can move."]
-easier = []
-harder = []
+rep = "Keep the ball moving front to back beside your foot, and the set ends when I call time to switch sides."
+feel = "Feel it in the forearms and wrists, with the belly keeping you tall, not a pull in the low back."
+faults = ["If you hunch over to watch the ball, sit tall and feel it on the blade instead.", "If the ball slaps off the blade, soften the hands and cup it.", "If the foot keeps moving out of the way, let it rest still and work around it."]
+easier = ["seated-side-to-side-dribble"]
+harder = ["standing-stickhandling"]
 
 [[movement]]
 id = "seated-figure-eight"
@@ -3105,11 +3686,21 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders", "core"]
+loads = { wrist = 1, elbow = 1, shoulder = 1, low-back = 1 }
+flags = []
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Sit tall and set a shoe or a water bottle on the floor in front of you."
 cues = ["Steer the ball around it in a figure eight.", "Smooth, then a little faster.", "Eyes up between loops."]
-easier = []
-harder = []
+rep = "Keep the ball looping around the shoe in a figure eight, and the set ends when I call time."
+feel = "Feel it in the forearms and wrists, with the shoulders steering, not in the low back."
+faults = ["If you fold forward to chase the ball, sit tall and bring the loops closer.", "If the hands grip hard, loosen the bottom hand and let the top hand steer.", "If you keep knocking the shoe, slow down until the loops are clean."]
+easier = ["seated-side-to-side-dribble"]
+harder = ["standing-stickhandling"]
 
 [[movement]]
 id = "seated-wide-narrow-dribble"
@@ -3120,11 +3711,21 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders", "core"]
+loads = { wrist = 1, elbow = 1, shoulder = 1, low-back = 1 }
+flags = []
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Sit tall with the ball in front of you."
 cues = ["Two wide pulls, then two quick narrow ones.", "Reach out without leaning off the seat.", "Soft hands."]
-easier = []
-harder = []
+rep = "Keep cycling two wide pulls and two narrow ones, and the set ends when I call time."
+feel = "Feel it in the forearms and the shoulders on the wide reach, not a strain in the low back."
+faults = ["If you lean off the seat to go wide, shorten the reach and keep your seat planted.", "If the narrow touches get sloppy, slow them down and keep the hands soft.", "If your eyes drop, look up and feel the ball on the blade."]
+easier = ["seated-side-to-side-dribble"]
+harder = ["standing-stickhandling"]
 
 [[movement]]
 id = "seated-toe-drag"
@@ -3135,11 +3736,21 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders"]
+loads = { wrist = 1, elbow = 1, shoulder = 1, low-back = 1 }
+flags = []
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Sit tall with the ball out to one side."
 cues = ["Pull the ball in with the toe of the blade.", "Roll the blade over and push it back out.", "Slow and clean before fast."]
-easier = []
-harder = []
+rep = "Keep pulling the ball in with the toe and pushing it back out, and the set ends when I call time."
+feel = "Feel it in the forearms and the top hand rolling the stick, not in the elbow or the low back."
+faults = ["If the ball slips off the toe, slow down and cup it before you pull.", "If you lean out after the ball, keep it closer and stay tall on the seat.", "If the bottom hand clamps the stick, loosen it so the top hand can roll the blade."]
+easier = ["seated-side-to-side-dribble"]
+harder = ["standing-stickhandling"]
 
 [[movement]]
 id = "standing-stickhandling"
@@ -3151,7 +3762,7 @@ sided = false
 measure = "time"
 patterns = ["skill"]
 muscles = ["forearms", "shoulders", "core"]
-loads = { wrist = 1, knee = 1, hip = 1, low-back = 1 }
+loads = { wrist = 1, elbow = 1, shoulder = 1, knee = 1, hip = 1, low-back = 1 }
 flags = []
 intensity = "skill"
 level = "novice"
@@ -3160,6 +3771,9 @@ transition_seconds = 10
 draft = false
 setup = "Stand in an athletic stance, knees soft, the ball in front of you."
 cues = ["Side to side, then front to back.", "Eyes up.", "Stay low through the hips."]
+rep = "Keep the ball moving side to side and front to back, with your eyes up. The drill ends when the time is up."
+feel = "Feel it in the wrists, the fingers and the legs holding the low stance, and not in the low back."
+faults = ["If you stare at the ball, lift your eyes and trust the feel of it.", "If you stand up tall, bend the knees and sit the hips back.", "If your hands go stiff, soften your grip and keep the movements small."]
 easier = ["seated-side-to-side-dribble"]
 harder = []
 
@@ -3172,9 +3786,19 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders", "core", "quads", "glutes"]
+loads = { wrist = 1, elbow = 1, shoulder = 1, knee = 1, hip = 1, ankle = 1, low-back = 1 }
+flags = []
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Stand in an athletic stance with the ball in front of you."
 cues = ["Shift your weight to one foot as the ball goes that way.", "Then shift back.", "Hands stay soft and quiet."]
+rep = "Keep the ball moving side to side with your weight following it, and the set ends when I call time."
+feel = "Feel it in the thighs and hips as the weight moves, and in the forearms, not in the low back."
+faults = ["If you stand up tall, sink back into soft knees and stay low.", "If the knee caves in as you shift, push it out over the toes.", "If the hands go stiff when you shift, slow the shift and keep the hands soft."]
 easier = ["standing-stickhandling"]
 harder = []
 
@@ -3187,9 +3811,19 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders", "core", "quads", "glutes"]
+loads = { wrist = 1, elbow = 1, shoulder = 1, knee = 2, hip = 2, ankle = 2, foot = 1, low-back = 1 }
+flags = ["spine-twist"]
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Stand in an athletic stance with the ball on your forehand side."
 cues = ["Pivot and turn your back to an imaginary defender.", "Keep the ball out wide, away from your body.", "Turn back and repeat."]
+rep = "Keep turning to shield the ball and back again at a controlled pace, and the set ends when I call time."
+feel = "Feel it in the hips and thighs as you turn, and in the forearms, not a twist in the knee or the low back."
+faults = ["If the knee twists while the foot stays stuck, pivot on the ball of the foot and turn the hips with it.", "If the ball drifts in to your feet, reach it out wide.", "If you rush the turn, slow it down and stay low."]
 easier = ["stickhandling-weight-shift"]
 harder = []
 
@@ -3202,9 +3836,19 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders", "core", "quads"]
+loads = { wrist = 1, elbow = 1, shoulder = 1, knee = 1, hip = 1, ankle = 1, foot = 1, low-back = 1 }
+flags = []
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Clear a short lane and stand at one end with the ball on your blade."
 cues = ["Walk slowly, moving the ball side to side.", "Eyes up, not down.", "Turn at the end and come back."]
+rep = "Keep walking the lane and back with the ball moving, and the set ends when I call time."
+feel = "Feel it in the forearms and wrists, with easy legs, not in the low back from hunching."
+faults = ["If you hunch over the ball, lift the chest and feel it on the blade.", "If the ball runs ahead of you, shorten your steps and soften the hands.", "If you look down the whole way, pick a spot ahead and keep your eyes on it."]
 easier = ["standing-stickhandling"]
 harder = []
 
@@ -3217,10 +3861,20 @@ position = "standing"
 sided = false
 measure = "time"
 patterns = ["skill"]
-draft = true
+muscles = ["forearms", "shoulders", "core", "glutes"]
+loads = { wrist = 2, shoulder = 1, elbow = 1, hip = 1, knee = 1, ankle = 1, low-back = 1 }
+flags = ["spine-twist"]
+intensity = "skill"
+level = "novice"
+hold_seconds = 45
+transition_seconds = 10
+draft = false
 setup = "Stand side on in a shooting stance, the ball on the blade beside your back foot."
 cues = ["Sweep forward and shift your weight to the front foot.", "Roll the wrists and finish low, no release.", "Never wind up over your head."]
-easier = []
+rep = "Keep repeating the sweep from back foot to front and the low finish, resetting each time, and the set ends when I call time."
+feel = "Feel it in the forearms and wrists and the push from the back hip, not in the low back."
+faults = ["If the stick comes up high, stop the backswing at the back foot and finish low.", "If you twist from the low back, turn the hips and shoulders together.", "If the weight stays back, step into the front foot as the blade sweeps."]
+easier = ["standing-stickhandling"]
 harder = []
 
 # Rehab: ankle --------------------------------------------------------------------------------
@@ -3229,15 +3883,25 @@ harder = []
 id = "seated-ankle-alphabet"
 name = "seated ankle alphabet"
 aliases = ["ankle alphabet", "ankle alphabets", "foot alphabet"]
-rehab = true
 needs = []
 position = "seated"
 sided = true
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["calves"]
+loads = { ankle = 2, foot = 1, hip = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+rehab = true
+draft = false
 setup = "Sit tall and lift one foot a little off the floor, or rest the calf on your other knee."
 cues = ["Trace the letters of the alphabet with your big toe.", "Move from the ankle, not the knee.", "Small and slow."]
+rep = "Keep tracing letters with your big toe until the time ends, then rest the foot down."
+feel = "Feel the ankle moving through its range, a gentle stretch around it, not pain or pinching."
+faults = ["If the whole leg is drawing, keep the knee still and move only the ankle.", "If a letter pinches, make that letter smaller and keep going.", "If the thigh tires, rest the calf on your other knee."]
 easier = []
 harder = ["band-ankle-eversion"]
 
@@ -3245,63 +3909,104 @@ harder = ["band-ankle-eversion"]
 id = "seated-ankle-circles"
 name = "seated ankle circles"
 aliases = ["ankle circles", "ankle rolls", "ankle rotations"]
-rehab = true
 needs = []
 position = "seated"
 sided = true
 measure = "time"
 patterns = ["mobility"]
-draft = true
+muscles = ["calves"]
+loads = { ankle = 2, foot = 1, hip = 1 }
+flags = []
+intensity = "mobility"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+rehab = true
+draft = false
 setup = "Sit tall and lift one foot a little off the floor."
 cues = ["Draw slow circles with your toes.", "Make them as big as feels easy.", "Switch direction halfway."]
+rep = "Keep drawing slow circles with the foot, switching direction halfway, until the time ends."
+feel = "Feel the ankle loosening all the way round, not pain or clicking that hurts."
+faults = ["If the knee is circling too, keep the shin still and move only the foot.", "If the circles get fast, slow them down and make each one full.", "If part of the circle pinches, keep the circle smaller there."]
 easier = []
-harder = []
+harder = ["seated-ankle-alphabet"]
 
 [[movement]]
 id = "band-ankle-eversion"
 name = "band ankle eversion"
 aliases = ["banded ankle eversion", "ankle eversion", "band eversion"]
-rehab = true
 needs = ["band"]
 position = "seated"
 sided = true
 measure = "reps"
 patterns = ["balance", "mobility"]
-draft = true
+muscles = ["calves"]
+loads = { ankle = 3, foot = 1, calf = 1 }
+support = { foot = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+rehab = true
+draft = false
 setup = "Sit tall, loop a band around the outside of one foot, and anchor the other end under your other foot."
 cues = ["Turn the sole outward against the band.", "Move only at the ankle.", "Return slowly."]
+rep = "One rep is turning the sole of the foot out against the band and slowly back to the middle."
+feel = "Feel it along the outside of the ankle and lower leg, not in the knee or the hip."
+faults = ["If the whole leg swings out, keep the knee still and move only the foot.", "If the band snaps you back, slow down and resist it all the way in.", "If the ankle hurts sharply, shorten the range or use a lighter band."]
 easier = ["seated-ankle-alphabet"]
-harder = []
+harder = ["single-leg-balance"]
 
 [[movement]]
 id = "band-ankle-inversion"
 name = "band ankle inversion"
 aliases = ["banded ankle inversion", "ankle inversion", "band inversion"]
-rehab = true
 needs = ["band"]
 position = "seated"
 sided = true
 measure = "reps"
 patterns = ["balance", "mobility"]
-draft = true
+muscles = ["calves"]
+loads = { ankle = 3, foot = 1, calf = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+rehab = true
+draft = false
 setup = "Sit tall, loop a band around the inside of one foot, and anchor the other end to the side."
 cues = ["Turn the sole inward against the band.", "Keep the knee still.", "Return slowly."]
+rep = "One rep is turning the sole of the foot in against the band and slowly back to the middle."
+feel = "Feel it along the inside of the ankle and shin, not in the knee or the hip."
+faults = ["If the knee rolls in with the foot, keep the knee pointing up and move only the ankle.", "If the band pulls you back fast, slow down and control the return.", "If the ankle hurts sharply, shorten the range or use a lighter band."]
 easier = ["seated-ankle-alphabet"]
-harder = []
+harder = ["single-leg-balance"]
 
 [[movement]]
 id = "band-ankle-dorsiflexion"
 name = "band ankle dorsiflexion"
 aliases = ["banded dorsiflexion", "ankle dorsiflexion", "band toe pull"]
-rehab = true
 needs = ["band"]
 position = "seated"
 sided = true
 measure = "reps"
 patterns = ["balance", "mobility"]
-draft = true
+muscles = ["calves"]
+loads = { ankle = 3, foot = 1, hamstring = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+rehab = true
+draft = false
 setup = "Sit tall with one leg out straight and a band looped over the top of the foot, anchored low in front."
 cues = ["Pull the toes back toward you.", "Pause at the top.", "Let them return slowly."]
+rep = "One rep is pulling the toes back toward you against the band, a short pause, and a slow return."
+feel = "Feel it in the front of the shin and the top of the ankle, not in the knee or the low back."
+faults = ["If the knee bends or the leg lifts, keep the back of the knee resting down and move only the foot.", "If the back rounds, sit up tall or bend the other knee to sit easier.", "If the band snaps the foot away, slow the return and keep tension the whole way."]
 easier = ["seated-ankle-alphabet"]
 harder = []
 
@@ -3309,31 +4014,51 @@ harder = []
 id = "band-ankle-plantar-flexion"
 name = "band ankle plantar flexion"
 aliases = ["banded plantar flexion", "band ankle push", "band foot press"]
-rehab = true
 needs = ["band"]
 position = "seated"
 sided = true
 measure = "reps"
 patterns = ["balance", "mobility"]
-draft = true
+muscles = ["calves"]
+loads = { ankle = 3, calf = 2, foot = 1, hamstring = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+rehab = true
+draft = false
 setup = "Sit tall with one leg out straight and a band around the ball of the foot, ends held in your hands."
 cues = ["Press the foot away like pressing a pedal.", "Smooth and controlled.", "Return slowly."]
+rep = "One rep is pointing the foot away against the band and slowly bringing it back up."
+feel = "Feel it in the calf and the back of the ankle, not in the knee or the toes cramping."
+faults = ["If the toes curl hard and cramp, keep them long and push through the ball of the foot.", "If you pull with the arms, keep the hands still and let the foot do the work.", "If the back rounds, sit up tall or bend the other knee to sit easier."]
 easier = ["seated-ankle-alphabet"]
-harder = []
+harder = ["seated-calf-raise"]
 
 [[movement]]
 id = "towel-scrunch"
 name = "towel scrunches"
 aliases = ["towel scrunch", "towel curls", "toe scrunches"]
-rehab = true
 needs = ["towel"]
 position = "seated"
 sided = true
 measure = "time"
 patterns = ["balance"]
-draft = true
+muscles = ["calves"]
+loads = { foot = 3, ankle = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+rehab = true
+draft = false
 setup = "Sit tall with one bare foot on a towel laid flat on the floor."
 cues = ["Curl your toes to gather the towel toward you.", "Heel stays down.", "Spread it out and go again."]
+rep = "Keep scrunching the towel toward you with your toes, the heel planted, until the time ends."
+feel = "Feel it in the arch and under the toes, not a sharp cramp in the calf."
+faults = ["If the heel lifts, press it down and let only the toes work.", "If the arch cramps, pause, spread the toes wide, then go again smaller.", "If you are dragging the towel with the whole foot, keep the foot still and curl just the toes."]
 easier = []
 harder = []
 
@@ -3341,15 +4066,25 @@ harder = []
 id = "single-leg-balance"
 name = "single-leg balance"
 aliases = ["single leg balance", "one-leg balance", "one leg stand", "balance on one leg"]
-rehab = true
 needs = []
 position = "standing"
 sided = true
 measure = "time"
 patterns = ["balance"]
-draft = true
+muscles = ["calves", "abductors", "core"]
+loads = { ankle = 3, foot = 2, knee = 1, hip = 1 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+rehab = true
+draft = false
 setup = "Stand beside a wall or a sturdy chair, fingertips resting on it, and lift one foot just off the floor."
 cues = ["Soft knee, tall chest, eyes on a spot ahead.", "Lift the fingertips off the wall when you feel steady.", "Touch down whenever you need to, then go again."]
+rep = "Stand on one foot with the other just off the floor, the hold ends when you touch down or time is up."
+feel = "Feel the small muscles of the standing ankle and foot working, and the side of the hip, not pain in the ankle."
+faults = ["If the standing knee locks, soften it a little.", "If the hip drops or you lean, stand tall and level the hips.", "If you wobble a lot, keep the fingertips on the wall, safety first."]
 easier = []
 harder = []
 
@@ -3364,10 +4099,21 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["shoulders", "triceps", "core"]
+loads = { shoulder = 2, elbow = 2, wrist = 1 }
+flags = ["fast"]
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit tall at the front of a chair, the bench or the edge of the bed, fists up by your cheeks."
-cues = ["Straight punches, out and back.", "Snap the hand back to your face.", "Breathe out on every punch."]
-easier = []
+cues = ["Straight punches, out and back, chest facing forward.", "Snap the hand back to your face.", "Breathe out on every punch."]
+rep = "Keep throwing straight punches, left and right, at a steady fast pace, and the round ends when I call time."
+feel = "Feel it in the shoulders and the back of the arms, with your breathing picking up, not in the elbows or the neck."
+faults = ["If the elbow snaps straight, stop the punch just short of locking out.", "If the feet start bouncing, let them rest still and quiet on the floor.", "If the shoulders creep up to the ears, drop them and keep the fists loose."]
+easier = ["seated-arm-pump"]
 harder = ["shadow-boxing"]
 
 [[movement]]
@@ -3379,11 +4125,22 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["shoulders", "back", "core"]
+loads = { shoulder = 2, elbow = 1 }
+flags = ["fast"]
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit tall, elbows bent at your sides, hands loose."
 cues = ["Pump the arms like a sprinter.", "Elbows drive back.", "As fast as you can keep it clean."]
+rep = "Keep the arms pumping front to back as fast as you can keep it clean, and the round ends when I call time."
+feel = "Feel it in the shoulders and the upper back, with your breath working hard, not in the neck."
+faults = ["If the arms swing across your body, drive them straight forward and back.", "If you rock the whole torso, brace the belly and let only the arms move.", "If the feet start bouncing, let them rest still on the floor."]
 easier = []
-harder = []
+harder = ["seated-shadow-boxing"]
 
 [[movement]]
 id = "seated-speed-bag"
@@ -3394,10 +4151,21 @@ position = "seated"
 sided = false
 measure = "time"
 patterns = ["locomotion"]
-draft = true
+muscles = ["shoulders", "core"]
+loads = { shoulder = 2, elbow = 1, wrist = 1 }
+flags = ["fast"]
+intensity = "conditioning"
+effort = "hard"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
 setup = "Sit tall and bring your fists up in front of your chin."
 cues = ["Roll the fists in small fast circles around each other.", "Shoulders down.", "Switch direction when I call it."]
-easier = []
+rep = "Keep the fists rolling around each other in front of your chin as fast as you can, and the round ends when I call time."
+feel = "Feel the burn in the front and tops of the shoulders, not in the neck or the low back."
+faults = ["If the shoulders shrug up, push them down and keep the circles small.", "If the fists drift up past your eyes, bring them back down to chin height.", "If you lean back to cope, sit tall and slow the circles a touch."]
+easier = ["seated-arm-pump"]
 harder = []
 
 [[movement]]

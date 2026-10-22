@@ -308,6 +308,41 @@ def kits(p):
             if isinstance(k, dict) and isinstance(k.get("name"), str) and k["name"].strip()}
 
 
+UNITS = ("lb", "kg")
+
+
+def kit_weights(p):
+    """{kit name: (unit, {equipment id: sorted weights})} from each [[kits]] table's optional `weights`
+    (equipment id = list of numbers) and `unit` ("lb" by default), for the kits that give any."""
+    out = {}
+    for k in p.settings.get("kits") or []:
+        if not (isinstance(k, dict) and isinstance(k.get("name"), str) and isinstance(k.get("weights"), dict)):
+            continue
+        table = {e: sorted(w for w in ws if isinstance(w, (int, float)) and not isinstance(w, bool) and w > 0)
+                 for e, ws in k["weights"].items() if isinstance(ws, list)}
+        table = {e: ws for e, ws in table.items() if ws}
+        if table:
+            out[k["name"].strip()] = (k.get("unit") if k.get("unit") in UNITS else "lb", table)
+    return out
+
+
+def _weight_problems(k):
+    """Faults in one [[kits]] table's `weights` and `unit`, as sentences."""
+    out = []
+    w = k.get("weights")
+    if w is not None and not isinstance(w, dict):
+        out.append("weights should be a table, such as { dumbbells = [10, 15, 20] }")
+    for e, ws in (w.items() if isinstance(w, dict) else []):
+        if e not in (k.get("equipment") or []):
+            out.append(f"weights lists '{e}', which isn't in the kit's equipment")
+        if not isinstance(ws, list) or not ws or not all(
+                isinstance(x, (int, float)) and not isinstance(x, bool) and x > 0 for x in ws):
+            out.append(f"weights for '{e}' should be a list of numbers above zero")
+    if "unit" in k and k["unit"] not in UNITS:
+        out.append(f"unit should be {' or '.join(UNITS)}")
+    return out
+
+
 def add_voice_to_profile(name, description="", default=False, path=None):
     """List a voice in the profile's [[voices]], first when it's to be the default.
     Edits the settings block as text, so its comments and order survive."""
@@ -454,6 +489,18 @@ def clinician_lines(h, areas=None, flags=None):
 
 
 UNLISTED = "unlisted:"
+AVOID = "avoid:"
+
+
+def clinician_avoids(h):
+    """The movement ids and flags on every "Avoid: <ids or flags>" line under `## Clinician rules`,
+    in order, which the session tool rules out on every run."""
+    out = []
+    for line in _section_lines(h, CLINICIAN_HEADING):
+        line = line[2:].strip() if line.startswith(("- ", "* ")) else line.strip()
+        if line.lower().startswith(AVOID):
+            out += [w.strip() for w in line[len(AVOID):].split(",") if w.strip()]
+    return list(dict.fromkeys(out))
 
 
 def prose_injuries(h):
@@ -738,6 +785,10 @@ def _check_profile(path, text):
             for e in equipment:
                 if e not in cat.equipment:
                     out.append(Issue(path, 0, f"kit '{kit}': '{e}' isn't equipment in the catalog", note=True))
+    for k in settings.get("kits") or []:
+        if isinstance(k, dict):
+            for problem in _weight_problems(k):
+                out.append(Issue(path, 0, f"kit '{k.get('name', '?')}': {problem}"))
     for n, line in enumerate(rest.splitlines(), 1):
         m = BODY_HINT_RE.match(line)
         if m:
@@ -779,6 +830,11 @@ def _check_health(path, text):
                         out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a rehab movement, "
                                                   "so naming it lets nothing through; name only rehab "
                                                   "movements, or loosen the limit itself"))
+    if cat:
+        for word in clinician_avoids(h):
+            if word not in cat.movements and word not in cat.flags:
+                out.append(Issue(path, 0, f"Avoid: '{word}' isn't a movement id or flag in the catalog, "
+                                          "so it rules nothing out"))
     if cat and prose_injuries(h) and not limits(h, cat.areas, cat.flags):
         out.append(Issue(path, 0, "injuries written in prose have no [[limits]] entry, so the session "
                                   "tool applies no rule for them"))

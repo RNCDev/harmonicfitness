@@ -32,6 +32,9 @@ AREA_POSITIONS = {("ankle", "off-limits"): ("standing",), ("foot", "off-limits")
 # or mat only holds or supports the body).
 LOAD_EQUIPMENT = ("dumbbells", "kettlebell", "band", "cable", "machines", "barbell", "sled")
 LOAD_MAX = 3
+# Areas that work as one chain: fast work that loads any of them counts as loading each, so a fast
+# pedal stroke rated only on the ankle and foot still stays out under a delicate calf.
+CHAINS = (("foot", "ankle", "calf"),)
 SIDE_WORDS = ("left ", "right ", "both sides ")
 LIMIT_SIDES = ("left", "right", "both")
 LIMIT_LEVELS = ("off-limits", "delicate")
@@ -66,6 +69,9 @@ class Movement:
     private: bool = False
     effort: str = ""         # easy, moderate or hard, on conditioning entries
     has_loads: bool = True   # False when the entry has no `loads` key at all (an empty table is fine)
+    rep: str = ""            # spoken: what one rep is, or what a timed hold is and what ends it
+    feel: str = ""           # spoken: where it should be felt, and where not (the check without a mirror)
+    faults: List[str] = field(default_factory=list)   # spoken: common mistakes, each with its fix
 
 
 @dataclass
@@ -94,7 +100,8 @@ def _movement(raw: dict, private: bool) -> Movement:
         draft=bool(raw.get("draft", False)) or "patterns" not in raw,
         setup=raw.get("setup", ""), cues=list(raw.get("cues", [])),
         easier=list(raw.get("easier", [])), harder=list(raw.get("harder", [])), private=private,
-        has_loads="loads" in raw, effort=raw.get("effort", ""))
+        has_loads="loads" in raw, effort=raw.get("effort", ""), rep=raw.get("rep", ""),
+        feel=raw.get("feel", ""), faults=list(raw.get("faults", [])))
 
 
 def private_movements(path: Optional[str] = None) -> List[dict]:
@@ -235,7 +242,8 @@ def problems(cat: Catalog) -> List[str]:
             for other in ref:
                 if other not in ids:
                     out.append(f"Movement {m.id} lists \"{other}\" as {label}, which is not a movement in the catalog.")
-        for label, text in [("setup", m.setup)] + [("cue", c) for c in m.cues]:
+        for label, text in ([("setup", m.setup), ("rep", m.rep), ("feel", m.feel)] + [("cue", c) for c in m.cues]
+                            + [("fault", f) for f in m.faults]):
             fault = _spoken_fault(text)
             if fault == "a digit":
                 out.append(f"The {label} of movement {m.id} has a digit in it: \"{text}\".")
@@ -298,7 +306,7 @@ def meaning(area: str, level: str, side: str = "both") -> str:
     if level == "off-limits":
         text = f"nothing that loads {where}"
     else:
-        text = f"light loads only on {where}, no impact or fast work"
+        text = f"light loads only on {where}, no impact work or fast work that loads it"
     extra = AREA_FLAGS.get((area, level))
     text += f", and no {' or '.join(f.replace('spine-', 'spine ') for f in extra)}" if extra else ""
     return text + (", and nothing done standing" if AREA_POSITIONS.get((area, level)) else "")
@@ -350,8 +358,13 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
             bad = [f for f in list(lim.flags) + list(AREA_FLAGS.get((lim.area, lim.level), ()))
                    if f in m.flags]
             bad = list(dict.fromkeys(bad))
+            # a delicate area rules out all impact work (landing jars the whole body), and fast work
+            # that loads it at all, on either side: fast arm work in a chair is fine for a delicate foot
+            chain = next((c for c in CHAINS if lim.area in c), (lim.area,))
+            touches = any(m.loads.get(a, 0) > 0 or m.support.get(a, 0) > 0 for a in chain)
             if lim.level == "delicate":
-                bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad]
+                bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad
+                        and (f == "impact" or touches)]
             reasons += bad   # a flag is its own reason
             if m.position in AREA_POSITIONS.get((lim.area, lim.level), ()):
                 reasons.append(f"{m.position} with the {lim.area} off limits")

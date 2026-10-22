@@ -2,6 +2,38 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [6.1.0] - 2026-10-22
+
+Better context for writing a script: the coaching a listener without a screen or a mirror needs for each movement, half of the unfinished catalog finished, sourced physiology for rest, effort, stretching, coverage and ankle rehab, and the kit's real weights.
+
+### For forks
+Nothing to migrate; the catalog stays format 3 and the context files schema 3. Optional: add `weights` (equipment id = the weights you have, lightest to heaviest) and `unit` (`"lb"` or `"kg"`) to a `[[kits]]` row, such as `weights = { dumbbells = [10, 15, 20] }`, so the session tool prints what's on hand. A private movement in `me/movements.toml` may add `rep`, `feel` and `faults`.
+
+### Added
+- Catalog coaching fields on every finished movement: `rep` (what one rep is, per side or not; for a timed entry what is held and a talk test), `feel` (where it should be felt and where not) and `faults` (one to three common mistakes, each with its fix). Spoken text, checked like `setup` and `cues`.
+- `./sweatcast session` prints a Coaching section for its first picks (setup, cues, rep, feel, faults, easier and harder), a `Muscles:` line (the major groups the plan trains and the ones it leaves out) and, when the kit gives its weights, a `Loads on hand:` line. `./sweatcast movements --about <ids>` prints the coaching for any movement. The workout skill coaches from these, not from memory.
+- Fifty movements finished from drafts (94 drafts down to 44), each reviewed for its joint ratings: seated conditioning (seated march, shadow boxing, arm pumps, speed bag), the eight stickhandling drills, ankle and foot rehab (band eversion, inversion, dorsiflexion and plantar flexion, towel scrunch, ankle alphabet and circles, single-leg balance, seated calf raise), seated mobility, curls, kickbacks, band external rotation, seated and band rows, band pull-apart, incline press, reverse crunch, bench dead bug, dumbbell and barbell hip thrust and bridge, clamshells, donkey kick, the hip and leg-curl machines, the lying dumbbell hamstring curl, sled push, rower intervals and ski erg.
+- `[[kits]]` takes optional `weights` and `unit`; `./sweatcast check` lists a fault in them, and the setup skill asks for them.
+- `knowledge/programming.md`: sourced sections on muscle coverage and recovery, exercise order, rest between intervals (an all-out effort gets at least four times its length in rest), effort by ear (the talk test and a ten-point scale) and stretching dose (about thirty seconds a hold, on as many days as the week allows), and a warm-up study that found no extra reps.
+- `knowledge/injury-playbook.md`: the ankle's order of loading after a sprain, from the 2021 clinical practice guideline, and a balance-programme trial; sources for the foot, calf, hamstring and groin, which had none.
+- `knowledge/kits.md`: what the session tool prints for a kit, and equipment notes for dumbbells (handling, changing weights, naming them), the single kettlebell, bike setup and pedals, resistance scales by feel, the rower's damper, the treadmill's belt-change time, and a hotel room without a mat.
+
+### Changed
+- The session tool reads the clinician's `Avoid:` lines in `me/health.md` itself, on every run; the skill no longer copies them into `--avoid` by hand, and `./sweatcast check` names any word in them that isn't a movement or flag. (Copied by hand, a ban was easy to leave off, and the plan then offered the movements it banned.)
+- When straight sets would drop a movement pattern for time and paired sets drop fewer, the session runs paired sets and names what they still drop, so a short strength or general session covers more of the major groups. A targeted session keeps its own method.
+- Paired-set markers count only the pairs ("Pair 1 of 2"), not a lone last slot.
+- Safety: a delicate area still rules out all impact work, but fast work only when it loads that area, counting the foot, ankle and calf as one chain: fast seated punching stays in for a delicate foot, while a fast pedal stroke stays out for a delicate calf. With an off-limits ankle and a delicate foot, the finisher and intervals had no movement at all; they now get seated conditioning.
+- Intervals add the strength fallback when fewer than two movements reach the level's leading effort (hard above novice), not when fewer than two are anything but easy, so one hard movement no longer leads every interval.
+- Safety ratings, from a review of the new entries and a check against an off-limits ankle: push-ups, pike push-ups and the forearm plank rate ankle 1 and foot 2 (the toes bear weight), bridges and hip thrusts ankle 1 and foot 1 (the feet press the floor), so an off-limits ankle leaves the one-leg bridge on the healthy side; the world's greatest stretch rates the front ankle and foot and carries `overhead`; the half-kneeling stretch and press rate the front foot; the rower, air bike, sled push, ski erg and stick drills gain the wrist, elbow, shoulder, neck or foot loads they had left out. Curls rate wrist 1, like the rows that hold the same dumbbell. Band external rotation is done seated. The supine twist rates ankle 1, since dropping the knees rolls the foot onto its outer edge. The bike's standing climb rates ankle 2 and calf 2, like the stair climber. The treadmill run's setup says the hard pace its effort grade means.
+- `programming.md` no longer points at the removed `exercise-science.md`, and a test checks it.
+- Eval: `docs/eval/results-2026-10-22-run4.md`, a targeted run of the ten cases whose skeletons changed most plus an off-limits-ankle case: every case safe, and the ten cases' mean total rose from 15.2 to 16.4; the writer's brief coaches from the new notes.
+
+### Not yet
+- Interval doses don't yet follow the new rest rule: a twenty-second sprint inside a forty-five and thirty interval rests under three times its length, where `programming.md` now asks four.
+- A circuit doesn't group floor stations and bench stations, so a listener who can't push through one foot makes many floor transitions.
+- Coaching notes have no limit-specific lines (head position under a delicate neck, the injured foot's place), so the script adds them from the health lines.
+- Forty-four drafts remain (barbell and machine extras, some mobility, the overhead seated punches); `./sweatcast movements` lists none of them.
+
 ## [6.0.0] - 2026-10-22
 
 sweatcast renders on a Windows PC with an NVIDIA GPU as well as on an Apple Silicon Mac. Chatterbox Coach runs there from Resemble AI's own PyTorch Chatterbox Turbo on CUDA, cloned from the same reference clip.

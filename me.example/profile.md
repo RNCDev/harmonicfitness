@@ -25,7 +25,7 @@ description = "man in his forties, warm baritone, a seasoned trainer talking to 
 name = "Qwen3 Coach"
 description = "man in his thirties, a focused class instructor. The clearest diction."
 
-# Equipment kits the session tool can plan with: a name and the equipment ids you have there (./sweatcast movements lists them).
+# Equipment kits the session tool can plan with: a name and the equipment ids you have there (./sweatcast movements lists them). For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
 
 [[kits]]
 name = "home"

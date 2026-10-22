@@ -9,6 +9,7 @@ from the movement catalog (knowledge/movements.toml).
 
     ./sweatcast movements --preset hotel-room --avoid impact
     ./sweatcast movements --equipment dumbbells,mat --pattern squat --level novice
+    ./sweatcast movements --about goblet-squat,floor-press
 """
 import os
 import sys
@@ -45,6 +46,24 @@ def line(cat: catalog.Catalog, m: catalog.Movement) -> str:
     return text
 
 
+def about(cat: catalog.Catalog, m: catalog.Movement, side: str = "") -> List[str]:
+    """A movement's spoken coaching from the catalog, as indented lines: setup, cues, what one rep is,
+    where to feel it, the common faults with their fixes, and the easier and harder versions. `side`
+    names the one side to work when only the healthy side is allowed."""
+    where = m.position + (f", {side} side only" if side else ", one side at a time" if m.sided else "")
+    out = [f"  {m.name} ({where}):", f"    Setup: {m.setup}", f"    Cues: {' '.join(m.cues)}"]
+    if m.rep:
+        out.append(f"    Rep: {m.rep}")
+    if m.feel:
+        out.append(f"    Feel: {m.feel}")
+    if m.faults:
+        out.append(f"    Faults: {' '.join(m.faults)}")
+    for label, ids in (("Easier", m.easier), ("Harder", m.harder)):
+        if ids:
+            out.append(f"    {label}: {', '.join(cat.movements[i].name if i in cat.movements else i for i in ids)}")
+    return out
+
+
 def render(cat: catalog.Catalog, sel: catalog.Selection, only: Optional[str] = None) -> List[str]:
     """Allowed movements under their primary pattern in the catalog's order, then "Healthy side only",
     then the "Left out today" line. `only` limits the output to one pattern."""
@@ -73,15 +92,30 @@ def main():
     ap = cli.ArgumentParser(prog="sweatcast movements", description=(
         "Browse the movements a kit allows, by pattern. This filter applies no health limits; "
         "plan sessions with ./sweatcast session, which does."))
-    kit = ap.add_mutually_exclusive_group(required=True)
+    kit = ap.add_mutually_exclusive_group()
     kit.add_argument("--preset", help="a kit preset from the catalog, such as hotel-room")
     kit.add_argument("--equipment", help="comma-separated equipment, as keys or aliases")
     ap.add_argument("--avoid", default="", help="comma-separated movement ids or flags to rule out")
     ap.add_argument("--level", default="experienced", help="novice, experienced or advanced (default experienced)")
     ap.add_argument("--pattern", help="print only this movement pattern")
+    ap.add_argument("--about", help="comma-separated movement ids or names: print their coaching notes")
     args = ap.parse_args()
 
     cat = catalog.load()
+    if args.about:
+        out = []
+        for word in [w.strip() for w in args.about.split(",") if w.strip()]:
+            m = cat.movements.get(word) or catalog.resolve(cat, word)
+            if m is None:
+                print(f"sweatcast movements: unknown movement \"{word}\"", file=sys.stderr)
+                return cli.USAGE
+            out += about(cat, m)
+        print("\n".join(out))
+        return cli.OK
+    if not (args.preset or args.equipment):
+        print("sweatcast movements: name a kit with --preset or --equipment, or movements with --about",
+              file=sys.stderr)
+        return cli.USAGE
     try:
         if args.preset:
             equipment = catalog.kit_equipment(cat, {"preset": args.preset})

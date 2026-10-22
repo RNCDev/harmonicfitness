@@ -101,6 +101,18 @@ class CatalogFormat(unittest.TestCase):
         msgs = catalog.problems(catalog.load(FIXTURE, extra=bad))
         self.assertEqual(len([m for m in msgs if "symbol" in m and "y" in m]), 2)
 
+    def test_coaching_fields_are_spoken_text(self):
+        bad = [{"id": "y", "name": "y", "draft": True, "patterns": ["squat"], "position": "standing",
+                "measure": "reps", "rep": "One rep: down and up.", "feel": "Thighs (front).",
+                "faults": ["If knees cave; push out.", "Count to ten slowly."]}]
+        msgs = [m for m in catalog.problems(catalog.load(FIXTURE, extra=bad)) if "y" in m]
+        self.assertEqual(len([m for m in msgs if "symbol" in m]), 3, msgs)
+        self.assertEqual(len([m for m in msgs if "digit" in m]), 0, msgs)
+        m = catalog.load(FIXTURE, extra=[dict(bad[0], rep="One rep is down and up.", feel="Thighs.",
+                                             faults=["If the knees cave, push them out."])]).movements["y"]
+        self.assertEqual((m.rep, m.feel, m.faults), ("One rep is down and up.", "Thighs.",
+                                                     ["If the knees cave, push them out."]))
+
     def test_duplicate_id_or_alias_is_a_problem(self):
         dup = dict(vars(catalog.load(FIXTURE).movements["goblet-squat"]))
         dup.pop("private")
@@ -208,7 +220,7 @@ class RealCatalog(unittest.TestCase):
         self.assertIn("childs-pose", {m.id for m in catalog.select(cat, {"mat"}, "novice", soft).allowed})
         self.assertIn("no spine flexion or spine twist", catalog.meaning("low-back", "off-limits"))
         self.assertEqual(catalog.meaning("calf", "delicate", "left"),
-                         "light loads only on the left calf, no impact or fast work")
+                         "light loads only on the left calf, no impact work or fast work that loads it")
 
     def test_an_off_limits_ankle_rules_out_standing_and_pedaling(self):
         cat = catalog.load()
@@ -229,6 +241,29 @@ class RealCatalog(unittest.TestCase):
         sel = catalog.select(cat, {"dumbbells", "kettlebell", "bench", "mat", "barbell", "rack"}, "advanced", soft)
         for mid in ("overhead-press", "seated-shoulder-press", "half-kneeling-kettlebell-press"):
             self.assertIn(mid, sel.left_out)
+
+    def test_every_finished_entry_is_coached(self):
+        for m in catalog.load().movements.values():
+            if m.draft:
+                continue
+            with self.subTest(movement=m.id):
+                self.assertTrue(m.rep and m.feel, "rep and feel")
+                self.assertTrue(1 <= len(m.faults) <= 3, m.faults)
+
+    def test_fast_work_on_the_lower_leg_chain_stays_out_under_a_delicate_calf(self):
+        cat = catalog.load()
+        sel = catalog.select(cat, {"bike"}, "advanced", [catalog.Limit("calf", "right", "delicate", [], [], "")])
+        self.assertIn("fast", sel.left_out.get("bike-cadence-surge", []))
+        sel = catalog.select(cat, set(), "advanced", [catalog.Limit("foot", "right", "delicate", [], [], "")])
+        self.assertIn("seated-speed-bag", [m.id for m in sel.allowed])
+
+    def test_off_limits_ankle_keeps_seated_conditioning(self):
+        cat = catalog.load()
+        sel = catalog.select(cat, {"dumbbells", "bench", "bike"}, "experienced",
+                             [catalog.Limit("ankle", "right", "off-limits", [], [], "")])
+        conditioning = [m for m in sel.allowed if m.intensity == "conditioning"]
+        self.assertTrue(any(m.effort in ("moderate", "hard") for m in conditioning), [m.id for m in conditioning])
+        self.assertTrue(all(m.position != "standing" for m in sel.allowed))
 
     def test_real_catalog_is_clean(self):
         self.assertEqual(catalog.problems(catalog.load()), [])
@@ -424,10 +459,15 @@ class Select(unittest.TestCase):
         cat = catalog.load(FIXTURE)
         cat.movements["air-squat"].flags = ["impact"]
         cat.movements["push-up"].flags = ["fast"]
-        lim = [catalog.Limit("neck", "both", "delicate", [], [], "")]
-        sel = catalog.select(cat, set(), "novice", lim)
-        self.assertEqual(sel.left_out["air-squat"], ["impact"])
-        self.assertEqual(sel.left_out["push-up"], ["fast"])
+        squat, push = cat.movements["air-squat"], cat.movements["push-up"]
+        quiet = next(a for a in cat.areas if not push.loads.get(a) and not push.support.get(a)
+                     and not squat.loads.get(a))
+        sel = catalog.select(cat, set(), "novice", [catalog.Limit(quiet, "both", "delicate", [], [], "")])
+        self.assertEqual(sel.left_out["air-squat"], ["impact"])   # impact is out under any delicate area
+        self.assertNotIn("push-up", sel.left_out)   # fast work that doesn't load the delicate area stays in
+        loaded = next(a for a in cat.areas if push.loads.get(a))
+        sel = catalog.select(cat, set(), "novice", [catalog.Limit(loaded, "both", "delicate", [], [], "")])
+        self.assertIn("fast", sel.left_out["push-up"])
 
     def test_level_rehab_and_unrehabbed_rehab_entry(self):
         cat = catalog.load(FIXTURE)
@@ -477,6 +517,15 @@ class Filter(unittest.TestCase):
             self.assertEqual(r.returncode, 64, args)
             self.assertTrue(r.stderr.strip(), args)
 
+    def test_about_prints_coaching_without_a_kit(self):
+        r = run_movements(["--about", "goblet-squat,dead bug"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for needle in ("  goblet squat (standing):", "  dead bug (", "    Setup: ", "    Cues: ", "    Rep: ",
+                       "    Feel: ", "    Faults: ", "    Easier: "):
+            self.assertIn(needle, r.stdout, needle)
+        self.assertEqual(run_movements(["--about", "anvil-toss"]).returncode, 64)
+        self.assertEqual(run_movements([]).returncode, 64)
+
     def test_equipment_alias_is_accepted(self):
         self.assertEqual(run_movements(["--equipment", "yoga mat"]).returncode, 0)
 
@@ -514,6 +563,7 @@ class KnowledgeFiles(unittest.TestCase):
     def test_docs_name_no_removed_files(self):
         gone = ("injury-rules.toml", "exercise-science.md", "docs/superpowers", "productization-research")
         for rel in ("CLAUDE.md", "README.md", os.path.join("knowledge", "kits.md"),
+                    os.path.join("knowledge", "programming.md"),
                     os.path.join(".claude", "skills", "workout", "SKILL.md"),
                     os.path.join(".claude", "skills", "setup", "SKILL.md")):
             with open(os.path.join(ROOT, rel)) as f:

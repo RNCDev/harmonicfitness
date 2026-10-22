@@ -11,7 +11,8 @@ nothing here is personal data. Each writer takes five cases.
 - `knowledge/programming.md` for effort, rest, tempo cues.
 - For each case: the listener folder `docs/eval/listeners/<listener>/` (profile.md, health.md, log.md),
   the skeleton `docs/eval/out/<id>.skeleton.txt` and the markers `docs/eval/out/<id>.markers.txt`.
-- `knowledge/movements.toml` for a movement's setup and cues (search by id).
+- The skeleton's `Coaching` section for each first pick's setup, cues, rep, feel and faults; for any
+  other candidate, `./sweatcast movements --about <ids>`. Coach from these, not from memory.
 
 ## Policy (keeps runs comparable)
 - Take the **first candidate** in every slot, and for the warm-up, finisher and cool-down pick from the

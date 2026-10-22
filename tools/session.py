@@ -45,6 +45,7 @@ STEADY_LEAST, STEADY_MOST = 90, 600   # a steady block takes interval time past 
 EFFORT_RANK = {"novice": {"moderate": 0, "hard": 1, "easy": 2},   # which conditioning effort ranks first
                "experienced": {"hard": 0, "moderate": 1, "easy": 2},
                "advanced": {"hard": 0, "moderate": 1, "easy": 2}}
+COVERING = ("sets", "pairs")   # straight sets give way to paired sets when pairing keeps a pattern straight sets drop
 CYCLING = ("holds", "intervals")   # work kinds whose patterns repeat to fill the block
 CYCLE_CAP = 12       # most slots a cycling block holds
 SPARE_WARNING = 0.10   # spare beyond this share of the request, after everything else, is warned about
@@ -81,6 +82,8 @@ class Skeleton(NamedTuple):
     extras: Optional[Dict[str, List[Tuple[catalog.Movement, str]]]] = None   # "warmup", "finisher",
     #   "cooldown" -> ranked (movement, reasons), screened by the same kit, level and limits as the slots
     finisher_dose: Optional[dict] = None   # rounds, work_seconds, rest_seconds for the finisher
+    kit_loads: str = ""                    # the kit's weights on hand, from the profile, as one line
+    cat: Optional[catalog.Catalog] = None  # for the easier and harder names in the coaching notes
 
 
 # ---- timing ------------------------------------------------------------------------------
@@ -411,6 +414,11 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
     limits = own + list(request.get("limits") or [])
     likes, dislikes = _ids(cat, context.likes(profile)), _ids(cat, context.dislikes(profile))
     avoid = set(request.get("avoid") or ())
+    for word in context.clinician_avoids(health):   # the clinician's Avoid: lines apply on every run
+        if word in cat.movements or word in cat.flags:
+            avoid.add(word)
+        else:
+            warnings.append(f"health.md: Avoid: '{word}' isn't a movement id or flag, so it rules nothing out")
     try:
         sel = catalog.select(cat, equipment, level, limits, avoid=avoid, dislikes=dislikes)
     except ValueError as e:   # request limits are checked above, so this is a row in health.md
@@ -418,7 +426,8 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
 
     last = log[-1] if log else None
     last_format = last.format if last else None
-    env = {"minutes": minutes, "sess": sess, "cat": cat, "request": request, "level": level, "log": log,
+    weights = context.kit_weights(profile).get(request.get("kit") or "")
+    env = {"kit_loads": _loads_line(weights, equipment) if weights else "", "minutes": minutes, "sess": sess, "cat": cat, "request": request, "level": level, "log": log,
            "today": today, "sel": sel, "limits": limits, "likes": likes, "last": last, "health": health,
            "equipment": equipment, "avoid": avoid, "dislikes": dislikes, "warnings": warnings}
     if request.get("method"):
@@ -434,13 +443,36 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
     rotated = last_format and sessions.ranked(sess, goal, minutes, level, equipment)[0].name == last_format
     why = (f"the last session was {last_format}" if rotated and first.name != last_format
            else f"it suits {goal} in {minutes} minutes")
+    built: List[Skeleton] = []
+    failed = None
     for i, method in enumerate(ranked):   # the next method when one cannot fill its slots today
         try:
-            return _build(method, why if i == 0 else f"{first.name} did not fit", env)
+            built.append(_build(method, why if i == 0 else f"{first.name} did not fit", env))
         except Unfit as e:
-            if i == 0:
+            if failed is None:
                 failed = e
-    raise failed
+            continue
+        if not built[0].dropped or built[0].method.work != "sets" or goal_is(request, "targeted"):
+            return built[0]
+    if not built:
+        raise failed
+    return built[0] if goal_is(request, "targeted") else _covering(built, last_format)
+
+
+def _covering(built: List[Skeleton], last_format: Optional[str]) -> Skeleton:
+    """The first skeleton, unless it runs straight sets that drop patterns for time and paired sets (not
+    the last session's format) fit more of them into the same minutes: pairing roughly halves the time a
+    set takes, and every major muscle group each session beats one format's tidiness (programming.md,
+    Rest and pairing, and Muscle coverage)."""
+    first = built[0]
+    better = [sk for sk in built[1:] if sk.method.work in COVERING and sk.method.name != last_format
+              and len(sk.dropped) < len(first.dropped)]
+    if not better:
+        return first
+    best = min(better, key=lambda sk: len(sk.dropped))   # the earliest of the fewest dropped
+    drops = f"drops only {', '.join(best.dropped)}" if best.dropped else "fits every pattern"
+    return best._replace(why=f"{first.method.name} would drop {', '.join(first.dropped)} for time, "
+                             f"and {best.method.name} {drops} in {best.minutes} minutes")
 
 
 def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
@@ -495,7 +527,10 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
         pats = _order(cat, block["patterns"], aim, week, leads, liked)
         filled = _fill(pats, work_pool, rank, used)
         mixed = False
-        if block.get("fallback") and sum(len(ms) for _, ms in filled) < 2:
+        # "hard enough" is the level's leading effort: hard above novice, moderate or hard at novice
+        enough = sum(1 for _, ms in filled for m in ms if EFFORT_RANK[level].get(m.effort, 0) == 0
+                     or (level == "novice" and m.effort == "hard"))
+        if block.get("fallback") and enough < 2:
             mixed = True
             more = _order(cat, block["fallback"], aim, week, leads, liked)
             filled += _fill([p for p in more if p not in pats], work_pool, rank, used)
@@ -584,7 +619,7 @@ def _build(method: sessions.Method, why: str, env: dict) -> Skeleton:
     return Skeleton(method, minutes, warmup, blocks, finisher, cooldown, dropped, warnings,
                     _would_open(cat, sel, equipment, level, limits, avoid, dislikes),
                     tuple(context.clinician_lines(health, cat.areas, cat.flags)) + tuple(today_lines), why,
-                    sides, extras, fdose)
+                    sides, extras, fdose, env.get("kit_loads", ""), cat)
 
 
 def _breathing(cat: catalog.Catalog, mid: str) -> bool:
@@ -832,7 +867,60 @@ def render(sk: Skeleton) -> List[str]:
         out.append(f"Dropped: {', '.join(sk.dropped)} (no time left for them)")
     if sk.would_open:
         out.append("Would open up: " + ", ".join(f"{e} (+{n})" for e, n in sk.would_open))
+    if sk.kit_loads:
+        out.append(sk.kit_loads)
+    out += muscle_lines(sk)
+    out += coaching(sk)
     return out
+
+
+MAJOR = ("quads", "hamstrings", "glutes", "chest", "back", "shoulders", "biceps", "triceps", "core")
+MUSCLE_GROUP = {"lats": "back"}   # muscles counted under a major group
+
+
+def muscle_lines(sk: Skeleton) -> List[str]:
+    """The major muscle groups the work's first picks train, and the ones they leave out."""
+    worked = {MUSCLE_GROUP.get(mu, mu) for _, slots in sk.blocks for s in slots for mu in s.candidates[0][0].muscles}
+    if not worked:
+        return []
+    missing = [g for g in MAJOR if g not in worked]
+    line = "Muscles: " + ", ".join(g for g in MAJOR if g in worked)
+    return [line + (f"; left out: {', '.join(missing)}" if missing else "; every major group")]
+
+
+def _coached(sk: Skeleton) -> List[catalog.Movement]:
+    """The movements the coaching notes cover: each slot's first pick, the warm-up's first three, the
+    finisher's first two and the cool-down's first two, each once."""
+    extras = sk.extras or {}
+    ms = [m for m, _ in (extras.get("warmup") or [])[:3]]
+    ms += [s.candidates[0][0] for _, slots in sk.blocks for s in slots]
+    ms += [m for m, _ in (extras.get("finisher") or [])[:2]] + [m for m, _ in (extras.get("cooldown") or [])[:2]]
+    return list({m.id: m for m in ms}.values())
+
+
+def coaching(sk: Skeleton) -> List[str]:
+    """The catalog's spoken coaching for the movements the script will most likely use, so cues come
+    from the catalog, not memory. `./sweatcast movements --about <ids>` prints it for any swap."""
+    ms = _coached(sk)
+    if not ms:
+        return []
+    out = ["Coaching (the first picks; ./sweatcast movements --about <ids> for any other candidate):"]
+    for m in ms:
+        out += movements.about(sk.cat, m, (sk.healthy_sides or {}).get(m.id))
+    return out
+
+
+def _loads_line(weights: Tuple[str, Dict[str, list]], equipment: Set[str]) -> str:
+    """"Loads on hand: dumbbells 10, 15, 20 lb (heaviest 20); kettlebell 30 lb", from the kit's weights."""
+    unit, table = weights
+    parts = []
+    for e, ws in table.items():
+        if e not in equipment:
+            continue
+        shown = ", ".join(f"{w:g}" for w in ws)
+        parts.append(f"{e} {shown} {unit}" + (f" (heaviest {ws[-1]:g})" if len(ws) > 1 else ""))
+    return ("Loads on hand: " + "; ".join(parts) +
+            ". At the heaviest, progress by reps, tempo, pauses, range or one side (programming.md)") if parts else ""
 
 
 def _round_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
@@ -861,7 +949,7 @@ def _pair_markers(slots: List[Slot], sk: Skeleton) -> List[str]:
         secs = [work + sum(m.transition_seconds for m in ms) + (rest if k < sets - 1 else 0) for k in range(sets)]
         secs[-1] += sum(s.seconds for s in group) - sum(secs)
         names = ", then ".join(_named(m, sk) for m in ms)
-        head = f"Pair {g + 1} of {len(groups)}, " if len(group) == 2 else ""
+        head = f"Pair {g + 1} of {sum(len(x) == 2 for x in groups)}, " if len(group) == 2 else ""
         title = names[:1].upper() + names[1:]
         out += [f"@@ {secs[k]} | {head}set {k + 1} of {sets}: {title}" if head else
                 f"@@ {secs[k]} | {title}, set {k + 1} of {sets}" for k in range(sets)]

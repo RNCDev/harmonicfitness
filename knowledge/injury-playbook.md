@@ -3,7 +3,7 @@
 Working around a known, assessed injury; not a substitute for a clinician. **A clinician's rules always win**: write them word for word under `## Clinician rules` in `me/health.md`. Where this file, `knowledge/kits.md` and `me/health.md` disagree, the strictest wins.
 
 ## How limits work
-Each injury is a `[[limits]]` row in `me/health.md`. Movements rate each area's load from 0 to 3 (`loads`, and `support` for the resting side). **Off limits** rules out loads of 1 or more; **delicate** rules out 2 or more, plus `impact` and `fast` work. A row's `flags` rule out more; its `rehab` ids stay in. A left or right limit keeps healthy-side work. `./sweatcast session` applies this. The loosening signs below are house judgment; each source supports only what its own bullet says, and none gives criteria for moving on.
+Each injury is a `[[limits]]` row in `me/health.md`. Movements rate each area's load from 0 to 3 (`loads`, and `support` for the resting side). **Off limits** rules out loads of 1 or more; **delicate** rules out 2 or more, plus all `impact` work and any `fast` work that loads the area at all (fast seated punching stays in for a delicate foot; jumping never does). The foot, ankle and calf count as one chain for this: fast work that loads any of them is out under a delicate one. A row's `flags` rule out more; its `rehab` ids stay in. A left or right limit keeps healthy-side work. `./sweatcast session` applies this. The loosening signs below are house judgment; each source supports only what its own bullet says, and none gives pass marks for moving on.
 
 Only the listener's report loosens a limit, never time passing; "mostly" means "not yet". The morning after matters most: worse next day means too much, and the limit tightens. Pain stays at two or three out of ten at most; sharp pain, new swelling, numbness or giving way stops the movement.
 
@@ -11,29 +11,36 @@ Only the listener's report loosens a limit, never time passing; "mostly" means "
 Mention these in chat, not in the audio, if the listener reports them: inability to bear weight, rapidly increasing swelling, numbness or tingling, a joint that gives way, or pain that keeps getting worse after a week or two. These deserve a clinician visit before more training.
 
 ## Foot
-No source confirmed; off limits and delicate mean the same load rule as elsewhere. Loosen when barefoot walking is pain-free.
+Off limits and delicate mean the same load rule as elsewhere. Loosen when barefoot walking is pain-free.
+- Plantar heel pain: a guideline recommends plantar fascia and calf stretching (grade A) and resistance exercise for the foot and ankle muscles (grade B), and night splints for 1 to 3 months when the first steps in the morning hurt; no loading progression or timings. Source: https://www.orthopt.org/uploads/content_files/files/Heel_Pain_Plantar_Fasciitis_revision_2023_1_.pdf (Koc and colleagues, JOSPT 2023, https://pubmed.ncbi.nlm.nih.gov/38037331/)
 
 ## Ankle
-Off limits keeps weight off the foot (`./sweatcast session` rules out anything done standing, and pedaling counts as a light ankle load); delicate allows light two-footed work. Delicate once there's no limp, rest pain or swelling; clear once single-leg balance and calf raises match the other side, with no swelling next morning. Keep balance work in sessions for months (house judgment).
+Off limits keeps weight off the foot (`./sweatcast session` rules out anything done standing, and pedaling counts as a light ankle load); while it lasts, seated range of motion (ankle circles, the alphabet) comes in only when the limit names it under `rehab`. Delicate allows light two-footed standing work, and band eversion and calf raises when the limit names them under `rehab` (the catalog rates them ankle 2 or 3, so they come in only that way). Delicate once there's no limp, rest pain or swelling; then, in order, single-leg balance (eyes open, then closed) and single-leg calf raises; clear for hops and landing once single-leg balance and calf raises match the other side, with no swelling next morning. The order follows the guideline's list below; the gates are house judgment, since no source sets pass marks. Keep balance work in sessions for at least eight weeks after clearing, and longer is fine.
 - Most common sports injury, often recurs; an expert consensus checks pain, range, strength, confidence, balance and hopping before sport, without pass marks. Source: https://pubmed.ncbi.nlm.nih.gov/34158354/
 - Brief immobilisation may ease pain; after an ankle ligament rupture, brace or tape plus exercise does best. Source: https://pubmed.ncbi.nlm.nih.gov/29514819/
 - Early mobilisation helps; moderate evidence that balance training prevents another sprain, dose unstated. Source: https://pubmed.ncbi.nlm.nih.gov/28053200/
+- A guideline (grade A) advises braces or taping with progressively more weight on the foot after a sprain, immobilisation of up to 10 days only for severe ones, then structured exercise at home and in clinic (active range of motion kept within comfort, stretching, neuromuscular and balance training), plus bracing and balance-focused training to prevent another sprain; it lists measures to recheck (weight-bearing lunge, eyes-closed single-leg balance, reach balance, timed single-leg hopping) but sets no pass marks. Source: https://www.orthopt.org/uploads/content_files/files/jospt.2021.0302.pdf (Martin and colleagues, JOSPT 2021, https://pubmed.ncbi.nlm.nih.gov/33789434/)
+- A home balance programme after usual care (8 weeks, three sessions a week of up to 30 minutes on a balance board, started after returning to sport) cut repeat sprains over a year from 33 to 22 percent (522 athletes, relative risk 0.63, nine treated to prevent one); the exercises themselves aren't in the paper. Source: https://pubmed.ncbi.nlm.nih.gov/19589822/
 
 ## Calf
-No source confirmed; off limits and delicate mean the same load rule as elsewhere. Loosen when a double-leg calf raise is pain-free.
+Off limits and delicate mean the same load rule as elsewhere. Loosen when a double-leg calf raise is pain-free.
+- Calf strain: twenty expert sports clinicians described rehab in six phases, guided by the calf's measured capacity and how it responds to loading rather than by time; experts' views, not a trial, and no doses. Source: https://pubmed.ncbi.nlm.nih.gov/35032233/
 
 ## Knee
 Off limits keeps load off the bent knee; delicate allows partial-range squats, no landing. Delicate once walking and stairs are pain-free; clear once a full squat and stairs down are, with nothing worse next morning.
 - Kneecap pain: a consensus recommends hip plus knee exercise over knee alone; not for acute tears. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC4975825/
 
 ## Hamstring
-No source confirmed; off limits and delicate mean the same load rule as elsewhere. Loosen when a light hinge is pain-free.
+Off limits and delicate mean the same load rule as elsewhere. Loosen when a light hinge is pain-free.
+- Acute hamstring strain: lengthening exercises (75 elite footballers, MRI-confirmed) returned players to training in 28 days on average against 51 with conventional exercises; elite sport, supervised, no home dose. Source: https://pubmed.ncbi.nlm.nih.gov/23536466/
+- A previous hamstring strain is among the strongest risk factors for another (78 studies, recent strain risk ratio 4.8), so keep hamstring strengthening in after clearing. Source: https://pubmed.ncbi.nlm.nih.gov/32299793/
 
 ## Hip
 No area-specific source confirmed. Off limits keeps load off the hip; delicate allows light squats and hinges in a pain-free range. Delicate once there's no night pain or limp; clear once a loaded squat and hinge are pain-free and single-leg balance is steady.
 
 ## Groin
-No source confirmed; off limits and delicate mean the same load rule as elsewhere. Loosen when side steps are pain-free.
+Off limits and delicate mean the same load rule as elsewhere. Loosen when side steps are pain-free.
+- Long-standing adductor groin pain: an 8-to-12-week active programme strengthening the muscles around the pelvis, especially the adductors, returned 23 athletes to sport pain-free against 4 with passive physiotherapy (68 athletes in all, odds ratio 12.7); it covers months-old pain, not a fresh strain. Source: https://pubmed.ncbi.nlm.nih.gov/9989713/
 
 ## Low back
 Walking and neutral-spine core work continue throughout; off limits also keeps out bending and twisting the spine (the catalog's `spine-flexion` and `spine-twist` flags, which `./sweatcast session` rules out on its own); delicate allows light flat-back hinging. Delicate once rising from bed and a ten-minute walk are pain-free; clear once a light hinge is pain-free that day and next.
