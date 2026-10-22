@@ -30,6 +30,7 @@ import feeds  # noqa: E402
 import paths  # noqa: E402
 import render  # noqa: E402
 import tts_build  # noqa: E402
+import migrate  # noqa: E402
 import voices  # noqa: E402
 import youtube  # noqa: E402
 from draft import CHIME, CHIME_SECONDS, PARAGRAPH_GAP, parse, plan, spans  # noqa: E402
@@ -1126,6 +1127,197 @@ class Migrate(unittest.TestCase):
         self.assertNotIn("schema", out.stdout)
         self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
         self.assertIn("feed '[Team]' isn't filled in yet", out.stdout)
+
+
+class Context3(unittest.TestCase):
+    """Schema 3: experience, likes, dislikes, kits, and the health file's limits."""
+
+    SETTINGS = """experience = "experienced"
+likes = ["goblet-squat"]
+dislikes = ["box-squat"]
+
+[[kits]]
+name = "garage"
+equipment = ["dumbbells", "mat"]
+
+[[voices]]
+name = "Qwen3 Coach"
+description = "crisp"
+"""
+    HEALTH = """# Health
+
+## Active injuries and limitations
+- Left ankle: invented sprain.
+
+## Clinician rules
+- No jumping until cleared.
+[what your clinician told you]
+<!-- a note for the listener -->
+
+## Other
+- not a rule
+"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = self.tmp.name
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def health_file(self, settings, prose=None):
+        path = os.path.join(self.dir, "health.md")
+        write_file(path, f"+++\nschema = {context.SCHEMA}\n{settings}\n+++\n{prose or self.HEALTH}")
+        return path
+
+    ROW = """[[limits]]
+area = "ankle"
+side = "left"
+level = "delicate"
+rehab = ["calf-raise"]
+note = "Therapist: no impact."
+"""
+
+    def test_profile_settings(self):
+        write_file(os.path.join(self.dir, "profile.md"), profile_text(self.SETTINGS))
+        p = context.profile(os.path.join(self.dir, "profile.md"))
+        self.assertEqual(context.SCHEMA, 3)
+        self.assertEqual(context.experience(p), "experienced")
+        self.assertEqual(context.likes(p), ["goblet-squat"])
+        self.assertEqual(context.dislikes(p), ["box-squat"])
+        self.assertEqual(context.kits(p), {"garage": ["dumbbells", "mat"]})
+        for settings in ('experience = ""', 'experience = "expert"', ""):
+            bare = context.Profile(context.front(profile_text(settings))[0], "")
+            self.assertIsNone(context.experience(bare))
+            self.assertEqual((context.likes(bare), context.dislikes(bare), context.kits(bare)), ([], [], {}))
+
+    def test_health_limits_and_clinician_lines(self):
+        h = context.health(self.health_file(self.ROW))
+        self.assertEqual(context.limits(h), [catalog.Limit("ankle", "left", "delicate", [], ["calf-raise"],
+                                                           "Therapist: no impact.")])
+        self.assertEqual(context.clinician_lines(h), ["Therapist: no impact.", "No jumping until cleared."])
+        self.assertEqual(context.limits(context.health(self.health_file(""))), [])
+
+    def test_bad_limit_row_is_reported(self):
+        bad = ('[[limits]]\narea = "elbowish"\nlevel = "delicate"\n\n[[limits]]\narea = "knee"\n'
+               'side = "up"\nlevel = "off-limits"\n\n[[limits]]\narea = "knee"\nlevel = "sore"\n\n'
+               '[[limits]]\narea = "knee"\nlevel = "off-limits"\n')
+        path = self.health_file(bad)
+        got = context.limits(context.health(path))
+        self.assertEqual([(l.area, l.side, l.level) for l in got], [("knee", "both", "off-limits")])
+        msgs = [i.message for i in context.check([path]) if not i.note]
+        self.assertEqual(len(msgs), 3, msgs)
+        self.assertTrue(any("elbowish" in m and "knee" in m for m in msgs))     # names the valid areas
+        self.assertTrue(any("left, right or both" in m for m in msgs))
+        self.assertTrue(any("off-limits or delicate" in m for m in msgs))
+
+    def test_rehab_ids_are_checked_as_notes(self):
+        row = self.ROW.replace('"calf-raise"', '"no-such-move"')
+        issues = context.check([self.health_file(row)])
+        self.assertTrue(any(i.note and "no-such-move" in i.message for i in issues))
+        self.assertFalse(any(not i.note for i in issues))
+
+    def test_prose_injuries_without_limits_is_a_note(self):
+        path = self.health_file("")
+        h = context.health(path)
+        self.assertTrue(context.prose_injuries(h))
+        notes = [i for i in context.check([path]) if "no rule" in i.message or "[[limits]]" in i.message]
+        self.assertEqual(len(notes), 1)
+        self.assertTrue(notes[0].note)
+        self.assertIn("injuries written in prose have no [[limits]] entry", notes[0].message)
+        with_row = context.health(self.health_file(self.ROW))
+        self.assertTrue(context.prose_injuries(with_row))
+        self.assertFalse(any("have no [[limits]]" in i.message for i in context.check([with_row.path])))
+        none = self.HEALTH.replace("- Left ankle: invented sprain.", "- None right now.")
+        self.assertFalse(context.prose_injuries(context.health(self.health_file("", none))))
+        commented = self.HEALTH.replace("- Left ankle: invented sprain.",
+                                        "- None right now.\n<!-- e.g.\n- Left ankle: sprain\n-->")
+        self.assertFalse(context.prose_injuries(context.health(self.health_file("", commented))))
+
+    def test_profile_check_notes(self):
+        write_file(os.path.join(self.dir, "profile.md"), profile_text(
+            'experience = ""\nlikes = ["no-such-move"]\ndislikes = ["box-squat"]\n\n[[kits]]\nname = "x"\n'
+            'equipment = ["dumbbells", "jetpack"]\n\n[[voices]]\nname = "V"\ndescription = "d"\n'))
+        msgs = [i.message for i in context.check([os.path.join(self.dir, "profile.md")]) if i.note]
+        self.assertTrue(any("no experience level: novice, experienced or advanced" in m for m in msgs))
+        self.assertTrue(any("no-such-move" in m for m in msgs))
+        self.assertFalse(any("box-squat" in m for m in msgs))
+        self.assertTrue(any("jetpack" in m for m in msgs))
+        self.assertFalse(any("dumbbells" in m for m in msgs))
+
+    def test_get_experience(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = fresh_home(d)
+            out = run([sys.executable, "tools/context.py", "get", "experience"], home=home)
+            self.assertEqual((out.returncode, out.stdout), (0, "\n"), out.stderr)
+            path = os.path.join(home, "profile.md")
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+            write_file(path, text.replace('experience = ""', 'experience = "advanced"'))
+            out = run([sys.executable, "tools/context.py", "get", "experience"], home=home)
+            self.assertEqual(out.stdout, "advanced\n")
+
+
+class Migrate3(unittest.TestCase):
+    """Schema 2 to 3, on the schema-2 shape of the example files."""
+
+    PROFILE2 = ('+++\nschema = 2\n# rate\nwords_per_minute = 165\ndeliver_to = ""\n\n[[voices]]\n'
+                'name = "V"\ndescription = "d"\n+++\n# My Profile\n')
+    HEALTH2 = ("+++\nschema = 2\n+++\n# Health\n\n## Active injuries and limitations\n"
+               "- Left ankle: invented sprain.\n")
+
+    def test_migrate_2_to_3_adds_the_keys(self):
+        p = migrate.to_3(self.PROFILE2, "profile.md")
+        settings, rest = context.front(p)
+        self.assertEqual((settings["schema"], settings["experience"], settings["likes"], settings["dislikes"]),
+                         (3, "", [], []))
+        self.assertNotIn("kits", settings)
+        self.assertLess(p.index("words_per_minute"), p.index("experience"))
+        self.assertLess(p.index("experience"), p.index("deliver_to"))
+        self.assertIn(f"# {context.SETTINGS_COMMENTS['experience']}", p)
+        self.assertEqual(settings["voices"], [{"name": "V", "description": "d"}])
+        self.assertEqual(rest, "# My Profile\n")
+        h = migrate.to_3(self.HEALTH2, "health.md")
+        settings, rest = context.front(h)
+        self.assertEqual(settings, {"schema": 3})
+        self.assertIn("[[limits]]", h.split("+++")[1])                  # the comment line names it
+        self.assertEqual(rest, context.body(self.HEALTH2))
+        log = migrate.to_3("+++\nschema = 2\n+++\n# Log\n", "log.md")
+        self.assertEqual(log, "+++\nschema = 3\n+++\n# Log\n")
+
+    def test_limits_row_after_migration_parses(self):
+        h = migrate.to_3(self.HEALTH2, "health.md")
+        h = h.replace("\n+++\n# Health", ('\n[[limits]]\narea = "ankle"\nside = "left"\n'
+                                          'level = "off-limits"\n+++\n# Health'), 1)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "health.md")
+            write_file(path, h)
+            got = context.limits(context.health(path))
+        self.assertEqual(got, [catalog.Limit("ankle", "left", "off-limits", [], [], "")])
+
+    def test_migrate_runs_through_the_command(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = fresh_home(d)
+            for name, text in (("profile.md", self.PROFILE2), ("health.md", self.HEALTH2)):
+                write_file(os.path.join(home, name), text)
+            for name in ("log.md", "exercise-science.md"):
+                path = os.path.join(home, name)
+                with open(path, encoding="utf-8") as f:
+                    write_file(path, context.with_front_matter(context.body(f.read()), 2,))
+            out = run([sys.executable, "tools/migrate.py"], home=home)
+            self.assertIn("schema 2 to 3", out.stdout, out.stderr)
+            self.assertEqual([i for i in context.check([os.path.join(home, "health.md")]) if not i.note], [])
+
+    def test_example_is_schema_3(self):
+        issues = context.check([os.path.join(paths.EXAMPLE, n) for n in
+                                ("profile.md", "health.md", "log.md", "exercise-science.md")])
+        self.assertFalse([i for i in issues if "schema" in i.message])
+        self.assertFalse([i for i in issues if os.path.basename(i.path) != "profile.md" and not i.note], issues)
+        h = context.health(os.path.join(paths.EXAMPLE, "health.md"))
+        self.assertEqual((context.limits(h), context.clinician_lines(h)), ([], []))
+        p = context.profile(os.path.join(paths.EXAMPLE, "profile.md"))
+        self.assertEqual(context.kits(p), {"home": ["dumbbells", "band", "mat"]})
+        self.assertEqual(context.SCHEMA, 3)
 
 
 class VoiceDesign(unittest.TestCase):

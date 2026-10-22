@@ -1,5 +1,5 @@
 +++
-schema = 2
+schema = 3
 +++
 # Exercise science, my additions
 

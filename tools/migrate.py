@@ -15,6 +15,11 @@ Steps:
         to:", "Measured words per minute", the YouTube favorites and Puzzles handles, and
         the Feeds section. Their lines leave the prose, and one sentence says where they
         went. The other files only change their front matter.
+    2 to 3 (sweatcast 4.0.0): profile.md gains `experience`, `likes` and `dislikes` in its
+        settings (empty; fill them in, and add `[[kits]]` tables if you want named kits);
+        health.md gains a comment in its settings block saying each injury needs a
+        `[[limits]]` entry, which you write yourself (the tools can't read an injury from
+        prose). The other files only change their schema number.
 """
 import os
 import shutil
@@ -42,7 +47,35 @@ def to_2(text, path):
                                      context.SETTINGS_COMMENTS)
 
 
-STEPS = {0: to_1, 1: to_2}   # from schema N, the function that makes it N + 1
+HEALTH_NOTE = ("# Each injury listed below needs a [[limits]] entry here (area, side, level, note); "
+               "see me.example/health.md. The session tool reads only these rows.")
+
+
+def to_3(text, path):
+    """Schema 2 to 3: the profile gains experience, likes and dislikes; the health file
+    a comment about [[limits]]; every file its new schema number. Edits the settings
+    block as text, so its comments and order survive."""
+    m = context.TOML_FRONT_RE.match(text)
+    if not m:
+        return context.with_front_matter(text, 3)
+    lines = [ln for ln in m.group(1).split("\n") if ln.strip() != "schema = 2"]
+    name = os.path.basename(path)
+    if name == "profile.md":
+        new = []
+        for key, value in (("experience", '""'), ("likes", "[]"), ("dislikes", "[]")):
+            new += [f"# {context.SETTINGS_COMMENTS[key]}", f"{key} = {value}"]
+        at = next((i + 1 for i, ln in enumerate(lines) if ln.startswith("words_per_minute")), None)
+        if at is None:   # no rate: the new keys go before the first table
+            at = next((i for i, ln in enumerate(lines) if ln.lstrip().startswith("[")), len(lines))
+        lines[at:at] = new
+    elif name == "health.md":
+        lines.append(HEALTH_NOTE)
+    block = "\n".join(["schema = 3"] + lines).strip("\n")
+    context.tomllib.loads(block)   # never write a block that doesn't parse
+    return f"+++\n{block}\n+++\n" + text[m.end():]
+
+
+STEPS = {0: to_1, 1: to_2, 2: to_3}   # from schema N, the function that makes it N + 1
 
 
 def plan():

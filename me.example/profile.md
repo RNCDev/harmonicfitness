@@ -1,7 +1,13 @@
 +++
-schema = 2
+schema = 3
 # The drafting guide's starting rate; the lint then uses each voice's measured pace.
 words_per_minute = 165
+# Your training level: novice, experienced or advanced. The session tool picks movements to match.
+experience = ""
+# Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.
+likes = []
+# Movements to leave out (ids or names); the session tool never picks them.
+dislikes = []
 # Where finished MP3s are copied: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Empty keeps them in me/workouts/.
 deliver_to = ""
 # Channels (@handles) for the deep dives retold from a video's transcript.
@@ -18,6 +24,12 @@ description = "man in his forties, warm baritone, a seasoned trainer talking to 
 [[voices]]
 name = "Qwen3 Coach"
 description = "man in his thirties, a focused class instructor. The clearest diction."
+
+# Equipment kits the session tool can plan with: a name and the equipment ids you have there (./sweatcast movements lists them).
+
+[[kits]]
+name = "home"
+equipment = ["dumbbells", "band", "mat"]
 
 # Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected).
 

@@ -5,16 +5,19 @@ reads and the tools parse. Every tool goes through this module, so a format live
 one place. Each file opens with TOML front matter naming its format's version:
 
     +++
-    schema = 2
+    schema = 3
     +++
 
 The profile's front matter also holds every setting a tool reads (voices, delivery
-folder, words per minute, YouTube channels, puzzles, feeds), so the prose below it
-is free-form and only Claude reads it. A file from an older sweatcast (schema 1 used
+folder, words per minute, experience level, likes and dislikes, equipment kits, YouTube
+channels, puzzles, feeds), so the prose below it is free-form and only Claude reads it.
+Schema 3 adds the profile's `experience`, `likes`, `dislikes` and `[[kits]]`, and the
+health file's `[[limits]]` rows (area, side, level, flags, rehab, note) with its
+`## Clinician rules` section, which the session tool applies as rules. A file from an older sweatcast (schema 1 used
 `---` front matter, schema 0 had none) stops the tools with the command that brings
 it up to date, `./sweatcast migrate`.
 
-    ./sweatcast get default-voice     # also: wpm, voices
+    ./sweatcast get default-voice     # also: wpm, voices, experience
     ./sweatcast deliver               # existing delivery folders, one per line
     ./sweatcast check                 # every file's format, and lines not filled in yet
     ./sweatcast log-session --date 2026-10-21 --minutes 25 --kit Home \\
@@ -40,11 +43,12 @@ except ImportError:   # Python before 3.11, such as the Mac's own python3
                      "Use ./sweatcast <command> (./sweatcast help lists them).")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import catalog  # noqa: E402
 import cli  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
-SCHEMA = 2
+SCHEMA = 3
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
 SCHEMA_LINE_RE = re.compile(r"^schema:\s*(\d+)\s*$", re.MULTILINE)
@@ -265,6 +269,34 @@ def handles(p, label):
     return [h.strip().lstrip("@") for h in p.settings.get(key) or [] if isinstance(h, str) and not unfilled(h)]
 
 
+def experience(p):
+    """The listener's level, one of catalog.LEVELS, or None (unset or unrecognised)."""
+    v = p.settings.get("experience")
+    v = v.strip().lower() if isinstance(v, str) else ""
+    return v if v in catalog.LEVELS else None
+
+
+def _names(p, key):
+    return [x.strip() for x in p.settings.get(key) or [] if isinstance(x, str) and x.strip()]
+
+
+def likes(p):
+    """Movement ids or names the listener likes."""
+    return _names(p, "likes")
+
+
+def dislikes(p):
+    """Movement ids or names the listener dislikes."""
+    return _names(p, "dislikes")
+
+
+def kits(p):
+    """{kit name: equipment ids} from [[kits]], as written."""
+    return {str(k["name"]).strip(): [e for e in k.get("equipment") or [] if isinstance(e, str)]
+            for k in p.settings.get("kits") or []
+            if isinstance(k, dict) and isinstance(k.get("name"), str) and k["name"].strip()}
+
+
 def add_voice_to_profile(name, description="", default=False, path=None):
     """List a voice in the profile's [[voices]], first when it's to be the default.
     Edits the settings block as text, so its comments and order survive."""
@@ -303,6 +335,9 @@ def add_voice_to_profile(name, description="", default=False, path=None):
 
 SETTINGS_COMMENTS = {
     "words_per_minute": "The drafting guide's starting rate; the lint then uses each voice's measured pace.",
+    "experience": "Your training level: novice, experienced or advanced. The session tool picks movements to match.",
+    "likes": "Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.",
+    "dislikes": "Movements to leave out (ids or names); the session tool never picks them.",
     "deliver_to": "Where finished MP3s are copied: a folder that syncs to your phone. ~ is your home "
                   "folder and * matches anything (any Google account). Empty keeps them in me/workouts/.",
     "youtube_favorites": "Channels (@handles) for the deep dives retold from a video's transcript.",
@@ -313,6 +348,82 @@ SETTINGS_COMMENTS = {
              "longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), "
              "onthisday (selected).",
 }
+
+
+# ---- the health file -------------------------------------------------------------------
+
+LIMIT_SIDES = ("left", "right", "both")
+LIMIT_LEVELS = ("off-limits", "delicate")
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+INJURIES_HEADING = "Active injuries and limitations"
+CLINICIAN_HEADING = "Clinician rules"
+
+
+@dataclass
+class Health:
+    settings: dict
+    body: str
+    path: str = ""
+
+
+def health(path=None):
+    """The health file: its settings (the [[limits]] rows) and its prose."""
+    path = path or paths.HEALTH
+    text = read_raw(path, "health file")
+    problem = schema_problem(path, text)
+    if problem:
+        raise SystemExit(problem)
+    settings, rest = front(text)
+    return Health(settings, rest, path)
+
+
+def _limit_row(row, areas):
+    """(Limit, None) for a good [[limits]] row, else (None, a sentence saying what's wrong)."""
+    if not isinstance(row, dict):
+        return None, "isn't a table"
+    area, side = row.get("area"), row.get("side", "both")
+    level = row.get("level")
+    if area not in areas:
+        return None, f"area '{area}' isn't one of: {', '.join(areas)}"
+    if side not in LIMIT_SIDES:
+        return None, f"side '{side}' must be left, right or both"
+    if level not in LIMIT_LEVELS:
+        return None, f"level '{level}' must be off-limits or delicate"
+    strings = lambda key: [x for x in row.get(key) or [] if isinstance(x, str)]  # noqa: E731
+    return catalog.Limit(area, side, level, strings("flags"), strings("rehab"),
+                         str(row.get("note") or "").strip()), None
+
+
+def limits(h, areas=None):
+    """The valid [[limits]] rows as catalog.Limit; a row with a bad area, side or level is
+    left out (`check` reports it)."""
+    areas = catalog.load().areas if areas is None else areas
+    found = (_limit_row(row, areas)[0] for row in h.settings.get("limits") or [])
+    return [lim for lim in found if lim]
+
+
+def _section_lines(h, heading):
+    text = HTML_COMMENT_RE.sub("", h.body)
+    return [line.strip() for _, line in section(text, heading)]
+
+
+def clinician_lines(h, areas=None):
+    """Each limit's note, then every line under `## Clinician rules`, as rules to follow
+    literally. Blank lines and the template's [hint] don't count."""
+    out = [lim.note for lim in limits(h, areas) if lim.note]
+    for line in _section_lines(h, CLINICIAN_HEADING):
+        line = line[2:].strip() if line.startswith("- ") else line
+        if line and not line.startswith(("[", "#")):
+            out.append(line)
+    return out
+
+
+def prose_injuries(h):
+    """True when `## Active injuries and limitations` lists anything but "None right now"."""
+    for line in _section_lines(h, INJURIES_HEADING):
+        if line.startswith(("- ", "* ")) and line[2:].strip().rstrip(".").lower() != "none right now":
+            return True
+    return False
 
 
 # ---- schema 1 (sweatcast 2.0.x): settings as lines in the prose, kept for migrate.py ----
@@ -571,11 +682,58 @@ def _check_profile(path, text):
         for h in settings.get(key) or []:
             if placeholder(h):
                 out.append(Issue(path, 0, f"{key}: '{h}' isn't filled in yet"))
+    cat = _catalog()
+    if experience(p) is None:
+        out.append(Issue(path, 0, "no experience level: novice, experienced or advanced", note=True))
+    if cat:
+        for key in ("likes", "dislikes"):
+            for name in _names(p, key):
+                if not catalog.resolve(cat, name):
+                    out.append(Issue(path, 0, f"{key}: '{name}' isn't a movement in the catalog", note=True))
+        for kit, equipment in kits(p).items():
+            for e in equipment:
+                if e not in cat.equipment:
+                    out.append(Issue(path, 0, f"kit '{kit}': '{e}' isn't equipment in the catalog", note=True))
     for n, line in enumerate(rest.splitlines(), 1):
         m = BODY_HINT_RE.match(line)
         if m:
             out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet "
                                                "(still the template's [hint]); fill it in or delete the line"))
+    return out
+
+
+def _catalog():
+    try:
+        return catalog.load()
+    except (SystemExit, ValueError, OSError):
+        return None   # the catalog's own check says what's wrong
+
+
+def _check_health(path, text):
+    try:
+        settings, rest = front(text)
+    except SystemExit as e:
+        return [Issue(path, 1, str(e.code))]
+    h = Health(settings, rest, path)
+    cat = _catalog()
+    out = []
+    rows = settings.get("limits") or []
+    if not isinstance(rows, list):
+        return [Issue(path, 0, "limits must be written as [[limits]] tables")]
+    for i, row in enumerate(rows, 1):
+        if cat:
+            _, problem = _limit_row(row, cat.areas)
+            if problem:
+                out.append(Issue(path, 0, f"[[limits]] row {i}: {problem}; the row is ignored"))
+            elif isinstance(row, dict):
+                for mid in row.get("rehab") or []:
+                    m = cat.movements.get(mid)
+                    if m is None or m.draft:
+                        out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a movement "
+                                                  "in the catalog (or is still a draft)", note=True))
+    if prose_injuries(h) and not limits(h, cat.areas if cat else []):
+        out.append(Issue(path, 0, "injuries written in prose have no [[limits]] entry, so the session "
+                                  "tool applies no rule for them", note=True))
     return out
 
 
@@ -596,6 +754,8 @@ def check(home_files=None):
         name = os.path.basename(path)
         if name == "profile.md":
             out += _check_profile(path, text)
+        elif name == "health.md":
+            out += _check_health(path, text)
         elif name == "log.md":
             rest = body(text)
             offset = len(text.splitlines()) - len(rest.splitlines())
@@ -620,7 +780,7 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("default-voice", "wpm", "voices"))
+    g.add_argument("what", choices=("default-voice", "wpm", "voices", "experience"))
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
     sub.add_parser("check", help="check every context file, and list lines not filled in yet")
     s = sub.add_parser("log-session", help="add a session to log.md, checked")
@@ -641,9 +801,11 @@ def main(argv=None):
             for name, _ in voices(p):
                 print(name)
         else:
-            v = default_voice(p) if args.what == "default-voice" else wpm(p)
+            v = {"default-voice": default_voice, "wpm": wpm, "experience": experience}[args.what](p)
             if v is not None:
                 print(v)
+            elif args.what == "experience":
+                print()
         return cli.OK
     if args.cmd == "deliver":
         pattern, found = delivery_folders(profile())

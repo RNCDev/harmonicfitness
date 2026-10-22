@@ -1,5 +1,5 @@
 +++
-schema = 2
+schema = 3
 +++
 # Workout log
 
