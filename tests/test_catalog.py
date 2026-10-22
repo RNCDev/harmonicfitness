@@ -160,5 +160,15 @@ class Filter(unittest.TestCase):
         self.assertIn("  goblet squat (see quads)", hinge[:next(i for i, l in enumerate(hinge) if not l.startswith("  "))])
 
 
+class KnowledgeFiles(unittest.TestCase):
+    def test_programming_reference_is_sourced(self):
+        text = open(os.path.join(ROOT, "knowledge", "programming.md")).read()
+        for heading in ("## Effort", "## Load range", "## Weekly dose", "## Rest and pairing", "## Tempo",
+                        "## Progression", "## Warm-up, finisher and cool-down", "## One-sided training",
+                        "## Session templates"):
+            self.assertIn(heading, text)
+        self.assertGreaterEqual(text.count("Source: https://"), 8)
+
+
 if __name__ == "__main__":
     unittest.main()
