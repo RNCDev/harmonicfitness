@@ -4,7 +4,7 @@ How hard, how much, how fast and how to progress with a home or hotel kit. Each 
 
 ## Effort
 
-- **Failure isn't required.** Grgic and colleagues (2022, 15 studies, young adults) found no difference between training to failure and stopping short, for strength or for muscle size. Where the groups' volume wasn't matched, stopping short gave more strength. Source: https://pubmed.ncbi.nlm.nih.gov/33497853/ It doesn't cover older adults or very trained lifters.
+- **Failure isn't required.** Grgic and colleagues (2022, 15 studies, young adults) found no difference between training to failure and stopping short, for strength or for muscle size. Where the groups' volume wasn't matched, stopping short gave more strength. Source: https://pubmed.ncbi.nlm.nih.gov/33497853/ It doesn't cover older adults, and in the trained subgroup failure did favour muscle size (effect size 0.15, interval 0.03 to 0.26).
 - **Close matters more for size than strength.** Refalo and colleagues (2023, 15 studies) found only a trivial muscle-size edge for set failure over stopping short (effect size 0.19, interval touching zero), and no edge for true momentary failure. They suggest ending most sets close to failure and keeping failure for the last set or simple movements. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC9935748 It measured muscle size only, and most studies used untrained people.
 - **The same pattern, continuous.** Robinson and colleagues (2024, meta-regressions) found strength gains were similar across a wide range of reps in reserve, while muscle size grew more as sets ended closer to failure. Source: https://pubmed.ncbi.nlm.nih.gov/38970765/ The reps in reserve were estimated from study descriptions, and the authors call it exploratory.
 - **Saying it by ear.** Zourdos and colleagues (2016, 29 squatters) tested a scale where effort ten means no reps left, nine means one left, and so on, and called it a practical way to set daily load. Source: https://pubmed.ncbi.nlm.nih.gov/26049792/ It was tested on barbell squats; it doesn't show how well people judge reps left on light loads at home, and Refalo notes people tend to underestimate how close they are at lower loads.
@@ -25,13 +25,13 @@ Rule: with light dumbbells, use higher reps (15 to 30) and take sets closer to f
 - **A floor for busy weeks.** Iversen and colleagues advise at least four hard sets per muscle a week, say weekly volume matters more than how often, and note three multi-joint exercises can cover the major muscles. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 Four sets is a floor for progress, not the most growth.
 - **Frequency by experience.** The American College of Sports Medicine (2009 position stand) recommends two to three days a week for novices and three to four for intermediates. Source: https://pubmed.ncbi.nlm.nih.gov/19204579/ It dates from 2009, for healthy adults.
 
-What a session holds (worked out from the skill's split, not a study): a set plus its rest takes about two minutes. Fifteen minutes holds about six hard sets; twenty-five about ten to twelve; forty-five about twenty.
+What a session holds (worked out from the skill's split, not a study): a set takes about two minutes with its rest, about half that when paired. Fifteen minutes holds about six hard sets; twenty-five about ten to twelve; forty-five about twenty.
 
 Rule: aim for at least four hard sets per major muscle group a week, spread over two or more sessions, and more when the week allows. The coverage check spreads groups across sessions.
 
 ## Rest and pairing
 
-- **Rest.** Iversen and colleagues found one to two minutes between sets is enough for untrained people; trained people probably need two minutes or more. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+- **Rest.** Iversen and colleagues found one to two minutes between sets is enough for untrained people; trained people probably need two minutes or more. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 It's a narrative review, and most studies were on untrained or recreational lifters.
 - **Pairing saves time.** The same review found supersets, drop sets and rest-pause roughly halve session time while keeping volume, and favoured supersets of different muscles, such as opposing ones. Evidence is limited, better for muscle than for top strength, and not advised for heavy free-weight squats and presses. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 - **Rest by goal.** The American College of Sports Medicine recommends one to two minutes for muscle work and under 90 seconds for muscular endurance with light loads. Source: https://pubmed.ncbi.nlm.nih.gov/19204579/ The ranges are expert consensus, not trial results.
 
@@ -40,7 +40,7 @@ Rule: pair opposing muscles (push with pull) or upper with lower, so one rests w
 ## Tempo
 
 - **A wide range works.** Schoenfeld and colleagues (2015, 8 studies, all to failure) found muscle growth similar for reps lasting 0.5 to 8 seconds; very slow reps (over 10 seconds) looked worse. Source: https://pubmed.ncbi.nlm.nih.gov/25601394/ Few controlled studies, and some mixed load changes with tempo.
-- **Avoid super-slow.** Iversen and colleagues advise a somewhat faster cadence when time is short and avoiding reps of 10 seconds or more. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+- **Avoid super-slow.** Iversen and colleagues advise a somewhat faster cadence when time is short and avoiding reps of 10 seconds or more. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 It's a narrative review, and most studies were on untrained or recreational lifters.
 
 Rule: keep each rep between about two and eight seconds in total (a three-second lowering is fine); never cue a single rep longer than about eight seconds. A slower lowering is a way to make a light weight harder, not a goal in itself.
 
@@ -48,7 +48,7 @@ Rule: keep each rep between about two and eight seconds in total (a three-second
 
 - **When to add load.** The American College of Sports Medicine recommends raising the load 2 to 10 percent once you can do one or two reps more than the target. Source: https://pubmed.ncbi.nlm.nih.gov/19204579/ A home kit often jumps much more than 10 percent between dumbbells.
 
-The order of steps when load is capped is house policy, carried from the skill: a few more reps, a slower lowering, a pause at the hard point, more range, one arm or one leg, and only then the next dumbbell. Change one variable at a time.
+The order of steps when load is capped is house policy: a few more reps, a slower lowering, a pause at the hard point, more range, one arm or one leg, and only then the next dumbbell. Change one variable at a time.
 
 Rule: "too easy" moves the next session one step along that list; "too hard" moves one step back, or trims a set. Say in the audio what changed.
 
@@ -62,7 +62,7 @@ Rule: keep the warm-up short and specific: easy movement, then a lighter first s
 
 ## One-sided training
 
-- **Carry-over.** Manca and colleagues (2017, 31 trials, 785 people) found training one limb raised the untrained limb's strength by about 12 percent (upper limb 9 percent, lower limb 16 percent), most with lowering-focused training. Source: https://pubmed.ncbi.nlm.nih.gov/28936703/ The authors found a high risk of bias, and it measures strength, not size.
+- **Carry-over.** Manca and colleagues (2017, 31 trials, 785 people) found training one limb raised the untrained limb's strength by about 12 percent (upper limb 9 percent, lower limb 16 percent), largest with lowering-focused training. Source: https://pubmed.ncbi.nlm.nih.gov/28936703/ The authors found a high risk of bias, and it measures strength, not size.
 - **During immobilization.** Hendy and colleagues (2012 review) found that early strength loss after immobilization is partly in the nervous system, and that two studies kept strength in an immobilized limb by training the free one. Source: https://pubmed.ncbi.nlm.nih.gov/21924681/ It gives no size of the effect.
 
 Rule: train both sides by default. When an injury rules out one side, training the healthy side still helps the injured one a little; say so in the audio, and never present it as a replacement for the injured side's own rehab.
