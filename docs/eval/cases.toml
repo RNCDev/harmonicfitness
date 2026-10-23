@@ -1,9 +1,9 @@
-# The judged grid: forty cases for ./sweatcast brief (and the composer's baseline, ./sweatcast session), over the four invented listeners in
+# The judged grid: forty cases for ./sweatcast brief (and the composer's baseline, ./sweatcast session at v7.1.0), over the four invented listeners in
 # docs/eval/listeners/. Nine cells (strength, general and conditioning at the novice, experienced and
 # advanced levels), each at two presets and two lengths (a short one of ten to twenty minutes and a long
 # one of thirty to forty five), plus two mobility and two targeted cases. Every third case adds a --limit.
 # A case's level is its listener's (a novice, b and d experienced, c advanced) unless it names one.
-# tests/test_session.py (class Eval) checks the grid and that every case composes; README.md runs it.
+# tests/test_screen.py (class Eval) checks the grid and that every case screens; README.md runs it.
 format = 1
 
 [[case]]

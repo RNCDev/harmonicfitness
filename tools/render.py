@@ -24,6 +24,7 @@ is written), 64 a mistyped command, 1 anything else.
 Usage (normally via ./sweatcast build):
     ./sweatcast render draft.txt --voice "Chatterbox Coach" --out "me/workouts/Workout ....mp3"
     ./sweatcast render draft.txt --voice "Chatterbox Coach" --clips-only   # fill the cache, no MP3
+    ./sweatcast render draft.txt --voice "Chatterbox Coach" --follow       # render ahead as it's written
 """
 import contextlib
 import datetime as dt
@@ -56,6 +57,8 @@ END_NOTES = (660, 880, 1320)   # Hz, rising, so the end can't be mistaken for a 
 END_NOTE = 0.3        # seconds per note
 END_LEAD = 1.0        # seconds of quiet before the end tone
 LOUDNESS = "I=-16:TP=-1.5:LRA=11"   # podcast level, with headroom under 0 dBFS
+FOLLOW_IDLE = 900    # seconds --follow waits with nothing new before it stops
+FOLLOW_POLL = 2.0    # seconds between looks at the draft when nothing is new
 CODECS = {".mp3": ["-c:a", "libmp3lame", "-b:a", "96k"],
           ".m4a": ["-c:a", "aac", "-b:a", "96k"],
           ".wav": ["-c:a", "pcm_s16le"]}
@@ -194,22 +197,34 @@ def encode(pcm, out, title):
                         "-metadata", f"title={title}", *codec, out], check=True)
 
 
+FOLLOWING = "following"   # the lock holder's tag while it renders ahead (--follow)
+
+
+def stop_file(folder):
+    return os.path.join(folder, ".follow.stop")
+
+
 @contextlib.contextmanager
-def render_lock(folder, wait_message=True):
+def render_lock(folder, wait_message=True, follow=False):
     """One render at a time: two voice models don't fit in 16 GB. A second render
-    waits here for the first to finish, then reuses the clips it cached."""
+    waits here for the first to finish, then reuses the clips it cached. A render
+    running ahead (--follow) is asked to stop instead, after its current clip."""
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, ".render.lock")
     with open(path, "a+") as f:
         if not locks.acquire(f, block=False):
             f.seek(0)
             holder = f.read().strip() or "unknown"
-            if wait_message:
+            if holder.endswith(FOLLOWING):
+                open(stop_file(folder), "w").close()
+                if wait_message:
+                    print("Stopping the render running ahead after its current clip.", flush=True)
+            elif wait_message:
                 print(f"Another render is running (pid {holder}); waiting for it to finish.", flush=True)
             locks.acquire(f)
         f.seek(0)
         f.truncate()
-        f.write(str(os.getpid()))
+        f.write(f"{os.getpid()} {FOLLOWING}" if follow else str(os.getpid()))
         f.flush()
         try:
             yield
@@ -251,6 +266,81 @@ def save_build_record(record, out, log=None):
         f.write(json.dumps(record) + "\n")
 
 
+def setup_voice(args):
+    """The voice for args.voice (and --model), and cache_path(text): where a line's clip is cached."""
+    check_pace_file()   # a damaged pace file stops the render now, not after it
+    voice = lookup(args.voice)
+    if args.model:   # so the measured rate is filed under this model
+        voice["model"], voice["revision"] = args.model, None
+    # Everything that changes how a clip sounds goes in its cache key, so changing a
+    # setting (or upgrading mlx-audio) re-renders instead of silently reusing old clips.
+    settings = (f"{voice['model']}@{voice['revision'] or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
+                f"trim {TRIM_DB} {TRIM_KEEP}|{engines.runtime(voice)}")
+
+    def cache_path(text):
+        key = f"{voice['key']}|{voice['engine']}|{args.seed}|{settings}|{text}"
+        return os.path.join(CACHE_DIR, hashlib.sha256(key.encode()).hexdigest()[:24] + ".pcm")
+    return voice, cache_path
+
+
+def spoken_clips(segments):
+    return [text for seg in segments for para in plan(seg) for text, _ in para if is_spoken(text)]
+
+
+def render_clip(say, text, seed, cache_path):
+    """Speak one line into the cache; returns its seconds of audio."""
+    pcm = say(text, seed)
+    tmp = cache_path(text) + ".part"
+    with open(tmp, "wb") as f:
+        f.write(pcm)
+    os.replace(tmp, cache_path(text))
+    return len(pcm) / 2 / SR
+
+
+def follow(args):
+    """Render ahead of a draft that's still being written. Rereads the draft between clips, so
+    each new or edited paragraph renders as it appears, one at a time with the model kept
+    loaded; a draft caught mid-edit is read again a moment later. Stops when another render
+    asks for the lock (the full build, which then renders what's left), or after args.idle
+    seconds with nothing new."""
+    voice, cache_path = setup_voice(args)
+    stop = stop_file(CACHE_DIR)
+    with render_lock(CACHE_DIR, follow=True):
+        if os.path.exists(stop):   # left by a render-ahead that ended before it saw it
+            os.remove(stop)
+        print(f"Rendering ahead of {args.draft} with {voice['name']}; stops when the build starts "
+              f"or after {args.idle:.0f}s with nothing new.", flush=True)
+        say, done, audio_secs, measured_weight = None, 0, 0.0, 0.0
+        idle_since = time.time()
+        while not os.path.exists(stop):
+            try:
+                with open(args.draft, encoding="utf-8") as f:
+                    todo = [t for t in spoken_clips(parse(f.read())) if not os.path.exists(cache_path(t))]
+            except (OSError, ValueError, SystemExit):   # missing for now, or caught mid-edit
+                todo = []
+            if not todo:
+                if time.time() - idle_since > args.idle:
+                    print(f"Nothing new for {args.idle:.0f}s; stopping.", flush=True)
+                    break
+                time.sleep(FOLLOW_POLL)
+                continue
+            if say is None:
+                say = engines.speaker(voice)
+            t0 = time.time()
+            secs = render_clip(say, todo[0], args.seed, cache_path)
+            done, audio_secs, measured_weight = done + 1, audio_secs + secs, measured_weight + weight(todo[0])
+            print(f"  [{done}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
+            idle_since = time.time()
+        if os.path.exists(stop):
+            os.remove(stop)
+        if say is not None:
+            del say
+            engines.release()
+        if done:
+            record_rate(voice, measured_weight, audio_secs - MLX_EDGE * done)
+    print(f"Rendered {done} clip(s) ahead; the full build reuses them.", flush=True)
+
+
 def main():
     ap = cli.ArgumentParser()
     ap.add_argument("draft")
@@ -265,30 +355,23 @@ def main():
                     help="leave out the bell at each new segment and the end tone ([chime] markers still ring)")
     ap.add_argument("--clips-only", action="store_true",
                     help="render and cache the draft's clips, then stop: no timing check, no MP3")
+    ap.add_argument("--follow", action="store_true",
+                    help="render ahead while the draft is written: keep the model loaded, render each new or "
+                         "edited paragraph as it appears, and stop when another render starts or after --idle")
+    ap.add_argument("--idle", type=float, default=FOLLOW_IDLE,
+                    help="with --follow, stop after this many seconds with nothing new to render")
     args = ap.parse_args()
-    if not args.out and not args.clips_only:
-        ap.error("--out is required unless --clips-only")
+    if not args.out and not (args.clips_only or args.follow):
+        ap.error("--out is required unless --clips-only or --follow")
 
+    if args.follow:
+        return follow(args)
     with open(args.draft, encoding="utf-8") as f:
         segments = parse(f.read())
-    check_pace_file()   # a damaged pace file stops the render now, not after it
     started = time.time()
-
-    voice = lookup(args.voice)
-    engine = voice["engine"]
-    if args.model:   # so the measured rate is filed under this model
-        voice["model"], voice["revision"] = args.model, None
-    model_repo, revision, seed = voice["model"], voice["revision"], args.seed
-    # Everything that changes how a clip sounds goes in its cache key, so changing a
-    # setting (or upgrading mlx-audio) re-renders instead of silently reusing old clips.
-    settings = (f"{model_repo}@{revision or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
-                f"trim {TRIM_DB} {TRIM_KEEP}|{engines.runtime(voice)}")
-
-    def cache_path(text):
-        key = f"{voice['key']}|{engine}|{seed}|{settings}|{text}"
-        return os.path.join(CACHE_DIR, hashlib.sha256(key.encode()).hexdigest()[:24] + ".pcm")
-
-    clips = [text for seg in segments for para in plan(seg) for text, _ in para if is_spoken(text)]
+    voice, cache_path = setup_voice(args)
+    engine, seed = voice["engine"], args.seed
+    clips = spoken_clips(segments)
     with render_lock(CACHE_DIR):
         # Counted after the lock, so clips a render that ran first cached aren't redone.
         todo = list(dict.fromkeys(t for t in clips if not os.path.exists(cache_path(t))))
@@ -302,12 +385,7 @@ def main():
             audio_secs, measured_weight = 0.0, 0.0
             for n, text in enumerate(todo, 1):
                 t0 = time.time()
-                pcm = say(text, seed)
-                tmp = cache_path(text) + ".part"
-                with open(tmp, "wb") as f:
-                    f.write(pcm)
-                os.replace(tmp, cache_path(text))
-                secs = len(pcm) / 2 / SR
+                secs = render_clip(say, text, seed, cache_path)
                 audio_secs += secs
                 measured_weight += weight(text)
                 print(f"  [{n}/{len(todo)}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)

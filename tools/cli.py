@@ -4,7 +4,7 @@ The exit codes are the tools' contract with the skills, which branch on them:
     0   done
     1   issues to fix (a lint flag, a missing file, a measurement not on file yet)
     2   the rendered workout ran more than the tolerance over or under plan (render only)
-    3   the voice's speaking rate hasn't been measured yet (build.sh only)
+    3   the voice's speaking rate hasn't been measured yet (build only)
     64  the command itself was wrong: a mistyped option, an unknown voice
 
 Python's argparse exits 2 on a mistyped option, which would read as "the workout ran

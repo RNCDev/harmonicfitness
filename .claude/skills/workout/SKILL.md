@@ -62,8 +62,11 @@ Design the session from the brief: a format (one it lists, or a mix that keeps t
 
 Write `me/workouts/drafts/<YYYY-MM-DD>-<slug>.draft.txt`: the `movements:` line, then the segments. `knowledge/script.md` says what goes in (the opening and safety rules, coaching each movement from its notes, timed work, filler, quiz, deep dive, close), and `knowledge/tts-rules.md` how it sounds and what a voice can read.
 
-- Wait for the research agents. Once the plan is posted, SendMessage any still searching to return what it has verified; script around gaps with coaching, never guesses.
-- Render ahead: once half the segments are written, `./sweatcast build "<draft>" "<name>" --lint-only` and fix anything flagged in that half. Its menu check will also say the segments fall short of the request; that's expected until the draft is finished. Then run the same build with `--clips-only` and `run_in_background: true`. It caches clips only, with no lint; the full build reuses them.
+Write in this order, so nothing waits:
+1. **Render ahead.** Once the draft has its `movements:` line and first segment, run `./sweatcast build "<draft>" "<name>" --follow` (plus `--voice` if not the default) with `run_in_background: true`. It renders each new or edited paragraph as it lands, and stops when the full build starts.
+2. **Coaching first, without waiting for research.** Every segment's coaching from the brief: the opening with its weather, setups, cues, targets and self-checks, holds, transitions. Size the talk by the brief's Talk to time line; leave the rests' stories for later.
+3. **The stories, once research reports.** Add the headlines, science, deep dive and quiz to the rests. Once the plan is posted, SendMessage any agent still searching to return what it has verified; script around gaps with coaching, never guesses.
+4. **Lint.** `./sweatcast build "<draft>" "<name>" --lint-only`, fix, repeat; only changed paragraphs render again.
 
 ## 6. Build
 

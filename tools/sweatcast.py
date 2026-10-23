@@ -15,7 +15,7 @@ sys.path.insert(0, HERE)
 
 # command: (module, the subcommand it stands for in that module, or None; what it does)
 COMMANDS = {
-    "build":       (None, None, "lint a draft, render it to an MP3 and copy it to your phone's folder"),
+    "build":       ("build", None, "lint a draft, render it to an MP3 and copy it to your phone's folder"),
     "lint":        ("tts_build", None, "lint a draft and export its clean transcript (no render)"),
     "render":      ("render", None, "render a draft to audio (build runs this for you)"),
     "voices":      ("voices", None, "list, measure, download, design and keep voices"),
@@ -23,7 +23,6 @@ COMMANDS = {
     "coverage":    ("coverage", None, "movement patterns the last sessions left out, last format and loads"),
     "brief":       ("brief", None, "today's ingredients: the listener, limits, safe menu, programming guide (--save writes the menu the build checks)"),
     "movements":   ("movements", None, "the movements a kit allows, by movement pattern, and --about for coaching notes"),
-    "session":     ("session", None, "an example session skeleton: method, timing and ranked movements (optional reference)"),
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
     "check":       ("context", "check", "check every context file in me/ (format, unfilled lines)"),
     "get":         ("context", "get", "print a profile setting: default-voice, wpm, voices"),
@@ -53,8 +52,8 @@ def main(argv=None):
     if cmd not in COMMANDS:
         print(f"Unknown command '{cmd}'.\n\n{usage()}", file=sys.stderr)
         return 64
-    if cmd in ("build", "setup"):
-        script = os.path.join(HERE, f"{cmd}.sh")
+    if cmd == "setup":   # a shell script, so it runs before there's a Python environment
+        script = os.path.join(HERE, "setup.sh")
         if os.name == "nt":   # Git Bash's sh; Windows has no exec that keeps the exit code
             return subprocess.call([shutil.which("sh") or "sh", script, *rest])
         os.execv("/bin/sh", ["sh", script, *rest])

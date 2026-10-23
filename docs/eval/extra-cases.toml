@@ -1,4 +1,4 @@
-# Extra cases for the judged grid, outside the forty in cases.toml (which tests/test_session.py keeps at
+# Extra cases for the judged grid, outside the forty in cases.toml (which tests/test_screen.py keeps at
 # forty): same fields, except that `limit` may be a list. The listeners are the invented ones in
 # docs/eval/listeners/. docs/eval/briefs.sh runs these after the forty.
 format = 1

@@ -7,7 +7,7 @@ does, and reviewers score the scripts for safety, efficacy, adherence, ease of c
 - `cases.toml`: the forty cases. Strength, general and conditioning at the novice, experienced and
   advanced levels make nine cells; each runs at two kit presets and two lengths (ten to twenty minutes
   and thirty to forty five), which is thirty six, plus two mobility and two targeted cases. Every third
-  case adds a `--limit`. `tests/test_session.py` (class `Eval`) checks the grid and that every case composes.
+  case adds a `--limit`. `tests/test_screen.py` (class `Eval`) checks the grid and that every case screens.
 - `extra-cases.toml`: cases beyond the forty, in the same fields (a `limit` may be a list), such as c41,
   an off-limits ankle with a delicate foot on the same side.
 - `listeners/{a,b,c,d}/`: the listeners, each a complete context folder (`SWEATCAST_HOME`), all invented,
@@ -16,7 +16,8 @@ does, and reviewers score the scripts for safety, efficacy, adherence, ease of c
   in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
   no log yet.
 - `briefs.sh`: each case's brief and menu. `skeletons.sh`: the composer's skeletons, the baseline
-  before 7.0.0 (its writers narrated them).
+  before 7.0.0 (its writers narrated them), run from a worktree of the v7.1.0 tag since 7.2.0 retired
+  the composer.
 - `writer.md`: the writer's brief (a few cases a writer). `judge.md`: the reviewer's prompt.
 - `out/` (git-ignored): the generated briefs and menus, scripts, writer notes, lints and judges' parts.
 

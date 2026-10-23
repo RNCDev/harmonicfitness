@@ -13,8 +13,8 @@ the kit's equipment notes. It plans nothing.
 
 With --save <draft path> it also writes the brief (`<stem>.brief.md`) and the menu (`<stem>.menu.json`)
 beside the draft; `./sweatcast build` checks the draft's movements against that menu and won't build
-without it. The safety screen is the one `./sweatcast session` uses (session.screen): the same limits,
-clinician Avoid: lines, dislikes and level, and the same refusal when a [[limits]] row can't be read.
+without it. The safety screen (tools/screen.py) applies the limits, clinician Avoid: lines, dislikes
+and level, and refuses when a [[limits]] row can't be read.
 """
 import datetime
 import os
@@ -30,8 +30,9 @@ import draft  # noqa: E402
 import menu  # noqa: E402
 import movements  # noqa: E402
 import paths  # noqa: E402
-import session  # noqa: E402
+import screen  # noqa: E402
 import sessions  # noqa: E402
+import voices  # noqa: E402
 
 KNOWLEDGE = os.path.join(paths.ROOT, "knowledge")
 PLAYBOOK = os.path.join(KNOWLEDGE, "injury-playbook.md")
@@ -203,7 +204,7 @@ def _limit_lines(cat: catalog.Catalog, scr, health, request: dict) -> List[str]:
     avoided = sorted(a for a in scr.avoid)
     if avoided:
         out += ["", "Left out today by Avoid: lines and the request: " + ", ".join(avoided) + "."]
-    cues = session.cue_lines(cat, scr.limits)
+    cues = screen.cue_lines(cat, scr.limits)
     if cues:
         out += ["", "Limit cues (the catalog's spoken lines; say them wherever a movement or a transition "
                 "touches the limit):"] + [line.replace("    ", "  - ", 1) if line.startswith("    ") else "- " + line.strip()
@@ -237,9 +238,9 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
     ranked = sessions.ranked(sess, goal, minutes, scr.level, scr.equipment, last_format)
     if ranked:
         m = ranked[0]
-        shares = [f"warm-up about {session._clamp(m.warmup, total)} s", f"cool-down about {session._clamp(m.cooldown, total)} s"]
+        shares = [f"warm-up about {screen.clamp(m.warmup, total)} s", f"cool-down about {screen.clamp(m.cooldown, total)} s"]
         if m.finisher and minutes >= m.finisher.get("from_minutes", 0):
-            shares.append(f"a finisher of about {session._clamp(m.finisher, total)} s, if you want one")
+            shares.append(f"a finisher of about {screen.clamp(m.finisher, total)} s, if you want one")
         out += ["", f"Time ({total} s in all, house defaults): " + ", ".join(shares) + "; the work gets the rest."]
         out += ["", f"Formats that suit a {minutes} minute {goal} session at this level with this kit "
                 "(any of them, or a mix, as long as the doses fit):"]
@@ -290,13 +291,38 @@ def _kit_words(request: dict, equipment) -> str:
     return "equipment: " + (", ".join(sorted(equipment)) or "none")
 
 
+def talk_rate(voice_name: str):
+    """(words a minute, measured?) for a voice speaking the smoke test's coaching, or None for an
+    unknown voice. Spoken words only: holds, pauses and chimes take their own seconds."""
+    try:
+        voice = voices.lookup(voice_name)
+    except SystemExit:
+        return None
+    rate, exact = voices.pace(voice)
+    with open(paths.SMOKE_DRAFT, encoding="utf-8") as f:
+        texts = [t for seg in draft.parse(f.read()) for para in draft.plan(seg) for t, _ in para if draft.spoken(t)]
+    seconds = sum(voices.weight(t) for t in texts) / rate
+    return sum(len(t.split()) for t in texts) / seconds * 60, exact
+
+
+def _budget_line(voice_name: Optional[str]) -> List[str]:
+    found = talk_rate(voice_name) if voice_name else None
+    if not found:
+        return []
+    wpm, exact = found
+    return [f"- Talk to time: {voice_name} speaks about {wpm:.0f} words a minute"
+            f"{'' if exact else ' (estimated; not measured on this computer yet)'}, so twenty seconds of talk "
+            f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds; "
+            "`./sweatcast build <draft> <name> --lint-only` gives each segment's exact guide."]
+
+
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
-          today: datetime.date, feedback: Optional[List[str]] = None):
-    """(the brief as Markdown lines, the menu record). ValueError names an unknown value; session.Unfit
+          today: datetime.date, feedback: Optional[List[str]] = None, voice: Optional[str] = None):
+    """(the brief as Markdown lines, the menu record). ValueError names an unknown value; screen.Unfit
     says a [[limits]] row can't be read."""
-    scr = session.screen(request, cat, sess.goals, profile, health)
-    sides = {m.id: session._healthy_side(m, scr.limits) for m in scr.sel.healthy_side_only}
-    last_ids = session._ids(cat, log[-1].movements) if log else set()
+    scr = screen.screen(request, cat, sess.goals, profile, health)
+    sides = {m.id: screen.healthy_side(m, scr.limits) for m in scr.sel.healthy_side_only}
+    last_ids = screen.ids(cat, log[-1].movements) if log else set()
     goal, minutes = request["goal"], request["minutes"]
     name = context.listener_name(profile)
     count = len(scr.sel.allowed) + len(scr.sel.healthy_side_only)
@@ -331,8 +357,8 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     if scr.sel.allowed or scr.sel.healthy_side_only:
         out += menu_lines(cat, scr, sides, scr.likes, last_ids)
     weights = context.kit_weights(profile).get(request.get("kit") or "")
-    loads = session._loads_line(weights, scr.equipment) if weights else ""
-    opens = session._would_open(cat, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)
+    loads = screen.loads_line(weights, scr.equipment) if weights else ""
+    opens = screen.would_open(cat, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)
     extra = []
     if loads:
         extra.append(f"- {loads}. Prescribe only these weights, by name.")
@@ -348,8 +374,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             f"separated>`. Then the `@@ <seconds> | <label>` segments, adding up to exactly {minutes * 60} s. "
             "You choose the segments: one can be a set, a pair, a whole round or the whole warm-up.",
             "- Coach each movement from its notes above (setup, cues, what one rep is, where to feel it, the "
-            "faults and their fixes); voice and format follow knowledge/tts-rules.md.",
-            "- An example shape, if you want one (not required): `./sweatcast session` with the same flags."]
+            "faults and their fixes); voice and format follow knowledge/tts-rules.md."] + _budget_line(voice)
 
     req = {k: v for k, v in (("goal", goal), ("minutes", minutes), ("kit", request.get("kit")),
                              ("preset", request.get("preset")),
@@ -378,26 +403,29 @@ def main():
     ap.add_argument("--save", help="the draft's path (or its stem): write <stem>.brief.md and <stem>.menu.json")
     ap.add_argument("--log", help="the log to read (default: the context folder's)")
     ap.add_argument("--today", help="today's date, YYYY-MM-DD (default: today)")
+    ap.add_argument("--voice", help="the voice the script is written for, for its words a minute (default: the profile's)")
     args = ap.parse_args()
 
     cat = catalog.load()
     try:
         request = {"goal": args.goal, "minutes": args.minutes, "level": args.level,
-                   "target": session._words(args.target), "limits": [session._limit(x, cat) for x in args.limit],
-                   "avoid": movements.avoid_set(cat, session._words(args.avoid))}
+                   "target": screen.words(args.target), "limits": [screen.parse_limit(x, cat) for x in args.limit],
+                   "avoid": movements.avoid_set(cat, screen.words(args.avoid))}
         if args.kit:
             request["kit"] = args.kit
         elif args.preset:
             request["preset"] = args.preset
         else:
-            request["equipment"] = movements.equipment_keys(cat, session._words(args.equipment))
+            request["equipment"] = movements.equipment_keys(cat, screen.words(args.equipment))
         today = datetime.date.fromisoformat(args.today) if args.today else datetime.date.today()
-        lines, record = build(request, cat, sessions.load(), context.profile(), context.health(),
-                              context.sessions(args.log), today, context.feedback(args.log))
+        profile = context.profile()
+        lines, record = build(request, cat, sessions.load(), profile, context.health(),
+                              context.sessions(args.log), today, context.feedback(args.log),
+                              voice=args.voice or context.default_voice(profile))
     except ValueError as e:
         print(f"sweatcast brief: {e}", file=sys.stderr)
         return cli.USAGE
-    except session.Unfit as e:
+    except screen.Unfit as e:
         print(f"sweatcast brief: {e}", file=sys.stderr)
         return cli.ISSUES
     text = "\n".join(lines) + "\n"

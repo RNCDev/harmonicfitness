@@ -464,10 +464,10 @@ class Select(unittest.TestCase):
 
     def test_limit_values_are_defined_once(self):
         import context
-        import session
+        import screen
         self.assertEqual(catalog.LIMIT_SIDES, ("left", "right", "both"))
         self.assertEqual(catalog.LIMIT_LEVELS, ("off-limits", "delicate"))
-        for mod in (context, session):
+        for mod in (context, screen):
             self.assertIs(mod.LIMIT_SIDES, catalog.LIMIT_SIDES, mod.__name__)
             self.assertIs(mod.LIMIT_LEVELS, catalog.LIMIT_LEVELS, mod.__name__)
 

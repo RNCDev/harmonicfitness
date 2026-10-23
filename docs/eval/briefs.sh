@@ -13,6 +13,7 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
 PY=${SWEATCAST_PYTHON:-.venv/bin/python}
+[ -x "$PY" ] || PY=.venv/Scripts/python.exe   # Windows (Git Bash)
 OUT=docs/eval/out
 mkdir -p "$OUT"
 
@@ -20,6 +21,7 @@ mkdir -p "$OUT"
 "$PY" - "$@" <<'PYEOF' > "$OUT/briefs.tsv"
 import sys
 import tomllib
+sys.stdout.reconfigure(newline="\n")   # no \r on Windows: it would stick to the last flag
 want = set(sys.argv[1:])
 cases = []
 for path in ("docs/eval/cases.toml", "docs/eval/extra-cases.toml"):

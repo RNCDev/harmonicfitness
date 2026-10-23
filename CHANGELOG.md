@@ -2,6 +2,30 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [7.2.0] - 2026-10-23
+
+Faster from check-in to MP3, with the same audio, and a smaller engine. The coaching is written while research runs, and the voice renders each paragraph as it lands in the draft, so the render mostly overlaps the writing instead of following it. The old session composer is retired: about 900 fewer lines of tools and 600 fewer of tests.
+
+### For forks
+- `./sweatcast session` is gone. The workout skill hasn't used it since 7.0.0 (`./sweatcast brief` plans); `docs/eval/skeletons.sh` runs it from the v7.1.0 tag as the eval's baseline. Code that imported `tools/session.py` for the safety screen imports `tools/screen.py` (`screen`, `Screen`, `Unfit`, and the helpers under public names: `ids`, `clamp`, `healthy_side`, `would_open`, `cue_lines`, `loads_line`, `parse_limit`, `words`).
+- `./sweatcast build` is Python now (`tools/build.py`); `tools/build.sh` is gone. Its options and exit codes are unchanged.
+- Nothing to migrate in `me/`. Cached clips are still used.
+
+### Added
+- `./sweatcast build <draft> <name> --follow` (`render.py --follow`): renders ahead while the draft is written. It keeps the voice loaded, rereads the draft between clips, renders each new or edited paragraph, and steps aside after its current clip when the full build starts (which renders only what's left), or after `--idle` seconds (fifteen minutes by default) with nothing new.
+- The brief's Writing it section gives the voice's words a minute on this computer ("Talk to time"), from its measured pace, so segments come out the right length the first time; `--voice` picks a voice other than the profile's default.
+
+### Changed
+- The workout skill writes in this order: start `--follow`, write all the coaching from the brief without waiting for research, add the stories once research reports, then lint. `--clips-only` stays for a one-off render of what a draft holds.
+- The voice engines no longer write a progress bar per clip or their dependency warnings into the render log (a 25-minute render's log was about 150 KB of bars; it's now only what matters).
+
+### Removed
+- `tools/session.py` (the composer) and its tests; the screen's tests moved to `tests/test_screen.py` and the session methods' to `tests/test_sessions.py`.
+- `tools/build.sh`.
+
+### Fixed
+- `docs/eval/briefs.sh` and `skeletons.sh` run on Windows (the venv's Python path, and no `\r` on the case lines).
+
 ## [7.1.0] - 2026-10-23
 
 The check-in comes first, and the session adjusts to the listener: before it starts, from how they're coming in today, and during it, from a self-check after each main movement's first set.

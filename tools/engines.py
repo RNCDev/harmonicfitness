@@ -17,6 +17,13 @@ import contextlib
 import io
 import os
 import sys
+import warnings
+
+# The engines draw a progress bar per clip and warn about their own dependencies; in a render
+# log that buried the lines that matter (a 25-minute render logged about 150 KB of bars).
+os.environ.setdefault("TQDM_DISABLE", "1")
+for _message in ("pkg_resources is deprecated", ".*LoRACompatibleLinear"):
+    warnings.filterwarnings("ignore", message=_message)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from voices import ENGINE_EXTRAS, TORCH_ENGINES, TORCH_PATTERNS  # noqa: E402

@@ -706,7 +706,7 @@ class ExitCodes(unittest.TestCase):
 
 
 class BuildScript(unittest.TestCase):
-    """tools/build.sh with a stand-in Python that fakes the lint and render."""
+    """tools/build.py with a stand-in Python that fakes the lint and render."""
 
     STUB = """#!{python}
 import os, sys
@@ -808,6 +808,14 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
     def test_unmeasured_voice_exits_3(self):
         out = self.build(estimated_ok=False)
         self.assertEqual(out.returncode, 3, out.stdout + out.stderr)
+
+    def test_follow_renders_ahead_with_no_lint(self):
+        out = self.build("--follow")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        calls = self.calls().splitlines()
+        self.assertEqual([c.split()[0] for c in calls], ["render.py"])
+        self.assertIn("--follow", calls[0])
+        self.assertFalse(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
 
     def test_lint_only_stops_before_the_render(self):
         out = self.build("--lint-only")
@@ -1573,6 +1581,30 @@ class RenderLock(unittest.TestCase):
                 self.assertIn("waiting", out.getvalue())
             finally:
                 holder.wait(timeout=20)
+
+
+    def test_a_render_asks_a_render_ahead_to_stop(self):
+        with tempfile.TemporaryDirectory() as d:
+            ready, saw = os.path.join(d, "ready"), os.path.join(d, "saw-stop")
+            ahead = subprocess.Popen([sys.executable, "-c", "\n".join((
+                "import os, sys, time; sys.path.insert(0, 'tools'); import render",
+                f"with render.render_lock({d!r}, follow=True):",
+                f"    open({ready!r}, 'w').close()",
+                "    for _ in range(400):",
+                f"        if os.path.exists(render.stop_file({d!r})):",
+                f"            open({saw!r}, 'w').close(); break",
+                "        time.sleep(0.05)"))], cwd=ROOT)
+            try:
+                deadline = time.time() + 20
+                while not os.path.exists(ready) and time.time() < deadline:
+                    time.sleep(0.02)
+                with mock.patch("sys.stdout", new_callable=__import__("io").StringIO) as out:
+                    with render.render_lock(d):
+                        pass
+                self.assertTrue(os.path.exists(saw), "the render ahead was asked to stop")
+                self.assertIn("running ahead", out.getvalue())
+            finally:
+                ahead.wait(timeout=30)
 
 
 class BuildRecord(unittest.TestCase):
