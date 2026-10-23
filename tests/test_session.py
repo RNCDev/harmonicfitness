@@ -109,6 +109,11 @@ class Methods(unittest.TestCase):
         self.assertNamed(lambda s: circuit(s).blocks[0].update(share=0.5), "circuit", "sum")
         self.assertNamed(lambda s: s.dose["mobility"].pop("advanced"), "mobility", "advanced")
 
+    def test_problems_name_a_bad_all_out_rule(self):
+        self.assertEqual(self.s.all_out, {"most_seconds": 20, "rest_ratio": 4})
+        self.assertNamed(lambda s: s.all_out.update(rest_ratio=0), "all_out", "rest_ratio")
+        self.assertNamed(lambda s: s.all_out.pop("most_seconds"), "all_out", "most_seconds")
+
     def test_problems_name_a_block_with_no_dose_table(self):
         self.assertNamed(lambda s: s.methods["flow"].blocks[0].update(intensity="breathing"),
                          "flow", "breathing", "dose")
@@ -328,6 +333,25 @@ class Compose(unittest.TestCase):
         offered = [m for _, ss in sk.blocks for s in ss for m, _ in s.candidates]
         self.assertTrue(all(m.level == "novice" for m in offered))
 
+    def test_limit_cues_print_for_each_limit_with_its_side(self):
+        import session
+        # the fixture listener's left wrist is delicate; a knee limit is added for today
+        lines = session.render(compose_for(goal="strength", minutes=30,
+                                           limits=[catalog.Limit("knee", "right", "delicate", [], [], "")]))
+        at = next(i for i, x in enumerate(lines) if x.startswith("Limit cues"))
+        self.assertLess(at, next(i for i, x in enumerate(lines) if x.startswith("Coaching (")))
+        block = lines[at:at + 6]
+        self.assertIn("  wrist delicate, left side:", block)
+        self.assertIn("    Keep the left wrist straight, in line with the forearm.", block)
+        self.assertIn("  knee delicate, right side:", block)
+        self.assertIn("    Keep the right knee over the toes.", block)
+        none = session.render(compose_for(goal="strength", minutes=30, health=context.Health({}, "")))
+        self.assertFalse(any(x.startswith("Limit cues") for x in none))
+        both = session.render(compose_for(goal="strength", minutes=30, health=context.Health({}, ""),
+                                          limits=[catalog.Limit("wrist", "both", "off-limits", [], [], "")]))
+        self.assertIn("  wrist off limits:", both)
+        self.assertIn("    No weight through the injured hand.", both)
+
     def test_limit_without_a_note_prints_a_health_line(self):
         import session
         h = context.Health({"limits": [{"area": "knee", "side": "left", "level": "delicate"},
@@ -400,7 +424,9 @@ class Compose(unittest.TestCase):
         dose = {"sets": 3, "reps": 8, "rest_seconds": 90}
         for work in ("sets", "pairs"):
             self.assertGreater(session.slot_seconds(lunge, dose, work), session.slot_seconds(one_side, dose, work))
-        self.assertEqual(session.slot_seconds(lunge, dose, "sets") - session.slot_seconds(one_side, dose, "sets"), 3 * 24)
+        # both sides' reps, and the change of side, in every set
+        self.assertEqual(session.slot_seconds(lunge, dose, "sets") - session.slot_seconds(one_side, dose, "sets"),
+                         3 * (24 + session.SWITCH_SECONDS))
         rounds = {"rounds": 3, "reps": 8, "rest_seconds": 90}
         self.assertGreater(session.slot_seconds(lunge, rounds, "rounds"), session.slot_seconds(one_side, rounds, "rounds"))
 
@@ -461,7 +487,7 @@ class Compose(unittest.TestCase):
         m = catalog.load(os.path.join(FIXTURES, "movements.toml")).movements["split-squat"]
         dose = {"sets": 3, "reps": 8, "rest_seconds": 60}
         both, one = session.slot_seconds(m, dose, "sets"), session.slot_seconds(m, dose, "sets", one_side=True)
-        self.assertEqual(both - one, 3 * 8 * m.seconds_per_rep)
+        self.assertEqual(both - one, 3 * (8 * m.seconds_per_rep + session.SWITCH_SECONDS))
 
     def test_bodyweight_reps_above_novice(self):
         import session
@@ -476,7 +502,7 @@ class Compose(unittest.TestCase):
         cat = catalog.load(os.path.join(FIXTURES, "movements.toml"))
         squat = cat.movements["goblet-squat"]   # transition 15, three seconds a rep
         self.assertEqual(session.slot_seconds(squat, {"sets": 3, "reps": 8, "rest_seconds": 90}, "sets"),
-                         15 + 3 * 24 + 2 * 90)
+                         15 + 3 * 24 + 2 * 90 + session.START_SECONDS)
         self.assertEqual(session.slot_seconds(squat, {"work_seconds": 30, "rest_seconds": 30, "rounds": 6},
                                               "intervals"), 6 * 60)
         self.assertEqual(session.slot_seconds(cat.movements["box-breathing"], {"hold_seconds": 45, "rounds": 2},
@@ -725,6 +751,28 @@ class Grid(unittest.TestCase):
                 runs = [k for i, k in enumerate(stations) if i == 0 or stations[i - 1] != k]
                 self.assertEqual(len(runs), len(set(runs)), stations)   # no machine comes back later
 
+    def test_interval_blocks_go_round_the_machines(self):
+        """No machine leads a second interval block while a machine with a hard enough movement on it
+        leads none; c32's hotel gym uses its bike, treadmill and elliptical."""
+        import session
+        for cid, sk in self.sk.items():
+            if sk.method.work != "intervals" or sk.method.fixed:
+                continue
+            with self.subTest(case=cid):
+                work = [s for s in self.slots(cid) if not s.dose.get("steady")]
+                leads = [s.candidates[0][0] for s in work]
+                effort = {m.effort for m in leads}
+                counts = {}
+                for m in leads:
+                    if session._machine(m):
+                        counts[session.station(m)] = counts.get(session.station(m), 0) + 1
+                offered = {session.station(m) for s in work for m, _ in s.candidates
+                           if session._machine(m) and m.effort in effort}
+                if counts and max(counts.values()) > 1:
+                    self.assertEqual(offered - set(counts), set(), (counts, offered))
+        machines = {session.station(s.candidates[0][0]) for s in self.slots("c32")}
+        self.assertGreaterEqual(len(machines - {()}), 3, machines)
+
     def test_caps_hold(self):
         import session
         for cid, sk in self.sk.items():
@@ -796,8 +844,62 @@ class Grid(unittest.TestCase):
                 if held is None:
                     continue
                 with self.subTest(case=cid, slot=s.pattern):
-                    work = m.transition_seconds + d["sets"] * session._work_time(m, d, session._one_side(m, sk))
+                    work = m.transition_seconds + d["sets"] * session._set_time(m, d, session._one_side(m, sk)) + session.START_SECONDS
                     self.assertLessEqual(abs(work + (d["sets"] - 1) * held - s.seconds), 3 * (d["sets"] - 1))
+
+    def test_every_set_segment_holds_its_reps_and_a_start(self):
+        """A set's segment holds its reps at the movement's pace, both sides of a sided movement, its
+        transition and a few seconds to start; the last set of a pair or a lone slot too."""
+        import session
+        start = 3   # "a few seconds", whatever the constant says
+        self.assertGreaterEqual(session.START_SECONDS, start)
+        least = lambda m, d, sk: (m.transition_seconds + start  # noqa: E731
+                                  + session.reps(m, d) * m.seconds_per_rep * (1 if not m.sided or session._one_side(m, sk) else 2))
+        for cid, sk in self.sk.items():
+            if sk.method.work == "pairs":
+                with self.subTest(case=cid):
+                    lines = [x for x in session.render_draft(sk) if " set " in x]
+                    slots = self.slots(cid)
+                    groups = [slots[i:i + 2] for i in range(0, len(slots), 2)]
+                    at = 0
+                    for group in groups:
+                        need = sum(least(s.candidates[0][0], s.dose, sk) for s in group)
+                        for _ in range(group[0].dose["sets"]):
+                            self.assertGreaterEqual(int(lines[at].split()[1]), need, lines[at])
+                            at += 1
+            elif sk.method.work == "sets":
+                for s in self.slots(cid):
+                    m, d = s.candidates[0][0], s.dose
+                    with self.subTest(case=cid, slot=s.pattern):
+                        each = least(m, d, sk) - m.transition_seconds - start
+                        self.assertGreaterEqual(s.seconds, m.transition_seconds + d["sets"] * each
+                                                + (d["sets"] - 1) * d.get("rest_seconds", 0) + start)
+
+    def test_circuit_stations_group_by_place(self):
+        """A round changes place (floor, bench or seat, standing) once per place at most, so at most
+        twice; run4's c41 (an off-limits ankle with a delicate foot, hotel gym) alternated floor and bench."""
+        import session
+
+        def changes(slots):
+            places = [session.place(s.candidates[0][0]) for s in slots]
+            return sum(a != b for a, b in zip(places, places[1:])), len(set(places))
+
+        for cid, sk in self.sk.items():
+            for _, ss in sk.blocks:
+                if sk.method.work == "rounds" and ss:
+                    with self.subTest(case=cid):
+                        n, kinds = changes(ss)
+                        self.assertLessEqual(n, min(2, kinds - 1))
+        profile, health, log = eval_listener("d")
+        limits = [session._limit("ankle=off-limits:left", self.cat), session._limit("foot=delicate:left", self.cat)]
+        request = {"goal": "general", "minutes": 25, "preset": "hotel-gym", "limits": limits, "avoid": set()}
+        sk = session.compose(request, self.cat, self.sess, profile, health, log, TODAY)
+        self.assertEqual(sk.method.work, "rounds")
+        slots = [s for _, ss in sk.blocks for s in ss]
+        n, kinds = changes(slots)
+        self.assertEqual(kinds, 2)
+        self.assertEqual(n, 1, [session.place(s.candidates[0][0]) for s in slots])
+        self.assertEqual(slots[0].candidates[0][0].id, "dead-bug")   # the first station stays first
 
     def test_circuit_rounds_name_their_rest(self):
         import session
@@ -845,13 +947,32 @@ class Grid(unittest.TestCase):
                 ids = {m.id for s in self.slots(cid) for m, _ in s.candidates}
                 self.assertFalse(ids & {"overhead-press", "seated-shoulder-press"}, ids)
 
-    def test_a_sprint_works_its_own_seconds(self):
+    def test_a_sprint_works_its_own_seconds_and_rests_four_times_as_long(self):
         sprint = next(s for s in self.slots("c34") if s.candidates[0][0].id == "bike-seated-sprint")
         m = sprint.candidates[0][0]
+        self.assertTrue(sessions.all_out(self.sess, m))
         self.assertEqual(sprint.dose["work_seconds"], m.hold_seconds)
-        other = next(s for s in self.slots("c34") if s.candidates[0][0].hold_seconds >= 45)
-        self.assertEqual(sprint.dose["work_seconds"] + sprint.dose["rest_seconds"],
-                         other.dose["work_seconds"] + other.dose["rest_seconds"])   # same interval length
+        self.assertGreaterEqual(sprint.dose["rest_seconds"], self.sess.all_out["rest_ratio"] * m.hold_seconds)
+        each = sprint.dose["work_seconds"] + sprint.dose["rest_seconds"]
+        self.assertLessEqual(sprint.dose["rounds"] * each, sprint.seconds)   # fewer rounds, same slot time
+        for cid, sk in self.sk.items():   # every sprint slot, and a finisher that leads with one
+            with self.subTest(case=cid):
+                for s in self.slots(cid):
+                    if sk.method.work == "intervals" and not sk.method.fixed and not s.dose.get("steady") \
+                            and sessions.all_out(self.sess, s.candidates[0][0]):
+                        self.assertGreaterEqual(s.dose["rest_seconds"], 4 * s.dose["work_seconds"], s.dose)
+                fin = sk.extras["finisher"]
+                if fin and sessions.all_out(self.sess, fin[0][0]):
+                    self.assertGreaterEqual(sk.finisher_dose["rest_seconds"], 4 * sk.finisher_dose["work_seconds"])
+                self.assertFalse(any(sessions.all_out(self.sess, m) for m, _ in fin[:1])
+                                 and any(not sessions.all_out(self.sess, m) for m, _ in fin))
+
+    def test_sprint_shape_keeps_the_time(self):
+        import session
+        shape = session._sprint_shape(self.sess, 20, 55, 4)   # four 75 s intervals
+        self.assertEqual(shape, {"work_seconds": 20, "rest_seconds": 80, "rounds": 3})
+        self.assertEqual(session._sprint_shape(self.sess, 20, 100, 3), {"work_seconds": 20, "rest_seconds": 100, "rounds": 3})
+        self.assertEqual(session._sprint_shape(self.sess, 20, 10, 2)["rounds"], 1)   # at least one
 
     def test_the_fallback_runs_as_a_circuit(self):
         import session

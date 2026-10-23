@@ -107,6 +107,13 @@ def week(sessions, today: datetime.date, days: int = 7, cat: Optional[catalog.Ca
     return counts
 
 
+def _days_ago(date: str, today: datetime.date) -> Optional[int]:
+    try:
+        return (today - datetime.date.fromisoformat(date)).days
+    except ValueError:
+        return None
+
+
 def main():
     ap = cli.ArgumentParser()
     ap.add_argument("--last", type=int, default=1, help="how many recent sessions to pool (default 1)")
@@ -138,6 +145,17 @@ def main():
         print("Unmapped (judge these by hand): " + ", ".join(unmapped))
     fmt = full[-1].format
     print("Last format: " + (f"{fmt} (use a different one today)" if fmt else "not logged"))
+    today = datetime.date.today()
+    try:
+        since = (today - datetime.date.fromisoformat(full[-1].date)).days
+    except ValueError:
+        since = None
+    seven = sum(1 for e in full if _days_ago(e.date, today) is not None and 0 <= _days_ago(e.date, today) < 7)
+    print("Since the last session: " + (f"{since} day{'s' if since != 1 else ''}" if since is not None else "unknown")
+          + f"; sessions in the last 7 days: {seven} (mention it if it's worth saying)")
+    notes = context.feedback(args.log)
+    if notes:
+        print("Latest feedback (honour it, and say so in the audio): " + notes[-1])
     loads = last_loads(full)
     if loads:
         print("Last loads (progress from these):")

@@ -26,7 +26,7 @@ the coaching (pace, cues, variety, fit with the listener), not on the topics.
 Look up any movement you are unsure of in `knowledge/movements.toml` (its `loads`, `flags`, `patterns`
 and `level`).
 
-## Score each case from 1 to 5 on four things, with one line of reason each
+## Score each case from 1 to 5 on five things, with one line of reason each
 
 - **Safety.** Does the script respect every limit (health.md's and the case's), the listener's level,
   and the kit? Any excluded load or flag in the script, any movement that loads an off-limits area,
@@ -37,6 +37,14 @@ and `level`).
   rest, work and rest seconds, rounds), the balance of patterns, and the progression across the session.
 - **Likely adherence.** Would this listener finish it and want the next one? Pace, variety, clarity of
   instructions with no screen, fit with the listener's likes and dislikes, and whether the time feels used.
+- **Warmth.** Does it sound like one coach beside one person they know, rather than a machine or an
+  announcer? Look for: a greeting by the listener's `name` (in their `profile.md`) and the name used two
+  to four times; a person's register around the work (contractions, "let's", a line of why, the effort
+  noticed plainly, not stock praise); continuity from the listener's log (the week so far, last
+  feedback, last loads); varied segment openings; stories handed off like a friend, not a newsreader;
+  an arc from welcome to a specific, personal close. Cues during the work should still be short: warmth
+  that blurs a safety or form cue costs points. A 5 sounds like a coach you'd want back; a 1 is a
+  template read aloud.
 - **Ease of construction.** How much did the writer have to invent beyond the skeleton? A 5 means the
   skeleton gave everything (movements, doses, order, timing) and the writer only narrated; a 1 means the
   writer had to replace movements, rework doses or restructure the session to make it usable.
@@ -47,12 +55,12 @@ Write `docs/eval/results-<YYYY-MM-DD>.md` with:
 
 1. One table row per case, in case order:
 
-   | id | safety | efficacy | adherence | ease | note |
-   |----|--------|----------|-----------|------|------|
+   | id | safety | efficacy | adherence | ease | warmth | note |
+   |----|--------|----------|-----------|------|--------|------|
 
-   The note holds the four one-line reasons, in the order safety, efficacy, adherence, ease, separated by semicolons.
+   The note holds the five one-line reasons, in the order safety, efficacy, adherence, ease, warmth, separated by semicolons.
 
-2. **The five lowest cases**, by the sum of their four scores (safety breaks ties), each with what went
+2. **The five lowest cases**, by the sum of their scores (safety breaks ties), each with what went
    wrong and whether the fault lies in the skeleton or in the script.
 
 3. **What the scores say** about:

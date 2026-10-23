@@ -161,6 +161,29 @@ class Structure(unittest.TestCase):
         self.assertIn('praise "good" used 3 times', joined)
         self.assertNotIn("nice work", joined)
 
+    def test_name_is_used_but_not_overused(self):
+        warm = "@@ 60 | A\nHey Sam, good to see you.\n@@ 60 | B\nMinute two. Squats, Sam.\n"
+        self.assertEqual(structure_warnings(parse(warm), "Sam"), [])
+        none = " ".join(structure_warnings(parse("@@ 60 | A\nWelcome.\n@@ 60 | B\nMinute two.\n"), "Sam"))
+        self.assertIn("never comes up", none)
+        late = " ".join(structure_warnings(parse("@@ 60 | A\nWelcome.\n@@ 60 | B\nMinute two, Sam.\n"), "Sam"))
+        self.assertIn("doesn't greet Sam", late)
+        many = "@@ 60 | A\nHey Sam.\n" + "".join(f"@@ 60 | {c}\nRound {c}. Go, Sam.\n" for c in "BCDEF")
+        self.assertIn("comes up 6 times", " ".join(structure_warnings(parse(many), "Sam")))
+        self.assertNotIn("name", " ".join(structure_warnings(parse(warm))))   # no name set, no name check
+
+    def test_a_run_of_identical_openings_is_a_template(self):
+        same = "@@ 60 | A\nHi.\n" + "".join(f"@@ 60 | {c}\nRound {n} of four. Go.\n"
+                                            for c, n in zip("BCD", ("one", "two", "three")))
+        self.assertIn("segments 2 to 4 all open", " ".join(structure_warnings(parse(same))))
+        varied = ("@@ 60 | A\nHi.\n@@ 60 | B\nRound one of four. Go.\n@@ 60 | C\nHere we go, round two.\n"
+                  "@@ 60 | D\nRound three of four.\n@@ 60 | E\nTwo to go. Squats.\n")
+        self.assertEqual(structure_warnings(parse(varied)), [])
+
+    def test_newsreader_handoff_is_flagged(self):
+        segs = parse("@@ 60 | A\nHi. Today's story is a chip.\n@@ 60 | B\nMinute two. In other news, rain.\n")
+        self.assertEqual(sum("newsreader" in w for w in structure_warnings(segs)), 2)
+
     def test_existing_drafts_only_warn(self):
         # Warn-only: the checks never change what an existing draft exports.
         for path in DRAFTS:
@@ -1334,6 +1357,15 @@ note = "Therapist: no weight through the hand."
         self.assertFalse(any("box-squat" in m for m in msgs))
         self.assertTrue(any("jetpack" in m for m in msgs))
         self.assertFalse(any("dumbbells" in m for m in msgs))
+        self.assertTrue(any("no name" in m for m in msgs))
+
+    def test_listener_name_and_feedback(self):
+        p = context.Profile({"name": "  Sam  "}, "", None)
+        self.assertEqual(context.listener_name(p), "Sam")
+        self.assertIsNone(context.listener_name(context.Profile({"name": ""}, "", None)))
+        log = "# Log\n\n## Sessions\n\n## Feedback\n- 2026-10-01: too long.\n- 2026-10-02: loved the story.\n"
+        self.assertEqual(context.feedback(text=log), ["2026-10-01: too long.", "2026-10-02: loved the story."])
+        self.assertEqual(context.feedback(text="# Log\n\n## Sessions\n"), [])
 
     def test_get_experience(self):
         with tempfile.TemporaryDirectory() as d:

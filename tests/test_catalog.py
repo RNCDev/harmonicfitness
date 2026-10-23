@@ -113,6 +113,28 @@ class CatalogFormat(unittest.TestCase):
         self.assertEqual((m.rep, m.feel, m.faults), ("One rep is down and up.", "Thighs.",
                                                      ["If the knees cave, push them out."]))
 
+    def test_limit_cues_fill_in_the_side(self):
+        cat = catalog.load(FIXTURE)
+        lim = lambda side, level="delicate": catalog.Limit("wrist", side, level, [], [], "")  # noqa: E731
+        self.assertEqual(catalog.limit_cues(cat, lim("left"))[0], "Keep the left wrist straight, in line with the forearm.")
+        self.assertEqual(catalog.limit_cues(cat, lim("both"))[0], "Keep the sore wrist straight, in line with the forearm.")
+        self.assertEqual(catalog.limit_cues(cat, lim("both", "off-limits")), ["No weight through the injured hand."])
+        self.assertEqual(catalog.limit_cues(cat, catalog.Limit("neck", "both", "delicate", [], [], "")), [])
+        self.assertEqual(catalog.limit_cues(cat, catalog.Limit("knee", "right", "off-limits", [], [], "")), [])
+
+    def test_limit_cue_faults_are_named(self):
+        for cues, words in (({"tail": {"delicate": ["Wag."]}}, ("unknown area", "tail")),
+                            ({"knee": {"sore": ["Easy."]}}, ("unknown level", "sore")),
+                            ({"knee": {"delicate": []}}, ("knee delicate", "one to")),
+                            ({"knee": {"delicate": ["A.", "B.", "C.", "D."]}}, ("knee delicate", "one to")),
+                            ({"knee": {"delicate": ["Bend 2 times."]}}, ("knee delicate", "digit")),
+                            ({"knee": {"delicate": ["Keep the {where} knee soft."]}}, ("knee delicate", "symbol")),
+                            ({"knee": ["Easy."]}, ("knee", "not a table"))):
+            cat = catalog.load(FIXTURE)
+            cat.limit_cues = cues
+            msgs = catalog.problems(cat)
+            self.assertTrue(any(all(w in m for w in words) for m in msgs), (cues, msgs))
+
     def test_duplicate_id_or_alias_is_a_problem(self):
         dup = dict(vars(catalog.load(FIXTURE).movements["goblet-squat"]))
         dup.pop("private")
@@ -267,6 +289,25 @@ class RealCatalog(unittest.TestCase):
 
     def test_real_catalog_is_clean(self):
         self.assertEqual(catalog.problems(catalog.load()), [])
+
+    def test_every_area_and_level_has_limit_cues(self):
+        cat = catalog.load()
+        self.assertEqual(set(cat.limit_cues), set(cat.areas))
+        for area in cat.areas:
+            self.assertEqual(set(cat.limit_cues[area]), set(catalog.LIMIT_LEVELS), area)
+            for level in catalog.LIMIT_LEVELS:
+                for side in catalog.LIMIT_SIDES:
+                    lines = catalog.limit_cues(cat, catalog.Limit(area, side, level, [], [], ""))
+                    self.assertTrue(1 <= len(lines) <= catalog.CUES_MOST, (area, level))
+                    self.assertFalse(any("{" in x or "}" in x for x in lines), (area, level, lines))
+        neck = " ".join(cat.limit_cues["neck"]["delicate"]).lower()
+        self.assertIn("head", neck)
+        self.assertIn("eyes", neck)
+        ankle = " ".join(catalog.limit_cues(cat, catalog.Limit("ankle", "right", "off-limits", [], [], "")))
+        self.assertIn("right foot", ankle)
+        self.assertIn("floor", ankle)
+        self.assertIn("roll", " ".join(cat.limit_cues["low-back"]["delicate"]).lower())
+        self.assertIn("below shoulder height", " ".join(cat.limit_cues["shoulder"]["delicate"]))
 
     def test_groin_calf_and_neck_limits_filter(self):
         cat = catalog.load()

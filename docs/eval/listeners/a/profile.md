@@ -1,5 +1,7 @@
 +++
 schema = 3
+# What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
+name = "Maya"
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
 # Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.

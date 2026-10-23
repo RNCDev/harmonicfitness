@@ -287,6 +287,20 @@ def experience(p):
     return v if v in catalog.LEVELS else None
 
 
+def listener_name(p):
+    """What the coach calls the listener (the profile's `name`), or None when unset."""
+    v = p.settings.get("name")
+    v = " ".join(v.split()) if isinstance(v, str) else ""
+    return v if v and not placeholder(v) else None
+
+
+def feedback(path=None, text=None):
+    """The `- ` lines under `## Feedback` in log.md, oldest first, without the dash."""
+    path = path or paths.LOG
+    text = log(path) if text is None else text
+    return [line[2:].strip() for _, line in section(text, "Feedback") if line.startswith("- ")]
+
+
 def _names(p, key):
     return [x.strip() for x in p.settings.get(key) or [] if isinstance(x, str) and x.strip()]
 
@@ -776,6 +790,8 @@ def _check_profile(path, text):
     cat = _catalog()
     if experience(p) is None:
         out.append(Issue(path, 0, "no experience level: novice, experienced or advanced", note=True))
+    if listener_name(p) is None:
+        out.append(Issue(path, 0, "no name: the coach can't greet the listener by name", note=True))
     if cat:
         for key in ("likes", "dislikes"):
             for name in _names(p, key):

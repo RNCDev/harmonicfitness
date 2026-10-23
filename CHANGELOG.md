@@ -2,6 +2,33 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [6.2.0] - 2026-10-22
+
+Scripts that sound like a coach who knows the listener, not a template read aloud: a name, a person's register around the work, continuity from the log, a session arc, and lint checks that catch the mechanical patterns. Plus the engine fixes the last eval left open.
+
+This release was not judged on the eval grid; all forty skeletons compose and the tests pass. The next major release moves session design from the composer to the writer (a brief of safe ingredients in place of a fixed skeleton), so the composer changes below may be short-lived.
+
+### For forks
+Nothing to migrate; the context files stay schema 3. Optional: add `name = "<first name>"` to the profile's settings so the coach greets the listener by it (`./sweatcast check` notes when it's missing), and fill in the two new Narrator lines in the profile's prose.
+
+### Added
+- `name` in the profile's settings: the coach greets the listener by it in the opening line and uses it at the hardest set and the sign-off, two to four times. The setup skill asks for it.
+- `knowledge/tts-rules.md`, Coaching voice, rewritten: short cues during the work, a person talking around it (contractions, "let's", one line of why per movement, the effort noticed plainly, continuity from the log), the session arc (welcome, build, peak, ease off, a specific and personal close), varied locators, and stories handed off the way a friend would.
+- `./sweatcast coverage` prints the days since the last session, the sessions in the last seven days and the latest feedback, for the script's continuity lines.
+- Lint warnings (not blocking): a set name that never comes up, isn't in the welcome or comes up more than five times; three or more segments in a row opening alike; newsreader handoffs ("Today's story is", "In other news"). The locator check accepts "two to go", "one more", "here we go", "back to" and "again".
+- The profile template's Narrator section asks how the coach should talk to the listener and what encouragement works for them.
+- Eval: the judge scores a fifth thing, warmth; the four invented listeners have first names.
+
+- `[limit_cues]` in the catalog: one to three spoken cues for each area at each limit level (head and eye position for the neck, where the resting foot goes and how to get to and from the floor for an ankle or foot, brace and roll to the side for the low back, and so on), printed by `./sweatcast session` as a `Limit cues` block for each active limit, with its side.
+- `[all_out]` in `knowledge/sessions.toml`: an all-out sprint (hard, timed, twenty seconds or less) rests at least four times its work, from `programming.md`'s sourced rule, with fewer rounds to fit; the finisher ranks sprints last.
+- Two hard machine entries, `elliptical-surge` and `treadmill-hill-walk`, so a hotel gym's intervals can leave the bike.
+
+### Changed
+- The workout skill's opening greets by name and says how today fits the week; its close names what was done, gives a reason to come back and signs off by name. Under a limit, the script uses the skeleton's limit cues.
+- A circuit groups its stations by place (standing, seat or bench, floor), so a round changes place as little as the movements allow (one change instead of four in the judged floor-and-bench case).
+- Every set's segment holds its reps at the movement's pace (both sides of a one-sided move, plus a side change) and a few seconds to start, carried by the last set; the fitting lowers reps by about one where time is short.
+- Intervals with several machines go round them: a hard movement on a machine nothing has led on yet comes before a second block on the same machine, and the steady block prefers an unused machine and is skipped when a machine change would leave it under ninety seconds.
+
 ## [6.1.0] - 2026-10-22
 
 Better context for writing a script: the coaching a listener without a screen or a mirror needs for each movement, half of the unfinished catalog finished, sourced physiology for rest, effort, stretching, coverage and ankle rehab, and the kit's real weights.

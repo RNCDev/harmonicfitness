@@ -50,6 +50,13 @@ equipment = ["dumbbells", "bench", "treadmill", "elliptical", "bike", "mat"]
 [presets.full-gym]
 equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "barbell", "rack", "cable", "machines"]
 
+[limit_cues.wrist]
+off-limits = ["No weight through the {side} hand."]
+delicate = ["Keep the {side} wrist straight, in line with the forearm.", "Make a fist on the floor if the wrist complains."]
+
+[limit_cues.knee]
+delicate = ["Keep the {side} knee over the toes."]
+
 [[movement]]
 id = "goblet-squat"
 name = "goblet squat"

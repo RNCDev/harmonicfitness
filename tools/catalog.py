@@ -2,7 +2,7 @@
 movement patterns, muscles, joint areas and flags, and every movement with its loads and timing.
 
 `load` reads knowledge/movements.toml (plus any private movements) and `problems` checks it, one
-plain sentence per fault. `resolve` turns a name from the log or a script into a movement. An entry
+plain sentence per fault. `limit_cues` gives the spoken lines a coach says while a limit is active. `resolve` turns a name from the log or a script into a movement. An entry
 is a draft until it carries every field; drafts are checked lightly and never planned from.
 `select` picks the movements a kit, level and the listener's limits allow.
 Library only; the command line lives elsewhere.
@@ -39,6 +39,9 @@ SIDE_WORDS = ("left ", "right ", "both sides ")
 LIMIT_SIDES = ("left", "right", "both")
 LIMIT_LEVELS = ("off-limits", "delicate")
 SPOKEN_OK = re.compile(r"[A-Za-z .,'?!-]*")
+SIDE_SLOT = "{side}"   # in a limit cue: the limit's side, or BOTH_SIDES' word for its level
+BOTH_SIDES = {"off-limits": "injured", "delicate": "sore"}
+CUES_MOST = 3          # lines a limit cue table holds per area and level, at most
 
 
 @dataclass
@@ -85,6 +88,7 @@ class Catalog:
     presets: Dict[str, List[str]]
     movements: Dict[str, Movement]
     entries: List[Movement] = field(default_factory=list)   # every entry in order, repeats included
+    limit_cues: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)   # area -> level -> spoken lines
 
 
 def _movement(raw: dict, private: bool) -> Movement:
@@ -139,7 +143,8 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
         areas=list(data.get("areas", [])), flags=list(data.get("flags", [])),
         equipment=dict(data.get("equipment", {})),
         presets={k: list(v.get("equipment", [])) for k, v in data.get("presets", {}).items()},
-        movements=movements, entries=entries)
+        movements=movements, entries=entries,
+        limit_cues=dict(data.get("limit_cues", {})))
     if auto:   # an explicit `extra` is being checked, so its faults stay visible
         _hold_back_faulty_private(cat)
     return cat
@@ -249,11 +254,45 @@ def problems(cat: Catalog) -> List[str]:
                 out.append(f"The {label} of movement {m.id} has a digit in it: \"{text}\".")
             elif fault:
                 out.append(f"The {label} of movement {m.id} has a symbol or bracket in it: \"{text}\".")
+    out += _cue_problems(cat)
     for name, equipment in cat.presets.items():
         for item in equipment:
             if item not in cat.equipment:
                 out.append(f"The preset {name} lists the unknown equipment \"{item}\".")
     return out
+
+
+def _cue_problems(cat: Catalog) -> List[str]:
+    """Faults in [limit_cues]: an unknown area or level, a level with no lines or too many, and spoken
+    text with a digit or symbol once its side is filled in."""
+    out: List[str] = []
+    for area, levels in cat.limit_cues.items():
+        if area not in cat.areas:
+            out.append(f"The limit cues name the unknown area \"{area}\".")
+        if not isinstance(levels, dict):
+            out.append(f"The limit cues for {area} are not a table of levels.")
+            continue
+        for level, lines in levels.items():
+            if level not in LIMIT_LEVELS:
+                out.append(f"The limit cues for {area} name the unknown level \"{level}\" "
+                           f"(choose from: {', '.join(LIMIT_LEVELS)}).")
+            if not (isinstance(lines, list) and 1 <= len(lines) <= CUES_MOST and all(isinstance(x, str) for x in lines)):
+                out.append(f"The limit cues for {area} {level} need one to {CUES_MOST} lines of text.")
+                continue
+            for line in lines:
+                fault = _spoken_fault(line.replace(SIDE_SLOT, "left"))
+                if fault:
+                    out.append(f"A limit cue for {area} {level} has {fault} in it: \"{line}\".")
+    return out
+
+
+def limit_cues(cat: Catalog, limit: "Limit") -> List[str]:
+    """The spoken lines for one limit, its side filled in: left or right, else the level's word for
+    an unsided limit ("injured" off limits, "sore" delicate). None in the catalog: no lines."""
+    side = limit.side if limit.side in ("left", "right") else BOTH_SIDES.get(limit.level, "injured")
+    levels = cat.limit_cues.get(limit.area)
+    lines = levels.get(limit.level) if isinstance(levels, dict) else None
+    return [line.replace(SIDE_SLOT, side) for line in lines if isinstance(line, str)] if isinstance(lines, list) else []
 
 
 def resolve(cat: Catalog, name: str) -> Optional[Movement]:

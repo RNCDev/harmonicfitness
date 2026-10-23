@@ -1,5 +1,7 @@
 +++
 schema = 3
+# What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
+name = ""
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
 # Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.
@@ -87,7 +89,7 @@ Claude reads this before every workout. It holds the stable facts: setup, equipm
 I listen to narrated workouts through earbuds, with no screen and no timer. The audio is the workout: it tells me what to do, keeps me company, and moves me along on time. Priorities, in order: safe for my body today, clean to the ear, worth listening to.
 
 ## Basics
-- Name or nickname (optional):
+- Name or nickname: in the settings above (`name`), so the coach greets you by it.
 - Neighborhood: [neighborhood, city] (used only for local news, events and weather)
 - Training background and current fitness:
 - Goals right now:
@@ -113,4 +115,6 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
 - Headlines or deep dives: a mix. Each session gets a few quick headlines, plus one deep-dive thread told across several segments. The deep dive alternates by session: a video from YouTube favorites, then a news story, then a video.
 ## Narrator
 - Tone: calm and focused. Keep humor light and occasional, with no hype.
+- How the coach talks to me: like a coach who knows me, warm and direct, first name now and then, contractions, "let's" in the rests. Not a drill sergeant, not a radio host.
+- Encouragement that works for me: [for example, notice the effort plainly ("that last set was honest"), tell me why a movement is there, remind me what I did last time]
 - Pet peeves in workout audio:

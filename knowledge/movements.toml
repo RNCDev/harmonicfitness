@@ -43,6 +43,12 @@
 #   `feel`, where it should be felt and where not; `faults`, one to three common mistakes, each with the
 #   cue that fixes it, safety first. `./sweatcast session` prints them for its first picks, and
 #   `./sweatcast movements --about <ids>` for any other.
+# - `[limit_cues]` (after the kit presets), one table per area in `areas`, each with `off-limits` and
+#   `delicate`: one to three spoken lines a coach says while that limit is active, generic and
+#   practical (where the head, the resting foot or the arm goes, how to get to and from the floor).
+#   `{side}` in a line stands for the limit's side, left or right, or "injured" (off limits) or "sore"
+#   (delicate) when the limit is on both sides; it is the only brace a line may hold.
+#   `./sweatcast session` prints the lines for each limit active today.
 format = 3   # the catalog's own format; the context schema is separate
 
 patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
@@ -95,6 +101,97 @@ equipment = ["dumbbells", "bench", "treadmill", "elliptical", "bike", "mat"]
 equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "chair", "towel", "foam-roller", "strap",
              "bike", "rower", "cable", "machines", "barbell", "rack", "ski-erg", "air-bike", "sled",
              "treadmill", "elliptical", "stair-climber"]
+
+# Limit cues: what a coach says while a limit is active, for each area and level, one to three lines.
+# `./sweatcast session` prints them for each limit today. `{side}` becomes the limit's side (left or
+# right), or "injured" (off limits) or "sore" (delicate) for a limit on both sides or none.
+
+[limit_cues.foot]
+off-limits = ["Keep the {side} foot off the floor and out of every push, resting on its heel or lifted clear.",
+              "Get to and from the floor with your hands and hips doing the work, never pushing through the {side} foot.",
+              "On a bench, rest the {side} heel on the bench or the floor without pressing, and leave the drive to your hands and hips."]
+delicate = ["Keep the {side} foot flat and quiet. No hopping, bouncing or springing off the toes.",
+            "Let your hands do the work getting up and down, with the {side} foot resting lightly."]
+
+[limit_cues.ankle]
+off-limits = ["Nothing standing today. Every station is seated or lying, and the {side} foot rests, never pushing.",
+              "To get to and from the floor, sit on the bench or a chair first, then lower yourself with your hands, keeping the {side} foot clear.",
+              "Lying or seated, rest the {side} heel with the ankle relaxed, not pointed or rolled, and keep that foot out of any drive."]
+delicate = ["Keep the {side} foot flat and steady. No hopping, bouncing or quick footwork.",
+            "Step, don't jump, between stations, and keep your stances short and stable.",
+            "If the {side} ankle twinges, sit down and take the seated version."]
+
+[limit_cues.calf]
+off-limits = ["No rising onto the toes and no driving off the {side} foot.",
+              "Keep the {side} heel down or the leg resting, and get up and down with your hands, not by pointing that foot."]
+delicate = ["Keep the {side} heel down and the pace smooth, no springing off the toes.",
+            "Take shorter steps and less incline if the {side} calf tightens."]
+
+[limit_cues.knee]
+off-limits = ["Keep the {side} knee out of the work. It rests straight or gently bent, with no weight through it.",
+              "Don't kneel on the {side} knee. Take the lying or seated version instead.",
+              "To get up from the floor, roll to your side and use your hands, not a push through the {side} knee."]
+delicate = ["Keep the {side} knee tracking over the toes, and stop each bend before any pinch.",
+            "Go only as deep as stays comfortable, and slow on the way down.",
+            "Put a folded towel under the {side} knee if you kneel."]
+
+[limit_cues.hamstring]
+off-limits = ["Nothing that stretches or loads the back of the {side} thigh. No hinging forward and no long-leg reaches.",
+              "Keep the {side} knee softly bent whenever that leg is out straight."]
+delicate = ["Hinge only as far as a mild pull at the back of the {side} thigh, never a sharp one.",
+            "No fast kicks or sprinting. Keep the leg work slow and smooth."]
+
+[limit_cues.hip]
+off-limits = ["Keep the {side} hip out of the work, with no deep bends and no one-leg weight on that side.",
+              "To get down or up, roll onto your side and use your hands, without twisting through the hips."]
+delicate = ["Stay in a range that feels easy at the front and side of the {side} hip, and stop short of any pinch.",
+            "Keep your stances moderate, never wide or very deep."]
+
+[limit_cues.groin]
+off-limits = ["No wide stances, side lunges or legs spread apart. Keep the knees about hip width.",
+              "Bring the legs together before you get up or down, and move the {side} leg slowly."]
+delicate = ["Keep the feet about hip width, never wide, and the knees in line with the toes.",
+            "No quick side steps, and stop any stretch at the first pull in the inner thigh."]
+
+[limit_cues.low-back]
+off-limits = ["Brace gently before every rep and keep the spine long and still. No rounding and no twisting.",
+              "To get up from lying down, bend the knees, roll onto your side and push up with your hands.",
+              "Lift nothing from the floor. Set the weights up where you'll use them."]
+delicate = ["Brace before each rep and keep a neutral spine, the ribs stacked over the hips.",
+            "Roll to your side to get up from the floor, and stop any rep that pinches the back."]
+
+[limit_cues.rib]
+off-limits = ["Breathe easily all the way through. No holding the breath and no hard bracing.",
+              "No twisting, and no lying on the {side} side.",
+              "Get up by rolling away from the {side} side and pushing up with your hands."]
+delicate = ["Breathe out on the effort and never hold your breath.",
+            "Keep any twist small and slow, and stop at the first catch in the ribs."]
+
+[limit_cues.shoulder]
+off-limits = ["Keep the {side} arm out of the work, resting by your side or in your lap.",
+              "Get up and down without putting any weight through the {side} arm."]
+delicate = ["Keep the {side} elbow below shoulder height, with no reaching overhead.",
+            "Set the shoulder blades down and back before each rep, and stop at any pinch at the front of the shoulder."]
+
+[limit_cues.elbow]
+off-limits = ["Keep the {side} arm out of the work, with no gripping, pushing or pulling through it.",
+              "Don't lean on the {side} elbow or hand to get up or down."]
+delicate = ["Keep the {side} elbow soft, never snapping straight, and hold the weight with a light grip.",
+            "Stop any rep that sends pain along the forearm."]
+
+[limit_cues.wrist]
+off-limits = ["No weight through the {side} hand. Keep that hand off the floor and out of every grip.",
+              "Get up and down without pushing through the {side} hand."]
+delicate = ["Keep the {side} wrist straight, in line with the forearm, not bent back.",
+            "On the floor, make a fist or drop to the forearm if the {side} wrist complains."]
+
+[limit_cues.neck]
+off-limits = ["Keep the head still and in line with the spine, eyes on one spot, no nodding or turning.",
+              "Lying on your back, leave the head resting on the floor. Don't lift it to look.",
+              "Bent over or on all fours, look at the floor just ahead of you, not up and not tucked."]
+delicate = ["Keep the head in line with the spine. Bent over, eyes on the floor a little ahead, and lying down, head resting.",
+            "Don't pull on the head, and keep the chin gently tucked, not jutting forward.",
+            "Relax the jaw and keep the shoulders away from the ears."]
 
 # Strength: legs, bodyweight and light load ------------------------------------------------
 
@@ -2900,7 +2997,7 @@ rep = "Walk uphill at a steady pace. The effort ends when the time is up."
 feel = "Feel it in the glutes, hamstrings and calves, with breath a little harder but a few full sentences still possible, and not in the hands or low back."
 faults = ["If you hold the rails or lean on them, let go and stand tall, or lower the incline.", "If you lean forward from the waist, stand tall and keep the chest up.", "If your calves cramp up, shorten your steps and put the whole foot down."]
 easier = ["treadmill-walk"]
-harder = []
+harder = ["treadmill-hill-walk"]
 
 [[movement]]
 id = "treadmill-run"
@@ -2931,7 +3028,7 @@ harder = []
 [[movement]]
 id = "elliptical"
 name = "elliptical"
-aliases = ["elliptical trainer", "cross trainer", "elliptical intervals"]
+aliases = ["elliptical trainer", "cross trainer"]
 needs = ["elliptical"]
 position = "standing"
 sided = false
@@ -2952,6 +3049,58 @@ rep = "Glide the pedals in smooth circles with arms and legs together. The effor
 feel = "Feel a steady effort in the legs and arms, with breath harder but a few sentences still possible, and no pain in the knees or feet."
 faults = ["If you lean on the handles, stand tall and let the legs carry your weight.", "If your heels lift or your toes grip, press the whole foot down.", "If the pedals bounce, slow down and glide smoothly."]
 easier = []
+harder = ["elliptical-surge"]
+
+[[movement]]
+id = "elliptical-surge"
+name = "elliptical surge"
+aliases = ["elliptical intervals", "elliptical sprint", "cross trainer surge"]
+needs = ["elliptical"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["quads", "glutes", "hamstrings", "calves"]
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
+flags = ["fast"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Step onto the pedals, take the handles, and add enough resistance that a fast pace takes real work."
+cues = ["Drive the pedals fast, arms and legs together.", "Whole foot on the pedal.", "Tall posture, eyes ahead."]
+rep = "Push the pace hard for the whole surge. The surge ends when the time is up and you glide back to an easy pace."
+feel = "Feel the legs and lungs working hard, with only a few words possible, and no pain in the knees or feet."
+faults = ["If the pedals run away and bounce, add resistance so the legs have something to push.", "If you lean on the handles, stand tall and let the legs carry your weight.", "If your heels lift, press the whole foot down."]
+easier = ["elliptical"]
+harder = []
+
+[[movement]]
+id = "treadmill-hill-walk"
+name = "hill power walk"
+aliases = ["treadmill hill walk", "steep incline walk", "power walk uphill"]
+needs = ["treadmill"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["glutes", "calves", "hamstrings", "quads"]
+loads = { ankle = 2, calf = 2, knee = 1, hip = 2, foot = 1 }
+flags = []
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
+setup = "Raise the incline steeply and set a fast walking pace, hands free of the rails."
+cues = ["Drive the arms.", "Push the ground back with every step.", "Stand tall from the ankles, not the waist."]
+rep = "Walk uphill as fast as you can without breaking into a run. The effort ends when the time is up and you lower the incline."
+feel = "Feel the glutes, hamstrings and calves working hard and the breath coming fast, with only a few words possible, and nothing in the low back or shins."
+faults = ["If you hold the rails, let go and lower the incline or the speed until you can walk free.", "If you bend forward at the waist, stand tall and lean slightly from the ankles.", "If your calves cramp up, shorten your steps and put the whole foot down."]
+easier = ["treadmill-incline-walk"]
 harder = []
 
 [[movement]]

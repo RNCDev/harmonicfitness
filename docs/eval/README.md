@@ -2,13 +2,14 @@
 
 Forty requests for `./sweatcast session`, over four invented listeners, used to judge the session
 builder before a release: each case's skeleton is turned into a script, and a reviewer scores the
-scripts for safety, efficacy, adherence and ease of construction.
+scripts for safety, efficacy, adherence, ease of construction and warmth.
 
 - `cases.toml`: the forty cases. Strength, general and conditioning at the novice, experienced and
   advanced levels make nine cells; each runs at two kit presets and two lengths (ten to twenty minutes
   and thirty to forty five), which is thirty six, plus two mobility and two targeted cases. Every third
   case adds a `--limit`. `tests/test_session.py` (class `Eval`) checks the grid and that every case composes.
-- `listeners/{a,b,c,d}/`: the listeners, each a complete context folder (`SWEATCAST_HOME`), all invented.
+- `listeners/{a,b,c,d}/`: the listeners, each a complete context folder (`SWEATCAST_HOME`), all invented,
+  with invented first names (Maya, Theo, Priya and Sam) for the coach to use.
   a is a novice with a mat and no limits; b is experienced in hotel gyms with a delicate neck; c is advanced
   in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
   no log yet.
@@ -54,5 +55,6 @@ c11 to c20 and so on, so part means line up across runs), with `cases.toml`, the
 `docs/eval/out/` to read. Their rows make `docs/eval/results-<YYYY-MM-DD>.md` (a row per case, the five
 lowest, and what the scores say about the catalog, the dose rules and the methods); a second run on the
 same day adds `-run2`, and so on. Keep the table's columns (id, listener, goal, minutes, preset, method,
-safety, efficacy, adherence, ease, note) so runs can be compared row by row. Copy `out/`'s drafts aside
+safety, efficacy, adherence, ease, warmth, note) so runs can be compared row by row; warmth was added in
+release 6.2.0, so earlier runs have none, and totals compare on the first four. Copy `out/`'s drafts aside
 before the next run if it will be compared with this one. The results file is committed; `out/` is not.

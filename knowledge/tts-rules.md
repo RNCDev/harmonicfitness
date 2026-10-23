@@ -66,17 +66,38 @@ The lint warns (without blocking) when a segment opens without a locator, has mo
 
 ## Coaching voice
 
-The engines copy the delivery the text suggests: long, smooth sentences come out like a radio announcer reading copy. Cues should sound like a coach standing beside the listener.
+The engines copy the delivery the text suggests: long, smooth sentences come out like a radio announcer reading copy, and nothing but clipped commands comes out like a machine. A good session sounds like one coach beside one person they know. It has two registers, and the script moves between them.
 
-- Cue sentences are short: two to five words, a verb first. "Hands under the shoulders. Brace. Lower slow. Push."
-- Mid-set check-ins, one or two in each long working set: "Halfway there.", "Breathe out on the push.", "Last few. Keep the shape.", "Good. Stay with it."
-- Talk to the listener, not about the movement: "Keep your ribs down", not "The ribs should stay down."
-- Save the long sentences for the stories, where an even, conversational read is right.
-- Exclamation points sparingly, at most one or two a session; they can make the voice shout.
+**During the work: cues.** Short, two to five words, a verb first. "Hands under the shoulders. Brace. Lower slow. Push." One or two mid-set check-ins in each long working set: "Halfway there.", "Breathe out on the push.", "Last few. Keep the shape." Talk to the listener, not about the movement: "Keep your ribs down", not "The ribs should stay down."
 
-Before: "Keep the body in one straight line as you lower your chest toward the bench and then push it away."
-After: "Body in one line. Lower slow. Now push the bench away."
+**Around the work: a person talking.** In the welcome, the rests, the transitions and the close, write the way a coach actually talks to someone they train:
+- Contractions and plain words: "you're", "let's", "that's it", "okay".
+- "We" and "let's" for what's next: "Let's get you on the bench." "We've got two rounds left."
+- One line of why, once per movement at most: "This one's for the back of the hips, the part that does the work when you stand up."
+- Notice the effort plainly, not with stock praise: "That last set was honest." "You slowed down on the way down there. Exactly right."
+- Continuity, at least once a session, from what `./sweatcast coverage` prints: "Third session this week." "You said last time felt rushed, so the rests are longer today." "Same fifteens as Tuesday, one more rep."
+- A little of the profile's humor, if it has some, and never at the listener's expense.
+
+Before: "Rest. Sit up on the bench and breathe. Today's story is a new chip for six G."
+After: "Nice. Sit up and get your breath back, you earned that one. Okay, while you recover, here's a strange one from the chip world."
+
+**The name.** When the profile has a `name`, greet the listener by it in the opening line ("Hey Sam, good to have you back."), and use it again at the hardest set and at the sign-off: two to four times a session. More sounds like a sales call; the lint warns past five, and when a set name never comes up.
+
+**The arc.** A session has a shape, and the voice follows it:
+- **Welcome:** a greeting by name, how today fits the week ("second one this week"), then the day (weather, the shape of the calendar), then the plan said like a person: "We're doing four rounds of five today, nothing fancy, just the dumbbells and the bench."
+- **Build:** settle in, explain, set the standard for each movement.
+- **Peak:** name the hard part when it comes: "This is the round that counts. Stay with me."
+- **Ease off:** lower the energy for the last block and the cool-down.
+- **Close:** say what they did, specifically ("twenty sets, and the press felt stronger than Tuesday"), thank them or tell them it mattered, and give one reason to come back ("Next time, part two of the story."). Then the sign-off, by name.
+
+**Locators, varied.** Every segment after the first still opens by saying where we are, but not the same way each time: "Round three of four." "Here we go, round three." "Two to go." "Back on the floor for this one." "Last round. Make it count." The lint warns when three segments in a row open alike.
+
+**Handing off to a story.** Talk into it the way a friend would, not a newsreader: "Okay, while you breathe, here's a good one." "You'll like this." "Remember that chip from earlier? Here's the twist." Never "Today's story is", "In other news" or "Turning to"; the lint flags them.
+
+**Keep the cues clean.** Warmth goes in the gaps, never in the middle of a cue the listener needs to hear: safety and form cues stay short and stand alone.
+
+Exclamation points sparingly, at most one or two a session; they can make the voice shout.
 
 ## Tone
 
-Tone and humor come from the Narrator section of `me/profile.md`. Whatever the tone, avoid hype words and repeated catchphrases, and vary praise; "Nice work" eight times in one session becomes noise.
+Tone and humor come from the Narrator section of `me/profile.md` (how the coach talks to the listener and what encouragement works for them). Whatever the tone, avoid hype words and repeated catchphrases, and vary praise; "Nice work" eight times in one session becomes noise.

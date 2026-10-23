@@ -32,7 +32,14 @@ nothing here is personal data. Each writer takes five cases.
   Keep placeholders to a minimum share of time; fill most time with coaching (setup, cues, breathing,
   check-ins, what's next). Don't invent scores, quotes or events.
 - Health: speak the full safety rules (first-session length) from health.md's limits and clinician rules
-  and the skeleton's `Health: today:` lines.
+  and the skeleton's `Health: today:` lines, and the skeleton's `Limit cues:` lines where they apply.
+- Voice: follow `knowledge/tts-rules.md`, Coaching voice, in full: greet the listener by the `name` in
+  their profile.md and use it two to four times, talk like a person around the work (contractions,
+  "let's", a line of why, the effort noticed plainly), take one or two continuity lines from
+  `SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast coverage` (it may say there's no log yet; then
+  make it a first-session welcome), vary the segment openings, hand off to topic placeholders the way a
+  person would, and close specifically and personally. The lint warns on the name, repeated openings and
+  newsreader handoffs; clear those warnings too.
 
 ## Script habits judges have marked down; avoid them
 - Cue **during** the work. No five-second set calls ("At the bell, go... Halfway... Rack it. Rest.") eating

@@ -5,7 +5,9 @@ The draft format (`@@ <seconds> | <label>` markers, [pause] and [chime]) is defi
 draft.py. Markers are stripped on export.
 
 Structure checks (a locator opening each segment, one countdown per segment, few
-exclamation points, no praise line used over and over) print as warnings; with
+exclamation points, no praise line used over and over, no run of segments opening alike, no
+newsreader handoffs, and the listener's name from the profile used in the warm-up but not too
+often) print as warnings; with
 --strict they count as issues.
 
 With --voice, each segment's spoken length is predicted for that voice (see
@@ -90,27 +92,48 @@ def word_count(lines):
 
 LOCATOR_RE = re.compile(
     r"\b(minute|minutes|round|block|halfway|last|final|warm-up|warm up|finisher|cool-down|"
-    r"cool down|box breathing|set|part|circuit|interval)\b|^(that's|that is|that was)\b",
+    r"cool down|box breathing|set|part|circuit|interval|to go|one more|next up|here we go|back to|again)\b"
+    r"|^(that's|that is|that was)\b",
     re.IGNORECASE)
 COUNTDOWN_RE = re.compile(r"\bthree\s*(?:\.\.\.|…)\s*two\s*(?:\.\.\.|…)\s*one\b", re.IGNORECASE)
 PRAISE_WORDS = {"good", "nice", "great", "solid", "perfect", "beautiful", "well", "done", "work",
                 "job", "that's", "it", "very", "really", "there", "strong", "lovely"}
 PRAISE_START = {"good", "nice", "great", "solid", "perfect", "beautiful", "well", "strong", "lovely"}
 MAX_EXCLAIM, PRAISE_REPEAT = 2, 3
+NAME_MOST = 5          # past this the listener's name sounds like a sales call
+SAME_OPENING = 3       # this many segments in a row opening alike reads as a template
+NUMBER_WORDS = {"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+                "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+                "twenty", "thirty", "forty", "fifty", "sixty", "first", "second", "third", "fourth", "fifth"}
+NEWSREADER_RE = re.compile(r"\b(today's story is|in other news|turning now to|turning to the news|"
+                           r"and now,? the news|in today's headlines)\b", re.IGNORECASE)
+
+
+def _opening(sentence):
+    """A segment's opening shape: its first three words with numbers as #, to spot a template."""
+    words = re.findall(r"[a-z’'-]+", sentence.lower())[:3]
+    return " ".join("#" if w in NUMBER_WORDS else w for w in words)
 
 
 def sentences(text):
     return [x.strip() for x in re.split(r"(?<=[.!?])\s+", MARK_RE.sub(" ", text)) if x.strip()]
 
 
-def structure_warnings(segments):
-    """Coaching-structure checks from the workout skill and tts-rules.md, as messages."""
-    out, praise, exclaim = [], {}, 0
+def structure_warnings(segments, name=None):
+    """Coaching-structure checks from the workout skill and tts-rules.md, as messages. With the
+    listener's `name`, also checks it is used, and not too often."""
+    out, praise, exclaim, openings, named = [], {}, 0, [], []
     for i, seg in enumerate(segments, 1):
         paras = paragraphs(seg["lines"])
         text = " ".join(paras)
+        if name:
+            named += [i] * len(re.findall(rf"\b{re.escape(name)}\b", text, re.IGNORECASE))
+        for m in NEWSREADER_RE.finditer(text):
+            out.append(f"segment {i} ({seg['label']}): \"{m.group(0)}\" sounds like a newsreader; hand off "
+                       "the way a person would, like \"Okay, while you breathe, here's a strange one.\"")
         if i > 1 and paras:
             first = (sentences(paras[0]) or [""])[0]
+            openings.append((i, _opening(first)))
             if not LOCATOR_RE.search(first):
                 out.append(f"segment {i} ({seg['label']}): opens without a locator (\"{first[:40]}\"); "
                            "say where we are, like \"Minute nine of twenty-five.\"")
@@ -123,6 +146,22 @@ def structure_warnings(segments):
             if 0 < len(words) <= 4 and words[0] in PRAISE_START and all(w in PRAISE_WORDS for w in words):
                 key = " ".join(words)
                 praise.setdefault(key, []).append(i)
+    run = []
+    for i, shape in openings + [(None, None)]:
+        if run and shape == run[-1][1] and i == run[-1][0] + 1:
+            run.append((i, shape))
+            continue
+        if len(run) >= SAME_OPENING and run[0][1]:
+            out.append(f"segments {run[0][0]} to {run[-1][0]} all open \"{run[0][1].replace('#', '...')}\"; "
+                       "vary the locator (\"Here we go, round three.\", \"Two to go.\", \"Back on the floor for this one.\")")
+        run = [(i, shape)] if i is not None else []
+    if name and not named:
+        out.append(f"the listener's name ({name}) never comes up; greet them by name in the warm-up "
+                   "and use it again at the hardest set and the sign-off")
+    elif name and 1 not in named:
+        out.append(f"the warm-up doesn't greet {name} by name; open with it")
+    elif name and len(named) > NAME_MOST:
+        out.append(f"the name {name} comes up {len(named)} times; two to four is warm, more sounds like a sales call")
     if exclaim > MAX_EXCLAIM:
         out.append(f"{exclaim} exclamation points; keep to {MAX_EXCLAIM} a session, they can make the voice shout")
     for key, where in sorted(praise.items()):
@@ -194,7 +233,7 @@ class Report:
 
 
 def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_FILL,
-         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False):
+         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, name=None):
     """Check a parsed draft. With a voice, predicts spoken seconds from its pace,
     which is read once for the whole lint."""
     rate, exact, spokens = None, False, []
@@ -232,7 +271,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         for lineno, line in seg["lines"]:
             row.line_issues += lint_line(lineno, line)
         rows.append(row)
-    report = Report(rows, structure_warnings(segments), strict, guide_wpm, voice, rate, exact,
+    report = Report(rows, structure_warnings(segments, name), strict, guide_wpm, voice, rate, exact,
                     total_tolerance=total_tolerance, word_wpm=wpm)
     if voice:
         report.predicted = sum(length for _, length in layout(
@@ -289,6 +328,15 @@ def export_text(segments):
     return "\n\n".join(p for p in paras if p) + "\n", len([p for p in paras if p])
 
 
+def _listener_name():
+    """The profile's name, for the name checks, or None when there's no readable profile."""
+    try:
+        import context
+        return context.listener_name(context.profile())
+    except (SystemExit, OSError, ValueError):
+        return None
+
+
 def main():
     ap = cli.ArgumentParser()
     ap.add_argument("draft")
@@ -313,7 +361,7 @@ def main():
         voice = lookup(args.voice)
 
     report = lint(segments, voice, args.wpm, args.min_fill, args.max_fill,
-                  args.total_tolerance, args.word_tolerance, args.strict)
+                  args.total_tolerance, args.word_tolerance, args.strict, name=_listener_name())
     print("\n".join(render_report(report)))
 
     problems = report.problems

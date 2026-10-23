@@ -139,6 +139,15 @@ blocks = [
   { intensity = "strength", share = 0.4, patterns = ["squat", "hinge", "horizontal-push", "horizontal-pull"] },   # house default: the rest on supporting strength
 ]
 
+# All-out sprints ---------------------------------------------------------------------------------
+# An interval on an all-out sprint keeps the slot's time but rests at least `rest_ratio` times its work,
+# with fewer rounds when the slot can't hold as many; a finisher leads with one only when nothing
+# else fits, and then rests it the same way.
+
+[all_out]
+most_seconds = 20   # house default: a hard timed entry this short or shorter is an all-out sprint, as the catalog's sprint holds are
+rest_ratio = 4      # source: programming.md, Rest between intervals: all-out efforts of ten to thirty seconds get at least four times their length in easy movement; Gillen rested six times https://pubmed.ncbi.nlm.nih.gov/27115137/ and Bogdanis found the fuel half back after about a minute https://pmc.ncbi.nlm.nih.gov/articles/PMC1157744
+
 # Dose ---------------------------------------------------------------------------------------------
 # Each value is [least, most]. Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 and the
 # American College of Sports Medicine https://pubmed.ncbi.nlm.nih.gov/19204579/ as programming.md cites them.
