@@ -4,11 +4,11 @@ schema = 3
 name = ""
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
-# Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.
+# Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.
 experience = ""
-# Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.
+# Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.
 likes = []
-# Movements to leave out (ids or names); the session tool never picks them.
+# Movements to leave out (ids or names); the brief's menu never lists them.
 dislikes = []
 # Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Once the copy is there the local MP3 is removed; empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has.
 deliver_to = ""
@@ -27,7 +27,7 @@ description = "man in his forties, warm baritone, a seasoned trainer talking to 
 name = "Qwen3 Coach"
 description = "man in his thirties, a focused class instructor. The clearest diction."
 
-# Equipment kits the session tool can plan with: a name and the equipment ids you have there (./sweatcast movements lists them). For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
+# Equipment kits a session can be planned with: a name and the equipment ids you have there (./sweatcast movements lists them). For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
 
 [[kits]]
 name = "home"

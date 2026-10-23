@@ -41,14 +41,14 @@
 #   optional on a draft, expected on a finished entry): `rep`, what one rep is (and whether reps count
 #   per side), or for a timed entry what is held and what ends it, with a talk test on conditioning;
 #   `feel`, where it should be felt and where not; `faults`, one to three common mistakes, each with the
-#   cue that fixes it, safety first. `./sweatcast session` prints them for its first picks, and
-#   `./sweatcast movements --about <ids>` for any other.
+#   cue that fixes it, safety first. `./sweatcast brief` prints them for every movement on today's menu,
+#   and `./sweatcast movements --about <ids>` for any.
 # - `[limit_cues]` (after the kit presets), one table per area in `areas`, each with `off-limits` and
 #   `delicate`: one to three spoken lines a coach says while that limit is active, generic and
 #   practical (where the head, the resting foot or the arm goes, how to get to and from the floor).
 #   `{side}` in a line stands for the limit's side, left or right, or "injured" (off limits) or "sore"
 #   (delicate) when the limit is on both sides; it is the only brace a line may hold.
-#   `./sweatcast session` prints the lines for each limit active today.
+#   `./sweatcast brief` prints the lines for each limit active today.
 format = 3   # the catalog's own format; the context schema is separate
 
 patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
@@ -103,7 +103,7 @@ equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "chair", "towel"
              "treadmill", "elliptical", "stair-climber"]
 
 # Limit cues: what a coach says while a limit is active, for each area and level, one to three lines.
-# `./sweatcast session` prints them for each limit today. `{side}` becomes the limit's side (left or
+# `./sweatcast brief` prints them for each limit today. `{side}` becomes the limit's side (left or
 # right), or "injured" (off limits) or "sore" (delicate) for a limit on both sides or none.
 
 [limit_cues.foot]
@@ -1162,7 +1162,7 @@ level = "novice"
 seconds_per_rep = 3
 transition_seconds = 10
 draft = false
-setup = "Use a solid inside door that opens away from you, so your pull presses it into its frame, never the room's entry door. Shut it until it latches, loop a towel around the far handle, hold both ends, and lean back with your arms long."
+setup = "Use a solid inside door that opens away from you, so your pull presses it into its frame, never the room's entry door. Shut it until it latches, loop a towel around the handle on your side, hold both ends, and lean back with your arms long."
 cues = ["The door opens away from you and stays latched.", "Pull your chest to your hands.", "Body stays in one straight line."]
 rep = "One rep is leaning back with arms long, pulling your chest to your hands, and lowering back out."
 feel = "Feel it in the middle of your back and the backs of the shoulders, not in the low back."
@@ -1584,7 +1584,7 @@ sided = false
 measure = "time"
 patterns = ["carry"]
 muscles = ["forearms", "core", "back", "shoulders"]
-loads = { wrist = 2, elbow = 1, shoulder = 2, low-back = 1, hip = 1, knee = 1 }
+loads = { wrist = 2, elbow = 1, shoulder = 2, low-back = 1, hip = 1, knee = 1, neck = 1 }
 flags = ["grip"]
 intensity = "strength"
 level = "novice"
@@ -1609,7 +1609,7 @@ sided = true
 measure = "time"
 patterns = ["carry", "anti-rotation"]
 muscles = ["core", "forearms", "shoulders", "back"]
-loads = { wrist = 2, elbow = 1, shoulder = 2, low-back = 2, hip = 1, knee = 1 }
+loads = { wrist = 2, elbow = 1, shoulder = 2, low-back = 2, hip = 1, knee = 1, neck = 1 }
 support = { low-back = 1 }
 flags = ["grip"]
 intensity = "strength"
@@ -2529,7 +2529,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "calves", "shoulders"]
-loads = { hip = 1, knee = 1, ankle = 1, calf = 1, shoulder = 1, groin = 1 }
+loads = { hip = 1, knee = 1, ankle = 1, calf = 1, shoulder = 1, groin = 2 }
 flags = ["overhead"]
 intensity = "conditioning"
 effort = "moderate"
@@ -2596,7 +2596,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["shoulders", "core", "calves"]
-loads = { shoulder = 2, elbow = 2, ankle = 1 }
+loads = { shoulder = 2, elbow = 2, ankle = 1, low-back = 1 }
 flags = ["fast", "spine-twist"]
 intensity = "conditioning"
 effort = "moderate"

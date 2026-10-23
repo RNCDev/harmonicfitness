@@ -25,8 +25,9 @@ Claude Code runs these for you, but they work on their own too. `./sweatcast hel
 | `./sweatcast check` | Checks `me/`: anything still to fill in, or that the tools can't read |
 | `./sweatcast build <draft> "<name>"` | Lints a draft, renders the MP3, copies it to your phone's folder (`--lint-only` to just lint) |
 | `./sweatcast voices` | Lists voices; `design` and `keep` make a new one from a description |
-| `./sweatcast session --goal strength --minutes 30 --preset hotel-room` | A session skeleton: the method, timed slots and ranked movements that fit the kit, your level and the limits in `me/health.md` |
-| `./sweatcast movements --preset hotel-room` | Browses the movements a kit allows, by movement pattern; it applies no health limits, so plans come from `./sweatcast session` |
+| `./sweatcast brief --goal strength --minutes 30 --preset hotel-room` | Today's ingredients: you, the week, your limits, the safe menu of movements (with coaching notes) your kit, level and `me/health.md` allow, the programming guide and equipment notes; `--save <draft>` writes the menu the build checks |
+| `./sweatcast movements --preset hotel-room` | Browses the movements a kit allows, by movement pattern; it applies no health limits, so plans come from `./sweatcast brief`; `--about <ids>` prints a movement's coaching notes |
+| `./sweatcast session --goal strength --minutes 30 --preset hotel-room` | An example session shape (method, timed slots, ranked movements), an optional reference |
 | `./sweatcast feeds`, `coverage`, `youtube`, `log-session` | What the workout skill uses to research, plan and log |
 | `./sweatcast backup` | Commits `me/` and pushes it to its own private repo (the workout skill runs it after each session) |
 | `./sweatcast migrate`, `cache prune`, `test` | Upkeep |
@@ -56,11 +57,11 @@ cd me && git init && gh repo create sweatcast-me --private --source . --push
 | Folder | What |
 |---|---|
 | `.claude/skills/` | `workout` (request to MP3) and `setup` (onboarding and profile changes) |
-| `knowledge/` | The movement catalog (`movements.toml`), session methods and doses (`sessions.toml`), programming, the injury playbook, equipment kits, text-to-speech rules, how voices work |
+| `knowledge/` | The movement catalog (`movements.toml`), session methods and doses (`sessions.toml`), programming, the injury playbook, equipment kits, what goes in a script, text-to-speech rules, how voices work |
 | `tools/` | One Python or shell file per job, all run through `./sweatcast`; `CLAUDE.md` lists what each does |
 | `voices/`, `me.example/` | The shipped voices and the smoke-test draft; the template for `me/` |
 | `tests/` | Fast checks with no models, network or personal files (`./sweatcast test`), run by CI on every push |
-| `docs/eval/` | The judged grid of forty sessions behind each release's quality, with each run's results |
+| `docs/eval/` | The judged grid behind each release's quality (forty cases and extras), with each run's results |
 | `docs/research/` | The research notes the session rules cite |
 
 ## Voices
@@ -78,8 +79,8 @@ Two voices ship, each named for the model that speaks it; a voice is a ten-secon
 
 1. The `workout` skill asks only for what you didn't say: how each injury feels, length, kit, how the last session went.
 2. `./sweatcast feeds` pulls your teams' results and schedules, the weather, recent local, science and tech headlines, and the week's podcasts and puzzles in about a second, while background agents research the rest: two current breakthroughs, on this day, and a deep dive that alternates between a news story and a video from your favorite YouTube channels (a long video becomes a series). The quiz uses a puzzle that works by ear.
-3. `./sweatcast session` builds the plan from the movement catalog: the method that suits your goal, length and level, timed slots, and ranked movements your kit allows and your injury limits permit. Claude writes the script under its `@@ <seconds> | <label>` markers, and starts rendering the first half while it writes the rest.
-4. `./sweatcast build` lints the draft for text-to-speech problems, predicts each segment's spoken length for the voice, renders a loudness-normalized MP3, and moves it to the folder your profile names (anything that syncs to your phone), keeping the script's text in `me/workouts/` as history.
+3. `./sweatcast brief` gathers the ingredients: who you are and how the week has gone, today's limits with your clinician's rules, the safe menu (every movement your kit, level and injury limits allow, each with its coaching notes), and the programming guide for your goal and level. Claude designs the session from it (the format, the movements, their order, doses and timing), posts the plan, writes the script, and starts rendering the first half while it writes the rest.
+4. `./sweatcast build` checks that every movement the draft declares or names is on today's menu, lints it for text-to-speech problems, predicts each segment's spoken length for the voice, renders a loudness-normalized MP3, and moves it to the folder your profile names (anything that syncs to your phone), keeping the script's text in `me/workouts/` as history.
 
 A soft chime marks the start of each segment and each change inside an interval, and a rising three-note tone marks the end. A segment with spare seconds widens its paragraph breaks, then ends early rather than going quiet, unless it holds timed work: a `[hold]` keeps that segment its full length, silent where you work. The whole workout lands within three percent of plan. With the default voice, a 30-minute workout renders in under 20 minutes in the background, and edits re-render only the clips that changed.
 

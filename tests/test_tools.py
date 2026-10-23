@@ -40,7 +40,7 @@ import voices  # noqa: E402
 import youtube  # noqa: E402
 from draft import CHIME, CHIME_SECONDS, PARAGRAPH_GAP, parse, plan, spans  # noqa: E402
 from render import SR, assemble, chime, end_tone, silence  # noqa: E402
-from tts_build import lint_line, structure_warnings, word_count  # noqa: E402
+from tts_build import lint_line, word_count  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Drafts that ship with the engine; personal drafts in me/ are never test fixtures.
@@ -130,67 +130,13 @@ class Lint(unittest.TestCase):
 
 
 class Structure(unittest.TestCase):
-    """Coaching-structure warnings (warn-only unless --strict)."""
+    """How a script sounds is guidance in knowledge/tts-rules.md, not a lint check (since 7.0.0)."""
 
-    def test_clean_draft_has_no_warnings(self):
-        segs = parse("@@ 60 | A\nWelcome. Three... two... one... go.\n"
-                     "@@ 60 | B\nMinute two of five. Squats. Good.\n"
-                     "@@ 60 | C\nWarm-up done. Rows now. Nice work.\n"
-                     "@@ 30 | Close\nThat's the session. Good.\n")
-        self.assertEqual(structure_warnings(segs), [])
-
-    def test_missing_locator(self):
-        segs = parse("@@ 60 | A\nWelcome.\n@@ 60 | B\nSquats now. Go.\n")
-        warnings = structure_warnings(segs)
-        self.assertEqual(len(warnings), 1)
-        self.assertIn("segment 2", warnings[0])
-        self.assertIn("locator", warnings[0])
-
-    def test_two_countdowns_in_a_segment(self):
-        segs = parse("@@ 60 | A\nThree... two... one... go. Later. Three… two… one… stop.\n")
-        self.assertIn("2 countdowns", " ".join(structure_warnings(segs)))
-
-    def test_exclamation_points(self):
-        segs = parse("@@ 60 | A\nGo! Push! Yes! Done.\n")
-        self.assertIn("3 exclamation points", " ".join(structure_warnings(segs)))
-
-    def test_repeated_praise(self):
-        segs = parse("@@ 60 | A\nGood. Squats.\n@@ 60 | B\nMinute two. Nice work. Good.\n"
-                     "@@ 60 | C\nMinute three. Good!\n")
-        joined = " ".join(structure_warnings(segs))
-        self.assertIn('praise "good" used 3 times', joined)
-        self.assertNotIn("nice work", joined)
-
-    def test_name_is_used_but_not_overused(self):
-        warm = "@@ 60 | A\nHey Sam, good to see you.\n@@ 60 | B\nMinute two. Squats, Sam.\n"
-        self.assertEqual(structure_warnings(parse(warm), "Sam"), [])
-        none = " ".join(structure_warnings(parse("@@ 60 | A\nWelcome.\n@@ 60 | B\nMinute two.\n"), "Sam"))
-        self.assertIn("never comes up", none)
-        late = " ".join(structure_warnings(parse("@@ 60 | A\nWelcome.\n@@ 60 | B\nMinute two, Sam.\n"), "Sam"))
-        self.assertIn("doesn't greet Sam", late)
-        many = "@@ 60 | A\nHey Sam.\n" + "".join(f"@@ 60 | {c}\nRound {c}. Go, Sam.\n" for c in "BCDEF")
-        self.assertIn("comes up 6 times", " ".join(structure_warnings(parse(many), "Sam")))
-        self.assertNotIn("name", " ".join(structure_warnings(parse(warm))))   # no name set, no name check
-
-    def test_a_run_of_identical_openings_is_a_template(self):
-        same = "@@ 60 | A\nHi.\n" + "".join(f"@@ 60 | {c}\nRound {n} of four. Go.\n"
-                                            for c, n in zip("BCD", ("one", "two", "three")))
-        self.assertIn("segments 2 to 4 all open", " ".join(structure_warnings(parse(same))))
-        varied = ("@@ 60 | A\nHi.\n@@ 60 | B\nRound one of four. Go.\n@@ 60 | C\nHere we go, round two.\n"
-                  "@@ 60 | D\nRound three of four.\n@@ 60 | E\nTwo to go. Squats.\n")
-        self.assertEqual(structure_warnings(parse(varied)), [])
-
-    def test_newsreader_handoff_is_flagged(self):
-        segs = parse("@@ 60 | A\nHi. Today's story is a chip.\n@@ 60 | B\nMinute two. In other news, rain.\n")
-        self.assertEqual(sum("newsreader" in w for w in structure_warnings(segs)), 2)
-
-    def test_existing_drafts_only_warn(self):
-        # Warn-only: the checks never change what an existing draft exports.
-        for path in DRAFTS:
-            with open(path, encoding="utf-8") as f:
-                segs = parse(f.read())
-            for w in structure_warnings(segs):
-                self.assertIsInstance(w, str)
+    def test_the_lint_has_no_structure_checks(self):
+        segs = parse("@@ 60 | A\nGo! Push! Yes!\n@@ 60 | B\nSquats now. Today's story is a chip.\n")
+        report = tts_build.lint(segs, wpm=60)
+        self.assertFalse(hasattr(report, "warnings"))
+        self.assertFalse(hasattr(tts_build, "structure_warnings"))
 
     def test_spoken_seconds_counts_an_inline_chime(self):
         seg = parse("@@ 10 | A\nab [chime] cd\n")[0]
@@ -818,6 +764,18 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "Test build.txt")))
         self.assertIn("--voice Chatterbox Coach", self.calls())   # the profile's default voice
         self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
+        self.assertIn("tts_build.py", self.calls().splitlines()[0])
+        self.assertIn("--require-menu", self.calls().splitlines()[0])   # a workout can't build without its menu
+
+    def test_the_smoke_test_needs_no_menu(self):
+        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": "0"}
+        out = run(["sh", "sweatcast", "build", os.path.join("voices", "smoke-test.draft.txt"), "smoke-test",
+                   "--allow-estimated"], home=self.home, env=env)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        lint = self.calls().splitlines()[0]
+        self.assertIn("tts_build.py", lint)
+        self.assertNotIn("--require-menu", lint)
+        self.assertIn("--force", lint)
 
     @unittest.skipIf(os.name == "nt", "chmod can't make a folder read-only on Windows")
     def test_a_failed_copy_keeps_the_local_mp3(self):
@@ -926,10 +884,18 @@ class LintReport(unittest.TestCase):
         report = tts_build.lint(segs, wpm=60)
         self.assertEqual([r.flag for r in report.rows], ["short", "short"])
         self.assertTrue(any("abbreviation" in i for i in report.rows[0].line_issues))
-        self.assertTrue(report.warnings)                        # B has no locator
-        self.assertEqual(report.problems, 3)                     # two segments far off, one abbreviation
+        self.assertEqual(report.problems, 1)                     # the abbreviation; far-off segments only show
         strict = tts_build.lint(segs, wpm=60, strict=True)
-        self.assertEqual(strict.problems, report.problems + len(report.warnings))
+        self.assertEqual(strict.problems, 3)                     # with --strict, the two segments count too
+
+    def test_a_held_segment_shows_its_silence(self):
+        segs = parse("@@ 60 | A\nAt the bell, go. [chime] [hold 20s] Stop. [chime] Breathe. [hold]\n")
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        with mock.patch("voices.pace", return_value=(10.0, True)):
+            report = tts_build.lint(segs, v)
+        self.assertEqual(report.rows[0].flag, "")                # held: never short
+        self.assertGreater(report.rows[0].quiet, tts_build.HELD_QUIET)
+        self.assertIn("silent at its holds", "\n".join(tts_build.render_report(report)))
 
     def test_with_a_voice_the_total_is_held_to_plan(self):
         segs = parse("@@ 10 | A\n" + "word " * 40 + "\n")

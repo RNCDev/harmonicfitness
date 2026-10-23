@@ -1,0 +1,13 @@
+# Extra cases for the judged grid, outside the forty in cases.toml (which tests/test_session.py keeps at
+# forty): same fields, except that `limit` may be a list. The listeners are the invented ones in
+# docs/eval/listeners/. docs/eval/briefs.sh runs these after the forty.
+format = 1
+
+[[case]]
+# An off-limits ankle with a delicate foot on the same side: nothing standing, nothing pushing through that foot.
+id = "c41"
+listener = "d"
+goal = "general"
+minutes = 25
+preset = "hotel-gym"
+limit = ["ankle=off-limits:right", "foot=delicate:right"]

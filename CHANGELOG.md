@@ -2,6 +2,38 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [7.0.0] - 2026-10-23
+
+Ingredients, not skeletons. The harness supplies what a session is built from, and the writer designs it: `./sweatcast brief` gathers the listener, the week, today's limits and the safe menu of movements with their coaching notes, the programming guide and the kit's notes, and the workout skill chooses the format, the movements, their order, doses and timing, then writes the script. The hard checks stay only where something must never go wrong: every movement from today's safe menu, text a voice reads cleanly, paragraphs short enough for one clip, and the total within three percent.
+
+Judged on eleven cases against the previous run (`docs/eval/results-2026-10-23.md`): warmth 2.45 to 4.45, efficacy 3.64 to 4.09, adherence 3.82 to 4.18; safety 4.91 to 4.73, from three gaps the brief left the writer to fill (a clinician's rule softened later in a script, a carry heavier than a delicate neck allows, a walk to the rack under "nothing standing"), each fixed in this release.
+
+### For forks
+Nothing to migrate in `me/`; the context files stay schema 3 and the catalog format 3. What changes is the workflow and the draft:
+- Plan with `./sweatcast brief --goal <goal> --minutes <N> (--kit | --preset | --equipment) [--limit ...] --save <draft path>` in place of `./sweatcast session`, which stays as an optional example shape. `--save` writes `<stem>.brief.md` and `<stem>.menu.json` beside the draft.
+- A draft starts with a `movements:` line naming every movement it uses (by its menu name), then its segments, which add up to exactly the request. `./sweatcast build` won't build a draft without its menu, or with a movement the menu doesn't hold; only the voice smoke test builds without one. A draft you're halfway through from an older release needs a `brief --save` for its path and a `movements:` line.
+- `./sweatcast log-session --draft <path>` logs the declared movements.
+- The lint no longer warns on structure (locators, countdowns, praise, the name, openings, newsreader handoffs); that is guidance in `knowledge/tts-rules.md`. A segment far off its slot shows in the table without blocking (`--strict` makes it count).
+- If you customized the workout skill, its script rules moved to `knowledge/script.md`.
+
+### Added
+- `./sweatcast brief` (`tools/brief.py`): today's ingredients in Markdown. The listener (name, level, likes and dislikes, the profile's Narrator and Default session lines); how today fits the week from the log; today's limits with what each means, the clinician's rules, the limit cues with the side filled in, the playbook's paragraph per area and the red flags; the safe menu, every movement the kit, level, limits, Avoid lines and dislikes allow, by primary pattern, each with its facts, its load on today's limited areas and its full coaching notes, healthy-side-only ones marked; the weights on hand; the programming guide (the level's doses, the sprint rest rule, the time shares, the formats that fit, every rule in `programming.md`); and the kit's notes from `kits.md`. It plans nothing.
+- The menu check (`tools/menu.py`), run by the lint and required by the build: a declared movement off the menu, a catalog movement the text names that's off the menu, nothing declared, or segments that don't add up to the request stop the build, whatever `--force` says. Plain one-word names ("squat", "swing"), a shortened name of a declared movement ("the bench press") and "no neck rolls today" don't count; a menu movement named but not declared is a warning.
+- The draft's `movements:` header line (`tools/draft.py`), never spoken, and where a draft's brief and menu sit beside it.
+- `knowledge/script.md`: what goes in a script, from the welcome to the sign-off, moved out of the workout skill and added to (a clinician's rule beats the general stop rule; a limit cue beats a movement's own setup; under "nothing standing", the kit is set out within reach before the work starts).
+- The lint's table shows each held segment's spare seconds, spent in silence, so a quiet strength rest is easy to spot.
+- Eval: `docs/eval/briefs.sh`, `extra-cases.toml` (c41), the writer and judge briefs for the brief path, and run 5's results.
+
+### Changed
+- The workout skill is a page of procedure (from about 5,800 words to about 1,400, plus the research templates): read, check in and launch research, brief, design and post the plan, write, build, deliver, log and back up.
+- `./sweatcast session` shares its safety screen with the brief (`session.screen`) and is an optional reference and the eval's baseline; it isn't extended.
+- The lint keeps only what must hold: the text-to-speech line checks, the paragraph length, the total within three percent, and the menu check. Segment fill flags show without blocking.
+- Catalog: carries rate a light neck load (a delicate neck allows them, marked; an off-limits neck rules them out); step jacks rate groin 2 (a side step is what loosens a groin limit); shadow boxing rates a light low-back load, so a delicate back screens it as fast work; the towel door row says the handle on your side.
+- Docs harmonized around the brief: CLAUDE.md, the README, the setup skill, `kits.md`, the injury playbook, `programming.md`, `tts-rules.md`, the profile and health templates and the eval listeners (whose prose no longer names someone other than their `name`).
+
+### Removed
+- The lint's structure warnings and the workout skill's skeleton steps (`session --draft` markers, first candidates, per-slot rules).
+
 ## [6.2.0] - 2026-10-22
 
 Scripts that sound like a coach who knows the listener, not a template read aloud: a name, a person's register around the work, continuity from the log, a session arc, and lint checks that catch the mechanical patterns. Plus the engine fixes the last eval left open.

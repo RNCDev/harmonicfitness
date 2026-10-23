@@ -49,8 +49,8 @@ def to_2(text, path):
                                      context.SETTINGS_COMMENTS)
 
 
-HEALTH_NOTE = ("# Each injury listed below needs a [[limits]] entry here (area, side, level, note); the session tool\n"
-               "# reads only these rows. Move old \"Clinician rules:\" sub-bullets to the ## Clinician rules section.\n"
+HEALTH_NOTE = ("# Each injury listed below needs a [[limits]] entry here (area, side, level, note); the brief's safety\n"
+               "# screen reads only these rows. Move old \"Clinician rules:\" sub-bullets to the ## Clinician rules section.\n"
                "# Delete the old comment below that names knowledge/injury-rules.toml, phases and advance_when, and\n"
                "# any \"Phase\" or \"Move to the next phase\" sub-bullets: those files and phases are gone.")
 

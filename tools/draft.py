@@ -10,12 +10,21 @@ full planned length, its spare time silent at its bare holds, shared equally ([h
 is exactly that much silence, with no ten-second cap, and the rest of the spare time
 goes to the bare holds, or to the end when there are none).
 
+Before the first marker, a draft declares the movements it scripts, once, on one or more
+header lines that are never spoken:
+    movements: goblet squat, dumbbell floor press, dead bug, box breathing
+`./sweatcast build` checks them against the menu `./sweatcast brief --save` wrote beside
+the draft (`menu_path`).
+
 This is the one source of truth for the draft: the lint (tts_build.py) predicts
 from it and the render (render.py) lays clips out with it, so they agree.
 """
+import os
 import re
 
 MARKER = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*)$")
+HEADER = re.compile(r"^movements\s*:\s*(.*)$", re.IGNORECASE)   # the declaration, before the first marker
+DRAFT_SUFFIX = ".draft.txt"
 PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
 CHIME_RE = re.compile(r"\[\s*chime\s*\]", re.IGNORECASE)
 HOLD_RE = re.compile(r"\[\s*hold(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
@@ -48,13 +57,42 @@ def parse(text):
                        "lines": [], "start": lineno}
             segments.append(current)
         elif current is None:
-            if line.strip():
-                raise SystemExit(f"Line {lineno}: text before the first @@ marker.")
+            if line.strip() and not HEADER.match(line.strip()):
+                raise SystemExit(f"Line {lineno}: text before the first @@ marker "
+                                 "(only a movements: line may come first).")
         else:
             current["lines"].append((lineno, line))
     if not segments:
         raise SystemExit("No @@ segment markers found.")
     return segments
+
+
+def declared(text):
+    """The movements the draft's header declares, in order, as written: every `movements:` line
+    before the first marker, split on commas."""
+    out = []
+    for line in text.splitlines():
+        if MARKER.match(line.strip()):
+            break
+        m = HEADER.match(line.strip())
+        if m:
+            out += [w.strip() for w in m.group(1).split(",") if w.strip()]
+    return list(dict.fromkeys(out))
+
+
+def stem(path):
+    """A draft's path without `.draft.txt` (or its one extension): the brief, the menu and the draft
+    share it."""
+    return path[:-len(DRAFT_SUFFIX)] if path.endswith(DRAFT_SUFFIX) else os.path.splitext(path)[0]
+
+
+def menu_path(path):
+    """Where the menu for a draft (or a stem) lives: `<stem>.menu.json` beside it."""
+    return stem(path) + ".menu.json"
+
+
+def brief_path(path):
+    return stem(path) + ".brief.md"
 
 
 def paragraphs(lines):

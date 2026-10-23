@@ -1,60 +1,61 @@
 # The judged grid
 
-Forty requests for `./sweatcast session`, over four invented listeners, used to judge the session
-builder before a release: each case's skeleton is turned into a script, and a reviewer scores the
-scripts for safety, efficacy, adherence, ease of construction and warmth.
+Forty requests over four invented listeners, used to judge sessions before a release: for each case a
+writer designs and writes a session from `./sweatcast brief`'s ingredients, the way the workout skill
+does, and reviewers score the scripts for safety, efficacy, adherence, ease of construction and warmth.
 
 - `cases.toml`: the forty cases. Strength, general and conditioning at the novice, experienced and
   advanced levels make nine cells; each runs at two kit presets and two lengths (ten to twenty minutes
   and thirty to forty five), which is thirty six, plus two mobility and two targeted cases. Every third
   case adds a `--limit`. `tests/test_session.py` (class `Eval`) checks the grid and that every case composes.
+- `extra-cases.toml`: cases beyond the forty, in the same fields (a `limit` may be a list), such as c41,
+  an off-limits ankle with a delicate foot on the same side.
 - `listeners/{a,b,c,d}/`: the listeners, each a complete context folder (`SWEATCAST_HOME`), all invented,
   with invented first names (Maya, Theo, Priya and Sam) for the coach to use.
   a is a novice with a mat and no limits; b is experienced in hotel gyms with a delicate neck; c is advanced
   in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
   no log yet.
-- `writer.md`: the script writer's brief (five cases a writer).
-- `judge.md`: the reviewer's prompt (ten cases a judge).
-- `skeletons.sh`: the generation loop.
-- `out/` (git-ignored): the generated skeletons, markers, scripts and lints.
+- `briefs.sh`: each case's brief and menu. `skeletons.sh`: the composer's skeletons, the baseline
+  before 7.0.0 (its writers narrated them).
+- `writer.md`: the writer's brief (a few cases a writer). `judge.md`: the reviewer's prompt.
+- `out/` (git-ignored): the generated briefs and menus, scripts, writer notes, lints and judges' parts.
 
 Run each command from the repo root.
 
-## 1. Generate the skeletons
+## 1. Generate the briefs
 
 ```sh
-docs/eval/skeletons.sh
+docs/eval/briefs.sh            # every case
+docs/eval/briefs.sh c06 c41    # just these
 ```
 
-For each case it runs `SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast session --goal ...
---minutes ... --preset ... [--level ...] [--target ...] [--limit ...] --today 2026-10-21` into
-`docs/eval/out/<id>.skeleton.txt` (its stderr into `<id>.skeleton.stderr.txt`), and the same with `--draft` into `docs/eval/out/<id>.markers.txt`
-(the `@@` markers a script is written under). The date is fixed, so the skeletons are the same on
-every run until the catalog, the dose rules or the composer change.
+For each case it runs `SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast brief --goal ... --minutes
+... --preset ... [--level ...] [--target ...] [--limit ...] --today 2026-10-21 --save docs/eval/out/<id>.draft.txt`,
+which writes `docs/eval/out/<id>.brief.md` and `<id>.menu.json` (its stderr into `<id>.brief.stderr.txt`).
+The date is fixed, so the briefs are the same on every run until the catalog, the dose rules or the
+knowledge files change.
 
 ## 2. Write and lint the scripts
 
-Write each case's script under its markers into `docs/eval/out/<id>.draft.txt`, following
-`writer.md` (which points at the `workout` skill's script step), with the writer's notes beside it in
-`<id>.writer-notes.md`, then lint it. Eight writers of five cases each is the usual split. The build
-name (`"eval-<id>"`) is required: without it `--lint-only` is taken as the name and a render starts.
-The lint also exports a `.txt` into the listener's `workouts/`, which is git-ignored.
+Writers follow `writer.md`: design the session from the brief, put the plan and every place they had to
+invent something in `docs/eval/out/<id>.writer-notes.md`, write `docs/eval/out/<id>.draft.txt` (its
+`movements:` line, then the segments), and lint it. Two or three cases a writer keeps each brief in view.
+The build name (`"eval-<id>"`) is required: without it `--lint-only` is taken as the name and a render
+starts. The lint checks the draft against its menu, and exports a `.txt` into the listener's `workouts/`,
+which is git-ignored.
 
 ```sh
-for f in docs/eval/out/c*.draft.txt; do
-  id=$(basename "$f" .draft.txt)
-  listener=$(grep -A1 "id = \"$id\"" docs/eval/cases.toml | sed -n 's/^listener = "\(.*\)"/\1/p')
-  SWEATCAST_HOME=docs/eval/listeners/$listener ./sweatcast build "$f" "eval-$id" --lint-only || echo "$id: lint failed"
-done
+SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
 ```
 
 ## 3. Judge
 
-Give four reviewers `docs/eval/judge.md` as their prompt, ten cases each in case order (c01 to c10,
-c11 to c20 and so on, so part means line up across runs), with `cases.toml`, the listeners and
-`docs/eval/out/` to read. Their rows make `docs/eval/results-<YYYY-MM-DD>.md` (a row per case, the five
-lowest, and what the scores say about the catalog, the dose rules and the methods); a second run on the
-same day adds `-run2`, and so on. Keep the table's columns (id, listener, goal, minutes, preset, method,
-safety, efficacy, adherence, ease, warmth, note) so runs can be compared row by row; warmth was added in
-release 6.2.0, so earlier runs have none, and totals compare on the first four. Copy `out/`'s drafts aside
-before the next run if it will be compared with this one. The results file is committed; `out/` is not.
+Give reviewers `docs/eval/judge.md` as their prompt, a few cases each in case order, with the case files,
+the listeners and `docs/eval/out/` to read; each writes its part to `docs/eval/out/judge-<n>.md`. Their rows
+make `docs/eval/results-<YYYY-MM-DD>.md` (a row per case, the lowest cases, and what the scores say about the
+catalog and menu, the programming guide and the design); a second run on the same day adds `-run2`, and so
+on. Keep the table's columns (id, listener, goal, minutes, preset, method, safety, efficacy, adherence,
+ease, warmth, note) so runs can be compared row by row; warmth was added in release 6.2.0, so earlier runs
+have none, and 7.0.0's ease measures what the writer invented beyond the brief, not beyond a skeleton.
+Copy `out/`'s drafts aside (as `out-before-<version>/`, git-ignored) before the next run if it will be
+compared with this one. The results file is committed; `out/` is not.

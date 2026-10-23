@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Lint a segmented workout draft and export a clean transcript.
 
-The draft format (`@@ <seconds> | <label>` markers, [pause] and [chime]) is defined in
-draft.py. Markers are stripped on export.
+The draft format (the `movements:` line, `@@ <seconds> | <label>` markers, [pause], [chime] and
+[hold]) is defined in draft.py. Markers are stripped on export.
 
-Structure checks (a locator opening each segment, one countdown per segment, few
-exclamation points, no praise line used over and over, no run of segments opening alike, no
-newsreader handoffs, and the listener's name from the profile used in the warm-up but not too
-often) print as warnings; with
---strict they count as issues.
+What must hold, and stops the export: every line a voice can read cleanly (no digits, symbols,
+abbreviations or markup), every paragraph short enough to speak in one clip, the whole workout's
+predicted length within three percent of plan, and (with --require-menu, or a menu beside the draft)
+every movement on today's menu (menu.py). A segment far off its slot (under 80 or over 110 percent)
+is flagged in the table to help place the fix, but only the total is held to plan; with --strict the
+flags count as issues. A held segment (one with a [hold]) shows the spare seconds it will spend in
+silence, so a long quiet rest is easy to spot. How the script should sound (varied openings, the
+listener's name, friendly handoffs) is guidance in knowledge/tts-rules.md, not a check.
 
 With --voice, each segment's spoken length is predicted for that voice (see
 voices.py) and checked against its planned seconds. Without it, word
@@ -19,8 +22,8 @@ there are issues (nothing exported), 64 for a mistyped command.
 
 Usage:
     ./sweatcast lint draft.txt --voice "Chatterbox Coach" --out "Workout 2026-10-18.txt"
-    ./sweatcast lint draft.txt --wpm 170 --out final.txt --force   # export despite issues
-    ./sweatcast lint draft.txt --voice "Chatterbox Coach" --out x.txt --strict  # structure warnings count
+    ./sweatcast lint draft.txt --wpm 170 --out final.txt --force   # export despite issues (not menu ones)
+    ./sweatcast lint draft.txt --voice "Chatterbox Coach" --out x.txt --strict  # segment flags count
 """
 import os
 import re
@@ -32,6 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 from draft import (CHIME, CHIME_SECONDS, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, PARAGRAPH_GAP,  # noqa: E402
                    TOTAL_TOLERANCE, fill_flag, holds, layout, paragraphs, parse, plan, spoken)
+from draft import declared as draft_declared, menu_path as draft_menu_path  # noqa: E402
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -90,85 +94,7 @@ def word_count(lines):
                for _, l in lines)
 
 
-LOCATOR_RE = re.compile(
-    r"\b(minute|minutes|round|block|halfway|last|final|warm-up|warm up|finisher|cool-down|"
-    r"cool down|box breathing|set|part|circuit|interval|to go|one more|next up|here we go|back to|again)\b"
-    r"|^(that's|that is|that was)\b",
-    re.IGNORECASE)
-COUNTDOWN_RE = re.compile(r"\bthree\s*(?:\.\.\.|…)\s*two\s*(?:\.\.\.|…)\s*one\b", re.IGNORECASE)
-PRAISE_WORDS = {"good", "nice", "great", "solid", "perfect", "beautiful", "well", "done", "work",
-                "job", "that's", "it", "very", "really", "there", "strong", "lovely"}
-PRAISE_START = {"good", "nice", "great", "solid", "perfect", "beautiful", "well", "strong", "lovely"}
-MAX_EXCLAIM, PRAISE_REPEAT = 2, 3
-NAME_MOST = 5          # past this the listener's name sounds like a sales call
-SAME_OPENING = 3       # this many segments in a row opening alike reads as a template
-NUMBER_WORDS = {"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
-                "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
-                "twenty", "thirty", "forty", "fifty", "sixty", "first", "second", "third", "fourth", "fifth"}
-NEWSREADER_RE = re.compile(r"\b(today's story is|in other news|turning now to|turning to the news|"
-                           r"and now,? the news|in today's headlines)\b", re.IGNORECASE)
-
-
-def _opening(sentence):
-    """A segment's opening shape: its first three words with numbers as #, to spot a template."""
-    words = re.findall(r"[a-z’'-]+", sentence.lower())[:3]
-    return " ".join("#" if w in NUMBER_WORDS else w for w in words)
-
-
-def sentences(text):
-    return [x.strip() for x in re.split(r"(?<=[.!?])\s+", MARK_RE.sub(" ", text)) if x.strip()]
-
-
-def structure_warnings(segments, name=None):
-    """Coaching-structure checks from the workout skill and tts-rules.md, as messages. With the
-    listener's `name`, also checks it is used, and not too often."""
-    out, praise, exclaim, openings, named = [], {}, 0, [], []
-    for i, seg in enumerate(segments, 1):
-        paras = paragraphs(seg["lines"])
-        text = " ".join(paras)
-        if name:
-            named += [i] * len(re.findall(rf"\b{re.escape(name)}\b", text, re.IGNORECASE))
-        for m in NEWSREADER_RE.finditer(text):
-            out.append(f"segment {i} ({seg['label']}): \"{m.group(0)}\" sounds like a newsreader; hand off "
-                       "the way a person would, like \"Okay, while you breathe, here's a strange one.\"")
-        if i > 1 and paras:
-            first = (sentences(paras[0]) or [""])[0]
-            openings.append((i, _opening(first)))
-            if not LOCATOR_RE.search(first):
-                out.append(f"segment {i} ({seg['label']}): opens without a locator (\"{first[:40]}\"); "
-                           "say where we are, like \"Minute nine of twenty-five.\"")
-        n = len(COUNTDOWN_RE.findall(text))
-        if n > 1:
-            out.append(f"segment {i} ({seg['label']}): {n} countdowns; keep one per segment")
-        exclaim += text.count("!")
-        for sent in sentences(text):
-            words = re.findall(r"[a-z’']+", sent.lower().replace("’", "'"))
-            if 0 < len(words) <= 4 and words[0] in PRAISE_START and all(w in PRAISE_WORDS for w in words):
-                key = " ".join(words)
-                praise.setdefault(key, []).append(i)
-    run = []
-    for i, shape in openings + [(None, None)]:
-        if run and shape == run[-1][1] and i == run[-1][0] + 1:
-            run.append((i, shape))
-            continue
-        if len(run) >= SAME_OPENING and run[0][1]:
-            out.append(f"segments {run[0][0]} to {run[-1][0]} all open \"{run[0][1].replace('#', '...')}\"; "
-                       "vary the locator (\"Here we go, round three.\", \"Two to go.\", \"Back on the floor for this one.\")")
-        run = [(i, shape)] if i is not None else []
-    if name and not named:
-        out.append(f"the listener's name ({name}) never comes up; greet them by name in the warm-up "
-                   "and use it again at the hardest set and the sign-off")
-    elif name and 1 not in named:
-        out.append(f"the warm-up doesn't greet {name} by name; open with it")
-    elif name and len(named) > NAME_MOST:
-        out.append(f"the name {name} comes up {len(named)} times; two to four is warm, more sounds like a sales call")
-    if exclaim > MAX_EXCLAIM:
-        out.append(f"{exclaim} exclamation points; keep to {MAX_EXCLAIM} a session, they can make the voice shout")
-    for key, where in sorted(praise.items()):
-        if len(where) >= PRAISE_REPEAT:
-            out.append(f"praise \"{key}\" used {len(where)} times (segments "
-                       f"{', '.join(map(str, sorted(set(where))))}); vary it")
-    return out
+HELD_QUIET = 10.0   # a held segment's spare silence, in seconds, worth pointing out
 
 
 @dataclass
@@ -182,6 +108,7 @@ class Row:
     spoken: Optional[float] = None   # predicted seconds, with a voice
     diff: Optional[float] = None     # word count over or under the guide, without one
     flag: str = ""                   # "long" or "short" when far off its slot
+    quiet: float = 0.0               # a held segment's spare seconds, spent silent at its holds
     clip_issues: List[str] = field(default_factory=list)
     line_issues: List[str] = field(default_factory=list)
 
@@ -193,8 +120,7 @@ class Row:
 @dataclass
 class Report:
     rows: List[Row]
-    warnings: List[str]
-    strict: bool
+    strict: bool                        # segment flags count as issues
     wpm: float                          # the guide rate: the voice's rate on this draft, or --wpm
     voice: Optional[dict] = None
     pace: Optional[float] = None
@@ -227,13 +153,12 @@ class Report:
 
     @property
     def problems(self):
-        n = sum(len(r.clip_issues) + len(r.line_issues) + bool(r.flag) for r in self.rows)
-        n += int(self.total_off)
-        return n + (len(self.warnings) if self.strict else 0)
+        n = sum(len(r.clip_issues) + len(r.line_issues) + (bool(r.flag) and self.strict) for r in self.rows)
+        return n + int(self.total_off)
 
 
 def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_FILL,
-         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, name=None):
+         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False):
     """Check a parsed draft. With a voice, predicts spoken seconds from its pace,
     which is read once for the whole lint."""
     rate, exact, spokens = None, False, []
@@ -255,7 +180,9 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         if voice:
             row.spoken = spokens[i - 1]
             fill = row.fill
-            row.flag = fill_flag(row.spoken, seg["seconds"], min_fill, max_fill, held=holds(seg)[1] > 0)
+            held = holds(seg)[1] > 0
+            row.flag = fill_flag(row.spoken, seg["seconds"], min_fill, max_fill, held=held)
+            row.quiet = max(seg["seconds"] - row.spoken, 0.0) if held else 0.0
             # Long clips drift and glitch. Keep every clip comfortably short.
             for para in plan(seg):
                 for text, _ in para:
@@ -271,7 +198,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         for lineno, line in seg["lines"]:
             row.line_issues += lint_line(lineno, line)
         rows.append(row)
-    report = Report(rows, structure_warnings(segments, name), strict, guide_wpm, voice, rate, exact,
+    report = Report(rows, strict, guide_wpm, voice, rate, exact,
                     total_tolerance=total_tolerance, word_wpm=wpm)
     if voice:
         report.predicted = sum(length for _, length in layout(
@@ -290,7 +217,8 @@ def render_report(report):
     for r in report.rows:
         if voice:
             flag = (f"  <-- runs {r.spoken - r.seconds:.1f}s long; trim it" if r.flag == "long" else
-                    f"  <-- ends {r.seconds - r.spoken:.1f}s early; add a little" if r.flag == "short" else "")
+                    f"  <-- ends {r.seconds - r.spoken:.1f}s early; add a little" if r.flag == "short" else
+                    f"  ({r.quiet:.0f}s silent at its holds)" if r.quiet >= HELD_QUIET else "")
             out.append(f"{r.index:>3} {r.seconds:>5} {r.words:>5} {r.guide:>5} {r.spoken:>6.1f} "
                        f"{r.fill:>5.0%}  {r.label}{flag}")
             out += r.clip_issues
@@ -315,9 +243,11 @@ def render_report(report):
         summary += f" | estimated {report.total_words / report.word_wpm:.1f} min at {report.word_wpm:g} wpm"
     out.append(summary)
 
-    if report.warnings:
-        out.append(f"\nStructure {'issues' if report.strict else 'warnings (not blocking; --strict to enforce)'}:")
-        out += ["  " + w for w in report.warnings]
+    flagged = sum(bool(r.flag) for r in report.rows)
+    if flagged:
+        out.append(f"{flagged} segment(s) far off their slots"
+                   + (" (counted as issues: --strict)" if report.strict else
+                      "; not blocking, since only the total is held to plan, but the fix goes there first"))
     return out
 
 
@@ -328,13 +258,22 @@ def export_text(segments):
     return "\n\n".join(p for p in paras if p) + "\n", len([p for p in paras if p])
 
 
-def _listener_name():
-    """The profile's name, for the name checks, or None when there's no readable profile."""
-    try:
-        import context
-        return context.listener_name(context.profile())
-    except (SystemExit, OSError, ValueError):
-        return None
+def menu_check(draft_path, text, segments, required):
+    """Check the draft against the menu beside it (when there is one, or when `required`), print what
+    it finds, and return the issues."""
+    path = draft_menu_path(draft_path)
+    if not (required or os.path.exists(path)):
+        return []
+    import catalog
+    import menu
+    import paths
+    issues, warnings = menu.check(catalog.load(), menu.load(path), text, segments)
+    if issues or warnings:
+        print(f"\nMenu check ({paths.show(os.path.abspath(path))}):")
+        print("\n".join([f"  {i}" for i in issues] + [f"  warning: {w}" for w in warnings]))
+    else:
+        print(f"\nMenu check: every movement is on today's menu ({len(draft_declared(text))} declared).")
+    return issues
 
 
 def main():
@@ -349,21 +288,29 @@ def main():
                     help="the whole workout may run this fraction over or under plan")
     ap.add_argument("--word-tolerance", type=float, default=WORD_TOLERANCE,
                     help="word-count tolerance per segment without --voice")
-    ap.add_argument("--force", action="store_true")
-    ap.add_argument("--strict", action="store_true", help="structure warnings count as issues")
+    ap.add_argument("--force", action="store_true", help="export despite issues (never despite the menu check)")
+    ap.add_argument("--strict", action="store_true", help="segments far off their slots count as issues")
+    ap.add_argument("--require-menu", action="store_true",
+                    help="fail when the draft has no menu beside it (./sweatcast build passes this)")
     args = ap.parse_args()
 
     with open(args.draft, encoding="utf-8") as f:
-        segments = parse(f.read())
+        text = f.read()
+    segments = parse(text)
     voice = None
     if args.voice:
         from voices import lookup
         voice = lookup(args.voice)
 
     report = lint(segments, voice, args.wpm, args.min_fill, args.max_fill,
-                  args.total_tolerance, args.word_tolerance, args.strict, name=_listener_name())
+                  args.total_tolerance, args.word_tolerance, args.strict)
     print("\n".join(render_report(report)))
 
+    menu_issues = menu_check(args.draft, text, segments, args.require_menu)
+    if menu_issues:
+        print(f"\n{len(menu_issues)} menu issue(s). Fix and rerun; --force doesn't skip the menu check. "
+              "Nothing exported.")
+        sys.exit(cli.ISSUES)
     problems = report.problems
     if problems and not args.force:
         print(f"\n{problems} issue(s). Fix and rerun (or --force). Nothing exported.")

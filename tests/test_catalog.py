@@ -13,8 +13,8 @@ import catalog  # noqa: E402
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EVERY_MOVEMENT_RULE = ("Every movement in every segment, including the warm-up, finisher and cool-down, comes from "
-                       "the `./sweatcast session` output; nothing from memory or from `./sweatcast movements`.")
+EVERY_MOVEMENT_RULE = ("Every movement in the script, warm-up and cool-down included, comes from the brief's safe "
+                       "menu; nothing from memory.")
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "movements.toml")
 
 
@@ -612,19 +612,22 @@ class KnowledgeFiles(unittest.TestCase):
             for name in gone:
                 self.assertNotIn(name, text, (rel, name))
 
-    def test_skills_call_session_not_rules(self):
+    def test_skills_call_brief_not_rules(self):
         def skill(name):
             with open(os.path.join(ROOT, ".claude", "skills", name, "SKILL.md")) as f:
                 return f.read()
         workout, setup = skill("workout"), skill("setup")
-        for needle in ("./sweatcast session", "./sweatcast check", "--draft", "format: <method name>"):
+        for needle in ("./sweatcast brief", "--save", "./sweatcast check", "format: <method name>", "movements:",
+                       "./sweatcast log-session", "--draft", "knowledge/script.md", "./sweatcast backup"):
             self.assertIn(needle, workout, needle)
         for needle in ("[[limits]]", "[[kits]]", "experience", "Unlisted:", "Avoid:"):
             self.assertIn(needle, setup, needle)
         for needle in ("--avoid", "Unlisted:", "Avoid:"):
             self.assertIn(needle, workout, needle)
-        self.assertEqual(workout.count(EVERY_MOVEMENT_RULE), 2)   # Step 2 and Step 3
+        self.assertEqual(workout.count(EVERY_MOVEMENT_RULE), 1)
+        self.assertNotIn("./sweatcast session", workout)   # the composer is an optional reference now
         self.assertIn("default is novice", workout)
+        self.assertLess(len(workout.split()), 2600)        # procedure, not knowledge
         for name, text in (("workout", workout), ("setup", setup)):
             low = text.lower()
             for gone in ("injury-rules", "advance_when", "--group"):

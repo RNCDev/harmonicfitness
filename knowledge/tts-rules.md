@@ -55,7 +55,7 @@ The listener can't see a clock, so the voice provides it. A soft chime opens eve
 
 Inside a segment, `[chime]` rings the same bell at that point, for the changes in an interval (work starts, rest starts) that the clock would otherwise give: "At the bell, go. [chime] Push the floor away." The lint counts its time. Keep the spoken cue too; the bell confirms it, it doesn't replace it. A segment normally ends early when its speech runs out, so timed work would shrink; put `[hold]` where the listener works in silence, and the segment keeps its full length, its spare time silent at the hold: "At the bell, go. [chime] Drive the knees. [hold] Last five. [chime] Easy now." Bare holds share the spare time equally; `[hold 20s]` is exactly twenty seconds of silence (no ten-second cap), so time the work with a fixed hold and let one bare hold in the rest take what's left: "At the bell, go. [chime] Drive. [hold 20s] Stop. [chime] Breathe. [hold] Next, squats." A held segment is never flagged short, so a thirty-second effort needs only its cues, not thirty seconds of talk. Use it in timed work and rests only, never to pad a story. The finished MP3 ends with a three-note rising tone, so silence after it means the workout is over.
 
-The lint warns (without blocking) when a segment opens without a locator, has more than one countdown, or when a short praise line ("Good.", "Nice work.") turns up three or more times; with `--strict` the warnings count as issues.
+Keep to one countdown a segment, and don't let one short praise line ("Good.", "Nice work.") turn up again and again. These are guidance for the writer; the lint checks only what a voice can read, the paragraph lengths and the total.
 
 ## Words that trip up the voice
 
@@ -81,7 +81,7 @@ The engines copy the delivery the text suggests: long, smooth sentences come out
 Before: "Rest. Sit up on the bench and breathe. Today's story is a new chip for six G."
 After: "Nice. Sit up and get your breath back, you earned that one. Okay, while you recover, here's a strange one from the chip world."
 
-**The name.** When the profile has a `name`, greet the listener by it in the opening line ("Hey Sam, good to have you back."), and use it again at the hardest set and at the sign-off: two to four times a session. More sounds like a sales call; the lint warns past five, and when a set name never comes up.
+**The name.** When the profile has a `name`, greet the listener by it in the opening line ("Hey Sam, good to have you back."), and use it again at the hardest set and at the sign-off: two to four times a session. More sounds like a sales call.
 
 **The arc.** A session has a shape, and the voice follows it:
 - **Welcome:** a greeting by name, how today fits the week ("second one this week"), then the day (weather, the shape of the calendar), then the plan said like a person: "We're doing four rounds of five today, nothing fancy, just the dumbbells and the bench."
@@ -90,9 +90,9 @@ After: "Nice. Sit up and get your breath back, you earned that one. Okay, while 
 - **Ease off:** lower the energy for the last block and the cool-down.
 - **Close:** say what they did, specifically ("twenty sets, and the press felt stronger than Tuesday"), thank them or tell them it mattered, and give one reason to come back ("Next time, part two of the story."). Then the sign-off, by name.
 
-**Locators, varied.** Every segment after the first still opens by saying where we are, but not the same way each time: "Round three of four." "Here we go, round three." "Two to go." "Back on the floor for this one." "Last round. Make it count." The lint warns when three segments in a row open alike.
+**Locators, varied.** Every segment after the first still opens by saying where we are, but not the same way each time: "Round three of four." "Here we go, round three." "Two to go." "Back on the floor for this one." "Last round. Make it count." Three segments in a row opening alike read as a template.
 
-**Handing off to a story.** Talk into it the way a friend would, not a newsreader: "Okay, while you breathe, here's a good one." "You'll like this." "Remember that chip from earlier? Here's the twist." Never "Today's story is", "In other news" or "Turning to"; the lint flags them.
+**Handing off to a story.** Talk into it the way a friend would, not a newsreader: "Okay, while you breathe, here's a good one." "You'll like this." "Remember that chip from earlier? Here's the twist." Never "Today's story is", "In other news" or "Turning to".
 
 **Keep the cues clean.** Warmth goes in the gaps, never in the middle of a cue the listener needs to hear: safety and form cues stay short and stand alone.
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""A session skeleton for a request: the method, its timing and ranked movements for each slot.
+"""An example session skeleton for a request: the method, its timing and ranked movements for each slot.
 
-The workout skill writes its script under the skeleton instead of planning from memory. From the
+An optional reference since 7.0.0: the workout skill designs the session itself from `./sweatcast
+brief`, which shares this file's safety screen (`screen`), and the judged eval keeps the composer as
+its baseline. From the
 request (goal, minutes, kit) and the listener's profile, health limits and log, this picks today's
 method (the best fit for the goal, rotating away from the last session's format, and the next one when
 it cannot fill its slots), shares the minutes between warm-up, work, finisher and cool-down, fills
@@ -426,13 +428,27 @@ def _equipment(request: dict, cat: catalog.Catalog, profile) -> Set[str]:
     raise ValueError("name a kit, a preset or the equipment")
 
 
-def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
-            today: datetime.date) -> Skeleton:
-    """The skeleton for `request` (goal, minutes, and one of kit, preset or equipment; optionally method,
-    level, target, limits, avoid). ValueError names an unknown value; Unfit says why nothing fits."""
+class Screen(NamedTuple):
+    """What today's request, profile and health file allow: the safety screen `compose` and
+    `./sweatcast brief` share."""
+    equipment: Set[str]
+    level: str
+    limits: List[catalog.Limit]   # health.md's rows, then the request's
+    sel: catalog.Selection
+    likes: Set[str]
+    dislikes: Set[str]
+    avoid: Set[str]               # the request's ids and flags, plus the clinician's Avoid: lines
+    warnings: List[str]
+
+
+def screen(request: dict, cat: catalog.Catalog, goals, profile, health) -> Screen:
+    """Check `request` (goal, minutes, and one of kit, preset or equipment; optionally level, target,
+    limits, avoid) and select the movements its kit, level and limits allow, with health.md's
+    [[limits]] rows and clinician Avoid: lines applied. ValueError names an unknown value; Unfit says
+    a [[limits]] row can't be read, since a dropped row protects nothing."""
     goal, minutes = request.get("goal"), request.get("minutes")
-    if goal not in sess.goals:
-        raise ValueError(f"unknown goal \"{goal}\" (choose from: {', '.join(sess.goals)})")
+    if goal not in goals:
+        raise ValueError(f"unknown goal \"{goal}\" (choose from: {', '.join(goals)})")
     if not isinstance(minutes, int) or minutes <= 0:
         raise ValueError(f"minutes must be a whole number above zero, not {minutes}")
     equipment = _equipment(request, cat, profile)
@@ -471,6 +487,15 @@ def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profil
         sel = catalog.select(cat, equipment, level, limits, avoid=avoid, dislikes=dislikes)
     except ValueError as e:   # request limits are checked above, so this is a row in health.md
         raise Unfit(f"{paths.show(health.path or paths.HEALTH)}: {e}; fix the [[limits]] row")
+    return Screen(equipment, level, limits, sel, likes, dislikes, avoid, warnings)
+
+
+def compose(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
+            today: datetime.date) -> Skeleton:
+    """The skeleton for `request` (goal, minutes, and one of kit, preset or equipment; optionally method,
+    level, target, limits, avoid). ValueError names an unknown value; Unfit says why nothing fits."""
+    goal, minutes = request.get("goal"), request.get("minutes")
+    equipment, level, limits, sel, likes, dislikes, avoid, warnings = screen(request, cat, sess.goals, profile, health)
 
     last = log[-1] if log else None
     last_format = last.format if last else None
@@ -971,15 +996,21 @@ def limit_cue_lines(sk: Skeleton) -> List[str]:
     a line naming the limit and its side, so the script says how to work around it at every station."""
     if sk.cat is None:
         return []
+    out = cue_lines(sk.cat, sk.limits)
+    return ["Limit cues (the catalog's, for each limit today; say them wherever they apply):"] + out if out else []
+
+
+def cue_lines(cat: catalog.Catalog, limits) -> List[str]:
+    """For each limit (each area, level and side once), a line naming it, then its spoken cues."""
     out = []
-    for lim in dict.fromkeys((lim.area, lim.level, lim.side) for lim in sk.limits):
+    for lim in dict.fromkeys((lim.area, lim.level, lim.side) for lim in limits):
         area, level, side = lim
-        lines = catalog.limit_cues(sk.cat, catalog.Limit(area, side, level, [], [], ""))
+        lines = catalog.limit_cues(cat, catalog.Limit(area, side, level, [], [], ""))
         if lines:
             where = f", {side} side" if side in OTHER_SIDE else ""
             out.append(f"  {area} {'off limits' if level == 'off-limits' else 'delicate'}{where}:")
             out += [f"    {line}" for line in lines]
-    return ["Limit cues (the catalog's, for each limit today; say them wherever they apply):"] + out if out else []
+    return out
 
 
 def _coached(sk: Skeleton) -> List[catalog.Movement]:

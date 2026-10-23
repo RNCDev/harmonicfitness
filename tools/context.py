@@ -13,7 +13,7 @@ folder, words per minute, experience level, likes and dislikes, equipment kits, 
 channels, puzzles, feeds), so the prose below it is free-form and only Claude reads it.
 Schema 3 adds the profile's `experience`, `likes`, `dislikes` and `[[kits]]`, and the
 health file's `[[limits]]` rows (area, side, level, flags, rehab, note) with its
-`## Clinician rules` section, which the session tool applies as rules. A file from an older sweatcast (schema 1 used
+`## Clinician rules` section, which the brief applies as rules. A file from an older sweatcast (schema 1 used
 `---` front matter, schema 0 had none) stops the tools with the command that brings
 it up to date, `./sweatcast migrate`.
 
@@ -395,9 +395,9 @@ def add_voice_to_profile(name, description="", default=False, path=None):
 
 SETTINGS_COMMENTS = {
     "words_per_minute": "The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.",
-    "experience": "Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.",
-    "likes": "Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.",
-    "dislikes": "Movements to leave out (ids or names); the session tool never picks them.",
+    "experience": "Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.",
+    "likes": "Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.",
+    "dislikes": "Movements to leave out (ids or names); the brief's menu never lists them.",
     "deliver_to": "Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * "
                   "matches anything (any Google account). Once the copy is there the local MP3 is removed; "
                   "empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has.",
@@ -473,7 +473,7 @@ def _vocab(areas, flags):
 
 def limits(h, areas=None, flags=None):
     """The valid [[limits]] rows as catalog.Limit; a row with a bad area, side, level, flags or
-    rehab is left out (`check` reports it, and the session tool refuses to plan)."""
+    rehab is left out (`check` reports it, and the brief and the session tool refuse to plan)."""
     areas, flags = _vocab(areas, flags)
     found = (_limit_row(row, areas, flags)[0] for row in h.settings.get("limits") or [])
     return [lim for lim in found if lim]
@@ -508,7 +508,7 @@ AVOID = "avoid:"
 
 def clinician_avoids(h):
     """The movement ids and flags on every "Avoid: <ids or flags>" line under `## Clinician rules`,
-    in order, which the session tool rules out on every run."""
+    in order, which the brief's safety screen rules out on every run."""
     out = []
     for line in _section_lines(h, CLINICIAN_HEADING):
         line = line[2:].strip() if line.startswith(("- ", "* ")) else line.strip()
@@ -918,6 +918,21 @@ def describe(issue):
 
 # ---- command line ----------------------------------------------------------------------
 
+def declared_movements(path):
+    """The movements a draft's `movements:` line declares, each by its catalog name when the catalog
+    knows it."""
+    import draft
+    if not os.path.exists(path):
+        raise SystemExit(f"Not logged: no draft at {show(path)}.")
+    with open(path, encoding="utf-8") as f:
+        words = draft.declared(f.read())
+    if not words:
+        raise SystemExit(f"Not logged: {show(path)} has no movements: line.")
+    cat = _catalog()
+    found = [(cat.movements.get(w) or catalog.resolve(cat, w)) if cat else None for w in words]
+    return list(dict.fromkeys(m.name if m else w for m, w in zip(found, words)))
+
+
 def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -930,7 +945,8 @@ def main(argv=None):
     s.add_argument("--minutes", type=int, required=True)
     s.add_argument("--kit", required=True)
     s.add_argument("--voice", required=True)
-    s.add_argument("--movements", required=True, help="comma-separated")
+    s.add_argument("--movements", help="comma-separated (or --draft)")
+    s.add_argument("--draft", help="a draft whose movements: line gives the movements, by their catalog names")
     s.add_argument("--topics", required=True)
     s.add_argument("--format", default=None)
     s.add_argument("--loads", default="", help="'<movement> = <load and tempo>; ...'")
@@ -975,8 +991,11 @@ def main(argv=None):
         return out
     loads = pairs(args.loads, "load", "load and tempo")
     rpe = pairs(args.rpe, "rpe", "effort")
+    if bool(args.movements) == bool(args.draft):
+        raise SystemExit("Not logged: give the movements with --movements or --draft (one of them).")
     session = Session(args.date, args.minutes, args.kit.strip(), args.voice.strip(),
-                      [m.strip() for m in args.movements.split(",") if m.strip()], args.topics.strip(),
+                      declared_movements(args.draft) if args.draft
+                      else [m.strip() for m in args.movements.split(",") if m.strip()], args.topics.strip(),
                       (args.format or "").strip() or None, loads, rpe)
     print("Logged: " + append_session(session))
     return cli.OK

@@ -1,0 +1,331 @@
+"""Checks for today's brief (tools/brief.py), the menu it saves and the build's menu check
+(tools/menu.py), and the draft's movements: header (tools/draft.py). They run on the shipped catalog
+and the invented listener in tests/fixtures/listener, with no models or network."""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+
+import catalog  # noqa: E402
+
+# The shipped catalog only: a listener's private movements in me/ never change what the tests see.
+catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
+import context  # noqa: E402
+import draft  # noqa: E402
+import menu  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LISTENER = os.path.join(ROOT, "tests", "fixtures", "listener")
+SECTIONS = ("## The listener", "## Today in the week", "## Today's limits", "## Safe menu",
+            "## Programming guide", "## Equipment notes", "## Writing it")
+
+
+def run(cmd, *args, home=LISTENER):
+    env = dict(os.environ, SWEATCAST_PYTHON=sys.executable, SWEATCAST_HOME=home)
+    return subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), cmd, *args],
+                          capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+
+
+def brief(*args, home=LISTENER):
+    return run("brief", "--today", "2026-10-21", *args, home=home)
+
+
+def menu_section(text):
+    return text.split("## Safe menu", 1)[1].split("## Programming guide", 1)[0]
+
+
+def ids_in(text):
+    return {line.split("(`", 1)[1].split("`", 1)[0] for line in text.splitlines() if line.startswith("- **")}
+
+
+class Brief(unittest.TestCase):
+    def test_prints_every_section(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for heading in SECTIONS:
+            self.assertIn(heading, r.stdout, heading)
+        self.assertIn("Level: experienced", r.stdout)
+        self.assertIn("No pushing through wrist pain.", r.stdout)   # the clinician rule, as written
+        self.assertIn("Rest and pairing:", r.stdout)                 # programming.md's rules
+        self.assertIn("**Dumbbells.**", r.stdout)                    # kits.md's notes for the kit
+        self.assertIn("exactly 1800 s", r.stdout)
+
+    def test_the_menu_is_the_safety_screen(self):
+        cat = catalog.load()
+        r = brief("--goal", "general", "--minutes", "25", "--preset", "hotel-gym", "--limit", "knee=off-limits")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        listed = ids_in(menu_section(r.stdout))
+        sel = catalog.select(cat, catalog.kit_equipment(cat, {"preset": "hotel-gym"}), "experienced",
+                             context.limits(context.health(os.path.join(LISTENER, "health.md")))
+                             + [catalog.Limit("knee", "both", "off-limits", [], [], "")],
+                             dislikes={"push-up"})
+        self.assertEqual(listed, {m.id for m in sel.allowed + sel.healthy_side_only})
+        self.assertNotIn("air-squat", listed)    # loads the knee
+        self.assertNotIn("push-up", listed)      # disliked in the profile
+        self.assertIn("Dislikes (left off the menu): push-up", r.stdout)
+        self.assertIn("knee off-limits** (today only", r.stdout)
+
+    def test_every_menu_entry_has_its_coaching_notes(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
+        section = menu_section(r.stdout)
+        entries = section.split("\n- **")[1:]
+        self.assertTrue(entries)
+        for e in entries:
+            self.assertIn("Setup:", e, e[:60])
+            self.assertIn("Cues:", e, e[:60])
+
+    def test_a_sided_limit_lists_healthy_side_work_and_fills_the_cues(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--preset", "hotel-gym", "--limit", "knee=off-limits:right")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("### Healthy side only", r.stdout)
+        self.assertIn("left side only", r.stdout)
+        self.assertIn("the right knee", r.stdout)           # the limit cues name the side
+        self.assertNotIn("{side}", r.stdout)
+
+    def test_limits_show_each_movements_load_on_them(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
+        self.assertIn("load on today's limits: wrist 1", r.stdout)   # delicate wrist: loads of one stay in
+
+    def test_save_writes_the_brief_and_the_menu_beside_the_draft(self):
+        with tempfile.TemporaryDirectory() as d:
+            target = os.path.join(d, "drafts", "2026-10-21-strength.draft.txt")
+            r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--save", target)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(os.path.join(d, "drafts", "2026-10-21-strength.brief.md")) as f:
+                self.assertEqual(f.read(), r.stdout)
+            with open(os.path.join(d, "drafts", "2026-10-21-strength.menu.json")) as f:
+                saved = json.load(f)
+        self.assertEqual(saved["seconds"], 1800)
+        self.assertEqual(saved["request"]["kit"], "home")
+        self.assertEqual({e["id"] for e in saved["movements"]}, ids_in(menu_section(r.stdout)))
+
+    def test_a_dropped_limits_row_stops_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(LISTENER, home)
+            path = os.path.join(home, "health.md")
+            with open(path) as f:
+                text = f.read()
+            with open(path, "w") as f:
+                f.write(text.replace('level = "delicate"', 'level = "sore"', 1))
+            r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", home=home)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("a [[limits]] row was ignored", r.stderr)
+        self.assertEqual(r.stdout, "")
+
+    def test_clinician_avoid_lines_leave_movements_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(LISTENER, home)
+            with open(os.path.join(home, "health.md"), "a") as f:
+                f.write("- Avoid: goblet-squat, overhead\n")
+            r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", home=home)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        listed = ids_in(menu_section(r.stdout))
+        self.assertNotIn("goblet-squat", listed)
+        cat = catalog.load()
+        self.assertFalse([i for i in listed if "overhead" in cat.movements[i].flags])
+        self.assertIn("goblet squat (not on today's menu)", r.stdout)   # liked, but avoided today
+
+    def test_usage_on_unknown_values(self):
+        for args in (["--kit", "castle"], ["--preset", "castle"], ["--equipment", "anvil"],
+                     ["--kit", "home", "--limit", "tail=delicate"], ["--kit", "home", "--level", "wizard"],
+                     ["--kit", "home", "--avoid", "wobbly"], ["--kit", "home", "--target", "wiggle"]):
+            r = brief("--goal", "strength", "--minutes", "30", *args)
+            self.assertEqual(r.returncode, 64, args)
+            self.assertTrue(r.stderr.strip(), args)
+
+    def test_a_first_session_says_so(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(LISTENER, home)
+            r = brief("--goal", "mobility", "--minutes", "20", "--kit", "home", "--log",
+                      os.path.join(ROOT, "docs", "eval", "listeners", "d", "log.md"), home=home)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("No sessions logged yet", r.stdout)
+        self.assertIn("Mobility:", r.stdout)   # the mobility dose for the level
+
+
+DRAFT = """movements: goblet squat, dead bug
+movements: box breathing
+
+@@ 120 | Warm-up
+Welcome. Swing your arms easy, then squat down slow. Push up through your heels.
+
+@@ 120 | Work
+Goblet squats now. Then the dead bug.
+
+@@ 60 | Close
+Box breathing to finish.
+"""
+
+
+def fake_menu(*ids, seconds=300, side=None):
+    cat = catalog.load()
+    movements = [{"id": i, "name": cat.movements[i].name, "aliases": cat.movements[i].aliases} for i in ids]
+    if side:
+        movements[-1]["side"] = side
+    return {"format": 1, "date": "2026-10-21", "request": {}, "seconds": seconds, "movements": movements}
+
+
+class Menu(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.cat = catalog.load()
+
+    def check(self, text, m):
+        return menu.check(self.cat, m, text, draft.parse(text))
+
+    def test_a_draft_on_its_menu_passes(self):
+        issues, warnings = self.check(DRAFT, fake_menu("goblet-squat", "dead-bug", "box-breathing"))
+        self.assertEqual(issues, [])
+        self.assertEqual(warnings, [])   # "swing", "squat" and "push up" are coaching words, not movements
+
+    def test_no_menu_is_an_issue(self):
+        issues, _ = self.check(DRAFT, None)
+        self.assertIn("no menu", issues[0])
+
+    def test_a_declared_movement_off_the_menu_fails(self):
+        issues, _ = self.check(DRAFT, fake_menu("goblet-squat", "box-breathing"))
+        self.assertTrue(any("dead bug" in i and "isn't on today's menu" in i for i in issues), issues)
+
+    def test_an_unknown_declared_movement_fails(self):
+        issues, _ = self.check(DRAFT.replace("dead bug", "moon walk", 1), fake_menu("goblet-squat", "box-breathing", "dead-bug"))
+        self.assertTrue(any("moon walk" in i and "isn't a movement" in i for i in issues), issues)
+
+    def test_naming_an_unlisted_movement_fails(self):
+        text = DRAFT.replace("Then the dead bug.", "Then the dead bug, and a dumbbell bench press.")
+        issues, _ = self.check(text, fake_menu("goblet-squat", "dead-bug", "box-breathing"))
+        self.assertTrue(any("dumbbell bench press" in i and "dumbbell-bench-press" in i for i in issues), issues)
+
+    def test_a_hyphenated_name_needs_its_hyphen(self):
+        text = DRAFT.replace("Then the dead bug.", "Then the dead bug, and ten push-ups.")
+        issues, _ = self.check(text, fake_menu("goblet-squat", "dead-bug", "box-breathing"))
+        self.assertTrue(any("push-up" in i for i in issues), issues)   # "push up through your heels" didn't count
+
+    def test_an_alias_inside_a_longer_name_does_not_match(self):
+        m = self.cat.movements["single-leg-glute-bridge"]
+        text = ("movements: single-leg glute bridge\n@@ 300 | Work\n"
+                "Single leg glute bridges, ten a side. That's the single-leg glute bridge.\n")
+        issues, warnings = self.check(text, fake_menu(m.id))
+        self.assertEqual((issues, warnings), ([], []))   # glute bridge isn't on the menu, and isn't named
+
+    def test_a_shortened_name_counts_as_the_declared_movement(self):
+        text = ("movements: dumbbell bench press\n@@ 300 | Work\n"
+                "Grab a pair for the bench press. Eight bench presses, then rest.\n")
+        issues, warnings = self.check(text, fake_menu("dumbbell-bench-press"))
+        self.assertEqual((issues, warnings), ([], []))   # not the barbell bench press
+
+    def test_effort_words_are_not_machine_names(self):
+        text = "movements: towel door row\n@@ 300 | Work\nEasy rows now, then a brisk walk pace. A steady ride.\n"
+        issues, _ = self.check(text, fake_menu("towel-door-row"))
+        self.assertEqual(issues, [])
+        issues, _ = self.check(text + "Then the steady bike.\n", fake_menu("towel-door-row"))
+        self.assertTrue(any("steady bike" in i for i in issues), issues)
+
+    def test_saying_what_is_left_out_is_fine(self):
+        text = ("movements: dead bug\n@@ 300 | Work\nNo neck rolls today, and no overhead press. "
+                "It should feel like a brisk walk. Now the dead bug.\n")
+        issues, _ = self.check(text, fake_menu("dead-bug"))
+        self.assertEqual(issues, [])
+        for said in ("Now ten overhead presses.", "Now no more than ten overhead presses."):
+            issues, _ = self.check(text.replace("Now the dead bug.", said), fake_menu("dead-bug"))
+            self.assertTrue(any("overhead press" in i for i in issues), (said, issues))
+
+    def test_a_healthy_side_only_movement_is_allowed(self):
+        text = "movements: single-leg glute bridge\n@@ 300 | Work\nRight side only today.\n"
+        issues, _ = self.check(text, fake_menu("single-leg-glute-bridge", side="right"))
+        self.assertEqual(issues, [])
+
+    def test_an_undeclared_menu_movement_is_a_warning(self):
+        text = DRAFT.replace("Then the dead bug.", "Then the dead bug, and a bird dog.")
+        issues, warnings = self.check(text, fake_menu("goblet-squat", "dead-bug", "box-breathing", "bird-dog"))
+        self.assertEqual(issues, [])
+        self.assertTrue(any("bird dog" in w for w in warnings), warnings)
+
+    def test_segments_must_add_up_to_the_request(self):
+        issues, _ = self.check(DRAFT, fake_menu("goblet-squat", "dead-bug", "box-breathing", seconds=360))
+        self.assertTrue(any("add up to 300 s" in i and "add 60 s" in i for i in issues), issues)
+
+    def test_a_draft_with_nothing_declared_fails(self):
+        text = DRAFT.split("\n", 2)[2]
+        issues, _ = self.check(text, fake_menu("goblet-squat", "dead-bug", "box-breathing"))
+        self.assertTrue(any("no movements: line" in i for i in issues), issues)
+
+
+class Header(unittest.TestCase):
+    def test_the_header_is_read_and_never_spoken(self):
+        segs = draft.parse(DRAFT)
+        self.assertEqual(len(segs), 3)
+        self.assertNotIn("movements", " ".join(line for s in segs for _, line in s["lines"]))
+        self.assertEqual(draft.declared(DRAFT), ["goblet squat", "dead bug", "box breathing"])
+
+    def test_other_text_before_the_first_marker_still_fails(self):
+        with self.assertRaises(SystemExit):
+            draft.parse("Hello.\n" + DRAFT)
+
+    def test_menu_and_brief_sit_beside_the_draft(self):
+        self.assertEqual(draft.menu_path("a/b/2026-10-21-x.draft.txt"), "a/b/2026-10-21-x.menu.json")
+        self.assertEqual(draft.brief_path("a/b/2026-10-21-x"), "a/b/2026-10-21-x.brief.md")
+        self.assertEqual(draft.menu_path("docs/eval/out/c06.draft.txt"), "docs/eval/out/c06.menu.json")
+
+
+class Lint(unittest.TestCase):
+    """The lint stage with and without a menu: the build always requires one."""
+
+    def lint(self, text, menu_data, *flags):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "x.draft.txt")
+            with open(path, "w") as f:
+                f.write(text)
+            if menu_data is not None:
+                menu.write(draft.menu_path(path), menu_data)
+            env = dict(os.environ, SWEATCAST_HOME=LISTENER)
+            return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "tts_build.py"), path,
+                                   "--out", os.path.join(d, "x.txt"), *flags],
+                                  capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+
+    def test_required_menu_missing_fails_even_with_force(self):
+        r = self.lint(DRAFT, None, "--require-menu", "--force")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("no menu", r.stdout)
+
+    def test_menu_issues_fail_even_with_force(self):
+        r = self.lint(DRAFT, fake_menu("goblet-squat", "box-breathing"), "--require-menu", "--force")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("isn't on today's menu", r.stdout)
+
+    def test_a_menu_beside_the_draft_is_checked_without_the_flag(self):
+        r = self.lint(DRAFT, fake_menu("goblet-squat", "box-breathing"), "--force")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+
+    def test_a_clean_draft_exports(self):
+        r = self.lint(DRAFT, fake_menu("goblet-squat", "dead-bug", "box-breathing"), "--require-menu", "--force")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("every movement is on today's menu (3 declared)", r.stdout)
+
+
+class LogSession(unittest.TestCase):
+    def test_log_session_takes_the_declared_movements(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(LISTENER, home)
+            path = os.path.join(d, "x.draft.txt")
+            with open(path, "w") as f:
+                f.write(DRAFT.replace("goblet squat", "goblet-squat", 1))
+            r = run("log-session", "--date", "2026-10-21", "--minutes", "5", "--kit", "home", "--voice",
+                    "Chatterbox Coach", "--draft", path, "--topics", "test topics", "--format", "circuit", home=home)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn("goblet squat, dead bug, box breathing", r.stdout)   # ids become catalog names
+            r = run("log-session", "--minutes", "5", "--kit", "home", "--voice", "Chatterbox Coach",
+                    "--topics", "x", home=home)
+            self.assertNotEqual(r.returncode, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

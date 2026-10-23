@@ -103,9 +103,12 @@ if [ -z "$SMOKE" ] && [ -z "$LINT_ONLY" ]; then
   fi
 fi
 
-# The smoke test exists to measure a voice, so its lint never blocks the render.
+# The smoke test exists to measure a voice, so its lint never blocks the render. Every other
+# draft needs the menu ./sweatcast brief --save wrote beside it: the lint checks each movement
+# the draft declares or names against today's limits, and stops the build without one.
+REQUIRE_MENU="--require-menu"; [ -n "$SMOKE" ] && REQUIRE_MENU=""
 "$PY" "$HERE/tts_build.py" "$DRAFT" --voice "$VOICE" \
-  ${TOLERANCE:+--total-tolerance "$TOLERANCE"} --out "$OUT_DIR/$NAME.txt" ${SMOKE:+--force}
+  ${TOLERANCE:+--total-tolerance "$TOLERANCE"} --out "$OUT_DIR/$NAME.txt" ${SMOKE:+--force} $REQUIRE_MENU
 [ -n "$LINT_ONLY" ] && exit 0
 
 set +e

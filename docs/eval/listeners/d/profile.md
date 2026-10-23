@@ -4,11 +4,11 @@ schema = 3
 name = "Sam"
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
-# Your training level: novice, experienced or advanced. The session tool picks movements to match; until set, it assumes novice.
+# Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.
 experience = "experienced"
-# Movements you enjoy (ids or names from ./sweatcast movements); the session tool favours them.
+# Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.
 likes = ["glute-bridge", "dead-bug"]
-# Movements to leave out (ids or names); the session tool never picks them.
+# Movements to leave out (ids or names); the brief's menu never lists them.
 dislikes = ["jumping-jacks", "wall-sit"]
 # Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Once the copy is there the local MP3 is removed; empty keeps MP3s in me/workouts/.
 deliver_to = ""
@@ -27,7 +27,7 @@ description = "man in his forties, warm baritone, a seasoned trainer talking to 
 name = "Qwen3 Coach"
 description = "man in his thirties, a focused class instructor. The clearest diction."
 
-# Equipment kits the session tool can plan with: a name and the equipment ids you have there (./sweatcast movements lists them).
+# Equipment kits a session can be planned with: a name and the equipment ids you have there (./sweatcast movements lists them).
 
 [[kits]]
 name = "hotel-room"
@@ -81,7 +81,7 @@ Claude reads this before every workout. It holds the stable facts: setup, equipm
 I listen to narrated workouts through earbuds, with no screen and no timer. The audio is the workout: it tells me what to do, keeps me company, and moves me along on time. Priorities, in order: safe for my body today, clean to the ear, worth listening to.
 
 ## Basics
-- Name or nickname (optional): Drew (invented)
+- Name or nickname: in the settings above (`name`), so the coach greets them by it.
 - Neighborhood: Stonebrook (an invented town)
 - Training background and current fitness: trained in gyms for years, now works out mostly in hotel rooms (invented)
 - Goals right now: stay fit with no equipment while travelling
