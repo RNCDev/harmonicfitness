@@ -19,8 +19,8 @@ What goes into a workout script, from the welcome to the sign-off. How it should
 ## Opening
 
 - Greet the listener by the profile's `name` in the first line, warmly and briefly ("Hey Sam, good to have you back."), and say how today fits the week from the brief's Today in the week ("Second one this week.").
-- In the morning, preview the day in a sentence or two from the weather `./sweatcast feeds` printed, and from the calendar if a calendar connector is available (just the shape of the day, such as "two meetings this morning and a free afternoon", never names, attendees or details). In the evening, recap it.
-- Then the plan in a sentence or two, the safety rules, and time to set up.
+- In the morning, preview the day in a sentence or two from the feeds sheet's weather, and from the calendar if a calendar connector is available (just the shape of the day, such as "two meetings this morning and a free afternoon", never names, attendees or details). In the evening, recap it.
+- Then the plan in a sentence or two (with any change readiness made: "You're short on sleep, so same weights, one round fewer."), the safety rules, and time to set up.
 - The safety rules come in one of two lengths:
   - **Full**, a short paragraph per rule: each limit, each clinician rule in the clinician's words and attributed to them, then the stop rule (pain stays around two or three out of ten; sharp pain or new swelling means stop that movement). Use it when anything changed: the first session, a check-in answer other than "same as last time", a loosened or tightened limit, a new clinician rule, a new problem, or more than fourteen days since the last session.
   - **Short**, otherwise: one or two sentences that still name every rule ("Usual rules. The right knee stays out of deep bends, nothing jumps, and sharp pain means stop that movement."). The short version drops words, never a rule.
@@ -37,6 +37,17 @@ What goes into a workout script, from the welcome to the sign-off. How it should
 - Both sides, both limbs, the same work, unless a movement is listed for one side only; then the audio says why the other side rests, and that training the healthy side still helps the injured one a little.
 - Name the load from the brief's Loads on hand ("the fifteens"), never a weight the kit doesn't have, and say what changed since last time ("Same fifteens as Tuesday, but three seconds down").
 - Getting to and from the floor, a bench or a machine takes time. Group work done in one place, and give each move between places its seconds, out loud.
+
+## Adjusting as you go
+
+A coach in the room watches the last two reps and changes the next set. The listener has no coach watching, so the script asks them to judge, and tells them what to do with the answer.
+- **A target for every main set**: reps and how much should be left. "Ten reps. You should have two left at the end."
+- **A self-check after the first working set** of each main movement, not every set, at the start of its rest: one question by feel, then an if-then for the sets after it. "How many more could you have done? Three or more, next set goes three seconds down. If the last two were a fight, stay right where you are." On light weights people usually have more left than they think (programming.md, Readiness), so when the listener is unsure, the cue leans to the harder option.
+- **The options come from the brief**: the movement's harder and easier versions in its notes, and the progression order (a slower lowering, a pause, one arm or one leg, then the next dumbbell). Name the exact weight from Loads on hand, and only one set out within reach.
+- **The options fit the time the set has.** Prefer changes that don't lengthen the set (a heavier dumbbell, a slower lowering with a rep or two fewer, a pause in place of two reps), so the hold that follows stays right for both choices.
+- **Under a limit, the check includes the area.** "Ankle quiet? Stay there. Anything above a three, switch to the easier version." A harder option never adds load to a limited area, and a clinician's no-pain rule stays absolute.
+- **On low readiness**, offer only holding steady or the easier option, and say that's the plan for today.
+- Later rounds call back to the choice rather than asking again ("Same as you picked last round."), and the close names it ("If you moved up today, tell me it felt easy at the next check-in, and we start from there.").
 
 ## Filler: headlines, science, the deep dive, the quiz
 

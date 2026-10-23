@@ -2,6 +2,22 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [7.1.0] - 2026-10-23
+
+The check-in comes first, and the session adjusts to the listener: before it starts, from how they're coming in today, and during it, from a self-check after each main movement's first set.
+
+### For forks
+Nothing to migrate. If you customized the workout skill, its first two steps changed: step 1 reads only the profile, health and log (plus `./sweatcast check`), and the headlines agent now runs `./sweatcast feeds` itself.
+
+### Added
+- A Readiness question in the check-in ("How are you coming in today?": normal, low, fresh after an easy session, or last one too hard), taking the place of the Last session question. The Limits question also offers "Sore somewhere else".
+- `knowledge/programming.md`, Readiness and adjusting on the day: low readiness keeps the length but drops about a third of the hard sets, holds the loads, stops further from failure and skips all-out work; muscle soreness keeps that group light, and joint pain is a delicate limit for today. The brief prints the rule with the others.
+- `knowledge/script.md`, Adjusting as you go: a target on every main set (reps and reps left), and after each main movement's first set a self-check by feel with one harder and one easier option for the sets after it, from the movement's notes and the progression order, within the set's time, never adding load to a limited area, and easier-only on a low day.
+
+### Changed
+- The workout skill asks the check-in straight after reading the profile, health and log; the feeds, the knowledge files and the brief wait until it's answered, so the listener can answer within seconds and step away.
+- Past four open questions, the check-in drops Voice, then Length.
+
 ## [7.0.0] - 2026-10-23
 
 Ingredients, not skeletons. The harness supplies what a session is built from, and the writer designs it: `./sweatcast brief` gathers the listener, the week, today's limits and the safe menu of movements with their coaching notes, the programming guide and the kit's notes, and the workout skill chooses the format, the movements, their order, doses and timing, then writes the script. The hard checks stay only where something must never go wrong: every movement from today's safe menu, text a voice reads cleanly, paragraphs short enough for one clip, and the total within three percent.

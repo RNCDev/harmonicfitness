@@ -66,6 +66,15 @@ The order of steps when load is capped is house policy: a few more reps, a slowe
 
 Rule: "too easy" moves the next session one step along that list; "too hard" moves one step back, or trims a set. Say in the audio what changed.
 
+## Readiness and adjusting on the day
+
+- **Effort by feel can set the day's load.** Zourdos and colleagues (2016, see Effort) offered the reps-left scale as a practical way to set each day's load from how the lifter feels that day. Source: https://pubmed.ncbi.nlm.nih.gov/26049792/ Tested on barbell squats, not light home loads.
+- **Light loads fool the judge.** Refalo and colleagues (see Effort) note that people tend to underestimate how close they are to failure at lower loads. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC9935748 So "I had plenty left" on a light dumbbell is usually true, and "I'm nearly done" may not be.
+
+How much a short night, stress or low energy should cut a session wasn't searched; the readiness changes below are house policy.
+
+Rule: the check-in's readiness changes the plan. Normal: plan as usual, from the last loads. Low (tired, short on sleep, stressed): keep the length and the kind of work, drop about a third of the hard sets (a round, or a set per movement), hold last time's loads, end every set with three or four reps left, and leave out all-out efforts and the finisher; give the time to longer rests and easy mobility, and say why in the opening. Fresh, last one felt easy: one step along the progression order. Last one too hard: one step back, or a set fewer. Soreness from training keeps that muscle group light and well short of failure today; pain in a joint is a delicate limit for today. During the session, each main movement's first working set gets a target (reps and reps left) and ends with a self-check that offers one harder and one easier option for the sets after it, from the movement's notes and the progression order; on low readiness, offer only the easier option or holding steady. Never offer a harder option that loads a limited area more.
+
 ## Warm-up, finisher and cool-down
 
 - **Warm-up.** Iversen and colleagues say a general warm-up shouldn't be prioritized when time is short, a specific warm-up (lighter sets of the movement) helps with heavy loads (over 80 percent of one-rep max), and stretching isn't needed unless flexibility is the goal. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 It's about performance, not injury risk, and doesn't address someone returning from injury.
