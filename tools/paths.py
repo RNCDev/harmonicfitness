@@ -22,6 +22,8 @@ WORKOUTS = os.path.join(HOME, "workouts")
 RESEARCH = os.path.join(WORKOUTS, "research")
 VIDEOS = os.path.join(RESEARCH, "videos")
 PUZZLES = os.path.join(RESEARCH, "puzzles")
+TOLD = os.path.join(RESEARCH, "told.jsonl")       # every filler item a session told
+PANTRY = os.path.join(RESEARCH, "pantry")         # evergreen filler researched ahead of time
 CACHE = os.path.join(WORKOUTS, ".audio-cache")
 PACE_FILE = os.path.join(CACHE, "voice-pace.json")
 LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log, and builds.jsonl
@@ -36,6 +38,7 @@ EXAMPLE = os.path.join(ROOT, "me.example")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
 MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the shared movement catalog
 SESSIONS = os.path.join(ROOT, "knowledge", "sessions.toml")             # session methods and dose rules
+CONTENT = os.path.join(ROOT, "knowledge", "content.toml")               # the filler plan
 
 
 def require(path, what="file"):

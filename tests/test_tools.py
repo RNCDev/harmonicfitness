@@ -464,7 +464,7 @@ class FreshFork(unittest.TestCase):
             self.assertNotIn("  line ", out.stdout)   # no text-to-speech problems
             self.assertTrue(os.path.exists(os.path.join(d, "x.txt")))
             prof = context.profile(os.path.join(home, "profile.md"))
-            self.assertEqual(len(feeds.config(prof)), 6)          # the three [hint] feeds are skipped
+            self.assertEqual(len(feeds.config(prof)), 7)          # the three [hint] feeds are skipped
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
             self.assertEqual(context.default_voice(prof), "Chatterbox Coach")
             self.assertIn("deliver_to", prof.settings)
@@ -665,6 +665,33 @@ class Feeds(unittest.TestCase):
         d = {"selected": [{"year": 1959, "text": "The Guggenheim Museum (pictured) opened.",
                            "pages": [{"content_urls": {"desktop": {"page": "https://w/G"}}}]}]}
         self.assertEqual(feeds.parse_onthisday(d), [(1959, "The Guggenheim Museum opened.", "https://w/G")])
+
+    def test_wikipedia_featured(self):
+        page = lambda t, **k: dict({"title": t, "namespace": {"id": 0},
+                                    "content_urls": {"desktop": {"page": f"https://w/{t}"}}}, **k)
+        d = {"tfa": page("Thuggee", normalizedtitle="Thuggee", extract="Highway robbery. " * 40),
+             "mostread": {"articles": [page("B_page", rank=5, description="second"),
+                                       page("Main_Page", rank=1), page("Special:Search", rank=2),
+                                       page("A_page", rank=4, description="<i>first</i>")]
+                          + [page(f"P{i}", rank=10 + i) for i in range(10)]},
+             "news": [{"story": '<!--Oct 21--><b><a href="./Leap_second">Leap seconds</a></b> are '
+                                '<a href="./x">abolished</a> .', "links": [page("Leap_second"), page("x")]}],
+             "dyk": [{"text": "... that Taku was a ship?",
+                      "html": '... that <b><a href="https://w/SMS_Taku">Taku</a></b> was a ship?'}]}
+        p = feeds.parse_featured(d)
+        self.assertEqual(p["featured"][0], "Thuggee")
+        self.assertLessEqual(len(p["featured"][1]), 401)
+        self.assertEqual(p["mostread"][:2], [("A page", "first", "https://w/A_page"), ("B page", "second", "https://w/B_page")])
+        self.assertEqual(len(p["mostread"]), 8)                       # Main_Page and Special: left out, top eight kept
+        self.assertEqual(p["news"], [("Leap seconds are abolished.", "https://w/Leap_second")])
+        self.assertEqual(p["dyk"], [("... that Taku was a ship?", "https://w/SMS_Taku")])
+        empty = feeds.parse_featured({"mostread": {"articles": []}})   # a day without news or a featured article
+        self.assertEqual(empty, {"featured": None, "mostread": [], "news": [], "dyk": []})
+        with mock.patch.object(feeds, "fetch", return_value=json.dumps(d).encode()) as f:
+            lines = feeds.gather(("Wikipedia", "wikipedia", "featured"), self.NOW, self.NOW)
+        self.assertIn("/feed/featured/2026/10/2", f.call_args[0][0])
+        self.assertIn("### In the news", lines)
+        self.assertIn("- Leap seconds are abolished. (https://w/Leap_second)", lines)
 
     def test_dates_and_cleaning(self):
         self.assertEqual(feeds.parse_date("2026-10-20T12:00:00Z"), dt.datetime(2026, 10, 20, 12, tzinfo=dt.timezone.utc))

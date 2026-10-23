@@ -49,13 +49,15 @@ A coach in the room watches the last two reps and changes the next set. The list
 - **On low readiness**, offer only holding steady or the easier option, and say that's the plan for today.
 - Later rounds call back to the choice rather than asking again ("Same as you picked last round."), and the close names it ("If you moved up today, tell me it felt easy at the next check-in, and we start from there.").
 
-## Filler: headlines, science, the deep dive, the quiz
+## Filler: the plan, the deep dive, the quiz
 
-- Filler comes only from the research sheet (which draws on the feeds sheet), the video sheet and the weather. Never invent scores, prices, quotes or events. Script around a gap with coaching.
-- Use a few quick headlines, two current science and technology breakthroughs from the research sheet, and one deep-dive thread told across several segments. "Science" in a session means those breakthroughs; form cues stay cues, with no study facts behind them.
+- `./sweatcast content plan --minutes <N>` says what the rests carry: how many items of each slot (today, science, deep dive, quiz, delight, learn) and the category due for each. Tell those, from the research sheet, the video sheet and the pantry; a slot with nothing verified gives its time to coaching. Never tell an item the plan lists as told in the last month; a follow-up says what's new ("They're three and one since that opener").
+- Filler comes only from those sheets and the weather. Never invent scores, prices, quotes or events.
+- Open each item with its hook, the line that ties it to the listener (their team, their city, a show they loved), then tell it plainly. A recommendation names why they'd like it ("It has the same slow-burn dread as the last show you loved"), and never one they've rated three or less. "Science" in a session means the plan's science items; form cues stay cues, with no study facts behind them.
 - Tell a deep-dive beat as two or three short paragraphs. Credit a video deep dive to its channel when it starts ("This one comes from Asianometry's latest video"), and paraphrase it rather than quoting. A series part opens with a two-sentence recap of the earlier parts, says which part it is ("Part two of three."), and ends with a one-line hook for the next ("Next time: Y two K.").
-- One quiz beat a session: ask in one segment and answer two or three segments later. Use the research sheet's puzzle when it has one, credited by source ("A puzzle from the channel Mind Your Decisions.", "From Will Shortz's Sunday Puzzle on NPR."): state it in two or three short paragraphs, then give the answer and its one-line reason. Otherwise draw it from the session's own material.
+- One quiz beat a session: ask in one rest and answer two or three later, credited by source ("A puzzle from the channel Mind Your Decisions.", "From Will Shortz's Sunday Puzzle on NPR."): the question in two or three short paragraphs, then the answer and its one-line reason.
 - Stories live in the rests and the steady work, never in the middle of a cue the listener needs.
+- After the build, every item told goes on the record (`./sweatcast content log`), so the next session moves on.
 
 ## Close
 

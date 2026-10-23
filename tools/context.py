@@ -53,7 +53,7 @@ SCHEMA = 3
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
 SCHEMA_LINE_RE = re.compile(r"^schema:\s*(\d+)\s*$", re.MULTILINE)
-FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday")
+FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday", "wikipedia")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HANDLE_KEYS = {"YouTube favorites": "youtube_favorites", "Puzzles": "puzzles"}
 
@@ -301,6 +301,16 @@ def feedback(path=None, text=None):
     return [line[2:].strip() for _, line in section(text, "Feedback") if line.startswith("- ")]
 
 
+def interests(p):
+    """[(name, slot, detail)]: the profile's [[interests]], the categories the filler plan rotates
+    through for each slot (knowledge/content.toml). Rows not filled in are skipped."""
+    out = []
+    for row in p.settings.get("interests") or []:
+        if isinstance(row, dict) and not unfilled(row.get("name")) and not unfilled(row.get("slot")):
+            out.append((str(row["name"]).strip(), str(row["slot"]).strip(), str(row.get("detail") or "").strip()))
+    return out
+
+
 def _names(p, key):
     return [x.strip() for x in p.settings.get(key) or [] if isinstance(x, str) and x.strip()]
 
@@ -403,11 +413,15 @@ SETTINGS_COMMENTS = {
                   "empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has.",
     "youtube_favorites": "Channels (@handles) for the deep dives retold from a video's transcript.",
     "puzzles": "Channels (@handles) whose puzzles can be the session's quiz.",
+    "interests": "What the filler between exercises rotates through: a name, its slot (today, science, "
+                 "deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within "
+                 "a slot, the one told longest ago comes next. Without any, knowledge/content.toml's defaults.",
     "voices": "Voices from ./sweatcast voices; the first is the default. The description is what the "
               "check-in offers.",
     "feeds": "Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, "
              "longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), "
-             "onthisday (selected).",
+             "onthisday (selected), wikipedia (featured: the featured article, most read, in the news "
+             "and did you know).",
 }
 
 
@@ -783,6 +797,7 @@ def _check_profile(path, text):
                                       f"{f.get('value') or 'no value'}); fill it in or remove it"))
     if not feed_sources(p):
         out.append(Issue(path, 0, "no feeds, so research searches for everything", note=True))
+    out += _interest_problems(path, settings)
     for key in HANDLE_KEYS.values():
         for h in settings.get(key) or []:
             if placeholder(h):
@@ -810,6 +825,21 @@ def _check_profile(path, text):
         if m:
             out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet "
                                                "(still the template's [hint]); fill it in or delete the line"))
+    return out
+
+
+def _interest_problems(path, settings):
+    import content   # here, not at the top: content imports this module
+    slots = content.recipe().slots
+    out = []
+    for i, row in enumerate(settings.get("interests") or [], 1):
+        if not isinstance(row, dict):
+            out.append(Issue(path, 0, f"interests: entry {i} isn't a table (name, slot, detail)"))
+        elif unfilled(row.get("name")) or unfilled(row.get("slot")):
+            out.append(Issue(path, 0, f"interests: entry {i} isn't filled in yet (it needs a name and a slot)"))
+        elif str(row["slot"]).strip() not in slots:
+            out.append(Issue(path, 0, f"interests: '{row['name']}' has an unknown slot '{row['slot']}' "
+                                      f"(one of {', '.join(slots)})"))
     return out
 
 

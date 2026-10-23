@@ -12,6 +12,9 @@ with these kinds:
     weekly     feed URL                     the newest items from the last eight days, for weekly
                                             podcasts and puzzles that a 72-hour window would miss
     onthisday  selected                     Wikipedia's selected events for today's date
+    wikipedia  featured                     Wikipedia's featured content for today: the featured
+                                            article, the most-read pages, In the news and
+                                            Did you know, for "learn something" and odd-fact filler
 
 Everything is fetched in parallel with the standard library, and the sheet goes to
 me/workouts/research/<date>-feeds.md. Only the weather (numbers from Open-Meteo, no
@@ -230,6 +233,44 @@ def parse_onthisday(d, limit=8):
     return out
 
 
+def featured_url(today):
+    return f"https://en.wikipedia.org/api/rest_v1/feed/featured/{today.year}/{today.month:02d}/{today.day:02d}"
+
+
+def _page_link(page):
+    return ((page.get("content_urls") or {}).get("desktop") or {}).get("page", "")
+
+
+def _title(page):
+    return clean(page.get("normalizedtitle") or (page.get("titles") or {}).get("normalized")
+                 or (page.get("title") or "").replace("_", " "), 200)
+
+
+SKIP_PAGES = re.compile(r"^(Main_Page|Special:|Wikipedia:|Portal:|File:|Help:|Talk:)")
+
+
+def parse_featured(d, extract=400, mostread=8):
+    """{featured, mostread, news, dyk} from Wikipedia's featured feed; a part the day lacks is empty."""
+    tfa = d.get("tfa") or {}
+    featured = (_title(tfa), clean(tfa.get("extract"), extract), _page_link(tfa)) if tfa.get("title") else None
+    reads = sorted((a for a in (d.get("mostread") or {}).get("articles") or []
+                    if a.get("title") and not SKIP_PAGES.match(a["title"])
+                    and (a.get("namespace") or {}).get("id", 0) == 0),
+                   key=lambda a: a.get("rank", 1e9))
+    reads = [(_title(a), clean(a.get("description"), 160), _page_link(a)) for a in reads[:mostread]]
+    news = []
+    for n in d.get("news") or []:
+        links = n.get("links") or [{}]
+        story = re.sub(r"\s+([,.;:?!])", r"\1", clean(n.get("story"), 400))   # a dropped tag leaves "word ,"
+        news.append((story, _page_link(links[0])))
+    dyk = []
+    for f in d.get("dyk") or []:
+        m = re.search(r'href="(https?://[^"]+)"', f.get("html") or "")
+        dyk.append((clean(f.get("text") or f.get("html"), 300), m.group(1) if m else ""))
+    return {"featured": featured, "mostread": reads, "news": [x for x in news if x[0]],
+            "dyk": [x for x in dyk if x[0]]}
+
+
 def gather(source, now, since):
     """One source's section of the sheet, as markdown lines."""
     label, kind, value = source
@@ -253,6 +294,17 @@ def gather(source, now, since):
     if kind == "onthisday":
         events = parse_onthisday(json.loads(fetch(onthisday_url(now.astimezone()))))
         return [f"- {year}: {text} ({link})" for year, text, link in events]
+    if kind == "wikipedia":
+        p = parse_featured(json.loads(fetch(featured_url(now.astimezone()))))
+        lines = ["### Featured article"]
+        lines += [f"- {t}: {x} ({link})" for t, x, link in [p["featured"]]] if p["featured"] else ["- none today"]
+        lines += ["", "### Most read yesterday"]
+        lines += [f"- {t}" + (f": {x}" if x else "") + f" ({link})" for t, x, link in p["mostread"]] or ["- none listed"]
+        lines += ["", "### In the news"]
+        lines += [f"- {x}" + (f" ({link})" if link else "") for x, link in p["news"]] or ["- none today"]
+        lines += ["", "### Did you know"]
+        lines += [f"- {x}" + (f" ({link})" if link else "") for x, link in p["dyk"]] or ["- none today"]
+        return lines
     raise ValueError(f"unknown kind {kind}")
 
 

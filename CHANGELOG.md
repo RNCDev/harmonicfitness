@@ -2,6 +2,28 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [8.0.0] - 2026-10-23
+
+The filler between exercises gets a plan, a memory and a pantry. Each session's rests carry a planned mix (quick items from today, current science, a deep dive, a quiz, something to enjoy and something to learn), each slot rotating through the listener's interests, the one told longest ago first. A record of every item told keeps a story from being told twice. Evergreen pieces are researched ahead of time into a pantry, so session-day research covers only the news. The feeds reach further: Wikipedia's day, and whatever the listener's taste calls for.
+
+### For forks
+The research step changed, so a customized workout skill needs merging:
+- The research templates moved out of the workout skill into `.claude/skills/workout/research.md`, rewritten around `./sweatcast content plan`: today's research (every session), a pantry agent (when the plan says to restock) and the video agent (when the plan's deep dive is video). The deep dive's video or news alternation now comes from the plan, not the log's topics.
+- After each build, the skill records every filler item told: `./sweatcast content log --date <date> --item "<slot> | <category> | <title> [| <source> [| <pantry slug>]]"`. Sessions from before this release aren't in the record; add them the same way if you want them counted.
+- `me/` keeps schema 3; nothing to migrate. Optional additions to `me/profile.md`: `[[interests]]` rows in the settings (name, slot, detail; without any, `knowledge/content.toml`'s defaults apply), a `## Taste` section of favorites with ratings, and `[[feeds]]` of the new `wikipedia` kind (`value = "featured"`). The setup skill now asks for interests and taste.
+
+### Added
+- `./sweatcast content` (`tools/content.py`): `plan --minutes N` prints what a session's rests carry, by slot and category, with the listener's detail for each, the last thirty days of items told, the pantry's unused pieces and what to restock; `log` records a session's items; `pantry` lists the unused pieces.
+- `knowledge/content.toml`: the slots, how many of each a session carries by length (fifteen, thirty and longer), each evergreen slot's pantry target, and default categories.
+- The record of what's been told, `me/workouts/research/told.jsonl`, and the pantry, `me/workouts/research/pantry/<slug>.md` (a piece is used once the record names its slug).
+- Profile `[[interests]]` (checked by `./sweatcast check`: each needs a name and a known slot) and a `## Taste` section; the script guide says to recommend in their spirit, open each item with a hook tied to the listener, and never recommend something they rated three or less.
+- A `wikipedia` feed kind: the day's featured article, the most-read pages, in the news, and did you know.
+
+### Changed
+- `knowledge/script.md`'s filler section follows the plan, and a slot with nothing verified gives its time to coaching.
+- `./sweatcast youtube puzzles` also skips puzzle videos already in the pantry or the record.
+- The workout skill reads the plan before the check-in, and again for the chosen length after it.
+
 ## [7.2.0] - 2026-10-23
 
 Faster from check-in to MP3, with the same audio, and a smaller engine. The coaching is written while research runs, and the voice renders each paragraph as it lands in the draft, so the render mostly overlaps the writing instead of following it. The old session composer is retired: about 900 fewer lines of tools and 600 fewer of tests.

@@ -33,7 +33,9 @@ description = "man in his thirties, a focused class instructor. The clearest dic
 name = "home"
 equipment = ["dumbbells", "band", "mat"]
 
-# Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected).
+# What the filler between exercises rotates through: [[interests]] rows, each a name, its slot (today, science, deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within a slot, the one told longest ago comes next. Without any rows, knowledge/content.toml's defaults.
+
+# Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
 
 [[feeds]]
 label = "Weather"
@@ -79,6 +81,11 @@ value = "https://feeds.npr.org/4473090/rss.xml"
 label = "On this day, Wikipedia"
 kind = "onthisday"
 value = "selected"
+
+[[feeds]]
+label = "Wikipedia today"
+kind = "wikipedia"
+value = "featured"
 +++
 # My Profile
 
@@ -112,6 +119,8 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
 - Local: [local politics, transit, events]. Keep politics factual and even-handed.
 - On this day in history.
 - Never bring up:
+## Taste
+Shows, books, music, comedians, restaurants and drinks you've loved or not, out of five, so the filler recommends in their spirit (the setup skill asks).
 - Headlines or deep dives: a mix. Each session gets a few quick headlines, plus one deep-dive thread told across several segments. The deep dive alternates by session: a video from YouTube favorites, then a news story, then a video.
 ## Narrator
 - Tone: calm and focused. Keep humor light and occasional, with no hype.

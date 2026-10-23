@@ -1,0 +1,85 @@
+# The filler plan: what a session's rests carry besides the coaching. `./sweatcast content plan` reads
+# this through tools/content.py; the workout skill's research and script follow what it prints.
+#
+# A slot is one kind of filler. `words` is a rough size for one item of it, at about 175 words a
+# minute (a deep dive is told in beats of about fifty-five words across several rests). `fresh` is
+# true for news, which research finds on the day; the others are evergreen, so the pantry stocks them
+# ahead of time (`pantry` is how many unused pieces of the slot to keep on hand).
+
+[[slot]]
+id = "today"
+what = "a quick item from today: a result, a local story, a headline"
+words = 60
+fresh = true
+
+[[slot]]
+id = "science"
+what = "a current science or technology breakthrough: what was done, by whom, the key number, why it matters"
+words = 110
+fresh = true
+
+[[slot]]
+id = "deep_dive"
+what = "one thread told across the rests: a video retold from its transcript, or a news story, alternating by session"
+words = 450
+fresh = true
+
+[[slot]]
+id = "quiz"
+what = "a puzzle or question asked in one rest and answered two or three later"
+words = 120
+fresh = false
+pantry = 3
+
+[[slot]]
+id = "delight"
+what = "something to enjoy: a show, book, album, comedian, restaurant or drink the listener would like, or an odd fact"
+words = 90
+fresh = false
+pantry = 3
+
+[[slot]]
+id = "learn"
+what = "something worth knowing that isn't news: a bit of history, how a thing works, a number explained, an idea"
+words = 140
+fresh = false
+pantry = 3
+
+# How many items of each slot a session carries, by its length: the first band whose `up_to`
+# (minutes) is at least the session's.
+[[band]]
+up_to = 15
+today = 1
+science = 1
+deep_dive = 1
+quiz = 1
+delight = 1
+learn = 0
+
+[[band]]
+up_to = 30
+today = 2
+science = 2
+deep_dive = 1
+quiz = 1
+delight = 1
+learn = 1
+
+[[band]]
+up_to = 999
+today = 3
+science = 2
+deep_dive = 1
+quiz = 1
+delight = 2
+learn = 2
+
+# The categories each slot rotates through when the profile lists no [[interests]] of its own.
+# Within a slot, the category told longest ago (or never) comes first.
+[defaults]
+today = ["sports", "local", "headlines"]
+science = ["deep tech", "science"]
+deep_dive = ["video", "news"]
+quiz = ["puzzle", "trivia"]
+delight = ["film and TV", "books", "music", "food and drink", "comedy", "odd facts"]
+learn = ["history", "how things work", "numbers", "ideas"]
