@@ -90,9 +90,9 @@ class Core(unittest.TestCase):
     def test_services_settings(self):
         s = cloud.services()
         self.assertEqual(set(s), {"fish", "elevenlabs", "cartesia", "deepgram"})
-        for name in ("elevenlabs", "cartesia", "deepgram"):
-            self.assertFalse(s[name]["tried_live"], name)
-        self.assertTrue(s["fish"]["tried_live"])
+        self.assertFalse(s["deepgram"]["tried_live"])
+        for name in ("fish", "elevenlabs", "cartesia"):
+            self.assertTrue(s[name]["tried_live"], name)
         self.assertEqual(s["fish"]["default_model"], "s2.1-pro")
         self.assertEqual(s["deepgram"]["max_chars"], 2000)
 

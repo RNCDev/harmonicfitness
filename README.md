@@ -115,9 +115,9 @@ Coach Demo ships as a stand-in, so you can start at once; make your own whenever
 | Local, Apple Silicon | Chatterbox Turbo or Qwen3-TTS through MLX | Free | About 0.7 times real time on an M3; a 3.3 to 4.2 GB model |
 | Local, NVIDIA (Windows or Linux) | Chatterbox Turbo on CUDA | Free | About 0.5 times real time on an RTX 2080 Super; Linux not yet tried |
 | Local, processor only | The same, on the processor | Free | Experimental and slow; the smoke test measures it |
-| Fish Audio | Copies your coach's clip | About $0.30 a workout | |
-| ElevenLabs | A clone of the clip | About $0.80 to $1.60 | Not yet tried live |
-| Cartesia | A clone of the clip | About $1.00 | Not yet tried live |
+| Fish Audio | Copies your coach's clip | About $0.30 a workout | No subscription needed for the clip |
+| ElevenLabs | A clone of the clip | About $0.80 to $1.60, plus a monthly subscription (Starter, about $6) | Cloning needs the subscription; the key needs Text to Speech and Voices: write |
+| Cartesia | A clone of the clip | About $1.00, plus a monthly subscription (Pro, about $5) | Cloning needs the subscription |
 | Deepgram Aura-2 | Stock voices only | About $0.60 | Not yet tried live |
 
 Prices are approximate and change. A cloud build says what it will send and cost before sending, stops above a ceiling you set, and sends only the final script; the script can mention your injuries, so setup says so first. More in [knowledge/voices.md](knowledge/voices.md).

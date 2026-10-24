@@ -101,7 +101,8 @@ class Routes(unittest.TestCase):
     def test_report_labels_services_not_tried_live(self):
         with mock.patch.object(routes, "local_installed", return_value=True):
             lines = "\n".join(routes.report_lines(self.coach, ["local"], MAC))
-        self.assertRegex(lines, r"elevenlabs .*not yet tried live")
+        self.assertRegex(lines, r"deepgram .*not yet tried live")
+        self.assertNotRegex(lines, r"elevenlabs .*not yet tried live")
         self.assertIn("A build here would use: local", lines)
 
     def test_profile_defaults(self):

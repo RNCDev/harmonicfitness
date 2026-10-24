@@ -40,9 +40,9 @@ unit = "characters"
 usd_per_million = { "eleven_multilingual_v2" = 80, "eleven_flash_v2_5" = 40 }
 concurrency = 2              # Starter allows 3 on multilingual
 max_chars = 10000
-copies_clip = "clone"        # an instant voice clone, Starter plan and up
+copies_clip = "clone"        # an instant voice clone: the Starter subscription and up (about $6 a month; checked 2026-10-24)
 designs = true
-tried_live = false
+tried_live = true      # 2026-10-24: a smoke test and a 10-minute workout, from a Mac, on the Starter plan
 
 [cartesia]
 name = "Cartesia"
@@ -54,9 +54,9 @@ unit = "characters"
 usd_per_million = { "sonic-3.6" = 50 }   # Pro: $5 for 100,000 characters; $65 a million past that
 concurrency = 2              # Pro allows 3
 max_chars = 0
-copies_clip = "clone"        # instant cloning needs the Pro plan
+copies_clip = "clone"        # instant cloning: the Pro subscription and up (about $5 a month; checked 2026-10-24)
 designs = false
-tried_live = false
+tried_live = true      # 2026-10-24: a smoke test and a 10-minute workout, from a Mac, on the Pro plan
 
 [deepgram]
 name = "Deepgram Aura-2"

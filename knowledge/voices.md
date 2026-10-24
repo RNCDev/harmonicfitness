@@ -76,8 +76,8 @@ The models aren't gated, so no Hugging Face account is needed (the "unauthentica
 | Service | How the coach's clip travels | Designs coaches | Approx. cost a workout (20,000 characters) | Status |
 |---|---|---|---|---|
 | Fish Audio | Inline: the clip and its words go with every request | Yes, about $0.01 a design | About $0.30 | Tried live (2026-10-24) |
-| ElevenLabs | Cloned once (Starter plan and up), kept by its voice ID | Yes | About $0.80 (Flash) to $1.60 (multilingual) | Not yet tried live |
-| Cartesia | Cloned once (Pro plan), kept by its voice ID | No | About $1.00 | Not yet tried live |
+| ElevenLabs | Cloned once, kept by its voice ID; cloning needs a monthly subscription, Starter or above (about $6 a month) | Yes | About $0.80 (Flash) to $1.60 (multilingual) | Tried live (2026-10-24: a smoke test and a 10-minute workout) |
+| Cartesia | Cloned once, kept by its voice ID; cloning needs a monthly subscription, Pro or above (about $5 a month) | No | About $1.00 | Tried live (2026-10-24: a smoke test and a 10-minute workout) |
 | Deepgram Aura-2 | Doesn't: stock voices only, so the coach sounds different there | No | About $0.60 | Not yet tried live |
 
 Prices change; `knowledge/services.toml` holds the rates the cost estimate uses, with the date they were checked, and every figure shown to the listener is marked approximate. PlayHT shut down in July 2025.

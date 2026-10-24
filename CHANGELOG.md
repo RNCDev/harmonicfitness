@@ -2,6 +2,15 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [9.1.2] - 2026-10-24
+
+ElevenLabs and Cartesia tried live, and setup says plainly that both need a monthly subscription.
+
+### Changed
+- **ElevenLabs and Cartesia are tried live** (`knowledge/services.toml`): a smoke test and a 10-minute workout on each, from a Mac, both within 1% of plan. Only Deepgram is still "not yet tried live".
+- **Subscriptions:** copying the coach's voice from a clip (cloning) isn't on either service's free or pay-as-you-go plan: ElevenLabs needs Starter (about $6 a month) and Cartesia Pro (about $5 a month). The setup skill says so before the listener picks one, and the README and `knowledge/voices.md` show it. Fish Audio needs no subscription for this.
+- An ElevenLabs key needs two permissions when it's made, Text to Speech and Voices: write; the setup skill and README say so.
+
 ## [9.1.1] - 2026-10-24
 
 The README now starts where a new listener starts: "Can you use https://github.com/RNCDev/sweatcast and set me up?"
