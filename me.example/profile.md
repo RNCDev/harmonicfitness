@@ -2,6 +2,8 @@
 schema = 4
 # What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
 name = ""
+# "quick" until the second half of setup is done (interests, feeds, delivery, your own coach): until then ./sweatcast check lists what's left as notes. Say "finish setting me up" to do it.
+setup = "quick"
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
 # How workouts become audio, in order of preference: local (this computer's own engine) or a cloud voice (fish, elevenlabs, cartesia, deepgram) with its key in me/.env. Each build uses the first that works on the computer it runs on.

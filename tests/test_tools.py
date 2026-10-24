@@ -974,6 +974,32 @@ class Hooks(unittest.TestCase):
         self.assertEqual(self.push(head, self.base).returncode, 0)
 
 
+class QuickSetup(unittest.TestCase):
+    """setup = "quick": what the quick start leaves for later is a note, not an issue."""
+    SETTINGS = ('name = "Sam"\nexperience = "novice"\n{stage}'
+                '\n[[feeds]]\nlabel = "[Team]"\nkind = "espn"\nvalue = "[sport/league/team]"\n'
+                '\n[[interests]]\nname = "[a topic]"\nslot = "[slot]"\ndetail = ""\n')
+    PROSE = "# Profile\n- Neighborhood: [where you live]\n"
+
+    def issues(self, stage):
+        text = profile_text(self.SETTINGS.format(stage=stage), self.PROSE)
+        return context._check_profile("profile.md", text)
+
+    def test_quick_setup_unfilled_are_notes(self):
+        found = self.issues('setup = "quick"')
+        unfilled = [i for i in found if "isn't filled in yet" in i.message]
+        self.assertGreaterEqual(len(unfilled), 3, found)
+        self.assertTrue(all(i.note for i in found), [i for i in found if not i.note])
+        self.assertTrue(any("finish setting me up" in i.message for i in found))
+
+    def test_full_setup_unfilled_are_issues(self):
+        found = self.issues("")
+        unfilled = [i for i in found if "isn't filled in yet" in i.message]
+        self.assertGreaterEqual(len(unfilled), 3, found)
+        self.assertTrue(all(not i.note for i in unfilled))
+        self.assertFalse(any("finish setting me up" in i.message for i in found))
+
+
 class Context(unittest.TestCase):
     SETTINGS = """# A comment that must survive edits.
 words_per_minute = 170
@@ -1171,7 +1197,16 @@ class Migrate(unittest.TestCase):
         self.assertEqual(len(glob.glob(os.path.join(self.home, ".backup-*"))), 1)
 
     def test_the_template_is_current_and_says_what_to_fill_in(self):
-        out = run([sys.executable, "tools/context.py", "check"], home=fresh_home(self.tmp.name + "/t"))
+        home = fresh_home(self.tmp.name + "/t")
+        out = run([sys.executable, "tools/context.py", "check"], home=home)
+        self.assertEqual(out.returncode, cli.OK, out.stdout)   # the quick start: what's left is a note
+        self.assertIn("finish setting me up", out.stdout)
+        self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
+        profile = os.path.join(home, "profile.md")
+        with open(profile, encoding="utf-8") as f:
+            text = f.read()
+        write_file(profile, re.sub(r'(?m)^setup = "quick"\n', "", text))   # the full setup's standard
+        out = run([sys.executable, "tools/context.py", "check"], home=home)
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout)
         self.assertNotIn("schema", out.stdout)
         self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)

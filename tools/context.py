@@ -869,7 +869,16 @@ def _check_profile(path, text):
         if m:
             out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet "
                                                "(still the template's [hint]); fill it in or delete the line"))
+    if setup_stage(p) == "quick":   # the quick start leaves these for later: worth knowing, nothing breaks
+        out = [i._replace(note=True) if "isn't filled in yet" in i.message else i for i in out]
+        out.append(Issue(path, 0, "setup's second half is still to do (interests, feeds, delivery, your own "
+                                  "coach): say \"finish setting me up\"", note=True))
     return out
+
+
+def setup_stage(p):
+    """"quick" while the quick start's second half is still to do (the profile's `setup` setting), else "full"."""
+    return "quick" if str(p.settings.get("setup", "")).strip().lower() == "quick" else "full"
 
 
 def _interest_problems(path, settings):
