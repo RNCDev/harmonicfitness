@@ -27,11 +27,8 @@ def facts():
 
 
 def hub_dir():
-    """Where Hugging Face keeps downloaded models."""
-    if os.environ.get("HF_HUB_CACHE"):
-        return os.environ["HF_HUB_CACHE"]
-    home = os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
-    return os.path.join(home, "hub")
+    """Where the local voice models are (models/, which tools/paths.py points Hugging Face at)."""
+    return paths.MODELS
 
 
 def model_present(repo, revision, hub=None):
@@ -109,9 +106,15 @@ def report_lines(f=None, home=None):
     """The lines that need the environment: models, the context folder, delivery, ffmpeg."""
     f = f if f is not None else facts()
     home = home or paths.HOME
-    out = ["Voice models"]
+    out = [f"Voice models (in {paths.show(paths.MODELS)}"
+           + (f", a link to {os.path.realpath(paths.MODELS)}" if os.path.islink(paths.MODELS) else "") + ")"]
     try:
         out += _model_lines() or ["  none listed"]
+        import models
+        waiting = models.adopt(dry_run=True)
+        if waiting:
+            out.append(f"  Also in {paths.OLD_HF_HUB_CACHE}: {', '.join(r for r, _ in waiting)}. "
+                       "./sweatcast models adopt moves them here instead of downloading again.")
     except Exception as e:   # a broken voice file shouldn't hide the rest of the report
         out.append(f"  couldn't list them: {e}")
     out += ["", "Your context folder"]

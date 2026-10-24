@@ -169,6 +169,11 @@ if [ "$OS" = mac ] && [ "$ARCH" = arm64 ]; then echo "  Graphics: built into the
 else echo "  Graphics: ${GPU_NAME:-no NVIDIA card found}${GPU_MEM:+, $GPU_MEM GB}"; fi
 echo "  Memory:   $MEM GB"
 echo "  Free disk: $DISK GB where sweatcast is"
+case "$ROOT" in   # gigabytes of models and the environment would sync to every device
+  *"Mobile Documents"*|*CloudStorage*|*Dropbox*|*"Google Drive"*|*OneDrive*)
+    echo "  Warning: sweatcast is inside a synced folder ($ROOT). Its models and Python environment"
+    echo "  (several GB) would sync too; a folder outside it is better, or set SWEATCAST_MODELS." ;;
+esac
 echo
 echo "Prerequisites"
 if [ -n "$UV" ]; then echo "  uv:     $UV"; else

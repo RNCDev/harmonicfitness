@@ -2,6 +2,8 @@
 # engine; back it up as its own private repo if you like (see README).
 me/
 .venv/
+# The local voice models (./sweatcast models); no trailing slash, so a symlink named models is ignored too.
+models
 .codegraph/
 __pycache__/
 .DS_Store

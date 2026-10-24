@@ -14,6 +14,16 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOME = os.path.abspath(os.path.expanduser(os.environ.get("SWEATCAST_HOME") or os.path.join(ROOT, "me")))
 
+# The local voice models: models/ at the repo root (git-ignored; it may be a symlink to a shared place), or
+# SWEATCAST_MODELS. Every download and load goes there: Hugging Face's cache is pointed at it here, at
+# import, since each tool (render.py included) runs as its own process. The cache it replaced is kept
+# for ./sweatcast models adopt.
+OLD_HF_HUB_CACHE = os.environ.get("SWEATCAST_OLD_HF_HUB_CACHE") or os.environ.get("HF_HUB_CACHE") or os.path.join(
+    os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface"), "hub")
+MODELS = os.path.abspath(os.path.expanduser(os.environ.get("SWEATCAST_MODELS") or os.path.join(ROOT, "models")))
+os.environ["HF_HUB_CACHE"] = MODELS
+os.environ.setdefault("SWEATCAST_OLD_HF_HUB_CACHE", OLD_HF_HUB_CACHE)   # what it was before the first tool set it
+
 PROFILE = os.path.join(HOME, "profile.md")
 HEALTH = os.path.join(HOME, "health.md")
 LOG = os.path.join(HOME, "log.md")

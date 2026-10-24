@@ -33,6 +33,7 @@ COMMANDS = {
     "keys":        ("keys", None, "which cloud voice services have a key in me/.env (never the key), and init"),
     "backup":      ("backup", None, "commit me/ and push it to its own private repo, if it is one"),
     "migrate":     ("migrate", None, "bring me/ up to this version's format (backs up first)"),
+    "models":      ("models", None, "the local voice models in models/, and adopt the ones already downloaded"),
     "cache":       ("cache", None, "the clip cache's size, and prune"),
     "test":        (None, None, "run the engine's tests"),
     "setup":       (None, None, "first-run setup (environment, me/, privacy hook, voice model)"),

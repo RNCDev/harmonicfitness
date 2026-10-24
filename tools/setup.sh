@@ -17,7 +17,8 @@
 # the Python environment when it isn't installed, and git is needed only for the privacy hook and
 # ./sweatcast backup, so a zip download sets up too.
 #
-# Local voice models download once from Hugging Face (no account needed): about 3.3 GB for
+# Local voice models download once from Hugging Face (no account needed) into models/ (or
+# SWEATCAST_MODELS; ./sweatcast models adopt moves ones already in ~/.cache/huggingface/hub): about 3.3 GB for
 # Chatterbox Turbo (the model plus its speech tokenizer) and 4.2 GB for Qwen3-TTS on a Mac, and
 # about 4 GB for Chatterbox Turbo on Windows or Linux. Rendering works offline after that. Rerun
 # after giving a coach another local engine to fetch its model. An existing context folder is brought up to this version's
@@ -144,8 +145,11 @@ else
   git config core.hooksPath tools/hooks
 fi
 
-echo "4. Voice models (once, from Hugging Face into ~/.cache/huggingface/hub; no account needed,"
-echo "   and its 'unauthenticated requests' warning is harmless)"
+echo "4. Voice models (once, from Hugging Face into models/; no account needed, and its"
+echo "   'unauthenticated requests' warning is harmless)"
+if [ "$1" != "--no-models" ] && [ -n "$WANT" ]; then
+  "$PY" tools/models.py adopt --dry-run --quiet | sed 's/^/   /' || true
+fi
 if [ "$1" = "--no-models" ]; then
   echo "   skipped (--no-models)"
 elif [ -z "$WANT" ]; then
