@@ -2,6 +2,15 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [9.1.1] - 2026-10-24
+
+The README now starts where a new listener starts: "Can you use https://github.com/RNCDev/sweatcast and set me up?"
+
+### Changed
+- **README:** a Start here section (asking Claude with the link, what you need, what to say after setup, doing it yourself), a "Where it runs" table that says Claude Code on the web needs a GitHub account, and a "For Claude" section: how a Claude session outside a copy of the repo downloads it to `~/sweatcast` (git or the ZIP, no GitHub account needed) and hands over to a session opened in that folder, where the project's instructions and safety settings load.
+- No GitHub account is fine: the README and the setup skill say `me/` then stays on the computer, and how to keep a copy.
+- CLAUDE.md points to the README's "For Claude" section.
+
 ## [9.1.0] - 2026-10-24
 
 A stranger's first workout in minutes, Claude Code on the web, and a folder per workout. Setup's quick start asks four questions and starts the listener with Coach Demo, a stand-in coach that ships measured, so the first ten-minute workout needs no voice design and no smoke test. Claude Code on the web runs sweatcast with a cloud voice, and the workout arrives as a page with a player. Each workout's files now live together in their own folder.

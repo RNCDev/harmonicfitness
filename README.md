@@ -2,17 +2,42 @@
 
 Your own workout podcast, made fresh each session. Ask Claude Code for a workout, and sweatcast checks in on how you feel, builds a plan around your injuries and equipment, writes a narrated script with real news, science and stories, and turns it into an MP3 for your earbuds in a natural coach's voice. The audio is the timer: no screen, every segment starts on the clock.
 
-All you need is [Claude Code](https://claude.com/claude-code) (in a terminal, an IDE or the desktop app) on your own computer; Claude handles the rest, and tells you up front what your computer can do. Audio renders on your own computer (fast on an Apple Silicon Mac or with an NVIDIA card, slower and experimental on the processor), or with a cloud voice using your own key (Fish Audio, ElevenLabs, Cartesia or Deepgram) on any computer, an Intel Mac included.
+## Start here
 
-**To start:** clone or download this repo, open the folder in Claude Code, and say **"set up sweatcast"**. The quick start asks four questions (your name, experience, equipment and any injuries), starts you with Coach Demo, and plays you a ten-minute workout. Then ask for a workout any time: "I'd like a workout", "25 minutes at the hotel, just go". Say "finish setting me up" for your teams, interests and a folder that syncs to your phone, and "I want a new coach" for a coach of your own.
+**The easy way: ask Claude.** Open [Claude Code](https://claude.com/claude-code) on your computer (the Code tab of the Claude desktop app is the simplest; `claude` in a terminal works too) and say:
+
+> Can you use https://github.com/RNCDev/sweatcast and set me up?
+
+Claude downloads sweatcast into a folder called `sweatcast` in your home folder, then asks you to open that folder in Claude Code and say **"set up sweatcast"**. From there it's a few minutes: four questions (your name, your experience, your equipment, any injuries), then a ten-minute workout with Coach Demo, a coach that comes ready to use.
+
+**What you need:**
+- **Claude Code**, which comes with a paid Claude plan. Nothing else to install by hand: Claude sets up the rest (Python, the audio tools), asking first where it matters.
+- **A computer.** On an Apple Silicon Mac, or a Windows or Linux PC with an NVIDIA card, the coach's voice is made on your own computer, free and private, after a one-time 3 to 4 GB download. On any other computer (an Intel Mac, a PC without an NVIDIA card) the voice comes from a cloud service with a key of your own: Fish Audio costs about $0.30 a workout. Claude checks your computer first and tells you which applies.
+- **About 5 GB of free disk** for a voice on your computer (well under 1 GB for a cloud voice).
+- **No GitHub account, no programming.** A GitHub account is only for extras: keeping a private backup of your profile, and using Claude Code on the web.
+
+**After setup,** ask for a workout any time, in your own words: "I'd like a workout", "25 minutes at the hotel, just go". Claude checks in on how you feel, writes the session, makes the MP3 and tells you where it is. Two more things to say when you're ready:
+- **"Finish setting me up"**: your teams, interests and favorite shows (the workout's stories come from them), and a folder that syncs to your phone (iCloud Drive, Google Drive or Dropbox), so each workout lands there on its own.
+- **"I want a new coach"**: a coach of your own, with a name and a voice you pick, in a minute or two.
+
+**Doing it yourself instead:** download this repo (`git clone https://github.com/RNCDev/sweatcast.git`, or **Code > Download ZIP** on GitHub), put the folder somewhere that isn't synced to the cloud (your home folder is good), open it in Claude Code, and say "set up sweatcast".
 
 ## Where it runs
 
 | Where | Works? |
 |---|---|
-| Claude Code on your own computer: in a terminal, an IDE, or the Code tab of the Claude desktop app | Yes, with a local voice or a cloud voice |
-| Claude Code on the web | Yes, with a cloud voice only (your own key, set in the cloud environment's settings, and the service's host allowed in its network settings). Your profile is kept when you attach your private `sweatcast-me` repo to the session; without one, it's a one-time session with Coach Demo. The workout arrives as a page with a player |
-| The plain Claude chat (claude.ai, or the chat in the desktop app) | No: it can't run sweatcast's commands |
+| Claude Code on your own computer: the Code tab of the Claude desktop app, a terminal, or an IDE | Yes, with a voice made on your computer or a cloud voice |
+| Claude Code on the web | Yes, with a cloud voice only. It needs a GitHub account, your own voice key (set in the cloud environment's settings) and the voice service allowed in its network settings. Your profile is kept when you attach a private `sweatcast-me` repo to the session; without one, it's a one-time session with Coach Demo. The workout arrives as a page with a player |
+| The plain Claude chat (claude.ai, or the chat in the desktop app) | No: it can't run sweatcast's commands. Use Claude Code |
+
+## For Claude: setting someone up from this link
+
+If someone asks you to use this repository and set them up, and your session isn't already open in a copy of it:
+
+1. **You need to run commands.** In a plain chat with no shell, say that sweatcast runs in Claude Code on their computer, link https://claude.com/claude-code, and stop there.
+2. **Pick the folder:** `~/sweatcast` (on Windows, the home folder in Git Bash, the same path). Never inside iCloud Drive, Dropbox, OneDrive, Google Drive or a synced Documents folder: the voice model and Python environment are several gigabytes. If `~/sweatcast` already holds sweatcast, use it (`git -C ~/sweatcast pull` if it's a checkout).
+3. **Download it, no account needed.** With git (`command -v git`; on a Mac, `xcode-select -p` too, since a bare `git` there can open an installer): `git clone https://github.com/RNCDev/sweatcast.git ~/sweatcast`. Without git, the ZIP: download `https://github.com/RNCDev/sweatcast/archive/refs/heads/main.zip`, unzip it, and move the `sweatcast-main` folder to `~/sweatcast`. A ZIP copy works fully; only the privacy hook, which needs git, is skipped.
+4. **Hand over to a session in that folder.** Ask them to open `~/sweatcast` in Claude Code and say "set up sweatcast": in the desktop app, start a new Code session and choose the `sweatcast` folder; in a terminal, `cd ~/sweatcast && claude`. Say why in a line: sweatcast's own instructions and safety settings (among them the rule that keeps API keys out of the chat) load only in a session opened there. Don't run setup from the session you're in.
 
 Current version: see `VERSION` and `CHANGELOG.md`.
 
@@ -60,6 +85,8 @@ Three layers, so your own details never mix with the code:
 Pulling upstream changes never touches `me/`, so merges stay clean. When a release changes a context file's format, `./sweatcast migrate` (or rerunning `./sweatcast setup`) brings `me/` up to date, backing up the originals first. Your settings (audio routes, delivery folder, kits, feeds, YouTube channels) sit in a TOML block at the top of `me/profile.md`; everything below it is free-form prose for Claude.
 
 ### Back up `me/`
+
+Without a GitHub account, `me/` simply stays on your computer, and everything works; to keep a copy, copy the `me` folder now and then to somewhere private (it holds your health notes). With one, a private repo backs it up after every workout:
 
 Keep `me/` as its own private git repo, inside the engine's folder but separate from it: the engine's git ignores `me/`, and `me/` has its own history and remote. Then the workout skill's last step, `./sweatcast backup`, commits the session and pushes it, and another machine gets your profile and log by cloning it into `me/`. Not a submodule, which would record your private repo in the public one.
 

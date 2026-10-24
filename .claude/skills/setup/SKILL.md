@@ -83,5 +83,5 @@ If doctor (or `./sweatcast models adopt --dry-run`) found sweatcast's models alr
 
 ## Keep it safe
 
-- Suggest backing up `me/` as its own private git repo: `git init` inside `me/`, commit, and push to a private remote (`gh repo create sweatcast-me --private --source . --push`). The engine's git ignores `me/`, so the two never mix, and the pre-push hook blocks `me/` from the public repo. That repo is also how Claude Code on the web keeps their profile.
+- Ask whether they have a GitHub account. Without one, say `me/` stays on this computer and everything works; to keep a copy, they can copy the `me` folder now and then to somewhere private (it holds their health notes). With one, suggest backing up `me/` as its own private git repo: `git init` inside `me/`, commit, and push to a private remote (`gh repo create sweatcast-me --private --source . --push`). The engine's git ignores `me/`, so the two never mix, and the pre-push hook blocks `me/` from the public repo. That repo is also how Claude Code on the web keeps their profile.
 - Summarize what was written, in a few lines, and where to change it later ("ask me to update your profile").
