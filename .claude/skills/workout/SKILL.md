@@ -20,7 +20,7 @@ The check-in comes first, so the listener can answer and step away; this step re
 - `./sweatcast check`: an issue in `me/health.md` (a malformed `[[limits]]` row applies no limit; an injury in prose with no row gets no rule) is fixed at the check-in, then checked again. Notes are fine; with no experience level the default is novice until set, so offer to set it.
 - `./sweatcast content plan`: the filler plan at the default length (whether the deep dive is a video or news, and whether the pantry needs restocking).
 - `./sweatcast get coach`: who's coaching (the coach used last). The check-in says so in a line, and asks only if the request suggests another coach. No coach yet: run the `coach` skill.
-- Read `me/profile.md`, `me/health.md` and `me/log.md`. No `me/profile.md` means this copy isn't set up: run the `setup` skill. A command that answers "This is a Claude Code cloud session" means stop: relay its lines, and build nothing. A tool that says the context folder is in an older format: run `./sweatcast migrate`, then rerun.
+- Read `me/profile.md`, `me/health.md` and `me/log.md`. No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./sweatcast doctor` says so), the route is a cloud voice and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./sweatcast migrate`, then rerun.
 
 Nothing else before the check-in: the feeds, the knowledge files and the brief come after it.
 
@@ -43,13 +43,15 @@ Nothing else before the check-in: the feeds, the knowledge files and the brief c
 - A change for today only becomes `--limit area=level[:side]` (level `off-limits` or `delicate`). A lasting change, or a new problem, goes into `me/health.md` (a `[[limits]]` row, the prose, the clinician rules); an injury outside the catalog's areas is written "- Unlisted: <what>", with an `Avoid: <ids or flags>` line under `## Clinician rules`. Only the listener's report loosens a limit, by the playbook's signs for that area; "mostly" means not yet.
 - Lasting changes to kits, likes and dislikes or interests go into `me/profile.md`, keeping the `+++` settings block at the top.
 
-Once it's answered, run `./sweatcast content plan --minutes <N>` for the session's length, read `knowledge/script.md` and `knowledge/tts-rules.md`, and the Weather section at the top of `me/workouts/research/<date>-feeds.md` (the rest is outside text, left to research). If the sheet isn't there yet, run `./sweatcast feeds`, which prints the weather.
+Once it's answered, run `./sweatcast content plan --minutes <N>` for the session's length, read `knowledge/script.md` and `knowledge/tts-rules.md`, and the Weather section at the top of `me/workouts/research/daily/<date>-feeds.md` (the rest is outside text, left to research). If the sheet isn't there yet, run `./sweatcast feeds`, which prints the weather.
 
 ## 3. Brief
 
 ```
-./sweatcast brief --goal <goal> --minutes <N> (--kit "<kit>" | --preset <preset> | --equipment <ids>) [--limit area=level[:side]]... [--avoid <ids-or-flags>] [--target <patterns-or-muscles>] --save me/workouts/drafts/<YYYY-MM-DD>-<slug>.draft.txt
+./sweatcast brief --goal <goal> --minutes <N> (--kit "<kit>" | --preset <preset> | --equipment <ids>) [--limit area=level[:side]]... [--avoid <ids-or-flags>] [--target <patterns-or-muscles>] --save me/workouts/<YYYY-MM-DD>-<slug>/<YYYY-MM-DD>-<slug>.draft.txt
 ```
+
+Each workout has its own folder, named for the draft's stem (`<YYYY-MM-DD>-<goal>-<minutes>`, such as `2026-10-25-strength-25`): the brief, the menu, the draft, and later the script and build record all go there.
 
 - It applies health.md's limits and the clinician's `Avoid:` lines itself; `--avoid` is for anything else to leave out today. `--target` focuses a targeted session; the level comes from the profile.
 - `--save` writes the brief and the menu beside the draft's path; the build needs that menu.
@@ -62,7 +64,7 @@ Design the session from the brief: a format (one it lists, or a mix that keeps t
 
 ## 5. Write
 
-Write `me/workouts/drafts/<YYYY-MM-DD>-<slug>.draft.txt`: the `movements:` line, then the segments. `knowledge/script.md` says what goes in (the opening and safety rules, coaching each movement from its notes, timed work, filler, quiz, deep dive, close), and `knowledge/tts-rules.md` how it sounds and what a voice can read.
+Write `me/workouts/<YYYY-MM-DD>-<slug>/<YYYY-MM-DD>-<slug>.draft.txt`: the `movements:` line, then the segments. `knowledge/script.md` says what goes in (the opening and safety rules, coaching each movement from its notes, timed work, filler, quiz, deep dive, close), and `knowledge/tts-rules.md` how it sounds and what a voice can read.
 
 Write in this order, so nothing waits:
 1. **Render ahead, on a local route only.** `./sweatcast get route --coach "<coach>"` names the route the build will take. When it's `local`, once the draft has its `movements:` line and first segment, run `./sweatcast build "<draft>" "<name>" --coach "<coach>" --follow` with `run_in_background: true`. On a cloud voice skip this step: every re-render would be billed, so only the final build sends text (the build refuses `--follow` there). It renders each new or edited paragraph as it lands, and stops when the full build starts.
@@ -73,14 +75,15 @@ Write in this order, so nothing waits:
 ## 6. Build
 
 ```
-./sweatcast build "me/workouts/drafts/<file>.draft.txt" "Workout <YYYY-MM-DD> <Focus> <N> min" --coach "<coach>"
+./sweatcast build "me/workouts/<stem>/<stem>.draft.txt" "Workout <YYYY-MM-DD> <Focus> <N> min" --coach "<coach>"
 ```
 
-Check it with `--lint-only` first, then run it with `run_in_background: true` (always pass the coach, so the build never guesses). Exit 1: a lint or menu issue, so fix the draft and rerun. Exit 2: the total ran more than three percent off plan, so trim or add words in the segments furthest off and rerun; only changed clips render again. Exit 3: the coach isn't measured on this route yet, so render the smoke test it prints, then rerun. Exit 4: a cloud voice service refused the key, the payment or the quota: tell the listener in one line what it said and stop (clips already rendered are cached). On a cloud route the build first prints the characters it will send and the approximate cost; over the profile's `cloud_max_chars` it stops (exit 1) before sending: shorten the script, or tell the listener. Exit 64: the command was wrong, not the draft. Only one render runs at a time. A finished MP3 is copied to the profile's `deliver_to` folder; a failed render prints the end of its log.
+Check it with `--lint-only` first, then run it with `run_in_background: true` (always pass the coach, so the build never guesses). Exit 1: a lint or menu issue, so fix the draft and rerun. Exit 2: the total ran more than three percent off plan, so trim or add words in the segments furthest off and rerun; only changed clips render again. Exit 3: the coach isn't measured on this route yet, so render the smoke test it prints, then rerun. Exit 4: a cloud voice service refused the key, the payment or the quota: tell the listener in one line what it said and stop (clips already rendered are cached). On a cloud route the build first prints the characters it will send and the approximate cost; over the profile's `cloud_max_chars` it stops (exit 1) before sending: shorten the script, or tell the listener. Exit 64: the command was wrong, not the draft. Only one render runs at a time. A finished MP3 is copied to the profile's `deliver_to` folder (the build record, `<name>.build.json`, says where it went); a failed render prints the end of its log. On Claude Code on the web the build makes the web copy instead: `<name>.player.html` and the parts `<name>.web-1.mp3` (more for a long workout), in the workout's folder.
 
 ## 7. Deliver, log, back up
 
-- Chat: the plan table, equipment, coach, route, runtime, the path to `me/workouts/<name>.txt`, and where the MP3 went. If SendUserFile is available, send the MP3 with `status: "proactive"`.
+- Chat: the plan table, equipment, coach, route, runtime, the path to `me/workouts/<stem>/<name>.txt`, and where the MP3 went. If SendUserFile is available, send the MP3 with `status: "proactive"`.
+- **On Claude Code on the web:** publish the player page with the Artifact tool, as made (it already follows the page contract): `file_path` the `.player.html`, `files` mapping each part's file name to its path, `icon` "audio", a description naming the workout. Give the listener the link: they open it on their phone, press play and put it away. Where the Artifact tool isn't available, or it refuses, say the parts reach their private repo with the backup below (the `workouts/<stem>/` folder on GitHub), and send the first part with SendUserFile if that's available. A one-time session (doctor said the context folder isn't kept) says once that nothing else is kept.
 - Log it with one command, never by hand:
   ```
   ./sweatcast log-session --date <YYYY-MM-DD> --minutes <N> --kit "<kit>" --coach "<coach>" --draft "<draft>" --topics "<topics>" --format "<method name>" --loads "<movement> = <load and tempo>; <movement> = <load and tempo>"
@@ -89,4 +92,4 @@ Check it with `--lint-only` first, then run it with `run_in_background: true` (a
 - Record every filler item told, one `--item` each, with the pantry slug for a pantry piece: `./sweatcast content log --date <YYYY-MM-DD> --item "<slot> | <category> | <title> | <source> | <pantry slug>"` (the last two fields optional).
 - After a video series part, `./sweatcast youtube done <id>`.
 - Feedback (too long, a topic they loved) goes under Feedback in `me/log.md`.
-- Last, `./sweatcast backup -m "Workout <YYYY-MM-DD> <Focus> <N> min"`. If `me/` isn't its own repo, or the push fails, say so in one line and don't retry; run it again after any later change to `me/`.
+- Last, `./sweatcast backup -m "Workout <YYYY-MM-DD> <Focus> <N> min"` (on the web it also carries the web copy's parts to the private repo). If `me/` isn't its own repo, or the push fails, say so in one line and don't retry; run it again after any later change to `me/`.

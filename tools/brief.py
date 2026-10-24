@@ -9,7 +9,7 @@ the kit's equipment notes. It plans nothing.
 
     ./sweatcast brief --goal strength --minutes 30 --kit home
     ./sweatcast brief --goal general --minutes 25 --preset hotel-gym --limit knee=delicate:left \\
-        --save me/workouts/drafts/2026-10-22-general.draft.txt
+        --save me/workouts/2026-10-22-general-25/2026-10-22-general-25.draft.txt
 
 With --save <draft path> it also writes the brief (`<stem>.brief.md`) and the menu (`<stem>.menu.json`)
 beside the draft; `./sweatcast build` checks the draft's movements against that menu and won't build

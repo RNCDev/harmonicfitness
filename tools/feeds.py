@@ -17,7 +17,7 @@ with these kinds:
                                             Did you know, for "learn something" and odd-fact filler
 
 Everything is fetched in parallel with the standard library, and the sheet goes to
-me/workouts/research/<date>-feeds.md. Only the weather (numbers from Open-Meteo, no
+me/workouts/research/daily/<date>-feeds.md. Only the weather (numbers from Open-Meteo, no
 outside text), the sources that failed and where the sheet went print to stdout:
 headlines and captions are written by strangers, so they stay in the file for the
 research agent rather than landing in the main session. --print prints the whole
@@ -312,7 +312,7 @@ def main():
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--hours", type=float, default=72, help="how far back news items go (default 72)")
     ap.add_argument("--profile", default=None)
-    ap.add_argument("--out", help="sheet path (default me/workouts/research/<date>-feeds.md)")
+    ap.add_argument("--out", help="sheet path (default me/workouts/research/daily/<date>-feeds.md)")
     ap.add_argument("--print", action="store_true", help="print the whole sheet, not just the weather")
     args = ap.parse_args()
 

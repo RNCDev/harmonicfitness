@@ -7,6 +7,14 @@ description: Create a new coach (a trainer persona with a person's name, how the
 
 A coach is a persona folder in `me/personas/<slug>/`: a person's name, how they talk (`persona.md`), and a ten-second clip every engine copies (`clip.wav`, `clip.txt`). `knowledge/voices.md` has the details. Nothing renders from a description alone: a description makes takes, the listener keeps one, and that clip is the coach. Never send the listener to the README.
 
+## The quick coach (the default for a first coach of their own)
+
+One question, one take, about a minute or two:
+1. **One AskUserQuestion:** "Who should coach you?", with three named sketches and Other for their own description: "Coach Maya: a woman in her thirties, crisp and upbeat", "Coach Theo: a calm man in his fifties, low and unhurried", "Coach Rosa: a warm woman in her forties, encouraging, a little playful". Use what they've said (their name, their tone) to pick the three when it points somewhere.
+2. Turn it into a description in the shape of `knowledge/voices.md`'s (the person and their role, then what to avoid), and `./sweatcast coaches design "<name>" "<description>" --takes 1` (`run_in_background: true`). With a Fish Audio key it takes seconds and about a cent; on a Mac without one it's the local designer, a 4.5 GB download the first time: say so before starting.
+3. Send the take (SendUserFile, else `--play`, else the path). If it's right, keep it (step 3 below), with two lines under how they talk from the sketch. If it's not, ask what's off once and design again; past two tries, offer the full path below.
+4. The next workout uses them (`--coach "<name>"`); Coach Demo stays in `me/personas/` but isn't picked once another coach has been used.
+
 ## 1. Who the coach is (one AskUserQuestion round, up to four questions)
 
 - **Name:** a person's name ("Coach Maya"), never a model's. Offer two or three that fit what they've said, plus Other.
@@ -28,6 +36,6 @@ A coach is a persona folder in `me/personas/<slug>/`: a person's name, how they 
 
 - `./sweatcast coaches keep "<take>"` (or `keep <clip> --name "<name>" --words "<exact words>"` for a brought clip; `--engine qwen3` for the clearest diction on a Mac, Chatterbox otherwise).
 - Write how the coach talks in `me/personas/<slug>/persona.md`, under `## How this coach talks`, from step 1: replace the template's `[hint]` lines, keep the `+++` block. `./sweatcast check` lists any line still showing a hint.
-- Measure the coach's pace on this computer's route with the smoke test (about a minute; on a cloud voice about 1,000 characters): `./sweatcast build knowledge/smoke-test.draft.txt "smoke-test" --coach "<name>"`. Send the result and ask how it sounds.
+- A new clip has no measured pace (Coach Demo's doesn't carry over). Measure the coach's pace on this computer's route with the smoke test (about a minute; on a cloud voice about 1,000 characters): `./sweatcast build knowledge/smoke-test.draft.txt "smoke-test" --coach "<name>"`. Send the result and ask how it sounds.
 
 A workout that asked for a new coach continues with them, passing `--coach "<name>"` to the build. A change to how an existing coach talks is just an edit to their `persona.md`; a new sound is a new take kept with `--force` (their pace is measured again).

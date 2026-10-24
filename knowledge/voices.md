@@ -2,7 +2,7 @@
 
 A coach is a person the listener creates: a name ("Coach Maya", never a model's name), how they talk, and how they sound. The sound is a short reference clip with its exact words, which every engine copies for every line of the workout. It copies the clip's delivery as well as its sound: a sleepy clip clones sleepy, an announcer clip clones like an announcer. So the reference line is written the way a coach talks, and the clip is picked by ear.
 
-A coach is not a tuned model. The models are used exactly as published; what makes a coach is the clip. Nothing ever renders from a description alone: a description makes takes, the listener keeps one, and that clip is the coach from then on, on every engine. No coaches ship with sweatcast; each listener makes their own at setup, and can keep several.
+A coach is not a tuned model. The models are used exactly as published; what makes a coach is the clip. Nothing ever renders from a description alone: a description makes takes, the listener keeps one, and that clip is the coach from then on, on every engine. One stand-in ships, Coach Demo (`me.example/personas/coach-demo/`, copied into a new `me/` by setup): sweatcast 8's Chatterbox Coach clip, a designed voice, with its pace measured on Chatterbox Turbo (MLX and PyTorch) and Fish Audio, so a new listener's first workout needs no design and no smoke test. Its `persona.md` says `placeholder = true`: `./sweatcast check` notes it, and a build with no coach named picks any other coach before it. Each listener makes their own when they like (the coach skill's quick coach is one question and one take), and can keep several.
 
 ## Where coaches live
 

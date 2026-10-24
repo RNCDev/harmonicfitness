@@ -2,6 +2,31 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [9.1.0] - 2026-10-24
+
+A stranger's first workout in minutes, Claude Code on the web, and a folder per workout. Setup's quick start asks four questions and starts the listener with Coach Demo, a stand-in coach that ships measured, so the first ten-minute workout needs no voice design and no smoke test. Claude Code on the web runs sweatcast with a cloud voice, and the workout arrives as a page with a player. Each workout's files now live together in their own folder.
+
+### For forks
+This release moves files in `me/workouts/` (schema 4 to 5). It changes the `me/` layout, which the project's rules call a major release; it's released as a minor one at the maintainer's call, since `./sweatcast migrate` does everything. After pulling it:
+- **Run `./sweatcast migrate`** (or `./sweatcast setup`, which runs it; `--dry-run` lists the moves first). Each draft in `workouts/drafts/` moves with its brief and menu to `workouts/<stem>/`, and each build's script and record moves beside the draft its record names (or the one draft from the same date). Smoke tests, and anything that can't be placed for sure, go to `workouts/checks/`; each day's research sheet and feeds go to `workouts/research/daily/`. Nothing is overwritten (a clash gets " (2)"). The context files change only their schema number; `me/.gitignore` gains `!*.web-*.mp3`.
+- **Coach Demo** comes only with a new `me/`. To have it in yours, copy `me.example/personas/coach-demo/` into `me/personas/`.
+- A customized workout skill needs its paths updated: the draft is `me/workouts/<stem>/<stem>.draft.txt`, and the feeds sheet `me/workouts/research/daily/<date>-feeds.md`. `SWEATCAST_ALLOW_CLOUD_SESSION` is gone.
+
+### Added
+- **Coach Demo** in `me.example/personas/coach-demo/`: sweatcast 8's public Chatterbox Coach clip with its measured pace on Chatterbox Turbo (MLX and PyTorch) and Fish Audio. It's marked `placeholder = true`: `./sweatcast check` notes it, `./sweatcast coaches` marks it a stand-in, and a build with no coach named picks any other coach before it.
+- **A quick start** in the setup skill: one round of four questions (name, experience, kit, injuries), the audio route only when local voices don't run here, Coach Demo, and a ten-minute workout. "Finish setting me up" runs the rest. The profile's new `setup = "quick"` makes `./sweatcast check` report what's left as notes, not issues.
+- **A quick coach** in the coach skill: three named sketches or their own, one take, keep it.
+- **Claude Code on the web, with cloud voices only.** The readiness check turns local voices off there and says what to set: the key as an environment variable in the cloud environment's settings (`./sweatcast keys init` prints the line), the service's host for the network allowlist (and the feeds' hosts, optional), and whether the context folder is kept. The context folder is found beside the engine when the listener attaches their private `sweatcast-me` repo (or named by `SWEATCAST_HOME`); without one, setup explains it's a one-time session. `coaches download` and `setup --local` refuse there.
+- **A web copy** (`tools/webcopy.py`, `build --web`, on by default on the web): the MP3 mono at 48 kbps in parts of at most 14 MB (about 38 minutes each) and a player page that plays them in order, which the workout skill publishes as a private artifact; `./sweatcast backup` commits the parts to the private repo.
+- **A folder per workout** (`tools/workouts.py`): the build writes into the draft's own folder, or `checks/` for the smoke test and drafts outside one.
+- The build record says where the MP3 went (`delivered_to`, `kept_local`, `reason`).
+- `routes.hosts()` and `routes.feed_hosts()`: the hosts each route and the feeds reach.
+
+### Changed
+- `./sweatcast` no longer declines a Claude Code cloud session.
+- `./sweatcast backup`'s check for a public remote works without `gh`, through GitHub's API.
+- The README says where sweatcast runs: Claude Code on your own computer (terminal, IDE or the desktop app's Code tab) and Claude Code on the web, not the plain Claude chat.
+
 ## [9.0.0] - 2026-10-24
 
 A standalone sweatcast: any reasonable computer, any voice engine, and coaches of the listener's own. Local audio now runs on Linux too, and on the processor where there's no NVIDIA card (experimental); a cloud voice with the listener's own key works on any computer, an Intel Mac included. Voices become coaches: a person's name, how they talk and a clip every engine copies, kept in `me/personas/`, so the same coach sounds the same locally or in the cloud.

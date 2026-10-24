@@ -4,7 +4,15 @@ Your own workout podcast, made fresh each session. Ask Claude Code for a workout
 
 All you need is [Claude Code](https://claude.com/claude-code) (in a terminal, an IDE or the desktop app) on your own computer; Claude handles the rest, and tells you up front what your computer can do. Audio renders on your own computer (fast on an Apple Silicon Mac or with an NVIDIA card, slower and experimental on the processor), or with a cloud voice using your own key (Fish Audio, ElevenLabs, Cartesia or Deepgram) on any computer, an Intel Mac included.
 
-**To start:** clone or download this repo, open the folder in Claude Code, and say **"set up sweatcast"**. Then ask for a workout: "I'd like a workout", "25 minutes at the hotel, just go".
+**To start:** clone or download this repo, open the folder in Claude Code, and say **"set up sweatcast"**. The quick start asks four questions (your name, experience, equipment and any injuries), starts you with Coach Demo, and plays you a ten-minute workout. Then ask for a workout any time: "I'd like a workout", "25 minutes at the hotel, just go". Say "finish setting me up" for your teams, interests and a folder that syncs to your phone, and "I want a new coach" for a coach of your own.
+
+## Where it runs
+
+| Where | Works? |
+|---|---|
+| Claude Code on your own computer: in a terminal, an IDE, or the Code tab of the Claude desktop app | Yes, with a local voice or a cloud voice |
+| Claude Code on the web | Yes, with a cloud voice only (your own key, set in the cloud environment's settings, and the service's host allowed in its network settings). Your profile is kept when you attach your private `sweatcast-me` repo to the session; without one, it's a one-time session with Coach Demo. The workout arrives as a page with a player |
+| The plain Claude chat (claude.ai, or the chat in the desktop app) | No: it can't run sweatcast's commands |
 
 Current version: see `VERSION` and `CHANGELOG.md`.
 
@@ -14,12 +22,12 @@ Current version: see `VERSION` and `CHANGELOG.md`.
 
 What "set up sweatcast" does, so nothing is a surprise:
 
-1. **The readiness check** (`./sweatcast doctor`): your system, memory, disk and graphics, what's installed, and whether local voices work here. In a Claude Code cloud session it stops there: audio needs your own computer, and the cloud machine would forget your profile when the session ends.
+1. **The readiness check** (`./sweatcast doctor`): your system, memory, disk and graphics, what's installed, and whether local voices work here. On Claude Code on the web it also says what to set there: the key, the network, and whether your profile is kept.
 2. **The tools:** uv (which makes the project's Python environment, about 430 MB) is installed with Astral's official installer if it's missing, after Claude asks. ffmpeg comes with the environment if you don't have it, and git is optional: a zip download works, minus the hook that keeps your details out of a push.
-3. **The interview:** your name, equipment, injuries, interests and teams, how the audio is made (local, or a cloud voice with your key: you paste the key into `me/.env` yourself, never into the chat), and where MP3s should go. Claude fills in `me/` and checks your feeds.
-4. **Your coach:** you name a trainer, describe how they sound and talk, listen to a few takes, and keep one. Then a one-minute smoke test measures their pace, and you're ready.
+3. **The quick start:** four questions (your name, experience, equipment, injuries), and how the audio is made where it isn't obvious (local, or a cloud voice with your key: you paste the key into `me/.env` yourself, never into the chat). Coach Demo, a stand-in coach measured already, is your coach, and a ten-minute workout checks everything end to end.
+4. **Later, when you like:** "finish setting me up" asks about your interests, teams and taste, finds feeds for them, and sets the folder that syncs to your phone; "I want a new coach" makes a coach of your own in a minute or two (one question, one take).
 
-Setup takes 30 to 60 minutes, mostly downloads. To fork instead of clone, fork first (a fork keeps the link to upstream, so you can pull improvements).
+The quick start takes a few minutes, plus the voice model's download for a local voice (3 to 4 GB). To fork instead of clone, fork first (a fork keeps the link to upstream, so you can pull improvements).
 
 ## Commands
 
@@ -73,7 +81,7 @@ cd me && git init && gh repo create sweatcast-me --private --source . --push
 
 ## Coaches and voices
 
-No coach ships: you make your own at setup, and can keep several ("I want a new coach"). A coach is a person's name, how they talk, and a ten-second clip that every engine copies, so the same coach sounds the same locally or in the cloud. Each lives in `me/personas/<name>/`.
+Coach Demo ships as a stand-in, so you can start at once; make your own whenever you like, and keep several ("I want a new coach"). A coach is a person's name, how they talk, and a ten-second clip that every engine copies, so the same coach sounds the same locally or in the cloud. Each lives in `me/personas/<name>/`.
 
 | Route | Where | Cost | Notes |
 |---|---|---|---|
@@ -92,7 +100,7 @@ Prices are approximate and change. A cloud build says what it will send and cost
 1. The `workout` skill asks only for what you didn't say: how each injury feels, how you're coming in today, the goal, length and kit.
 2. `./sweatcast content plan` says what the rests will carry: quick items from today, current science, a deep dive (alternating between a news story and a video from your favorite YouTube channels; a long video becomes a series), a quiz that works by ear, something to enjoy in the spirit of your favorites, and something to learn. Each slot rotates through your interests, the one told longest ago first, and nothing told in the last month is told again. Background agents research today's items from `./sweatcast feeds` (your teams, the weather, local, science, TV, books, music and food headlines, podcasts, puzzles and Wikipedia's day), while evergreen pieces come from a pantry stocked ahead of time.
 3. `./sweatcast brief` gathers the ingredients: who you are and how the week has gone, today's limits with your clinician's rules, the safe menu (every movement your kit, level and injury limits allow, each with its coaching notes), and the programming guide for your goal and level. Claude designs the session from it (the format, the movements, their order, doses and timing), posts the plan, writes the coaching while research finishes, and renders each paragraph as it's written (locally; a cloud voice renders once, at the end).
-4. `./sweatcast build` checks that every movement the draft declares or names is on today's menu, lints it for text-to-speech problems, predicts each segment's spoken length for the voice, renders a loudness-normalized MP3, and moves it to the folder your profile names (anything that syncs to your phone), keeping the script's text in `me/workouts/` as history.
+4. `./sweatcast build` checks that every movement the draft declares or names is on today's menu, lints it for text-to-speech problems, predicts each segment's spoken length for the voice, renders a loudness-normalized MP3, and moves it to the folder your profile names (anything that syncs to your phone), keeping the script's text in the workout's own folder in `me/workouts/` as history (on Claude Code on the web it makes a page with a player instead).
 
 A soft chime marks the start of each segment and each change inside an interval, and a rising three-note tone marks the end. A segment with spare seconds widens its paragraph breaks, then ends early rather than going quiet, unless it holds timed work: a `[hold]` keeps that segment its full length, silent where you work. The whole workout lands within three percent of plan. With the default voice, a 30-minute workout renders in under 20 minutes in the background, starting while the script is still being written (`--follow`), and edits re-render only the clips that changed.
 
