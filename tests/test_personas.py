@@ -234,9 +234,12 @@ class Coaches(unittest.TestCase):
     def test_log_session_takes_coach_and_voice(self):
         import context
         self.write_log()
+        import contextlib
+        import io
         for flag in ("--coach", "--voice"):
-            context.main(["log-session", "--date", "2026-10-24", "--minutes", "20", "--kit", "home", flag,
-                          "Coach Test", "--movements", "goblet squat", "--topics", "deep dive: news, y"])
+            with contextlib.redirect_stdout(io.StringIO()):
+                context.main(["log-session", "--date", "2026-10-24", "--minutes", "20", "--kit", "home", flag,
+                              "Coach Test", "--movements", "goblet squat", "--topics", "deep dive: news, y"])
         self.assertEqual([s.voice for s in context.sessions(self.log)], ["Coach Test", "Coach Test"])
 
     def test_set_parses_values(self):
