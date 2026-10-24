@@ -240,9 +240,12 @@ class Coaches(unittest.TestCase):
         self.assertEqual([s.voice for s in context.sessions(self.log)], ["Coach Test", "Coach Test"])
 
     def test_set_parses_values(self):
+        import contextlib
+        import io
         import coaches
-        coaches.main(["set", "Coach Test", "local.engine", "qwen3"])
-        coaches.main(["set", "Coach Test", "deepgram.voice", "aura-2-apollo-en"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            coaches.main(["set", "Coach Test", "local.engine", "qwen3"])
+            coaches.main(["set", "Coach Test", "deepgram.voice", "aura-2-apollo-en"])
         p = personas.lookup("Coach Test")
         self.assertEqual((p.table("local")["engine"], p.table("deepgram")["voice"]), ("qwen3", "aura-2-apollo-en"))
         with self.assertRaises(SystemExit):
