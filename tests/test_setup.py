@@ -96,5 +96,52 @@ class Doctor(unittest.TestCase):
             self.assertIn("not on this computer", lines)
 
 
+class CloudSession(unittest.TestCase):
+    """A Claude Code cloud session (CLAUDE_CODE_REMOTE=true) is declined before anything is installed."""
+
+    def run_in_copy(self, *args, **env):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        repo = copy_repo(d)
+        out = subprocess.run(["sh", os.path.join(repo, "sweatcast"), *args], cwd=repo, env=clean_env(**env),
+                             capture_output=True, text=True, timeout=60)
+        return out, repo
+
+    def test_cloud_session_declines_setup_and_build(self):
+        for args in (["setup"], ["build", "x.draft.txt", "x"], ["check"]):
+            out, repo = self.run_in_copy(*args, CLAUDE_CODE_REMOTE="true")
+            self.assertEqual(out.returncode, 1, args)
+            self.assertIn("cloud session", out.stdout + out.stderr)
+            self.assertIn("your own computer", out.stdout + out.stderr)
+            self.assertFalse(os.path.exists(os.path.join(repo, ".venv")))
+            self.assertFalse(os.path.exists(os.path.join(repo, "me")))
+
+    def test_setup_script_run_directly_declines_too(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        repo = copy_repo(d)
+        out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh")], env=clean_env(CLAUDE_CODE_REMOTE="true"),
+                             capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("cloud session", out.stdout)
+        self.assertFalse(os.path.exists(os.path.join(repo, "me")))
+
+    def test_override_lets_a_developer_through(self):
+        out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", SWEATCAST_ALLOW_CLOUD_SESSION="1",
+                                  SWEATCAST_PYTHON=sys.executable)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        out, _ = self.run_in_copy("setup", "--no-models", CLAUDE_CODE_REMOTE="true",
+                                  SWEATCAST_ALLOW_CLOUD_SESSION="1", SWEATCAST_UV="/nonexistent/uv")
+        self.assertNotIn("cloud session", out.stdout)
+
+    def test_help_test_and_doctor_still_run_in_a_cloud_session(self):
+        out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", SWEATCAST_PYTHON=sys.executable)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        out, _ = self.run_in_copy("doctor", CLAUDE_CODE_REMOTE="true")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("cloud session", out.stdout)
+        self.assertIn("This computer", out.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

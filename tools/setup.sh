@@ -23,6 +23,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 CONTEXT="${SWEATCAST_HOME:-$ROOT/me}"
 cd "$ROOT"
+if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -z "${SWEATCAST_ALLOW_CLOUD_SESSION:-}" ]; then
+  sh "$HERE/doctor.sh" decline
+  exit 1
+fi
 
 case "$(uname -s)" in
   Darwin)
