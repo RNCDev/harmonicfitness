@@ -58,6 +58,8 @@ def _version(package):
 def runtime(voice):
     """What speaks the voice, with versions, for the clip cache key and the build record.
     On a Mac it stays "mlx-audio <version>", as it always was, so cached clips still match."""
+    if voice.get("backend") == "cloud":
+        return f"{voice['service']} {voice['model']}"
     if voice.get("backend") == "torch":
         base = f"chatterbox-tts {_version('chatterbox-tts')} torch {_version('torch')}"
         return base + " cpu" if voice.get("device") == "cpu" else base   # CUDA keys stay as they were
@@ -119,6 +121,9 @@ def speaker(voice):
     """Load the voice's model (Qwen3-TTS or Chatterbox through mlx-audio, or Chatterbox
     Turbo through PyTorch) and return say(text, seed) -> 16-bit mono PCM at SR, cloning
     the voice's reference clip."""
+    if voice.get("backend") == "cloud":
+        import cloud
+        return cloud.speaker(voice)
     if voice.get("backend") == "torch":
         return _torch_speaker(voice)
     import mlx.core as mx

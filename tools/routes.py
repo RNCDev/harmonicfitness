@@ -90,6 +90,10 @@ def report_lines(persona=None, preferences=None, facts=None):
     for route in ROUTES:
         ok, reason = usable(route, persona, facts)
         label = "works here" if ok else reason.split(": ", 1)[-1]
+        if route in SERVICES:
+            import cloud
+            if not cloud.services()[route].get("tried_live"):
+                label += " (not yet tried live)"
         out.append(f"  {route:10} {label}")
     try:
         out.append(f"  A build here would use: {pick(preferences, persona, facts=facts)}"

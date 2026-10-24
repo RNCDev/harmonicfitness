@@ -91,6 +91,12 @@ class Routes(unittest.TestCase):
         self.assertEqual(context.routes(p), ["fish-audio", "local"])
         self.assertTrue(any("fish-audio" in i.message for i in context.route_issues(p)))
 
+    def test_report_labels_services_not_tried_live(self):
+        with mock.patch.object(routes, "local_installed", return_value=True):
+            lines = "\n".join(routes.report_lines(self.coach, ["local"], MAC))
+        self.assertRegex(lines, r"elevenlabs .*not yet tried live")
+        self.assertIn("A build here would use: local", lines)
+
     def test_profile_defaults(self):
         p = context.Profile({}, "", "profile.md")
         self.assertEqual(context.routes(p), ["local"])

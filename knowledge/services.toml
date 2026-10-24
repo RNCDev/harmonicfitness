@@ -1,0 +1,74 @@
+# The cloud voice services sweatcast can render with, each with the listener's own key in me/.env.
+# Read only through tools/cloud.py (cloud.services()).
+#
+# Prices change: every rate here is approximate, checked on the date below from each service's
+# pricing page, and shown to the listener as approximate. A release updates them.
+# tried_live: whether someone has rendered a real workout through the service. Until then setup,
+# the readiness check and the docs label it "not yet tried live"; it was built against a local
+# fake of its documented API.
+#
+# copies_clip: inline (the clip and its words go with every request), clone (uploaded once to make
+# the service's own voice, whose ID is kept in the coach's services.json), or stock (stock voices
+# only; the coach sounds different there).
+# unit: what the service bills by (characters, or UTF-8 bytes for Fish).
+# concurrency: requests at once, under the lowest paid plan's limit.
+# max_chars: the most characters one request may carry (0: no documented limit).
+
+rates_checked = "2026-10-24"
+
+[fish]
+name = "Fish Audio"
+url = "https://api.fish.audio"
+key_var = "FISH_AUDIO_API_KEY"
+default_model = "s2.1-pro"   # s1 retires 2026-12-31, and the free model has an announced end date
+models = { "s2.1-pro" = "Fish's current model", "s2-pro" = "the previous model" }
+unit = "bytes"
+usd_per_million = { "s2.1-pro" = 15, "s2-pro" = 15 }
+concurrency = 4              # 5 at once below $100 prepaid
+max_chars = 0
+copies_clip = "inline"
+designs = true               # voice design: about $0.01 a request
+tried_live = false
+
+[elevenlabs]
+name = "ElevenLabs"
+url = "https://api.elevenlabs.io"
+key_var = "ELEVENLABS_API_KEY"
+default_model = "eleven_multilingual_v2"
+models = { "eleven_multilingual_v2" = "the more natural voice (about $1.60 a 20,000-character workout)", "eleven_flash_v2_5" = "faster and cheaper (about $0.80 a workout)" }
+unit = "characters"
+usd_per_million = { "eleven_multilingual_v2" = 80, "eleven_flash_v2_5" = 40 }
+concurrency = 2              # Starter allows 3 on multilingual
+max_chars = 10000
+copies_clip = "clone"        # an instant voice clone, Starter plan and up
+designs = true
+tried_live = false
+
+[cartesia]
+name = "Cartesia"
+url = "https://api.cartesia.ai"
+key_var = "CARTESIA_API_KEY"
+default_model = "sonic-3.6"
+models = { "sonic-3.6" = "Cartesia's current model" }
+unit = "characters"
+usd_per_million = { "sonic-3.6" = 50 }   # Pro: $5 for 100,000 characters; $65 a million past that
+concurrency = 2              # Pro allows 3
+max_chars = 0
+copies_clip = "clone"        # instant cloning needs the Pro plan
+designs = false
+tried_live = false
+
+[deepgram]
+name = "Deepgram Aura-2"
+url = "https://api.deepgram.com"
+key_var = "DEEPGRAM_API_KEY"
+default_model = "aura-2"
+models = { "aura-2" = "stock voices only" }
+unit = "characters"
+usd_per_million = { "aura-2" = 30 }
+concurrency = 4
+max_chars = 2000
+copies_clip = "stock"
+designs = false
+stock_voices = ["aura-2-thalia-en", "aura-2-andromeda-en", "aura-2-helena-en", "aura-2-apollo-en", "aura-2-arcas-en", "aura-2-aries-en", "aura-2-draco-en", "aura-2-pandora-en", "aura-2-hyperion-en", "aura-2-theia-en"]
+tried_live = false

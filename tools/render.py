@@ -49,6 +49,7 @@ import locks  # noqa: E402
 from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, layout,  # noqa: E402
                    parse, plan, spoken as is_spoken)
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
+import paths  # noqa: E402
 from paths import BUILDS, CACHE as CACHE_DIR, VERSION_FILE, show  # noqa: E402
 from voices import MLX_EDGE, check_pace_file, lookup, record_rate, weight  # noqa: E402
 
@@ -271,10 +272,26 @@ def save_build_record(record, out, log=None):
         f.write(json.dumps(record) + "\n")
 
 
+def resolve_voice(args):
+    """The voice dict: the coach (--coach, else the one used last) on the route (--engine, else the first in
+    the profile's render list that works here); or an old-style voice by --voice."""
+    if getattr(args, "voice", None) and not getattr(args, "coach", None) and not getattr(args, "engine", None):
+        return lookup(args.voice)
+    import context
+    import personas
+    import routes
+    name = getattr(args, "coach", None) or getattr(args, "voice", None)
+    coach = personas.lookup(name) if name else personas.default()
+    if coach is None:
+        raise SystemExit("No coach yet: make one first (the coach skill, or ./sweatcast coaches design).")
+    preferences = context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"]
+    return personas.voice_for(coach, routes.pick(preferences, coach, override=getattr(args, "engine", None)))
+
+
 def setup_voice(args):
-    """The voice for args.voice (and --model), and cache_path(text): where a line's clip is cached."""
-    check_pace_file()   # a damaged pace file stops the render now, not after it
-    voice = lookup(args.voice)
+    """The voice (resolve_voice, and --model), and cache_path(text): where a line's clip is cached."""
+    voice = resolve_voice(args)
+    check_pace_file(voice.get("pace_file"))   # a damaged pace file stops the render now, not after it
     if args.model:   # so the measured rate is filed under this model
         voice["model"], voice["revision"] = args.model, None
     if voice.get("backend") == "torch":   # the processor's clips sound a little different: their own key
@@ -294,14 +311,74 @@ def spoken_clips(segments):
     return [text for seg in segments for para in plan(seg) for text, _ in para if is_spoken(text)]
 
 
-def render_clip(say, text, seed, cache_path):
-    """Speak one line into the cache; returns its seconds of audio."""
-    pcm = say(text, seed)
+def render_clip(say, text, seed, cache_path, **context):
+    """Speak one line into the cache; returns its seconds of audio. `context` (previous_text, next_text)
+    goes to a cloud engine that joins paragraphs."""
+    pcm = say(text, seed, **context)
     tmp = cache_path(text) + ".part"
     with open(tmp, "wb") as f:
         f.write(pcm)
     os.replace(tmp, cache_path(text))
     return len(pcm) / 2 / SR
+
+
+def render_cloud(voice, todo, clips, seed, cache_path, sent):
+    """Send the clips not cached yet to the voice's service, a few at a time, after saying what it will cost
+    and stopping if it's over the profile's ceiling. Each clip is cached as it lands, so a rerun after a
+    failure sends only what's left."""
+    import cloud
+    import context
+    service = cloud.services()[voice["service"]]
+    chars, usd = cloud.estimate(voice["service"], voice["model"], todo)
+    ceiling = context.cloud_max_chars(context.profile()) if os.path.exists(paths.PROFILE) else context.CLOUD_MAX_CHARS
+    print(f"Sending {chars:,} characters to {service['name']} ({voice['model']}): about ${usd:.2f} "
+          f"(approximate; rates checked {service.get('rates_checked')})", flush=True)
+    if chars > ceiling:
+        print(f"That's over this profile's ceiling of {ceiling:,} characters a build (cloud_max_chars in "
+              "me/profile.md), so nothing was sent. Shorten the script, or raise the ceiling and rerun.")
+        sys.exit(cli.ISSUES)
+    long = [t for t in todo if voice.get("max_chars") and len(t) > voice["max_chars"]]
+    if long:
+        print(f"A paragraph runs {len(long[0])} characters, over {service['name']}'s {voice['max_chars']} a request: "
+              f"split \"{' '.join(long[0].split()[:6])}...\" and rerun. Nothing was sent.")
+        sys.exit(cli.ISSUES)
+    order = list(dict.fromkeys(clips))   # each paragraph's real neighbors, for services that join them
+    at = {t: i for i, t in enumerate(order)}
+    say = engines.speaker(voice)
+    started = time.time()
+    audio_secs, measured_weight, done = 0.0, 0.0, 0
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    pool = ThreadPoolExecutor(max_workers=max(1, voice.get("concurrency") or 1))
+    try:
+        jobs = {}
+        for text in todo:
+            i = at[text]
+            ctx = {"previous_text": order[i - 1] if i else None,
+                   "next_text": order[i + 1] if i + 1 < len(order) else None}
+            jobs[pool.submit(render_clip, say, text, seed, cache_path, **ctx)] = text
+        for job in as_completed(jobs):
+            secs = job.result()
+            done += 1
+            audio_secs += secs
+            measured_weight += weight(jobs[job])
+            sent["chars"] += len(jobs[job])
+            print(f"  [{done}/{len(todo)}] {secs:4.1f}s audio", flush=True)
+    except cloud.ServiceError as e:
+        pool.shutdown(wait=True, cancel_futures=True)
+        if done:
+            record_rate(voice, measured_weight, audio_secs - MLX_EDGE * done)
+        print(f"\n{e}")
+        if e.listener_must_act:
+            print(f"Check the key with ./sweatcast keys (it's {service['key_var']} in me/.env), and the account's "
+                  f"plan and balance at {service['name']}. The {done} clip(s) rendered are cached.")
+            sys.exit(cli.SERVICE)
+        print(f"The {done} clip(s) rendered are cached; rerun to send only the rest.")
+        sys.exit(cli.ISSUES)
+    pool.shutdown()
+    sent["usd"] = cloud.estimate(voice["service"], voice["model"], todo)[1]
+    took = time.time() - started
+    record_rate(voice, measured_weight, audio_secs - MLX_EDGE * len(todo), render_seconds=took)
+    print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min", flush=True)
 
 
 def follow(args):
@@ -352,7 +429,9 @@ def main():
     ap = cli.ArgumentParser()
     ap.add_argument("draft")
     ap.add_argument("--out", help=".mp3, .m4a or .wav (not needed with --clips-only)")
-    ap.add_argument("--voice", required=True, help="a voice from voices/ or me/voices/")
+    ap.add_argument("--coach", help="the coach (default: the one used last)")
+    ap.add_argument("--voice", help="an old-style voice from voices/ or me/voices/ (or a coach's name)")
+    ap.add_argument("--engine", help="the route: local, or a cloud service (default: the profile's render list)")
     ap.add_argument("--model", default=None,
                     help="try another model repo for the voice's engine (its latest revision)")
     ap.add_argument("--seed", type=int, default=42, help="a different seed gives a different take of every line")
@@ -371,6 +450,11 @@ def main():
     if not args.out and not (args.clips_only or args.follow):
         ap.error("--out is required unless --clips-only or --follow")
 
+    if args.follow or args.clips_only:
+        if resolve_voice(args).get("backend") == "cloud":
+            print("Rendering ahead is off for a cloud voice: every re-render would be billed. "
+                  "Run the full build once the lint passes.")
+            sys.exit(cli.USAGE)
     if args.follow:
         return follow(args)
     with open(args.draft, encoding="utf-8") as f:
@@ -385,7 +469,10 @@ def main():
         print(f"{len(clips)} clips, {len(todo)} to render ({len(clips) - len(todo)} cached), "
               f"voice {voice['name']} on {engine}", flush=True)
 
-        if todo:
+        sent = {"chars": 0, "usd": 0.0}
+        if todo and voice.get("backend") == "cloud":
+            render_cloud(voice, todo, clips, seed, cache_path, sent)
+        elif todo:
             say = engines.speaker(voice)
             print(f"model ready in {time.time() - started:.0f}s", flush=True)
             speaking_started = time.time()
@@ -429,8 +516,12 @@ def main():
 
     total = len(pcm_all) / 2 / SR
     planned_total = sum(seg["seconds"] for seg in segments)
-    save_build_record(build_record(args.draft, out, voice, seed, len(clips), len(todo), planned_total,
-                                   planned_total * (1 + drift), drift, time.time() - started, started), out)
+    record = build_record(args.draft, out, voice, seed, len(clips), len(todo), planned_total,
+                          planned_total * (1 + drift), drift, time.time() - started, started)
+    record["route"] = voice.get("route", "local")
+    if voice.get("backend") == "cloud":
+        record.update(chars_sent=sent["chars"], usd_estimate=round(sent["usd"], 4))
+    save_build_record(record, out)
     print(f"\nWrote {out}: {total / 60:.1f} min audio, {drift:+.1%} of plan, "
           f"total time {(time.time() - started) / 60:.1f} min")
     if abs(drift) > args.tolerance:

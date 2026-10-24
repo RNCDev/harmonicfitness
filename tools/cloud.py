@@ -1,0 +1,290 @@
+"""Cloud voices: the shared core behind each service's engine (tools/services/<name>.py).
+
+A cloud engine is an engine like the local ones: say(text, seed) returns 16-bit mono PCM at
+24 kHz, trimmed by the same rule, so everything above it (the lint, the timing layout, the
+loudness pass, the MP3, the build record and delivery) doesn't know which engine spoke. It also
+takes previous_text= and next_text=, which a service that joins paragraphs uses.
+
+What lives here: the services' settings (knowledge/services.toml), the HTTP call with retries
+(standard library only), errors sorted into what the listener must fix (key, payment, quota)
+and what a rerun fixes, WAV reading and resampling without numpy, and the cost estimate.
+
+The API key is read by the service module at the moment it sends (tools/keys.py), and never
+goes into a voice dict, a message, a record or a cache key.
+"""
+import array
+import importlib
+import json
+import os
+import random
+import socket
+import sys
+import time
+import tomllib
+import urllib.error
+import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paths  # noqa: E402
+
+SR = 24000
+SERVICES_FILE = os.path.join(paths.ROOT, "knowledge", "services.toml")
+RETRY_STATUS = (429, 500, 502, 503, 504)
+TRIES = 6
+TRIM_LEVEL = 0.01 * 32767   # engines.TRIM_DB (-40 dB) in 16-bit samples
+TRIM_KEEP = 0.04            # seconds kept at each end, as engines.TRIM_KEEP
+_settings = None
+
+
+class ServiceError(Exception):
+    """A service said no. kind: auth, billing, quota (the listener must act), bad_request, unavailable."""
+
+    def __init__(self, kind, service, message):
+        super().__init__(message)
+        self.kind, self.service, self.message = kind, service, message
+
+    def __str__(self):
+        name = services().get(self.service, {}).get("name", self.service or "The service")
+        return f"{name}: {self.message}"
+
+    @property
+    def listener_must_act(self):
+        return self.kind in ("auth", "billing", "quota")
+
+
+def services():
+    """{service: settings} from knowledge/services.toml."""
+    global _settings
+    if _settings is None:
+        with open(SERVICES_FILE, "rb") as f:
+            data = tomllib.load(f)
+        _settings = {k: dict(v, rates_checked=data.get("rates_checked")) for k, v in data.items() if isinstance(v, dict)}
+    return _settings
+
+
+def base_url(service):
+    """The service's API address; SWEATCAST_<SERVICE>_URL points it elsewhere (the tests' fake servers)."""
+    return (os.environ.get(f"SWEATCAST_{service.upper()}_URL") or services()[service]["url"]).rstrip("/")
+
+
+def _message(body):
+    try:
+        data = json.loads(body.decode("utf-8", "replace"))
+    except ValueError:
+        return body.decode("utf-8", "replace").strip()[:300] or "no reason given"
+    if isinstance(data, dict):
+        detail = data.get("detail")
+        for value in (data.get("message"), detail.get("message") if isinstance(detail, dict) else detail,
+                      data.get("err_msg"), data.get("title"), data.get("error")):
+            if isinstance(value, str) and value.strip():
+                return value.strip()[:300]
+            if isinstance(value, list) and value:
+                return str(value[0].get("msg", value[0]) if isinstance(value[0], dict) else value[0])[:300]
+    return json.dumps(data)[:300]
+
+
+def _kind(status, body):
+    text = body.decode("utf-8", "replace").lower()
+    if "quota" in text:
+        return "quota"
+    if status == 402 or "insufficient_credits" in text or "payment" in text:
+        return "billing"
+    if status in (401, 403):
+        return "auth"
+    if status in RETRY_STATUS:
+        return "unavailable"
+    return "bad_request"
+
+
+def _wait(attempt, retry_after, sleep):
+    scale = float(os.environ.get("SWEATCAST_RETRY_WAIT", "1"))   # the tests set 0
+    try:
+        seconds = float(retry_after) if retry_after else min(2 ** attempt, 30) * (0.75 + random.random() / 2)
+    except ValueError:
+        seconds = min(2 ** attempt, 30)
+    sleep(seconds * scale)
+
+
+def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=time.sleep):
+    """(status, headers, body) for a 2xx answer. Rate limits, server errors and dropped connections are
+    retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason."""
+    last = None
+    for attempt in range(tries):
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=_tls()) as r:
+                return r.status, dict(r.headers), r.read()
+        except urllib.error.HTTPError as e:
+            data = e.read() or b""
+            kind = _kind(e.code, data)
+            last = ServiceError(kind, service, f"{_message(data)} (HTTP {e.code})")
+            if e.code not in RETRY_STATUS or kind != "unavailable":
+                raise last from None
+            retry_after = e.headers.get("Retry-After") if e.headers else None
+        except (urllib.error.URLError, socket.timeout, ConnectionError, TimeoutError) as e:
+            reason = getattr(e, "reason", e)
+            last = ServiceError("unavailable", service, f"couldn't reach the service ({reason})")
+            retry_after = None
+        if attempt < tries - 1:
+            _wait(attempt, retry_after, sleep)
+    raise last
+
+
+def _tls():
+    try:
+        import ssl
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:   # CI and the fake servers (plain HTTP) don't need it
+        return None
+
+
+def wav_pcm(data):
+    """(16-bit mono PCM, sample rate) from WAV bytes. Reads the data chunk to the end of the bytes when
+    its size is a placeholder (Fish streams WAV with sizes it can't know yet); mixes stereo to mono."""
+    if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        raise ValueError("not a WAV file")
+    i, rate, channels, bits = 12, SR, 1, 16
+    while i + 8 <= len(data):
+        cid, size = data[i:i + 4], int.from_bytes(data[i + 4:i + 8], "little")
+        start = i + 8
+        if cid == b"fmt ":
+            channels = int.from_bytes(data[start + 2:start + 4], "little")
+            rate = int.from_bytes(data[start + 4:start + 8], "little")
+            bits = int.from_bytes(data[start + 14:start + 16], "little")
+        elif cid == b"data":
+            pcm = data[start:start + size] if start + size <= len(data) else data[start:]
+            if bits != 16:
+                raise ValueError(f"{bits}-bit WAV; expected 16-bit")
+            pcm = pcm[:len(pcm) - len(pcm) % (2 * channels)]
+            if channels > 1:
+                s = array.array("h", pcm)
+                if sys.byteorder == "big":
+                    s.byteswap()
+                mono = array.array("h", (int(sum(s[j:j + channels]) / channels) for j in range(0, len(s), channels)))
+                if sys.byteorder == "big":
+                    mono.byteswap()
+                pcm = mono.tobytes()
+            return bytes(pcm), rate
+        i = start + size + (size & 1)
+    raise ValueError("no audio in the WAV")
+
+
+def _samples(pcm):
+    s = array.array("h", pcm[:len(pcm) - len(pcm) % 2])
+    if sys.byteorder == "big":
+        s.byteswap()
+    return s
+
+
+def _bytes(samples):
+    if sys.byteorder == "big":
+        samples.byteswap()
+    return samples.tobytes()
+
+
+def resample(pcm, src, dst):
+    """Linear resampling of 16-bit mono PCM; plenty for speech going into a 96 kbit/s MP3."""
+    if src == dst:
+        return pcm
+    s = _samples(pcm)
+    n = int(round(len(s) * dst / src))
+    if not s or not n:
+        return b""
+    step = (len(s) - 1) / max(n - 1, 1)
+    out = array.array("h", bytes(2 * n))
+    for j in range(n):
+        x = j * step
+        k = int(x)
+        frac = x - k
+        a = s[k]
+        b = s[k + 1] if k + 1 < len(s) else a
+        out[j] = int(a + (b - a) * frac)
+    return _bytes(out)
+
+
+def trim(pcm):
+    """The local engines' rule: cut lead-in and tail silence below -40 dB, keeping 40 ms at each end."""
+    s = _samples(pcm)
+    first = next((j for j in range(len(s)) if abs(s[j]) > TRIM_LEVEL), None)
+    if first is None:
+        return pcm
+    last = next(j for j in range(len(s) - 1, -1, -1) if abs(s[j]) > TRIM_LEVEL)
+    keep = int(TRIM_KEEP * SR)
+    return _bytes(s[max(first - keep, 0):last + keep])
+
+
+def audio_pcm(data, rate_hint=SR):
+    """16-bit mono PCM at 24 kHz from whatever a service sent: WAV, else (MP3 and the like) through
+    ffmpeg, else raw PCM at rate_hint."""
+    if data[:4] == b"RIFF":
+        pcm, rate = wav_pcm(data)
+        return resample(pcm, rate, SR)
+    if data[:3] == b"ID3" or data[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2") or data[:4] in (b"OggS", b"fLaC"):
+        import subprocess
+        import ffmpeg
+        exe = ffmpeg.exe()
+        if not exe:
+            raise SystemExit("A service sent compressed audio, which needs ffmpeg to read: rerun ./sweatcast setup.")
+        out = subprocess.run([exe, "-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", str(SR),
+                              "pipe:1"], input=data, capture_output=True, check=True)
+        return out.stdout
+    return resample(data[:len(data) - len(data) % 2], rate_hint, SR)
+
+
+def rate(service, model):
+    """US dollars per million billed units (characters, or bytes for Fish), approximate."""
+    rates = services()[service]["usd_per_million"]
+    if isinstance(rates, dict):
+        return rates.get(model) or next(iter(rates.values()))
+    return rates
+
+
+def estimate(service, model, texts):
+    """(characters, approximate US dollars) for sending `texts`."""
+    s = services()[service]
+    chars = sum(len(t) for t in texts)
+    units = sum(len(t.encode("utf-8")) for t in texts) if s.get("unit") == "bytes" else chars
+    return chars, units * rate(service, model) / 1e6
+
+
+def voice_for(p, route):
+    """The voice dict for coach `p` on cloud service `route`. No key in it."""
+    import personas
+    if route not in services():
+        raise SystemExit(f"No cloud voice '{route}'. The services: {', '.join(services())}.")
+    s = services()[route]
+    table = p.table(route)
+    model = table.get("model") or s["default_model"]
+    v = {"name": p.name, "persona": p.slug, "persona_dir": p.folder, "engine": route, "backend": "cloud",
+         "route": route, "service": route, "model": model, "revision": None, "generate": {},
+         "pace_file": p.pace_file, "concurrency": int(s.get("concurrency") or 1),
+         "max_chars": int(s.get("max_chars") or 0)}
+    if s.get("copies_clip") == "stock":
+        voice = table.get("voice")
+        if not voice:
+            raise SystemExit(f"{p.name} has no {s['name']} stock voice picked yet. Hear some with "
+                             f"./sweatcast coaches samples {route}, then: "
+                             f"./sweatcast coaches set \"{p.name}\" {route}.voice <voice>")
+        import hashlib
+        v.update(model=voice, ref_audio=None, ref_text=None,
+                 key=hashlib.sha256(f"stock|{route}|{voice}".encode()).hexdigest()[:12])
+        return v
+    key, words = personas.clip_key(p)
+    v.update(ref_audio=p.clip, ref_text=words, key=key)
+    return v
+
+
+def speaker(voice):
+    """say(text, seed, previous_text=None, next_text=None) for the voice's service."""
+    module = importlib.import_module(f"services.{voice['service']}")
+    return module.speaker(voice)
+
+
+def key_or_stop(service):
+    import keys
+    value = keys.get(service)
+    if not value:
+        raise ServiceError("auth", service, f"no key on this computer: ./sweatcast keys init {service}, then paste "
+                                            f"the key into me/.env after {keys.SERVICE_VARS[service]}=")
+    return value
