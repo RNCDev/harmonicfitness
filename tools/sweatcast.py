@@ -45,6 +45,11 @@ def usage():
 
 
 def main(argv=None):
+    # A Windows console defaults to a code page that can't print an emoji in a video title or
+    # headline; UTF-8 can, and anything a console still can't show prints as a placeholder.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     argv = sys.argv[1:] if argv is None else argv
     if not argv or argv[0] in ("help", "-h", "--help"):
         print(usage())

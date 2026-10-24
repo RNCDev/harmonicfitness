@@ -1,6 +1,6 @@
 [project]
 name = "sweatcast"
-version = "8.0.0"
+version = "8.0.1"
 description = "Narrated workout podcasts, written by Claude Code and voiced on your own Mac or Windows PC."
 readme = "README.md"
 license = "MIT"

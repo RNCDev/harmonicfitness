@@ -2,6 +2,12 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [8.0.1] - 2026-10-23
+
+### Fixed
+- On Windows, `./sweatcast` prints in UTF-8, so a video title or headline with an emoji no longer crashes `./sweatcast youtube pick` (the console's default code page couldn't encode it).
+- The pantry research template said "he" for the listener in one place; it says "they" like the rest.
+
 ## [8.0.0] - 2026-10-23
 
 The filler between exercises gets a plan, a memory and a pantry. Each session's rests carry a planned mix (quick items from today, current science, a deep dive, a quiz, something to enjoy and something to learn), each slot rotating through the listener's interests, the one told longest ago first. A record of every item told keeps a story from being told twice. Evergreen pieces are researched ahead of time into a pantry, so session-day research covers only the news. The feeds reach further: Wikipedia's day, and whatever the listener's taste calls for.
