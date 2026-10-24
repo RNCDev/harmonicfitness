@@ -92,6 +92,7 @@ class Core(unittest.TestCase):
         self.assertEqual(set(s), {"fish", "elevenlabs", "cartesia", "deepgram"})
         for name in ("elevenlabs", "cartesia", "deepgram"):
             self.assertFalse(s[name]["tried_live"], name)
+        self.assertTrue(s["fish"]["tried_live"])
         self.assertEqual(s["fish"]["default_model"], "s2.1-pro")
         self.assertEqual(s["deepgram"]["max_chars"], 2000)
 

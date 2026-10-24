@@ -28,7 +28,7 @@ concurrency = 4              # 5 at once below $100 prepaid
 max_chars = 0
 copies_clip = "inline"
 designs = true               # voice design: about $0.01 a request
-tried_live = false
+tried_live = true      # 2026-10-24: a smoke test, a 10-minute workout and a voice design, from a Mac
 
 [elevenlabs]
 name = "ElevenLabs"

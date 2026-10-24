@@ -75,7 +75,7 @@ The models aren't gated, so no Hugging Face account is needed (the "unauthentica
 
 | Service | How the coach's clip travels | Designs coaches | Approx. cost a workout (20,000 characters) | Status |
 |---|---|---|---|---|
-| Fish Audio | Inline: the clip and its words go with every request | Yes, about $0.01 a design | About $0.30 | Not yet tried live |
+| Fish Audio | Inline: the clip and its words go with every request | Yes, about $0.01 a design | About $0.30 | Tried live (2026-10-24) |
 | ElevenLabs | Cloned once (Starter plan and up), kept by its voice ID | Yes | About $0.80 (Flash) to $1.60 (multilingual) | Not yet tried live |
 | Cartesia | Cloned once (Pro plan), kept by its voice ID | No | About $1.00 | Not yet tried live |
 | Deepgram Aura-2 | Doesn't: stock voices only, so the coach sounds different there | No | About $0.60 | Not yet tried live |
