@@ -150,7 +150,91 @@ class Fish(unittest.TestCase):
         self.assertEqual((body["instruction"], body["n"], body["seed"]), ("A warm coach in her forties.", 2, 7))
         self.assertLessEqual(len(body["reference_text"]), 150)
         self.assertEqual(len(takes), 2)
-        self.assertAlmostEqual(len(takes[0]) / 2 / 24000, 1.0, delta=0.15)
+        self.assertAlmostEqual(len(takes[0][0]) / 2 / 24000, 1.0, delta=0.15)
+        self.assertEqual(takes[0][1], "Okay, set your feet.")
+
+
+class ServiceCase(unittest.TestCase):
+    """A fixture coach and a test key for one service, with the service pointed at a fake."""
+    SERVICE = None
+
+    def setUp(self):
+        import keys
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        patches = [mock.patch.object(personas.paths, "PERSONAS", persona_home(self.d)),
+                   mock.patch.dict(os.environ, {keys.SERVICE_VARS[self.SERVICE]: SECRET})]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def coach(self):
+        return personas.lookup("Coach Test")
+
+    def serve(self, answer):
+        fake = FakeService(answer)
+        fake.__enter__()
+        self.addCleanup(fake.__exit__)
+        patch = mock.patch.dict(os.environ, {f"SWEATCAST_{self.SERVICE.upper()}_URL": fake.url})
+        patch.start()
+        self.addCleanup(patch.stop)
+        return fake
+
+
+def elevenlabs_answer(req):
+    if req.path == "/v1/voices/add":
+        return 200, {}, json.dumps({"voice_id": f"voice-{len(req.body)}", "requires_verification": False}).encode()
+    if req.path.startswith("/v1/text-to-speech/"):
+        return 200, {"Content-Type": "audio/pcm"}, tone_pcm(0.3)
+    if req.path.startswith("/v1/text-to-voice/design"):
+        preview = base64.b64encode(tone_pcm(1.0)).decode()
+        return 200, {}, json.dumps({"previews": [{"audio_base_64": preview, "generated_voice_id": f"g{i}",
+                                                  "media_type": "audio/pcm"} for i in range(3)], "text": "x"}).encode()
+    return 404, {}, b"{}"
+
+
+class ElevenLabs(ServiceCase):
+    SERVICE = "elevenlabs"
+
+    def test_elevenlabs_clones_once_per_clip(self):
+        fake = self.serve(elevenlabs_answer)
+        for _ in range(2):
+            say = cloud.speaker(personas.voice_for(self.coach(), "elevenlabs"))
+            say("Set your feet.", 42)
+        adds = [r for r in fake.requests if r.path == "/v1/voices/add"]
+        self.assertEqual(len(adds), 1)
+        self.assertEqual(adds[0].headers["xi-api-key"], SECRET)
+        self.assertIn(b'name="files"', adds[0].body)
+        self.assertIn(b"multipart/form-data", adds[0].headers["content-type"].encode())
+        with open(self.coach().clip, "rb") as f:
+            self.assertIn(f.read(), adds[0].body)
+        speech = [r for r in fake.requests if r.path.startswith("/v1/text-to-speech/")]
+        self.assertTrue(all(r.path.startswith(f"/v1/text-to-speech/voice-") for r in speech))
+        self.assertIn("output_format=pcm_24000", speech[0].path)
+        with open(self.coach().clip, "ab") as f:   # a changed clip makes a new voice
+            f.write(b"\x00\x00" * 100)
+        cloud.speaker(personas.voice_for(self.coach(), "elevenlabs"))("Hi.", 42)
+        self.assertEqual(len([r for r in fake.requests if r.path == "/v1/voices/add"]), 2)
+
+    def test_elevenlabs_sends_neighbors_and_seed(self):
+        fake = self.serve(elevenlabs_answer)
+        pcm = cloud.speaker(personas.voice_for(self.coach(), "elevenlabs"))(
+            "Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
+        body = json.loads([r for r in fake.requests if r.path.startswith("/v1/text-to-speech/")][0].body)
+        self.assertEqual(body, {"text": "Two more.", "model_id": "eleven_multilingual_v2", "seed": 42,
+                                "previous_text": "Set your feet.", "next_text": "Rest."})
+        self.assertGreater(len(pcm), 0)
+
+    def test_elevenlabs_design_previews_are_takes(self):
+        import services.elevenlabs as el
+        fake = self.serve(elevenlabs_answer)
+        takes = el.design("A warm coach in her forties.", "Okay, set your feet.", 2, 7)
+        self.assertEqual(len(takes), 2)
+        self.assertEqual(takes[0][1], "x")   # the words the service says it spoke
+        body = json.loads(fake.requests[0].body)
+        self.assertEqual((body["voice_description"], body["seed"]), ("A warm coach in her forties.", 7))
+        self.assertGreaterEqual(len(body["text"]), 100)
+        self.assertIn("output_format=pcm_24000", fake.requests[0].path)
 
 
 class CloudRender(unittest.TestCase):

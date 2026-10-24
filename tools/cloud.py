@@ -288,3 +288,32 @@ def key_or_stop(service):
         raise ServiceError("auth", service, f"no key on this computer: ./sweatcast keys init {service}, then paste "
                                             f"the key into me/.env after {keys.SERVICE_VARS[service]}=")
     return value
+
+
+def multipart(fields, files):
+    """(body, content type) for a multipart/form-data upload: `fields` {name: text}, `files`
+    [(field, filename, bytes, content type)]."""
+    import uuid
+    boundary = "sweatcast-" + uuid.uuid4().hex
+    out = bytearray()
+    for name, value in fields.items():
+        out += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").encode()
+    for field, filename, data, ctype in files:
+        out += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{filename}\"\r\n"
+                f"Content-Type: {ctype}\r\n\r\n").encode() + data + b"\r\n"
+    out += f"--{boundary}--\r\n".encode()
+    return bytes(out), f"multipart/form-data; boundary={boundary}"
+
+
+def cloned_voice(voice, make):
+    """The voice ID the service made from the coach's clip, making it once with make(persona) -> id. Kept in
+    the coach's services.json under the clip's hash, so a changed clip makes a new voice."""
+    import personas
+    p = personas.load(voice["persona_dir"])
+    clip = personas.clip_hash(p)
+    found = personas.services_get(p, voice["service"], clip)
+    if found:
+        return found
+    made = make(p)
+    personas.services_put(p, voice["service"], clip, made)
+    return made

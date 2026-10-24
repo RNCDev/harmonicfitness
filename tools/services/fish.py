@@ -34,7 +34,7 @@ def speaker(voice):
 
 
 def design(description, line, takes, seed):
-    """`takes` takes of `line` in a voice made from `description`: 16-bit mono PCM at 24 kHz each."""
+    """`takes` takes of `line` in a voice made from `description`, each (16-bit mono PCM at 24 kHz, its words)."""
     body = json.dumps({"instruction": description[:2000], "reference_text": line[:150], "n": max(1, min(takes, 4)),
                        "seed": seed}).encode()
     headers = {"Authorization": f"Bearer {cloud.key_or_stop(SERVICE)}", "model": DESIGN_MODEL,
@@ -45,7 +45,8 @@ def design(description, line, takes, seed):
     for c in json.loads(data).get("candidates") or []:
         audio = base64.b64decode(c.get("audio_base64") or "")
         if audio:
-            out.append(cloud.trim(cloud.audio_pcm(audio, int(c.get("sample_rate") or cloud.SR))))
+            out.append((cloud.trim(cloud.audio_pcm(audio, int(c.get("sample_rate") or cloud.SR))),
+                        c.get("text") or line[:150]))
     if not out:
         raise cloud.ServiceError("bad_request", SERVICE, "the design came back with no takes")
     return out
