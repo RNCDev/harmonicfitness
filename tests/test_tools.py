@@ -1546,6 +1546,26 @@ class CachePrune(unittest.TestCase):
             self.assertEqual(cache.size(d), (1, 4))
 
 
+class Ffmpeg(unittest.TestCase):
+    def test_ffmpeg_falls_back_to_the_bundled_binary(self):
+        import types
+        import ffmpeg
+        with tempfile.TemporaryDirectory() as d:
+            exe = os.path.join(d, "ffmpeg-bundled")
+            write_file(exe, "")
+            fake = types.SimpleNamespace(get_ffmpeg_exe=lambda: exe)
+            with mock.patch("shutil.which", return_value=None), mock.patch.dict(sys.modules, {"imageio_ffmpeg": fake}):
+                self.assertEqual(ffmpeg.exe(), exe)
+            with mock.patch("shutil.which", return_value=None), mock.patch.dict(sys.modules, {"imageio_ffmpeg": None}):
+                self.assertIsNone(ffmpeg.exe())
+
+    def test_render_uses_the_found_ffmpeg(self):
+        with mock.patch.object(render, "ffmpeg_exe", return_value=None):
+            with self.assertRaises(SystemExit) as e:
+                render.encode(b"", "x.mp3", "x")
+            self.assertIn("ffmpeg", str(e.exception.code))
+
+
 class Engines(unittest.TestCase):
     def test_tested_mlx_audio_matches_the_lock(self):
         with open(os.path.join(ROOT, "uv.lock"), encoding="utf-8") as f:

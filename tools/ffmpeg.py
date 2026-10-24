@@ -43,3 +43,19 @@ def install_hint():
     if sys.platform == "win32":
         return "winget install Gyan.FFmpeg.Essentials"
     return "your system's package manager, for example sudo apt install ffmpeg"
+
+
+def status():
+    """One line on the ffmpeg found, for setup."""
+    path = exe()
+    if not path:
+        return f"ffmpeg: not found; install it ({install_hint()})"
+    mp3, loud = capable(path)
+    where = "the environment's own copy" if bundled(path) else path
+    if mp3 and loud:
+        return f"ffmpeg: {where}, with MP3 encoding and loudness normalization"
+    return f"ffmpeg: {where} can't encode MP3 or normalize loudness; install a full build ({install_hint()})"
+
+
+if __name__ == "__main__":
+    print(status())

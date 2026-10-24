@@ -143,5 +143,72 @@ class CloudSession(unittest.TestCase):
         self.assertIn("This computer", out.stdout)
 
 
+STUB_UV = """#!/bin/sh
+echo "$@" >> "$UV_LOG"
+exit 0
+"""
+TOOLS = ("sh", "uname", "dirname", "basename", "cp", "mkdir", "find", "sed", "git", "cat", "awk", "grep",
+         "head", "tr", "df", "sysctl", "rm", "ls", "env", "chmod", "mv", "date", "tail", "wc", "cut", "expr",
+         "printf", "nvidia-smi")
+
+
+def restricted_path(d, leave_out=("uv", "ffmpeg")):
+    """A PATH holding only the basic tools setup uses, without uv or ffmpeg."""
+    bin_dir = os.path.join(d, "bin")
+    os.makedirs(bin_dir, exist_ok=True)
+    for name in TOOLS:
+        found = shutil.which(name)
+        if found and name not in leave_out:
+            os.symlink(found, os.path.join(bin_dir, name))
+    return bin_dir
+
+
+class Setup(unittest.TestCase):
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        os.makedirs(os.path.join(self.d, "repo"))
+        self.repo = copy_repo(os.path.join(self.d, "repo"))
+        self.uv = os.path.join(self.d, "uv")
+        with open(self.uv, "w") as f:
+            f.write(STUB_UV)
+        os.chmod(self.uv, 0o755)
+        self.uv_log = os.path.join(self.d, "uv.log")
+
+    def setup(self, *args, path=None, uv=True, **env):
+        e = clean_env(UV_LOG=self.uv_log, SWEATCAST_PYTHON=sys.executable, HOME=self.d, **env)
+        if uv:
+            e["SWEATCAST_UV"] = self.uv
+        if path:
+            e["PATH"] = path
+        return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=e,
+                              capture_output=True, text=True, timeout=120)
+
+    def test_setup_outside_git_reaches_the_models_step(self):
+        out = self.setup("--no-models")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("isn't a git checkout", out.stdout)
+        self.assertIn("Voice models", out.stdout)
+        self.assertTrue(os.path.exists(os.path.join(self.repo, "me", "profile.md")))
+
+    def test_setup_always_runs_uv_sync(self):
+        os.makedirs(os.path.join(self.repo, ".venv", "bin"))
+        out = self.setup("--no-models")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        with open(self.uv_log) as f:
+            self.assertIn("sync --frozen", f.read())
+
+    def test_missing_uv_names_the_installer(self):
+        out = self.setup("--no-models", path=restricted_path(self.d), uv=False)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("astral.sh/uv/install", out.stdout)
+        self.assertIn("./sweatcast setup --install-uv", out.stdout)
+
+    def test_missing_ffmpeg_does_not_stop_setup(self):
+        out = self.setup("--no-models", path=restricted_path(self.d))
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn("ffmpeg is missing", out.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

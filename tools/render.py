@@ -44,6 +44,7 @@ import wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import engines  # noqa: E402
+import ffmpeg as ffmpeg_tool  # noqa: E402
 import locks  # noqa: E402
 from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, layout,  # noqa: E402
                    parse, plan, spoken as is_spoken)
@@ -160,8 +161,12 @@ def loudness_stats(stderr):
                      f"The end of its output was: {(stderr or '')[-300:].strip()}")
 
 
+def ffmpeg_exe():
+    return ffmpeg_tool.exe()
+
+
 def ffmpeg_version():
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = ffmpeg_exe()
     if not ffmpeg:
         return None
     try:
@@ -173,10 +178,10 @@ def ffmpeg_version():
 
 def encode(pcm, out, title):
     """Two-pass loudness normalization, then encode by the output's extension."""
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = ffmpeg_exe()
     if not ffmpeg:
-        raise SystemExit("ffmpeg not found; install it with: brew install ffmpeg (Mac) "
-                         "or winget install Gyan.FFmpeg.Essentials (Windows)")
+        raise SystemExit(f"ffmpeg not found, and the environment's own copy isn't installed: rerun "
+                         f"./sweatcast setup, or install it ({ffmpeg_tool.install_hint()})")
     codec = CODECS.get(os.path.splitext(out)[1].lower())
     if not codec:
         raise SystemExit(f"--out must end in one of: {', '.join(CODECS)}")

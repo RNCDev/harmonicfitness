@@ -4,6 +4,7 @@
 #
 #   ./sweatcast doctor            # the report, in plain lines
 #   sh tools/doctor.sh --facts    # key=value lines only (tools/doctor.py and the tests read these)
+#   sh tools/doctor.sh --short    # the computer, prerequisites and local audio only (setup prints this)
 #
 # The floors below are cautious guesses, not measurements: under them, local voices aren't offered.
 #
@@ -158,7 +159,8 @@ case "$OS" in
   *) UV_INSTALL="curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
 esac
 
-if [ "$REMOTE" = yes ]; then decline; echo; fi
+if [ "$REMOTE" = yes ] && [ -z "${SWEATCAST_ALLOW_CLOUD_SESSION:-}" ]; then decline; echo
+elif [ "$REMOTE" = yes ]; then echo "(A Claude Code cloud machine, set up anyway: SWEATCAST_ALLOW_CLOUD_SESSION is set.)"; echo; fi
 echo "This computer"
 echo "  System:   $SYSTEM, $ARCH${CHIP:+ ($CHIP)}"
 if [ "$OS" = mac ] && [ "$ARCH" = arm64 ]; then echo "  Graphics: built into the Apple Silicon chip"
@@ -186,6 +188,7 @@ case "$LOCAL" in
   fast) echo "  Local voices: yes, on $( [ "$LOCAL_ENGINE" = mlx ] && echo "Apple Silicon (MLX)" || echo "the NVIDIA card (CUDA)" )" ;;
   *) echo "  Local voices: no. $LOCAL_REASON" ;;
 esac
+[ "$1" = "--short" ] && exit 0   # setup prints this part; it reports the rest itself
 echo
 if [ "$VENV" = yes ]; then
   cd "$ROOT" && "$PY" "$ROOT/tools/doctor.py"

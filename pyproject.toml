@@ -21,6 +21,8 @@ dependencies = [
     "yt-dlp==2026.8.19",
     # TLS roots for tools/feeds.py on a python.org Python.
     "certifi",
+    # ffmpeg (with libmp3lame and loudnorm) for computers that don't have it installed (tools/ffmpeg.py).
+    "imageio-ffmpeg==0.6.0",
 ]
 
 [tool.uv]
