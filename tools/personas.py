@@ -114,6 +114,22 @@ def lookup(name, folder=None):
     raise SystemExit(f"No coach '{name}'. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
 
 
+def default(folder=None):
+    """The coach a build uses when none is named: the one used last (from the log), else the first."""
+    found = all(folder)
+    if not found:
+        return None
+    try:
+        import context
+        for session in reversed(context.sessions(warn=False)):
+            for p in found:
+                if session.voice.strip().lower() in (p.name.lower(), p.slug, *(a.lower() for a in p.aliases)):
+                    return p
+    except SystemExit:   # no log yet, or one in an older format
+        pass
+    return found[0]
+
+
 def clip_key(p):
     """The clip's identity in every pace and cache key: the same rule voices.lookup always used."""
     with open(p.clip, "rb") as a:

@@ -274,6 +274,18 @@ class LocalExtra(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("sync --frozen\n", self.calls())
 
+    def test_a_cloud_only_profile_skips_the_local_engine(self):
+        shutil.copytree(os.path.join(self.repo, "me.example"), os.path.join(self.repo, "me"))
+        prof = os.path.join(self.repo, "me", "profile.md")
+        with open(prof, encoding="utf-8") as f:
+            text = f.read()
+        with open(prof, "w", encoding="utf-8") as f:
+            f.write(text.replace("+++\n", '+++\nrender = ["fish"]\n', 1).replace("schema = 3\n", "schema = 3\n", 1))
+        out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn("--extra", self.calls())
+        self.assertIn("render list", out.stdout)
+
     def test_no_local_audio_installs_only_the_base(self):
         out = self.setup(OS="Darwin", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)

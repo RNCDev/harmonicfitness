@@ -115,7 +115,44 @@ def report_lines(f=None, home=None):
         out.append(f"  {e}")
     out += ["", "Audio tools"]
     out += _ffmpeg_lines()
+    try:
+        out += ["", "Audio routes"] + _route_lines(f, home)
+    except SystemExit as e:
+        out += [f"  {e}"]
     return out
+
+
+SPEECH_SHARE = 0.75   # about how much of a 30-minute workout is speech (an approximation)
+
+
+def _route_lines(f, home):
+    import context
+    import personas
+    import routes
+    import voices
+    if os.path.abspath(home) != os.path.abspath(paths.HOME) or not os.path.exists(paths.PROFILE):
+        return ["  (checked once the context folder is set up)"]
+    p = context.profile()
+    coach = personas.default()
+    lines = routes.report_lines(coach, context.routes(p), f)
+    if coach is None:
+        lines.append("  No coach yet: the coach skill makes one (\"I want a new coach\").")
+    if f.get("local") == "experimental":
+        measured = None
+        if coach is not None and coach.has_clip:
+            try:
+                measured = voices.speed(personas.voice_for(coach, "local"))
+            except SystemExit:
+                measured = None
+        if measured:
+            minutes = measured * 30 * SPEECH_SHARE
+            lines.append(f"  Local on the processor: about {minutes:.0f} minutes to render a 30-minute workout here "
+                         f"(measured {measured:.1f} times the speech's length)"
+                         + ("; that's long, so a cloud voice may suit better." if minutes > 60 else "."))
+        else:
+            lines.append("  Local on the processor: experimental, speed unknown, likely slow. "
+                         "The smoke test measures it.")
+    return lines
 
 
 def main():

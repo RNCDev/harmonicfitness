@@ -233,6 +233,29 @@ def default_voice(p):
     return found[0][0] if found else None
 
 
+ROUTE_NAMES = ("local", "fish", "elevenlabs", "cartesia", "deepgram")   # tools/routes.py
+CLOUD_MAX_CHARS = 30000   # a cloud build's default ceiling: a 40-minute workout with room for retakes
+
+
+def routes(p):
+    """The profile's render preference list (default ["local"]): each build takes the first that works here."""
+    value = p.settings.get("render")
+    values = value if isinstance(value, list) else [value] if isinstance(value, str) else []
+    found = [str(v).strip().lower() for v in values if str(v).strip()]
+    return found or ["local"]
+
+
+def route_issues(p):
+    return [Issue(p.path, 0, f"render lists '{r}', which isn't a route ({', '.join(ROUTE_NAMES)}); builds skip it")
+            for r in routes(p) if r not in ROUTE_NAMES]
+
+
+def cloud_max_chars(p):
+    """The most characters one build may send to a cloud voice, from cloud_max_chars (default 30,000)."""
+    v = p.settings.get("cloud_max_chars")
+    return int(v) if isinstance(v, (int, float)) and v > 0 else CLOUD_MAX_CHARS
+
+
 def wpm(p):
     v = p.settings.get("words_per_minute")
     return int(v) if isinstance(v, (int, float)) and v > 0 else None
@@ -838,6 +861,7 @@ def _check_profile(path, text):
     p = Profile(settings, rest, path)
     if not voices(p):
         out.append(Issue(path, 0, "no voices: add a [[voices]] entry (name and description); the first is the default"))
+    out += route_issues(p)
     if wpm(p) is None:
         out.append(Issue(path, 0, "no words_per_minute (./sweatcast lint without a voice assumes 185)", note=True))
     if not delivery_patterns(Profile(settings, rest, path)):
@@ -1025,7 +1049,8 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("default-voice", "wpm", "voices", "experience"))
+    g.add_argument("what", choices=("default-voice", "wpm", "voices", "experience", "route", "routes"))
+    g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
     sub.add_parser("check", help="check every context file, and list lines not filled in yet")
     s = sub.add_parser("log-session", help="add a session to log.md, checked")
@@ -1043,6 +1068,15 @@ def main(argv=None):
 
     if args.cmd == "get":
         p = profile()
+        if args.what in ("route", "routes"):
+            if args.what == "routes":
+                print("\n".join(routes(p)))
+                return cli.OK
+            import personas
+            import routes as routing
+            coach = personas.lookup(args.coach) if args.coach else personas.default()
+            print(routing.pick(routes(p), coach))
+            return cli.OK
         if args.what == "voices":
             for name, _ in voices(p):
                 print(name)

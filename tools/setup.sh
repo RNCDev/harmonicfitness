@@ -93,6 +93,13 @@ case "$1" in
     WANT="$LOCAL_ENGINE" ;;
   *) [ "$LOCAL" = no ] && WANT="" || WANT="$LOCAL_ENGINE" ;;
 esac
+# A profile whose render list leaves out "local" (cloud voices only) gets no local engine from a plain
+# rerun; one already installed stays.
+RENDER_LINE="$(sed -n '/^+++/,/^+++/s/^render[[:space:]]*=//p' "$CONTEXT/profile.md" 2>/dev/null | head -1)"
+if [ -z "$1" ] && [ -n "$RENDER_LINE" ] && ! echo "$RENDER_LINE" | grep -q '"local"'; then
+  echo "   The profile's render list has no \"local\", so the local engine isn't installed (./sweatcast setup --local adds it)."
+  WANT="$INSTALLED"
+fi
 
 echo "1. Python environment (.venv, pinned by uv.lock)${WANT:+, with the local voices ($WANT)}"
 "$UV" sync --frozen ${WANT:+--extra "$WANT"}   # also rebuilds a .venv copied from another computer
