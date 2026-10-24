@@ -12,6 +12,11 @@
     "ask": [
       "Edit(/me/health.md)",
       "Write(/me/health.md)"
+    ],
+    "deny": [
+      "Read(/me/.env)",
+      "Edit(/me/.env)",
+      "Write(/me/.env)"
     ]
   }
 }
