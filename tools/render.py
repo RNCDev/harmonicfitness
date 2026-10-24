@@ -398,9 +398,9 @@ def main():
                 print(f"  [{n}/{len(todo)}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
             del say
             engines.release()   # the model's memory isn't needed to assemble and encode
-            # The lint predicts this voice's length from its measured rate.
-            record_rate(voice, measured_weight, audio_secs - MLX_EDGE * len(todo))
             took = time.time() - speaking_started
+            # The lint predicts this voice's length from its measured rate; the speed is this computer's.
+            record_rate(voice, measured_weight, audio_secs - MLX_EDGE * len(todo), render_seconds=took)
             print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min "
                   f"({took / audio_secs:.2f} times its length, not counting the model load)", flush=True)
 

@@ -30,6 +30,8 @@ PACE_FILE = os.path.join(CACHE, "voice-pace.json")
 LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log, and builds.jsonl
 BUILDS = os.path.join(LOGS, "builds.jsonl")           # one record per rendered MP3
 
+PERSONAS = os.path.join(HOME, "personas")   # each coach: personas/<slug>/ (persona.md, clip, pace, service voices)
+
 # Private voices (a cloned real voice belongs here) come before the shipped ones.
 PRIVATE_VOICES = os.path.join(HOME, "voices")
 VOICE_TAKES = os.path.join(PRIVATE_VOICES, ".takes")   # designed takes, before one is kept

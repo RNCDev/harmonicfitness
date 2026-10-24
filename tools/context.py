@@ -50,6 +50,7 @@ import paths  # noqa: E402
 from paths import show  # noqa: E402
 
 SCHEMA = 3
+PERSONA_SCHEMA = 4   # me/personas/<slug>/persona.md, new in sweatcast 9
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
 SCHEMA_LINE_RE = re.compile(r"^schema:\s*(\d+)\s*$", re.MULTILINE)
@@ -106,6 +107,8 @@ def toml_value(v):
         return json.dumps(v, ensure_ascii=False)   # JSON's string escapes are valid TOML
     if isinstance(v, list):
         return "[" + ", ".join(toml_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        return "{ " + ", ".join(f"{k} = {toml_value(x)}" for k, x in v.items()) + " }"
     raise TypeError(f"can't write {type(v).__name__} as TOML")
 
 
@@ -423,6 +426,61 @@ SETTINGS_COMMENTS = {
              "onthisday (selected), wikipedia (featured: the featured article, most read, in the news "
              "and did you know).",
 }
+
+
+# ---- coaches (me/personas/<slug>/persona.md) ------------------------------------------------
+
+@dataclass
+class Persona:
+    settings: dict
+    body: str
+    path: str = ""
+
+
+PERSONA_COMMENTS = {
+    "local": "How this coach sounds on this computer: engine chatterbox (most natural) or qwen3 (clearest; Mac only).",
+    "fish": "Fish Audio: the model (a cloud voice; ./sweatcast keys).",
+    "elevenlabs": "ElevenLabs: eleven_multilingual_v2 (more natural) or eleven_flash_v2_5 (cheaper).",
+    "cartesia": "Cartesia: the model.",
+    "deepgram": "Deepgram has stock voices only, so the coach sounds different there: the voice's name.",
+}
+
+
+def persona(path):
+    """A coach's persona.md: its settings (the TOML at the top) and how the coach talks (the prose)."""
+    text = read_raw(path, "coach")
+    settings, rest = front(text)
+    found = settings.get("schema")
+    if found != PERSONA_SCHEMA:
+        raise SystemExit(f"{show(path)} is schema {found}; this engine reads coaches at schema {PERSONA_SCHEMA}.")
+    return Persona(settings, rest, path)
+
+
+def persona_text(settings, prose):
+    """A persona.md: the settings block (plain keys, then one [table] per engine), then the prose."""
+    plain = {k: v for k, v in settings.items() if k != "schema" and not isinstance(v, dict)}
+    tables = {k: v for k, v in settings.items() if isinstance(v, dict)}
+    out = [f"schema = {PERSONA_SCHEMA}"] + [f"{k} = {toml_value(v)}" for k, v in plain.items()]
+    for name, table in tables.items():
+        out.append("")
+        if name in PERSONA_COMMENTS:
+            out.append(f"# {PERSONA_COMMENTS[name]}")
+        out.append(f"[{name}]")
+        out += [f"{k} = {toml_value(v)}" for k, v in table.items()]
+    block = "\n".join(out)
+    tomllib.loads(block)   # never write a block that doesn't parse
+    return f"+++\n{block}\n+++\n" + (prose if prose.endswith("\n") or not prose else prose + "\n")
+
+
+def set_persona_setting(path, table, key, value):
+    """Set one setting in a persona.md (`table` None for a top-level key), keeping its prose."""
+    p = persona(path)
+    settings = dict(p.settings)
+    if table:
+        settings[table] = dict(settings.get(table) or {}, **{key: value})
+    else:
+        settings[key] = value
+    _atomic_write(path, persona_text(settings, p.body))
 
 
 # ---- the health file -------------------------------------------------------------------

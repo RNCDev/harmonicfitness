@@ -59,6 +59,12 @@ TORCH_ENGINES = ("chatterbox",)   # engines with a PyTorch path in tools/engines
 # fresh machine downloads exactly what was tested.
 STANDARD_MODELS = {"qwen3": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
                    "chatterbox": "mlx-community/Chatterbox-TTS-fp16"}
+# The local models each engine renders with, per backend, pinned to the revisions tested. A coach
+# names only its engine; these strings are part of every pace and clip cache key, so they never change
+# without a migration.
+LOCAL_MODELS = {("chatterbox", "mlx"): ("mlx-community/chatterbox-turbo-fp16", "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75"),
+                ("chatterbox", "torch"): ("ResembleAI/chatterbox-turbo", "749d1c1a46eb10492095d68fbcf55691ccf137cd"),
+                ("qwen3", "mlx"): ("mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16", "a6eb4f68e4b056f1215157bb696209bc82a6db48")}
 ENGINE_EXTRAS = {"chatterbox": [("mlx-community/S3TokenizerV2", "e0c9886f0e1c35ae85b1f27277416fb19fc72bec")]}
 # Qwen3-TTS VoiceDesign: makes a voice from a description, pinned like the rest.
 VOICE_DESIGN = ("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16", "7d3824abff87e49756bb0f83fb5411de75d160c4")
@@ -189,16 +195,26 @@ def _rate_key(v):
     return f"{v['key']}|{v['engine']}|{v['model']}"   # the model differs by backend, so each is measured
 
 
-def record_rate(v, weight, seconds, path=None):
-    """Fold a render's measured speech into the voice's rate (called by render.py).
-    Locked, and written to a temporary file then renamed, so it's never half-written."""
-    path = path or PACE_FILE
+def speed_key(v):
+    """This computer and what it renders on, for the render speed (pace travels; speed doesn't)."""
+    import platform
+    return f"{platform.node() or 'this computer'}|{v.get('device') or v.get('backend') or 'mlx'}"
+
+
+def record_rate(v, weight, seconds, path=None, render_seconds=None):
+    """Fold a render's measured speech into the voice's rate (called by render.py), and with
+    render_seconds, this computer's render speed (seconds of rendering per second of speech).
+    The coach's own pace.json when the voice names one. Locked, and written to a temporary
+    file then renamed, so it's never half-written."""
+    path = path or v.get("pace_file") or PACE_FILE
     with _locked(path):
         data = _recorded(path, strict=True)
         rec = data.get(_rate_key(v), {"weight": 0.0, "seconds": 0.0})
         rec["name"] = v["name"]
         rec["weight"] += weight
         rec["seconds"] += seconds
+        if render_seconds and seconds > 0:
+            rec.setdefault("speed", {})[speed_key(v)] = round(render_seconds / seconds, 3)
         data[_rate_key(v)] = rec
         tmp = path + ".part"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -218,14 +234,33 @@ def seed_pace(data):
     return statistics.median(rates) if rates else DEFAULT_PACE
 
 
+def _every_coach_measured():
+    """Every coach's measured entries, merged, for seeding a coach not measured yet."""
+    out = {}
+    folder = paths.PERSONAS
+    if os.path.isdir(folder):
+        for slug in sorted(os.listdir(folder)):
+            pace_file = os.path.join(folder, slug, "pace.json")
+            if os.path.exists(pace_file):
+                out.update({f"{slug}|{k}": r for k, r in _recorded(pace_file).items()})
+    return out
+
+
 def pace(v, path=None):
     """Weighted characters per second: the voice's speaking rate, and whether it's measured.
-    Reads the pace file once."""
+    A coach's comes from its own pace.json, seeded from the other coaches until measured."""
+    path = path or v.get("pace_file")
     data = _recorded(path)
     rec = data.get(_rate_key(v))
     if rec and rec.get("seconds", 0) > MIN_MEASURED:
         return rec["weight"] / rec["seconds"], True
-    return seed_pace(data), False
+    return seed_pace(_every_coach_measured() if v.get("pace_file") else data), False
+
+
+def speed(v, path=None):
+    """This computer's measured render speed for the voice (seconds per second of speech), or None."""
+    rec = _recorded(path or v.get("pace_file")).get(_rate_key(v)) or {}
+    return (rec.get("speed") or {}).get(speed_key(v))
 
 
 def clip_seconds(text, v, rate=None):
