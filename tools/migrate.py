@@ -168,6 +168,8 @@ V8_NAMES = {"chatterbox coach": ("Coach Julius", ["Chatterbox Coach", "Coach E"]
 MODEL_WORDS = ("chatterbox", "qwen")
 GITIGNORE_ADD = ("# API keys for cloud voices (./sweatcast keys): never committed, never pushed.", ".env",
                  "# Designed takes not kept, and stock-voice samples.", "personas/*/takes/", "personas/.samples/")
+GITIGNORE_ADD_5 = ("# A workout's web copy (Claude Code on the web) is kept: the private repo is how it reaches you.",
+                   "!*.web-*.mp3")
 
 
 class NeedsName(Exception):
@@ -303,7 +305,7 @@ def make_coaches(home, plan, prose, pace_file):
     return made
 
 
-def update_gitignore(home):
+def update_gitignore(home, add_lines=GITIGNORE_ADD):
     path = os.path.join(home, ".gitignore")
     try:
         with open(path, encoding="utf-8") as f:
@@ -311,7 +313,7 @@ def update_gitignore(home):
     except FileNotFoundError:
         return
     lines = [ln.strip() for ln in have.splitlines()]
-    add = [ln for ln in GITIGNORE_ADD if ln.startswith("#") or ln not in lines]
+    add = [ln for ln in add_lines if ln.startswith("#") or ln not in lines]
     if any(not ln.startswith("#") for ln in add):
         with open(path, "a", encoding="utf-8") as f:
             f.write(("" if have.endswith("\n") else "\n") + "\n".join(add) + "\n")
@@ -377,6 +379,7 @@ def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
         if os.path.isdir(paths.OLD_VOICES):
             shutil.rmtree(paths.OLD_VOICES)   # copied into personas/ and the backup
     if relayout:
+        update_gitignore(home, GITIGNORE_ADD_5)
         moved = workouts.reorganize(home)
         if moves is not None:
             moves.extend(moved)

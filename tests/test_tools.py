@@ -699,7 +699,10 @@ if script in ("tts_build.py", "render.py"):
     with open(os.environ["STUB_LOG"], "a") as f:
         f.write(script + " " + " ".join(args) + "\\n")
     if "--out" in args:
-        open(args[args.index("--out") + 1], "w").write("x")
+        out = args[args.index("--out") + 1]
+        open(out, "w").write("x")
+        if script == "render.py":
+            open(os.path.splitext(out)[0] + ".build.json", "w").write('{{"route": "local"}}')
     if script == "render.py":
         print("render failed for a test reason", file=sys.stderr)
         sys.exit(int(os.environ.get("STUB_RENDER_EXIT", "0")))
@@ -753,6 +756,28 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
         self.assertIn("tts_build.py", self.calls().splitlines()[0])
         self.assertIn("--require-menu", self.calls().splitlines()[0])   # a workout can't build without its menu
+
+    def test_record_has_delivery(self):
+        out = self.build()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        with open(os.path.join(self.home, "workouts", "checks", "Test build.build.json"), encoding="utf-8") as f:
+            rec = json.load(f)
+        self.assertEqual(rec["delivered_to"], [self.phone.replace(os.sep, "/")])
+        self.assertFalse(rec["kept_local"])
+        self.assertEqual(rec["route"], "local")   # the render's own fields stay
+
+    def test_record_without_a_folder_says_why(self):
+        prof = os.path.join(self.home, "profile.md")
+        with open(prof, encoding="utf-8") as f:
+            text = f.read()
+        write_file(prof, re.sub(r"^deliver_to = .*$", 'deliver_to = ""', text, flags=re.M))
+        out = self.build()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        with open(os.path.join(self.home, "workouts", "checks", "Test build.build.json"), encoding="utf-8") as f:
+            rec = json.load(f)
+        self.assertEqual(rec["delivered_to"], [])
+        self.assertTrue(rec["kept_local"])
+        self.assertIn("no delivery folder", rec["reason"])
 
     def test_a_draft_in_its_workout_folder_builds_there(self):
         folder = os.path.join(self.home, "workouts", "2026-10-25-strength-25")

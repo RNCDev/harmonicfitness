@@ -18,6 +18,10 @@ renders each new or edited paragraph as it appears in the draft, and stops when 
 what the draft holds now, once. Neither lints, writes an MP3 or copies, and neither runs on a cloud
 voice, where every re-render would be billed.
 
+--web also makes the web copy: the MP3 at a speech bitrate in parts of at most 14 MB, and a player page
+(tools/webcopy.py). It's on by default in a Claude Code cloud session, where it replaces the copy to a
+delivery folder (--no-web turns it off). The build record, <name>.build.json, says where the MP3 went.
+
 --tolerance <fraction> sets how far the total may run off plan, for the lint and the render alike
 (default three percent).
 
@@ -29,6 +33,7 @@ unknown coach, rendering ahead on a cloud voice): fix the command, not the draft
 loading, errors) goes to me/workouts/.logs/<name>.log, and its last lines print on a failure.
 """
 import filecmp
+import json
 import os
 import shutil
 import subprocess
@@ -40,7 +45,7 @@ import cli  # noqa: E402
 import paths  # noqa: E402
 import workouts  # noqa: E402
 
-USAGE = 'usage: ./sweatcast build <draft> "<name>" [--coach <name>] [--engine <route>] [--lint-only] [--follow] [render options]'
+USAGE = 'usage: ./sweatcast build <draft> "<name>" [--coach <name>] [--engine <route>] [--lint-only] [--follow] [--web] [render options]'
 
 
 def python():
@@ -87,10 +92,11 @@ def render(draft, args, log):
 
 
 def deliver(mp3, out_dir):
-    """Copy the MP3 to every delivery folder that exists; remove the local one once all match."""
+    """Copy the MP3 to every delivery folder that exists; remove the local one once all match.
+    Returns what happened, for the build record: {"delivered_to": [...], "kept_local": bool, "reason": str}."""
     found = tool("context.py", "deliver", capture_output=True, text=True).stdout.splitlines()
     found = [d for d in found if d.strip()]
-    failed = False
+    done, failed = [], []
     for dest in found:
         target = os.path.join(dest, os.path.basename(mp3))
         try:
@@ -99,15 +105,42 @@ def deliver(mp3, out_dir):
         except OSError:
             ok = False
         if ok:
+            done.append(dest)
             print(f"Copied to {dest}/{os.path.basename(mp3)}")
         else:
-            failed = True
-            print(f"Couldn't copy to {dest}; the MP3 is in {out_dir}")
+            failed.append(dest)
+            print(f"Couldn't copy to {dest}; the MP3 is in {paths.show(out_dir)}")
     if found and not failed:
         os.remove(mp3)
-        print(f"Removed the local copy; the text and build record stay in {out_dir}")
-    elif not found:
-        print(f"The MP3 is in {out_dir}")
+        print(f"Removed the local copy; the text and build record stay in {paths.show(out_dir)}")
+        return {"delivered_to": done, "kept_local": False, "reason": ""}
+    if not found:
+        print(f"The MP3 is in {paths.show(out_dir)}")
+        return {"delivered_to": [], "kept_local": True, "reason": "no delivery folder on this computer"}
+    return {"delivered_to": done, "kept_local": True, "reason": "couldn't copy to " + ", ".join(failed)}
+
+
+def note_in_record(mp3, fields):
+    """Merge `fields` into the MP3's <name>.build.json, which the render wrote."""
+    path = os.path.splitext(mp3)[0] + ".build.json"
+    try:
+        with open(path, encoding="utf-8") as f:
+            rec = json.load(f)
+    except (OSError, ValueError):
+        return
+    rec.update(fields)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(rec, f, indent=1)
+        f.write("\n")
+
+
+def web_copy(mp3, name, out_dir):
+    """The speech-bitrate parts and the player page (tools/webcopy.py). Returns (parts, page)."""
+    import webcopy
+    parts = webcopy.make(mp3, name, out_dir)
+    page = webcopy.page(name, parts, os.path.join(out_dir, f"{name}.player.html"))
+    print(f"Web copy: {paths.show(page)}, with " + ", ".join(os.path.basename(p) for p in parts))
+    return parts, page
 
 
 def main(argv=None):
@@ -117,7 +150,9 @@ def main(argv=None):
         return cli.USAGE
     draft, name, rest = argv[0], argv[1], argv[2:]
     lint_only, allow_estimated = "--lint-only" in rest, "--allow-estimated" in rest
-    rest = [a for a in rest if a not in ("--lint-only", "--allow-estimated")]   # the rest go to the render
+    cloud_session = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
+    web = ("--web" in rest or cloud_session) and "--no-web" not in rest
+    rest = [a for a in rest if a not in ("--lint-only", "--allow-estimated", "--web", "--no-web")]   # the rest go to the render
     if "/" in name or "\\" in name:
         print(f"The name can't contain a slash: {name}", file=sys.stderr)
         return cli.USAGE
@@ -200,7 +235,17 @@ def main(argv=None):
         show_log(log)
     if smoke or status:   # the smoke test is a voice check, not a workout: no copy
         return status
-    deliver(mp3, out_dir)
+    record = {}
+    if web:
+        parts, page = web_copy(mp3, name, out_dir)
+        record["web"] = {"page": os.path.basename(page), "parts": [os.path.basename(p) for p in parts]}
+    if cloud_session:   # no folder syncs to a phone from here: the web copy is the delivery
+        os.remove(mp3)
+        record.update({"delivered_to": [], "kept_local": False,
+                       "reason": "a Claude Code cloud session: the web copy and player page are the delivery"})
+    else:
+        record.update(deliver(mp3, out_dir))
+    note_in_record(mp3, record)
     return cli.OK
 
 

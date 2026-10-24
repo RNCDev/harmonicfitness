@@ -7,6 +7,8 @@ workouts/.audio-cache/*
 !workouts/.audio-cache/voice-pace.json
 # MP3s go to the delivery folder; render logs are per build (builds.jsonl stays).
 *.mp3
+# A workout's web copy (Claude Code on the web) is kept: the private repo is how it reaches you.
+!*.web-*.mp3
 workouts/.logs/*.log
 # Designed takes not kept, stock-voice samples, and ./sweatcast migrate's backups (git has the history).
 personas/*/takes/
