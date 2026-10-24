@@ -255,5 +255,59 @@ class Coaches(unittest.TestCase):
             coaches.main(["set", "Coach Test", "local.engine", "omnivoice"])
 
 
+class CoachDemo(unittest.TestCase):
+    """Coach Demo ships in me.example/ with its pace measured, as a stand-in until the listener makes one."""
+    DEMO = os.path.join(ROOT, "me.example", "personas")
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+
+    def use(self, folder):
+        patcher = mock.patch.object(personas.paths, "PERSONAS", folder)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_demo_ships_measured(self):
+        self.use(self.DEMO)
+        p = personas.lookup("Coach Demo")
+        self.assertTrue(p.placeholder)
+        self.assertTrue(p.has_clip)
+        for route in ("fish",):
+            self.assertTrue(voices.pace(personas.voice_for(p, route))[1], route)
+        with open(p.pace_file, encoding="utf-8") as f:
+            pace = json.load(f)
+        self.assertTrue(all("speed" not in rec for rec in pace.values()))   # no computer's name ships
+        key, _ = personas.clip_key(p)
+        self.assertTrue(all(k.startswith(key + "|") for k in pace))
+
+    def test_demo_local_pace_is_measured_on_mlx(self):
+        self.use(self.DEMO)
+        p = personas.lookup("Coach Demo")
+        with mock.patch.object(voices, "BACKEND", "mlx"):
+            v = personas.voice_for(p, "local")
+        self.assertTrue(voices.pace(v)[1])
+
+    def test_default_prefers_non_placeholder(self):
+        folder = os.path.join(self.d, "personas")
+        shutil.copytree(self.DEMO, folder, ignore=shutil.ignore_patterns(".gitkeep"))
+        self.use(folder)
+        with mock.patch.object(context, "sessions", return_value=[]):
+            self.assertEqual(personas.default().name, "Coach Demo")   # the only one
+            persona_home(self.d, ("Coach Maya", {}))
+            self.assertEqual(personas.default().name, "Coach Maya")
+        used = mock.Mock(voice="Coach Demo")
+        with mock.patch.object(context, "sessions", return_value=[used]):
+            self.assertEqual(personas.default().name, "Coach Demo")   # used last wins
+
+    def test_check_notes_placeholder(self):
+        folder = os.path.join(self.d, "personas")
+        shutil.copytree(self.DEMO, folder, ignore=shutil.ignore_patterns(".gitkeep"))
+        issues = context.check_coaches(folder)
+        self.assertEqual(len(issues), 1, issues)
+        self.assertTrue(issues[0].note)
+        self.assertIn("stand-in", issues[0].message)
+
+
 if __name__ == "__main__":
     unittest.main()

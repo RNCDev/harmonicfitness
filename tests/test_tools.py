@@ -418,7 +418,7 @@ class FreshFork(unittest.TestCase):
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
             self.assertEqual(context.voices(prof), [])
             self.assertEqual(context.routes(prof), ["local"])
-            self.assertEqual(os.listdir(os.path.join(home, "personas")), [".gitkeep"])   # no coach ships
+            self.assertEqual(sorted(os.listdir(os.path.join(home, "personas"))), [".gitkeep", "coach-demo"])   # the stand-in
             self.assertIn("deliver_to", prof.settings)
 
     def test_missing_context_says_run_setup(self):
@@ -1131,7 +1131,8 @@ class Migrate(unittest.TestCase):
             self.assertIn("schema", out.stdout, out.stderr)
             p = self.migrated_profile()
             self.assertEqual(context.voices(p), [])   # the voices became coaches
-            self.assertEqual(sorted(d for d in os.listdir(os.path.join(self.home, "personas")) if d[0] != "."),
+            self.assertEqual(sorted(d for d in os.listdir(os.path.join(self.home, "personas"))
+                                    if d[0] != "." and d != "coach-demo"),   # the template's stand-in
                              ["coach-julius", "coach-solo"])
             self.assertEqual(context.routes(p), ["local"])
             shutil.rmtree(os.path.join(self.home, "personas"))

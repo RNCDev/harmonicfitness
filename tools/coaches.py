@@ -299,7 +299,7 @@ def main(argv=None):
     for p in found:
         mark = "*" if last and p.slug == last.slug else " "
         engine = p.table("local").get("engine", "chatterbox") if p.has_clip else "Deepgram stock voice only"
-        print(f"{mark} {p.name:22} {engine:12} {p.description[:60]}")
+        print(f"{mark} {p.name:22} {engine:12} " + ("(a stand-in) " if p.placeholder else "") + p.description[:60])
     print("* the coach a build uses when none is named (the one used last)")
     return cli.OK
 

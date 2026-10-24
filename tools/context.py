@@ -991,6 +991,9 @@ def check_coaches(folder=None):
                 os.path.exists(os.path.join(folder, slug, f)) for f in ("clip.wav", "clip.txt")):
             out.append(Issue(path, 0, "no clip.wav and clip.txt beside it: keep a take or bring a clip "
                                       "(./sweatcast coaches keep)"))
+        if p.settings.get("placeholder"):
+            out.append(Issue(path, 0, f"{p.settings.get('name') or slug} is a stand-in coach: say \"I want a new "
+                                      "coach\" to make your own", note=True))
         offset = len(read_raw(path).splitlines()) - len(p.body.splitlines())
         for n, line in enumerate(p.body.splitlines(), 1):
             m = BODY_HINT_RE.match(line)

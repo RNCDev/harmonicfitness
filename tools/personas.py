@@ -60,6 +60,11 @@ class Persona:
         return str(self.settings.get("description") or "")
 
     @property
+    def placeholder(self):
+        """A stand-in coach (Coach Demo), used until the listener makes their own."""
+        return bool(self.settings.get("placeholder"))
+
+    @property
     def clip(self):
         return os.path.join(self.folder, "clip.wav")
 
@@ -115,7 +120,8 @@ def lookup(name, folder=None):
 
 
 def default(folder=None):
-    """The coach a build uses when none is named: the one used last (from the log), else the first."""
+    """The coach a build uses when none is named: the one used last (from the log), else the first that
+    isn't a stand-in (Coach Demo), else the first."""
     found = all(folder)
     if not found:
         return None
@@ -127,7 +133,7 @@ def default(folder=None):
                     return p
     except SystemExit:   # no log yet, or one in an older format
         pass
-    return found[0]
+    return next((p for p in found if not p.placeholder), found[0])
 
 
 def last_coach(folder=None):
