@@ -13,3 +13,5 @@ voices/.takes/
 .backup-*/
 *.lock
 .DS_Store
+# API keys for cloud voices (./sweatcast keys): never committed, never pushed.
+.env

@@ -87,6 +87,13 @@ def backup(home, message, push=True):
               "gh repo create sweatcast-me --private --source . --push")
         return cli.OK
     git(home, "add", "-A")
+    staged = git(home, "diff", "--cached", "--name-only", "-z").stdout.split("\0")
+    keyfiles = [p for p in staged if p and os.path.basename(p) == ".env"]
+    if keyfiles:   # API keys never go into the backup, even when the ignore rule is missing
+        git(home, "reset", "-q")
+        print(f"Not backed up: {', '.join(keyfiles)} holds API keys and never goes into the backup. "
+              f"Add a line .env to {where}/.gitignore, then rerun.")
+        return cli.ISSUES
     if git(home, "diff", "--cached", "--quiet").returncode == 0:
         print("Nothing new to commit.")
     else:

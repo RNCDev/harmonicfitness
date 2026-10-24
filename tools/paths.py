@@ -18,6 +18,7 @@ PROFILE = os.path.join(HOME, "profile.md")
 HEALTH = os.path.join(HOME, "health.md")
 LOG = os.path.join(HOME, "log.md")
 MY_MOVEMENTS = os.path.join(HOME, "movements.toml")   # the listener's private movements
+ENV_FILE = os.path.join(HOME, ".env")                  # cloud voice API keys: read only by tools/keys.py
 WORKOUTS = os.path.join(HOME, "workouts")
 RESEARCH = os.path.join(WORKOUTS, "research")
 VIDEOS = os.path.join(RESEARCH, "videos")

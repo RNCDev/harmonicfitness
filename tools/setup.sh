@@ -117,6 +117,10 @@ if [ -e "$CONTEXT/profile.md" ]; then
     cp "$ROOT/me.example/.gitignore" "$CONTEXT/.gitignore"
     echo "   added .gitignore, for keeping it as its own private repo (./sweatcast backup)"
   fi
+  if ! grep -qx '.env' "$CONTEXT/.gitignore"; then
+    printf '%s\n' "# API keys for cloud voices (./sweatcast keys): never committed, never pushed." ".env" >> "$CONTEXT/.gitignore"
+    echo "   .gitignore now leaves out .env, where cloud voice keys go"
+  fi
 else
   mkdir -p "$CONTEXT"
   cp -R "$ROOT/me.example/." "$CONTEXT/"
