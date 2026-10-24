@@ -168,8 +168,6 @@ fi
 
 echo
 echo "Done. Next:"
-echo "  - In Claude Code, say \"set up sweatcast\" if you haven't filled in $CONTEXT yet; it also makes your"
-echo "    coach (./sweatcast check lists anything still to fill in)."
-echo "  - Render the smoke test with your coach, which also measures their pace:"
-echo "      ./sweatcast build knowledge/smoke-test.draft.txt \"smoke-test\""
-echo "  - Then ask for a workout."
+echo "  - In Claude Code, say \"set up sweatcast\": four questions, then a ten-minute workout with Coach Demo,"
+echo "    a stand-in coach that's ready now (./sweatcast check lists anything still to fill in)."
+echo "  - Later: \"finish setting me up\" for your interests and feeds, and \"I want a new coach\" for your own."
