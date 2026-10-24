@@ -1,0 +1,17 @@
+{
+ "e5488e8c8349|chatterbox|mlx-community/chatterbox-turbo-fp16": {
+  "name": "Chatterbox Coach",
+  "weight": 34816.2,
+  "seconds": 2432.21
+ },
+ "fdb9e1b9e92f|qwen3|mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": {
+  "name": "Coach G",
+  "weight": 1730.1,
+  "seconds": 114.74
+ },
+ "e5488e8c8349|chatterbox|ResembleAI/chatterbox-turbo": {
+  "weight": 8129.2,
+  "seconds": 599.82,
+  "name": "Chatterbox Coach"
+ }
+}

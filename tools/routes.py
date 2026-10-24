@@ -21,6 +21,8 @@ SERVICES = ROUTES[1:]
 
 def local_installed():
     """Whether the local engine for this system is installed in the environment (not imported)."""
+    if os.environ.get("SWEATCAST_FAKE_LOCAL_ENGINE"):   # test-only: as if the local engine were installed
+        return os.environ["SWEATCAST_FAKE_LOCAL_ENGINE"] == "1"
     import voices
     module = "mlx_audio" if voices.BACKEND == "mlx" else "chatterbox"
     try:

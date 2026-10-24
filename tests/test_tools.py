@@ -353,56 +353,6 @@ class SeedPace(unittest.TestCase):
         self.assertEqual(voices.seed_pace({}), voices.DEFAULT_PACE)
 
 
-class Voices(unittest.TestCase):
-    def make(self, folder, name, conf):
-        os.makedirs(folder, exist_ok=True)
-        with open(os.path.join(folder, name + ".wav"), "wb") as f:
-            f.write(b"RIFF" + name.encode())
-        with open(os.path.join(folder, name + ".txt"), "w") as f:
-            f.write("Set your feet.")
-        if conf is not None:
-            with open(os.path.join(folder, name + ".json"), "w") as f:
-                json.dump(conf, f)
-
-    def test_private_voice_wins_and_models_default(self):
-        with tempfile.TemporaryDirectory() as d:
-            mine, shipped = os.path.join(d, "me"), os.path.join(d, "repo")
-            self.make(shipped, "Coach", {"engine": "qwen3"})
-            self.make(mine, "coach", {"engine": "chatterbox", "model": "x/turbo", "revision": "abc"})
-            self.make(shipped, "Other", {"engine": "qwen3"})
-            with mock.patch.object(voices, "VOICE_DIRS", (mine, shipped)):
-                v = voices.lookup("COACH")
-                self.assertEqual((v["engine"], v["model"], v["revision"]), ("chatterbox", "x/turbo", "abc"))
-                self.assertEqual(voices.lookup("other")["model"], voices.STANDARD_MODELS["qwen3"])
-                self.assertEqual(voices.names(), ["Other", "coach"])
-
-    def test_aliases_find_the_renamed_voice(self):
-        with tempfile.TemporaryDirectory() as d:
-            self.make(d, "Chatterbox Coach", {"engine": "chatterbox", "aliases": ["Coach E"]})
-            with mock.patch.object(voices, "VOICE_DIRS", (d,)):
-                self.assertEqual(voices.lookup("coach e")["name"], "Chatterbox Coach")
-                self.assertEqual(voices.names(), ["Chatterbox Coach"])
-
-    def test_old_names_still_work_for_shipped_voices(self):
-        self.assertEqual(voices.lookup("Coach E")["name"], "Chatterbox Coach")
-        self.assertEqual(voices.lookup("Coach G")["name"], "Qwen3 Coach")
-
-    def test_missing_settings_or_bad_engine(self):
-        with tempfile.TemporaryDirectory() as d:
-            self.make(d, "NoJson", None)
-            self.make(d, "Omni", {"engine": "omnivoice"})
-            with mock.patch.object(voices, "VOICE_DIRS", (d,)):
-                for name in ("NoJson", "Omni", "Nobody"):
-                    with self.assertRaises(SystemExit):
-                        voices.lookup(name)
-
-    def test_shipped_voices_pin_a_revision(self):
-        for name in voices.names():
-            v = voices.lookup(name)
-            if v["ref_audio"].startswith(os.path.join(ROOT, "voices")):
-                self.assertRegex(v["revision"] or "", r"^[0-9a-f]{40}$", name)
-
-
 class PinnedExtras(unittest.TestCase):
     def fake_hub(self, fail=False):
         calls = []
@@ -466,7 +416,9 @@ class FreshFork(unittest.TestCase):
             prof = context.profile(os.path.join(home, "profile.md"))
             self.assertEqual(len(feeds.config(prof)), 7)          # the three [hint] feeds are skipped
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
-            self.assertEqual(context.default_voice(prof), "Chatterbox Coach")
+            self.assertEqual(context.voices(prof), [])
+            self.assertEqual(context.routes(prof), ["local"])
+            self.assertEqual(os.listdir(os.path.join(home, "personas")), [".gitkeep"])   # no coach ships
             self.assertIn("deliver_to", prof.settings)
 
     def test_missing_context_says_run_setup(self):
@@ -722,14 +674,18 @@ class ExitCodes(unittest.TestCase):
                      ["tools/tts_build.py", fixture],                       # --out is missing
                      ["tools/coverage.py", "--bogus"],
                      ["tools/context.py", "get", "nothing"],
-                     ["tools/voices.py", "measured", "Nobody At All"]):
+                     ["tools/coaches.py", "measured", "Nobody At All"]):
             out = run([sys.executable, *args])
             self.assertEqual(out.returncode, cli.USAGE, (args, out.stdout, out.stderr))
 
     def test_voices_measured_codes(self):
         with tempfile.TemporaryDirectory() as d:
-            out = run([sys.executable, "tools/voices.py", "measured", "Chatterbox Coach"], home=fresh_home(d))
-            self.assertEqual(out.returncode, cli.ISSUES)   # estimated: nothing measured in a fresh copy
+            home = fresh_home(d)
+            shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
+                            os.path.join(home, "personas"), dirs_exist_ok=True)
+            out = run([sys.executable, "tools/coaches.py", "measured", "Coach Julius", "--engine", "local"], home=home,
+                      env={"SWEATCAST_FAKE_LOCAL_ENGINE": "1"})
+            self.assertEqual(out.returncode, cli.ISSUES, out.stderr)   # estimated: nothing measured in a fresh copy
 
 
 class BuildScript(unittest.TestCase):
@@ -764,6 +720,8 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         text = re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone.replace(os.sep, '/'))}", text,
                       flags=re.M)   # forward slashes: a Windows path's backslashes aren't valid in TOML
         write_file(prof, text)
+        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
+                        os.path.join(self.home, "personas"), dirs_exist_ok=True)
         self.stub = os.path.join(d, "python")
         write_file(self.stub, self.STUB.format(python=sys.executable))
         os.chmod(self.stub, 0o755)
@@ -772,8 +730,10 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
     def tearDown(self):
         self.tmp.cleanup()
 
-    def build(self, *extra, render_exit=0, estimated_ok=True):
-        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": str(render_exit)}
+    def build(self, *extra, render_exit=0, estimated_ok=True, **more_env):
+        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": str(render_exit),
+               "SWEATCAST_FAKE_LOCAL_ENGINE": "1"}
+        env.update(more_env)
         flags = ["--allow-estimated"] if estimated_ok else []
         return run(["sh", "sweatcast", "build", os.path.join("tests", "fixtures", "example.draft.txt"), "Test build",
                     *flags, *extra], home=self.home, env=env)
@@ -789,14 +749,15 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         local = os.path.join(self.home, "workouts", "Test build.mp3")
         self.assertFalse(os.path.exists(local), "the local MP3 is removed once the copy is in place")
         self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "Test build.txt")))
-        self.assertIn("--voice Chatterbox Coach", self.calls())   # the profile's default voice
+        self.assertIn("--coach Coach Julius --engine local", self.calls())   # the first coach, with no sessions yet
         self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
         self.assertIn("tts_build.py", self.calls().splitlines()[0])
         self.assertIn("--require-menu", self.calls().splitlines()[0])   # a workout can't build without its menu
 
     def test_the_smoke_test_needs_no_menu(self):
-        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": "0"}
-        out = run(["sh", "sweatcast", "build", os.path.join("voices", "smoke-test.draft.txt"), "smoke-test",
+        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": "0",
+               "SWEATCAST_FAKE_LOCAL_ENGINE": "1"}
+        out = run(["sh", "sweatcast", "build", os.path.join("knowledge", "smoke-test.draft.txt"), "smoke-test",
                    "--allow-estimated"], home=self.home, env=env)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         lint = self.calls().splitlines()[0]
@@ -828,9 +789,21 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", ".logs", "Test build.log")))
 
     def test_unknown_voice_exits_64(self):
-        out = self.build("--voice", "Nobody At All", estimated_ok=False)
+        for flag in ("--coach", "--voice"):
+            out = self.build(flag, "Nobody At All", estimated_ok=False)
+            self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
+            self.assertNotIn("measured", out.stdout)
+
+    def test_an_old_voice_name_finds_its_coach(self):
+        out = self.build("--voice", "Qwen3 Coach")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("--coach Qwen3 Coach --engine local", self.calls())
+
+    def test_build_refuses_follow_on_a_cloud_route(self):
+        out = self.build("--follow", "--engine", "fish", FISH_AUDIO_API_KEY="test-key")
         self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
-        self.assertNotIn("measured", out.stdout)
+        self.assertIn("billed", out.stdout)
+        self.assertFalse(os.path.exists(self.log))   # nothing rendered
 
     def test_unmeasured_voice_exits_3(self):
         out = self.build(estimated_ok=False)
@@ -1066,20 +1039,6 @@ value = "x\""""
         self.assertIn(" or ", pattern)
         self.assertIsNone(context.delivery(context.Profile({"deliver_to": []}, "")))
 
-    def test_add_voice_keeps_comments_and_order(self):
-        context.add_voice_to_profile("Coach Maya", "a woman in her thirties", default=True, path=self.profile)
-        context.add_voice_to_profile("Coach Calm", "slow", path=self.profile)
-        p = context.profile(self.profile)
-        self.assertEqual([n for n, _ in context.voices(p)], ["Coach Maya", "Qwen3 Coach", "Chatterbox Coach", "Coach Calm"])
-        with open(self.profile, encoding="utf-8") as f:
-            text = f.read()
-        self.assertIn("# A comment that must survive edits.", text)
-        self.assertLess(text.index('name = "Coach Calm"'), text.index("# Feeds come next."))
-        self.assertEqual(len(context.feed_sources(p)), 1)
-        context.add_voice_to_profile("coach maya", "again", path=self.profile)   # same name: replaced, moved last
-        names = [n for n, _ in context.voices(context.profile(self.profile))]
-        self.assertEqual(names, ["Qwen3 Coach", "Chatterbox Coach", "Coach Calm", "coach maya"])
-
     def test_log_session_round_trip(self):
         s = context.Session("2026-10-21", 25, "Home", "Chatterbox Coach", ["goblet squat", "seated row"],
                             "deep dive: news, a story", "rolling minutes",
@@ -1171,8 +1130,11 @@ class Migrate(unittest.TestCase):
             out = run([sys.executable, "tools/migrate.py"], home=self.home)
             self.assertIn("schema", out.stdout, out.stderr)
             p = self.migrated_profile()
-            self.assertEqual(context.default_voice(p), "Chatterbox Coach")
-            self.assertEqual([n for n, _ in context.voices(p)], ["Chatterbox Coach", "Qwen3 Coach"])
+            self.assertEqual(context.voices(p), [])   # the voices became coaches
+            self.assertEqual(sorted(d for d in os.listdir(os.path.join(self.home, "personas")) if d[0] != "."),
+                             ["coach-julius", "coach-solo"])
+            self.assertEqual(context.routes(p), ["local"])
+            shutil.rmtree(os.path.join(self.home, "personas"))
             self.assertEqual(context.wpm(p), 165)
             self.assertEqual(context.handles(p, "YouTube favorites"),
                              ["Asianometry", "BranchEducation", "PracticalEngineeringChannel"])
@@ -1267,7 +1229,7 @@ note = "Therapist: no weight through the hand."
     def test_profile_settings(self):
         write_file(os.path.join(self.dir, "profile.md"), profile_text(self.SETTINGS))
         p = context.profile(os.path.join(self.dir, "profile.md"))
-        self.assertEqual(context.SCHEMA, 3)
+        self.assertEqual(context.SCHEMA, 4)
         self.assertEqual(context.experience(p), "experienced")
         self.assertEqual(context.likes(p), ["goblet-squat"])
         self.assertEqual(context.dislikes(p), ["box-squat"])
@@ -1414,7 +1376,7 @@ class Migrate3(unittest.TestCase):
         self.assertEqual(log, "+++\nschema = 3\n+++\n# Log\n")
 
     def test_limits_row_after_migration_parses(self):
-        h = migrate.to_3(self.HEALTH2, "health.md")
+        h = migrate.to_4(migrate.to_3(self.HEALTH2, "health.md"), "health.md")
         h = h.replace("\n+++\n# Health", ('\n[[limits]]\narea = "wrist"\nside = "right"\n'
                                           'level = "off-limits"\n+++\n# Health'), 1)
         with tempfile.TemporaryDirectory() as d:
@@ -1433,13 +1395,13 @@ class Migrate3(unittest.TestCase):
                 with open(path, encoding="utf-8") as f:
                     write_file(path, context.with_front_matter(context.body(f.read()), 2))
             out = run([sys.executable, "tools/migrate.py"], home=home)
-            self.assertIn("schema 2 to 3", out.stdout, out.stderr)
+            self.assertIn("schema 2 to 4", out.stdout, out.stderr)
             # the migrated prose injury has no [[limits]] row yet: the one issue left to fix
             issues = [i for i in context.check([os.path.join(home, "health.md")]) if not i.note]
             self.assertEqual(len(issues), 1)
             self.assertIn("injuries written in prose have no [[limits]] entry", issues[0].message)
 
-    def test_example_is_schema_3(self):
+    def test_example_is_current(self):
         issues = context.check([os.path.join(paths.EXAMPLE, n) for n in
                                 ("profile.md", "health.md", "log.md")])
         self.assertFalse([i for i in issues if "schema" in i.message])
@@ -1450,53 +1412,7 @@ class Migrate3(unittest.TestCase):
         self.assertEqual((context.limits(h), context.clinician_lines(h)), ([], []))
         p = context.profile(os.path.join(paths.EXAMPLE, "profile.md"))
         self.assertEqual(context.kits(p), {"home": ["dumbbells", "band", "mat"]})
-        self.assertEqual(context.SCHEMA, 3)
-
-
-class VoiceDesign(unittest.TestCase):
-    """design and keep, with the model replaced by a stand-in."""
-
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.home = fresh_home(self.tmp.name)
-        self.takes = os.path.join(self.home, "voices", ".takes")
-        self.voices = os.path.join(self.home, "voices")
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def test_design_then_keep(self):
-        calls = []
-
-        def fake(desc, line, n, seed):
-            calls.append((desc, line, n, seed))
-            return [b"\x01\x00" * 24000 * (i + 1) for i in range(n)]
-        takes = voices.design("Coach Maya", "A woman in her thirties", takes=2, folder=self.takes, make_takes=fake)
-        self.assertEqual([os.path.basename(t) for t in takes], ["Coach Maya-1.wav", "Coach Maya-2.wav"])
-        self.assertEqual(calls[0][2:], (2, 7))
-        import wave as wv
-        with wv.open(takes[1]) as w:
-            self.assertEqual((w.getframerate(), w.getnframes()), (24000, 48000))
-
-        profile = os.path.join(self.home, "profile.md")
-        with mock.patch.object(voices, "VOICE_DIRS", (self.voices, os.path.join(ROOT, "voices"))):
-            name = voices.keep(takes[1], "chatterbox", default=True, folder=self.voices, profile_path=profile)
-            self.assertEqual(name, "Coach Maya")
-            v = voices.lookup("coach maya")
-            self.assertEqual((v["engine"], v["model"]), ("chatterbox", "mlx-community/chatterbox-turbo-fp16"))
-            self.assertRegex(v["revision"], r"^[0-9a-f]{40}$")
-            self.assertEqual(v["ref_text"], voices.DESIGN_LINE)
-            with self.assertRaises(SystemExit):                       # no silent overwrite
-                voices.keep(takes[0], "qwen3", folder=self.voices, profile_path=profile)
-        p = context.profile(profile)
-        self.assertEqual(context.default_voice(p), "Coach Maya")
-        self.assertEqual(dict(context.voices(p))["Coach Maya"], "A woman in her thirties")
-
-    def test_keep_needs_the_words(self):
-        clip = os.path.join(self.tmp.name, "mine.wav")
-        voices.write_wav(clip, b"\x00\x00" * 100)
-        with self.assertRaises(SystemExit):
-            voices.keep(clip, "qwen3", folder=self.voices, profile_path=os.path.join(self.home, "profile.md"))
+        self.assertEqual(context.SCHEMA, 4)
 
 
 class Wrapper(unittest.TestCase):
@@ -1515,7 +1431,7 @@ class Wrapper(unittest.TestCase):
     def test_subcommands_reach_their_tools(self):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
-            self.assertEqual(self.sweatcast("get", "default-voice", home=home).stdout.strip(), "Chatterbox Coach")
+            self.assertEqual(self.sweatcast("get", "routes", home=home).stdout.strip(), "local")
             out = self.sweatcast("voices", "measured", "Nobody", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
             out = self.sweatcast("lint", "--bogus", home=home)
@@ -1583,29 +1499,37 @@ class Engines(unittest.TestCase):
         self.assertIn("Error opening input", str(e.exception.code))
 
 
-class TorchBackend(unittest.TestCase):
-    def test_lookup_takes_the_voices_torch_model(self):
+class CoachBackends(unittest.TestCase):
+    """A coach on each local backend: the pinned model it renders with, and keys that keep cached clips."""
+
+    def setUp(self):
+        import personas
+        self.personas = personas
+        self.tmp = tempfile.TemporaryDirectory()
+        folder = os.path.join(self.tmp.name, "personas")
+        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"), folder)
+        patcher = mock.patch.object(paths, "PERSONAS", folder)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_torch_takes_the_torch_model(self):
         with mock.patch.object(voices, "BACKEND", "torch"):
-            v = voices.lookup("Chatterbox Coach")
+            v = self.personas.voice_for(self.personas.lookup("Coach Julius"), "local")
             self.assertEqual((v["backend"], v["model"]), ("torch", "ResembleAI/chatterbox-turbo"))
             self.assertRegex(v["revision"], r"^[0-9a-f]{40}$")
             self.assertTrue(engines.runtime(v).startswith("chatterbox-tts "))
-            q = voices.lookup("Qwen3 Coach")                   # no PyTorch model: the lint still works
-            self.assertIsNone(q["model"])
-            self.assertNotEqual(voices._rate_key(v), voices._rate_key(voices.lookup("Chatterbox Coach") | {"model": "m"}))
-            with self.assertRaises(SystemExit) as e:
-                engines.speaker(q)
+            with self.assertRaises(SystemExit) as e:   # Qwen3 renders locally only on a Mac
+                self.personas.voice_for(self.personas.lookup("Coach Solo"), "local")
             self.assertIn("Mac", str(e.exception.code))
+        mlx = self.personas.voice_for(self.personas.lookup("Coach Julius"), "local")
+        self.assertNotEqual(voices._rate_key(v), voices._rate_key(mlx))   # each backend measured on its own
 
     def test_mlx_keeps_its_cache_key(self):
-        v = voices.lookup("Chatterbox Coach")
+        v = self.personas.voice_for(self.personas.lookup("Coach Julius"), "local")
         self.assertEqual(v["backend"], "mlx")
         self.assertEqual(v["model"], "mlx-community/chatterbox-turbo-fp16")
         self.assertEqual(engines.runtime(v), f"mlx-audio {engines.mlx_audio_version()}")
-
-    def test_kept_voice_carries_the_torch_model(self):
-        self.assertEqual(voices.shipped_torch_model("chatterbox")["model"], "ResembleAI/chatterbox-turbo")
-        self.assertIsNone(voices.shipped_torch_model("qwen3"))
 
 
 class TorchDevice(unittest.TestCase):

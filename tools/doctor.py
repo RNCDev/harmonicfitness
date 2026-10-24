@@ -42,17 +42,23 @@ def model_present(repo, revision, hub=None):
 
 
 def _model_lines():
+    """The local models this computer's coaches render with (Chatterbox Turbo when there are none yet)."""
+    import personas
     import voices
+    engines_used = []
+    for p in personas.all():
+        if p.has_clip:
+            engine = p.table("local").get("engine") or "chatterbox"
+            if engine not in engines_used:
+                engines_used.append(engine)
     lines, seen = [], set()
-    for name in voices.names():
-        try:
-            v = voices.lookup(name)
-        except SystemExit:
+    for engine in engines_used or ["chatterbox"]:
+        pin = voices.LOCAL_MODELS.get((engine, voices.BACKEND))
+        if not pin:
+            lines.append(f"  {engine}: renders locally only on an Apple Silicon Mac")
             continue
-        if not v["model"]:
-            continue
-        extras = [] if v["backend"] == "torch" else voices.ENGINE_EXTRAS.get(v["engine"], [])
-        for repo, rev in [(v["model"], v["revision"]), *extras]:
+        extras = [] if voices.BACKEND == "torch" else voices.ENGINE_EXTRAS.get(engine, [])
+        for repo, rev in [pin, *extras]:
             if repo in seen:
                 continue
             seen.add(repo)

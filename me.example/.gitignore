@@ -1,6 +1,6 @@
 # For keeping this context folder as its own private git repo, which `./sweatcast backup`
 # commits and pushes after each workout (README, "Back up me/"). Everything else is kept:
-# profile, health, log, drafts, research, private voices and the voices' measured pace.
+# profile, health, log, drafts, research, and your coaches with their measured pace.
 
 # Rendered clips: large, and any build makes them again. The measured pace stays.
 workouts/.audio-cache/*
@@ -8,8 +8,9 @@ workouts/.audio-cache/*
 # MP3s go to the delivery folder; render logs are per build (builds.jsonl stays).
 *.mp3
 workouts/.logs/*.log
-# Designed voice takes not kept, and ./sweatcast migrate's backups (git has the history).
-voices/.takes/
+# Designed takes not kept, stock-voice samples, and ./sweatcast migrate's backups (git has the history).
+personas/*/takes/
+personas/.samples/
 .backup-*/
 *.lock
 .DS_Store

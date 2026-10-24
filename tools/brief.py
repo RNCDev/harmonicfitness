@@ -48,7 +48,7 @@ KIT_SECTIONS = {"dumbbells": "Dumbbells", "kettlebell": "Kettlebell", "bike": "S
 PRESET_SECTIONS = {"hotel-room": "Hotel room (no gym)", "hotel-gym": "Hotel gym (assume basic)",
                    "full-gym": "Full gym", "bodyweight": "No equipment"}
 BODY_ONLY = {"chair", "towel", "mat", "foam-roller", "strap"}   # a kit of these alone is "no equipment"
-PROFILE_SECTIONS = ("Narrator", "Default session")   # the profile prose the brief quotes
+PROFILE_SECTIONS = ("Narrator", "Default session")   # the profile prose the brief quotes (Narrator: before 9.0)
 DOSE_WORDS = {"sets": "sets", "reps": "reps", "bodyweight_reps": "reps with no load",
               "rest_seconds": "rest (s)", "hard_sets_per_session": "hard sets a session",
               "work_seconds": "work (s)", "rounds": "rounds", "efforts_per_session": "hard efforts a session",
@@ -291,12 +291,28 @@ def _kit_words(request: dict, equipment) -> str:
     return "equipment: " + (", ".join(sorted(equipment)) or "none")
 
 
-def talk_rate(voice_name: str):
-    """(words a minute, measured?) for a voice speaking the smoke test's coaching, or None for an
-    unknown voice. Spoken words only: holds, pauses and chimes take their own seconds."""
+def _coach(name):
+    import personas
     try:
-        voice = voices.lookup(voice_name)
+        return personas.lookup(name) if name else personas.default()
     except SystemExit:
+        return None
+
+
+def talk_rate(voice_name: str):
+    """(words a minute, measured?) for a coach speaking the smoke test's coaching on the route a build
+    would take here, or None for an unknown coach (or one with no route here). Spoken words only: holds,
+    pauses and chimes take their own seconds."""
+    import personas
+    try:
+        voice = personas.resolve(voice_name)
+    except SystemExit:   # no route works here (yet): the coach's local pace is still the best guess
+        coach = _coach(voice_name)
+        try:
+            voice = personas.voice_for(coach, "local") if coach else None
+        except SystemExit:
+            voice = None
+    if voice is None:
         return None
     rate, exact = voices.pace(voice)
     with open(paths.SMOKE_DRAFT, encoding="utf-8") as f:
@@ -305,11 +321,27 @@ def talk_rate(voice_name: str):
     return sum(len(t.split()) for t in texts) / seconds * 60, exact
 
 
+def _coach_lines(name) -> List[str]:
+    """Who's coaching and how they talk: the coach's persona.md prose, as the profile's Narrator was."""
+    coach = _coach(name)
+    if coach is None:
+        return []
+    out = [f"- Coach: {coach.name}" + (f" ({coach.description})" if coach.description else "")]
+    for line in coach.prose.splitlines():
+        item = line.strip()
+        key, _, value = item[2:].partition(":") if item.startswith("- ") else ("", "", "")
+        if key and value.strip() and not context.placeholder(value.strip()):
+            out.append(f"- {key.strip()}: {value.strip()}")
+    return out
+
+
 def _budget_line(voice_name: Optional[str]) -> List[str]:
-    found = talk_rate(voice_name) if voice_name else None
+    coach = _coach(voice_name)
+    found = talk_rate(coach.name) if coach else None
     if not found:
         return []
     wpm, exact = found
+    voice_name = coach.name
     return [f"- Talk to time: {voice_name} speaks about {wpm:.0f} words a minute"
             f"{'' if exact else ' (estimated; not measured on this computer yet)'}, so twenty seconds of talk "
             f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds; "
@@ -347,7 +379,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     disliked = [cat.movements[i].name for i in sorted(scr.dislikes) if i in cat.movements]
     if disliked:
         out.append("- Dislikes (left off the menu): " + ", ".join(disliked) + ".")
-    out += _profile_lines(profile)
+    out += _coach_lines(voice) + _profile_lines(profile)
     out += ["", "## Today in the week"] + _week_lines(cat, log, today, feedback or [])
     out += ["", "## Today's limits"] + _limit_lines(cat, scr, health, request)
     out += ["", "## Safe menu",
@@ -403,7 +435,9 @@ def main():
     ap.add_argument("--save", help="the draft's path (or its stem): write <stem>.brief.md and <stem>.menu.json")
     ap.add_argument("--log", help="the log to read (default: the context folder's)")
     ap.add_argument("--today", help="today's date, YYYY-MM-DD (default: today)")
-    ap.add_argument("--voice", help="the voice the script is written for, for its words a minute (default: the profile's)")
+    ap.add_argument("--coach", "--voice", dest="voice",
+                    help="the coach the script is written for: how they talk, and their words a minute "
+                         "(default: the one used last)")
     args = ap.parse_args()
 
     cat = catalog.load()
@@ -421,7 +455,7 @@ def main():
         profile = context.profile()
         lines, record = build(request, cat, sessions.load(), profile, context.health(),
                               context.sessions(args.log), today, context.feedback(args.log),
-                              voice=args.voice or context.default_voice(profile))
+                              voice=args.voice)
     except ValueError as e:
         print(f"sweatcast brief: {e}", file=sys.stderr)
         return cli.USAGE

@@ -280,7 +280,9 @@ def main():
     ap = cli.ArgumentParser()
     ap.add_argument("draft")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--voice", help="a voice's name: check predicted spoken seconds")
+    ap.add_argument("--coach", "--voice", dest="coach", help="a coach's name: check predicted spoken seconds")
+    ap.add_argument("--engine", help="with --coach, the route whose measured pace predicts them (default: the "
+                                     "profile's render list)")
     ap.add_argument("--wpm", type=float, default=DEFAULT_WPM, help="word guide without --voice, words per minute")
     ap.add_argument("--min-fill", type=float, default=MIN_FILL, help="below this, the segment is far too short")
     ap.add_argument("--max-fill", type=float, default=MAX_FILL, help="above this, the segment is far too long")
@@ -298,9 +300,9 @@ def main():
         text = f.read()
     segments = parse(text)
     voice = None
-    if args.voice:
-        from voices import lookup
-        voice = lookup(args.voice)
+    if args.coach or args.engine:
+        import personas
+        voice = personas.resolve(args.coach, args.engine)
 
     report = lint(segments, voice, args.wpm, args.min_fill, args.max_fill,
                   args.total_tolerance, args.word_tolerance, args.strict)

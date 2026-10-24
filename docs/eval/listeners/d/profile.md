@@ -1,9 +1,11 @@
 +++
-schema = 3
+schema = 4
 # What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
 name = "Sam"
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
+# How workouts become audio, in order of preference: local (this computer's own engine) or a cloud voice (fish, elevenlabs, cartesia, deepgram) with its key in me/.env. Each build uses the first that works on the computer it runs on.
+render = ["local"]
 # Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.
 experience = "experienced"
 # Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.
@@ -16,16 +18,6 @@ deliver_to = ""
 youtube_favorites = ["Asianometry", "BranchEducation", "PracticalEngineeringChannel"]
 # Channels (@handles) whose puzzles can be the session's quiz.
 puzzles = ["MindYourDecisions"]
-
-# Voices from ./sweatcast voices; the first is the default. The description is what the check-in offers.
-
-[[voices]]
-name = "Chatterbox Coach"
-description = "man in his forties, warm baritone, a seasoned trainer talking to one client. The most natural delivery."
-
-[[voices]]
-name = "Qwen3 Coach"
-description = "man in his thirties, a focused class instructor. The clearest diction."
 
 # Equipment kits a session can be planned with: a name and the equipment ids you have there (./sweatcast movements lists them).
 
@@ -106,5 +98,4 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
 - Never bring up:
 - Headlines or deep dives: a mix. Each session gets a few quick headlines, plus one deep-dive thread told across several segments. The deep dive alternates by session: a video from YouTube favorites, then a news story, then a video.
 ## Narrator
-- Tone: calm and focused. Keep humor light and occasional, with no hype.
-- Pet peeves in workout audio:
+How the coach talks now lives with each coach, in me/personas/<coach>/persona.md.

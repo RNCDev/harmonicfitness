@@ -55,21 +55,30 @@ class Brief(unittest.TestCase):
         self.assertIn("**Dumbbells.**", r.stdout)                    # kits.md's notes for the kit
         self.assertIn("exactly 1800 s", r.stdout)
 
-    def test_writing_it_gives_the_voices_words_a_minute(self):
-        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--voice", "Qwen3 Coach")
+    def test_the_brief_quotes_how_the_coach_talks(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--coach", "Coach Solo")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertRegex(r.stdout, r"Talk to time: Qwen3 Coach speaks about \d+ words a minute")
+        self.assertIn("- Coach: Coach Solo (A coach for the tests.)", r.stdout)
+        self.assertIn("- Tone: calm and focused.", r.stdout)
+
+    def test_writing_it_gives_the_voices_words_a_minute(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--coach", "Qwen3 Coach")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"Talk to time: Coach Solo speaks about \d+ words a minute")
 
     def test_words_a_minute_follow_the_voices_pace(self):
         import brief as brief_tool
         from unittest import mock
-        with mock.patch("voices.pace", return_value=(10.0, True)):
-            slow, exact = brief_tool.talk_rate("Chatterbox Coach")
-        with mock.patch("voices.pace", return_value=(20.0, True)):
-            fast, _ = brief_tool.talk_rate("Chatterbox Coach")
-        self.assertTrue(exact)
-        self.assertAlmostEqual(fast, slow * 2)
-        self.assertIsNone(brief_tool.talk_rate("Nobody At All"))
+        import paths
+        with mock.patch.object(paths, "PERSONAS", os.path.join(LISTENER, "personas")), \
+                mock.patch.object(paths, "PROFILE", os.path.join(LISTENER, "profile.md")):
+            with mock.patch("voices.pace", return_value=(10.0, True)):
+                slow, exact = brief_tool.talk_rate("Chatterbox Coach")   # an old name finds Coach Julius
+            with mock.patch("voices.pace", return_value=(20.0, True)):
+                fast, _ = brief_tool.talk_rate("Coach Julius")
+            self.assertTrue(exact)
+            self.assertAlmostEqual(fast, slow * 2)
+            self.assertIsNone(brief_tool.talk_rate("Nobody At All"))
 
     def test_the_menu_is_the_safety_screen(self):
         cat = catalog.load()

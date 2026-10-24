@@ -23,7 +23,7 @@ FIXTURE = os.path.join(ROOT, "tests", "fixtures", "personas")
 def persona_home(d, *extra):
     """A personas folder holding the fixture coach, plus (name, settings) for each extra coach."""
     folder = os.path.join(d, "personas")
-    shutil.copytree(FIXTURE, folder)
+    shutil.copytree(FIXTURE, folder, dirs_exist_ok=True)
     for name, settings in extra:
         slug = personas.slug(name)
         os.makedirs(os.path.join(folder, slug))
@@ -211,7 +211,7 @@ class Coaches(unittest.TestCase):
             self.assertEqual(a.read(), b.read())
 
     def write_log(self, *voices_used):
-        lines = ["+++", "schema = 3", "+++", "# Log", "", "## Sessions", ""]
+        lines = ["+++", f"schema = {context.SCHEMA}", "+++", "# Log", "", "## Sessions", ""]
         lines += [f"- 2026-10-{10 + i} | 20 min | home | {v} | goblet squat | deep dive: news, x" for i, v in enumerate(voices_used)]
         lines += ["", "## Feedback", ""]
         with open(self.log, "w", encoding="utf-8") as f:

@@ -36,10 +36,10 @@ from paths import show  # noqa: E402
 
 DESIGNERS = ("local", "fish", "elevenlabs")
 PROSE = """## How this coach talks
-- Tone: [calm and focused? upbeat? dry humor?]
-- How they talk to the listener: [like a coach who knows them, warm and direct? brisk?]
-- Encouragement that works: [notice the effort plainly, say why a movement is there, ...]
-- Pet peeves to avoid: [hype, filler, ...]
+- Tone: calm and focused. Keep humor light and occasional, with no hype.
+- How the coach talks to me: like a coach who knows me, warm and direct, first name now and then, contractions, "let's" in the rests. Not a drill sergeant, not a radio host.
+- Encouragement that works for me: [for example, notice the effort plainly ("that last set was honest"), tell me why a movement is there, remind me what I did last time]
+- Pet peeves in workout audio:
 """
 SAMPLES = os.path.join(paths.PERSONAS, ".samples")
 
@@ -211,8 +211,9 @@ def main(argv=None):
     sp.add_argument("service", choices=("deepgram",))
     sp.add_argument("--voices", help="comma-separated (default: the ten in knowledge/services.toml)")
     sp.add_argument("--line", default=voices.DESIGN_LINE)
-    d = sub.add_parser("download", help="fetch the coach's local model (all coaches without a name)")
+    d = sub.add_parser("download", help="fetch the local model the coaches use (Chatterbox Turbo with none yet)")
     d.add_argument("coach", nargs="*")
+    d.add_argument("--all", action="store_true", help="every local engine's model this computer can run")
     args = ap.parse_args(argv)
 
     if args.cmd == "last":
@@ -276,9 +277,19 @@ def main(argv=None):
         print("Pick one, then: ./sweatcast coaches set \"<coach>\" deepgram.voice <voice>")
         return cli.OK
     if args.cmd == "download":
-        for p in [personas.lookup(n) for n in args.coach] or personas.all():
-            if p.has_clip:
-                voices.download(personas.voice_for(p, "local"))
+        if args.all:
+            engines_wanted = [e for e in personas.LOCAL_ENGINES if (e, voices.BACKEND) in voices.LOCAL_MODELS]
+        else:
+            chosen = [personas.lookup(n) for n in args.coach] or personas.all()
+            engines_wanted = list(dict.fromkeys(p.table("local").get("engine") or "chatterbox"
+                                                for p in chosen if p.has_clip)) or ["chatterbox"]
+        for engine in engines_wanted:
+            if (engine, voices.BACKEND) not in voices.LOCAL_MODELS:
+                print(f"{engine}: renders locally only on an Apple Silicon Mac; skipped.")
+                continue
+            model, revision = voices.LOCAL_MODELS[(engine, voices.BACKEND)]
+            voices.download({"name": engine, "engine": engine, "backend": voices.BACKEND, "model": model,
+                             "revision": revision})
         return cli.OK
     last = personas.last_coach()
     found = personas.all()

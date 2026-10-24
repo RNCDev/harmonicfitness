@@ -371,6 +371,9 @@ class CloudRender(unittest.TestCase):
         import render
         args = mock.Mock(coach="Coach Test", engine="fish", voice=None, model=None, seed=42)
         with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")), \
+                mock.patch.object(personas.paths, "PROFILE", os.path.join(self.home, "profile.md")), \
+                mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.home, ".env")), \
+                mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": SECRET}), \
                 mock.patch.object(render, "check_pace_file"):
             a = render.setup_voice(args)[1]("Hello.")
             with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "another-key"}):

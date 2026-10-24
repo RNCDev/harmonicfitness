@@ -22,9 +22,10 @@ Exit codes (cli.py): 0 done, 2 the workout ran more than --tolerance off plan (t
 is written), 64 a mistyped command, 1 anything else.
 
 Usage (normally via ./sweatcast build):
-    ./sweatcast render draft.txt --voice "Chatterbox Coach" --out "me/workouts/Workout ....mp3"
-    ./sweatcast render draft.txt --voice "Chatterbox Coach" --clips-only   # fill the cache, no MP3
-    ./sweatcast render draft.txt --voice "Chatterbox Coach" --follow       # render ahead as it's written
+    ./sweatcast render draft.txt --coach "Coach Julius" --out "me/workouts/Workout ....mp3"
+    ./sweatcast render draft.txt --coach "Coach Julius" --engine fish --out x.mp3   # a cloud voice
+    ./sweatcast render draft.txt --coach "Coach Julius" --clips-only   # fill the cache, no MP3 (local only)
+    ./sweatcast render draft.txt --coach "Coach Julius" --follow       # render ahead as it's written (local only)
 """
 import contextlib
 import datetime as dt
@@ -51,7 +52,7 @@ from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, f
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
 import paths  # noqa: E402
 from paths import BUILDS, CACHE as CACHE_DIR, VERSION_FILE, show  # noqa: E402
-from voices import MLX_EDGE, check_pace_file, lookup, record_rate, weight  # noqa: E402
+from voices import MLX_EDGE, check_pace_file, record_rate, weight  # noqa: E402
 
 CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
 CHIME_LEVEL = 0.12    # peak; at 0.2 the bell averaged as loud as the voice, so this sits about 4 dB under
@@ -274,18 +275,9 @@ def save_build_record(record, out, log=None):
 
 def resolve_voice(args):
     """The voice dict: the coach (--coach, else the one used last) on the route (--engine, else the first in
-    the profile's render list that works here); or an old-style voice by --voice."""
-    if getattr(args, "voice", None) and not getattr(args, "coach", None) and not getattr(args, "engine", None):
-        return lookup(args.voice)
-    import context
+    the profile's render list that works here)."""
     import personas
-    import routes
-    name = getattr(args, "coach", None) or getattr(args, "voice", None)
-    coach = personas.lookup(name) if name else personas.default()
-    if coach is None:
-        raise SystemExit("No coach yet: make one first (the coach skill, or ./sweatcast coaches design).")
-    preferences = context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"]
-    return personas.voice_for(coach, routes.pick(preferences, coach, override=getattr(args, "engine", None)))
+    return personas.resolve(getattr(args, "coach", None), getattr(args, "engine", None))
 
 
 def setup_voice(args):
@@ -296,15 +288,20 @@ def setup_voice(args):
         voice["model"], voice["revision"] = args.model, None
     if voice.get("backend") == "torch":   # the processor's clips sound a little different: their own key
         voice["device"] = engines.torch_device(engines.cuda_available())
-    # Everything that changes how a clip sounds goes in its cache key, so changing a
-    # setting (or upgrading mlx-audio) re-renders instead of silently reusing old clips.
+    return voice, clip_cache(voice, args.seed)
+
+
+def clip_cache(voice, seed):
+    """cache_path(text): where a line's clip is cached. Everything that changes how a clip sounds goes in
+    its key, so changing a setting (or upgrading mlx-audio) re-renders instead of silently reusing old
+    clips; the coach's name and any API key don't, so a renamed coach keeps its clips."""
     settings = (f"{voice['model']}@{voice['revision'] or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
                 f"trim {TRIM_DB} {TRIM_KEEP}|{engines.runtime(voice)}")
 
     def cache_path(text):
-        key = f"{voice['key']}|{voice['engine']}|{args.seed}|{settings}|{text}"
+        key = f"{voice['key']}|{voice['engine']}|{seed}|{settings}|{text}"
         return os.path.join(CACHE_DIR, hashlib.sha256(key.encode()).hexdigest()[:24] + ".pcm")
-    return voice, cache_path
+    return cache_path
 
 
 def spoken_clips(segments):
@@ -429,8 +426,7 @@ def main():
     ap = cli.ArgumentParser()
     ap.add_argument("draft")
     ap.add_argument("--out", help=".mp3, .m4a or .wav (not needed with --clips-only)")
-    ap.add_argument("--coach", help="the coach (default: the one used last)")
-    ap.add_argument("--voice", help="an old-style voice from voices/ or me/voices/ (or a coach's name)")
+    ap.add_argument("--coach", "--voice", dest="coach", help="the coach (default: the one used last)")
     ap.add_argument("--engine", help="the route: local, or a cloud service (default: the profile's render list)")
     ap.add_argument("--model", default=None,
                     help="try another model repo for the voice's engine (its latest revision)")

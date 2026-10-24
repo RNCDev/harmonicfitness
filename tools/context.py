@@ -17,7 +17,7 @@ health file's `[[limits]]` rows (area, side, level, flags, rehab, note) with its
 `---` front matter, schema 0 had none) stops the tools with the command that brings
 it up to date, `./sweatcast migrate`.
 
-    ./sweatcast get default-voice     # also: wpm, voices, experience
+    ./sweatcast get coach             # also: route, routes, wpm, experience
     ./sweatcast deliver               # existing delivery folders, one per line
     ./sweatcast check                 # every file's format, and lines not filled in yet
     ./sweatcast log-session --date 2026-10-21 --minutes 25 --kit Home \\
@@ -49,7 +49,7 @@ import cli  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
-SCHEMA = 3
+SCHEMA = 4
 PERSONA_SCHEMA = 4   # me/personas/<slug>/persona.md, new in sweatcast 9
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
@@ -391,42 +391,6 @@ def _weight_problems(k):
     if "unit" in k and k["unit"] not in UNITS:
         out.append(f"unit should be {' or '.join(UNITS)}")
     return out
-
-
-def add_voice_to_profile(name, description="", default=False, path=None):
-    """List a voice in the profile's [[voices]], first when it's to be the default.
-    Edits the settings block as text, so its comments and order survive."""
-    path = path or paths.PROFILE
-    text = read_raw(path, "profile")
-    problem = schema_problem(path, text)
-    if problem:
-        raise SystemExit(problem)
-    m = TOML_FRONT_RE.match(text)
-    lines = m.group(1).split("\n")
-    entry = ["[[voices]]", f"name = {toml_value(name)}", f"description = {toml_value(description)}"]
-    starts = [i for i, line in enumerate(lines) if line.strip() == "[[voices]]"]
-    # Drop an existing entry of the same name, so keeping a voice again replaces it.
-    for i in reversed(starts):
-        end = next((j for j in range(i + 1, len(lines)) if lines[j].lstrip().startswith("[")), len(lines))
-        block = tomllib.loads("\n".join(lines[i + 1:end]))
-        if str(block.get("name", "")).lower() == name.lower():
-            while end > i and (not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")):
-                end -= 1
-            del lines[i:end]
-    starts = [i for i, line in enumerate(lines) if line.strip() == "[[voices]]"]
-    if starts and default:
-        lines[starts[0]:starts[0]] = entry + [""]
-    elif starts:
-        last = starts[-1]
-        end = next((j for j in range(last + 1, len(lines)) if lines[j].lstrip().startswith("[")), len(lines))
-        while end > last and (not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")):
-            end -= 1   # stop before the next table's comment
-        lines[end:end] = [""] + entry
-    else:
-        lines += [""] + entry
-    settings_text = "\n".join(lines).strip("\n")
-    tomllib.loads(settings_text)   # never write a block that doesn't parse
-    _atomic_write(path, f"+++\n{settings_text}\n+++\n" + text[m.end():])
 
 
 SETTINGS_COMMENTS = {
@@ -859,8 +823,6 @@ def _check_profile(path, text):
         return [Issue(path, 1, str(e.code))]
     offset = len(text.splitlines()) - len(rest.splitlines())
     p = Profile(settings, rest, path)
-    if not voices(p):
-        out.append(Issue(path, 0, "no voices: add a [[voices]] entry (name and description); the first is the default"))
     out += route_issues(p)
     if wpm(p) is None:
         out.append(Issue(path, 0, "no words_per_minute (./sweatcast lint without a voice assumes 185)", note=True))
@@ -999,11 +961,41 @@ def check(home_files=None):
                     if not isinstance(s, Session):
                         out.append(Issue(path, n + offset, s))
     if home_files is None:
+        out += check_coaches()
         out += check_movements()
         old = os.path.join(paths.HOME, "exercise-science.md")
         if os.path.exists(old):   # 5.1.0 stopped reading it
             out.append(Issue(old, 0, "no longer used (sessions draw no exercise-science asides now); "
                                      "delete it once anything worth keeping is copied out", note=True))
+    return out
+
+
+def check_coaches(folder=None):
+    """[Issue] for the coaches in me/personas/: none yet, a persona.md the tools can't read, a missing clip,
+    and how-they-talk lines still showing the template's [hint]."""
+    folder = folder or paths.PERSONAS
+    found = sorted(d for d in os.listdir(folder) if os.path.exists(os.path.join(folder, d, "persona.md"))) \
+        if os.path.isdir(folder) else []
+    if not found:
+        return [Issue(folder, 0, "no coach yet: the coach skill makes one (\"I want a new coach\"), or "
+                                 "./sweatcast coaches design")]
+    out = []
+    for slug in found:
+        path = os.path.join(folder, slug, "persona.md")
+        try:
+            p = persona(path)
+        except SystemExit as e:
+            out.append(Issue(path, 0, str(e.code)))
+            continue
+        if not p.settings.get("stock_only") and not all(
+                os.path.exists(os.path.join(folder, slug, f)) for f in ("clip.wav", "clip.txt")):
+            out.append(Issue(path, 0, "no clip.wav and clip.txt beside it: keep a take or bring a clip "
+                                      "(./sweatcast coaches keep)"))
+        offset = len(read_raw(path).splitlines()) - len(p.body.splitlines())
+        for n, line in enumerate(p.body.splitlines(), 1):
+            m = BODY_HINT_RE.match(line)
+            if m:
+                out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' still shows the template's hint"))
     return out
 
 
@@ -1051,6 +1043,7 @@ def main(argv=None):
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
     g.add_argument("what", choices=("default-voice", "wpm", "voices", "experience", "route", "routes", "coach"))
     g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
+    g.add_argument("--engine", help="with route: a route to use if it works here")
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
     sub.add_parser("check", help="check every context file, and list lines not filled in yet")
     s = sub.add_parser("log-session", help="add a session to log.md, checked")
@@ -1068,7 +1061,7 @@ def main(argv=None):
 
     if args.cmd == "get":
         p = profile()
-        if args.what == "coach":
+        if args.what in ("coach", "default-voice"):   # default-voice: the name before 9.0
             import personas
             coach = personas.last_coach()
             if coach:
@@ -1080,12 +1073,21 @@ def main(argv=None):
                 return cli.OK
             import personas
             import routes as routing
-            coach = personas.lookup(args.coach) if args.coach else personas.default()
-            print(routing.pick(routes(p), coach))
+            try:
+                coach = personas.lookup(args.coach) if args.coach else personas.default()
+            except SystemExit as e:   # an unknown coach: the command was wrong
+                print(e.code, file=sys.stderr)
+                return cli.USAGE
+            try:
+                print(routing.pick(routes(p), coach, override=args.engine))
+            except SystemExit as e:
+                print(e.code, file=sys.stderr)
+                return cli.USAGE if args.engine and args.engine not in routing.ROUTES else cli.ISSUES
             return cli.OK
-        if args.what == "voices":
-            for name, _ in voices(p):
-                print(name)
+        if args.what == "voices":   # the coaches, by name (the name before 9.0)
+            import personas
+            for coach in personas.all():
+                print(coach.name)
         else:
             v = {"default-voice": default_voice, "wpm": wpm, "experience": experience}[args.what](p)
             if v is not None:

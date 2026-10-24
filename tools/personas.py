@@ -135,6 +135,17 @@ def last_coach(folder=None):
     return default(folder)
 
 
+def resolve(coach=None, engine=None):
+    """The voice dict a build uses: `coach` (else the one used last) on `engine` (else the first route in the
+    profile's render list that works on this computer)."""
+    import routes
+    p = lookup(coach) if coach else default()
+    if p is None:
+        raise SystemExit("No coach yet: make one first (the coach skill, or ./sweatcast coaches design).")
+    preferences = context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"]
+    return voice_for(p, routes.pick(preferences, p, override=engine))
+
+
 def clip_key(p):
     """The clip's identity in every pace and cache key: the same rule voices.lookup always used."""
     with open(p.clip, "rb") as a:

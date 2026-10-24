@@ -17,11 +17,10 @@
 # the Python environment when it isn't installed, and git is needed only for the privacy hook and
 # ./sweatcast backup, so a zip download sets up too.
 #
-# Voice models download once from Hugging Face (no account needed) into
-# ~/.cache/huggingface/hub: about 3.3 GB for Chatterbox Coach (the model plus its speech
-# tokenizer) and 4.2 GB for Qwen3 Coach on a Mac, and about 4 GB for Chatterbox Coach on
-# Windows. Rendering works offline after that. Rerun after changing the default voice in
-# me/profile.md to fetch its model. An existing context folder is brought up to this version's
+# Local voice models download once from Hugging Face (no account needed): about 3.3 GB for
+# Chatterbox Turbo (the model plus its speech tokenizer) and 4.2 GB for Qwen3-TTS on a Mac, and
+# about 4 GB for Chatterbox Turbo on Windows or Linux. Rendering works offline after that. Rerun
+# after giving a coach another local engine to fetch its model. An existing context folder is brought up to this version's
 # format (./sweatcast migrate), backed up first.
 #
 # Test-only: SWEATCAST_UV is the uv to run, and SWEATCAST_PYTHON the Python the tools run under.
@@ -152,16 +151,15 @@ if [ "$1" = "--no-models" ]; then
 elif [ -z "$WANT" ]; then
   echo "   skipped: no local voices on this computer"
 elif [ "$1" = "--all" ]; then
-  "$PY" tools/voices.py download
+  "$PY" tools/coaches.py download --all
 else
-  DEFAULT_VOICE="$("$PY" tools/context.py get default-voice 2>/dev/null || true)"
-  "$PY" tools/voices.py download "${DEFAULT_VOICE:-Chatterbox Coach}"
+  "$PY" tools/coaches.py download   # the coaches' local model, or Chatterbox Turbo before there's a coach
 fi
 
 echo
 echo "Done. Next:"
-echo "  - In Claude Code, ask to \"set me up\" if you haven't filled in $CONTEXT yet"
-echo "    (./sweatcast check lists anything still to fill in)."
-echo "  - Render the smoke test with your voice, which also measures its pace:"
-echo "      ./sweatcast build voices/smoke-test.draft.txt \"smoke-test\""
+echo "  - In Claude Code, say \"set up sweatcast\" if you haven't filled in $CONTEXT yet; it also makes your"
+echo "    coach (./sweatcast check lists anything still to fill in)."
+echo "  - Render the smoke test with your coach, which also measures their pace:"
+echo "      ./sweatcast build knowledge/smoke-test.draft.txt \"smoke-test\""
 echo "  - Then ask for a workout."

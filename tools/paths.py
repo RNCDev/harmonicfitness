@@ -1,8 +1,8 @@
 """Where everything lives: the engine (this repo) and the listener's own context.
 
-The engine is the repo: tools, skills, shared knowledge, shipped voices. Everything
-about one listener (profile, health, log, workouts, research, private voices,
-rendered clips) lives in one context folder, `me/` at the repo root by default.
+The engine is the repo: tools, skills and shared knowledge. Everything about one
+listener (profile, health, log, coaches, workouts, research, rendered clips, API keys)
+lives in one context folder, `me/` at the repo root by default.
 Set SWEATCAST_HOME to keep it somewhere else. `me/` is ignored by the engine's git,
 so pulling engine updates never touches it; `me.example/` is the template that
 `./sweatcast setup` copies to start one.
@@ -32,11 +32,9 @@ BUILDS = os.path.join(LOGS, "builds.jsonl")           # one record per rendered 
 
 PERSONAS = os.path.join(HOME, "personas")   # each coach: personas/<slug>/ (persona.md, clip, pace, service voices)
 
-# Private voices (a cloned real voice belongs here) come before the shipped ones.
-PRIVATE_VOICES = os.path.join(HOME, "voices")
-VOICE_TAKES = os.path.join(PRIVATE_VOICES, ".takes")   # designed takes, before one is kept
-VOICE_DIRS = (PRIVATE_VOICES, os.path.join(ROOT, "voices"))
-SMOKE_DRAFT = os.path.join(ROOT, "voices", "smoke-test.draft.txt")
+OLD_VOICES = os.path.join(HOME, "voices")      # sweatcast 8's private voices; ./sweatcast migrate makes them coaches
+V8_VOICES = os.path.join(ROOT, "tools", "migrate-assets", "v8-voices")   # the clips sweatcast 8 shipped
+SMOKE_DRAFT = os.path.join(ROOT, "knowledge", "smoke-test.draft.txt")   # one minute, which measures a coach's pace
 EXAMPLE = os.path.join(ROOT, "me.example")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
 MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the shared movement catalog

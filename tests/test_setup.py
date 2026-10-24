@@ -31,7 +31,7 @@ def facts(fake=None, root=ROOT, **extra):
 
 def copy_repo(dest):
     """A copy of the engine without .git, .venv, me/ or models (like a zip download)."""
-    keep = ("sweatcast", "tools", "me.example", "knowledge", "voices", "tests", "pyproject.toml", "uv.lock",
+    keep = ("sweatcast", "tools", "me.example", "knowledge", "tests", "pyproject.toml", "uv.lock",
             "VERSION", ".python-version")
     for name in keep:
         src = os.path.join(ROOT, name)
@@ -215,7 +215,7 @@ class Setup(unittest.TestCase):
 STUB_PY = """#!/bin/sh
 # Stands in for the environment's Python: model downloads are logged, not run.
 case "$1" in
-  tools/voices.py) echo "$@" >> "$UV_LOG"; exit 0 ;;
+  tools/coaches.py) echo "$@" >> "$UV_LOG"; exit 0 ;;
 esac
 exec "{python}" "$@"
 """
@@ -250,7 +250,7 @@ class LocalExtra(unittest.TestCase):
         out = self.setup(**mac)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("sync --frozen --extra mlx", self.calls())
-        self.assertIn("tools/voices.py download", self.calls())
+        self.assertIn("tools/coaches.py download", self.calls())
         with open(os.path.join(self.repo, ".venv", ".sweatcast-extra")) as f:
             self.assertEqual(f.read().strip(), "mlx")
 
@@ -261,7 +261,7 @@ class LocalExtra(unittest.TestCase):
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("sync --frozen --extra mlx", self.calls())
-        self.assertNotIn("voices.py download", self.calls())
+        self.assertNotIn("coaches.py download", self.calls())
 
     def test_an_environment_from_before_the_extras_keeps_its_engine(self):
         os.makedirs(os.path.join(self.repo, ".venv", "lib", "python3.11", "site-packages", "mlx_audio"))
@@ -290,7 +290,7 @@ class LocalExtra(unittest.TestCase):
         out = self.setup(OS="Darwin", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertNotIn("--extra", self.calls())
-        self.assertNotIn("voices.py download", self.calls())
+        self.assertNotIn("coaches.py download", self.calls())
         self.assertIn("Intel Mac", out.stdout)
 
     def test_local_flag_refuses_where_local_cant_run(self):

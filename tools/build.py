@@ -2,26 +2,29 @@
 
 Run it as ./sweatcast build.
 
-    ./sweatcast build <draft> "<name>" [--voice <name>] [--lint-only] [render options...]
-    ./sweatcast build me/workouts/drafts/x.draft.txt "Workout 2026-10-19 Bench 25 min" --voice "Chatterbox Coach"
+    ./sweatcast build <draft> "<name>" [--coach <name>] [--engine <route>] [--lint-only] [render options...]
+    ./sweatcast build me/workouts/drafts/x.draft.txt "Workout 2026-10-19 Bench 25 min" --coach "Coach Julius"
 
 Writes me/workouts/<name>.txt and me/workouts/<name>.mp3 (the context folder is SWEATCAST_HOME if
 set). Stops after the lint if it finds issues (fix and rerun). --lint-only skips rendering. Without
---voice, uses the first voice in the profile's settings. After a render, copies the MP3 to each
+--coach (--voice is the old name), uses the coach used last; without --engine, the first route in the
+profile's render list that works on this computer (local, or a cloud voice with its key in me/.env). After a render, copies the MP3 to each
 deliver_to folder that exists and, once every copy matches, removes the local MP3.
 
 --follow renders ahead while the draft is still being written: it keeps the voice model loaded,
 renders each new or edited paragraph as it appears in the draft, and stops when the full build starts
 (which then renders only what's left), or after --idle seconds with nothing new. --clips-only renders
-what the draft holds now, once. Neither lints, writes an MP3 or copies.
+what the draft holds now, once. Neither lints, writes an MP3 or copies, and neither runs on a cloud
+voice, where every re-render would be billed.
 
 --tolerance <fraction> sets how far the total may run off plan, for the lint and the render alike
 (default three percent).
 
 Exit codes (tools/cli.py): 0 done, 1 issues to fix, 2 the rendered total ran more than the tolerance
-off plan (the MP3 is written but not copied), 3 the voice's pace hasn't been measured yet (render the
-smoke test with it first, which measures it, or pass --allow-estimated), 64 the command was wrong (a
-mistyped option, an unknown voice): fix the command, not the draft. The render's stderr (model
+off plan (the MP3 is written but not copied), 3 the coach's pace hasn't been measured on this route yet
+(render the smoke test with them first, which measures it, or pass --allow-estimated), 4 a cloud voice
+service refused the key, the payment or the quota, 64 the command was wrong (a mistyped option, an
+unknown coach, rendering ahead on a cloud voice): fix the command, not the draft. The render's stderr (model
 loading, errors) goes to me/workouts/.logs/<name>.log, and its last lines print on a failure.
 """
 import filecmp
@@ -35,7 +38,7 @@ sys.path.insert(0, HERE)
 import cli  # noqa: E402
 import paths  # noqa: E402
 
-USAGE = 'usage: ./sweatcast build <draft> "<name>" [--voice <name>] [--lint-only] [--follow] [render options]'
+USAGE = 'usage: ./sweatcast build <draft> "<name>" [--coach <name>] [--engine <route>] [--lint-only] [--follow] [render options]'
 
 
 def python():
@@ -55,6 +58,19 @@ def tool(name, *args, **kw):
 def option(args, name):
     """The value after `name` in args, or None."""
     return args[args.index(name) + 1] if name in args[:-1] else None
+
+
+def drop(args, *names):
+    """args without each `name` and the value after it."""
+    out, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+        elif a in names:
+            skip = True
+        else:
+            out.append(a)
+    return out
 
 
 def show_log(log):
@@ -112,26 +128,39 @@ def main(argv=None):
         print(f"No draft at {draft}", file=sys.stderr)
         return cli.USAGE
 
-    # The default voice lives in the profile; context.py stops here, with the fix, if the
-    # context folder needs migrating.
-    got = tool("context.py", "get", "default-voice", capture_output=True, text=True)
+    # The coach is the one named, else the one used last; the route is --engine, else the first in the
+    # profile's render list that works here. Both go to the lint and the render explicitly, so neither
+    # guesses. context.py stops here, with the fix, if the context folder needs migrating.
+    coach = option(rest, "--coach") or option(rest, "--voice")
+    engine = option(rest, "--engine")
+    rest = drop(rest, "--coach", "--voice", "--engine")
+    if not coach:
+        got = tool("context.py", "get", "coach", capture_output=True, text=True)
+        if got.returncode:
+            print(got.stdout + got.stderr, end="")
+            return got.returncode
+        coach = got.stdout.strip()
+        if not coach:
+            print(f"No coach yet in {paths.show(paths.PERSONAS)}: make one first (the coach skill, or "
+                  "./sweatcast coaches design).")
+            return cli.ISSUES
+    got = tool("context.py", "get", "route", "--coach", coach, *(["--engine", engine] if engine else []),
+               capture_output=True, text=True)
     if got.returncode:
         print(got.stdout + got.stderr, end="")
         return got.returncode
-    voice = option(rest, "--voice")
-    if not voice:
-        voice = got.stdout.strip()
-        if not voice:
-            print(f"No --voice given, and no default voice found in {profile}.\nExpected at least one "
-                  "[[voices]] entry in the settings at the top of the profile; the first is the default.")
-            return cli.ISSUES
-        rest += ["--voice", voice]
+    route = got.stdout.strip()
+    rest += ["--coach", coach, "--engine", route]
     tolerance = option(rest, "--tolerance")
     smoke = os.path.basename(draft) == "smoke-test.draft.txt"
     os.makedirs(paths.LOGS, exist_ok=True)
     log = os.path.join(paths.LOGS, f"{name}.log")
 
     if "--clips-only" in rest or "--follow" in rest:
+        if route != "local":
+            print(f"Rendering ahead is off for a cloud voice ({route}): every re-render would be billed. Run the "
+                  "full build once the lint passes.")
+            return cli.USAGE
         # Rendering ahead while the rest of the draft is written: no lint, no MP3.
         status = render(draft, rest, log)
         if status:
@@ -139,22 +168,22 @@ def main(argv=None):
         return status
 
     if not smoke and not lint_only:
-        measured = tool("voices.py", "measured", voice).returncode
+        measured = tool("coaches.py", "measured", coach, "--engine", route).returncode
         if measured == cli.USAGE:
-            names = tool("context.py", "get", "voices", capture_output=True, text=True).stdout.split("\n")
-            print(f"Voices in your profile: {', '.join(n for n in names if n)} (all voices: ./sweatcast voices).")
+            names = tool("coaches.py", capture_output=True, text=True).stdout
+            print(f"Coaches:\n{names}")
             return cli.USAGE
         if measured and not allow_estimated:
-            print(f"{voice}'s speaking rate hasn't been measured yet, so this draft's timing is a guess.\n"
-                  "Render the smoke test with it first, which measures it, then rerun:\n"
-                  f'  ./sweatcast build voices/smoke-test.draft.txt "smoke-test" --voice "{voice}"\n'
+            print(f"{coach}'s speaking rate hasn't been measured on {route} yet, so this draft's timing is a guess.\n"
+                  "Render the smoke test with them first, which measures it, then rerun:\n"
+                  f'  ./sweatcast build {paths.show(paths.SMOKE_DRAFT)} "smoke-test" --coach "{coach}" --engine {route}\n'
                   "(or pass --allow-estimated to render anyway)")
             return cli.UNMEASURED
 
     # The smoke test exists to measure a voice, so its lint never blocks the render. Every other
     # draft needs the menu ./sweatcast brief --save wrote beside it: the lint checks each movement
     # the draft declares or names against today's limits, and stops the build without one.
-    lint = ["--voice", voice, "--out", os.path.join(out_dir, f"{name}.txt")]
+    lint = ["--coach", coach, "--engine", route, "--out", os.path.join(out_dir, f"{name}.txt")]
     lint += ["--total-tolerance", tolerance] if tolerance else []
     lint += ["--force"] if smoke else ["--require-menu"]
     status = tool("tts_build.py", draft, *lint).returncode
