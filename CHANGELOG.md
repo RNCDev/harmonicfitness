@@ -2,6 +2,25 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [8.1.0] - 2026-10-24
+
+Setup that a stranger can't trip over. Someone who clones sweatcast and says "set up sweatcast" in Claude Code is told up front what their computer can do, and setup no longer stops halfway for a missing prerequisite.
+
+### For forks
+Nothing to migrate: `me/` keeps schema 3. A customized setup skill gains a Step 0 (`./sweatcast doctor`, the cloud-session stop and the uv offer); merge it if you changed that skill.
+
+### Added
+- `./sweatcast doctor` (`tools/doctor.sh`, then `tools/doctor.py`): the readiness check. The system, chip, graphics, memory and free disk; uv, git, ffmpeg and the Python environment; whether local voices work on this computer and, when not, why; the voice models on disk; `me/` and its schema; each delivery folder, there or not on this computer; and whether ffmpeg can encode MP3 and normalize loudness. It runs before setup has made anything, and setup prints its first half as step 0. The memory and disk floors (8 GB, 6 GB free) are cautious guesses, said as such.
+- Claude Code cloud sessions are declined: with `CLAUDE_CODE_REMOTE=true`, every command but `help`, `test` and `doctor` stops with the reasons (no graphics card, the model download blocked, nothing kept after the session) and suggests the listener's own computer. `SWEATCAST_ALLOW_CLOUD_SESSION=1` lets a developer through.
+- `./sweatcast setup --install-uv` installs uv with Astral's official installer (no admin rights); the setup skill asks before running it.
+- ffmpeg comes with the Python environment (`imageio-ffmpeg` 0.6.0, whose ffmpeg 7.1 has libmp3lame and loudnorm) when it isn't installed (`tools/ffmpeg.py`).
+- `tools/player.py`: takes play with the system's own player (afplay on a Mac, xdg-open on Linux, the default player on Windows).
+
+### Changed
+- Setup no longer stops for a missing ffmpeg, and outside a git checkout (a zip download) it skips the privacy hook, says why, and carries on to the voice models. It always runs `uv sync`, which rebuilds a `.venv` copied from another computer.
+- The setup skill answers "set up sweatcast", "setup sweatcast", "install sweatcast" and "get started", starts with the readiness check, and names the right installer for each system; the skills send samples with SendUserFile or the system's player, never `afplay` alone.
+- The README starts from "open it in Claude Code and say set up sweatcast".
+
 ## [8.0.1] - 2026-10-23
 
 ### Fixed
