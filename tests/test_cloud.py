@@ -237,6 +237,71 @@ class ElevenLabs(ServiceCase):
         self.assertIn("output_format=pcm_24000", fake.requests[0].path)
 
 
+class Cartesia(ServiceCase):
+    SERVICE = "cartesia"
+
+    def test_cartesia_clones_once_and_requests_raw_pcm(self):
+        def answer(req):
+            if req.path == "/voices/clone":
+                return 200, {}, json.dumps({"id": "cartesia-voice-1", "name": "x", "language": "en"}).encode()
+            return 200, {"Content-Type": "audio/pcm"}, tone_pcm(0.3)
+        fake = self.serve(answer)
+        for _ in range(2):
+            cloud.speaker(personas.voice_for(self.coach(), "cartesia"))("Set your feet.", 42)
+        clones = [r for r in fake.requests if r.path == "/voices/clone"]
+        self.assertEqual(len(clones), 1)
+        self.assertIn(b'name="clip"', clones[0].body)
+        self.assertIn(b'name="language"', clones[0].body)
+        tts = [r for r in fake.requests if r.path == "/tts/bytes"][0]
+        self.assertEqual(tts.headers["authorization"], f"Bearer {SECRET}")
+        self.assertEqual(tts.headers["cartesia-version"], "2026-08-14")
+        body = json.loads(tts.body)
+        self.assertEqual(body["model_id"], "sonic-3.6")
+        self.assertEqual(body["voice"], {"mode": "id", "id": "cartesia-voice-1"})
+        self.assertEqual(body["output_format"], {"container": "raw", "encoding": "pcm_s16le", "sample_rate": 24000})
+        self.assertEqual((body["transcript"], body["language"]), ("Set your feet.", "en"))
+
+
+class Deepgram(ServiceCase):
+    SERVICE = "deepgram"
+
+    def stock(self):
+        import context
+        context.set_persona_setting(self.coach().path, "deepgram", "voice", "aura-2-apollo-en")
+        return personas.voice_for(self.coach(), "deepgram")
+
+    def test_deepgram_token_header_and_raw_pcm(self):
+        fake = self.serve(lambda r: (200, {"Content-Type": "audio/l16;rate=24000"}, tone_pcm(0.3)))
+        pcm = cloud.speaker(self.stock())("Set your feet.", 42)
+        req = fake.requests[0]
+        self.assertEqual(req.headers["authorization"], f"Token {SECRET}")
+        self.assertTrue(req.path.startswith("/v1/speak?"))
+        for part in ("model=aura-2-apollo-en", "encoding=linear16", "sample_rate=24000", "container=none"):
+            self.assertIn(part, req.path)
+        self.assertEqual(json.loads(req.body), {"text": "Set your feet."})
+        self.assertGreater(len(pcm), 0)
+
+    def test_deepgram_without_a_stock_voice_says_how_to_pick(self):
+        with self.assertRaises(SystemExit) as e:
+            personas.voice_for(self.coach(), "deepgram")
+        self.assertIn("samples deepgram", str(e.exception.code))
+
+    def test_deepgram_refuses_a_paragraph_over_2000_characters(self):
+        fake = self.serve(lambda r: (200, {}, tone_pcm(0.3)))
+        with self.assertRaises(cloud.ServiceError) as e:
+            cloud.speaker(self.stock())("word " * 401, 42)
+        self.assertEqual(e.exception.kind, "bad_request")
+        self.assertIn("2000", str(e.exception))
+        self.assertEqual(fake.requests, [])
+
+    def test_a_stock_voice_has_its_own_cache_identity(self):
+        a = self.stock()
+        import context
+        context.set_persona_setting(self.coach().path, "deepgram", "voice", "aura-2-thalia-en")
+        b = personas.voice_for(self.coach(), "deepgram")
+        self.assertNotEqual((a["key"], a["model"]), (b["key"], b["model"]))
+
+
 class CloudRender(unittest.TestCase):
     """tools/render.py on a cloud route, end to end against the fake Fish server."""
 
