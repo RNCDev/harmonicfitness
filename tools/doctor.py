@@ -102,10 +102,7 @@ def _ffmpeg_lines():
     return [f"  ffmpeg: {where} lacks {missing}; install a full build ({ffmpeg.install_hint()})"]
 
 
-def report_lines(f=None, home=None):
-    """The lines that need the environment: models, the context folder, delivery, ffmpeg."""
-    f = f if f is not None else facts()
-    home = home or paths.HOME
+def _models_section():
     out = [f"Voice models (in {paths.show(paths.MODELS)}"
            + (f", a link to {os.path.realpath(paths.MODELS)}" if os.path.islink(paths.MODELS) else "") + ")"]
     try:
@@ -117,6 +114,59 @@ def report_lines(f=None, home=None):
                        "./sweatcast models adopt moves them here instead of downloading again.")
     except Exception as e:   # a broken voice file shouldn't hide the rest of the report
         out.append(f"  couldn't list them: {e}")
+    return out
+
+
+def kept(home):
+    """True when the context folder is its own git repo with a remote, so ./sweatcast backup keeps it."""
+    import backup
+    return backup.own_repo(home) and bool(backup.git(home, "remote").stdout.split())
+
+
+def web_lines(home, profile=None):
+    """What Claude Code on the web needs: the key as a setting, the hosts to allow, and where the profile lives."""
+    import keys
+    import routes
+    have = [s for s in routes.SERVICES if keys.is_set(s)]
+    wanted = [r for r in (profile and _routes(profile) or []) if r in routes.SERVICES] or have or ["fish"]
+    lines = ["Claude Code on the web",
+             "  Cloud voices only: there's no graphics card here for a local one.",
+             "  Voice key: " + (f"set for {', '.join(have)}." if have else
+                                "none yet. Set it in the cloud environment's settings, under Environment variables, "
+                                "as FISH_AUDIO_API_KEY=<key> (or ELEVENLABS_API_KEY, CARTESIA_API_KEY, "
+                                "DEEPGRAM_API_KEY); never in the chat."),
+             "  Network: the environment's network access needs " + ", ".join(
+                 h for r in wanted for h in routes.hosts(r)) + " (Custom, with the default list kept).",
+             "  Feeds, optional (research searches without them): " + ", ".join(routes.feed_hosts(profile)) + "."]
+    if kept(home):
+        lines.append(f"  Your context folder: {paths.show(home)}, its own private repo, so ./sweatcast backup keeps it.")
+    else:
+        lines.append(f"  Your context folder: {paths.show(home)}, not kept: this is a one-time session, and the "
+                     "profile, log and coach vanish when it ends. To keep them, attach your private sweatcast-me repo "
+                     "to the session (or set SWEATCAST_HOME to where it's cloned).")
+    return lines
+
+
+def _routes(profile):
+    import context
+    return context.routes(profile)
+
+
+def report_lines(f=None, home=None):
+    """The lines that need the environment: models, the context folder, delivery, ffmpeg."""
+    f = f if f is not None else facts()
+    home = home or paths.HOME
+    if f.get("remote") == "yes":   # Claude Code on the web: what to set up there, and no local models
+        import context
+        prof = None
+        try:
+            if os.path.exists(os.path.join(home, "profile.md")):
+                prof = context.profile(os.path.join(home, "profile.md"))
+        except SystemExit:
+            prof = None
+        out = web_lines(home, prof)
+    else:
+        out = _models_section()
     out += ["", "Your context folder"]
     try:
         out += _context_lines(home)

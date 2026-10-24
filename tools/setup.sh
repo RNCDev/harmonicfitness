@@ -24,16 +24,14 @@
 # after giving a coach another local engine to fetch its model. An existing context folder is brought up to this version's
 # format (./sweatcast migrate), backed up first.
 #
+# On Claude Code on the web (CLAUDE_CODE_REMOTE=true) there's no local engine: cloud voices only.
+#
 # Test-only: SWEATCAST_UV is the uv to run, and SWEATCAST_PYTHON the Python the tools run under.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 CONTEXT="${SWEATCAST_HOME:-$ROOT/me}"
 cd "$ROOT"
-if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -z "${SWEATCAST_ALLOW_CLOUD_SESSION:-}" ]; then
-  sh "$HERE/doctor.sh" decline
-  exit 1
-fi
 
 find_uv() {
   if [ -n "${SWEATCAST_UV:-}" ]; then echo "$SWEATCAST_UV"; return; fi
@@ -115,6 +113,9 @@ fi
 PY="${SWEATCAST_PYTHON:-.venv/bin/python}"
 [ -x "$PY" ] || PY=".venv/Scripts/python.exe"   # Windows
 "$PY" tools/ffmpeg.py | sed 's/^/   /' || true
+# The context folder as every tool finds it (tools/paths.py): SWEATCAST_HOME, else me/, else (on Claude
+# Code on the web) the private repo attached beside the engine.
+CONTEXT="$("$PY" -c "import sys; sys.path.insert(0, 'tools'); import paths; print(paths.HOME)" 2>/dev/null || echo "$CONTEXT")"
 
 echo "2. Your context folder ($CONTEXT)"
 if [ -e "$CONTEXT/profile.md" ]; then

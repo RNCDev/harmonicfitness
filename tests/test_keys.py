@@ -110,5 +110,25 @@ class BackupRefusesKeys(unittest.TestCase):
             self.assertIn(".env", [line.strip() for line in f])
 
 
+class OnTheWeb(unittest.TestCase):
+    def test_init_on_the_web_points_to_the_environment_settings(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", SWEATCAST_HOME=os.path.join(d, "me"))
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "keys.py"), "init", "fish"], env=env,
+                                 capture_output=True, text=True, timeout=60)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertIn("Environment variables", out.stdout)
+            self.assertIn("FISH_AUDIO_API_KEY=<your key>", out.stdout)
+            self.assertFalse(os.path.exists(os.path.join(d, "me", ".env")))
+
+    def test_download_refused_in_cloud(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", SWEATCAST_HOME=os.path.join(d, "me"))
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "coaches.py"), "download"], env=env,
+                                 capture_output=True, text=True, timeout=60)
+            self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
+            self.assertIn("cloud voice only", out.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

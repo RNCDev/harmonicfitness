@@ -108,7 +108,7 @@ class Doctor(unittest.TestCase):
 
 
 class CloudSession(unittest.TestCase):
-    """A Claude Code cloud session (CLAUDE_CODE_REMOTE=true) is declined before anything is installed."""
+    """Claude Code on the web (CLAUDE_CODE_REMOTE=true): sweatcast runs, with cloud voices only."""
 
     def run_in_copy(self, *args, **env):
         d = tempfile.mkdtemp()
@@ -118,40 +118,82 @@ class CloudSession(unittest.TestCase):
                              capture_output=True, text=True, timeout=60)
         return out, repo
 
-    def test_cloud_session_declines_setup_and_build(self):
-        for args in (["setup"], ["build", "x.draft.txt", "x"], ["check"]):
-            out, repo = self.run_in_copy(*args, CLAUDE_CODE_REMOTE="true")
-            self.assertEqual(out.returncode, 1, args)
-            self.assertIn("cloud session", out.stdout + out.stderr)
-            self.assertIn("your own computer", out.stdout + out.stderr)
-            self.assertFalse(os.path.exists(os.path.join(repo, ".venv")))
-            self.assertFalse(os.path.exists(os.path.join(repo, "me")))
+    def test_remote_facts_no_local(self):
+        mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""}
+        f = facts(mac, CLAUDE_CODE_REMOTE="true")
+        self.assertEqual((f["local"], f["local_hw"], f["local_engine"], f["remote"]), ("no", "no", "", "yes"))
+        self.assertIn("Claude Code on the web", f["local_reason"])
+        linux = {"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "16", "DISK_GB": "30", "GPU": "NVIDIA A10, 24"}
+        self.assertEqual(facts(linux, CLAUDE_CODE_REMOTE="true")["local"], "no")   # even with a card
 
-    def test_setup_script_run_directly_declines_too(self):
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d)
-        repo = copy_repo(d)
-        out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh")], env=clean_env(CLAUDE_CODE_REMOTE="true"),
-                             capture_output=True, text=True, timeout=60)
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("cloud session", out.stdout)
-        self.assertFalse(os.path.exists(os.path.join(repo, "me")))
-
-    def test_override_lets_a_developer_through(self):
-        out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", SWEATCAST_ALLOW_CLOUD_SESSION="1",
-                                  SWEATCAST_PYTHON=sys.executable)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        out, _ = self.run_in_copy("setup", "--no-models", CLAUDE_CODE_REMOTE="true",
-                                  SWEATCAST_ALLOW_CLOUD_SESSION="1", SWEATCAST_UV="/nonexistent/uv")
-        self.assertNotIn("cloud session", out.stdout)
-
-    def test_help_test_and_doctor_still_run_in_a_cloud_session(self):
+    def test_wrapper_runs_in_cloud(self):
         out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", SWEATCAST_PYTHON=sys.executable)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        out, repo = self.run_in_copy("check", CLAUDE_CODE_REMOTE="true", SWEATCAST_PYTHON=sys.executable)
+        self.assertNotIn("doesn't set up here", out.stdout + out.stderr)
+        self.assertIn("./sweatcast setup", out.stdout + out.stderr)   # no context folder yet: setup makes one
+
+    def test_doctor_names_the_web(self):
         out, _ = self.run_in_copy("doctor", CLAUDE_CODE_REMOTE="true")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("cloud session", out.stdout)
+        self.assertIn("Claude Code on the web", out.stdout)
         self.assertIn("This computer", out.stdout)
+
+    def test_setup_in_cloud_installs_no_local_engine(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        os.makedirs(os.path.join(d, "engine"))
+        repo = copy_repo(os.path.join(d, "engine"))
+        uv, log = os.path.join(d, "uv"), os.path.join(d, "uv.log")
+        with open(uv, "w") as f:
+            f.write(STUB_UV)
+        os.chmod(uv, 0o755)
+        env = clean_env(CLAUDE_CODE_REMOTE="true", SWEATCAST_UV=uv, UV_LOG=log, SWEATCAST_PYTHON=sys.executable,
+                        HOME=d, SWEATCAST_FAKE_OS="Linux", SWEATCAST_FAKE_ARCH="x86_64", SWEATCAST_FAKE_GPU="")
+        out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh")], cwd=repo, env=env,
+                             capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        with open(log) as f:
+            self.assertNotIn("--extra", f.read())
+        self.assertTrue(os.path.exists(os.path.join(repo, "me", "personas", "coach-demo", "clip.wav")))
+        out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh"), "--local"], cwd=repo, env=env,
+                             capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("Claude Code on the web", out.stdout)
+
+    def test_find_home_sibling(self):
+        import paths
+        with tempfile.TemporaryDirectory() as d:
+            root = os.path.join(d, "sweatcast")
+            os.makedirs(os.path.join(root, "tools"))
+            mine = os.path.join(d, "sweatcast-me")
+            os.makedirs(os.path.join(mine, "personas"))
+            open(os.path.join(mine, "profile.md"), "w").close()
+            remote = {"CLAUDE_CODE_REMOTE": "true"}
+            self.assertEqual(paths.find_home(root, remote), mine)
+            self.assertEqual(paths.find_home(root, {}), os.path.join(root, "me"))   # only on the web
+            self.assertEqual(paths.find_home(root, dict(remote, SWEATCAST_HOME=os.path.join(d, "x"))),
+                             os.path.join(d, "x"))
+            other = os.path.join(d, "another")
+            os.makedirs(os.path.join(other, "personas"))
+            open(os.path.join(other, "profile.md"), "w").close()
+            self.assertEqual(paths.find_home(root, remote), os.path.join(root, "me"))   # two: don't guess
+            os.makedirs(os.path.join(root, "me"))
+            open(os.path.join(root, "me", "profile.md"), "w").close()
+            self.assertEqual(paths.find_home(root, remote), os.path.join(root, "me"))
+
+    def test_remote_without_home_says_one_time(self):
+        import doctor
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(os.path.join(ROOT, "me.example"), home)
+            lines = "\n".join(doctor.web_lines(home))
+            self.assertIn("one-time session", lines)
+            self.assertIn("api.fish.audio", lines)
+            subprocess.run(["git", "init", "-q", home], check=True)
+            subprocess.run(["git", "-C", home, "remote", "add", "origin", "https://github.com/x/sweatcast-me.git"],
+                           check=True)
+            self.assertIn("keeps it", "\n".join(doctor.web_lines(home)))
 
 
 STUB_UV = """#!/bin/sh

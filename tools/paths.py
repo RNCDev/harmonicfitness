@@ -12,7 +12,32 @@ Every tool takes its paths from here, so a different context folder needs no edi
 import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HOME = os.path.abspath(os.path.expanduser(os.environ.get("SWEATCAST_HOME") or os.path.join(ROOT, "me")))
+REMOTE = os.environ.get("CLAUDE_CODE_REMOTE") == "true"   # Claude Code on the web
+
+
+def find_home(root, env):
+    """The context folder: SWEATCAST_HOME; else me/ when it holds a profile; else, on Claude Code on the
+    web, the one folder beside the engine holding a profile.md and personas/ (the listener's private
+    sweatcast-me repo, attached to the session); else me/."""
+    if env.get("SWEATCAST_HOME"):
+        return os.path.abspath(os.path.expanduser(env["SWEATCAST_HOME"]))
+    default = os.path.join(root, "me")
+    if env.get("CLAUDE_CODE_REMOTE") == "true" and not os.path.exists(os.path.join(default, "profile.md")):
+        parent = os.path.dirname(os.path.abspath(root))
+        try:
+            names = sorted(os.listdir(parent))
+        except OSError:
+            names = []
+        found = [os.path.join(parent, n) for n in names
+                 if os.path.join(parent, n) != os.path.abspath(root)
+                 and os.path.isfile(os.path.join(parent, n, "profile.md"))
+                 and os.path.isdir(os.path.join(parent, n, "personas"))]
+        if len(found) == 1:
+            return found[0]
+    return default
+
+
+HOME = find_home(ROOT, os.environ)
 
 # The local voice models: models/ at the repo root (git-ignored; it may be a symlink to a shared place), or
 # SWEATCAST_MODELS. Every download and load goes there: Hugging Face's cache is pointed at it here, at

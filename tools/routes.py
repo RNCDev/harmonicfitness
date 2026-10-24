@@ -87,6 +87,32 @@ def pick(preferences, persona=None, override=None, facts=None):
     raise SystemExit("No audio route works on this computer:\n  " + "\n  ".join(reasons + hints))
 
 
+FEED_HOSTS = ("site.api.espn.com", "api.open-meteo.com", "en.wikipedia.org", "www.youtube.com")
+
+
+def hosts(route):
+    """The hosts a cloud route sends to, for a network allowlist (Claude Code on the web)."""
+    if route not in SERVICES:
+        return []
+    import cloud
+    from urllib.parse import urlparse
+    return [urlparse(cloud.services()[route]["url"]).hostname]
+
+
+def feed_hosts(profile=None):
+    """The hosts ./sweatcast feeds and ./sweatcast youtube fetch from: the fixed ones, plus each RSS feed's."""
+    from urllib.parse import urlparse
+    out = list(FEED_HOSTS)
+    if profile is not None:
+        import context
+        for _, kind, value in context.feed_sources(profile):
+            if kind in ("rss", "weekly"):
+                host = urlparse(value).hostname
+                if host and host not in out:
+                    out.append(host)
+    return out
+
+
 def report_lines(persona=None, preferences=None, facts=None):
     """The readiness check's Routes section."""
     out = []

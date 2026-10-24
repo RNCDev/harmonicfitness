@@ -114,5 +114,35 @@ class Template(unittest.TestCase):
             self.assertIn(rule, lines)
 
 
+class Visibility(unittest.TestCase):
+    """Without gh (Claude Code on the web), GitHub's API still says whether a repo is public."""
+
+    def serve(self, status, body):
+        import http.server
+        import threading
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body.encode())
+
+            def log_message(self, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_address[1]}/repos/"
+
+    def test_visibility_without_gh(self):
+        with mock.patch.object(backup.shutil, "which", return_value=None):
+            with mock.patch.object(backup, "API", self.serve(200, '{"private": false, "visibility": "public"}')):
+                self.assertEqual(backup.visibility("x/sweatcast-me"), "PUBLIC")
+            with mock.patch.object(backup, "API", self.serve(404, '{"message": "Not Found"}')):
+                self.assertIsNone(backup.visibility("x/sweatcast-me"))
+
+
 if __name__ == "__main__":
     unittest.main()

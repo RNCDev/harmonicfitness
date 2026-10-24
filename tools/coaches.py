@@ -277,6 +277,9 @@ def main(argv=None):
         print("Pick one, then: ./sweatcast coaches set \"<coach>\" deepgram.voice <voice>")
         return cli.OK
     if args.cmd == "download":
+        if paths.REMOTE:
+            print("Claude Code on the web renders with a cloud voice only, so there's no local model to fetch here.")
+            return cli.USAGE
         if args.all:
             engines_wanted = [e for e in personas.LOCAL_ENGINES if (e, voices.BACKEND) in voices.LOCAL_MODELS]
         else:

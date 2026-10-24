@@ -96,6 +96,13 @@ def main(argv=None):
     i = sub.add_parser("init", help="add the service's key line to me/.env (making the file if needed)")
     i.add_argument("service", choices=list(SERVICE_VARS))
     args = ap.parse_args(argv)
+    if args.cmd == "init" and paths.REMOTE:
+        print(f"On Claude Code on the web, a key in a file here would be gone when the session ends. Set it in the "
+              f"cloud environment's settings instead, under Environment variables, as one line:\n"
+              f"  {SERVICE_VARS[args.service]}=<your key>\n"
+              f"(get one at {KEY_PAGES[args.service]}). Never paste it into the chat. A new session picks it up; "
+              "./sweatcast keys then says it's set.")
+        return cli.OK
     if args.cmd == "init":
         path = init(args.service)
         print(f"Paste your {args.service} key after {SERVICE_VARS[args.service]}= in {os.path.abspath(path)} "

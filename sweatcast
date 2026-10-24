@@ -8,14 +8,6 @@
 #
 # Set SWEATCAST_PYTHON to use another interpreter (the tests do).
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-# A Claude Code cloud session can't keep what setup makes or render in reasonable time, so every
-# command but help, test and doctor stops here. SWEATCAST_ALLOW_CLOUD_SESSION=1 lets a developer through.
-if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -z "${SWEATCAST_ALLOW_CLOUD_SESSION:-}" ]; then
-  case "${1:-help}" in
-    help|-h|--help|test|doctor) ;;
-    *) sh "$ROOT/tools/doctor.sh" decline; exit 1 ;;
-  esac
-fi
 if [ "$1" = "setup" ]; then
   shift
   exec sh "$ROOT/tools/setup.sh" "$@"   # makes .venv, so it can't need it

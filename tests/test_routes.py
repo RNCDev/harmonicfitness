@@ -111,5 +111,19 @@ class Routes(unittest.TestCase):
         self.assertEqual(context.cloud_max_chars(context.Profile({"cloud_max_chars": 12000}, "", "")), 12000)
 
 
+class Hosts(unittest.TestCase):
+    def test_hosts(self):
+        self.assertEqual(routes.hosts("fish"), ["api.fish.audio"])
+        self.assertEqual(routes.hosts("elevenlabs"), ["api.elevenlabs.io"])
+        self.assertEqual(routes.hosts("local"), [])
+
+    def test_feed_hosts_add_each_rss_host(self):
+        p = context.Profile({"feeds": [{"label": "Local, Paper", "kind": "rss", "value": "https://news.example.org/rss"},
+                                       {"label": "Weather", "kind": "weather", "value": "40.1, -75.2"}]}, "", "")
+        got = routes.feed_hosts(p)
+        self.assertIn("news.example.org", got)
+        self.assertIn("api.open-meteo.com", got)
+
+
 if __name__ == "__main__":
     unittest.main()

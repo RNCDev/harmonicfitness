@@ -53,17 +53,37 @@ def github_slug(url):
 
 
 def visibility(slug):
-    """GitHub's word for the repo's visibility (PUBLIC, PRIVATE, INTERNAL), or None when gh can't say."""
-    if not shutil.which("gh"):
-        return None
+    """GitHub's word for the repo's visibility (PUBLIC, PRIVATE, INTERNAL), or None when it can't be told.
+    gh first; without it (Claude Code on the web), GitHub's API unauthenticated, which answers only for a
+    public repo (a private one is a 404, which says nothing for sure)."""
+    if shutil.which("gh"):
+        try:
+            out = subprocess.run(["gh", "repo", "view", slug, "--json", "visibility", "-q", ".visibility"],
+                                 capture_output=True, text=True, timeout=20)
+            if out.returncode == 0 and out.stdout.strip():
+                return out.stdout.strip().upper()
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return _api_visibility(slug)
+
+
+API = "https://api.github.com/repos/"
+
+
+def _api_visibility(slug, api=None):
+    import json
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request((api or API) + slug, headers={"Accept": "application/vnd.github+json",
+                                                               "User-Agent": "sweatcast-backup"})
     try:
-        out = subprocess.run(["gh", "repo", "view", slug, "--json", "visibility", "-q", ".visibility"],
-                             capture_output=True, text=True, timeout=20)
-    except (OSError, subprocess.TimeoutExpired):
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError):
         return None
-    if out.returncode:
-        return None
-    return out.stdout.strip().upper() or None
+    if data.get("private") is False:
+        return "PUBLIC"
+    return str(data.get("visibility") or "").upper() or None
 
 
 def push_target(home):

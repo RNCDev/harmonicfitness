@@ -16,17 +16,6 @@ ROOT="$(dirname "$HERE")"
 MEM_FLOOR=8    # GB of memory for a local voice model (a guess: the models need 3 to 5 GB)
 DISK_FLOOR=6   # GB free for the local engine and one model (a guess: 2 to 4 GB of PyTorch or MLX, 3 to 4 GB of model)
 
-decline() {   # the one place the cloud-session message lives (the ./sweatcast wrapper prints it too)
-  cat <<'EOF'
-This is a Claude Code cloud session, and sweatcast doesn't set up here:
-  - the cloud machine has no graphics card, so making the audio would take a very long time;
-  - the default network settings block downloading the voice model;
-  - your profile, injuries and workout log would vanish when the session ends.
-Open this folder in Claude Code on your own computer and say "set up sweatcast".
-EOF
-}
-if [ "$1" = "decline" ]; then decline; exit 0; fi
-
 # ---- what the computer is ----------------------------------------------------------------
 UNAME_S="${SWEATCAST_FAKE_OS-$(uname -s 2>/dev/null)}"
 UNAME_M="${SWEATCAST_FAKE_ARCH-$(uname -m 2>/dev/null)}"
@@ -123,9 +112,15 @@ elif { [ "$OS" = linux ] && [ "$ARCH" != other ]; } || { [ "$OS" = windows ] && 
 else
   LOCAL_REASON="PyTorch has no build for this system or processor ($UNAME_S, $UNAME_M); a cloud voice works here."
 fi
+# Claude Code on the web: a cloud machine with no graphics card, whose files last only as long as the
+# session (what's in git aside). Cloud voices only; doctor.py says what to set up there.
+if [ "$REMOTE" = yes ]; then
+  LOCAL=no; LOCAL_ENGINE=""
+  LOCAL_REASON="This is Claude Code on the web, with no graphics card for a local voice; a cloud voice works here."
+fi
 # What the hardware runs, before the floors: the floors decide whether to offer a first install, and never
 # switch off an engine that's already installed (tools/routes.py and setup read local_hw for that).
-LOCAL_HW="$LOCAL"; LOCAL_ENGINE_HW="$LOCAL_ENGINE"
+LOCAL_HW="$LOCAL"; LOCAL_ENGINE_HW="$LOCAL_ENGINE"   # no on the web: nothing local is ever installed there
 if [ "$LOCAL" != no ] && [ -n "$MEM" ] && [ "$MEM" -gt 0 ] 2>/dev/null && [ "$MEM" -lt "$MEM_FLOOR" ]; then
   LOCAL=no; LOCAL_ENGINE=""
   LOCAL_REASON="This computer has ${MEM} GB of memory; a local voice model needs about ${MEM_FLOOR} GB (a cautious guess)."
@@ -166,8 +161,10 @@ case "$OS" in
   *) UV_INSTALL="curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
 esac
 
-if [ "$REMOTE" = yes ] && [ -z "${SWEATCAST_ALLOW_CLOUD_SESSION:-}" ]; then decline; echo
-elif [ "$REMOTE" = yes ]; then echo "(A Claude Code cloud machine, set up anyway: SWEATCAST_ALLOW_CLOUD_SESSION is set.)"; echo; fi
+if [ "$REMOTE" = yes ]; then
+  echo "This is Claude Code on the web: sweatcast runs here with a cloud voice (your own key), not a local one."
+  echo
+fi
 echo "This computer"
 echo "  System:   $SYSTEM, $ARCH${CHIP:+ ($CHIP)}"
 if [ "$OS" = mac ] && [ "$ARCH" = arm64 ]; then echo "  Graphics: built into the Apple Silicon chip"
