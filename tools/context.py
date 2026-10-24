@@ -49,7 +49,7 @@ import cli  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
-SCHEMA = 4
+SCHEMA = 5
 PERSONA_SCHEMA = 4   # me/personas/<slug>/persona.md, new in sweatcast 9
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1

@@ -1,5 +1,5 @@
 +++
-schema = 4
+schema = 5
 # What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
 name = "Theo"
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.

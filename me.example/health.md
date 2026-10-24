@@ -1,5 +1,5 @@
 +++
-schema = 4
+schema = 5
 # Each injury listed below needs a [[limits]] entry here (area, side, level, note). The brief's safety
 # screen reads only these rows. level is off-limits (nothing that loads the area) or delicate (only light
 # loads); knowledge/injury-playbook.md explains both. An example, with an invented area:

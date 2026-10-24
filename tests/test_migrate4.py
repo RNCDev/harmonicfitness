@@ -78,7 +78,7 @@ class Migrate4(unittest.TestCase):
         self.assertNotIn("[[voices]]", profile)
         self.assertNotIn("- Tone: calm and focused.", profile)
         self.assertEqual(context.front(profile)[0]["render"], ["local"])
-        self.assertEqual(context.front(profile)[0]["schema"], 4)
+        self.assertEqual(context.front(profile)[0]["schema"], 5)   # on through 4 to 5
         backup = [d for d in os.listdir(self.home) if d.startswith(".backup-")]
         self.assertEqual(len(backup), 1)
         saved = os.listdir(os.path.join(self.home, backup[0]))

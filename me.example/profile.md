@@ -1,5 +1,5 @@
 +++
-schema = 4
+schema = 5
 # What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
 name = ""
 # "quick" until the second half of setup is done (interests, feeds, delivery, your own coach): until then ./sweatcast check lists what's left as notes. Say "finish setting me up" to do it.

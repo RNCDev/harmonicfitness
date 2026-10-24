@@ -31,6 +31,12 @@ Steps:
         out .env (API keys) and designed takes. Cached clips stay valid: the clip, model and
         engine, which their keys are made of, don't change. A voice named for a model that isn't
         one of those two needs a person's name: --name "<old>=<Coach Name>".
+    4 to 5 (sweatcast 9.1.0): a folder per workout. Each draft in workouts/drafts/ moves, with its
+        brief and menu, to workouts/<stem>/, and each build's script and record (and an MP3 not
+        yet delivered) moves beside the draft its record names (or, with no record, the one draft
+        from the same date). Smoke tests, and anything that can't be placed for sure, go to
+        workouts/checks/; each day's research sheet and feeds to workouts/research/daily/. Nothing
+        is overwritten. The files' text changes only its schema number.
 """
 import json
 import os
@@ -44,6 +50,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
 import paths  # noqa: E402
+import workouts  # noqa: E402
 from paths import show  # noqa: E402
 
 
@@ -127,6 +134,15 @@ def to_4(text, path):
     return f"+++\n{block}\n+++\n" + rest
 
 
+def to_5(text, path):
+    """Schema 4 to 5: only the schema number; the workouts folder moves once, in migrate()."""
+    m = context.TOML_FRONT_RE.match(text)
+    if not m:
+        return context.with_front_matter(text, 5)
+    block = re.sub(r"(?m)^schema\s*=\s*4\b", "schema = 5", m.group(1), count=1)
+    return f"+++\n{block}\n+++\n" + text[m.end():]
+
+
 def _without_narrator(body):
     out, inside = [], False
     for ln in body.splitlines(keepends=True):
@@ -143,7 +159,7 @@ def _without_narrator(body):
     return "".join(out)
 
 
-STEPS = {0: to_1, 1: to_2, 2: to_3, 3: to_4}   # from schema N, the function that makes it N + 1
+STEPS = {0: to_1, 1: to_2, 2: to_3, 3: to_4, 4: to_5}   # from schema N, the function that makes it N + 1
 
 # ---- 3 to 4: voices become coaches (a folder step, beside the file steps) -------------------
 
@@ -317,13 +333,16 @@ def plan():
     return out
 
 
-def migrate(dry_run=False, stamp=None, names=None, report=None):
+def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
     """Apply every step to every file that's behind. Returns (backup folder or None, [changed paths]).
-    `report`, a list, gets the coaches made."""
+    `report`, a list, gets the coaches made; `moves`, a list, the workout files moved (src, dst)."""
     todo = plan()
+    relayout = any(found < 5 for _, found in todo)
     if not todo or dry_run:
         if dry_run and todo:
             _coach_plan(todo, names, report)
+            if relayout and moves is not None:
+                moves.extend(workouts.reorganize(paths.HOME, dry_run=True))
         return None, [p for p, _ in todo]
     home = paths.HOME
     coach_plan = _coach_plan(todo, names)   # a voice that needs a name stops here, before anything changes
@@ -357,6 +376,10 @@ def migrate(dry_run=False, stamp=None, names=None, report=None):
             os.remove(old_pace)   # it's in the backup; each coach has its own now
         if os.path.isdir(paths.OLD_VOICES):
             shutil.rmtree(paths.OLD_VOICES)   # copied into personas/ and the backup
+    if relayout:
+        moved = workouts.reorganize(home)
+        if moves is not None:
+            moves.extend(moved)
     return backup, [p for p, _ in todo]
 
 
@@ -375,6 +398,10 @@ def _coach_plan(todo, names=None, report=None):
                               for old, new, _, _, found_ in result)
             return result
     return None
+
+
+def _rel(path):
+    return os.path.relpath(path, os.path.join(paths.HOME, "workouts"))
 
 
 def main(argv=None):
@@ -399,16 +426,20 @@ def main(argv=None):
     else:
         for path, found in todo:
             print(f"{show(path)}: schema {found} to {context.SCHEMA}")
-        report = []
+        report, moves = [], []
         if args.dry_run:
-            migrate(dry_run=True, names=names, report=report)
+            migrate(dry_run=True, names=names, report=report, moves=moves)
             for line in report:
                 print(f"  {line}")
+            for src, dst in moves:
+                print(f"  {_rel(src)} would move to {_rel(dst)}")
             print("Dry run: nothing changed.")
             return cli.OK
-        backup, _ = migrate(names=names, report=report)
+        backup, _ = migrate(names=names, report=report, moves=moves)
         for line in report:
             print(f"  Made the coach {line}")
+        if moves:
+            print(f"  Moved {len(moves)} workout file(s) into a folder per workout (and checks/, research/daily/).")
         print(f"Backed up the originals to {show(backup)}.")
 
     issues = context.check()

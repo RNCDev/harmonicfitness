@@ -746,13 +746,24 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         out = self.build()
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertTrue(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
-        local = os.path.join(self.home, "workouts", "Test build.mp3")
+        local = os.path.join(self.home, "workouts", "checks", "Test build.mp3")   # a draft outside a workout folder
         self.assertFalse(os.path.exists(local), "the local MP3 is removed once the copy is in place")
-        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "Test build.txt")))
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "checks", "Test build.txt")))
         self.assertIn("--coach Coach Julius --engine local", self.calls())   # the first coach, with no sessions yet
         self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
         self.assertIn("tts_build.py", self.calls().splitlines()[0])
         self.assertIn("--require-menu", self.calls().splitlines()[0])   # a workout can't build without its menu
+
+    def test_a_draft_in_its_workout_folder_builds_there(self):
+        folder = os.path.join(self.home, "workouts", "2026-10-25-strength-25")
+        os.makedirs(folder)
+        draft = os.path.join(folder, "2026-10-25-strength-25.draft.txt")
+        shutil.copy(os.path.join(ROOT, "tests", "fixtures", "example.draft.txt"), draft)
+        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": "0",
+               "SWEATCAST_FAKE_LOCAL_ENGINE": "1"}
+        out = run(["sh", "sweatcast", "build", draft, "Test build", "--allow-estimated"], home=self.home, env=env)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertTrue(os.path.exists(os.path.join(folder, "Test build.txt")))
 
     def test_the_smoke_test_needs_no_menu(self):
         env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": "0",
@@ -774,7 +785,7 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
             os.chmod(self.phone, 0o700)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("Couldn't copy", out.stdout)
-        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "Test build.mp3")))
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "checks", "Test build.mp3")))
 
     def test_drift_exits_2_without_a_copy_or_the_log(self):
         out = self.build(render_exit=2)
@@ -1265,7 +1276,7 @@ note = "Therapist: no weight through the hand."
     def test_profile_settings(self):
         write_file(os.path.join(self.dir, "profile.md"), profile_text(self.SETTINGS))
         p = context.profile(os.path.join(self.dir, "profile.md"))
-        self.assertEqual(context.SCHEMA, 4)
+        self.assertEqual(context.SCHEMA, 5)
         self.assertEqual(context.experience(p), "experienced")
         self.assertEqual(context.likes(p), ["goblet-squat"])
         self.assertEqual(context.dislikes(p), ["box-squat"])
@@ -1412,7 +1423,7 @@ class Migrate3(unittest.TestCase):
         self.assertEqual(log, "+++\nschema = 3\n+++\n# Log\n")
 
     def test_limits_row_after_migration_parses(self):
-        h = migrate.to_4(migrate.to_3(self.HEALTH2, "health.md"), "health.md")
+        h = migrate.to_5(migrate.to_4(migrate.to_3(self.HEALTH2, "health.md"), "health.md"), "health.md")
         h = h.replace("\n+++\n# Health", ('\n[[limits]]\narea = "wrist"\nside = "right"\n'
                                           'level = "off-limits"\n+++\n# Health'), 1)
         with tempfile.TemporaryDirectory() as d:
@@ -1431,7 +1442,7 @@ class Migrate3(unittest.TestCase):
                 with open(path, encoding="utf-8") as f:
                     write_file(path, context.with_front_matter(context.body(f.read()), 2))
             out = run([sys.executable, "tools/migrate.py"], home=home)
-            self.assertIn("schema 2 to 4", out.stdout, out.stderr)
+            self.assertIn("schema 2 to 5", out.stdout, out.stderr)
             # the migrated prose injury has no [[limits]] row yet: the one issue left to fix
             issues = [i for i in context.check([os.path.join(home, "health.md")]) if not i.note]
             self.assertEqual(len(issues), 1)
@@ -1448,7 +1459,7 @@ class Migrate3(unittest.TestCase):
         self.assertEqual((context.limits(h), context.clinician_lines(h)), ([], []))
         p = context.profile(os.path.join(paths.EXAMPLE, "profile.md"))
         self.assertEqual(context.kits(p), {"home": ["dumbbells", "band", "mat"]})
-        self.assertEqual(context.SCHEMA, 4)
+        self.assertEqual(context.SCHEMA, 5)
 
 
 class Wrapper(unittest.TestCase):

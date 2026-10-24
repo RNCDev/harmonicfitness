@@ -3,10 +3,11 @@
 Run it as ./sweatcast build.
 
     ./sweatcast build <draft> "<name>" [--coach <name>] [--engine <route>] [--lint-only] [render options...]
-    ./sweatcast build me/workouts/drafts/x.draft.txt "Workout 2026-10-19 Bench 25 min" --coach "Coach Julius"
+    ./sweatcast build me/workouts/2026-10-19-bench-25/2026-10-19-bench-25.draft.txt "Workout 2026-10-19 Bench 25 min"
 
-Writes me/workouts/<name>.txt and me/workouts/<name>.mp3 (the context folder is SWEATCAST_HOME if
-set). Stops after the lint if it finds issues (fix and rerun). --lint-only skips rendering. Without
+Writes <name>.txt and <name>.mp3 in the draft's workout folder (me/workouts/<stem>/), or in
+me/workouts/checks/ for the smoke test and any draft outside one (the context folder is SWEATCAST_HOME
+if set). Stops after the lint if it finds issues (fix and rerun). --lint-only skips rendering. Without
 --coach (--voice is the old name), uses the coach used last; without --engine, the first route in the
 profile's render list that works on this computer (local, or a cloud voice with its key in me/.env). After a render, copies the MP3 to each
 deliver_to folder that exists and, once every copy matches, removes the local MP3.
@@ -37,6 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import cli  # noqa: E402
 import paths  # noqa: E402
+import workouts  # noqa: E402
 
 USAGE = 'usage: ./sweatcast build <draft> "<name>" [--coach <name>] [--engine <route>] [--lint-only] [--follow] [render options]'
 
@@ -120,7 +122,7 @@ def main(argv=None):
         print(f"The name can't contain a slash: {name}", file=sys.stderr)
         return cli.USAGE
     profile = paths.PROFILE
-    out_dir = paths.WORKOUTS
+    out_dir = workouts.out_dir(draft)   # the draft's workout folder, else checks/
     if not os.path.isfile(profile):
         print(f"No profile at {profile}. Run ./sweatcast setup first (it copies me.example/ to me/).")
         return cli.ISSUES
@@ -154,6 +156,7 @@ def main(argv=None):
     tolerance = option(rest, "--tolerance")
     smoke = os.path.basename(draft) == "smoke-test.draft.txt"
     os.makedirs(paths.LOGS, exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
     log = os.path.join(paths.LOGS, f"{name}.log")
 
     if "--clips-only" in rest or "--follow" in rest:

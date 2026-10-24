@@ -48,7 +48,7 @@ import xml.etree.ElementTree as ET
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
-from paths import RESEARCH, show  # noqa: E402
+from paths import DAILY, show  # noqa: E402
 USER_AGENT = "sweatcast feeds (personal workout audio; github.com/RNCDev/sweatcast)"
 TIMEOUT = 12            # seconds per request
 MAX_BYTES = 5_000_000   # most of any one response that's read
@@ -343,7 +343,7 @@ def main():
     if failed:
         out += ["## Couldn't fetch", *failed, ""]
     sheet = "\n".join(out)
-    path = args.out or os.path.join(RESEARCH, f"{local:%Y-%m-%d}-feeds.md")
+    path = args.out or os.path.join(DAILY, f"{local:%Y-%m-%d}-feeds.md")
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(sheet)
