@@ -34,6 +34,7 @@ COMMANDS = {
     "cache":       ("cache", None, "the clip cache's size, and prune"),
     "test":        (None, None, "run the engine's tests"),
     "setup":       (None, None, "first-run setup (environment, me/, privacy hook, voice model)"),
+    "doctor":      (None, None, "what this computer can do: system, prerequisites, audio routes"),
 }
 
 
@@ -63,6 +64,9 @@ def main(argv=None):
         if os.name == "nt":   # Git Bash's sh; Windows has no exec that keeps the exit code
             return subprocess.call([shutil.which("sh") or "sh", script, *rest])
         os.execv("/bin/sh", ["sh", script, *rest])
+    if cmd == "doctor":   # a shell script too: it has to work before setup
+        script = os.path.join(HERE, "doctor.sh")
+        return subprocess.call([shutil.which("sh") or "sh", script, *rest])
     if cmd == "test":
         return subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT)
     module, sub, _ = COMMANDS[cmd]

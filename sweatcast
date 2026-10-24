@@ -1,6 +1,7 @@
 #!/bin/sh
 # sweatcast: every command, in the project's own Python environment (.venv).
 #
+#   ./sweatcast doctor                    # what this computer can do (works before setup)
 #   ./sweatcast setup                     # first run: environment, me/, privacy hook, voice model
 #   ./sweatcast build <draft> "<name>"    # lint, render and deliver a workout
 #   ./sweatcast help                      # every command
@@ -10,6 +11,10 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 if [ "$1" = "setup" ]; then
   shift
   exec sh "$ROOT/tools/setup.sh" "$@"   # makes .venv, so it can't need it
+fi
+if [ "$1" = "doctor" ]; then
+  shift
+  exec sh "$ROOT/tools/doctor.sh" "$@"  # the readiness check runs before there's an environment too
 fi
 VENV_PY="$ROOT/.venv/bin/python"
 [ -x "$VENV_PY" ] || VENV_PY="$ROOT/.venv/Scripts/python.exe"   # Windows (Git Bash)
