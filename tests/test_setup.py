@@ -210,5 +210,35 @@ class Setup(unittest.TestCase):
         self.assertNotIn("ffmpeg is missing", out.stdout)
 
 
+class Skills(unittest.TestCase):
+    def read(self, name):
+        with open(os.path.join(ROOT, ".claude", "skills", name, "SKILL.md"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_setup_skill_triggers(self):
+        head = self.read("setup").split("---")[1]
+        for phrase in ("set up sweatcast", "setup sweatcast", "install sweatcast", "get started"):
+            self.assertIn(phrase, head)
+
+    def test_no_skill_assumes_a_mac(self):
+        for name in ("setup", "workout"):
+            text = self.read(name)
+            self.assertNotIn("afplay", text, name)
+            self.assertNotRegex(text, r"brew install (?!.*winget)", name)
+
+    def test_player_picks_the_system_player(self):
+        from unittest import mock
+        import player
+        for platform, which, expected in (("darwin", "/usr/bin/afplay", "afplay"),
+                                          ("linux", "/usr/bin/xdg-open", "xdg-open")):
+            with mock.patch.object(sys, "platform", platform), \
+                    mock.patch("shutil.which", side_effect=lambda n, w=which: w if w.endswith(n) else None), \
+                    mock.patch("subprocess.Popen") as popen:
+                self.assertTrue(player.play("x.wav"))
+                self.assertIn(expected, popen.call_args[0][0][0])
+        with mock.patch.object(sys, "platform", "linux"), mock.patch("shutil.which", return_value=None):
+            self.assertFalse(player.play("x.wav"))
+
+
 if __name__ == "__main__":
     unittest.main()

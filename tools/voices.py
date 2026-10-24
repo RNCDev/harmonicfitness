@@ -35,7 +35,6 @@ import json
 import os
 import shutil
 import statistics
-import subprocess
 import sys
 import time
 import wave
@@ -45,6 +44,7 @@ from char_weight import weight  # noqa: E402,F401  (re-exported for render.py)
 import cli  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
+import player  # noqa: E402
 from paths import PACE_FILE, ROOT, VOICE_DIRS, show  # noqa: E402,F401
 
 ENGINES = ("qwen3", "chatterbox")
@@ -363,7 +363,7 @@ def main():
     g.add_argument("--takes", type=int, default=2)
     g.add_argument("--line", default=DESIGN_LINE, help="what the takes say (the default is a coaching line)")
     g.add_argument("--seed", type=int, default=7)
-    g.add_argument("--play", action="store_true", help="play each take after rendering (macOS afplay)")
+    g.add_argument("--play", action="store_true", help="play each take after rendering, with the system's player")
     k = sub.add_parser("keep", help="make a take a voice in me/voices/ and add it to your profile")
     k.add_argument("take", help="the take's .wav (from design), or any clip with its words in a .txt beside it")
     k.add_argument("--engine", choices=ENGINES, default="chatterbox",
@@ -391,10 +391,8 @@ def main():
         takes = design(args.name, args.description, args.line, args.takes, args.seed)
         for t in takes:
             print(f"  {show(t)}")
-            if args.play and shutil.which("afplay"):
-                subprocess.run(["afplay", t])
-            elif args.play and os.name == "nt":
-                os.startfile(t)   # the default player; it plays alongside rather than in turn
+            if args.play and not player.play(t):
+                print("    (no audio player found here; open the file to listen)")
         print(f"Listen, then keep the best one, for example:\n"
               f"  ./sweatcast voices keep \"{show(takes[0])}\" --engine chatterbox --default\n"
               f"Not right? Run design again with a reworded description, or another --seed. The design "

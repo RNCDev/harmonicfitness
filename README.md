@@ -1,19 +1,24 @@
 # sweatcast
 
-Your own workout podcast, made fresh each session. Ask Claude Code for a workout, and sweatcast checks in on how you feel, builds a plan around your injuries and equipment, writes a narrated script with real news, science and stories, and renders it to an MP3 in a natural coach's voice on your own Mac or Windows PC. The audio is the timer: every segment starts on the clock.
+Your own workout podcast, made fresh each session. Ask Claude Code for a workout, and sweatcast checks in on how you feel, builds a plan around your injuries and equipment, writes a narrated script with real news, science and stories, and turns it into an MP3 for your earbuds in a natural coach's voice. The audio is the timer: no screen, every segment starts on the clock.
+
+All you need is [Claude Code](https://claude.com/claude-code) (in a terminal, an IDE or the desktop app) on your own computer; Claude handles the rest, and tells you up front what your computer can do. The voices render on an Apple Silicon Mac, or on a Windows PC with an NVIDIA card.
+
+**To start:** clone or download this repo, open the folder in Claude Code, and say **"set up sweatcast"**. Then ask for a workout: "I'd like a workout", "25 minutes at the hotel, just go".
 
 Current version: see `VERSION` and `CHANGELOG.md`.
 
-## Get started
+# How it works
 
-You need [Claude Code](https://claude.com/claude-code) and either an Apple Silicon Mac with Homebrew, or a Windows PC with an NVIDIA GPU (RTX 20 series or later, 8 GB) and Git for Windows, whose Git Bash runs `./sweatcast`. On Windows only the Chatterbox voices render so far; everything else works the same.
+## Setup, step by step
 
-1. **Install the two tools** sweatcast needs: on a Mac, `brew install ffmpeg uv`; on Windows, `winget install Gyan.FFmpeg.Essentials astral-sh.uv`.
-2. **Fork** this repo (a fork keeps the link to upstream, so you can pull improvements), clone it, and open the folder in Claude Code.
-3. **Say "set me up".** The `setup` skill runs `./sweatcast setup` for you (the project's Python environment, about 430 MB; `me/` from `me.example/`; a git hook that refuses to push `me/`), interviews you (neighborhood, equipment, injuries, interests and teams, voice, where MP3s should go), fills in `me/`, checks your feeds, downloads your voice's model (see Voice models below) and renders a one-minute smoke test, which also measures the voice's pace. It can design you a voice of your own, too.
-4. **Ask for a workout**: "I'd like a workout", "25 minutes at the hotel, just go".
+What "set up sweatcast" does, so nothing is a surprise:
 
-Setup takes 30 to 60 minutes, mostly downloads.
+1. **The readiness check** (`./sweatcast doctor`): your system, memory, disk and graphics, what's installed, and whether local voices work here. In a Claude Code cloud session it stops there: audio needs your own computer, and the cloud machine would forget your profile when the session ends.
+2. **The tools:** uv (which makes the project's Python environment, about 430 MB) is installed with Astral's official installer if it's missing, after Claude asks. ffmpeg comes with the environment if you don't have it, and git is optional: a zip download works, minus the hook that keeps your details out of a push.
+3. **The interview:** your name, equipment, injuries, interests and teams, voice, and where MP3s should go. Claude fills in `me/`, checks your feeds, downloads your voice's model (see Voices below) and renders a one-minute smoke test, which also measures the voice's pace. It can design you a voice of your own, too.
+
+Setup takes 30 to 60 minutes, mostly downloads. To fork instead of clone, fork first (a fork keeps the link to upstream, so you can pull improvements).
 
 ## Commands
 
@@ -21,6 +26,7 @@ Claude Code runs these for you, but they work on their own too. `./sweatcast hel
 
 | Command | What it does |
 |---|---|
+| `./sweatcast doctor` | What this computer can do: system, prerequisites, whether local voices work, models, delivery folders (works before setup) |
 | `./sweatcast setup` | First-run setup; safe to rerun (it also migrates `me/` after a major upgrade) |
 | `./sweatcast check` | Checks `me/`: anything still to fill in, or that the tools can't read |
 | `./sweatcast build <draft> "<name>"` | Lints a draft, renders the MP3, copies it to your phone's folder (`--lint-only` to just lint) |

@@ -1,15 +1,25 @@
 ---
 name: setup
-description: Set up sweatcast for a new listener, or update their context. Use when someone asks to "set me up", get started, onboard, or change their profile, injuries, feeds, voice or delivery folder, and whenever a workout is requested but me/profile.md doesn't exist yet.
+description: Set up sweatcast for a new listener, or update their context. Use when someone asks to "set me up", "set up sweatcast", "setup sweatcast", "install sweatcast", "get started", "let's create a routine" on a copy that isn't set up, onboard, or change their profile, injuries, feeds, voice or delivery folder, and whenever a workout is requested but me/profile.md doesn't exist yet.
 ---
 
 # Setup: a new listener's context
 
 Goal: in one short conversation, turn `me.example/` into a filled-in `me/` folder, check the machine, and end with a short first workout as an end-to-end test. Everything personal goes in `me/` (git-ignored); never edit the engine (tools, skills, `knowledge/`, `voices/`) for one listener.
 
+The listener may be a stranger who has read nothing: explain each step in a line, in plain words, and never send them to the README.
+
+## Step 0: what this computer can do
+
+Run `./sweatcast doctor` first and relay what matters in two or three plain lines: the computer, whether local voices work here, and anything missing.
+- **A Claude Code cloud session** (doctor's report starts with "This is a Claude Code cloud session"): relay its lines and stop. Set nothing up.
+- **uv missing:** ask once (AskUserQuestion) whether to install it with Astral's official installer, which needs no admin rights; it runs a downloaded script, so ask first. On yes, `./sweatcast setup --install-uv --no-models` (it installs uv, then carries on as in Step 1).
+- **No local voices here** (an Intel Mac, a Windows or Linux PC without an NVIDIA card in this version, or below the memory or disk floor): say so now, before the interview, with doctor's reason. The tools for writing workouts still work; audio needs one of the computers doctor names.
+- ffmpeg isn't a prerequisite: the Python environment brings its own. git isn't either: outside a git checkout (a zip download), setup skips only the privacy hook.
+
 ## Step 1: the machine
 
-Run `./sweatcast setup --no-models`. It makes the Python environment with uv, copies `me.example/` to `me/` if there's no `me/profile.md` yet (or brings an existing one up to this version's format, backing it up first), and installs the git hook that refuses to push `me/` in any commit. The voice model comes later, once the user has picked a voice, so nothing large downloads for a voice they won't use. If it stops, relay its one-line fix (install ffmpeg or uv with Homebrew) and rerun it once they say it's done. It runs in the background while you interview: start it with `run_in_background: true`.
+Run `./sweatcast setup --no-models`. It makes the Python environment with uv, copies `me.example/` to `me/` if there's no `me/profile.md` yet (or brings an existing one up to this version's format, backing it up first), and installs the git hook that refuses to push `me/` in any commit. The voice model comes later, once the user has picked a voice, so nothing large downloads for a voice they won't use. If it stops, relay its one-line fix and rerun it once they say it's done. It runs in the background while you interview: start it with `run_in_background: true`.
 
 If `me/profile.md` already has real answers, this is an update: ask only about what the user wants to change, and skip to Step 3.
 
@@ -28,8 +38,8 @@ Read `me.example/profile.md` and `me.example/health.md` first, so the questions 
    - `rehab` and `flags` stay empty unless the clinician named a rehab movement or something else to avoid; `flags` values come from the catalog's fixed `flags` list.
    Add the injury and its programming to the prose list under Active injuries too (an unlisted one as "- Unlisted: <what>", as above). No injuries: leave "None right now." and no rows.
 5. **Interests and taste.** Teams, topics, YouTube channels for deep dives, puzzles, books, local news, and anything never to bring up; then favorite shows, books, music, comedians, restaurants and drinks, with ratings if they have them. Interests become `[[interests]]` rows in the profile's settings (name, slot from `knowledge/content.toml`, detail); favorites go under `## Taste`; and find a feed for each taste area that has one.
-6. **Voice.** Each shipped voice is named for the model that speaks it: Chatterbox Coach (Chatterbox Turbo; warm, the most natural delivery; a 3.3 GB download, renders at about 0.7 times real time) and Qwen3 Coach (Qwen3-TTS; a crisp class instructor, the clearest diction; a 4.2 GB download, about 1.3 to 1.45 times real time). The models are used as published; the voice comes from a ten-second reference clip each model copies. Suggest the user plays the clips (`afplay "voices/Chatterbox Coach.wav"`, `afplay "voices/Qwen3 Coach.wav"`). Both are men; offer a designed voice too, such as a woman, an older or younger coach, or another accent. It's made from a description (see "Design a voice" in `knowledge/voices.md`), and the design model is a 4.5 GB download of its own. If they want one (the design model downloads on first use; the voice's own engine downloads in Step 4):
-   - `./sweatcast voices design "<name>" "<description>"` with `run_in_background: true`. It renders two takes into `me/voices/.takes/`. Send the takes with SendUserFile if it's available (otherwise give their paths and `afplay` commands), and ask which sounds right.
+6. **Voice.** Each shipped voice is named for the model that speaks it: Chatterbox Coach (Chatterbox Turbo; warm, the most natural delivery; a 3.3 GB download, renders at about 0.7 times real time) and Qwen3 Coach (Qwen3-TTS; a crisp class instructor, the clearest diction; a 4.2 GB download, about 1.3 to 1.45 times real time). The models are used as published; the voice comes from a ten-second reference clip each model copies. Let the user hear the clips (`voices/Chatterbox Coach.wav`, `voices/Qwen3 Coach.wav`): send them with SendUserFile if it's available; otherwise offer to play them with the system's player (`open` on a Mac, `xdg-open` on Linux, `start ""` on Windows), or give the paths. Both are men; offer a designed voice too, such as a woman, an older or younger coach, or another accent. It's made from a description (see "Design a voice" in `knowledge/voices.md`), and the design model is a 4.5 GB download of its own. If they want one (the design model downloads on first use; the voice's own engine downloads in Step 4):
+   - `./sweatcast voices design "<name>" "<description>"` with `run_in_background: true`. It renders two takes into `me/voices/.takes/`. Send the takes with SendUserFile if it's available (otherwise `--play` plays them with the system's player, or give their paths), and ask which sounds right.
    - `./sweatcast voices keep "<take path>" --engine chatterbox --default` makes the chosen take a private voice in `me/voices/` and lists it first in the profile. Use `--engine qwen3` for the clearest diction.
    - Not right yet: reword the description (see what worked and what didn't in `knowledge/voices.md`) or pass another `--seed`, and design again.
    A recording of a real person goes in `me/voices/` too, and only with their consent: save the clip and its words, then `keep` it.

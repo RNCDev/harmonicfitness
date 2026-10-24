@@ -19,7 +19,7 @@ The check-in comes first, so the listener can answer and step away; this step re
 - `date "+%Y-%m-%d %A %H:%M"`: morning previews the day, evening recaps it.
 - `./sweatcast check`: an issue in `me/health.md` (a malformed `[[limits]]` row applies no limit; an injury in prose with no row gets no rule) is fixed at the check-in, then checked again. Notes are fine; with no experience level the default is novice until set, so offer to set it.
 - `./sweatcast content plan`: the filler plan at the default length (whether the deep dive is a video or news, and whether the pantry needs restocking).
-- Read `me/profile.md`, `me/health.md` and `me/log.md`. No `me/profile.md` means this copy isn't set up: run the `setup` skill. A tool that says the context folder is in an older format: run `./sweatcast migrate`, then rerun.
+- Read `me/profile.md`, `me/health.md` and `me/log.md`. No `me/profile.md` means this copy isn't set up: run the `setup` skill. A command that answers "This is a Claude Code cloud session" means stop: relay its lines, and build nothing. A tool that says the context folder is in an older format: run `./sweatcast migrate`, then rerun.
 
 Nothing else before the check-in: the feeds, the knowledge files and the brief come after it.
 
