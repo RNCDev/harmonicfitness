@@ -97,8 +97,8 @@ in_git() {   # yes when this folder is the top of a git checkout (not a zip, not
 }
 
 CHIP="$(chip)"
-MEM="$(mem_gb)"; MEM="${MEM:-0}"
-DISK="$(disk_gb)"; DISK="${DISK:-0}"
+MEM="$(mem_gb)"     # empty when the computer won't say: unknown, which no floor counts against
+DISK="$(disk_gb)"
 GPU="$(gpu)"
 GPU_NAME="${GPU%,*}"; GPU_MEM=""
 [ -n "$GPU" ] && GPU_MEM="$(echo "$GPU" | sed 's/.*, *//')"
@@ -118,15 +118,18 @@ elif [ "$OS" = mac ]; then
   LOCAL_REASON="Neither MLX nor current PyTorch runs the voices on an Intel Mac; a cloud voice works here."
 elif { [ "$OS" = windows ] || [ "$OS" = linux ]; } && [ -n "$GPU_NAME" ]; then
   LOCAL=fast; LOCAL_ENGINE=cuda
-elif [ "$OS" = linux ] && [ "$ARCH" != other ] || [ "$OS" = windows ] && [ "$ARCH" = x86_64 ]; then
+elif { [ "$OS" = linux ] && [ "$ARCH" != other ]; } || { [ "$OS" = windows ] && [ "$ARCH" = x86_64 ]; }; then
   LOCAL=experimental; LOCAL_ENGINE=cpu   # PyTorch on the processor: works, untimed, likely slow
 else
   LOCAL_REASON="PyTorch has no build for this system or processor ($UNAME_S, $UNAME_M); a cloud voice works here."
 fi
-if [ "$LOCAL" != no ] && [ "$MEM" -lt "$MEM_FLOOR" ] 2>/dev/null; then
+# What the hardware runs, before the floors: the floors decide whether to offer a first install, and never
+# switch off an engine that's already installed (tools/routes.py and setup read local_hw for that).
+LOCAL_HW="$LOCAL"; LOCAL_ENGINE_HW="$LOCAL_ENGINE"
+if [ "$LOCAL" != no ] && [ -n "$MEM" ] && [ "$MEM" -gt 0 ] 2>/dev/null && [ "$MEM" -lt "$MEM_FLOOR" ]; then
   LOCAL=no; LOCAL_ENGINE=""
   LOCAL_REASON="This computer has ${MEM} GB of memory; a local voice model needs about ${MEM_FLOOR} GB (a cautious guess)."
-elif [ "$LOCAL" != no ] && [ "$DISK" -lt "$DISK_FLOOR" ] 2>/dev/null; then
+elif [ "$LOCAL" != no ] && [ -n "$DISK" ] && [ "$DISK" -lt "$DISK_FLOOR" ] 2>/dev/null; then
   LOCAL=no; LOCAL_ENGINE=""
   LOCAL_REASON="Only ${DISK} GB is free here; a local voice needs about ${DISK_FLOOR} GB for its engine and model (a cautious guess)."
 fi
@@ -149,6 +152,8 @@ remote=$REMOTE
 local=$LOCAL
 local_engine=$LOCAL_ENGINE
 local_reason=$LOCAL_REASON
+local_hw=$LOCAL_HW
+local_engine_hw=$LOCAL_ENGINE_HW
 EOF
   exit 0
 fi
@@ -167,8 +172,8 @@ echo "This computer"
 echo "  System:   $SYSTEM, $ARCH${CHIP:+ ($CHIP)}"
 if [ "$OS" = mac ] && [ "$ARCH" = arm64 ]; then echo "  Graphics: built into the Apple Silicon chip"
 else echo "  Graphics: ${GPU_NAME:-no NVIDIA card found}${GPU_MEM:+, $GPU_MEM GB}"; fi
-echo "  Memory:   $MEM GB"
-echo "  Free disk: $DISK GB where sweatcast is"
+echo "  Memory:   ${MEM:-unknown} GB"
+echo "  Free disk: ${DISK:-unknown} GB where sweatcast is"
 case "$ROOT" in   # gigabytes of models and the environment would sync to every device
   *"Mobile Documents"*|*CloudStorage*|*Dropbox*|*"Google Drive"*|*OneDrive*)
     echo "  Warning: sweatcast is inside a synced folder ($ROOT). Its models and Python environment"

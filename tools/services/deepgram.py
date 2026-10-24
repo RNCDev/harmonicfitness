@@ -24,7 +24,7 @@ def _speak(text, model):
     headers = {"Authorization": f"Token {cloud.key_or_stop(SERVICE)}", "Content-Type": "application/json"}
     _, _, data = cloud.request("POST", f"{cloud.base_url(SERVICE)}/v1/speak?{query}", headers,
                                json.dumps({"text": text}).encode(), timeout=120, service=SERVICE)
-    return cloud.trim(cloud.audio_pcm(data))
+    return cloud.trim(cloud.audio_pcm(data, service=SERVICE))
 
 
 def speaker(voice):

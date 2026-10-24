@@ -68,6 +68,13 @@ class Routes(unittest.TestCase):
         self.assertIn("Intel Mac", message)
         self.assertIn("./sweatcast keys init fish", message)
 
+    def test_a_floor_doesnt_switch_off_an_installed_engine(self):
+        low_disk = dict(MAC, local="no", local_hw="fast", local_reason="Only 2 GB is free here")
+        with mock.patch.object(routes, "local_installed", return_value=True):
+            self.assertEqual(routes.usable("local", self.coach, facts=low_disk), (True, ""))
+        with mock.patch.object(routes, "local_installed", return_value=False):
+            self.assertFalse(routes.usable("local", self.coach, facts=low_disk)[0])
+
     def test_local_needs_the_engine_installed(self):
         with mock.patch.object(routes, "local_installed", return_value=False):
             ok, reason = routes.usable("local", self.coach, facts=MAC)

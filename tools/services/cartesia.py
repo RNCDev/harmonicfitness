@@ -43,5 +43,5 @@ def speaker(voice):
                 "output_format": {"container": "raw", "encoding": "pcm_s16le", "sample_rate": cloud.SR},
                 "language": "en"}
         _, _, data = cloud.request("POST", url, _headers(), json.dumps(body).encode(), timeout=120, service=SERVICE)
-        return cloud.trim(cloud.audio_pcm(data))
+        return cloud.trim(cloud.audio_pcm(data, service=SERVICE))
     return say

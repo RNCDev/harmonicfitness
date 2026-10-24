@@ -44,9 +44,10 @@ def usable(route, persona=None, facts=None):
         return False, f"'{route}' isn't a route; the routes are {', '.join(ROUTES)}."
     if route == "local":
         f = _facts(facts)
-        if f.get("local") == "no":
+        installed = local_installed()
+        if f.get("local") == "no" and not (installed and f.get("local_hw") in ("fast", "experimental")):
             return False, f"local: {f.get('local_reason') or 'local voices do not run on this computer.'}"
-        if not local_installed():
+        if not installed:
             return False, "local: the local engine isn't installed yet: ./sweatcast setup --local"
         if persona is not None and not persona.has_clip:
             return False, f"local: {persona.name} has no clip of their own (a Deepgram stock voice only)."

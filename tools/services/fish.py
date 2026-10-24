@@ -29,7 +29,7 @@ def speaker(voice):
         headers = {"Authorization": f"Bearer {cloud.key_or_stop(SERVICE)}", "model": voice["model"],
                    "Content-Type": "application/msgpack"}
         _, _, data = cloud.request("POST", url, headers, body, timeout=120, service=SERVICE)
-        return cloud.trim(cloud.audio_pcm(data))
+        return cloud.trim(cloud.audio_pcm(data, service=SERVICE))
     return say
 
 

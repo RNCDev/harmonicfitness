@@ -214,9 +214,13 @@ def trim(pcm):
     return _bytes(s[max(first - keep, 0):last + keep])
 
 
-def audio_pcm(data, rate_hint=SR):
+def audio_pcm(data, rate_hint=SR, service=None):
     """16-bit mono PCM at 24 kHz from whatever a service sent: WAV, else (MP3 and the like) through
-    ffmpeg, else raw PCM at rate_hint."""
+    ffmpeg, else raw PCM at rate_hint. A text answer (JSON, HTML) is refused, never cached as noise."""
+    head = data[:64].lstrip()
+    if not data or head[:1] in (b"{", b"[", b"<"):
+        raise ServiceError("bad_request", service, "the service answered with text, not audio: "
+                           + _message(data)[:200] if data else "the service answered with no audio")
     if data[:4] == b"RIFF":
         pcm, rate = wav_pcm(data)
         return resample(pcm, rate, SR)

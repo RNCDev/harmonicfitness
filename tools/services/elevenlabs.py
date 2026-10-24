@@ -47,7 +47,7 @@ def speaker(voice):
         if next_text:
             body["next_text"] = next_text
         _, _, data = cloud.request("POST", url, _headers(), json.dumps(body).encode(), timeout=120, service=SERVICE)
-        return cloud.trim(cloud.audio_pcm(data))
+        return cloud.trim(cloud.audio_pcm(data, service=SERVICE))
     return say
 
 

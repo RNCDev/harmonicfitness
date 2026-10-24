@@ -341,36 +341,58 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
         sys.exit(cli.ISSUES)
     order = list(dict.fromkeys(clips))   # each paragraph's real neighbors, for services that join them
     at = {t: i for i, t in enumerate(order)}
-    say = engines.speaker(voice)
     started = time.time()
     audio_secs, measured_weight, done = 0.0, 0.0, 0
     from concurrent.futures import ThreadPoolExecutor, as_completed
     pool = ThreadPoolExecutor(max_workers=max(1, voice.get("concurrency") or 1))
+    import threading
+    stop = threading.Event()   # set by the first failure (or Ctrl-C), so no worker starts another request
     try:
+        say = engines.speaker(voice)   # a cloning service sends its first request here
+
+        def one(text, **ctx):
+            if stop.is_set():
+                return None
+            try:
+                return render_clip(say, text, seed, cache_path, **ctx)
+            except BaseException:
+                stop.set()
+                raise
         jobs = {}
         for text in todo:
             i = at[text]
             ctx = {"previous_text": order[i - 1] if i else None,
                    "next_text": order[i + 1] if i + 1 < len(order) else None}
-            jobs[pool.submit(render_clip, say, text, seed, cache_path, **ctx)] = text
+            jobs[pool.submit(one, text, **ctx)] = text
         for job in as_completed(jobs):
             secs = job.result()
+            if secs is None:
+                continue
             done += 1
             audio_secs += secs
             measured_weight += weight(jobs[job])
             sent["chars"] += len(jobs[job])
             print(f"  [{done}/{len(todo)}] {secs:4.1f}s audio", flush=True)
-    except cloud.ServiceError as e:
+    except BaseException as e:   # anything at all: nothing still queued gets sent (and billed)
+        stop.set()
         pool.shutdown(wait=True, cancel_futures=True)
         if done:
             record_rate(voice, measured_weight, audio_secs - MLX_EDGE * done)
-        print(f"\n{e}")
-        if e.listener_must_act:
-            print(f"Check the key with ./sweatcast keys (it's {service['key_var']} in me/.env), and the account's "
-                  f"plan and balance at {service['name']}. The {done} clip(s) rendered are cached.")
-            sys.exit(cli.SERVICE)
-        print(f"The {done} clip(s) rendered are cached; rerun to send only the rest.")
-        sys.exit(cli.ISSUES)
+        if isinstance(e, cloud.ServiceError):
+            print(f"\n{e}")
+            if e.listener_must_act:
+                print(f"Check the key with ./sweatcast keys (it's {service['key_var']} in me/.env), and the account's "
+                      f"plan and balance at {service['name']}. The {done} clip(s) rendered are cached.")
+                sys.exit(cli.SERVICE)
+            if e.kind == "bad_request":
+                print(f"A rerun won't fix that by itself; the {done} clip(s) rendered are cached.")
+            else:
+                print(f"The {done} clip(s) rendered are cached; rerun to send only the rest.")
+            sys.exit(cli.ISSUES)
+        if isinstance(e, Exception) and not isinstance(e, SystemExit):
+            print(f"\nStopped sending to {service['name']}: {e}. The {done} clip(s) rendered are cached.")
+            sys.exit(cli.ISSUES)
+        raise
     pool.shutdown()
     sent["usd"] = cloud.estimate(voice["service"], voice["model"], todo)[1]
     took = time.time() - started

@@ -86,12 +86,12 @@ fi
 case "$1" in
   --no-models) WANT="$INSTALLED" ;;   # the base, keeping a local engine already installed
   --local)
-    if [ "$LOCAL" = no ]; then
+    if [ "$LOCAL" = no ] && [ -z "$INSTALLED" ]; then
       echo "Local voices don't run on this computer: $LOCAL_REASON"
       exit 1
     fi
-    WANT="$LOCAL_ENGINE" ;;
-  *) [ "$LOCAL" = no ] && WANT="" || WANT="$LOCAL_ENGINE" ;;
+    WANT="${INSTALLED:-$LOCAL_ENGINE}"; [ "$LOCAL" = no ] || WANT="$LOCAL_ENGINE" ;;
+  *) [ "$LOCAL" = no ] && WANT="$INSTALLED" || WANT="$LOCAL_ENGINE" ;;   # a floor never uninstalls an engine
 esac
 # A profile whose render list leaves out "local" (cloud voices only) gets no local engine from a plain
 # rerun; one already installed stays.
@@ -119,7 +119,12 @@ PY="${SWEATCAST_PYTHON:-.venv/bin/python}"
 echo "2. Your context folder ($CONTEXT)"
 if [ -e "$CONTEXT/profile.md" ]; then
   echo "   already there; brought up to this version's format if it was older (backed up first):"
-  "$PY" tools/migrate.py | sed 's/^/   /' || true
+  MIGRATE_OUT="$("$PY" tools/migrate.py 2>&1)" && MIGRATED=0 || MIGRATED=$?
+  echo "$MIGRATE_OUT" | sed 's/^/   /'
+  if [ "$MIGRATED" -ne 0 ] && ! echo "$MIGRATE_OUT" | grep -q "Backed up the originals\|already at schema"; then
+    echo "   The context folder wasn't brought up to date, so setup stopped here: fix what it says above, then rerun."
+    exit 1
+  fi
   if [ ! -e "$CONTEXT/.gitignore" ]; then
     cp "$ROOT/me.example/.gitignore" "$CONTEXT/.gitignore"
     echo "   added .gitignore, for keeping it as its own private repo (./sweatcast backup)"

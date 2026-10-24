@@ -320,6 +320,28 @@ class CloudRender(unittest.TestCase):
         return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), DRAFT, "--coach", "Coach Test",
                                "--engine", "fish", *extra], env=e, capture_output=True, text=True, timeout=120)
 
+    def render_on(self, service, url, *extra):
+        import keys
+        e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+        e.update({"SWEATCAST_HOME": self.home, f"SWEATCAST_{service.upper()}_URL": url,
+                  keys.SERVICE_VARS[service]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})
+        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), DRAFT, "--coach", "Coach Test",
+                               "--engine", service, *extra], env=e, capture_output=True, text=True, timeout=120)
+
+    def test_a_refused_clone_exits_4(self):
+        with FakeService(lambda r: (401, {}, b'{"detail": {"message": "Invalid API key"}}')) as fake:
+            out = self.render_on("elevenlabs", fake.url, "--out", os.path.join(self.d, "x.mp3"))
+        self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
+        self.assertIn("ElevenLabs", out.stdout)
+        self.assertNotIn("Traceback", out.stdout + out.stderr)
+
+    def test_a_broken_answer_stops_sending_and_caches_nothing(self):
+        with FakeService(lambda r: (200, {"Content-Type": "application/json"}, b'{"status": "queued"}')) as fake:
+            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+        self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
+        self.assertLessEqual(len(fake.requests), 4)   # the queued paragraphs were never sent
+        self.assertEqual(glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm")), [])
+
     def set_ceiling(self, n):
         prof = os.path.join(self.home, "profile.md")
         with open(prof, encoding="utf-8") as f:

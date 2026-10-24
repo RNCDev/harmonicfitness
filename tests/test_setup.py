@@ -64,6 +64,15 @@ class Doctor(unittest.TestCase):
         self.assertIn("memory", facts(dict(mac, MEM_GB="4"))["local_reason"])
         self.assertEqual(facts(mac)["os"], "mac")
 
+    def test_floors_dont_count_against_hardware_that_runs_voices(self):
+        mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "2", "GPU": ""}
+        f = facts(mac)
+        self.assertEqual((f["local"], f["local_hw"], f["local_engine_hw"]), ("no", "fast", "mlx"))
+        f = facts(dict(mac, MEM_GB="", DISK_GB="40"))   # memory unreadable: unknown, not zero
+        self.assertEqual(f["local"], "fast")
+        f = facts({"OS": "Linux", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""})
+        self.assertEqual((f["local"], f["local_engine"]), ("experimental", "cpu"))   # PyTorch has Linux ARM builds
+
     def test_facts_name_the_tools_found(self):
         f = facts()
         for key in ("os", "arch", "mem_gb", "disk_gb", "uv", "git", "ffmpeg", "venv", "in_git", "remote"):
@@ -268,6 +277,28 @@ class LocalExtra(unittest.TestCase):
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("sync --frozen --extra mlx", self.calls())
+
+    def test_low_disk_never_uninstalls_an_engine(self):
+        os.makedirs(os.path.join(self.repo, ".venv"))
+        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
+            f.write("mlx\n")
+        out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("sync --frozen --extra mlx", self.calls())
+        out = self.setup("--local", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+    def test_a_failed_migration_stops_setup(self):
+        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "v8-home"), os.path.join(self.repo, "me"))
+        prof = os.path.join(self.repo, "me", "profile.md")
+        with open(prof, encoding="utf-8") as f:
+            text = f.read()
+        with open(prof, "w", encoding="utf-8") as f:
+            f.write(text.replace('name = "Qwen3 Coach"', 'name = "Qwen3 Custom"', 1))
+        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("--name", out.stdout)
+        self.assertNotIn("Done. Next", out.stdout)
 
     def test_no_models_on_a_fresh_copy_is_the_base_only(self):
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
