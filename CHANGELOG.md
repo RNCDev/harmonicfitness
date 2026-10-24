@@ -2,6 +2,37 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [9.0.0] - 2026-10-24
+
+A standalone sweatcast: any reasonable computer, any voice engine, and coaches of the listener's own. Local audio now runs on Linux too, and on the processor where there's no NVIDIA card (experimental); a cloud voice with the listener's own key works on any computer, an Intel Mac included. Voices become coaches: a person's name, how they talk and a clip every engine copies, kept in `me/personas/`, so the same coach sounds the same locally or in the cloud.
+
+### For forks
+This release changes the `me/` layout (schema 3 to 4), the commands and the environment. After pulling it:
+- **Run `./sweatcast setup`.** It migrates `me/` (backing up the changed files to `me/.backup-<time>/` first, never `.env`), installs the local engine as an extra where this computer runs one, and suggests moving models you already have.
+- **Voices become coaches.** Each voice in the profile's `[[voices]]` becomes a folder in `me/personas/`, with its clip, words and measured pace: Chatterbox Coach becomes Coach Julius and Qwen3 Coach becomes Coach Solo, keeping their old names as aliases, so old log lines and `--voice "Chatterbox Coach"` still find them. The profile's `## Narrator` lines become how each coach talks (`## How this coach talks` in `persona.md`). Cached clips stay valid. A private voice named for a model needs a person's name: `./sweatcast migrate --name "<old>=Coach <Name>"`. `me/voices/` and `workouts/.audio-cache/voice-pace.json` move into the backup.
+- **The profile** loses `[[voices]]` and gains `render = ["local"]`, the audio routes in order of preference; add a cloud service there (`["local", "fish"]`) to use one where local doesn't work. `cloud_max_chars` (default 30,000) caps what one build sends.
+- **Commands:** `--voice` is now `--coach` on build, render, lint, brief and log-session (the old name still works); `./sweatcast voices` is now `./sweatcast coaches`; `./sweatcast get default-voice` is `get coach`. New: `doctor`, `keys`, `models`, `coaches`, `get route`, `build --engine`. The smoke test moved to `knowledge/smoke-test.draft.txt`. `voices/` is gone; the clips sweatcast 8 shipped wait in `tools/migrate-assets/v8-voices/` for the migration, until 10.0.0.
+- **Models** download into `models/` at the repo root (git-ignored; a symlink or `SWEATCAST_MODELS` points it elsewhere) instead of `~/.cache/huggingface/hub`: `./sweatcast models adopt` moves the ones you have.
+- **The environment:** the local engines are optional extras (`mlx`, `cuda`, `cpu`); `./sweatcast setup` picks one and remembers it in `.venv/.sweatcast-extra`. Run `uv sync` yourself only with `--extra <it>`, or it uninstalls the engine.
+- **Keys** for cloud voices go in `me/.env` (`./sweatcast keys init <service>`), which `me/.gitignore` and `./sweatcast backup` keep out of the private repo. A customized setup or workout skill needs merging: setup gains the audio route and the coach step; the workout skill passes `--coach`, renders ahead only on a local route, and handles exit 4.
+
+### Added
+- **Cloud voices with the listener's own key** (`tools/cloud.py`, `tools/services/`): Fish Audio (the clip goes with every request; tried live), ElevenLabs (a clone made once, with each paragraph's neighbors for smoother joins), Cartesia (a clone made once) and Deepgram Aura-2 (stock voices only). ElevenLabs, Cartesia and Deepgram are built against local fakes of their documented APIs and labeled "not yet tried live". Before sending, a build prints the characters and approximate cost (rates in `knowledge/services.toml`, dated) and stops above `cloud_max_chars`; only the final build sends, a few requests at a time, retrying rate limits; a refused key, payment or quota exits 4; rendered clips stay cached, so a rerun sends only the rest. The build record logs the characters sent. Keys are never printed, logged, recorded or part of a cache key.
+- **Coaches** (`tools/personas.py`, `./sweatcast coaches`, the `coach` skill): design takes from a description (Qwen3 VoiceDesign on an Apple Silicon Mac, or Fish Audio or ElevenLabs design), keep one, or bring a clip with its words; several coaches, the one used last by default; `set` for a coach's settings; Deepgram stock-voice samples.
+- **Routes** (`tools/routes.py`): each build takes the first route in the profile's `render` list that works on the computer it runs on; `./sweatcast get route` and the readiness check say which.
+- **`./sweatcast keys`** (`tools/keys.py`): which services have a key set, never the key; `init` makes the line for the listener to paste into. `.claude/settings.json` denies Claude reading or writing `me/.env`.
+- **`./sweatcast models`** (`tools/models.py`): the models in `models/`, and `adopt`, which moves sweatcast's models out of Hugging Face's cache, shared blobs and all.
+- **Local audio on more computers:** Linux with an NVIDIA card (not yet tried), and Windows or Linux on the processor (experimental, speed unknown until this computer's smoke test measures it; the readiness check then quotes a 30-minute workout's render time). Each render records the computer's render speed beside the pace.
+- The readiness check reports the audio routes, the models folder, models waiting to be adopted, and a repo inside a synced folder.
+
+### Changed
+- The brief quotes the chosen coach's `persona.md` (who's coaching and how they talk) where it quoted the profile's Narrator, and its words-a-minute line uses that coach's pace on the route a build would take.
+- `./sweatcast check` reports a missing coach, a coach without a clip or still showing a hint, and a route the profile names that isn't one.
+- `log-session --coach` (with `--voice` kept); the workout skill's check-in says who's coaching and asks only when the request suggests a change.
+
+### Not added
+- A local voice designer on Windows or Linux: Qwen's PyTorch package (`qwen-tts`) pins transformers 4.57.3 against Chatterbox's 5.2.0, so they can't share an environment. Those computers design with Fish Audio or ElevenLabs, or bring a clip.
+
 ## [8.1.0] - 2026-10-24
 
 Setup that a stranger can't trip over. Someone who clones sweatcast and says "set up sweatcast" in Claude Code is told up front what their computer can do, and setup no longer stops halfway for a missing prerequisite.
