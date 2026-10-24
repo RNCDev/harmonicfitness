@@ -340,6 +340,22 @@ class Skills(unittest.TestCase):
             self.assertNotIn("afplay", text, name)
             self.assertNotRegex(text, r"brew install (?!.*winget)", name)
 
+    def test_skills_name_only_current_commands(self):
+        import re
+        import sweatcast
+        for name in ("setup", "workout", "coach"):
+            text = self.read(name)
+            for cmd in re.findall(r"\./sweatcast ([a-z-]+)", text):
+                self.assertIn(cmd, set(sweatcast.COMMANDS) | {"help", "session"}, (name, cmd))
+            self.assertNotIn("--voice", text, name)
+            self.assertNotIn("voices/", text, name)
+        for doc in ("CLAUDE.md", "README.md", os.path.join("knowledge", "voices.md")):
+            with open(os.path.join(ROOT, doc), encoding="utf-8") as f:
+                text = f.read()
+            for cmd in re.findall(r"\./sweatcast ([a-z-]+)", text):
+                self.assertIn(cmd, set(sweatcast.COMMANDS) | {"help", "session"}, (doc, cmd))
+            self.assertNotIn("voices/smoke-test", text, doc)
+
     def test_player_picks_the_system_player(self):
         from unittest import mock
         import player
