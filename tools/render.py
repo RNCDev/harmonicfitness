@@ -277,6 +277,8 @@ def setup_voice(args):
     voice = lookup(args.voice)
     if args.model:   # so the measured rate is filed under this model
         voice["model"], voice["revision"] = args.model, None
+    if voice.get("backend") == "torch":   # the processor's clips sound a little different: their own key
+        voice["device"] = engines.torch_device(engines.cuda_available())
     # Everything that changes how a clip sounds goes in its cache key, so changing a
     # setting (or upgrading mlx-audio) re-renders instead of silently reusing old clips.
     settings = (f"{voice['model']}@{voice['revision'] or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"

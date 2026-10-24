@@ -48,11 +48,11 @@ import player  # noqa: E402
 from paths import PACE_FILE, ROOT, VOICE_DIRS, show  # noqa: E402,F401
 
 ENGINES = ("qwen3", "chatterbox")
-# What runs the models here: MLX on a Mac, PyTorch on CUDA on Windows. A voice's .json
+# What runs the models here: MLX on a Mac, PyTorch (CUDA, or the processor) on Windows and Linux. A voice's .json
 # names its MLX model at the top level and its PyTorch one under "torch", each pinned.
 # SWEATCAST_BACKEND overrides the choice (the tests set it).
 BACKENDS = ("mlx", "torch")
-BACKEND = os.environ.get("SWEATCAST_BACKEND") or ("torch" if sys.platform == "win32" else "mlx")
+BACKEND = os.environ.get("SWEATCAST_BACKEND") or ("mlx" if sys.platform == "darwin" else "torch")
 TORCH_ENGINES = ("chatterbox",)   # engines with a PyTorch path in tools/engines.py so far
 # The engine's standard model when a voice names none, and the extra repos an
 # engine loads on its own (Chatterbox Turbo's speech tokenizer), pinned so a

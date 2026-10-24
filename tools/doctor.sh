@@ -115,11 +115,13 @@ LOCAL=no; LOCAL_ENGINE=""; LOCAL_REASON=""
 if [ "$OS" = mac ] && [ "$ARCH" = arm64 ]; then
   LOCAL=fast; LOCAL_ENGINE=mlx
 elif [ "$OS" = mac ]; then
-  LOCAL_REASON="Neither MLX nor current PyTorch runs the voices on an Intel Mac; a cloud voice is coming in sweatcast 9."
-elif [ "$OS" = windows ] && [ -n "$GPU_NAME" ]; then
+  LOCAL_REASON="Neither MLX nor current PyTorch runs the voices on an Intel Mac; a cloud voice works here."
+elif { [ "$OS" = windows ] || [ "$OS" = linux ]; } && [ -n "$GPU_NAME" ]; then
   LOCAL=fast; LOCAL_ENGINE=cuda
+elif [ "$OS" = linux ] && [ "$ARCH" != other ] || [ "$OS" = windows ] && [ "$ARCH" = x86_64 ]; then
+  LOCAL=experimental; LOCAL_ENGINE=cpu   # PyTorch on the processor: works, untimed, likely slow
 else
-  LOCAL_REASON="Local voices need an Apple Silicon Mac or a Windows PC with an NVIDIA card in this version."
+  LOCAL_REASON="PyTorch has no build for this system or processor ($UNAME_S, $UNAME_M); a cloud voice works here."
 fi
 if [ "$LOCAL" != no ] && [ "$MEM" -lt "$MEM_FLOOR" ] 2>/dev/null; then
   LOCAL=no; LOCAL_ENGINE=""
@@ -186,6 +188,7 @@ echo
 echo "Audio here"
 case "$LOCAL" in
   fast) echo "  Local voices: yes, on $( [ "$LOCAL_ENGINE" = mlx ] && echo "Apple Silicon (MLX)" || echo "the NVIDIA card (CUDA)" )" ;;
+  experimental) echo "  Local voices: on the processor (no NVIDIA card): experimental, speed unknown, likely slow" ;;
   *) echo "  Local voices: no. $LOCAL_REASON" ;;
 esac
 [ "$1" = "--short" ] && exit 0   # setup prints this part; it reports the rest itself

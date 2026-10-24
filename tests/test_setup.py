@@ -49,8 +49,10 @@ class Doctor(unittest.TestCase):
                  (dict(mac, ARCH="x86_64"), "no", ""),
                  ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90",
                    "GPU": "NVIDIA GeForce RTX 2080 SUPER, 8"}, "fast", "cuda"),
-                 ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "no", ""),
-                 ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": "NVIDIA A10, 24"}, "no", ""),
+                 ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "experimental", "cpu"),
+                 ({"OS": "Linux", "ARCH": "other", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "no", ""),
+                 ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": "NVIDIA A10, 24"}, "fast", "cuda"),
+                 ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "experimental", "cpu"),
                  (dict(mac, MEM_GB="4"), "no", ""),
                  (dict(mac, DISK_GB="2"), "no", "")]
         for fake, local, engine in cases:
@@ -208,6 +210,106 @@ class Setup(unittest.TestCase):
         out = self.setup("--no-models", path=restricted_path(self.d))
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertNotIn("ffmpeg is missing", out.stdout)
+
+
+STUB_PY = """#!/bin/sh
+# Stands in for the environment's Python: model downloads are logged, not run.
+case "$1" in
+  tools/voices.py) echo "$@" >> "$UV_LOG"; exit 0 ;;
+esac
+exec "{python}" "$@"
+"""
+
+
+class LocalExtra(unittest.TestCase):
+    """9.0: the local engines are an optional extra, chosen by the readiness check."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        os.makedirs(os.path.join(self.d, "repo"))
+        self.repo = copy_repo(os.path.join(self.d, "repo"))
+        self.uv, self.py, self.log = (os.path.join(self.d, n) for n in ("uv", "python", "calls.log"))
+        for path, text in ((self.uv, STUB_UV), (self.py, STUB_PY.format(python=sys.executable))):
+            with open(path, "w") as f:
+                f.write(text)
+            os.chmod(path, 0o755)
+
+    def setup(self, *args, **fake):
+        env = clean_env(UV_LOG=self.log, SWEATCAST_UV=self.uv, SWEATCAST_PYTHON=self.py, HOME=self.d,
+                        **{f"SWEATCAST_FAKE_{k}": v for k, v in fake.items()})
+        return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=env,
+                              capture_output=True, text=True, timeout=120)
+
+    def calls(self):
+        with open(self.log) as f:
+            return f.read()
+
+    def test_setup_installs_the_extra_the_doctor_names(self):
+        mac = dict(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
+        out = self.setup(**mac)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("sync --frozen --extra mlx", self.calls())
+        self.assertIn("tools/voices.py download", self.calls())
+        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra")) as f:
+            self.assertEqual(f.read().strip(), "mlx")
+
+    def test_no_models_keeps_an_installed_extra(self):
+        os.makedirs(os.path.join(self.repo, ".venv"))
+        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
+            f.write("mlx\n")
+        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("sync --frozen --extra mlx", self.calls())
+        self.assertNotIn("voices.py download", self.calls())
+
+    def test_an_environment_from_before_the_extras_keeps_its_engine(self):
+        os.makedirs(os.path.join(self.repo, ".venv", "lib", "python3.11", "site-packages", "mlx_audio"))
+        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("sync --frozen --extra mlx", self.calls())
+
+    def test_no_models_on_a_fresh_copy_is_the_base_only(self):
+        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("sync --frozen\n", self.calls())
+
+    def test_no_local_audio_installs_only_the_base(self):
+        out = self.setup(OS="Darwin", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn("--extra", self.calls())
+        self.assertNotIn("voices.py download", self.calls())
+        self.assertIn("Intel Mac", out.stdout)
+
+    def test_local_flag_refuses_where_local_cant_run(self):
+        out = self.setup("--local", OS="Darwin", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("Intel Mac", out.stdout)
+
+    def test_processor_computers_get_the_cpu_extra(self):
+        out = self.setup("--local", OS="Linux", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("sync --frozen --extra cpu", self.calls())
+        self.assertIn("experimental", out.stdout)
+
+
+class Lock(unittest.TestCase):
+    def test_lock_keeps_the_macs_versions(self):
+        import tomllib
+        with open(os.path.join(ROOT, "uv.lock"), "rb") as f:
+            lock = tomllib.load(f)
+        versions = {}
+        for pkg in lock["package"]:
+            versions.setdefault(pkg["name"], []).append((pkg["version"], str(pkg.get("source"))))
+        self.assertIn("0.5.0", [v for v, _ in versions["mlx-audio"]])
+        self.assertIn("2.2.6", [v for v, _ in versions["numpy"]])
+        torch = [src for v, src in versions["torch"] if v.startswith("2.6.0")]
+        self.assertTrue(any("cu124" in s for s in torch), torch)
+        self.assertTrue(any("whl/cpu" in s for s in torch), torch)
+        with open(os.path.join(ROOT, "pyproject.toml"), "rb") as f:
+            project = tomllib.load(f)
+        self.assertEqual(set(project["project"]["optional-dependencies"]), {"mlx", "cuda", "cpu"})
+        self.assertIn("sys_platform == 'linux'", " ".join(project["tool"]["uv"]["environments"]))
 
 
 class Skills(unittest.TestCase):

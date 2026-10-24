@@ -1,22 +1,13 @@
 [project]
 name = "sweatcast"
 version = "8.1.0"
-description = "Narrated workout podcasts, written by Claude Code and voiced on your own Mac or Windows PC."
+description = "Narrated workout podcasts, written by Claude Code and voiced on your own computer or by a cloud voice."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-    # Text to speech on Apple Silicon: Chatterbox Turbo and Qwen3-TTS through MLX.
-    "mlx-audio==0.5.0; sys_platform == 'darwin'",
-    "mlx==0.32.1; sys_platform == 'darwin'",
-    "numpy==2.2.6; sys_platform == 'darwin'",
-    # Text to speech on Windows with an NVIDIA GPU: Resemble AI's own PyTorch Chatterbox
-    # Turbo on CUDA (tools/engines.py). It pins torch 2.6.0 and numpy below 2.
-    "chatterbox-tts==0.1.7; sys_platform == 'win32'",
-    "torch==2.6.0; sys_platform == 'win32'",
-    "torchaudio==2.6.0; sys_platform == 'win32'",
-    # Its watermarker (resemble-perth) still imports pkg_resources, which setuptools 81 dropped.
-    "setuptools<81; sys_platform == 'win32'",
+    # Everything but the local voices: the lint, research, build, delivery and cloud voices. Installs
+    # on every supported system, an Intel Mac included.
     # Video transcripts for the deep dive and puzzle videos.
     "yt-dlp==2026.8.19",
     # TLS roots for tools/feeds.py on a python.org Python.
@@ -25,17 +16,48 @@ dependencies = [
     "imageio-ffmpeg==0.6.0",
 ]
 
+# The local voice engines, installed only where the readiness check says they run
+# (./sweatcast setup picks one and remembers it in .venv/.sweatcast-extra).
+[project.optional-dependencies]
+# Apple Silicon: Chatterbox Turbo and Qwen3-TTS through MLX.
+mlx = [
+    "mlx-audio==0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx==0.32.1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "numpy==2.2.6; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+# Windows or Linux with an NVIDIA card: Resemble AI's own PyTorch Chatterbox Turbo on CUDA
+# (tools/engines.py). It pins torch 2.6.0 and numpy below 2. Its watermarker (resemble-perth)
+# still imports pkg_resources, which setuptools 81 dropped.
+cuda = [
+    "chatterbox-tts==0.1.7; sys_platform != 'darwin'",
+    "torch==2.6.0; sys_platform != 'darwin'",
+    "torchaudio==2.6.0; sys_platform != 'darwin'",
+    "setuptools<81; sys_platform != 'darwin'",
+]
+# The same on the processor, for computers without an NVIDIA card: experimental, and slow.
+cpu = [
+    "chatterbox-tts==0.1.7; sys_platform != 'darwin'",
+    "torch==2.6.0; sys_platform != 'darwin'",
+    "torchaudio==2.6.0; sys_platform != 'darwin'",
+    "setuptools<81; sys_platform != 'darwin'",
+]
+
 [tool.uv]
 package = false
-# The two systems sweatcast renders on: an Apple Silicon Mac (MLX) and Windows with CUDA.
-environments = ["sys_platform == 'darwin'", "sys_platform == 'win32'"]
+environments = ["sys_platform == 'darwin'", "sys_platform == 'win32'", "sys_platform == 'linux'"]
+conflicts = [[{ extra = "cuda" }, { extra = "cpu" }]]
 
-# PyTorch's CUDA 12.4 builds, for Windows only (they run on NVIDIA cards from the RTX 20 series on).
+# PyTorch's CUDA 12.4 builds (NVIDIA cards from the RTX 20 series on), and its processor builds.
 [[tool.uv.index]]
 name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu124", marker = "sys_platform == 'win32'" }]
-torchaudio = [{ index = "pytorch-cu124", marker = "sys_platform == 'win32'" }]
+torch = [{ index = "pytorch-cu124", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]
+torchaudio = [{ index = "pytorch-cu124", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]

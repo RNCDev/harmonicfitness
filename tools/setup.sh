@@ -2,10 +2,13 @@
 # Set up sweatcast on this computer: the Python environment, your context folder, the privacy
 # hook and the voice models. Safe to rerun; it skips what's already done. Run it as ./sweatcast setup.
 #
-#   ./sweatcast setup               # environment, me/ from me.example/, the default voice's model
+#   ./sweatcast setup               # environment, me/ from me.example/, and where local voices run
+#                                   # here, their engine and the default voice's model
+#   ./sweatcast setup --local       # the same, but stop with the reason if local voices can't run here
 #   ./sweatcast setup --all         # every voice's model
-#   ./sweatcast setup --no-models   # everything but the models (the setup skill runs this
-#                                   # first, then fetches the voice the user picks)
+#   ./sweatcast setup --no-models   # the base environment (keeping a local engine already
+#                                   # installed), me/ and the hook; no models (the setup skill
+#                                   # runs this first, then fetches what the listener picks)
 #   ./sweatcast setup --install-uv  # first install uv with Astral's official installer (no admin
 #                                   # rights needed), then set up as above
 #
@@ -66,8 +69,42 @@ if [ -z "$UV" ]; then
   exit 1
 fi
 
-echo "1. Python environment (.venv, pinned by uv.lock)"
-"$UV" sync --frozen   # also rebuilds a .venv copied from another computer, whose Python is gone
+# The local voice engine is an extra, installed where the readiness check says it runs: MLX on
+# Apple Silicon, CUDA PyTorch with an NVIDIA card, processor PyTorch without one. It's remembered
+# in .venv/.sweatcast-extra, since a sync without it would uninstall it.
+FACTS="$(sh "$HERE/doctor.sh" --facts)"
+fact() { echo "$FACTS" | sed -n "s/^$1=//p"; }
+LOCAL="$(fact local)"; LOCAL_ENGINE="$(fact local_engine)"; LOCAL_REASON="$(fact local_reason)"
+MARKER=".venv/.sweatcast-extra"
+INSTALLED="$(cat "$MARKER" 2>/dev/null || true)"
+if [ -z "$INSTALLED" ] && [ -d .venv ]; then   # an environment from before 9.0, which had no marker
+  if [ -n "$(find .venv -maxdepth 6 -type d -name mlx_audio 2>/dev/null | head -1)" ]; then INSTALLED=mlx
+  elif [ -n "$(find .venv -maxdepth 6 -type d -name chatterbox 2>/dev/null | head -1)" ]; then
+    INSTALLED="$LOCAL_ENGINE"; [ -n "$INSTALLED" ] || INSTALLED=cuda
+  fi
+fi
+case "$1" in
+  --no-models) WANT="$INSTALLED" ;;   # the base, keeping a local engine already installed
+  --local)
+    if [ "$LOCAL" = no ]; then
+      echo "Local voices don't run on this computer: $LOCAL_REASON"
+      exit 1
+    fi
+    WANT="$LOCAL_ENGINE" ;;
+  *) [ "$LOCAL" = no ] && WANT="" || WANT="$LOCAL_ENGINE" ;;
+esac
+
+echo "1. Python environment (.venv, pinned by uv.lock)${WANT:+, with the local voices ($WANT)}"
+"$UV" sync --frozen ${WANT:+--extra "$WANT"}   # also rebuilds a .venv copied from another computer
+if [ -n "$WANT" ]; then
+  mkdir -p .venv && echo "$WANT" > "$MARKER"
+fi
+if [ "$LOCAL" = no ] && [ "$1" != "--no-models" ]; then
+  echo "   No local voices on this computer: $LOCAL_REASON"
+elif [ "$LOCAL" = experimental ] && [ -n "$WANT" ]; then
+  echo "   Local voices run on the processor here: experimental, speed unknown, likely slow."
+  echo "   The smoke test measures this computer's speed."
+fi
 PY="${SWEATCAST_PYTHON:-.venv/bin/python}"
 [ -x "$PY" ] || PY=".venv/Scripts/python.exe"   # Windows
 "$PY" tools/ffmpeg.py | sed 's/^/   /' || true
@@ -101,6 +138,8 @@ echo "4. Voice models (once, from Hugging Face into ~/.cache/huggingface/hub; no
 echo "   and its 'unauthenticated requests' warning is harmless)"
 if [ "$1" = "--no-models" ]; then
   echo "   skipped (--no-models)"
+elif [ -z "$WANT" ]; then
+  echo "   skipped: no local voices on this computer"
 elif [ "$1" = "--all" ]; then
   "$PY" tools/voices.py download
 else

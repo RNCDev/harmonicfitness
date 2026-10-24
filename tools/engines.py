@@ -59,7 +59,8 @@ def runtime(voice):
     """What speaks the voice, with versions, for the clip cache key and the build record.
     On a Mac it stays "mlx-audio <version>", as it always was, so cached clips still match."""
     if voice.get("backend") == "torch":
-        return f"chatterbox-tts {_version('chatterbox-tts')} torch {_version('torch')}"
+        base = f"chatterbox-tts {_version('chatterbox-tts')} torch {_version('torch')}"
+        return base + " cpu" if voice.get("device") == "cpu" else base   # CUDA keys stay as they were
     return f"mlx-audio {mlx_audio_version()}"
 
 
@@ -159,17 +160,33 @@ def speaker(voice):
     return say
 
 
+def cuda_available():
+    """Whether PyTorch sees an NVIDIA card; False where PyTorch isn't installed."""
+    try:
+        import torch
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def torch_device(cuda_available):
+    """Where PyTorch renders: the NVIDIA card when it can see one, else the processor
+    (experimental and slow). SWEATCAST_DEVICE=cpu or cuda overrides."""
+    forced = os.environ.get("SWEATCAST_DEVICE", "").strip().lower()
+    if forced in ("cpu", "cuda"):
+        return forced
+    return "cuda" if cuda_available else "cpu"
+
+
 def _torch_speaker(voice):
-    """Chatterbox Turbo on an NVIDIA GPU, with Resemble AI's own PyTorch release. The
-    reference clip is encoded once and kept on the model, as the MLX path does."""
+    """Chatterbox Turbo with Resemble AI's own PyTorch release, on an NVIDIA GPU or else the
+    processor. The reference clip is encoded once and kept on the model, as the MLX path does."""
     if voice["engine"] not in TORCH_ENGINES or not voice["model"]:
         raise SystemExit(f"{voice['name']} runs on {voice['engine']}, which has no PyTorch model here yet, "
                          "so it only renders on a Mac. On this PC, pick a Chatterbox voice with --voice.")
     import numpy as np
     import torch
-    if not torch.cuda.is_available():
-        raise SystemExit("PyTorch can't see an NVIDIA GPU (CUDA). Check the graphics driver with nvidia-smi, "
-                         "then rerun ./sweatcast setup.")
+    device = voice.get("device") or torch_device(torch.cuda.is_available())
     # tools/ is on sys.path, so its coverage.py would pass for the coverage package that
     # numba (under librosa) probes for, and break its import. Mark that package absent.
     if "coverage" not in sys.modules:
@@ -182,7 +199,7 @@ def _torch_speaker(voice):
                          "Check the network and rerun; ./sweatcast setup downloads it ahead of time.")
     from chatterbox.tts_turbo import ChatterboxTurboTTS
     with contextlib.redirect_stdout(io.StringIO()):
-        model = ChatterboxTurboTTS.from_local(path, "cuda")
+        model = ChatterboxTurboTTS.from_local(path, device)
         model.prepare_conditionals(voice["ref_audio"])
     if model.sr != SR:
         raise SystemExit(f"chatterbox returned {model.sr} Hz audio; expected {SR}")

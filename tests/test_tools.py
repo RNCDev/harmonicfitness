@@ -1608,6 +1608,23 @@ class TorchBackend(unittest.TestCase):
         self.assertIsNone(voices.shipped_torch_model("qwen3"))
 
 
+class TorchDevice(unittest.TestCase):
+    def test_torch_runtime_marks_only_the_processor(self):
+        v = {"backend": "torch"}
+        with mock.patch.object(engines, "_version", side_effect=lambda p: {"chatterbox-tts": "0.1.7", "torch": "2.6.0"}[p]):
+            self.assertEqual(engines.runtime(dict(v, device="cuda")), "chatterbox-tts 0.1.7 torch 2.6.0")
+            self.assertEqual(engines.runtime(v), "chatterbox-tts 0.1.7 torch 2.6.0")
+            self.assertEqual(engines.runtime(dict(v, device="cpu")), "chatterbox-tts 0.1.7 torch 2.6.0 cpu")
+
+    def test_device_choice(self):
+        with mock.patch.dict(os.environ, {"SWEATCAST_DEVICE": "cpu"}):
+            self.assertEqual(engines.torch_device(cuda_available=True), "cpu")
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SWEATCAST_DEVICE", None)
+            self.assertEqual(engines.torch_device(cuda_available=True), "cuda")
+            self.assertEqual(engines.torch_device(cuda_available=False), "cpu")
+
+
 class RenderLock(unittest.TestCase):
     def test_a_second_render_waits_for_the_first(self):
         with tempfile.TemporaryDirectory() as d:
