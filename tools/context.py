@@ -1049,7 +1049,7 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("default-voice", "wpm", "voices", "experience", "route", "routes"))
+    g.add_argument("what", choices=("default-voice", "wpm", "voices", "experience", "route", "routes", "coach"))
     g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
     sub.add_parser("check", help="check every context file, and list lines not filled in yet")
@@ -1057,7 +1057,7 @@ def main(argv=None):
     s.add_argument("--date", default=dt.date.today().isoformat())
     s.add_argument("--minutes", type=int, required=True)
     s.add_argument("--kit", required=True)
-    s.add_argument("--voice", required=True)
+    s.add_argument("--coach", "--voice", dest="voice", required=True, help="the session's coach")
     s.add_argument("--movements", help="comma-separated (or --draft)")
     s.add_argument("--draft", help="a draft whose movements: line gives the movements, by their catalog names")
     s.add_argument("--topics", required=True)
@@ -1068,6 +1068,12 @@ def main(argv=None):
 
     if args.cmd == "get":
         p = profile()
+        if args.what == "coach":
+            import personas
+            coach = personas.last_coach()
+            if coach:
+                print(coach.name)
+            return cli.OK
         if args.what in ("route", "routes"):
             if args.what == "routes":
                 print("\n".join(routes(p)))

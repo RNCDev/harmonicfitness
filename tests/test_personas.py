@@ -144,5 +144,110 @@ class Personas(unittest.TestCase):
         self.assertIn("How this coach talks", again.prose)
 
 
+class Coaches(unittest.TestCase):
+    """./sweatcast coaches: design takes, keep one as a coach, and choose the coach for a build."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        self.folder = persona_home(self.d)
+        self.log = os.path.join(self.d, "log.md")
+        for target, attr, value in ((personas.paths, "PERSONAS", self.folder), (personas.paths, "LOG", self.log)):
+            patcher = mock.patch.object(target, attr, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_persona_from_a_cloud_designed_take(self):
+        import base64
+        import coaches
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        from fakes import FakeService, tone_wav
+        candidate = base64.b64encode(tone_wav(1.0, rate=44100)).decode()
+        answer = lambda r: (200, {}, json.dumps({"candidates": [{"audio_base64": candidate, "sample_rate": 44100,
+                                                                 "text": "Okay, set your feet."}]}).encode())
+        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url,
+                                                                       "FISH_AUDIO_API_KEY": "test-key"}):
+            takes = coaches.design("Coach Maya", "A warm coach in her forties.", designer="fish", takes=1, seed=7,
+                                   line="Okay, set your feet.")
+        self.assertEqual(takes, [os.path.join(self.folder, "coach-maya", "takes", "1.wav")])
+        name = coaches.keep(takes[0])
+        self.assertEqual(name, "Coach Maya")
+        p = personas.lookup("Coach Maya")
+        self.assertTrue(p.has_clip)
+        self.assertEqual(p.settings["local"]["engine"], "chatterbox")
+        self.assertEqual(p.settings["designed_from"], "A warm coach in her forties.")
+        self.assertIn("How this coach talks", p.prose)
+        import wave
+        with wave.open(p.clip) as w:
+            self.assertEqual((w.getframerate(), w.getnchannels(), w.getsampwidth()), (24000, 1, 2))
+        with open(p.clip_words) as f:
+            self.assertEqual(f.read().strip(), "Okay, set your feet.")
+        again = coaches.design("Coach Maya", "Warmer.", designer="fish", takes=1, seed=8, line="Hi.",
+                               make_takes=lambda *a: [(b"\x00\x01" * 2400, "Hi.")])
+        self.assertTrue(again[0].endswith("2.wav"))   # earlier takes are kept
+
+    def test_persona_from_a_brought_clip(self):
+        import coaches
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        from fakes import tone_wav
+        clip = os.path.join(self.d, "my-voice.wav")
+        with open(clip, "wb") as f:
+            f.write(tone_wav(1.0, rate=44100, channels=2))
+        name = coaches.keep(clip, name="Coach Brought", words="Hello there, set your feet.")
+        p = personas.lookup("coach-brought")
+        import wave
+        with wave.open(p.clip) as w:
+            self.assertEqual((w.getframerate(), w.getnchannels()), (24000, 1))
+            self.assertAlmostEqual(w.getnframes() / 24000, 1.0, delta=0.01)
+        self.assertEqual(name, "Coach Brought")
+        with self.assertRaises(SystemExit):   # a clip needs its words
+            coaches.keep(clip, name="Coach Silent")
+
+    def test_a_24k_mono_clip_is_kept_byte_for_byte(self):
+        import coaches
+        src = os.path.join(FIXTURE, "coach-test", "clip.wav")
+        coaches.keep(src, name="Coach Copy", words="Set your feet. Chest up, and press.")
+        with open(src, "rb") as a, open(personas.lookup("Coach Copy").clip, "rb") as b:
+            self.assertEqual(a.read(), b.read())
+
+    def write_log(self, *voices_used):
+        lines = ["+++", "schema = 3", "+++", "# Log", "", "## Sessions", ""]
+        lines += [f"- 2026-10-{10 + i} | 20 min | home | {v} | goblet squat | deep dive: news, x" for i, v in enumerate(voices_used)]
+        lines += ["", "## Feedback", ""]
+        with open(self.log, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
+    def test_last_used_coach_from_the_log(self):
+        import context
+        context.set_persona_setting(personas.lookup("Coach Test").path, None, "aliases", ["Test Voice", "Coach E"])
+        persona_home_extra = os.path.join(self.folder, "coach-two")
+        shutil.copytree(os.path.join(self.folder, "coach-test"), persona_home_extra)
+        context.set_persona_setting(os.path.join(persona_home_extra, "persona.md"), None, "name", "Coach Two")
+        context.set_persona_setting(os.path.join(persona_home_extra, "persona.md"), None, "aliases", [])
+        self.write_log("Coach Two", "Coach E")
+        self.assertEqual(personas.last_coach().name, "Coach Test")
+        self.write_log("Coach E", "Coach Two")
+        self.assertEqual(personas.last_coach().name, "Coach Two")
+        self.write_log()
+        self.assertEqual(personas.last_coach().name, "Coach Test")   # no sessions: the first coach
+
+    def test_log_session_takes_coach_and_voice(self):
+        import context
+        self.write_log()
+        for flag in ("--coach", "--voice"):
+            context.main(["log-session", "--date", "2026-10-24", "--minutes", "20", "--kit", "home", flag,
+                          "Coach Test", "--movements", "goblet squat", "--topics", "deep dive: news, y"])
+        self.assertEqual([s.voice for s in context.sessions(self.log)], ["Coach Test", "Coach Test"])
+
+    def test_set_parses_values(self):
+        import coaches
+        coaches.main(["set", "Coach Test", "local.engine", "qwen3"])
+        coaches.main(["set", "Coach Test", "deepgram.voice", "aura-2-apollo-en"])
+        p = personas.lookup("Coach Test")
+        self.assertEqual((p.table("local")["engine"], p.table("deepgram")["voice"]), ("qwen3", "aura-2-apollo-en"))
+        with self.assertRaises(SystemExit):
+            coaches.main(["set", "Coach Test", "local.engine", "omnivoice"])
+
+
 if __name__ == "__main__":
     unittest.main()

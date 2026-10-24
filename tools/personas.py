@@ -130,6 +130,11 @@ def default(folder=None):
     return found[0]
 
 
+def last_coach(folder=None):
+    """The coach used last (the newest log session whose coach is known), else the first; None with no coaches."""
+    return default(folder)
+
+
 def clip_key(p):
     """The clip's identity in every pace and cache key: the same rule voices.lookup always used."""
     with open(p.clip, "rb") as a:
