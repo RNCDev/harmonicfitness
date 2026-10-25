@@ -418,10 +418,12 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     req = {k: v for k, v in (("goal", goal), ("minutes", minutes), ("kit", request.get("kit")),
                              ("preset", request.get("preset")),
                              ("equipment", sorted(request["equipment"]) if "equipment" in request else None),
+                             ("add", sorted(request["add"]) if request.get("add") else None),
                              ("level", scr.level), ("target", request.get("target") or None),
                              ("limits", [f"{lim.area}={lim.level}:{lim.side}" for lim in scr.limits] or None),
                              ("avoid", sorted(scr.avoid) or None)) if v}
-    record = menu.record(req, scr.sel, sides, minutes * 60, today.isoformat())
+    record = menu.record(req, scr.sel, sides, minutes * 60, today.isoformat(),
+                         health_sha256=menu.health_hash(getattr(health, "path", None) or paths.HEALTH))
     return out, record
 
 
@@ -435,6 +437,8 @@ def main():
     kit.add_argument("--kit", help="a kit named in the profile's [[kits]]")
     kit.add_argument("--preset", help="a kit preset from the catalog, such as hotel-room")
     kit.add_argument("--equipment", help="comma-separated equipment, as keys or aliases")
+    ap.add_argument("--add", default="", help="comma-separated equipment on hand today, added to the kit's "
+                                                "(say, a bench the brief said would open up more movements)")
     ap.add_argument("--level", help="novice, experienced or advanced (default: the profile's)")
     ap.add_argument("--target", help="comma-separated patterns or muscles to focus on")
     ap.add_argument("--limit", action="append", default=[], help="area=level[:side], added to health.md's limits")
@@ -452,6 +456,8 @@ def main():
         request = {"goal": args.goal, "minutes": args.minutes, "level": args.level,
                    "target": screen.words(args.target), "limits": [screen.parse_limit(x, cat) for x in args.limit],
                    "avoid": movements.avoid_set(cat, screen.words(args.avoid))}
+        if args.add:
+            request["add"] = movements.equipment_keys(cat, screen.words(args.add))
         if args.kit:
             request["kit"] = args.kit
         elif args.preset:

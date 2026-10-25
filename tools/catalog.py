@@ -295,19 +295,31 @@ def limit_cues(cat: Catalog, limit: "Limit") -> List[str]:
     return [line.replace(SIDE_SLOT, side) for line in lines if isinstance(line, str)] if isinstance(lines, list) else []
 
 
+def _plain(text: str) -> str:
+    """A name as compared: lower case, letters and apostrophes only, hyphens and spaces alike."""
+    return " ".join(re.sub(r"[^a-z']+", " ", text.lower().replace("\u2019", "'")).split())
+
+
 def resolve(cat: Catalog, name: str) -> Optional[Movement]:
-    """The movement a spoken or logged name means, or None."""
+    """The movement a spoken, declared or logged name means, or None: an id, a name or an alias, with a leading
+    side word dropped, a plural forgiven (goblet squats, bench presses) and a hyphen or a space alike (push
+    up, push-up). The one matcher: the menu check, the log and the profile's likes all resolve through it."""
     said = " ".join(name.lower().split())
     for side in SIDE_WORDS:
         if said.startswith(side):
             said = said[len(side):]
             break
-    candidates = [said]
-    if said.endswith("s") and not said.endswith("ss"):
-        candidates.append(said[:-1])   # "goblet squats" means "goblet squat"
-    for word in candidates:
-        for m in cat.movements.values():
-            if word == m.name.lower() or word == m.id or word in (a.lower() for a in m.aliases):
+    if said in cat.movements:
+        return cat.movements[said]
+    plain = _plain(said)
+    forms = {plain}
+    if plain.endswith("es"):
+        forms.add(plain[:-2])
+    if plain.endswith("s") and not plain.endswith("ss"):
+        forms.add(plain[:-1])   # "goblet squats" means "goblet squat"
+    for m in cat.movements.values():
+        for known in [m.name, m.id] + m.aliases:
+            if _plain(known) in forms:
                 return m
     return None
 

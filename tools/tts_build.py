@@ -267,7 +267,7 @@ def menu_check(draft_path, text, segments, required):
     import catalog
     import menu
     import paths
-    issues, warnings = menu.check(catalog.load(), menu.load(path), text, segments)
+    issues, warnings = menu.gate(catalog.load(), draft_path, text, segments, strict=False, required=required)
     if issues or warnings:
         print(f"\nMenu check ({paths.show(os.path.abspath(path))}):")
         print("\n".join([f"  {i}" for i in issues] + [f"  warning: {w}" for w in warnings]))

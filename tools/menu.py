@@ -17,6 +17,8 @@ that movement, and a mention just after "no", "not", "skip", "instead of" or "li
 instruction ("no neck rolls today", "it should feel like a brisk walk").
 Library only; the brief and the lint call it.
 """
+import datetime
+import hashlib
 import json
 import os
 import re
@@ -24,21 +26,75 @@ from typing import Dict, List, Optional, Tuple
 
 import catalog
 import draft
+import paths
 
-FORMAT = 1
+FORMAT = 2   # 2 (13.0.0): health_sha256, so the build knows the menu was made from today's health.md
 EFFORT_WORDS = {"easy", "steady", "hard", "brisk", "light", "slow", "quick", "fast", "gentle"}
 
 
-def record(request: dict, sel: catalog.Selection, sides: Dict[str, str], seconds: int, date: str) -> dict:
-    """The menu file's contents."""
+def record(request: dict, sel: catalog.Selection, sides: Dict[str, str], seconds: int, date: str,
+           health_sha256: Optional[str] = None) -> dict:
+    """The menu file's contents: the request, the day, a hash of health.md as the brief read it, and every
+    movement allowed."""
     def entry(m, side=None):
         out = {"id": m.id, "name": m.name, "aliases": list(m.aliases)}
         if side:
             out["side"] = side
         return out
-    return {"format": FORMAT, "date": date, "request": request, "seconds": seconds,
+    return {"format": FORMAT, "date": date, "health_sha256": health_sha256, "request": request, "seconds": seconds,
             "movements": [entry(m) for m in sel.allowed] + [entry(m, sides.get(m.id, "healthy"))
                                                             for m in sel.healthy_side_only]}
+
+
+def health_hash(path: Optional[str] = None) -> Optional[str]:
+    """sha256 of health.md's bytes (the limits and the clinician's rules), or None when there's no such file."""
+    path = path or paths.HEALTH
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def staleness(menu: dict, today: Optional[str] = None, health_path: Optional[str] = None) -> List[str]:
+    """Why this menu can't stand for today: it was saved another day (a check-in's limit for today lives only
+    in the menu), or health.md has changed since the brief read it. Empty when it can."""
+    today = today or datetime.date.today().isoformat()
+    out = []
+    if menu.get("date") != today:
+        out.append(f"the menu is from {menu.get('date') or 'an unknown day'}, not today ({today}): rerun "
+                   "./sweatcast brief ... --save <the draft's path>, so today's limits apply")
+    current = health_hash(health_path)
+    if not menu.get("health_sha256"):
+        out.append("the menu predates the brief's health check: rerun ./sweatcast brief ... --save <the draft's path>")
+    elif current and menu["health_sha256"] != current:
+        out.append("health.md changed since the brief read it: rerun ./sweatcast brief ... --save <the draft's path>, "
+                   "so the menu follows the new limits")
+    return out
+
+
+def gate(cat: catalog.Catalog, draft_path: str, text: str, segments, today: Optional[str] = None,
+         health_path: Optional[str] = None, strict: bool = True, required: bool = True) -> Tuple[List[str], List[str]]:
+    """(issues, warnings) for a draft against the menu beside it: the one entry point the build, the render and
+    the lint use. No menu is an issue when `required`; a menu that can't be read is one too; a stale menu
+    (staleness) is an issue when `strict` (a render) and a warning otherwise (a lint)."""
+    path = draft.menu_path(draft_path)
+    if not os.path.exists(path):
+        return check(cat, None, text, segments) if required else ([], [])
+    try:
+        menu = load(path)
+    except ValueError as e:
+        return ([f"the menu beside the draft can't be read ({os.path.basename(path)}: {e}): rerun ./sweatcast brief "
+                 "... --save <the draft's path>"], [])
+    if not isinstance(menu, dict):
+        return ([f"the menu beside the draft isn't a menu ({os.path.basename(path)}): rerun ./sweatcast brief ... "
+                 "--save <the draft's path>"], [])
+    issues, warnings = check(cat, menu, text, segments)
+    stale = staleness(menu, today, health_path)
+    if strict:
+        issues += stale
+    else:
+        warnings += stale
+    return issues, warnings
 
 
 def write(path: str, menu: dict) -> None:
@@ -61,31 +117,25 @@ def _norm(text: str) -> str:
 
 
 def resolve(cat: catalog.Catalog, word: str) -> Optional[catalog.Movement]:
-    """The movement a declared word means: an id, a name or an alias, forgiving a plural and a
-    leading side word, with hyphens and spaces alike."""
-    m = cat.movements.get(word.strip()) or catalog.resolve(cat, word)
-    if m:
-        return m
-    said = _norm(word).replace("-", " ")
-    for side in ("left ", "right "):
-        said = said[len(side):] if said.startswith(side) else said
-    for m in cat.movements.values():
-        for name in [m.name, m.id] + m.aliases:
-            plain = _norm(name).replace("-", " ")
-            if said in (plain, plain + "s", plain + "es"):
-                return m
-    return None
+    """The movement a declared word means (catalog.resolve: an id, a name or an alias, forgiving a plural, a
+    leading side word, and a hyphen for a space)."""
+    return catalog.resolve(cat, word.strip())
+
+
+_PATTERNS: Dict[int, List[Tuple[re.Pattern, str, str]]] = {}   # per catalog object: built once a process
 
 
 def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
     """(regex, movement id, the name it matches) for every name and alias the text scan checks,
     longest first."""
+    if id(cat) in _PATTERNS:
+        return _PATTERNS[id(cat)]
     found = {}
     for m in cat.movements.values():
         for name in [m.name] + m.aliases:
             key = _norm(name)
-            if " " not in key and "-" not in key:
-                continue   # a plain one-word name: an everyday coaching word
+            if " " not in key and "-" not in key and name != m.name:
+                continue   # a plain one-word alias (squat, swing, curl, plank): an everyday coaching word
             found.setdefault(key, (m.id, name))
     # "push up" and "step up" are cues as often as names: when a hyphenated name has the same words,
     # only the hyphenated spelling counts
@@ -100,10 +150,13 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
     for key in sorted(found, key=len, reverse=True):
         words = key.split(" ")
         if len(words) > 1:   # "single-leg glute bridge" also matches "single leg glute bridge"
-            body = r"[\s-]+".join(re.escape(w).replace(r"\-", r"[\s-]?") for w in words)
-        else:                # push-up must keep its hyphen: "push up through the heels" is a cue
-            body = re.escape(key)
-        out.append((re.compile(r"(?<![a-z'-])" + body + r"(?:e?s)?(?![a-z'-])"), *found[key]))
+            body = r"[\s-]+".join(re.escape(w).replace(r"\-", r"[\s-]?") for w in words) + r"(?:e?s)?"
+        elif "-" in key:     # push-up keeps its hyphen ("push up through the heels" is a cue), but the spaced
+            body = re.escape(key) + r"(?:e?s)?|" + re.escape(key).replace(r"\-", r"\s+") + r"e?s"   # plural is a name
+        else:                # a one-word name of its own (deadlift, thruster)
+            body = re.escape(key) + r"(?:e?s)?"
+        out.append((re.compile(r"(?<![a-z'-])(?:" + body + r")(?![a-z'-])"), *found[key]))
+    _PATTERNS[id(cat)] = out
     return out
 
 
@@ -116,19 +169,28 @@ def mentions(cat: catalog.Catalog, text: str) -> List[Tuple[str, str, str]]:
         for m in rx.finditer(text):
             hits.append((m.start(), mid, m.group(0)))
         text = rx.sub(lambda m: " " * len(m.group(0)), text)   # a longer name keeps its words
-    return [(mid, words, " ".join(re.findall(r"[a-z']+", original[max(0, at - 40):at])[-BEFORE:]))
+    return [(mid, words, " ".join(re.findall(r"[a-z']+", _clause(original[max(0, at - 40):at]))[-BEFORE:]))
             for at, mid, words in sorted(hits)]
 
 
-BEFORE = 3   # words looked at before a mention
+def _clause(text: str) -> str:
+    """The end of `text` after its last sentence or clause break, so a "not" in the sentence before can't
+    excuse a mention ("Do not rest. Box jumps")."""
+    return re.split(r"[.!?;:,]", text)[-1]
+
+
+BEFORE = 3   # words looked at before a mention, within its clause
 # a mention just after one of these isn't an instruction: "no neck rolls today", "like a brisk walk"
 NOT_DOING = {"no", "not", "never", "skip", "skipping", "without", "instead", "avoid", "nothing", "like",
              "unlike", "rather", "isn't", "aren't", "won't", "don't"}   # not "than": "no more than ten push-ups"
 
 
-def _part_of(words: str, names: List[str]) -> bool:
-    """True when `words` (say "bench presses") are a shortened form of one of `names` ("dumbbell
-    bench press")."""
+def _part_of(cat: catalog.Catalog, words: str, names: List[str], declared: set) -> bool:
+    """True when `words` (say "bench presses") are a shortened form of one of `names` ("dumbbell bench press")
+    and name no other movement: "push-ups" after a declared wall push-up is the push-up, not a short form."""
+    other = catalog.resolve(cat, words)
+    if other is not None and other.id not in declared:
+        return False
     key = _norm(words).replace("-", " ")
     forms = {key, key[:-1] if key.endswith("s") else key, key[:-2] if key.endswith("es") else key}
     return any(f" {form} " in f" {_norm(n).replace('-', ' ')} " for form in forms for n in names)
@@ -161,7 +223,7 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
     names = [n for i in declared for n in [cat.movements[i].name] + cat.movements[i].aliases]
     flagged = set()
     for mid, said, before in mentions(cat, spoken_text(segments)):
-        if mid in declared or mid in flagged or _part_of(said, names):
+        if mid in declared or mid in flagged or _part_of(cat, said, names, declared):
             continue   # declared, already said, or a shortened name of a declared movement
         if set(before.split()) & NOT_DOING:
             continue   # "no neck rolls today"

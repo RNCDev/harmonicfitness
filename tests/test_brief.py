@@ -1,6 +1,7 @@
 """Checks for today's brief (tools/brief.py), the menu it saves and the build's menu check
 (tools/menu.py), and the draft's movements: header (tools/draft.py). They run on the shipped catalog
 and the invented listener in tests/fixtures/listener, with no models or network."""
+import datetime
 import json
 import os
 import shutil
@@ -259,12 +260,14 @@ class Menu(unittest.TestCase):
         issues, warnings = self.check(text, fake_menu(m.id))
         self.assertEqual((issues, warnings), ([], []))   # glute bridge isn't on the menu, and isn't named
 
-    def test_a_shortened_name_counts_as_the_declared_movement(self):
-        text = ("movements: dumbbell bench press\n@@ 300 | Work\n"
-                "Grab a pair for the bench press. Eight bench presses, then rest.\n")
-        issues, warnings = self.check(text, fake_menu("dumbbell-bench-press"))
-        self.assertEqual((issues, warnings), ([], []))   # not the barbell bench press
-
+    def test_a_shortened_name_counts_as_the_declared_movement_unless_it_names_another(self):
+        text = DRAFT.replace("goblet squat", "dumbbell bench press").replace("Goblet squats now.", "Back to the bench press.")
+        issues, warnings = self.check(text, fake_menu("dumbbell-bench-press", "dead-bug", "box-breathing"))
+        # "bench press" is a movement of its own (the barbell one, harder), so the short form is taken for it
+        self.assertTrue(any("bench press" in i and "isn't on today's menu" in i for i in issues), (issues, warnings))
+        # a short form that names no other movement counts as the declared one (MenuScan checks one too)
+        text = DRAFT.replace("goblet squat", "dumbbell bench press").replace("Goblet squats now.", "Back to the dumbbell bench press.")
+        self.assertEqual(self.check(text, fake_menu("dumbbell-bench-press", "dead-bug", "box-breathing")), ([], []))
     def test_effort_words_are_not_machine_names(self):
         text = "movements: towel door row\n@@ 300 | Work\nEasy rows now, then a brisk walk pace. A steady ride.\n"
         issues, _ = self.check(text, fake_menu("towel-door-row"))
@@ -327,7 +330,9 @@ class Lint(unittest.TestCase):
             path = os.path.join(d, "x.draft.txt")
             with open(path, "w") as f:
                 f.write(text)
-            if menu_data is not None:
+            if menu_data is not None:   # a menu from today, made from this listener's health.md, as the brief would
+                menu_data = dict(menu_data, date=datetime.date.today().isoformat(),
+                                 health_sha256=menu.health_hash(os.path.join(LISTENER, "health.md")))
                 menu.write(draft.menu_path(path), menu_data)
             env = dict(os.environ, SWEATCAST_HOME=LISTENER)
             return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "tts_build.py"), path,
@@ -369,6 +374,127 @@ class LogSession(unittest.TestCase):
             r = run("log-session", "--minutes", "5", "--kit", "home", "--voice", "Chatterbox Coach",
                     "--topics", "x", home=home)
             self.assertNotEqual(r.returncode, 0)
+
+
+class MenuScan(unittest.TestCase):
+    """The text scan's holes: a shortened name that is another movement, a negation in the sentence before,
+    one-word names and spaced plurals."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cat = catalog.load()
+
+    def one(self, declared, line):
+        m = catalog.resolve(self.cat, declared)
+        text = f"movements: {m.name}\n@@ 300 | A\n{line}\n"
+        return menu.check(self.cat, fake_menu(m.id), text, draft.parse(text))[0]
+
+    def test_a_shortened_name_that_is_another_movement_is_caught(self):
+        issues = self.one("wall push-up", "Ten push-ups now, nice and strong.")
+        self.assertTrue(any("isn't on today's menu" in i and "push-up" in i for i in issues), issues)
+        issues = self.one("seated shadow boxing", "Stand up and start shadow boxing.")
+        self.assertTrue(any("isn't on today's menu" in i and "shadow" in i for i in issues), issues)
+        # a shortened form that names no other movement still counts as the declared one
+        for m in self.cat.movements.values():
+            words = m.name.split()
+            if len(words) >= 3 and catalog.resolve(self.cat, " ".join(words[-2:])) is None:
+                self.assertEqual(self.one(m.name, f"Back to the {' '.join(words[-2:])}."), [], m.name)
+                break
+        else:
+            self.fail("no movement to try the shortened form on")
+
+    def test_a_negation_counts_only_within_its_clause(self):
+        for line in ("Do not rest. Goblet squats, ten of them.", "If you'd like, add goblet squats here.",
+                     "Ten goblet squats."):
+            self.assertTrue(any("goblet-squat" in i for i in self.one("dead bug", line)), line)
+        for line in ("No goblet squats today.", "Nothing like goblet squats for the legs, but we rest now."):
+            self.assertEqual(self.one("dead bug", line), [], line)
+
+    def test_one_word_names_and_spaced_plurals_are_scanned(self):
+        for line, mid in (("Ten deadlifts, then rest.", "deadlift"), ("Twenty push ups.", "push-up"),
+                          ("Step ups onto the bench.", "step-up")):
+            self.assertTrue(any(mid in i for i in self.one("dead bug", line)), line)
+        for line in ("Push up through the heels.", "Step up the pace now.", "Swing your arms and squat down."):
+            self.assertEqual(self.one("dead bug", line), [], line)
+
+
+class MenuGate(unittest.TestCase):
+    """The menu is today's and health.md hasn't changed since the brief; otherwise the build stops (a lint
+    only warns), and a menu file that can't be read is an issue, not a traceback."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cat = catalog.load()
+        self.health = os.path.join(self.tmp.name, "health.md")
+        with open(self.health, "w", encoding="utf-8") as f:
+            f.write("+++\nschema = 6\n+++\n# Health\n")
+        self.draft_path = os.path.join(self.tmp.name, "x.draft.txt")
+        with open(self.draft_path, "w", encoding="utf-8") as f:
+            f.write(DRAFT)
+        self.segments = draft.parse(DRAFT)
+        self.menu = fake_menu("goblet-squat", "dead-bug", "box-breathing")
+        self.menu["date"] = "2026-10-20"
+        self.menu["health_sha256"] = menu.health_hash(self.health)
+        menu.write(draft.menu_path(self.draft_path), self.menu)
+
+    def gate(self, **kw):
+        kw.setdefault("today", "2026-10-20")
+        kw.setdefault("health_path", self.health)
+        return menu.gate(self.cat, self.draft_path, DRAFT, self.segments, **kw)
+
+    def test_todays_menu_with_unchanged_health_passes(self):
+        self.assertEqual(self.gate(), ([], []))
+
+    def test_an_older_menu_is_an_issue_on_a_render_and_a_warning_on_a_lint(self):
+        issues, warnings = self.gate(today="2026-10-21")
+        self.assertTrue(any("2026-10-20" in i and "brief" in i for i in issues), issues)
+        issues, warnings = self.gate(today="2026-10-21", strict=False)
+        self.assertEqual(issues, [])
+        self.assertTrue(any("2026-10-20" in w for w in warnings), warnings)
+
+    def test_a_changed_health_file_is_an_issue(self):
+        with open(self.health, "a", encoding="utf-8") as f:
+            f.write("- Unlisted: a new problem\n")
+        issues, _ = self.gate()
+        self.assertTrue(any("health.md changed" in i for i in issues), issues)
+
+    def test_a_menu_without_the_hash_or_that_cant_be_read_is_an_issue(self):
+        del self.menu["health_sha256"]
+        menu.write(draft.menu_path(self.draft_path), self.menu)
+        issues, _ = self.gate()
+        self.assertTrue(any("brief" in i for i in issues), issues)
+        with open(draft.menu_path(self.draft_path), "w", encoding="utf-8") as f:
+            f.write("not json")
+        issues, _ = self.gate()
+        self.assertTrue(any("can't be read" in i for i in issues), issues)
+        os.remove(draft.menu_path(self.draft_path))
+        self.assertIn("no menu", self.gate()[0][0])
+        self.assertEqual(self.gate(required=False), ([], []))
+
+    def test_record_carries_the_health_hash(self):
+        sel = catalog.select(self.cat, {"mat"}, "novice", [])
+        rec = menu.record({"goal": "strength"}, sel, {}, 600, "2026-10-20", health_sha256="abc123")
+        self.assertEqual(rec["health_sha256"], "abc123")
+        self.assertEqual(menu.health_hash(os.path.join(self.tmp.name, "absent.md")), None)
+
+
+class BriefAdd(unittest.TestCase):
+    def test_add_extends_the_kit_and_the_menu_records_it_with_the_health_hash(self):
+        plain = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
+        self.assertEqual(plain.returncode, 0, plain.stderr)
+        with tempfile.TemporaryDirectory() as d:
+            target = os.path.join(d, "2026-10-21-strength-30", "2026-10-21-strength-30.draft.txt")
+            more = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--add", "bench", "--save", target)
+            self.assertEqual(more.returncode, 0, more.stderr)
+            self.assertTrue(ids_in(menu_section(more.stdout)) > ids_in(menu_section(plain.stdout)))
+            self.assertEqual("Loads on hand" in more.stdout, "Loads on hand" in plain.stdout)   # the same kit, plus
+            with open(draft.menu_path(target), encoding="utf-8") as f:
+                saved = json.load(f)
+        self.assertEqual(saved["request"]["add"], ["bench"])
+        self.assertEqual(saved["request"]["kit"], "home")
+        self.assertEqual(saved["health_sha256"], menu.health_hash(os.path.join(LISTENER, "health.md")))
+        self.assertEqual(saved["date"], "2026-10-21")
 
 
 if __name__ == "__main__":

@@ -38,18 +38,23 @@ class Screen(NamedTuple):
 
 
 def _equipment(request: dict, cat: catalog.Catalog, profile) -> Set[str]:
+    """The kit's (or preset's, or the listed) equipment, plus anything `add` says is on hand today."""
+    extra = set(request.get("add") or ())
+    unknown = [e for e in extra if e not in cat.equipment]
+    if unknown:
+        raise ValueError(f"unknown equipment \"{unknown[0]}\" (choose from: {', '.join(cat.equipment)})")
     if request.get("kit"):
         kits = context.kits(profile)
         if request["kit"] not in kits:
             raise ValueError(f"unknown kit \"{request['kit']}\" (kits in the profile: {', '.join(kits) or 'none'})")
-        return set(kits[request["kit"]])
+        return set(kits[request["kit"]]) | extra
     if request.get("preset"):
-        return catalog.kit_equipment(cat, {"preset": request["preset"]})
+        return catalog.kit_equipment(cat, {"preset": request["preset"]}) | extra
     if "equipment" in request:
         unknown = [e for e in request["equipment"] if e not in cat.equipment]
         if unknown:
             raise ValueError(f"unknown equipment \"{unknown[0]}\" (choose from: {', '.join(cat.equipment)})")
-        return set(request["equipment"])
+        return set(request["equipment"]) | extra
     raise ValueError("name a kit, a preset or the equipment")
 
 
