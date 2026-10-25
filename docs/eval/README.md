@@ -15,9 +15,7 @@ does, and reviewers score the scripts for safety, efficacy, adherence, ease of c
   a is a novice with a mat and no limits; b is experienced in hotel gyms with a delicate neck; c is advanced
   in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
   no log yet.
-- `briefs.sh`: each case's brief and menu. `skeletons.sh`: the composer's skeletons, the baseline
-  before 7.0.0 (its writers narrated them), run from a worktree of the v7.1.0 tag since 7.2.0 retired
-  the composer.
+- `briefs.sh`: each case's brief and menu.
 - `writer.md`: the writer's brief (a few cases a writer). `judge.md`: the reviewer's prompt.
 - `out/` (git-ignored): the generated briefs and menus, scripts, writer notes, lints and judges' parts.
 

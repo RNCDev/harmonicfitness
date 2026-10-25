@@ -14,12 +14,11 @@ models
 __pycache__/
 .DS_Store
 
-# The judged grid's generated briefs, menus, skeletons, scripts and lints (docs/eval/README.md).
+# The judged grid's generated briefs, menus, scripts and lints (docs/eval/README.md).
 docs/eval/out/
 # Lint-only exports from the eval scripts, written into each invented listener's workouts/.
 docs/eval/listeners/*/workouts/
-docs/eval/out-before-6.1.0/
-docs/eval/out-before-7.0.0/
+docs/eval/out-before-*/
 
 # The plan ledgers and briefs of superpowers' executing-plans (scratch, per plan).
 .superpowers/

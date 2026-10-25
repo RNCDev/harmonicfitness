@@ -5,7 +5,7 @@
 # kind of work (sets, pairs, rounds, intervals or holds). The dose tables give each intensity's
 # ranges by level. Every number says where it comes from: `# source:` names an opened source with
 # its URL, `# house default:` is a planning choice with its reason. Sources are those cited in
-# knowledge/programming.md and in docs/research/2026-10-21-session-structure-notes.md, nothing else.
+# knowledge/programming.md and in knowledge/research/, nothing else.
 #
 # Shares are fractions of the session's minutes; each `seconds = [least, most]` clamps them.
 # Block shares split what is left for the work and sum to one.
