@@ -74,3 +74,52 @@ class FakeService:
     def __exit__(self, *exc):
         self.server.shutdown()
         self.server.server_close()
+
+
+def _b64(data):
+    import base64
+    return base64.b64encode(data).decode()
+
+
+def design_answer(service):
+    """An answer for one web service that designs, saves, speaks and deletes as its documented API does:
+    Fish two candidates (44.1 kHz WAVs with signatures), ElevenLabs three previews, Gemini one stored
+    voice (and its speech), Inworld two previews."""
+    import itertools
+    import json
+    count = itertools.count(1)
+
+    def answer(req):
+        ok = lambda body: (200, {"Content-Type": "application/json"}, json.dumps(body).encode())
+        if req.method == "DELETE":
+            return 204, {}, b""
+        if service == "fish":
+            if req.path == "/v1/voice-design":
+                return ok({"candidates": [{"id": f"cand-{i}", "audio_base64": _b64(tone_wav(1.0 - 0.2 * i, rate=44100)),
+                                           "sample_rate": 44100, "text": "Okay, set your feet.",
+                                           "signature": f"sig-{i}"} for i in range(2)]})
+            if req.path == "/model":
+                return 201, {"Content-Type": "application/json"}, json.dumps({"_id": "fish-model-1",
+                                                                              "state": "trained"}).encode()
+        if service == "elevenlabs":
+            if req.path.startswith("/v1/text-to-voice/design"):
+                return ok({"previews": [{"audio_base_64": _b64(tone_pcm(1.0)), "generated_voice_id": f"g{i}"}
+                                        for i in range(3)], "text": "the words spoken"})
+            if req.path == "/v1/text-to-voice":
+                return ok({"voice_id": "el-saved-5"})
+        if service == "gemini":
+            if req.path == "/v1beta/voices":
+                return ok({"id": f"gem-voice-{next(count)}",
+                           "sample_audio": {"mime_type": "audio/wav", "data": _b64(tone_wav(2.0))}})
+            if req.path == "/v1beta/interactions":
+                return ok({"steps": [{"content": [{"type": "audio", "mime_type": "audio/wav",
+                                                   "data": _b64(tone_wav(1.0))}]}]})
+        if service == "inworld":
+            if req.path == "/voices/v1/voices:design":
+                return ok({"previewVoices": [{"voiceId": f"ws__design-{i}", "previewText": "Okay, set.",
+                                              "previewAudio": _b64(tone_wav(0.9))} for i in range(2)]})
+            if req.path.endswith(":publish"):
+                return ok({"voiceId": req.path.split("/")[-1].split(":")[0]})
+        return 404, {}, b'{"message": "not found"}'
+    return answer
+

@@ -147,6 +147,21 @@ def record_estimate(v, weight, seconds, path=None):
         _write_rates(path, data)
 
 
+def forget_pace(path, key):
+    """Drop every record of voice identity `key` (any engine or model) from pace file `path`: a re-voiced
+    coach's old voice. Returns how many went."""
+    if not os.path.exists(path):
+        return 0
+    with _locked(path):
+        data = _recorded(path, strict=True)
+        gone = [k for k in data if k.startswith(f"{key}|")]
+        for k in gone:
+            del data[k]
+        if gone:
+            _write_rates(path, data)
+    return len(gone)
+
+
 def seed_pace(data):
     """A starting rate for a voice no render has measured: the median of the measured
     rates on file (entries with enough speech behind them), else DEFAULT_PACE. The

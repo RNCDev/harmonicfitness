@@ -1,27 +1,46 @@
-"""Coaches: design one from a description, keep a take as their clip, choose, measure and tune them.
+"""Coaches: audition a web coach and keep the one that sounds right; design or bring a local coach's clip;
+choose, measure and tune them.
 
-A coach is a persona folder in me/personas/ (tools/personas.py): a person's name, how they talk, and
-a ten-second clip every engine copies. Nothing renders from a description alone: a description
-makes takes, the listener keeps one, and that clip is the coach from then on.
+A coach is a persona folder in me/personas/ (tools/personas.py): a person's name, how they talk, and how
+they sound. A web coach is a voice a service designed and saved (Fish Audio, ElevenLabs, Gemini, Inworld,
+with the listener's key); a local coach is a ten-second clip every local engine copies.
 
-    ./sweatcast coaches                                   # every coach, the last used marked
+    ./sweatcast coaches                                   # every coach and where it speaks, the last used marked
+    ./sweatcast coaches audition maya.md                  # candidates from every keyed service, nothing saved
+    ./sweatcast coaches audition maya.md --services fish,gemini
+    ./sweatcast coaches audition --coach "Coach Maya"     # a new voice for a coach, on its own service
+    ./sweatcast coaches keep 2026-10-25-1/B --name "Coach Maya"   # save B at its service as the coach
+    ./sweatcast coaches keep 2026-10-26-1/A --name "Coach Maya" --replace-old   # re-voice; delete the old voice
+    ./sweatcast coaches forget-audition 2026-10-25-1      # close an audition (Gemini's unkept voices deleted)
+    ./sweatcast coaches archive "Coach Julius"            # out of the list, still found for old log lines
     ./sweatcast coaches last                              # the coach a build uses when none is named
-    ./sweatcast coaches design "Coach Maya" "A woman in her thirties, warm and mid-low ..."
+    ./sweatcast coaches design "Coach Maya" "A woman in her thirties, warm and mid-low ..."   # local takes
     ./sweatcast coaches keep "me/personas/coach-maya/takes/2.wav"
     ./sweatcast coaches keep my-recording.wav --name "Coach Sam" --words "what the clip says"
     ./sweatcast coaches set "Coach Maya" local.engine qwen3
     ./sweatcast coaches measured "Coach Maya" --engine local   # exit 0 measured, 1 estimated, 64 unknown
     ./sweatcast coaches download ["Coach Maya"]           # the coach's local model
 
+An audition reads a narrative file (persona.md's format: a schema 5 +++ block with [voice], what the
+services design from, and [character], what the script writer follows, then free notes) and lands in
+me/personas/.auditions/<date>-<n>/: each candidate as <service>-<k>.wav and .mp3, lettered A, B, C... in
+service order, every one saying the same coaching line, with its cost per workout in candidates.json.
+Fish, ElevenLabs and Inworld keep nothing until a candidate is kept; Gemini stores each voice as it
+designs it, so forget-audition deletes the ones not kept.
+
 A local coach's takes come from the local designer (Qwen3-TTS VoiceDesign on MLX, an Apple Silicon Mac;
 a 4.5 GB model). Or bring a clip: about ten seconds of a voice with its exact words; a real person's
-voice needs that person's consent. A web coach is designed and saved at its service instead (the coach
-skill), never from a clip.
+voice needs that person's consent.
 """
 import argparse
+import concurrent.futures
+import datetime
+import importlib
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
 import wave
 
@@ -34,6 +53,8 @@ import voices  # noqa: E402
 from paths import show  # noqa: E402
 
 DESIGNERS = ("local",)
+CANDIDATES = {"fish": 2, "elevenlabs": 3, "gemini": 1, "inworld": 2}   # per audition, lettered in this order
+WORKOUT_CHARS = 20000   # a workout's characters, for the cost a candidate is labeled with
 PROSE = """## How this coach talks
 - Tone: calm and focused. Keep humor light and occasional, with no hype.
 - How the coach talks to me: like a coach who knows me, warm and direct, first name now and then, contractions, "let's" in the rests. Not a drill sergeant, not a radio host.
@@ -148,6 +169,326 @@ def keep(take, name=None, words=None, description="", engine="chatterbox", force
     return name
 
 
+# --- Web coaches: audition, keep, forget-audition, archive ---------------------------------------------------
+
+def _auditions():
+    return os.path.join(paths.PERSONAS, ".auditions")
+
+
+def _narrative(path):
+    """The narrative file as a context Persona (settings, body), refused without a [voice] to design from."""
+    if not os.path.exists(path):
+        raise SystemExit(f"No narrative at {path}.")
+    n = context.persona(path)
+    voice = n.settings.get("voice")
+    if not isinstance(voice, dict) or not personas.voice_description(voice):
+        raise SystemExit(f"{show(path)} has no [voice] to design from (who, sound, energy, pace, avoid).")
+    return n
+
+
+def _new_audition():
+    base = _auditions()
+    os.makedirs(base, exist_ok=True)
+    today = datetime.date.today().isoformat()
+    taken = [int(d[len(today) + 1:]) for d in os.listdir(base)
+             if d.startswith(today + "-") and d[len(today) + 1:].isdigit()]
+    n = max(taken, default=0) + 1
+    while True:
+        folder = os.path.join(base, f"{today}-{n}")
+        try:
+            os.makedirs(folder)
+            return folder
+        except FileExistsError:
+            n += 1
+
+
+def _service_name(service):
+    import cloud
+    return cloud.services().get(service, {}).get("name", service or "no service")
+
+
+def _reason(e):
+    if isinstance(e, SystemExit):
+        return str(e.code)
+    return getattr(e, "message", None) or str(e) or type(e).__name__
+
+
+def _mp3(wav, mp3):
+    """The candidate as an MP3 (mono, 48 kbps) to listen to; False when ffmpeg isn't here."""
+    import ffmpeg
+    exe = ffmpeg.exe()
+    if not exe:
+        return False
+    done = subprocess.run([exe, "-hide_banner", "-loglevel", "error", "-y", "-i", wav, "-ac", "1",
+                           "-c:a", "libmp3lame", "-b:a", "48k", mp3], capture_output=True, text=True, timeout=120)
+    return done.returncode == 0
+
+
+def _write_candidates(folder, cands):
+    context._atomic_write(os.path.join(folder, "candidates.json"), json.dumps(cands, indent=1) + "\n")
+
+
+def _read_candidates(folder):
+    with open(os.path.join(folder, "candidates.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _run_audition(narrative=None, services=None, coach=None, play=False):
+    """Design candidates on every keyed service (or `services`) in parallel. Returns (folder, candidates,
+    failures as (service, error)); folder is None when no candidate landed."""
+    import cloud
+    import keys
+    table = cloud.services()   # loaded once, before the threads
+    revoice = None
+    if coach:
+        revoice = personas.lookup(coach)
+        if not revoice.is_web or revoice.service not in CANDIDATES:
+            raise SystemExit(f"{revoice.name} is a local coach: a web audition makes a new web coach "
+                             "(audition a narrative without --coach).")
+        if services and list(services) != [revoice.service]:
+            raise SystemExit(f"{revoice.name} speaks on {_service_name(revoice.service)}: a coach is re-voiced on "
+                             "its own service only (leave out --services).")
+        services = [revoice.service]
+        narrative = narrative or revoice.path
+    if not narrative:
+        raise SystemExit("Name the narrative file to design from (or --coach for a coach's new voice).")
+    n = _narrative(narrative)
+    wanted = list(services) if services else list(CANDIDATES)
+    unknown = [s for s in wanted if s not in CANDIDATES]
+    if unknown:
+        raise SystemExit(f"No web service {', '.join(unknown)}: the services are {', '.join(CANDIDATES)}.")
+    wanted = [s for s in CANDIDATES if s in wanted]
+    keyed = [s for s in wanted if keys.is_set(s)]
+    for s in wanted:
+        if s not in keyed and services:
+            print(f"{_service_name(s)}: no key here, skipped (./sweatcast keys).")
+    if not keyed:
+        print("No web service has a key here, so there's nothing to audition on. Add one: ./sweatcast keys "
+              "(then ./sweatcast keys init <service>).", file=sys.stderr)
+        return None, [], []
+
+    folder = _new_audition()
+    audition_id = os.path.basename(folder)
+    planned, at = {}, 0
+    for s in keyed:   # Gemini names its voice as it designs it, before any letter is final: the planned one
+        planned[s] = chr(ord("A") + at)
+        at += CANDIDATES[s]
+    description = personas.voice_description(n.settings["voice"])
+    for s in keyed:
+        cost = table[s].get("design_usd")
+        print(f"{table[s]['name']}: {CANDIDATES[s]} candidate{'s' if CANDIDATES[s] > 1 else ''}, "
+              + (f"design about ${cost:.2f}" if cost is not None else "design cost not published"), flush=True)
+
+    def design(service):
+        module = importlib.import_module(f"services.{service}")
+        return module.design(description, voices.DESIGN_LINE, CANDIDATES[service],
+                             f"sweatcast audition {audition_id} {planned[service]}")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(keyed)) as pool:
+        futures = {s: pool.submit(design, s) for s in keyed}
+    cands, failures = [], []
+    for s in keyed:   # service order, whatever finished first
+        try:
+            made = futures[s].result()
+        except (Exception, SystemExit) as e:
+            failures.append((s, e))
+            continue
+        usd = round(cloud.estimate(s, table[s]["default_model"], ["x" * WORKOUT_CHARS])[1], 4)
+        for k, c in enumerate(made, 1):
+            stem = f"{s}-{k}"
+            with open(os.path.join(folder, stem + ".wav"), "wb") as f:
+                f.write(c["wav"])   # as the service sent it: Fish's save sends this WAV back
+            mp3 = stem + ".mp3" if _mp3(os.path.join(folder, stem + ".wav"), os.path.join(folder, stem + ".mp3")) \
+                else None
+            entry = {"letter": chr(ord("A") + len(cands)), "service": s, "k": k, "draft_id": c.get("draft_id"),
+                     "signature": c.get("signature"), "text": c.get("text") or voices.DESIGN_LINE,
+                     "wav": stem + ".wav", "mp3": mp3, "usd_per_workout": usd,
+                     "design_usd": table[s].get("design_usd"), "note": table[s].get("note")}
+            if revoice:
+                entry["coach"] = revoice.name
+            cands.append(entry)
+    if not cands:
+        shutil.rmtree(folder, ignore_errors=True)
+    else:
+        shutil.copyfile(narrative, os.path.join(folder, "narrative.md"))
+        _write_candidates(folder, cands)
+    import player
+    for c in cands:
+        listen = os.path.join(folder, c["mp3"] or c["wav"])
+        print(f"{c['letter']}  {table[c['service']]['name']:10}  about ${c['usd_per_workout']:.2f} a workout  "
+              f"{show(listen)}" + (f"  ({c['note']})" if c["note"] else ""))
+        if play and not player.play(listen):
+            print("    (no audio player found here; open the file to listen)")
+    for s, e in failures:
+        print(f"{table[s]['name']}: no candidates ({_reason(e)})")
+    if cands and not all(c["mp3"] for c in cands):
+        import ffmpeg
+        print(f"(No MP3s: ffmpeg isn't here, {ffmpeg.install_hint()}; the WAVs play as well.)")
+    return (folder if cands else None), cands, failures
+
+
+def audition(narrative, services=None, coach=None, play=False):
+    """Candidates for a web coach from `narrative` (a persona.md-format file), one design per keyed service
+    (or each of `services`), in parallel, each saying the coaching line; nothing saved. With `coach`, a new
+    voice for that coach on its own service, from its own persona.md unless a narrative is given. Returns
+    the audition folder."""
+    folder, _, failures = _run_audition(narrative, services, coach, play)
+    if folder is None:
+        raise SystemExit("No candidates: " + ("; ".join(f"{_service_name(s)}: {_reason(e)}" for s, e in failures)
+                                              or "no web service has a key here (./sweatcast keys)."))
+    return folder
+
+
+def _web_ref(ref):
+    """(audition folder, candidate) for `<audition>/<letter>` or `<audition>/<service>-<k>` (the audition
+    by id or path; a .wav or .mp3 on the candidate is allowed), else None."""
+    head, _, tail = ref.replace("\\", "/").rstrip("/").rpartition("/")
+    if not head or not tail:
+        return None
+    tail = re.sub(r"\.(wav|mp3)$", "", tail, flags=re.IGNORECASE)
+    for folder in (head, os.path.join(_auditions(), head)):
+        if os.path.isfile(os.path.join(folder, "candidates.json")):
+            return folder, tail
+    return None
+
+
+def _audition_folder(ref):
+    for folder in (ref, os.path.join(_auditions(), ref)):
+        if os.path.isfile(os.path.join(folder, "candidates.json")):
+            return folder
+    raise SystemExit(f"No audition {ref} (in {show(_auditions())}).")
+
+
+def _existing(name):
+    try:
+        return personas.lookup(name)
+    except SystemExit:
+        return None
+
+
+def keep_web(ref, name, replace_old=False):
+    """Save candidate `ref` (`<audition>/<letter>` or `<audition>/<service>-<k>`) at its service as
+    "sweatcast <name>" and write the coach: persona.md (the narrative's [voice], [character] and notes,
+    with kind, service, voice_id, made), sample.mp3 and a pace estimate. An audition made with --coach
+    re-voices that coach: a new voice_id and sample, the old voice's pace dropped, and with `replace_old`
+    the old voice deleted at the service. Returns the coach's folder."""
+    import cloud
+    found = _web_ref(ref)
+    if not found:
+        raise SystemExit(f"{ref} isn't a candidate in an audition: <audition>/<letter>, such as "
+                         f"{datetime.date.today().isoformat()}-1/B.")
+    folder, which = found
+    cands = _read_candidates(folder)
+    c = next((x for x in cands if which.lower() in (x["letter"].lower(), f"{x['service']}-{x['k']}")), None)
+    if c is None:
+        raise SystemExit(f"No candidate {which} in audition {os.path.basename(folder)}: "
+                         f"{', '.join(x['letter'] for x in cands)}.")
+    if c.get("kept"):
+        raise SystemExit(f"Candidate {c['letter']} is already {c['kept']}.")
+    name = name or c.get("coach")
+    if not name:
+        raise SystemExit("Give the coach a person's name: --name \"Coach Maya\".")
+    existing = _existing(name)
+    revoice = c.get("coach")
+    if existing is None and os.path.exists(os.path.join(paths.PERSONAS, personas.slug(name))):
+        raise SystemExit(f"{show(os.path.join(paths.PERSONAS, personas.slug(name)))} is already there; pick another name.")
+    revoiced = _existing(revoice) if revoice else None
+    if existing is not None and (revoiced is None or revoiced.folder != existing.folder):
+        raise SystemExit(f"There's already a coach called {existing.name}. Pick another name, or for a new voice "
+                         f"for {existing.name}, audition with --coach \"{existing.name}\" and keep from that.")
+    service = c["service"]
+    if existing is not None and existing.service != service:
+        raise SystemExit(f"{existing.name} speaks on {_service_name(existing.service)}; candidate {c['letter']} is "
+                         f"from {_service_name(service)}. A coach is re-voiced on its own service only.")
+    n = context.persona(os.path.join(folder, "narrative.md"))
+    voice = n.settings.get("voice") or {}
+    with open(os.path.join(folder, c["wav"]), "rb") as f:
+        wav = f.read()
+    candidate = {"wav": wav, "text": c["text"], "draft_id": c["draft_id"], "signature": c["signature"]}
+    module = importlib.import_module(f"services.{service}")
+    print(f"Saving {c['letter']} at {_service_name(service)} as \"sweatcast {name}\".", flush=True)
+    voice_id = module.save(candidate, name, personas.voice_description(voice), wav)
+
+    today = datetime.date.today().isoformat()
+    if existing is not None:   # a new voice for a coach: how they talk stays
+        target, prose = existing.folder, existing.prose
+        settings = {k: v for k, v in existing.settings.items() if k not in ("schema", "pending")}
+        settings.update(voice_id=voice_id, made=today, voice=voice)
+    else:
+        target, prose = os.path.join(paths.PERSONAS, personas.slug(name)), n.body
+        settings = {"name": name, "aliases": [], "kind": "web", "service": service, "voice_id": voice_id,
+                    "made": today}
+        if n.settings.get("description"):
+            settings["description"] = n.settings["description"]
+        settings["voice"] = voice
+        if isinstance(n.settings.get("character"), dict):
+            settings["character"] = n.settings["character"]
+    os.makedirs(target, exist_ok=True)
+    coach = personas.Persona(os.path.basename(target), target, settings, prose)
+
+    sample = coach.sample
+    mp3 = os.path.join(folder, c["mp3"]) if c.get("mp3") else None
+    if mp3 and os.path.exists(mp3):
+        shutil.copyfile(mp3, sample + ".part")
+        os.replace(sample + ".part", sample)
+    elif _mp3(os.path.join(folder, c["wav"]), sample + ".part.mp3"):
+        os.replace(sample + ".part.mp3", sample)
+    else:
+        print("(No sample.mp3: ffmpeg isn't here to make one.)")
+    if existing is not None and existing.voice_id:
+        models = list(cloud.services()[service].get("models") or {}) + [existing.model or ""]
+        for model in dict.fromkeys(m for m in models if m):
+            voices.forget_pace(existing.pace_file, personas.web_key(existing, model))
+    pcm = cloud.trim(cloud.audio_pcm(wav, service=service))
+    seconds = len(pcm) / 2 / cloud.SR
+    if seconds > 0:
+        voices.record_estimate(cloud.voice_for(coach, service), voices.weight(c["text"]), seconds)
+    context._atomic_write(coach.path, context.persona_text(settings, prose))   # last: all or nothing
+
+    c["kept"] = name
+    _write_candidates(folder, cands)
+    if existing is not None and existing.voice_id and replace_old:
+        try:
+            module.delete(existing.voice_id)
+            print(f"Deleted {existing.name}'s old voice at {_service_name(service)}.")
+        except (cloud.ServiceError, SystemExit) as e:
+            print(f"Couldn't delete the old voice at {_service_name(service)} ({_reason(e)}); delete "
+                  f"\"sweatcast {existing.name}\" there by hand.")
+    print(f"Kept {name} ({_service_name(service)}) in {show(target)}.")
+    return target
+
+
+def forget_audition(audition):
+    """Close an audition: delete Gemini's stored voices that weren't kept, then the folder. Returns the lines
+    said. If a Gemini voice won't delete, the folder stays so it can be tried again."""
+    import cloud
+    folder = _audition_folder(audition)
+    cands = _read_candidates(folder)
+    lines = []
+    for c in cands:
+        if c["service"] == "gemini" and not c.get("kept") and c.get("draft_id"):
+            gemini = importlib.import_module("services.gemini")
+            try:
+                gemini.delete(c["draft_id"])
+            except (cloud.ServiceError, SystemExit) as e:
+                raise SystemExit(f"Gemini: couldn't delete audition voice {c['letter']} ({_reason(e)}); the "
+                                 f"audition stays in {show(folder)} so forget-audition can try again.")
+            lines.append(f"Deleted Gemini's stored audition voice {c['letter']}.")
+    others = list(dict.fromkeys(_service_name(c["service"]) for c in cands
+                                if c["service"] != "gemini" and not c.get("kept")))
+    if others:
+        lines.append(f"{', '.join(others)}: the unsaved drafts need nothing (nothing was saved there).")
+    shutil.rmtree(folder)
+    lines.append(f"Removed {show(folder)}.")
+    return lines
+
+
+def archive(name):
+    """Move coach `name` to personas/.archive/ (out of the list, still found for old log lines). Returns
+    where it went."""
+    return personas.archive(personas.lookup(name))
+
+
 def last_line(p):
     return f"{p.name}" + (f": {p.description}" if p.description else "")
 
@@ -179,14 +520,26 @@ def main(argv=None):
     g.add_argument("--seed", type=int, default=7)
     g.add_argument("--line", default=voices.DESIGN_LINE, help="what the takes say (a coaching line)")
     g.add_argument("--play", action="store_true", help="play each take with the system's player")
-    k = sub.add_parser("keep", help="make a take, or a clip you bring, a coach's clip")
-    k.add_argument("take")
-    k.add_argument("--name", help="the coach's name (default: the take's)")
+    a = sub.add_parser("audition", help="candidates for a web coach from every keyed service; nothing saved")
+    a.add_argument("narrative", nargs="?", help="the coach narrative: persona.md's format, with [voice]")
+    a.add_argument("--services", help="only these, comma-separated (fish, elevenlabs, gemini, inworld)")
+    a.add_argument("--coach", help="a new voice for this web coach, on its own service")
+    a.add_argument("--play", action="store_true", help="play each candidate with the system's player")
+    k = sub.add_parser("keep", help="keep an audition's candidate as a web coach (<audition>/<letter>), or make "
+                                    "a take or a clip you bring a local coach's clip")
+    k.add_argument("take", help="<audition>/<letter> or <audition>/<service>-<k>; or a take or clip")
+    k.add_argument("--name", help="the coach's name (a new web coach needs one; default: the take's)")
+    k.add_argument("--replace-old", action="store_true",
+                   help="re-voicing: delete the coach's old voice at its service")
     k.add_argument("--words", help="the clip's exact words (default: the .txt beside it)")
     k.add_argument("--description", default="", help="who the coach is, in a line")
     k.add_argument("--engine", choices=personas.LOCAL_ENGINES, default="chatterbox",
                    help="the local model: chatterbox (most natural) or qwen3 (clearest; Mac only)")
     k.add_argument("--force", action="store_true", help="replace the coach's clip")
+    f = sub.add_parser("forget-audition", help="close an audition: Gemini's unkept voices deleted, the folder removed")
+    f.add_argument("audition", help="its id (such as 2026-10-25-1) or folder")
+    r = sub.add_parser("archive", help="move a coach out of the list (old log lines still find them)")
+    r.add_argument("coach")
     s = sub.add_parser("set", help="set one of a coach's settings: <table>.<key> <value>")
     s.add_argument("coach")
     s.add_argument("setting", help="for example local.engine, elevenlabs.model, or description")
@@ -230,6 +583,33 @@ def main(argv=None):
         print(f"Listen, then keep the one that sounds right:\n  ./sweatcast coaches keep \"{show(takes[0])}\"\n"
               "None right? Say what's off, reword the description, and design again (or another --seed).")
         return cli.OK
+    if args.cmd == "audition":
+        import cloud
+        wanted = [x.strip() for x in args.services.split(",") if x.strip()] if args.services else None
+        folder, cands, failures = _run_audition(args.narrative, wanted, args.coach, args.play)
+        if not cands:
+            must_act = any(isinstance(e, cloud.ServiceError) and e.listener_must_act for _, e in failures)
+            return cli.SERVICE if must_act else cli.ISSUES
+        audition_id = os.path.basename(folder)
+        print(f"Listen, then keep the one that sounds right:\n  ./sweatcast coaches keep {audition_id}/"
+              f"{cands[0]['letter']} --name \"Coach ...\"\nWhen done: ./sweatcast coaches forget-audition {audition_id}")
+        return cli.OK
+    if args.cmd == "keep" and _web_ref(args.take):
+        import cloud
+        try:
+            keep_web(args.take, args.name, args.replace_old)
+        except cloud.ServiceError as e:
+            print(e, file=sys.stderr)
+            return cli.SERVICE if e.listener_must_act else cli.ISSUES
+        return cli.OK
+    if args.cmd == "forget-audition":
+        for line in forget_audition(args.audition):
+            print(line)
+        return cli.OK
+    if args.cmd == "archive":
+        name = personas.lookup(args.coach).name
+        print(f"Archived {name} in {show(archive(args.coach))}: out of the list; old log lines still find them.")
+        return cli.OK
     if args.cmd == "keep":
         name = keep(args.take, args.name, args.words, args.description, args.engine, args.force)
         print(f"Kept {name} in {show(os.path.join(paths.PERSONAS, personas.slug(name)))}. Write how they talk in "
@@ -266,12 +646,19 @@ def main(argv=None):
     last = personas.last_coach()
     found = personas.all()
     if not found:
-        print("No coaches yet: design one (./sweatcast coaches design) or bring a clip (./sweatcast coaches keep).")
+        print("No coaches yet: audition a web coach (./sweatcast coaches audition), or design or bring a local "
+              "coach's clip (./sweatcast coaches design, ./sweatcast coaches keep).")
         return cli.OK
     for p in found:
         mark = "*" if last and p.slug == last.slug else " "
-        engine = p.table("local").get("engine", "chatterbox") if p.has_clip else (p.service or "no clip")
-        print(f"{mark} {p.name:22} {engine:12} " + ("(a stand-in) " if p.placeholder else "") + p.description[:60])
+        if p.is_web:
+            where = f"web · {_service_name(p.service)}"
+        else:
+            where = f"local · {p.table('local').get('engine') or 'chatterbox'}"
+        notes = (["(a stand-in)"] if p.placeholder else []) \
+            + (["(made the first time it's used)"] if p.is_web and p.pending else []) \
+            + (["(no clip yet)"] if not p.is_web and not p.has_clip else []) + [p.description[:60]]
+        print((f"{mark} {p.name:22} {where:22} " + " ".join(x for x in notes if x)).rstrip())
     print("* the coach a build uses when none is named (the one used last)")
     return cli.OK
 

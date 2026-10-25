@@ -14,10 +14,12 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import context  # noqa: E402
+import ffmpeg  # noqa: E402
 import personas  # noqa: E402
 import voices  # noqa: E402
 
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "personas")
+FFMPEG = ffmpeg.exe()   # the MP3s need it; without it they're skipped, as in test_webcopy
 
 
 def persona_home(d, *extra):
@@ -480,6 +482,305 @@ class CoachDemo(unittest.TestCase):
         self.assertEqual(len(issues), 1, issues)
         self.assertTrue(issues[0].note)
         self.assertIn("stand-in", issues[0].message)
+
+
+
+NARRATIVE = """+++
+schema = 5
+
+[voice]
+who = "A woman in her thirties, a strength coach"
+sound = "Warm, mid-low, American accent, crisp diction"
+energy = "Steady, calm authority"
+pace = "Natural; brisk during work"
+avoid = "Hype, shouting, announcer voice, sleepy delivery"
+
+[character]
+calls_you = "Alex"
+signature = ["Stay with it.", "That's the pace we want."]
++++
+Free notes on how this coach talks.
+"""
+SERVICE_ORDER = ("fish", "elevenlabs", "gemini", "inworld")
+
+
+class Auditions(unittest.TestCase):
+    """./sweatcast coaches audition, keep, forget-audition, archive and the list, against fake services."""
+
+    def setUp(self):
+        import keys
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import fakes
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        self.folder = persona_home(self.d)
+        env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+        env["SWEATCAST_RETRY_WAIT"] = "0"
+        self.fakes = {}
+        for svc in SERVICE_ORDER:
+            fake = fakes.FakeService(fakes.design_answer(svc))
+            fake.__enter__()
+            self.addCleanup(fake.__exit__)
+            self.fakes[svc] = fake
+            env[f"SWEATCAST_{svc.upper()}_URL"] = fake.url
+            env[keys.SERVICE_VARS[svc]] = f"test-key-{svc}"
+        patches = [mock.patch.object(personas.paths, "PERSONAS", self.folder),
+                   mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.d, ".env")),
+                   mock.patch.object(personas.paths, "LOG", os.path.join(self.d, "log.md")),
+                   mock.patch.dict(os.environ, env, clear=True)]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.narrative = os.path.join(self.d, "maya.md")
+        with open(self.narrative, "w", encoding="utf-8") as f:
+            f.write(NARRATIVE)
+        self.today = __import__("datetime").date.today().isoformat()
+
+    def quiet(self, fn, *args, **kw):
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            result = fn(*args, **kw)
+        return result, out.getvalue()
+
+    def audition(self, *args, **kw):
+        import coaches
+        folder, self.said = self.quiet(coaches.audition, *args, **kw)
+        return folder
+
+    def candidates(self, folder):
+        with open(os.path.join(folder, "candidates.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def paths_of(self, svc, method="POST"):
+        return [r.path for r in self.fakes[svc].requests if r.method == method]
+
+    def test_audition_makes_lettered_candidates_from_every_keyed_service(self):
+        folder = self.audition(self.narrative)
+        self.assertEqual(os.path.dirname(folder), os.path.join(self.folder, ".auditions"))
+        self.assertEqual(os.path.basename(folder), f"{self.today}-1")
+        c = self.candidates(folder)
+        self.assertEqual([x["letter"] for x in c], list("ABCDEFGH"))
+        self.assertEqual([(x["service"], x["k"]) for x in c],
+                         [("fish", 1), ("fish", 2), ("elevenlabs", 1), ("elevenlabs", 2), ("elevenlabs", 3),
+                          ("gemini", 1), ("inworld", 1), ("inworld", 2)])
+        for x in c:
+            self.assertTrue(os.path.exists(os.path.join(folder, x["wav"])), x)
+            self.assertEqual(set(x) >= {"letter", "service", "k", "draft_id", "signature", "text", "wav", "mp3",
+                                        "usd_per_workout", "design_usd", "note"}, True)
+            if FFMPEG:
+                self.assertTrue(os.path.exists(os.path.join(folder, x["mp3"])), x)
+        by = {x["letter"]: x for x in c}
+        self.assertEqual((by["A"]["signature"], by["A"]["draft_id"]), ("sig-0", "cand-0"))
+        self.assertEqual(by["C"]["draft_id"], "g0")
+        self.assertAlmostEqual(by["A"]["usd_per_workout"], 0.30)
+        self.assertAlmostEqual(by["C"]["usd_per_workout"], 1.60)
+        self.assertEqual(by["A"]["design_usd"], 0.01)
+        self.assertIsNone(by["C"]["design_usd"])
+        self.assertIn("Free keeps 3 voices", by["C"]["note"])
+        with open(os.path.join(folder, "fish-1.wav"), "rb") as f:   # Fish's own WAV, kept as sent
+            self.assertEqual(f.read()[:4], b"RIFF")
+        self.assertTrue(os.path.exists(os.path.join(folder, "narrative.md")))
+        # nothing saved: only the designs (and Gemini's one line of speech)
+        self.assertEqual(self.paths_of("fish"), ["/v1/voice-design"])
+        self.assertEqual([p.split("?")[0] for p in self.paths_of("elevenlabs")], ["/v1/text-to-voice/design"])
+        self.assertEqual(self.paths_of("inworld"), ["/voices/v1/voices:design"])
+        self.assertEqual(self.paths_of("gemini"), ["/v1beta/voices", "/v1beta/interactions"])
+        design = json.loads(self.fakes["gemini"].requests[0].body)
+        self.assertEqual(design["voice"]["display_name"], f"sweatcast audition {self.today}-1 F")
+        fish = json.loads(self.fakes["fish"].requests[0].body)
+        self.assertEqual(fish["instruction"], personas.voice_description(context.persona(self.narrative).settings["voice"]))
+        self.assertEqual(fish["n"], 2)
+        self.assertEqual(json.loads(self.fakes["inworld"].requests[0].body)["numberOfSamples"], 2)
+        self.assertIn("about $1.60 a workout", self.said)
+        self.assertIn("about $0.01", self.said)
+        self.assertIn("design cost not published", self.said)
+        self.assertEqual(os.path.basename(self.audition(self.narrative)), f"{self.today}-2")
+
+    def test_audition_survives_one_service_failing(self):
+        import cli
+        import coaches
+        self.fakes["inworld"].answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
+        folder = self.audition(self.narrative)
+        self.assertEqual([x["service"] for x in self.candidates(folder)].count("inworld"), 0)
+        self.assertEqual(len(self.candidates(folder)), 6)
+        self.assertIn("Inworld: no candidates", self.said)
+        code, _ = self.quiet(coaches.main, ["audition", self.narrative])
+        self.assertEqual(code, cli.OK)
+        for fake in self.fakes.values():
+            fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
+        code, said = self.quiet(coaches.main, ["audition", self.narrative])
+        self.assertEqual(code, cli.SERVICE)
+        for svc in ("Fish Audio", "ElevenLabs", "Gemini", "Inworld"):
+            self.assertIn(f"{svc}: no candidates", said)
+        for fake in self.fakes.values():
+            fake.answer = lambda r: (400, {}, b'{"message": "bad description"}')
+        code, _ = self.quiet(coaches.main, ["audition", self.narrative])
+        self.assertEqual(code, cli.ISSUES)
+        import keys
+        for svc in SERVICE_ORDER:
+            del os.environ[keys.SERVICE_VARS[svc]]
+        code, said = self.quiet(coaches.main, ["audition", self.narrative])
+        self.assertEqual(code, cli.ISSUES)
+        self.assertIn("./sweatcast keys", said)
+
+    def test_audition_only_named_services(self):
+        import coaches
+        folder = self.audition(self.narrative, services=["fish", "gemini"])
+        c = self.candidates(folder)
+        self.assertEqual([(x["letter"], x["service"]) for x in c], [("A", "fish"), ("B", "fish"), ("C", "gemini")])
+        self.assertEqual(self.fakes["elevenlabs"].requests, [])
+        self.assertEqual(self.fakes["inworld"].requests, [])
+        self.assertTrue(json.loads(self.fakes["gemini"].requests[0].body)["voice"]["display_name"].endswith(" C"))
+        code, _ = self.quiet(coaches.main, ["audition", self.narrative, "--services", "inworld"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.paths_of("inworld")), 1)
+        with self.assertRaises(SystemExit):
+            coaches.audition(self.narrative, services=["deepgram"])
+
+    def keep(self, ref, name, **kw):
+        import coaches
+        folder, self.said = self.quiet(coaches.keep_web, ref, name, **kw)
+        return folder
+
+    def test_keep_saves_and_writes_the_coach(self):
+        import coaches
+        folder = self.audition(self.narrative)
+        code, said = self.quiet(coaches.main, ["keep", os.path.join(folder, "A"), "--name", "Coach Maya"])
+        self.assertEqual(code, 0, said)
+        p = personas.lookup("Coach Maya")
+        self.assertEqual(p.folder, os.path.join(self.folder, "coach-maya"))
+        self.assertEqual((p.kind, p.service, p.voice_id, p.settings["made"]), ("web", "fish", "fish-model-1", self.today))
+        self.assertEqual(p.voice["who"], "A woman in her thirties, a strength coach")
+        self.assertEqual(p.character["signature"], ["Stay with it.", "That's the pace we want."])
+        self.assertIn("Free notes on how this coach talks.", p.prose)
+        self.assertNotIn("model", p.settings)
+        if FFMPEG:
+            self.assertTrue(os.path.exists(p.sample))
+        saves = [r for r in self.fakes["fish"].requests if r.path == "/model"]
+        self.assertEqual(len(saves), 1)
+        self.assertIn(b"sweatcast Coach Maya", saves[0].body)
+        with open(os.path.join(folder, "fish-1.wav"), "rb") as f:
+            self.assertIn(f.read(), saves[0].body)   # Fish gets its own WAV back with the signature
+        self.assertIn(b"sig-0", saves[0].body)
+        v = personas.voice_for(p, "fish")
+        rate, measured = voices.pace(v)
+        self.assertFalse(measured)
+        with open(p.pace_file, encoding="utf-8") as f:
+            rec = json.load(f)[f"{v['key']}|fish|s2.1-pro"]
+        self.assertTrue(rec["estimate"])
+        self.assertEqual(rec["weight"], voices.weight("Okay, set your feet."))
+        self.assertAlmostEqual(rate, rec["weight"] / rec["seconds"])
+        self.assertLess(rec["seconds"], 1.05)
+        self.assertEqual(self.candidates(folder)[0]["kept"], "Coach Maya")
+        with self.assertRaises(SystemExit):   # one candidate, one coach
+            coaches.keep_web(os.path.join(folder, "A"), "Coach Mara")
+
+    def test_keep_two_from_one_audition(self):
+        folder = self.audition(self.narrative)
+        audition_id = os.path.basename(folder)
+        self.keep(f"{audition_id}/inworld-2", "Coach Maya")
+        self.keep(f"{audition_id}/d", "Coach Dana")
+        maya, dana = personas.lookup("Coach Maya"), personas.lookup("Coach Dana")
+        self.assertEqual((maya.service, maya.voice_id), ("inworld", "ws__design-1"))
+        self.assertEqual((dana.service, dana.voice_id), ("elevenlabs", "el-saved-5"))
+        publish = [r for r in self.fakes["inworld"].requests if r.path.endswith(":publish")]
+        self.assertEqual(json.loads(publish[0].body)["displayName"], "sweatcast Coach Maya")
+        save = [r for r in self.fakes["elevenlabs"].requests if r.path == "/v1/text-to-voice"]
+        self.assertEqual(json.loads(save[0].body)["generated_voice_id"], "g1")
+        self.assertEqual(json.loads(save[0].body)["voice_name"], "sweatcast Coach Dana")
+        kept = {x["letter"]: x.get("kept") for x in self.candidates(folder)}
+        self.assertEqual((kept["D"], kept["H"], kept["A"]), ("Coach Dana", "Coach Maya", None))
+
+    def test_revoice_replaces_voice_and_clears_old_pace(self):
+        import coaches
+        first = self.audition(self.narrative, services=["inworld"])
+        self.keep(f"{first}/A", "Coach Maya")
+        old = personas.lookup("Coach Maya")
+        old_voice = personas.voice_for(old, "inworld")
+        voices.record_rate(old_voice, 600.0, 40.0)
+        context.set_persona_setting(old.path, "character", "humor", "Dry, now and then")
+        with self.assertRaises(SystemExit):   # a coach is re-voiced on its own service only
+            coaches.audition(None, services=["fish"], coach="Coach Maya")
+        again = self.audition(None, coach="Coach Maya")
+        self.assertEqual({x["service"] for x in self.candidates(again)}, {"inworld"})
+        self.assertEqual({x.get("coach") for x in self.candidates(again)}, {"Coach Maya"})
+        self.keep(f"{again}/B", "Coach Maya", replace_old=True)
+        new = personas.lookup("Coach Maya")
+        self.assertEqual(new.voice_id, "ws__design-1")
+        self.assertEqual(new.character["humor"], "Dry, now and then")   # how they talk is kept
+        with open(new.pace_file, encoding="utf-8") as f:
+            recorded = json.load(f)
+        self.assertFalse(any(k.startswith(old_voice["key"] + "|") for k in recorded), recorded)
+        new_voice = personas.voice_for(new, "inworld")
+        self.assertTrue(recorded[f"{new_voice['key']}|inworld|inworld-tts-2"]["estimate"])
+        self.assertEqual(self.paths_of("inworld", "DELETE"), ["/voices/v1/voices/ws__design-0"])
+        if FFMPEG:
+            self.assertTrue(os.path.exists(new.sample))
+        self.assertEqual(len(personas.all()), 2)   # Coach Test and Coach Maya: no second folder
+
+    def test_forget_audition_deletes_unkept_gemini_only(self):
+        import coaches
+        first = self.audition(self.narrative, services=["fish", "gemini"])
+        self.keep(f"{first}/C", "Coach Nolan")
+        lines, _ = self.quiet(coaches.forget_audition, os.path.basename(first))
+        self.assertFalse(os.path.exists(first))
+        self.assertEqual(self.paths_of("gemini", "DELETE"), [])
+        self.assertEqual(self.paths_of("fish", "DELETE"), [])
+        self.assertTrue(any("need nothing" in line for line in lines), lines)
+        second = self.audition(self.narrative, services=["gemini"])
+        self.fakes["gemini"].answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
+        with self.assertRaises(SystemExit):   # the voice is still stored: keep the record to retry
+            self.quiet(coaches.forget_audition, second)
+        self.assertTrue(os.path.exists(second))
+        self.fakes["gemini"].answer = lambda r: (204, {}, b"")
+        code, said = self.quiet(coaches.main, ["forget-audition", second])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.paths_of("gemini", "DELETE")[-1], "/v1beta/voices/gem-voice-2")
+        self.assertFalse(os.path.exists(second))
+
+    def test_archive_moves_and_lists_without_it(self):
+        import coaches
+        persona_home(self.d, ("Coach Julius", {}))
+        moved, _ = self.quiet(coaches.archive, "Coach Julius")
+        self.assertEqual(moved, os.path.join(self.folder, ".archive", "coach-julius"))
+        _, listed = self.quiet(coaches.main, [])
+        self.assertNotIn("Coach Julius", listed)
+        self.assertIn("Coach Test", listed)
+        with self.assertRaises(SystemExit) as e:
+            coaches.archive("Coach Julius")
+        self.assertIn("archived", str(e.exception.code))
+        code, said = self.quiet(coaches.main, ["archive", "Coach Test"])
+        self.assertEqual(code, 0)
+        self.assertIn(".archive", said)
+
+    def test_list_shows_service(self):
+        import coaches
+        write_persona(self.folder, "coach-maya", MAYA)
+        write_persona(self.folder, "coach-reed", web_placeholder("Coach Reed", "fish"))
+        _, listed = self.quiet(coaches.main, ["list"])
+        lines = {" ".join(line[2:].split()[:2]): line for line in listed.splitlines() if line[2:].startswith("Coach ")}
+        self.assertIn("web · Inworld", lines["Coach Maya"])
+        self.assertTrue(lines["Coach Maya"].startswith("*"))
+        self.assertIn("local · chatterbox", lines["Coach Test"])
+        self.assertIn("web · Fish Audio", lines["Coach Reed"])
+        self.assertIn("(a stand-in)", lines["Coach Reed"])
+        self.assertIn("(made the first time it's used)", lines["Coach Reed"])
+        self.assertNotIn("stand-in", lines["Coach Maya"])
+
+    def test_keep_refuses_an_existing_name_without_coach_revoice(self):
+        import coaches
+        folder = self.audition(self.narrative, services=["fish"])
+        with self.assertRaises(SystemExit) as e:
+            coaches.keep_web(f"{folder}/A", "Coach Test")
+        self.assertIn("--coach", str(e.exception.code))
+        with self.assertRaises(SystemExit):   # a new coach needs a name
+            coaches.keep_web(f"{folder}/A", None)
+        with self.assertRaises(SystemExit):   # no such candidate
+            coaches.keep_web(f"{folder}/Z", "Coach Zed")
+        self.assertEqual([r for r in self.fakes["fish"].requests if r.path == "/model"], [])
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "coach-zed")))
 
 
 if __name__ == "__main__":
