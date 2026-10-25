@@ -5,7 +5,11 @@ import sys
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import ffmpeg  # noqa: E402
 import paths  # noqa: E402
+
+# the ffmpeg the tools would use (the system's, else the environment's own copy): tests that encode skip without one
+HAS_FFMPEG = ffmpeg.exe() is not None
 
 
 def assert_isolated(home):

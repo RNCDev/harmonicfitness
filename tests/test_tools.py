@@ -1133,7 +1133,7 @@ class Encode(unittest.TestCase):
                 render.encode(silence(0.1), os.path.join(d, "x.mp3"), "x")
         self.assertIn("no such filter", str(got.exception.code))
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_an_encode_lands_under_its_own_name(self):
         with tempfile.TemporaryDirectory() as d:
             render.encode(chime() * 4, os.path.join(d, "x.mp3"), "x")

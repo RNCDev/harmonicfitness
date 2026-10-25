@@ -19,6 +19,7 @@ os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 import cli  # noqa: E402
 import cloud  # noqa: E402
 import personas  # noqa: E402
+import helpers  # noqa: E402
 from fakes import FakeService, tone_pcm, tone_wav  # noqa: E402
 from test_personas import FIXTURE, persona_home  # noqa: E402
 
@@ -158,7 +159,7 @@ class Core(unittest.TestCase):
                 pcm, rate = cloud.wav_pcm(coaches._clip_bytes(wav))
             self.assertEqual(rate, 24000)
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_ffmpeg_refusing_a_clip_is_a_message(self):
         with self.assertRaises(SystemExit) as got:
             cloud.ffmpeg_pcm(b"\x00\x00\x00\x20ftypM4A " + bytes(64), "The clip")
@@ -786,17 +787,15 @@ class CloudRender(unittest.TestCase):
         e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
         e.update({"SWEATCAST_HOME": self.home, f"SWEATCAST_{service.upper()}_URL": url,
                   keys.SERVICE_VARS[service]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})
-        if not shutil.which("ffmpeg"):
-            # CI has no ffmpeg: a stand-in passes the render's preflight, so the tests that stop before
-            # the encode run there too (the ones that encode skip without a real one)
+        if not helpers.HAS_FFMPEG:
+            # no ffmpeg (bare Python, no environment): a stand-in passes the render's preflight, so the tests
+            # that stop before the encode still run (the ones that encode skip without a real one)
             stub = os.path.join(self.d, "bin")
             os.makedirs(stub, exist_ok=True)
             with open(os.path.join(stub, "ffmpeg"), "w") as f:
                 f.write("#!/bin/sh\nexit 1\n")
             os.chmod(os.path.join(stub, "ffmpeg"), 0o755)
             e["PATH"] = stub + os.pathsep + e.get("PATH", "")
-        sys.path.insert(0, os.path.join(ROOT, "tests"))
-        import helpers
         draft_path = helpers.draft_with_menu(DRAFT, os.path.join(self.d, "cloud.draft.txt"), self.home)
         return subprocess.run([sys.executable, "-c", RENDER, os.path.join(ROOT, "tools"), draft_path, COACHES[service],
                                out or os.path.join(self.d, "x.mp3")], env=e, capture_output=True, text=True, timeout=120)
@@ -841,7 +840,7 @@ class CloudRender(unittest.TestCase):
         self.assertEqual(fake.requests, [])
         self.assertIn("cloud_max_chars", out.stdout)
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_key_never_reaches_records_logs_or_cache_keys(self):
         import render
         for service in ("fish", "elevenlabs", "gemini", "inworld"):
@@ -877,7 +876,7 @@ class CloudRender(unittest.TestCase):
                         b = render.prepare_voice(personas.resolve(COACHES[service], None))[1]("Hello.")
                 self.assertEqual(a, b)
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_web_render_sends_voice_id_and_caches_by_web_key(self):
         mp3 = os.path.join(self.d, "x.mp3")
         with FakeService(wav_answer) as fake:
@@ -893,7 +892,7 @@ class CloudRender(unittest.TestCase):
             self.assertEqual(len(fake.requests), before)   # everything came from the cache
         self.assertNotIn("Sending", second.stdout)
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_cost_print_for_gemini(self):
         with FakeService(every_service_answer) as fake:
             out = self.render_on("gemini", fake.url, os.path.join(self.d, "g.mp3"))
@@ -936,7 +935,7 @@ class CloudRender(unittest.TestCase):
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
         self.assertEqual(self.builds(), [])   # the first web build is still to come (the privacy line)
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_interrupted_cloud_build_resumes_without_resending(self):
         state = {"ok": 3, "seen": 0}
 
