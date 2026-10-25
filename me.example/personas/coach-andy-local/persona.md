@@ -1,7 +1,8 @@
 +++
 schema = 5
 kind = "local"
-name = "Coach Demo"
+name = "Coach Andy"
+aliases = ["Coach Demo"]   # his name before 10.3.0
 placeholder = true
 description = "A stand-in coach to start with: a man in his forties, warm baritone, a seasoned trainer. Make your own any time (\"I want a new coach\")."
 

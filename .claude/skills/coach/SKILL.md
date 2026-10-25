@@ -5,7 +5,7 @@ description: Create a new coach (a trainer persona with a person's name, how the
 
 # Coach: a trainer of the listener's own
 
-A coach is a persona folder in `me/personas/<slug>/`: a person's name, how they talk, and how they sound. There are two kinds (`knowledge/voices.md` has the details):
+A coach is a persona folder in `me/personas/<slug>/`, named for the coach and where they speak (`coach-maya-fish`, `coach-sam-local`): a person's name, how they talk, and how they sound. There are two kinds (`knowledge/voices.md` has the details):
 - **A web coach** (`kind = "web"`): a voice a web service (Fish Audio, ElevenLabs, Gemini or Inworld) designed from the listener's description and saved in the listener's own account there. It speaks only through that service. This is the way to make a coach: **keys, describe, audition, approve and name, the stable.**
 - **A local coach** (`kind = "local"`): a ten-second clip every local engine copies. See "Local coaches" at the end.
 

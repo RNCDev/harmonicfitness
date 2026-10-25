@@ -93,7 +93,7 @@ def design(name, description, designer=None, takes=2, seed=7, line=voices.DESIGN
     designer = designer or available_designer()
     if designer not in DESIGNERS:
         raise SystemExit(f"--designer must be one of {', '.join(DESIGNERS)}")
-    folder = os.path.join(paths.PERSONAS, personas.slug(name), "takes")
+    folder = os.path.join(personas.folder_for(name, "local"), "takes")
     os.makedirs(folder, exist_ok=True)
     made = (make_takes or _make_takes(designer))(description, line, takes, seed)
     n = max([int(f[:-4]) for f in os.listdir(folder) if f.endswith(".wav") and f[:-4].isdigit()], default=0)
@@ -148,7 +148,7 @@ def keep(take, name=None, words=None, description="", engine="chatterbox", force
         raise SystemExit("Give the coach a person's name: --name \"Coach Sam\".")
     if engine not in personas.LOCAL_ENGINES:
         raise SystemExit(f"--engine must be one of {', '.join(personas.LOCAL_ENGINES)}")
-    folder = os.path.join(paths.PERSONAS, personas.slug(name))
+    folder = personas.folder_for(name, "local")
     os.makedirs(folder, exist_ok=True)
     clip, clip_txt, persona_md = (os.path.join(folder, f) for f in ("clip.wav", "clip.txt", "persona.md"))
     if os.path.exists(clip) and not force:
@@ -449,8 +449,8 @@ def keep_web(ref, name, replace_old=False):
         raise SystemExit("Give the coach a person's name: --name \"Coach Maya\".")
     existing = _existing(name)
     revoice = c.get("coach")
-    if existing is None and not resume and os.path.exists(os.path.join(paths.PERSONAS, personas.slug(name))):
-        raise SystemExit(f"{show(os.path.join(paths.PERSONAS, personas.slug(name)))} is already there; pick another name.")
+    if existing is None and not resume and os.path.exists(personas.folder_for(name, c["service"])):
+        raise SystemExit(f"{show(personas.folder_for(name, c['service']))} is already there; pick another name.")
     revoiced = _existing(revoice) if revoice else None
     if existing is not None and (revoiced is None or revoiced.folder != existing.folder):
         raise SystemExit(f"There's already a coach called {existing.name}. Pick another name, or for a new voice "
@@ -487,7 +487,7 @@ def keep_web(ref, name, replace_old=False):
             if n.settings.get("description") and not str(n.settings["description"]).startswith("A stand-in"):
                 settings["description"] = n.settings["description"]
     else:
-        target, prose = os.path.join(paths.PERSONAS, personas.slug(name)), n.body
+        target, prose = personas.folder_for(name, service), n.body
         settings = {"name": name, "aliases": [], "kind": "web", "service": service, "voice_id": voice_id,
                     "made": today}
         if n.settings.get("description"):
@@ -785,7 +785,7 @@ def main(argv=None):
         return cli.OK
     if args.cmd == "keep":
         name = keep(args.take, args.name, args.words, args.description, args.engine, args.force)
-        print(f"Kept {name} in {show(os.path.join(paths.PERSONAS, personas.slug(name)))}. Write how they talk in "
+        print(f"Kept {name} in {show(personas.folder_for(name, 'local'))}. Write how they talk in "
               f"persona.md, then measure their pace with the smoke test:\n"
               f"  ./sweatcast build {show(paths.SMOKE_DRAFT)} \"smoke-test\" --coach \"{name}\"")
         return cli.OK

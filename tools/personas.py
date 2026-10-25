@@ -44,6 +44,16 @@ def slug(name):
     return re.sub(r"[^a-z0-9]+", "-", ascii_name).strip("-") or "coach"
 
 
+def folder_for(name, where, folder=None):
+    """Where coach `name` lives: the folder of a coach already called that, else a new <slug>-<where>, where
+    `where` is "local" or the web coach's service (coach-maya-fish, coach-sam-local)."""
+    base = folder or paths.PERSONAS
+    for p in all(base):
+        if _match(p, name):
+            return p.folder
+    return os.path.join(base, f"{slug(name)}-{where}")
+
+
 @dataclass
 class Persona:
     slug: str
@@ -69,7 +79,7 @@ class Persona:
 
     @property
     def placeholder(self):
-        """A stand-in coach (Coach Demo), used until the listener makes their own."""
+        """A stand-in coach (Coach Andy), used until the listener makes their own."""
         return bool(self.settings.get("placeholder"))
 
     @property
@@ -169,7 +179,8 @@ def all(folder=None):
 
 def _match(p, name):
     want = name.strip().lower()
-    return want in (p.slug, p.name.lower()) or p.slug == slug(name) or want in (a.lower() for a in p.aliases)
+    return (want in (p.slug, p.name.lower()) or slug(name) in (p.slug, slug(p.name))   # coach-maya finds coach-maya-fish
+            or want in (a.lower() for a in p.aliases))
 
 
 def lookup(name, folder=None, archived=False):

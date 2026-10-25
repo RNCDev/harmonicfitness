@@ -2,6 +2,20 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [10.3.0] - 2026-10-25
+
+A new listener hears their stand-in coach before the first workout, and coach folders say where each coach speaks.
+
+### Added
+- **A test clip before the first workout.** Coach Andy, the local stand-in, ships with `sample.mp3`, fifteen seconds rendered on Chatterbox Turbo, which setup plays first. A web stand-in is made right after the key step (`./sweatcast coaches make`, its cost said first) rather than at the first build, and setup plays the clip that saves; a designed voice belongs to the account that made it, so each listener's is their own. Either way: if he isn't right, "I want a new coach". The setup skill, README, voices guide and CLAUDE.md say so.
+
+### Changed
+- **Coach Demo is Coach Andy**, in `me.example/personas/coach-andy-local/`, with "Coach Demo" kept as an alias, so log lines naming him still find him.
+- **Coach folders name where the coach speaks:** the web stand-ins are `coach-reed-fish/`, `coach-ellis-elevenlabs/`, `coach-nolan-gemini/` and `coach-owen-inworld/`, and a coach kept from now on gets `coach-<name>-<service>` or `coach-<name>-local` (`personas.folder_for`). A coach already in a folder keeps it, and lookup by the plain slug (`coach-maya`) still finds `coach-maya-fish`.
+
+### For forks
+Nothing to migrate: folders in `me/personas/` keep their names, and renaming one by hand to the new pattern is safe (pace and sample move with it; cached clips are keyed by the voice, not the folder). The new stand-ins come only with a new `me/`; to have Coach Andy's clip, copy `me.example/personas/coach-andy-local/sample.mp3` beside your Coach Demo.
+
 ## [10.2.0] - 2026-10-25
 
 The pantry is now the reserve: the evergreen filler (quizzes, things to enjoy, things to learn) researched ahead of time.

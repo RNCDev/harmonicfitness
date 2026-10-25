@@ -159,7 +159,7 @@ def web_coach(folder, service, name=None, **extra):
     import context
     name = name or COACHES[service]
     settings = dict({"name": name, "kind": "web", "service": service, "voice_id": VOICE_IDS[service]}, **extra)
-    path = os.path.join(folder, personas.slug(name))
+    path = os.path.join(folder, f"{personas.slug(name)}-{service}")   # as the template and keep name it
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, "persona.md"), "w", encoding="utf-8") as f:
         f.write(context.persona_text(settings, "## How this coach talks\n"))
@@ -207,7 +207,7 @@ class WebVoice(unittest.TestCase):
         v = personas.voice_for(p, "fish")   # the route is ignored: a web coach speaks through its service
         self.assertEqual({k: v[k] for k in ("name", "persona", "engine", "backend", "route", "service", "model",
                                             "voice_id", "style", "revision", "generate", "concurrency", "max_chars")},
-                         {"name": "Coach Owen", "persona": "coach-owen", "engine": "inworld", "backend": "cloud",
+                         {"name": "Coach Owen", "persona": "coach-owen-inworld", "engine": "inworld", "backend": "cloud",
                           "route": "inworld", "service": "inworld", "model": "inworld-tts-2",
                           "voice_id": VOICE_IDS["inworld"], "style": "", "revision": None, "generate": {},
                           "concurrency": 5, "max_chars": 2000})
@@ -226,7 +226,7 @@ class WebVoice(unittest.TestCase):
 
     def test_a_web_coach_with_no_voice_yet_stops(self):
         import context
-        path = os.path.join(self.folder, "coach-reed")
+        path = os.path.join(self.folder, "coach-reed-fish")
         os.makedirs(path)
         with open(os.path.join(path, "persona.md"), "w", encoding="utf-8") as f:
             f.write(context.persona_text({"name": "Coach Reed", "kind": "web", "service": "fish", "placeholder": True,

@@ -155,7 +155,7 @@ class CloudSession(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         with open(log) as f:
             self.assertNotIn("--extra", f.read())
-        self.assertTrue(os.path.exists(os.path.join(repo, "me", "personas", "coach-demo", "clip.wav")))
+        self.assertTrue(os.path.exists(os.path.join(repo, "me", "personas", "coach-andy-local", "clip.wav")))
         out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh"), "--local"], cwd=repo, env=env,
                              capture_output=True, text=True, timeout=120)
         self.assertEqual(out.returncode, 1)
@@ -214,13 +214,13 @@ class CloudSession(unittest.TestCase):
             with mock.patch.dict(os.environ, dict(env, FISH_AUDIO_API_KEY="test-key"), clear=True), \
                     mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
                 self.assertNotIn("No web coach yet", "\n".join(doctor.web_lines(home)))
-                for slug in ("coach-reed", "coach-ellis", "coach-nolan", "coach-owen"):   # a 9.x folder
+                for slug in ("coach-reed-fish", "coach-ellis-elevenlabs", "coach-nolan-gemini", "coach-owen-inworld"):   # a 9.x folder
                     shutil.rmtree(os.path.join(home, "personas", slug))
                 lines = "\n".join(doctor.web_lines(home))
             self.assertIn("No web coach yet", lines)
             self.assertIn("I want a new coach", lines)
             self.assertIn("Coach Reed", lines)
-            self.assertIn(os.path.join("me.example", "personas", "coach-reed"), lines)
+            self.assertIn(os.path.join("me.example", "personas", "coach-reed-fish"), lines)
             self.assertNotIn("Coach Owen", lines)
 
 STUB_UV = """#!/bin/sh

@@ -420,7 +420,7 @@ class FreshFork(unittest.TestCase):
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
             self.assertEqual(context.voices(prof), [])
             self.assertEqual(context.routes(prof), ["local"])
-            self.assertEqual(sorted(os.listdir(os.path.join(home, "personas"))), [".gitkeep", "coach-demo", "coach-ellis", "coach-nolan", "coach-owen", "coach-reed"])   # the stand-ins
+            self.assertEqual(sorted(os.listdir(os.path.join(home, "personas"))), [".gitkeep", "coach-andy-local", "coach-ellis-elevenlabs", "coach-nolan-gemini", "coach-owen-inworld", "coach-reed-fish"])   # the stand-ins
             self.assertIn("deliver_to", prof.settings)
 
     def test_missing_context_says_run_setup(self):
@@ -839,7 +839,7 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
 
     def add_web_coach(self, estimate=True):
         """Coach Reed on Fish Audio with a saved voice, and (by default) only an estimate of his pace."""
-        folder = os.path.join(self.home, "personas", "coach-reed")   # in place of the template's pending one
+        folder = os.path.join(self.home, "personas", "coach-reed-fish")   # in place of the template's pending one
         os.makedirs(folder, exist_ok=True)
         write_file(os.path.join(folder, "persona.md"), context.persona_text(
             {"name": "Coach Reed", "kind": "web", "service": "fish", "voice_id": "fish-model-1"},
@@ -895,7 +895,7 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
 
     def test_no_coach_named_makes_the_keyed_default_once(self):
         folder = os.path.join(self.home, "personas")
-        for slug_ in ("coach-julius", "coach-solo"):   # only the template's coaches: Coach Demo and the defaults
+        for slug_ in ("coach-julius", "coach-solo"):   # only the template's coaches: Coach Andy and the defaults
             shutil.rmtree(os.path.join(folder, slug_))
         sys.path.insert(0, os.path.join(ROOT, "tests"))
         import fakes
