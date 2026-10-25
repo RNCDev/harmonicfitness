@@ -29,9 +29,12 @@ Steps:
         are in the backup). health.md and log.md change only their schema number. It backs up before
         overwriting a training.md, content.md or settings.toml already there (each goes to the backup first).
 
-The folder steps (the split, the folder per workout, the .gitignore rules for coaches) run whenever
-they still have something to do, whatever the files' schema says, so a run that stopped halfway
-finishes on the next.
+The folder steps (the split, the folder per workout, the reserve's old name, the .gitignore rules for
+coaches) run whenever they still have something to do, whatever the files' schema says, so a run that
+stopped halfway finishes on the next. The reserve's old name (sweatcast 14): before 10.2.0 the reserve
+was research/pantry/ and told.jsonl named a piece under `pantry`; each sheet moves into research/reserve/
+(one already there by that name was the one read, so the pantry's copy goes to the backup unless it's
+the same), and each `pantry` key becomes `reserve`.
 
 Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own schema, migrated
 beside the context files, even when those are already current:
@@ -40,6 +43,7 @@ beside the context files, even when those are already current:
         sample.mp3 (archived ones too) and leaves out auditions in progress (personas/.auditions/) and a
         make's in-between files (.made.json, .made.wav).
 """
+import filecmp
 import json
 import os
 import re
@@ -178,11 +182,7 @@ def split_profile(home):
     with open(path, encoding="utf-8") as f:
         parts = split_profile_text(f.read())
     for name, text in parts.items():
-        dest = os.path.join(home, name)
-        tmp = dest + ".part"
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write(text)
-        os.replace(tmp, dest)
+        fileio.atomic_write(os.path.join(home, name), text)
 
 
 STEPS = {4: to_5, 5: to_6}   # from schema N, the function that makes it N + 1
@@ -227,9 +227,79 @@ def update_gitignore(home, add_lines):
     if not missing:
         return False
     add = [ln for ln in add_lines if ln in missing or (ln.startswith("#") and ln not in lines)]
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(("" if have.endswith("\n") else "\n") + "\n".join(add) + "\n")
+    fileio.atomic_write(path, have + ("" if have.endswith("\n") else "\n") + "\n".join(add) + "\n")
     return True
+
+
+def _research(home):
+    return os.path.join(home, "workouts", "research")
+
+
+def _told_lines(home):
+    """told.jsonl's lines, each kept as it is, and whether any record still names a piece under `pantry`."""
+    try:
+        with open(os.path.join(_research(home), "told.jsonl"), encoding="utf-8") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return [], False
+    old = False
+    for line in lines:
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        old = old or (isinstance(rec, dict) and "pantry" in rec)
+    return lines, old
+
+
+def pantry_due(home):
+    """What retiring the reserve's old name (before 10.2.0) still has to do, as lines to print; empty when nothing."""
+    out = []
+    old = os.path.join(_research(home), "pantry")
+    if os.path.isdir(old):
+        out.append(f"research/pantry/ ({len(os.listdir(old))} file(s)) moves into research/reserve/")
+    if _told_lines(home)[1]:
+        out.append("told.jsonl's `pantry` keys become `reserve`")
+    return out
+
+
+def retire_pantry(home, backup):
+    """research/pantry/ into research/reserve/, never overwriting: a file the reserve already has by that name
+    (the one the tools read) stays, and the pantry's copy goes to `backup` unless it's the same. Then each
+    told.jsonl record's `pantry` key becomes `reserve` (told.jsonl is backed up first; damaged lines kept)."""
+    old, new = os.path.join(_research(home), "pantry"), os.path.join(_research(home), "reserve")
+    if os.path.isdir(old):
+        os.makedirs(new, exist_ok=True)
+        for name in sorted(os.listdir(old)):
+            src, dst = os.path.join(old, name), os.path.join(new, name)
+            if not os.path.exists(dst):
+                shutil.move(src, dst)
+            elif os.path.isfile(src) and os.path.isfile(dst) and filecmp.cmp(src, dst, shallow=False):
+                os.remove(src)
+            else:
+                kept = os.path.join(backup, "research", "pantry", name)
+                os.makedirs(os.path.dirname(kept), exist_ok=True)
+                shutil.move(src, kept)
+        os.rmdir(old)
+    lines, due = _told_lines(home)
+    if not due:
+        return
+    told = os.path.join(_research(home), "told.jsonl")
+    os.makedirs(os.path.join(backup, "research"), exist_ok=True)
+    shutil.copy2(told, os.path.join(backup, "research", "told.jsonl"))
+    out = []
+    for line in lines:
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            rec = None
+        if isinstance(rec, dict) and "pantry" in rec:
+            slug = rec.get("reserve") or rec["pantry"]
+            rec = {("reserve" if k == "pantry" else k): (slug if k == "pantry" else v)
+                   for k, v in rec.items() if k != "reserve"}
+            line = json.dumps(rec, ensure_ascii=False) + "\n"
+        out.append(line)
+    fileio.atomic_write(told, "".join(out))
 
 
 def persona_files(home=None):
@@ -318,8 +388,9 @@ def move_strays(home):
 
 
 def folder_steps_due(home):
-    """(the stray settings a split would move, the workout moves a relayout would make)."""
-    return strays(home), workouts.reorganize(home, dry_run=True)
+    """(the stray settings a split would move, the workout moves a relayout would make, what retiring the
+    reserve's old name would do)."""
+    return strays(home), workouts.reorganize(home, dry_run=True), pantry_due(home)
 
 
 def migrate(dry_run=False, stamp=None, moves=None):
@@ -327,8 +398,8 @@ def migrate(dry_run=False, stamp=None, moves=None):
     or None, [changed paths]). `moves`, a list, gets the workout files moved (src, dst)."""
     todo = plan()
     home = paths.HOME
-    stray, due_moves = folder_steps_due(home)
-    if dry_run or not (todo or stray or due_moves):
+    stray, due_moves, pantry = folder_steps_due(home)
+    if dry_run or not (todo or stray or due_moves or pantry):
         if moves is not None:
             moves.extend(due_moves)
         return None, [p for p, _ in todo]
@@ -369,6 +440,8 @@ def migrate(dry_run=False, stamp=None, moves=None):
         moved = workouts.reorganize(home)
         if moves is not None:
             moves.extend(moved)
+    if pantry:
+        retire_pantry(home, backup)
     update_gitignore(home, GITIGNORE_ADD_PERSONA_5)
     return backup, changed
 
@@ -386,8 +459,8 @@ def main(argv=None):
         raise SystemExit(f"No context files in {show(paths.HOME)}. A new copy starts with ./sweatcast setup.")
 
     todo = plan()
-    stray, due_moves = folder_steps_due(paths.HOME)
-    if not (todo or stray or due_moves):
+    stray, due_moves, pantry = folder_steps_due(paths.HOME)
+    if not (todo or stray or due_moves or pantry):
         print(f"{show(paths.HOME)} is already at schema {context.SCHEMA}; nothing to do.")
     else:
         for path, found in todo:
@@ -397,6 +470,8 @@ def main(argv=None):
             print(f"profile.md: {', '.join(stray)} move to their home files (training.md, content.md, settings.toml)")
         if due_moves:
             print(f"{len(due_moves)} workout file(s) move into a folder per workout (and checks/, research/daily/)")
+        for line in pantry:
+            print(line)
         if args.dry_run:
             for src, dst in due_moves:
                 print(f"  {_rel(src)} would move to {_rel(dst)}")

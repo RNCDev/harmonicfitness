@@ -55,8 +55,7 @@ import personas  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
 
-DESIGNERS = ("local",)
-CANDIDATES = {"fish": 2, "elevenlabs": 3, "gemini": 1, "inworld": 2}   # per audition, lettered in this order
+CANDIDATES = {s: v["candidates"] for s, v in cloud.services().items()}   # per audition, lettered in this order
 WORKOUT_CHARS = 20000   # a workout's characters, for the cost a candidate is labeled with
 PROSE = """## How this coach talks
 - Tone: calm and focused. Keep humor light and occasional, with no hype.
@@ -66,38 +65,33 @@ PROSE = """## How this coach talks
 """
 
 
-def available_designer():
+def can_design():
+    """Stop unless the local voice designer runs here (an Apple Silicon Mac with the local engine)."""
     import routes
-    if voices.BACKEND == "mlx" and routes.local_installed():
-        return "local"
-    raise SystemExit("No voice designer works here: local design needs an Apple Silicon Mac. Bring a clip of "
-                     "about ten seconds with its words (./sweatcast coaches keep <clip.wav> --name ... --words ...), "
-                     "or make a web coach (the coach skill).")
+    if not (voices.BACKEND == "mlx" and routes.local_installed()):
+        raise SystemExit("No voice designer works here: local design needs an Apple Silicon Mac. Bring a clip of "
+                         "about ten seconds with its words (./sweatcast coaches keep <clip.wav> --name ... --words ...), "
+                         "or make a web coach (the coach skill).")
 
 
-def _make_takes(designer):
-    if designer == "local":
-        import engines
-        from render import render_lock
-
-        def make(description, line, takes, seed):
-            with render_lock(paths.CACHE):   # another model: one at a time
-                pcm = engines.design_takes(voices.VOICE_DESIGN[0], voices.VOICE_DESIGN[1], description, line,
-                                           takes, seed)
-            return [(x, line) for x in pcm]
-        return make
-    raise SystemExit(f"--designer must be one of {', '.join(DESIGNERS)}")
+def _design_takes(description, line, takes, seed):
+    """[(pcm, words)]: the local designer's takes (Qwen3-TTS VoiceDesign), one model at a time."""
+    import engines
+    from locks import render_lock
+    with render_lock(paths.CACHE):   # another model: one at a time
+        pcm = engines.design_takes(voices.VOICE_DESIGN[0], voices.VOICE_DESIGN[1], description, line, takes, seed)
+    return [(x, line) for x in pcm]
 
 
-def design(name, description, designer=None, takes=2, seed=7, line=voices.DESIGN_LINE, make_takes=None):
+def design(name, description, takes=2, seed=7, line=voices.DESIGN_LINE, make_takes=None):
     """Render takes of a new (or existing) coach into me/personas/<slug>/takes/<n>.wav, beside each its words
-    (<n>.txt) and how it was made (<n>.take.json). Earlier takes are kept. Returns the .wav paths."""
-    designer = designer or available_designer()
-    if designer not in DESIGNERS:
-        raise SystemExit(f"--designer must be one of {', '.join(DESIGNERS)}")
+    (<n>.txt) and how it was made (<n>.take.json). Earlier takes are kept. Returns the .wav paths. `make_takes`
+    stands in for the local designer."""
+    if make_takes is None:
+        can_design()
     folder = os.path.join(personas.folder_for(name, "local"), "takes")
     os.makedirs(folder, exist_ok=True)
-    made = (make_takes or _make_takes(designer))(description, line, takes, seed)
+    made = (make_takes or _design_takes)(description, line, takes, seed)
     n = max([int(f[:-4]) for f in os.listdir(folder) if f.endswith(".wav") and f[:-4].isdigit()], default=0)
     out = []
     for i, (pcm, words) in enumerate(made):
@@ -106,9 +100,8 @@ def design(name, description, designer=None, takes=2, seed=7, line=voices.DESIGN
         voices.write_wav(stem + ".wav", pcm)
         with open(stem + ".txt", "w", encoding="utf-8") as f:
             f.write(words.strip() + "\n")
-        meta = {"name": name, "description": description, "designer": designer, "line": words, "seed": seed + i}
-        if designer == "local":
-            meta.update(model=voices.VOICE_DESIGN[0], revision=voices.VOICE_DESIGN[1])
+        meta = {"name": name, "description": description, "designer": "local", "line": words, "seed": seed + i,
+                "model": voices.VOICE_DESIGN[0], "revision": voices.VOICE_DESIGN[1]}
         with open(stem + ".take.json", "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=1)
         out.append(stem + ".wav")
@@ -119,7 +112,6 @@ def _clip_bytes(src):
     """The clip as a 16-bit mono 24 kHz WAV: the file itself when it already is one (so its key stays the
     same), else converted (a 16-bit WAV in pure Python, anything else through ffmpeg). A clip someone brings
     is never taken as raw PCM: an M4A or any format not recognised by its first bytes goes through ffmpeg."""
-    import cloud
     with open(src, "rb") as f:
         data = f.read()
     try:
@@ -210,7 +202,6 @@ def _new_audition():
 
 
 def _reason(e):
-    import cloud
     if isinstance(e, SystemExit):
         return cloud.scrub(str(e.code))
     return cloud.scrub(getattr(e, "message", None) or str(e) or type(e).__name__)
@@ -250,7 +241,6 @@ def _write_sample(coach, wav, mp3=None):
 
 def _estimate(coach, service, wav, text):
     """The coach's pace estimate from its sample: weighted characters over the trimmed seconds."""
-    import cloud
     pcm = cloud.trim(cloud.audio_pcm(wav, service=service))
     seconds = len(pcm) / 2 / cloud.SR
     if seconds > 0:
@@ -269,7 +259,6 @@ def _read_candidates(folder):
 def _run_audition(narrative=None, services=None, coach=None, play=False):
     """Design candidates on every keyed service (or `services`) in parallel. Returns (folder, candidates,
     failures as (service, error)); folder is None when no candidate landed."""
-    import cloud
     import keys
     table = cloud.services()   # loaded once, before the threads
     revoice = None
@@ -413,7 +402,7 @@ def _resumable(c):
         return True
     if os.path.dirname(coach.folder) != paths.PERSONAS.rstrip(os.sep):
         return False
-    return bool(coach and "replaces" in c and coach.voice_id == c["replaces"] and coach.voice_id != c["voice_id"])
+    return "replaces" in c and coach.voice_id == c["replaces"] and coach.voice_id != c["voice_id"]
 
 
 def _existing(name):
@@ -429,7 +418,6 @@ def keep_web(ref, name, replace_old=False):
     with kind, service, voice_id, made), sample.mp3 and a pace estimate. An audition made with --coach
     re-voices that coach: a new voice_id and sample, the old voice's pace dropped, and with `replace_old`
     the old voice deleted at the service. Returns the coach's folder."""
-    import cloud
     found = _web_ref(ref)
     if not found:
         raise SystemExit(f"{ref} isn't a candidate in an audition: <audition>/<letter>, such as "
@@ -561,7 +549,6 @@ def make(name):
     its own service, save the first candidate with no audition, and write voice_id, made, sample.mp3 and a
     pace estimate, persona.md last. Says so (and what it costs) first. Returns the voice ID. A failure
     leaves persona.md as it was, still pending."""
-    import cloud
     p = personas.lookup(name)
     if not p.is_web or not p.pending:
         raise SystemExit(f"{p.name} is already made: nothing to design.")
@@ -626,7 +613,6 @@ def make(name):
 def forget_audition(audition):
     """Close an audition: delete Gemini's stored voices that weren't kept, then the folder. Returns the lines
     said. If a Gemini voice won't delete, the folder stays so it can be tried again."""
-    import cloud
     folder = _audition_folder(audition)
     cands = _read_candidates(folder)
     in_use = {p.voice_id for p in personas.all() + personas.all(os.path.join(paths.PERSONAS, ".archive"))
@@ -654,16 +640,6 @@ def forget_audition(audition):
     return lines
 
 
-def archive(name):
-    """Move coach `name` to personas/.archive/ (out of the list, still found for old log lines). Returns
-    where it went."""
-    return personas.archive(personas.lookup(name))
-
-
-def last_line(p):
-    return f"{p.name}" + (f": {p.description}" if p.description else "")
-
-
 def _value(text):
     low = text.strip().lower()
     if low in ("true", "false"):
@@ -686,14 +662,13 @@ def main(argv=None):
     g = sub.add_parser("design", help="render takes of a coach from a description")
     g.add_argument("name", help="a person's name, such as 'Coach Maya'")
     g.add_argument("description", help="who they are and how they sound (knowledge/voices.md)")
-    g.add_argument("--designer", choices=DESIGNERS, help="default: the first that works here")
     g.add_argument("--takes", type=int, default=2)
     g.add_argument("--seed", type=int, default=7)
     g.add_argument("--line", default=voices.DESIGN_LINE, help="what the takes say (a coaching line)")
     g.add_argument("--play", action="store_true", help="play each take with the system's player")
     a = sub.add_parser("audition", help="candidates for a web coach from every keyed service; nothing saved")
     a.add_argument("narrative", nargs="?", help="the coach narrative: persona.md's format, with [voice]")
-    a.add_argument("--services", help="only these, comma-separated (fish, elevenlabs, gemini, inworld)")
+    a.add_argument("--services", help=f"only these, comma-separated ({', '.join(CANDIDATES)})")
     a.add_argument("--coach", help="a new voice for this web coach, on its own service")
     a.add_argument("--play", action="store_true", help="play each candidate with the system's player")
     k = sub.add_parser("keep", help="keep an audition's candidate as a web coach (<audition>/<letter>), or make "
@@ -724,7 +699,7 @@ def main(argv=None):
 
     if args.cmd == "last":
         try:
-            p = personas.last_coach()
+            p = personas.default()
         except SystemExit as e:   # the coach used last is archived
             print(e.code, file=sys.stderr)
             return cli.ISSUES
@@ -742,11 +717,10 @@ def main(argv=None):
         v = personas.voice_for(p, route)
         return cli.OK if voices.pace(v)[1] else cli.ISSUES
     if args.cmd == "design":
-        designer = args.designer or available_designer()
-        print(f"Designing {args.name}: {args.takes} takes with the {designer} designer"
-              + (f" ({voices.VOICE_DESIGN[0]}, about {voices.SIZES_GB[voices.VOICE_DESIGN[0]]} GB the first time)"
-                 if designer == "local" else "") + ".", flush=True)
-        takes = design(args.name, args.description, designer, args.takes, args.seed, args.line)
+        can_design()
+        print(f"Designing {args.name}: {args.takes} takes with the local designer ({voices.VOICE_DESIGN[0]}, about "
+              f"{voices.SIZES_GB[voices.VOICE_DESIGN[0]]} GB the first time).", flush=True)
+        takes = design(args.name, args.description, args.takes, args.seed, args.line)
         import player
         for t in takes:
             print(f"  {show(t)}")
@@ -776,8 +750,8 @@ def main(argv=None):
             print(line)
         return cli.OK
     if args.cmd == "archive":
-        name = personas.lookup(args.coach).name
-        print(f"Archived {name} in {show(archive(args.coach))}: out of the list; old log lines still find them.")
+        p = personas.lookup(args.coach)
+        print(f"Archived {p.name} in {show(personas.archive(p))}: out of the list; old log lines still find them.")
         return cli.OK
     if args.cmd == "keep":
         name = keep(args.take, args.name, args.words, args.description, args.engine, args.force)
@@ -813,7 +787,7 @@ def main(argv=None):
                              "revision": revision})
         return cli.OK
     try:
-        last, archived = personas.last_coach(), None
+        last, archived = personas.default(), None
     except SystemExit as e:   # the coach used last is archived: list them all, and say so
         last, archived = None, str(e.code)
     found = personas.all()

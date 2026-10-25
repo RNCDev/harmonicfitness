@@ -411,7 +411,7 @@ class FreshFork(unittest.TestCase):
     """A new copy of the repo, with only me.example/ copied: the tools run on it."""
 
     def run_tool(self, home, *args):
-        env = dict(os.environ, SWEATCAST_HOME=home, SWEATCAST_PYTHON=sys.executable)
+        env = dict(os.environ, SWEATCAST_HOME=home, SWEATCAST_PYTHON=sys.executable, SWEATCAST_FAKE_LOCAL_ENGINE="1")
         return subprocess.run(["sh", "sweatcast", *args], cwd=ROOT, env=env,
                               capture_output=True, text=True, timeout=60)
 
@@ -422,11 +422,13 @@ class FreshFork(unittest.TestCase):
             out = self.run_tool(home, "coverage")
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertIn("No sessions", out.stdout)
-            out = self.run_tool(home, "lint", os.path.join("tests", "fixtures", "example.draft.txt"),
-                                "--out", os.path.join(d, "x.txt"), "--force")   # short on purpose
-            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-            self.assertNotIn("  line ", out.stdout)   # no text-to-speech problems
-            self.assertTrue(os.path.exists(os.path.join(d, "x.txt")))
+            draft_path = helpers.draft_with_menu(os.path.join(ROOT, "tests", "fixtures", "example.draft.txt"),
+                                                 os.path.join(home, "workouts", "x", "x.draft.txt"), home)
+            out = self.run_tool(home, "build", draft_path, "x", "--lint-only", "--coach", "Coach Andy")
+            self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)   # short on purpose: the total
+            self.assertIn("1 issue(s)", out.stdout)
+            self.assertNotIn("  line ", out.stdout)   # and no text-to-speech problems
+            self.assertIn("every movement is on today's menu", out.stdout)
             prof = context.profile(os.path.join(home, "profile.md"))
             self.assertEqual(len(feeds.config(prof)), 7)          # the three [hint] feeds are skipped
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
@@ -684,8 +686,8 @@ class ExitCodes(unittest.TestCase):
 
     def test_mistyped_options_exit_64(self):
         fixture = os.path.join("tests", "fixtures", "example.draft.txt")
-        for args in (["tools/render.py", fixture, "--coach", "Chatterbox Coach", "--sed", "5", "--out", "x.mp3"],
-                     ["tools/tts_build.py", fixture],                       # --out is missing
+        for args in (["tools/build.py", fixture, "x", "--coach", "Chatterbox Coach", "--sed", "5"],
+                     ["tools/build.py", fixture],                           # the name is missing
                      ["tools/coverage.py", "--bogus"],
                      ["tools/context.py", "get", "nothing"],
                      ["tools/coaches.py", "measured", "Nobody At All"]):
@@ -1071,8 +1073,7 @@ class InProcessBuild(unittest.TestCase):
 
 
 class RenderGates(unittest.TestCase):
-    """./sweatcast render enforces the menu like build does, and checks ffmpeg and the output name before a
-    single clip is rendered (and billed)."""
+    """render.run checks ffmpeg and the output name before a single clip is rendered (and billed)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1088,20 +1089,13 @@ class RenderGates(unittest.TestCase):
         self.draft = os.path.join(self.tmp.name, "x.draft.txt")
         shutil.copy(os.path.join(ROOT, "tests", "fixtures", "example.draft.txt"), self.draft)
 
-    def test_the_render_command_needs_a_menu(self):
-        out = io.StringIO()
-        with mock.patch.object(sys, "argv", ["render", self.draft, "--out", os.path.join(self.tmp.name, "x.mp3"),
-                                             "--coach", "Coach Julius"]), contextlib.redirect_stdout(out):
-            self.assertEqual(cli.run(render.main), cli.ISSUES)
-        self.assertIn("no menu", out.getvalue())
-
     def test_the_output_name_and_ffmpeg_are_checked_before_any_clip(self):
         voice = personas.voice_for(personas.lookup("Coach Julius"), "local")
         segments = parse("@@ 30 | A\nHello.\n")
         with self.assertRaises(cli.Usage):
-            render.run(segments, voice, os.path.join(self.tmp.name, "x.ogg"))
-        with mock.patch.object(render, "ffmpeg_exe", return_value=None), self.assertRaises(SystemExit) as got:
-            render.run(segments, voice, os.path.join(self.tmp.name, "x.mp3"))
+            render.run(segments, voice, os.path.join(self.tmp.name, "x.ogg"), self.draft, "0" * 64)
+        with mock.patch.object(render.ffmpeg_tool, "exe", return_value=None), self.assertRaises(SystemExit) as got:
+            render.run(segments, voice, os.path.join(self.tmp.name, "x.mp3"), self.draft, "0" * 64)
         self.assertIn("ffmpeg", str(got.exception))
 
 
@@ -1119,7 +1113,7 @@ class Encode(unittest.TestCase):
                     return subprocess.CompletedProcess(cmd, 0, "", self.STATS)
                 write_file(cmd[-1], "half")   # ffmpeg dies partway through the encode
                 raise subprocess.CalledProcessError(1, cmd, "", "Error: the encoder gave up")
-            with mock.patch.object(render, "ffmpeg_exe", return_value="ffmpeg"), \
+            with mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"), \
                     mock.patch.object(render, "ffmpeg_version", return_value="ffmpeg test"), \
                     mock.patch.object(render.subprocess, "run", side_effect=fake_run):
                 with self.assertRaises(SystemExit) as got:
@@ -1130,7 +1124,7 @@ class Encode(unittest.TestCase):
                 self.assertEqual(f.read(), "the old mp3")
 
     def test_a_failed_loudness_probe_is_a_message(self):
-        with mock.patch.object(render, "ffmpeg_exe", return_value="ffmpeg"), \
+        with mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"), \
                 mock.patch.object(render, "ffmpeg_version", return_value=None), \
                 mock.patch.object(render.subprocess, "run",
                                   side_effect=subprocess.CalledProcessError(1, ["ffmpeg"], "", "no such filter")), \
@@ -1427,7 +1421,7 @@ value = "x\""""
     def test_profile_values(self):
         p = context.profile(self.profile)
         self.assertEqual(context.wpm(p), 170)
-        self.assertIsNone(context.delivery(p))                 # the template's hint isn't a folder
+        self.assertEqual(context.delivery_patterns(p), [])     # the template's hint isn't a folder
         self.assertEqual(context.handles(p, "YouTube favorites"), ["chanA"])
         self.assertEqual(context.feed_sources(p), [("Weather", "weather", "40.1, -75.2")])
         self.assertTrue(p.body.startswith("# Profile"))
@@ -1447,7 +1441,7 @@ value = "x\""""
         pattern, found = context.delivery_folders(p)
         self.assertEqual([os.path.normpath(f) for f in found], [here])   # only the folder this computer has
         self.assertIn(" or ", pattern)
-        self.assertIsNone(context.delivery(context.Profile({"deliver_to": []}, "")))
+        self.assertEqual(context.delivery_patterns(context.Profile({"deliver_to": []}, "")), [])
 
     def test_log_session_round_trip(self):
         s = context.Session("2026-10-21", 25, "Home", "Chatterbox Coach", ["goblet squat", "seated row"],
@@ -1735,9 +1729,13 @@ class Wrapper(unittest.TestCase):
             self.assertEqual(self.sweatcast("get", "routes", home=home).stdout.strip(), "local")
             out = self.sweatcast("voices", "measured", "Nobody", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
-            out = self.sweatcast("lint", "--bogus", home=home)
+            out = self.sweatcast("build", "--bogus", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
-            self.assertIn("sweatcast lint", out.stderr)                # usage names the command
+            self.assertIn("sweatcast build", out.stderr)               # usage names the command
+            for gone, instead in (("lint", "--lint-only"), ("render", "./sweatcast build")):
+                out = self.sweatcast(gone, "x.draft.txt", home=home)   # a retired command names its replacement
+                self.assertEqual(out.returncode, cli.USAGE)
+                self.assertIn(instead, out.stderr)
             out = self.sweatcast("log-session", "--minutes", "10", "--kit", "Home", "--coach", "Coach Andy",
                                  "--movements", "squat", "--topics", "t", home=home)
             self.assertEqual(out.returncode, 0, out.stderr)
@@ -1790,7 +1788,7 @@ class Ffmpeg(unittest.TestCase):
                 self.assertIsNone(ffmpeg.exe())
 
     def test_render_uses_the_found_ffmpeg(self):
-        with mock.patch.object(render, "ffmpeg_exe", return_value=None):
+        with mock.patch.object(render.ffmpeg_tool, "exe", return_value=None):
             with self.assertRaises(SystemExit) as e:
                 render.encode(b"", "x.mp3", "x")
             self.assertIn("ffmpeg", str(e.exception.code))
@@ -1916,7 +1914,7 @@ class BuildRecord(unittest.TestCase):
             write_file(draft_path, "@@ 10 | A\nGo.\n")
             out = os.path.join(d, "Workout.mp3")
             v = {"name": "V", "key": "k", "engine": "qwen3", "model": "m", "revision": "r"}
-            rec = render.build_record(draft_path, out, v, 42, 3, 1, 600, 606, 0.01, 12.3, time.time())
+            rec = render.build_record(draft_path, "ab" * 32, out, v, 42, 3, 1, 600, 606, 0.01, 12.3, time.time())
             log = os.path.join(d, ".logs", "builds.jsonl")
             render.save_build_record(rec, out, log)
             with open(os.path.join(d, "Workout.build.json"), encoding="utf-8") as f:
@@ -2037,8 +2035,7 @@ class ExitCodeMapper(unittest.TestCase):
             home = os.path.join(d, "me")   # absent: no coaches at all
             for args in (["tools/coaches.py", "archive", "Nobody At All"],
                          ["tools/coaches.py", "set", "Nobody At All", "local.engine", "qwen3"],
-                         ["tools/render.py", os.path.join(d, "missing.draft.txt"), "--out", os.path.join(d, "x.mp3")],
-                         ["tools/tts_build.py", os.path.join(d, "missing.draft.txt"), "--out", os.path.join(d, "x.txt")]):
+                         ["tools/build.py", os.path.join(d, "missing.draft.txt"), "x"]):
                 out = run([sys.executable, *args], home=home)
                 self.assertEqual(out.returncode, cli.USAGE, (args, out.stdout, out.stderr))
                 self.assertNotIn("Traceback", out.stderr, args)
@@ -2327,6 +2324,9 @@ class LegacyGone(unittest.TestCase):
         self.assertNotIn("voices", context.SETTINGS_COMMENTS)
         self.assertNotIn("voices", sweatcast.COMMANDS)
         self.assertFalse(hasattr(paths, "OLD_VOICES"))
+        self.assertFalse(hasattr(paths, "OLD_PANTRY"))
+        for gone in ("lint", "render"):
+            self.assertNotIn(gone, sweatcast.COMMANDS)
         self.assertNotIn("Narrator", brief.PROFILE_SECTIONS)
         with open(os.path.join(paths.EXAMPLE, "profile.md"), encoding="utf-8") as f:
             self.assertNotIn("Narrator", f.read())
@@ -2335,7 +2335,7 @@ class LegacyGone(unittest.TestCase):
                 context.main(["get", "default-voice"])
         self.assertEqual(got.exception.code, cli.USAGE)
         fixture = os.path.join("tests", "fixtures", "example.draft.txt")
-        for args in (["tools/tts_build.py", fixture, "--voice", "x", "--out", "y.txt"],
+        for args in (["tools/build.py", fixture, "x", "--voice", "x"],
                      ["tools/brief.py", "--goal", "strength", "--minutes", "20", "--preset", "bodyweight", "--voice", "x"]):
             out = run([sys.executable, *args])
             self.assertEqual(out.returncode, cli.USAGE, (args, out.stderr))

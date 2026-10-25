@@ -17,8 +17,6 @@ import cli  # noqa: E402
 # command: (module, the subcommand it stands for in that module, or None; what it does)
 COMMANDS = {
     "build":       ("build", None, "lint a draft, render it to an MP3 and copy it to your phone's folder"),
-    "lint":        ("tts_build", None, "lint a draft and export its clean transcript (no render)"),
-    "render":      ("render", None, "render a draft to audio (build runs this for you)"),
     "coaches":     ("coaches", None, "your coaches: audition, keep, archive, choose, measure and tune them"),
     "feeds":       ("feeds", None, "fetch the profile's feeds into today's sheet"),
     "coverage":    ("coverage", None, "movement patterns the last sessions left out, last format and loads"),
@@ -27,7 +25,7 @@ COMMANDS = {
     "content":     ("content", None, "the filler plan for a session, what's been told, and the reserve"),
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
     "check":       ("check", None, "check every context file in me/ (format, unfilled lines)"),
-    "get":         ("context", "get", "print a setting: coach (the one used last), route (what a build uses here), routes, wpm, experience"),
+    "get":         ("context", "get", "print a setting: coach (the one used last), route (what a build uses here), routes, wpm, experience, web-builds"),
     "deliver":     ("context", "deliver", "print the delivery folders that exist"),
     "log-session": ("context", "log-session", "add a checked session line to me/log.md"),
     "show":        ("player", None, "open the folder holding a file (a workout's MP3), with it selected"),
@@ -41,6 +39,10 @@ COMMANDS = {
     "setup":       (None, None, "first-run setup (environment, me/, privacy hook, voice model)"),
     "doctor":      (None, None, "what this computer can do: system, prerequisites, audio routes"),
 }
+
+# Commands that are gone, and what does their work now.
+RETIRED = {"lint": "./sweatcast build <draft> \"<name>\" --lint-only",
+           "render": "./sweatcast build <draft> \"<name>\""}
 
 
 def usage():
@@ -70,6 +72,9 @@ def main(argv=None):
         print(usage())
         return 0
     cmd, rest = argv[0], argv[1:]
+    if cmd in RETIRED:
+        print(f"./sweatcast {cmd} is gone (sweatcast 14): use {RETIRED[cmd]}.", file=sys.stderr)
+        return cli.USAGE
     if cmd not in COMMANDS:
         print(f"Unknown command '{cmd}'.\n\n{usage()}", file=sys.stderr)
         return cli.USAGE

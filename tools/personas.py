@@ -32,7 +32,6 @@ from paths import show  # noqa: E402
 import cli  # noqa: E402
 
 LOCAL_ENGINES = ("chatterbox", "qwen3")
-WEB_SERVICES = ("fish", "elevenlabs", "gemini", "inworld")   # the order web stand-ins are tried in
 VOICE_PARTS = (("who", ""), ("sound", ""), ("energy", ""), ("pace", "Pace: "), ("avoid", "Avoid: "))
 
 
@@ -265,7 +264,8 @@ def default(folder=None):
     own = next((p for p in found if not p.placeholder), None)
     if own is not None:
         return own
-    order = lambda p: (not p.is_web, WEB_SERVICES.index(p.service) if p.service in WEB_SERVICES else 99)
+    import cloud
+    order = lambda p: (not p.is_web, cloud.SERVICES.index(p.service) if p.service in cloud.SERVICES else 99)
     return next((p for p in sorted(found, key=order) if _usable_here(p)), found[0])
 
 
@@ -281,11 +281,6 @@ def web_key(p, model):
     settings = json.dumps(p.table("settings"), sort_keys=True)
     raw = f"{p.service or ''}|{p.voice_id or ''}|{model}|{p.style}|{settings}"
     return hashlib.sha256(raw.encode()).hexdigest()[:12]
-
-
-def last_coach(folder=None):
-    """The coach a build uses when none is named (default()); None with no coaches."""
-    return default(folder)
 
 
 def resolve(coach=None, engine=None, pending=False):

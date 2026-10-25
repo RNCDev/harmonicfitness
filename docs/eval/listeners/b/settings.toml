@@ -4,5 +4,5 @@ schema = 6
 render = ["local"]
 # Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Once the copy is there the local MP3 is removed; empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has.
 deliver_to = "~/Music/sweatcast-eval-b"
-# A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace, and the lint without a coach takes --wpm (default 185).
+# A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace.
 words_per_minute = 165

@@ -1,6 +1,6 @@
 # Writing for Text-to-Speech
 
-The script is read aloud by the voice's engine (Chatterbox or Qwen3-TTS, through `tools/render.py`) exactly as written. Nothing expands numbers or abbreviations first, and the engine guesses at symbols, so a pound sign, slash or digit can come out as noise or a wrong word. Write exactly what should be heard, as if dictating to someone who will read it verbatim. `tools/tts_build.py` enforces the mechanical rules below.
+The script is read aloud exactly as written by the coach's voice: a local one (Chatterbox or Qwen3-TTS on this computer) or a web one (the coach's own voice service), through `tools/render.py`. Nothing expands numbers or abbreviations first, and every voice guesses at symbols, so a pound sign, slash or digit can come out as noise or a wrong word. Write exactly what should be heard, as if dictating to someone who will read it verbatim. The build's lint (`tools/tts_build.py`) enforces the mechanical rules below.
 
 ## The final file contains only
 

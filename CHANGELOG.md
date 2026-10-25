@@ -2,6 +2,47 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [14.0.0] - 2026-10-25
+
+A second review of the harness, after 13.0.0. The safety gate closes the holes that let an unsafe movement reach the MP3; nothing is paid for before the draft passes its checks, and nothing half-written is left in the delivery folder; the session log takes its facts from the menu and the build instead of retyping them; and two commands, a pantry fallback and the copies of the service list are gone.
+
+### For forks
+- **Commands gone:** `./sweatcast lint` (use `./sweatcast build <draft> "<name>" --lint-only`) and `./sweatcast render` (use `./sweatcast build`); both exit 64 naming the replacement. With them go lint without a coach and `--force`, `--strict`, `--wpm`, `--min-fill`, `--max-fill`, `--word-tolerance`, `--require-menu` and `--out`; also `content pantry` (use `content reserve`) and `coaches design --designer`.
+- **Run `./sweatcast migrate`** once: it moves `me/workouts/research/pantry/` into `reserve/` (never overwriting; a sheet already in the reserve keeps its place and the pantry's copy goes to the backup unless the two are identical) and rewrites `told.jsonl`'s `pantry` keys. The tools no longer read the old name.
+- **`log-session --draft`** now takes the date, length and kit from the draft's menu (a typed `--date`, `--minutes` or `--kit` that disagrees is refused; a session built with `brief --equipment` logs as `custom: <ids>`), needs a build record for that draft, requires `--format`, refuses a second line for the same date and movements, and writes `--loads` and `--rpe` names as the catalog's (a name that isn't one of the session's movements is refused). A customized workout skill's step 7 needs merging.
+- **`health.md`:** an `Avoid:` line takes ids, flags (any case) or movement names, and an unknown word now stops the screen, as `--avoid` did; a `[[limits]]` row with an unknown key (`flag` for `flags`) stops it too; `check` notes an injury in the prose with no row. Run `./sweatcast check` after upgrading.
+- **Drafts:** every one-word alias is scanned except a short list of everyday coaching words (`menu.EVERYDAY`), so "pushups" or "RDLs" now count; a "no" or "not" excuses a mention only right before it, with only small filler words between ("no rest between jumping jacks" counts). A draft that passed before may now name a movement to reword or declare.
+- **Services:** `knowledge/services.toml` is the one list; a fork's own service section needs `key_var`, `key_page` and `candidates`. Skills that grepped `builds.jsonl` for a first web build use `./sweatcast get web-builds`; run `./sweatcast harness sync` after merging a skill.
+- **Removed names:** `render.main`, `render.ffmpeg_exe` (use `ffmpeg.exe()`), `tts_build.main`, `tts_build.menu_check`, `personas.last_coach` (use `default`), `personas.WEB_SERVICES`, `context.ROUTE_NAMES`, `context.delivery`, `coaches.archive`, `coaches.last_line`, `coaches.DESIGNERS`, `paths.OLD_PANTRY`, `content.folders`, `content.used_slug`, `reserve(folders=)`. `render.run` and `build_record` now require `draft_path` and `draft_sha256`.
+
+### Added
+- **Jumping and sprint moves in the catalog:** burpee, mountain climber, jump squat, tuck jump, jump lunge and skater hop as full movements (impact-flagged, so they reach the menu only where it is safe), and box jump, broad jump, jump rope, running sprint and clap push-up as drafts (never on a menu, but named in a script they stop the build). Before, "twenty burpees" passed the scan for a delicate knee.
+- **`./sweatcast get web-builds`:** how many web renders this computer has sent, for the skills' first-web-build notice.
+- **`knowledge/research/`:** the evidence behind the knowledge files (training, biomechanics, exercises, equipment), one dated note per question, with an index of what each feeds; the session-structure research moved here from `docs/research/`.
+- **A `failed` line in `builds.jsonl`** when a web render sent text and then failed, with the characters sent and the estimated cost.
+- Tests: `tests/test_safety.py` (the scan, limits and Avoid lines), `tests/test_log.py` (the session and content log), and tests for every fix below, each failing before it.
+
+### Changed
+- **Off-limits rules out impact work, as delicate does.** Before, an off-limits neck, wrist, rib or groin kept jumping jacks, high knees and the treadmill run that a delicate one removed.
+- **A pending web coach is designed only after the lint and the menu gate pass**, at its estimated pace; before, a draft that failed its checks had already paid for a voice.
+- **The content log** checks each item's category against the ones the plan rotates for its slot, and refuses a reserve slug already told.
+- **Backup asks GitHub on every push** whether the remote is private; a remembered answer is used only when GitHub can't say. Pushes run with `ssh -o BatchMode=yes` (unless you set `GIT_SSH_COMMAND`) and give up after five minutes.
+- **The workout skill** names a workout's stem one way (`<date>-<goal>-<minutes>`, with `-2` when the folder exists), lints once, and logs with fewer flags; `script.md` points to `tts-rules.md` for paragraph length, names and box breathing instead of repeating them (its `[pause]` limit had disagreed).
+- **Simpler code:** the service list in one place, `encode` reusing the render's preflight, and dead constants, wrappers and one-option abstractions removed (about 130 fewer lines in `tools/`).
+
+### Fixed
+- **`content plan` and `content reserve` crashed** (13.0.0): a parameter named `folders` hid the function of that name, so the workout skill's filler step failed every session.
+- **A brought clip** in M4A, WebM, AIFF or another format was read as raw sound and saved as noise; every clip that isn't a 16-bit WAV now goes through ffmpeg.
+- **A `@@ 0` segment** is refused when the draft is read; before, it crashed the render after every clip was rendered (and billed).
+- **An unreadable answer from a voice service** (not JSON, or audio that isn't base64) and a dropped connection are service errors with their exit codes, not tracebacks; a dropped connection is retried for speech and never for a design or a save. Keeping an audition candidate marks it before the save is sent, so a voice saved at the service is never lost track of.
+- **Delivery, encoding and the web copy are atomic:** the copy to `deliver_to` and ffmpeg's output are written beside the target and renamed, a failed one removed; an ffmpeg failure prints the end of its error. Rebuilding a web copy removes its old parts, and a timeout is a message.
+- **Stopping a web render** (Ctrl-C or a failure) stops the retries at once instead of waiting out billed attempts.
+- **`coaches measured`** answers 0 for a web coach, pending or made (it needs no smoke test); **`--tolerance`** accepts only a finite value from 0 to 0.5.
+- **The profile split and the `.gitignore` update in `migrate`** write atomically.
+
+### Removed
+- `docs/superpowers/` and `docs/plans/` (shipped plans and specs; in the history), and `docs/eval/skeletons.sh` (the retired composer's baseline).
+
 ## [13.0.0] - 2026-10-25
 
 A review of the whole harness, hardened where a check could be skipped and simplified where the same rule lived in several places. The build runs in one process; the menu is today's or the build stops; a key can't leak into a message; the tools exit with the documented codes from every entry point; and the code for sweatcast 8 and earlier is gone.

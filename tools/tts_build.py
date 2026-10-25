@@ -1,29 +1,19 @@
-#!/usr/bin/env python3
-"""Lint a segmented workout draft and export a clean transcript.
+"""The lint: what a voice can read cleanly and how long a draft will speak, and the clean transcript.
 
 The draft format (the `movements:` line, `@@ <seconds> | <label>` markers, [pause], [chime] and
-[hold]) is defined in draft.py. Markers are stripped on export.
+[hold]) is defined in draft.py. Markers are stripped on export. ./sweatcast build runs lint(), prints
+render_report() and writes export_text(); with --lint-only it stops there.
 
-What must hold, and stops the export: every line a voice can read cleanly (no digits, symbols,
-abbreviations or markup), every paragraph short enough to speak in one clip, the whole workout's
-predicted length within three percent of plan, and (with --require-menu, or a menu beside the draft)
-every movement on today's menu (menu.py). A segment far off its slot (under 80 or over 110 percent)
-is flagged in the table to help place the fix, but only the total is held to plan; with --strict the
-flags count as issues. A held segment (one with a [hold]) shows the spare seconds it will spend in
-silence, so a long quiet rest is easy to spot. How the script should sound (varied openings, the
-listener's name, friendly handoffs) is guidance in knowledge/tts-rules.md, not a check.
+What must hold: every line a voice can read cleanly (no digits, symbols, abbreviations or markup), every
+paragraph short enough to speak in one clip, and the whole workout's predicted length within three percent
+of plan. A segment far off its slot (under 80 or over 110 percent) is flagged in the table to help place
+the fix, but only the total is held to plan; with strict=True the flags count as issues. A held segment
+(one with a [hold]) shows the spare seconds it will spend in silence, so a long quiet rest is easy to spot.
+How the script should sound (varied openings, the listener's name, friendly handoffs) is guidance in
+knowledge/tts-rules.md, not a check.
 
-With --coach, each segment's spoken length is predicted for that voice (see
-voices.py) and checked against its planned seconds. Without it, word
-count against --wpm is the rough fallback.
-
-lint() returns a Report; main() only prints it. Exit codes are in cli.py: 1 when
-there are issues (nothing exported), 64 for a mistyped command.
-
-Usage:
-    ./sweatcast lint draft.txt --coach "Coach Andy" --out "Workout 2026-10-18.txt"
-    ./sweatcast lint draft.txt --wpm 170 --out final.txt --force   # export despite issues (not menu ones)
-    ./sweatcast lint draft.txt --coach "Coach Andy" --out x.txt --strict  # segment flags count
+With a voice, each segment's spoken length is predicted from that coach's pace (voices.py) and checked
+against its planned seconds; without one, word count against `wpm` is the rough fallback.
 """
 import os
 import re
@@ -32,10 +22,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import cli  # noqa: E402
 from draft import (CHIME, CHIME_SECONDS, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, PARAGRAPH_GAP,  # noqa: E402
-                   TOTAL_TOLERANCE, fill_flag, holds, layout, paragraphs, parse, plan, spoken)
-from draft import declared as draft_declared, menu_path as draft_menu_path, tolerance_arg  # noqa: E402
+                   TOTAL_TOLERANCE, fill_flag, holds, layout, paragraphs, plan, spoken)
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -248,7 +236,7 @@ def render_report(report):
     flagged = sum(bool(r.flag) for r in report.rows)
     if flagged:
         out.append(f"{flagged} segment(s) far off their slots"
-                   + (" (counted as issues: --strict)" if report.strict else
+                   + (" (counted as issues: strict)" if report.strict else
                       "; not blocking, since only the total is held to plan, but the fix goes there first"))
     return out
 
@@ -258,71 +246,3 @@ def export_text(segments):
     paras = [re.sub(r"\s{2,}", " ", MARK_RE.sub(" ", p)).strip()
              for seg in segments for p in paragraphs(seg["lines"])]
     return "\n\n".join(p for p in paras if p) + "\n", len([p for p in paras if p])
-
-
-def menu_check(draft_path, text, segments, required):
-    """Check the draft against the menu beside it (when there is one, or when `required`), print what
-    it finds, and return the issues."""
-    path = draft_menu_path(draft_path)
-    if not (required or os.path.exists(path)):
-        return []
-    import catalog
-    import menu
-    issues, warnings = menu.gate(catalog.load(), draft_path, text, segments, strict=False, required=required)
-    print("\n".join(menu.report_lines(draft_path, issues, warnings, len(draft_declared(text)))))
-    return issues
-
-
-def main():
-    ap = cli.ArgumentParser()
-    ap.add_argument("draft")
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--coach", help="a coach's name: check predicted spoken seconds")
-    ap.add_argument("--engine", help="with --coach, the route whose measured pace predicts them (default: the "
-                                     "profile's render list)")
-    ap.add_argument("--wpm", type=float, default=DEFAULT_WPM, help="word guide without --coach, words per minute")
-    ap.add_argument("--min-fill", type=float, default=MIN_FILL, help="below this, the segment is far too short")
-    ap.add_argument("--max-fill", type=float, default=MAX_FILL, help="above this, the segment is far too long")
-    ap.add_argument("--total-tolerance", type=tolerance_arg, default=TOTAL_TOLERANCE,
-                    help="the whole workout may run this fraction over or under plan")
-    ap.add_argument("--word-tolerance", type=float, default=WORD_TOLERANCE,
-                    help="word-count tolerance per segment without --coach")
-    ap.add_argument("--force", action="store_true", help="export despite issues (never despite the menu check)")
-    ap.add_argument("--strict", action="store_true", help="segments far off their slots count as issues")
-    ap.add_argument("--require-menu", action="store_true",
-                    help="fail when the draft has no menu beside it (./sweatcast build passes this)")
-    args = ap.parse_args()
-
-    if not os.path.isfile(args.draft):
-        raise cli.Usage(f"No draft at {args.draft}")
-    with open(args.draft, encoding="utf-8") as f:
-        text = f.read()
-    segments = parse(text)
-    voice = None
-    if args.coach or args.engine:
-        import personas
-        voice = personas.resolve(args.coach, args.engine, pending=True)   # a coach still to be made: estimated
-
-    report = lint(segments, voice, args.wpm, args.min_fill, args.max_fill,
-                  args.total_tolerance, args.word_tolerance, args.strict)
-    print("\n".join(render_report(report)))
-
-    menu_issues = menu_check(args.draft, text, segments, args.require_menu)
-    if menu_issues:
-        print(f"\n{len(menu_issues)} menu issue(s). Fix and rerun; --force doesn't skip the menu check. "
-              "Nothing exported.")
-        sys.exit(cli.ISSUES)
-    problems = report.problems
-    if problems and not args.force:
-        print(f"\n{problems} issue(s). Fix and rerun (or --force). Nothing exported.")
-        sys.exit(cli.ISSUES)
-
-    text, count = export_text(segments)
-    with open(args.out, "w", encoding="utf-8") as f:
-        f.write(text)
-    print(f"\nExported {count} paragraphs to {args.out}"
-          + (f" despite {problems} issue(s)" if problems else ""))
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(main))

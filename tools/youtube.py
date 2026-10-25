@@ -72,9 +72,9 @@ def used(folder=None):
 
 
 def named_ids():
-    """Video ids a reserve sheet (or one in the old pantry/) or the record of what's been told links to,
-    so a puzzle stocked or told isn't offered again."""
-    files = [os.path.join(d, n) for d in (paths.RESERVE, paths.OLD_PANTRY) if os.path.isdir(d) for n in os.listdir(d)]
+    """Video ids a reserve sheet or the record of what's been told links to, so a puzzle stocked or told isn't
+    offered again."""
+    files = [os.path.join(paths.RESERVE, n) for n in os.listdir(paths.RESERVE)] if os.path.isdir(paths.RESERVE) else []
     found = set()
     for path in files + [paths.TOLD]:
         try:

@@ -753,8 +753,24 @@ class UnreadableAnswers(unittest.TestCase):
         self.assertIn("sweatcast Coach Maya", str(got.exception))
 
 
+# render.run as ./sweatcast build calls it once the lint and the menu pass (those are tested in test_tools), in its
+# own process with the key in the environment: the draft, the coach, the output.
+RENDER = """import hashlib, sys
+sys.path.insert(0, sys.argv[1])
+import cli, context, draft, personas, render, routes
+path, coach, out = sys.argv[2:5]
+def main():
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    p = personas.lookup(coach)
+    voice = personas.voice_for(p, routes.pick(context.render_preferences(), p))
+    render.run(draft.parse(text), voice, out, path, hashlib.sha256(text.encode("utf-8")).hexdigest())
+sys.exit(cli.run(main))
+"""
+
+
 class CloudRender(unittest.TestCase):
-    """tools/render.py with a web coach, end to end against fake services."""
+    """render.run with a web coach, end to end against fake services."""
 
     def setUp(self):
         self.d = tempfile.mkdtemp()
@@ -765,7 +781,7 @@ class CloudRender(unittest.TestCase):
         for service in COACHES:
             web_coach(folder, service)
 
-    def render_on(self, service, url, *extra):
+    def render_on(self, service, url, out=None):
         import keys
         e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
         e.update({"SWEATCAST_HOME": self.home, f"SWEATCAST_{service.upper()}_URL": url,
@@ -773,15 +789,15 @@ class CloudRender(unittest.TestCase):
         sys.path.insert(0, os.path.join(ROOT, "tests"))
         import helpers
         draft_path = helpers.draft_with_menu(DRAFT, os.path.join(self.d, "cloud.draft.txt"), self.home)
-        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), draft_path,
-                               "--coach", COACHES[service], *extra], env=e, capture_output=True, text=True, timeout=120)
+        return subprocess.run([sys.executable, "-c", RENDER, os.path.join(ROOT, "tools"), draft_path, COACHES[service],
+                               out or os.path.join(self.d, "x.mp3")], env=e, capture_output=True, text=True, timeout=120)
 
-    def render(self, url, *extra):
-        return self.render_on("fish", url, *extra)
+    def render(self, url, out=None):
+        return self.render_on("fish", url, out)
 
     def test_a_refused_speech_exits_4(self):
         with FakeService(lambda r: (401, {}, b'{"detail": {"message": "Invalid API key"}}')) as fake:
-            out = self.render_on("elevenlabs", fake.url, "--out", os.path.join(self.d, "x.mp3"))
+            out = self.render_on("elevenlabs", fake.url)
         self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
         self.assertIn("ElevenLabs", out.stdout)
         self.assertNotIn("Traceback", out.stdout + out.stderr)
@@ -789,7 +805,7 @@ class CloudRender(unittest.TestCase):
 
     def test_a_broken_answer_stops_sending_and_caches_nothing(self):
         with FakeService(lambda r: (200, {"Content-Type": "application/json"}, b'{"status": "queued"}')) as fake:
-            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+            out = self.render(fake.url)
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
         self.assertLessEqual(len(fake.requests), 6)   # the queued paragraphs were never sent
         self.assertEqual(glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm")), [])
@@ -803,7 +819,7 @@ class CloudRender(unittest.TestCase):
 
     def test_401_raises_auth_and_render_exits_4(self):
         with FakeService(lambda r: (401, {}, b'{"message": "Invalid api key"}')) as fake:
-            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+            out = self.render(fake.url)
         self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
         self.assertIn("Fish Audio", out.stdout + out.stderr)
         self.assertIn("./sweatcast keys", out.stdout + out.stderr)
@@ -811,18 +827,10 @@ class CloudRender(unittest.TestCase):
     def test_ceiling_stops_before_sending(self):
         self.set_ceiling(10)
         with FakeService(wav_answer) as fake:
-            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+            out = self.render(fake.url)
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
         self.assertEqual(fake.requests, [])
         self.assertIn("cloud_max_chars", out.stdout)
-
-    def test_follow_is_refused_on_a_cloud_route(self):
-        with FakeService(wav_answer) as fake:
-            for flag in ("--follow", "--clips-only"):
-                out = self.render(fake.url, flag)
-                self.assertEqual(out.returncode, cli.USAGE, flag)
-                self.assertIn("billed", out.stdout + out.stderr)
-            self.assertEqual(fake.requests, [])
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_key_never_reaches_records_logs_or_cache_keys(self):
@@ -831,7 +839,7 @@ class CloudRender(unittest.TestCase):
             with self.subTest(service=service):
                 mp3 = os.path.join(self.d, f"{service}.mp3")
                 with FakeService(every_service_answer) as fake:
-                    out = self.render_on(service, fake.url, "--out", mp3, "--tolerance", "0.5")
+                    out = self.render_on(service, fake.url, mp3)
                 self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
                 self.assertIn("Sending", out.stdout)
                 self.assertTrue(fake.requests)
@@ -864,14 +872,14 @@ class CloudRender(unittest.TestCase):
     def test_web_render_sends_voice_id_and_caches_by_web_key(self):
         mp3 = os.path.join(self.d, "x.mp3")
         with FakeService(wav_answer) as fake:
-            first = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
+            first = self.render(fake.url, mp3)
             self.assertIn(first.returncode, (0, cli.DRIFT), first.stdout + first.stderr)
             sent = [r for r in fake.requests if r.path == "/v1/tts"]
             self.assertGreaterEqual(len(sent), 2)
             self.assertTrue(all(json.loads(r.body)["reference_id"] == VOICE_IDS["fish"] for r in sent))
             self.assertFalse(any(r.path == "/model" for r in fake.requests))   # no clip uploaded: a saved voice
             before = len(fake.requests)
-            second = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
+            second = self.render(fake.url, mp3)
             self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
             self.assertEqual(len(fake.requests), before)   # everything came from the cache
         self.assertNotIn("Sending", second.stdout)
@@ -879,7 +887,7 @@ class CloudRender(unittest.TestCase):
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_cost_print_for_gemini(self):
         with FakeService(every_service_answer) as fake:
-            out = self.render_on("gemini", fake.url, "--out", os.path.join(self.d, "g.mp3"), "--tolerance", "0.5")
+            out = self.render_on("gemini", fake.url, os.path.join(self.d, "g.mp3"))
         self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
         line = next(l for l in out.stdout.splitlines() if l.startswith("Sending"))
         chars = int(line.split()[1].replace(",", ""))
@@ -901,7 +909,7 @@ class CloudRender(unittest.TestCase):
             state["ok"] -= 1
             return wav_answer(req) if state["ok"] >= 0 else (401, {}, b'{"message": "Invalid api key"}')
         with FakeService(answer) as fake:
-            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+            out = self.render(fake.url)
         self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
         rec = self.builds()[-1]
         self.assertTrue(rec["failed"])
@@ -915,7 +923,7 @@ class CloudRender(unittest.TestCase):
     def test_a_render_that_sent_nothing_records_nothing(self):
         self.set_ceiling(10)
         with FakeService(wav_answer) as fake:
-            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+            out = self.render(fake.url)
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
         self.assertEqual(self.builds(), [])   # the first web build is still to come (the privacy line)
 
@@ -931,13 +939,13 @@ class CloudRender(unittest.TestCase):
             return wav_answer(req)
         mp3 = os.path.join(self.d, "x.mp3")
         with FakeService(answer) as fake:
-            first = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
+            first = self.render(fake.url, mp3)
             self.assertNotEqual(first.returncode, 0)
             cached = len(glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm")))
             self.assertEqual(cached, 3)
             sent_first = len([r for r in fake.requests if r.path == "/v1/tts"])
             state["ok"] = 1000
-            second = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
+            second = self.render(fake.url, mp3)
         self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
         first_to_render = int(first.stdout.split(" to render")[0].split()[-1])
         sent_second = len([r for r in fake.requests if r.path == "/v1/tts"]) - sent_first

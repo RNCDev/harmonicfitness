@@ -11,8 +11,8 @@ Three things, so the stories rotate instead of repeating and the slow research h
   session's items after it's built.
 - The reserve (me/workouts/research/reserve/<slug>.md): evergreen pieces (quiz, delight, learn)
   researched ahead of time, a sheet each. A piece is used once the record names its slug. The plan
-  lists the unused ones and says which slots run low. Before 10.2.0 it was research/pantry/, with
-  `pantry` as the record's key; both are still read.
+  lists the unused ones and says which slots run low. (Before 10.2.0 it was research/pantry/;
+  ./sweatcast migrate renames it.)
 
     ./sweatcast content plan --minutes 25
     ./sweatcast content log --date 2026-10-23 --item "today | sports | The home team wins in overtime" \\
@@ -33,9 +33,6 @@ import context  # noqa: E402
 import paths  # noqa: E402
 
 RECIPE = paths.CONTENT   # the engine's filler plan; the listener's told.jsonl and reserve are read at call time
-def folders():
-    """The reserve, then its old name (pantry/, before 10.2.0), read at call time."""
-    return (paths.RESERVE, paths.OLD_PANTRY)
 RECENT_DAYS = 30    # how far back the plan lists what's been told
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
@@ -124,31 +121,19 @@ def due(cats: List[str], items: List[dict], slot: str, n: int) -> List[tuple]:
     return out
 
 
-def used_slug(item: dict) -> Optional[str]:
-    """The reserve piece a record item names (`pantry` in items logged before 10.2.0)."""
-    return item.get("reserve") or item.get("pantry")
+def sheets(folder=None) -> List[str]:
+    """Every sheet in the reserve (`folder`, default research/reserve/), oldest first."""
+    folder = folder or paths.RESERVE
+    if not os.path.isdir(folder):
+        return []
+    return sorted((os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(".md")), key=os.path.getmtime)
 
 
-def sheets(folders=None) -> List[str]:
-    """Every sheet in the reserve, oldest first; a slug in both the reserve and the old pantry/ counts once."""
-    seen, out = set(), []
-    for folder in folders or folders():
-        if not os.path.isdir(folder):
-            continue
-        for name in os.listdir(folder):
-            slug, ext = os.path.splitext(name)
-            if ext == ".md" and slug not in seen:
-                seen.add(slug)
-                out.append(os.path.join(folder, name))
-    return sorted(out, key=os.path.getmtime)
-
-
-def reserve(folder=None, items=None, folders=None) -> List[Piece]:
-    """The reserve's unused pieces, oldest first: from `folder`, else `folders` (default the reserve, then
-    the old pantry/)."""
-    used = {used_slug(i) for i in (told() if items is None else items)} - {None}
+def reserve(folder=None, items=None) -> List[Piece]:
+    """The reserve's unused pieces, oldest first: from `folder` (default research/reserve/)."""
+    used = {i.get("reserve") for i in (told() if items is None else items)} - {None}
     out = []
-    for path in sheets([folder] if folder else folders):
+    for path in sheets(folder):
         if os.path.splitext(os.path.basename(path))[0] in used:
             continue
         p = read_piece(path)
@@ -250,10 +235,10 @@ def log(date: str, texts: List[str], path=None, r: Recipe = None, profile=None) 
     datetime.date.fromisoformat(date)
     path = path or paths.TOLD
     new = [parse_item(t, date, r, profile) for t in texts]   # all checked before any is written
-    used = {used_slug(i) for i in told(path)} - {None}
+    used = {i.get("reserve") for i in told(path)} - {None}
     for item in new:
         slug = item.get("reserve")
-        if slug and not any(os.path.exists(os.path.join(d, slug + ".md")) for d in folders()):
+        if slug and not os.path.exists(os.path.join(paths.RESERVE, slug + ".md")):
             raise ValueError(f"no reserve piece '{slug}' in {paths.show(paths.RESERVE)} (a typo here would leave the real "
                              "piece unused, to be told again)")
         if slug in used:
@@ -278,7 +263,7 @@ def main(argv=None):
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
                     help='"slot | category | title [| source [| reserve slug]]", once per item')
-    sub.add_parser("reserve", aliases=["pantry"], help="list the reserve's unused pieces")
+    sub.add_parser("reserve", help="list the reserve's unused pieces")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "plan":

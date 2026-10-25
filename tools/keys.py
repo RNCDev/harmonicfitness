@@ -19,14 +19,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import cloud  # noqa: E402
 import paths  # noqa: E402
 
-SERVICE_VARS = {"fish": "FISH_AUDIO_API_KEY", "elevenlabs": "ELEVENLABS_API_KEY",
-                "gemini": "GEMINI_API_KEY", "inworld": "INWORLD_API_KEY"}
-KEY_PAGES = {"fish": "https://fish.audio/app/api-keys/",
-             "elevenlabs": "https://elevenlabs.io/app/settings/api-keys",
-             "gemini": "https://aistudio.google.com/apikey",
-             "inworld": "https://platform.inworld.ai/api-keys"}
+SERVICE_VARS = {s: v["key_var"] for s, v in cloud.services().items()}    # knowledge/services.toml
+KEY_PAGES = {s: v["key_page"] for s, v in cloud.services().items()}
 LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 COMMENT_RE = re.compile(r"\s+#.*$")   # an inline comment after the value
 

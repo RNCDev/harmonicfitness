@@ -62,7 +62,7 @@ sign_off = "Brief and warm; names one thing done well"
 
 ## 2. Audition
 
-**Before the first audition**, say once, plainly, what goes where: the audition sends the coach's description to every keyed service, and each workout with a web coach sends its script, which can mention their injuries, to that coach's service; Gemini's free tier uses what it's sent for training, with human review. (This is the `setup` skill's privacy line; say it here unless it was said earlier in this conversation or a web build has already run: `grep -cE '"route": "(fish|elevenlabs|gemini|inworld)"' me/workouts/.logs/builds.jsonl` counts them.)
+**Before the first audition**, say once, plainly, what goes where: the audition sends the coach's description to every keyed service, and each workout with a web coach sends its script, which can mention their injuries, to that coach's service; Gemini's free tier uses what it's sent for training, with human review. (This is the `setup` skill's privacy line; say it here unless it was said earlier in this conversation or a web build has already run: `./sweatcast get web-builds` counts them.)
 
 ```
 ./sweatcast coaches audition me/personas/.auditions/<slug>.md

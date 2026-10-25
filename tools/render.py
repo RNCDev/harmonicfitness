@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Render a segmented workout draft to one MP3, voicing each paragraph in-process.
 
 Runs in the project's own environment, .venv (./sweatcast setup makes it; ./sweatcast
@@ -16,17 +15,11 @@ No app or server needed. Clips are cached in me/workouts/.audio-cache, so rerunn
 after editing a few segments only re-renders what changed. Only one render runs at
 a time: a second one waits for the first (two voice models don't fit in 16 GB).
 Each MP3 gets a record of how it was made: <name>.build.json beside it, and a line
-in me/workouts/.logs/builds.jsonl.
+in me/workouts/.logs/builds.jsonl (where a web render that sent text and then stopped leaves a "failed" line).
 
-Exit codes (cli.py): 0 done, 1 a menu issue or anything else that stops it, 2 the workout ran
-more than --tolerance off plan (the MP3 is written), 64 a mistyped command or output name. Like
-./sweatcast build, it renders a workout only from a draft on its menu (the smoke test excepted).
-
-Usage (normally via ./sweatcast build, which runs run() in its own process):
-    ./sweatcast render draft.txt --coach "Coach Julius" --out "me/workouts/Workout ....mp3"
-    ./sweatcast render draft.txt --coach "Coach Julius" --engine fish --out x.mp3   # a cloud voice
-    ./sweatcast render draft.txt --coach "Coach Julius" --clips-only   # fill the cache, no MP3 (local only)
-    ./sweatcast render draft.txt --coach "Coach Julius" --follow       # render ahead as it's written (local only)
+./sweatcast build is the one way in: it lints the draft, holds it to its menu, and then calls run() (or
+clips() and follow(), to render ahead) in its own process, and decides what a drift past the tolerance
+means (exit 2).
 """
 import contextlib
 import datetime as dt
@@ -48,8 +41,8 @@ import engines  # noqa: E402
 import ffmpeg as ffmpeg_tool  # noqa: E402
 import locks  # noqa: E402
 from locks import FOLLOWING, render_lock, stop_file  # noqa: E402,F401
-from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_smoke,  # noqa: E402
-                   layout, parse, plan, spoken as is_spoken, tolerance_arg)
+from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds,  # noqa: E402
+                   layout, parse, plan, spoken as is_spoken)
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
 import paths  # noqa: E402
 from voices import MLX_EDGE, check_pace_file, record_rate, weight  # noqa: E402
@@ -163,12 +156,8 @@ def loudness_stats(stderr):
                      f"The end of its output was: {(stderr or '')[-300:].strip()}")
 
 
-def ffmpeg_exe():
-    return ffmpeg_tool.exe()
-
-
 def ffmpeg_version():
-    ffmpeg = ffmpeg_exe()
+    ffmpeg = ffmpeg_tool.exe()
     if not ffmpeg:
         return None
     try:
@@ -179,14 +168,9 @@ def ffmpeg_version():
 
 
 def encode(pcm, out, title):
-    """Two-pass loudness normalization, then encode by the output's extension."""
-    ffmpeg = ffmpeg_exe()
-    if not ffmpeg:
-        raise SystemExit(f"ffmpeg not found, and the environment's own copy isn't installed: rerun "
-                         f"./sweatcast setup, or install it ({ffmpeg_tool.install_hint()})")
-    codec = CODECS.get(os.path.splitext(out)[1].lower())
-    if not codec:
-        raise SystemExit(f"--out must end in one of: {', '.join(CODECS)}")
+    """Two-pass loudness normalization, then encode by the output's extension (checked by preflight)."""
+    ffmpeg = preflight(out)
+    codec = CODECS[os.path.splitext(out)[1].lower()]
     with tempfile.TemporaryDirectory() as td:
         raw = os.path.join(td, "raw.wav")
         with wave.open(raw, "wb") as w:
@@ -230,13 +214,10 @@ def engine_version():
         return None
 
 
-def build_record(draft_path, out, voice, seed, clips_total, clips_rendered, planned, actual, drift,
-                 render_seconds, started, draft_sha256=None):
+def build_record(draft_path, draft_sha256, out, voice, seed, clips_total, clips_rendered, planned, actual, drift,
+                 render_seconds, started):
     """How an MP3 was made: enough to tell later what produced it. `draft_sha256` is the hash of the text
-    that was rendered (the caller parsed it); without it, the file's."""
-    if draft_sha256 is None:
-        with open(draft_path, "rb") as f:
-            draft_sha256 = hashlib.sha256(f.read()).hexdigest()
+    that was rendered (the caller parsed it)."""
     show = paths.show
     return {"out": show(os.path.abspath(out)), "engine_version": engine_version(), "draft": show(os.path.abspath(draft_path)),
             "draft_sha256": draft_sha256, "voice": voice["name"], "voice_key": voice["key"],
@@ -269,7 +250,7 @@ def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, erro
         reason = type(error).__name__ + (f": {error}" if str(error) else "")
     usd = cloud.estimate(voice["service"], voice["model"], ["x" * sent["started"]])[1]
     record = {"failed": True, "out": paths.show(os.path.abspath(out)),
-              "draft": paths.show(os.path.abspath(draft_path)) if draft_path else None, "draft_sha256": draft_sha256,
+              "draft": paths.show(os.path.abspath(draft_path)), "draft_sha256": draft_sha256,
               "voice": voice["name"], "voice_key": voice["key"], "engine": voice["engine"], "model": voice["model"],
               "route": voice.get("route"), "chars_sent": sent["started"], "chars_rendered": sent["chars"],
               "usd_estimate": round(usd, 4), "reason": cloud.scrub(reason)[:300],
@@ -430,13 +411,15 @@ def _render_local(voice, todo, seed, cache_path):
 
 
 def preflight(out):
-    """What must hold before a single clip is rendered (or billed): the output's extension is one we encode,
-    and ffmpeg is here to encode it."""
+    """What must hold before a single clip is rendered (or billed), and again at the encode: the output's
+    extension is one we encode, and ffmpeg is here to encode it. Returns ffmpeg's path."""
     if os.path.splitext(out)[1].lower() not in CODECS:
-        raise cli.Usage(f"--out must end in one of: {', '.join(CODECS)} (not {os.path.basename(out)})")
-    if not ffmpeg_exe():
+        raise cli.Usage(f"The output must end in one of: {', '.join(CODECS)} (not {os.path.basename(out)})")
+    ffmpeg = ffmpeg_tool.exe()
+    if not ffmpeg:
         raise SystemExit(f"ffmpeg not found, and the environment's own copy isn't installed: rerun "
                          f"./sweatcast setup, or install it ({ffmpeg_tool.install_hint()})")
+    return ffmpeg
 
 
 def drift_message(drift, tolerance):
@@ -445,8 +428,8 @@ def drift_message(drift, tolerance):
             "unchanged clips come from cache.")
 
 
-def run(segments, voice, out, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False, draft_path=None,
-        draft_sha256=None, model=None):
+def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False,
+        model=None):
     """Render parsed `segments` with `voice` to `out` (.mp3, .m4a or .wav): the clips not cached yet (on the
     voice's service, or the local engine, under the render lock), the layout on the plan's clock, the loudness
     pass, the encode, and the build record. Returns the drift, the fraction the whole ran over (+) or under (-)
@@ -498,9 +481,8 @@ def run(segments, voice, out, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False
 
     total = len(pcm_all) / 2 / SR
     planned_total = sum(seg["seconds"] for seg in segments)
-    record = build_record(draft_path or "", out, voice, seed, len(clips), len(todo), planned_total,
-                          planned_total * (1 + drift), drift, time.time() - started, started,
-                          draft_sha256=draft_sha256)
+    record = build_record(draft_path, draft_sha256, out, voice, seed, len(clips), len(todo), planned_total,
+                          planned_total * (1 + drift), drift, time.time() - started, started)
     record["route"] = voice.get("route", "local")
     if voice.get("backend") == "cloud":
         record.update(chars_sent=sent["chars"], usd_estimate=round(sent["usd"], 4))
@@ -562,64 +544,3 @@ def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
         if done:
             record_rate(voice, measured_weight, audio_secs - MLX_EDGE * done)
     print(f"Rendered {done} clip(s) ahead; the full build reuses them.", flush=True)
-
-
-def main():
-    ap = cli.ArgumentParser(allow_abbrev=False)
-    ap.add_argument("draft")
-    ap.add_argument("--out", help=".mp3, .m4a or .wav (not needed with --clips-only)")
-    ap.add_argument("--coach", help="the coach (default: the one used last)")
-    ap.add_argument("--engine", help="the route: local, or a cloud service (default: the profile's render list)")
-    ap.add_argument("--model", default=None,
-                    help="try another model repo for the voice's engine (its latest revision)")
-    ap.add_argument("--seed", type=int, default=42, help="a different seed gives a different take of every line")
-    ap.add_argument("--tolerance", type=tolerance_arg, default=TOTAL_TOLERANCE,
-                    help="how far the whole workout may run over or under plan, as a fraction (0 to 0.5)")
-    ap.add_argument("--no-chime", action="store_true",
-                    help="leave out the bell at each new segment and the end tone ([chime] markers still ring)")
-    ap.add_argument("--clips-only", action="store_true",
-                    help="render and cache the draft's clips, then stop: no timing check, no MP3")
-    ap.add_argument("--follow", action="store_true",
-                    help="render ahead while the draft is written: keep the model loaded, render each new or "
-                         "edited paragraph as it appears, and stop when another render starts or after --idle")
-    ap.add_argument("--idle", type=float, default=FOLLOW_IDLE,
-                    help="with --follow, stop after this many seconds with nothing new to render")
-    args = ap.parse_args()
-    if not args.out and not (args.clips_only or args.follow):
-        ap.error("--out is required unless --clips-only or --follow")
-    if not os.path.isfile(args.draft):
-        raise cli.Usage(f"No draft at {args.draft}")
-
-    import personas
-    voice = personas.resolve(args.coach, args.engine)
-    if (args.follow or args.clips_only) and voice.get("backend") == "cloud":
-        print("Rendering ahead is off for a cloud voice: every re-render would be billed. "
-              "Run the full build once the lint passes.")
-        sys.exit(cli.USAGE)
-    if args.follow:
-        return follow(voice, args.draft, args.seed, args.idle)
-    with open(args.draft, encoding="utf-8") as f:
-        text = f.read()
-    segments = parse(text)
-    if args.clips_only:
-        return clips(voice, segments, args.seed)
-    # The one rule the build has, here too: an MP3 of a workout is made only from a draft on its menu.
-    import catalog
-    import menu
-    issues, warnings = menu.gate(catalog.load(), args.draft, text, segments, strict=True,
-                                 required=not is_smoke(args.draft))
-    if issues or warnings:
-        print("\n".join(menu.report_lines(args.draft, issues, warnings, 0)))
-    if issues:
-        print(f"\n{len(issues)} menu issue(s): nothing rendered.")
-        sys.exit(cli.ISSUES)
-    drift = run(segments, voice, args.out, seed=args.seed, tolerance=args.tolerance, no_chime=args.no_chime,
-                draft_path=args.draft, draft_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                model=args.model)
-    if abs(drift) > args.tolerance:
-        print(drift_message(drift, args.tolerance))
-        sys.exit(cli.DRIFT)
-
-
-if __name__ == "__main__":
-    sys.exit(cli.run(main))

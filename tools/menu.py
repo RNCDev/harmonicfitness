@@ -3,7 +3,7 @@
 `./sweatcast brief --save <stem>` writes `<stem>.menu.json` beside the draft: the request and every
 movement `catalog.select` allowed today, healthy-side-only ones with the side to work. The draft
 declares what it scripts on a `movements:` line (draft.py), and `check` finds:
-- issues (the build stops, whatever --force says): no menu; a declared movement that isn't on it or
+- issues (the build stops): no menu; a declared movement that isn't on it or
   isn't a movement at all; nothing declared; the text naming a catalog movement that isn't on the
   menu; segments that don't add up to the request's seconds;
 - warnings: the text naming a menu movement the declaration leaves out (add it, so the log has it).
@@ -16,7 +16,7 @@ the dumbbell bench press) counts as that movement. A mention right after "no", "
 "instead of" or "like", with only small words such as "the" or "doing" between, isn't an instruction
 ("no neck rolls today", "we're not doing jumping jacks", "like a brisk walk"); "no rest between
 jumping jacks" is.
-Library only; the brief and the lint call it.
+Library only; the brief and the build call it.
 """
 import datetime
 import hashlib

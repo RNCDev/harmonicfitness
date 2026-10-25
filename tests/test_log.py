@@ -60,6 +60,22 @@ class LogSession(unittest.TestCase):
         with open(self.builds, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec) + "\n")
 
+    def test_web_builds_counts_every_build_that_sent_a_script(self):
+        """get web-builds: what the privacy line before the first web build reads; a failed web render sent text too."""
+        self.assertEqual(context.web_builds(self.builds), 0)                 # no file yet
+        self.record(route="local")
+        self.record()                                                         # an old record, before routes
+        self.assertEqual(context.web_builds(self.builds), 0)
+        self.record(route="fish", failed=True)
+        with open(self.builds, "a", encoding="utf-8") as f:
+            f.write("not json\n")
+        self.record(route="gemini")
+        self.assertEqual(context.web_builds(self.builds), 2)
+        out = io.StringIO()
+        with helpers.home(self.home), contextlib.redirect_stdout(out):
+            self.assertEqual(context.main(["get", "web-builds"]), cli.OK)
+        self.assertEqual(out.getvalue().strip(), "2")
+
     def log(self, *extra, base=True):
         args = ["log-session", "--coach", "Chatterbox Coach", "--topics", "t"]
         if base:

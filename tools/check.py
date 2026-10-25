@@ -53,8 +53,8 @@ def _check_profile(path):
                                               + (f" (did you mean {close[0]}?)" if close else ""), note=True))
     out += [i._replace(path=at("render")) for i in route_issues(p)]
     if wpm(p) is None:
-        out.append(Issue(at("words_per_minute"), 0, "no words_per_minute (./sweatcast lint without a voice "
-                                                    "assumes 185)", note=True))
+        out.append(Issue(at("words_per_minute"), 0, "no words_per_minute (./sweatcast get wpm prints "
+                                                    "nothing; builds use each coach's measured pace)", note=True))
     if not delivery_patterns(p):
         out.append(Issue(at("deliver_to"), 0, "no deliver_to folder, so finished MP3s stay in me/workouts/",
                          note=True))

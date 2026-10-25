@@ -65,11 +65,11 @@ VIDEOS = os.path.join(RESEARCH, "videos")
 PUZZLES = os.path.join(RESEARCH, "puzzles")
 TOLD = os.path.join(RESEARCH, "told.jsonl")       # every filler item a session told
 RESERVE = os.path.join(RESEARCH, "reserve")       # evergreen filler researched ahead of time
-OLD_PANTRY = os.path.join(RESEARCH, "pantry")     # the reserve's name before 10.2.0, still read
 CACHE = os.path.join(WORKOUTS, ".audio-cache")
 PACE_FILE = os.path.join(CACHE, "voice-pace.json")
 LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log, and builds.jsonl
-BUILDS = os.path.join(LOGS, "builds.jsonl")           # one record per rendered MP3
+# one record per rendered MP3, and a "failed" one per web render that sent text and then stopped
+BUILDS = os.path.join(LOGS, "builds.jsonl")
 
 PERSONAS = os.path.join(HOME, "personas")   # each coach: personas/<slug>/ (persona.md, clip, pace, service voices)
 

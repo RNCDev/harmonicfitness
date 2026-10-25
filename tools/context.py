@@ -14,11 +14,10 @@ The front matter also holds every setting a tool reads, so the prose below it is
 only Claude reads it. profile() reads the four profile files as one: their settings merged, their
 prose joined. Each setting has a home file (SETTING_HOMES); one found elsewhere still counts, and
 check() notes a setting written twice. The health file's `[[limits]]` rows (area, side, level,
-flags, rehab, note) and its `## Clinician rules` section are what the brief applies as rules. A file from an older sweatcast (schema 1 used
-`---` front matter, schema 0 had none) stops the tools with the command that brings
-it up to date, `./sweatcast migrate`.
+flags, rehab, note) and its `## Clinician rules` section are what the brief applies as rules. A file at an
+older schema stops the tools with the command that brings it up to date, `./sweatcast migrate`.
 
-    ./sweatcast get coach             # also: route, routes, wpm, experience
+    ./sweatcast get coach             # also: route, routes, wpm, experience, web-builds
     ./sweatcast deliver               # existing delivery folders, one per line
     ./sweatcast check                 # every file's format, and lines not filled in yet
     ./sweatcast log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
@@ -268,7 +267,6 @@ def profile(path=None):
     return Profile(merged, "\n\n".join(bodies) + "\n", path, sources, duplicates)
 
 
-ROUTE_NAMES = ("local", "fish", "elevenlabs", "gemini", "inworld")   # tools/routes.py
 CLOUD_MAX_CHARS = 30000   # a cloud build's default ceiling: a 40-minute workout with room for retakes
 
 
@@ -295,8 +293,9 @@ def render_preferences():
 
 
 def route_issues(p):
-    return [Issue(p.path, 0, f"render lists '{r}', which isn't a route ({', '.join(ROUTE_NAMES)}); builds skip it")
-            for r in routes(p) if r not in ROUTE_NAMES]
+    import cloud   # the routes: "local" and knowledge/services.toml's services
+    return [Issue(p.path, 0, f"render lists '{r}', which isn't a route ({', '.join(cloud.ROUTES)}); builds skip it")
+            for r in routes(p) if r not in cloud.ROUTES]
 
 
 def cloud_max_chars(p):
@@ -316,12 +315,6 @@ def delivery_patterns(p):
     value = p.settings.get("deliver_to")
     values = value if isinstance(value, list) else [value]
     return [os.path.expanduser(v.strip()) for v in values if isinstance(v, str) and not unfilled(v)]
-
-
-def delivery(p):
-    """The deliver_to folder (or folders, joined with "or") with ~ expanded, or None
-    (unset, or still the hint)."""
-    return " or ".join(delivery_patterns(p)) or None
 
 
 def delivery_folders(p):
@@ -443,7 +436,7 @@ def _weight_problems(k):
 
 
 SETTINGS_COMMENTS = {
-    "words_per_minute": "A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace, and the lint without a coach takes --wpm (default 185).",
+    "words_per_minute": "A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace.",
     "experience": "Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.",
     "likes": "Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.",
     "dislikes": "Movements to leave out (ids or names); the brief's menu never lists them.",
@@ -682,17 +675,6 @@ def prose_injury_gap(h, rows):
             "\"- Unlisted: <what>\")")
 
 
-# ---- schema 1 (sweatcast 2.0.x): settings as lines in the prose, kept for migrate.py ----
-
-LEGACY_FEED_RE = re.compile(r"^- (.+?) \((\w+)\):\s*(.+?)\s*$")
-
-
-LEGACY_LINE_PREFIXES = ("- Copy finished MP3s to", "- Measured words per minute", "- Voices",
-                        "- YouTube favorites", "- Puzzles")
-SETTINGS_NOTE = ("The settings the tools read (voices, where MP3s are copied, words per minute, YouTube "
-                 "channels, puzzles and feeds) are in the `+++` block at the top of this file.")
-
-
 # ---- the log ---------------------------------------------------------------------------
 
 @dataclass
@@ -840,7 +822,8 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach"))
+    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds"),
+                   help="web-builds: how many builds have sent a script to a web voice service")
     g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
     g.add_argument("--engine", help="with route: a route to use if it works here")
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
@@ -862,9 +845,12 @@ def main(argv=None):
         p = profile()
         if args.what == "coach":
             import personas
-            coach = personas.last_coach()
+            coach = personas.default()
             if coach:
                 print(coach.name)
+            return cli.OK
+        if args.what == "web-builds":
+            print(web_builds())
             return cli.OK
         if args.what in ("route", "routes"):
             if args.what == "routes":
@@ -941,10 +927,9 @@ def draft_hash(path):
         return hashlib.sha256(f.read().encode("utf-8")).hexdigest()
 
 
-def built(sha256, log=None):
-    """True when builds.jsonl records an MP3 made from a draft with this hash. A failed web render (a
-    "failed" line) made no MP3 and doesn't count; a build that ran off plan (exit 2) did make one, and
-    counts."""
+def build_records(log=None):
+    """Every record in builds.jsonl, oldest first: one per MP3, and a "failed" one for a web render that sent
+    text and stopped. A damaged line is skipped."""
     try:
         with open(log or paths.BUILDS, encoding="utf-8") as f:
             for line in f:
@@ -952,11 +937,22 @@ def built(sha256, log=None):
                     rec = json.loads(line)
                 except ValueError:
                     continue
-                if isinstance(rec, dict) and not rec.get("failed") and rec.get("draft_sha256") == sha256:
-                    return True
+                if isinstance(rec, dict):
+                    yield rec
     except FileNotFoundError:
-        pass
-    return False
+        return
+
+
+def built(sha256, log=None):
+    """True when builds.jsonl records an MP3 made from a draft with this hash. A failed web render made no
+    MP3 and doesn't count; a build that ran off plan (exit 2) did make one, and counts."""
+    return any(not rec.get("failed") and rec.get("draft_sha256") == sha256 for rec in build_records(log))
+
+
+def web_builds(log=None):
+    """How many builds sent a script to a web voice service, failed ones included (the text went out)."""
+    import cloud
+    return sum(rec.get("route") in cloud.SERVICES for rec in build_records(log))
 
 
 def from_draft(path, date=None, minutes=None, kit=None):

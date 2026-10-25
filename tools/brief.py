@@ -450,7 +450,7 @@ def main():
     ap.add_argument("--level", help="novice, experienced or advanced (default: the profile's)")
     ap.add_argument("--target", help="comma-separated patterns or muscles to focus on")
     ap.add_argument("--limit", action="append", default=[], help="area=level[:side], added to health.md's limits")
-    ap.add_argument("--avoid", default="", help="comma-separated movement ids or flags to rule out")
+    ap.add_argument("--avoid", default="", help="comma-separated movements (ids or names) or flags to rule out")
     ap.add_argument("--save", help="the draft's path (or its stem): write <stem>.brief.md and <stem>.menu.json")
     ap.add_argument("--log", help="the log to read (default: the context folder's)")
     ap.add_argument("--today", help="today's date, YYYY-MM-DD (default: today)")

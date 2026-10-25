@@ -115,17 +115,15 @@ class Record(unittest.TestCase):
         used = [{"date": "2026-10-23", "title": "Why the grid", "reserve": "grid-plan"}]
         self.assertEqual(content.reserve(self.reserve, items=used), [])
 
-    def test_the_old_pantry_folder_and_record_key_still_count(self):
-        """Before 10.2.0 the reserve was research/pantry/ and the record's key was `pantry`."""
-        old = os.path.join(self.tmp.name, "pantry")
+    def test_the_reserve_defaults_to_research_reserve(self):
+        """Without a folder, the reserve is research/reserve/ (the old pantry/ is migrate's to rename)."""
         sheet = "# {t}\n- Slot: quiz\n- Category: puzzle\n\nHook.\n"
         write(os.path.join(self.reserve, "new-one.md"), sheet.format(t="New"))
-        write(os.path.join(old, "old-one.md"), sheet.format(t="Old"))
-        write(os.path.join(old, "new-one.md"), sheet.format(t="Duplicate"))
-        found = content.reserve(items=[], folders=(self.reserve, old))
-        self.assertEqual(sorted(p.title for p in found), ["New", "Old"])   # a slug in both counts once
-        used = [{"date": "2026-10-20", "title": "Old", "pantry": "old-one"}]
-        self.assertEqual([p.title for p in content.reserve(items=used, folders=(self.reserve, old))], ["New"])
+        with mock.patch.object(content.paths, "RESERVE", self.reserve):
+            self.assertEqual([p.title for p in content.reserve(items=[])], ["New"])
+            self.assertEqual(content.reserve(items=[{"date": "2026-10-20", "title": "New", "reserve": "new-one"}]), [])
+        with mock.patch.object(content.paths, "RESERVE", os.path.join(self.tmp.name, "absent")):
+            self.assertEqual(content.reserve(items=[]), [])
 
     def test_the_plan_lists_recent_items_the_reserve_and_restock(self):
         r = content.recipe()

@@ -133,5 +133,46 @@ class Merge(unittest.TestCase):
         self.assertIn("settings.toml", str(e.exception.code))
 
 
+class Pantry(unittest.TestCase):
+    """The reserve's old name (before 10.2.0): research/pantry/ moves into research/reserve/, never overwriting,
+    and told.jsonl's `pantry` keys become `reserve`; a second run has nothing to do."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = os.path.join(self.tmp.name, "me")
+        shutil.copytree(os.path.join(ROOT, "me.example"), self.home)
+        self.research = os.path.join(self.home, "workouts", "research")
+        for folder, name, text in (("pantry", "old.md", "# Old\n"), ("pantry", "same.md", "# Same\n"),
+                                   ("pantry", "clash.md", "# Pantry's\n"), ("reserve", "same.md", "# Same\n"),
+                                   ("reserve", "clash.md", "# Reserve's\n")):
+            os.makedirs(os.path.join(self.research, folder), exist_ok=True)
+            write(os.path.join(self.research, folder, name), text)
+        self.told = os.path.join(self.research, "told.jsonl")
+        write(self.told, '{"date": "2026-10-01", "title": "Old", "pantry": "old"}\nnot json\n'
+                         '{"date": "2026-10-02", "title": "New", "reserve": "same"}\n')
+
+    def migrate(self):
+        env = dict(os.environ, SWEATCAST_HOME=self.home)
+        return subprocess.run([sys.executable, "tools/migrate.py"], cwd=ROOT, env=env, capture_output=True, text=True)
+
+    def test_the_pantry_moves_into_the_reserve_once(self):
+        self.assertTrue(migrate.pantry_due(self.home))
+        out = self.migrate()
+        self.assertIn("research/pantry/", out.stdout, out.stdout + out.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.research, "pantry")))
+        reserve = os.path.join(self.research, "reserve")
+        self.assertEqual(sorted(os.listdir(reserve)), ["clash.md", "old.md", "same.md"])
+        self.assertEqual(read(os.path.join(reserve, "clash.md")), "# Reserve's\n")   # never overwritten
+        backup = glob.glob(os.path.join(self.home, ".backup-*"))[0]
+        self.assertEqual(read(os.path.join(backup, "research", "pantry", "clash.md")), "# Pantry's\n")
+        self.assertIn('"pantry": "old"', read(os.path.join(backup, "research", "told.jsonl")))
+        self.assertEqual(read(self.told).splitlines(),
+                         ['{"date": "2026-10-01", "title": "Old", "reserve": "old"}', "not json",
+                          '{"date": "2026-10-02", "title": "New", "reserve": "same"}'])
+        self.assertEqual(migrate.pantry_due(self.home), [])
+        self.assertIn("nothing to do", self.migrate().stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

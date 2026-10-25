@@ -1,5 +1,5 @@
 """Routes: how this computer turns a script into audio. "local" renders on this computer's own engine;
-a web service (fish, elevenlabs, gemini, inworld) renders with the listener's key.
+a web service (each one in knowledge/services.toml: cloud.SERVICES) renders with the listener's key.
 
 The profile's `render` setting is an ordered preference list, say ["local", "fish"], and one synced
 profile works on every computer: each build takes the first route that works where it runs. Local
@@ -22,8 +22,7 @@ import cloud  # noqa: E402
 import keys  # noqa: E402
 import paths  # noqa: E402
 
-ROUTES = ("local", "fish", "elevenlabs", "gemini", "inworld")
-SERVICES = ROUTES[1:]
+ROUTES, SERVICES = cloud.ROUTES, cloud.SERVICES   # knowledge/services.toml, plus "local"
 
 
 class WebCoachUnavailable(cli.Usage):

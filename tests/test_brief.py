@@ -324,40 +324,39 @@ class Header(unittest.TestCase):
 
 
 class Lint(unittest.TestCase):
-    """The lint stage with and without a menu: the build always requires one."""
+    """The lint stage of ./sweatcast build --lint-only: every draft but the smoke test needs its menu."""
 
-    def lint(self, text, menu_data, *flags):
+    def lint(self, text, menu_data):
         with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "x.draft.txt")
+            home = os.path.join(d, "me")
+            shutil.copytree(LISTENER, home)
+            path = os.path.join(home, "workouts", "x", "x.draft.txt")
+            os.makedirs(os.path.dirname(path))
             with open(path, "w") as f:
                 f.write(text)
             if menu_data is not None:   # a menu from today, made from this listener's health.md, as the brief would
                 menu_data = dict(menu_data, date=datetime.date.today().isoformat(),
-                                 health_sha256=menu.health_hash(os.path.join(LISTENER, "health.md")))
+                                 health_sha256=menu.health_hash(os.path.join(home, "health.md")))
                 menu.write(draft.menu_path(path), menu_data)
-            env = dict(os.environ, SWEATCAST_HOME=LISTENER)
-            return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "tts_build.py"), path,
-                                   "--out", os.path.join(d, "x.txt"), *flags],
+            env = dict(os.environ, SWEATCAST_HOME=home, SWEATCAST_FAKE_LOCAL_ENGINE="1")
+            return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build.py"), path, "x", "--lint-only",
+                                   "--coach", "Coach Julius"],
                                   capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
 
-    def test_required_menu_missing_fails_even_with_force(self):
-        r = self.lint(DRAFT, None, "--require-menu", "--force")
+    def test_a_missing_menu_fails(self):
+        r = self.lint(DRAFT, None)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("no menu", r.stdout)
 
-    def test_menu_issues_fail_even_with_force(self):
-        r = self.lint(DRAFT, fake_menu("goblet-squat", "box-breathing"), "--require-menu", "--force")
+    def test_menu_issues_fail(self):
+        r = self.lint(DRAFT, fake_menu("goblet-squat", "box-breathing"))
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("isn't on today's menu", r.stdout)
 
-    def test_a_menu_beside_the_draft_is_checked_without_the_flag(self):
-        r = self.lint(DRAFT, fake_menu("goblet-squat", "box-breathing"), "--force")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-
-    def test_a_clean_draft_exports(self):
-        r = self.lint(DRAFT, fake_menu("goblet-squat", "dead-bug", "box-breathing"), "--require-menu", "--force")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("every movement is on today's menu (3 declared)", r.stdout)
+    def test_a_draft_on_its_menu_passes_the_menu_check(self):
+        r = self.lint(DRAFT, fake_menu("goblet-squat", "dead-bug", "box-breathing"))
+        self.assertIn("every movement is on today's menu (3 declared)", r.stdout, r.stdout + r.stderr)
+        self.assertNotIn("menu issue", r.stdout)
 
 
 class LogSession(unittest.TestCase):

@@ -91,6 +91,10 @@ def services():
     return _settings
 
 
+SERVICES = tuple(services())   # the web services, in services.toml's order: the one list of them
+ROUTES = ("local", *SERVICES)  # every route: this computer's own engine, then each web service
+
+
 def base_url(service):
     """The service's API address; SWEATCAST_<SERVICE>_URL points it elsewhere (the tests' fake servers)."""
     return (os.environ.get(f"SWEATCAST_{service.upper()}_URL") or services()[service]["url"]).rstrip("/")
