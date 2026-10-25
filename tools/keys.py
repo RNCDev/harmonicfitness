@@ -110,7 +110,7 @@ def web_instructions(service=None):
 def open_env(path=None, run=subprocess.Popen):
     """Open the key file in the system's editor, so the listener can paste a key without it passing through
     the chat. Makes the file (with init's header, no service line) if it's missing; never reads it. Returns the
-    command run, or [] on the web."""
+    command run, or [] on the web or when there's no opener (then it prints the file's path)."""
     if paths.REMOTE:
         print(web_instructions())
         return []
@@ -120,7 +120,12 @@ def open_env(path=None, run=subprocess.Popen):
         os.chmod(path, 0o600)
     argv = (["open", "-e", path] if sys.platform == "darwin" else
             ["notepad", path] if sys.platform == "win32" else ["xdg-open", path])
-    run(argv)
+    try:
+        run(argv)
+    except OSError:   # no opener here (a Linux without xdg-open): say where the file is
+        print(f"Couldn't open it here ({argv[0]} isn't available): the file is {os.path.abspath(path)}; "
+              "open it in any text editor and paste the key after its NAME= (init adds the line).")
+        return []
     return argv
 
 

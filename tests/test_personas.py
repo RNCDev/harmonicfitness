@@ -787,6 +787,32 @@ class Auditions(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn(".archive", said)
 
+    def test_audition_keeps_the_designs_when_an_mp3_fails(self):
+        import coaches
+        import subprocess as sp
+
+        def mp3(wav, out):
+            if os.path.basename(wav) == "fish-1.wav":
+                raise sp.TimeoutExpired("ffmpeg", 120)
+            return True
+        has_ffmpeg = mock.patch("ffmpeg.exe", return_value="ffmpeg")
+        with mock.patch.object(coaches, "_mp3", mp3), has_ffmpeg:
+            folder = self.audition(self.narrative)
+        c = self.candidates(folder)
+        self.assertEqual([x["letter"] for x in c], list("ABCDEFGH"))
+        self.assertTrue(all(os.path.exists(os.path.join(folder, x["wav"])) for x in c))
+        self.assertIsNone(c[0]["mp3"])
+        self.assertEqual(c[1]["mp3"], "fish-2.mp3")
+        self.assertIn("no MP3 for A", self.said)
+
+        def interrupted(wav, out):
+            raise KeyboardInterrupt
+        with mock.patch.object(coaches, "_mp3", interrupted), has_ffmpeg, self.assertRaises(KeyboardInterrupt):
+            self.audition(self.narrative)
+        later = sorted(os.listdir(os.path.join(self.folder, ".auditions")))[-1]
+        c = self.candidates(os.path.join(self.folder, ".auditions", later))   # designs paid for: still kept
+        self.assertEqual(len(c), 8)
+
     def test_list_survives_an_archived_last_coach(self):
         import coaches
         persona_home(self.d, ("Coach Julius", {}))
@@ -888,13 +914,13 @@ class Auditions(unittest.TestCase):
         with open(os.path.join(self.folder, "coach-reed", "persona.md"), encoding="utf-8") as f:
             self.assertEqual(f.read(), before)
 
-    def test_failed_make_tells_the_saved_voice_id(self):
+    def test_failed_make_tells_the_saved_voice_id_when_it_cant_resume(self):
         import contextlib
         import io
         import coaches
         self.add_default("coach-reed")
-        out = io.StringIO()
-        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")), \
+        out = io.StringIO()   # saved at Fish, but not recorded here: the ID is what cleans it up by hand
+        with mock.patch.object(coaches, "_record_made", side_effect=OSError("disk full")), \
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
             with self.assertRaises(OSError):
                 coaches.make("Coach Reed")
@@ -904,13 +930,19 @@ class Auditions(unittest.TestCase):
     def test_make_resumes_after_a_saved_voice(self):
         import coaches
         before = self.add_default("coach-ellis")
+        import contextlib
+        import io
+        failed = io.StringIO()
         with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
-            with self.assertRaises(OSError):
-                self.quiet(coaches.make, "Coach Ellis")
+            with self.assertRaises(OSError), contextlib.redirect_stdout(failed), contextlib.redirect_stderr(failed):
+                coaches.make("Coach Ellis")
+        self.assertNotIn("el-saved-5", failed.getvalue())   # the next make finishes it: no ID to clean up by hand
         with open(os.path.join(self.folder, "coach-ellis", "persona.md"), encoding="utf-8") as f:
             self.assertEqual(f.read(), before)   # still pending
         sent = len(self.fakes["elevenlabs"].requests)
         _, said = self.quiet(coaches.make, "Coach Ellis")
+        self.assertIn("Finishing Coach Ellis", said)
+        self.assertNotIn("el-saved-5", said)
         self.assertEqual(len(self.fakes["elevenlabs"].requests), sent)   # no second design, no second save
         p = personas.lookup("Coach Ellis")
         self.assertEqual((p.voice_id, p.pending), ("el-saved-5", None))

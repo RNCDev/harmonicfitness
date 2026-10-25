@@ -118,6 +118,19 @@ class Keys(unittest.TestCase):
         with open(self.env) as f:
             self.assertEqual(f.read(), f"FISH_AUDIO_API_KEY={SECRET}\n")
 
+    def test_keys_open_without_an_opener_names_the_file(self):
+        import contextlib
+        import io
+
+        def missing(argv):
+            raise FileNotFoundError(2, "No such file or directory", argv[0])
+        out = io.StringIO()
+        with mock.patch.object(keys.sys, "platform", "linux"), mock.patch.object(keys.paths, "REMOTE", False), \
+                contextlib.redirect_stdout(out):
+            self.assertEqual(keys.open_env(self.env, run=missing), [])
+        self.assertIn(os.path.abspath(self.env), out.getvalue())
+        self.assertIn("open it in any text editor", out.getvalue())
+
     def test_unknown_service(self):
         with self.assertRaises(SystemExit):
             keys.init("playht", path=self.env)

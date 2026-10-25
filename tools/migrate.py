@@ -42,7 +42,8 @@ Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own 
 beside the context files, even when those are already current:
     4 to 5 (sweatcast 10.0.0): web coaches. Each coach's settings gain `kind = "local"` after the
         schema line; nothing else in the file changes. me/.gitignore keeps each web coach's
-        sample.mp3 and leaves out auditions in progress (personas/.auditions/).
+        sample.mp3 (archived ones too) and leaves out auditions in progress (personas/.auditions/) and a
+        make's in-between files (.made.json, .made.wav).
 """
 import json
 import os
@@ -194,8 +195,10 @@ GITIGNORE_ADD = ("# API keys for cloud voices (./sweatcast keys): never committe
                  "# Designed takes not kept, and stock-voice samples.", "personas/*/takes/", "personas/.samples/")
 GITIGNORE_ADD_5 = ("# A workout's web copy (Claude Code on the web) is kept: the private repo is how it reaches you.",
                    "!*.web-*.mp3")
-GITIGNORE_ADD_PERSONA_5 = ("# Each web coach's approved sample is kept; auditions in progress are not.",
-                           "!personas/*/sample.mp3", "personas/.auditions/")
+GITIGNORE_ADD_PERSONA_5 = ("# Each web coach's approved sample is kept (archived ones too); auditions in progress, "
+                           "and a make between saving a voice and writing the coach, are not.",
+                           "!personas/*/sample.mp3", "!personas/.archive/*/sample.mp3", "personas/.auditions/",
+                           "personas/*/.made.json", "personas/*/.made.wav")
 
 
 class NeedsName(Exception):

@@ -9,9 +9,13 @@ workouts/.audio-cache/*
 *.mp3
 # A workout's web copy (Claude Code on the web) is kept: the private repo is how it reaches you.
 !*.web-*.mp3
-# Each web coach's approved sample is kept; auditions in progress are not.
+# Each web coach's approved sample is kept (archived ones too); auditions in progress, and a
+# make between saving a voice and writing the coach, are not.
 !personas/*/sample.mp3
+!personas/.archive/*/sample.mp3
 personas/.auditions/
+personas/*/.made.json
+personas/*/.made.wav
 workouts/.logs/*.log
 # Designed takes not kept, stock-voice samples, and ./sweatcast migrate's backups (git has the history).
 personas/*/takes/

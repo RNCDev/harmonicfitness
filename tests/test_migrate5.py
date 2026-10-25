@@ -198,21 +198,24 @@ class MigratePersonas(unittest.TestCase):
         self.assertEqual(len([d for d in os.listdir(self.home) if d.startswith(".backup-")]), 1)
 
     def test_migrate_adds_the_sample_and_audition_ignore_rules(self):
+        NEW_RULES = ("!personas/*/sample.mp3", "!personas/.archive/*/sample.mp3", "personas/.auditions/",
+                     "personas/*/.made.json", "personas/*/.made.wav")
         ignore = os.path.join(self.home, ".gitignore")
         with open(ignore, encoding="utf-8") as f:
             text = f.read()
         with open(ignore, "w", encoding="utf-8") as f:   # as 9.x wrote it
             f.write("\n".join(ln for ln in text.splitlines()
-                              if ln not in ("!personas/*/sample.mp3", "personas/.auditions/")) + "\n")
+                              if ln not in NEW_RULES) + "\n")
         self.migrate()
         with open(ignore, encoding="utf-8") as f:
             lines = f.read().splitlines()
-        self.assertIn("personas/.auditions/", lines)
-        self.assertGreater(lines.index("!personas/*/sample.mp3"), lines.index("*.mp3"))
         with open(os.path.join(ROOT, "me.example", ".gitignore"), encoding="utf-8") as f:
             shipped = f.read().splitlines()
-        self.assertIn("personas/.auditions/", shipped)
-        self.assertGreater(shipped.index("!personas/*/sample.mp3"), shipped.index("*.mp3"))
+        for have in (lines, shipped):
+            for rule in NEW_RULES:
+                self.assertIn(rule, have)
+            for kept in ("!personas/*/sample.mp3", "!personas/.archive/*/sample.mp3"):
+                self.assertGreater(have.index(kept), have.index("*.mp3"))
         before = open(ignore, encoding="utf-8").read()
         self.migrate()
         self.assertEqual(open(ignore, encoding="utf-8").read(), before)   # added once

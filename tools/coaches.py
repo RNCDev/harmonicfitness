@@ -329,19 +329,30 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
             stem = f"{s}-{k}"
             with open(os.path.join(folder, stem + ".wav"), "wb") as f:
                 f.write(c["wav"])   # as the service sent it: Fish's save sends this WAV back
-            mp3 = stem + ".mp3" if _mp3(os.path.join(folder, stem + ".wav"), os.path.join(folder, stem + ".mp3")) \
-                else None
             entry = {"letter": chr(ord("A") + len(cands)), "service": s, "k": k, "draft_id": c.get("draft_id"),
                      "signature": c.get("signature"), "text": c.get("text") or voices.DESIGN_LINE,
-                     "wav": stem + ".wav", "mp3": mp3, "usd_per_workout": usd,
+                     "wav": stem + ".wav", "mp3": None, "usd_per_workout": usd,
                      "design_usd": table[s].get("design_usd"), "note": table[s].get("note")}
             if revoice:
                 entry["coach"] = revoice.name
             cands.append(entry)
     if not cands:
         shutil.rmtree(folder, ignore_errors=True)
-    else:
+    else:   # the designs are paid for: on disk before anything else can fail
         shutil.copyfile(narrative, os.path.join(folder, "narrative.md"))
+        _write_candidates(folder, cands)
+    import ffmpeg
+    have_ffmpeg = bool(ffmpeg.exe())
+    if cands and have_ffmpeg:
+        for c in cands:   # one that won't convert is one line; its WAV plays as well
+            stem = os.path.splitext(c["wav"])[0]
+            try:
+                if _mp3(os.path.join(folder, c["wav"]), os.path.join(folder, stem + ".mp3")):
+                    c["mp3"] = stem + ".mp3"
+                else:
+                    print(f"(no MP3 for {c['letter']}: ffmpeg failed; its WAV plays as well.)")
+            except (subprocess.SubprocessError, OSError) as e:
+                print(f"(no MP3 for {c['letter']}: {e}; its WAV plays as well.)")
         _write_candidates(folder, cands)
     import player
     for c in cands:
@@ -352,8 +363,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
             print("    (no audio player found here; open the file to listen)")
     for s, e in failures:
         print(f"{table[s]['name']}: no candidates ({_reason(e)})")
-    if cands and not all(c["mp3"] for c in cands):
-        import ffmpeg
+    if cands and not have_ffmpeg:
         print(f"(No MP3s: ffmpeg isn't here, {ffmpeg.install_hint()}; the WAVs play as well.)")
     return (folder if cands else None), cands, failures
 
@@ -563,7 +573,7 @@ def make(name):
     if saved:   # an earlier make saved the voice but stopped before persona.md: finish with it
         voice_id, text, wav = saved
         c, recorded = {}, True
-        print(f"Finishing {p.name}: its voice is already saved at {s['name']} (voice ID {voice_id}).", flush=True)
+        print(f"Finishing {p.name}: its voice is already saved at {s['name']}.", flush=True)
     else:
         print(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its description "
               f"({cost}).", flush=True)
@@ -584,7 +594,7 @@ def make(name):
         context._atomic_write(p.path, context.persona_text(settings, p.prose))   # last: all or nothing
     except BaseException:
         if recorded:   # the voice is recorded in the coach's folder: the next make finishes with it
-            print(f"{p.name}'s voice is saved at {s['name']} (voice ID {voice_id}) but the coach wasn't written; "
+            print(f"{p.name}'s voice is saved at {s['name']} but the coach wasn't written; "
                   "it's still pending, and the next build (or ./sweatcast coaches make) finishes it without "
                   "designing again.", file=sys.stderr)
         elif service == "gemini" and c.get("draft_id"):   # stored at design: don't leave it behind
