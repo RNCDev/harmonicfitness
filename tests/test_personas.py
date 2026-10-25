@@ -16,6 +16,7 @@ os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 import context  # noqa: E402
 import ffmpeg  # noqa: E402
 import personas  # noqa: E402
+import routes  # noqa: E402
 import voices  # noqa: E402
 from v8 import HAS_V8_TAG, v8_file  # noqa: E402
 
@@ -378,7 +379,8 @@ class WebCoaches(unittest.TestCase):
         with mock.patch.object(context, "sessions", return_value=used):
             self.assertEqual(personas.default(folder).name, "Coach Reed")   # only stand-ins: the one used last
             shutil.copytree(os.path.join(FIXTURE, "coach-test"), os.path.join(folder, "coach-test"))
-            self.assertEqual(personas.default(folder).name, "Coach Test")   # a coach of their own wins
+            with mock.patch.object(routes, "usable", return_value=(True, "")):   # wherever local voices run
+                self.assertEqual(personas.default(folder).name, "Coach Test")   # a coach of their own wins
 
     def test_own_coach_beats_a_stand_in_only_when_it_can_speak_here(self):
         import routes
@@ -494,7 +496,8 @@ class CoachDemo(unittest.TestCase):
             persona_home(self.d, ("Coach Maya", {}))
             self.assertEqual(personas.default().name, "Coach Maya")
         used = mock.Mock(voice="Coach Demo")
-        with mock.patch.object(context, "sessions", return_value=[used]):
+        with mock.patch.object(context, "sessions", return_value=[used]), \
+                mock.patch.object(routes, "usable", return_value=(True, "")):   # wherever local voices run
             self.assertEqual(personas.default().name, "Coach Maya")   # a stand-in used last: their own wins
 
     def test_check_notes_placeholder(self):
