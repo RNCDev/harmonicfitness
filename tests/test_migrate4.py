@@ -1,7 +1,8 @@
 """./sweatcast migrate from sweatcast 8 (schema 3) to 9 (schema 4): voices become coaches.
 
 The context folder is invented (tests/fixtures/v8-home: the v8.0.1 template, two log lines, and a
-pace file with the shipped clips' real keys); the clips come from tools/migrate-assets/v8-voices/."""
+pace file with the shipped clips' real keys); the clips come from the v8.0.1 git tag (tests/v8.py)."""
+import hashlib
 import json
 import os
 import shutil
@@ -15,11 +16,13 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import context  # noqa: E402
+from v8 import HAS_V8_TAG, v8_file  # noqa: E402
 
 V8 = os.path.join(ROOT, "tests", "fixtures", "v8-home")
 JULIUS_KEY, SOLO_KEY = "e5488e8c8349", "fdb9e1b9e92f"   # the keys this listener's pace and clips are filed under
 
 
+@unittest.skipUnless(HAS_V8_TAG, "needs the v8.0.1 tag (a git clone)")
 class Migrate4(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp()
@@ -112,8 +115,8 @@ class Migrate4(unittest.TestCase):
         voices = os.path.join(self.home, "voices")
         os.makedirs(voices)
         for ext in (".wav", ".txt", ".json"):
-            shutil.copy(os.path.join(ROOT, "tools", "migrate-assets", "v8-voices", "Qwen3 Coach" + ext),
-                        os.path.join(voices, "Qwen3 Custom" + ext))
+            with open(os.path.join(voices, "Qwen3 Custom" + ext), "wb") as f:
+                f.write(v8_file("Qwen3 Coach", ext))
         with open(os.path.join(voices, "Qwen3 Custom.json"), "w") as f:
             json.dump({"engine": "qwen3"}, f)
         prof = os.path.join(self.home, "profile.md")
@@ -140,15 +143,17 @@ class Migrate4(unittest.TestCase):
 
     def test_cached_clip_still_matches_after_migration(self):
         self.migrated(self.migrate())
-        code = """import hashlib, json, os, personas, render
-folder = os.path.join('tools', 'migrate-assets', 'v8-voices')
-conf = json.load(open(os.path.join(folder, 'Chatterbox Coach.json')))
-audio = hashlib.sha256(open(os.path.join(folder, 'Chatterbox Coach.wav'), 'rb').read()).hexdigest()
-words = open(os.path.join(folder, 'Chatterbox Coach.txt'), encoding='utf-8').read().strip()
+        conf = json.loads(v8_file("Chatterbox Coach", ".json"))
+        wav_sha = hashlib.sha256(v8_file("Chatterbox Coach", ".wav")).hexdigest()
+        words = v8_file("Chatterbox Coach", ".txt").decode("utf-8").strip()
+        code = """import hashlib, json, personas, render
+conf = json.loads(%r)
+audio = %r
+words = %r
 old = {'key': hashlib.sha256(f'{audio}|{words}'.encode()).hexdigest()[:12], 'engine': conf['engine'],
        'model': conf['model'], 'revision': conf['revision'], 'generate': {}, 'backend': 'mlx'}
 new = personas.voice_for(personas.lookup('Coach Julius'), 'local')
-print(render.clip_cache(old, 42)('Set your feet.') == render.clip_cache(new, 42)('Set your feet.'))"""
+print(render.clip_cache(old, 42)('Set your feet.') == render.clip_cache(new, 42)('Set your feet.'))""" % (json.dumps(conf), wav_sha, words)
         self.assertEqual(self.tool(code), "True")
 
 

@@ -17,6 +17,7 @@ import context  # noqa: E402
 import ffmpeg  # noqa: E402
 import personas  # noqa: E402
 import voices  # noqa: E402
+from v8 import HAS_V8_TAG, v8_file  # noqa: E402
 
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "personas")
 FFMPEG = ffmpeg.exe()   # the MP3s need it; without it they're skipped, as in test_webcopy
@@ -72,13 +73,10 @@ class Personas(unittest.TestCase):
         self.assertEqual((v["engine"], v["backend"], v["route"], v["name"]), ("chatterbox", "mlx", "local", "Coach Test"))
         self.assertEqual(v["pace_file"], os.path.join(self.d, "personas", "coach-test", "pace.json"))
 
+    @unittest.skipUnless(HAS_V8_TAG, "needs the v8.0.1 tag (a git clone)")
     def test_local_model_pins_match_the_shipped_voices(self):
-        for f in ("Chatterbox Coach.json", "Qwen3 Coach.json"):
-            path = os.path.join(ROOT, "voices", f)
-            if not os.path.exists(path):
-                path = os.path.join(ROOT, "tools", "migrate-assets", "v8-voices", f)
-            with open(path) as j:
-                conf = json.load(j)
+        for stem in ("Chatterbox Coach", "Qwen3 Coach"):
+            conf = json.loads(v8_file(stem, ".json"))
             self.assertEqual(voices.LOCAL_MODELS[(conf["engine"], "mlx")], (conf["model"], conf["revision"]))
             if conf.get("torch"):
                 self.assertEqual(voices.LOCAL_MODELS[(conf["engine"], "torch")],

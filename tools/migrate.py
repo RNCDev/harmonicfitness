@@ -23,7 +23,7 @@ Steps:
         deleted. The other files only change their schema number.
     3 to 4 (sweatcast 9.0.0): voices become coaches. Each voice the profile's [[voices]] lists
         becomes a persona folder in me/personas/: its clip and words copied byte for byte (from
-        me/voices/, else the clips sweatcast 8 shipped, kept in tools/migrate-assets/v8-voices/),
+        me/voices/, else the clips sweatcast 8 shipped, read from the v8.0.1 git tag),
         its measured pace moved out of workouts/.audio-cache/voice-pace.json, and the profile's
         ## Narrator lines as how the coach talks. Chatterbox Coach becomes Coach Julius and Qwen3
         Coach becomes Coach Solo, each keeping its old names as aliases, so old log lines still
@@ -205,7 +205,7 @@ class NeedsName(Exception):
 def _v8_voice(name, home):
     """{"wav": bytes, "txt": words, "conf": settings} for an old voice (by name or alias), or None."""
     want = name.lower()
-    for folder in (os.path.join(home, "voices"), paths.V8_VOICES):
+    for folder in (os.path.join(home, "voices"),):
         if not os.path.isdir(folder):
             continue
         for f in os.listdir(folder):
@@ -223,7 +223,7 @@ def _v8_voice(name, home):
 
 
 def _from_git(name):
-    """The clip from the v8.0.1 tag, when the migration folder is gone (a later release) but git has it."""
+    """The clip from the v8.0.1 tag, when me/voices/ lacks it: the clips sweatcast 8 shipped."""
     def show(path):
         out = subprocess.run(["git", "-C", paths.ROOT, "show", f"v8.0.1:{path}"], capture_output=True)
         return out.stdout if out.returncode == 0 else None
