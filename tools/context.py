@@ -1009,6 +1009,9 @@ def check_coaches(folder=None):
             elif not p.settings.get("voice_id"):
                 out.append(Issue(path, 0, f"{name} is a web coach with no voice_id: audition a voice and keep one "
                                           "(the coach skill)"))
+            if p.settings.get("style"):
+                out.append(Issue(path, 0, f"{name}: Gemini's API takes no style setting yet (2026-10-25); "
+                                          "leave style empty"))
         elif not all(
                 os.path.exists(os.path.join(folder, slug, f)) for f in ("clip.wav", "clip.txt")):
             out.append(Issue(path, 0, "no clip.wav and clip.txt beside it: keep a take or bring a clip "

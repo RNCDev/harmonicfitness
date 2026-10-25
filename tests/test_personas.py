@@ -111,15 +111,6 @@ class Personas(unittest.TestCase):
         self.assertEqual(personas.voice_for(personas.lookup("Coach Q"), "local")["model"],
                          voices.LOCAL_MODELS[("qwen3", "mlx")][0])
 
-    def test_service_voice_ids_are_keyed_by_clip(self):
-        self.use(persona_home(self.d))
-        p = personas.lookup("Coach Test")
-        self.assertIsNone(personas.services_get(p, "elevenlabs", "abc"))
-        personas.services_put(p, "elevenlabs", "abc", "voice-1")
-        personas.services_put(p, "fish", "abc", "voice-2")
-        self.assertEqual(personas.services_get(p, "elevenlabs", "abc"), "voice-1")
-        self.assertIsNone(personas.services_get(p, "elevenlabs", "changed-clip"))
-
     def test_persona_settings_edit_in_place(self):
         self.use(persona_home(self.d))
         p = personas.lookup("Coach Test")
@@ -144,18 +135,13 @@ class Coaches(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def test_persona_from_a_cloud_designed_take(self):
-        import base64
+    def test_persona_from_a_designed_take(self):
         import coaches
         sys.path.insert(0, os.path.join(ROOT, "tests"))
-        from fakes import FakeService, tone_wav
-        candidate = base64.b64encode(tone_wav(1.0, rate=44100)).decode()
-        answer = lambda r: (200, {}, json.dumps({"candidates": [{"audio_base64": candidate, "sample_rate": 44100,
-                                                                 "text": "Okay, set your feet."}]}).encode())
-        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url,
-                                                                       "FISH_AUDIO_API_KEY": "test-key"}):
-            takes = coaches.design("Coach Maya", "A warm coach in her forties.", designer="fish", takes=1, seed=7,
-                                   line="Okay, set your feet.")
+        from fakes import tone_pcm
+        made = lambda description, line, takes, seed: [(tone_pcm(1.0), line)]
+        takes = coaches.design("Coach Maya", "A warm coach in her forties.", designer="local", takes=1, seed=7,
+                               line="Okay, set your feet.", make_takes=made)
         self.assertEqual(takes, [os.path.join(self.folder, "coach-maya", "takes", "1.wav")])
         name = coaches.keep(takes[0])
         self.assertEqual(name, "Coach Maya")
@@ -169,9 +155,15 @@ class Coaches(unittest.TestCase):
             self.assertEqual((w.getframerate(), w.getnchannels(), w.getsampwidth()), (24000, 1, 2))
         with open(p.clip_words) as f:
             self.assertEqual(f.read().strip(), "Okay, set your feet.")
-        again = coaches.design("Coach Maya", "Warmer.", designer="fish", takes=1, seed=8, line="Hi.",
+        again = coaches.design("Coach Maya", "Warmer.", designer="local", takes=1, seed=8, line="Hi.",
                                make_takes=lambda *a: [(b"\x00\x01" * 2400, "Hi.")])
         self.assertTrue(again[0].endswith("2.wav"))   # earlier takes are kept
+
+    def test_only_the_local_designer_makes_takes(self):
+        import coaches
+        self.assertEqual(coaches.DESIGNERS, ("local",))
+        with self.assertRaises(SystemExit):
+            coaches.design("Coach Maya", "A warm coach.", designer="fish", make_takes=lambda *a: [])
 
     def test_persona_from_a_brought_clip(self):
         import coaches
@@ -424,6 +416,17 @@ class WebCoaches(unittest.TestCase):
         self.maya()
         self.assertEqual(len(context.check_coaches(self.folder)), 1)   # Maya has her voice: nothing to say
 
+    def test_check_flags_a_style_the_api_cant_take(self):
+        write_persona(self.folder, "coach-nolan", context.persona_text(
+            {"name": "Coach Nolan", "kind": "web", "service": "gemini", "voice_id": "voice-abc",
+             "style": "Calm and warm"}, "## How this coach talks\n"))
+        issues = [i for i in context.check_coaches(self.folder) if "coach-nolan" in i.path]
+        self.assertEqual(len(issues), 1, issues)
+        self.assertFalse(issues[0].note)
+        self.assertIn("Gemini's API takes no style setting yet (2026-10-25); leave style empty", issues[0].message)
+        context.set_persona_setting(issues[0].path, None, "style", "")
+        self.assertEqual([i for i in context.check_coaches(self.folder) if "coach-nolan" in i.path], [])
+
 
 class CoachDemo(unittest.TestCase):
     """Coach Demo ships in me.example/ with its pace measured, as a stand-in until the listener makes one."""
@@ -443,8 +446,8 @@ class CoachDemo(unittest.TestCase):
         p = personas.lookup("Coach Demo")
         self.assertTrue(p.placeholder)
         self.assertTrue(p.has_clip)
-        for route in ("fish",):
-            self.assertTrue(voices.pace(personas.voice_for(p, route))[1], route)
+        with self.assertRaises(SystemExit):   # a local coach renders only locally
+            personas.voice_for(p, "fish")
         with open(p.pace_file, encoding="utf-8") as f:
             pace = json.load(f)
         self.assertTrue(all("speed" not in rec for rec in pace.values()))   # no computer's name ships

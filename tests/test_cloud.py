@@ -116,80 +116,126 @@ class Core(unittest.TestCase):
             self.assertNotIn("design_usd", s[n])
 
 
-class Fish(unittest.TestCase):
+VOICE_IDS = {"fish": "fish-model-1", "elevenlabs": "el-voice-1", "gemini": "gemini-voice-1",
+             "inworld": "workspace__design-voice-1"}
+COACHES = {"fish": "Coach Reed", "elevenlabs": "Coach Ellis", "gemini": "Coach Nolan", "inworld": "Coach Owen"}
+
+
+def web_coach(folder, service, name=None, **extra):
+    """A schema-5 web coach on `service` with a saved voice ID, in personas folder `folder`."""
+    import context
+    name = name or COACHES[service]
+    settings = dict({"name": name, "kind": "web", "service": service, "voice_id": VOICE_IDS[service]}, **extra)
+    path = os.path.join(folder, personas.slug(name))
+    os.makedirs(path, exist_ok=True)
+    with open(os.path.join(path, "persona.md"), "w", encoding="utf-8") as f:
+        f.write(context.persona_text(settings, "## How this coach talks\n"))
+    return name
+
+
+def b64(data):
+    return base64.b64encode(data).decode()
+
+
+def gemini_audio_answer(wav=None):
+    """An interactions answer with the audio two levels down, as the live probe found it."""
+    audio = {"type": "audio", "mime_type": "audio/wav", "data": b64(wav or tone_wav(0.4, rate=24000))}
+    return json.dumps({"id": "int-1", "status": "completed", "usage": {"total_tokens": 9},
+                       "steps": [{"type": "thought"}, {"type": "model_output", "content": [audio]}]}).encode()
+
+
+def every_service_answer(req):
+    """Speech on any of the four services, by path."""
+    if req.path == "/v1/tts":
+        return wav_answer(req)
+    if req.path.startswith("/v1/text-to-speech/"):
+        return 200, {"Content-Type": "audio/pcm"}, tone_pcm(0.3)
+    if req.path == "/v1beta/interactions":
+        return 200, {"Content-Type": "application/json"}, gemini_audio_answer()
+    if req.path == "/tts/v1/voice":
+        return 200, {"Content-Type": "application/json"}, json.dumps({"audioContent": b64(tone_wav(0.3))}).encode()
+    return 404, {}, b'{"message": "not found"}'
+
+
+class WebVoice(unittest.TestCase):
+    """cloud.voice_for: a web coach's voice dict, by its saved voice ID; a local coach never on a web route."""
+
     def setUp(self):
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
-        patches = [mock.patch.object(personas.paths, "PERSONAS", persona_home(self.d)),
-                   mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": SECRET})]
-        for p in patches:
-            p.start()
-            self.addCleanup(p.stop)
-        self.voice = personas.voice_for(personas.lookup("Coach Test"), "fish")
+        self.folder = persona_home(self.d)
+        patch = mock.patch.object(personas.paths, "PERSONAS", self.folder)
+        patch.start()
+        self.addCleanup(patch.stop)
 
-    def test_voice_for_a_service(self):
-        v = self.voice
-        self.assertEqual((v["backend"], v["engine"], v["service"], v["model"]), ("cloud", "fish", "fish", "s2.1-pro"))
-        self.assertEqual(v["key"], personas.voice_for(personas.lookup("Coach Test"), "local")["key"])
-        self.assertNotIn(SECRET, json.dumps(v))
+    def test_voice_for_a_web_coach(self):
+        web_coach(self.folder, "inworld")
+        p = personas.lookup("Coach Owen")
+        v = personas.voice_for(p, "fish")   # the route is ignored: a web coach speaks through its service
+        self.assertEqual({k: v[k] for k in ("name", "persona", "engine", "backend", "route", "service", "model",
+                                            "voice_id", "style", "revision", "generate", "concurrency", "max_chars")},
+                         {"name": "Coach Owen", "persona": "coach-owen", "engine": "inworld", "backend": "cloud",
+                          "route": "inworld", "service": "inworld", "model": "inworld-tts-2",
+                          "voice_id": VOICE_IDS["inworld"], "style": "", "revision": None, "generate": {},
+                          "concurrency": 5, "max_chars": 2000})
+        self.assertEqual(v["key"], personas.web_key(p, "inworld-tts-2"))
+        self.assertEqual((v["persona_dir"], v["pace_file"]), (p.folder, p.pace_file))
+        self.assertNotIn("ref_audio", v)
+        self.assertEqual(cloud.voice_for(p, "inworld"), v)
 
-    def test_fish_request_shape(self):
-        with FakeService(wav_answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url}):
-            pcm = cloud.speaker(self.voice)("Set your feet.", 42)
-        req = fake.requests[0]
-        self.assertEqual((req.method, req.path), ("POST", "/v1/tts"))
-        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
-        self.assertEqual(req.headers["model"], "s2.1-pro")
-        self.assertEqual(req.headers["content-type"], "application/msgpack")
-        body = msgpack_min.unpack(req.body)
-        with open(os.path.join(FIXTURE, "coach-test", "clip.wav"), "rb") as f:
-            self.assertEqual(body["references"][0]["audio"], f.read())
-        self.assertEqual(body["references"][0]["text"], "Set your feet. Chest up, and press.")
-        self.assertEqual((body["text"], body["format"], body["sample_rate"]), ("Set your feet.", "wav", 24000))
-        self.assertNotIn("seed", body)   # Fish's speech takes no seed
-        self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.4, delta=0.05)   # resampled to 24 kHz
+    def test_a_chosen_model_changes_the_key(self):
+        web_coach(self.folder, "elevenlabs", model="eleven_v4_turbo")
+        p = personas.lookup("Coach Ellis")
+        v = personas.voice_for(p, "elevenlabs")
+        self.assertEqual(v["model"], "eleven_v4_turbo")
+        self.assertEqual(v["key"], personas.web_key(p, "eleven_v4_turbo"))
+        self.assertNotEqual(v["key"], personas.web_key(p, "eleven_v4"))
 
-    def test_fish_402_is_billing(self):
-        with FakeService(lambda r: (402, {}, b'{"status": 402, "message": "No payment"}')) as fake, \
-                mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url}):
-            with self.assertRaises(cloud.ServiceError) as e:
-                cloud.speaker(self.voice)("Hi.", 42)
-        self.assertEqual(e.exception.kind, "billing")
+    def test_a_web_coach_with_no_voice_yet_stops(self):
+        import context
+        path = os.path.join(self.folder, "coach-reed")
+        os.makedirs(path)
+        with open(os.path.join(path, "persona.md"), "w", encoding="utf-8") as f:
+            f.write(context.persona_text({"name": "Coach Reed", "kind": "web", "service": "fish", "placeholder": True,
+                                          "pending": "design"}, "## How this coach talks\n"))
+        with self.assertRaises(SystemExit) as e:
+            personas.voice_for(personas.lookup("Coach Reed"), "fish")
+        self.assertIn("Coach Reed", str(e.exception.code))
+        self.assertIn("audition", str(e.exception.code))
 
-    def test_fish_design_returns_24k_takes(self):
-        import services.fish as fish
-        candidate = base64.b64encode(tone_wav(1.0, rate=44100)).decode()
-        answer = lambda r: (200, {"Content-Type": "application/json"},
-                            json.dumps({"candidates": [{"audio_base64": candidate, "sample_rate": 44100},
-                                                       {"audio_base64": candidate, "sample_rate": 44100}]}).encode())
-        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url}):
-            takes = fish.design("A warm coach in her forties.", "Okay, set your feet.", 2, 7)
-        req = fake.requests[0]
-        self.assertEqual((req.path, req.headers["model"]), ("/v1/voice-design", "voice-design-1"))
-        body = json.loads(req.body)
-        self.assertEqual((body["instruction"], body["n"], body["seed"]), ("A warm coach in her forties.", 2, 7))
-        self.assertLessEqual(len(body["reference_text"]), 150)
-        self.assertEqual(len(takes), 2)
-        self.assertAlmostEqual(len(takes[0][0]) / 2 / 24000, 1.0, delta=0.15)
-        self.assertEqual(takes[0][1], "Okay, set your feet.")
+    def test_a_local_coach_never_renders_on_a_web_route(self):
+        with self.assertRaises(SystemExit) as e:
+            personas.voice_for(personas.lookup("Coach Test"), "fish")
+        self.assertIn("local coach", str(e.exception.code))
+        self.assertEqual(personas.voice_for(personas.lookup("Coach Test"), "local")["route"], "local")
 
 
 class ServiceCase(unittest.TestCase):
-    """A fixture coach and a test key for one service, with the service pointed at a fake."""
+    """A web coach and a test key for one service, with the service pointed at a fake."""
     SERVICE = None
 
     def setUp(self):
         import keys
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
-        patches = [mock.patch.object(personas.paths, "PERSONAS", persona_home(self.d)),
-                   mock.patch.dict(os.environ, {keys.SERVICE_VARS[self.SERVICE]: SECRET})]
+        self.folder = persona_home(self.d)
+        web_coach(self.folder, self.SERVICE)
+        patches = [mock.patch.object(personas.paths, "PERSONAS", self.folder),
+                   mock.patch.dict(os.environ, {keys.SERVICE_VARS[self.SERVICE]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})]
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
 
+    @property
+    def module(self):
+        import importlib
+        return importlib.import_module(f"services.{self.SERVICE}")
+
     def coach(self):
-        return personas.lookup("Coach Test")
+        return personas.lookup(COACHES[self.SERVICE])
+
+    def voice(self):
+        return personas.voice_for(self.coach(), self.SERVICE)
 
     def serve(self, answer):
         fake = FakeService(answer)
@@ -200,101 +246,346 @@ class ServiceCase(unittest.TestCase):
         self.addCleanup(patch.stop)
         return fake
 
+    def check_candidate(self, c, text):
+        self.assertEqual(set(c), {"pcm", "wav", "text", "draft_id", "signature"})
+        self.assertEqual(c["text"], text)
+        self.assertGreater(len(c["pcm"]), 0)
+        pcm, rate = cloud.wav_pcm(c["wav"])
+        self.assertGreater(len(pcm), 0)
+
+    def check_delete(self, path, gone_status=200):
+        """delete(): True on the service's 2xx, True on a 404 (already gone), an error otherwise."""
+        fake = self.serve(lambda r: (gone_status, {}, b"" if gone_status == 204 else b"{}"))
+        self.assertTrue(self.module.delete("voice-9"))
+        self.assertEqual((fake.requests[0].method, fake.requests[0].path), ("DELETE", path.format(id="voice-9")))
+        self.assertNotIn(SECRET, fake.requests[0].path)
+        fake.answer = lambda r: (404, {}, b'{"message": "not found"}')
+        self.assertTrue(self.module.delete("voice-9"))
+        fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
+        with self.assertRaises(cloud.ServiceError) as e:
+            self.module.delete("voice-9")
+        self.assertEqual(e.exception.kind, "auth")
+
+
+def fish_design_answer(req):
+    candidate = lambda i: {"id": f"cand-{i}", "index": i, "audio_base64": b64(FISH_WAVS[i]), "sample_rate": 44100,
+                           "duration_ms": 1000, "text": "Okay, set your feet.", "language": "en",
+                           "instruct": "x", "features": {}, "audio_token_sha256": "abc", "signature": f"sig-{i}"}
+    return 200, {"Content-Type": "application/json"}, json.dumps({"candidates": [candidate(0), candidate(1)]}).encode()
+
+
+FISH_WAVS = [tone_wav(1.0, rate=44100), tone_wav(0.8, rate=44100)]
+
+
+class Fish(ServiceCase):
+    SERVICE = "fish"
+
+    def test_fish_speaks_by_reference_id(self):
+        fake = self.serve(wav_answer)
+        pcm = cloud.speaker(self.voice())("Set your feet.", 42, previous_text="Hi.", next_text="Rest.")
+        req = fake.requests[0]
+        self.assertEqual((req.method, req.path), ("POST", "/v1/tts"))
+        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+        self.assertEqual(req.headers["model"], "s2.1-pro")
+        self.assertEqual(req.headers["content-type"], "application/json")
+        self.assertEqual(json.loads(req.body), {"text": "Set your feet.", "reference_id": VOICE_IDS["fish"],
+                                                "format": "wav", "sample_rate": 24000})
+        self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.4, delta=0.05)   # resampled to 24 kHz
+
+    def test_fish_402_is_billing(self):
+        self.serve(lambda r: (402, {}, b'{"status": 402, "message": "No payment"}'))
+        with self.assertRaises(cloud.ServiceError) as e:
+            cloud.speaker(self.voice())("Hi.", 42)
+        self.assertEqual(e.exception.kind, "billing")
+
+    def test_fish_design_keeps_signature_and_wav(self):
+        fake = self.serve(fish_design_answer)
+        out = self.module.design("A warm coach in her forties.", "Okay, set your feet.", 2, "ignored")
+        req = fake.requests[0]
+        self.assertEqual((req.path, req.headers["model"]), ("/v1/voice-design", "voice-design-1"))
+        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+        self.assertEqual(json.loads(req.body), {"instruction": "A warm coach in her forties.",
+                                                "reference_text": "Okay, set your feet.", "language": "en", "n": 2})
+        self.assertEqual(len(out), 2)
+        for i, c in enumerate(out):
+            self.check_candidate(c, "Okay, set your feet.")
+            self.assertEqual(c["wav"], FISH_WAVS[i])   # exactly the WAV Fish sent: the save sends it back
+            self.assertEqual((c["signature"], c["draft_id"]), (f"sig-{i}", f"cand-{i}"))
+        self.assertAlmostEqual(len(out[0]["pcm"]) / 2 / 24000, 1.0, delta=0.15)
+
+    def test_fish_save_posts_multipart_private_model(self):
+        fake = self.serve(lambda r: (201, {}, json.dumps({"_id": "model-77", "state": "trained",
+                                                          "visibility": "private"}).encode()))
+        candidate = {"pcm": b"\x00\x01" * 10, "wav": FISH_WAVS[0], "text": "Okay, set your feet.",
+                     "draft_id": "cand-0", "signature": "sig-0"}
+        voice_id = self.module.save(candidate, "Coach Reed", "A man in his forties.", FISH_WAVS[0])
+        self.assertEqual(voice_id, "model-77")
+        req = fake.requests[0]
+        self.assertEqual((req.method, req.path), ("POST", "/model"))
+        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+        self.assertTrue(req.headers["content-type"].startswith("multipart/form-data; boundary="))
+        for field, value in (("visibility", "private"), ("type", "tts"), ("title", "sweatcast Coach Reed"),
+                             ("train_mode", "fast"), ("texts", "Okay, set your feet."),
+                             ("voice_design_signatures", "sig-0")):
+            self.assertIn(f'name="{field}"\r\n\r\n{value}\r\n'.encode(), req.body, field)
+        self.assertIn(b'name="voices"; filename="voice.wav"\r\nContent-Type: audio/wav\r\n\r\n' + FISH_WAVS[0],
+                      req.body)
+
+    def test_fish_delete(self):
+        self.check_delete("/model/{id}", gone_status=204)
+
 
 def elevenlabs_answer(req):
-    if req.path == "/v1/voices/add":
-        return 200, {}, json.dumps({"voice_id": f"voice-{len(req.body)}", "requires_verification": False}).encode()
     if req.path.startswith("/v1/text-to-speech/"):
         return 200, {"Content-Type": "audio/pcm"}, tone_pcm(0.3)
     if req.path.startswith("/v1/text-to-voice/design"):
-        preview = base64.b64encode(tone_pcm(1.0)).decode()
-        return 200, {}, json.dumps({"previews": [{"audio_base_64": preview, "generated_voice_id": f"g{i}",
-                                                  "media_type": "audio/pcm"} for i in range(3)], "text": "x"}).encode()
+        return 200, {}, json.dumps({"previews": [{"audio_base_64": b64(tone_pcm(1.0)), "generated_voice_id": f"g{i}",
+                                                  "media_type": "audio/pcm", "duration_secs": 1.0} for i in range(3)],
+                                    "text": "the words spoken"}).encode()
+    if req.path == "/v1/text-to-voice":
+        return 200, {}, json.dumps({"voice_id": "el-saved-5", "name": "x"}).encode()
     return 404, {}, b"{}"
 
 
 class ElevenLabs(ServiceCase):
     SERVICE = "elevenlabs"
 
-    def test_elevenlabs_clones_once_per_clip(self):
-        fake = self.serve(elevenlabs_answer)
-        for _ in range(2):
-            say = cloud.speaker(personas.voice_for(self.coach(), "elevenlabs"))
-            say("Set your feet.", 42)
-        adds = [r for r in fake.requests if r.path == "/v1/voices/add"]
-        self.assertEqual(len(adds), 1)
-        self.assertEqual(adds[0].headers["xi-api-key"], SECRET)
-        self.assertIn(b'name="files"', adds[0].body)
-        self.assertIn(b"multipart/form-data", adds[0].headers["content-type"].encode())
-        with open(self.coach().clip, "rb") as f:
-            self.assertIn(f.read(), adds[0].body)
-        speech = [r for r in fake.requests if r.path.startswith("/v1/text-to-speech/")]
-        self.assertTrue(all(r.path.startswith(f"/v1/text-to-speech/voice-") for r in speech))
-        self.assertIn("output_format=pcm_24000", speech[0].path)
-        with open(self.coach().clip, "ab") as f:   # a changed clip makes a new voice
-            f.write(b"\x00\x00" * 100)
-        cloud.speaker(personas.voice_for(self.coach(), "elevenlabs"))("Hi.", 42)
-        self.assertEqual(len([r for r in fake.requests if r.path == "/v1/voices/add"]), 2)
-
     def test_elevenlabs_sends_neighbors_and_seed(self):
         fake = self.serve(elevenlabs_answer)
-        pcm = cloud.speaker(personas.voice_for(self.coach(), "elevenlabs"))(
-            "Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
-        body = json.loads([r for r in fake.requests if r.path.startswith("/v1/text-to-speech/")][0].body)
-        self.assertEqual(body, {"text": "Two more.", "model_id": "eleven_v4", "seed": 42,
-                                "previous_text": "Set your feet.", "next_text": "Rest."})
+        pcm = cloud.speaker(self.voice())("Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
+        req = fake.requests[0]
+        self.assertEqual(req.path, f"/v1/text-to-speech/{VOICE_IDS['elevenlabs']}?output_format=pcm_24000")
+        self.assertEqual(req.headers["xi-api-key"], SECRET)
+        self.assertEqual(json.loads(req.body), {"text": "Two more.", "model_id": "eleven_v4", "seed": 42,
+                                                "previous_text": "Set your feet.", "next_text": "Rest."})
         self.assertGreater(len(pcm), 0)
+        self.assertEqual(len(fake.requests), 1)   # no clone first, ever
+        self.assertFalse(any(r.path == "/v1/voices/add" for r in fake.requests))
 
-    def test_elevenlabs_design_previews_are_takes(self):
-        import services.elevenlabs as el
+    def test_elevenlabs_design_returns_three_with_generated_ids(self):
         fake = self.serve(elevenlabs_answer)
-        takes = el.design("A warm coach in her forties.", "Okay, set your feet.", 2, 7)
-        self.assertEqual(len(takes), 2)
-        self.assertEqual(takes[0][1], "x")   # the words the service says it spoke
-        body = json.loads(fake.requests[0].body)
-        self.assertEqual((body["voice_description"], body["seed"]), ("A warm coach in her forties.", 7))
+        out = self.module.design("A warm coach in her forties.", "Okay, set your feet.", 2, "ignored")
+        req = fake.requests[0]
+        self.assertEqual(req.path, "/v1/text-to-voice/design?output_format=pcm_24000")
+        body = json.loads(req.body)
+        self.assertEqual(set(body), {"voice_description", "text"})
+        self.assertEqual(body["voice_description"], "A warm coach in her forties.")
         self.assertGreaterEqual(len(body["text"]), 100)
-        self.assertIn("output_format=pcm_24000", fake.requests[0].path)
+        self.assertTrue(body["text"].startswith("Okay, set your feet."))
+        self.assertEqual([c["draft_id"] for c in out], ["g0", "g1", "g2"])   # every preview is a candidate
+        for c in out:
+            self.check_candidate(c, "the words spoken")
+            self.assertIsNone(c["signature"])
+        self.assertAlmostEqual(len(cloud.wav_pcm(out[0]["wav"])[0]) / 2 / 24000, len(out[0]["pcm"]) / 2 / 24000,
+                               delta=0.01)
+
+    def test_elevenlabs_save_posts_generated_voice_id(self):
+        fake = self.serve(elevenlabs_answer)
+        candidate = {"pcm": b"\x00\x01", "wav": b"", "text": "x", "draft_id": "g1", "signature": None}
+        self.assertEqual(self.module.save(candidate, "Coach Ellis", "D" * 1500, b""), "el-saved-5")
+        req = fake.requests[0]
+        self.assertEqual((req.method, req.path), ("POST", "/v1/text-to-voice"))
+        self.assertEqual(json.loads(req.body), {"voice_name": "sweatcast Coach Ellis", "voice_description": "D" * 1000,
+                                                "generated_voice_id": "g1"})
+
+    def test_elevenlabs_delete(self):
+        self.check_delete("/v1/voices/{id}")
 
 
-@unittest.skip("rewritten in Task 3: speech by saved voice ID (a local test coach no longer renders on a cloud route)")
+class Gemini(ServiceCase):
+    SERVICE = "gemini"
+
+    def design_answer(self, req):
+        if req.path == "/v1beta/voices":
+            return 200, {}, json.dumps({"id": "voice-abc", "model": "gemini-3.8-flash-tts", "type": "prompted",
+                                        "expire_time": "2026-11-25T00:00:00Z", "display_name": "x",
+                                        "prompted": {"input": "x"}, "usage": {},
+                                        "sample_audio": {"mime_type": "audio/wav",
+                                                         "data": b64(tone_wav(2.0))}}).encode()
+        if req.path == "/v1beta/interactions":
+            return 200, {}, gemini_audio_answer(tone_wav(1.0))
+        return 404, {}, b"{}"
+
+    def test_gemini_design_body_has_only_input_in_prompted(self):
+        fake = self.serve(self.design_answer)
+        out = self.module.design("A man in his forties.", "Okay, set your feet.", 1, "sweatcast audition a1 C")
+        create, speech = fake.requests
+        self.assertEqual((create.method, create.path), ("POST", "/v1beta/voices"))
+        self.assertEqual(create.headers["x-goog-api-key"], SECRET)
+        self.assertEqual(json.loads(create.body), {"voice": {"type": "prompted",
+                                                             "display_name": "sweatcast audition a1 C",
+                                                             "prompted": {"input": "A man in his forties."}},
+                                                   "store": True})
+        self.assertEqual(speech.path, "/v1beta/interactions")   # the line, spoken once by the new voice
+        body = json.loads(speech.body)
+        self.assertEqual(body["generation_config"], {"speech_config": [{"voice": "voice-abc"}]})
+        self.assertEqual(body["input"], [{"type": "text", "text": "Okay, set your feet."}])
+        self.assertEqual(len(out), 1)
+        self.check_candidate(out[0], "Okay, set your feet.")
+        self.assertEqual((out[0]["draft_id"], out[0]["signature"]), ("voice-abc", None))
+        self.assertAlmostEqual(len(out[0]["pcm"]) / 2 / 24000, 1.0, delta=0.15)   # the line, not sample_audio
+
+    def test_gemini_design_raises_when_its_speech_fails(self):
+        def answer(req):
+            if req.path == "/v1beta/interactions":
+                return 400, {}, b'{"error": {"message": "bad"}}'
+            return self.design_answer(req)
+        self.serve(answer)
+        with self.assertRaises(cloud.ServiceError):
+            self.module.design("A man in his forties.", "Okay, set your feet.", 1, "label")
+
+    def test_gemini_speech_finds_audio_anywhere_in_the_answer(self):
+        fake = self.serve(lambda r: (200, {}, gemini_audio_answer(tone_wav(0.5, rate=44100))))
+        pcm = cloud.speaker(self.voice())("Set your feet.", 42, previous_text="Hi.", next_text="Rest.")
+        self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.5, delta=0.05)
+        req = fake.requests[0]
+        self.assertEqual((req.path, req.headers["x-goog-api-key"]), ("/v1beta/interactions", SECRET))
+        self.assertEqual(json.loads(req.body), {"model": "gemini-3.8-flash-tts",
+                                                "input": [{"type": "text", "text": "Set your feet."}],
+                                                "response_modalities": ["audio"],
+                                                "generation_config": {"speech_config": [{"voice": VOICE_IDS["gemini"]}]}})
+
+    def test_gemini_answer_with_no_audio_is_refused(self):
+        self.serve(lambda r: (200, {}, b'{"steps": [{"content": [{"type": "text", "text": "no"}]}]}'))
+        with self.assertRaises(cloud.ServiceError) as e:
+            cloud.speaker(self.voice())("Hi.", 42)
+        self.assertEqual(e.exception.kind, "bad_request")
+
+    def test_gemini_text_is_sent_verbatim(self):
+        web_coach(self.folder, "gemini", name="Coach Styled", style="Speak like a calm trainer")
+        fake = self.serve(lambda r: (200, {}, gemini_audio_answer()))
+        cloud.speaker(personas.voice_for(personas.lookup("Coach Styled"), "gemini"))("Two more. Breathe.", 1)
+        body = json.loads(fake.requests[0].body)
+        self.assertEqual(body["input"], [{"type": "text", "text": "Two more. Breathe."}])
+        self.assertNotIn("speech_metadata", fake.requests[0].body.decode())
+        self.assertNotIn("calm trainer", fake.requests[0].body.decode())
+
+    def test_gemini_save_is_the_stored_draft(self):
+        fake = self.serve(self.design_answer)
+        candidate = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "voice-abc", "signature": None}
+        self.assertEqual(self.module.save(candidate, "Coach Nolan", "A man.", b""), "voice-abc")
+        self.assertEqual(fake.requests, [])   # stored at design time
+
+    def test_gemini_delete(self):
+        self.check_delete("/v1beta/voices/{id}")
+
+
+INWORLD_WAVS = [tone_wav(0.9), tone_wav(0.7)]
+
+
+def inworld_answer(req):
+    if req.path == "/voices/v1/voices:design":
+        return 200, {}, json.dumps({"previewVoices": [{"voiceId": f"ws__design-{i}", "previewText": "Okay, set.",
+                                                       "previewAudio": b64(INWORLD_WAVS[i])} for i in range(2)]}).encode()
+    if req.path.endswith(":publish"):
+        return 200, {}, json.dumps({"voiceId": req.path.split("/")[-1].split(":")[0], "displayName": "x"}).encode()
+    if req.path == "/tts/v1/voice":
+        return 200, {}, json.dumps({"audioContent": b64(tone_wav(0.3)), "usage": {}}).encode()
+    return 404, {}, b"{}"
+
+
+class Inworld(ServiceCase):
+    SERVICE = "inworld"
+
+    def test_inworld_basic_auth_as_given(self):
+        fake = self.serve(inworld_answer)
+        cloud.speaker(self.voice())("Hi.", 1)
+        self.module.design("A man.", "Okay.", 2, "label")
+        self.assertTrue(all(r.headers["authorization"] == f"Basic {SECRET}" for r in fake.requests))
+
+    def test_inworld_design_then_publish(self):
+        fake = self.serve(inworld_answer)
+        out = self.module.design("A man in his forties.", "Okay, set your feet.", 2, "ignored")
+        self.assertEqual(json.loads(fake.requests[0].body), {"designPrompt": "A man in his forties.",
+                                                             "previewText": "Okay, set your feet.",
+                                                             "languageCode": "EN_US", "numberOfSamples": 2})
+        self.assertEqual([c["draft_id"] for c in out], ["ws__design-0", "ws__design-1"])
+        for i, c in enumerate(out):
+            self.check_candidate(c, "Okay, set.")
+            self.assertEqual(c["wav"], INWORLD_WAVS[i])
+        voice_id = self.module.save(out[1], "Coach Owen", "A man in his forties.", out[1]["wav"])
+        self.assertEqual(voice_id, "ws__design-1")
+        publish = fake.requests[-1]
+        self.assertEqual((publish.method, publish.path), ("POST", "/voices/v1/voices/ws__design-1:publish"))
+        self.assertEqual(json.loads(publish.body), {"displayName": "sweatcast Coach Owen",
+                                                    "description": "A man in his forties.", "tags": ["sweatcast"]})
+
+    def test_inworld_publish_without_an_id_keeps_the_draft_id(self):
+        self.serve(lambda r: (200, {}, b"{}"))
+        candidate = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "ws__design-3", "signature": None}
+        self.assertEqual(self.module.save(candidate, "Coach Owen", "A man.", b""), "ws__design-3")
+
+    def test_inworld_design_waits_through_429(self):
+        calls = []
+
+        def answer(req):
+            calls.append(1)
+            return (429, {"Retry-After": "0"}, b'{"message": "rate limited"}') if len(calls) == 1 else inworld_answer(req)
+        self.serve(answer)
+        self.assertEqual(len(self.module.design("A man.", "Okay.", 2, "label")), 2)
+        self.assertEqual(len(calls), 2)
+
+    def test_inworld_linear16_24k(self):
+        fake = self.serve(inworld_answer)
+        say = cloud.speaker(self.voice())
+        pcm = say("Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
+        say("First.", 42)
+        first, second = (json.loads(r.body) for r in fake.requests)
+        self.assertEqual(fake.requests[0].path, "/tts/v1/voice")
+        self.assertEqual(first, {"text": "Two more.", "voiceId": VOICE_IDS["inworld"], "modelId": "inworld-tts-2",
+                                 "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000},
+                                 "synthesisContext": {"previousRequests": [{"text": "Set your feet."}]}})
+        self.assertNotIn("synthesisContext", second)
+        self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.3, delta=0.05)
+
+    def test_inworld_refuses_a_paragraph_over_2000_characters(self):
+        fake = self.serve(inworld_answer)
+        with self.assertRaises(cloud.ServiceError) as e:
+            cloud.speaker(self.voice())("word " * 401, 42)
+        self.assertEqual(e.exception.kind, "bad_request")
+        self.assertIn("2000", str(e.exception))
+        self.assertEqual(fake.requests, [])
+
+    def test_inworld_delete(self):
+        self.check_delete("/voices/v1/voices/{id}")
+
+
 class CloudRender(unittest.TestCase):
-    """tools/render.py on a cloud route, end to end against the fake Fish server."""
+    """tools/render.py with a web coach, end to end against fake services."""
 
     def setUp(self):
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
         self.home = os.path.join(self.d, "me")
         shutil.copytree(os.path.join(ROOT, "me.example"), self.home)
-        persona_home(self.home)
-
-    def render(self, url, *extra, **env):
-        e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
-        e.update(SWEATCAST_HOME=self.home, SWEATCAST_FISH_URL=url, FISH_AUDIO_API_KEY=SECRET,
-                 SWEATCAST_RETRY_WAIT="0", **env)
-        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), DRAFT, "--coach", "Coach Test",
-                               "--engine", "fish", *extra], env=e, capture_output=True, text=True, timeout=120)
+        folder = persona_home(self.home)
+        for service in COACHES:
+            web_coach(folder, service)
 
     def render_on(self, service, url, *extra):
         import keys
         e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
         e.update({"SWEATCAST_HOME": self.home, f"SWEATCAST_{service.upper()}_URL": url,
                   keys.SERVICE_VARS[service]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})
-        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), DRAFT, "--coach", "Coach Test",
-                               "--engine", service, *extra], env=e, capture_output=True, text=True, timeout=120)
+        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), DRAFT,
+                               "--coach", COACHES[service], *extra], env=e, capture_output=True, text=True, timeout=120)
 
-    def test_a_refused_clone_exits_4(self):
+    def render(self, url, *extra):
+        return self.render_on("fish", url, *extra)
+
+    def test_a_refused_speech_exits_4(self):
         with FakeService(lambda r: (401, {}, b'{"detail": {"message": "Invalid API key"}}')) as fake:
             out = self.render_on("elevenlabs", fake.url, "--out", os.path.join(self.d, "x.mp3"))
         self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
         self.assertIn("ElevenLabs", out.stdout)
         self.assertNotIn("Traceback", out.stdout + out.stderr)
+        self.assertFalse(any(r.path == "/v1/voices/add" for r in fake.requests))
 
     def test_a_broken_answer_stops_sending_and_caches_nothing(self):
         with FakeService(lambda r: (200, {"Content-Type": "application/json"}, b'{"status": "queued"}')) as fake:
             out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
-        self.assertLessEqual(len(fake.requests), 4)   # the queued paragraphs were never sent
+        self.assertLessEqual(len(fake.requests), 6)   # the queued paragraphs were never sent
         self.assertEqual(glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm")), [])
 
     def set_ceiling(self, n):
@@ -329,34 +620,40 @@ class CloudRender(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_key_never_reaches_records_logs_or_cache_keys(self):
-        mp3 = os.path.join(self.d, "x.mp3")
-        with FakeService(wav_answer) as fake:
-            out = self.render(fake.url, "--out", mp3, "--tolerance", "1")
-        self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
-        self.assertIn("Sending", out.stdout)
-        texts = [out.stdout, out.stderr]
-        for path in glob.glob(os.path.join(self.d, "*.build.json")) + \
-                glob.glob(os.path.join(self.home, "workouts", ".logs", "*")) + \
-                glob.glob(os.path.join(self.home, "personas", "*", "*.json")):
-            with open(path, encoding="utf-8") as f:
-                texts.append(f.read())
-        self.assertFalse(any(SECRET in t for t in texts))
-        with open(os.path.splitext(mp3)[0] + ".build.json") as f:
-            record = json.load(f)
-        self.assertEqual(record["route"], "fish")
-        self.assertGreater(record["chars_sent"], 100)
-        self.assertIn("usd_estimate", record)
         import render
-        args = mock.Mock(coach="Coach Test", engine="fish", voice=None, model=None, seed=42)
-        with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")), \
-                mock.patch.object(personas.paths, "PROFILE", os.path.join(self.home, "profile.md")), \
-                mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.home, ".env")), \
-                mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": SECRET}), \
-                mock.patch.object(render, "check_pace_file"):
-            a = render.setup_voice(args)[1]("Hello.")
-            with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "another-key"}):
-                b = render.setup_voice(args)[1]("Hello.")
-        self.assertEqual(a, b)
+        for service in ("fish", "elevenlabs", "gemini", "inworld"):
+            with self.subTest(service=service):
+                mp3 = os.path.join(self.d, f"{service}.mp3")
+                with FakeService(every_service_answer) as fake:
+                    out = self.render_on(service, fake.url, "--out", mp3, "--tolerance", "1")
+                self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
+                self.assertIn("Sending", out.stdout)
+                self.assertTrue(fake.requests)
+                self.assertFalse(any(SECRET in r.path or SECRET.encode() in r.body for r in fake.requests))
+                texts = [out.stdout, out.stderr]
+                for path in glob.glob(os.path.join(self.d, "*.build.json")) + \
+                        glob.glob(os.path.join(self.home, "workouts", ".logs", "*")) + \
+                        glob.glob(os.path.join(self.home, "personas", "*", "*.json")):
+                    with open(path, encoding="utf-8") as f:
+                        texts.append(f.read())
+                self.assertFalse(any(SECRET in t for t in texts))
+                with open(os.path.splitext(mp3)[0] + ".build.json") as f:
+                    record = json.load(f)
+                self.assertEqual(record["route"], service)
+                self.assertGreater(record["chars_sent"], 100)
+                self.assertIn("usd_estimate", record)
+                import keys
+                var = keys.SERVICE_VARS[service]
+                args = mock.Mock(coach=COACHES[service], engine=None, voice=None, model=None, seed=42)
+                with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")), \
+                        mock.patch.object(personas.paths, "PROFILE", os.path.join(self.home, "profile.md")), \
+                        mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.home, ".env")), \
+                        mock.patch.dict(os.environ, {var: SECRET}), \
+                        mock.patch.object(render, "check_pace_file"):
+                    a = render.setup_voice(args)[1]("Hello.")
+                    with mock.patch.dict(os.environ, {var: "another-key"}):
+                        b = render.setup_voice(args)[1]("Hello.")
+                self.assertEqual(a, b)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_interrupted_cloud_build_resumes_without_resending(self):

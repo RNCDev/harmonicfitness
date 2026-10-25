@@ -59,7 +59,7 @@ class FakeService:
                 self.end_headers()
                 self.wfile.write(data)
 
-            do_POST = do_GET = _serve
+            do_POST = do_GET = do_DELETE = _serve
 
             def log_message(self, *args):
                 pass

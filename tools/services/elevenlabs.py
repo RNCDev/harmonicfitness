@@ -1,15 +1,15 @@
-"""ElevenLabs: an instant voice clone of the coach's clip, made once and kept by its ID, then speech
-with each paragraph's real neighbors (previous_text and next_text), so delivery flows across them.
+"""ElevenLabs: a web coach's voice is a saved ElevenLabs voice made from a designed preview, and every
+paragraph is spoken by its voice ID with its real neighbors (previous_text and next_text), so delivery
+flows across them.
 
-Clone: POST /v1/voices/add (multipart: name, files, description); needs the Starter plan or above.
-ElevenLabs asks the uploader to hold the rights to the voice: for a designed coach that's the listener,
-for a recording of a real person it's that person's consent.
-Speech: POST /v1/text-to-speech/{voice_id}?output_format=pcm_24000, JSON {text, model_id, seed,
-previous_text, next_text}; raw 16-bit PCM at 24 kHz back. The seed is best effort. eleven_v3 isn't
-offered: it takes no previous or next text.
 Design: POST /v1/text-to-voice/design?output_format=pcm_24000 {voice_description, text (100 to 1,000
-characters), seed}; each preview is a take.
-Not yet tried live: built against a local fake of the documented API (elevenlabs.io/docs/api-reference).
+characters)}; three previews, each raw 16-bit PCM at 24 kHz with a generated_voice_id.
+Save: POST /v1/text-to-voice {voice_name, voice_description, generated_voice_id} -> voice_id (still works
+ten minutes after the design, tried live).
+Speech: POST /v1/text-to-speech/{voice_id}?output_format=pcm_24000, JSON {text, model_id, seed,
+previous_text, next_text}; raw 16-bit PCM at 24 kHz back. The seed is best effort.
+Delete: DELETE /v1/voices/{voice_id}.
+Tried live 2026-10-25 on Starter; not yet on a Free account (3 voices, a monthly allowance).
 """
 import base64
 import json
@@ -23,22 +23,8 @@ def _headers(content_type="application/json"):
     return {"xi-api-key": cloud.key_or_stop(SERVICE), "Content-Type": content_type}
 
 
-def _clone(p):
-    with open(p.clip, "rb") as f:
-        clip = f.read()
-    body, ctype = cloud.multipart({"name": f"sweatcast {p.name}", "description": p.description[:500]},
-                                  [("files", "clip.wav", clip, "audio/wav")])
-    _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/voices/add", _headers(ctype), body,
-                               service=SERVICE)
-    voice_id = json.loads(data).get("voice_id")
-    if not voice_id:
-        raise cloud.ServiceError("bad_request", SERVICE, "the clone came back with no voice ID")
-    return voice_id
-
-
 def speaker(voice):
-    voice_id = cloud.cloned_voice(voice, _clone)
-    url = f"{cloud.base_url(SERVICE)}/v1/text-to-speech/{voice_id}?output_format=pcm_24000"
+    url = f"{cloud.base_url(SERVICE)}/v1/text-to-speech/{voice['voice_id']}?output_format=pcm_24000"
 
     def say(text, seed, previous_text=None, next_text=None):
         body = {"text": text, "model_id": voice["model"], "seed": int(seed) % 4294967296}
@@ -51,12 +37,12 @@ def speaker(voice):
     return say
 
 
-def design(description, line, takes, seed):
-    """Up to `takes` takes, each (16-bit mono PCM at 24 kHz, the words it says)."""
+def design(description, line, n=3, label=None):
+    """Every preview ElevenLabs makes (three) of `line`, repeated to the 100 characters the design needs."""
     text = line
-    while len(text) < 100:   # the design takes 100 to 1,000 characters of text
+    while len(text) < 100:
         text = f"{text} {line}"
-    body = json.dumps({"voice_description": description[:1000], "text": text[:1000], "seed": seed}).encode()
+    body = json.dumps({"voice_description": description[:1000], "text": text[:1000]}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice/design?output_format=pcm_24000",
                                _headers(), body, timeout=180, service=SERVICE)
     answer = json.loads(data)
@@ -65,7 +51,26 @@ def design(description, line, takes, seed):
     for preview in answer.get("previews") or []:
         audio = base64.b64decode(preview.get("audio_base_64") or "")
         if audio:
-            out.append((cloud.trim(cloud.audio_pcm(audio)), words))
+            pcm = cloud.trim(cloud.audio_pcm(audio, service=SERVICE))
+            out.append({"pcm": pcm, "wav": cloud.wav_bytes(pcm), "text": words,
+                        "draft_id": preview.get("generated_voice_id"), "signature": None})
     if not out:
-        raise cloud.ServiceError("bad_request", SERVICE, "the design came back with no takes")
-    return out[:max(1, takes)]
+        raise cloud.ServiceError("bad_request", SERVICE, "the design came back with no previews")
+    return out
+
+
+def save(candidate, name, description="", wav=None):
+    """Save the preview as a voice in the listener's account; returns its voice ID."""
+    body = json.dumps({"voice_name": f"sweatcast {name}", "voice_description": (description or "")[:1000],
+                       "generated_voice_id": candidate["draft_id"]}).encode()
+    _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice", _headers(), body,
+                               timeout=120, service=SERVICE)
+    voice_id = json.loads(data).get("voice_id")
+    if not voice_id:
+        raise cloud.ServiceError("bad_request", SERVICE, "the saved voice came back with no voice ID")
+    return voice_id
+
+
+def delete(voice_id):
+    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/v1/voices/{voice_id}",
+                        {"xi-api-key": cloud.key_or_stop(SERVICE)})

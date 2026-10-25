@@ -5,14 +5,14 @@
       clip.wav       the sound: about ten seconds, which every engine copies
       clip.txt       the clip's exact words
       pace.json      measured pace, one entry per engine and model (and this computer's render speed)
-      services.json  voice IDs a cloud service made from the clip, keyed by service and the clip's hash
       takes/         designed takes, before one is kept
 
-A coach is the same person on every engine: render.py gets a voice dict from voice_for(), with
-the clip, the engine's pinned model and the coach's own pace file, whichever route speaks it.
+A local coach is the same person on every local engine: render.py gets a voice dict from voice_for(),
+with the clip, the engine's pinned model and the coach's own pace file. A local coach renders only
+locally.
 
-A web coach (kind = "web", schema 5) has no clip: a voice a service designed (service, voice_id, model,
-style), described by its [voice] table, with how it talks in [character], and the approved audition kept
+A web coach (kind = "web", schema 5) has no clip: a voice a service designed and saved (service,
+voice_id, model, style), which it speaks only through that service (cloud.voice_for), described by its [voice] table, with how it talks in [character], and the approved audition kept
 as sample.mp3. Coaches no longer in use move to personas/.archive/ (out of the list, still found by name
 for old log lines); auditions in progress live in personas/.auditions/. Every dot folder is left out.
 """
@@ -87,10 +87,6 @@ class Persona:
     @property
     def pace_file(self):
         return os.path.join(self.folder, "pace.json")
-
-    @property
-    def services_file(self):
-        return os.path.join(self.folder, "services.json")
 
     @property
     def takes(self):
@@ -280,21 +276,19 @@ def clip_key(p):
     return hashlib.sha256(f"{audio_hash}|{words}".encode()).hexdigest()[:12], words
 
 
-def clip_hash(p):
-    """The clip's full sha256, which keys the voices a service made from it."""
-    with open(p.clip, "rb") as a:
-        return hashlib.sha256(a.read()).hexdigest()
-
-
 def voice_for(p, route):
-    """The voice dict render.py, the lint and the engines take, for coach `p` on `route`."""
+    """The voice dict render.py, the lint and the engines take, for coach `p` on `route`. A web coach speaks
+    through its own service whatever `route` says; a local coach only on the local route."""
+    if p.is_web:
+        import cloud
+        return cloud.voice_for(p, p.service)
+    if route != "local":
+        raise SystemExit(f"{p.name} is a local coach: a local coach renders only locally, not on {route}. "
+                         "A web coach (the coach skill makes one) speaks through a web service.")
     if not p.has_clip:
         raise SystemExit(f"{p.name} has no clip yet ({show(p.clip)} and clip.txt): keep a take first "
                          "(./sweatcast coaches keep).")
-    if route == "local":
-        return _local(p)
-    import cloud
-    return cloud.voice_for(p, route)
+    return _local(p)
 
 
 def _local(p):
@@ -315,28 +309,3 @@ def _local(p):
     return {"name": p.name, "persona": p.slug, "engine": engine, "backend": backend, "route": "local",
             "model": model, "revision": revision, "generate": gen,
             "ref_audio": p.clip, "ref_text": words, "key": key, "pace_file": p.pace_file}
-
-
-def _services(p):
-    try:
-        with open(p.services_file, encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
-
-
-def services_get(p, service, clip):
-    """The voice ID `service` made from this clip, or None (a changed clip needs a new one)."""
-    entry = (_services(p).get(service) or {}).get(clip) or {}
-    return entry.get("voice_id")
-
-
-def services_put(p, service, clip, voice_id):
-    import datetime as dt
-    data = _services(p)
-    data.setdefault(service, {})[clip] = {"voice_id": voice_id, "created": dt.date.today().isoformat()}
-    tmp = p.services_file + ".part"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=1)
-    os.replace(tmp, p.services_file)

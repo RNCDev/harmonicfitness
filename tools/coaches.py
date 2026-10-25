@@ -6,17 +6,17 @@ makes takes, the listener keeps one, and that clip is the coach from then on.
 
     ./sweatcast coaches                                   # every coach, the last used marked
     ./sweatcast coaches last                              # the coach a build uses when none is named
-    ./sweatcast coaches design "Coach Maya" "A woman in her thirties, warm and mid-low ..." [--designer fish]
+    ./sweatcast coaches design "Coach Maya" "A woman in her thirties, warm and mid-low ..."
     ./sweatcast coaches keep "me/personas/coach-maya/takes/2.wav"
     ./sweatcast coaches keep my-recording.wav --name "Coach Sam" --words "what the clip says"
     ./sweatcast coaches set "Coach Maya" local.engine qwen3
-    ./sweatcast coaches measured "Coach Maya" --engine fish   # exit 0 measured, 1 estimated, 64 unknown
+    ./sweatcast coaches measured "Coach Maya" --engine local   # exit 0 measured, 1 estimated, 64 unknown
     ./sweatcast coaches download ["Coach Maya"]           # the coach's local model
 
-Designers, the first that works here unless --designer says: local (Qwen3-TTS VoiceDesign on MLX, an
-Apple Silicon Mac; a 4.5 GB model), fish (Fish Audio's voice design, about $0.01 a call) or
-elevenlabs (its text-to-voice design), each with the listener's key. Or bring a clip: about ten
-seconds of a voice with its exact words; a real person's voice needs that person's consent.
+A local coach's takes come from the local designer (Qwen3-TTS VoiceDesign on MLX, an Apple Silicon Mac;
+a 4.5 GB model). Or bring a clip: about ten seconds of a voice with its exact words; a real person's
+voice needs that person's consent. A web coach is designed and saved at its service instead (the coach
+skill), never from a clip.
 """
 import argparse
 import json
@@ -33,7 +33,7 @@ import personas  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
 
-DESIGNERS = ("local", "fish", "elevenlabs")
+DESIGNERS = ("local",)
 PROSE = """## How this coach talks
 - Tone: calm and focused. Keep humor light and occasional, with no hype.
 - How the coach talks to me: like a coach who knows me, warm and direct, first name now and then, contractions, "let's" in the rests. Not a drill sergeant, not a radio host.
@@ -43,16 +43,12 @@ PROSE = """## How this coach talks
 
 
 def available_designer():
-    import keys
     import routes
     if voices.BACKEND == "mlx" and routes.local_installed():
         return "local"
-    for service in ("fish", "elevenlabs"):
-        if keys.is_set(service):
-            return service
-    raise SystemExit("No voice designer works here: local design needs an Apple Silicon Mac, and the cloud "
-                     "designers need a key (./sweatcast keys init fish, or elevenlabs). Or bring a clip of about "
-                     "ten seconds with its words: ./sweatcast coaches keep <clip.wav> --name ... --words ...")
+    raise SystemExit("No voice designer works here: local design needs an Apple Silicon Mac. Bring a clip of "
+                     "about ten seconds with its words (./sweatcast coaches keep <clip.wav> --name ... --words ...), "
+                     "or make a web coach (the coach skill).")
 
 
 def _make_takes(designer):
@@ -66,9 +62,7 @@ def _make_takes(designer):
                                            takes, seed)
             return [(x, line) for x in pcm]
         return make
-    import importlib
-    module = importlib.import_module(f"services.{designer}")
-    return module.design
+    raise SystemExit(f"--designer must be one of {', '.join(DESIGNERS)}")
 
 
 def design(name, description, designer=None, takes=2, seed=7, line=voices.DESIGN_LINE, make_takes=None):
@@ -109,15 +103,7 @@ def _clip_bytes(src):
                 return data
     except (wave.Error, EOFError):
         pass
-    pcm = cloud.audio_pcm(data)
-    import io
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(24000)
-        w.writeframes(pcm)
-    return buf.getvalue()
+    return cloud.wav_bytes(cloud.audio_pcm(data))
 
 
 def keep(take, name=None, words=None, description="", engine="chatterbox", force=False):

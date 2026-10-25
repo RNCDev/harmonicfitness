@@ -7,7 +7,9 @@ takes previous_text= and next_text=, which a service that joins paragraphs uses.
 
 What lives here: the services' settings (knowledge/services.toml), the HTTP call with retries
 (standard library only), errors sorted into what the listener must fix (key, payment, quota)
-and what a rerun fixes, WAV reading and resampling without numpy, and the cost estimate.
+and what a rerun fixes, WAV reading and resampling without numpy, the cost estimate, and a web
+coach's voice dict: its saved voice ID on its own service (the service holds the voice; no clip
+travels).
 
 The API key is read by the service module at the moment it sends (tools/keys.py), and never
 goes into a voice dict, a message, a record or a cache key.
@@ -39,9 +41,9 @@ _settings = None
 class ServiceError(Exception):
     """A service said no. kind: auth, billing, quota (the listener must act), bad_request, unavailable."""
 
-    def __init__(self, kind, service, message):
+    def __init__(self, kind, service, message, status=None):
         super().__init__(message)
-        self.kind, self.service, self.message = kind, service, message
+        self.kind, self.service, self.message, self.status = kind, service, message, status
 
     def __str__(self):
         name = services().get(self.service, {}).get("name", self.service or "The service")
@@ -117,7 +119,7 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
         except urllib.error.HTTPError as e:
             data = e.read() or b""
             kind = _kind(e.code, data)
-            last = ServiceError(kind, service, f"{_message(data)} (HTTP {e.code})")
+            last = ServiceError(kind, service, f"{_message(data)} (HTTP {e.code})", status=e.code)
             if e.code not in RETRY_STATUS or kind != "unavailable":
                 raise last from None
             retry_after = e.headers.get("Retry-After") if e.headers else None
@@ -168,6 +170,19 @@ def wav_pcm(data):
             return bytes(pcm), rate
         i = start + size + (size & 1)
     raise ValueError("no audio in the WAV")
+
+
+def wav_bytes(pcm, rate=SR):
+    """A WAV file's bytes holding 16-bit mono PCM."""
+    import io
+    import wave
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(pcm)
+    return buf.getvalue()
 
 
 def _samples(pcm):
@@ -252,21 +267,26 @@ def estimate(service, model, texts):
     return chars, units * rate(service, model) / 1e6
 
 
-def voice_for(p, route):
-    """The voice dict for coach `p` on cloud service `route`. No key in it."""
+def voice_for(p, route=None):
+    """The voice dict for web coach `p`: its saved voice on its own service (`route` is ignored; a web coach
+    speaks only through the service that made it). No key in it, and no clip: the service holds the voice."""
     import personas
-    if route not in services():
-        raise SystemExit(f"No cloud voice '{route}'. The services: {', '.join(services())}.")
-    s = services()[route]
-    table = p.table(route)
-    model = table.get("model") or s["default_model"]
-    v = {"name": p.name, "persona": p.slug, "persona_dir": p.folder, "engine": route, "backend": "cloud",
-         "route": route, "service": route, "model": model, "revision": None, "generate": {},
-         "pace_file": p.pace_file, "concurrency": int(s.get("concurrency") or 1),
-         "max_chars": int(s.get("max_chars") or 0)}
-    key, words = personas.clip_key(p)
-    v.update(ref_audio=p.clip, ref_text=words, key=key)
-    return v
+    if not p.is_web:
+        raise SystemExit(f"{p.name} is a local coach: a local coach renders only locally.")
+    service = p.service
+    if service not in services():
+        raise SystemExit(f"{p.name} names no known web service ({service or 'none'}); "
+                         f"the services: {', '.join(services())}.")
+    if not p.voice_id:
+        raise SystemExit(f"{p.name} has no voice yet" + (f" ({p.pending} pending)" if p.pending else "")
+                         + ": audition one and keep it (the coach skill).")
+    s = services()[service]
+    model = p.model or s["default_model"]
+    return {"name": p.name, "persona": p.slug, "persona_dir": p.folder, "engine": service, "backend": "cloud",
+            "route": service, "service": service, "model": model, "voice_id": p.voice_id, "style": p.style,
+            "revision": None, "generate": {}, "pace_file": p.pace_file,
+            "concurrency": int(s.get("concurrency") or 1), "max_chars": int(s.get("max_chars") or 0),
+            "key": personas.web_key(p, model)}
 
 
 def speaker(voice):
@@ -299,15 +319,41 @@ def multipart(fields, files):
     return bytes(out), f"multipart/form-data; boundary={boundary}"
 
 
-def cloned_voice(voice, make):
-    """The voice ID the service made from the coach's clip, making it once with make(persona) -> id. Kept in
-    the coach's services.json under the clip's hash, so a changed clip makes a new voice."""
-    import personas
-    p = personas.load(voice["persona_dir"])
-    clip = personas.clip_hash(p)
-    found = personas.services_get(p, voice["service"], clip)
-    if found:
-        return found
-    made = make(p)
-    personas.services_put(p, voice["service"], clip, made)
-    return made
+def delete(service, url, headers):
+    """DELETE a saved voice: True when the service removed it, or it was already gone (a 404). Any other
+    refusal raises ServiceError."""
+    try:
+        request("DELETE", url, headers, None, service=service)
+    except ServiceError as e:
+        if e.status == 404:
+            return True
+        raise
+    return True
+
+
+def find_audio(answer):
+    """(base64 audio, MIME type) from anywhere in a JSON answer: the first dict holding a `data` string,
+    preferring one whose MIME type says audio. (None, None) when there's none."""
+    found = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            data = x.get("data")
+            if isinstance(data, str) and data:
+                mime = str(x.get("mime_type") or x.get("mimeType") or "")
+                found.append((data, mime))
+            for v in x.values():
+                walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+    walk(answer)
+    audio = [f for f in found if f[1].startswith("audio")]
+    return (audio or found or [(None, None)])[0]
+
+
+def mime_rate(mime, default=SR):
+    """The sample rate a MIME type names ("audio/L16;codec=pcm;rate=24000"), else `default`."""
+    import re
+    m = re.search(r"rate=(\d+)", mime or "")
+    return int(m.group(1)) if m else default
