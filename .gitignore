@@ -1,6 +1,10 @@
 # Your context: profile, health, log, workouts, research, clips. Never pushed with the
 # engine; back it up as its own private repo if you like (see README).
 me/
+# A renamed context folder (me.real/, me.test/ while trying the new-listener flow) is private too;
+# me.example/, the template, is part of the engine.
+me.*/
+!me.example/
 .venv/
 # The local voice models (./sweatcast models); no trailing slash, so a symlink named models is ignored too.
 models

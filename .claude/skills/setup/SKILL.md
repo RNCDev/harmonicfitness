@@ -17,6 +17,14 @@ Run `./sweatcast doctor` first and relay what matters in two or three plain line
 - **No local voices here** (an Intel Mac, or below the memory or disk floor): say so now, with doctor's reason. Audio then comes from a web coach, through a voice service with the listener's own key (Keys, below). **The processor only** (Windows or Linux without an NVIDIA card): local voices work but are experimental, speed unknown and likely slow; offer a web coach too.
 - ffmpeg isn't a prerequisite: the Python environment brings its own. git isn't either: outside a git checkout (a zip download), setup skips only the privacy hook.
 
+## The fork: where the voice is made
+
+Right after doctor's lines, before any question, lay out the one big choice in setup, in a few plain lines (skip it on Claude Code on the web, where only web coaches speak):
+- **On this computer (local):** free and private; nothing leaves the computer. A one-time download of 3 to 4 GB of engine and model first. Rendering takes time: on an Apple Silicon Mac about 0.7 times the length of the speech, so a 30-minute workout takes under 20 minutes, mostly overlapped with the script being written; on the processor only, experimental and much slower. A local coach speaks only on a computer that runs local voices.
+- **Through a web service (a web coach):** no download, and a 30-minute workout renders in a minute or two. Pay-as-you-go with a key of their own and no subscription: about $0.27 (Gemini), $0.30 (Fish Audio), $0.50 (Inworld) or $1.60 (ElevenLabs) a workout, prices approximate, and about a cent to design a voice. Each workout's script, which can mention injuries, goes to the service. They pick the voice by ear from an audition of candidates designed from a description, and it speaks from any computer with the key, Claude Code on the web included.
+- **Which way this computer starts:** local where it runs fast (Apple Silicon, or an NVIDIA card), else web, with doctor's reason. They can say "start with a web coach" instead.
+- **Revisiting it:** nothing is locked in, and both can live side by side, since each coach speaks on its own route: "I want a new coach" makes a coach of either kind at any time, "add a voice key" adds a web service, and "set up local voices" installs the local engine where it runs.
+
 ## Step 1: the machine
 
 Run `./sweatcast setup --no-models` with `run_in_background: true`, and ask the quick start's questions while it runs. It makes the Python environment with uv, copies `me.example/` to `me/` if there's no `me/profile.md` yet (the stand-in coaches included, and `setup = "quick"` in the profile), or brings an existing one up to this version's format (backing it up first), and installs the git hook that refuses to push `me/`. The local engine and its model come later, once the audio route is settled. If it stops, relay its one-line fix and rerun it once they say it's done.

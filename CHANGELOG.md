@@ -2,6 +2,16 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [10.1.0] - 2026-10-25
+
+Setup now opens with the one big choice: where the coach's voice is made.
+
+### Added
+- **The fork, said first.** Right after the readiness check and before any question, the setup skill lays out local versus web in a few plain lines: on this computer (free and private, a one-time 3 to 4 GB download, about 0.7 times the speech's length to render on Apple Silicon) or a web coach (no download, a 30-minute workout in a minute or two, about $0.27 to $1.60 a workout with a key of your own, and the script goes to the service). It says which way this computer starts, and how to revisit it: nothing is locked in, both kinds can live side by side, and "I want a new coach", "add a voice key" or "set up local voices" changes it at any time. The README's Start here says the same.
+
+### Changed
+- **A renamed context folder stays private.** The engine's `.gitignore` now ignores `me.*/` (such as `me.real/` or `me.test/`, kept aside while trying the new-listener flow), with `me.example/` still part of the engine.
+
 ## [10.0.0] - 2026-10-25
 
 Web coaches: describe, audition, approve, keep. A web coach is an original voice a service designs from the listener's description and saves in the listener's own account, at Fish Audio, ElevenLabs, Gemini or Inworld, pay-as-you-go with no subscription anywhere. One audition makes candidates on every service with a key, lettered and priced a workout; the listener picks by ear, names each one they keep, and a workout then uses it by name, always on the service that made it. Four default web coaches ship, one per service, designed the first time they're used. Copying a clip on the web is gone, and so are Cartesia and Deepgram: a clip-based coach is now a local coach, which renders only on the computer's own engine.
