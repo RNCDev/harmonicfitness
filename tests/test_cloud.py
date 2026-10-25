@@ -664,6 +664,33 @@ class CloudRender(unittest.TestCase):
                 self.assertEqual(a, b)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    def test_web_render_sends_voice_id_and_caches_by_web_key(self):
+        mp3 = os.path.join(self.d, "x.mp3")
+        with FakeService(wav_answer) as fake:
+            first = self.render(fake.url, "--out", mp3, "--tolerance", "1")
+            self.assertIn(first.returncode, (0, cli.DRIFT), first.stdout + first.stderr)
+            sent = [r for r in fake.requests if r.path == "/v1/tts"]
+            self.assertGreaterEqual(len(sent), 2)
+            self.assertTrue(all(json.loads(r.body)["reference_id"] == VOICE_IDS["fish"] for r in sent))
+            self.assertFalse(any(r.path == "/model" for r in fake.requests))   # no clip uploaded: a saved voice
+            before = len(fake.requests)
+            second = self.render(fake.url, "--out", mp3, "--tolerance", "1")
+            self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
+            self.assertEqual(len(fake.requests), before)   # everything came from the cache
+        self.assertNotIn("Sending", second.stdout)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    def test_cost_print_for_gemini(self):
+        with FakeService(every_service_answer) as fake:
+            out = self.render_on("gemini", fake.url, "--out", os.path.join(self.d, "g.mp3"), "--tolerance", "1")
+        self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
+        line = next(l for l in out.stdout.splitlines() if l.startswith("Sending"))
+        chars = int(line.split()[1].replace(",", ""))
+        self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
+        self.assertIn(f"about ${chars * 13.5 / 1e6:.2f}", line)
+        self.assertIn("Gemini", line)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_interrupted_cloud_build_resumes_without_resending(self):
         state = {"ok": 3, "seen": 0}
 

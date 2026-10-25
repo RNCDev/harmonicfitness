@@ -27,6 +27,8 @@ import catalog  # noqa: E402
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import char_weight  # noqa: E402
 import cli  # noqa: E402
+import cloud  # noqa: E402
+import personas  # noqa: E402
 import context  # noqa: E402
 import coverage  # noqa: E402
 import draft  # noqa: E402
@@ -835,12 +837,53 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("--coach Qwen3 Coach --engine local", self.calls())
 
-    @unittest.skip("rewritten in Task 3: needs a web coach fixture (a local coach no longer renders on a cloud route)")
+    def add_web_coach(self, estimate=True):
+        """Coach Reed on Fish Audio with a saved voice, and (by default) only an estimate of his pace."""
+        folder = os.path.join(self.home, "personas", "coach-reed")
+        os.makedirs(folder)
+        write_file(os.path.join(folder, "persona.md"), context.persona_text(
+            {"name": "Coach Reed", "kind": "web", "service": "fish", "voice_id": "fish-model-1"},
+            "## How this coach talks\n"))
+        if estimate:
+            v = cloud.voice_for(personas.Persona("coach-reed", folder, {"name": "Coach Reed", "kind": "web",
+                                "service": "fish", "voice_id": "fish-model-1"}, ""), "fish")
+            voices.record_estimate(v, 150.0, 10.0)
+
+    def web_build(self, *extra, key=True, **more):
+        env = {"FISH_AUDIO_API_KEY": "test-key" if key else ""}
+        env.update(more)
+        return self.build("--coach", "Coach Reed", *extra, estimated_ok=False, **env)
+
     def test_build_refuses_follow_on_a_cloud_route(self):
-        out = self.build("--follow", "--engine", "fish", FISH_AUDIO_API_KEY="test-key")
+        self.add_web_coach()
+        out = self.web_build("--follow")
         self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
         self.assertIn("billed", out.stdout)
         self.assertFalse(os.path.exists(self.log))   # nothing rendered
+
+    def test_web_coach_builds_without_smoke_test(self):
+        self.add_web_coach()
+        out = self.web_build()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn("measured", out.stdout)
+        self.assertIn("--coach Coach Reed --engine fish", self.calls())
+
+    def test_web_coach_without_estimate_still_builds(self):
+        self.add_web_coach(estimate=False)
+        self.assertEqual(self.web_build().returncode, 0)
+
+    def test_web_coach_without_key_exits_64(self):
+        self.add_web_coach()
+        out = self.web_build(key=False)
+        self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
+        self.assertIn("FISH_AUDIO_API_KEY", out.stdout + out.stderr)
+        self.assertFalse(os.path.exists(self.log))
+
+    def test_engine_override_on_web_coach_exits_64(self):
+        self.add_web_coach()
+        out = self.web_build("--engine", "local")
+        self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
+        self.assertFalse(os.path.exists(self.log))
 
     def test_unmeasured_voice_exits_3(self):
         out = self.build(estimated_ok=False)
@@ -896,6 +939,22 @@ class PaceFile(unittest.TestCase):
             data = json.load(f)
         self.assertEqual(sorted(r["name"] for r in data.values()), ["One", "Two"])
         self.assertEqual(voices.pace(self.V1), (15.0, True))
+
+    def test_estimate_is_used_until_the_first_render(self):
+        voices.record_rate(self.V2, 700.0, 50.0)   # another voice's measured rate must not seed this one
+        voices.record_estimate(self.V1, 150.0, 10.0)
+        self.assertEqual(voices.pace(self.V1), (15.0, False))
+        voices.record_estimate(self.V1, 300.0, 40.0)   # even past MIN_MEASURED seconds, still an estimate
+        self.assertEqual(voices.pace(self.V1), (7.5, False))
+        voices.record_rate(self.V1, 600.0, 40.0)
+        with open(self.path) as f:
+            rec = json.load(f)[voices._rate_key(self.V1)]
+        self.assertNotIn("estimate", rec)
+        self.assertEqual((rec["weight"], rec["seconds"]), (600.0, 40.0))
+        self.assertEqual(voices.pace(self.V1), (15.0, True))
+        voices.record_rate(self.V1, 600.0, 40.0)   # a second render adds to the first as usual
+        with open(self.path) as f:
+            self.assertEqual(json.load(f)[voices._rate_key(self.V1)]["seconds"], 80.0)
 
     def test_a_damaged_file_is_set_aside_not_overwritten(self):
         voices.record_rate(self.V1, 600.0, 40.0)

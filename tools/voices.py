@@ -107,27 +107,44 @@ def speed_key(v):
     return f"{platform.node() or 'this computer'}|{v.get('device') or v.get('backend') or 'mlx'}"
 
 
+def _write_rates(path, data):
+    tmp = path + ".part"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
 def record_rate(v, weight, seconds, path=None, render_seconds=None):
     """Fold a render's measured speech into the voice's rate (called by render.py), and with
     render_seconds, this computer's render speed (seconds of rendering per second of speech).
     The coach's own pace.json when the voice names one. Locked, and written to a temporary
-    file then renamed, so it's never half-written."""
+    file then renamed, so it's never half-written. A record that is only an estimate (a web coach's
+    approved sample) is replaced by the first real measurement, not added to."""
     path = path or v.get("pace_file") or PACE_FILE
     with _locked(path):
         data = _recorded(path, strict=True)
-        rec = data.get(_rate_key(v), {"weight": 0.0, "seconds": 0.0})
+        rec = data.get(_rate_key(v))
+        if not rec or rec.get("estimate"):
+            rec = {"weight": 0.0, "seconds": 0.0}
         rec["name"] = v["name"]
         rec["weight"] += weight
         rec["seconds"] += seconds
         if render_seconds and seconds > 0:
             rec.setdefault("speed", {})[speed_key(v)] = round(render_seconds / seconds, 3)
         data[_rate_key(v)] = rec
-        tmp = path + ".part"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=1)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
+        _write_rates(path, data)
+
+
+def record_estimate(v, weight, seconds, path=None):
+    """A web coach's starting pace, from its approved sample: `weight` (char_weight units) over the sample's
+    trimmed `seconds`. pace() uses it, unmeasured, until the first real render replaces it."""
+    path = path or v.get("pace_file") or PACE_FILE
+    with _locked(path):
+        data = _recorded(path, strict=True)
+        data[_rate_key(v)] = {"name": v["name"], "weight": weight, "seconds": seconds, "estimate": True}
+        _write_rates(path, data)
 
 
 def seed_pace(data):
@@ -136,7 +153,8 @@ def seed_pace(data):
     reference clip's own rate is not used: for Chatterbox Coach it was 10.3 chars/s
     against a measured 14.6."""
     rates = [r["weight"] / r["seconds"] for r in data.values()
-             if isinstance(r, dict) and r.get("weight") and (r.get("seconds") or 0) > MIN_MEASURED]
+             if isinstance(r, dict) and r.get("weight") and not r.get("estimate")
+             and (r.get("seconds") or 0) > MIN_MEASURED]
     return statistics.median(rates) if rates else DEFAULT_PACE
 
 
@@ -158,6 +176,8 @@ def pace(v, path=None):
     path = path or v.get("pace_file")
     data = _recorded(path)
     rec = data.get(_rate_key(v))
+    if rec and rec.get("estimate") and rec.get("seconds"):
+        return rec["weight"] / rec["seconds"], False
     if rec and rec.get("seconds", 0) > MIN_MEASURED:
         return rec["weight"] / rec["seconds"], True
     return seed_pace(_every_coach_measured() if v.get("pace_file") else data), False

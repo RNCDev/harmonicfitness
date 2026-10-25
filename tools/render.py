@@ -2,10 +2,10 @@
 """Render a segmented workout draft to one MP3, voicing each paragraph in-process.
 
 Runs in the project's own environment, .venv (./sweatcast setup makes it; ./sweatcast
-runs it there). Each voice is cloned from its reference clip with Chatterbox Turbo or
+runs it there). Each local coach is cloned from its reference clip with Chatterbox Turbo or
 Qwen3-TTS through mlx-audio on a Mac, or with Resemble AI's PyTorch Chatterbox Turbo on
-a Windows PC's NVIDIA GPU (tools/engines.py), using the model revision its
-voices/<name>.json pins for that system. A soft chime opens each segment after the first, a [chime]
+a Windows PC's NVIDIA GPU (tools/engines.py); a web coach speaks by its saved voice on its
+own service (tools/cloud.py). A soft chime opens each segment after the first, a [chime]
 marker rings it inside a segment, and a three-note tone marks the end of the
 workout. A segment's spare seconds widen its paragraph breaks and then it ends
 early, a slightly long segment is paid back from the next ones' spare time, the
@@ -348,7 +348,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     import threading
     stop = threading.Event()   # set by the first failure (or Ctrl-C), so no worker starts another request
     try:
-        say = engines.speaker(voice)   # a cloning service sends its first request here
+        say = engines.speaker(voice)   # the first request goes out here
 
         def one(text, **ctx):
             if stop.is_set():

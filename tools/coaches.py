@@ -213,6 +213,8 @@ def main(argv=None):
         except SystemExit as e:
             print(e.code, file=sys.stderr)
             return cli.USAGE
+        if p.is_web:   # a web coach needs no smoke test: an estimate stands until its first render measures it
+            return cli.OK
         return cli.OK if voices.pace(v)[1] else cli.ISSUES
     if args.cmd == "design":
         designer = args.designer or available_designer()
