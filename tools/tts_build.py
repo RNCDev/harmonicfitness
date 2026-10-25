@@ -55,11 +55,12 @@ DEFAULT_WPM = 185
 WORD_TOLERANCE = 0.08
 
 
-def spoken_seconds(seg, voice, lead=0.0, rate=None):
+def spoken_seconds(seg, voice, lead=0.0, rate=None, paras=None):
     """Predicted seconds for a segment; `lead` is the chime that opens it, if any.
-    `rate` is the voice's pace (read once per lint); without it, it's looked up."""
+    `rate` is the voice's pace (read once per lint); without it, it's looked up. `paras` is plan(seg),
+    when the caller has it already."""
     from voices import clip_seconds
-    paras = plan(seg)
+    paras = plan(seg) if paras is None else paras
     return lead + sum(clip_seconds(text, voice, rate) if spoken(text) else
                       (CHIME_SECONDS if text == CHIME else 0.0)
                       for para in paras for text, _ in para) \
@@ -158,14 +159,16 @@ class Report:
 
 
 def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_FILL,
-         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False):
+         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, chime=True):
     """Check a parsed draft. With a voice, predicts spoken seconds from its pace,
-    which is read once for the whole lint."""
+    which is read once for the whole lint. `chime` says whether the render opens each segment after the
+    first with the bell (--no-chime turns it off), so the prediction matches."""
     rate, exact, spokens = None, False, []
+    plans = [plan(seg) for seg in segments]   # as the render voices it, computed once
     if voice:
         from voices import clip_seconds, pace
         rate, exact = pace(voice)
-        spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i else 0.0, rate)
+        spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i and chime else 0.0, rate, plans[i])
                    for i, seg in enumerate(segments)]
         # The rate this voice actually speaks this draft at, so the guide column
         # says how many words each segment wants with this voice.
@@ -179,12 +182,11 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         row = Row(i, seg["label"], seg["seconds"], word_count(seg["lines"]), guide)
         if voice:
             row.spoken = spokens[i - 1]
-            fill = row.fill
             held = holds(seg)[1] > 0
             row.flag = fill_flag(row.spoken, seg["seconds"], min_fill, max_fill, held=held)
             row.quiet = max(seg["seconds"] - row.spoken, 0.0) if held else 0.0
             # Long clips drift and glitch. Keep every clip comfortably short.
-            for para in plan(seg):
+            for para in plans[i - 1]:
                 for text, _ in para:
                     secs = clip_seconds(text, voice, rate) if spoken(text) else 0.0
                     if secs > MAX_CLIP:
@@ -202,7 +204,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                     total_tolerance=total_tolerance, word_wpm=wpm)
     if voice:
         report.predicted = sum(length for _, length in layout(
-            [(spokens[i], max(len(plan(seg)) - 1, 0), seg["seconds"], holds(seg)[1]) for i, seg in enumerate(segments)]))
+            [(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], holds(seg)[1]) for i, seg in enumerate(segments)]))
     return report
 
 
@@ -266,13 +268,8 @@ def menu_check(draft_path, text, segments, required):
         return []
     import catalog
     import menu
-    import paths
     issues, warnings = menu.gate(catalog.load(), draft_path, text, segments, strict=False, required=required)
-    if issues or warnings:
-        print(f"\nMenu check ({paths.show(os.path.abspath(path))}):")
-        print("\n".join([f"  {i}" for i in issues] + [f"  warning: {w}" for w in warnings]))
-    else:
-        print(f"\nMenu check: every movement is on today's menu ({len(draft_declared(text))} declared).")
+    print("\n".join(menu.report_lines(draft_path, issues, warnings, len(draft_declared(text)))))
     return issues
 
 

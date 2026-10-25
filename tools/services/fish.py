@@ -45,7 +45,7 @@ def design(description, line, n, label=None):
                        "n": max(1, min(int(n), 4))}).encode()
     headers = {"Authorization": _auth(), "model": DESIGN_MODEL, "Content-Type": "application/json"}
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/voice-design", headers, body, timeout=180,
-                               service=SERVICE)
+                               service=SERVICE, idempotent=False)
     out = []
     for c in json.loads(data).get("candidates") or []:
         wav = base64.b64decode(c.get("audio_base64") or "")

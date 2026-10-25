@@ -653,7 +653,10 @@ class CloudRender(unittest.TestCase):
         e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
         e.update({"SWEATCAST_HOME": self.home, f"SWEATCAST_{service.upper()}_URL": url,
                   keys.SERVICE_VARS[service]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})
-        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), DRAFT,
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import helpers
+        draft_path = helpers.draft_with_menu(DRAFT, os.path.join(self.d, "cloud.draft.txt"), self.home)
+        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "render.py"), draft_path,
                                "--coach", COACHES[service], *extra], env=e, capture_output=True, text=True, timeout=120)
 
     def render(self, url, *extra):
@@ -730,15 +733,14 @@ class CloudRender(unittest.TestCase):
                 self.assertIn("usd_estimate", record)
                 import keys
                 var = keys.SERVICE_VARS[service]
-                args = mock.Mock(coach=COACHES[service], engine=None, voice=None, model=None, seed=42)
                 with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")), \
                         mock.patch.object(personas.paths, "PROFILE", os.path.join(self.home, "profile.md")), \
                         mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.home, ".env")), \
                         mock.patch.dict(os.environ, {var: SECRET}), \
                         mock.patch.object(render, "check_pace_file"):
-                    a = render.setup_voice(args)[1]("Hello.")
+                    a = render.prepare_voice(personas.resolve(COACHES[service], None))[1]("Hello.")
                     with mock.patch.dict(os.environ, {var: "another-key"}):
-                        b = render.setup_voice(args)[1]("Hello.")
+                        b = render.prepare_voice(personas.resolve(COACHES[service], None))[1]("Hello.")
                 self.assertEqual(a, b)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")

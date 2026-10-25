@@ -92,5 +92,8 @@ def require(path, what="file"):
 
 def show(path):
     """A path as short as it can be said: relative to the repo when inside it."""
-    rel = os.path.relpath(path, ROOT)
+    try:
+        rel = os.path.relpath(path, ROOT)
+    except ValueError:   # Windows: a path on another drive (a G:\ Google Drive folder) has no relative form
+        return path
     return path if rel.startswith("..") else rel

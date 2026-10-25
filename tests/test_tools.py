@@ -697,31 +697,14 @@ class ExitCodes(unittest.TestCase):
             self.assertEqual(out.returncode, cli.ISSUES, out.stderr)   # estimated: nothing measured in a fresh copy
 
 
-class BuildScript(unittest.TestCase):
-    """tools/build.py with a stand-in Python that fakes the lint and render."""
-
-    STUB = """#!{python}
-import os, sys
-script = os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else ""
-args = sys.argv[2:]
-if script in ("tts_build.py", "render.py"):
-    with open(os.environ["STUB_LOG"], "a") as f:
-        f.write(script + " " + " ".join(args) + "\\n")
-    if "--out" in args:
-        out = args[args.index("--out") + 1]
-        open(out, "w").write("x")
-        if script == "render.py":
-            open(os.path.splitext(out)[0] + ".build.json", "w").write('{{"route": "local"}}')
-    if script == "render.py":
-        print("render failed for a test reason", file=sys.stderr)
-        sys.exit(int(os.environ.get("STUB_RENDER_EXIT", "0")))
-    sys.exit(0)
-import subprocess
-sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows it loses the exit code
-"""
+class InProcessBuild(unittest.TestCase):
+    """tools/build.py lints, gates on the menu and renders in one process; here the lint's prediction and the
+    render itself are stood in for, and everything around them (the coach, the route, the menu, the delivery,
+    the record, the exit codes) is real."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
         d = self.tmp.name
         self.home = fresh_home(d)
         self.phone = os.path.join(d, "phone")
@@ -729,47 +712,72 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         prof = os.path.join(self.home, "settings.toml")
         with open(prof, encoding="utf-8") as f:
             text = f.read()
-        text = re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone.replace(os.sep, '/'))}", text,
-                      flags=re.M)   # forward slashes: a Windows path's backslashes aren't valid in TOML
-        write_file(prof, text)
+        write_file(prof, re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone.replace(os.sep, '/'))}",
+                                text, flags=re.M))
         shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
                         os.path.join(self.home, "personas"), dirs_exist_ok=True)
-        self.stub = os.path.join(d, "python")
-        write_file(self.stub, self.STUB.format(python=sys.executable))
-        os.chmod(self.stub, 0o755)
-        self.log = os.path.join(d, "calls.txt")
+        self.folder = os.path.join(self.home, "workouts", "2026-10-25-test-25")
+        self.draft = os.path.join(self.folder, "2026-10-25-test-25.draft.txt")
+        os.makedirs(self.folder)
+        self.copy_draft(self.draft)
+        self.runs, self.lints, self.follows = [], [], []
+        self.drift = 0.0
+        self.render_fails = None
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(helpers.home(self.home))
+        self.stack.enter_context(mock.patch.dict(os.environ, {"SWEATCAST_FAKE_LOCAL_ENGINE": "1"}))
+        self.stack.enter_context(mock.patch.object(render, "run", side_effect=self.fake_run))
+        self.stack.enter_context(mock.patch.object(render, "follow", side_effect=self.fake_follow))
+        self.stack.enter_context(mock.patch.object(tts_build, "lint", side_effect=self.fake_lint))
 
-    def tearDown(self):
-        self.tmp.cleanup()
+    def copy_draft(self, path):
+        """The fixture draft (from before the menu, so it declares nothing) with a movements: line naming
+        what its text names, and today's menu beside it."""
+        helpers.draft_with_menu(os.path.join(ROOT, "tests", "fixtures", "example.draft.txt"), path, self.home)
 
-    def build(self, *extra, render_exit=0, estimated_ok=True, **more_env):
-        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": str(render_exit),
-               "SWEATCAST_FAKE_LOCAL_ENGINE": "1"}
-        env.update(more_env)
-        flags = ["--allow-estimated"] if estimated_ok else []
-        return run(["sh", "sweatcast", "build", os.path.join("tests", "fixtures", "example.draft.txt"), "Test build",
-                    *flags, *extra], home=self.home, env=env)
+    def write_menu(self, draft_path, today=None, health=None):
+        helpers.menu_for(draft_path, self.home, today=today, health_sha256=health)
 
-    def calls(self):
-        with open(self.log, encoding="utf-8") as f:
-            return f.read()
+    def fake_lint(self, segments, voice=None, **kw):
+        self.lints.append(dict(kw, voice=voice))
+        return tts_build.Report(rows=[], strict=False, wpm=185.0)
+
+    def fake_run(self, segments, voice, out, **kw):
+        self.runs.append(dict(kw, voice=voice, out=out))
+        if self.render_fails:
+            os.write(2, b"render failed for a test reason\n")   # as a native library would, on the descriptor
+            raise SystemExit(self.render_fails)
+        write_file(out, "x")
+        with open(os.path.splitext(out)[0] + ".build.json", "w", encoding="utf-8") as f:
+            json.dump({"route": voice.get("route", "local")}, f)
+        return self.drift
+
+    def fake_follow(self, voice, draft_path, **kw):
+        self.follows.append(dict(kw, voice=voice, draft_path=draft_path))
+
+    def build(self, *extra, estimated_ok=True, draft_path=None):
+        import build
+        argv = [draft_path or self.draft, "Test build", *(["--allow-estimated"] if estimated_ok else []), *extra]
+        self.out, self.err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(self.out), contextlib.redirect_stderr(self.err):
+            return cli.run(lambda: build.main(argv))
+
+    def said(self):
+        return self.out.getvalue() + self.err.getvalue()
 
     def test_success_copies_to_the_delivery_folder(self):
-        out = self.build()
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(self.build(), 0, self.said())
         self.assertTrue(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
-        local = os.path.join(self.home, "workouts", "checks", "Test build.mp3")   # a draft outside a workout folder
-        self.assertFalse(os.path.exists(local), "the local MP3 is removed once the copy is in place")
-        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "checks", "Test build.txt")))
-        self.assertIn("--coach Coach Julius --engine local", self.calls())   # the first coach, with no sessions yet
-        self.assertNotIn("--allow-estimated", self.calls())      # the build's own flags stay with it
-        self.assertIn("tts_build.py", self.calls().splitlines()[0])
-        self.assertIn("--require-menu", self.calls().splitlines()[0])   # a workout can't build without its menu
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "Test build.mp3")), "the local MP3 is removed")
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.txt")))
+        self.assertEqual(self.runs[0]["voice"]["name"], "Coach Julius")   # the first coach, with no sessions yet
+        self.assertEqual(self.runs[0]["voice"]["route"], "local")
+        self.assertEqual(len(self.lints), 1)
 
     def test_record_has_delivery(self):
-        out = self.build()
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        with open(os.path.join(self.home, "workouts", "checks", "Test build.build.json"), encoding="utf-8") as f:
+        self.assertEqual(self.build(), 0, self.said())
+        with open(os.path.join(self.folder, "Test build.build.json"), encoding="utf-8") as f:
             rec = json.load(f)
         self.assertEqual(rec["delivered_to"], [self.phone.replace(os.sep, "/")])
         self.assertFalse(rec["kept_local"])
@@ -780,73 +788,97 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         with open(prof, encoding="utf-8") as f:
             text = f.read()
         write_file(prof, re.sub(r"^deliver_to = .*$", 'deliver_to = ""', text, flags=re.M))
-        out = self.build()
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        with open(os.path.join(self.home, "workouts", "checks", "Test build.build.json"), encoding="utf-8") as f:
+        self.assertEqual(self.build(), 0, self.said())
+        with open(os.path.join(self.folder, "Test build.build.json"), encoding="utf-8") as f:
             rec = json.load(f)
         self.assertEqual(rec["delivered_to"], [])
         self.assertTrue(rec["kept_local"])
         self.assertIn("no delivery folder", rec["reason"])
 
-    def test_a_draft_in_its_workout_folder_builds_there(self):
-        folder = os.path.join(self.home, "workouts", "2026-10-25-strength-25")
-        os.makedirs(folder)
-        draft = os.path.join(folder, "2026-10-25-strength-25.draft.txt")
-        shutil.copy(os.path.join(ROOT, "tests", "fixtures", "example.draft.txt"), draft)
-        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": "0",
-               "SWEATCAST_FAKE_LOCAL_ENGINE": "1"}
-        out = run(["sh", "sweatcast", "build", draft, "Test build", "--allow-estimated"], home=self.home, env=env)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertTrue(os.path.exists(os.path.join(folder, "Test build.txt")))
+    def test_a_draft_outside_a_workout_folder_builds_in_checks(self):
+        loose = os.path.join(self.tmp.name, "loose.draft.txt")
+        self.copy_draft(loose)
+        self.assertEqual(self.build(draft_path=loose), 0, self.said())
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "checks", "Test build.txt")))
 
-    def test_the_smoke_test_needs_no_menu(self):
-        env = {"SWEATCAST_PYTHON": self.stub, "STUB_LOG": self.log, "STUB_RENDER_EXIT": "0",
-               "SWEATCAST_FAKE_LOCAL_ENGINE": "1"}
-        out = run(["sh", "sweatcast", "build", os.path.join("knowledge", "smoke-test.draft.txt"), "smoke-test",
-                   "--allow-estimated"], home=self.home, env=env)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        lint = self.calls().splitlines()[0]
-        self.assertIn("tts_build.py", lint)
-        self.assertNotIn("--require-menu", lint)
-        self.assertIn("--force", lint)
+    def test_the_smoke_test_needs_no_menu_and_is_not_delivered(self):
+        self.assertEqual(self.build(draft_path=paths.SMOKE_DRAFT), 0, self.said())
+        self.assertEqual(len(self.runs), 1)
+        self.assertFalse(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "checks", "Test build.mp3")))
+
+    def test_a_copy_of_the_smoke_test_elsewhere_needs_a_menu(self):
+        copy = os.path.join(self.folder, "smoke-test.draft.txt")   # the smoke test is known by its place, not its name
+        shutil.copy(paths.SMOKE_DRAFT, copy)
+        self.assertEqual(self.build(draft_path=copy), cli.ISSUES, self.said())
+        self.assertIn("no menu", self.said())
+        self.assertEqual(self.runs, [])
 
     @unittest.skipIf(os.name == "nt", "chmod can't make a folder read-only on Windows")
     def test_a_failed_copy_keeps_the_local_mp3(self):
-        os.chmod(self.phone, 0o500)   # the delivery folder can't be written
+        os.chmod(self.phone, 0o500)
         try:
-            out = self.build()
+            code = self.build()
         finally:
             os.chmod(self.phone, 0o700)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("Couldn't copy", out.stdout)
-        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "checks", "Test build.mp3")))
+        self.assertEqual(code, 0, self.said())
+        self.assertIn("Couldn't copy", self.said())
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.mp3")))
 
-    def test_drift_exits_2_without_a_copy_or_the_log(self):
-        out = self.build(render_exit=2)
-        self.assertEqual(out.returncode, 2)
+    def test_drift_exits_2_without_a_copy(self):
+        self.drift = 0.05
+        self.assertEqual(self.build(), cli.DRIFT, self.said())
         self.assertFalse(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
-        self.assertNotIn("test reason", out.stdout + out.stderr)
+        self.assertIn("runs long", self.said())
 
-    def test_a_command_mistake_exits_64_and_shows_the_log(self):
-        out = self.build(render_exit=64)
-        self.assertEqual(out.returncode, 64)
-        self.assertIn("render failed for a test reason", out.stderr)
-        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", ".logs", "Test build.log")))
+    def test_a_render_failure_shows_the_end_of_its_log(self):
+        self.render_fails = "the engine stopped"
+        self.assertEqual(self.build(), cli.ISSUES, self.said())
+        log = os.path.join(self.home, "workouts", ".logs", "Test build.log")
+        with open(log, encoding="utf-8") as f:
+            self.assertIn("render failed for a test reason", f.read())   # the descriptor went to the log
+        self.assertIn("render failed for a test reason", self.err.getvalue())   # and its end was shown
+        self.assertIn("the engine stopped", self.err.getvalue())
 
-    def test_unknown_voice_exits_64(self):
-        for flag in ("--coach", "--voice"):
-            out = self.build(flag, "Nobody At All", estimated_ok=False)
-            self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
-            self.assertNotIn("measured", out.stdout)
+    def test_unknown_coach_exits_64(self):
+        self.assertEqual(self.build("--coach", "Nobody At All", estimated_ok=False), cli.USAGE, self.said())
+        self.assertNotIn("measured", self.said())
 
-    def test_an_old_voice_name_finds_its_coach(self):
-        out = self.build("--voice", "Qwen3 Coach")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("--coach Qwen3 Coach --engine local", self.calls())
+    def test_an_alias_finds_its_coach(self):
+        self.assertEqual(self.build("--coach", "Qwen3 Coach"), 0, self.said())
+        self.assertEqual(self.runs[0]["voice"]["name"], "Coach Solo")
+
+    def test_an_unknown_flag_exits_64_before_anything_runs(self):
+        self.assertEqual(self.build("--bogus"), cli.USAGE, self.said())
+        self.assertEqual((self.lints, self.runs), ([], []))
+
+    def test_a_stale_menu_stops_a_render_but_only_warns_a_lint(self):
+        self.write_menu(self.draft, today="2026-10-20")
+        self.assertEqual(self.build(), cli.ISSUES, self.said())
+        self.assertIn("2026-10-20", self.said())
+        self.assertEqual(self.runs, [])
+        self.assertEqual(self.build("--lint-only"), 0, self.said())
+        self.assertIn("warning", self.said())
+
+    def test_a_changed_health_file_stops_the_render(self):
+        with open(os.path.join(self.home, "health.md"), "a", encoding="utf-8") as f:
+            f.write("- Unlisted: a new problem since the brief\n")
+        self.assertEqual(self.build(), cli.ISSUES, self.said())
+        self.assertIn("health.md changed", self.said())
+        self.assertEqual(self.runs, [])
+
+    def test_no_web_in_a_cloud_session_keeps_the_mp3(self):
+        import build
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_REMOTE": "true"}), \
+                mock.patch.object(build, "web_copy", side_effect=AssertionError("no web copy was asked for")):
+            self.assertEqual(self.build("--no-web"), 0, self.said())
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.mp3")))
+        with open(os.path.join(self.folder, "Test build.build.json"), encoding="utf-8") as f:
+            self.assertTrue(json.load(f)["kept_local"])
 
     def add_web_coach(self, estimate=True):
         """Coach Reed on Fish Audio with a saved voice, and (by default) only an estimate of his pace."""
-        folder = os.path.join(self.home, "personas", "coach-reed-fish")   # in place of the template's pending one
+        folder = os.path.join(self.home, "personas", "coach-reed-fish")
         os.makedirs(folder, exist_ok=True)
         write_file(os.path.join(folder, "persona.md"), context.persona_text(
             {"name": "Coach Reed", "kind": "web", "service": "fish", "voice_id": "fish-model-1"},
@@ -859,26 +891,39 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
     def web_build(self, *extra, key=True, **more):
         env = {"FISH_AUDIO_API_KEY": "test-key" if key else ""}
         env.update(more)
-        return self.build("--coach", "Coach Reed", *extra, estimated_ok=False, **env)
+        with mock.patch.dict(os.environ, env):
+            return self.build("--coach", "Coach Reed", *extra, estimated_ok=False)
 
     def test_build_refuses_follow_on_a_cloud_route(self):
         self.add_web_coach()
-        out = self.web_build("--follow")
-        self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
-        self.assertIn("billed", out.stdout)
-        self.assertFalse(os.path.exists(self.log))   # nothing rendered
+        self.assertEqual(self.web_build("--follow"), cli.USAGE, self.said())
+        self.assertIn("billed", self.said())
+        self.assertEqual(self.follows, [])
 
     def test_web_coach_builds_without_smoke_test(self):
         self.add_web_coach()
-        out = self.web_build()
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertNotIn("measured", out.stdout)
-        self.assertIn("--coach Coach Reed --engine fish", self.calls())
+        self.assertEqual(self.web_build(), 0, self.said())
+        self.assertNotIn("measured", self.said())
+        self.assertEqual((self.runs[0]["voice"]["name"], self.runs[0]["voice"]["route"]), ("Coach Reed", "fish"))
+
+    def test_web_coach_without_estimate_still_builds(self):
+        self.add_web_coach(estimate=False)
+        self.assertEqual(self.web_build(), 0, self.said())
+
+    def test_web_coach_without_key_exits_64(self):
+        self.add_web_coach()
+        self.assertEqual(self.web_build(key=False), cli.USAGE, self.said())
+        self.assertIn("FISH_AUDIO_API_KEY", self.said())
+        self.assertEqual(self.runs, [])
+
+    def test_engine_override_on_web_coach_exits_64(self):
+        self.add_web_coach()
+        self.assertEqual(self.web_build("--engine", "local"), cli.USAGE, self.said())
+        self.assertEqual(self.runs, [])
 
     def add_pending_coach(self):
         """The template's Coach Reed (fresh_home copied it, pending) and a fake Fish Audio."""
-        with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")):
-            self.assertEqual(personas.lookup("Coach Reed").pending, "design")
+        self.assertEqual(personas.lookup("Coach Reed").pending, "design")
         sys.path.insert(0, os.path.join(ROOT, "tests"))
         import fakes
         fake = fakes.FakeService(fakes.design_answer("fish"))
@@ -888,22 +933,20 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
 
     def test_pending_default_is_made_once(self):
         fake = self.add_pending_coach()
-        first = self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0")
-        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
-        self.assertIn("Coach Reed is made the first time it's used", first.stdout)
-        second = self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0")
-        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
-        self.assertNotIn("made the first time", second.stdout)
+        env = {"SWEATCAST_FISH_URL": fake.url, "SWEATCAST_RETRY_WAIT": "0"}
+        self.assertEqual(self.web_build(**env), 0, self.said())
+        self.assertIn("Coach Reed is made the first time it's used", self.said())
+        self.assertEqual(self.web_build(**env), 0, self.said())
+        self.assertNotIn("made the first time", self.said())
         posts = [r.path for r in fake.requests if r.method == "POST"]
         self.assertEqual(posts, ["/v1/voice-design", "/model"])   # one design and one save in all
-        self.assertEqual(self.calls().count("render.py"), 2)
-        with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")):
-            self.assertEqual(personas.lookup("Coach Reed").voice_id, "fish-model-1")
+        self.assertEqual(len(self.runs), 2)
+        self.assertEqual(self.runs[0]["voice"]["voice_id"], "fish-model-1")   # the made voice, not the stale persona
+        self.assertEqual(personas.lookup("Coach Reed").voice_id, "fish-model-1")
 
     def test_no_coach_named_makes_the_keyed_default_once(self):
-        folder = os.path.join(self.home, "personas")
         for slug_ in ("coach-julius", "coach-solo"):   # only the template's coaches: Coach Andy and the defaults
-            shutil.rmtree(os.path.join(folder, slug_))
+            shutil.rmtree(os.path.join(self.home, "personas", slug_))
         sys.path.insert(0, os.path.join(ROOT, "tests"))
         import fakes
         fake = fakes.FakeService(fakes.design_answer("inworld"))
@@ -912,82 +955,146 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         env = {"INWORLD_API_KEY": "test-key", "FISH_AUDIO_API_KEY": "", "ELEVENLABS_API_KEY": "",
                "GEMINI_API_KEY": "", "SWEATCAST_INWORLD_URL": fake.url, "SWEATCAST_RETRY_WAIT": "0",
                "SWEATCAST_FAKE_LOCAL_ENGINE": "0"}
-        for _ in range(2):
-            out = self.build(estimated_ok=False, **env)
-            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("--coach Coach Owen --engine inworld", self.calls())
+        with mock.patch.dict(os.environ, env):
+            for _ in range(2):
+                self.assertEqual(self.build(estimated_ok=False), 0, self.said())
+        self.assertEqual([(r["voice"]["name"], r["voice"]["route"]) for r in self.runs],
+                         [("Coach Owen", "inworld")] * 2)
         posts = [r.path.split(":")[-1] for r in fake.requests if r.method == "POST"]
         self.assertEqual(posts, ["design", "publish"])   # made once across two builds
-        self.assertEqual(self.calls().count("render.py"), 2)
 
     def test_a_failed_make_stops_the_build(self):
         fake = self.add_pending_coach()
         fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
-        out = self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0")
-        self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
-        self.assertFalse(os.path.exists(self.log))   # no lint, no render
+        self.assertEqual(self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0"), cli.SERVICE, self.said())
+        self.assertEqual((self.lints, self.runs), ([], []))
 
     def test_lint_only_never_makes_a_coach(self):
         fake = self.add_pending_coach()
-        out = self.web_build("--lint-only", SWEATCAST_FISH_URL=fake.url)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(self.web_build("--lint-only", SWEATCAST_FISH_URL=fake.url), 0, self.said())
         self.assertEqual(fake.requests, [])
-        self.assertEqual([c.split()[0] for c in self.calls().splitlines()], ["tts_build.py"])
-
-    def test_the_lint_reads_a_pending_coach_at_an_estimate(self):
-        out = run([sys.executable, "tools/tts_build.py", os.path.join("tests", "fixtures", "example.draft.txt"),
-                   "--coach", "Coach Reed", "--engine", "fish", "--out", os.path.join(self.tmp.name, "x.txt"),
-                   "--force"], home=self.home, env={"FISH_AUDIO_API_KEY": "test-key"})
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("estimated", out.stdout)
-
-    def test_web_coach_without_estimate_still_builds(self):
-        self.add_web_coach(estimate=False)
-        self.assertEqual(self.web_build().returncode, 0)
-
-    def test_web_coach_without_key_exits_64(self):
-        self.add_web_coach()
-        out = self.web_build(key=False)
-        self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
-        self.assertIn("FISH_AUDIO_API_KEY", out.stdout + out.stderr)
-        self.assertFalse(os.path.exists(self.log))
-
-    def test_engine_override_on_web_coach_exits_64(self):
-        self.add_web_coach()
-        out = self.web_build("--engine", "local")
-        self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
-        self.assertFalse(os.path.exists(self.log))
+        self.assertEqual((len(self.lints), self.runs), (1, []))
 
     def test_unmeasured_voice_exits_3(self):
-        out = self.build(estimated_ok=False)
-        self.assertEqual(out.returncode, 3, out.stdout + out.stderr)
+        self.assertEqual(self.build(estimated_ok=False), cli.UNMEASURED, self.said())
+        self.assertEqual(self.runs, [])
 
     def test_follow_renders_ahead_with_no_lint(self):
-        out = self.build("--follow")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        calls = self.calls().splitlines()
-        self.assertEqual([c.split()[0] for c in calls], ["render.py"])
-        self.assertIn("--follow", calls[0])
-        self.assertFalse(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
+        self.assertEqual(self.build("--follow"), 0, self.said())
+        self.assertEqual(len(self.follows), 1)
+        self.assertEqual((self.lints, self.runs), ([], []))
 
     def test_lint_only_stops_before_the_render(self):
-        out = self.build("--lint-only")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertEqual([c.split()[0] for c in self.calls().splitlines()], ["tts_build.py"])
+        self.assertEqual(self.build("--lint-only"), 0, self.said())
+        self.assertEqual((len(self.lints), self.runs), (1, []))
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.txt")))
 
-    def test_tolerance_reaches_the_lint_and_the_render(self):
-        self.build("--tolerance", "0.05")
-        lint, render_call = self.calls().splitlines()[:2]
-        self.assertIn("--total-tolerance 0.05", lint)
-        self.assertIn("--tolerance 0.05", render_call)
+    def test_tolerance_and_chime_reach_the_lint_and_the_render(self):
+        self.assertEqual(self.build("--tolerance", "0.05", "--no-chime"), 0, self.said())
+        self.assertEqual(self.lints[0]["total_tolerance"], 0.05)
+        self.assertFalse(self.lints[0]["chime"])
+        self.assertEqual(self.runs[0]["tolerance"], 0.05)
+        self.assertTrue(self.runs[0]["no_chime"])
 
     def test_an_old_context_folder_stops_with_the_fix(self):
         prof = os.path.join(self.home, "profile.md")
         with open(prof, encoding="utf-8") as f:
             write_file(prof, context.body(f.read()))
-        out = self.build()
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn("./sweatcast migrate", out.stdout + out.stderr)
+        self.assertNotEqual(self.build(), 0)
+        self.assertIn("./sweatcast migrate", self.said())
+
+
+class RenderGates(unittest.TestCase):
+    """./sweatcast render enforces the menu like build does, and checks ffmpeg and the output name before a
+    single clip is rendered (and billed)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = fresh_home(self.tmp.name)
+        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
+                        os.path.join(self.home, "personas"), dirs_exist_ok=True)
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(helpers.home(self.home))
+        self.stack.enter_context(mock.patch.dict(os.environ, {"SWEATCAST_FAKE_LOCAL_ENGINE": "1"}))
+        self.stack.enter_context(mock.patch.object(engines, "speaker", side_effect=AssertionError("nothing may render")))
+        self.draft = os.path.join(self.tmp.name, "x.draft.txt")
+        shutil.copy(os.path.join(ROOT, "tests", "fixtures", "example.draft.txt"), self.draft)
+
+    def test_the_render_command_needs_a_menu(self):
+        out = io.StringIO()
+        with mock.patch.object(sys, "argv", ["render", self.draft, "--out", os.path.join(self.tmp.name, "x.mp3"),
+                                             "--coach", "Coach Julius"]), contextlib.redirect_stdout(out):
+            self.assertEqual(cli.run(render.main), cli.ISSUES)
+        self.assertIn("no menu", out.getvalue())
+
+    def test_the_output_name_and_ffmpeg_are_checked_before_any_clip(self):
+        voice = personas.voice_for(personas.lookup("Coach Julius"), "local")
+        segments = parse("@@ 30 | A\nHello.\n")
+        with self.assertRaises(cli.Usage):
+            render.run(segments, voice, os.path.join(self.tmp.name, "x.ogg"))
+        with mock.patch.object(render, "ffmpeg_exe", return_value=None), self.assertRaises(SystemExit) as got:
+            render.run(segments, voice, os.path.join(self.tmp.name, "x.mp3"))
+        self.assertIn("ffmpeg", str(got.exception))
+
+
+class SmallHardening(unittest.TestCase):
+    def test_cache_prune_waits_for_the_render_lock(self):
+        import locks
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(locks, "render_lock") as lock:
+            lock.return_value.__enter__ = lambda *a: None
+            lock.return_value.__exit__ = lambda *a: False
+            cache.prune(0, d)
+        self.assertTrue(lock.called)
+
+    def test_a_long_retry_after_is_quota_not_a_sleep(self):
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import fakes
+        slept = []
+        with fakes.FakeService(lambda r: (429, {"Retry-After": "3600"}, b'{"message": "slow down"}')) as fake:
+            with self.assertRaises(cloud.ServiceError) as got:
+                cloud.request("POST", fake.url + "/x", {}, b"{}", service="fish", sleep=slept.append)
+        self.assertEqual(got.exception.kind, "quota")
+        self.assertTrue(got.exception.listener_must_act)
+        self.assertEqual(slept, [])
+        self.assertIn("3600", str(got.exception))
+
+    def test_billed_design_calls_are_never_retried_after_sending(self):
+        from services import elevenlabs, fish, inworld
+        for module in (fish, elevenlabs, inworld):
+            with mock.patch.object(cloud, "request", side_effect=RuntimeError("stop")) as req, \
+                    mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "k", "ELEVENLABS_API_KEY": "k", "INWORLD_API_KEY": "k"}):
+                with self.assertRaises(RuntimeError):
+                    module.design("a coach", "a line", 1)
+            self.assertFalse(req.call_args.kwargs.get("idempotent", True), module.__name__)
+
+    def test_show_survives_a_path_on_another_drive(self):
+        with mock.patch.object(paths.os.path, "relpath", side_effect=ValueError("different drives")):
+            self.assertEqual(paths.show("G:\\My Drive\\x.mp3"), "G:\\My Drive\\x.mp3")
+
+    def test_the_readiness_facts_survive_a_missing_shell(self):
+        import doctor
+        doctor.facts.cache_clear()
+        try:
+            with mock.patch.object(doctor.subprocess, "run", side_effect=FileNotFoundError("sh")):
+                facts = doctor.facts()
+        finally:
+            doctor.facts.cache_clear()
+        self.assertEqual(facts.get("local"), "no")
+        self.assertIn("couldn't run", facts.get("local_reason", ""))
+
+    def test_the_lint_predicts_no_chime_when_the_render_has_none(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = fresh_home(d)
+            shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
+                            os.path.join(home, "personas"), dirs_exist_ok=True)
+            with helpers.home(home):
+                voice = personas.voice_for(personas.lookup("Coach Julius"), "local")
+                segments = parse("@@ 30 | A\nHello there, friend.\n@@ 30 | B\nAnd again.\n@@ 30 | C\nOnce more.\n")
+                with_chime = tts_build.lint(segments, voice).total_spoken
+                without = tts_build.lint(segments, voice, chime=False).total_spoken
+        self.assertAlmostEqual(with_chime - without, 2 * CHIME_SECONDS, places=6)
 
 
 class PaceFile(unittest.TestCase):
@@ -1681,7 +1788,7 @@ class CachePrune(unittest.TestCase):
             os.utime(old, (month, month))
             os.utime(pace, (month, month))
             self.assertEqual(cache.prune(45, d), (1, 4))
-            self.assertEqual(sorted(os.listdir(d)), ["new.pcm", "voice-pace.json"])
+            self.assertEqual(sorted(n for n in os.listdir(d) if not n.startswith(".")), ["new.pcm", "voice-pace.json"])
             self.assertEqual(cache.size(d), (1, 4))
 
 

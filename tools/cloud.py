@@ -107,8 +107,8 @@ def _kind(status, body):
     text = body.decode("utf-8", "replace").lower()
     if "quota" in text:
         return "quota"
-    if status == 402 or "insufficient_credits" in text or "payment" in text:
-        return "billing"
+    if status == 402 or (400 <= status < 500 and ("insufficient_credits" in text or "payment" in text)):
+        return "billing"   # a 5xx page that mentions payment is still an outage
     if status in (401, 403):
         return "auth"
     if status in RETRY_STATUS:
@@ -123,6 +123,14 @@ def _wait(attempt, retry_after, sleep):
     except ValueError:
         seconds = min(2 ** attempt, 30)
     sleep(seconds * scale)
+
+
+def _seconds(retry_after):
+    """Retry-After as seconds, or None when it isn't a number (an HTTP date, or absent)."""
+    try:
+        return float(retry_after) if retry_after is not None else None
+    except ValueError:
+        return None
 
 
 def _short(retry_after):
@@ -149,6 +157,12 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             kind = _kind(e.code, data)
             last = ServiceError(kind, service, f"{_message(data)} (HTTP {e.code})", status=e.code)
             retry_after = e.headers.get("Retry-After") if e.headers else None
+            if e.code == 429 and _seconds(retry_after) is not None and not _short(retry_after):
+                # asked to wait longer than a rate limit ever does: the quota is used up, and sleeping an hour
+                # (or five) in a build helps nobody
+                raise ServiceError("quota", service, f"asked to wait {_seconds(retry_after):.0f} seconds before the "
+                                   f"next request ({_message(data)}; HTTP 429): the quota is used up for now",
+                                   status=429) from None
             # A 429 asking for a short wait is a rate limit, even when its body says "quota" (Google-style APIs).
             limited = e.code == 429 and (_short(retry_after) or kind == "unavailable")
             if not (e.code == 429 and _short(retry_after)) and (e.code not in RETRY_STATUS or kind != "unavailable"):

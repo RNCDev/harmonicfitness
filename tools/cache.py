@@ -16,13 +16,14 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
-from paths import CACHE, show  # noqa: E402
+import locks  # noqa: E402
+import paths  # noqa: E402
 
 CLIP_EXTS = (".pcm", ".pcm.part")
 
 
 def clips(folder=None):
-    folder = folder or CACHE
+    folder = folder or paths.CACHE
     if not os.path.isdir(folder):
         return []
     return [os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(CLIP_EXTS)]
@@ -36,14 +37,16 @@ def size(folder=None):
 
 def prune(days, folder=None, now=None):
     """Remove clips not used in `days` days. Returns (clips removed, bytes freed)."""
+    folder = folder or paths.CACHE
     cutoff = (now or time.time()) - days * 86400
     removed = freed = 0
-    for path in clips(folder):
-        st = os.stat(path)
-        if st.st_mtime <= cutoff:
-            os.remove(path)
-            removed += 1
-            freed += st.st_size
+    with locks.render_lock(folder, wait_message=False):   # never under a render's feet
+        for path in clips(folder):
+            st = os.stat(path)
+            if st.st_mtime <= cutoff:
+                os.remove(path)
+                removed += 1
+                freed += st.st_size
     return removed, freed
 
 
@@ -56,10 +59,10 @@ def main(argv=None):
     if args.cmd == "prune":
         removed, freed = prune(args.days)
         n, total = size()
-        print(f"Removed {removed} clips ({freed / 1e6:.0f} MB); {n} left ({total / 1e6:.0f} MB) in {show(CACHE)}.")
+        print(f"Removed {removed} clips ({freed / 1e6:.0f} MB); {n} left ({total / 1e6:.0f} MB) in {paths.show(paths.CACHE)}.")
     else:
         n, total = size()
-        print(f"{n} clips, {total / 1e6:.0f} MB in {show(CACHE)}.")
+        print(f"{n} clips, {total / 1e6:.0f} MB in {paths.show(paths.CACHE)}.")
     return cli.OK
 
 

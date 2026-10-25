@@ -31,3 +31,43 @@ def home(root):
             elif value.startswith(old + os.sep):
                 stack.enter_context(mock.patch.object(paths, name, os.path.join(root, os.path.relpath(value, old))))
         yield root
+
+
+def menu_for(draft_path, home, today=None, health_sha256=None):
+    """Write today's menu beside `draft_path`, holding every movement the draft declares or names, as if
+    ./sweatcast brief --save had made it from `home`'s health.md."""
+    import datetime
+    import catalog
+    import draft
+    import menu
+    cat = catalog.load()
+    with open(draft_path, encoding="utf-8") as f:
+        text = f.read()
+    segments = draft.parse(text)
+    ids = {m.id for m in (catalog.resolve(cat, w) for w in draft.declared(text)) if m}
+    ids |= {mid for mid, _, _ in menu.mentions(cat, menu.spoken_text(segments))}
+    rec = {"format": menu.FORMAT, "date": today or datetime.date.today().isoformat(),
+           "health_sha256": health_sha256 or menu.health_hash(os.path.join(home, "health.md")),
+           "request": {}, "seconds": sum(seg["seconds"] for seg in segments),
+           "movements": [{"id": i, "name": cat.movements[i].name, "aliases": cat.movements[i].aliases} for i in sorted(ids)]}
+    menu.write(draft.menu_path(draft_path), rec)
+    return draft.menu_path(draft_path)
+
+
+def draft_with_menu(src, dst, home):
+    """Copy the draft at `src` to `dst`, giving it a movements: line (the fixtures predate the menu) and
+    today's menu beside it. Returns `dst`."""
+    import catalog
+    import draft
+    import menu
+    with open(src, encoding="utf-8") as f:
+        text = f.read()
+    if not draft.declared(text):
+        cat = catalog.load()
+        names = sorted({cat.movements[mid].name for mid, _, _ in menu.mentions(cat, menu.spoken_text(draft.parse(text)))})
+        text = "movements: " + ", ".join(names) + "\n" + text
+    os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
+    with open(dst, "w", encoding="utf-8") as f:
+        f.write(text)
+    menu_for(dst, home)
+    return dst

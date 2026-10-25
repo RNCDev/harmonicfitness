@@ -32,8 +32,6 @@ from paths import show  # noqa: E402
 import cli  # noqa: E402
 
 LOCAL_ENGINES = ("chatterbox", "qwen3")
-ARCHIVE = os.path.join(paths.PERSONAS, ".archive")       # coaches no longer in use (found only when asked)
-AUDITIONS = os.path.join(paths.PERSONAS, ".auditions")   # auditions in progress
 WEB_SERVICES = ("fish", "elevenlabs", "gemini", "inworld")   # the order web stand-ins are tried in
 VOICE_PARTS = (("who", ""), ("sound", ""), ("energy", ""), ("pace", "Pace: "), ("avoid", "Avoid: "))
 

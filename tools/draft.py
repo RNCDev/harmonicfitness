@@ -80,6 +80,16 @@ def declared(text):
     return list(dict.fromkeys(out))
 
 
+def is_smoke(path):
+    """Whether `path` is the engine's smoke test (knowledge/smoke-test.draft.txt), known by its place, never by
+    its name: it's the one draft that builds without a menu."""
+    import paths
+    try:
+        return os.path.realpath(path) == os.path.realpath(paths.SMOKE_DRAFT)
+    except OSError:
+        return False
+
+
 def stem(path):
     """A draft's path without `.draft.txt` (or its one extension): the brief, the menu and the draft
     share it."""

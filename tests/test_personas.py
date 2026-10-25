@@ -340,8 +340,6 @@ class WebCoaches(unittest.TestCase):
         write_persona(os.path.join(self.folder, ".archive"), "x", web_placeholder("Coach X", "fish"))
         write_persona(os.path.join(self.folder, ".auditions"), "y", web_placeholder("Coach Y", "fish"))
         self.assertEqual([p.name for p in personas.all()], ["Coach Test"])
-        self.assertTrue(personas.ARCHIVE.endswith(os.path.join("personas", ".archive")))
-        self.assertTrue(personas.AUDITIONS.endswith(os.path.join("personas", ".auditions")))
         self.assertEqual(check.check_coaches(self.folder), [])
 
     def test_archived_coach_found_only_when_asked(self):

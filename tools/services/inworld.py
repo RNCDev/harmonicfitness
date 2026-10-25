@@ -51,7 +51,7 @@ def design(description, line, n=2, label=None):
     body = json.dumps({"designPrompt": description, "previewText": line, "languageCode": "EN_US",
                        "numberOfSamples": int(n)}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/voices/v1/voices:design", _headers(), body,
-                               timeout=180, service=SERVICE)
+                               timeout=180, service=SERVICE, idempotent=False)
     out = []
     for v in json.loads(data).get("previewVoices") or []:
         wav = base64.b64decode(v.get("previewAudio") or "")

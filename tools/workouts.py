@@ -40,6 +40,11 @@ def out_dir(draft, workouts=None):
     return os.path.join(workouts, "checks")
 
 
+def record_path(mp3):
+    """The build record beside an MP3 (or .m4a, .wav): <name>.build.json."""
+    return os.path.splitext(mp3)[0] + ".build.json"
+
+
 def _strip(name, suffixes):
     for s in suffixes:
         if name.endswith(s):

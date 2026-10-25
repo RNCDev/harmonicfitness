@@ -72,6 +72,14 @@ def staleness(menu: dict, today: Optional[str] = None, health_path: Optional[str
     return out
 
 
+def report_lines(draft_path: str, issues: List[str], warnings: List[str], declared: int) -> List[str]:
+    """The menu check as the lint and the build print it."""
+    if issues or warnings:
+        return [f"\nMenu check ({paths.show(os.path.abspath(draft.menu_path(draft_path)))}):"] \
+            + [f"  {i}" for i in issues] + [f"  warning: {w}" for w in warnings]
+    return [f"\nMenu check: every movement is on today's menu ({declared} declared)."]
+
+
 def gate(cat: catalog.Catalog, draft_path: str, text: str, segments, today: Optional[str] = None,
          health_path: Optional[str] = None, strict: bool = True, required: bool = True) -> Tuple[List[str], List[str]]:
     """(issues, warnings) for a draft against the menu beside it: the one entry point the build, the render and

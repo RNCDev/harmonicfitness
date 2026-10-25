@@ -44,7 +44,7 @@ def design(description, line, n=3, label=None):
         text = f"{text} {line}"
     body = json.dumps({"voice_description": description[:1000], "text": text[:1000]}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice/design?output_format=pcm_24000",
-                               _headers(), body, timeout=180, service=SERVICE)
+                               _headers(), body, timeout=180, service=SERVICE, idempotent=False)
     answer = json.loads(data)
     words = answer.get("text") or text[:1000]
     out = []
