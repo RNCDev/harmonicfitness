@@ -59,6 +59,7 @@ class Migrate4(unittest.TestCase):
         self.assertEqual((julius.settings["name"], julius.settings["aliases"]), ("Coach Julius", ["Chatterbox Coach", "Coach E"]))
         self.assertEqual((solo.settings["name"], solo.settings["aliases"]), ("Coach Solo", ["Qwen3 Coach", "Coach G"]))
         self.assertEqual((julius.settings["local"]["engine"], solo.settings["local"]["engine"]), ("chatterbox", "qwen3"))
+        self.assertEqual((julius.settings["schema"], julius.settings["kind"]), (5, "local"))   # on through to 10.0.0
         self.assertFalse(julius.settings["description"].lower().startswith("formerly"))
         keys = self.tool("import personas\nprint(personas.voice_for(personas.lookup('Coach Julius'), 'local')['key'],"
                          " personas.voice_for(personas.lookup('Coach Solo'), 'local')['key'])")

@@ -1,5 +1,6 @@
 +++
-schema = 4
+schema = 5
+kind = "local"
 name = "Coach Solo"
 aliases = ["Qwen3 Coach", "Coach G"]
 description = "man in his thirties, a focused class instructor. The clearest diction."

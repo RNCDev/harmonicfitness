@@ -322,11 +322,18 @@ def talk_rate(voice_name: str):
 
 
 def _coach_lines(name) -> List[str]:
-    """Who's coaching and how they talk: the coach's persona.md prose, as the profile's Narrator was."""
+    """Who's coaching and how they talk: the coach's [character] table, then its persona.md prose, as the
+    profile's Narrator was."""
     coach = _coach(name)
     if coach is None:
         return []
     out = [f"- Coach: {coach.name}" + (f" ({coach.description})" if coach.description else "")]
+    for key, value in coach.character.items():
+        text = "; ".join(str(v).strip() for v in value if str(v).strip()) if isinstance(value, list) \
+            else str(value).strip()
+        if text and not context.placeholder(text):
+            label = key.replace("_", " ").strip()
+            out.append(f"- {label[:1].upper() + label[1:]}: {text}")
     for line in coach.prose.splitlines():
         item = line.strip()
         key, _, value = item[2:].partition(":") if item.startswith("- ") else ("", "", "")

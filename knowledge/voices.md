@@ -22,8 +22,9 @@ me/personas/coach-maya/
 
 ```toml
 +++
-schema = 4
+schema = 5
 name = "Coach Maya"
+kind = "local"                 # or "web": a voice a web service designed
 aliases = []
 description = "A woman in her thirties, warm and mid-low, a strength coach."
 

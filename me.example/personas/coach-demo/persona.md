@@ -1,5 +1,6 @@
 +++
-schema = 4
+schema = 5
+kind = "local"
 name = "Coach Demo"
 placeholder = true
 description = "A stand-in coach to start with: a man in his forties, warm baritone, a seasoned trainer. Make your own any time (\"I want a new coach\")."

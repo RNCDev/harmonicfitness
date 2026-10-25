@@ -1,5 +1,6 @@
 +++
-schema = 4
+schema = 5
+kind = "local"
 name = "Coach Julius"
 aliases = ["Chatterbox Coach", "Coach E"]
 description = "man in his forties, warm baritone, a seasoned trainer talking to one client. The most natural delivery."

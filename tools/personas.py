@@ -11,6 +11,11 @@
 A coach is the same person on every engine: render.py gets a voice dict from voice_for(), with
 the clip, the engine's pinned model and the coach's own pace file, whichever route speaks it.
 A coach made for Deepgram's stock voices only (stock_only = true) has no clip, and renders only there.
+
+A web coach (kind = "web", schema 5) has no clip: a voice a service designed (service, voice_id, model,
+style), described by its [voice] table, with how it talks in [character], and the approved audition kept
+as sample.mp3. Coaches no longer in use move to personas/.archive/ (out of the list, still found by name
+for old log lines); auditions in progress live in personas/.auditions/. Every dot folder is left out.
 """
 import hashlib
 import json
@@ -27,6 +32,10 @@ import voices  # noqa: E402
 from paths import show  # noqa: E402
 
 LOCAL_ENGINES = ("chatterbox", "qwen3")
+ARCHIVE = os.path.join(paths.PERSONAS, ".archive")       # coaches no longer in use (found only when asked)
+AUDITIONS = os.path.join(paths.PERSONAS, ".auditions")   # auditions in progress
+WEB_SERVICES = ("fish", "elevenlabs", "gemini", "inworld")   # the order web stand-ins are tried in
+VOICE_PARTS = (("who", ""), ("sound", ""), ("energy", ""), ("pace", "Pace: "), ("avoid", "Avoid: "))
 
 
 def slug(name):
@@ -92,48 +101,162 @@ class Persona:
         t = self.settings.get(name)
         return t if isinstance(t, dict) else {}
 
+    @property
+    def kind(self):
+        """"web" (a voice a service designed) or "local" (a clip every engine copies)."""
+        return str(self.settings.get("kind") or "local")
+
+    @property
+    def is_web(self):
+        return self.kind == "web"
+
+    def _text(self, key):
+        v = self.settings.get(key)
+        return str(v) if v not in (None, "") else None
+
+    @property
+    def service(self):
+        return self._text("service")
+
+    @property
+    def voice_id(self):
+        return self._text("voice_id")
+
+    @property
+    def model(self):
+        """The service's model, or None for the default in knowledge/services.toml."""
+        return self._text("model")
+
+    @property
+    def style(self):
+        """Gemini only: a short constant style annotation, or empty."""
+        return str(self.settings.get("style") or "")
+
+    @property
+    def pending(self):
+        """What's still to do before this web coach can speak ("design"), or None."""
+        return self._text("pending")
+
+    @property
+    def voice(self):
+        """[voice]: what the services design or match from."""
+        return self.table("voice")
+
+    @property
+    def character(self):
+        """[character]: what the script writer follows."""
+        return self.table("character")
+
+    @property
+    def sample(self):
+        """The approved audition sample of a web coach."""
+        return os.path.join(self.folder, "sample.mp3")
+
 
 def load(folder):
     p = context.persona(os.path.join(folder, "persona.md"))
     return Persona(os.path.basename(folder), folder, p.settings, p.body)
 
 
+def _archive(folder=None):
+    return os.path.join(folder or paths.PERSONAS, ".archive")
+
+
 def all(folder=None):
-    """Every coach in me/personas/, by name."""
+    """Every coach in me/personas/, by name; dot folders (the archive, auditions) are left out."""
     folder = folder or paths.PERSONAS
     if not os.path.isdir(folder):
         return []
     found = [load(os.path.join(folder, d)) for d in os.listdir(folder)
-             if os.path.exists(os.path.join(folder, d, "persona.md"))]
+             if not d.startswith(".") and os.path.exists(os.path.join(folder, d, "persona.md"))]
     return sorted(found, key=lambda p: p.name.lower())
 
 
-def lookup(name, folder=None):
-    """A coach by folder name, name or alias, in any case. Stops with the coaches there are on a miss."""
-    found = all(folder)
+def _match(p, name):
     want = name.strip().lower()
+    return want in (p.slug, p.name.lower()) or p.slug == slug(name) or want in (a.lower() for a in p.aliases)
+
+
+def lookup(name, folder=None, archived=False):
+    """A coach by folder name, name or alias, in any case; with `archived`, the archive too (for names read
+    from the log). Stops with the coaches there are on a miss."""
+    found = all(folder)
     for p in found:
-        if want in (p.slug, p.name.lower()) or p.slug == slug(name) or want in (a.lower() for a in p.aliases):
+        if _match(p, name):
             return p
+    old = next((p for p in all(_archive(folder)) if _match(p, name)), None)
+    if old is not None and archived:
+        return old
     there = ", ".join(p.name for p in found) or "none yet (the coach skill makes one)"
+    if old is not None:
+        raise SystemExit(f"{old.name} is archived. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
     raise SystemExit(f"No coach '{name}'. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
 
 
+def archive(p):
+    """Move coach `p` to personas/.archive/ (out of the list, still found by lookup(archived=True)).
+    Returns its new folder."""
+    import shutil
+    base = os.path.join(os.path.dirname(p.folder), ".archive")
+    dest, n = os.path.join(base, p.slug), 2
+    while os.path.exists(dest):
+        dest, n = os.path.join(base, f"{p.slug}-{n}"), n + 1
+    os.makedirs(base, exist_ok=True)
+    shutil.move(p.folder, dest)
+    return dest
+
+
+def _usable_here(p):
+    """Whether stand-in `p` can speak on this computer: a web coach's service has a key, a local coach's
+    engine runs here."""
+    if p.is_web:
+        import keys
+        try:
+            return bool(p.service) and keys.is_set(p.service)
+        except SystemExit:   # a service this engine doesn't know
+            return False
+    import routes
+    return routes.usable("local", p)[0]
+
+
 def default(folder=None):
-    """The coach a build uses when none is named: the one used last (from the log), else the first that
-    isn't a stand-in (Coach Demo), else the first."""
+    """The coach a build uses when none is named: the one used last (from the log), stopping if that one
+    is archived; else the first that isn't a stand-in; else the first stand-in that can speak here (web
+    ones whose service has a key, in service order, then local ones); else the first."""
     found = all(folder)
     if not found:
         return None
+    archived = all(_archive(folder))
     try:
-        import context
-        for session in reversed(context.sessions(warn=False)):
-            for p in found:
-                if session.voice.strip().lower() in (p.name.lower(), p.slug, *(a.lower() for a in p.aliases)):
-                    return p
+        sessions = list(reversed(context.sessions(warn=False)))
     except SystemExit:   # no log yet, or one in an older format
-        pass
-    return next((p for p in found if not p.placeholder), found[0])
+        sessions = []
+    for session in sessions:
+        for p in found:
+            if _match(p, session.voice):
+                return p
+        old = next((p for p in archived if _match(p, session.voice)), None)
+        if old is not None:
+            raise SystemExit(f"{old.name} is archived; name a coach: {', '.join(p.name for p in found)}.")
+    own = next((p for p in found if not p.placeholder), None)
+    if own is not None:
+        return own
+    order = lambda p: (not p.is_web, WEB_SERVICES.index(p.service) if p.service in WEB_SERVICES else 99)
+    return next((p for p in sorted(found, key=order) if _usable_here(p)), found[0])
+
+
+def voice_description(voice):
+    """The design description a service gets, from a [voice] table: "{who}. {sound}. {energy}. Pace: {pace}.
+    Avoid: {avoid}." (empty parts left out)."""
+    parts = [(label, str(voice.get(key) or "").strip().rstrip(".")) for key, label in VOICE_PARTS]
+    return " ".join(f"{label}{text}." for label, text in parts if text)
+
+
+def web_key(p, model):
+    """A web coach's identity in every pace and cache key: its service, voice, `model`, style and settings."""
+    settings = json.dumps(p.table("settings"), sort_keys=True)
+    raw = f"{p.service or ''}|{p.voice_id or ''}|{model}|{p.style}|{settings}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
 
 
 def last_coach(folder=None):

@@ -155,7 +155,7 @@ def keep(take, name=None, words=None, description="", engine="chatterbox", force
     with open(clip_txt, "w", encoding="utf-8") as f:
         f.write(words.strip() + "\n")
     if not os.path.exists(persona_md):
-        settings = {"name": name, "description": description or meta.get("description", "")}
+        settings = {"name": name, "kind": "local", "description": description or meta.get("description", "")}
         if meta.get("description"):
             settings["designed_from"] = meta["description"]
         settings["local"] = {"engine": engine}

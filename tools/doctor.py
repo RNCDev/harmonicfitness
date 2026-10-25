@@ -166,7 +166,10 @@ def report_lines(f=None, home=None):
             prof = None
         out = web_lines(home, prof)
     else:
-        out = _models_section()
+        try:
+            out = _models_section()
+        except SystemExit as e:   # a coach file this engine can't read yet (./sweatcast migrate)
+            out = [f"Voice models (in {paths.show(paths.MODELS)})", f"  {e}"]
     out += ["", "Your context folder"]
     try:
         out += _context_lines(home)
@@ -192,9 +195,14 @@ def _route_lines(f, home):
     if os.path.abspath(home) != os.path.abspath(paths.HOME) or not os.path.exists(paths.PROFILE):
         return ["  (checked once the context folder is set up)"]
     p = context.profile()
-    coach = personas.default()
+    try:
+        coach, archived = personas.default(), None
+    except SystemExit as e:   # the coach used last is archived: report it, and the routes for no coach
+        coach, archived = None, str(e.code)
     lines = routes.report_lines(coach, context.routes(p), f)
-    if coach is None:
+    if archived:
+        lines.append(f"  {archived}")
+    if coach is None and not archived:
         lines.append("  No coach yet: the coach skill makes one (\"I want a new coach\").")
     if f.get("local") == "experimental":
         measured = None

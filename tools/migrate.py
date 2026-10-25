@@ -37,6 +37,12 @@ Steps:
         from the same date). Smoke tests, and anything that can't be placed for sure, go to
         workouts/checks/; each day's research sheet and feeds to workouts/research/daily/. Nothing
         is overwritten. The files' text changes only its schema number.
+
+Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own schema, migrated
+beside the context files, even when those are already current:
+    4 to 5 (sweatcast 10.0.0): web coaches. Each coach's settings gain `kind = "local"` after the
+        schema line; nothing else in the file changes. me/.gitignore keeps each web coach's
+        sample.mp3 and leaves out auditions in progress (personas/.auditions/).
 """
 import json
 import os
@@ -161,6 +167,23 @@ def _without_narrator(body):
 
 STEPS = {0: to_1, 1: to_2, 2: to_3, 3: to_4, 4: to_5}   # from schema N, the function that makes it N + 1
 
+
+def persona_to_5(text, path):
+    """A coach file, schema 4 to 5: `kind = "local"` after the schema line (unless it names a kind), as a
+    text edit, so every other byte stays as it was."""
+    m = context.TOML_FRONT_RE.match(text)
+    block = m.group(1) if m else ""
+    line = re.search(r"(?m)^schema\s*=\s*4\b.*$", block)
+    if not m or not line:
+        raise SystemExit(f"{show(path)}: no schema = 4 line in its settings block to migrate.")
+    kind = "" if re.search(r"(?m)^kind\s*=", block) else '\nkind = "local"'
+    new = block[:line.start()] + "schema = 5" + kind + block[line.end():]
+    context.tomllib.loads(new)   # never write a block that doesn't parse
+    return text[:m.start(1)] + new + text[m.end(1):]
+
+
+PERSONA_STEPS = {4: persona_to_5}   # coach files, from schema N
+
 # ---- 3 to 4: voices become coaches (a folder step, beside the file steps) -------------------
 
 V8_NAMES = {"chatterbox coach": ("Coach Julius", ["Chatterbox Coach", "Coach E"]),
@@ -170,6 +193,8 @@ GITIGNORE_ADD = ("# API keys for cloud voices (./sweatcast keys): never committe
                  "# Designed takes not kept, and stock-voice samples.", "personas/*/takes/", "personas/.samples/")
 GITIGNORE_ADD_5 = ("# A workout's web copy (Claude Code on the web) is kept: the private repo is how it reaches you.",
                    "!*.web-*.mp3")
+GITIGNORE_ADD_PERSONA_5 = ("# Each web coach's approved sample is kept; auditions in progress are not.",
+                           "!personas/*/sample.mp3", "personas/.auditions/")
 
 
 class NeedsName(Exception):
@@ -277,7 +302,7 @@ def make_coaches(home, plan, prose, pace_file):
             continue
         os.makedirs(folder, exist_ok=True)
         conf = (found or {}).get("conf") or {}
-        settings = {"name": new, "aliases": aliases, "description": description}
+        settings = {"name": new, "aliases": aliases, "kind": "local", "description": description}
         local = {"engine": conf.get("engine") or "chatterbox"}
         import voices
         pin = voices.LOCAL_MODELS.get((local["engine"], "mlx"))
@@ -319,39 +344,72 @@ def update_gitignore(home, add_lines=GITIGNORE_ADD):
             f.write(("" if have.endswith("\n") else "\n") + "\n".join(add) + "\n")
 
 
+def persona_files(home=None):
+    """Every coach file: personas/<coach>/persona.md and personas/.archive/<coach>/persona.md (not auditions)."""
+    out = []
+    folder = os.path.join(home or paths.HOME, "personas")
+    for where in (folder, os.path.join(folder, ".archive")):
+        if os.path.isdir(where):
+            out += sorted(os.path.join(where, d, "persona.md") for d in os.listdir(where)
+                          if not d.startswith(".") and os.path.exists(os.path.join(where, d, "persona.md")))
+    return out
+
+
+def _behind(path, current):
+    with open(path, encoding="utf-8") as f:
+        found = context.schema_of(f.read())
+    if found > current:
+        raise SystemExit(f"{show(path)} is schema {found}, newer than this engine (schema "
+                         f"{current}). Pull the latest sweatcast instead of migrating.")
+    return found if found < current else None
+
+
 def plan():
-    """[(path, from schema)] for each context file that's behind."""
+    """[(path, from schema)] for each context file that's behind, then each coach file that's behind
+    (coach files are at context.PERSONA_SCHEMA)."""
     out = []
     for path in context.files():
-        if not os.path.exists(path):
-            continue
-        with open(path, encoding="utf-8") as f:
-            found = context.schema_of(f.read())
-        if found > context.SCHEMA:
-            raise SystemExit(f"{show(path)} is schema {found}, newer than this engine (schema "
-                             f"{context.SCHEMA}). Pull the latest sweatcast instead of migrating.")
-        if found < context.SCHEMA:
+        if os.path.exists(path):
+            found = _behind(path, context.SCHEMA)
+            if found is not None:
+                out.append((path, found))
+    for path in persona_files():
+        found = _behind(path, context.PERSONA_SCHEMA)
+        if found is not None and found < min(PERSONA_STEPS):
+            raise SystemExit(f"{show(path)} is schema {found}, older than any coach file this engine migrates "
+                             f"(schema {min(PERSONA_STEPS)}): check its +++ settings block.")
+        if found is not None:
             out.append((path, found))
     return out
+
+
+def _is_persona(path):
+    return os.path.basename(path) == "persona.md"
 
 
 def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
     """Apply every step to every file that's behind. Returns (backup folder or None, [changed paths]).
     `report`, a list, gets the coaches made; `moves`, a list, the workout files moved (src, dst)."""
     todo = plan()
-    relayout = any(found < 5 for _, found in todo)
+    files = [(p, n) for p, n in todo if not _is_persona(p)]
+    coach_files = [(p, n) for p, n in todo if _is_persona(p)]
+    relayout = any(found < 5 for _, found in files)
     if not todo or dry_run:
-        if dry_run and todo:
-            _coach_plan(todo, names, report)
+        if dry_run and files:
+            _coach_plan(files, names, report)
             if relayout and moves is not None:
                 moves.extend(workouts.reorganize(paths.HOME, dry_run=True))
         return None, [p for p, _ in todo]
     home = paths.HOME
-    coach_plan = _coach_plan(todo, names)   # a voice that needs a name stops here, before anything changes
+    coach_plan = _coach_plan(files, names)   # a voice that needs a name stops here, before anything changes
     backup = os.path.join(home, f".backup-{stamp or time.strftime('%Y%m%d-%H%M%S')}")
     os.makedirs(backup, exist_ok=True)
-    for path, _ in todo:
+    for path, _ in files:
         shutil.copy2(path, os.path.join(backup, os.path.basename(path)))
+    for path, _ in coach_files:   # by their place in the folder: every coach's file is persona.md
+        dest = os.path.join(backup, os.path.relpath(path, home))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(path, dest)
     old_pace = os.path.join(home, "workouts", ".audio-cache", "voice-pace.json")
     if coach_plan is not None:   # never .env: the backup holds only what migrate changes
         for extra in (os.path.join(home, ".gitignore"), old_pace):
@@ -359,15 +417,21 @@ def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
                 shutil.copy2(extra, os.path.join(backup, os.path.basename(extra)))
         if os.path.isdir(paths.OLD_VOICES):
             shutil.copytree(paths.OLD_VOICES, os.path.join(backup, "voices"))
+    elif coach_files and os.path.exists(os.path.join(home, ".gitignore")):
+        shutil.copy2(os.path.join(home, ".gitignore"), os.path.join(backup, ".gitignore"))
     for path, found in todo:
         with open(path, encoding="utf-8") as f:
             text = f.read()
-        for n in range(found, context.SCHEMA):
-            if n == 3 and coach_plan is not None and os.path.basename(path) == "profile.md":
-                made = make_coaches(home, coach_plan, _narrator_prose(context.body(text)), old_pace)
-                if report is not None:
-                    report.extend(made)
-            text = STEPS[n](text, path)
+        if _is_persona(path):
+            for n in range(found, context.PERSONA_SCHEMA):
+                text = PERSONA_STEPS[n](text, path)
+        else:
+            for n in range(found, context.SCHEMA):
+                if n == 3 and coach_plan is not None and os.path.basename(path) == "profile.md":
+                    made = make_coaches(home, coach_plan, _narrator_prose(context.body(text)), old_pace)
+                    if report is not None:
+                        report.extend(made)
+                text = STEPS[n](text, path)
         tmp = path + ".part"
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(text)
@@ -383,6 +447,8 @@ def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
         moved = workouts.reorganize(home)
         if moves is not None:
             moves.extend(moved)
+    if coach_files or coach_plan is not None:
+        update_gitignore(home, GITIGNORE_ADD_PERSONA_5)
     return backup, [p for p, _ in todo]
 
 
@@ -428,7 +494,8 @@ def main(argv=None):
         print(f"{show(paths.HOME)} is already at schema {context.SCHEMA}; nothing to do.")
     else:
         for path, found in todo:
-            print(f"{show(path)}: schema {found} to {context.SCHEMA}")
+            print(f"{show(path)}: schema {found} to "
+                  f"{context.PERSONA_SCHEMA if _is_persona(path) else context.SCHEMA}")
         report, moves = [], []
         if args.dry_run:
             migrate(dry_run=True, names=names, report=report, moves=moves)

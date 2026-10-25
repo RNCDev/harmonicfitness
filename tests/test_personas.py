@@ -255,6 +255,189 @@ class Coaches(unittest.TestCase):
             coaches.main(["set", "Coach Test", "local.engine", "omnivoice"])
 
 
+MAYA = '''+++
+schema = 5
+name = "Coach Maya"
+aliases = []
+kind = "web"                     # web | local (local keeps today's clip files)
+service = "inworld"              # fish | elevenlabs | gemini | inworld
+voice_id = "funky-finch-6967__design-voice-a5809f1c"
+model = "inworld-tts-2"          # optional; default from knowledge/services.toml
+style = ""                       # Gemini only: a short constant style annotation, or empty
+made = "2026-10-25"
+
+[voice]                          # what the services design or match from
+who = "A woman in her thirties, a strength coach"
+sound = "Warm, mid-low, American accent, crisp diction"
+energy = "Steady, calm authority"
+pace = "Natural; brisk during work"
+avoid = "Hype, shouting, announcer voice, sleepy delivery"
+
+[character]                      # what the script writer follows (the brief quotes it)
+background = "Ten years coaching clients one on one"
+calls_you = "Alex"
+encouragement = "Notices effort plainly; says why a movement is there"
+pushes = "Asks for one more only when form is clean; backs off at pain"
+humor = "Dry, now and then"
+cueing = "Short body cues and breath; counts only on timed work"
+signature = ["Stay with it.", "That's the pace we want."]
+never_says = ["Crush it", "Beast mode", "No pain, no gain"]
+sign_off = "Brief and warm; names one thing done well"
++++
+Free notes on how this coach talks.
+'''
+
+
+def write_persona(folder, slug_, text):
+    os.makedirs(os.path.join(folder, slug_), exist_ok=True)
+    with open(os.path.join(folder, slug_, "persona.md"), "w", encoding="utf-8") as f:
+        f.write(text)
+    return os.path.join(folder, slug_)
+
+
+def web_placeholder(name, service):
+    return context.persona_text({"name": name, "kind": "web", "service": service, "placeholder": True,
+                                 "pending": "design"}, "## How this coach talks\n")
+
+
+class WebCoaches(unittest.TestCase):
+    """Schema 5: web coaches (kind, service, voice_id, [voice], [character]) and the archive."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        self.folder = persona_home(self.d)
+        self.env = os.path.join(self.d, ".env")
+        patches = [mock.patch.object(personas.paths, "PERSONAS", self.folder),
+                   mock.patch.object(personas.paths, "ENV_FILE", self.env),
+                   mock.patch.dict(os.environ, {k: v for k, v in os.environ.items()
+                                                if not k.endswith("_API_KEY")}, clear=True)]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def maya(self):
+        write_persona(self.folder, "coach-maya", MAYA)
+        return personas.lookup("Coach Maya")
+
+    def test_web_persona_fields(self):
+        p = self.maya()
+        self.assertEqual((p.kind, p.service, p.voice_id, p.model, p.style, p.pending),
+                         ("web", "inworld", "funky-finch-6967__design-voice-a5809f1c", "inworld-tts-2", "", None))
+        self.assertTrue(p.is_web)
+        self.assertEqual(p.character["signature"], ["Stay with it.", "That's the pace we want."])
+        self.assertEqual(p.voice["who"], "A woman in her thirties, a strength coach")
+        self.assertEqual(p.sample, os.path.join(self.folder, "coach-maya", "sample.mp3"))
+        again = context.persona_text(p.settings, p.prose)
+        self.assertEqual(context.tomllib.loads(context.TOML_FRONT_RE.match(again).group(1)), p.settings)
+        self.assertTrue(again.endswith("Free notes on how this coach talks.\n"))
+        local = personas.lookup("Coach Test")
+        self.assertEqual((local.kind, local.is_web, local.service, local.voice_id, local.model, local.style,
+                          local.voice, local.character), ("local", False, None, None, None, "", {}, {}))
+
+    def test_voice_description_joins_the_voice_table(self):
+        self.assertEqual(personas.voice_description(self.maya().voice),
+                         "A woman in her thirties, a strength coach. Warm, mid-low, American accent, crisp diction. "
+                         "Steady, calm authority. Pace: Natural; brisk during work. Avoid: Hype, shouting, "
+                         "announcer voice, sleepy delivery.")
+        self.assertEqual(personas.voice_description({"who": "A man", "energy": "", "avoid": "Hype"}),
+                         "A man. Avoid: Hype.")
+
+    def test_web_key_changes_with_voice_id_model_and_style(self):
+        p = self.maya()
+        key = personas.web_key(p, "inworld-tts-2")
+        self.assertRegex(key, r"^[0-9a-f]{12}$")
+        self.assertEqual(key, personas.web_key(p, "inworld-tts-2"))
+        self.assertNotEqual(key, personas.web_key(p, "inworld-tts-2-flash"))
+        for k, v in (("voice_id", "another-voice"), ("style", "Warm and close.")):
+            context.set_persona_setting(p.path, None, k, v)
+            changed = personas.lookup("Coach Maya")
+            self.assertNotEqual(key, personas.web_key(changed, "inworld-tts-2"), k)
+            key = personas.web_key(changed, "inworld-tts-2")
+
+    def test_all_skips_dot_folders(self):
+        write_persona(os.path.join(self.folder, ".archive"), "x", web_placeholder("Coach X", "fish"))
+        write_persona(os.path.join(self.folder, ".auditions"), "y", web_placeholder("Coach Y", "fish"))
+        self.assertEqual([p.name for p in personas.all()], ["Coach Test"])
+        self.assertTrue(personas.ARCHIVE.endswith(os.path.join("personas", ".archive")))
+        self.assertTrue(personas.AUDITIONS.endswith(os.path.join("personas", ".auditions")))
+        self.assertEqual(context.check_coaches(self.folder), [])
+
+    def test_archived_coach_found_only_when_asked(self):
+        persona_home(self.d, ("Coach Julius", {"aliases": ["Chatterbox Coach"]}))
+        moved = personas.archive(personas.lookup("Coach Julius"))
+        self.assertEqual(moved, os.path.join(self.folder, ".archive", "coach-julius"))
+        self.assertTrue(os.path.exists(os.path.join(moved, "persona.md")))
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "coach-julius")))
+        with self.assertRaises(SystemExit):
+            personas.lookup("Coach Julius")
+        self.assertEqual(personas.lookup("Coach Julius", archived=True).folder, moved)
+        self.assertEqual(personas.lookup("chatterbox coach", archived=True).name, "Coach Julius")
+        self.assertEqual(personas.lookup("Coach Test", archived=True).name, "Coach Test")   # active still found
+        persona_home(self.d, ("Coach Julius", {}))   # a second coach of the same name archives beside it
+        self.assertEqual(personas.archive(personas.lookup("Coach Julius")),
+                         os.path.join(self.folder, ".archive", "coach-julius-2"))
+
+    def test_default_stops_when_last_coach_is_archived(self):
+        persona_home(self.d, ("Coach Julius", {}), ("Coach Maya", {}))
+        personas.archive(personas.lookup("Coach Julius"))
+        used = [mock.Mock(voice="Coach Maya"), mock.Mock(voice="Coach Julius")]
+        with mock.patch.object(context, "sessions", return_value=used):
+            with self.assertRaises(SystemExit) as e:
+                personas.default()
+        message = str(e.exception.code)
+        self.assertIn("Coach Julius is archived", message)
+        self.assertIn("Coach Maya", message)
+        self.assertIn("Coach Test", message)
+        with mock.patch.object(context, "sessions", return_value=used[:1]):
+            self.assertEqual(personas.default().name, "Coach Maya")
+
+    def test_default_prefers_a_usable_web_default(self):
+        import routes
+        folder = os.path.join(self.d, "only-placeholders")
+        demo = write_persona(folder, "coach-demo", context.persona_text(
+            {"name": "Coach Demo", "kind": "local", "placeholder": True}, "## How this coach talks\n"))
+        shutil.copy(os.path.join(FIXTURE, "coach-test", "clip.wav"), os.path.join(demo, "clip.wav"))
+        shutil.copy(os.path.join(FIXTURE, "coach-test", "clip.txt"), os.path.join(demo, "clip.txt"))
+        write_persona(folder, "coach-ellis", web_placeholder("Coach Ellis", "elevenlabs"))
+        write_persona(folder, "coach-reed", web_placeholder("Coach Reed", "fish"))
+        no_local = mock.patch.object(routes, "usable", return_value=(False, "local: not here"))
+        with mock.patch.object(context, "sessions", return_value=[]), no_local:
+            self.assertEqual(personas.default(folder).name, "Coach Demo")   # nothing usable: the first
+            with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}):
+                self.assertEqual(personas.default(folder).name, "Coach Reed")
+                shutil.copytree(os.path.join(FIXTURE, "coach-test"), os.path.join(folder, "coach-test"))
+                self.assertEqual(personas.default(folder).name, "Coach Test")   # a coach of their own wins
+        with mock.patch.object(context, "sessions", return_value=[]), \
+                mock.patch.object(routes, "usable", return_value=(True, "")):
+            shutil.rmtree(os.path.join(folder, "coach-test"))
+            self.assertEqual(personas.default(folder).name, "Coach Demo")   # local works: Coach Demo
+
+    def test_schema_4_persona_says_migrate(self):
+        path = os.path.join(write_persona(self.folder, "coach-old", '+++\nschema = 4\nname = "Coach Old"\n+++\n'),
+                            "persona.md")
+        with self.assertRaises(SystemExit) as e:
+            context.persona(path)
+        self.assertIn("./sweatcast migrate", str(e.exception.code))
+        issues = context.check_coaches(self.folder)
+        self.assertTrue(any("./sweatcast migrate" in i.message and not i.note for i in issues), issues)
+
+    def test_check_web_coach(self):
+        write_persona(self.folder, "coach-new", context.persona_text(
+            {"name": "Coach New", "kind": "web", "service": "fish"}, "## How this coach talks\n"))
+        issues = context.check_coaches(self.folder)
+        self.assertEqual(len(issues), 1, issues)
+        self.assertFalse(issues[0].note)
+        self.assertIn("voice", issues[0].message)
+        self.assertNotIn("clip", issues[0].message)
+        context.set_persona_setting(issues[0].path, None, "pending", "design")
+        issues = context.check_coaches(self.folder)
+        self.assertEqual(len(issues), 1, issues)
+        self.assertTrue(issues[0].note)
+        self.maya()
+        self.assertEqual(len(context.check_coaches(self.folder)), 1)   # Maya has her voice: nothing to say
+
+
 class CoachDemo(unittest.TestCase):
     """Coach Demo ships in me.example/ with its pace measured, as a stand-in until the listener makes one."""
     DEMO = os.path.join(ROOT, "me.example", "personas")

@@ -143,5 +143,80 @@ class Migrate5(unittest.TestCase):
         self.assertIn("already at schema 5", out.stdout)
 
 
+OLD_PERSONA = """+++
+schema = 4
+name = "Coach Old"
+aliases = ["Old Voice"]   # kept as written
+
+# How this coach sounds on this computer: engine chatterbox (most natural) or qwen3 (clearest; Mac only).
+[local]
+engine = "chatterbox"
++++
+## How this coach talks
+- Tone: calm.   Spacing   kept.
+"""
+
+
+class MigratePersonas(unittest.TestCase):
+    """Coach files from schema 4 to 5: `kind = "local"`, even when the context files are already at 5."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        self.home = os.path.join(self.d, "me")
+        shutil.copytree(os.path.join(ROOT, "me.example"), self.home)
+        self.paths = [os.path.join(self.home, "personas", "coach-old", "persona.md"),
+                      os.path.join(self.home, "personas", ".archive", "coach-older", "persona.md")]
+        for path in self.paths:
+            touch(path, OLD_PERSONA)
+        touch(os.path.join(self.home, "workouts", "x.txt"))   # a 4.x layout would move this to checks/
+
+    def migrate(self, *args):
+        env = dict(os.environ, SWEATCAST_HOME=self.home)
+        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
+                              capture_output=True, text=True, timeout=120)
+
+    def test_migrate_adds_kind_to_every_persona_including_archive(self):
+        out = self.migrate("--dry-run")
+        self.assertIn("coach-old", out.stdout, out.stdout + out.stderr)
+        with open(self.paths[0], encoding="utf-8") as f:
+            self.assertEqual(f.read(), OLD_PERSONA)
+        out = self.migrate()
+        self.assertIn("Backed up the originals", out.stdout, out.stdout + out.stderr)
+        want = OLD_PERSONA.replace("schema = 4\n", 'schema = 5\nkind = "local"\n', 1)
+        for path in self.paths:
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), want, path)
+        backup = [d for d in os.listdir(self.home) if d.startswith(".backup-")]
+        self.assertEqual(len(backup), 1)
+        with open(os.path.join(self.home, backup[0], "personas", ".archive", "coach-older", "persona.md"),
+                  encoding="utf-8") as f:
+            self.assertEqual(f.read(), OLD_PERSONA)
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "x.txt")))   # no relayout
+        out = self.migrate()
+        self.assertIn("nothing to do", out.stdout, out.stdout + out.stderr)
+        self.assertEqual(len([d for d in os.listdir(self.home) if d.startswith(".backup-")]), 1)
+
+    def test_migrate_adds_the_sample_and_audition_ignore_rules(self):
+        ignore = os.path.join(self.home, ".gitignore")
+        with open(ignore, encoding="utf-8") as f:
+            text = f.read()
+        with open(ignore, "w", encoding="utf-8") as f:   # as 9.x wrote it
+            f.write("\n".join(ln for ln in text.splitlines()
+                              if ln not in ("!personas/*/sample.mp3", "personas/.auditions/")) + "\n")
+        self.migrate()
+        with open(ignore, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        self.assertIn("personas/.auditions/", lines)
+        self.assertGreater(lines.index("!personas/*/sample.mp3"), lines.index("*.mp3"))
+        with open(os.path.join(ROOT, "me.example", ".gitignore"), encoding="utf-8") as f:
+            shipped = f.read().splitlines()
+        self.assertIn("personas/.auditions/", shipped)
+        self.assertGreater(shipped.index("!personas/*/sample.mp3"), shipped.index("*.mp3"))
+        before = open(ignore, encoding="utf-8").read()
+        self.migrate()
+        self.assertEqual(open(ignore, encoding="utf-8").read(), before)   # added once
+
+
 if __name__ == "__main__":
     unittest.main()

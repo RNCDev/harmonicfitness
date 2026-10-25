@@ -61,6 +61,25 @@ class Brief(unittest.TestCase):
         self.assertIn("- Coach: Coach Solo (A coach for the tests.)", r.stdout)
         self.assertIn("- Tone: calm and focused.", r.stdout)
 
+    def test_brief_quotes_the_character_table(self):
+        import brief as brief_tool
+        from unittest import mock
+        import paths
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        os.makedirs(os.path.join(d, "coach-maya"))
+        settings = {"name": "Coach Maya", "kind": "web", "service": "inworld", "voice_id": "v1",
+                    "voice": {"who": "A woman in her thirties"},
+                    "character": {"calls_you": "Alex", "humor": "Dry, now and then", "cueing": "",
+                                  "signature": ["Stay with it.", "That's the pace we want."]}}
+        with open(os.path.join(d, "coach-maya", "persona.md"), "w", encoding="utf-8") as f:
+            f.write(context.persona_text(settings, "Free notes.\n- Tone: calm and focused.\n"))
+        with mock.patch.object(paths, "PERSONAS", d):
+            lines = brief_tool._coach_lines("Coach Maya")
+        self.assertEqual(lines, ["- Coach: Coach Maya", "- Calls you: Alex", "- Humor: Dry, now and then",
+                                 "- Signature: Stay with it.; That's the pace we want.",
+                                 "- Tone: calm and focused."])
+
     def test_writing_it_gives_the_voices_words_a_minute(self):
         r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--coach", "Qwen3 Coach")
         self.assertEqual(r.returncode, 0, r.stderr)

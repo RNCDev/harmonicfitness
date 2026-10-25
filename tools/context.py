@@ -50,7 +50,7 @@ import paths  # noqa: E402
 from paths import show  # noqa: E402
 
 SCHEMA = 5
-PERSONA_SCHEMA = 4   # me/personas/<slug>/persona.md, new in sweatcast 9
+PERSONA_SCHEMA = 5   # me/personas/<slug>/persona.md, new in sweatcast 9; 5 (10.0.0) adds kind and web coaches
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
 SCHEMA_LINE_RE = re.compile(r"^schema:\s*(\d+)\s*$", re.MULTILINE)
@@ -430,6 +430,9 @@ PERSONA_COMMENTS = {
     "elevenlabs": "ElevenLabs: eleven_multilingual_v2 (more natural) or eleven_flash_v2_5 (cheaper).",
     "cartesia": "Cartesia: the model.",
     "deepgram": "Deepgram has stock voices only, so the coach sounds different there: the voice's name.",
+    "voice": "How this coach sounds: what a web service designs the voice from (an edit means a new audition).",
+    "character": "How this coach talks: what the script writer follows (the brief quotes it); edit freely.",
+    "settings": "The web service's own voice settings, sent with every request.",
 }
 
 
@@ -439,12 +442,15 @@ def persona(path):
     settings, rest = front(text)
     found = settings.get("schema")
     if found != PERSONA_SCHEMA:
-        raise SystemExit(f"{show(path)} is schema {found}; this engine reads coaches at schema {PERSONA_SCHEMA}.")
+        older = isinstance(found, int) and found < PERSONA_SCHEMA
+        raise SystemExit(f"{show(path)} is schema {found}; this engine reads coaches at schema {PERSONA_SCHEMA}: "
+                         + ("run ./sweatcast migrate." if older else "pull the latest sweatcast."))
     return Persona(settings, rest, path)
 
 
 def persona_text(settings, prose):
-    """A persona.md: the settings block (plain keys, then one [table] per engine), then the prose."""
+    """A persona.md: the settings block (plain keys, then one [table] each: an engine's, [voice], [character]),
+    then the prose."""
     plain = {k: v for k, v in settings.items() if k != "schema" and not isinstance(v, dict)}
     tables = {k: v for k, v in settings.items() if isinstance(v, dict)}
     out = [f"schema = {PERSONA_SCHEMA}"] + [f"{k} = {toml_value(v)}" for k, v in plain.items()]
@@ -980,11 +986,12 @@ def check(home_files=None):
 
 
 def check_coaches(folder=None):
-    """[Issue] for the coaches in me/personas/: none yet, a persona.md the tools can't read, a missing clip,
-    and how-they-talk lines still showing the template's [hint]."""
+    """[Issue] for the coaches in me/personas/ (not the archive or auditions): none yet, a persona.md the tools
+    can't read, a local coach's missing clip, a web coach with no voice (a note while one is pending), and
+    how-they-talk lines still showing the template's [hint]."""
     folder = folder or paths.PERSONAS
-    found = sorted(d for d in os.listdir(folder) if os.path.exists(os.path.join(folder, d, "persona.md"))) \
-        if os.path.isdir(folder) else []
+    found = sorted(d for d in os.listdir(folder) if not d.startswith(".")
+                   and os.path.exists(os.path.join(folder, d, "persona.md"))) if os.path.isdir(folder) else []
     if not found:
         return [Issue(folder, 0, "no coach yet: the coach skill makes one (\"I want a new coach\"), or "
                                  "./sweatcast coaches design")]
@@ -996,7 +1003,15 @@ def check_coaches(folder=None):
         except SystemExit as e:
             out.append(Issue(path, 0, str(e.code)))
             continue
-        if not p.settings.get("stock_only") and not all(
+        if p.settings.get("kind") == "web":
+            name = p.settings.get("name") or slug
+            if p.settings.get("pending"):
+                out.append(Issue(path, 0, f"{name} has no voice yet ({p.settings['pending']} pending): the coach "
+                                          "skill auditions one", note=True))
+            elif not p.settings.get("voice_id"):
+                out.append(Issue(path, 0, f"{name} is a web coach with no voice_id: audition a voice and keep one "
+                                          "(the coach skill)"))
+        elif not p.settings.get("stock_only") and not all(
                 os.path.exists(os.path.join(folder, slug, f)) for f in ("clip.wav", "clip.txt")):
             out.append(Issue(path, 0, "no clip.wav and clip.txt beside it: keep a take or bring a clip "
                                       "(./sweatcast coaches keep)"))
