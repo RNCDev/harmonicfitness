@@ -380,6 +380,19 @@ class WebCoaches(unittest.TestCase):
             shutil.copytree(os.path.join(FIXTURE, "coach-test"), os.path.join(folder, "coach-test"))
             self.assertEqual(personas.default(folder).name, "Coach Test")   # a coach of their own wins
 
+    def test_own_coach_beats_a_stand_in_only_when_it_can_speak_here(self):
+        import routes
+        folder = os.path.join(self.d, "web-session")
+        write_persona(folder, "coach-reed", web_placeholder("Coach Reed", "fish"))
+        shutil.copytree(os.path.join(FIXTURE, "coach-test"), os.path.join(folder, "coach-test"))   # a local coach
+        used = [mock.Mock(voice="Coach Reed")]
+        with mock.patch.object(context, "sessions", return_value=used), \
+                mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}):
+            with mock.patch.object(routes, "usable", return_value=(False, "local: not here")):
+                self.assertEqual(personas.default(folder).name, "Coach Reed")   # their own can't speak here
+            with mock.patch.object(routes, "usable", return_value=(True, "")):
+                self.assertEqual(personas.default(folder).name, "Coach Test")
+
     def test_default_prefers_a_usable_web_default(self):
         import routes
         folder = os.path.join(self.d, "only-placeholders")

@@ -123,7 +123,7 @@ def pick(preferences, persona=None, override=None, facts=None):
         if ok:
             return "local"
         lines = [reason]
-        if persona.has_clip:   # local voices don't run here: name the way to a coach that speaks here
+        if persona.has_clip and _facts(facts).get("local") == "no":   # name the way to a coach that speaks here
             lines.append(f"{persona.name} is a local coach, and local voices don't run here. The way out: "
                          + way_out())
         raise SystemExit(f"No audio route works on this computer for {persona.name}:\n  " + "\n  ".join(lines))
@@ -158,14 +158,14 @@ def way_out(folder=None):
         for s in keyed:
             p = shipped[s]
             uses.append(f"{p.name} ({_service_name(s)}): " + (f"build with --coach \"{p.name}\"" if p.name in have
-                        else f"copy {paths.show(p.folder)}/ into {paths.show(folder)}/, then build with "
+                        else f"copy {paths.show(p.path)} to {paths.show(os.path.join(folder, p.slug, 'persona.md'))}, then build with "
                              f"--coach \"{p.name}\""))
         return f"{make}, or use the stand-in for a service with a key here: " + "; ".join(uses) + "."
     add = ("set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
            else "./sweatcast keys init <service>, then paste the key into the file")
     names = ", ".join(f"{shipped[s].name} ({_service_name(s)})" for s in SERVICES if s in shipped)
     return (f"{make}, or add a service's key ({add}) and use its stand-in: {names} (in "
-            f"{paths.show(os.path.join(paths.EXAMPLE, 'personas'))}/; copy its folder into "
+            f"{paths.show(os.path.join(paths.EXAMPLE, 'personas'))}/; copy its persona.md to the same place in "
             f"{paths.show(folder)}/ if your coaches don't have it).")
 
 

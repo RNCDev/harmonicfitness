@@ -145,8 +145,17 @@ class Routes(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("local coach", reason)
         with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(SystemExit) as e:
-            routes.pick(["fish"], self.coach, facts=MAC)
+            routes.pick(["fish"], self.coach, facts=INTEL_MAC)
         self.assertIn("local coach", str(e.exception.code))
+
+    def test_way_out_only_where_local_voices_dont_run(self):
+        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(SystemExit) as e:
+            routes.pick(["local"], self.coach, facts=MAC)   # runs here, just not installed
+        self.assertIn("./sweatcast setup --local", str(e.exception.code))
+        self.assertNotIn("The way out", str(e.exception.code))
+        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(SystemExit) as e:
+            routes.pick(["local"], self.coach, facts=INTEL_MAC)
+        self.assertIn("The way out", str(e.exception.code))
 
     def test_local_coach_tries_local_when_the_render_list_names_none(self):
         self.key("fish")

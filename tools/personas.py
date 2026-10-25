@@ -213,7 +213,7 @@ def _usable_here(p):
 
 def default(folder=None):
     """The coach a build uses when none is named: the one used last (from the log), stopping if that one
-    is archived, and passing over a stand-in used last once the listener has a coach of their own; else the
+    is archived, and passing over a stand-in used last for a coach of the listener's own that can speak here; else the
     first that isn't a stand-in; else the first stand-in that can speak here (web ones whose service has a
     key, in service order, then local ones); else the first."""
     found = all(folder)
@@ -224,14 +224,17 @@ def default(folder=None):
         sessions = list(reversed(context.sessions(warn=False)))
     except SystemExit:   # no log yet, or one in an older format
         sessions = []
-    own = next((p for p in found if not p.placeholder), None)
     for session in sessions:
         for p in found:
             if _match(p, session.voice):
-                return own if p.placeholder and own is not None else p   # their own coach beats a stand-in
+                if p.placeholder:   # their own coach beats a stand-in used last, if it can speak here
+                    own = next((o for o in found if not o.placeholder and _usable_here(o)), None)
+                    return own or p
+                return p
         old = next((p for p in archived if _match(p, session.voice)), None)
         if old is not None:
             raise SystemExit(f"{old.name} is archived; name a coach: {', '.join(p.name for p in found)}.")
+    own = next((p for p in found if not p.placeholder), None)
     if own is not None:
         return own
     order = lambda p: (not p.is_web, WEB_SERVICES.index(p.service) if p.service in WEB_SERVICES else 99)
