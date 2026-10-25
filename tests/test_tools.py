@@ -3,7 +3,9 @@ no network. Python 3.11 or later (the project's environment).
 
     ./sweatcast test        # or, in CI: python -m unittest discover tests
 """
+import contextlib
 import datetime as dt
+import io
 import glob
 import shutil
 import subprocess
@@ -1640,6 +1642,19 @@ class Wrapper(unittest.TestCase):
                                  "--movements", "squat", "--topics", "t", home=home)
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertEqual(len(context.sessions(os.path.join(home, "log.md"))), 1)
+
+    def test_show_opens_a_files_folder(self):
+        import player
+        from unittest import mock
+        self.assertEqual(self.sweatcast("show", "/no/such/workout.mp3").returncode, cli.ISSUES)
+        self.assertEqual(self.sweatcast("show").returncode, cli.USAGE)
+        with tempfile.NamedTemporaryFile(suffix=".mp3") as f, \
+                mock.patch.object(player.sys, "platform", "darwin"), \
+                mock.patch.object(player.shutil, "which", return_value="/usr/bin/open"), \
+                mock.patch.object(player.subprocess, "call", return_value=0) as call:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(player.main([f.name]), 0)
+            call.assert_called_once_with(["/usr/bin/open", "-R", os.path.abspath(f.name)])
 
     def test_without_an_environment_it_says_run_setup(self):
         out = run(["sh", "sweatcast", "check"], env={"SWEATCAST_PYTHON": "/nonexistent/python"})

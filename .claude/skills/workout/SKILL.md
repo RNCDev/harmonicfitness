@@ -86,7 +86,7 @@ Check it with `--lint-only` first, then run it with `run_in_background: true` (a
 
 ## 7. Deliver, log, back up
 
-- Chat: the plan table, equipment, coach, route, runtime, the path to `me/workouts/<stem>/<name>.txt`, and where the MP3 went. If SendUserFile is available, send the MP3 with `status: "proactive"`.
+- Chat: the plan table, equipment, coach, route, runtime, the path to `me/workouts/<stem>/<name>.txt`, and where the MP3 went. If SendUserFile is available, send the MP3 with `status: "proactive"`. Otherwise, if it stayed here, `./sweatcast show "<the MP3>"` opens its folder.
 - **On Claude Code on the web:** publish the player page with the Artifact tool, as made (it already follows the page contract): `file_path` the `.player.html`, `files` mapping each part's file name to its path, `icon` "audio", a description naming the workout. Give the listener the link: they open it on their phone, press play and put it away. Where the Artifact tool isn't available, or it refuses, say the parts reach their private repo with the backup below (the `workouts/<stem>/` folder on GitHub), and send the first part with SendUserFile if that's available. A one-time session (doctor said the context folder isn't kept) says once that nothing else is kept.
 - Log it with one command, never by hand:
   ```

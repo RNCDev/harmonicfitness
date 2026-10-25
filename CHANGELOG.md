@@ -2,6 +2,20 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [10.4.0] - 2026-10-25
+
+Onboarding is tidied for the two ways people actually start: a developer in an IDE or terminal, and a friend with the Claude desktop app. Claude Code on the web no longer sets up a new listener.
+
+### Added
+- **`./sweatcast show <file>`** opens the folder holding a file with it selected (Finder, Explorer or the file manager). Setup and the workout skill use it when the MP3 or a test clip can't be sent into the chat, so a listener never gets just a path.
+- **Send this to a friend:** a README section with a message to paste to someone who has the Claude desktop app.
+
+### Changed
+- **The desktop path, step by step.** The README's Start here says which folder to pick when the Code tab asks (the home folder), to click Allow, and how to start the second session in the new `sweatcast` folder; the For Claude handoff uses the same literal steps.
+- **One recommended voice service.** When a web coach is needed, setup recommends Fish Audio for a first key and walks through it with links (sign up, add credit, make a key), listing the other three with their key pages as more choices.
+- **The phone folder comes right after the first workout,** as one question (iCloud Drive, Google Drive, Dropbox, or keep them on this computer), instead of waiting for "finish setting me up".
+- **Claude Code on the web doesn't set up a new listener.** Setup and the README's For Claude section point to the desktop app instead. A listener already set up, with their private context repo attached, keeps working there.
+
 ## [10.3.0] - 2026-10-25
 
 A new listener hears their stand-in coach before the first workout, and coach folders say where each coach speaks.
