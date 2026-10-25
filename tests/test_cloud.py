@@ -786,6 +786,15 @@ class CloudRender(unittest.TestCase):
         e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
         e.update({"SWEATCAST_HOME": self.home, f"SWEATCAST_{service.upper()}_URL": url,
                   keys.SERVICE_VARS[service]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})
+        if not shutil.which("ffmpeg"):
+            # CI has no ffmpeg: a stand-in passes the render's preflight, so the tests that stop before
+            # the encode run there too (the ones that encode skip without a real one)
+            stub = os.path.join(self.d, "bin")
+            os.makedirs(stub, exist_ok=True)
+            with open(os.path.join(stub, "ffmpeg"), "w") as f:
+                f.write("#!/bin/sh\nexit 1\n")
+            os.chmod(os.path.join(stub, "ffmpeg"), 0o755)
+            e["PATH"] = stub + os.pathsep + e.get("PATH", "")
         sys.path.insert(0, os.path.join(ROOT, "tests"))
         import helpers
         draft_path = helpers.draft_with_menu(DRAFT, os.path.join(self.d, "cloud.draft.txt"), self.home)
