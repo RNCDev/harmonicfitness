@@ -276,9 +276,11 @@ def estimate(service, model, texts):
     return chars, units * rate(service, model) / 1e6
 
 
-def voice_for(p, route=None):
+def voice_for(p, route=None, pending=False):
     """The voice dict for web coach `p`: its saved voice on its own service (`route` is ignored; a web coach
-    speaks only through the service that made it). No key in it, and no clip: the service holds the voice."""
+    speaks only through the service that made it). No key in it, and no clip: the service holds the voice.
+    With `pending`, a coach still to be made (no voice yet) gets a voice dict with no voice ID, for the
+    lint's and the brief's estimated pace only; nothing renders from it."""
     import personas
     if not p.is_web:
         raise SystemExit(f"{p.name} is a local coach: a local coach renders only locally.")
@@ -286,7 +288,7 @@ def voice_for(p, route=None):
     if service not in services():
         raise SystemExit(f"{p.name} names no known web service ({service or 'none'}); "
                          f"the services: {', '.join(services())}.")
-    if not p.voice_id:
+    if not p.voice_id and not (pending and p.pending):
         raise SystemExit(f"{p.name} has no voice yet" + (f" ({p.pending} pending)" if p.pending else "")
                          + ": audition one and keep it (the coach skill).")
     s = services()[service]

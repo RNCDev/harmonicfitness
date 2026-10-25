@@ -4,7 +4,7 @@ schema = 5
 name = "Theo"
 # The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
 words_per_minute = 165
-# How workouts become audio, in order of preference: local (this computer's own engine) or a cloud voice (fish, elevenlabs, cartesia, deepgram) with its key in me/.env. Each build uses the first that works on the computer it runs on.
+# How a local coach's workouts become audio, in order of preference: local engines only (local: this computer's own engine; each build uses the first that works on the computer it runs on). A web coach always speaks through its own service (fish, elevenlabs, gemini or inworld), with its key in me/.env.
 render = ["local"]
 # Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.
 experience = "experienced"

@@ -420,7 +420,7 @@ class FreshFork(unittest.TestCase):
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
             self.assertEqual(context.voices(prof), [])
             self.assertEqual(context.routes(prof), ["local"])
-            self.assertEqual(sorted(os.listdir(os.path.join(home, "personas"))), [".gitkeep", "coach-demo"])   # the stand-in
+            self.assertEqual(sorted(os.listdir(os.path.join(home, "personas"))), [".gitkeep", "coach-demo", "coach-ellis", "coach-nolan", "coach-owen", "coach-reed"])   # the stand-ins
             self.assertIn("deliver_to", prof.settings)
 
     def test_missing_context_says_run_setup(self):
@@ -839,8 +839,8 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
 
     def add_web_coach(self, estimate=True):
         """Coach Reed on Fish Audio with a saved voice, and (by default) only an estimate of his pace."""
-        folder = os.path.join(self.home, "personas", "coach-reed")
-        os.makedirs(folder)
+        folder = os.path.join(self.home, "personas", "coach-reed")   # in place of the template's pending one
+        os.makedirs(folder, exist_ok=True)
         write_file(os.path.join(folder, "persona.md"), context.persona_text(
             {"name": "Coach Reed", "kind": "web", "service": "fish", "voice_id": "fish-model-1"},
             "## How this coach talks\n"))
@@ -867,6 +867,52 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertNotIn("measured", out.stdout)
         self.assertIn("--coach Coach Reed --engine fish", self.calls())
+
+    def add_pending_coach(self):
+        """The template's Coach Reed (fresh_home copied it, pending) and a fake Fish Audio."""
+        with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")):
+            self.assertEqual(personas.lookup("Coach Reed").pending, "design")
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import fakes
+        fake = fakes.FakeService(fakes.design_answer("fish"))
+        fake.__enter__()
+        self.addCleanup(fake.__exit__)
+        return fake
+
+    def test_pending_default_is_made_once(self):
+        fake = self.add_pending_coach()
+        first = self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0")
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        self.assertIn("Coach Reed is made the first time it's used", first.stdout)
+        second = self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0")
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertNotIn("made the first time", second.stdout)
+        posts = [r.path for r in fake.requests if r.method == "POST"]
+        self.assertEqual(posts, ["/v1/voice-design", "/model"])   # one design and one save in all
+        self.assertEqual(self.calls().count("render.py"), 2)
+        with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")):
+            self.assertEqual(personas.lookup("Coach Reed").voice_id, "fish-model-1")
+
+    def test_a_failed_make_stops_the_build(self):
+        fake = self.add_pending_coach()
+        fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
+        out = self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0")
+        self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
+        self.assertFalse(os.path.exists(self.log))   # no lint, no render
+
+    def test_lint_only_never_makes_a_coach(self):
+        fake = self.add_pending_coach()
+        out = self.web_build("--lint-only", SWEATCAST_FISH_URL=fake.url)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(fake.requests, [])
+        self.assertEqual([c.split()[0] for c in self.calls().splitlines()], ["tts_build.py"])
+
+    def test_the_lint_reads_a_pending_coach_at_an_estimate(self):
+        out = run([sys.executable, "tools/tts_build.py", os.path.join("tests", "fixtures", "example.draft.txt"),
+                   "--coach", "Coach Reed", "--engine", "fish", "--out", os.path.join(self.tmp.name, "x.txt"),
+                   "--force"], home=self.home, env={"FISH_AUDIO_API_KEY": "test-key"})
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("estimated", out.stdout)
 
     def test_web_coach_without_estimate_still_builds(self):
         self.add_web_coach(estimate=False)
@@ -1254,7 +1300,8 @@ class Migrate(unittest.TestCase):
             p = self.migrated_profile()
             self.assertEqual(context.voices(p), [])   # the voices became coaches
             self.assertEqual(sorted(d for d in os.listdir(os.path.join(self.home, "personas"))
-                                    if d[0] != "." and d != "coach-demo"),   # the template's stand-in
+                                    if d[0] != "." and not personas.load(os.path.join(self.home, "personas",
+                                                                                      d)).placeholder),   # the template's
                              ["coach-julius", "coach-solo"])
             self.assertEqual(context.routes(p), ["local"])
             shutil.rmtree(os.path.join(self.home, "personas"))

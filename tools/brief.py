@@ -305,7 +305,7 @@ def talk_rate(voice_name: str):
     pauses and chimes take their own seconds."""
     import personas
     try:
-        voice = personas.resolve(voice_name)
+        voice = personas.resolve(voice_name, pending=True)
     except SystemExit:   # no route works here (yet): the coach's local pace is still the best guess
         coach = _coach(voice_name)
         try:

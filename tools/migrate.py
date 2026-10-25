@@ -106,9 +106,10 @@ def to_3(text, path):
     return f"+++\n{block}\n+++\n" + text[m.end():]
 
 
-RENDER_COMMENT = ("How workouts become audio, in order of preference: local (this computer's own engine) or a "
-                  "web voice (fish, elevenlabs, gemini, inworld) with its key in me/.env. Each build uses "
-                  "the first that works on the computer it runs on.")
+RENDER_COMMENT = ("How a local coach's workouts become audio, in order of preference: local engines only (local: "
+                  "this computer's own engine; each build uses the first that works on the computer it runs on). "
+                  "A web coach always speaks through its own service (fish, elevenlabs, gemini or inworld), with "
+                  "its key in me/.env.")
 NARRATOR_NOTE = "How the coach talks now lives with each coach, in me/personas/<coach>/persona.md."
 
 

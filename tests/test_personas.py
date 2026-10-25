@@ -455,6 +455,8 @@ class CoachDemo(unittest.TestCase):
         self.assertTrue(all("speed" not in rec for rec in pace.values()))   # no computer's name ships
         key, _ = personas.clip_key(p)
         self.assertTrue(all(k.startswith(key + "|") for k in pace))
+        self.assertEqual(p.kind, "local")
+        self.assertEqual(sorted(k.split("|")[1] for k in pace), ["chatterbox", "chatterbox"])   # local only
 
     def test_demo_local_pace_is_measured_on_mlx(self):
         self.use(self.DEMO)
@@ -465,7 +467,7 @@ class CoachDemo(unittest.TestCase):
 
     def test_default_prefers_non_placeholder(self):
         folder = os.path.join(self.d, "personas")
-        shutil.copytree(self.DEMO, folder, ignore=shutil.ignore_patterns(".gitkeep"))
+        shutil.copytree(os.path.join(self.DEMO, "coach-demo"), os.path.join(folder, "coach-demo"))
         self.use(folder)
         with mock.patch.object(context, "sessions", return_value=[]):
             self.assertEqual(personas.default().name, "Coach Demo")   # the only one
@@ -479,9 +481,32 @@ class CoachDemo(unittest.TestCase):
         folder = os.path.join(self.d, "personas")
         shutil.copytree(self.DEMO, folder, ignore=shutil.ignore_patterns(".gitkeep"))
         issues = context.check_coaches(folder)
-        self.assertEqual(len(issues), 1, issues)
-        self.assertTrue(issues[0].note)
-        self.assertIn("stand-in", issues[0].message)
+        self.assertTrue(all(i.note for i in issues), issues)   # five stand-ins, four made on first use
+        self.assertEqual(sum("stand-in" in i.message for i in issues), 5, issues)
+        pending = [i for i in issues if "pending" in i.message]
+        self.assertEqual(len(pending), 4, issues)
+        self.assertTrue(all("first time" in i.message for i in pending), pending)
+
+    def test_four_defaults_share_one_description(self):
+        self.use(self.DEMO)
+        found = {p.service: p for p in personas.all() if p.is_web}
+        self.assertEqual(sorted(found), sorted(SERVICE_ORDER))
+        self.assertEqual({s: p.name for s, p in found.items()},
+                         {"fish": "Coach Reed", "elevenlabs": "Coach Ellis", "gemini": "Coach Nolan",
+                          "inworld": "Coach Owen"})
+        reed = found["fish"]
+        self.assertEqual(reed.voice, {"who": "A man in his forties, a seasoned personal trainer talking to one client",
+                                      "sound": "Low, warm baritone, American accent, clear diction",
+                                      "energy": "Steady and grounded, calm authority",
+                                      "pace": "Natural; brisk during work",
+                                      "avoid": "Hype, shouting, announcer voice, sleepy delivery"})
+        for p in found.values():
+            self.assertEqual((p.kind, p.placeholder, p.pending, p.voice_id), ("web", True, "design", None))
+            self.assertEqual((p.voice, p.character, p.description), (reed.voice, reed.character, reed.description))
+            again = context.persona_text(p.settings, p.prose)
+            self.assertEqual(context.tomllib.loads(context.TOML_FRONT_RE.match(again).group(1)), p.settings)
+        self.assertIn("calm", reed.character["tone"].lower())
+        self.assertEqual(personas.lookup("Coach Demo").kind, "local")
 
 
 
@@ -768,6 +793,103 @@ class Auditions(unittest.TestCase):
         self.assertIn("(a stand-in)", lines["Coach Reed"])
         self.assertIn("(made the first time it's used)", lines["Coach Reed"])
         self.assertNotIn("stand-in", lines["Coach Maya"])
+
+    def add_default(self, slug_):
+        shutil.copytree(os.path.join(ROOT, "me.example", "personas", slug_), os.path.join(self.folder, slug_))
+        with open(os.path.join(self.folder, slug_, "persona.md"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_make_designs_once_and_saves_the_first_candidate(self):
+        import coaches
+        before = self.add_default("coach-reed")
+        voice_id, said = self.quiet(coaches.make, "Coach Reed")
+        self.assertEqual(voice_id, "fish-model-1")
+        self.assertEqual(said.splitlines()[0], "Coach Reed is made the first time it's used: designing a voice at "
+                                               "Fish Audio from its description (about $0.01).")
+        self.assertEqual(self.paths_of("fish"), ["/v1/voice-design", "/model"])
+        design = json.loads(self.fakes["fish"].requests[0].body)
+        reed = context.persona(os.path.join(self.folder, "coach-reed", "persona.md"))
+        self.assertEqual(design["n"], 1)
+        self.assertEqual(design["instruction"], personas.voice_description(context.tomllib.loads(
+            context.TOML_FRONT_RE.match(before).group(1))["voice"]))
+        self.assertIn(b"sweatcast Coach Reed", self.fakes["fish"].requests[1].body)
+        self.assertIn(b"sig-0", self.fakes["fish"].requests[1].body)   # the first candidate
+        p = personas.lookup("Coach Reed")
+        self.assertEqual((p.voice_id, p.settings["made"], p.pending, p.placeholder),
+                         ("fish-model-1", self.today, None, True))
+        self.assertEqual(p.voice["who"], "A man in his forties, a seasoned personal trainer talking to one client")
+        self.assertNotIn("pending", reed.settings)
+        if FFMPEG:
+            self.assertTrue(os.path.exists(p.sample))
+        v = personas.voice_for(p, "fish")
+        with open(p.pace_file, encoding="utf-8") as f:
+            self.assertTrue(json.load(f)[f"{v['key']}|fish|s2.1-pro"]["estimate"])
+        self.assertEqual(os.listdir(self.folder).count(".auditions"), 0)   # no audition
+        with self.assertRaises(SystemExit) as e:
+            coaches.make("Coach Reed")
+        self.assertIn("already made", str(e.exception.code))
+        with self.assertRaises(SystemExit) as e:   # a message, so the command exits 1
+            self.quiet(coaches.main, ["make", "Coach Reed"])
+        self.assertIsInstance(e.exception.code, str)
+        self.assertEqual(len(self.paths_of("fish")), 2)
+
+    def test_make_says_what_each_service_costs(self):
+        import coaches
+        self.add_default("coach-ellis")
+        self.add_default("coach-owen")
+        _, said = self.quiet(coaches.make, "Coach Ellis")
+        self.assertIn("designing a voice at ElevenLabs", said)
+        self.assertIn("it uses one of ElevenLabs Free's 3 voice slots", said)
+        self.assertEqual(personas.lookup("Coach Ellis").voice_id, "el-saved-5")
+        _, said = self.quiet(coaches.make, "Coach Owen")
+        self.assertIn("design cost not published", said)
+        self.assertEqual(personas.lookup("Coach Owen").voice_id, "ws__design-0")
+
+    def test_failed_make_leaves_coach_pending(self):
+        import cli
+        import coaches
+        before = self.add_default("coach-reed")
+        design = self.fakes["fish"].answer
+        self.fakes["fish"].answer = lambda r: (500, {}, b'{"message": "boom"}') if r.path == "/model" else design(r)
+        code, said = self.quiet(coaches.main, ["make", "Coach Reed"])
+        self.assertNotEqual(code, cli.OK)
+        with open(os.path.join(self.folder, "coach-reed", "persona.md"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), before)
+        self.assertEqual(personas.lookup("Coach Reed").pending, "design")
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "coach-reed", "pace.json")))
+        self.fakes["fish"].answer = design
+        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self.quiet(coaches.make, "Coach Reed")
+        with open(os.path.join(self.folder, "coach-reed", "persona.md"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), before)
+
+    def test_failed_make_tells_the_saved_voice_id(self):
+        import contextlib
+        import io
+        import coaches
+        self.add_default("coach-reed")
+        out = io.StringIO()
+        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            with self.assertRaises(OSError):
+                coaches.make("Coach Reed")
+        self.assertIn("fish-model-1", out.getvalue())
+        self.assertIn("Fish Audio", out.getvalue())
+
+    def test_failed_make_on_gemini_deletes_the_stored_voice(self):
+        import coaches
+        before = self.add_default("coach-nolan")
+        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self.quiet(coaches.make, "Coach Nolan")
+        self.assertEqual(self.paths_of("gemini", "DELETE"), ["/v1beta/voices/gem-voice-1"])
+        with open(os.path.join(self.folder, "coach-nolan", "persona.md"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), before)
+        _, said = self.quiet(coaches.make, "Coach Nolan")
+        self.assertEqual(personas.lookup("Coach Nolan").voice_id, "gem-voice-2")
+        label = json.loads(self.fakes["gemini"].requests[3].body)   # the second design, after the delete
+        self.assertEqual(label["voice"]["display_name"], "sweatcast Coach Nolan")
 
     def test_keep_refuses_an_existing_name_without_coach_revoice(self):
         import coaches

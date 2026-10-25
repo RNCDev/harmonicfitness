@@ -256,15 +256,16 @@ def last_coach(folder=None):
     return default(folder)
 
 
-def resolve(coach=None, engine=None):
+def resolve(coach=None, engine=None, pending=False):
     """The voice dict a build uses: `coach` (else the one used last) on `engine` (else the first route in the
-    profile's render list that works on this computer)."""
+    profile's render list that works on this computer). With `pending`, a web coach still to be made gets
+    its estimated voice (the lint and the brief; never the render)."""
     import routes
     p = lookup(coach) if coach else default()
     if p is None:
         raise SystemExit("No coach yet: make one first (the coach skill, or ./sweatcast coaches design).")
     preferences = context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"]
-    return voice_for(p, routes.pick(preferences, p, override=engine))
+    return voice_for(p, routes.pick(preferences, p, override=engine), pending)
 
 
 def clip_key(p):
@@ -276,12 +277,12 @@ def clip_key(p):
     return hashlib.sha256(f"{audio_hash}|{words}".encode()).hexdigest()[:12], words
 
 
-def voice_for(p, route):
+def voice_for(p, route, pending=False):
     """The voice dict render.py, the lint and the engines take, for coach `p` on `route`. A web coach speaks
     through its own service whatever `route` says; a local coach only on the local route."""
     if p.is_web:
         import cloud
-        return cloud.voice_for(p, p.service)
+        return cloud.voice_for(p, p.service, pending)
     if route != "local":
         raise SystemExit(f"{p.name} is a local coach: a local coach renders only locally, not on {route}. "
                          "A web coach (the coach skill makes one) speaks through a web service.")

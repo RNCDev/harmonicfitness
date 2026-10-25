@@ -302,7 +302,7 @@ def main():
     voice = None
     if args.coach or args.engine:
         import personas
-        voice = personas.resolve(args.coach, args.engine)
+        voice = personas.resolve(args.coach, args.engine, pending=True)   # a coach still to be made: estimated
 
     report = lint(segments, voice, args.wpm, args.min_fill, args.max_fill,
                   args.total_tolerance, args.word_tolerance, args.strict)

@@ -12,6 +12,7 @@ with the listener's key); a local coach is a ten-second clip every local engine 
     ./sweatcast coaches keep 2026-10-25-1/B --name "Coach Maya"   # save B at its service as the coach
     ./sweatcast coaches keep 2026-10-26-1/A --name "Coach Maya" --replace-old   # re-voice; delete the old voice
     ./sweatcast coaches forget-audition 2026-10-25-1      # close an audition (Gemini's unkept voices deleted)
+    ./sweatcast coaches make "Coach Reed"                 # a pending default: design and save its voice (builds do)
     ./sweatcast coaches archive "Coach Julius"            # out of the list, still found for old log lines
     ./sweatcast coaches last                              # the coach a build uses when none is named
     ./sweatcast coaches design "Coach Maya" "A woman in her thirties, warm and mid-low ..."   # local takes
@@ -224,6 +225,34 @@ def _mp3(wav, mp3):
     return done.returncode == 0
 
 
+def _write_sample(coach, wav, mp3=None):
+    """The coach's sample.mp3: a copy of `mp3` if there is one, else made from the `wav` bytes."""
+    sample = coach.sample
+    if mp3 and os.path.exists(mp3):
+        shutil.copyfile(mp3, sample + ".part")
+        os.replace(sample + ".part", sample)
+        return
+    part = sample + ".part.wav"
+    with open(part, "wb") as f:
+        f.write(wav)
+    try:
+        if _mp3(part, sample + ".part.mp3"):
+            os.replace(sample + ".part.mp3", sample)
+        else:
+            print("(No sample.mp3: ffmpeg isn't here to make one.)")
+    finally:
+        os.remove(part)
+
+
+def _estimate(coach, service, wav, text):
+    """The coach's pace estimate from its sample: weighted characters over the trimmed seconds."""
+    import cloud
+    pcm = cloud.trim(cloud.audio_pcm(wav, service=service))
+    seconds = len(pcm) / 2 / cloud.SR
+    if seconds > 0:
+        voices.record_estimate(cloud.voice_for(coach, service), voices.weight(text), seconds)
+
+
 def _write_candidates(folder, cands):
     context._atomic_write(os.path.join(folder, "candidates.json"), json.dumps(cands, indent=1) + "\n")
 
@@ -425,24 +454,12 @@ def keep_web(ref, name, replace_old=False):
             settings["character"] = n.settings["character"]
     os.makedirs(target, exist_ok=True)
     coach = personas.Persona(os.path.basename(target), target, settings, prose)
-
-    sample = coach.sample
-    mp3 = os.path.join(folder, c["mp3"]) if c.get("mp3") else None
-    if mp3 and os.path.exists(mp3):
-        shutil.copyfile(mp3, sample + ".part")
-        os.replace(sample + ".part", sample)
-    elif _mp3(os.path.join(folder, c["wav"]), sample + ".part.mp3"):
-        os.replace(sample + ".part.mp3", sample)
-    else:
-        print("(No sample.mp3: ffmpeg isn't here to make one.)")
+    _write_sample(coach, wav, os.path.join(folder, c["mp3"]) if c.get("mp3") else None)
     if existing is not None and existing.voice_id:
         models = list(cloud.services()[service].get("models") or {}) + [existing.model or ""]
         for model in dict.fromkeys(m for m in models if m):
             voices.forget_pace(existing.pace_file, personas.web_key(existing, model))
-    pcm = cloud.trim(cloud.audio_pcm(wav, service=service))
-    seconds = len(pcm) / 2 / cloud.SR
-    if seconds > 0:
-        voices.record_estimate(cloud.voice_for(coach, service), voices.weight(c["text"]), seconds)
+    _estimate(coach, service, wav, c["text"])
     context._atomic_write(coach.path, context.persona_text(settings, prose))   # last: all or nothing
 
     c["kept"] = name
@@ -456,6 +473,55 @@ def keep_web(ref, name, replace_old=False):
                   f"\"sweatcast {existing.name}\" there by hand.")
     print(f"Kept {name} ({_service_name(service)}) in {show(target)}.")
     return target
+
+
+def make(name):
+    """Make a pending web coach (a default that ships with no voice): design one voice from its [voice] on
+    its own service, save the first candidate with no audition, and write voice_id, made, sample.mp3 and a
+    pace estimate, persona.md last. Says so (and what it costs) first. Returns the voice ID. A failure
+    leaves persona.md as it was, still pending."""
+    import cloud
+    p = personas.lookup(name)
+    if not p.is_web or not p.pending:
+        raise SystemExit(f"{p.name} is already made: nothing to design.")
+    description = personas.voice_description(p.voice)
+    if not description:
+        raise SystemExit(f"{show(p.path)} has no [voice] to design from (who, sound, energy, pace, avoid).")
+    service = p.service
+    table = cloud.services()
+    if service not in table or service not in CANDIDATES:
+        raise SystemExit(f"{p.name} names no known web service ({service or 'none'}).")
+    s = table[service]
+    cost = (f"about ${s['design_usd']:.2f}" if s.get("design_usd") is not None else "design cost not published")
+    if service == "elevenlabs":
+        cost += "; it uses one of ElevenLabs Free's 3 voice slots"
+    print(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its description "
+          f"({cost}).", flush=True)
+    module = importlib.import_module(f"services.{service}")
+    c = module.design(description, voices.DESIGN_LINE, 1, f"sweatcast {p.name}")[0]
+    voice_id = None
+    try:
+        voice_id = module.save(c, p.name, description, c["wav"])
+        settings = {k: v for k, v in p.settings.items() if k not in ("schema", "pending")}
+        settings.update(voice_id=voice_id, made=datetime.date.today().isoformat())
+        coach = personas.Persona(p.slug, p.folder, settings, p.prose)
+        _write_sample(coach, c["wav"])
+        _estimate(coach, service, c["wav"], c.get("text") or voices.DESIGN_LINE)
+        context._atomic_write(p.path, context.persona_text(settings, p.prose))   # last: all or nothing
+    except BaseException:
+        if service == "gemini" and c.get("draft_id"):   # stored at design: don't leave it behind
+            try:
+                module.delete(c["draft_id"])
+            except (Exception, SystemExit):
+                print(f"(Gemini keeps a voice \"sweatcast {p.name}\", ID {c['draft_id']}; delete it there "
+                      "by hand.)", file=sys.stderr)
+        elif voice_id:
+            print(f"{p.name}'s voice was saved at {s['name']} (voice ID {voice_id}) but the coach wasn't written; "
+                  f"it's still pending. Delete \"sweatcast {p.name}\" there, or put voice_id = \"{voice_id}\" "
+                  f"in {show(p.path)}.", file=sys.stderr)
+        raise
+    print(f"Made {p.name} ({s['name']}): a stand-in until you make your own (\"I want a new coach\").")
+    return voice_id
 
 
 def forget_audition(audition):
@@ -536,6 +602,8 @@ def main(argv=None):
     k.add_argument("--engine", choices=personas.LOCAL_ENGINES, default="chatterbox",
                    help="the local model: chatterbox (most natural) or qwen3 (clearest; Mac only)")
     k.add_argument("--force", action="store_true", help="replace the coach's clip")
+    mk = sub.add_parser("make", help="make a pending web coach: design its voice and save the first candidate")
+    mk.add_argument("coach")
     f = sub.add_parser("forget-audition", help="close an audition: Gemini's unkept voices deleted, the folder removed")
     f.add_argument("audition", help="its id (such as 2026-10-25-1) or folder")
     r = sub.add_parser("archive", help="move a coach out of the list (old log lines still find them)")
@@ -598,6 +666,14 @@ def main(argv=None):
         import cloud
         try:
             keep_web(args.take, args.name, args.replace_old)
+        except cloud.ServiceError as e:
+            print(e, file=sys.stderr)
+            return cli.SERVICE if e.listener_must_act else cli.ISSUES
+        return cli.OK
+    if args.cmd == "make":
+        import cloud
+        try:
+            make(args.coach)
         except cloud.ServiceError as e:
             print(e, file=sys.stderr)
             return cli.SERVICE if e.listener_must_act else cli.ISSUES

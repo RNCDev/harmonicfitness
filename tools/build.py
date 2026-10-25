@@ -29,7 +29,8 @@ Exit codes (tools/cli.py): 0 done, 1 issues to fix, 2 the rendered total ran mor
 off plan (the MP3 is written but not copied), 3 the coach's pace hasn't been measured on this route yet
 (render the smoke test with them first, which measures it, or pass --allow-estimated), 4 a cloud voice
 service refused the key, the payment or the quota, 64 the command was wrong (a mistyped option, an
-unknown coach, rendering ahead on a cloud voice): fix the command, not the draft. The render's stderr (model
+unknown coach, rendering ahead on a cloud voice): fix the command, not the draft. A default web coach
+with no voice yet (pending) is made first (./sweatcast coaches make), except with --lint-only. The render's stderr (model
 loading, errors) goes to me/workouts/.logs/<name>.log, and its last lines print on a failure.
 """
 import filecmp
@@ -204,6 +205,15 @@ def main(argv=None):
         if status:
             show_log(log)
         return status
+
+    # A default web coach ships with no voice (pending): the first build that needs it designs one and
+    # saves it, saying so first. --lint-only never spends money: it lints at an estimated pace instead.
+    if not lint_only:
+        import personas
+        if personas.lookup(coach).pending:
+            made = tool("coaches.py", "make", coach).returncode
+            if made:
+                return made
 
     if not smoke and not lint_only:
         measured = tool("coaches.py", "measured", coach, "--engine", route).returncode

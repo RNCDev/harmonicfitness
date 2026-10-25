@@ -1004,8 +1004,10 @@ def check_coaches(folder=None):
         if p.settings.get("kind") == "web":
             name = p.settings.get("name") or slug
             if p.settings.get("pending"):
-                out.append(Issue(path, 0, f"{name} has no voice yet ({p.settings['pending']} pending): the coach "
-                                          "skill auditions one", note=True))
+                how = ("made the first time a build uses it" if p.settings.get("placeholder")
+                       else "the coach skill auditions one")
+                out.append(Issue(path, 0, f"{name} has no voice yet ({p.settings['pending']} pending): {how}",
+                                 note=True))
             elif not p.settings.get("voice_id"):
                 out.append(Issue(path, 0, f"{name} is a web coach with no voice_id: audition a voice and keep one "
                                           "(the coach skill)"))
