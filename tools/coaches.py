@@ -701,7 +701,11 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.cmd == "last":
-        p = personas.last_coach()
+        try:
+            p = personas.last_coach()
+        except SystemExit as e:   # the coach used last is archived
+            print(e.code, file=sys.stderr)
+            return cli.ISSUES
         if not p:
             print("No coach yet.", file=sys.stderr)
             return cli.ISSUES
@@ -802,7 +806,10 @@ def main(argv=None):
             voices.download({"name": engine, "engine": engine, "backend": voices.BACKEND, "model": model,
                              "revision": revision})
         return cli.OK
-    last = personas.last_coach()
+    try:
+        last, archived = personas.last_coach(), None
+    except SystemExit as e:   # the coach used last is archived: list them all, and say so
+        last, archived = None, str(e.code)
     found = personas.all()
     if not found:
         print("No coaches yet: audition a web coach (./sweatcast coaches audition), or design or bring a local "
@@ -818,7 +825,7 @@ def main(argv=None):
             + (["(made the first time it's used)"] if p.is_web and p.pending else []) \
             + (["(no clip yet)"] if not p.is_web and not p.has_clip else []) + [p.description[:60]]
         print((f"{mark} {p.name:22} {where:22} " + " ".join(x for x in notes if x)).rstrip())
-    print("* the coach a build uses when none is named (the one used last)")
+    print(archived or "* the coach a build uses when none is named (the one used last)")
     return cli.OK
 
 

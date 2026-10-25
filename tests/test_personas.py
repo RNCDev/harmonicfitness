@@ -778,6 +778,20 @@ class Auditions(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn(".archive", said)
 
+    def test_list_survives_an_archived_last_coach(self):
+        import coaches
+        persona_home(self.d, ("Coach Julius", {}))
+        self.quiet(coaches.archive, "Coach Julius")
+        with mock.patch.object(context, "sessions", return_value=[mock.Mock(voice="Coach Julius")]):
+            code, listed = self.quiet(coaches.main, [])
+            self.assertEqual(code, 0)
+            self.assertIn("Coach Test", listed)
+            self.assertFalse(any(line.startswith("*") for line in listed.splitlines()), listed)
+            self.assertIn("Coach Julius is archived", listed)
+            code, said = self.quiet(coaches.main, ["last"])
+        self.assertEqual(code, 1)
+        self.assertIn("Coach Julius is archived", said)
+
     def test_list_shows_service(self):
         import coaches
         write_persona(self.folder, "coach-maya", MAYA)
