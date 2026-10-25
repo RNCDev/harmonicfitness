@@ -371,6 +371,15 @@ class WebCoaches(unittest.TestCase):
         with mock.patch.object(context, "sessions", return_value=used[:1]):
             self.assertEqual(personas.default().name, "Coach Maya")
 
+    def test_default_prefers_an_own_coach_over_a_stand_in_used_last(self):
+        folder = os.path.join(self.d, "stand-ins")
+        write_persona(folder, "coach-reed", web_placeholder("Coach Reed", "fish"))
+        used = [mock.Mock(voice="Coach Reed")]
+        with mock.patch.object(context, "sessions", return_value=used):
+            self.assertEqual(personas.default(folder).name, "Coach Reed")   # only stand-ins: the one used last
+            shutil.copytree(os.path.join(FIXTURE, "coach-test"), os.path.join(folder, "coach-test"))
+            self.assertEqual(personas.default(folder).name, "Coach Test")   # a coach of their own wins
+
     def test_default_prefers_a_usable_web_default(self):
         import routes
         folder = os.path.join(self.d, "only-placeholders")
@@ -473,7 +482,7 @@ class CoachDemo(unittest.TestCase):
             self.assertEqual(personas.default().name, "Coach Maya")
         used = mock.Mock(voice="Coach Demo")
         with mock.patch.object(context, "sessions", return_value=[used]):
-            self.assertEqual(personas.default().name, "Coach Demo")   # used last wins
+            self.assertEqual(personas.default().name, "Coach Maya")   # a stand-in used last: their own wins
 
     def test_check_notes_placeholder(self):
         folder = os.path.join(self.d, "personas")

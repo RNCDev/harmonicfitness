@@ -657,7 +657,7 @@ def main(argv=None):
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("list", help="every coach (the default)")
-    sub.add_parser("last", help="the coach a build uses when none is named: the one used last")
+    sub.add_parser("last", help="the coach a build uses when none is named: the one used last (your own over a stand-in)")
     m = sub.add_parser("measured", help="exit 0 if the coach's pace is measured on the route, 1 if estimated, 64 unknown")
     m.add_argument("coach")
     m.add_argument("--engine", default=None, help="the route (default: the profile's render list)")
@@ -825,7 +825,7 @@ def main(argv=None):
             + (["(made the first time it's used)"] if p.is_web and p.pending else []) \
             + (["(no clip yet)"] if not p.is_web and not p.has_clip else []) + [p.description[:60]]
         print((f"{mark} {p.name:22} {where:22} " + " ".join(x for x in notes if x)).rstrip())
-    print(archived or "* the coach a build uses when none is named (the one used last)")
+    print(archived or "* the coach a build uses when none is named (the one used last; your own over a stand-in)")
     return cli.OK
 
 
