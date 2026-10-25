@@ -296,6 +296,8 @@ def main():
                     help="fail when the draft has no menu beside it (./sweatcast build passes this)")
     args = ap.parse_args()
 
+    if not os.path.isfile(args.draft):
+        raise cli.Usage(f"No draft at {args.draft}")
     with open(args.draft, encoding="utf-8") as f:
         text = f.read()
     segments = parse(text)
@@ -326,4 +328,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(cli.run(main))

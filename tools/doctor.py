@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cli  # noqa: E402
 import paths  # noqa: E402
 
 DOCTOR_SH = os.path.join(paths.ROOT, "tools", "doctor.sh")
@@ -228,4 +229,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli.run(main))

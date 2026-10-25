@@ -22,6 +22,7 @@ OTHER_SIDE = {"left": "right", "right": "left"}
 
 class Unfit(Exception):
     """The request can't be screened safely: a [[limits]] row can't be read (exit ISSUES)."""
+    exit_code = 1   # cli.ISSUES; a literal so this module keeps importing nothing but the catalog
 
 
 class Screen(NamedTuple):

@@ -27,6 +27,7 @@ import urllib.error
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cli  # noqa: E402
 import paths  # noqa: E402
 
 SR = 24000
@@ -53,6 +54,11 @@ class ServiceError(Exception):
     @property
     def listener_must_act(self):
         return self.kind in ("auth", "billing", "quota")
+
+    @property
+    def exit_code(self):
+        """What a tool exits with when this stops it (cli.run): 4 when the listener must act, else 1."""
+        return cli.SERVICE if self.listener_must_act else cli.ISSUES
 
 
 def services():

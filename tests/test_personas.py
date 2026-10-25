@@ -938,7 +938,7 @@ class Auditions(unittest.TestCase):
         before = self.add_default("coach-reed-fish")
         design = self.fakes["fish"].answer
         self.fakes["fish"].answer = lambda r: (500, {}, b'{"message": "boom"}') if r.path == "/model" else design(r)
-        code, said = self.quiet(coaches.main, ["make", "Coach Reed"])
+        code, said = self.quiet(cli.run, coaches.main, ["make", "Coach Reed"])   # a refusal exits through cli.run
         self.assertNotEqual(code, cli.OK)
         with open(os.path.join(self.folder, "coach-reed-fish", "persona.md"), encoding="utf-8") as f:
             self.assertEqual(f.read(), before)

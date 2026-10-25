@@ -1181,19 +1181,9 @@ def main(argv=None):
                 return cli.OK
             import personas
             import routes as routing
-            try:
-                coach = personas.lookup(args.coach) if args.coach else personas.default()
-            except SystemExit as e:   # an unknown coach: the command was wrong
-                print(e.code, file=sys.stderr)
-                return cli.USAGE
-            try:
-                print(routing.pick(routes(p), coach, override=args.engine))
-            except routing.WebCoachUnavailable as e:   # a web coach whose service has no key here
-                print(e.code, file=sys.stderr)
-                return cli.USAGE
-            except SystemExit as e:
-                print(e.code, file=sys.stderr)
-                return cli.USAGE if args.engine and args.engine not in routing.ROUTES else cli.ISSUES
+            # an unknown coach, a web coach with no key here or a bad --engine exit 64 through cli.run
+            coach = personas.lookup(args.coach) if args.coach else personas.default()
+            print(routing.pick(routes(p), coach, override=args.engine))
             return cli.OK
         if args.what == "voices":   # the coaches, by name (the name before 9.0)
             import personas
@@ -1243,4 +1233,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli.run(main))

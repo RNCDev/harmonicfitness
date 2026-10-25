@@ -13,6 +13,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+import cli  # noqa: E402
 
 # command: (module, the subcommand it stands for in that module, or None; what it does)
 COMMANDS = {
@@ -73,7 +74,7 @@ def main(argv=None):
     cmd, rest = argv[0], argv[1:]
     if cmd not in COMMANDS:
         print(f"Unknown command '{cmd}'.\n\n{usage()}", file=sys.stderr)
-        return 64
+        return cli.USAGE
     if cmd == "setup":   # a shell script, so it runs before there's a Python environment
         script = os.path.join(HERE, "setup.sh")
         if os.name == "nt":   # Git Bash's sh; Windows has no exec that keeps the exit code
@@ -89,8 +90,7 @@ def main(argv=None):
     sys.argv = [f"sweatcast {cmd}", *([sub] if sub else []), *rest]
     if sub:
         sys.argv[0] = "sweatcast"   # context's own parser names the subcommand
-    result = importlib.import_module(module).main()
-    return result or 0
+    return cli.run(importlib.import_module(module).main)
 
 
 if __name__ == "__main__":

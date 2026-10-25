@@ -29,6 +29,7 @@ import context  # noqa: E402
 import paths  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
+import cli  # noqa: E402
 
 LOCAL_ENGINES = ("chatterbox", "qwen3")
 ARCHIVE = os.path.join(paths.PERSONAS, ".archive")       # coaches no longer in use (found only when asked)
@@ -183,6 +184,10 @@ def _match(p, name):
             or want in (a.lower() for a in p.aliases))
 
 
+class UnknownCoach(cli.Usage):
+    """No coach by that name, alias or folder (exit 64: the command named the wrong coach)."""
+
+
 def lookup(name, folder=None, archived=False):
     """A coach by folder name, name or alias, in any case; with `archived`, the archive too (for names read
     from the log). Stops with the coaches there are on a miss."""
@@ -196,7 +201,7 @@ def lookup(name, folder=None, archived=False):
     there = ", ".join(p.name for p in found) or "none yet (the coach skill makes one)"
     if old is not None:
         raise SystemExit(f"{old.name} is archived. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
-    raise SystemExit(f"No coach '{name}'. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
+    raise UnknownCoach(f"No coach '{name}'. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
 
 
 def archive(p):

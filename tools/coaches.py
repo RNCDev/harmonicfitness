@@ -723,14 +723,10 @@ def main(argv=None):
         return cli.OK
     if args.cmd == "measured":
         import routes
-        try:
-            p = personas.lookup(args.coach)
-            route = routes.pick(context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"],
-                                p, override=args.engine)
-            v = personas.voice_for(p, route)
-        except SystemExit as e:
-            print(e.code, file=sys.stderr)
-            return cli.USAGE
+        p = personas.lookup(args.coach)
+        route = routes.pick(context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"],
+                            p, override=args.engine)
+        v = personas.voice_for(p, route)
         if p.is_web:   # a web coach needs no smoke test: an estimate stands until its first render measures it
             return cli.OK
         return cli.OK if voices.pace(v)[1] else cli.ISSUES
@@ -760,20 +756,10 @@ def main(argv=None):
               f"{cands[0]['letter']} --name \"Coach ...\"\nWhen done: ./sweatcast coaches forget-audition {audition_id}")
         return cli.OK
     if args.cmd == "keep" and _web_ref(args.take):
-        import cloud
-        try:
-            keep_web(args.take, args.name, args.replace_old)
-        except cloud.ServiceError as e:
-            print(e, file=sys.stderr)
-            return cli.SERVICE if e.listener_must_act else cli.ISSUES
+        keep_web(args.take, args.name, args.replace_old)   # a service's refusal exits through cli.run
         return cli.OK
     if args.cmd == "make":
-        import cloud
-        try:
-            make(args.coach)
-        except cloud.ServiceError as e:
-            print(e, file=sys.stderr)
-            return cli.SERVICE if e.listener_must_act else cli.ISSUES
+        make(args.coach)
         return cli.OK
     if args.cmd == "forget-audition":
         for line in forget_audition(args.audition):
@@ -840,4 +826,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli.run(main))

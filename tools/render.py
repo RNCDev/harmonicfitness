@@ -473,6 +473,8 @@ def main():
             print("Rendering ahead is off for a cloud voice: every re-render would be billed. "
                   "Run the full build once the lint passes.")
             sys.exit(cli.USAGE)
+    if not os.path.isfile(args.draft):
+        raise cli.Usage(f"No draft at {args.draft}")
     if args.follow:
         return follow(args)
     with open(args.draft, encoding="utf-8") as f:
@@ -550,4 +552,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(cli.run(main))

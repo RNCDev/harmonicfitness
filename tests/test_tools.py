@@ -1892,5 +1892,64 @@ class Isolation(unittest.TestCase):
         self.assertEqual((paths.HOME, paths.PROFILE, paths.TOLD, paths.PERSONAS, paths.CACHE), before)
 
 
+class ExitCodeMapper(unittest.TestCase):
+    """cli.run turns what a tool raises into the documented exit codes, from every entry point."""
+
+    def test_run_maps_each_kind_of_stop(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(cli.run(lambda: None), cli.OK)
+            self.assertEqual(cli.run(lambda: cli.ISSUES), cli.ISSUES)
+
+            def usage():
+                raise cli.Usage("no such coach")
+            self.assertEqual(cli.run(usage), cli.USAGE)
+
+            def stop():
+                raise SystemExit("a file can't be read")
+            self.assertEqual(cli.run(stop), cli.ISSUES)
+
+            def explicit():
+                raise SystemExit(3)
+            self.assertEqual(cli.run(explicit), 3)
+
+            class Known(Exception):
+                exit_code = cli.SERVICE
+            def known():
+                raise Known("the service refused the key")
+            self.assertEqual(cli.run(known), cli.SERVICE)
+        self.assertIn("no such coach", err.getvalue())
+        self.assertIn("a file can't be read", err.getvalue())
+        self.assertIn("the service refused the key", err.getvalue())
+
+        def bug():
+            raise KeyError("x")
+        with self.assertRaises(KeyError):   # a real bug still shows its traceback
+            cli.run(bug)
+
+    def test_the_known_stops_carry_their_codes(self):
+        import routes
+        import screen
+        self.assertTrue(issubclass(personas.UnknownCoach, cli.Usage))
+        self.assertTrue(issubclass(routes.WebCoachUnavailable, cli.Usage))
+        self.assertEqual(cloud.ServiceError("auth", "fish", "bad key").exit_code, cli.SERVICE)
+        self.assertEqual(cloud.ServiceError("bad_request", "fish", "odd").exit_code, cli.ISSUES)
+        self.assertEqual(screen.Unfit("a row can't be read").exit_code, cli.ISSUES)
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(personas.UnknownCoach):
+                personas.lookup("Nobody At All", folder=d)
+
+    def test_commands_exit_64_on_an_unknown_coach_or_a_missing_draft(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")   # absent: no coaches at all
+            for args in (["tools/coaches.py", "archive", "Nobody At All"],
+                         ["tools/coaches.py", "set", "Nobody At All", "local.engine", "qwen3"],
+                         ["tools/render.py", os.path.join(d, "missing.draft.txt"), "--out", os.path.join(d, "x.mp3")],
+                         ["tools/tts_build.py", os.path.join(d, "missing.draft.txt"), "--out", os.path.join(d, "x.txt")]):
+                out = run([sys.executable, *args], home=home)
+                self.assertEqual(out.returncode, cli.USAGE, (args, out.stdout, out.stderr))
+                self.assertNotIn("Traceback", out.stderr, args)
+
+
 if __name__ == "__main__":
     unittest.main()

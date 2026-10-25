@@ -463,12 +463,8 @@ def main():
         lines, record = build(request, cat, sessions.load(), profile, context.health(),
                               context.sessions(args.log), today, context.feedback(args.log),
                               voice=args.voice)
-    except ValueError as e:
-        print(f"sweatcast brief: {e}", file=sys.stderr)
-        return cli.USAGE
-    except screen.Unfit as e:
-        print(f"sweatcast brief: {e}", file=sys.stderr)
-        return cli.ISSUES
+    except ValueError as e:   # an unknown goal, kit, level or flag value; screen.Unfit exits 1 through cli.run
+        raise cli.Usage(f"sweatcast brief: {e}")
     text = "\n".join(lines) + "\n"
     print(text, end="")
     if args.save:
@@ -484,4 +480,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli.run(main))

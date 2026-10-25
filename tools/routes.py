@@ -17,6 +17,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cli  # noqa: E402
 import keys  # noqa: E402
 import paths  # noqa: E402
 
@@ -24,7 +25,7 @@ ROUTES = ("local", "fish", "elevenlabs", "gemini", "inworld")
 SERVICES = ROUTES[1:]
 
 
-class WebCoachUnavailable(SystemExit):
+class WebCoachUnavailable(cli.Usage):
     """A web coach can't speak here: its service has no key on this computer, or --engine names another
     service. `get route` and `build` exit 64 on it."""
 
@@ -109,7 +110,7 @@ def pick(preferences, persona=None, override=None, facts=None):
     if override:
         ok, reason = usable(override, persona, facts)
         if not ok:
-            raise SystemExit(f"Can't render with {override} here: {reason}")
+            raise (cli.Usage if override not in ROUTES else SystemExit)(f"Can't render with {override} here: {reason}")
         return override
     known = []
     for route in preferences or ["local"]:

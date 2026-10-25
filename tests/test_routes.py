@@ -171,7 +171,7 @@ class Routes(unittest.TestCase):
                 mock.patch.object(personas, "default", return_value=owen), \
                 mock.patch.object(routes, "local_installed", return_value=True), \
                 redirect_stderr(io.StringIO()) as err:
-            self.assertEqual(context.main(["get", "route"]), cli.USAGE)
+            self.assertEqual(cli.run(lambda: context.main(["get", "route"])), cli.USAGE)
         self.assertIn("INWORLD_API_KEY", err.getvalue())
 
     def test_unknown_route_is_reported_and_skipped(self):
