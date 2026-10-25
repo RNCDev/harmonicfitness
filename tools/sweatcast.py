@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -50,6 +51,15 @@ def usage():
     return "\n".join(lines)
 
 
+def test_env(env):
+    """The environment the tests run in: SWEATCAST_HOME pointed at an absent folder (as in CI, where there is
+    no me/), unless it's already set, so no test can read or write the real context folder."""
+    env = dict(env)
+    if not env.get("SWEATCAST_HOME"):
+        env["SWEATCAST_HOME"] = os.path.join(tempfile.mkdtemp(prefix="sweatcast-tests-"), "me")
+    return env
+
+
 def main(argv=None):
     # A Windows console defaults to a code page that can't print an emoji in a video title or
     # headline; UTF-8 can, and anything a console still can't show prints as a placeholder.
@@ -73,7 +83,8 @@ def main(argv=None):
         script = os.path.join(HERE, "doctor.sh")
         return subprocess.call([shutil.which("sh") or "sh", script, *rest])
     if cmd == "test":
-        return subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT)
+        return subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT,
+                               env=test_env(os.environ))
     module, sub, _ = COMMANDS[cmd]
     sys.argv = [f"sweatcast {cmd}", *([sub] if sub else []), *rest]
     if sub:

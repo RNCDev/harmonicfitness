@@ -20,3 +20,6 @@ docs/eval/out/
 docs/eval/listeners/*/workouts/
 docs/eval/out-before-6.1.0/
 docs/eval/out-before-7.0.0/
+
+# The plan ledgers and briefs of superpowers' executing-plans (scratch, per plan).
+.superpowers/

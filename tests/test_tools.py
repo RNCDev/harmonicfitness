@@ -37,6 +37,9 @@ import draft  # noqa: E402
 import engines  # noqa: E402
 import feeds  # noqa: E402
 import paths  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import helpers  # noqa: E402
+helpers.assert_isolated(paths.HOME)   # never over a real me/: ./sweatcast test points SWEATCAST_HOME elsewhere
 import render  # noqa: E402
 import tts_build  # noqa: E402
 import migrate  # noqa: E402
@@ -1849,6 +1852,44 @@ class FeedLimits(unittest.TestCase):
             with self.assertRaises(ValueError):
                 feeds.fetch("https://example.org/feed", limit=100)
             self.assertEqual(len(Resp().read(50)), 50)
+
+
+class Isolation(unittest.TestCase):
+    """The tests never touch the real me/: ./sweatcast test points SWEATCAST_HOME elsewhere, test_tools
+    refuses to import over a real context folder, and helpers.home() redirects every path at once."""
+
+    def test_the_test_command_points_home_at_an_absent_folder(self):
+        import sweatcast
+        env = sweatcast.test_env({"PATH": "/usr/bin"})
+        home = env["SWEATCAST_HOME"]
+        self.assertFalse(os.path.exists(home), home)                 # absent, as in CI, where there's no me/
+        self.assertTrue(os.path.isdir(os.path.dirname(home)), home)  # inside a folder that exists
+        self.assertEqual(env["PATH"], "/usr/bin")
+        kept = sweatcast.test_env({"SWEATCAST_HOME": "/elsewhere/me"})
+        self.assertEqual(kept["SWEATCAST_HOME"], "/elsewhere/me")   # an explicit home is respected
+
+    def test_the_guard_refuses_a_real_context_folder(self):
+        import helpers
+        with tempfile.TemporaryDirectory() as d:
+            helpers.assert_isolated(d)                               # empty: fine
+            helpers.assert_isolated(os.path.join(d, "absent"))       # absent: fine
+            write_file(os.path.join(d, "profile.md"), "+++\nschema = 6\n+++\n")
+            with self.assertRaises(SystemExit) as got:
+                helpers.assert_isolated(d)
+            self.assertIn("./sweatcast test", str(got.exception))
+
+    def test_helpers_home_redirects_every_path_and_restores(self):
+        import helpers
+        before = (paths.HOME, paths.PROFILE, paths.TOLD, paths.PERSONAS, paths.CACHE)
+        with tempfile.TemporaryDirectory() as d:
+            with helpers.home(d):
+                self.assertEqual(paths.HOME, d)
+                self.assertEqual(paths.PROFILE, os.path.join(d, "profile.md"))
+                self.assertEqual(paths.TOLD, os.path.join(d, "workouts", "research", "told.jsonl"))
+                self.assertEqual(paths.PERSONAS, os.path.join(d, "personas"))
+                self.assertEqual(paths.CACHE, os.path.join(d, "workouts", ".audio-cache"))
+                self.assertEqual(paths.ROOT, ROOT)                   # the engine's own paths don't move
+        self.assertEqual((paths.HOME, paths.PROFILE, paths.TOLD, paths.PERSONAS, paths.CACHE), before)
 
 
 if __name__ == "__main__":
