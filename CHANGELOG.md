@@ -2,6 +2,50 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [13.0.0] - 2026-10-25
+
+A review of the whole harness, hardened where a check could be skipped and simplified where the same rule lived in several places. The build runs in one process; the menu is today's or the build stops; a key can't leak into a message; the tools exit with the documented codes from every entry point; and the code for sweatcast 8 and earlier is gone.
+
+### For forks
+- **Run `./sweatcast migrate`** (or `./sweatcast setup`, which runs it) from a `me/` at sweatcast 9 or later. A folder from sweatcast 8 or earlier (context schema 3 or below) is no longer migrated here: check out `v12.0.0`, run `./sweatcast migrate` there, then come back and run it again; the tool says so.
+- **Gone:** `--voice` (use `--coach`) on build, render, lint, brief and log-session; `./sweatcast voices` (use `coaches`); `./sweatcast get default-voice` and `get voices` (use `get coach` and `coaches`); the sweatcast 8 voice import and `migrate --name`; the profile template's `## Narrator` section (how a coach talks lives in `persona.md`). `./sweatcast check` is its own tool (`tools/check.py`); `context.py check` is no more.
+- **The menu is today's.** `./sweatcast brief --save` now records the day and a hash of `me/health.md` in the menu, and a build (or `./sweatcast render`) stops on a menu from another day or from before `health.md` changed; `--lint-only` warns. Rerun the brief with `--save` and build again. A menu saved by 12.x has no hash, so the first build after upgrading asks for a fresh brief. `./sweatcast render` and `./sweatcast lint` now hold a draft to its menu as `build` does; only `knowledge/smoke-test.draft.txt` itself builds without one (a copy of it elsewhere doesn't).
+- **Drafts:** the text scan now reads one-word movement names (deadlift, thruster, woodchop, clamshell, inchworm, elliptical), spaced plurals ("push ups", "step ups"), and a shortened name that is itself another movement ("push-ups" after a declared wall push-up, "shadow boxing" after a declared seated shadow boxing); a "no" or "not" excuses a mention only in its own clause. A draft that passed before may now name a movement to reword or declare.
+- **`log-session`** refuses a coach that doesn't exist (archived ones still log), a kit that isn't one of the profile's or a preset, a format that isn't a `sessions.toml` method, and any line break in a field. **`content log`** accepts the slot as the plan names it ("deep dive") and refuses a reserve slug with no sheet.
+- **The template** (`me.example/`): `health.md`'s clinician line is `- Rule: [...]`, `content.md`'s "Never bring up" takes a hint (write "nothing" for none), an empty `- Label:` line counts as unfilled everywhere; `knowledge/sessions.toml` drops the retired composer's `blocks`, `min_slots` and `fixed` keys (a fork's copy keeps working; the loader ignores them).
+- A customized workout skill needs merging: the brief and the lint take `--coach`, the "Would open up" rerun uses `brief --add <item>`, and steps 6 and 7 explain a stale menu and a malformed `--item`. Run `./sweatcast harness sync` after.
+
+### Added
+- **`brief --add <ids>`:** equipment on hand today, added to the kit, so the kit's weights still print (in place of rerunning with `--equipment`).
+- **`./sweatcast backup --unverified`:** pushes when GitHub won't say whether the remote is private (after you checked); without it, such a push is refused, as a public one is.
+- **`tools/check.py`**, `tools/fileio.py` (one atomic writer for every record, menu and context file), `tools/common.sh` (what the shell scripts share), `tests/helpers.py` (test isolation: every path redirected to a temporary home; a fixture draft given its menu).
+- **Tests** for every bypass and gap this review closed: the render command needs a menu, the smoke test is known by its place, a stale menu, a changed health file, the scan cases, a key with a stray character, the hook's path list, backup's refusals, a long `Retry-After`, an unclosed `+++` block, one bad coach file, `--no-web` in a cloud session, unknown build flags, `cache prune` under the lock.
+
+### Changed
+- **One build process.** `./sweatcast build` parses its flags with argparse (an unknown flag exits 64 before anything runs or costs money), resolves the coach and route once, reads the draft once, and runs the lint, the menu gate and the render on that same text, so nothing can slip in between the lint and the render. The render's native chatter is logged by pointing the standard error descriptor at `me/workouts/.logs/<name>.log`, which is appended to with a dated line. `render.run`, `render.clips` and `render.follow` are what it calls; `./sweatcast render` is a thin wrapper that enforces the same menu rule. In a cloud session, `--no-web` now keeps the MP3 instead of deleting it.
+- **One exit-code mapper:** `cli.run` wraps every tool's `main`; an unknown coach, a missing draft, a web coach with no key here and a bad `--engine` exit 64 from every command (before, 1 or 64 depending on which tool caught it); a service's refusal exits 4 everywhere; `screen.Unfit` exits 1.
+- **One place each** for the service names (`cloud.service_name`), the render list (`context.render_preferences`), coach matching and folder listing (`personas.find`, `personas.persona_dirs`), the smoke test (`draft.is_smoke`), the build record's path (`workouts.record_path`), float-to-PCM, the version lookup, and movement-name matching (`catalog.resolve`: side words, plurals, hyphen or space). The lint predicts no chime under `--no-chime`, computes each segment's paragraphs once, and uses the render's rule for a held segment.
+- **The shell scripts** share `tools/common.sh`; setup reads the render list through `./sweatcast get routes` instead of `sed` over TOML, keeps a `core.hooksPath` it didn't set, and matches `.env` literally.
+- **`knowledge/sessions.toml`** carries only what the writer sees; the brief prints each method's work and its own rest (a circuit's rest between rounds).
+- **`./sweatcast movements`** defaults to the profile's level.
+- **Research paths** (`feeds`, `youtube`, `content`) are read at call time, so a redirected home redirects them too.
+
+### Fixed
+- **Keys:** a key is stripped of the whitespace around it, one holding a line break, a space or a symbol is refused by name (never shown), an inline `# comment` isn't part of it, and every message the engine prints is scrubbed of key values. Before, a key with a stray line ending in the environment made the HTTP client raise an error whose text held the whole key, which the render and the audition printed.
+- **The pre-push hook** now covers a renamed context folder (`me.real/`), the old top-level layout's files, `.env`, `personas/` and `voices/`, and spares only `me.example/`; its pattern has a test with must-match and must-not-match lists.
+- **Backup** refuses any file named like a key file, not only `.env`, and fails closed when a GitHub remote's visibility can't be read; `git` never waits on a credential prompt.
+- **An unclosed `+++` block**, or a byte order mark from a Windows editor, no longer reads as "an older format, run migrate" (which would have wrapped the settings as prose); `check` names the broken block. One coach file the tools can't read no longer hides the others.
+- **A 429 with a long `Retry-After`** is a quota, exit 4, instead of being slept through (up to five waits of an hour). A 5xx page mentioning "payment" is an outage, not a billing refusal. Fish Audio, ElevenLabs and Inworld designs (billed) are never retried after sending.
+- **Before a clip is rendered** (or billed), the render checks ffmpeg is here and the output name ends in `.mp3`, `.m4a` or `.wav`.
+- **`cache prune`** waits for the render lock, so it never deletes a clip a render is reading.
+- **Windows:** a delivery folder on another drive no longer crashes `paths.show`; a missing `sh` leaves the readiness facts readable instead of crashing every build.
+- **`pace.json`** records a short hash of the computer's name, not the hostname.
+- **`harness`** copies a binary file in a skill, removes a dropped skill's subfolders, writes the Codex rule path with forward slashes on every system, and checks the three `.env` deny rules are still in `.claude/settings.json`.
+- **`check`** notes a setting no tool reads (`deliver-to`: did you mean `deliver_to`?) and finds the quick-start flag beside the files it checks.
+
+### Removed
+- Migration from context schemas 0 to 3 and the sweatcast 8 voice import (`to_1` to `to_4`, `plan_coaches`, `make_coaches`, the `v8.0.1` clips, `tests/test_migrate4.py`, `tests/v8.py`); `--voice`, `./sweatcast voices`, `get default-voice`, `get voices`; `context.voices`, `default_voice`, the schema-1 `---` front matter and the legacy profile parser; `sessions.all_out`; the unreachable `setup` and `doctor` branches in `tools/sweatcast.py`; the `## Narrator` section.
+
 ## [12.0.0] - 2026-10-25
 
 The profile is four files, split by how often each part changes and who reads it, so a workout reads a few dozen lines about you instead of a few hundred, and adding a feed can't touch your kits.

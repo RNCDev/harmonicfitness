@@ -67,7 +67,7 @@ sign_off = "Brief and warm; names one thing done well"
 
 The description a service designs from is `[voice]` joined in order: "who. sound. energy. Pace: pace. Avoid: avoid." `[character]` takes any `key = "text"` (or a list of texts). A local coach's `persona.md` has `kind = "local"`, a `description`, an optional `[local] engine` table (`chatterbox`, or `qwen3` for the clearest diction, on a Mac only), and its talk under `## How this coach talks`, which the brief quotes the same way. `aliases` are older names that still find the coach: a migrated coach keeps its sweatcast 8 voice names, so old log lines still name them.
 
-`./sweatcast coaches` lists the coaches with where each speaks (`web · Fish Audio`, `local · chatterbox`), marks the one a build uses when none is named, and says which are stand-ins and which are made the first time they're used. `./sweatcast build` takes `--coach` (`--voice` is the old name). `./sweatcast coaches archive "<name>"` moves a coach to `.archive/`: out of the list, still found by name for old log lines, its voice left at the service.
+`./sweatcast coaches` lists the coaches with where each speaks (`web · Fish Audio`, `local · chatterbox`), marks the one a build uses when none is named, and says which are stand-ins and which are made the first time they're used. `./sweatcast build` takes `--coach`. `./sweatcast coaches archive "<name>"` moves a coach to `.archive/`: out of the list, still found by name for old log lines, its voice left at the service.
 
 ## Making a web coach
 

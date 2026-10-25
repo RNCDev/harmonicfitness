@@ -95,7 +95,7 @@ The assistant runs these for you, but they work on their own too; `./sweatcast h
 | `./sweatcast feeds`, `content`, `youtube`, `log-session` | What the workout skill uses to research, plan the stories and log |
 | `./sweatcast backup` | Commits `me/` and pushes it to its own private repo (the workout skill runs it after each session) |
 | `./sweatcast harness` | Checks that ChatGPT's Codex files match the Claude Code ones; `sync` rewrites them |
-| `./sweatcast migrate`, `cache prune`, `test` | Upkeep |
+| `./sweatcast migrate`, `cache prune`, `test` | Upkeep (`migrate` brings a `me/` from sweatcast 9 or later up to date; an older one goes through v12.0.0 first) |
 
 ## How it's organized
 
