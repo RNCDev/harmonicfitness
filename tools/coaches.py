@@ -117,7 +117,8 @@ def design(name, description, designer=None, takes=2, seed=7, line=voices.DESIGN
 
 def _clip_bytes(src):
     """The clip as a 16-bit mono 24 kHz WAV: the file itself when it already is one (so its key stays the
-    same), else converted (WAV in pure Python, anything else through ffmpeg)."""
+    same), else converted (a 16-bit WAV in pure Python, anything else through ffmpeg). A clip someone brings
+    is never taken as raw PCM: an M4A or any format not recognised by its first bytes goes through ffmpeg."""
     import cloud
     with open(src, "rb") as f:
         data = f.read()
@@ -127,7 +128,13 @@ def _clip_bytes(src):
                 return data
     except (wave.Error, EOFError):
         pass
-    return cloud.wav_bytes(cloud.audio_pcm(data))
+    if data[:4] == b"RIFF":
+        try:
+            pcm, rate = cloud.wav_pcm(data)
+            return cloud.wav_bytes(cloud.resample(pcm, rate, cloud.SR))
+        except ValueError:   # a WAV this reader doesn't handle (24-bit, float): ffmpeg does
+            pass
+    return cloud.wav_bytes(cloud.ffmpeg_pcm(data, f"The clip {os.path.basename(src)} isn't a WAV"))
 
 
 def keep(take, name=None, words=None, description="", engine="chatterbox", force=False):
@@ -156,19 +163,14 @@ def keep(take, name=None, words=None, description="", engine="chatterbox", force
     if os.path.exists(clip) and not force:
         raise SystemExit(f"{name} already has a clip ({show(clip)}); pass --force to replace it (their pace is "
                          "measured again on the next smoke test).")
-    data = _clip_bytes(take)
-    with open(clip + ".part", "wb") as f:
-        f.write(data)
-    os.replace(clip + ".part", clip)
-    with open(clip_txt, "w", encoding="utf-8") as f:
-        f.write(words.strip() + "\n")
+    fileio.atomic_write(clip, _clip_bytes(take))
+    fileio.atomic_write(clip_txt, words.strip() + "\n")
     if not os.path.exists(persona_md):
         settings = {"name": name, "kind": "local", "description": description or meta.get("description", "")}
         if meta.get("description"):
             settings["designed_from"] = meta["description"]
         settings["local"] = {"engine": engine}
-        with open(persona_md, "w", encoding="utf-8") as f:
-            f.write(context.persona_text(settings, PROSE))
+        fileio.atomic_write(persona_md, context.persona_text(settings, PROSE))
     return name
 
 
@@ -469,8 +471,14 @@ def keep_web(ref, name, replace_old=False):
         voice_id = c["voice_id"]
         print(f"Finishing {name}: {c['letter']} is already saved at {cloud.service_name(service)}.", flush=True)
     else:
+        if c.get("saving") and not c.get("voice_id"):
+            print(f"(An earlier keep of {c['letter']} sent a save to {cloud.service_name(service)} whose answer couldn't "
+                  f"be read: if \"sweatcast {c['saving']}\" is there, this keep makes a second; delete one there.)")
         print(f"Saving {c['letter']} at {cloud.service_name(service)} as \"sweatcast {name}\".", flush=True)
+        c["saving"] = name   # on disk before the save is sent: if its answer is lost, the audition still says so
+        _write_candidates(folder, cands)
         voice_id = module.save(candidate, name, personas.voice_description(voice), wav)
+        c.pop("saving", None)
         c.update(voice_id=voice_id, kept=name)   # recorded before any local write, so it's never lost
         if existing is not None:
             c["replaces"] = existing.voice_id
@@ -633,8 +641,12 @@ def forget_audition(audition):
                 raise SystemExit(f"Gemini: couldn't delete audition voice {c['letter']} ({_reason(e)}); the "
                                  f"audition stays in {show(folder)} so forget-audition can try again.")
             lines.append(f"Deleted Gemini's stored audition voice {c['letter']}.")
+    for c in cands:   # a keep whose save went out but whose answer was lost: a voice may be there
+        if c.get("saving") and not c.get("voice_id"):
+            lines.append(f"{c['letter']}: a save was sent to {cloud.service_name(c['service'])} whose answer couldn't be "
+                         f"read: look for \"sweatcast {c['saving']}\" there and delete it if it's not wanted.")
     others = list(dict.fromkeys(cloud.service_name(c["service"]) for c in cands
-                                if c["service"] != "gemini" and not c.get("kept")))
+                                if c["service"] != "gemini" and not c.get("kept") and not c.get("saving")))
     if others:
         lines.append(f"{', '.join(others)}: the unsaved drafts need nothing (nothing was saved there).")
     shutil.rmtree(folder)
@@ -724,10 +736,10 @@ def main(argv=None):
     if args.cmd == "measured":
         import routes
         p = personas.lookup(args.coach)
+        if p.is_web:   # a web coach needs no smoke test (made or pending): an estimate stands until its first render
+            return cli.OK
         route = routes.pick(context.render_preferences(), p, override=args.engine)
         v = personas.voice_for(p, route)
-        if p.is_web:   # a web coach needs no smoke test: an estimate stands until its first render measures it
-            return cli.OK
         return cli.OK if voices.pace(v)[1] else cli.ISSUES
     if args.cmd == "design":
         designer = args.designer or available_designer()

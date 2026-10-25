@@ -8,6 +8,7 @@ private artifact, with the parts beside it, and ./sweatcast backup commits the p
 
     ./sweatcast build <draft> "<name>" --web     # anywhere; on by default in a Claude Code cloud session
 """
+import glob
 import html
 import json
 import math
@@ -18,6 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ffmpeg as ffmpeg_tool  # noqa: E402
+import fileio  # noqa: E402
 
 MAX_BYTES = 14_000_000
 BITRATE = "48k"
@@ -33,7 +35,10 @@ def _ffmpeg():
 
 def duration(path):
     """The audio's length in seconds, from ffmpeg's own report (no ffprobe needed)."""
-    out = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, timeout=60)
+    try:
+        out = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"Couldn't read the length of {path}: ffmpeg took over a minute.") from None
     m = DURATION_RE.search(out.stderr)
     if not m:
         raise SystemExit(f"Couldn't read the length of {path}.")
@@ -51,6 +56,7 @@ def make(mp3, name, out_dir, max_bytes=MAX_BYTES, bitrate=BITRATE):
     per_second = kbps(bitrate) * 1000 / 8
     parts = max(1, math.ceil(total * per_second * 1.05 / max_bytes))   # 5% for the frames' overhead
     length = total / parts
+    _remove_parts(out_dir, name)   # a rebuild in fewer parts leaves no stale part for the backup to commit
     out = []
     for i in range(parts):
         path = os.path.join(out_dir, f"{name}.web-{i + 1}.mp3")
@@ -58,11 +64,24 @@ def make(mp3, name, out_dir, max_bytes=MAX_BYTES, bitrate=BITRATE):
         if i < parts - 1:
             cmd += ["-t", f"{length:.3f}"]
         cmd += ["-ac", "1", "-c:a", "libmp3lame", "-b:a", str(bitrate), path]
-        done = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        try:
+            done = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        except subprocess.TimeoutExpired:
+            _remove_parts(out_dir, name)
+            raise SystemExit(f"Couldn't make the web copy: ffmpeg took over ten minutes on part {i + 1}.") from None
         if done.returncode:
+            _remove_parts(out_dir, name)
             raise SystemExit(f"Couldn't make the web copy: {done.stderr.strip()[-300:]}")
         out.append(path)
     return out
+
+
+def _remove_parts(out_dir, name):
+    """Remove every <name>.web-<n>.mp3 in out_dir (a part set is made whole or not at all)."""
+    pattern = os.path.join(glob.escape(out_dir), glob.escape(name) + ".web-*.mp3")
+    for path in glob.glob(pattern):
+        if re.fullmatch(r"\d+", os.path.basename(path)[len(name) + len(".web-"):-len(".mp3")]):
+            os.remove(path)
 
 
 PAGE = """<!doctype html>
@@ -125,6 +144,5 @@ def page(name, parts, out_path):
     count = f"It's in {len(names)} parts, which play one after another." if len(names) > 1 else ""
     text = PAGE.format(title=html.escape(name), count=count, first=html.escape(names[0]), links=links,
                        parts=json.dumps(names))
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(text)
+    fileio.atomic_write(out_path, text)
     return out_path

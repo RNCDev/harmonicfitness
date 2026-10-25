@@ -2,6 +2,7 @@
 (tools/menu.py), and the draft's movements: header (tools/draft.py). They run on the shipped catalog
 and the invented listener in tests/fixtures/listener, with no models or network."""
 import datetime
+import hashlib
 import json
 import os
 import shutil
@@ -365,8 +366,15 @@ class LogSession(unittest.TestCase):
             home = os.path.join(d, "me")
             shutil.copytree(LISTENER, home)
             path = os.path.join(d, "x.draft.txt")
+            text = DRAFT.replace("goblet squat", "goblet-squat", 1)
             with open(path, "w") as f:
-                f.write(DRAFT.replace("goblet squat", "goblet-squat", 1))
+                f.write(text)
+            # a built draft: its menu (the date, length and kit) and a build record with its hash
+            menu.write(draft.menu_path(path), {"date": "2026-10-21", "request": {"minutes": 5, "kit": "home"},
+                                               "seconds": 300, "movements": []})
+            os.makedirs(os.path.join(home, "workouts", ".logs"))
+            with open(os.path.join(home, "workouts", ".logs", "builds.jsonl"), "w") as f:
+                f.write(json.dumps({"draft_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}) + "\n")
             r = run("log-session", "--date", "2026-10-21", "--minutes", "5", "--kit", "home", "--coach",
                     "Chatterbox Coach", "--draft", path, "--topics", "test topics", "--format", "circuit", home=home)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

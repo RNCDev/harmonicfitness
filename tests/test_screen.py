@@ -99,8 +99,8 @@ class Screen(unittest.TestCase):
 
     def test_bad_health_row_is_unfit_not_usage(self):
         with self.assertRaises(screen.Unfit) as caught:
-            with unittest.mock.patch.object(context, "limits",
-                                            return_value=[catalog.Limit("wrist", "both", "sore", [], [], "")]):
+            with unittest.mock.patch.object(context, "limit_rows",
+                                            return_value=([catalog.Limit("wrist", "both", "sore", [], [], "")], [])):
                 screen_for(health=context.Health({}, ""))
         self.assertIn("health", str(caught.exception))
 
@@ -123,9 +123,10 @@ class Screen(unittest.TestCase):
         self.assertNotIn("goblet-squat", offered(scr))
         self.assertEqual(scr.avoid, {"goblet-squat", "impact"})
 
-    def test_unknown_avoid_word_is_warned_not_fatal(self):
-        scr = screen_for(health=self.health_with("- Avoid: wobbly-thing"))
-        self.assertTrue(any("wobbly-thing" in w for w in scr.warnings), scr.warnings)
+    def test_unknown_avoid_word_stops_the_screen(self):
+        with self.assertRaises(screen.Unfit) as caught:   # an avoid that rules nothing out protects nothing
+            screen_for(health=self.health_with("- Avoid: wobbly-thing"))
+        self.assertIn("wobbly-thing", str(caught.exception))
         issues = check._check_health("health.md", open(self.health_with("- Avoid: wobbly-thing").path).read())
         self.assertTrue(any("wobbly-thing" in i.message for i in issues))
 

@@ -4,7 +4,7 @@ A method is the shape of a session's main work: its goals, length, levels, how w
 and an optional finisher share the time, the kind of work and the blocks of patterns that fill it.
 The dose tables give each intensity's ranges by level. `load` reads the file, `problems` checks it
 against the movement catalog, one plain sentence per fault, `ranked` orders the methods that fit today,
-`dose` gives an intensity's ranges for a level and `all_out` says whether a movement is a sprint.
+and `dose` gives an intensity's ranges for a level.
 Library only; the command line lives elsewhere.
 """
 import tomllib

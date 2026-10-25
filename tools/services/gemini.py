@@ -13,7 +13,6 @@ No style is sent: speech_metadata was refused in every placement when tried live
 words are never added to the text. Key in `x-goog-api-key`.
 Delete: DELETE /v1beta/voices/{id}.
 """
-import base64
 import json
 
 import cloud
@@ -37,7 +36,7 @@ def _speak(voice_id, model, text):
     audio, mime = cloud.find_audio(answer)
     if not audio:
         raise cloud.ServiceError("bad_request", SERVICE, "the answer held no audio")
-    return cloud.trim(cloud.audio_pcm(base64.b64decode(audio), cloud.mime_rate(mime), service=SERVICE))
+    return cloud.trim(cloud.audio_pcm(cloud.b64_audio(audio, SERVICE), cloud.mime_rate(mime), service=SERVICE))
 
 
 def speaker(voice):
@@ -53,7 +52,8 @@ def design(description, line, n=1, label=""):
                        "store": True}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1beta/voices", _headers(), body, timeout=180,
                                service=SERVICE, idempotent=False)
-    voice_id = json.loads(data).get("id")
+    voice_id = cloud.json_answer(data, SERVICE, "the design (a voice may be stored there: look for \"" + str(label)
+                                 + "\")").get("id")
     if not voice_id:
         raise cloud.ServiceError("bad_request", SERVICE, "the design came back with no voice ID")
     try:

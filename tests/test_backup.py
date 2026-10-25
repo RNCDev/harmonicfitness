@@ -146,6 +146,25 @@ class Backup(unittest.TestCase):
             self.assertEqual(run(self.home)[0], cli.OK)   # GitHub said private
             self.assertEqual(run(self.home)[0], cli.OK)   # GitHub silent: remembered
 
+    def test_a_remembered_remote_that_turned_public_is_refused(self):
+        new_repo(self.home)
+        git(self.home, "add", "-A")
+        git(self.home, "commit", "-q", "-m", "first")
+        git(self.home, "remote", "add", "origin", "https://github.com/someone/sweatcast-me.git")
+        backup.remember_private(self.home, "someone/sweatcast-me", "github")
+        with mock.patch.object(backup, "visibility", return_value="PUBLIC"), \
+                mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")) as pushed:
+            code, out = run(self.home)
+        self.assertEqual(code, cli.ISSUES)
+        self.assertIn("is public", out)
+        self.assertFalse(pushed.called)
+
+    def test_a_push_that_hangs_gives_up(self):
+        with mock.patch.object(backup.subprocess, "run", side_effect=subprocess.TimeoutExpired(["git"], 1)):
+            out = backup._push(self.home, ["push"])
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("no answer", out.stderr)
+
     def test_a_token_authenticates_the_api_read(self):
         seen = {}
 
@@ -173,6 +192,12 @@ class Backup(unittest.TestCase):
                                return_value=subprocess.CompletedProcess([], 0, "", "")) as run_:
             backup.git(self.home, "status")
         self.assertEqual(run_.call_args.kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+        self.assertEqual(run_.call_args.kwargs["env"]["GIT_SSH_COMMAND"], "ssh -o BatchMode=yes")   # nor on ssh's
+        with mock.patch.dict(os.environ, {"GIT_SSH_COMMAND": "ssh -i ~/.ssh/other"}), \
+                mock.patch.object(backup.subprocess, "run",
+                                  return_value=subprocess.CompletedProcess([], 0, "", "")) as run_:
+            backup.git(self.home, "status")
+        self.assertEqual(run_.call_args.kwargs["env"]["GIT_SSH_COMMAND"], "ssh -i ~/.ssh/other")   # the listener's own
 
 
     def test_github_slug(self):

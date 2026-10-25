@@ -74,5 +74,46 @@ class Personas(unittest.TestCase):
         self.assertEqual((v["engine"], v["backend"], v["route"], v["name"]), ("chatterbox", "mlx", "local", "Coach Test"))
         self.assertEqual(v["pace_file"], os.path.join(self.d, "personas", "coach-test", "pace.json"))
 
+class KeepWeb(unittest.TestCase):
+    """coaches keep <audition>/<letter>: the audition says a save went out before the service answers."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        from fakes import tone_wav
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        folder = persona_home(self.d)
+        for patch in (mock.patch.object(personas.paths, "PERSONAS", folder),
+                      mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key", "SWEATCAST_RETRY_WAIT": "0"})):
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.audition = os.path.join(folder, ".auditions", "2026-10-25-1")
+        os.makedirs(self.audition)
+        with open(os.path.join(self.audition, "fish-1.wav"), "wb") as f:
+            f.write(tone_wav(0.5))
+        with open(os.path.join(self.audition, "narrative.md"), "w", encoding="utf-8") as f:
+            f.write(context.persona_text({"name": "Coach Maya", "voice": {"who": "a coach", "sound": "warm"}}, ""))
+        self.cands = os.path.join(self.audition, "candidates.json")
+        with open(self.cands, "w", encoding="utf-8") as f:
+            json.dump([{"letter": "A", "service": "fish", "k": 1, "draft_id": "c1", "signature": "s", "text": "Hi.",
+                        "wav": "fish-1.wav", "mp3": None}], f)
+
+    def test_an_unreadable_save_answer_leaves_a_mark(self):
+        import cloud
+        import coaches
+        from fakes import FakeService
+        with FakeService(lambda r: (201, {}, b"<html>saved, probably</html>")) as fake, \
+                mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url}):
+            with self.assertRaises(cloud.ServiceError) as got:
+                coaches.keep_web("2026-10-25-1/A", "Coach Maya")
+        self.assertIn("sweatcast Coach Maya", str(got.exception))
+        with open(self.cands, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)[0]["saving"], "Coach Maya")   # the paid save is never forgotten
+        self.assertFalse(os.path.exists(personas.folder_for("Coach Maya", "fish")))
+        said = "\n".join(coaches.forget_audition("2026-10-25-1"))
+        self.assertIn('look for "sweatcast Coach Maya"', said)
+        self.assertNotIn("nothing was saved", said)
+
+
 if __name__ == "__main__":
     unittest.main()

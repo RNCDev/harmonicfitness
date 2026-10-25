@@ -49,7 +49,7 @@ import ffmpeg as ffmpeg_tool  # noqa: E402
 import locks  # noqa: E402
 from locks import FOLLOWING, render_lock, stop_file  # noqa: E402,F401
 from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_smoke,  # noqa: E402
-                   layout, parse, plan, spoken as is_spoken)
+                   layout, parse, plan, spoken as is_spoken, tolerance_arg)
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
 import paths  # noqa: E402
 from voices import MLX_EDGE, check_pace_file, record_rate, weight  # noqa: E402
@@ -194,14 +194,32 @@ def encode(pcm, out, title):
             w.setsampwidth(2)
             w.setframerate(SR)
             w.writeframes(pcm)
-        probe = subprocess.run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
-                                f"loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"],
-                               capture_output=True, text=True, check=True)
+        probe = _ffmpeg_run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
+                             f"loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"], "measure the loudness")
         m = loudness_stats(probe.stderr)
         af = (f"loudnorm={LOUDNESS}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
               f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}")
-        subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", raw, "-af", af, "-ar", str(SR),
-                        "-metadata", f"title={title}", *codec, out], check=True)
+        # Encoded beside the output under a temporary name (its extension kept, so ffmpeg picks the format),
+        # then renamed: an old MP3 is never left half-overwritten, and a failure leaves nothing behind.
+        stem, ext = os.path.splitext(out)
+        part = f"{stem}.part{ext}"
+        try:
+            _ffmpeg_run([ffmpeg, "-y", "-loglevel", "error", "-i", raw, "-af", af, "-ar", str(SR),
+                         "-metadata", f"title={title}", *codec, part], "encode the audio")
+            os.replace(part, out)
+        finally:
+            if os.path.exists(part):
+                os.remove(part)
+
+
+def _ffmpeg_run(cmd, what):
+    """Run ffmpeg; a failure stops with the end of what it said, not a traceback."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        tail = (e.stderr or "").strip()[-300:]
+        raise SystemExit(f"ffmpeg couldn't {what} ({ffmpeg_version() or 'ffmpeg'}, exit {e.returncode}): "
+                         f"{tail or 'no reason given'}") from None
 
 
 def engine_version():
@@ -239,6 +257,29 @@ def save_build_record(record, out, log=None):
     os.makedirs(os.path.dirname(log), exist_ok=True)
     with open(log, "a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
+
+
+def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, error):
+    """A cloud render that stopped partway: one line in builds.jsonl with the characters already sent, marked
+    "failed" (no MP3, no <name>.build.json). A reader counting MP3s skips lines with "failed"."""
+    import cloud
+    if isinstance(error, SystemExit):
+        reason = str(error.code) if not isinstance(error.code, int) else f"exit {error.code}"
+    else:
+        reason = type(error).__name__ + (f": {error}" if str(error) else "")
+    usd = cloud.estimate(voice["service"], voice["model"], ["x" * sent["started"]])[1]
+    record = {"failed": True, "out": paths.show(os.path.abspath(out)),
+              "draft": paths.show(os.path.abspath(draft_path)) if draft_path else None, "draft_sha256": draft_sha256,
+              "voice": voice["name"], "voice_key": voice["key"], "engine": voice["engine"], "model": voice["model"],
+              "route": voice.get("route"), "chars_sent": sent["started"], "chars_rendered": sent["chars"],
+              "usd_estimate": round(usd, 4), "reason": cloud.scrub(reason)[:300],
+              "started_at": dt.datetime.fromtimestamp(started).astimezone().isoformat(timespec="seconds")}
+    try:
+        os.makedirs(os.path.dirname(paths.BUILDS), exist_ok=True)
+        with open(paths.BUILDS, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except OSError as e:   # the failure being reported matters more than this line
+        print(f"(Couldn't note the failed render in {paths.show(paths.BUILDS)}: {e})", file=sys.stderr)
 
 
 def prepare_voice(voice, model=None, seed=42):
@@ -309,12 +350,14 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     pool = ThreadPoolExecutor(max_workers=max(1, voice.get("concurrency") or 1))
     import threading
     stop = threading.Event()   # set by the first failure (or Ctrl-C), so no worker starts another request
+    cloud.stop_on(stop)   # and no request already out retries once it's set
     try:
         say = engines.speaker(voice)   # the first request goes out here
 
         def one(text, **ctx):
             if stop.is_set():
                 return None
+            sent["started"] += len(text)   # counted as it goes out: a failure may still bill it
             try:
                 return render_clip(say, text, seed, cache_path, **ctx)
             except BaseException:
@@ -355,6 +398,8 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
             print(f"\nStopped sending to {service['name']}: {cloud.scrub(str(e))}. The {done} clip(s) rendered are cached.")
             sys.exit(cli.ISSUES)
         raise
+    finally:
+        cloud.stop_on(None)
     pool.shutdown()
     sent["usd"] = cloud.estimate(voice["service"], voice["model"], todo)[1]
     took = time.time() - started
@@ -417,9 +462,14 @@ def run(segments, voice, out, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False
         todo = list(dict.fromkeys(t for t in clips if not os.path.exists(cache_path(t))))
         print(f"{len(clips)} clips, {len(todo)} to render ({len(clips) - len(todo)} cached), "
               f"voice {voice['name']} on {engine}", flush=True)
-        sent = {"chars": 0, "usd": 0.0}
+        sent = {"chars": 0, "started": 0, "usd": 0.0}
         if todo and voice.get("backend") == "cloud":
-            render_cloud(voice, todo, clips, seed, cache_path, sent)
+            try:
+                render_cloud(voice, todo, clips, seed, cache_path, sent)
+            except BaseException as e:
+                if sent["started"]:   # characters went out (and may be billed): builds.jsonl keeps a line for them
+                    save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e)
+                raise
         elif todo:
             _render_local(voice, todo, seed, cache_path)
 
@@ -439,7 +489,12 @@ def run(segments, voice, out, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False
         print(f"{i:>3} {planned:>5} {spoken:>6.1f} {spoken / planned:>5.0%}  {label}{flag}")
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-    encode(pcm_all, out, os.path.splitext(os.path.basename(out))[0])
+    try:
+        encode(pcm_all, out, os.path.splitext(os.path.basename(out))[0])
+    except BaseException as e:
+        if sent["started"]:   # the clips are paid for and cached, but no MP3 (and no record) came of them
+            save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e)
+        raise
 
     total = len(pcm_all) / 2 / SR
     planned_total = sum(seg["seconds"] for seg in segments)
@@ -518,8 +573,8 @@ def main():
     ap.add_argument("--model", default=None,
                     help="try another model repo for the voice's engine (its latest revision)")
     ap.add_argument("--seed", type=int, default=42, help="a different seed gives a different take of every line")
-    ap.add_argument("--tolerance", type=float, default=TOTAL_TOLERANCE,
-                    help="how far the whole workout may run over or under plan, as a fraction")
+    ap.add_argument("--tolerance", type=tolerance_arg, default=TOTAL_TOLERANCE,
+                    help="how far the whole workout may run over or under plan, as a fraction (0 to 0.5)")
     ap.add_argument("--no-chime", action="store_true",
                     help="leave out the bell at each new segment and the end tone ([chime] markers still ring)")
     ap.add_argument("--clips-only", action="store_true",

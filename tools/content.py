@@ -218,8 +218,10 @@ def restock(r: Recipe, cats, items, pieces) -> Dict[str, int]:
             if s.reserve and have.get(sid, 0) < s.reserve and cats.get(sid)}
 
 
-def parse_item(text: str, date: str, r: Recipe) -> dict:
-    """"slot | category | title [| source [| reserve slug]]" as a record item; ValueError says what's wrong."""
+def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
+    """"slot | category | title [| source [| reserve slug]]" as a record item; ValueError says what's wrong.
+    The category must be one the plan rotates for that slot (the profile's [[interests]], else the
+    defaults), or the rotation would never see it told."""
     parts = [p.strip() for p in text.split("|")]
     if len(parts) < 3 or not all(parts[:3]):
         raise ValueError(f"'{text}': expected 'slot | category | title [| source [| reserve slug]]'")
@@ -229,6 +231,10 @@ def parse_item(text: str, date: str, r: Recipe) -> dict:
     slot = re.sub(r"[\s-]+", "_", slot.strip().lower())   # "deep dive" and "deep-dive" are deep_dive
     if slot not in r.slots:
         raise ValueError(f"'{text}': unknown slot '{slot}' (one of {', '.join(r.slots)})")
+    known = categories(r, profile)[slot]
+    if known and category.lower() not in {c.lower() for c in known}:
+        raise ValueError(f"'{text}': category '{category}' isn't one the plan rotates for {slot} "
+                         f"(one of {', '.join(known)})")
     item = {"date": date, "slot": slot, "category": category.lower(), "title": title}
     if len(parts) > 3 and parts[3]:
         item["source"] = parts[3]
@@ -239,16 +245,22 @@ def parse_item(text: str, date: str, r: Recipe) -> dict:
     return item
 
 
-def log(date: str, texts: List[str], path=None, r: Recipe = None) -> List[dict]:
+def log(date: str, texts: List[str], path=None, r: Recipe = None, profile=None) -> List[dict]:
     r = r or recipe()
     datetime.date.fromisoformat(date)
-    new = [parse_item(t, date, r) for t in texts]   # all checked before any is written
+    path = path or paths.TOLD
+    new = [parse_item(t, date, r, profile) for t in texts]   # all checked before any is written
+    used = {used_slug(i) for i in told(path)} - {None}
     for item in new:
         slug = item.get("reserve")
         if slug and not any(os.path.exists(os.path.join(d, slug + ".md")) for d in folders()):
             raise ValueError(f"no reserve piece '{slug}' in {paths.show(paths.RESERVE)} (a typo here would leave the real "
                              "piece unused, to be told again)")
-    path = path or paths.TOLD
+        if slug in used:
+            raise ValueError(f"reserve piece '{slug}' is already told (in {paths.show(path)} or earlier in this "
+                             "command); a piece is told once")
+        if slug:
+            used.add(slug)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         for item in new:
@@ -275,7 +287,8 @@ def main(argv=None):
                 raise ValueError("--minutes must be above zero")
             print("\n".join(plan(args.minutes, today, profile=context.profile())))
         elif args.cmd == "log":
-            new = log(args.date, args.item)
+            # the profile's [[interests]] name the categories; with no profile, the defaults
+            new = log(args.date, args.item, profile=context.profile() if os.path.exists(paths.PROFILE) else None)
             print(f"Recorded {len(new)} item(s) in {paths.show(paths.TOLD)}.")
         else:
             pieces = reserve()

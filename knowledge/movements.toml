@@ -2587,6 +2587,237 @@ easier = ["marching-in-place"]
 harder = []
 
 [[movement]]
+id = "burpee"
+name = "burpees"
+aliases = ["burpee", "squat thrust", "squat thrusts"]
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion", "horizontal-push", "squat"]
+muscles = ["quads", "glutes", "chest", "shoulders", "triceps", "core", "calves"]
+loads = { wrist = 2, shoulder = 2, elbow = 2, knee = 2, ankle = 3, calf = 3, foot = 2, hip = 2, low-back = 2 }
+flags = ["impact", "fast", "floor"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Stand tall with your feet under your hips and a clear patch of floor in front of you."
+cues = ["Hands down, jump the feet back.", "Jump the feet in, then stand and hop.", "Land soft every time."]
+rep = "One rep is squatting to put your hands on the floor, jumping the feet back to a plank, jumping them in again and standing up into a small hop. The effort is hard, so you can only speak a few words at a time."
+feel = "Feel the heart rate climbing fast and the legs, chest and shoulders working, with soft landings and no strain in the wrists or low back."
+faults = ["If your hips sag in the plank, brace your belly and squeeze the glutes before the feet come in.", "If your landings are loud, bend the knees and land on the balls of your feet.", "If your wrists or back complain, step the feet back and in instead of jumping."]
+easier = ["step-jack"]
+harder = []
+
+[[movement]]
+id = "mountain-climber"
+name = "mountain climbers"
+aliases = ["mountain climber", "running plank"]
+needs = []
+position = "all-fours"
+sided = false
+measure = "time"
+patterns = ["locomotion", "anti-extension"]
+muscles = ["core", "shoulders", "quads", "glutes"]
+loads = { wrist = 2, shoulder = 2, elbow = 1, hip = 2, knee = 1, low-back = 1, ankle = 1, foot = 2 }
+flags = ["fast", "floor"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Come to the top of a push-up, hands under your shoulders and body in one long line."
+cues = ["Drive one knee toward your chest, then switch.", "Hips level with your shoulders.", "Quick feet, still shoulders."]
+rep = "Hold a high plank and drive the knees toward the chest one at a time, quickly, until the time is up. The effort is hard, so you can only speak a few words at a time."
+feel = "Feel it in the belly, the fronts of the hips and the shoulders, with the heart rate climbing and no sag or ache in the low back."
+faults = ["If your hips pike up high, lower them until your body is one long line.", "If your low back sags, slow the feet and brace your belly.", "If your shoulders drift behind your hands, shift forward so they stack over the wrists."]
+easier = ["forearm-plank"]
+harder = []
+
+[[movement]]
+id = "jump-squat"
+name = "jump squats"
+aliases = ["jump squat", "squat jumps", "squat jump"]
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["squat", "locomotion"]
+muscles = ["quads", "glutes", "calves", "hamstrings"]
+loads = { knee = 3, ankle = 3, calf = 3, foot = 2, hip = 2, low-back = 1 }
+flags = ["impact", "fast"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Stand with your feet a little wider than your hips, toes turned out a touch."
+cues = ["Sit back, then jump straight up.", "Land soft and sink into the next one.", "Knees track over the toes."]
+rep = "One rep is squatting down and jumping straight up, landing softly back into the squat. The effort is hard, so you can only speak a few words at a time."
+feel = "Feel it in the thighs and glutes, with the breath working hard and quiet, soft landings, no jarring in the knees."
+faults = ["If your knees cave in on the landing, push them out over your toes.", "If your landings are loud, land on the balls of the feet and bend the knees to soak it up.", "If your knees hurt, stop jumping and do slow air squats instead."]
+easier = ["air-squat"]
+harder = ["tuck-jump"]
+
+[[movement]]
+id = "tuck-jump"
+name = "tuck jumps"
+aliases = ["tuck jump", "knee tuck jumps"]
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion", "squat"]
+muscles = ["quads", "glutes", "calves", "core"]
+loads = { knee = 3, ankle = 3, calf = 3, foot = 2, hip = 2, low-back = 2 }
+flags = ["impact", "fast"]
+intensity = "conditioning"
+effort = "hard"
+level = "advanced"
+hold_seconds = 20
+transition_seconds = 10
+draft = false
+setup = "Stand with your feet under your hips, arms bent at your sides."
+cues = ["Jump and pull the knees up high.", "Land soft, reset, go again.", "Quality over speed."]
+rep = "One rep is jumping straight up and pulling both knees toward the chest, then landing softly. The effort is very hard, so you can't speak more than a word or two."
+feel = "Feel it in the thighs, glutes and belly, with the heart pounding and soft landings, no jarring in the knees, ankles or back."
+faults = ["If your landings are loud, pause between jumps and land on the balls of your feet with bent knees.", "If your knees cave in on landing, slow down and push them out over the toes.", "If your back rounds hard on the tuck, bring the knees up less high."]
+easier = ["jump-squat"]
+harder = []
+
+[[movement]]
+id = "jump-lunge"
+name = "jump lunges"
+aliases = ["jump lunge", "jumping lunges", "split jumps", "split jump", "lunge jumps"]
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["lunge", "locomotion"]
+muscles = ["quads", "glutes", "hamstrings", "calves"]
+loads = { knee = 3, ankle = 3, calf = 3, foot = 2, hip = 2, groin = 1, low-back = 1 }
+flags = ["impact", "fast", "single-leg"]
+intensity = "conditioning"
+effort = "hard"
+level = "advanced"
+hold_seconds = 20
+transition_seconds = 10
+draft = false
+setup = "Stand in a split stance, one foot forward and one back, both knees soft."
+cues = ["Drop low, jump, switch the legs.", "Land soft in the lunge.", "Chest tall the whole time."]
+rep = "One rep is lowering into a lunge, jumping up and switching legs in the air, and landing softly in a lunge on the other side. The effort is very hard, so you can't speak more than a word or two."
+feel = "Feel it in the thighs and glutes of both legs, with the heart pounding and no jarring in the front knee."
+faults = ["If the front knee caves in, slow down and keep it over the middle of the foot.", "If your landings are loud, make the jump smaller and land softer.", "If a knee hurts, stop jumping and step back into reverse lunges."]
+easier = ["reverse-lunge"]
+harder = []
+
+[[movement]]
+id = "skater-hop"
+name = "skater hops"
+aliases = ["skater hop", "skater jumps", "skater jump", "speed skaters", "lateral bounds"]
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion", "balance"]
+muscles = ["glutes", "quads", "abductors", "adductors", "calves"]
+loads = { knee = 2, ankle = 3, calf = 3, foot = 2, hip = 2, groin = 2, low-back = 1 }
+flags = ["impact", "fast", "lateral", "single-leg"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Stand on one foot with a little bend in the knee and room to move side to side."
+cues = ["Bound sideways onto the other foot.", "Stick the landing, then go back.", "Stay low like a speed skater."]
+rep = "One rep is a sideways bound from one foot to the other, landing softly and steady before you bound back. The effort is hard, so you can only speak a few words at a time."
+feel = "Feel it in the outside of the hips, the glutes and the thighs, with the heart rate climbing and steady, quiet landings, no twist in the knee."
+faults = ["If the landing knee caves in, make the bound shorter and push the knee out over the toes.", "If you wobble on landing, pause and steady yourself before the next bound.", "If a knee or ankle hurts, stop and switch to a side step instead of a hop."]
+easier = []
+harder = []
+
+[[movement]]
+id = "box-jump"
+name = "box jumps"
+aliases = ["box jump", "bench jumps", "step-up jumps"]
+needs = []
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["locomotion"]
+draft = true
+setup = "Stand facing a sturdy box or step, a short step away."
+cues = ["Swing the arms and jump up onto the box.", "Land soft with both feet.", "Step down, never jump down."]
+easier = ["step-up"]
+harder = []
+
+[[movement]]
+id = "broad-jump"
+name = "broad jumps"
+aliases = ["broad jump", "standing long jumps", "standing long jump", "frog jumps", "frog jump"]
+needs = []
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["locomotion"]
+draft = true
+setup = "Stand with your feet under your hips and clear floor in front of you."
+cues = ["Swing the arms back, then jump forward.", "Land soft in a squat.", "Turn around and reset."]
+easier = []
+harder = []
+
+[[movement]]
+id = "jump-rope"
+name = "jump rope"
+aliases = ["skip rope", "skipping rope", "rope skipping", "jumping rope", "double unders", "double under"]
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+draft = true
+setup = "Hold a rope handle in each hand, the rope behind your heels."
+cues = ["Small hops on the balls of your feet.", "Turn the rope from the wrists.", "Elbows close to your sides."]
+easier = []
+harder = []
+
+[[movement]]
+id = "running-sprint"
+name = "running sprints"
+aliases = ["running sprint", "hill sprints", "hill sprint", "wind sprints", "shuttle runs", "shuttle run", "suicide runs"]
+needs = []
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+draft = true
+setup = "Find a clear, flat stretch of ground with room to slow down at the end."
+cues = ["Drive the arms.", "Quick feet, tall chest.", "Ease off gradually at the end."]
+easier = []
+harder = []
+
+[[movement]]
+id = "clap-push-up"
+name = "clap push-ups"
+aliases = ["clap push-up", "plyo push-ups", "plyo push-up", "plyometric push-ups", "explosive push-ups"]
+needs = []
+position = "all-fours"
+sided = false
+measure = "reps"
+patterns = ["horizontal-push"]
+draft = true
+setup = "Come to the top of a push-up, hands under your shoulders."
+cues = ["Push hard enough to lift the hands.", "Land with soft elbows.", "Body in one long line."]
+easier = ["push-up"]
+harder = []
+
+[[movement]]
 id = "shadow-boxing"
 name = "shadow boxing"
 aliases = ["standing shadow boxing", "shadowboxing", "boxing in place"]

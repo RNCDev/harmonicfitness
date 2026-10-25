@@ -8,13 +8,14 @@ declares what it scripts on a `movements:` line (draft.py), and `check` finds:
   menu; segments that don't add up to the request's seconds;
 - warnings: the text naming a menu movement the declaration leaves out (add it, so the log has it).
 
-The text is scanned for names and aliases of two or more words (hyphen or space between them) and
-for one-word hyphenated names (push-up), longest first, so "single-leg glute bridge" isn't also read
-as "glute bridge". Plain one-word names (squat, swing, curl, plank) are left out of the scan: they
-are everyday coaching words ("swing your arms"), and the declaration is what the build checks. A
-shortened name of a declared movement ("the bench press" for the dumbbell bench press) counts as
-that movement, and a mention just after "no", "not", "skip", "instead of" or "like" isn't an
-instruction ("no neck rolls today", "it should feel like a brisk walk").
+The text is scanned for every name and alias, longest first, so "single-leg glute bridge" isn't also
+read as "glute bridge", except the one-word aliases in EVERYDAY (squat, swing, curl, plank): they are
+everyday coaching words ("swing your arms"), or words a filler story uses ("skiing"), and the
+declaration is what the build checks. A shortened name of a declared movement ("the bench press" for
+the dumbbell bench press) counts as that movement. A mention right after "no", "not", "skip",
+"instead of" or "like", with only small words such as "the" or "doing" between, isn't an instruction
+("no neck rolls today", "we're not doing jumping jacks", "like a brisk walk"); "no rest between
+jumping jacks" is.
 Library only; the brief and the lint call it.
 """
 import datetime
@@ -121,13 +122,13 @@ def load(path: str) -> Optional[dict]:
 
 
 def _norm(text: str) -> str:
-    return " ".join(re.sub(r"[^a-z'-]+", " ", text.lower().replace("’", "'")).split())
+    return catalog.plain(text, hyphens=True)
 
 
-def resolve(cat: catalog.Catalog, word: str) -> Optional[catalog.Movement]:
-    """The movement a declared word means (catalog.resolve: an id, a name or an alias, forgiving a plural, a
-    leading side word, and a hyphen for a space)."""
-    return catalog.resolve(cat, word.strip())
+# one-word aliases left out of the scan: coaching cues ("swing your arms", "press through the heels") or
+# words a filler story uses ("skiing season", "the Sphinx"); every other one-word alias is scanned
+EVERYDAY = {"squat", "swing", "curl", "plank", "bridge", "run", "march", "marching", "stairs", "row", "press",
+            "shuffles", "windmill", "halo", "halos", "skiing", "clams", "bicycles", "sphinx", "walk", "step"}
 
 
 def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
@@ -140,8 +141,8 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
     for m in cat.movements.values():
         for name in [m.name] + m.aliases:
             key = _norm(name)
-            if " " not in key and "-" not in key and name != m.name:
-                continue   # a plain one-word alias (squat, swing, curl, plank): an everyday coaching word
+            if key in EVERYDAY and name != m.name:
+                continue   # an everyday coaching word (squat, swing, curl, plank)
             found.setdefault(key, (m.id, name))
     # "push up" and "step up" are cues as often as names: when a hyphenated name has the same words,
     # only the hyphenated spelling counts
@@ -175,7 +176,7 @@ def mentions(cat: catalog.Catalog, text: str) -> List[Tuple[str, str, str]]:
         for m in rx.finditer(text):
             hits.append((m.start(), mid, m.group(0)))
         text = rx.sub(lambda m: " " * len(m.group(0)), text)   # a longer name keeps its words
-    return [(mid, words, " ".join(re.findall(r"[a-z']+", _clause(original[max(0, at - 40):at]))[-BEFORE:]))
+    return [(mid, words, " ".join(re.findall(r"[a-z']+", _clause(original[max(0, at - 60):at]))[-BEFORE:]))
             for at, mid, words in sorted(hits)]
 
 
@@ -185,10 +186,22 @@ def _clause(text: str) -> str:
     return re.split(r"[.!?;:,]", text)[-1]
 
 
-BEFORE = 3   # words looked at before a mention, within its clause
-# a mention just after one of these isn't an instruction: "no neck rolls today", "like a brisk walk"
+BEFORE = 6   # words kept before a mention, within its clause
+# a mention right after one of these isn't an instruction: "no neck rolls today", "like a brisk walk"
 NOT_DOING = {"no", "not", "never", "skip", "skipping", "without", "instead", "avoid", "nothing", "like",
-             "unlike", "rather", "isn't", "aren't", "won't", "don't"}   # not "than": "no more than ten push-ups"
+             "unlike", "rather", "isn't", "aren't", "won't", "don't"}
+# small words allowed between the negation and the mention: "not doing the jumping jacks", "instead of
+# burpees", "rather than burpees" ("no more than ten push-ups" still counts: "ten" isn't one)
+FILLER = {"a", "an", "the", "any", "more", "your", "doing", "do", "of", "than"}
+
+
+def negated(before: str) -> bool:
+    """True when the words before a mention end in a negation, with only FILLER after it: "no burpees",
+    "not doing the jumping jacks"; not "no rest between jumping jacks" or "do not stop your high knees"."""
+    for word in reversed(before.split()):
+        if word not in FILLER:
+            return word in NOT_DOING
+    return False
 
 
 def _part_of(cat: catalog.Catalog, words: str, names: List[str], declared: set) -> bool:
@@ -219,7 +232,7 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
                       "script uses, from the brief's menu")
     declared = set()
     for word in words:
-        m = resolve(cat, word)
+        m = catalog.resolve(cat, word.strip())
         if m is None:
             issues.append(f"declared \"{word}\" isn't a movement in the catalog; use its name from the menu")
         elif m.id not in on_menu:
@@ -231,7 +244,7 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
     for mid, said, before in mentions(cat, spoken_text(segments)):
         if mid in declared or mid in flagged or _part_of(cat, said, names, declared):
             continue   # declared, already said, or a shortened name of a declared movement
-        if set(before.split()) & NOT_DOING:
+        if negated(before):
             continue   # "no neck rolls today"
         flagged.add(mid)
         if mid not in on_menu:

@@ -39,8 +39,8 @@ off plan (the MP3 is written but not copied), 3 the coach's pace hasn't been mea
 (render the smoke test with them first, which measures it, or pass --allow-estimated), 4 a cloud voice
 service refused the key, the payment or the quota, 64 the command was wrong (a mistyped option, an
 unknown coach, a missing draft, rendering ahead on a cloud voice): fix the command, not the draft. A
-default web coach with no voice yet (pending) is made first (./sweatcast coaches make), except with
---lint-only. The render's chatter (model loading, errors) goes to me/workouts/.logs/<name>.log, and its
+default web coach with no voice yet (pending) is made (./sweatcast coaches make) once the lint and the
+menu check pass, never with --lint-only. The render's chatter (model loading, errors) goes to me/workouts/.logs/<name>.log, and its
 last lines print on a failure.
 """
 import contextlib
@@ -100,11 +100,20 @@ def deliver(mp3, out_dir):
     done, failed = [], []
     for dest in found:
         target = os.path.join(dest, os.path.basename(mp3))
+        part = target + ".part"   # a synced folder never sees a half-copied MP3 under its real name
         try:
-            shutil.copyfile(mp3, target)
-            ok = filecmp.cmp(mp3, target, shallow=False)
+            shutil.copyfile(mp3, part)
+            ok = filecmp.cmp(mp3, part, shallow=False)
+            if ok:
+                os.replace(part, target)
         except OSError:
             ok = False
+        finally:
+            try:
+                if os.path.exists(part):
+                    os.remove(part)
+            except OSError:
+                pass
         if ok:
             done.append(dest)
             print(f"Copied to {dest}/{os.path.basename(mp3)}")
@@ -159,8 +168,8 @@ def main(argv=None):
     ap.add_argument("--idle", type=float, default=None, help="with --follow, stop after this many idle seconds")
     ap.add_argument("--web", action="store_true", help="also make the web copy and player page")
     ap.add_argument("--no-web", action="store_true", help="no web copy, even in a Claude Code cloud session")
-    ap.add_argument("--tolerance", type=float, default=draft.TOTAL_TOLERANCE,
-                    help="how far the whole workout may run over or under plan, as a fraction")
+    ap.add_argument("--tolerance", type=draft.tolerance_arg, default=draft.TOTAL_TOLERANCE,
+                    help="how far the whole workout may run over or under plan, as a fraction (0 to 0.5)")
     ap.add_argument("--seed", type=int, default=42, help="a different seed gives a different take of every line")
     ap.add_argument("--no-chime", action="store_true", help="no bell at each new segment and no end tone")
     ap.add_argument("--model", default=None, help="try another model repo for a local coach's engine")
@@ -219,13 +228,9 @@ def main(argv=None):
             raise
         return cli.OK
 
-    # A default web coach ships with no voice (pending): the first build that needs it designs one and
-    # saves it, saying so first. --lint-only never spends money: it lints at an estimated pace instead.
-    if not args.lint_only and coach.pending:
-        import coaches
-        coaches.make(coach.name)
-        coach = personas.lookup(coach.name)   # the make wrote its voice
-    voice = personas.voice_for(coach, route, pending=args.lint_only)
+    # A default web coach ships with no voice (pending): the lint and the menu check run first at its
+    # estimated pace, and only a draft that passes them has the voice designed and saved (paid), below.
+    voice = personas.voice_for(coach, route, pending=bool(coach.pending))
     if not smoke and not args.lint_only and not coach.is_web and not args.allow_estimated and not voices.pace(voice)[1]:
         print(f"{coach.name}'s speaking rate hasn't been measured on {route} yet, so this draft's timing is a guess.\n"
               "Render the smoke test with them first, which measures it, then rerun:\n"
@@ -254,6 +259,11 @@ def main(argv=None):
     print(f"\nExported {count} paragraphs to {paths.show(txt)}" + (f" despite {problems} issue(s)" if problems else ""))
     if args.lint_only:
         return cli.OK
+    if coach.pending:   # the draft passed: now the first build that needs this default designs its voice
+        import coaches
+        coaches.make(coach.name)
+        coach = personas.lookup(coach.name)   # the make wrote its voice
+        voice = personas.voice_for(coach, route)
 
     mp3 = os.path.join(out_dir, f"{name}.mp3")
     try:

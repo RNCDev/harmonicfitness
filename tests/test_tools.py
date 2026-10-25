@@ -94,6 +94,12 @@ class Parse(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse("Just text.\n")
 
+    def test_a_zero_second_segment_is_refused(self):
+        with self.assertRaises(SystemExit) as got:
+            parse("@@ 30 | A\nHi.\n@@ 0 | x\nGo.\n")
+        self.assertIn("Line 3", str(got.exception.code))
+        self.assertIn("at least 1 second", str(got.exception.code))
+
 
 class Spans(unittest.TestCase):
     def test_pause_units_and_default(self):
@@ -482,9 +488,9 @@ class LogFields(unittest.TestCase):
         self.assertEqual((e[1].date, e[1].minutes, e[1].movements), ("2026-10-20", 20, ["seated curl", "squat"]))
 
     def test_newest_load_wins(self):
-        loads = coverage.last_loads(context.sessions(self.path))
-        self.assertEqual(loads["seated curl"], ("2026-10-21", "twenties"))
-        self.assertEqual(loads["squat"], ("2026-10-20", "bodyweight"))
+        loads = coverage.last_loads(context.sessions(self.path))   # by catalog name
+        self.assertEqual(loads["seated dumbbell curl"], ("2026-10-21", "twenties"))
+        self.assertEqual(loads["air squat"], ("2026-10-20", "bodyweight"))
 
 
 class YouTube(unittest.TestCase):
@@ -694,6 +700,9 @@ class ExitCodes(unittest.TestCase):
             out = run([sys.executable, "tools/coaches.py", "measured", "Coach Julius", "--engine", "local"], home=home,
                       env={"SWEATCAST_FAKE_LOCAL_ENGINE": "1"})
             self.assertEqual(out.returncode, cli.ISSUES, out.stderr)   # estimated: nothing measured in a fresh copy
+            out = run([sys.executable, "tools/coaches.py", "measured", "Coach Reed"], home=home,
+                      env={"FISH_AUDIO_API_KEY": ""})
+            self.assertEqual(out.returncode, cli.OK, out.stdout + out.stderr)   # a web coach, even pending, needs no smoke test
 
 
 class InProcessBuild(unittest.TestCase):
@@ -916,11 +925,11 @@ class InProcessBuild(unittest.TestCase):
                                 "service": "fish", "voice_id": "fish-model-1"}, ""), "fish")
             voices.record_estimate(v, 150.0, 10.0)
 
-    def web_build(self, *extra, key=True, **more):
+    def web_build(self, *extra, key=True, draft_path=None, **more):
         env = {"FISH_AUDIO_API_KEY": "test-key" if key else ""}
         env.update(more)
         with mock.patch.dict(os.environ, env):
-            return self.build("--coach", "Coach Reed", *extra, estimated_ok=False)
+            return self.build("--coach", "Coach Reed", *extra, estimated_ok=False, draft_path=draft_path)
 
     def test_build_refuses_follow_on_a_cloud_route(self):
         self.add_web_coach()
@@ -995,7 +1004,36 @@ class InProcessBuild(unittest.TestCase):
         fake = self.add_pending_coach()
         fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
         self.assertEqual(self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0"), cli.SERVICE, self.said())
+        self.assertEqual((len(self.lints), self.runs), (1, []))   # linted first, at the estimated pace
+
+    def test_a_pending_coach_is_never_made_for_a_draft_that_fails(self):
+        fake = self.add_pending_coach()
+        env = {"SWEATCAST_FISH_URL": fake.url, "SWEATCAST_RETRY_WAIT": "0"}
+        self.write_menu(self.draft, today="2026-10-20")   # a stale menu: the gate stops it
+        self.assertEqual(self.web_build(**env), cli.ISSUES, self.said())
+        self.real_lint()
+        path = self.small_draft("movements: box breathing\n@@ 60 | A\nBreathe in for 4 counts. [hold]\n")
+        self.assertEqual(self.web_build(draft_path=path, **env), cli.ISSUES, self.said())   # the lint stops it
+        self.assertEqual(fake.requests, [])   # nothing designed or saved, so nothing paid for
+        self.assertEqual(personas.lookup("Coach Reed").pending, "design")
+        self.assertEqual(self.runs, [])
+
+    def test_a_failed_copy_leaves_no_partial_file_in_the_delivery_folder(self):
+        import build
+
+        def half_copy(src, dst):
+            write_file(dst, "half an mp3")
+            raise OSError("the disk filled up")
+        with mock.patch.object(build.shutil, "copyfile", side_effect=half_copy):
+            self.assertEqual(self.build(), 0, self.said())
+        self.assertEqual(os.listdir(self.phone), [])   # neither the MP3 nor a .part
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.mp3")))
+
+    def test_a_tolerance_that_isnt_a_small_fraction_exits_64(self):
+        for bad in ("nan", "-0.1", "0.6", "inf", "lots"):
+            self.assertEqual(self.build("--tolerance", bad), cli.USAGE, bad)
         self.assertEqual((self.lints, self.runs), ([], []))
+        self.assertEqual(self.build("--tolerance", "0"), 0, self.said())
 
     def test_lint_only_never_makes_a_coach(self):
         fake = self.add_pending_coach()
@@ -1065,6 +1103,47 @@ class RenderGates(unittest.TestCase):
         with mock.patch.object(render, "ffmpeg_exe", return_value=None), self.assertRaises(SystemExit) as got:
             render.run(segments, voice, os.path.join(self.tmp.name, "x.mp3"))
         self.assertIn("ffmpeg", str(got.exception))
+
+
+class Encode(unittest.TestCase):
+    """render.encode writes beside the output and renames; an ffmpeg failure is a message, not a traceback."""
+    STATS = '{"input_i": "-20", "input_tp": "-3", "input_lra": "5", "input_thresh": "-30", "target_offset": "0"}'
+
+    def test_a_failed_encode_keeps_the_old_file_and_leaves_no_part(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "x.mp3")
+            write_file(out, "the old mp3")
+
+            def fake_run(cmd, **kw):
+                if "null" in cmd:   # the loudness probe
+                    return subprocess.CompletedProcess(cmd, 0, "", self.STATS)
+                write_file(cmd[-1], "half")   # ffmpeg dies partway through the encode
+                raise subprocess.CalledProcessError(1, cmd, "", "Error: the encoder gave up")
+            with mock.patch.object(render, "ffmpeg_exe", return_value="ffmpeg"), \
+                    mock.patch.object(render, "ffmpeg_version", return_value="ffmpeg test"), \
+                    mock.patch.object(render.subprocess, "run", side_effect=fake_run):
+                with self.assertRaises(SystemExit) as got:
+                    render.encode(silence(0.1), out, "x")
+            self.assertIn("the encoder gave up", str(got.exception.code))
+            self.assertEqual(os.listdir(d), ["x.mp3"])
+            with open(out, encoding="utf-8") as f:
+                self.assertEqual(f.read(), "the old mp3")
+
+    def test_a_failed_loudness_probe_is_a_message(self):
+        with mock.patch.object(render, "ffmpeg_exe", return_value="ffmpeg"), \
+                mock.patch.object(render, "ffmpeg_version", return_value=None), \
+                mock.patch.object(render.subprocess, "run",
+                                  side_effect=subprocess.CalledProcessError(1, ["ffmpeg"], "", "no such filter")), \
+                tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(SystemExit) as got:
+                render.encode(silence(0.1), os.path.join(d, "x.mp3"), "x")
+        self.assertIn("no such filter", str(got.exception.code))
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    def test_an_encode_lands_under_its_own_name(self):
+        with tempfile.TemporaryDirectory() as d:
+            render.encode(chime() * 4, os.path.join(d, "x.mp3"), "x")
+            self.assertEqual(os.listdir(d), ["x.mp3"])
 
 
 class SmallHardening(unittest.TestCase):
@@ -2115,6 +2194,7 @@ class ContextRobustness(unittest.TestCase):
                 self.assertEqual(context.main(base), cli.OK)
                 args = list(base)
                 args[args.index("--kit") + 1] = "hotel-room"   # a preset counts as a kit
+                args[args.index("--date") + 1] = "2026-10-26"  # another day: the same session is logged once
                 self.assertEqual(context.main(args), cli.OK)
             self.assertEqual(out.getvalue().count("Logged"), 2)
 

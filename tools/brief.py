@@ -161,7 +161,7 @@ def _week_lines(cat: catalog.Catalog, log, today: datetime.date, feedback: List[
         out.append("- Not trained in the last seven days: " + ", ".join(none) + ".")
     if once:
         out.append("- Trained once in the last seven days: " + ", ".join(once) + ".")
-    loads = coverage.last_loads(log)
+    loads = coverage.last_loads(log, cat=cat)
     if loads:
         out.append("- Last loads (progress from these): " + "; ".join(
             f"{mv}: {load} ({date})" for mv, (date, load) in sorted(loads.items(), key=lambda kv: kv[1][0], reverse=True)) + ".")

@@ -13,7 +13,6 @@ Delete: DELETE /voices/v1/voices/{id}.
 The key goes as given: `Authorization: Basic <key>` (Inworld's key is already the encoded credential).
 Tried live 2026-10-25.
 """
-import base64
 import json
 
 import cloud
@@ -39,10 +38,10 @@ def speaker(voice):
         if previous_text:
             body["synthesisContext"] = {"previousRequests": [{"text": previous_text}]}
         _, _, data = cloud.request("POST", url, _headers(), json.dumps(body).encode(), timeout=120, service=SERVICE)
-        audio = json.loads(data).get("audioContent")
+        audio = cloud.json_answer(data, SERVICE).get("audioContent")
         if not audio:
             raise cloud.ServiceError("bad_request", SERVICE, "the answer held no audio")
-        return cloud.trim(cloud.audio_pcm(base64.b64decode(audio), service=SERVICE))
+        return cloud.trim(cloud.audio_pcm(cloud.b64_audio(audio, SERVICE), service=SERVICE))
     return say
 
 
@@ -53,8 +52,8 @@ def design(description, line, n=2, label=None):
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/voices/v1/voices:design", _headers(), body,
                                timeout=180, service=SERVICE, idempotent=False)
     out = []
-    for v in json.loads(data).get("previewVoices") or []:
-        wav = base64.b64decode(v.get("previewAudio") or "")
+    for v in cloud.json_answer(data, SERVICE, "the design").get("previewVoices") or []:
+        wav = cloud.b64_audio(v.get("previewAudio"), SERVICE)
         if wav:
             out.append({"pcm": cloud.trim(cloud.audio_pcm(wav, service=SERVICE)), "wav": wav,
                         "text": v.get("previewText") or line, "draft_id": v.get("voiceId"), "signature": None})
@@ -73,6 +72,8 @@ def save(candidate, name, description="", wav=None):
     try:
         answer = json.loads(data) if data else {}
     except ValueError:
+        answer = {}
+    if not isinstance(answer, dict):   # published all the same: the draft's ID is the voice's
         answer = {}
     nested = answer.get("voice") if isinstance(answer.get("voice"), dict) else {}
     return answer.get("voiceId") or nested.get("voiceId") or draft

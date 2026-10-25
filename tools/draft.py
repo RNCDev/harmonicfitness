@@ -53,6 +53,9 @@ def parse(text):
     for lineno, line in enumerate(text.splitlines(), 1):
         m = MARKER.match(line.strip())
         if m:
+            if int(m.group(1)) < 1:
+                raise SystemExit(f"Line {lineno}: a segment of {m.group(1)} seconds; every @@ segment needs at "
+                                 "least 1 second on the plan's clock.")
             current = {"seconds": int(m.group(1)), "label": m.group(2).strip(),
                        "lines": [], "start": lineno}
             segments.append(current)
@@ -65,6 +68,19 @@ def parse(text):
     if not segments:
         raise SystemExit("No @@ segment markers found.")
     return segments
+
+
+def tolerance_arg(text):
+    """--tolerance as argparse reads it: a fraction from 0 to 0.5 (nan, a negative or more than half is refused)."""
+    import argparse
+    import math
+    try:
+        value = float(text)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value) or not 0 <= value <= 0.5:
+        raise argparse.ArgumentTypeError(f"{text!r} isn't a fraction from 0 to 0.5 (0.03 is three percent)")
+    return value
 
 
 def declared(text):

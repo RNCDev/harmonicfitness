@@ -11,7 +11,6 @@ previous_text, next_text}; raw 16-bit PCM at 24 kHz back. The seed is best effor
 Delete: DELETE /v1/voices/{voice_id}.
 Tried live 2026-10-25 on Starter; not yet on a Free account (3 voices, a monthly allowance).
 """
-import base64
 import json
 
 import cloud
@@ -45,11 +44,11 @@ def design(description, line, n=3, label=None):
     body = json.dumps({"voice_description": description[:1000], "text": text[:1000]}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice/design?output_format=pcm_24000",
                                _headers(), body, timeout=180, service=SERVICE, idempotent=False)
-    answer = json.loads(data)
+    answer = cloud.json_answer(data, SERVICE, "the design")
     words = answer.get("text") or text[:1000]
     out = []
     for preview in answer.get("previews") or []:
-        audio = base64.b64decode(preview.get("audio_base_64") or "")
+        audio = cloud.b64_audio(preview.get("audio_base_64"), SERVICE)
         if audio:
             pcm = cloud.trim(cloud.audio_pcm(audio, service=SERVICE))
             out.append({"pcm": pcm, "wav": cloud.wav_bytes(pcm), "text": words,
@@ -65,7 +64,7 @@ def save(candidate, name, description="", wav=None):
                        "generated_voice_id": candidate["draft_id"]}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice", _headers(), body,
                                timeout=120, service=SERVICE, idempotent=False)
-    voice_id = json.loads(data).get("voice_id")
+    voice_id = cloud.json_answer(data, SERVICE, cloud.saved_what(SERVICE, name)).get("voice_id")
     if not voice_id:
         raise cloud.ServiceError("bad_request", SERVICE, "the saved voice came back with no voice ID")
     return voice_id

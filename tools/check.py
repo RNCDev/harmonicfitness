@@ -19,7 +19,8 @@ from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SCHEMA, SETTING_HOM
                      body, delivery_patterns, experience, feed_sources, front, kits, listener_name, parse_session,
                      part_paths, persona, placeholder, profile, read_raw, route_issues, schema_of, schema_problem,
                      section, split, unfilled, wpm, files as context_files)
-from context import _catalog, _limit_row, _names, _weight_problems, clinician_avoids, limits, prose_injuries  # noqa: E402
+from context import (_catalog, _limit_row, _names, _weight_problems, clinician_avoids, limit_rows,  # noqa: E402
+                     prose_injury_gap)
 
 
 BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*(\[|$)")   # "- Neighborhood: [neighborhood, city]", or nothing after the colon
@@ -155,29 +156,30 @@ def _check_health(path, text):
     rows = settings.get("limits") or []
     if not isinstance(rows, list):
         return [Issue(path, 0, "limits must be written as [[limits]] tables")]
+    if not cat:
+        return out
+    good, problems = limit_rows(h, cat.areas, cat.flags)
+    out += [Issue(path, 0, f"[[limits]] {problem}; the row is ignored, and the brief won't plan until it's fixed")
+            for problem in problems]
     for i, row in enumerate(rows, 1):
-        if cat:
-            _, problem = _limit_row(row, cat.areas, cat.flags)
-            if problem:
-                out.append(Issue(path, 0, f"[[limits]] row {i}: {problem}; the row is ignored"))
-            elif isinstance(row, dict):
-                for mid in row.get("rehab") or []:
-                    m = cat.movements.get(mid)
-                    if m is None or m.draft:
-                        out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a movement "
-                                                  "in the catalog (or is still a draft)", note=True))
-                    elif not m.rehab:
-                        out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a rehab movement, "
-                                                  "so naming it lets nothing through; name only rehab "
-                                                  "movements, or loosen the limit itself"))
-    if cat:
-        for word in clinician_avoids(h):
-            if word not in cat.movements and word not in cat.flags:
-                out.append(Issue(path, 0, f"Avoid: '{word}' isn't a movement id or flag in the catalog, "
-                                          "so it rules nothing out"))
-    if cat and prose_injuries(h) and not limits(h, cat.areas, cat.flags):
-        out.append(Issue(path, 0, "injuries written in prose have no [[limits]] entry, so the session "
-                                  "tool applies no rule for them"))
+        lim, _ = _limit_row(row, cat.areas, cat.flags)
+        for mid in lim.rehab if lim else []:
+            m = cat.movements.get(mid)
+            if m is None or m.draft:
+                out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a movement "
+                                          "in the catalog (or is still a draft)", note=True))
+            elif not m.rehab:
+                out.append(Issue(path, 0, f"[[limits]] row {i}: rehab '{mid}' isn't a rehab movement, "
+                                          "so naming it lets nothing through; name only rehab "
+                                          "movements, or loosen the limit itself"))
+    for word in clinician_avoids(h):
+        try:
+            catalog.avoid_set(cat, [word])
+        except ValueError as e:
+            out.append(Issue(path, 0, f"Avoid: {e}; the brief won't plan until it's fixed"))
+    gap = prose_injury_gap(h, len(good))
+    if gap:
+        out.append(Issue(path, 0, gap))
     return out
 
 

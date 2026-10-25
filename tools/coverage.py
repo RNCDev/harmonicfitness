@@ -50,13 +50,18 @@ KEYWORDS = [
 NOT_STRENGTH = r"finisher|stickhandling|punch|breathing|stretch|mobility|bike|march"
 
 
-def last_loads(log, look_back=6):
-    """{movement: (date, load)}: the newest logged load per movement in recent sessions."""
+def last_loads(log, look_back=6, cat: Optional[catalog.Catalog] = None):
+    """{movement: (date, load)}: the newest logged load per movement in recent sessions. Names are matched
+    through the catalog ("Goblet squats" and "goblet squat" are one movement, shown by its catalog name);
+    a name it doesn't know stands as written."""
+    cat = cat or _shared_catalog()
     out = {}
     for e in log[-look_back:]:
         for mv, load in e.loads.items():
-            out[mv] = (e.date, load)
-    return out
+            found = catalog.resolve(cat, mv)
+            key = found.id if found else mv.strip().lower()
+            out[key] = (found.name if found else mv.strip(), e.date, load)
+    return {name: (date, load) for name, date, load in out.values()}
 
 
 _catalog = None
@@ -144,7 +149,8 @@ def main():
     if unmapped:
         print("Unmapped (judge these by hand): " + ", ".join(unmapped))
     fmt = full[-1].format
-    print("Last format: " + (f"{fmt} (use a different one today)" if fmt else "not logged"))
+    print("Last format: " + (f"{fmt} (use a different one today)" if fmt else "not logged")
+          + f"; last kit: {full[-1].kit}")
     today = datetime.date.today()
     try:
         since = (today - datetime.date.fromisoformat(full[-1].date)).days
@@ -156,7 +162,7 @@ def main():
     notes = context.feedback(args.log)
     if notes:
         print("Latest feedback (honour it, and say so in the audio): " + notes[-1])
-    loads = last_loads(full)
+    loads = last_loads(full, cat=cat)
     if loads:
         print("Last loads (progress from these):")
         for mv, (date, load) in sorted(loads.items(), key=lambda kv: kv[1][0], reverse=True):

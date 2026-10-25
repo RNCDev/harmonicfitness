@@ -21,15 +21,18 @@ it up to date, `./sweatcast migrate`.
     ./sweatcast get coach             # also: route, routes, wpm, experience
     ./sweatcast deliver               # existing delivery folders, one per line
     ./sweatcast check                 # every file's format, and lines not filled in yet
+    ./sweatcast log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
+        --coach "Coach Andy" --format straight-sets --topics "deep dive: news, a story" \\
+        --loads "goblet squat = twenties, three down; seated row = fifteens" --rpe "goblet squat = 7"
+                                      # the date, length and kit come from the draft's menu; the draft
+                                      # must have been built as it stands, and a session is logged once
     ./sweatcast log-session --date 2026-10-21 --minutes 25 --kit Home \\
-        --coach "Coach Andy" --movements "goblet squat, seated row" \\
-        --topics "deep dive: news, a story" --format "rolling minutes" \\
-        --loads "goblet squat = twenties, three down; seated row = fifteens" \\
-        --rpe "goblet squat = 7"
+        --coach "Coach Andy" --movements "goblet squat, seated row" --topics "..."   # without a draft
 """
 import argparse
 import datetime as dt
 import glob
+import hashlib
 import json
 import os
 import re
@@ -544,11 +547,17 @@ def health(path=None):
     return Health(settings, rest, path)
 
 
+LIMIT_KEYS = ("area", "side", "level", "flags", "rehab", "note")
+
+
 def _limit_row(row, areas, flags=None):
     """(Limit, None) for a good [[limits]] row, else (None, a sentence saying what's wrong).
     `flags` are the catalog's; a flag outside them is wrong (None skips that check)."""
     if not isinstance(row, dict):
         return None, "isn't a table"
+    unknown = [k for k in row if k not in LIMIT_KEYS]
+    if unknown:   # a misspelled key ("flag") would drop what it says without a word
+        return None, f"'{unknown[0]}' isn't a key a limit takes (one of: {', '.join(LIMIT_KEYS)})"
     area, side = row.get("area"), row.get("side", "both")
     level = row.get("level")
     if area not in areas:
@@ -578,12 +587,27 @@ def _vocab(areas, flags):
     return areas, flags
 
 
-def limits(h, areas=None, flags=None):
-    """The valid [[limits]] rows as catalog.Limit; a row with a bad area, side, level, flags or
-    rehab is left out (`check` reports it, and the brief and the session tool refuse to plan)."""
+def limit_rows(h, areas=None, flags=None):
+    """([catalog.Limit], [problem]) for the [[limits]] rows: each good row as a Limit, and for each bad one
+    (an unknown key, a bad area, side, level, flags or rehab) "row <n>: <what's wrong>"."""
     areas, flags = _vocab(areas, flags)
-    found = (_limit_row(row, areas, flags)[0] for row in h.settings.get("limits") or [])
-    return [lim for lim in found if lim]
+    rows = h.settings.get("limits") or []
+    if not isinstance(rows, list):
+        return [], ["limits must be written as [[limits]] tables"]
+    found, problems = [], []
+    for n, row in enumerate(rows, 1):
+        lim, problem = _limit_row(row, areas, flags)
+        if lim:
+            found.append(lim)
+        else:
+            problems.append(f"row {n}: {problem}")
+    return found, problems
+
+
+def limits(h, areas=None, flags=None):
+    """The valid [[limits]] rows as catalog.Limit; a bad row is left out (limit_rows names it; `check`
+    reports it, and the brief refuses to plan)."""
+    return limit_rows(h, areas, flags)[0]
 
 
 def _section_lines(h, heading):
@@ -625,17 +649,37 @@ def clinician_avoids(h):
     return list(dict.fromkeys(out))
 
 
-def prose_injuries(h):
-    """True when `## Active injuries and limitations` lists anything but "None right now" or an
-    injury outside the catalog's areas, written "- Unlisted: <what>" (its avoids go under
-    `## Clinician rules` as "Avoid: <ids or flags>")."""
-    for line in _section_lines(h, INJURIES_HEADING):
+def prose_injury_count(h):
+    """How many injuries `## Active injuries and limitations` lists, each a top-level "- " line (the
+    indented lines under one, such as "  - Programming:", are its details), leaving out "None right now"
+    and an injury outside the catalog's areas, written "- Unlisted: <what>" (its avoids go under
+    `## Clinician rules` as "Avoid: <ids or flags>"). Each one counted needs a [[limits]] row."""
+    count = 0
+    for _, line in section(HTML_COMMENT_RE.sub("", h.body), INJURIES_HEADING):
         if not line.startswith(("- ", "* ")):
             continue
         item = line[2:].strip()
         if item.rstrip(".").lower() != "none right now" and not item.lower().startswith(UNLISTED):
-            return True
-    return False
+            count += 1
+    return count
+
+
+def prose_injuries(h):
+    """True when the injuries section lists any injury that needs a [[limits]] row (prose_injury_count)."""
+    return prose_injury_count(h) > 0
+
+
+def prose_injury_gap(h, rows):
+    """A sentence when the injuries prose lists more injuries than there are good [[limits]] rows (`rows`),
+    so some injury has no limit applied; else None."""
+    count = prose_injury_count(h)
+    if count <= rows:
+        return None
+    if not rows:
+        return "injuries written in prose have no [[limits]] entry, so no limit is applied for them; add a row for each"
+    return (f"the injuries section lists {count} injuries but there are only {rows} [[limits]] rows, so one "
+            "has no limit applied; add a row for each (or write one outside the catalog's areas as "
+            "\"- Unlisted: <what>\")")
 
 
 # ---- schema 1 (sweatcast 2.0.x): settings as lines in the prose, kept for migrate.py ----
@@ -801,14 +845,15 @@ def main(argv=None):
     g.add_argument("--engine", help="with route: a route to use if it works here")
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
     s = sub.add_parser("log-session", help="add a session to log.md, checked")
-    s.add_argument("--date", default=dt.date.today().isoformat())
-    s.add_argument("--minutes", type=int, required=True)
-    s.add_argument("--kit", required=True)
+    s.add_argument("--draft", help="the built draft: its movements: line gives the movements, and its menu the "
+                                   "date, length and kit (a build of this exact draft must exist)")
+    s.add_argument("--date", help="YYYY-MM-DD (default: the menu's date with --draft, else today)")
+    s.add_argument("--minutes", type=int, help="required without --draft")
+    s.add_argument("--kit", help="required without --draft")
     s.add_argument("--coach", dest="voice", required=True, help="the session's coach")
-    s.add_argument("--movements", help="comma-separated (or --draft)")
-    s.add_argument("--draft", help="a draft whose movements: line gives the movements, by their catalog names")
+    s.add_argument("--movements", help="comma-separated, without --draft")
     s.add_argument("--topics", required=True)
-    s.add_argument("--format", default=None)
+    s.add_argument("--format", default=None, help="the session method (required with --draft)")
     s.add_argument("--loads", default="", help="'<movement> = <load and tempo>; ...'")
     s.add_argument("--rpe", default="", help="'<movement> = <effort>; ...' (kept for progress tracking)")
     args = ap.parse_args(argv)
@@ -856,27 +901,135 @@ def main(argv=None):
     loads = pairs(args.loads, "load", "load and tempo")
     rpe = pairs(args.rpe, "rpe", "effort")
     if bool(args.movements) == bool(args.draft):
-        raise SystemExit("Not logged: give the movements with --movements or --draft (one of them).")
-    session = Session(args.date, args.minutes, args.kit.strip(), args.voice.strip(),
-                      declared_movements(args.draft) if args.draft
-                      else [m.strip() for m in args.movements.split(",") if m.strip()], args.topics.strip(),
-                      (args.format or "").strip() or None, loads, rpe)
-    _check_session_names(session)
+        raise cli.Usage("Not logged: give the movements with --movements or --draft (one of them).")
+    if args.draft:
+        date, minutes, kit, movements = from_draft(args.draft, args.date, args.minutes, args.kit)
+        if not (args.format or "").strip():
+            raise cli.Usage("Not logged: --format is required with --draft (the method you chose, from "
+                             "knowledge/sessions.toml), so the next session rotates away from it.")
+    else:
+        for flag, value in (("--minutes", args.minutes), ("--kit", args.kit)):
+            if value is None:
+                raise cli.Usage(f"Not logged: {flag} is required without --draft.")
+        date, minutes, kit = args.date or dt.date.today().isoformat(), args.minutes, args.kit.strip()
+        movements = [m.strip() for m in args.movements.split(",") if m.strip()]
+    session = Session(date, minutes, kit, args.voice.strip(), movements, args.topics.strip(),
+                      (args.format or "").strip() or None,
+                      named_pairs(loads, movements, "load"), named_pairs(rpe, movements, "rpe"))
+    _check_session_names(session, kit_from_menu=bool(args.draft))
+    _check_not_logged(session)
     print("Logged: " + append_session(session))
     return cli.OK
 
 
-def _check_session_names(session):
+def menu_kit(request):
+    """The kit a menu's request names, as the log writes it: the profile kit's name, the preset's name, or
+    "custom: <equipment ids>" for a brief run with --equipment (equipment added with --add isn't logged:
+    the kit stays the kit)."""
+    if request.get("kit"):
+        return str(request["kit"])
+    if request.get("preset"):
+        return str(request["preset"])
+    if request.get("equipment"):
+        return "custom: " + ", ".join(request["equipment"])
+    return None
+
+
+def draft_hash(path):
+    """sha256 of a draft as the build hashes it: read as text (so line endings are \\n), encoded as UTF-8."""
+    with open(path, encoding="utf-8") as f:
+        return hashlib.sha256(f.read().encode("utf-8")).hexdigest()
+
+
+def built(sha256, log=None):
+    """True when builds.jsonl records an MP3 made from a draft with this hash. A failed web render (a
+    "failed" line) made no MP3 and doesn't count; a build that ran off plan (exit 2) did make one, and
+    counts."""
+    try:
+        with open(log or paths.BUILDS, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(rec, dict) and not rec.get("failed") and rec.get("draft_sha256") == sha256:
+                    return True
+    except FileNotFoundError:
+        pass
+    return False
+
+
+def from_draft(path, date=None, minutes=None, kit=None):
+    """(date, minutes, kit, movements) for a built draft: the movements from its movements: line, the rest
+    from the menu beside it. A typed date, length or kit must agree with the menu."""
+    import draft
+    import menu
+    movements = declared_movements(path)
+    menu_file = draft.menu_path(path)
+    try:
+        m = menu.load(menu_file)
+    except ValueError as e:
+        raise SystemExit(f"Not logged: the menu beside the draft can't be read ({show(menu_file)}: {e}).")
+    if not isinstance(m, dict) or not isinstance(m.get("request"), dict):
+        raise SystemExit(f"Not logged: no menu beside the draft ({show(menu_file)}); a built draft has one.")
+    request = m["request"]
+    want = {"--date": m.get("date"),
+            "--minutes": request.get("minutes") or (m.get("seconds") or 0) // 60 or None,
+            "--kit": menu_kit(request)}
+    for flag, typed in (("--date", date), ("--minutes", minutes), ("--kit", kit)):
+        if want[flag] is None:
+            raise SystemExit(f"Not logged: the menu ({show(menu_file)}) holds no {flag[2:]}.")
+        if typed is not None and str(typed).strip().lower() != str(want[flag]).lower():
+            raise SystemExit(f"Not logged: {flag} {typed} disagrees with the menu's {want[flag]} "
+                             f"({show(menu_file)}); leave it out, the menu gives it.")
+    if not built(draft_hash(path)):
+        raise SystemExit(f"Not logged: no build of {show(path)} as it stands (no record in {show(paths.BUILDS)} "
+                         "with its hash). Build it first; if you edited it after building, build it again.")
+    return want["--date"], int(want["--minutes"]), want["--kit"], movements
+
+
+def _movement_key(cat, name):
+    """A movement's catalog id, or its lowercased name when the catalog doesn't know it."""
+    found = catalog.resolve(cat, name) if cat else None
+    return found.id if found else name.strip().lower()
+
+
+def named_pairs(items, movements, what):
+    """{movement: value} with each movement written by its catalog name, refused unless it is one of the
+    session's movements, so coverage can read the load back for that movement."""
+    cat = _catalog()
+    session = {_movement_key(cat, m) for m in movements}
+    out = {}
+    for name, value in items.items():
+        key = _movement_key(cat, name)
+        if key not in session:
+            raise SystemExit(f"Not logged: {what} for '{name}', which isn't one of the session's movements "
+                             f"({', '.join(movements)}).")
+        out[cat.movements[key].name if cat and key in cat.movements else name] = value
+    return out
+
+
+def _check_not_logged(session, path=None):
+    """Refuse a second line for the same session: the same date and the same movements."""
+    cat = _catalog()
+    mine = {_movement_key(cat, m) for m in session.movements}
+    for old in sessions(path, warn=False):
+        if old.date == session.date and {_movement_key(cat, m) for m in old.movements} == mine:
+            raise SystemExit(f"Not logged: this session is already logged (log.md line {old.line}: {old.date}, "
+                             f"{', '.join(old.movements)}).")
+
+
+def _check_session_names(session, kit_from_menu=False):
     """A logged coach, kit and format must exist, so the next brief and coverage can read them back: the coach
-    by name or alias (archived ones too, for old sessions), the kit from the profile or a catalog preset, the
-    format one of knowledge/sessions.toml's methods."""
+    by name or alias (archived ones too, for old sessions), the kit from the profile or a catalog preset (one
+    taken from the menu was checked by the brief), the format one of knowledge/sessions.toml's methods."""
     import personas
     import sessions
     try:
         personas.lookup(session.voice, archived=True)
     except SystemExit as e:
         raise SystemExit(f"Not logged: no coach '{session.voice}' ({e.code})")
-    if os.path.exists(paths.PROFILE):   # with no profile there's nothing to check a kit against
+    if not kit_from_menu and os.path.exists(paths.PROFILE):   # with no profile there's nothing to check against
         known_kits = set(kits(profile())) | set(_catalog_presets())
         if session.kit.lower() not in {k.lower() for k in known_kits}:
             raise SystemExit(f"Not logged: kit '{session.kit}' isn't one of the profile's kits or a catalog preset "

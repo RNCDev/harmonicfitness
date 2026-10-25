@@ -15,6 +15,9 @@ The API key is read by the service module at the moment it sends (tools/keys.py)
 goes into a voice dict, a message, a record or a cache key.
 """
 import array
+import base64
+import binascii
+import http.client
 import importlib
 import json
 import os
@@ -38,6 +41,7 @@ RATE_WAIT = 120             # seconds: a 429 asking to wait this long or less is
 TRIM_LEVEL = 0.01 * 32767   # engines.TRIM_DB (-40 dB) in 16-bit samples
 TRIM_KEEP = 0.04            # seconds kept at each end, as engines.TRIM_KEEP
 _settings = None
+_stop = None   # a threading.Event a render sets when it's stopping: no retry, no new attempt
 
 
 class ServiceError(Exception):
@@ -121,13 +125,30 @@ def _kind(status, body):
     return "bad_request"
 
 
+def stop_on(event):
+    """From now on (until stop_on(None)), `event` being set stops every request's retries: a render that failed
+    or was interrupted sends nothing more, and a worker waiting out a backoff wakes at once."""
+    global _stop
+    _stop = event
+
+
+def stopping():
+    return _stop is not None and _stop.is_set()
+
+
 def _wait(attempt, retry_after, sleep):
     scale = float(os.environ.get("SWEATCAST_RETRY_WAIT", "1"))   # the tests set 0
     try:
         seconds = float(retry_after) if retry_after else min(2 ** attempt, 30) * (0.75 + random.random() / 2)
     except ValueError:
         seconds = min(2 ** attempt, 30)
-    sleep(seconds * scale)
+    if sleep is None:   # the default: wait, but wake as soon as the render stops
+        if _stop is not None:
+            _stop.wait(seconds * scale)
+        else:
+            time.sleep(seconds * scale)
+    else:
+        sleep(seconds * scale)
 
 
 def _seconds(retry_after):
@@ -145,14 +166,17 @@ def _short(retry_after):
         return False
 
 
-def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=time.sleep, idempotent=True):
+def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=None, idempotent=True):
     """(status, headers, body) for a 2xx answer. Rate limits, server errors and dropped connections are
     retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason.
     A request that saves something (idempotent=False: a saved voice, a stored design) is retried only when
     the service can't have acted on it: a 429, or a connection refused before anything was sent. A server
-    error or a timeout after sending could have saved it, and a retry would save a second one."""
+    error or a timeout after sending could have saved it, and a retry would save a second one. Once a render
+    is stopping (stop_on), nothing more is sent."""
     last = None
     for attempt in range(tries):
+        if stopping():
+            raise last or ServiceError("unavailable", service, "not sent: the render is stopping")
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=timeout, context=_tls()) as r:
@@ -174,7 +198,8 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
                 raise last from None
             if not idempotent and not limited:
                 raise last from None
-        except (urllib.error.URLError, socket.timeout, ConnectionError, TimeoutError) as e:
+        except (urllib.error.URLError, socket.timeout, ConnectionError, TimeoutError, http.client.HTTPException) as e:
+            # HTTPException: a cut-off answer (IncompleteRead) or a garbled status line, which isn't an OSError
             reason = getattr(e, "reason", e)
             last = ServiceError("unavailable", service, f"couldn't reach the service ({reason})")
             retry_after = None
@@ -187,9 +212,36 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
                 raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray character "
                                    f"in it?): re-paste it after {var}= (./sweatcast keys open)") from None
             raise ServiceError("bad_request", service, f"the request couldn't be built: {scrub(str(e))}") from None
-        if attempt < tries - 1:
+        if attempt < tries - 1 and not stopping():
             _wait(attempt, retry_after, sleep)
     raise last
+
+
+def json_answer(data, service, what="the answer"):
+    """A 2xx answer's JSON object. A body that isn't one (cut off, HTML, a list) raises ServiceError, so it
+    stops like any refusal instead of as a traceback. `what` names it in the message."""
+    try:
+        answer = json.loads(data.decode("utf-8") if isinstance(data, bytes) else data)
+    except (ValueError, UnicodeDecodeError):
+        answer = None
+    if not isinstance(answer, dict):
+        text = data.decode("utf-8", "replace") if isinstance(data, bytes) else str(data)
+        raise ServiceError("bad_request", service, f"{what} couldn't be read (not a JSON object: "
+                           f"{scrub(text.strip()[:120]) or 'empty'})")
+    return answer
+
+
+def saved_what(service, name):
+    """How json_answer names a save's answer: the voice may be saved even though its answer can't be read."""
+    return f"the saved voice's answer (the voice may be saved at {service_name(service)}: look for \"sweatcast {name}\")"
+
+
+def b64_audio(text, service):
+    """The bytes of base64 audio in a JSON answer; ServiceError when it isn't base64."""
+    try:
+        return base64.b64decode(text or "", validate=False)
+    except (binascii.Error, ValueError, TypeError) as e:
+        raise ServiceError("bad_request", service, f"the answer's audio isn't base64 ({e})") from None
 
 
 def _tls():
@@ -300,15 +352,29 @@ def audio_pcm(data, rate_hint=SR, service=None):
         pcm, rate = wav_pcm(data)
         return resample(pcm, rate, SR)
     if data[:3] == b"ID3" or data[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2") or data[:4] in (b"OggS", b"fLaC"):
-        import subprocess
-        import ffmpeg
-        exe = ffmpeg.exe()
-        if not exe:
-            raise SystemExit("A service sent compressed audio, which needs ffmpeg to read: rerun ./sweatcast setup.")
+        return ffmpeg_pcm(data, "A service sent compressed audio")
+    return resample(data[:len(data) - len(data) % 2], rate_hint, SR)   # raw PCM, as the service announced
+
+
+def ffmpeg_pcm(data, what="The audio"):
+    """16-bit mono PCM at 24 kHz from any audio file's bytes, through ffmpeg. A file ffmpeg can't read stops
+    with the end of what it said."""
+    import subprocess
+    import ffmpeg
+    exe = ffmpeg.exe()
+    if not exe:
+        raise SystemExit(f"{what}, which needs ffmpeg to read: rerun ./sweatcast setup.")
+    try:
         out = subprocess.run([exe, "-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", str(SR),
-                              "pipe:1"], input=data, capture_output=True, check=True)
-        return out.stdout
-    return resample(data[:len(data) - len(data) % 2], rate_hint, SR)
+                              "pipe:1"], input=data, capture_output=True, check=True, timeout=300)
+    except subprocess.CalledProcessError as e:
+        tail = (e.stderr or b"").decode("utf-8", "replace").strip()[-300:]
+        raise SystemExit(f"{what}, and ffmpeg couldn't read it: {tail or 'no reason given'}") from None
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"{what}, and ffmpeg took too long to read it.") from None
+    if not out.stdout:
+        raise SystemExit(f"{what}, and ffmpeg found no audio in it.")
+    return out.stdout
 
 
 def rate(service, model):

@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 from draft import (CHIME, CHIME_SECONDS, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, PARAGRAPH_GAP,  # noqa: E402
                    TOTAL_TOLERANCE, fill_flag, holds, layout, paragraphs, parse, plan, spoken)
-from draft import declared as draft_declared, menu_path as draft_menu_path  # noqa: E402
+from draft import declared as draft_declared, menu_path as draft_menu_path, tolerance_arg  # noqa: E402
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -283,7 +283,7 @@ def main():
     ap.add_argument("--wpm", type=float, default=DEFAULT_WPM, help="word guide without --coach, words per minute")
     ap.add_argument("--min-fill", type=float, default=MIN_FILL, help="below this, the segment is far too short")
     ap.add_argument("--max-fill", type=float, default=MAX_FILL, help="above this, the segment is far too long")
-    ap.add_argument("--total-tolerance", type=float, default=TOTAL_TOLERANCE,
+    ap.add_argument("--total-tolerance", type=tolerance_arg, default=TOTAL_TOLERANCE,
                     help="the whole workout may run this fraction over or under plan")
     ap.add_argument("--word-tolerance", type=float, default=WORD_TOLERANCE,
                     help="word-count tolerance per segment without --coach")

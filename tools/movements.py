@@ -81,12 +81,7 @@ def render(cat: catalog.Catalog, sel: catalog.Selection, only: Optional[str] = N
     return out
 
 
-def avoid_set(cat: catalog.Catalog, words: List[str]) -> Set[str]:
-    """Movement ids or flags to rule out; ValueError on an unknown one."""
-    for w in words:
-        if w not in cat.movements and w not in cat.flags:
-            raise ValueError(f"unknown movement or flag \"{w}\" (flags: {', '.join(cat.flags)})")
-    return set(words)
+avoid_set = catalog.avoid_set   # movement ids, names or flags to rule out; ValueError on an unknown one
 
 
 def default_level():
@@ -104,7 +99,7 @@ def main():
     kit = ap.add_mutually_exclusive_group()
     kit.add_argument("--preset", help="a kit preset from the catalog, such as hotel-room")
     kit.add_argument("--equipment", help="comma-separated equipment, as keys or aliases")
-    ap.add_argument("--avoid", default="", help="comma-separated movement ids or flags to rule out")
+    ap.add_argument("--avoid", default="", help="comma-separated movements (ids or names) or flags to rule out")
     ap.add_argument("--level", default=None, help="novice, experienced or advanced (default: the profile's, else experienced)")
     ap.add_argument("--pattern", help="print only this movement pattern")
     ap.add_argument("--about", help="comma-separated movement ids or names: print their coaching notes")

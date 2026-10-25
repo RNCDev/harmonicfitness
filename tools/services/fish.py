@@ -13,7 +13,6 @@ takes no seed, so a re-render is a new take; the clip cache keeps what's rendere
 Delete: DELETE /model/{id} (204).
 Tried live 2026-10-25. Docs: docs.fish.audio/api-reference.
 """
-import base64
 import json
 
 import cloud
@@ -47,8 +46,8 @@ def design(description, line, n, label=None):
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/voice-design", headers, body, timeout=180,
                                service=SERVICE, idempotent=False)
     out = []
-    for c in json.loads(data).get("candidates") or []:
-        wav = base64.b64decode(c.get("audio_base64") or "")
+    for c in cloud.json_answer(data, SERVICE, "the design").get("candidates") or []:
+        wav = cloud.b64_audio(c.get("audio_base64"), SERVICE)
         if wav:
             pcm = cloud.trim(cloud.audio_pcm(wav, int(c.get("sample_rate") or cloud.SR), service=SERVICE))
             out.append({"pcm": pcm, "wav": wav, "text": c.get("text") or line[:150],
@@ -66,7 +65,7 @@ def save(candidate, name, description=None, wav=None):
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/model",
                                {"Authorization": _auth(), "Content-Type": ctype}, body, timeout=180, service=SERVICE,
                                idempotent=False)
-    voice_id = json.loads(data).get("_id")
+    voice_id = cloud.json_answer(data, SERVICE, cloud.saved_what(SERVICE, name)).get("_id")
     if not voice_id:
         raise cloud.ServiceError("bad_request", SERVICE, "the saved voice came back with no ID")
     return voice_id

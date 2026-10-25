@@ -99,6 +99,71 @@ class Core(unittest.TestCase):
             cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
         self.assertEqual(len(tries), 1)
 
+    def test_a_cut_off_answer_is_retried_only_when_safe(self):
+        import http.client
+        tries = []
+
+        def cut_off(*a, **k):
+            tries.append(1)
+            raise http.client.IncompleteRead(b"RIFF")
+        with mock.patch("urllib.request.urlopen", cut_off), self.assertRaises(cloud.ServiceError) as got:
+            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3)
+        self.assertEqual((len(tries), got.exception.kind), (3, "unavailable"))
+        tries.clear()
+        with mock.patch("urllib.request.urlopen", cut_off), self.assertRaises(cloud.ServiceError):
+            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3, idempotent=False)
+        self.assertEqual(len(tries), 1)   # a save may have landed: never sent twice
+
+    def test_a_stopping_render_ends_retries_at_once(self):
+        import threading
+        stop = threading.Event()
+
+        def answer(req):
+            stop.set()   # the render fails elsewhere while this request is out
+            return 503, {}, b"{}"
+        cloud.stop_on(stop)
+        self.addCleanup(cloud.stop_on, None)
+        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_RETRY_WAIT": "1"}):
+            with self.assertRaises(cloud.ServiceError):
+                cloud.request("POST", fake.url + "/x", {}, b"", service="fish")   # no backoff slept through
+        self.assertEqual(len(fake.requests), 1)
+
+    def test_an_unreadable_2xx_answer_is_a_service_error(self):
+        for body in (b"<html>oops</html>", b"[1, 2]", b"", b"\xff\xfe"):
+            with self.assertRaises(cloud.ServiceError) as got:
+                cloud.json_answer(body, "fish")
+            self.assertEqual(got.exception.kind, "bad_request")
+        self.assertEqual(cloud.json_answer(b'{"a": 1}', "fish"), {"a": 1})
+        with self.assertRaises(cloud.ServiceError):
+            cloud.b64_audio("not base64!", "fish")
+
+    def test_a_brought_clip_that_isnt_wav_never_becomes_raw_pcm(self):
+        import coaches
+        m4a = b"\x00\x00\x00\x20ftypM4A \x00\x00\x00\x00M4A mp42isom" + bytes(2000)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "clip.m4a")
+            with open(path, "wb") as f:
+                f.write(m4a)
+            with mock.patch.object(cloud, "ffmpeg_pcm", return_value=tone_pcm(0.2)) as conv:
+                data = coaches._clip_bytes(path)
+            conv.assert_called_once()
+            self.assertEqual(cloud.wav_pcm(data), (tone_pcm(0.2), 24000))
+            with mock.patch("ffmpeg.exe", return_value=None), self.assertRaises(SystemExit) as got:
+                coaches._clip_bytes(path)
+            self.assertIn("ffmpeg", str(got.exception.code))
+            wav = os.path.join(d, "clip.wav")
+            with open(wav, "wb") as f:
+                f.write(tone_wav(0.3, rate=44100))
+            with mock.patch.object(cloud, "ffmpeg_pcm", side_effect=AssertionError("a WAV needs no ffmpeg")):
+                pcm, rate = cloud.wav_pcm(coaches._clip_bytes(wav))
+            self.assertEqual(rate, 24000)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
+    def test_ffmpeg_refusing_a_clip_is_a_message(self):
+        with self.assertRaises(SystemExit) as got:
+            cloud.ffmpeg_pcm(b"\x00\x00\x00\x20ftypM4A " + bytes(64), "The clip")
+        self.assertIn("The clip", str(got.exception.code))
+
     def test_errors_by_kind(self):
         for status, body, kind in ((401, b'{"message": "Invalid api key"}', "auth"),
                                    (402, b'{"status": 402, "message": "No payment"}', "billing"),
@@ -636,6 +701,58 @@ class Inworld(ServiceCase):
         self.check_delete("/voices/v1/voices/{id}")
 
 
+class UnreadableAnswers(unittest.TestCase):
+    """A 2xx answer that isn't the JSON a service documents stops as a ServiceError, never a traceback."""
+
+    def setUp(self):
+        import keys
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        env = {var: SECRET for var in keys.SERVICE_VARS.values()}
+        env["SWEATCAST_RETRY_WAIT"] = "0"
+        patch = mock.patch.dict(os.environ, env)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def serve(self, body):
+        fake = FakeService(lambda r: (200, {"Content-Type": "application/json"}, body))
+        fake.__enter__()
+        self.addCleanup(fake.__exit__)
+        for service in ("fish", "elevenlabs", "gemini", "inworld"):
+            patch = mock.patch.dict(os.environ, {f"SWEATCAST_{service.upper()}_URL": fake.url})
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_every_design_save_and_speech_refuses_a_bad_body(self):
+        import importlib
+        candidate = {"wav": tone_wav(0.2), "text": "Hi.", "draft_id": "d1", "signature": "s"}
+        voice = {"voice_id": "v1", "model": "m", "max_chars": 2000}
+        for body in (b"<html>gateway</html>", b'["not", "an object"]', b'{"previewVoices": [{"previewAudio": "@@"}]}'):
+            self.serve(body)
+            for service in ("fish", "elevenlabs", "gemini", "inworld"):
+                module = importlib.import_module(f"services.{service}")
+                calls = [lambda: module.design("a coach", "Set your feet.", 1, "label")]
+                if service in ("fish", "elevenlabs"):
+                    calls.append(lambda: module.save(candidate, "Coach Maya", "a coach"))
+                if service == "inworld":
+                    calls.append(lambda: module.speaker(voice)("Hello.", 1))
+                for call in calls:
+                    with self.subTest(service=service, body=body):
+                        try:
+                            call()
+                        except cloud.ServiceError as e:
+                            self.assertNotIn(SECRET, str(e))
+                        else:
+                            self.fail("a bad answer was accepted")
+
+    def test_a_saves_unreadable_answer_says_the_voice_may_be_there(self):
+        self.serve(b"<html>oops</html>")
+        from services import fish
+        with self.assertRaises(cloud.ServiceError) as got:
+            fish.save({"wav": tone_wav(0.2), "text": "Hi.", "signature": "s"}, "Coach Maya")
+        self.assertIn("sweatcast Coach Maya", str(got.exception))
+
+
 class CloudRender(unittest.TestCase):
     """tools/render.py with a web coach, end to end against fake services."""
 
@@ -714,7 +831,7 @@ class CloudRender(unittest.TestCase):
             with self.subTest(service=service):
                 mp3 = os.path.join(self.d, f"{service}.mp3")
                 with FakeService(every_service_answer) as fake:
-                    out = self.render_on(service, fake.url, "--out", mp3, "--tolerance", "1")
+                    out = self.render_on(service, fake.url, "--out", mp3, "--tolerance", "0.5")
                 self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
                 self.assertIn("Sending", out.stdout)
                 self.assertTrue(fake.requests)
@@ -747,14 +864,14 @@ class CloudRender(unittest.TestCase):
     def test_web_render_sends_voice_id_and_caches_by_web_key(self):
         mp3 = os.path.join(self.d, "x.mp3")
         with FakeService(wav_answer) as fake:
-            first = self.render(fake.url, "--out", mp3, "--tolerance", "1")
+            first = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
             self.assertIn(first.returncode, (0, cli.DRIFT), first.stdout + first.stderr)
             sent = [r for r in fake.requests if r.path == "/v1/tts"]
             self.assertGreaterEqual(len(sent), 2)
             self.assertTrue(all(json.loads(r.body)["reference_id"] == VOICE_IDS["fish"] for r in sent))
             self.assertFalse(any(r.path == "/model" for r in fake.requests))   # no clip uploaded: a saved voice
             before = len(fake.requests)
-            second = self.render(fake.url, "--out", mp3, "--tolerance", "1")
+            second = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
             self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
             self.assertEqual(len(fake.requests), before)   # everything came from the cache
         self.assertNotIn("Sending", second.stdout)
@@ -762,13 +879,45 @@ class CloudRender(unittest.TestCase):
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_cost_print_for_gemini(self):
         with FakeService(every_service_answer) as fake:
-            out = self.render_on("gemini", fake.url, "--out", os.path.join(self.d, "g.mp3"), "--tolerance", "1")
+            out = self.render_on("gemini", fake.url, "--out", os.path.join(self.d, "g.mp3"), "--tolerance", "0.5")
         self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
         line = next(l for l in out.stdout.splitlines() if l.startswith("Sending"))
         chars = int(line.split()[1].replace(",", ""))
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
         self.assertIn(f"about ${chars * 13.5 / 1e6:.2f}", line)
         self.assertIn("Gemini", line)
+
+    def builds(self):
+        try:
+            with open(os.path.join(self.home, "workouts", ".logs", "builds.jsonl"), encoding="utf-8") as f:
+                return [json.loads(line) for line in f if line.strip()]
+        except OSError:
+            return []
+
+    def test_a_render_that_fails_partway_records_what_it_sent(self):
+        state = {"ok": 2}
+
+        def answer(req):
+            state["ok"] -= 1
+            return wav_answer(req) if state["ok"] >= 0 else (401, {}, b'{"message": "Invalid api key"}')
+        with FakeService(answer) as fake:
+            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+        self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
+        rec = self.builds()[-1]
+        self.assertTrue(rec["failed"])
+        self.assertEqual(rec["route"], "fish")
+        self.assertGreater(rec["chars_sent"], 0)
+        self.assertGreaterEqual(rec["chars_sent"], rec["chars_rendered"])
+        self.assertIn("usd_estimate", rec)
+        self.assertFalse(os.path.exists(os.path.join(self.d, "x.build.json")))   # no MP3, no record beside it
+        self.assertNotIn(SECRET, json.dumps(rec))
+
+    def test_a_render_that_sent_nothing_records_nothing(self):
+        self.set_ceiling(10)
+        with FakeService(wav_answer) as fake:
+            out = self.render(fake.url, "--out", os.path.join(self.d, "x.mp3"))
+        self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
+        self.assertEqual(self.builds(), [])   # the first web build is still to come (the privacy line)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_interrupted_cloud_build_resumes_without_resending(self):
@@ -782,13 +931,13 @@ class CloudRender(unittest.TestCase):
             return wav_answer(req)
         mp3 = os.path.join(self.d, "x.mp3")
         with FakeService(answer) as fake:
-            first = self.render(fake.url, "--out", mp3, "--tolerance", "1")
+            first = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
             self.assertNotEqual(first.returncode, 0)
             cached = len(glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm")))
             self.assertEqual(cached, 3)
             sent_first = len([r for r in fake.requests if r.path == "/v1/tts"])
             state["ok"] = 1000
-            second = self.render(fake.url, "--out", mp3, "--tolerance", "1")
+            second = self.render(fake.url, "--out", mp3, "--tolerance", "0.5")
         self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
         first_to_render = int(first.stdout.split(" to render")[0].split()[-1])
         sent_second = len([r for r in fake.requests if r.path == "/v1/tts"]) - sent_first

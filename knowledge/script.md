@@ -7,7 +7,7 @@ What goes into a workout script, from the welcome to the sign-off. How it should
 - It starts with one line, `movements: <every movement the script uses, by its name in the brief's menu, comma separated>`, which is never spoken. Then the `@@ <seconds> | <label>` segments, which add up to exactly the session's seconds. `./sweatcast build` checks both against the menu the brief saved, and stops when a movement isn't on it.
 - You choose the segments. A segment can be one set, a pair, a round, an interval block or the whole warm-up; what matters is that the time each one holds is the time its work, rest and talk need. Long segments are fine for continuous work; short ones suit timed intervals, where each change gets a `[chime]`.
 - Draft to about the measured words a minute times the seconds over sixty per segment. The lint predicts each segment's spoken length for the chosen coach, and only the total must land within three percent of plan; a segment with time to spare ends a little early, and one that runs long is paid back by the next ones. Don't polish segments that are close.
-- Keep every paragraph under about twenty seconds spoken, about fifty words; the lint flags any over twenty-two. Long clips drift and glitch. Use `[pause]` for getting into position or breathing, three or four seconds at most.
+- Paragraph length and `[pause]`: `knowledge/tts-rules.md`, Pacing and pauses.
 
 ## Timed work
 
@@ -18,7 +18,7 @@ What goes into a workout script, from the welcome to the sign-off. How it should
 
 ## Opening
 
-- Greet the listener by the profile's `name` in the first line, warmly and briefly ("Hey Sam, good to have you back."), and say how today fits the week from the brief's Today in the week ("Second one this week.").
+- Greet the listener by name in the first line (how often to use it: `knowledge/tts-rules.md`, The name), and say how today fits the week from the brief's Today in the week ("Second one this week.").
 - The coach rarely says their own name: once in a first session with a new coach ("I'm Maya, and I'll be with you today."), otherwise not at all. How they talk comes from the brief's coach lines (their `persona.md`), which can differ from coach to coach.
 - In the morning, preview the day in a sentence or two from the feeds sheet's weather, and from the calendar if a calendar connector is available (just the shape of the day, such as "two meetings this morning and a free afternoon", never names, attendees or details). In the evening, recap it.
 - Then the plan in a sentence or two (with any change readiness made: "You're short on sleep, so same weights, one round fewer."), the safety rules, and time to set up.
@@ -62,5 +62,5 @@ A coach in the room watches the last two reps and changes the next set. The list
 
 ## Close
 
-- Box breathing with a short cue and a `[pause]` for each four-second count (see tts-rules, Pacing).
-- A recap that names what they did today specifically, one reason to come back (the next part of the story, the next step up), and a sign-off by name.
+- Box breathing, cued as `knowledge/tts-rules.md`, Pacing and pauses, shows.
+- A recap that names what they did today specifically, one reason to come back (the next part of the story, the next step up), and the sign-off.

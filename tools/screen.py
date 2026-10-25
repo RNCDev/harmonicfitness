@@ -3,7 +3,8 @@
 
 `screen` checks the request (goal, minutes, kit, level, target, limits, avoid), applies health.md's
 [[limits]] rows and the clinician's Avoid: lines, and selects the movements the kit, level, limits and
-dislikes allow. A [[limits]] row it can't read stops it (Unfit), since a dropped row protects nothing.
+dislikes allow. A [[limits]] row it can't read, or an Avoid: word that names no movement or flag, stops
+it (Unfit), since a dropped row or avoid protects nothing.
 The helpers here read the command line's values (`parse_limit`, `words`) and print what the screen
 found (`cue_lines`, `loads_line`, `would_open`, `healthy_side`).
 """
@@ -21,7 +22,7 @@ OTHER_SIDE = {"left": "right", "right": "left"}
 
 
 class Unfit(Exception):
-    """The request can't be screened safely: a [[limits]] row can't be read (exit ISSUES)."""
+    """The request can't be screened safely: a [[limits]] row or an Avoid: word can't be read (exit ISSUES)."""
     exit_code = 1   # cli.ISSUES; a literal so this module keeps importing nothing but the catalog
 
 
@@ -91,21 +92,19 @@ def screen(request: dict, cat: catalog.Catalog, goals, profile, health) -> Scree
             raise ValueError(f"unknown area \"{lim.area}\" (choose from: {', '.join(cat.areas)})")
         if lim.level not in LIMIT_LEVELS or lim.side not in LIMIT_SIDES:
             raise ValueError(f"a limit needs a level ({', '.join(LIMIT_LEVELS)}) and a side ({', '.join(LIMIT_SIDES)})")
-    own = context.limits(health, cat.areas, cat.flags)
-    rows = health.settings.get("limits") or []
-    if len(rows if isinstance(rows, list) else [rows]) > len(own):   # a dropped row protects nothing
-        raise Unfit("health.md: a [[limits]] row was ignored (run ./sweatcast check)")
-    if context.prose_injuries(health) and not own:
-        warnings.append("health.md lists injuries in prose but has no [[limits]] rows, so no limit is "
-                        "applied for them; add a row for each")
+    own, problems = context.limit_rows(health, cat.areas, cat.flags)
+    if problems:   # a dropped row protects nothing
+        raise Unfit(f"health.md: a [[limits]] row was ignored ({problems[0]}; run ./sweatcast check)")
+    gap = context.prose_injury_gap(health, len(own))
+    if gap:
+        warnings.append(f"health.md: {gap}")
     limits = own + list(request.get("limits") or [])
     likes, dislikes = ids(cat, context.likes(profile)), ids(cat, context.dislikes(profile))
     avoid = set(request.get("avoid") or ())
-    for word in context.clinician_avoids(health):   # the clinician's Avoid: lines apply on every run
-        if word in cat.movements or word in cat.flags:
-            avoid.add(word)
-        else:
-            warnings.append(f"health.md: Avoid: '{word}' isn't a movement id or flag, so it rules nothing out")
+    try:   # the clinician's Avoid: lines apply on every run; one that rules nothing out protects nothing
+        avoid |= catalog.avoid_set(cat, context.clinician_avoids(health))
+    except ValueError as e:
+        raise Unfit(f"health.md, an Avoid: line under Clinician rules: {e} (run ./sweatcast check)")
     try:
         sel = catalog.select(cat, equipment, level, limits, avoid=avoid, dislikes=dislikes)
     except ValueError as e:   # request limits are checked above, so this is a row in health.md

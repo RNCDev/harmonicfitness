@@ -75,7 +75,7 @@ The engines copy the delivery the text suggests: long, smooth sentences come out
 - "We" and "let's" for what's next: "Let's get you on the bench." "We've got two rounds left."
 - One line of why, once per movement at most: "This one's for the back of the hips, the part that does the work when you stand up."
 - Notice the effort plainly, not with stock praise: "That last set was honest." "You slowed down on the way down there. Exactly right."
-- Continuity, at least once a session, from what `./sweatcast coverage` prints: "Third session this week." "You said last time felt rushed, so the rests are longer today." "Same fifteens as Tuesday, one more rep."
+- Continuity, at least once a session, from the brief's Today in the week: "Third session this week." "You said last time felt rushed, so the rests are longer today." "Same fifteens as Tuesday, one more rep."
 - A little of the profile's humor, if it has some, and never at the listener's expense.
 
 Before: "Rest. Sit up on the bench and breathe. Today's story is a new chip for six G."

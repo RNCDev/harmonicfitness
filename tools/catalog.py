@@ -295,9 +295,11 @@ def limit_cues(cat: Catalog, limit: "Limit") -> List[str]:
     return [line.replace(SIDE_SLOT, side) for line in lines if isinstance(line, str)] if isinstance(lines, list) else []
 
 
-def _plain(text: str) -> str:
-    """A name as compared: lower case, letters and apostrophes only, hyphens and spaces alike."""
-    return " ".join(re.sub(r"[^a-z']+", " ", text.lower().replace("\u2019", "'")).split())
+def plain(text: str, hyphens: bool = False) -> str:
+    """Text as compared: lower case, letters and apostrophes only (and hyphens when `hyphens`), single
+    spaces. Without hyphens, a hyphen and a space are alike."""
+    keep = r"[^a-z'-]+" if hyphens else r"[^a-z']+"
+    return " ".join(re.sub(keep, " ", text.lower().replace("\u2019", "'")).split())
 
 
 def resolve(cat: Catalog, name: str) -> Optional[Movement]:
@@ -311,17 +313,36 @@ def resolve(cat: Catalog, name: str) -> Optional[Movement]:
             break
     if said in cat.movements:
         return cat.movements[said]
-    plain = _plain(said)
-    forms = {plain}
-    if plain.endswith("es"):
-        forms.add(plain[:-2])
-    if plain.endswith("s") and not plain.endswith("ss"):
-        forms.add(plain[:-1])   # "goblet squats" means "goblet squat"
+    key = plain(said)
+    forms = {key}
+    if key.endswith("es"):
+        forms.add(key[:-2])
+    if key.endswith("s") and not key.endswith("ss"):
+        forms.add(key[:-1])   # "goblet squats" means "goblet squat"
     for m in cat.movements.values():
         for known in [m.name, m.id] + m.aliases:
-            if _plain(known) in forms:
+            if plain(known) in forms:
                 return m
     return None
+
+
+def avoid_set(cat: Catalog, words: List[str]) -> Set[str]:
+    """Movement ids and flags to rule out, from words a clinician's Avoid: line or --avoid gives: a flag in
+    any case ("Impact", "spine flexion"), or a movement by id, name or alias (resolve: "overhead press",
+    "burpees"). ValueError names a word that is neither, since an avoid that rules nothing out protects
+    nothing."""
+    out: Set[str] = set()
+    for word in words:
+        flag = plain(word, hyphens=True).replace(" ", "-")
+        m = None if flag in cat.flags else resolve(cat, word)
+        if flag in cat.flags:
+            out.add(flag)
+        elif m is not None:
+            out.add(m.id)
+        else:
+            raise ValueError(f"\"{word.strip()}\" isn't a movement or a flag (flags: {', '.join(cat.flags)}); "
+                             "name a movement as the catalog does, or a flag")
+    return out
 
 
 def kit_equipment(cat: Catalog, kit: dict) -> Set[str]:
@@ -355,7 +376,7 @@ def meaning(area: str, level: str, side: str = "both") -> str:
     """What a limit rules out, in a plain sentence, for a limit given with no note."""
     where = f"the {side} {area}" if side in ("left", "right") else f"the {area}"
     if level == "off-limits":
-        text = f"nothing that loads {where}"
+        text = f"nothing that loads {where}, and no impact work"
     else:
         text = f"light loads only on {where}, no impact work or fast work that loads it"
     extra = AREA_FLAGS.get((area, level))
@@ -409,13 +430,13 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
             bad = [f for f in list(lim.flags) + list(AREA_FLAGS.get((lim.area, lim.level), ()))
                    if f in m.flags]
             bad = list(dict.fromkeys(bad))
-            # a delicate area rules out all impact work (landing jars the whole body), and fast work
-            # that loads it at all, on either side: fast arm work in a chair is fine for a delicate foot
+            # any limit, delicate or off limits, rules out all impact work (landing jars the whole body),
+            # and fast work that loads the area at all, on either side: fast arm work in a chair is fine
+            # for a delicate foot
             chain = next((c for c in CHAINS if lim.area in c), (lim.area,))
             touches = any(m.loads.get(a, 0) > 0 or m.support.get(a, 0) > 0 for a in chain)
-            if lim.level == "delicate":
-                bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad
-                        and (f == "impact" or touches)]
+            bad += [f for f in ("impact", "fast") if f in m.flags and f not in bad
+                    and (f == "impact" or touches)]
             reasons += bad   # a flag is its own reason
             if m.position in AREA_POSITIONS.get((lim.area, lim.level), ()):
                 reasons.append(f"{m.position} with the {lim.area} off limits")

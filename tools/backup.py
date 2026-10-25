@@ -29,14 +29,22 @@ from paths import show  # noqa: E402
 GITHUB = re.compile(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$")
 
 
-def git(home, *args):
-    # GIT_TERMINAL_PROMPT=0: a push that needs a password fails with the reason instead of waiting forever
-    return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True,
-                          env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+PUSH_TIMEOUT = 300   # seconds a push may take before it's given up
+
+
+def git(home, *args, timeout=None):
+    # GIT_TERMINAL_PROMPT=0 and ssh's BatchMode: a push that needs a password or a passphrase fails with the
+    # reason instead of waiting forever on a prompt nobody sees (an ssh command the listener set is kept)
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+    return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True, env=env, timeout=timeout)
 
 
 def _push(home, args):
-    return git(home, *args)
+    try:
+        return git(home, *args, timeout=PUSH_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(args, 1, "", f"no answer from the remote in {PUSH_TIMEOUT // 60} minutes")
 
 
 KEY_FILE = re.compile(r"(^|\.)env(\.|$)")   # .env, .env.bak, keys.env, x.env.local
@@ -167,12 +175,13 @@ def backup(home, message, push=True, unverified=False):
               f"  cd {where} && gh repo create sweatcast-me --private --source . --push")
         return cli.OK
     slug = github_slug(git(home, "remote", "get-url", "--push", remote).stdout)
-    if slug and remembered_private(home) == slug:
+    # GitHub is asked every time (a repo made public since must never get health data); the memory stands in
+    # only when GitHub can't say
+    seen = visibility(slug) if slug else None
+    if slug and seen in ("PRIVATE", "INTERNAL"):
+        remember_private(home, slug, "github")
+    elif slug and seen is None and remembered_private(home) == slug:
         seen = "PRIVATE"   # confirmed before on this computer: GitHub said so, or the listener did
-    else:
-        seen = visibility(slug) if slug else None
-        if slug and seen in ("PRIVATE", "INTERNAL"):
-            remember_private(home, slug, "github")
     if slug and seen == "PUBLIC":
         print(f"Not pushed: github.com/{slug} is public, and this folder holds health details. "
               "Make it private (gh repo edit --visibility private) and rerun.")
