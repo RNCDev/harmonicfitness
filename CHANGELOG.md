@@ -2,6 +2,28 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [12.0.0] - 2026-10-25
+
+The profile is four files, split by how often each part changes and who reads it, so a workout reads a few dozen lines about you instead of a few hundred, and adding a feed can't touch your kits.
+
+### Changed
+- **The profile splits** (context schema 6):
+  - `me/profile.md`: who you are (`name`, `experience`, the Basics and Listening setup prose). Rarely changes; every workout reads it.
+  - `me/training.md`: how you train (`likes`, `dislikes`, `[[kits]]` with their weights, the Default session and Equipment kits notes). Changes with new gear or check-in feedback; every workout reads it.
+  - `me/content.md`: what fills the rests (`youtube_favorites`, `puzzles`, `[[interests]]`, `[[feeds]]`, the Content and Taste prose). Changes most; only research and the story tools read it.
+  - `me/settings.toml`: the tools' own settings (`setup`, `render`, `cloud_max_chars`, `deliver_to`, `words_per_minute`), plain TOML.
+- **One reader:** `context.profile()` merges the four files' settings and joins their prose, so every tool reads them as before. A setting still counts in any of the four files, but each has a home file, which wins if it's written twice; `./sweatcast check` notes the duplicate and names each issue's file.
+- **The template** (`me.example/`) comes in the four files, made by the same split, and its Equipment kits section no longer repeats the kit settings.
+- **The skills** read and write the right file: a workout reads `profile.md` and `training.md` (research reads `content.md`), setup writes each setting to its home, and `setup = "quick"` lives in `settings.toml`.
+- **Docs:** the README has a table of your files; CLAUDE.md describes the four files and their homes; the `render` setting's comment says it lists audio routes.
+
+### Fixed
+- `./sweatcast setup` reads `render` from `settings.toml` (an older folder's `profile.md` still works) when deciding whether to install the local engine.
+- Messages that pointed at `profile.md` for feeds, YouTube channels and the web ceiling point at their new files.
+
+### For forks
+Run `./sweatcast migrate` once (or rerun `./sweatcast setup`, which runs it). It backs up `me/` first, splits `profile.md` into the four files and bumps `health.md` and `log.md` to schema 6. Each setting keeps its value; the settings' comments become the template's (your originals are in the backup). Any `## ` section of your profile other than Equipment kits, Default session, Content and Taste stays in `profile.md`. If `training.md`, `content.md` or `settings.toml` is already in `me/` (copied from the new template, say), migrate replaces it; the original goes to the backup.
+
 ## [11.0.1] - 2026-10-25
 
 The README, CLAUDE.md and AGENTS.md are rewritten to be shorter and checked claim by claim against the code, and sweatcast can now be supported.

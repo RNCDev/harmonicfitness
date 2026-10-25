@@ -1,6 +1,6 @@
 """Fetch the profile's feeds into one dated sheet, so research reads before it searches.
 
-The profile's settings (the TOML block at the top of me/profile.md) list the sources:
+The [[feeds]] in the settings at the top of me/content.md list the sources:
     [[feeds]]
     label = "<label>"
     kind = "<kind>"
@@ -319,7 +319,7 @@ def main():
     sources = config(context.profile(args.profile))
     if not sources:
         raise SystemExit("No feeds filled in yet: add [[feeds]] entries (label, kind, value) to the "
-                         "settings at the top of profile.md.")
+                         "settings at the top of content.md.")
     now = dt.datetime.now(dt.timezone.utc)
     since = now - dt.timedelta(hours=args.hours)
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:

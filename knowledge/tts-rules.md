@@ -100,4 +100,4 @@ Exclamation points sparingly, at most one or two a session; they can make the vo
 
 ## Tone
 
-Tone and humor come from the Narrator section of `me/profile.md` (how the coach talks to the listener and what encouragement works for them). Whatever the tone, avoid hype words and repeated catchphrases, and vary praise; "Nice work" eight times in one session becomes noise.
+Tone and humor come from the coach's `[character]` and notes in their `persona.md`, which the brief quotes (how the coach talks to the listener and what encouragement works for them). Whatever the tone, avoid hype words and repeated catchphrases, and vary praise; "Nice work" eight times in one session becomes noise.

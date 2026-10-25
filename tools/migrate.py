@@ -37,6 +37,14 @@ Steps:
         from the same date). Smoke tests, and anything that can't be placed for sure, go to
         workouts/checks/; each day's research sheet and feeds to workouts/research/daily/. Nothing
         is overwritten. The files' text changes only its schema number.
+    5 to 6 (sweatcast 12.0.0): the profile splits by how often each part changes and who reads it.
+        profile.md keeps who you are (name, experience, and every prose section but these);
+        training.md gets the kits, likes and dislikes and the Equipment kits and Default session
+        sections; content.md the interests, feeds, YouTube favorites and puzzles and the Content and
+        Taste sections; settings.toml setup, render, cloud_max_chars, deliver_to and
+        words_per_minute. Each setting keeps its value (comments are the template's; the originals
+        are in the backup). health.md and log.md change only their schema number. It backs up before
+        overwriting a training.md, content.md or settings.toml already there (each goes to the backup first).
 
 Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own schema, migrated
 beside the context files, even when those are already current:
@@ -151,6 +159,125 @@ def to_5(text, path):
     return f"+++\n{block}\n+++\n" + text[m.end():]
 
 
+def to_6(text, path):
+    """Schema 5 to 6: only the schema number; the profile splits once, in migrate()."""
+    m = context.TOML_FRONT_RE.match(text)
+    if not m:
+        return context.with_front_matter(text, 6)
+    block = re.sub(r"(?m)^schema\s*=\s*5\b", "schema = 6", m.group(1), count=1)
+    return f"+++\n{block}\n+++\n" + text[m.end():]
+
+
+# The settings each split file writes, in order, and the comment above each (the template's words).
+PART_KEYS = {
+    "profile.md": ("name", "experience"),
+    "training.md": ("likes", "dislikes", "kits"),
+    "content.md": ("youtube_favorites", "puzzles", "interests", "feeds"),
+    "settings.toml": ("setup", "render", "cloud_max_chars", "deliver_to", "words_per_minute"),
+}
+PART_COMMENTS = {
+    "name": "What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at "
+            "the sign-off. Empty means no name.",
+    "experience": context.SETTINGS_COMMENTS["experience"],
+    "likes": context.SETTINGS_COMMENTS["likes"],
+    "dislikes": context.SETTINGS_COMMENTS["dislikes"],
+    "kits": "Equipment kits a session can be planned with: a name and the equipment ids you have there "
+            "(./sweatcast movements lists them); the first is the default. For free weights, add the weights you "
+            "have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and "
+            "unit = \"lb\".",
+    "youtube_favorites": context.SETTINGS_COMMENTS["youtube_favorites"],
+    "puzzles": context.SETTINGS_COMMENTS["puzzles"],
+    "interests": "What the filler between exercises rotates through: [[interests]] rows, each a name, its slot "
+                 "(today, science, deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for "
+                 "research. Within a slot, the one told longest ago comes next. Without any rows, "
+                 "knowledge/content.toml's defaults.",
+    "feeds": context.SETTINGS_COMMENTS["feeds"],
+    "setup": "\"quick\" until the second half of setup is done (interests, feeds, delivery, your own coach): until "
+             "then ./sweatcast check lists what's left as notes. Say \"finish setting me up\" to do it.",
+    "render": "The audio routes to try, in order (local, fish, elevenlabs, gemini or inworld), when the coach doesn't settle it: a local coach always renders on this computer, and a web coach always speaks through its own service, with its key in me/.env.",
+    "cloud_max_chars": "The most characters one web build may send to a voice service; a build over it stops "
+                       "before sending (30000, the default, is a 40-minute workout with room for retakes).",
+    "deliver_to": context.SETTINGS_COMMENTS["deliver_to"],
+    "words_per_minute": context.SETTINGS_COMMENTS["words_per_minute"],
+}
+PART_INTROS = {
+    "training.md": "# Training\n\nHow you train: your kits and weights, the movements you like and dislike (the "
+                   "settings above), and your usual session. Every workout reads this; update it when your "
+                   "equipment or preferences change.\n",
+    "content.md": "# Content\n\nWhat fills the rests between exercises: interests, feeds, YouTube channels and "
+                  "puzzles (the settings above), and the topics and taste below. Research reads this before each "
+                  "workout.\n",
+}
+SETTINGS_HEADER = ("# sweatcast's settings for this listener: the setup stage, how audio is made, a web build's "
+                   "ceiling, where finished MP3s go, and the speaking rate. The tools read them; setup writes them.")
+PROFILE_NOTE = ("Your details are in four files, by how often each changes: this one (who you are), `training.md` "
+                "(kits, likes and dislikes, your usual session), `content.md` (interests, feeds and taste, for the "
+                "stories) and `settings.toml` (delivery, audio and setup). Injuries are in `health.md`, and the "
+                "workout log and feedback in `log.md`.")
+STALE_PREFIXES = ("The settings the tools read", "Claude reads this before every workout")
+
+
+def _dump_part(name, settings):
+    out = []
+    keys = list(PART_KEYS[name]) + [k for k in settings if k not in PART_KEYS[name]]
+    plain = [k for k in keys if k in settings and not (isinstance(settings[k], list) and settings[k]
+                                                         and isinstance(settings[k][0], dict))]
+    tables = [k for k in keys if k not in plain and (k in settings or k in ("kits", "interests", "feeds"))]
+    for k in plain:
+        if k in PART_COMMENTS:
+            out.append(f"# {PART_COMMENTS[k]}")
+        out.append(f"{k} = {context.toml_value(settings[k])}")
+    for k in tables:
+        if k in PART_COMMENTS:
+            out += ["", f"# {PART_COMMENTS[k]}"]
+        for row in settings.get(k) or []:
+            out += ["", f"[[{k}]]"] + [f"{rk} = {context.toml_value(rv)}" for rk, rv in row.items()]
+    return "\n".join(out)
+
+
+def split_profile_text(text):
+    """{file name: text} for a schema-6 profile.md written as one file: the four files it splits into."""
+    settings, rest = context.front(text)
+    groups = {name: {} for name in context.PROFILE_PARTS}
+    for k, v in settings.items():
+        if k != "schema":
+            groups[context.SETTING_HOMES.get(k, "profile.md")][k] = v
+    prose = {name: [] for name in context.PROFILE_PARTS}
+    where = "profile.md"
+    for ln in rest.splitlines(keepends=True):
+        if ln.startswith("## "):
+            where = context.PROSE_HOMES.get(ln[3:].strip().lower(), "profile.md")
+        elif where == "profile.md" and ln.startswith(STALE_PREFIXES):
+            ln = "" if ln.startswith(STALE_PREFIXES[1]) else PROFILE_NOTE + "\n"
+        prose[where].append(ln)
+    out = {}
+    for name in context.PROFILE_PARTS:
+        block = f"schema = {context.SCHEMA}\n" + _dump_part(name, groups[name])
+        context.tomllib.loads(block)   # never write a block that doesn't parse
+        if name == "settings.toml":
+            out[name] = f"{SETTINGS_HEADER}\n{block}\n"
+            continue
+        body = re.sub(r"\n{3,}", "\n\n", "".join(prose[name]))
+        if name in PART_INTROS:
+            body = PART_INTROS[name] + ("\n" + body.lstrip("\n") if body.strip() else "")
+        out[name] = f"+++\n{block}\n+++\n{body}"
+    return out
+
+
+def split_profile(home):
+    """Write training.md, content.md and settings.toml from profile.md (already at schema 6), and profile.md
+    with what stays."""
+    path = os.path.join(home, "profile.md")
+    with open(path, encoding="utf-8") as f:
+        parts = split_profile_text(f.read())
+    for name, text in parts.items():
+        dest = os.path.join(home, name)
+        tmp = dest + ".part"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, dest)
+
+
 def _without_narrator(body):
     out, inside = [], False
     for ln in body.splitlines(keepends=True):
@@ -167,7 +294,7 @@ def _without_narrator(body):
     return "".join(out)
 
 
-STEPS = {0: to_1, 1: to_2, 2: to_3, 3: to_4, 4: to_5}   # from schema N, the function that makes it N + 1
+STEPS = {0: to_1, 1: to_2, 2: to_3, 3: to_4, 4: to_5, 5: to_6}   # from schema N, the function that makes it N + 1
 
 
 def persona_to_5(text, path):
@@ -363,7 +490,7 @@ def persona_files(home=None):
 
 def _behind(path, current):
     with open(path, encoding="utf-8") as f:
-        found = context.schema_of(f.read())
+        found = context.schema_of(f.read(), path)
     if found > current:
         raise SystemExit(f"{show(path)} is schema {found}, newer than this engine (schema "
                          f"{current}). Pull the latest sweatcast instead of migrating.")
@@ -400,6 +527,7 @@ def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
     files = [(p, n) for p, n in todo if not _is_persona(p)]
     coach_files = [(p, n) for p, n in todo if _is_persona(p)]
     relayout = any(found < 5 for _, found in files)
+    resplit = any(found < 6 and os.path.basename(p) == "profile.md" for p, found in files)
     if not todo or dry_run:
         if dry_run and files:
             _coach_plan(files, names, report)
@@ -412,6 +540,10 @@ def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
     os.makedirs(backup, exist_ok=True)
     for path, _ in files:
         shutil.copy2(path, os.path.join(backup, os.path.basename(path)))
+    if resplit:   # a part already there (copied from a newer template) is overwritten, so it's backed up too
+        for name in context.PROFILE_PARTS[1:]:
+            if os.path.exists(os.path.join(home, name)):
+                shutil.copy2(os.path.join(home, name), os.path.join(backup, name))
     for path, _ in coach_files:   # by their place in the folder: every coach's file is persona.md
         dest = os.path.join(backup, os.path.relpath(path, home))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -448,6 +580,8 @@ def migrate(dry_run=False, stamp=None, names=None, report=None, moves=None):
             os.remove(old_pace)   # it's in the backup; each coach has its own now
         if os.path.isdir(paths.OLD_VOICES):
             shutil.rmtree(paths.OLD_VOICES)   # copied into personas/ and the backup
+    if resplit:
+        split_profile(home)
     if relayout:
         update_gitignore(home, GITIGNORE_ADD_5)
         moved = workouts.reorganize(home)

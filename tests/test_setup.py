@@ -95,7 +95,7 @@ class Doctor(unittest.TestCase):
             home = os.path.join(d, "me")
             shutil.copytree(os.path.join(ROOT, "me.example"), home)
             missing = os.path.join(d, "no-such-folder").replace(os.sep, "/")
-            prof = os.path.join(home, "profile.md")
+            prof = os.path.join(home, "settings.toml")
             with open(prof, encoding="utf-8") as f:
                 text = f.read()
             import re
@@ -376,11 +376,11 @@ class LocalExtra(unittest.TestCase):
 
     def test_a_cloud_only_profile_skips_the_local_engine(self):
         shutil.copytree(os.path.join(self.repo, "me.example"), os.path.join(self.repo, "me"))
-        prof = os.path.join(self.repo, "me", "profile.md")
+        prof = os.path.join(self.repo, "me", "settings.toml")
         with open(prof, encoding="utf-8") as f:
             text = f.read()
         with open(prof, "w", encoding="utf-8") as f:
-            f.write(text.replace("+++\n", '+++\nrender = ["fish"]\n', 1).replace("schema = 3\n", "schema = 3\n", 1))
+            f.write(text.replace('render = ["local"]', 'render = ["fish"]', 1))
         out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertNotIn("--extra", self.calls())

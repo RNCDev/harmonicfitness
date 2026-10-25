@@ -49,7 +49,10 @@ MODELS = os.path.abspath(os.path.expanduser(os.environ.get("SWEATCAST_MODELS") o
 os.environ["HF_HUB_CACHE"] = MODELS
 os.environ.setdefault("SWEATCAST_OLD_HF_HUB_CACHE", OLD_HF_HUB_CACHE)   # what it was before the first tool set it
 
-PROFILE = os.path.join(HOME, "profile.md")
+PROFILE = os.path.join(HOME, "profile.md")       # who the listener is (name, experience, basics)
+TRAINING = os.path.join(HOME, "training.md")     # how they train: kits, likes and dislikes, default session
+CONTENT_MD = os.path.join(HOME, "content.md")    # what fills the rests: interests, feeds, channels, taste
+SETTINGS = os.path.join(HOME, "settings.toml")   # the tools' settings: setup, audio route, delivery, ceilings
 HEALTH = os.path.join(HOME, "health.md")
 LOG = os.path.join(HOME, "log.md")
 MY_MOVEMENTS = os.path.join(HOME, "movements.toml")   # the listener's private movements

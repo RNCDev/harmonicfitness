@@ -134,13 +134,13 @@ class Migrate5(unittest.TestCase):
         out = self.migrate()
         self.assertIn("Backed up the originals", out.stdout, out.stdout + out.stderr)
         with open(os.path.join(self.home, "profile.md"), encoding="utf-8") as f:
-            self.assertIn("schema = 5", f.read())
+            self.assertIn("schema = 6", f.read())
         w = os.path.join(self.home, "workouts")
         self.assertTrue(os.path.exists(os.path.join(w, "2026-10-23-general", "2026-10-23-general.draft.txt")))
         self.assertTrue(os.path.exists(os.path.join(w, "checks", "x.txt")))
         self.assertFalse(os.path.exists(os.path.join(w, "drafts")))
         out = self.migrate()
-        self.assertIn("already at schema 5", out.stdout)
+        self.assertIn("already at schema 6", out.stdout)
 
 
 OLD_PERSONA = """+++

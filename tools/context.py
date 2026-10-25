@@ -1,19 +1,20 @@
 """The listener's context files: the one place that reads and writes them.
 
-me/profile.md, health.md and log.md are Markdown that Claude
-reads and the tools parse. Every tool goes through this module, so a format lives in
-one place. Each file opens with TOML front matter naming its format's version:
+The listener's context is Markdown that Claude reads and the tools parse: profile.md (who they
+are), training.md (kits, likes and dislikes, the usual session), content.md (interests, feeds and
+taste, for the stories), health.md and log.md, plus settings.toml (the tools' own settings). Every
+tool goes through this module, so a format lives in one place. Each Markdown file opens with TOML
+front matter naming its format's version (settings.toml names it as a plain key):
 
     +++
-    schema = 3
+    schema = 6
     +++
 
-The profile's front matter also holds every setting a tool reads (voices, delivery
-folder, words per minute, experience level, likes and dislikes, equipment kits, YouTube
-channels, puzzles, feeds), so the prose below it is free-form and only Claude reads it.
-Schema 3 adds the profile's `experience`, `likes`, `dislikes` and `[[kits]]`, and the
-health file's `[[limits]]` rows (area, side, level, flags, rehab, note) with its
-`## Clinician rules` section, which the brief applies as rules. A file from an older sweatcast (schema 1 used
+The front matter also holds every setting a tool reads, so the prose below it is free-form and
+only Claude reads it. profile() reads the four profile files as one: their settings merged, their
+prose joined. Each setting has a home file (SETTING_HOMES); one found elsewhere still counts, and
+check() notes a setting written twice. The health file's `[[limits]]` rows (area, side, level,
+flags, rehab, note) and its `## Clinician rules` section are what the brief applies as rules. A file from an older sweatcast (schema 1 used
 `---` front matter, schema 0 had none) stops the tools with the command that brings
 it up to date, `./sweatcast migrate`.
 
@@ -49,7 +50,7 @@ import cli  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
-SCHEMA = 5
+SCHEMA = 6   # 6 (12.0.0) splits the profile into profile.md, training.md, content.md and settings.toml
 PERSONA_SCHEMA = 5   # me/personas/<slug>/persona.md, new in sweatcast 9; 5 (10.0.0) adds kind and web coaches
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
@@ -59,9 +60,42 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HANDLE_KEYS = {"YouTube favorites": "youtube_favorites", "Puzzles": "puzzles"}
 
 
+# The profile is four files, by how often each part changes and who reads it; the tools read them as one
+# (profile()). Each setting and prose section has a home file, where setup and the template put it and
+# migrate moves it; a setting found anywhere else still counts, but its home file wins.
+PROFILE_PARTS = ("profile.md", "training.md", "content.md", "settings.toml")
+SETTING_HOMES = {
+    "name": "profile.md", "experience": "profile.md",
+    "kits": "training.md", "likes": "training.md", "dislikes": "training.md",
+    "interests": "content.md", "feeds": "content.md", "youtube_favorites": "content.md", "puzzles": "content.md",
+    "setup": "settings.toml", "render": "settings.toml", "cloud_max_chars": "settings.toml",
+    "deliver_to": "settings.toml", "words_per_minute": "settings.toml",
+}
+PROSE_HOMES = {"equipment kits": "training.md", "default session": "training.md",
+               "content": "content.md", "taste": "content.md"}   # every other ## section stays in profile.md
+
+
 def files():
     """The context files that carry a schema, in the order check() reports them."""
-    return [paths.PROFILE, paths.HEALTH, paths.LOG]
+    return [paths.PROFILE, paths.TRAINING, paths.CONTENT_MD, paths.SETTINGS, paths.HEALTH, paths.LOG]
+
+
+def part_paths(profile_path=None):
+    """{part name: path} for the profile's four files, beside `profile_path` (default me/profile.md)."""
+    folder = os.path.dirname(profile_path or paths.PROFILE)
+    return {name: os.path.join(folder, name) for name in PROFILE_PARTS}
+
+
+def split(path, text):
+    """(settings, prose) of any context file: a .toml file is all settings; the others have a +++ block."""
+    try:
+        if path.endswith(".toml"):
+            return tomllib.loads(text), ""
+        return front(text)
+    except tomllib.TOMLDecodeError as e:
+        raise SystemExit(f"{show(path)} isn't valid TOML: {e}")
+    except SystemExit as e:
+        raise SystemExit(f"{show(path)}: {e.code}")
 
 
 # ---- front matter --------------------------------------------------------------------
@@ -81,10 +115,10 @@ def front(text):
     return {}, text
 
 
-def schema_of(text):
-    """The schema a file's front matter names; 0 when it has none (before 2.0.0)."""
+def schema_of(text, path=None):
+    """The schema a file's front matter (or a .toml file's `schema` key) names; 0 when it has none."""
     try:
-        settings, _ = front(text)
+        settings, _ = split(path or "", text)
     except SystemExit:
         return SCHEMA   # a TOML block, just a broken one: check() says what's wrong
     try:
@@ -142,7 +176,7 @@ def with_front_matter(text, schema=SCHEMA, settings=None, comments=None):
 
 def schema_problem(path, text):
     """A sentence saying why this file's schema won't do, or None."""
-    found = schema_of(text)
+    found = schema_of(text, path)
     if found == SCHEMA:
         return None
     if found < SCHEMA:
@@ -209,17 +243,41 @@ class Profile:
     settings: dict
     body: str
     path: str = ""
+    sources: dict = field(default_factory=dict)      # setting -> the file it came from
+    duplicates: list = field(default_factory=list)   # (setting, file that won, file that lost)
 
 
 def profile(path=None):
-    """The profile: its settings (the TOML at the top) and its prose."""
+    """The listener, read as one: the settings of profile.md, training.md, content.md and settings.toml
+    merged, and their prose joined. Only profile.md must exist; a missing part reads as empty."""
     path = path or paths.PROFILE
-    text = read_raw(path, "profile")
-    problem = schema_problem(path, text)
-    if problem:
-        raise SystemExit(problem)
-    settings, rest = front(text)
-    return Profile(settings, rest, path)
+    merged, sources, duplicates, bodies = {}, {}, [], []
+    for name, part in part_paths(path).items():
+        if name == "profile.md":
+            text = read_raw(path, "profile")
+            part = path
+        elif os.path.exists(part):
+            with open(part, encoding="utf-8") as f:
+                text = f.read()
+        else:
+            continue
+        problem = schema_problem(part, text)
+        if problem:
+            raise SystemExit(problem)
+        settings, rest = split(part, text)
+        for k, v in settings.items():
+            if k == "schema":
+                continue
+            if k not in merged:
+                merged[k], sources[k] = v, part
+            elif SETTING_HOMES.get(k) == name:   # the key's home file wins
+                duplicates.append((k, part, sources[k]))
+                merged[k], sources[k] = v, part
+            else:
+                duplicates.append((k, sources[k], part))
+        if rest.strip():
+            bodies.append(rest.strip("\n"))
+    return Profile(merged, "\n\n".join(bodies) + "\n", path, sources, duplicates)
 
 
 def voices(p):
@@ -819,64 +877,81 @@ class Issue(NamedTuple):
 BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*\[")   # "- Neighborhood: [neighborhood, city]"
 
 
-def _check_profile(path, text):
-    out = []
+def _check_profile(path):
+    """[Issue] for the profile's four files, each pointing at the file that holds what's wrong."""
+    parts = part_paths(path)
+    for name, part in parts.items():   # a part in the wrong format is check()'s own issue
+        if os.path.exists(part) and schema_problem(part, read_raw(part)):
+            return []
     try:
-        settings, rest = front(text)
+        p = profile(path)
     except SystemExit as e:
         return [Issue(path, 1, str(e.code))]
-    offset = len(text.splitlines()) - len(rest.splitlines())
-    p = Profile(settings, rest, path)
-    out += route_issues(p)
+    settings = p.settings
+
+    def at(key):
+        return p.sources.get(key) or parts[SETTING_HOMES.get(key, "profile.md")]
+
+    out = [Issue(lost, 0, f"{k} is also set in {os.path.basename(won)}, which wins; keep it in one place")
+           for k, won, lost in p.duplicates]
+    out += [i._replace(path=at("render")) for i in route_issues(p)]
     if wpm(p) is None:
-        out.append(Issue(path, 0, "no words_per_minute (./sweatcast lint without a voice assumes 185)", note=True))
-    if not delivery_patterns(Profile(settings, rest, path)):
-        out.append(Issue(path, 0, "no deliver_to folder, so finished MP3s stay in me/workouts/", note=True))
+        out.append(Issue(at("words_per_minute"), 0, "no words_per_minute (./sweatcast lint without a voice "
+                                                    "assumes 185)", note=True))
+    if not delivery_patterns(p):
+        out.append(Issue(at("deliver_to"), 0, "no deliver_to folder, so finished MP3s stay in me/workouts/",
+                         note=True))
     for i, f in enumerate(settings.get("feeds") or [], 1):
         if not isinstance(f, dict):
             continue
         kind = str(f.get("kind", "")).lower()
         name = f.get("label") or f"feed {i}"
         if kind not in FEED_KINDS:
-            out.append(Issue(path, 0, f"feed '{name}': unknown kind '{f.get('kind', '')}' "
-                                      f"(one of {', '.join(FEED_KINDS)})"))
+            out.append(Issue(at("feeds"), 0, f"feed '{name}': unknown kind '{f.get('kind', '')}' "
+                                             f"(one of {', '.join(FEED_KINDS)})"))
         elif unfilled(f.get("value")) or unfilled(f.get("label")):
-            out.append(Issue(path, 0, f"feed '{name}' isn't filled in yet ({kind}: "
-                                      f"{f.get('value') or 'no value'}); fill it in or remove it"))
+            out.append(Issue(at("feeds"), 0, f"feed '{name}' isn't filled in yet ({kind}: "
+                                             f"{f.get('value') or 'no value'}); fill it in or remove it"))
     if not feed_sources(p):
-        out.append(Issue(path, 0, "no feeds, so research searches for everything", note=True))
-    out += _interest_problems(path, settings)
+        out.append(Issue(at("feeds"), 0, "no feeds, so research searches for everything", note=True))
+    out += _interest_problems(at("interests"), settings)
     for key in HANDLE_KEYS.values():
         for h in settings.get(key) or []:
             if placeholder(h):
-                out.append(Issue(path, 0, f"{key}: '{h}' isn't filled in yet"))
+                out.append(Issue(at(key), 0, f"{key}: '{h}' isn't filled in yet"))
     cat = _catalog()
     if experience(p) is None:
-        out.append(Issue(path, 0, "no experience level: novice, experienced or advanced", note=True))
+        out.append(Issue(at("experience"), 0, "no experience level: novice, experienced or advanced", note=True))
     if listener_name(p) is None:
-        out.append(Issue(path, 0, "no name: the coach can't greet the listener by name", note=True))
+        out.append(Issue(at("name"), 0, "no name: the coach can't greet the listener by name", note=True))
     if cat:
         for key in ("likes", "dislikes"):
             for name in _names(p, key):
                 if not catalog.resolve(cat, name):
-                    out.append(Issue(path, 0, f"{key}: '{name}' isn't a movement in the catalog", note=True))
+                    out.append(Issue(at(key), 0, f"{key}: '{name}' isn't a movement in the catalog", note=True))
         for kit, equipment in kits(p).items():
             for e in equipment:
                 if e not in cat.equipment:
-                    out.append(Issue(path, 0, f"kit '{kit}': '{e}' isn't equipment in the catalog", note=True))
+                    out.append(Issue(at("kits"), 0, f"kit '{kit}': '{e}' isn't equipment in the catalog",
+                                     note=True))
     for k in settings.get("kits") or []:
         if isinstance(k, dict):
             for problem in _weight_problems(k):
-                out.append(Issue(path, 0, f"kit '{k.get('name', '?')}': {problem}"))
-    for n, line in enumerate(rest.splitlines(), 1):
-        m = BODY_HINT_RE.match(line)
-        if m:
-            out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet "
-                                               "(still the template's [hint]); fill it in or delete the line"))
+                out.append(Issue(at("kits"), 0, f"kit '{k.get('name', '?')}': {problem}"))
+    for name, part in parts.items():
+        if name.endswith(".md") and os.path.exists(part):
+            text = read_raw(part)
+            rest = body(text)
+            offset = len(text.splitlines()) - len(rest.splitlines())
+            for n, line in enumerate(rest.splitlines(), 1):
+                m = BODY_HINT_RE.match(line)
+                if m:
+                    out.append(Issue(part, n + offset, f"'{m.group(1).strip()}' isn't filled in yet "
+                                                       "(still the template's [hint]); fill it in or delete the line"))
     if setup_stage(p) == "quick":   # the quick start leaves these for later: worth knowing, nothing breaks
         out = [i._replace(note=True) if "isn't filled in yet" in i.message else i for i in out]
-        out.append(Issue(path, 0, "setup's second half is still to do (interests, feeds, delivery, your own "
-                                  "coach): say \"finish setting me up\"", note=True))
+        out.append(Issue(at("setup"), 0, "setup's second half is still to do (interests, feeds, delivery, your "
+                                         "own coach): say \"finish setting me up\"", note=True))
     return out
 
 
@@ -949,7 +1024,11 @@ def check(home_files=None):
     template lines not filled in yet. Issues with note=True don't stop anything."""
     out = []
     for path in home_files or files():
+        name = os.path.basename(path)
         if not os.path.exists(path):
+            prof = os.path.join(os.path.dirname(path), "profile.md")
+            if name in PROFILE_PARTS[1:] and os.path.exists(prof) and schema_of(read_raw(prof)) < SCHEMA:
+                continue   # an older profile, not split yet: its schema issue says to migrate
             out.append(Issue(path, 0, "missing; ./sweatcast setup copies it from me.example/"))
             continue
         with open(path, encoding="utf-8") as f:
@@ -958,9 +1037,8 @@ def check(home_files=None):
         if problem:
             out.append(Issue(path, 0, problem))
             continue
-        name = os.path.basename(path)
         if name == "profile.md":
-            out += _check_profile(path, text)
+            out += _check_profile(path)
         elif name == "health.md":
             out += _check_health(path, text)
         elif name == "log.md":

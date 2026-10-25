@@ -332,7 +332,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
           f"(approximate; rates checked {service.get('rates_checked')})", flush=True)
     if chars > ceiling:
         print(f"That's over this profile's ceiling of {ceiling:,} characters a build (cloud_max_chars in "
-              "me/profile.md), so nothing was sent. Shorten the script, or raise the ceiling and rerun.")
+              "me/settings.toml), so nothing was sent. Shorten the script, or raise the ceiling and rerun.")
         sys.exit(cli.ISSUES)
     long = [t for t in todo if voice.get("max_chars") and len(t) > voice["max_chars"]]
     if long:

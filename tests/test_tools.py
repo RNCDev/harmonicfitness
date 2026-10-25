@@ -721,7 +721,7 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         self.home = fresh_home(d)
         self.phone = os.path.join(d, "phone")
         os.makedirs(self.phone)
-        prof = os.path.join(self.home, "profile.md")
+        prof = os.path.join(self.home, "settings.toml")
         with open(prof, encoding="utf-8") as f:
             text = f.read()
         text = re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone.replace(os.sep, '/'))}", text,
@@ -771,7 +771,7 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         self.assertEqual(rec["route"], "local")   # the render's own fields stay
 
     def test_record_without_a_folder_says_why(self):
-        prof = os.path.join(self.home, "profile.md")
+        prof = os.path.join(self.home, "settings.toml")
         with open(prof, encoding="utf-8") as f:
             text = f.read()
         write_file(prof, re.sub(r"^deliver_to = .*$", 'deliver_to = ""', text, flags=re.M))
@@ -1146,8 +1146,11 @@ class QuickSetup(unittest.TestCase):
     PROSE = "# Profile\n- Neighborhood: [where you live]\n"
 
     def issues(self, stage):
-        text = profile_text(self.SETTINGS.format(stage=stage), self.PROSE)
-        return context._check_profile("profile.md", text)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "profile.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(profile_text(self.SETTINGS.format(stage=stage), self.PROSE))
+            return context._check_profile(path)
 
     def test_quick_setup_unfilled_are_notes(self):
         found = self.issues('setup = "quick"')
@@ -1334,7 +1337,7 @@ class Migrate(unittest.TestCase):
             self.assertIsNone(context.delivery(p))
             for gone in ("- Voices", "- Copy finished MP3s", "## Feeds", "- Measured words", "@Asianometry"):
                 self.assertNotIn(gone, p.body)
-            self.assertEqual(p.body.count(context.SETTINGS_NOTE), 1)
+            self.assertEqual(p.body.count(migrate.PROFILE_NOTE), 1)   # 5 to 6 replaced the older note
             self.assertIn("## Equipment kits", p.body)                 # the rest of the prose stays
             for name, text in self.bodies.items():
                 with open(os.path.join(self.home, name), encoding="utf-8") as f:
@@ -1367,10 +1370,10 @@ class Migrate(unittest.TestCase):
         self.assertEqual(out.returncode, cli.OK, out.stdout)   # the quick start: what's left is a note
         self.assertIn("finish setting me up", out.stdout)
         self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
-        profile = os.path.join(home, "profile.md")
-        with open(profile, encoding="utf-8") as f:
+        settings = os.path.join(home, "settings.toml")
+        with open(settings, encoding="utf-8") as f:
             text = f.read()
-        write_file(profile, re.sub(r'(?m)^setup = "quick"\n', "", text))   # the full setup's standard
+        write_file(settings, re.sub(r'(?m)^setup = "quick"\n', "", text))   # the full setup's standard
         out = run([sys.executable, "tools/context.py", "check"], home=home)
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout)
         self.assertNotIn("schema", out.stdout)
@@ -1430,7 +1433,7 @@ note = "Therapist: no weight through the hand."
     def test_profile_settings(self):
         write_file(os.path.join(self.dir, "profile.md"), profile_text(self.SETTINGS))
         p = context.profile(os.path.join(self.dir, "profile.md"))
-        self.assertEqual(context.SCHEMA, 5)
+        self.assertEqual(context.SCHEMA, 6)
         self.assertEqual(context.experience(p), "experienced")
         self.assertEqual(context.likes(p), ["goblet-squat"])
         self.assertEqual(context.dislikes(p), ["box-squat"])
@@ -1577,7 +1580,8 @@ class Migrate3(unittest.TestCase):
         self.assertEqual(log, "+++\nschema = 3\n+++\n# Log\n")
 
     def test_limits_row_after_migration_parses(self):
-        h = migrate.to_5(migrate.to_4(migrate.to_3(self.HEALTH2, "health.md"), "health.md"), "health.md")
+        h = migrate.to_6(migrate.to_5(migrate.to_4(migrate.to_3(self.HEALTH2, "health.md"), "health.md"), "health.md"),
+                         "health.md")
         h = h.replace("\n+++\n# Health", ('\n[[limits]]\narea = "wrist"\nside = "right"\n'
                                           'level = "off-limits"\n+++\n# Health'), 1)
         with tempfile.TemporaryDirectory() as d:
@@ -1596,7 +1600,7 @@ class Migrate3(unittest.TestCase):
                 with open(path, encoding="utf-8") as f:
                     write_file(path, context.with_front_matter(context.body(f.read()), 2))
             out = run([sys.executable, "tools/migrate.py"], home=home)
-            self.assertIn("schema 2 to 5", out.stdout, out.stderr)
+            self.assertIn("schema 2 to 6", out.stdout, out.stderr)
             # the migrated prose injury has no [[limits]] row yet: the one issue left to fix
             issues = [i for i in context.check([os.path.join(home, "health.md")]) if not i.note]
             self.assertEqual(len(issues), 1)
@@ -1613,7 +1617,7 @@ class Migrate3(unittest.TestCase):
         self.assertEqual((context.limits(h), context.clinician_lines(h)), ([], []))
         p = context.profile(os.path.join(paths.EXAMPLE, "profile.md"))
         self.assertEqual(context.kits(p), {"home": ["dumbbells", "band", "mat"]})
-        self.assertEqual(context.SCHEMA, 5)
+        self.assertEqual(context.SCHEMA, 6)
 
 
 class Wrapper(unittest.TestCase):

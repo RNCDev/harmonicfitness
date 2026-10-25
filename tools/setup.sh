@@ -93,9 +93,11 @@ case "$1" in
 esac
 # A profile whose render list leaves out "local" (cloud voices only) gets no local engine from a plain
 # rerun; one already installed stays.
-RENDER_LINE="$(sed -n '/^+++/,/^+++/s/^render[[:space:]]*=//p' "$CONTEXT/profile.md" 2>/dev/null | head -1)"
+# settings.toml holds it since 12.0.0; an older folder (migrated below) still has it in profile.md.
+RENDER_LINE="$(sed -n 's/^render[[:space:]]*=//p' "$CONTEXT/settings.toml" 2>/dev/null | head -1)"
+[ -n "$RENDER_LINE" ] || RENDER_LINE="$(sed -n '/^+++/,/^+++/s/^render[[:space:]]*=//p' "$CONTEXT/profile.md" 2>/dev/null | head -1)"
 if [ -z "$1" ] && [ -n "$RENDER_LINE" ] && ! echo "$RENDER_LINE" | grep -q '"local"'; then
-  echo "   The profile's render list has no \"local\", so the local engine isn't installed (./sweatcast setup --local adds it)."
+  echo "   The render list (settings.toml) has no \"local\", so the local engine isn't installed (./sweatcast setup --local adds it)."
   WANT="$INSTALLED"
 fi
 

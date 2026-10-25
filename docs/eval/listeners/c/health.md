@@ -1,5 +1,5 @@
 +++
-schema = 5
+schema = 6
 # An invented listener for the judged grid in docs/eval/.
 
 [[limits]]

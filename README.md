@@ -116,7 +116,16 @@ Three layers keep your details apart from the code:
 | `tests/` | Fast checks with no models, network or personal files (`./sweatcast test`), run by CI on every push |
 | `docs/` | The judged eval grid behind each release's quality, and the research the session rules cite |
 
-Pulling updates never touches `me/`. When a release changes a file's format, `./sweatcast migrate` (or rerunning `./sweatcast setup`) brings `me/` up to date, backing up the originals first. Your settings sit in a block at the top of `me/profile.md`; the prose below it is for the assistant.
+Your profile is four files, split by how often each part changes:
+
+| File | Holds | Changes |
+|---|---|---|
+| `me/profile.md` | Who you are: name, experience, basics | Rarely |
+| `me/training.md` | Your kits and weights, the movements you like and dislike, your usual session | With new gear, or what you say at check-ins |
+| `me/content.md` | What fills the rests: interests, feeds, YouTube channels, puzzles, taste | Often; only the research reads it |
+| `me/settings.toml` | The tools' settings: setup stage, audio route, delivery folder, web spending ceiling | Rarely; setup writes it |
+
+Next to them, `me/health.md` holds your injuries and your clinician's rules, and `me/log.md` your sessions and feedback. Each Markdown file has its settings in a block at the top, and prose below it for the assistant. Pulling updates never touches `me/`. When a release changes a file's format, `./sweatcast migrate` (or rerunning `./sweatcast setup`) brings `me/` up to date, backing up the originals first.
 
 ### Back up `me/`
 

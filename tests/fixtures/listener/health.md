@@ -1,5 +1,5 @@
 +++
-schema = 5
+schema = 6
 # An invented listener for the engine's tests.
 
 [[limits]]

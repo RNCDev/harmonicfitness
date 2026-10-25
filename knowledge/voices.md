@@ -111,7 +111,7 @@ Checked 2026-10-25; the rates the cost estimate uses are in `knowledge/services.
 
 - **The key** lives in `me/.env` (`FISH_AUDIO_API_KEY`, `ELEVENLABS_API_KEY`, `GEMINI_API_KEY`, `INWORLD_API_KEY`): `./sweatcast keys init <service>` adds the line and `./sweatcast keys open` opens the file in the system's editor, where the listener pastes the key. It's never committed or backed up, never printed (`./sweatcast keys` says only whether one is set), and read only by the engine as it sends. Claude Code is denied the file. On Claude Code on the web the key is an environment variable in the cloud environment's settings, and the service's host (`api.fish.audio`, `api.elevenlabs.io`, `generativelanguage.googleapis.com`, `api.inworld.ai`) goes on its network allowlist.
 - **What goes to the service:** the description at design, and the workout's script at every build, which can mention the listener's injuries ("easy on that left knee"). Setup says so once, before the first web build, with Gemini's free-tier training.
-- **Cost:** before sending, a build prints the characters it will send (only the paragraphs not already cached) and the approximate cost, and stops if that's over the profile's `cloud_max_chars` (30,000 by default). An audition prints each candidate's cost a workout. The build record logs the characters sent.
+- **Cost:** before sending, a build prints the characters it will send (only the paragraphs not already cached) and the approximate cost, and stops if that's over `cloud_max_chars` in `me/settings.toml` (30,000 by default). An audition prints each candidate's cost a workout. The build record logs the characters sent.
 - **No rendering ahead:** `--follow` and `--clips-only` are refused for a web coach, since every re-render would be billed. Only the final build sends, after the lint and the menu check pass, a few requests at a time.
 - **Failures:** rate limits and dropped connections are retried; a refused key, payment or quota stops the build with exit code 4. Clips already rendered stay cached, so a rerun sends only the rest. A web coach whose service has no key on this computer stops the build with exit code 64 and says how to add it.
 
@@ -119,7 +119,7 @@ Set aside on 2026-10-24 and 2026-10-25: MiniMax (clones deleted after a week unu
 
 ## Local coaches (unchanged until the local redesign)
 
-A route is how a local coach's workout becomes audio on this computer. The profile's `render` setting lists the local engines in order of preference (`["local"]`); a web coach ignores it. `./sweatcast doctor` shows whether local voices work here.
+A route is how a local coach's workout becomes audio on this computer. The `render` setting in `me/settings.toml` lists the routes in order of preference (`["local"]`); a web coach always speaks through its own service and a local coach always renders locally, so it matters only with no coach to go by. `./sweatcast doctor` shows whether local voices work here.
 
 | Computer | Engine | Status |
 |---|---|---|

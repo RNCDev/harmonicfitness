@@ -1,7 +1,7 @@
 """YouTube deep dives: find a fresh video on a favorite channel and save its transcript.
 
 Every other session's deep dive retells a video from one of the channels listed
-by @handle in youtube_favorites, in the settings at the top of me/profile.md.
+by @handle in youtube_favorites, in the settings at the top of me/content.md.
 `transcript` saves the video's English captions as plain paragraphs in
 me/workouts/research/videos/<id>.txt. A video counts as used once its summary sheet,
 me/workouts/research/videos/<id>.md, exists; `pick` skips it from then on.
@@ -59,7 +59,7 @@ def handles(label="YouTube favorites", profile=None):
     found = context.handles(context.profile(profile), label)
     if not found:
         key = context.HANDLE_KEYS.get(label, label)
-        raise SystemExit(f"No @handles in {key} in the settings at the top of profile.md.")
+        raise SystemExit(f"No @handles in {key} in the settings at the top of content.md.")
     return found
 
 
