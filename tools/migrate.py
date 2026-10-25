@@ -107,7 +107,7 @@ def to_3(text, path):
 
 
 RENDER_COMMENT = ("How workouts become audio, in order of preference: local (this computer's own engine) or a "
-                  "cloud voice (fish, elevenlabs, cartesia, deepgram) with its key in me/.env. Each build uses "
+                  "web voice (fish, elevenlabs, gemini, inworld) with its key in me/.env. Each build uses "
                   "the first that works on the computer it runs on.")
 NARRATOR_NOTE = "How the coach talks now lives with each coach, in me/personas/<coach>/persona.md."
 

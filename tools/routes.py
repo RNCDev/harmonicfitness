@@ -1,10 +1,14 @@
 """Routes: how this computer turns a script into audio. "local" renders on this computer's own engine;
-a cloud service (fish, elevenlabs, cartesia, deepgram) renders with the listener's key.
+a web service (fish, elevenlabs, gemini, inworld) renders with the listener's key.
 
 The profile's `render` setting is an ordered preference list, say ["local", "fish"], and one synced
 profile works on every computer: each build takes the first route that works where it runs. Local
 needs hardware the readiness check approves and the local engine installed; a service needs its key
-in this computer's me/.env (never synced), and Deepgram a stock voice picked for the coach.
+in this computer's me/.env (never synced).
+
+The coach decides first. A web coach (kind = "web") speaks only through the service that designed its
+voice, whatever the render list says, and stops with WebCoachUnavailable when that service has no key
+here. A local coach renders only on the local route.
 
     ./sweatcast get route [--coach "Coach Julius"]    # the route a build would take here
 """
@@ -14,9 +18,32 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import keys  # noqa: E402
+import paths  # noqa: E402
 
-ROUTES = ("local", "fish", "elevenlabs", "cartesia", "deepgram")
+ROUTES = ("local", "fish", "elevenlabs", "gemini", "inworld")
 SERVICES = ROUTES[1:]
+
+
+class WebCoachUnavailable(SystemExit):
+    """A web coach can't speak here: its service has no key on this computer, or --engine names another
+    service. `get route` and `build` exit 64 on it."""
+
+
+def _service_name(service):
+    import cloud
+    return cloud.services()[service]["name"]
+
+
+def _missing_key(persona):
+    var = keys.SERVICE_VARS[persona.service]
+    name = _service_name(persona.service)
+    if paths.REMOTE:
+        fix = (f"set {var}=<your key> in the cloud environment's settings, under Environment variables "
+               "(a new session picks it up)")
+    else:
+        fix = (f"./sweatcast keys init {persona.service}, then paste the key after {var}= "
+               "(keys open opens the file)")
+    return f"{persona.name} speaks through {name}, and there's no {name} key on this computer: {fix}."
 
 
 def local_installed():
@@ -43,6 +70,8 @@ def usable(route, persona=None, facts=None):
     if route not in ROUTES:
         return False, f"'{route}' isn't a route; the routes are {', '.join(ROUTES)}."
     if route == "local":
+        if persona is not None and persona.is_web:
+            return False, f"local: {persona.name} is a web coach, which speaks only through {persona.service}."
         f = _facts(facts)
         installed = local_installed()
         if f.get("local") == "no" and not (installed and f.get("local_hw") in ("fast", "experimental")):
@@ -50,21 +79,33 @@ def usable(route, persona=None, facts=None):
         if not installed:
             return False, "local: the local engine isn't installed yet: ./sweatcast setup --local"
         if persona is not None and not persona.has_clip:
-            return False, f"local: {persona.name} has no clip of their own (a Deepgram stock voice only)."
+            return False, f"local: {persona.name} has no clip of their own."
         return True, ""
+    if persona is not None and not persona.is_web:
+        return False, (f"{route}: {persona.name} is a local coach, and a local coach renders only locally "
+                       "(a web coach speaks through a web service).")
+    if persona is not None and persona.is_web and persona.service != route:
+        return False, f"{route}: {persona.name} speaks through {persona.service}, not {route}."
     if not keys.is_set(route):
         return False, (f"{route}: no key on this computer ({keys.SERVICE_VARS[route]} in me/.env): "
                        f"./sweatcast keys init {route}, then paste the key into the file")
-    if route == "deepgram" and persona is not None and not persona.table("deepgram").get("voice"):
-        return False, (f"deepgram: {persona.name} has no Deepgram stock voice picked: "
-                       "./sweatcast coaches samples deepgram, then ./sweatcast coaches set")
-    if route != "deepgram" and persona is not None and not persona.has_clip:
-        return False, f"{route}: {persona.name} has no clip of their own (a Deepgram stock voice only)."
     return True, ""
 
 
 def pick(preferences, persona=None, override=None, facts=None):
-    """The route a build takes: `override` (--engine) if it works here, else the first usable preference."""
+    """The route a build takes: a web coach's own service (whatever the render list, and only if keyed here);
+    else `override` (--engine) if it works here; else the first usable preference."""
+    if persona is not None and persona.is_web:
+        if not persona.service or persona.service not in SERVICES:
+            raise WebCoachUnavailable(f"{persona.name} is a web coach with no known service "
+                                      f"({persona.service or 'none'}); the services are {', '.join(SERVICES)}.")
+        if override and override != persona.service:
+            raise WebCoachUnavailable(
+                f"{persona.name} speaks through {_service_name(persona.service)} only, so --engine {override} "
+                f"can't render them here.")
+        if not keys.is_set(persona.service):
+            raise WebCoachUnavailable(_missing_key(persona))
+        return persona.service
     if override:
         ok, reason = usable(override, persona, facts)
         if not ok:
@@ -82,8 +123,10 @@ def pick(preferences, persona=None, override=None, facts=None):
         reasons.append(reason)
     tried = [r for r in preferences or ["local"] if r in ROUTES]
     hints = [] if any(r in SERVICES for r in tried) else \
-        ["a cloud voice: ./sweatcast keys init fish (or elevenlabs, cartesia, deepgram), then add it to the "
+        ["a web voice: ./sweatcast keys init fish (or elevenlabs, gemini, inworld), then add it to the "
          "profile's render list"]
+    if persona is not None and not persona.is_web:
+        hints.append(f"{persona.name} is a local coach; a web coach (the coach skill makes one) speaks through a web service")
     raise SystemExit("No audio route works on this computer:\n  " + "\n  ".join(reasons + hints))
 
 
@@ -117,7 +160,8 @@ def report_lines(persona=None, preferences=None, facts=None):
     """The readiness check's Routes section."""
     out = []
     for route in ROUTES:
-        ok, reason = usable(route, persona, facts)
+        # a service line says whether its key is here; which coach speaks where shows in the last line
+        ok, reason = usable(route, persona if route == "local" else None, facts)
         label = "works here" if ok else reason.split(": ", 1)[-1]
         if route in SERVICES:
             import cloud

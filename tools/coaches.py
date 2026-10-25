@@ -11,7 +11,6 @@ makes takes, the listener keeps one, and that clip is the coach from then on.
     ./sweatcast coaches keep my-recording.wav --name "Coach Sam" --words "what the clip says"
     ./sweatcast coaches set "Coach Maya" local.engine qwen3
     ./sweatcast coaches measured "Coach Maya" --engine fish   # exit 0 measured, 1 estimated, 64 unknown
-    ./sweatcast coaches samples deepgram                  # hear Deepgram's stock voices, to pick one
     ./sweatcast coaches download ["Coach Maya"]           # the coach's local model
 
 Designers, the first that works here unless --designer says: local (Qwen3-TTS VoiceDesign on MLX, an
@@ -41,7 +40,6 @@ PROSE = """## How this coach talks
 - Encouragement that works for me: [for example, notice the effort plainly ("that last set was honest"), tell me why a movement is there, remind me what I did last time]
 - Pet peeves in workout audio:
 """
-SAMPLES = os.path.join(paths.PERSONAS, ".samples")
 
 
 def available_designer():
@@ -205,12 +203,8 @@ def main(argv=None):
     k.add_argument("--force", action="store_true", help="replace the coach's clip")
     s = sub.add_parser("set", help="set one of a coach's settings: <table>.<key> <value>")
     s.add_argument("coach")
-    s.add_argument("setting", help="for example local.engine, elevenlabs.model, deepgram.voice, or description")
+    s.add_argument("setting", help="for example local.engine, elevenlabs.model, or description")
     s.add_argument("value")
-    sp = sub.add_parser("samples", help="a line in each of a stock-voice service's voices, to pick one")
-    sp.add_argument("service", choices=("deepgram",))
-    sp.add_argument("--voices", help="comma-separated (default: the ten in knowledge/services.toml)")
-    sp.add_argument("--line", default=voices.DESIGN_LINE)
     d = sub.add_parser("download", help="fetch the local model the coaches use (Chatterbox Turbo with none yet)")
     d.add_argument("coach", nargs="*")
     d.add_argument("--all", action="store_true", help="every local engine's model this computer can run")
@@ -263,19 +257,6 @@ def main(argv=None):
         context.set_persona_setting(p.path, table or None, key, value)
         print(f"{p.name}: {args.setting} = {value}")
         return cli.OK
-    if args.cmd == "samples":
-        import cloud
-        import services.deepgram as deepgram
-        names = [v.strip() for v in (args.voices or "").split(",") if v.strip()] or \
-            cloud.services()["deepgram"]["stock_voices"]
-        folder = os.path.join(SAMPLES, args.service)
-        os.makedirs(folder, exist_ok=True)
-        for name, pcm in deepgram.samples(args.line, names):
-            path = os.path.join(folder, f"{name}.wav")
-            voices.write_wav(path, pcm)
-            print(f"  {show(path)}")
-        print("Pick one, then: ./sweatcast coaches set \"<coach>\" deepgram.voice <voice>")
-        return cli.OK
     if args.cmd == "download":
         if paths.REMOTE:
             print("Claude Code on the web renders with a cloud voice only, so there's no local model to fetch here.")
@@ -301,7 +282,7 @@ def main(argv=None):
         return cli.OK
     for p in found:
         mark = "*" if last and p.slug == last.slug else " "
-        engine = p.table("local").get("engine", "chatterbox") if p.has_clip else "Deepgram stock voice only"
+        engine = p.table("local").get("engine", "chatterbox") if p.has_clip else (p.service or "no clip")
         print(f"{mark} {p.name:22} {engine:12} " + ("(a stand-in) " if p.placeholder else "") + p.description[:60])
     print("* the coach a build uses when none is named (the one used last)")
     return cli.OK

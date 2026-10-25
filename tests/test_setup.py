@@ -184,12 +184,20 @@ class CloudSession(unittest.TestCase):
 
     def test_remote_without_home_says_one_time(self):
         import doctor
+        from unittest import mock
         with tempfile.TemporaryDirectory() as d:
             home = os.path.join(d, "me")
             shutil.copytree(os.path.join(ROOT, "me.example"), home)
-            lines = "\n".join(doctor.web_lines(home))
+            clean = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+            with mock.patch.dict(os.environ, clean, clear=True), \
+                    mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
+                lines = "\n".join(doctor.web_lines(home))
             self.assertIn("one-time session", lines)
             self.assertIn("api.fish.audio", lines)
+            for var in ("FISH_AUDIO_API_KEY", "ELEVENLABS_API_KEY", "GEMINI_API_KEY", "INWORLD_API_KEY"):
+                self.assertIn(var, lines)
+            for host in ("api.elevenlabs.io", "generativelanguage.googleapis.com", "api.inworld.ai"):
+                self.assertIn(host, lines)
             subprocess.run(["git", "init", "-q", home], check=True)
             subprocess.run(["git", "-C", home, "remote", "add", "origin", "https://github.com/x/sweatcast-me.git"],
                            check=True)

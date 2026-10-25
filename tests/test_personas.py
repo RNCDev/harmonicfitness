@@ -111,35 +111,22 @@ class Personas(unittest.TestCase):
         self.assertEqual(personas.voice_for(personas.lookup("Coach Q"), "local")["model"],
                          voices.LOCAL_MODELS[("qwen3", "mlx")][0])
 
-    def test_a_stock_only_persona_renders_only_on_deepgram(self):
-        folder = os.path.join(self.d, "personas")
-        os.makedirs(os.path.join(folder, "coach-stock"))
-        with open(os.path.join(folder, "coach-stock", "persona.md"), "w", encoding="utf-8") as f:
-            f.write(context.persona_text({"name": "Coach Stock", "stock_only": True,
-                                          "deepgram": {"voice": "aura-2-thalia-en"}}, ""))
-        self.use(folder)
-        p = personas.lookup("Coach Stock")
-        self.assertFalse(p.has_clip)
-        with self.assertRaises(SystemExit) as e:
-            personas.voice_for(p, "local")
-        self.assertIn("Deepgram", str(e.exception.code))
-
     def test_service_voice_ids_are_keyed_by_clip(self):
         self.use(persona_home(self.d))
         p = personas.lookup("Coach Test")
         self.assertIsNone(personas.services_get(p, "elevenlabs", "abc"))
         personas.services_put(p, "elevenlabs", "abc", "voice-1")
-        personas.services_put(p, "cartesia", "abc", "voice-2")
+        personas.services_put(p, "fish", "abc", "voice-2")
         self.assertEqual(personas.services_get(p, "elevenlabs", "abc"), "voice-1")
         self.assertIsNone(personas.services_get(p, "elevenlabs", "changed-clip"))
 
     def test_persona_settings_edit_in_place(self):
         self.use(persona_home(self.d))
         p = personas.lookup("Coach Test")
-        context.set_persona_setting(p.path, "deepgram", "voice", "aura-2-apollo-en")
+        context.set_persona_setting(p.path, "elevenlabs", "model", "eleven_v4_turbo")
         context.set_persona_setting(p.path, "local", "engine", "qwen3")
         again = personas.lookup("Coach Test")
-        self.assertEqual(again.settings["deepgram"]["voice"], "aura-2-apollo-en")
+        self.assertEqual(again.settings["elevenlabs"]["model"], "eleven_v4_turbo")
         self.assertEqual(again.settings["local"]["engine"], "qwen3")
         self.assertIn("How this coach talks", again.prose)
 
@@ -248,9 +235,9 @@ class Coaches(unittest.TestCase):
         import coaches
         with contextlib.redirect_stdout(io.StringIO()):
             coaches.main(["set", "Coach Test", "local.engine", "qwen3"])
-            coaches.main(["set", "Coach Test", "deepgram.voice", "aura-2-apollo-en"])
+            coaches.main(["set", "Coach Test", "elevenlabs.model", "eleven_v4_turbo"])
         p = personas.lookup("Coach Test")
-        self.assertEqual((p.table("local")["engine"], p.table("deepgram")["voice"]), ("qwen3", "aura-2-apollo-en"))
+        self.assertEqual((p.table("local")["engine"], p.table("elevenlabs")["model"]), ("qwen3", "eleven_v4_turbo"))
         with self.assertRaises(SystemExit):
             coaches.main(["set", "Coach Test", "local.engine", "omnivoice"])
 

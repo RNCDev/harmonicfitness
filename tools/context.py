@@ -233,7 +233,7 @@ def default_voice(p):
     return found[0][0] if found else None
 
 
-ROUTE_NAMES = ("local", "fish", "elevenlabs", "cartesia", "deepgram")   # tools/routes.py
+ROUTE_NAMES = ("local", "fish", "elevenlabs", "gemini", "inworld")   # tools/routes.py
 CLOUD_MAX_CHARS = 30000   # a cloud build's default ceiling: a 40-minute workout with room for retakes
 
 
@@ -426,10 +426,8 @@ class Persona:
 
 PERSONA_COMMENTS = {
     "local": "How this coach sounds on this computer: engine chatterbox (most natural) or qwen3 (clearest; Mac only).",
-    "fish": "Fish Audio: the model (a cloud voice; ./sweatcast keys).",
-    "elevenlabs": "ElevenLabs: eleven_multilingual_v2 (more natural) or eleven_flash_v2_5 (cheaper).",
-    "cartesia": "Cartesia: the model.",
-    "deepgram": "Deepgram has stock voices only, so the coach sounds different there: the voice's name.",
+    "fish": "Fish Audio: the model (a web voice; ./sweatcast keys).",
+    "elevenlabs": "ElevenLabs: eleven_v4 (more natural) or eleven_v4_turbo (cheaper).",
     "voice": "How this coach sounds: what a web service designs the voice from (an edit means a new audition).",
     "character": "How this coach talks: what the script writer follows (the brief quotes it); edit freely.",
     "settings": "The web service's own voice settings, sent with every request.",
@@ -1011,7 +1009,7 @@ def check_coaches(folder=None):
             elif not p.settings.get("voice_id"):
                 out.append(Issue(path, 0, f"{name} is a web coach with no voice_id: audition a voice and keep one "
                                           "(the coach skill)"))
-        elif not p.settings.get("stock_only") and not all(
+        elif not all(
                 os.path.exists(os.path.join(folder, slug, f)) for f in ("clip.wav", "clip.txt")):
             out.append(Issue(path, 0, "no clip.wav and clip.txt beside it: keep a take or bring a clip "
                                       "(./sweatcast coaches keep)"))
@@ -1107,6 +1105,9 @@ def main(argv=None):
                 return cli.USAGE
             try:
                 print(routing.pick(routes(p), coach, override=args.engine))
+            except routing.WebCoachUnavailable as e:   # a web coach whose service has no key here
+                print(e.code, file=sys.stderr)
+                return cli.USAGE
             except SystemExit as e:
                 print(e.code, file=sys.stderr)
                 return cli.USAGE if args.engine and args.engine not in routing.ROUTES else cli.ISSUES

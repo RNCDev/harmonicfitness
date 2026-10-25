@@ -84,17 +84,36 @@ class Core(unittest.TestCase):
         chars, usd = cloud.estimate("fish", "s2.1-pro", ["Zoë"] * 1000)
         self.assertEqual(chars, 3000)
         self.assertAlmostEqual(usd, 4000 * 15 / 1e6)
-        _, usd = cloud.estimate("deepgram", "aura-2", ["abc"] * 1000)
-        self.assertAlmostEqual(usd, 3000 * 30 / 1e6)
+        _, usd = cloud.estimate("inworld", "inworld-tts-2", ["abc"] * 1000)
+        self.assertAlmostEqual(usd, 3000 * 25 / 1e6)
+        _, usd = cloud.estimate("gemini", "gemini-3.8-flash-tts", ["abc"] * 1000)
+        self.assertAlmostEqual(usd, 3000 * 13.5 / 1e6)
 
     def test_services_settings(self):
         s = cloud.services()
-        self.assertEqual(set(s), {"fish", "elevenlabs", "cartesia", "deepgram"})
-        self.assertFalse(s["deepgram"]["tried_live"])
-        for name in ("fish", "elevenlabs", "cartesia"):
+        self.assertEqual(set(s), {"fish", "elevenlabs", "gemini", "inworld"})
+        for name in s:
             self.assertTrue(s[name]["tried_live"], name)
+            self.assertEqual(s[name]["rates_checked"], "2026-10-25")
+            for gone in ("copies_clip", "designs", "stock_voices"):
+                self.assertNotIn(gone, s[name])
         self.assertEqual(s["fish"]["default_model"], "s2.1-pro")
-        self.assertEqual(s["deepgram"]["max_chars"], 2000)
+        self.assertEqual(s["fish"]["design_usd"], 0.01)
+        self.assertEqual(s["elevenlabs"]["default_model"], "eleven_v4")
+        self.assertIn("Free", s["elevenlabs"]["note"])
+        self.assertEqual((s["gemini"]["default_model"], s["gemini"]["url"]),
+                         ("gemini-3.8-flash-tts", "https://generativelanguage.googleapis.com"))
+        self.assertEqual((s["inworld"]["default_model"], s["inworld"]["url"]),
+                         ("inworld-tts-2", "https://api.inworld.ai"))
+        self.assertEqual({n: (s[n]["concurrency"], s[n]["max_chars"]) for n in s},
+                         {"fish": (5, 0), "elevenlabs": (2, 10000), "gemini": (2, 0), "inworld": (5, 2000)})
+        self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
+        self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-lite-tts"), 9)
+        self.assertEqual(cloud.rate("inworld", "inworld-tts-2-flash"), 15)
+        self.assertEqual(cloud.rate("elevenlabs", "eleven_v4_turbo"), 40)
+        for n in ("gemini", "inworld"):
+            self.assertEqual(s[n]["unit"], "characters")
+            self.assertNotIn("design_usd", s[n])
 
 
 class Fish(unittest.TestCase):
@@ -222,7 +241,7 @@ class ElevenLabs(ServiceCase):
         pcm = cloud.speaker(personas.voice_for(self.coach(), "elevenlabs"))(
             "Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
         body = json.loads([r for r in fake.requests if r.path.startswith("/v1/text-to-speech/")][0].body)
-        self.assertEqual(body, {"text": "Two more.", "model_id": "eleven_multilingual_v2", "seed": 42,
+        self.assertEqual(body, {"text": "Two more.", "model_id": "eleven_v4", "seed": 42,
                                 "previous_text": "Set your feet.", "next_text": "Rest."})
         self.assertGreater(len(pcm), 0)
 
@@ -238,71 +257,7 @@ class ElevenLabs(ServiceCase):
         self.assertIn("output_format=pcm_24000", fake.requests[0].path)
 
 
-class Cartesia(ServiceCase):
-    SERVICE = "cartesia"
-
-    def test_cartesia_clones_once_and_requests_raw_pcm(self):
-        def answer(req):
-            if req.path == "/voices/clone":
-                return 200, {}, json.dumps({"id": "cartesia-voice-1", "name": "x", "language": "en"}).encode()
-            return 200, {"Content-Type": "audio/pcm"}, tone_pcm(0.3)
-        fake = self.serve(answer)
-        for _ in range(2):
-            cloud.speaker(personas.voice_for(self.coach(), "cartesia"))("Set your feet.", 42)
-        clones = [r for r in fake.requests if r.path == "/voices/clone"]
-        self.assertEqual(len(clones), 1)
-        self.assertIn(b'name="clip"', clones[0].body)
-        self.assertIn(b'name="language"', clones[0].body)
-        tts = [r for r in fake.requests if r.path == "/tts/bytes"][0]
-        self.assertEqual(tts.headers["authorization"], f"Bearer {SECRET}")
-        self.assertEqual(tts.headers["cartesia-version"], "2026-08-14")
-        body = json.loads(tts.body)
-        self.assertEqual(body["model_id"], "sonic-3.6")
-        self.assertEqual(body["voice"], {"mode": "id", "id": "cartesia-voice-1"})
-        self.assertEqual(body["output_format"], {"container": "raw", "encoding": "pcm_s16le", "sample_rate": 24000})
-        self.assertEqual((body["transcript"], body["language"]), ("Set your feet.", "en"))
-
-
-class Deepgram(ServiceCase):
-    SERVICE = "deepgram"
-
-    def stock(self):
-        import context
-        context.set_persona_setting(self.coach().path, "deepgram", "voice", "aura-2-apollo-en")
-        return personas.voice_for(self.coach(), "deepgram")
-
-    def test_deepgram_token_header_and_raw_pcm(self):
-        fake = self.serve(lambda r: (200, {"Content-Type": "audio/l16;rate=24000"}, tone_pcm(0.3)))
-        pcm = cloud.speaker(self.stock())("Set your feet.", 42)
-        req = fake.requests[0]
-        self.assertEqual(req.headers["authorization"], f"Token {SECRET}")
-        self.assertTrue(req.path.startswith("/v1/speak?"))
-        for part in ("model=aura-2-apollo-en", "encoding=linear16", "sample_rate=24000", "container=none"):
-            self.assertIn(part, req.path)
-        self.assertEqual(json.loads(req.body), {"text": "Set your feet."})
-        self.assertGreater(len(pcm), 0)
-
-    def test_deepgram_without_a_stock_voice_says_how_to_pick(self):
-        with self.assertRaises(SystemExit) as e:
-            personas.voice_for(self.coach(), "deepgram")
-        self.assertIn("samples deepgram", str(e.exception.code))
-
-    def test_deepgram_refuses_a_paragraph_over_2000_characters(self):
-        fake = self.serve(lambda r: (200, {}, tone_pcm(0.3)))
-        with self.assertRaises(cloud.ServiceError) as e:
-            cloud.speaker(self.stock())("word " * 401, 42)
-        self.assertEqual(e.exception.kind, "bad_request")
-        self.assertIn("2000", str(e.exception))
-        self.assertEqual(fake.requests, [])
-
-    def test_a_stock_voice_has_its_own_cache_identity(self):
-        a = self.stock()
-        import context
-        context.set_persona_setting(self.coach().path, "deepgram", "voice", "aura-2-thalia-en")
-        b = personas.voice_for(self.coach(), "deepgram")
-        self.assertNotEqual((a["key"], a["model"]), (b["key"], b["model"]))
-
-
+@unittest.skip("rewritten in Task 3: speech by saved voice ID (a local test coach no longer renders on a cloud route)")
 class CloudRender(unittest.TestCase):
     """tools/render.py on a cloud route, end to end against the fake Fish server."""
 

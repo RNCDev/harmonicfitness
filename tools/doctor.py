@@ -128,15 +128,15 @@ def web_lines(home, profile=None):
     import keys
     import routes
     have = [s for s in routes.SERVICES if keys.is_set(s)]
-    wanted = [r for r in (profile and _routes(profile) or []) if r in routes.SERVICES] or have or ["fish"]
     lines = ["Claude Code on the web",
              "  Cloud voices only: there's no graphics card here for a local one.",
              "  Voice key: " + (f"set for {', '.join(have)}." if have else
                                 "none yet. Set it in the cloud environment's settings, under Environment variables, "
-                                "as FISH_AUDIO_API_KEY=<key> (or ELEVENLABS_API_KEY, CARTESIA_API_KEY, "
-                                "DEEPGRAM_API_KEY); never in the chat."),
+                                "as FISH_AUDIO_API_KEY=<key> (or ELEVENLABS_API_KEY, GEMINI_API_KEY, "
+                                "INWORLD_API_KEY); never in the chat."),
              "  Network: the environment's network access needs " + ", ".join(
-                 h for r in wanted for h in routes.hosts(r)) + " (Custom, with the default list kept).",
+                 h for r in routes.SERVICES for h in routes.hosts(r)) + " (Custom, with the default list kept; "
+             "only the service your coach speaks through is needed).",
              "  Feeds, optional (research searches without them): " + ", ".join(routes.feed_hosts(profile)) + "."]
     if kept(home):
         lines.append(f"  Your context folder: {paths.show(home)}, its own private repo, so ./sweatcast backup keeps it.")

@@ -264,16 +264,6 @@ def voice_for(p, route):
          "route": route, "service": route, "model": model, "revision": None, "generate": {},
          "pace_file": p.pace_file, "concurrency": int(s.get("concurrency") or 1),
          "max_chars": int(s.get("max_chars") or 0)}
-    if s.get("copies_clip") == "stock":
-        voice = table.get("voice")
-        if not voice:
-            raise SystemExit(f"{p.name} has no {s['name']} stock voice picked yet. Hear some with "
-                             f"./sweatcast coaches samples {route}, then: "
-                             f"./sweatcast coaches set \"{p.name}\" {route}.voice <voice>")
-        import hashlib
-        v.update(model=voice, ref_audio=None, ref_text=None,
-                 key=hashlib.sha256(f"stock|{route}|{voice}".encode()).hexdigest()[:12])
-        return v
     key, words = personas.clip_key(p)
     v.update(ref_audio=p.clip, ref_text=words, key=key)
     return v

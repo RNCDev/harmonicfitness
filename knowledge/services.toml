@@ -1,74 +1,67 @@
-# The cloud voice services sweatcast can render with, each with the listener's own key in me/.env.
-# Read only through tools/cloud.py (cloud.services()).
+# The web voice services sweatcast can design coaches on and render with, each with the listener's own
+# key in me/.env. Read only through tools/cloud.py (cloud.services()).
 #
 # Prices change: every rate here is approximate, checked on the date below from each service's
 # pricing page, and shown to the listener as approximate. A release updates them.
-# tried_live: whether someone has rendered a real workout through the service. Until then setup,
-# the readiness check and the docs label it "not yet tried live"; it was built against a local
-# fake of its documented API.
+# tried_live: whether someone has run the service live. Until then setup, the readiness check and the
+# docs label it "not yet tried live".
 #
-# copies_clip: inline (the clip and its words go with every request), clone (uploaded once to make
-# the service's own voice, whose ID is kept in the coach's services.json), or stock (stock voices
-# only; the coach sounds different there).
 # unit: what the service bills by (characters, or UTF-8 bytes for Fish).
+# usd_per_million: dollars per million billed units, by model.
+# design_usd: what one voice design costs (absent: the service doesn't publish it).
 # concurrency: requests at once, under the lowest paid plan's limit.
 # max_chars: the most characters one request may carry (0: no documented limit).
+# note: a caveat shown beside the service.
 
-rates_checked = "2026-10-24"
+rates_checked = "2026-10-25"
 
 [fish]
 name = "Fish Audio"
 url = "https://api.fish.audio"
 key_var = "FISH_AUDIO_API_KEY"
-default_model = "s2.1-pro"   # s1 retires 2026-12-31, and the free model has an announced end date
+default_model = "s2.1-pro"
 models = { "s2.1-pro" = "Fish's current model", "s2-pro" = "the previous model" }
 unit = "bytes"
 usd_per_million = { "s2.1-pro" = 15, "s2-pro" = 15 }
-concurrency = 4              # 5 at once below $100 prepaid
+design_usd = 0.01            # about $0.01 a voice-design request
+concurrency = 5
 max_chars = 0
-copies_clip = "inline"
-designs = true               # voice design: about $0.01 a request
-tried_live = true      # 2026-10-24: a smoke test, a 10-minute workout and a voice design, from a Mac
+tried_live = true
 
 [elevenlabs]
 name = "ElevenLabs"
 url = "https://api.elevenlabs.io"
 key_var = "ELEVENLABS_API_KEY"
-default_model = "eleven_multilingual_v2"
-models = { "eleven_multilingual_v2" = "the more natural voice (about $1.60 a 20,000-character workout)", "eleven_flash_v2_5" = "faster and cheaper (about $0.80 a workout)" }
+default_model = "eleven_v4"
+models = { "eleven_v4" = "the more natural voice (about $1.60 a 20,000-character workout)", "eleven_v4_turbo" = "faster and cheaper (about $0.80 a workout)" }
 unit = "characters"
-usd_per_million = { "eleven_multilingual_v2" = 80, "eleven_flash_v2_5" = 40 }
-concurrency = 2              # Starter allows 3 on multilingual
+usd_per_million = { "eleven_v4" = 80, "eleven_v4_turbo" = 40 }
+concurrency = 2
 max_chars = 10000
-copies_clip = "clone"        # an instant voice clone: the Starter subscription and up (about $6 a month; checked 2026-10-24)
-designs = true
-tried_live = true      # 2026-10-24: a smoke test and a 10-minute workout, from a Mac, on the Starter plan
+note = "not yet tried on a Free account; Free keeps 3 voices and a monthly allowance"
+tried_live = true
 
-[cartesia]
-name = "Cartesia"
-url = "https://api.cartesia.ai"
-key_var = "CARTESIA_API_KEY"
-default_model = "sonic-3.6"
-models = { "sonic-3.6" = "Cartesia's current model" }
+[gemini]
+name = "Gemini"
+url = "https://generativelanguage.googleapis.com"
+key_var = "GEMINI_API_KEY"
+default_model = "gemini-3.8-flash-tts"
+models = { "gemini-3.8-flash-tts" = "Gemini's current speech model", "gemini-3.8-flash-lite-tts" = "cheaper, a little less natural" }
 unit = "characters"
-usd_per_million = { "sonic-3.6" = 50 }   # Pro: $5 for 100,000 characters; $65 a million past that
-concurrency = 2              # Pro allows 3
+# gemini-3.8-flash-tts: the effective rate from $0.27 per 20,000 characters; it doubles to 27 from 2027-01-01
+usd_per_million = { "gemini-3.8-flash-tts" = 13.5, "gemini-3.8-flash-lite-tts" = 9 }
+concurrency = 2
 max_chars = 0
-copies_clip = "clone"        # instant cloning: the Pro subscription and up (about $5 a month; checked 2026-10-24)
-designs = false
-tried_live = true      # 2026-10-24: a smoke test and a 10-minute workout, from a Mac, on the Pro plan
+tried_live = true
 
-[deepgram]
-name = "Deepgram Aura-2"
-url = "https://api.deepgram.com"
-key_var = "DEEPGRAM_API_KEY"
-default_model = "aura-2"
-models = { "aura-2" = "stock voices only" }
+[inworld]
+name = "Inworld"
+url = "https://api.inworld.ai"
+key_var = "INWORLD_API_KEY"
+default_model = "inworld-tts-2"
+models = { "inworld-tts-2" = "Inworld's current speech model", "inworld-tts-2-flash" = "faster and cheaper" }
 unit = "characters"
-usd_per_million = { "aura-2" = 30 }
-concurrency = 4
+usd_per_million = { "inworld-tts-2" = 25, "inworld-tts-2-flash" = 15 }
+concurrency = 5
 max_chars = 2000
-copies_clip = "stock"
-designs = false
-stock_voices = ["aura-2-thalia-en", "aura-2-andromeda-en", "aura-2-helena-en", "aura-2-apollo-en", "aura-2-arcas-en", "aura-2-aries-en", "aura-2-draco-en", "aura-2-pandora-en", "aura-2-hyperion-en", "aura-2-theia-en"]
-tried_live = false
+tried_live = true

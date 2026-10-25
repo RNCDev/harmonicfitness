@@ -10,7 +10,6 @@
 
 A coach is the same person on every engine: render.py gets a voice dict from voice_for(), with
 the clip, the engine's pinned model and the coach's own pace file, whichever route speaks it.
-A coach made for Deepgram's stock voices only (stock_only = true) has no clip, and renders only there.
 
 A web coach (kind = "web", schema 5) has no clip: a voice a service designed (service, voice_id, model,
 style), described by its [voice] table, with how it talks in [character], and the approved audition kept
@@ -83,7 +82,7 @@ class Persona:
 
     @property
     def has_clip(self):
-        return not self.settings.get("stock_only") and os.path.exists(self.clip) and os.path.exists(self.clip_words)
+        return os.path.exists(self.clip) and os.path.exists(self.clip_words)
 
     @property
     def pace_file(self):
@@ -211,10 +210,7 @@ def _usable_here(p):
     engine runs here."""
     if p.is_web:
         import keys
-        try:
-            return bool(p.service) and keys.is_set(p.service)
-        except SystemExit:   # a service this engine doesn't know
-            return False
+        return bool(p.service) and p.service in keys.SERVICE_VARS and keys.is_set(p.service)
     import routes
     return routes.usable("local", p)[0]
 
@@ -292,10 +288,7 @@ def clip_hash(p):
 
 def voice_for(p, route):
     """The voice dict render.py, the lint and the engines take, for coach `p` on `route`."""
-    if route != "deepgram" and not p.has_clip:
-        if p.settings.get("stock_only"):
-            raise SystemExit(f"{p.name} has no clip of their own, only a Deepgram stock voice, so they render "
-                             "only on Deepgram (--engine deepgram).")
+    if not p.has_clip:
         raise SystemExit(f"{p.name} has no clip yet ({show(p.clip)} and clip.txt): keep a take first "
                          "(./sweatcast coaches keep).")
     if route == "local":
