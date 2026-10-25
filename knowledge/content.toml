@@ -3,8 +3,8 @@
 #
 # A slot is one kind of filler. `words` is a rough size for one item of it, at about 175 words a
 # minute (a deep dive is told in beats of about fifty-five words across several rests). `fresh` is
-# true for news, which research finds on the day; the others are evergreen, so the pantry stocks them
-# ahead of time (`pantry` is how many unused pieces of the slot to keep on hand).
+# true for news, which research finds on the day; the others are evergreen, so the reserve stocks them
+# ahead of time (`reserve` is how many unused pieces of the slot to keep on hand).
 
 [[slot]]
 id = "today"
@@ -29,21 +29,21 @@ id = "quiz"
 what = "a puzzle or question asked in one rest and answered two or three later"
 words = 120
 fresh = false
-pantry = 3
+reserve = 3
 
 [[slot]]
 id = "delight"
 what = "something to enjoy: a show, book, album, comedian, restaurant or drink the listener would like, or an odd fact"
 words = 90
 fresh = false
-pantry = 3
+reserve = 3
 
 [[slot]]
 id = "learn"
 what = "something worth knowing that isn't news: a bit of history, how a thing works, a number explained, an idea"
 words = 140
 fresh = false
-pantry = 3
+reserve = 3
 
 # How many items of each slot a session carries, by its length: the first band whose `up_to`
 # (minutes) is at least the session's.

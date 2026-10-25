@@ -4,7 +4,7 @@
       2026-10-25-strength-25/      one workout: <stem>.draft.txt, .brief.md, .menu.json, then the build's
                                    <name>.txt and <name>.build.json (and <name>.mp3 until it's delivered)
       checks/                      smoke tests and any build whose draft isn't in a workout folder
-      research/                    told.jsonl, pantry/, videos/, puzzles/, and daily/ (each day's sheet and feeds)
+      research/                    told.jsonl, reserve/, videos/, puzzles/, and daily/ (each day's sheet and feeds)
       .audio-cache/, .logs/        rendered clips and build logs
 
 reorganize() moves a folder from the old layout (drafts/ beside every build's output, and the day's

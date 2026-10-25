@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The filler between the exercises: what a session should carry, what's been told, and the pantry.
+"""The filler between the exercises: what a session should carry, what's been told, and the reserve.
 
 Three things, so the stories rotate instead of repeating and the slow research happens ahead of time:
 - The plan (`./sweatcast content plan --minutes N`): how many items of each slot (today, science,
@@ -9,14 +9,15 @@ Three things, so the stories rotate instead of repeating and the slow research h
 - The record of what's been told (me/workouts/research/told.jsonl, one item a line): the plan lists
   the last few weeks of it, so research doesn't tell a story twice. `./sweatcast content log` adds a
   session's items after it's built.
-- The pantry (me/workouts/research/pantry/<slug>.md): evergreen pieces (quiz, delight, learn)
+- The reserve (me/workouts/research/reserve/<slug>.md): evergreen pieces (quiz, delight, learn)
   researched ahead of time, a sheet each. A piece is used once the record names its slug. The plan
-  lists the unused ones and says which slots run low.
+  lists the unused ones and says which slots run low. Before 10.2.0 it was research/pantry/, with
+  `pantry` as the record's key; both are still read.
 
     ./sweatcast content plan --minutes 25
     ./sweatcast content log --date 2026-10-23 --item "today | sports | The home team wins in overtime" \\
         --item "learn | history | Why old cities have crooked streets | https://... | crooked-streets"
-    ./sweatcast content pantry
+    ./sweatcast content reserve
 """
 import datetime
 import json
@@ -31,7 +32,8 @@ import cli  # noqa: E402
 import context  # noqa: E402
 import paths  # noqa: E402
 
-RECIPE, TOLD, PANTRY = paths.CONTENT, paths.TOLD, paths.PANTRY
+RECIPE, TOLD, RESERVE = paths.CONTENT, paths.TOLD, paths.RESERVE
+FOLDERS = (paths.RESERVE, paths.OLD_PANTRY)   # the reserve, then its old name
 RECENT_DAYS = 30    # how far back the plan lists what's been told
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
@@ -41,7 +43,7 @@ class Slot(NamedTuple):
     what: str
     words: int
     fresh: bool
-    pantry: int
+    reserve: int
 
 
 class Recipe(NamedTuple):
@@ -62,7 +64,7 @@ class Piece(NamedTuple):
 def recipe(path=RECIPE) -> Recipe:
     with open(path, "rb") as f:
         data = tomllib.load(f)
-    slots = {s["id"]: Slot(s["id"], s["what"], int(s["words"]), bool(s.get("fresh")), int(s.get("pantry", 0)))
+    slots = {s["id"]: Slot(s["id"], s["what"], int(s["words"]), bool(s.get("fresh")), int(s.get("reserve", 0)))
              for s in data["slot"]}
     bands = sorted(data["band"], key=lambda b: b["up_to"])
     for b in bands:
@@ -119,24 +121,41 @@ def due(cats: List[str], items: List[dict], slot: str, n: int) -> List[tuple]:
     return out
 
 
-def pantry(folder=PANTRY, items=None) -> List[Piece]:
-    """The pantry's unused pieces, oldest first."""
-    used = {i.get("pantry") for i in (told() if items is None else items) if i.get("pantry")}
-    out = []
-    if not os.path.isdir(folder):
-        return out
-    for name in sorted(os.listdir(folder), key=lambda n: os.path.getmtime(os.path.join(folder, n))):
-        slug, ext = os.path.splitext(name)
-        if ext != ".md" or slug in used:
+def used_slug(item: dict) -> Optional[str]:
+    """The reserve piece a record item names (`pantry` in items logged before 10.2.0)."""
+    return item.get("reserve") or item.get("pantry")
+
+
+def sheets(folders=None) -> List[str]:
+    """Every sheet in the reserve, oldest first; a slug in both the reserve and the old pantry/ counts once."""
+    seen, out = set(), []
+    for folder in folders or FOLDERS:
+        if not os.path.isdir(folder):
             continue
-        p = read_piece(os.path.join(folder, name))
+        for name in os.listdir(folder):
+            slug, ext = os.path.splitext(name)
+            if ext == ".md" and slug not in seen:
+                seen.add(slug)
+                out.append(os.path.join(folder, name))
+    return sorted(out, key=os.path.getmtime)
+
+
+def reserve(folder=None, items=None, folders=None) -> List[Piece]:
+    """The reserve's unused pieces, oldest first: from `folder`, else `folders` (default the reserve, then
+    the old pantry/)."""
+    used = {used_slug(i) for i in (told() if items is None else items)} - {None}
+    out = []
+    for path in sheets([folder] if folder else folders):
+        if os.path.splitext(os.path.basename(path))[0] in used:
+            continue
+        p = read_piece(path)
         if p:
             out.append(p)
     return out
 
 
 def read_piece(path) -> Optional[Piece]:
-    """A pantry sheet's header: `# <title>`, then `- Slot:`, `- Category:`, `- Source:` lines."""
+    """A reserve sheet's header: `# <title>`, then `- Slot:`, `- Category:`, `- Source:` lines."""
     title, fields = None, {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -156,7 +175,7 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
          pieces=None) -> List[str]:
     r = r or recipe()
     items = told() if items is None else items
-    pieces = pantry(items=items) if pieces is None else pieces
+    pieces = reserve(items=items) if pieces is None else pieces
     cats = categories(r, profile)
     n = counts(r, minutes)
     details = {name.lower(): detail for name, _, detail in context.interests(profile)} if profile else {}
@@ -166,7 +185,7 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
     for sid, slot in r.slots.items():
         if not n[sid]:
             continue
-        source = "research it today" if slot.fresh else "from the pantry, or research it if none fits"
+        source = "research it today" if slot.fresh else "from the reserve, or research it if none fits"
         out.append(f"- {sid} x{n[sid]}, about {slot.words} words each ({slot.what}; {source}):")
         for c, d in due(cats[sid], items, sid, n[sid]):
             detail = details.get(c.lower())
@@ -176,31 +195,31 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
     out += ["", f"## Told in the last {RECENT_DAYS} days (don't tell again; a follow-up needs something new)"]
     out += [f"- {i['date']} {i.get('slot', '?')} / {i.get('category', '?')}: {i['title']}" for i in recent] \
         or ["- nothing yet"]
-    out += ["", "## Pantry (unused pieces, ready to tell)"]
+    out += ["", "## Reserve (unused pieces, ready to tell)"]
     out += [f"- {p.slot} / {p.category}: {p.title} ({paths.show(p.path)}, slug {p.slug})" for p in pieces] \
         or ["- empty"]
     low = restock(r, cats, items, pieces)
     if low:
-        out += ["", "## Restock", "The pantry is low; stock these (the categories told longest ago first):"]
+        out += ["", "## Restock", "The reserve is low; stock these (the categories told longest ago first):"]
         out += [f"- {sid}: {k} more, in {', '.join(c for c, _ in due(cats[sid], items, sid, k))}"
                 for sid, k in low.items()]
     return out
 
 
 def restock(r: Recipe, cats, items, pieces) -> Dict[str, int]:
-    """{slot: pieces short} for the slots the pantry keeps, where it holds fewer unused than its target."""
+    """{slot: pieces short} for the slots the reserve keeps, where it holds fewer unused than its target."""
     have = {}
     for p in pieces:
         have[p.slot] = have.get(p.slot, 0) + 1
-    return {sid: s.pantry - have.get(sid, 0) for sid, s in r.slots.items()
-            if s.pantry and have.get(sid, 0) < s.pantry and cats.get(sid)}
+    return {sid: s.reserve - have.get(sid, 0) for sid, s in r.slots.items()
+            if s.reserve and have.get(sid, 0) < s.reserve and cats.get(sid)}
 
 
 def parse_item(text: str, date: str, r: Recipe) -> dict:
-    """"slot | category | title [| source [| pantry slug]]" as a record item; ValueError says what's wrong."""
+    """"slot | category | title [| source [| reserve slug]]" as a record item; ValueError says what's wrong."""
     parts = [p.strip() for p in text.split("|")]
     if len(parts) < 3 or not all(parts[:3]):
-        raise ValueError(f"'{text}': expected 'slot | category | title [| source [| pantry slug]]'")
+        raise ValueError(f"'{text}': expected 'slot | category | title [| source [| reserve slug]]'")
     if len(parts) > 5:
         raise ValueError(f"'{text}': too many fields (a title can't hold a |)")
     slot, category, title = parts[:3]
@@ -211,8 +230,8 @@ def parse_item(text: str, date: str, r: Recipe) -> dict:
         item["source"] = parts[3]
     if len(parts) > 4 and parts[4]:
         if not SLUG_RE.match(parts[4]):
-            raise ValueError(f"'{text}': pantry slug '{parts[4]}' should be lowercase words and dashes")
-        item["pantry"] = parts[4]
+            raise ValueError(f"'{text}': reserve slug '{parts[4]}' should be lowercase words and dashes")
+        item["reserve"] = parts[4]
     return item
 
 
@@ -230,14 +249,14 @@ def log(date: str, texts: List[str], path=TOLD, r: Recipe = None) -> List[dict]:
 def main(argv=None):
     ap = cli.ArgumentParser(prog="sweatcast content", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("plan", help="the filler plan for a session, what's been told, the pantry")
+    p = sub.add_parser("plan", help="the filler plan for a session, what's been told, the reserve")
     p.add_argument("--minutes", type=int, default=25, help="the session's length (default 25)")
     p.add_argument("--today", help="today's date, YYYY-MM-DD (default: today)")
     lg = sub.add_parser("log", help="record the items a session told")
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
-                    help='"slot | category | title [| source [| pantry slug]]", once per item')
-    sub.add_parser("pantry", help="list the pantry's unused pieces")
+                    help='"slot | category | title [| source [| reserve slug]]", once per item')
+    sub.add_parser("reserve", aliases=["pantry"], help="list the reserve's unused pieces")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "plan":
@@ -249,8 +268,8 @@ def main(argv=None):
             new = log(args.date, args.item)
             print(f"Recorded {len(new)} item(s) in {paths.show(TOLD)}.")
         else:
-            pieces = pantry()
-            print("\n".join(f"{p.slot} / {p.category}: {p.title} ({p.slug})" for p in pieces) or "The pantry is empty.")
+            pieces = reserve()
+            print("\n".join(f"{p.slot} / {p.category}: {p.title} ({p.slug})" for p in pieces) or "The reserve is empty.")
     except ValueError as e:
         print(f"sweatcast content: {e}", file=sys.stderr)
         return cli.USAGE

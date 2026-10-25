@@ -1,4 +1,4 @@
-"""The filler plan, the record of what's been told, and the pantry (tools/content.py)."""
+"""The filler plan, the record of what's been told, and the reserve (tools/content.py)."""
 import datetime
 import os
 import sys
@@ -34,11 +34,11 @@ class Recipe(unittest.TestCase):
             self.assertEqual(n["deep_dive"], 1)
             self.assertEqual(n["quiz"], 1)
 
-    def test_every_slot_has_defaults_and_the_evergreen_ones_a_pantry_target(self):
+    def test_every_slot_has_defaults_and_the_evergreen_ones_a_reserve_target(self):
         r = content.recipe()
         for sid, slot in r.slots.items():
             self.assertTrue(r.defaults.get(sid), sid)
-            self.assertEqual(bool(slot.pantry), not slot.fresh, sid)
+            self.assertEqual(bool(slot.reserve), not slot.fresh, sid)
 
 
 class Rotation(unittest.TestCase):
@@ -72,7 +72,7 @@ class Record(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.told = os.path.join(self.tmp.name, "told.jsonl")
-        self.pantry = os.path.join(self.tmp.name, "pantry")
+        self.reserve = os.path.join(self.tmp.name, "reserve")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -86,7 +86,7 @@ class Record(unittest.TestCase):
         items = content.told(self.told)
         self.assertEqual(items[0]["category"], "sports")
         self.assertEqual(items[0]["source"], "https://x")
-        self.assertEqual(items[1]["pantry"], "grid-plan")
+        self.assertEqual(items[1]["reserve"], "grid-plan")
 
     def test_bad_items(self):
         r = content.recipe()
@@ -98,15 +98,27 @@ class Record(unittest.TestCase):
         write(self.told, '{"date": "2026-10-20", "title": "ok"}\nnot json\n')
         self.assertEqual(len(content.told(self.told)), 1)
 
-    def test_a_pantry_piece_is_used_once_the_record_names_it(self):
-        write(os.path.join(self.pantry, "grid-plan.md"),
+    def test_a_reserve_piece_is_used_once_the_record_names_it(self):
+        write(os.path.join(self.reserve, "grid-plan.md"),
               "# Why the grid\n- Slot: learn\n- Category: history\n- Source: https://x\n- Added: 2026-10-23\n\nHook.\n")
-        write(os.path.join(self.pantry, "no-header.md"), "Just text.\n")
-        self.assertEqual([p.slug for p in content.pantry(self.pantry, items=[])], ["grid-plan"])
-        used = [{"date": "2026-10-23", "title": "Why the grid", "pantry": "grid-plan"}]
-        self.assertEqual(content.pantry(self.pantry, items=used), [])
+        write(os.path.join(self.reserve, "no-header.md"), "Just text.\n")
+        self.assertEqual([p.slug for p in content.reserve(self.reserve, items=[])], ["grid-plan"])
+        used = [{"date": "2026-10-23", "title": "Why the grid", "reserve": "grid-plan"}]
+        self.assertEqual(content.reserve(self.reserve, items=used), [])
 
-    def test_the_plan_lists_recent_items_the_pantry_and_restock(self):
+    def test_the_old_pantry_folder_and_record_key_still_count(self):
+        """Before 10.2.0 the reserve was research/pantry/ and the record's key was `pantry`."""
+        old = os.path.join(self.tmp.name, "pantry")
+        sheet = "# {t}\n- Slot: quiz\n- Category: puzzle\n\nHook.\n"
+        write(os.path.join(self.reserve, "new-one.md"), sheet.format(t="New"))
+        write(os.path.join(old, "old-one.md"), sheet.format(t="Old"))
+        write(os.path.join(old, "new-one.md"), sheet.format(t="Duplicate"))
+        found = content.reserve(items=[], folders=(self.reserve, old))
+        self.assertEqual(sorted(p.title for p in found), ["New", "Old"])   # a slug in both counts once
+        used = [{"date": "2026-10-20", "title": "Old", "pantry": "old-one"}]
+        self.assertEqual([p.title for p in content.reserve(items=used, folders=(self.reserve, old))], ["New"])
+
+    def test_the_plan_lists_recent_items_the_reserve_and_restock(self):
         r = content.recipe()
         items = [{"date": "2026-10-22", "slot": "today", "category": "sports", "title": "Home team wins the opener"},
                  {"date": "2026-08-01", "slot": "today", "category": "sports", "title": "Old news"}]
@@ -118,7 +130,7 @@ class Record(unittest.TestCase):
         self.assertIn("- learn: 2 more", text)        # three kept, one on hand
         self.assertIn("- quiz: 3 more", text)
 
-    def test_a_full_pantry_needs_no_restock(self):
+    def test_a_full_reserve_needs_no_restock(self):
         r = content.recipe()
         pieces = [content.Piece(f"p{i}-{s}", "t", s, "c", "", "x") for s in ("quiz", "delight", "learn") for i in range(3)]
         self.assertEqual(content.restock(r, content.categories(r), [], pieces), {})

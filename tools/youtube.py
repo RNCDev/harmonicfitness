@@ -30,7 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
-from paths import PANTRY, PUZZLES, TOLD, VIDEOS, show  # noqa: E402
+from paths import OLD_PANTRY, PUZZLES, RESERVE, TOLD, VIDEOS, show  # noqa: E402
 
 MIN_SECONDS, MAX_SECONDS = 5 * 60, 3 * 60 * 60   # skip Shorts and marathon streams
 PUZZLE_MAX_SECONDS = 30 * 60                      # a quiz puzzle is short
@@ -70,9 +70,9 @@ def used(folder=VIDEOS):
 
 
 def named_ids():
-    """Video ids a pantry sheet or the record of what's been told links to, so a puzzle stocked or
-    told isn't offered again."""
-    files = [os.path.join(PANTRY, n) for n in os.listdir(PANTRY)] if os.path.isdir(PANTRY) else []
+    """Video ids a reserve sheet (or one in the old pantry/) or the record of what's been told links to,
+    so a puzzle stocked or told isn't offered again."""
+    files = [os.path.join(d, n) for d in (RESERVE, OLD_PANTRY) if os.path.isdir(d) for n in os.listdir(d)]
     found = set()
     for path in files + [TOLD]:
         try:

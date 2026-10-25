@@ -18,7 +18,7 @@ Rules that always hold:
 The check-in comes first, so the listener can answer and step away; this step reads only what its questions need.
 - `date "+%Y-%m-%d %A %H:%M"`: morning previews the day, evening recaps it.
 - `./sweatcast check`: an issue in `me/health.md` (a malformed `[[limits]]` row applies no limit; an injury in prose with no row gets no rule) is fixed at the check-in, then checked again. Notes are fine; with no experience level the default is novice until set, so offer to set it.
-- `./sweatcast content plan`: the filler plan at the default length (whether the deep dive is a video or news, and whether the pantry needs restocking).
+- `./sweatcast content plan`: the filler plan at the default length (whether the deep dive is a video or news, and whether the reserve needs restocking).
 - `./sweatcast get coach`: who's coaching (the coach used last, but their own over a stand-in; else a stand-in that works here). The check-in says so in a line, and asks only if the request suggests another coach. If it stops (exit 1) because the coach used last is archived, ask the Coach question with the coaches `./sweatcast coaches` lists. No coach yet: run the `coach` skill.
 - Read `me/profile.md`, `me/health.md` and `me/log.md`. No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./sweatcast doctor` says so), only web coaches speak and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./sweatcast migrate`, then rerun.
 
@@ -26,7 +26,7 @@ Nothing else before the check-in: the feeds, the knowledge files and the brief c
 
 ## 2. Check-in, with research launched first (one message)
 
-1. **Research**, in the background, from the templates in `research.md` beside this file: today's research always (it runs the feeds and the plan itself); the video agent when the plan's deep dive is video; the pantry agent when the plan has a Restock section.
+1. **Research**, in the background, from the templates in `research.md` beside this file: today's research always (it runs the feeds and the plan itself); the video agent when the plan's deep dive is video; the reserve agent when the plan has a Restock section.
 2. **Check-in** (AskUserQuestion): up to four questions, only about what the request doesn't settle, in this order (past four, drop Coach, then Length):
 
 | Slot | Settled by | Options when asked |
@@ -73,7 +73,7 @@ Write `me/workouts/<YYYY-MM-DD>-<slug>/<YYYY-MM-DD>-<slug>.draft.txt`: the `move
 Write in this order, so nothing waits:
 1. **Render ahead, for a local coach only.** When `./sweatcast get route --coach "<coach>"` said `local`, once the draft has its `movements:` line and first segment, run `./sweatcast build "<draft>" "<name>" --coach "<coach>" --follow` with `run_in_background: true`. For a web coach skip this step: every re-render would be billed, so only the final build sends text (the build refuses `--follow` there). It renders each new or edited paragraph as it lands, and stops when the full build starts.
 2. **Coaching first, without waiting for research.** Every segment's coaching from the brief: the opening with its weather, setups, cues, targets and self-checks, holds, transitions. Size the talk by the brief's Talk to time line; leave the rests' stories for later.
-3. **The stories, once research reports.** Fill the plan's slots in the rests, from the research sheet, the video sheet and the pantry. Once the plan is posted, SendMessage any agent still searching to return what it has verified; script around gaps with coaching, never guesses.
+3. **The stories, once research reports.** Fill the plan's slots in the rests, from the research sheet, the video sheet and the reserve. Once the plan is posted, SendMessage any agent still searching to return what it has verified; script around gaps with coaching, never guesses.
 4. **Lint.** `./sweatcast build "<draft>" "<name>" --lint-only`, fix, repeat; only changed paragraphs render again.
 
 ## 6. Build
@@ -93,7 +93,7 @@ Check it with `--lint-only` first, then run it with `run_in_background: true` (a
   ./sweatcast log-session --date <YYYY-MM-DD> --minutes <N> --kit "<kit>" --coach "<coach>" --draft "<draft>" --topics "<topics>" --format "<method name>" --loads "<movement> = <load and tempo>; <movement> = <load and tempo>"
   ```
   `--draft` takes the movements from the draft's `movements:` line. Topics start with the deep dive, `deep dive: video, <channel>, <title>` (plus `, part <n> of <total>` for a series) or `deep dive: news, <story>`. The log line's `format: <method name>` is the format you chose (`straight-sets`, `paired-sets`, `circuit`, `intervals`, `tabata`, `bike-intervals`, `flow` or `skill`, the closest for a mix), so the next session rotates away from it. Loads give each loaded or timed movement's weight and tempo in words. No `|`, no injury details. If it refuses a field, fix that field and rerun.
-- Record every filler item told, one `--item` each, with the pantry slug for a pantry piece: `./sweatcast content log --date <YYYY-MM-DD> --item "<slot> | <category> | <title> | <source> | <pantry slug>"` (the last two fields optional).
+- Record every filler item told, one `--item` each, with the reserve slug for a reserve piece: `./sweatcast content log --date <YYYY-MM-DD> --item "<slot> | <category> | <title> | <source> | <reserve slug>"` (the last two fields optional).
 - After a video series part, `./sweatcast youtube done <id>`.
 - Feedback (too long, a topic they loved) goes under Feedback in `me/log.md`.
 - Last, `./sweatcast backup -m "Workout <YYYY-MM-DD> <Focus> <N> min"` (on the web it also carries the web copy's parts to the private repo). If `me/` isn't its own repo, or the push fails, say so in one line and don't retry; run it again after any later change to `me/`.

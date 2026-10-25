@@ -2,6 +2,17 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [10.2.0] - 2026-10-25
+
+The pantry is now the reserve: the evergreen filler (quizzes, things to enjoy, things to learn) researched ahead of time.
+
+### Changed
+- **The reserve.** `me/workouts/research/reserve/` holds the evergreen pieces, `./sweatcast content reserve` lists the unused ones, the plan prints "Reserve" and "The reserve is low", `knowledge/content.toml`'s per-slot target is `reserve`, and `./sweatcast content log` writes a piece's slug under `reserve`. The workout skill, its research templates, the script guide, the README and CLAUDE.md say the same.
+- **CLAUDE.md** opens with the codegraph index: use the codegraph tool to find and read code, its callers and what a change touches, before grepping.
+
+### For forks
+Nothing to migrate. A `research/pantry/` folder is still read beside `research/reserve/` (a slug in both counts once), a record item logged with `pantry` still marks its piece as told, and `./sweatcast content pantry` still works as an alias. New pieces go to `reserve/`; move the old sheets over whenever you like.
+
 ## [10.1.0] - 2026-10-25
 
 Setup now opens with the one big choice: where the coach's voice is made.
