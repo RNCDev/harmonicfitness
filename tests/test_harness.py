@@ -32,6 +32,38 @@ class Harness(unittest.TestCase):
                 with open(os.path.join(ROOT, ".claude", "skills", name, fn), encoding="utf-8") as a, \
                         open(os.path.join(ROOT, ".agents", "skills", name, fn), encoding="utf-8") as b:
                     self.assertEqual(a.read(), b.read(), f"{name}/{fn}")
+    def test_the_env_deny_rules_are_checked(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            copy_harness(d)
+            settings = os.path.join(d, ".claude", "settings.json")
+            with open(settings, encoding="utf-8") as f:
+                data = json.load(f)
+            data["permissions"]["deny"] = ["Edit(/me/.env)"]
+            with open(settings, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            found = [p for p in harness.problems(d) if "me/.env" in p]
+            self.assertTrue(found, harness.problems(d))
+
+    def test_a_binary_file_in_a_skill_is_copied_and_compared(self):
+        with tempfile.TemporaryDirectory() as d:
+            copy_harness(d)
+            with open(os.path.join(d, ".claude", "skills", "workout", "icon.png"), "wb") as f:
+                f.write(b"\x89PNG\r\n\x00\xff\xfe")
+            self.assertIn(os.path.join(".agents", "skills", "workout", "icon.png") + ": missing", harness.problems(d))
+            harness.sync(d)
+            self.assertEqual(harness.problems(d), [])
+
+    def test_sync_removes_a_dropped_skill_with_its_subfolders(self):
+        with tempfile.TemporaryDirectory() as d:
+            copy_harness(d)
+            old = os.path.join(d, ".agents", "skills", "old", "sub")
+            os.makedirs(old)
+            with open(os.path.join(old, "f.md"), "w", encoding="utf-8") as f:
+                f.write("x\n")
+            harness.sync(d)
+            self.assertFalse(os.path.exists(os.path.join(d, ".agents", "skills", "old")))
+
 
     def test_agents_md_sends_codex_to_claude_md_and_guards_the_keys(self):
         with open(os.path.join(ROOT, "AGENTS.md"), encoding="utf-8") as f:

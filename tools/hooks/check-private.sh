@@ -15,7 +15,7 @@ PATTERN="$(grep -v '^#' "$HERE/private-paths" | grep -v '^[[:space:]]*$' | head 
 COMMITS="$(git rev-list "$@")" || { echo "check-private: couldn't list commits for: $*" >&2; exit 2; }
 status=0
 for c in $COMMITS; do
-  bad="$(git diff-tree --no-commit-id --name-only -r --root --diff-filter=AMRC "$c" | grep -E "$PATTERN" | head -5)"
+  bad="$(git diff-tree --no-commit-id --name-only -r --root --diff-filter=AMRC "$c" | grep -E "$PATTERN" | grep -Ev '^me\.example/' | head -5)"
   if [ -n "$bad" ]; then
     echo "Commit $(git log -1 --format='%h %s' "$c") holds personal context, which belongs only in me/ (ignored):"
     echo "$bad" | sed 's/^/  /'

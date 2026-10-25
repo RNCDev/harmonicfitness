@@ -440,7 +440,8 @@ class FreshFork(unittest.TestCase):
         tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split("\n")
         pattern = private_pattern()
         self.assertTrue(re.search(pattern, "knowledge/health.md"))   # the one CI used to miss
-        self.assertEqual([p for p in tracked if re.search(pattern, p)], [])
+        # the template is the one me.* folder that's part of the engine; the hook and CI spare it the same way
+        self.assertEqual([p for p in tracked if re.search(pattern, p) and not p.startswith("me.example/")], [])
 
 
 class LogFields(unittest.TestCase):
@@ -1949,6 +1950,81 @@ class ExitCodeMapper(unittest.TestCase):
                 out = run([sys.executable, *args], home=home)
                 self.assertEqual(out.returncode, cli.USAGE, (args, out.stdout, out.stderr))
                 self.assertNotIn("Traceback", out.stderr, args)
+
+
+class KeyLeaks(unittest.TestCase):
+    """A key never appears in anything the engine prints, whatever a library or a service echoes."""
+    SECRET = "sk-test-NEVERPRINT-456"
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": self.SECRET})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_scrub_hides_every_set_key(self):
+        self.assertEqual(cloud.scrub(f"Bearer {self.SECRET} was refused"), "Bearer <key> was refused")
+        self.assertEqual(cloud.scrub("nothing here"), "nothing here")
+
+    def test_a_header_the_client_refuses_never_shows_the_key(self):
+        with self.assertRaises(cloud.ServiceError) as got:
+            cloud.request("POST", "http://127.0.0.1:9/x", {"Authorization": f"Bearer {self.SECRET}\r"}, b"{}",
+                          service="fish", tries=1)
+        self.assertEqual(got.exception.kind, "auth")
+        self.assertNotIn(self.SECRET, str(got.exception))
+        self.assertIn("FISH_AUDIO_API_KEY", str(got.exception))
+
+    def test_service_errors_and_audition_reasons_are_scrubbed(self):
+        import coaches
+        e = cloud.ServiceError("bad_request", "fish", f"echo: {self.SECRET} (HTTP 400)")
+        self.assertNotIn(self.SECRET, str(e))
+        self.assertNotIn(self.SECRET, coaches._reason(ValueError(f"Invalid header value b'Bearer {self.SECRET}\\r'")))
+
+    def test_the_speed_key_names_no_hostname(self):
+        import platform
+        key = voices.speed_key({"backend": "mlx"})
+        if platform.node():
+            self.assertNotIn(platform.node(), key)
+        self.assertEqual(key, voices.speed_key({"backend": "mlx"}))   # stable on this computer
+        self.assertTrue(key.endswith("|mlx"), key)
+
+
+class PrivatePaths(unittest.TestCase):
+    """The one list of paths never pushed covers every context file, wherever a listener keeps it."""
+
+    def test_the_pattern_covers_every_context_path_and_spares_the_engine(self):
+        pattern = private_pattern()
+        for p in ("me/profile.md", "me/.env", "me.real/health.md", "me.test/workouts/x.txt", "workouts/x.mp3",
+                  "profile.md", "health.md", "training.md", "content.md", "settings.toml", "log.md", "movements.toml",
+                  ".env", "personas/coach-x/persona.md", "voices/x.wav", "knowledge/health.md"):
+            self.assertTrue(re.search(pattern, p), p)
+        for p in ("knowledge/movements.toml", "docs/eval/listeners/a/profile.md", "docs/x/log.md",
+                  "tools/context.py", "README.md", "tests/fixtures/listener/profile.md", "tests/fixtures/profile-5.md"):
+            self.assertFalse(re.search(pattern, p), p)
+
+    def test_the_hook_refuses_context_files_and_spares_the_template(self):
+        if not shutil.which("git"):
+            self.skipTest("git not installed")
+        hook = os.path.join(ROOT, "tools", "hooks", "check-private.sh")
+        with tempfile.TemporaryDirectory() as d:
+            def g(*args):
+                return subprocess.run(["git", *args], cwd=d, capture_output=True, text=True, check=True)
+            g("init", "-q")
+            g("config", "user.name", "T")
+            g("config", "user.email", "t@example.com")
+            g("config", "commit.gpgsign", "false")
+            write_file(os.path.join(d, "me.example", "profile.md"), "template\n")
+            g("add", "-A")
+            g("commit", "-q", "-m", "the template")
+            ok = subprocess.run(["sh", hook, "HEAD"], cwd=d, capture_output=True, text=True)
+            self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+            write_file(os.path.join(d, "me.real", "profile.md"), "mine\n")
+            write_file(os.path.join(d, "profile.md"), "mine\n")
+            g("add", "-A")
+            g("commit", "-q", "-m", "oops")
+            bad = subprocess.run(["sh", hook, "HEAD~1..HEAD"], cwd=d, capture_output=True, text=True)
+            self.assertEqual(bad.returncode, 1, bad.stdout + bad.stderr)
+            self.assertIn("me.real/profile.md", bad.stdout)
+            self.assertIn("  profile.md", bad.stdout)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ class ServiceError(Exception):
 
     def __str__(self):
         name = services().get(self.service, {}).get("name", self.service or "The service")
-        return f"{name}: {self.message}"
+        return scrub(f"{name}: {self.message}")
 
     @property
     def listener_must_act(self):
@@ -59,6 +59,17 @@ class ServiceError(Exception):
     def exit_code(self):
         """What a tool exits with when this stops it (cli.run): 4 when the listener must act, else 1."""
         return cli.SERVICE if self.listener_must_act else cli.ISSUES
+
+
+def scrub(text):
+    """`text` with every key value set here (the environment's or me/.env's) replaced by <key>, so nothing a
+    library or a service echoes can print one."""
+    import keys
+    for value in sorted(keys.raw_values(), key=len, reverse=True):
+        for form in (value, value.strip()):
+            if len(form) >= 8:
+                text = text.replace(form, "<key>")
+    return text
 
 
 def services():
@@ -150,6 +161,13 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             retry_after = None
             if not idempotent and not isinstance(reason, (ConnectionRefusedError, socket.gaierror)):
                 raise last from None
+        except (ValueError, UnicodeEncodeError) as e:   # the request couldn't be built: a header value the
+            import keys                                   # client refuses carries the key, so never echo it
+            var = keys.SERVICE_VARS.get(service, "the key")
+            if "header" in str(e).lower():
+                raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray character "
+                                   f"in it?): re-paste it after {var}= (./sweatcast keys open)") from None
+            raise ServiceError("bad_request", service, f"the request couldn't be built: {scrub(str(e))}") from None
         if attempt < tries - 1:
             _wait(attempt, retry_after, sleep)
     raise last

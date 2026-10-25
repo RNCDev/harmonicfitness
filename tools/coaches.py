@@ -209,9 +209,10 @@ def _service_name(service):
 
 
 def _reason(e):
+    import cloud
     if isinstance(e, SystemExit):
-        return str(e.code)
-    return getattr(e, "message", None) or str(e) or type(e).__name__
+        return cloud.scrub(str(e.code))
+    return cloud.scrub(getattr(e, "message", None) or str(e) or type(e).__name__)
 
 
 def _mp3(wav, mp3):

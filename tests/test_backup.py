@@ -98,6 +98,42 @@ class Backup(unittest.TestCase):
         self.assertEqual(code, cli.ISSUES)
         self.assertIn("is public", out)
         self.assertFalse([c for c in calls.call_args_list if "push" in c.args])
+    def test_any_env_file_is_refused(self):
+        new_repo(self.home)
+        for name in ("keys.env", ".env.bak"):
+            with open(os.path.join(self.home, name), "w", encoding="utf-8") as f:
+                f.write("FISH_AUDIO_API_KEY=x\n")
+        code, out = run(self.home, push=False)
+        self.assertEqual(code, cli.ISSUES)
+        self.assertIn("keys.env", out)
+        self.assertIn(".env.bak", out)
+        with self.assertRaises(subprocess.CalledProcessError):
+            git(self.home, "rev-parse", "HEAD")   # nothing committed
+
+    def test_an_unverifiable_github_remote_is_refused_unless_asked(self):
+        new_repo(self.home)
+        git(self.home, "add", "-A")
+        git(self.home, "commit", "-q", "-m", "first")
+        git(self.home, "remote", "add", "origin", "https://github.com/someone/sweatcast-me.git")
+        with mock.patch.object(backup, "visibility", return_value=None), \
+                mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")) as pushed:
+            code, out = run(self.home)
+            self.assertEqual(code, cli.ISSUES)
+            self.assertIn("couldn't confirm", out)
+            self.assertIn("--unverified", out)
+            self.assertFalse(pushed.called)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = backup.backup(self.home, "Workout", push=True, unverified=True)
+            self.assertEqual(code, cli.OK)
+            self.assertTrue(pushed.called)
+
+    def test_git_never_waits_on_a_credential_prompt(self):
+        with mock.patch.object(backup.subprocess, "run",
+                               return_value=subprocess.CompletedProcess([], 0, "", "")) as run_:
+            backup.git(self.home, "status")
+        self.assertEqual(run_.call_args.kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+
 
     def test_github_slug(self):
         self.assertEqual(backup.github_slug("https://github.com/RNC/sweatcast-me.git\n"), "RNC/sweatcast-me")

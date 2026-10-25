@@ -16,7 +16,7 @@ jobs:
       - name: Nothing personal in the files
         run: |
           PATTERN="$(grep -v '^#' tools/hooks/private-paths | grep -v '^[[:space:]]*$' | head -1)"
-          if git ls-files | grep -E "$PATTERN"; then
+          if git ls-files | grep -E "$PATTERN" | grep -Ev '^me\.example/'; then
             echo "Personal context belongs in me/, which is git-ignored."; exit 1
           fi
       - name: Nothing personal in the pushed commits

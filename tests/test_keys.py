@@ -34,6 +34,25 @@ class Keys(unittest.TestCase):
         with open(self.env, "wb") as f:
             f.write(data)
 
+    def test_a_key_is_stripped_and_a_stray_character_refused_without_showing_it(self):
+        os.environ["FISH_AUDIO_API_KEY"] = f"  {SECRET}\n"
+        self.assertEqual(keys.get("fish", self.env), SECRET)          # whitespace around it is dropped
+        for bad in (f"{SECRET[:5]}\r{SECRET[5:]}", f"{SECRET} extra", f"{SECRET}\u00e9"):
+            os.environ["FISH_AUDIO_API_KEY"] = bad
+            with self.assertRaises(keys.BadKey) as got:
+                keys.get("fish", self.env)
+            self.assertNotIn(SECRET[:8], str(got.exception))
+            self.assertIn("FISH_AUDIO_API_KEY", str(got.exception))
+            self.assertEqual(got.exception.exit_code, 4)             # the listener must act (cli.SERVICE)
+            out = io.StringIO()
+            with redirect_stdout(out), mock.patch.object(keys.paths, "ENV_FILE", self.env):
+                self.assertEqual(keys.main([]), 0)
+            self.assertNotIn(SECRET[:8], out.getvalue())
+            self.assertIn("fish      : holds a character", out.getvalue())
+        del os.environ["FISH_AUDIO_API_KEY"]
+        self.write(f"FISH_AUDIO_API_KEY={SECRET} # pasted on Monday\n".encode())
+        self.assertEqual(keys.get("fish", self.env), SECRET)          # an inline comment isn't part of the key
+
     def test_env_formats_all_read(self):
         for text in (b"FISH_AUDIO_API_KEY=x\n", b"export FISH_AUDIO_API_KEY=x\n", b'FISH_AUDIO_API_KEY = "x"\n',
                      b"FISH_AUDIO_API_KEY='x'\n", b"# a note\r\nFISH_AUDIO_API_KEY=x\r\n",

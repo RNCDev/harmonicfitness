@@ -390,7 +390,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
                 print(f"The {done} clip(s) rendered are cached; rerun to send only the rest.")
             sys.exit(cli.ISSUES)
         if isinstance(e, Exception) and not isinstance(e, SystemExit):
-            print(f"\nStopped sending to {service['name']}: {e}. The {done} clip(s) rendered are cached.")
+            print(f"\nStopped sending to {service['name']}: {cloud.scrub(str(e))}. The {done} clip(s) rendered are cached.")
             sys.exit(cli.ISSUES)
         raise
     pool.shutdown()

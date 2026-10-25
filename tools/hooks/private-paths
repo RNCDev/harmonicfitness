@@ -1,4 +1,6 @@
-# Paths that hold a listener's personal context and must never be pushed, as one
-# extended regular expression matched against each committed path. Read by
+# Paths that hold a listener's personal context and must never be pushed, as one extended regular
+# expression (one line; the scripts read the first non-comment line) matched against each committed path:
+# the context folder under any name (me/, me.real/, me.test/; the scripts spare me.example/, the template),
+# the old top-level layout's files, the key file, coaches and sweatcast 8's voices. Read by
 # tools/hooks/check-private.sh (the pre-push hook and CI) and by the tests.
-^(me/|workouts/|log\.md$|knowledge/(profile|health)\.md$)
+^(me(\.[^/]*)?/|workouts/|personas/|voices/|(profile|health|training|content|log)\.md$|settings\.toml$|movements\.toml$|\.env$|knowledge/(profile|health)\.md$)

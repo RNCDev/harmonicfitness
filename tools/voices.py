@@ -12,6 +12,7 @@ reference clip's own rate came out about 30 percent slow for Chatterbox Turbo. T
 are vendored in char_weight.py. Each render also records this computer's render speed beside the pace.
 """
 import contextlib
+import hashlib
 import json
 import os
 import statistics
@@ -102,9 +103,11 @@ def _rate_key(v):
 
 
 def speed_key(v):
-    """This computer and what it renders on, for the render speed (pace travels; speed doesn't)."""
+    """This computer and what it renders on, for the render speed (pace travels; speed doesn't). The computer
+    is a short hash of its name, so pace.json (backed up) never holds the hostname."""
     import platform
-    return f"{platform.node() or 'this computer'}|{v.get('device') or v.get('backend') or 'mlx'}"
+    computer = hashlib.sha256((platform.node() or "this computer").encode("utf-8")).hexdigest()[:8]
+    return f"{computer}|{v.get('device') or v.get('backend') or 'mlx'}"
 
 
 def _write_rates(path, data):

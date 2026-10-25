@@ -28,6 +28,15 @@ KEY_PAGES = {"fish": "https://fish.audio/app/api-keys/",
              "gemini": "https://aistudio.google.com/apikey",
              "inworld": "https://platform.inworld.ai/api-keys"}
 LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
+COMMENT_RE = re.compile(r"\s+#.*$")   # an inline comment after the value
+
+
+class BadKey(Exception):
+    """A key holds a character a key can't (a stray line break, a space, a symbol): the listener re-pastes it.
+    Exits 4 through cli.run, like a service refusing the key; the message names the variable, never the value."""
+    kind = "auth"
+    listener_must_act = True
+    exit_code = cli.SERVICE
 
 
 def _var(service):
@@ -50,16 +59,35 @@ def _read(path):
         m = LINE_RE.match(line)
         if m:
             value = m.group(2)
+            value = COMMENT_RE.sub("", value).strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
                 value = value[1:-1]
             out[m.group(1)] = value
     return out
 
 
+def _clean(var, value):
+    """`value` stripped of the whitespace around it; BadKey when what's left can't be a key."""
+    value = (value or "").strip()
+    if any(c.isspace() or not 32 < ord(c) < 127 for c in value):
+        raise BadKey(f"{var} holds a character a key can't (a stray line break, space or symbol): re-paste the key "
+                     f"after {var}= in me/.env (./sweatcast keys open), or fix it in the environment.")
+    return value
+
+
+def raw_values(path=None):
+    """Every key value as set, cleaned or not (for scrubbing them out of messages): the environment's, then
+    the file's."""
+    found = [os.environ.get(var) for var in SERVICE_VARS.values()]
+    file_values = _read(path or paths.ENV_FILE)
+    found += [file_values.get(var) for var in SERVICE_VARS.values()]
+    return [v for v in found if v]
+
+
 def get(service, path=None):
     """The service's key: the process environment first, then me/.env. None when unset or empty."""
     var = _var(service)
-    value = os.environ.get(var) or _read(path or paths.ENV_FILE).get(var)
+    value = _clean(var, os.environ.get(var) or _read(path or paths.ENV_FILE).get(var))
     return value or None
 
 
@@ -151,7 +179,10 @@ def main(argv=None):
               f"(get one at {KEY_PAGES[args.service]}), and save. To remove it later, delete that line.")
         return cli.OK
     for service in SERVICE_VARS:
-        state = f"set ({where(service)})" if is_set(service) else "not set"
+        try:
+            state = f"set ({where(service)})" if is_set(service) else "not set"
+        except BadKey:
+            state = f"holds a character a key can't; re-paste it ({where(service)})"
         print(f"{service:10}: {state}")
     return cli.OK
 

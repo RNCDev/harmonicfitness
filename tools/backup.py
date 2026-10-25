@@ -29,7 +29,16 @@ GITHUB = re.compile(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$")
 
 
 def git(home, *args):
-    return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True)
+    # GIT_TERMINAL_PROMPT=0: a push that needs a password fails with the reason instead of waiting forever
+    return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True,
+                          env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+
+
+def _push(home, args):
+    return git(home, *args)
+
+
+KEY_FILE = re.compile(r"(^|\.)env(\.|$)")   # .env, .env.bak, keys.env, x.env.local
 
 
 def own_repo(home):
@@ -98,8 +107,9 @@ def push_target(home):
     return remote, ["push", "-u", remote, "HEAD"]
 
 
-def backup(home, message, push=True):
-    """Commit and push; prints what happened and returns an exit code."""
+def backup(home, message, push=True, unverified=False):
+    """Commit and push; prints what happened and returns an exit code. A GitHub remote whose visibility can't
+    be confirmed isn't pushed to unless `unverified` says so."""
     where = show(home)
     if not own_repo(home):
         print(f"{where} isn't its own git repo, so nothing was backed up. To keep it backed up,\n"
@@ -108,11 +118,11 @@ def backup(home, message, push=True):
         return cli.OK
     git(home, "add", "-A")
     staged = git(home, "diff", "--cached", "--name-only", "-z").stdout.split("\0")
-    keyfiles = [p for p in staged if p and os.path.basename(p) == ".env"]
+    keyfiles = [p for p in staged if p and KEY_FILE.search(os.path.basename(p))]
     if keyfiles:   # API keys never go into the backup, even when the ignore rule is missing
         git(home, "reset", "-q")
-        print(f"Not backed up: {', '.join(keyfiles)} holds API keys and never goes into the backup. "
-              f"Add a line .env to {where}/.gitignore, then rerun.")
+        print(f"Not backed up: {', '.join(keyfiles)} looks like a key file (.env and its copies hold API keys, "
+              f"which never go into the backup). Move it out of {where} or add it to {where}/.gitignore, then rerun.")
         return cli.ISSUES
     if git(home, "diff", "--cached", "--quiet").returncode == 0:
         print("Nothing new to commit.")
@@ -130,11 +140,18 @@ def backup(home, message, push=True):
               f"  cd {where} && gh repo create sweatcast-me --private --source . --push")
         return cli.OK
     slug = github_slug(git(home, "remote", "get-url", "--push", remote).stdout)
-    if slug and visibility(slug) == "PUBLIC":
+    seen = visibility(slug) if slug else None
+    if slug and seen == "PUBLIC":
         print(f"Not pushed: github.com/{slug} is public, and this folder holds health details. "
               "Make it private (gh repo edit --visibility private) and rerun.")
         return cli.ISSUES
-    out = git(home, *args)
+    if slug and seen is None and not unverified:
+        print(f"Not pushed: couldn't confirm github.com/{slug} is private (gh isn't signed in here, or GitHub "
+              "didn't answer). Check it at github.com, then rerun with --unverified to push anyway.")
+        return cli.ISSUES
+    if not slug:
+        print(f"({remote} isn't on GitHub, so its visibility can't be checked here; make sure it's private.)")
+    out = _push(home, args)
     if out.returncode:
         reason = (out.stderr.strip().splitlines() or ["no reason given"])[-1]
         print(f"Push to {remote} failed: {reason}\n"
@@ -149,9 +166,11 @@ def main(argv=None):
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-m", "--message", help="the commit message (default: sweatcast and the date and time)")
     ap.add_argument("--no-push", action="store_true", help="commit only")
+    ap.add_argument("--unverified", action="store_true",
+                    help="push even when GitHub won't say whether the remote is private (you checked)")
     args = ap.parse_args(argv)
     message = args.message or time.strftime("sweatcast %Y-%m-%d %H:%M")
-    return backup(paths.HOME, message, push=not args.no_push)
+    return backup(paths.HOME, message, push=not args.no_push, unverified=args.unverified)
 
 
 if __name__ == "__main__":
