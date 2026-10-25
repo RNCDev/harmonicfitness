@@ -36,6 +36,7 @@ COMMANDS = {
     "migrate":     ("migrate", None, "bring me/ up to this version's format (backs up first)"),
     "models":      ("models", None, "the local voice models in models/, and adopt the ones already downloaded"),
     "cache":       ("cache", None, "the clip cache's size, and prune"),
+    "harness":     ("harness", None, "check that ChatGPT's Codex files match the Claude Code ones; sync rewrites them"),
     "test":        (None, None, "run the engine's tests"),
     "setup":       (None, None, "first-run setup (environment, me/, privacy hook, voice model)"),
     "doctor":      (None, None, "what this computer can do: system, prerequisites, audio routes"),

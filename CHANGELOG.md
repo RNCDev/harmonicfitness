@@ -2,6 +2,26 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [11.0.0] - 2026-10-25
+
+sweatcast runs under ChatGPT's Codex as well as Claude Code: Codex in the ChatGPT desktop app (any plan, Free included), the Codex CLI or an IDE, on the listener's own computer. Tried end to end with the Codex the ChatGPT app ships, on the Free plan's model: setup, then a ten-minute workout with Coach Andy on the local voice.
+
+### Added
+- **Codex's files.** `AGENTS.md` sends Codex to `CLAUDE.md` and says what to use in place of Claude Code's own tools (a numbered question for a multiple-choice one, `./sweatcast show` to hand over a file, research done in turn rather than by background agents), and never to read `me/.env`. `.agents/skills/` holds exact copies of the setup, workout and coach skills (the ChatGPT app's own import of Claude skills makes the same copy, so it changes nothing). `.codex/config.toml` turns on the sandbox's network, and `.codex/rules/sweatcast.rules` lets `./sweatcast` run outside Codex's sandbox, as `.claude/settings.json` allows it in Claude Code (both are read once the folder is trusted).
+- **`./sweatcast harness`** checks that Codex's files match Claude Code's; `./sweatcast harness sync` rewrites them. Claude Code's files stay the one source: edit a skill there, then sync. The tests fail when they're out of step, and when the Codex rule and the Claude allow list stop naming the same command.
+- **The README's ChatGPT path:** Start here, a message to send a friend with ChatGPT, where it runs, and the For Claude handoff for Codex.
+
+### Changed
+- **Inside Codex's sandbox without the rule** (an untrusted folder): `./sweatcast` keeps uv's cache in the project (`.cache/uv`, git-ignored), setup skips the privacy hook with the reason instead of stopping, and a local render that can't see the GPU says to run it again outside the sandbox.
+- **Before the first workout under ChatGPT,** Codex says that ChatGPT may use what it reads, health notes included, for training unless "Improve the model for everyone" is off.
+
+### For forks
+Nothing to migrate: `me/` and every command work as before. If you change a skill, run `./sweatcast harness sync` and commit `AGENTS.md` and `.agents/skills/` with it.
+
+### Known limits
+- The key in `me/.env` is kept from Codex by instruction, as it is from Claude Code's shell commands; Codex followed it in every test. A system-level block is possible in Codex, but it stops sweatcast's own engine reading the key too, so web coaches couldn't speak.
+- Not yet tried by hand in the ChatGPT app's window: its trust prompt, its multiple-choice questions, and its approval prompts.
+
 ## [10.4.0] - 2026-10-25
 
 Onboarding is tidied for the two ways people actually start: a developer in an IDE or terminal, and a friend with the Claude desktop app. Claude Code on the web no longer sets up a new listener.

@@ -147,8 +147,9 @@ if ! command -v git >/dev/null 2>&1; then
 elif [ "$(git rev-parse --show-prefix 2>/dev/null || echo none)" != "" ]; then
   echo "   skipped: this folder isn't a git checkout (a zip download?), so there's nothing to push from it."
   echo "   ./sweatcast backup needs git too."
-else
-  git config core.hooksPath tools/hooks
+elif ! git config core.hooksPath tools/hooks 2>/dev/null; then
+  echo "   skipped: git's settings can't be changed from here (a sandbox, such as ChatGPT's Codex, protects them)."
+  echo "   Rerun ./sweatcast setup outside it to add the hook."
 fi
 
 echo "4. Voice models (once, from Hugging Face into models/; no account needed, and its"

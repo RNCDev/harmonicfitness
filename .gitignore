@@ -6,6 +6,8 @@ me/
 me.*/
 !me.example/
 .venv/
+# uv's cache, kept in the project only inside ChatGPT's Codex sandbox (./sweatcast sets it).
+.cache/
 # The local voice models (./sweatcast models); no trailing slash, so a symlink named models is ignored too.
 models
 .codegraph/

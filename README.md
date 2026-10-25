@@ -1,51 +1,65 @@
 # sweatcast
 
-Your own workout podcast, made fresh each session. Ask Claude Code for a workout, and sweatcast checks in on how you feel, builds a plan around your injuries and equipment, writes a narrated script with real news, science and stories, and turns it into an MP3 for your earbuds in a natural coach's voice. The audio is the timer: no screen, every segment starts on the clock.
+Your own workout podcast, made fresh each session. Ask Claude Code (or ChatGPT's Codex) for a workout, and sweatcast checks in on how you feel, builds a plan around your injuries and equipment, writes a narrated script with real news, science and stories, and turns it into an MP3 for your earbuds in a natural coach's voice. The audio is the timer: no screen, every segment starts on the clock.
 
 ## Start here
 
-**The easy way: ask Claude.** You need [Claude Code](https://claude.com/claude-code) on your own computer, which comes with a paid Claude plan (Pro is fine). The simplest is the **Code** tab of the [Claude desktop app](https://claude.com/download):
+**The easy way: ask Claude or ChatGPT.** sweatcast runs in an assistant that can work in a folder on your own computer: the **Code** tab of the [Claude desktop app](https://claude.com/download) (a paid Claude plan; Pro is fine), or **Codex** in the [ChatGPT desktop app](https://chatgpt.com/download) (any ChatGPT plan, Free included).
+
+**With Claude:**
 
 1. Open the Claude desktop app and click **Code**. It asks for a folder to work in: pick your home folder (the one with your name).
 2. Say: **Can you use https://github.com/RNCDev/sweatcast and set me up?** Click **Allow** when Claude asks to run something.
 3. Claude downloads sweatcast into a new `sweatcast` folder in your home folder, then asks you to start a **new** Code session in that folder. Do that (New session, then choose the `sweatcast` folder) and say **set up sweatcast**.
 
-From there it's a few minutes: four questions (your name, your experience, your equipment, any injuries), a short test clip of your stand-in coach, then a ten-minute workout. In a terminal or an IDE (VS Code, Cursor, JetBrains) it's the same: clone the repo (below), open the folder in Claude Code, and say "set up sweatcast".
+**With ChatGPT:**
+
+1. Open the ChatGPT desktop app, choose **Codex** in the menu at the top left, and open a folder: your home folder.
+2. Say: **Can you use https://github.com/RNCDev/sweatcast and set me up?** Approve it when it asks to run something.
+3. Codex downloads sweatcast into a new `sweatcast` folder, then asks you to open that folder in Codex. Do that (trust the folder if it asks: that lets sweatcast's own commands run without a prompt each time) and say **set up sweatcast**.
+
+From there it's a few minutes: four questions (your name, your experience, your equipment, any injuries), a short test clip of your stand-in coach, then a ten-minute workout. In a terminal or an IDE (VS Code, Cursor, JetBrains) it's the same: clone the repo (below), open the folder in Claude Code or Codex, and say "set up sweatcast".
 
 **What you need:**
-- **Claude Code on your own computer** (Mac, Windows or Linux). Nothing else to install by hand: Claude sets up the rest (Python, the audio tools), asking first where it matters.
+- **Claude Code or ChatGPT's Codex on your own computer** (Mac or Windows; Linux with Claude Code, or ChatGPT's preview). Nothing else to install by hand: Claude sets up the rest (Python, the audio tools), asking first where it matters.
 - **A voice.** On an Apple Silicon Mac, or a Windows or Linux PC with an NVIDIA card, the coach's voice can be made on your own computer, free and private, after a one-time 3 to 4 GB download. On any computer, a web coach speaks through a voice service with a key of your own, pay-as-you-go with no subscription; Claude recommends Fish Audio (about $0.30 a workout, no minimum) and walks you through getting the key. Claude checks your computer first and tells you which applies.
 - **About 5 GB of free disk** for a voice on your computer (well under 1 GB for a web coach).
 - **No GitHub account, no programming.** A GitHub account is only for keeping a private backup of your profile.
+- **With ChatGPT,** turn off "Improve the model for everyone" (Settings, Data Controls) if you'd rather your health notes weren't used for training; Codex says so before your first workout.
 
 **After setup,** ask for a workout any time, in your own words: "I'd like a workout", "25 minutes at the hotel, just go". Claude checks in on how you feel, writes the session, makes the MP3 and puts it in a folder that syncs to your phone (iCloud Drive, Google Drive or Dropbox; setup asks which after your first workout). Two more things to say when you're ready:
 - **"Finish setting me up"**: your teams, interests and favorite shows, which the workout's stories come from.
 - **"I want a new coach"**: a coach of your own, with a name and a voice you pick by ear from an audition, in a few minutes.
 
-**Doing it yourself instead:** download this repo (`git clone https://github.com/RNCDev/sweatcast.git`, or **Code > Download ZIP** on GitHub), put the folder somewhere that isn't synced to the cloud (your home folder is good), open it in Claude Code, and say "set up sweatcast".
+**Doing it yourself instead:** download this repo (`git clone https://github.com/RNCDev/sweatcast.git`, or **Code > Download ZIP** on GitHub), put the folder somewhere that isn't synced to the cloud (your home folder is good), open it in Claude Code or Codex, and say "set up sweatcast".
 
 ## Send this to a friend
 
-Paste this to someone who has the Claude desktop app and a paid plan:
+For someone with the Claude desktop app and a paid plan:
 
 > Want a workout podcast made just for you? Open the Claude desktop app, click **Code**, and pick your home folder when it asks for one. Then paste: *Can you use https://github.com/RNCDev/sweatcast and set me up?* Click **Allow** when it asks to run things. When Claude tells you to, start a new Code session in the new **sweatcast** folder and say *set up sweatcast*. Ten minutes later you'll have your first workout to listen to.
+
+For someone with the ChatGPT desktop app (any plan, Free included):
+
+> Want a workout podcast made just for you? Open the ChatGPT desktop app, choose **Codex** at the top left, and open your home folder. Then paste: *Can you use https://github.com/RNCDev/sweatcast and set me up?* Approve it when it asks to run things. When it tells you to, open the new **sweatcast** folder in Codex (trust it if asked) and say *set up sweatcast*. Ten minutes later you'll have your first workout to listen to.
 
 ## Where it runs
 
 | Where | Works? |
 |---|---|
 | Claude Code on your own computer: the Code tab of the Claude desktop app, a terminal, or an IDE | Yes, with a voice made on your computer or a web coach |
+| ChatGPT's Codex on your own computer: Codex in the ChatGPT desktop app, the Codex CLI, or an IDE | Yes, the same; tried end to end on the Free plan's model |
 | Claude Code on the web (claude.ai/code) | Not for setting up: use your own computer |
-| The plain Claude chat (claude.ai, or the chat in the desktop app) | No: it can't run sweatcast's commands. Use Claude Code |
+| The plain Claude or ChatGPT chat (and ChatGPT's Work mode, or Codex in the cloud) | No: it can't run sweatcast's commands on your computer. Use Claude Code or Codex there |
 
-## For Claude: setting someone up from this link
+## For Claude (or ChatGPT's Codex): setting someone up from this link
 
 If someone asks you to use this repository and set them up, and your session isn't already open in a copy of it:
 
-1. **You need to run commands on their own computer.** In a plain chat with no shell, or on Claude Code on the web (`CLAUDE_CODE_REMOTE=true`), say that sweatcast runs in Claude Code on their own computer: the **Code** tab of the Claude desktop app (https://claude.com/download), where they pick their home folder and ask again. Then stop.
+1. **You need to run commands on their own computer.** In a plain chat with no shell, on Claude Code on the web (`CLAUDE_CODE_REMOTE=true`), or in a cloud task, say that sweatcast runs on their own computer: the **Code** tab of the Claude desktop app (https://claude.com/download), or **Codex** in the ChatGPT desktop app (https://chatgpt.com/download), where they open their home folder and ask again. Then stop.
 2. **Pick the folder:** `~/sweatcast` (on Windows, the home folder in Git Bash, the same path). Never inside iCloud Drive, Dropbox, OneDrive, Google Drive or a synced Documents folder: the voice model and Python environment are several gigabytes. If `~/sweatcast` already holds sweatcast, use it (`git -C ~/sweatcast pull` if it's a checkout).
 3. **Download it, no account needed.** With git (`command -v git`; on a Mac, `xcode-select -p` too, since a bare `git` there can open an installer): `git clone https://github.com/RNCDev/sweatcast.git ~/sweatcast`. Without git, the ZIP: download `https://github.com/RNCDev/sweatcast/archive/refs/heads/main.zip`, unzip it, and move the `sweatcast-main` folder to `~/sweatcast`. A ZIP copy works fully; only the privacy hook, which needs git, is skipped.
-4. **Hand over to a session in that folder.** Ask them to open `~/sweatcast` in Claude Code and say "set up sweatcast", in literal steps: in the desktop app, "click **New session** in the Code tab, choose the **sweatcast** folder in your home folder, and type *set up sweatcast*"; in an IDE, open the `sweatcast` folder and start Claude Code there; in a terminal, `cd ~/sweatcast && claude`. Say why in a line: sweatcast's own instructions and safety settings (among them the rule that keeps API keys out of the chat) load only in a session opened there. Don't run setup from the session you're in.
+4. **Hand over to a session in that folder.** Ask them to open `~/sweatcast` in Claude Code and say "set up sweatcast", in literal steps: in the desktop app, "click **New session** in the Code tab, choose the **sweatcast** folder in your home folder, and type *set up sweatcast*"; in an IDE, open the `sweatcast` folder and start Claude Code there; in a terminal, `cd ~/sweatcast && claude`. In ChatGPT's Codex: "open the **sweatcast** folder in your home folder in Codex, trust it if asked, and type *set up sweatcast*" (`cd ~/sweatcast && codex` in a terminal). Say why in a line: sweatcast's own instructions and safety settings (among them the rule that keeps API keys out of the chat) load only in a session opened there. Don't run setup from the session you're in.
 
 Current version: see `VERSION` and `CHANGELOG.md`.
 
@@ -64,7 +78,7 @@ The quick start takes a few minutes, plus the voice model's download for a local
 
 ## Commands
 
-Claude Code runs these for you, but they work on their own too. `./sweatcast help` lists them all:
+Claude Code or Codex runs these for you, but they work on their own too. `./sweatcast help` lists them all:
 
 | Command | What it does |
 |---|---|
@@ -79,6 +93,7 @@ Claude Code runs these for you, but they work on their own too. `./sweatcast hel
 | `./sweatcast movements --preset hotel-room` | Browses the movements a kit allows, by movement pattern; it applies no health limits, so plans come from `./sweatcast brief`; `--about <ids>` prints a movement's coaching notes |
 | `./sweatcast feeds`, `content`, `youtube`, `log-session` | What the workout skill uses to research, plan the filler and log |
 | `./sweatcast backup` | Commits `me/` and pushes it to its own private repo (the workout skill runs it after each session) |
+| `./sweatcast harness` | Checks that ChatGPT's Codex files match the Claude Code ones; `sync` rewrites them |
 | `./sweatcast migrate`, `cache prune`, `test` | Upkeep |
 
 ## How it's organized
@@ -108,6 +123,7 @@ cd me && git init && gh repo create sweatcast-me --private --source . --push
 | Folder | What |
 |---|---|
 | `.claude/skills/` | `workout` (request to MP3), `setup` (onboarding and profile changes) and `coach` (a new trainer) |
+| `AGENTS.md`, `.agents/skills/`, `.codex/` | The same for ChatGPT's Codex: `AGENTS.md` points to `CLAUDE.md`, and the skills there are copies of `.claude/skills/` (`./sweatcast harness sync` writes them); `.codex/` turns on the network and lets `./sweatcast` run outside Codex's sandbox |
 | `knowledge/` | The movement catalog (`movements.toml`), session methods and doses (`sessions.toml`), programming, the injury playbook, equipment kits, what goes in a script, text-to-speech rules, coaches and voices, the web voice services (`services.toml`), the smoke-test draft |
 | `tools/` | One Python or shell file per job, all run through `./sweatcast`; `CLAUDE.md` lists what each does |
 | `me.example/` | The template for `me/` |

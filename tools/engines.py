@@ -117,6 +117,16 @@ def to_pcm(a):
     return (np.clip(trim(np.asarray(a, dtype=np.float32).reshape(-1)), -1.0, 1.0) * 32767).astype("<i2").tobytes()
 
 
+def no_gpu_message():
+    """Why a local voice can't see the Mac's GPU, and the way out."""
+    if os.environ.get("CODEX_SANDBOX"):
+        return ("The local voice needs the Mac's GPU, which ChatGPT's Codex sandbox hides. Run this same command "
+                "outside the sandbox (approve it when asked), or trust this folder in Codex so its rule for "
+                "./sweatcast does that.")
+    return ("The local voice needs the Mac's GPU, and none is visible to this process (a headless or sandboxed "
+            "session?). Run the command from a normal session on this Mac.")
+
+
 def speaker(voice):
     """Load the voice's model (Qwen3-TTS or Chatterbox through mlx-audio, or Chatterbox
     Turbo through PyTorch) and return say(text, seed) -> 16-bit mono PCM at SR, cloning
@@ -126,16 +136,21 @@ def speaker(voice):
         return cloud.speaker(voice)
     if voice.get("backend") == "torch":
         return _torch_speaker(voice)
-    import mlx.core as mx
-    import numpy as np
-    from mlx_audio.tts.utils import load_model
-    found = mlx_audio_version()
-    if found and found != TESTED_MLX_AUDIO:
-        print(f"Warning: mlx-audio {found} is installed; sweatcast is tested with {TESTED_MLX_AUDIO}. "
-              "Rerun ./sweatcast setup to restore the locked version if a voice sounds wrong.", file=sys.stderr)
-    engine = voice["engine"]
-    with pinned_extras(engine):
-        model = load_model(voice["model"], revision=voice["revision"])
+    try:
+        import mlx.core as mx
+        import numpy as np
+        from mlx_audio.tts.utils import load_model
+        found = mlx_audio_version()
+        if found and found != TESTED_MLX_AUDIO:
+            print(f"Warning: mlx-audio {found} is installed; sweatcast is tested with {TESTED_MLX_AUDIO}. "
+                  "Rerun ./sweatcast setup to restore the locked version if a voice sounds wrong.", file=sys.stderr)
+        engine = voice["engine"]
+        with pinned_extras(engine):
+            model = load_model(voice["model"], revision=voice["revision"])
+    except RuntimeError as e:
+        if "metal" not in str(e).lower():
+            raise
+        raise SystemExit(no_gpu_message()) from e
     gen = voice.get("generate") or {}   # per-voice engine settings, from voices/<name>.json
     # Chatterbox Turbo re-encodes the reference clip on every call that passes it
     # (about half a second each) and keeps the result on the model. So pass it on the

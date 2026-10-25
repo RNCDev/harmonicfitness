@@ -8,6 +8,11 @@
 #
 # Set SWEATCAST_PYTHON to use another interpreter (the tests do).
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+# Inside ChatGPT's Codex sandbox (CODEX_SANDBOX is set), uv's usual cache in the home folder can't be
+# written, so it lives in the project (git-ignored) instead.
+if [ -n "${CODEX_SANDBOX:-}" ] && [ -z "${UV_CACHE_DIR:-}" ]; then
+  export UV_CACHE_DIR="$ROOT/.cache/uv"
+fi
 if [ "$1" = "setup" ]; then
   shift
   exec sh "$ROOT/tools/setup.sh" "$@"   # makes .venv, so it can't need it
