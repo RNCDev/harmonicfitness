@@ -660,7 +660,7 @@ class Auditions(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(len(self.paths_of("inworld")), 1)
         with self.assertRaises(SystemExit):
-            coaches.audition(self.narrative, services=["deepgram"])
+            coaches.audition(self.narrative, services=["nonesuch"])
 
     def keep(self, ref, name, **kw):
         import coaches

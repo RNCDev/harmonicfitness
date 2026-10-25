@@ -18,7 +18,6 @@ os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import cli  # noqa: E402
 import cloud  # noqa: E402
-import msgpack_min  # noqa: E402
 import personas  # noqa: E402
 from fakes import FakeService, tone_pcm, tone_wav  # noqa: E402
 from test_personas import FIXTURE, persona_home  # noqa: E402
@@ -50,12 +49,6 @@ class Core(unittest.TestCase):
         out = cloud.trim(pcm)
         self.assertLess(len(out), len(pcm))
         self.assertGreater(len(out), len(tone_pcm(0.2)))
-
-    def test_msgpack_round_trip(self):
-        value = {"text": "Set your feet. Ünïcode", "references": [{"audio": b"\x00\x01" * 40000, "text": "hi"}],
-                 "sample_rate": 24000, "normalize": True, "seed": None, "neg": -5, "big": 2 ** 40, "f": 1.5,
-                 "long": "x" * 70000}
-        self.assertEqual(msgpack_min.unpack(msgpack_min.pack(value)), value)
 
     def test_429_then_success_is_retried(self):
         calls = []

@@ -30,7 +30,7 @@ COMMANDS = {
     "get":         ("context", "get", "print a setting: coach (the one used last), route (what a build uses here), routes, wpm, experience"),
     "deliver":     ("context", "deliver", "print the delivery folders that exist"),
     "log-session": ("context", "log-session", "add a checked session line to me/log.md"),
-    "keys":        ("keys", None, "which cloud voice services have a key in me/.env (never the key), and init"),
+    "keys":        ("keys", None, "which web voice services have a key in me/.env (never the key), init and open"),
     "backup":      ("backup", None, "commit me/ and push it to its own private repo, if it is one"),
     "migrate":     ("migrate", None, "bring me/ up to this version's format (backs up first)"),
     "models":      ("models", None, "the local voice models in models/, and adopt the ones already downloaded"),

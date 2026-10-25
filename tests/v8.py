@@ -1,5 +1,5 @@
-"""The clips sweatcast 8 shipped, read from the v8.0.1 git tag (the migration's own source once
-tools/migrate-assets/ was removed in 10.0.0). Tests that need them skip outside a git clone."""
+"""The clips sweatcast 8 shipped, read from the v8.0.1 git tag (the migration's own source since
+10.0.0 stopped shipping copies of them). Tests that need them skip outside a git clone."""
 import os
 import subprocess
 
