@@ -130,14 +130,12 @@ def resolve(cat: catalog.Catalog, word: str) -> Optional[catalog.Movement]:
     return catalog.resolve(cat, word.strip())
 
 
-_PATTERNS: Dict[int, List[Tuple[re.Pattern, str, str]]] = {}   # per catalog object: built once a process
-
-
 def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
     """(regex, movement id, the name it matches) for every name and alias the text scan checks,
-    longest first."""
-    if id(cat) in _PATTERNS:
-        return _PATTERNS[id(cat)]
+    longest first; built once per catalog object and kept on it."""
+    cached = cat.__dict__.get("_menu_patterns")
+    if cached is not None:
+        return cached
     found = {}
     for m in cat.movements.values():
         for name in [m.name] + m.aliases:
@@ -164,7 +162,7 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
         else:                # a one-word name of its own (deadlift, thruster)
             body = re.escape(key) + r"(?:e?s)?"
         out.append((re.compile(r"(?<![a-z'-])(?:" + body + r")(?![a-z'-])"), *found[key]))
-    _PATTERNS[id(cat)] = out
+    cat.__dict__["_menu_patterns"] = out
     return out
 
 

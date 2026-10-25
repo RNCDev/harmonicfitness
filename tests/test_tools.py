@@ -728,7 +728,36 @@ class InProcessBuild(unittest.TestCase):
         self.stack.enter_context(mock.patch.dict(os.environ, {"SWEATCAST_FAKE_LOCAL_ENGINE": "1"}))
         self.stack.enter_context(mock.patch.object(render, "run", side_effect=self.fake_run))
         self.stack.enter_context(mock.patch.object(render, "follow", side_effect=self.fake_follow))
-        self.stack.enter_context(mock.patch.object(tts_build, "lint", side_effect=self.fake_lint))
+        self.lint_patch = mock.patch.object(tts_build, "lint", side_effect=self.fake_lint)
+        self.lint_patch.start()
+        self.addCleanup(lambda: self.lint_patch and self.lint_patch.stop())
+
+    def real_lint(self):
+        """Most tests stand the lint in; these run it for real on the build's parsed draft."""
+        self.lint_patch.stop()
+        self.lint_patch = None
+
+    def small_draft(self, text):
+        path = os.path.join(self.folder, "small.draft.txt")
+        write_file(path, text)
+        self.write_menu(path)
+        return path
+
+    def test_the_real_lint_stops_a_draft_a_voice_cant_read(self):
+        self.real_lint()
+        path = self.small_draft("movements: box breathing\n@@ 60 | A\nBreathe in for 4 counts, then out. [hold]\n")
+        self.assertEqual(self.build(draft_path=path), cli.ISSUES, self.said())
+        self.assertIn("digits", self.said())
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "Test build.txt")))
+        self.assertEqual(self.runs, [])
+
+    def test_the_real_lint_passes_a_clean_draft_to_the_render(self):
+        self.real_lint()
+        path = self.small_draft("movements: box breathing\n@@ 60 | A\nBreathe in, and all the way out. [hold]\n")
+        self.assertEqual(self.build(draft_path=path), 0, self.said())
+        self.assertIn("every movement is on today's menu", self.said())
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.txt")))
+        self.assertEqual(len(self.runs), 1)
 
     def copy_draft(self, path):
         """The fixture draft (from before the menu, so it declares nothing) with a movements: line naming
@@ -2303,6 +2332,16 @@ class SkillsAndTemplate(unittest.TestCase):
                 health = {i.message for i in check.check([os.path.join(home, "health.md")])}
                 self.assertTrue(any("'Rule' isn't filled in yet" in m for m in health), health)
                 self.assertTrue(all(i.note for i in check.check([os.path.join(home, "profile.md")])))   # quick setup: notes
+            settings = os.path.join(home, "settings.toml")
+            with open(settings, encoding="utf-8") as f:
+                text = f.read()
+            write_file(settings, re.sub(r"^setup = .*\n", "", text, flags=re.M))   # setup finished: hints are issues
+            with helpers.home(home):
+                found = check.check([os.path.join(home, "profile.md")])
+            empty = [i for i in found if "'Goals right now'" in i.message]
+            hinted = [i for i in found if "'Neighborhood'" in i.message]
+            self.assertTrue(empty and all(i.note for i in empty), empty)       # an empty label breaks nothing: a note
+            self.assertTrue(hinted and not any(i.note for i in hinted), hinted)   # a [hint] left in place is an issue
 
     def test_the_template_says_what_the_tools_can_read(self):
         training = self.read(os.path.join("me.example", "training.md"))
@@ -2337,6 +2376,48 @@ class SkillsAndTemplate(unittest.TestCase):
                 self.assertEqual(movements.default_level(), "novice")
             with helpers.home(os.path.join(d, "absent")):
                 self.assertEqual(movements.default_level(), "experienced")
+
+
+class BadKeyPredicates(unittest.TestCase):
+    """A key that can't be read (a stray character) is "not set" to every yes-or-no question, so the coach list,
+    the default coach and the readiness check still answer; it stops a command only where that key would be used."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = fresh_home(self.tmp.name)
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(helpers.home(self.home))
+        self.stack.enter_context(mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "abc def", "INWORLD_API_KEY": "good-key",
+                                                               "ELEVENLABS_API_KEY": "", "GEMINI_API_KEY": "",
+                                                               "SWEATCAST_FAKE_LOCAL_ENGINE": "0"}))
+
+    def test_the_predicates_say_not_set_and_the_default_coach_is_still_chosen(self):
+        import keys
+        import routes
+        self.assertFalse(keys.is_set("fish"))
+        self.assertTrue(keys.is_set("inworld"))
+        with self.assertRaises(keys.BadKey):
+            keys.get("fish")
+        ok, reason = routes.usable("fish")
+        self.assertFalse(ok)
+        self.assertIn("FISH_AUDIO_API_KEY", reason)
+        self.assertEqual(personas.default().name, "Coach Owen")   # the keyed service's stand-in, Fish set aside
+        import coaches
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(coaches.main([]), cli.OK)
+        self.assertIn("Coach Owen", out.getvalue())
+
+    def test_a_web_coach_on_the_bad_key_stops_with_the_variable(self):
+        import keys
+        import routes
+        reed = personas.lookup("Coach Reed")
+        with self.assertRaises(keys.BadKey) as got:
+            routes.pick(["local"], reed)
+        self.assertIn("FISH_AUDIO_API_KEY", str(got.exception))
+        self.assertEqual(got.exception.exit_code, cli.SERVICE)
 
 
 if __name__ == "__main__":

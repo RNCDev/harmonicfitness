@@ -82,11 +82,11 @@ case "$1" in
   *) [ "$LOCAL" = no ] && WANT="$INSTALLED" || WANT="$LOCAL_ENGINE" ;;   # a floor never uninstalls an engine
 esac
 # A profile whose render list leaves out "local" (cloud voices only) gets no local engine from a plain
-# rerun; one already installed stays. The tools read the list (a rerun has an environment to run them;
-# a first run has no profile to read yet).
-RENDER_LIST=""
+# run; one already installed stays. The tools read the list where an environment exists to run them; on a
+# computer with none yet (a me/ restored from backup) the list is read from settings.toml itself.
 PY_NOW="$(venv_python)"
-if [ -n "$PY_NOW" ]; then RENDER_LIST="$("$PY_NOW" tools/context.py get routes 2>/dev/null | tr '\n' ' ' || true)"; fi
+if [ -n "$PY_NOW" ]; then RENDER_LIST="$("$PY_NOW" tools/context.py get routes 2>/dev/null | tr '\n' ' ' || true)"
+else RENDER_LIST="$(render_routes_from_file "$CONTEXT/settings.toml" | tr '\n' ' ')"; fi
 if [ -z "$1" ] && [ -n "$RENDER_LIST" ] && ! echo " $RENDER_LIST " | grep -q ' local '; then
   echo "   The render list (settings.toml) has no \"local\", so the local engine isn't installed (./sweatcast setup --local adds it)."
   WANT="$INSTALLED"

@@ -13,6 +13,7 @@ that GitHub reports as public is refused: me/ holds health details.
     ./sweatcast backup --no-push                        # commit only
 """
 import argparse
+import json
 import os
 import re
 import shutil
@@ -83,8 +84,11 @@ def _api_visibility(slug, api=None):
     import json
     import urllib.error
     import urllib.request
-    req = urllib.request.Request((api or API) + slug, headers={"Accept": "application/vnd.github+json",
-                                                               "User-Agent": "sweatcast-backup"})
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "sweatcast-backup"}
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")   # Claude Code on the web, CI: an authenticated read sees a private repo
+    if token:
+        headers["Authorization"] = f"Bearer {token.strip()}"
+    req = urllib.request.Request((api or API) + slug, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             data = json.loads(r.read().decode("utf-8"))
@@ -93,6 +97,29 @@ def _api_visibility(slug, api=None):
     if data.get("private") is False:
         return "PUBLIC"
     return str(data.get("visibility") or "").upper() or None
+
+
+def _memory_path(home):
+    """Where this computer remembers which GitHub remote it confirmed private (under .logs/, which me/.gitignore
+    leaves out of the backup itself)."""
+    return os.path.join(home, "workouts", ".logs", "backup-remote.json")
+
+
+def remembered_private(home):
+    """The GitHub slug this computer confirmed private before (GitHub said so, or the listener did with
+    --unverified), or None."""
+    try:
+        with open(_memory_path(home), encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("slug") if data.get("private") else None
+    except (OSError, ValueError):
+        return None
+
+
+def remember_private(home, slug, how):
+    import fileio
+    fileio.atomic_write(_memory_path(home), json.dumps({"slug": slug, "private": True, "how": how,
+                                                       "seen": time.strftime("%Y-%m-%d")}) + "\n")
 
 
 def push_target(home):
@@ -140,15 +167,23 @@ def backup(home, message, push=True, unverified=False):
               f"  cd {where} && gh repo create sweatcast-me --private --source . --push")
         return cli.OK
     slug = github_slug(git(home, "remote", "get-url", "--push", remote).stdout)
-    seen = visibility(slug) if slug else None
+    if slug and remembered_private(home) == slug:
+        seen = "PRIVATE"   # confirmed before on this computer: GitHub said so, or the listener did
+    else:
+        seen = visibility(slug) if slug else None
+        if slug and seen in ("PRIVATE", "INTERNAL"):
+            remember_private(home, slug, "github")
     if slug and seen == "PUBLIC":
         print(f"Not pushed: github.com/{slug} is public, and this folder holds health details. "
               "Make it private (gh repo edit --visibility private) and rerun.")
         return cli.ISSUES
-    if slug and seen is None and not unverified:
-        print(f"Not pushed: couldn't confirm github.com/{slug} is private (gh isn't signed in here, or GitHub "
-              "didn't answer). Check it at github.com, then rerun with --unverified to push anyway.")
-        return cli.ISSUES
+    if slug and seen is None:
+        if not unverified:
+            print(f"Not pushed: couldn't confirm github.com/{slug} is private (gh isn't signed in here, or GitHub "
+                  "didn't answer; a GH_TOKEN in the environment would let it). Check it at github.com, then rerun with "
+                  "--unverified to push anyway; this computer remembers the answer for this remote.")
+            return cli.ISSUES
+        remember_private(home, slug, "listener")
     if not slug:
         print(f"({remote} isn't on GitHub, so its visibility can't be checked here; make sure it's private.)")
     out = _push(home, args)

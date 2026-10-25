@@ -506,5 +506,17 @@ class MethodLines(unittest.TestCase):
         self.assertIn("work: rounds", circuit)
 
 
+class PatternCache(unittest.TestCase):
+    def test_patterns_are_cached_per_catalog_object_not_its_address(self):
+        cat = catalog.load()
+        first = menu._patterns(cat)
+        self.assertIs(menu._patterns(cat), first)
+        self.assertIs(cat.__dict__.get("_menu_patterns"), first)   # kept on the object, so no other can inherit it
+        other = catalog.load()
+        self.assertIsNone(other.__dict__.get("_menu_patterns"))
+        self.assertIsNot(menu._patterns(other), first)
+        self.assertFalse(hasattr(menu, "_PATTERNS"))
+
+
 if __name__ == "__main__":
     unittest.main()

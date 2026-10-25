@@ -127,6 +127,46 @@ class Backup(unittest.TestCase):
                 code = backup.backup(self.home, "Workout", push=True, unverified=True)
             self.assertEqual(code, cli.OK)
             self.assertTrue(pushed.called)
+            # the verdict is remembered for this remote: the next plain run pushes without asking again
+            pushed.reset_mock()
+            code, out = run(self.home)
+            self.assertEqual(code, cli.OK, out)
+            self.assertTrue(pushed.called)
+            git(self.home, "remote", "set-url", "origin", "https://github.com/someone/another-repo.git")
+            code, out = run(self.home)   # another remote: not remembered
+            self.assertEqual(code, cli.ISSUES)
+
+    def test_a_private_verdict_is_remembered(self):
+        new_repo(self.home)
+        git(self.home, "add", "-A")
+        git(self.home, "commit", "-q", "-m", "first")
+        git(self.home, "remote", "add", "origin", "https://github.com/someone/sweatcast-me.git")
+        with mock.patch.object(backup, "visibility", side_effect=["PRIVATE", None]), \
+                mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")):
+            self.assertEqual(run(self.home)[0], cli.OK)   # GitHub said private
+            self.assertEqual(run(self.home)[0], cli.OK)   # GitHub silent: remembered
+
+    def test_a_token_authenticates_the_api_read(self):
+        seen = {}
+
+        class Answer:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"private": true, "visibility": "private"}'
+
+        def fake_urlopen(req, timeout=None):
+            seen["auth"] = req.get_header("Authorization")
+            return Answer()
+        import urllib.request
+        with mock.patch.dict(os.environ, {"GH_TOKEN": "ghp_test_token"}), \
+                mock.patch.object(urllib.request, "urlopen", fake_urlopen):
+            self.assertEqual(backup._api_visibility("x/sweatcast-me"), "PRIVATE")
+        self.assertEqual(seen["auth"], "Bearer ghp_test_token")
 
     def test_git_never_waits_on_a_credential_prompt(self):
         with mock.patch.object(backup.subprocess, "run",

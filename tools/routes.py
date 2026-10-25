@@ -85,7 +85,11 @@ def usable(route, persona=None, facts=None):
                        "(a web coach speaks through a web service).")
     if persona is not None and persona.is_web and persona.service != route:
         return False, f"{route}: {persona.name} speaks through {persona.service}, not {route}."
-    if not keys.is_set(route):
+    try:
+        have = keys.get(route)
+    except keys.BadKey as e:
+        return False, f"{route}: {e}"
+    if not have:
         return False, (f"{route}: no key on this computer ({keys.SERVICE_VARS[route]} in me/.env): "
                        f"./sweatcast keys init {route}, then paste the key into the file")
     return True, ""
@@ -102,7 +106,7 @@ def pick(preferences, persona=None, override=None, facts=None):
             raise WebCoachUnavailable(
                 f"{persona.name} speaks through {cloud.service_name(persona.service)} only, so --engine {override} "
                 f"can't render them here.")
-        if not keys.is_set(persona.service):
+        if not keys.get(persona.service):   # a key that can't be read raises BadKey here: this coach needs it
             raise WebCoachUnavailable(_missing_key(persona))
         return persona.service
     if override:

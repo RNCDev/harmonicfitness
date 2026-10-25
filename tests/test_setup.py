@@ -468,5 +468,26 @@ class Skills(unittest.TestCase):
             self.assertFalse(player.play("x.wav"))
 
 
+class RenderListWithoutTools(unittest.TestCase):
+    """On a computer with no environment yet (a me/ restored from backup), setup still reads the render list,
+    from settings.toml itself, so a web-only listener never gets a multi-gigabyte local engine."""
+
+    def test_the_shell_reads_the_render_list_from_the_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "settings.toml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write('schema = 6\nrender = ["fish", "local"]   # a comment\ndeliver_to = ""\n')
+            out = subprocess.run(["sh", "-c", f'ROOT="{ROOT}"; . "{ROOT}/tools/common.sh"; render_routes_from_file "$1"', "_", path],
+                                 capture_output=True, text=True)
+            self.assertEqual(out.stdout.split(), ["fish", "local"], out.stderr)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("schema = 6\n")
+            out = subprocess.run(["sh", "-c", f'ROOT="{ROOT}"; . "{ROOT}/tools/common.sh"; render_routes_from_file "$1"', "_", path],
+                                 capture_output=True, text=True)
+            self.assertEqual(out.stdout.split(), [])
+        with open(os.path.join(ROOT, "tools", "setup.sh"), encoding="utf-8") as f:
+            self.assertIn("render_routes_from_file", f.read())
+
+
 if __name__ == "__main__":
     unittest.main()

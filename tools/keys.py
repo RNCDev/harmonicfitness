@@ -92,7 +92,12 @@ def get(service, path=None):
 
 
 def is_set(service, path=None):
-    return get(service, path) is not None
+    """Whether a usable key is set. A key that can't be read (BadKey) counts as not set here, so listing coaches
+    or picking a default still works; get() raises where the key would be used, and ./sweatcast keys names it."""
+    try:
+        return get(service, path) is not None
+    except BadKey:
+        return False
 
 
 def where(service, path=None):
@@ -179,8 +184,8 @@ def main(argv=None):
               f"(get one at {KEY_PAGES[args.service]}), and save. To remove it later, delete that line.")
         return cli.OK
     for service in SERVICE_VARS:
-        try:
-            state = f"set ({where(service)})" if is_set(service) else "not set"
+        try:   # get(), not is_set(): the listing is where a key that can't be read is named
+            state = f"set ({where(service)})" if get(service) is not None else "not set"
         except BadKey:
             state = f"holds a character a key can't; re-paste it ({where(service)})"
         print(f"{service:10}: {state}")

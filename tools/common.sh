@@ -38,3 +38,9 @@ uv_install_for() {   # Astral's official installer for $1 (an OS from detect_os)
     *) echo 'curl -LsSf https://astral.sh/uv/install.sh | sh' ;;
   esac
 }
+
+render_routes_from_file() {   # the profile's render list read from settings.toml itself ($1), one route per line, for
+  # a computer with no environment yet (a me/ restored from backup); with one, ./sweatcast get routes is the reader
+  [ -f "$1" ] || return 0
+  sed -n 's/^render[[:space:]]*=[[:space:]]*\[\([^]]*\)\].*$/\1/p' "$1" | head -1 | tr ',' '\n' | tr -d '" \t' | sed '/^$/d'
+}

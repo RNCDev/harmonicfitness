@@ -112,9 +112,16 @@ def _hint_issues(path, text):
     except SystemExit:
         return []
     offset = len(text.splitlines()) - len(rest.splitlines())
-    return [Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet (empty, or still the template's "
-                                   "[hint]); fill it in or delete the line")
-            for n, line in enumerate(rest.splitlines(), 1) for m in [BODY_HINT_RE.match(line)] if m]
+    out = []
+    for n, line in enumerate(rest.splitlines(), 1):
+        m = BODY_HINT_RE.match(line)
+        if m and m.group(2):   # the template's [hint], still there
+            out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet (still the template's "
+                                               "[hint]); fill it in or delete the line"))
+        elif m:                # an empty label: worth knowing, nothing breaks
+            out.append(Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet (empty); fill it in or "
+                                               "delete the line", note=True))
+    return out
 
 
 def setup_stage(p):
