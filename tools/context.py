@@ -394,7 +394,7 @@ def _weight_problems(k):
 
 
 SETTINGS_COMMENTS = {
-    "words_per_minute": "The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.",
+    "words_per_minute": "A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace, and the lint without a coach takes --wpm (default 185).",
     "experience": "Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.",
     "likes": "Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.",
     "dislikes": "Movements to leave out (ids or names); the brief's menu never lists them.",

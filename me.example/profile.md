@@ -4,7 +4,7 @@ schema = 5
 name = ""
 # "quick" until the second half of setup is done (interests, feeds, delivery, your own coach): until then ./sweatcast check lists what's left as notes. Say "finish setting me up" to do it.
 setup = "quick"
-# The speaking rate ./sweatcast lint assumes when no voice is given; builds use each voice's measured pace.
+# A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace, and the lint without a coach takes --wpm (default 185).
 words_per_minute = 165
 # How a local coach's workouts become audio, in order of preference: local engines only (local: this computer's own engine; each build uses the first that works on the computer it runs on). A web coach always speaks through its own service (fish, elevenlabs, gemini or inworld), with its key in me/.env.
 render = ["local"]

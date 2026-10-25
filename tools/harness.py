@@ -55,21 +55,21 @@ def agents_md(names):
 
 <!-- {GENERATED} -->
 
-This project's instructions are in `CLAUDE.md`, written for Claude Code and kept for both assistants. Read `CLAUDE.md` in full before doing anything else, and follow it as your own instructions: where it says "Claude", it means you.
+Read `CLAUDE.md` in full before doing anything else, and follow it as your own instructions: it's written for Claude Code and kept for both assistants, and where it says "Claude", it means you.
 
-The skills (copied whole into `.agents/skills/`, where you find them):
+The skills, copied whole into `.agents/skills/`:
 {listed}
 
 Where the instructions name a Claude Code tool, use the nearest one you have:
-- **AskUserQuestion:** ask the same question with the same options, as a multiple-choice question if you can, else as a short numbered list, and wait for the answer.
-- **SendUserFile:** run `./sweatcast show "<file>"`, which opens the file's folder with it selected, and give its path.
+- **AskUserQuestion:** the same question and options, as a multiple-choice question if you can, else a short numbered list; wait for the answer.
+- **SendUserFile:** run `./sweatcast show "<file>"` (it opens the file's folder with the file selected) and give the path.
 - **Agent with `run_in_background`** (the research agents): do that research yourself, within the same budgets, before the step that needs it.
-- **`run_in_background` on a command:** run it and wait for it.
+- **`run_in_background` on a command:** run it and wait.
 - **Artifact:** not available here; skip that step.
 
 Rules that always hold:
-- Never read, print or copy `me/.env`, not even through a search over a folder: it holds the listener's voice keys, and only sweatcast's own commands read it.
-- Run sweatcast's tools only as `./sweatcast <command>` from this folder. This project's Codex rule (`{CODEX_RULES}`) runs them outside the sandbox, as they need downloads, the Mac's GPU for a local voice, and git's settings for the privacy hook. If one fails with "Operation not permitted" or a GPU message, run it again outside the sandbox.
+- Never read, print or copy `me/.env`, not even through a search over a folder: it holds the listener's voice keys.
+- Run sweatcast's tools only as `./sweatcast <command>` from this folder. This project's rule (`{CODEX_RULES}`) runs them outside the sandbox, since they need downloads, the Mac's GPU for a local voice, git's settings for the privacy hook, and `me/.env` for a web coach's key (sweatcast reads it; you never do). If one fails with "Operation not permitted" or a GPU message, run it again outside the sandbox.
 - During a session, write only inside `me/`.
 - Once, before the first workout, say plainly: ChatGPT may use what it reads here, including the listener's health notes, to improve its models unless "Improve the model for everyone" is off (Settings, Data Controls).
 """

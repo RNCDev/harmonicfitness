@@ -2,6 +2,21 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [11.0.1] - 2026-10-25
+
+The README, CLAUDE.md and AGENTS.md are rewritten to be shorter and checked claim by claim against the code, and sweatcast can now be supported.
+
+### Added
+- **Support:** a Sponsor button on the repo (GitHub Sponsors and Ko-fi, `.github/FUNDING.yml`) and a line at the end of the README.
+- **Invite a friend:** one message at the top of the README that works for someone with Claude or ChatGPT.
+
+### Fixed
+- **README:** segments don't all start on the clock (a segment with spare time ends early; only the total is held to plan); the disk and download figures now match the readiness check (6 GB free; about 4 GB on a Mac, up to 8 GB on Windows or Linux); the backup command commits before pushing and says it needs the GitHub CLI; Qwen3's render speed is no longer folded into Chatterbox's; Windows needs Git for Windows; an audition needs a voice key; coach folder names; and the license list covers Linux and the MLX tokenizer.
+- **CLAUDE.md:** reorganized (what runs when, the listener's files, knowledge, tools by area, tests, audio, releases) with the errors fixed: the `render` setting lists routes, not engines; the lint doesn't read `words_per_minute`; the default web coach is made during setup's quick start; the feeds sheet's path; the `render` command and `test_tools.py`; the release rule now covers 11.0.0.
+- **AGENTS.md:** tighter, and it gives every reason `./sweatcast` runs outside Codex's sandbox.
+- **The setup skill** quotes the same download sizes as the README.
+- **The profile template's `words_per_minute` comment** said the lint uses it; it doesn't.
+
 ## [11.0.0] - 2026-10-25
 
 sweatcast runs under ChatGPT's Codex as well as Claude Code: Codex in the ChatGPT desktop app (any plan, Free included), the Codex CLI or an IDE, on the listener's own computer. Tried end to end with the Codex the ChatGPT app ships, on the Free plan's model: setup, then a ten-minute workout with Coach Andy on the local voice.
