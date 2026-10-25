@@ -307,7 +307,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
     description = personas.voice_description(n.settings["voice"])
     for s in keyed:
         cost = table[s].get("design_usd")
-        print(f"{table[s]['name']}: {CANDIDATES[s]} candidate{'s' if CANDIDATES[s] > 1 else ''}, "
+        print(f"{table[s]['name']}: asking for {CANDIDATES[s]} candidate{'s' if CANDIDATES[s] > 1 else ''}, "
               + (f"design about ${cost:.2f}" if cost is not None else "design cost not published"), flush=True)
 
     def design(service):

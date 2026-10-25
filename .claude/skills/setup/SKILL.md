@@ -73,7 +73,7 @@ Add the injury and its programming to the prose list under Active injuries too. 
 - With a web coach, also write `cloud_max_chars = 30000` in the profile's settings (a 40-minute workout with room for retakes: about $0.45 on Fish Audio, $0.75 on Inworld, $2.40 on ElevenLabs): tell them the figure and that a build over it stops before sending.
 
 **Keys.** `./sweatcast keys` prints "set" or "not set" for each web service, never a key. With none set and a web coach wanted, say once: they need an account and a pay-as-you-go key at one or more of these (more keys, more voices to choose from in an audition):
-- **Fish Audio:** prepaid credit, no minimum; about $0.30 a workout, the cheapest.
+- **Fish Audio:** prepaid credit, no minimum; about $0.30 a workout, among the cheapest.
 - **ElevenLabs:** the Free account works within its 3 custom voices and its monthly allowance (about half a workout), with prepaid pay-as-you-go usage ($5 minimum) beyond it; about $1.60 a workout on the natural model, $0.80 on the faster one. Not yet tried on a Free account: say so. The key needs two permissions when it's made: Text to Speech, and Voices: write.
 - **Gemini:** a key from Google AI Studio (not Google Cloud), with prepaid credit ($5 minimum); about $0.27 a workout until the end of 2026, about $0.54 from 2027. Its free tier uses requests for training with human review, its terms say it's not for consumer use, and it's for adults (18+): say so.
 - **Inworld:** the On-Demand plan, $0 a month with prepaid credit ($10 minimum); about $0.50 a workout.

@@ -20,7 +20,7 @@ Never send the listener to the README. Never offer, design or describe a voice t
 One question, one audition, a few minutes:
 1. **One AskUserQuestion:** "Who should coach you?", with three named sketches and Other for their own description: "Coach Maya: a woman in her thirties, crisp and upbeat", "Coach Theo: a calm man in his fifties, low and unhurried", "Coach Rosa: a warm woman in her forties, encouraging, a little playful". Use what they've said (their name, their tone) to pick the three when it points somewhere.
 2. **Write the narrative** (step 1 below) to `me/personas/.auditions/<slug>.md`, from the sketch or their words.
-3. **Audition** (step 2 below), in the background. It takes a minute or so and costs about a cent a service where the design cost is published (Inworld's isn't).
+3. **Audition** (step 2 below), in the background. It takes a minute or so and costs about a cent a service where the design cost is published (Fish Audio and Gemini; ElevenLabs and Inworld don't publish theirs).
 4. **Send the candidates** by letter and cost a workout, and ask which sounds right. One or more may be approved, each with a name.
 5. **Keep** each approved one, then **close the audition** (step 3 below). If none is right, ask what's off once, edit `[voice]` and audition again; past two tries, offer the full path below.
 6. The next workout uses them (`--coach "<name>"`). The stand-ins stay in `me/personas/` but aren't picked once the listener has a coach of their own.
@@ -62,11 +62,13 @@ sign_off = "Brief and warm; names one thing done well"
 
 ## 2. Audition
 
+**Before the first audition**, say once, plainly, what goes where: the audition sends the coach's description to every keyed service, and each workout with a web coach sends its script, which can mention their injuries, to that coach's service; Gemini's free tier uses what it's sent for training, with human review. (This is the `setup` skill's privacy line; say it here unless it was said earlier in this conversation or a web build has already run: `grep -cE '"route": "(fish|elevenlabs|gemini|inworld)"' me/workouts/.logs/builds.jsonl` counts them.)
+
 ```
 ./sweatcast coaches audition me/personas/.auditions/<slug>.md
 ```
 
-Run it with `run_in_background: true`; add `--play` when SendUserFile isn't available, so each candidate plays as it's listed (rerunning would be a new audition, and a new cost). Every keyed service designs from `[voice]` in parallel (Fish Audio two candidates, ElevenLabs three, Gemini one, Inworld two), each saying the same coaching line, lettered A, B, C... It prints one line per candidate: the letter, the service, the approximate cost a workout there, the MP3's path (in `me/personas/.auditions/<audition>/`, the audition's id such as `2026-10-25-1`), and any note (ElevenLabs: not yet tried on a Free account, which keeps 3 voices). A service that fails says why; the others still come. `--services fish,gemini` auditions only those.
+Run it with `run_in_background: true`; add `--play` when SendUserFile isn't available, so each candidate plays as it's listed (rerunning would be a new audition, and a new cost). Every keyed service designs from `[voice]` in parallel (asking Fish Audio for two candidates, ElevenLabs three, Gemini one, Inworld two; a service may return fewer), each saying the same coaching line, lettered A, B, C... It prints one line per candidate: the letter, the service, the approximate cost a workout there, the MP3's path (in `me/personas/.auditions/<audition>/`, the audition's id such as `2026-10-25-1`), and any note (ElevenLabs: not yet tried on a Free account, which keeps 3 voices). A service that fails says why; the others still come. `--services fish,gemini` auditions only those.
 
 - **Send them** with SendUserFile if it's available; otherwise they played with `--play`, or give the paths. Label each by its letter and its cost a workout ("B, about $0.30 a workout"), from the lines the audition printed. Never read out `candidates.json` (it holds the services' IDs), and don't lead with the service: the listener picks by ear.
 - Nothing is saved at Fish Audio, ElevenLabs or Inworld until a candidate is kept. Gemini stores each voice as it designs it; closing the audition deletes the ones not kept.
