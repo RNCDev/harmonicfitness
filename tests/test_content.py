@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
@@ -82,8 +83,15 @@ class Record(unittest.TestCase):
         with self.assertRaises(ValueError):
             content.log("2026-10-23", ["today | sports | Fine", "nowhere | x | y"], path=self.told)
         self.assertFalse(os.path.exists(self.told))
-        content.log("2026-10-23", ["today | Sports | Home team wins | https://x | ", "learn | history | Grid | | grid-plan"],
-                    path=self.told)
+        reserve = os.path.join(os.path.dirname(self.told), "reserve")
+        os.makedirs(reserve, exist_ok=True)
+        with open(os.path.join(reserve, "grid-plan.md"), "w", encoding="utf-8") as f:
+            f.write("# Grid\n- Slot: learn\n- Category: history\n")
+        with mock.patch.object(content.paths, "RESERVE", reserve):   # a slug must name a sheet in the reserve
+            with self.assertRaises(ValueError):
+                content.log("2026-10-23", ["learn | history | Grid | | no-such-sheet"], path=self.told)
+            content.log("2026-10-23", ["today | Sports | Home team wins | https://x | ", "learn | history | Grid | | grid-plan"],
+                        path=self.told)
         items = content.told(self.told)
         self.assertEqual(items[0]["category"], "sports")
         self.assertEqual(items[0]["source"], "https://x")

@@ -32,8 +32,10 @@ import cli  # noqa: E402
 import context  # noqa: E402
 import paths  # noqa: E402
 
-RECIPE, TOLD, RESERVE = paths.CONTENT, paths.TOLD, paths.RESERVE
-FOLDERS = (paths.RESERVE, paths.OLD_PANTRY)   # the reserve, then its old name
+RECIPE = paths.CONTENT   # the engine's filler plan; the listener's told.jsonl and reserve are read at call time
+def folders():
+    """The reserve, then its old name (pantry/, before 10.2.0), read at call time."""
+    return (paths.RESERVE, paths.OLD_PANTRY)
 RECENT_DAYS = 30    # how far back the plan lists what's been told
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
@@ -89,7 +91,8 @@ def categories(r: Recipe, profile=None) -> Dict[str, List[str]]:
     return {s: mine.get(s) or r.defaults.get(s, []) for s in r.slots}
 
 
-def told(path=TOLD) -> List[dict]:
+def told(path=None) -> List[dict]:
+    path = path or paths.TOLD
     """Every item told, oldest first. A damaged line is skipped, not fatal."""
     out = []
     try:
@@ -129,7 +132,7 @@ def used_slug(item: dict) -> Optional[str]:
 def sheets(folders=None) -> List[str]:
     """Every sheet in the reserve, oldest first; a slug in both the reserve and the old pantry/ counts once."""
     seen, out = set(), []
-    for folder in folders or FOLDERS:
+    for folder in folders or folders():
         if not os.path.isdir(folder):
             continue
         for name in os.listdir(folder):
@@ -223,6 +226,7 @@ def parse_item(text: str, date: str, r: Recipe) -> dict:
     if len(parts) > 5:
         raise ValueError(f"'{text}': too many fields (a title can't hold a |)")
     slot, category, title = parts[:3]
+    slot = re.sub(r"[\s-]+", "_", slot.strip().lower())   # "deep dive" and "deep-dive" are deep_dive
     if slot not in r.slots:
         raise ValueError(f"'{text}': unknown slot '{slot}' (one of {', '.join(r.slots)})")
     item = {"date": date, "slot": slot, "category": category.lower(), "title": title}
@@ -235,10 +239,16 @@ def parse_item(text: str, date: str, r: Recipe) -> dict:
     return item
 
 
-def log(date: str, texts: List[str], path=TOLD, r: Recipe = None) -> List[dict]:
+def log(date: str, texts: List[str], path=None, r: Recipe = None) -> List[dict]:
     r = r or recipe()
     datetime.date.fromisoformat(date)
     new = [parse_item(t, date, r) for t in texts]   # all checked before any is written
+    for item in new:
+        slug = item.get("reserve")
+        if slug and not any(os.path.exists(os.path.join(d, slug + ".md")) for d in folders()):
+            raise ValueError(f"no reserve piece '{slug}' in {paths.show(paths.RESERVE)} (a typo here would leave the real "
+                             "piece unused, to be told again)")
+    path = path or paths.TOLD
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         for item in new:
@@ -266,7 +276,7 @@ def main(argv=None):
             print("\n".join(plan(args.minutes, today, profile=context.profile())))
         elif args.cmd == "log":
             new = log(args.date, args.item)
-            print(f"Recorded {len(new)} item(s) in {paths.show(TOLD)}.")
+            print(f"Recorded {len(new)} item(s) in {paths.show(paths.TOLD)}.")
         else:
             pieces = reserve()
             print("\n".join(f"{p.slot} / {p.category}: {p.title} ({p.slug})" for p in pieces) or "The reserve is empty.")

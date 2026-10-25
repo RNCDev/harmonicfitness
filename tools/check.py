@@ -22,7 +22,7 @@ from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SCHEMA, SETTING_HOM
 from context import _catalog, _limit_row, _names, _weight_problems, clinician_avoids, limits, prose_injuries  # noqa: E402
 
 
-BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*\[")   # "- Neighborhood: [neighborhood, city]"
+BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*(\[|$)")   # "- Neighborhood: [neighborhood, city]", or nothing after the colon
 
 
 def _check_profile(path):
@@ -96,19 +96,25 @@ def _check_profile(path):
                 out.append(Issue(at("kits"), 0, f"kit '{k.get('name', '?')}': {problem}"))
     for name, part in parts.items():
         if name.endswith(".md") and os.path.exists(part):
-            text = read_raw(part)
-            rest = body(text)
-            offset = len(text.splitlines()) - len(rest.splitlines())
-            for n, line in enumerate(rest.splitlines(), 1):
-                m = BODY_HINT_RE.match(line)
-                if m:
-                    out.append(Issue(part, n + offset, f"'{m.group(1).strip()}' isn't filled in yet "
-                                                       "(still the template's [hint]); fill it in or delete the line"))
+            out += _hint_issues(part, read_raw(part))
     if setup_stage(p) == "quick":   # the quick start leaves these for later: worth knowing, nothing breaks
         out = [i._replace(note=True) if "isn't filled in yet" in i.message else i for i in out]
         out.append(Issue(at("setup"), 0, "setup's second half is still to do (interests, feeds, delivery, your "
                                          "own coach): say \"finish setting me up\"", note=True))
     return out
+
+
+def _hint_issues(path, text):
+    """[Issue] for each `- Label: [hint]` or `- Label:` line in a file's prose: still the template's, or empty.
+    A block that won't parse is reported elsewhere; it has no prose to scan."""
+    try:
+        rest = body(text)
+    except SystemExit:
+        return []
+    offset = len(text.splitlines()) - len(rest.splitlines())
+    return [Issue(path, n + offset, f"'{m.group(1).strip()}' isn't filled in yet (empty, or still the template's "
+                                   "[hint]); fill it in or delete the line")
+            for n, line in enumerate(rest.splitlines(), 1) for m in [BODY_HINT_RE.match(line)] if m]
 
 
 def setup_stage(p):
@@ -172,6 +178,19 @@ def check(home_files=None):
     """[Issue] across the context files: schema, the formats the tools read, and
     template lines not filled in yet. Issues with note=True don't stop anything."""
     out = []
+    quick_by_folder = {}
+
+    def quick(path):
+        """Whether the profile beside `path` is still in the quick start (its unfilled lines are notes)."""
+        folder = os.path.dirname(path)
+        if folder not in quick_by_folder:
+            prof = os.path.join(folder, "profile.md")
+            try:
+                quick_by_folder[folder] = os.path.exists(prof) and setup_stage(profile(prof)) == "quick"
+            except SystemExit:
+                quick_by_folder[folder] = False
+        return quick_by_folder[folder]
+
     for path in home_files or context_files():
         name = os.path.basename(path)
         if not os.path.exists(path):
@@ -189,7 +208,10 @@ def check(home_files=None):
         if name == "profile.md":
             out += _check_profile(path)
         elif name == "health.md":
-            out += _check_health(path, text)
+            found = _check_health(path, text) + _hint_issues(path, text)
+            if quick(path):   # the quick start leaves these for later: worth knowing, nothing breaks
+                found = [i._replace(note=True) if "isn't filled in yet" in i.message else i for i in found]
+            out += found
         elif name == "log.md":
             rest = body(text)
             offset = len(text.splitlines()) - len(rest.splitlines())

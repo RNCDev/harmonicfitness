@@ -604,6 +604,7 @@ def clinician_lines(h, areas=None, flags=None):
     out = [limit_line(lim) for lim in limits(h, areas, flags)]
     for line in _section_lines(h, CLINICIAN_HEADING):
         line = line[2:].strip() if line.startswith("- ") else line
+        line = re.sub(r"^rule:\s*", "", line, flags=re.IGNORECASE)   # the template's label, not the clinician's words
         if line and not line.startswith("#") and not (placeholder(line) and "]" in line):
             out.append(line)
     return out

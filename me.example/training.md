@@ -18,7 +18,7 @@ How you train: your kits and weights, the movements you like and dislike (the se
 ## Default session
 - Usual length: twenty-five minutes
 - Time of day: varies. Go by the time of the request: in the morning, preview the day ahead; in the evening, recap it.
-- Preferred format: mix it up. Rotate rolling minutes, work-and-transition intervals, circuits, and long steady segments.
+- Preferred format: mix it up. Rotate paired sets, circuits, intervals and the odd flow session.
 - Intensity: moderate, about six out of ten, leaving a couple of reps in the tank, and progress gradually across sessions.
 ## Equipment kits
 The kits themselves are in the settings above; write here only what they can't hold.

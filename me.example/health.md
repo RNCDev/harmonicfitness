@@ -28,4 +28,4 @@ sweatcast is not medical advice. Anything a doctor or physical therapist has tol
 
 ## Clinician rules
 <!-- One rule per line, word for word where possible; each is followed literally. -->
-- [what a doctor or physical therapist told you]
+- Rule: [what a doctor or physical therapist told you]

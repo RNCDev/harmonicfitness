@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Set
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
+import paths  # noqa: E402
 import cli  # noqa: E402
 
 
@@ -88,6 +89,14 @@ def avoid_set(cat: catalog.Catalog, words: List[str]) -> Set[str]:
     return set(words)
 
 
+def default_level():
+    """The listener's level (the profile's experience), or experienced with no profile or none set."""
+    import context
+    if os.path.exists(paths.PROFILE):
+        return context.experience(context.profile()) or "experienced"
+    return "experienced"
+
+
 def main():
     ap = cli.ArgumentParser(prog="sweatcast movements", description=(
         "Browse the movements a kit allows, by pattern. This filter applies no health limits; "
@@ -96,7 +105,7 @@ def main():
     kit.add_argument("--preset", help="a kit preset from the catalog, such as hotel-room")
     kit.add_argument("--equipment", help="comma-separated equipment, as keys or aliases")
     ap.add_argument("--avoid", default="", help="comma-separated movement ids or flags to rule out")
-    ap.add_argument("--level", default="experienced", help="novice, experienced or advanced (default experienced)")
+    ap.add_argument("--level", default=None, help="novice, experienced or advanced (default: the profile's, else experienced)")
     ap.add_argument("--pattern", help="print only this movement pattern")
     ap.add_argument("--about", help="comma-separated movement ids or names: print their coaching notes")
     args = ap.parse_args()
@@ -122,6 +131,7 @@ def main():
         else:
             equipment = equipment_keys(cat, [w.strip() for w in args.equipment.split(",") if w.strip()])
         avoid = avoid_set(cat, [w.strip() for w in args.avoid.split(",") if w.strip()])
+        args.level = args.level or default_level()
         if args.level not in catalog.LEVELS:
             raise ValueError(f"unknown level \"{args.level}\" (choose from: {', '.join(catalog.LEVELS)})")
         if args.pattern and args.pattern not in cat.patterns:

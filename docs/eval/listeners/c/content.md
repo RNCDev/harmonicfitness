@@ -54,5 +54,5 @@ What fills the rests between exercises: interests, feeds, YouTube channels and p
 - Books: thrillers
 - Local: events. Keep politics factual and even-handed.
 - On this day in history.
-- Never bring up:
+- Never bring up: nothing
 - Headlines or deep dives: a mix. Each session gets a few quick headlines, plus one deep-dive thread told across several segments. The deep dive alternates by session: a video from YouTube favorites, then a news story, then a video.

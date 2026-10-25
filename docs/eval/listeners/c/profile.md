@@ -21,5 +21,3 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
 ## Listening setup
 - Earbuds, one times speed. The MP3 that `./sweatcast build` renders is the workout.
 - Delivery wanted: a coach or instructor, grounded and motivating. Not an announcer, not sleepy, not goofy or high-pitched.
-## Narrator
-How the coach talks now lives with each coach, in me/personas/<coach>/persona.md.

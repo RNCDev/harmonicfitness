@@ -11,4 +11,4 @@ engine = "chatterbox"
 +++
 ## How this coach talks
 - Tone: calm and focused. Keep humor light and occasional, with no hype.
-- Pet peeves in workout audio:
+- Pet peeves in workout audio: none

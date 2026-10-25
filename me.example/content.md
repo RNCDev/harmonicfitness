@@ -65,11 +65,11 @@ What fills the rests between exercises: interests, feeds, YouTube channels and p
 
 ## Content
 - Sports: [teams and leagues to follow]
-- Science and tech breakthroughs: every session carries two current ones. This is the session's science.
+- Science and tech breakthroughs: one or two current ones a session, by its length. This is the session's science.
 - Books: [genres]
 - Local: [local politics, transit, events]. Keep politics factual and even-handed.
 - On this day in history.
-- Never bring up:
+- Never bring up: [topics to leave out, or "nothing"]
 ## Taste
 Shows, books, music, comedians, restaurants and drinks you've loved or not, out of five, so the filler recommends in their spirit (the setup skill asks).
 - Headlines or deep dives: a mix. Each session gets a few quick headlines, plus one deep-dive thread told across several segments. The deep dive alternates by session: a video from YouTube favorites, then a news story, then a video.
