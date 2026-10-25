@@ -520,10 +520,18 @@ class Inworld(ServiceCase):
 
         def answer(req):
             calls.append(1)
-            return (429, {"Retry-After": "0"}, b'{"message": "rate limited"}') if len(calls) == 1 else inworld_answer(req)
+            if len(calls) == 1:   # a Google-style rate limit: "quota" in the body, a short Retry-After
+                return 429, {"Retry-After": "1"}, b'{"code": 8, "message": "RESOURCE_EXHAUSTED: Quota exceeded"}'
+            return inworld_answer(req)
         self.serve(answer)
         self.assertEqual(len(self.module.design("A man.", "Okay.", 2, "label")), 2)
         self.assertEqual(len(calls), 2)
+
+    def test_a_429_with_a_long_wait_is_quota(self):
+        self.serve(lambda r: (429, {"Retry-After": "86400"}, b'{"message": "Quota exceeded for the month"}'))
+        with self.assertRaises(cloud.ServiceError) as e:
+            self.module.design("A man.", "Okay.", 2, "label")
+        self.assertEqual(e.exception.kind, "quota")
 
     def test_inworld_linear16_24k(self):
         fake = self.serve(inworld_answer)

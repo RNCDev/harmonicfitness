@@ -33,6 +33,7 @@ SR = 24000
 SERVICES_FILE = os.path.join(paths.ROOT, "knowledge", "services.toml")
 RETRY_STATUS = (429, 500, 502, 503, 504)
 TRIES = 6
+RATE_WAIT = 120             # seconds: a 429 asking to wait this long or less is retried, whatever its body says
 TRIM_LEVEL = 0.01 * 32767   # engines.TRIM_DB (-40 dB) in 16-bit samples
 TRIM_KEEP = 0.04            # seconds kept at each end, as engines.TRIM_KEEP
 _settings = None
@@ -107,6 +108,13 @@ def _wait(attempt, retry_after, sleep):
     sleep(seconds * scale)
 
 
+def _short(retry_after):
+    try:
+        return retry_after is not None and 0 <= float(retry_after) <= RATE_WAIT
+    except ValueError:
+        return False
+
+
 def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=time.sleep):
     """(status, headers, body) for a 2xx answer. Rate limits, server errors and dropped connections are
     retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason."""
@@ -120,9 +128,10 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             data = e.read() or b""
             kind = _kind(e.code, data)
             last = ServiceError(kind, service, f"{_message(data)} (HTTP {e.code})", status=e.code)
-            if e.code not in RETRY_STATUS or kind != "unavailable":
-                raise last from None
             retry_after = e.headers.get("Retry-After") if e.headers else None
+            # A 429 asking for a short wait is a rate limit, even when its body says "quota" (Google-style APIs).
+            if not (e.code == 429 and _short(retry_after)) and (e.code not in RETRY_STATUS or kind != "unavailable"):
+                raise last from None
         except (urllib.error.URLError, socket.timeout, ConnectionError, TimeoutError) as e:
             reason = getattr(e, "reason", e)
             last = ServiceError("unavailable", service, f"couldn't reach the service ({reason})")
