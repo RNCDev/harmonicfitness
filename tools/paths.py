@@ -73,7 +73,6 @@ BUILDS = os.path.join(LOGS, "builds.jsonl")           # one record per rendered 
 
 PERSONAS = os.path.join(HOME, "personas")   # each coach: personas/<slug>/ (persona.md, clip, pace, service voices)
 
-OLD_VOICES = os.path.join(HOME, "voices")      # sweatcast 8's private voices; ./sweatcast migrate makes them coaches
 SMOKE_DRAFT = os.path.join(ROOT, "knowledge", "smoke-test.draft.txt")   # one minute, which measures a coach's pace
 EXAMPLE = os.path.join(ROOT, "me.example")
 VERSION_FILE = os.path.join(ROOT, "VERSION")

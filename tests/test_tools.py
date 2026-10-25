@@ -424,7 +424,6 @@ class FreshFork(unittest.TestCase):
             prof = context.profile(os.path.join(home, "profile.md"))
             self.assertEqual(len(feeds.config(prof)), 7)          # the three [hint] feeds are skipped
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
-            self.assertEqual(context.voices(prof), [])
             self.assertEqual(context.routes(prof), ["local"])
             self.assertEqual(sorted(os.listdir(os.path.join(home, "personas"))), [".gitkeep", "coach-andy-local", "coach-ellis-elevenlabs", "coach-nolan-gemini", "coach-owen-inworld", "coach-reed-fish"])   # the stand-ins
             self.assertIn("deliver_to", prof.settings)
@@ -679,7 +678,7 @@ class ExitCodes(unittest.TestCase):
 
     def test_mistyped_options_exit_64(self):
         fixture = os.path.join("tests", "fixtures", "example.draft.txt")
-        for args in (["tools/render.py", fixture, "--voice", "Chatterbox Coach", "--sed", "5", "--out", "x.mp3"],
+        for args in (["tools/render.py", fixture, "--coach", "Chatterbox Coach", "--sed", "5", "--out", "x.mp3"],
                      ["tools/tts_build.py", fixture],                       # --out is missing
                      ["tools/coverage.py", "--bogus"],
                      ["tools/context.py", "get", "nothing"],
@@ -1319,8 +1318,6 @@ value = "x\""""
 
     def test_profile_values(self):
         p = context.profile(self.profile)
-        self.assertEqual(context.default_voice(p), "Qwen3 Coach")
-        self.assertEqual([n for n, _ in context.voices(p)], ["Qwen3 Coach", "Chatterbox Coach"])
         self.assertEqual(context.wpm(p), 170)
         self.assertIsNone(context.delivery(p))                 # the template's hint isn't a folder
         self.assertEqual(context.handles(p, "YouTube favorites"), ["chanA"])
@@ -1399,98 +1396,6 @@ value = "x\""""
         with self.assertRaises(SystemExit) as e:
             context.profile(self.profile)
         self.assertIn("newer", str(e.exception.code))
-
-
-class Migrate(unittest.TestCase):
-    """1.x (schema 0) and 2.x (schema 1) folders migrate to the current schema in one run."""
-
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.home = fresh_home(self.tmp.name)
-        with open(os.path.join(ROOT, "tests", "fixtures", "profile-schema1.md"), encoding="utf-8") as f:
-            self.v1_profile = f.read()                      # me.example's profile as 2.0.0 shipped it
-        self.bodies = {}
-        for name in ("health.md", "log.md"):
-            path = os.path.join(self.home, name)
-            with open(path, encoding="utf-8") as f:
-                self.bodies[name] = context.body(f.read())
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def as_schema(self, n):
-        write_file(os.path.join(self.home, "profile.md"),
-                   context.with_front_matter(self.v1_profile, n) if n else context.body(self.v1_profile))
-        for name, text in self.bodies.items():
-            write_file(os.path.join(self.home, name), context.with_front_matter(text, n) if n else text)
-
-    def migrated_profile(self):
-        return context.profile(os.path.join(self.home, "profile.md"))
-
-    def test_both_older_schemas_migrate(self):
-        for start in (0, 1):
-            self.as_schema(start)
-            out = run([sys.executable, "tools/coverage.py"], home=self.home)
-            self.assertIn("./sweatcast migrate", out.stderr)
-            out = run([sys.executable, "tools/migrate.py"], home=self.home)
-            self.assertIn("schema", out.stdout, out.stderr)
-            p = self.migrated_profile()
-            self.assertEqual(context.voices(p), [])   # the voices became coaches
-            self.assertEqual(sorted(d for d in os.listdir(os.path.join(self.home, "personas"))
-                                    if d[0] != "." and not personas.load(os.path.join(self.home, "personas",
-                                                                                      d)).placeholder),   # the template's
-                             ["coach-julius", "coach-solo"])
-            self.assertEqual(context.routes(p), ["local"])
-            shutil.rmtree(os.path.join(self.home, "personas"))
-            self.assertEqual(context.wpm(p), 165)
-            self.assertEqual(context.handles(p, "YouTube favorites"),
-                             ["Asianometry", "BranchEducation", "PracticalEngineeringChannel"])
-            self.assertEqual(len(context.feed_sources(p)), 6)
-            self.assertIsNone(context.delivery(p))
-            for gone in ("- Voices", "- Copy finished MP3s", "## Feeds", "- Measured words", "@Asianometry"):
-                self.assertNotIn(gone, p.body)
-            self.assertEqual(p.body.count(migrate.PROFILE_NOTE), 1)   # 5 to 6 replaced the older note
-            self.assertIn("## Equipment kits", p.body)                 # the rest of the prose stays
-            for name, text in self.bodies.items():
-                with open(os.path.join(self.home, name), encoding="utf-8") as f:
-                    self.assertEqual(context.body(f.read()), text)
-            self.assertEqual(run([sys.executable, "tools/coverage.py"], home=self.home).returncode, 0)
-
-    def test_backup_dry_run_and_idempotence(self):
-        self.as_schema(1)
-        profile = os.path.join(self.home, "profile.md")
-        out = run([sys.executable, "tools/migrate.py", "--dry-run"], home=self.home)
-        self.assertIn("Dry run", out.stdout)
-        with open(profile, encoding="utf-8") as f:
-            self.assertEqual(f.read(), context.with_front_matter(self.v1_profile, 1))
-        run([sys.executable, "tools/migrate.py"], home=self.home)
-        backups = glob.glob(os.path.join(self.home, ".backup-*"))
-        self.assertEqual(len(backups), 1)
-        with open(os.path.join(backups[0], "profile.md"), encoding="utf-8") as f:
-            self.assertEqual(f.read(), context.with_front_matter(self.v1_profile, 1))
-        with open(profile, encoding="utf-8") as f:
-            once = f.read()
-        out = run([sys.executable, "tools/migrate.py"], home=self.home)
-        self.assertIn("already at schema", out.stdout)
-        with open(profile, encoding="utf-8") as f:
-            self.assertEqual(f.read(), once)
-        self.assertEqual(len(glob.glob(os.path.join(self.home, ".backup-*"))), 1)
-
-    def test_the_template_is_current_and_says_what_to_fill_in(self):
-        home = fresh_home(self.tmp.name + "/t")
-        out = run([sys.executable, "tools/check.py"], home=home)
-        self.assertEqual(out.returncode, cli.OK, out.stdout)   # the quick start: what's left is a note
-        self.assertIn("finish setting me up", out.stdout)
-        self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
-        settings = os.path.join(home, "settings.toml")
-        with open(settings, encoding="utf-8") as f:
-            text = f.read()
-        write_file(settings, re.sub(r'(?m)^setup = "quick"\n', "", text))   # the full setup's standard
-        out = run([sys.executable, "tools/check.py"], home=home)
-        self.assertEqual(out.returncode, cli.ISSUES, out.stdout)
-        self.assertNotIn("schema", out.stdout)
-        self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
-        self.assertIn("feed '[Team]' isn't filled in yet", out.stdout)
 
 
 class Context3(unittest.TestCase):
@@ -1659,43 +1564,15 @@ note = "Therapist: no weight through the hand."
             self.assertEqual(out.stdout, "advanced\n")
 
 
-class Migrate3(unittest.TestCase):
-    """Schema 2 to 3, on the schema-2 shape of the example files."""
+class MigrateFrom4(unittest.TestCase):
+    """Schema 4 (sweatcast 9.x) folders migrate to the current schema in one run; the example is current."""
 
-    PROFILE2 = ('+++\nschema = 2\n# rate\nwords_per_minute = 165\ndeliver_to = ""\n\n[[voices]]\n'
-                'name = "V"\ndescription = "d"\n+++\n# My Profile\n')
-    HEALTH2 = ("+++\nschema = 2\n+++\n# Health\n\n## Active injuries and limitations\n"
-               "- Right wrist: invented strain.\n")
-
-    def test_migrate_2_to_3_adds_the_keys(self):
-        p = migrate.to_3(self.PROFILE2, "profile.md")
-        settings, rest = context.front(p)
-        self.assertEqual((settings["schema"], settings["experience"], settings["likes"], settings["dislikes"]),
-                         (3, "", [], []))
-        self.assertNotIn("kits", settings)
-        self.assertLess(p.index("words_per_minute"), p.index("experience"))
-        self.assertLess(p.index("experience"), p.index("deliver_to"))
-        self.assertIn(f"# {context.SETTINGS_COMMENTS['experience']}", p)
-        self.assertEqual(settings["voices"], [{"name": "V", "description": "d"}])
-        self.assertEqual(rest, "# My Profile\n")
-        h = migrate.to_3(self.HEALTH2, "health.md")
-        settings, rest = context.front(h)
-        self.assertEqual(settings, {"schema": 3})
-        self.assertIn("[[limits]]", h.split("+++")[1])                  # the comment line names it
-        note = " ".join(h.split("+++")[1].split())
-        self.assertIn("delete the old comment", note.lower())   # the 3.x template's comment named removed files
-        self.assertIn("injury-rules.toml", note)
-        self.assertIn("phase", note)
-        self.assertIn("assumes novice", context.SETTINGS_COMMENTS["experience"])
-        self.assertEqual(rest, context.body(self.HEALTH2))
-        log = migrate.to_3("+++\nschema = 2\n+++\n# Log\n", "log.md")
-        self.assertEqual(log, "+++\nschema = 3\n+++\n# Log\n")
+    HEALTH4 = ('+++\nschema = 4\n[[limits]]\narea = "wrist"\nside = "right"\nlevel = "off-limits"\n+++\n# Health\n\n'
+               "## Active injuries and limitations\n- Right wrist: invented strain.\n")
 
     def test_limits_row_after_migration_parses(self):
-        h = migrate.to_6(migrate.to_5(migrate.to_4(migrate.to_3(self.HEALTH2, "health.md"), "health.md"), "health.md"),
-                         "health.md")
-        h = h.replace("\n+++\n# Health", ('\n[[limits]]\narea = "wrist"\nside = "right"\n'
-                                          'level = "off-limits"\n+++\n# Health'), 1)
+        h = migrate.to_6(migrate.to_5(self.HEALTH4, "health.md"), "health.md")
+        self.assertIn("schema = 6", h)
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "health.md")
             write_file(path, h)
@@ -1705,18 +1582,17 @@ class Migrate3(unittest.TestCase):
     def test_migrate_runs_through_the_command(self):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
-            for name, text in (("profile.md", self.PROFILE2), ("health.md", self.HEALTH2)):
-                write_file(os.path.join(home, name), text)
-            for name in ("log.md",):
+            write_file(os.path.join(home, "health.md"), self.HEALTH4)
+            for name in ("profile.md", "log.md"):
                 path = os.path.join(home, name)
                 with open(path, encoding="utf-8") as f:
-                    write_file(path, context.with_front_matter(context.body(f.read()), 2))
+                    text = f.read()
+                write_file(path, text.replace("schema = 6", "schema = 4", 1))
             out = run([sys.executable, "tools/migrate.py"], home=home)
-            self.assertIn("schema 2 to 6", out.stdout, out.stderr)
-            # the migrated prose injury has no [[limits]] row yet: the one issue left to fix
-            issues = [i for i in check.check([os.path.join(home, "health.md")]) if not i.note]
-            self.assertEqual(len(issues), 1)
-            self.assertIn("injuries written in prose have no [[limits]] entry", issues[0].message)
+            self.assertIn("schema 4 to 6", out.stdout, out.stderr)
+            self.assertIn("Backed up the originals", out.stdout)
+            out = run([sys.executable, "tools/migrate.py"], home=home)
+            self.assertIn("nothing to do", out.stdout, out.stderr)
 
     def test_example_is_current(self):
         issues = check.check([os.path.join(paths.EXAMPLE, n) for n in
@@ -1741,7 +1617,7 @@ class Wrapper(unittest.TestCase):
     def test_help_and_unknown_commands(self):
         out = self.sweatcast("help")
         self.assertEqual(out.returncode, 0)
-        for cmd in ("build", "voices", "check", "log-session", "migrate"):
+        for cmd in ("build", "coaches", "check", "log-session", "migrate"):
             self.assertIn(cmd, out.stdout)
         self.assertEqual(self.sweatcast("nonsense").returncode, cli.USAGE)
 
@@ -2315,6 +2191,70 @@ class Dedupe(unittest.TestCase):
         self.assertEqual(source.count("from importlib.metadata import"), 1)
         with open(os.path.join(ROOT, "tools", "context.py"), encoding="utf-8") as f:
             self.assertEqual(f.read().count("import tomllib"), 1)   # the dead fallback is gone
+
+
+class LegacyGone(unittest.TestCase):
+    """13.0.0 migrates from context schema 4 (sweatcast 9.x) and persona schema 4 (10.0.0); older folders go
+    through sweatcast 12 first. The old names (--voice, voices, get default-voice, ## Narrator) are gone, and
+    the folder steps after the file steps run again on a rerun until they're done."""
+
+    def test_the_floor_is_schema_4_and_says_where_to_go(self):
+        self.assertEqual(sorted(migrate.STEPS), [4, 5])
+        self.assertEqual(sorted(migrate.PERSONA_STEPS), [4])
+        with tempfile.TemporaryDirectory() as d:
+            home = fresh_home(d)
+            write_file(os.path.join(home, "profile.md"), "+++\nschema = 3\n+++\n# Profile\n")
+            with helpers.home(home), contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(cli.run(lambda: migrate.main([])), cli.ISSUES)
+            self.assertIn("v12.0.0", err.getvalue())
+        for name in ("to_1", "to_2", "to_3", "to_4", "plan_coaches", "make_coaches", "_from_git", "_without_narrator"):
+            self.assertFalse(hasattr(migrate, name), name)
+
+    def test_the_old_names_are_gone(self):
+        import brief
+        import sweatcast
+        for name in ("voices", "default_voice", "legacy_settings", "legacy_body", "YAML_FRONT_RE"):
+            self.assertFalse(hasattr(context, name), name)
+        self.assertNotIn("voices", context.SETTINGS_COMMENTS)
+        self.assertNotIn("voices", sweatcast.COMMANDS)
+        self.assertFalse(hasattr(paths, "OLD_VOICES"))
+        self.assertNotIn("Narrator", brief.PROFILE_SECTIONS)
+        with open(os.path.join(paths.EXAMPLE, "profile.md"), encoding="utf-8") as f:
+            self.assertNotIn("Narrator", f.read())
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as got:
+                context.main(["get", "default-voice"])
+        self.assertEqual(got.exception.code, cli.USAGE)
+        fixture = os.path.join("tests", "fixtures", "example.draft.txt")
+        for args in (["tools/tts_build.py", fixture, "--voice", "x", "--out", "y.txt"],
+                     ["tools/brief.py", "--goal", "strength", "--minutes", "20", "--preset", "bodyweight", "--voice", "x"]):
+            out = run([sys.executable, *args])
+            self.assertEqual(out.returncode, cli.USAGE, (args, out.stderr))
+
+    def test_the_folder_steps_run_until_done(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = fresh_home(d)
+            prof = os.path.join(home, "profile.md")
+            with open(prof, encoding="utf-8") as f:
+                text = f.read()
+            write_file(prof, text.replace("+++\n", "+++\ncloud_max_chars = 12345\n", 1))   # a settings key, left behind
+            os.makedirs(os.path.join(home, "workouts", "drafts"))
+            write_file(os.path.join(home, "workouts", "drafts", "2026-10-01-x.draft.txt"), "@@ 60 | A\nHi.\n")
+            with helpers.home(home), contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(cli.run(lambda: migrate.main([])), cli.OK)
+            said = out.getvalue()
+            self.assertIn("cloud_max_chars", said)            # the key moved to its home file
+            self.assertIn("Moved 1 workout file", said)
+            with open(prof, encoding="utf-8") as f:
+                self.assertNotIn("cloud_max_chars", f.read())
+            with open(os.path.join(home, "settings.toml"), encoding="utf-8") as f:
+                self.assertIn("cloud_max_chars = 12345", f.read())
+            with open(os.path.join(home, "training.md"), encoding="utf-8") as f:
+                self.assertIn("likes = []", f.read())           # the other files are left as they were
+            self.assertTrue(os.path.exists(os.path.join(home, "workouts", "2026-10-01-x", "2026-10-01-x.draft.txt")))
+            with helpers.home(home), contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(cli.run(lambda: migrate.main([])), cli.OK)
+            self.assertIn("nothing to do", out.getvalue())
 
 
 if __name__ == "__main__":

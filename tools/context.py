@@ -22,7 +22,7 @@ it up to date, `./sweatcast migrate`.
     ./sweatcast deliver               # existing delivery folders, one per line
     ./sweatcast check                 # every file's format, and lines not filled in yet
     ./sweatcast log-session --date 2026-10-21 --minutes 25 --kit Home \\
-        --voice "Chatterbox Coach" --movements "goblet squat, seated row" \\
+        --coach "Coach Andy" --movements "goblet squat, seated row" \\
         --topics "deep dive: news, a story" --format "rolling minutes" \\
         --loads "goblet squat = twenties, three down; seated row = fifteens" \\
         --rpe "goblet squat = 7"
@@ -48,8 +48,6 @@ from paths import show  # noqa: E402
 SCHEMA = 6   # 6 (12.0.0) splits the profile into profile.md, training.md, content.md and settings.toml
 PERSONA_SCHEMA = 5   # me/personas/<slug>/persona.md, new in sweatcast 9; 5 (10.0.0) adds kind and web coaches
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
-YAML_FRONT_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)   # schema 1
-SCHEMA_LINE_RE = re.compile(r"^schema:\s*(\d+)\s*$", re.MULTILINE)
 FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday", "wikipedia")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 LINE_BREAKS = "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"   # every character str.splitlines breaks on
@@ -97,7 +95,7 @@ def split(path, text):
 # ---- front matter --------------------------------------------------------------------
 
 def front(text):
-    """(settings dict, body). Schema-1 `---` front matter gives {"schema": 1}; none gives {}. A `+++` block
+    """(settings dict, body); no block gives {}. A `+++` block
     that never closes stops here by name, so nobody is sent to migrate over a missing line."""
     text = text.lstrip("\ufeff")   # a byte order mark, from a Windows editor
     m = TOML_FRONT_RE.match(text)
@@ -109,10 +107,6 @@ def front(text):
     if text.startswith("+++"):
         raise SystemExit("the +++ settings block at the top doesn't close: the settings need a line holding "
                          "only +++ after them")
-    m = YAML_FRONT_RE.match(text)
-    if m:
-        s = SCHEMA_LINE_RE.search(m.group(1))
-        return ({"schema": int(s.group(1))} if s else {}), text[m.end():]
     return {}, text
 
 
@@ -166,11 +160,8 @@ def dump_settings(settings, comments=None):
 
 
 def with_front_matter(text, schema=SCHEMA, settings=None, comments=None):
-    """Text with front matter for `schema`, replacing any it already has. Schema 1 is
-    the old `---` form; 2 and later are TOML, carrying `settings` when given."""
+    """Text with TOML front matter for `schema`, replacing any it already has, carrying `settings` when given."""
     rest = body(text)
-    if schema < 2:
-        return f"---\nschema: {schema}\n---\n" + rest
     merged = {"schema": schema, **{k: v for k, v in (settings or {}).items() if k != "schema"}}
     return f"+++\n{dump_settings(merged, comments)}\n+++\n" + rest
 
@@ -204,7 +195,7 @@ def read(path, what="file"):
 def write(path, text):
     """Replace a context file's body atomically, keeping its front matter."""
     current = read_raw(path)
-    m = TOML_FRONT_RE.match(current) or YAML_FRONT_RE.match(current)
+    m = TOML_FRONT_RE.match(current)
     fileio.atomic_write(path, (m.group(0) if m else "") + text)
 
 
@@ -272,17 +263,6 @@ def profile(path=None):
         if rest.strip():
             bodies.append(rest.strip("\n"))
     return Profile(merged, "\n\n".join(bodies) + "\n", path, sources, duplicates)
-
-
-def voices(p):
-    """[(name, description)] from [[voices]]; the first is the default."""
-    return [(v["name"].strip(), str(v.get("description", "")).strip())
-            for v in p.settings.get("voices") or [] if isinstance(v, dict) and not unfilled(v.get("name"))]
-
-
-def default_voice(p):
-    found = voices(p)
-    return found[0][0] if found else None
 
 
 ROUTE_NAMES = ("local", "fish", "elevenlabs", "gemini", "inworld")   # tools/routes.py
@@ -472,8 +452,6 @@ SETTINGS_COMMENTS = {
     "interests": "What the filler between exercises rotates through: a name, its slot (today, science, "
                  "deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within "
                  "a slot, the one told longest ago comes next. Without any, knowledge/content.toml's defaults.",
-    "voices": "Voices from ./sweatcast voices; the first is the default. The description is what the "
-              "check-in offers.",
     "feeds": "Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, "
              "longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), "
              "onthisday (selected), wikipedia (featured: the featured article, most read, in the news "
@@ -664,87 +642,10 @@ def prose_injuries(h):
 LEGACY_FEED_RE = re.compile(r"^- (.+?) \((\w+)\):\s*(.+?)\s*$")
 
 
-def legacy_settings(text):
-    """The settings a schema-1 profile held as Markdown lines, as a schema-2 settings dict."""
-    settings = {}
-    m = re.search(r"^- Measured words per minute[^:]*:\s*(\d+)", text, re.MULTILINE)
-    if m:
-        settings["words_per_minute"] = int(m.group(1))
-    deliver = None
-    for line in text.splitlines():
-        if line.startswith("- Copy finished MP3s to"):
-            _, sep, value = line.partition(":")
-            deliver = value.strip() if sep else None
-            break
-    settings["deliver_to"] = "" if not deliver or placeholder(deliver) else deliver
-    for label, key in HANDLE_KEYS.items():
-        found = []
-        content = "\n".join(line for _, line in section(text, "Content"))
-        for scope in (content, text):
-            for line in scope.splitlines():
-                if line.lstrip("- ").startswith(label):
-                    found = re.findall(r"@([\w.-]*[\w-])", line)
-                    if found:
-                        break
-            if found:
-                break
-        settings[key] = found
-    vs, inside = [], False
-    for line in text.splitlines():
-        if line.startswith("- Voices"):
-            inside = True
-            continue
-        if inside:
-            if line.startswith("  - "):
-                name, _, desc = line[4:].partition(":")
-                vs.append({"name": name.strip(), "description": desc.strip()})
-            elif not line.startswith("  "):
-                break
-    settings["voices"] = vs
-    feeds = []
-    for _, line in section(text, "Feeds"):
-        m = LEGACY_FEED_RE.match(line)
-        if m and m.group(2).lower() in FEED_KINDS:
-            feeds.append({"label": m.group(1), "kind": m.group(2).lower(), "value": m.group(3)})
-    settings["feeds"] = feeds
-    return settings
-
-
 LEGACY_LINE_PREFIXES = ("- Copy finished MP3s to", "- Measured words per minute", "- Voices",
                         "- YouTube favorites", "- Puzzles")
 SETTINGS_NOTE = ("The settings the tools read (voices, where MP3s are copied, words per minute, YouTube "
                  "channels, puzzles and feeds) are in the `+++` block at the top of this file.")
-
-
-def legacy_body(text):
-    """A schema-1 profile's prose without the lines the settings block now holds: those
-    setting lines (with their indented continuation lines), the Feeds section, and the
-    old note about keeping line formats; plus one sentence saying where they went."""
-    lines, out, i = text.splitlines(), [], 0
-    while i < len(lines):
-        line = lines[i]
-        if line.startswith(LEGACY_LINE_PREFIXES) or line.startswith("Keep the line formats as they are"):
-            i += 1
-            while i < len(lines) and lines[i].startswith((" ", "\t")) and lines[i].strip():
-                i += 1
-            continue
-        if line.strip().lower() == "## feeds":
-            i += 1
-            while i < len(lines) and not lines[i].startswith("## "):
-                i += 1
-            continue
-        out.append(line)
-        i += 1
-    title = next((n for n, line in enumerate(out) if line.startswith("# ")), None)
-    if SETTINGS_NOTE in out:
-        pass
-    elif title is not None:
-        out[title + 1:title + 1] = ["", SETTINGS_NOTE]
-    else:
-        out[:0] = [SETTINGS_NOTE, ""]
-    text = "\n".join(out)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.rstrip("\n") + "\n"
 
 
 # ---- the log ---------------------------------------------------------------------------
@@ -894,7 +795,7 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("default-voice", "wpm", "voices", "experience", "route", "routes", "coach"))
+    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach"))
     g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
     g.add_argument("--engine", help="with route: a route to use if it works here")
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
@@ -902,7 +803,7 @@ def main(argv=None):
     s.add_argument("--date", default=dt.date.today().isoformat())
     s.add_argument("--minutes", type=int, required=True)
     s.add_argument("--kit", required=True)
-    s.add_argument("--coach", "--voice", dest="voice", required=True, help="the session's coach")
+    s.add_argument("--coach", dest="voice", required=True, help="the session's coach")
     s.add_argument("--movements", help="comma-separated (or --draft)")
     s.add_argument("--draft", help="a draft whose movements: line gives the movements, by their catalog names")
     s.add_argument("--topics", required=True)
@@ -913,7 +814,7 @@ def main(argv=None):
 
     if args.cmd == "get":
         p = profile()
-        if args.what in ("coach", "default-voice"):   # default-voice: the name before 9.0
+        if args.what == "coach":
             import personas
             coach = personas.last_coach()
             if coach:
@@ -929,14 +830,9 @@ def main(argv=None):
             coach = personas.lookup(args.coach) if args.coach else personas.default()
             print(routing.pick(routes(p), coach, override=args.engine))
             return cli.OK
-        if args.what == "voices":   # the coaches, by name (the name before 9.0)
-            import personas
-            for coach in personas.all():
-                print(coach.name)
-        else:
-            v = {"default-voice": default_voice, "wpm": wpm, "experience": experience}[args.what](p)
-            if v is not None:
-                print(v)
+        v = {"wpm": wpm, "experience": experience}[args.what](p)
+        if v is not None:
+            print(v)
         return cli.OK
     if args.cmd == "deliver":
         pattern, found = delivery_folders(profile())

@@ -20,7 +20,6 @@ COMMANDS = {
     "lint":        ("tts_build", None, "lint a draft and export its clean transcript (no render)"),
     "render":      ("render", None, "render a draft to audio (build runs this for you)"),
     "coaches":     ("coaches", None, "your coaches: audition, keep, archive, choose, measure and tune them"),
-    "voices":      ("coaches", None, "the old name for coaches"),
     "feeds":       ("feeds", None, "fetch the profile's feeds into today's sheet"),
     "coverage":    ("coverage", None, "movement patterns the last sessions left out, last format and loads"),
     "brief":       ("brief", None, "today's ingredients: the listener, limits, safe menu, programming guide (--save writes the menu the build checks)"),

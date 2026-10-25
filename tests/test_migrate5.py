@@ -192,7 +192,8 @@ class MigratePersonas(unittest.TestCase):
         with open(os.path.join(self.home, backup[0], "personas", ".archive", "coach-older", "persona.md"),
                   encoding="utf-8") as f:
             self.assertEqual(f.read(), OLD_PERSONA)
-        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "x.txt")))   # no relayout
+        # the layout step runs whenever something is still loose in workouts/: x.txt goes to checks/
+        self.assertTrue(os.path.exists(os.path.join(self.home, "workouts", "checks", "x.txt")))
         out = self.migrate()
         self.assertIn("nothing to do", out.stdout, out.stdout + out.stderr)
         self.assertEqual(len([d for d in os.listdir(self.home) if d.startswith(".backup-")]), 1)

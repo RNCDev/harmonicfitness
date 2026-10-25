@@ -48,7 +48,7 @@ KIT_SECTIONS = {"dumbbells": "Dumbbells", "kettlebell": "Kettlebell", "bike": "S
 PRESET_SECTIONS = {"hotel-room": "Hotel room (no gym)", "hotel-gym": "Hotel gym (assume basic)",
                    "full-gym": "Full gym", "bodyweight": "No equipment"}
 BODY_ONLY = {"chair", "towel", "mat", "foam-roller", "strap"}   # a kit of these alone is "no equipment"
-PROFILE_SECTIONS = ("Narrator", "Default session")   # the profile prose the brief quotes (Narrator: before 9.0)
+PROFILE_SECTIONS = ("Default session",)   # the profile prose the brief quotes
 DOSE_WORDS = {"sets": "sets", "reps": "reps", "bodyweight_reps": "reps with no load",
               "rest_seconds": "rest (s)", "hard_sets_per_session": "hard sets a session",
               "work_seconds": "work (s)", "rounds": "rounds", "efforts_per_session": "hard efforts a session",
@@ -454,7 +454,7 @@ def main():
     ap.add_argument("--save", help="the draft's path (or its stem): write <stem>.brief.md and <stem>.menu.json")
     ap.add_argument("--log", help="the log to read (default: the context folder's)")
     ap.add_argument("--today", help="today's date, YYYY-MM-DD (default: today)")
-    ap.add_argument("--coach", "--voice", dest="voice",
+    ap.add_argument("--coach", dest="voice",
                     help="the coach the script is written for: how they talk, and their words a minute "
                          "(default: the one used last)")
     args = ap.parse_args()

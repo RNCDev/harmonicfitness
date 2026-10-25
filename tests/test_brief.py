@@ -367,11 +367,11 @@ class LogSession(unittest.TestCase):
             path = os.path.join(d, "x.draft.txt")
             with open(path, "w") as f:
                 f.write(DRAFT.replace("goblet squat", "goblet-squat", 1))
-            r = run("log-session", "--date", "2026-10-21", "--minutes", "5", "--kit", "home", "--voice",
+            r = run("log-session", "--date", "2026-10-21", "--minutes", "5", "--kit", "home", "--coach",
                     "Chatterbox Coach", "--draft", path, "--topics", "test topics", "--format", "circuit", home=home)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn("goblet squat, dead bug, box breathing", r.stdout)   # ids become catalog names
-            r = run("log-session", "--minutes", "5", "--kit", "home", "--voice", "Chatterbox Coach",
+            r = run("log-session", "--minutes", "5", "--kit", "home", "--coach", "Chatterbox Coach",
                     "--topics", "x", home=home)
             self.assertNotEqual(r.returncode, 0)
 

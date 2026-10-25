@@ -13,7 +13,7 @@ flags count as issues. A held segment (one with a [hold]) shows the spare second
 silence, so a long quiet rest is easy to spot. How the script should sound (varied openings, the
 listener's name, friendly handoffs) is guidance in knowledge/tts-rules.md, not a check.
 
-With --voice, each segment's spoken length is predicted for that voice (see
+With --coach, each segment's spoken length is predicted for that voice (see
 voices.py) and checked against its planned seconds. Without it, word
 count against --wpm is the rough fallback.
 
@@ -21,9 +21,9 @@ lint() returns a Report; main() only prints it. Exit codes are in cli.py: 1 when
 there are issues (nothing exported), 64 for a mistyped command.
 
 Usage:
-    ./sweatcast lint draft.txt --voice "Chatterbox Coach" --out "Workout 2026-10-18.txt"
+    ./sweatcast lint draft.txt --coach "Coach Andy" --out "Workout 2026-10-18.txt"
     ./sweatcast lint draft.txt --wpm 170 --out final.txt --force   # export despite issues (not menu ones)
-    ./sweatcast lint draft.txt --voice "Chatterbox Coach" --out x.txt --strict  # segment flags count
+    ./sweatcast lint draft.txt --coach "Coach Andy" --out x.txt --strict  # segment flags count
 """
 import os
 import re
@@ -277,16 +277,16 @@ def main():
     ap = cli.ArgumentParser()
     ap.add_argument("draft")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--coach", "--voice", dest="coach", help="a coach's name: check predicted spoken seconds")
+    ap.add_argument("--coach", help="a coach's name: check predicted spoken seconds")
     ap.add_argument("--engine", help="with --coach, the route whose measured pace predicts them (default: the "
                                      "profile's render list)")
-    ap.add_argument("--wpm", type=float, default=DEFAULT_WPM, help="word guide without --voice, words per minute")
+    ap.add_argument("--wpm", type=float, default=DEFAULT_WPM, help="word guide without --coach, words per minute")
     ap.add_argument("--min-fill", type=float, default=MIN_FILL, help="below this, the segment is far too short")
     ap.add_argument("--max-fill", type=float, default=MAX_FILL, help="above this, the segment is far too long")
     ap.add_argument("--total-tolerance", type=float, default=TOTAL_TOLERANCE,
                     help="the whole workout may run this fraction over or under plan")
     ap.add_argument("--word-tolerance", type=float, default=WORD_TOLERANCE,
-                    help="word-count tolerance per segment without --voice")
+                    help="word-count tolerance per segment without --coach")
     ap.add_argument("--force", action="store_true", help="export despite issues (never despite the menu check)")
     ap.add_argument("--strict", action="store_true", help="segments far off their slots count as issues")
     ap.add_argument("--require-menu", action="store_true",

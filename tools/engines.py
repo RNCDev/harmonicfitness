@@ -197,7 +197,7 @@ def _torch_speaker(voice):
     processor. The reference clip is encoded once and kept on the model, as the MLX path does."""
     if voice["engine"] not in TORCH_ENGINES or not voice["model"]:
         raise SystemExit(f"{voice['name']} runs on {voice['engine']}, which has no PyTorch model here yet, "
-                         "so it only renders on a Mac. On this PC, pick a Chatterbox voice with --voice.")
+                         "so it only renders on a Mac. On this PC, pick a Chatterbox coach with --coach.")
     import numpy as np
     import torch
     device = voice.get("device") or torch_device(torch.cuda.is_available())
