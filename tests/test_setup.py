@@ -204,6 +204,25 @@ class CloudSession(unittest.TestCase):
             self.assertIn("keeps it", "\n".join(doctor.web_lines(home)))
 
 
+    def test_remote_with_only_local_coaches_says_no_web_coach_yet(self):
+        import doctor
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(os.path.join(ROOT, "me.example"), home)
+            env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+            with mock.patch.dict(os.environ, dict(env, FISH_AUDIO_API_KEY="test-key"), clear=True), \
+                    mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
+                self.assertNotIn("No web coach yet", "\n".join(doctor.web_lines(home)))
+                for slug in ("coach-reed", "coach-ellis", "coach-nolan", "coach-owen"):   # a 9.x folder
+                    shutil.rmtree(os.path.join(home, "personas", slug))
+                lines = "\n".join(doctor.web_lines(home))
+            self.assertIn("No web coach yet", lines)
+            self.assertIn("I want a new coach", lines)
+            self.assertIn("Coach Reed", lines)
+            self.assertIn(os.path.join("me.example", "personas", "coach-reed"), lines)
+            self.assertNotIn("Coach Owen", lines)
+
 STUB_UV = """#!/bin/sh
 echo "$@" >> "$UV_LOG"
 exit 0

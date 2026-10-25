@@ -111,23 +111,62 @@ def pick(preferences, persona=None, override=None, facts=None):
         if not ok:
             raise SystemExit(f"Can't render with {override} here: {reason}")
         return override
-    reasons = []
+    known = []
     for route in preferences or ["local"]:
         if route not in ROUTES:
             print(f"Skipped '{route}' in the profile's render list: not a route ({', '.join(ROUTES)}).",
                   file=sys.stderr)
-            continue
+        else:
+            known.append(route)
+    if persona is not None and not persona.is_web:   # a local coach renders locally, whatever the list says
+        ok, reason = usable("local", persona, facts)
+        if ok:
+            return "local"
+        lines = [reason]
+        if persona.has_clip:   # local voices don't run here: name the way to a coach that speaks here
+            lines.append(f"{persona.name} is a local coach, and local voices don't run here. The way out: "
+                         + way_out())
+        raise SystemExit(f"No audio route works on this computer for {persona.name}:\n  " + "\n  ".join(lines))
+    reasons = []
+    for route in known or ["local"]:
         ok, reason = usable(route, persona, facts)
         if ok:
             return route
         reasons.append(reason)
-    tried = [r for r in preferences or ["local"] if r in ROUTES]
-    hints = [] if any(r in SERVICES for r in tried) else \
-        ["a web voice: ./sweatcast keys init fish (or elevenlabs, gemini, inworld), then add it to the "
-         "profile's render list"]
-    if persona is not None and not persona.is_web:
-        hints.append(f"{persona.name} is a local coach; a web coach (the coach skill makes one) speaks through a web service")
-    raise SystemExit("No audio route works on this computer:\n  " + "\n  ".join(reasons + hints))
+    raise SystemExit("No audio route works on this computer:\n  " + "\n  ".join(
+        reasons + ["The way out: " + way_out()]))
+
+
+def stand_ins():
+    """{service: the web stand-in that ships for it in me.example/personas/}."""
+    import personas
+    return {p.service: p for p in personas.all(os.path.join(paths.EXAMPLE, "personas"))
+            if p.is_web and p.service in SERVICES}
+
+
+def way_out(folder=None):
+    """How to get a coach that speaks here when local voices don't: make a web coach, or use the stand-in
+    of a service with a key here (copied into the listener's coaches, `folder`, if it isn't there yet)."""
+    import personas
+    folder = folder or paths.PERSONAS
+    shipped = stand_ins()
+    have = {p.name for p in personas.all(folder)}
+    make = 'make a web coach (the coach skill: "I want a new coach")'
+    keyed = [s for s in SERVICES if keys.is_set(s) and s in shipped]
+    if keyed:
+        uses = []
+        for s in keyed:
+            p = shipped[s]
+            uses.append(f"{p.name} ({_service_name(s)}): " + (f"build with --coach \"{p.name}\"" if p.name in have
+                        else f"copy {paths.show(p.folder)}/ into {paths.show(folder)}/, then build with "
+                             f"--coach \"{p.name}\""))
+        return f"{make}, or use the stand-in for a service with a key here: " + "; ".join(uses) + "."
+    add = ("set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
+           else "./sweatcast keys init <service>, then paste the key into the file")
+    names = ", ".join(f"{shipped[s].name} ({_service_name(s)})" for s in SERVICES if s in shipped)
+    return (f"{make}, or add a service's key ({add}) and use its stand-in: {names} (in "
+            f"{paths.show(os.path.join(paths.EXAMPLE, 'personas'))}/; copy its folder into "
+            f"{paths.show(folder)}/ if your coaches don't have it).")
 
 
 FEED_HOSTS = ("site.api.espn.com", "api.open-meteo.com", "en.wikipedia.org", "www.youtube.com")

@@ -66,12 +66,31 @@ class Routes(unittest.TestCase):
                 routes.pick(["local", "fish"], None, facts=INTEL_MAC)
         message = str(e.exception.code)
         self.assertIn("Intel Mac", message)
-        self.assertIn("./sweatcast keys init fish", message)
+        self.assertNotIn("render list", message)   # 10.0: the render list orders local engines only
+        self.assertIn("I want a new coach", message)
+        for name in ("Coach Reed", "Coach Ellis", "Coach Nolan", "Coach Owen"):
+            self.assertIn(name, message)
+        self.assertIn("./sweatcast keys init", message)
         with mock.patch.object(routes, "local_installed", return_value=False):
             with self.assertRaises(SystemExit) as e:
                 routes.pick(["local", "fish"], self.coach, facts=INTEL_MAC)
-        self.assertIn("Intel Mac", str(e.exception.code))
-        self.assertIn("web coach", str(e.exception.code))
+        message = str(e.exception.code)
+        self.assertIn("Intel Mac", message)
+        self.assertIn("I want a new coach", message)
+        self.assertEqual(message.count("local coach"), 1, message)   # said once
+
+    def test_a_local_coach_where_local_doesnt_run_names_the_keyed_stand_in(self):
+        self.key("fish")
+        with mock.patch.object(routes, "local_installed", return_value=False):
+            with self.assertRaises(SystemExit) as e:
+                routes.pick(["fish"], self.coach, facts=INTEL_MAC)
+        message = str(e.exception.code)
+        self.assertIn("Coach Reed", message)
+        self.assertIn(os.path.join("me.example", "personas", "coach-reed"), message)
+        for other in ("Coach Ellis", "Coach Nolan", "Coach Owen"):   # no key for those
+            self.assertNotIn(other, message)
+        self.assertIn("I want a new coach", message)
+        self.assertNotIn("No audio route works on this computer:\n  fish", message)
 
     def test_a_floor_doesnt_switch_off_an_installed_engine(self):
         low_disk = dict(MAC, local="no", local_hw="fast", local_reason="Only 2 GB is free here")
@@ -125,9 +144,15 @@ class Routes(unittest.TestCase):
         ok, reason = routes.usable("fish", self.coach, facts=MAC)
         self.assertFalse(ok)
         self.assertIn("local coach", reason)
-        with self.assertRaises(SystemExit) as e:
+        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(SystemExit) as e:
             routes.pick(["fish"], self.coach, facts=MAC)
         self.assertIn("local coach", str(e.exception.code))
+
+    def test_local_coach_tries_local_when_the_render_list_names_none(self):
+        self.key("fish")
+        with mock.patch.object(routes, "local_installed", return_value=True):
+            self.assertEqual(routes.pick(["fish"], self.coach, facts=MAC), "local")
+            self.assertEqual(routes.pick([], self.coach, facts=MAC), "local")
 
     def test_get_route_maps_a_missing_web_key_to_usage(self):
         import cli

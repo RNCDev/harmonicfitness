@@ -138,6 +138,11 @@ def web_lines(home, profile=None):
                  h for r in routes.SERVICES for h in routes.hosts(r)) + " (Custom, with the default list kept; "
              "only the service your coach speaks through is needed).",
              "  Feeds, optional (research searches without them): " + ", ".join(routes.feed_hosts(profile)) + "."]
+    import personas
+    coaches = personas.all(os.path.join(home, "personas"))
+    if not any(p.is_web for p in coaches):   # local coaches can't speak here
+        lines.append("  No web coach yet (a local coach can't speak here). The way out: "
+                     + routes.way_out(os.path.join(home, "personas")))
     if kept(home):
         lines.append(f"  Your context folder: {paths.show(home)}, its own private repo, so ./sweatcast backup keeps it.")
     else:
@@ -145,11 +150,6 @@ def web_lines(home, profile=None):
                      "profile, log and coach vanish when it ends. To keep them, attach your private sweatcast-me repo "
                      "to the session (or set SWEATCAST_HOME to where it's cloned).")
     return lines
-
-
-def _routes(profile):
-    import context
-    return context.routes(profile)
 
 
 def report_lines(f=None, home=None):
