@@ -5,7 +5,6 @@ environment (.venv, Python 3.11, made by `./sweatcast setup`).
 """
 import importlib
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -75,14 +74,10 @@ def main(argv=None):
     if cmd not in COMMANDS:
         print(f"Unknown command '{cmd}'.\n\n{usage()}", file=sys.stderr)
         return cli.USAGE
-    if cmd == "setup":   # a shell script, so it runs before there's a Python environment
-        script = os.path.join(HERE, "setup.sh")
-        if os.name == "nt":   # Git Bash's sh; Windows has no exec that keeps the exit code
-            return subprocess.call([shutil.which("sh") or "sh", script, *rest])
-        os.execv("/bin/sh", ["sh", script, *rest])
-    if cmd == "doctor":   # a shell script too: it has to work before setup
-        script = os.path.join(HERE, "doctor.sh")
-        return subprocess.call([shutil.which("sh") or "sh", script, *rest])
+    if cmd in ("setup", "doctor"):   # shell scripts, run by the ./sweatcast wrapper before any environment exists
+        print(f"Run ./sweatcast {cmd} (the shell wrapper runs tools/{cmd}.sh; it needs no Python environment).",
+              file=sys.stderr)
+        return cli.USAGE
     if cmd == "test":
         return subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT,
                                env=test_env(os.environ))

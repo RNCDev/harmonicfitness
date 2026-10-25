@@ -47,6 +47,7 @@ import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import cloud  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
@@ -204,9 +205,6 @@ def _new_audition():
             n += 1
 
 
-def _service_name(service):
-    import cloud
-    return cloud.services().get(service, {}).get("name", service or "no service")
 
 
 def _reason(e):
@@ -279,7 +277,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
             raise SystemExit(f"{revoice.name} is a local coach: a web audition makes a new web coach "
                              "(audition a narrative without --coach).")
         if services and list(services) != [revoice.service]:
-            raise SystemExit(f"{revoice.name} speaks on {_service_name(revoice.service)}: a coach is re-voiced on "
+            raise SystemExit(f"{revoice.name} speaks on {cloud.service_name(revoice.service)}: a coach is re-voiced on "
                              "its own service only (leave out --services).")
         services = [revoice.service]
         narrative = narrative or revoice.path
@@ -294,7 +292,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
     keyed = [s for s in wanted if keys.is_set(s)]
     for s in wanted:
         if s not in keyed and services:
-            print(f"{_service_name(s)}: no key here, skipped (./sweatcast keys).")
+            print(f"{cloud.service_name(s)}: no key here, skipped (./sweatcast keys).")
     if not keyed:
         print("No web service has a key here, so there's nothing to audition on. Add one: ./sweatcast keys "
               "(then ./sweatcast keys init <service>).", file=sys.stderr)
@@ -377,7 +375,7 @@ def audition(narrative, services=None, coach=None, play=False):
     the audition folder."""
     folder, _, failures = _run_audition(narrative, services, coach, play)
     if folder is None:
-        raise SystemExit("No candidates: " + ("; ".join(f"{_service_name(s)}: {_reason(e)}" for s, e in failures)
+        raise SystemExit("No candidates: " + ("; ".join(f"{cloud.service_name(s)}: {_reason(e)}" for s, e in failures)
                                               or "no web service has a key here (./sweatcast keys)."))
     return folder
 
@@ -459,8 +457,8 @@ def keep_web(ref, name, replace_old=False):
                          f"for {existing.name}, audition with --coach \"{existing.name}\" and keep from that.")
     service = c["service"]
     if existing is not None and existing.service != service:
-        raise SystemExit(f"{existing.name} speaks on {_service_name(existing.service)}; candidate {c['letter']} is "
-                         f"from {_service_name(service)}. A coach is re-voiced on its own service only.")
+        raise SystemExit(f"{existing.name} speaks on {cloud.service_name(existing.service)}; candidate {c['letter']} is "
+                         f"from {cloud.service_name(service)}. A coach is re-voiced on its own service only.")
     n = context.persona(os.path.join(folder, "narrative.md"))
     voice = n.settings.get("voice") or {}
     with open(os.path.join(folder, c["wav"]), "rb") as f:
@@ -469,9 +467,9 @@ def keep_web(ref, name, replace_old=False):
     module = importlib.import_module(f"services.{service}")
     if resume:   # saved before, but the coach was never written: finish with the voice already saved
         voice_id = c["voice_id"]
-        print(f"Finishing {name}: {c['letter']} is already saved at {_service_name(service)}.", flush=True)
+        print(f"Finishing {name}: {c['letter']} is already saved at {cloud.service_name(service)}.", flush=True)
     else:
-        print(f"Saving {c['letter']} at {_service_name(service)} as \"sweatcast {name}\".", flush=True)
+        print(f"Saving {c['letter']} at {cloud.service_name(service)} as \"sweatcast {name}\".", flush=True)
         voice_id = module.save(candidate, name, personas.voice_description(voice), wav)
         c.update(voice_id=voice_id, kept=name)   # recorded before any local write, so it's never lost
         if existing is not None:
@@ -510,11 +508,11 @@ def keep_web(ref, name, replace_old=False):
     if existing is not None and existing.voice_id and replace_old:
         try:
             module.delete(existing.voice_id)
-            print(f"Deleted {existing.name}'s old voice at {_service_name(service)}.")
+            print(f"Deleted {existing.name}'s old voice at {cloud.service_name(service)}.")
         except (cloud.ServiceError, SystemExit) as e:
-            print(f"Couldn't delete the old voice at {_service_name(service)} ({_reason(e)}); delete "
+            print(f"Couldn't delete the old voice at {cloud.service_name(service)} ({_reason(e)}); delete "
                   f"\"sweatcast {existing.name}\" there by hand.")
-    print(f"Kept {name} ({_service_name(service)}) in {show(target)}.")
+    print(f"Kept {name} ({cloud.service_name(service)}) in {show(target)}.")
     return target
 
 
@@ -635,7 +633,7 @@ def forget_audition(audition):
                 raise SystemExit(f"Gemini: couldn't delete audition voice {c['letter']} ({_reason(e)}); the "
                                  f"audition stays in {show(folder)} so forget-audition can try again.")
             lines.append(f"Deleted Gemini's stored audition voice {c['letter']}.")
-    others = list(dict.fromkeys(_service_name(c["service"]) for c in cands
+    others = list(dict.fromkeys(cloud.service_name(c["service"]) for c in cands
                                 if c["service"] != "gemini" and not c.get("kept")))
     if others:
         lines.append(f"{', '.join(others)}: the unsaved drafts need nothing (nothing was saved there).")
@@ -726,8 +724,7 @@ def main(argv=None):
     if args.cmd == "measured":
         import routes
         p = personas.lookup(args.coach)
-        route = routes.pick(context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"],
-                            p, override=args.engine)
+        route = routes.pick(context.render_preferences(), p, override=args.engine)
         v = personas.voice_for(p, route)
         if p.is_web:   # a web coach needs no smoke test: an estimate stands until its first render measures it
             return cli.OK
@@ -747,7 +744,6 @@ def main(argv=None):
               "None right? Say what's off, reword the description, and design again (or another --seed).")
         return cli.OK
     if args.cmd == "audition":
-        import cloud
         wanted = [x.strip() for x in args.services.split(",") if x.strip()] if args.services else None
         folder, cands, failures = _run_audition(args.narrative, wanted, args.coach, args.play)
         if not cands:
@@ -816,7 +812,7 @@ def main(argv=None):
     for p in found:
         mark = "*" if last and p.slug == last.slug else " "
         if p.is_web:
-            where = f"web · {_service_name(p.service)}"
+            where = f"web · {cloud.service_name(p.service)}"
         else:
             where = f"local · {p.table('local').get('engine') or 'chatterbox'}"
         notes = (["(a stand-in)"] if p.placeholder else []) \

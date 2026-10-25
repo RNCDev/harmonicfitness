@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import cloud  # noqa: E402
 import keys  # noqa: E402
 import paths  # noqa: E402
 
@@ -30,14 +31,11 @@ class WebCoachUnavailable(cli.Usage):
     service. `get route` and `build` exit 64 on it."""
 
 
-def _service_name(service):
-    import cloud
-    return cloud.services()[service]["name"]
 
 
 def _missing_key(persona):
     var = keys.SERVICE_VARS[persona.service]
-    name = _service_name(persona.service)
+    name = cloud.service_name(persona.service)
     if paths.REMOTE:
         fix = (f"set {var}=<your key> in the cloud environment's settings, under Environment variables "
                "(a new session picks it up)")
@@ -102,7 +100,7 @@ def pick(preferences, persona=None, override=None, facts=None):
                                       f"({persona.service or 'none'}); the services are {', '.join(SERVICES)}.")
         if override and override != persona.service:
             raise WebCoachUnavailable(
-                f"{persona.name} speaks through {_service_name(persona.service)} only, so --engine {override} "
+                f"{persona.name} speaks through {cloud.service_name(persona.service)} only, so --engine {override} "
                 f"can't render them here.")
         if not keys.is_set(persona.service):
             raise WebCoachUnavailable(_missing_key(persona))
@@ -158,13 +156,13 @@ def way_out(folder=None):
         uses = []
         for s in keyed:
             p = shipped[s]
-            uses.append(f"{p.name} ({_service_name(s)}): " + (f"build with --coach \"{p.name}\"" if p.name in have
+            uses.append(f"{p.name} ({cloud.service_name(s)}): " + (f"build with --coach \"{p.name}\"" if p.name in have
                         else f"copy {paths.show(p.path)} to {paths.show(os.path.join(folder, p.slug, 'persona.md'))}, then build with "
                              f"--coach \"{p.name}\""))
         return f"{make}, or use the stand-in for a service with a key here: " + "; ".join(uses) + "."
     add = ("set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
            else "./sweatcast keys init <service>, then paste the key into the file")
-    names = ", ".join(f"{shipped[s].name} ({_service_name(s)})" for s in SERVICES if s in shipped)
+    names = ", ".join(f"{shipped[s].name} ({cloud.service_name(s)})" for s in SERVICES if s in shipped)
     return (f"{make}, or add a service's key ({add}) and use its stand-in: {names} (in "
             f"{paths.show(os.path.join(paths.EXAMPLE, 'personas'))}/; copy its persona.md to the same place in "
             f"{paths.show(folder)}/ if your coaches don't have it).")

@@ -71,7 +71,6 @@ class Methods(unittest.TestCase):
     def test_methods_in_file_order(self):
         self.assertEqual(list(self.s.methods), ["straight-sets", "paired-sets", "circuit", "intervals", "tabata",
                                                 "bike-intervals", "flow", "skill"])
-        self.assertEqual(self.s.methods["tabata"].fixed, {"work_seconds": 20, "rest_seconds": 10, "rounds": 8})
         self.assertEqual(self.s.methods["bike-intervals"].needs, ["bike|air-bike"])
         self.assertIsNone(self.s.methods["circuit"].finisher)
 
@@ -90,13 +89,9 @@ class Methods(unittest.TestCase):
         self.assertNamed(lambda s: setattr(circuit(s), "goals", ["vibes"]), "circuit", "goal", "vibes")
         self.assertNamed(lambda s: setattr(circuit(s), "levels", ["wizard"]), "circuit", "level", "wizard")
         self.assertNamed(lambda s: setattr(circuit(s), "work", "juggling"), "circuit", "work", "juggling")
-        self.assertNamed(lambda s: setattr(circuit(s), "min_slots", 0), "circuit", "min_slots")
         self.assertNamed(lambda s: setattr(circuit(s), "needs", ["hovercraft"]), "circuit", "hovercraft")
         self.assertNamed(lambda s: setattr(circuit(s), "about", "Do it 3 times."), "circuit", "about", "digit")
         self.assertNamed(lambda s: setattr(circuit(s), "minutes", [40, 10]), "circuit", "minutes", "inverted")
-        self.assertNamed(lambda s: circuit(s).blocks[0].update(intensity="chaos"), "circuit", "intensity", "chaos")
-        self.assertNamed(lambda s: circuit(s).blocks[0].update(patterns=["wiggle"]), "circuit", "pattern", "wiggle")
-        self.assertNamed(lambda s: circuit(s).blocks[0].update(share=0.5), "circuit", "sum")
         self.assertNamed(lambda s: s.dose["mobility"].pop("advanced"), "mobility", "advanced")
 
     def test_problems_name_a_bad_all_out_rule(self):
@@ -104,9 +99,6 @@ class Methods(unittest.TestCase):
         self.assertNamed(lambda s: s.all_out.update(rest_ratio=0), "all_out", "rest_ratio")
         self.assertNamed(lambda s: s.all_out.pop("most_seconds"), "all_out", "most_seconds")
 
-    def test_problems_name_a_block_with_no_dose_table(self):
-        self.assertNamed(lambda s: s.methods["flow"].blocks[0].update(intensity="breathing"),
-                         "flow", "breathing", "dose")
 
 
 def choose(s, goal, minutes, level, last, equipment):

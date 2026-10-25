@@ -47,10 +47,8 @@ def folder_for(name, where, folder=None):
     """Where coach `name` lives: the folder of a coach already called that, else a new <slug>-<where>, where
     `where` is "local" or the web coach's service (coach-maya-fish, coach-sam-local)."""
     base = folder or paths.PERSONAS
-    for p in all(base):
-        if _match(p, name):
-            return p.folder
-    return os.path.join(base, f"{slug(name)}-{where}")
+    found = find(name, all(base))
+    return found.folder if found else os.path.join(base, f"{slug(name)}-{where}")
 
 
 @dataclass
@@ -166,15 +164,25 @@ def _archive(folder=None):
     return os.path.join(folder or paths.PERSONAS, ".archive")
 
 
+def persona_dirs(folder):
+    """The coach folders in `folder` (each holds a persona.md), sorted; dot folders (the archive, auditions)
+    are left out. The one listing check and migrate use too."""
+    if not os.path.isdir(folder):
+        return []
+    return sorted(d for d in os.listdir(folder)
+                  if not d.startswith(".") and os.path.exists(os.path.join(folder, d, "persona.md")))
+
+
+def find(name, pool):
+    """The coach in `pool` that `name` means (a folder name, a name or an alias, in any case), or None."""
+    return next((p for p in pool if _match(p, name)), None)
+
+
 def all(folder=None):
     """Every coach in me/personas/, by name; dot folders (the archive, auditions) are left out."""
     folder = folder or paths.PERSONAS
-    if not os.path.isdir(folder):
-        return []
     found = []
-    for d in sorted(os.listdir(folder)):
-        if d.startswith(".") or not os.path.exists(os.path.join(folder, d, "persona.md")):
-            continue
+    for d in persona_dirs(folder):
         try:
             found.append(load(os.path.join(folder, d)))
         except SystemExit as e:   # one coach file the tools can't read hides no other coach; check names it
@@ -196,10 +204,10 @@ def lookup(name, folder=None, archived=False):
     """A coach by folder name, name or alias, in any case; with `archived`, the archive too (for names read
     from the log). Stops with the coaches there are on a miss."""
     found = all(folder)
-    for p in found:
-        if _match(p, name):
-            return p
-    old = next((p for p in all(_archive(folder)) if _match(p, name)), None)
+    p = find(name, found)
+    if p is not None:
+        return p
+    old = find(name, all(_archive(folder)))
     if old is not None and archived:
         return old
     there = ", ".join(p.name for p in found) or "none yet (the coach skill makes one)"
@@ -245,13 +253,13 @@ def default(folder=None):
     except SystemExit:   # no log yet, or one in an older format
         sessions = []
     for session in sessions:
-        for p in found:
-            if _match(p, session.voice):
-                if p.placeholder:   # their own coach beats a stand-in used last, if it can speak here
-                    own = next((o for o in found if not o.placeholder and _usable_here(o)), None)
-                    return own or p
-                return p
-        old = next((p for p in archived if _match(p, session.voice)), None)
+        p = find(session.voice, found)
+        if p is not None:
+            if p.placeholder:   # their own coach beats a stand-in used last, if it can speak here
+                own = next((o for o in found if not o.placeholder and _usable_here(o)), None)
+                return own or p
+            return p
+        old = find(session.voice, archived)
         if old is not None:
             raise SystemExit(f"{old.name} is archived; name a coach: {', '.join(p.name for p in found)}.")
     own = next((p for p in found if not p.placeholder), None)
@@ -288,8 +296,7 @@ def resolve(coach=None, engine=None, pending=False):
     p = lookup(coach) if coach else default()
     if p is None:
         raise SystemExit("No coach yet: make one first (the coach skill, or ./sweatcast coaches design).")
-    preferences = context.routes(context.profile()) if os.path.exists(paths.PROFILE) else ["local"]
-    return voice_for(p, routes.pick(preferences, p, override=engine), pending)
+    return voice_for(p, routes.pick(context.render_preferences(), p, override=engine), pending)
 
 
 def clip_key(p):

@@ -13,6 +13,7 @@
 # for what the computer reports, so the verdicts can be tested on any machine.
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
+. "$HERE/common.sh"
 MEM_FLOOR=8    # GB of memory for a local voice model (a guess: the models need 3 to 5 GB)
 DISK_FLOOR=6   # GB free for the local engine and one model (a guess: 2 to 4 GB of PyTorch or MLX, 3 to 4 GB of model)
 
@@ -63,26 +64,6 @@ gpu() {   # "<name>, <GB>" for the first NVIDIA card, or nothing
   command -v nvidia-smi >/dev/null 2>&1 || return 0
   nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d '\r' \
     | awk -F', *' 'NF >= 2 {printf "%s, %d\n", $1, $2 / 1024 + 0.5}'
-}
-
-find_uv() {
-  if [ -n "${SWEATCAST_UV:-}" ]; then echo "$SWEATCAST_UV"; return; fi
-  for c in "$(command -v uv 2>/dev/null)" "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "$HOME/.local/bin/uv.exe"; do
-    if [ -n "$c" ] && [ -x "$c" ]; then echo "$c"; return; fi
-  done
-}
-
-venv_python() {
-  if [ -n "${SWEATCAST_PYTHON:-}" ]; then echo "$SWEATCAST_PYTHON"; return; fi
-  for c in "$ROOT/.venv/bin/python" "$ROOT/.venv/Scripts/python.exe"; do
-    if [ -x "$c" ]; then echo "$c"; return; fi
-  done
-}
-
-in_git() {   # yes when this folder is the top of a git checkout (not a zip, not a copy inside another repo)
-  command -v git >/dev/null 2>&1 || { echo no; return; }
-  prefix="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null)" || { echo no; return; }
-  [ -z "$prefix" ] && echo yes || echo no
 }
 
 CHIP="$(chip)"
@@ -155,11 +136,7 @@ fi
 
 # ---- the report --------------------------------------------------------------------------
 case "$OS" in mac) SYSTEM="macOS" ;; linux) SYSTEM="Linux" ;; windows) SYSTEM="Windows (Git Bash)" ;; *) SYSTEM="$UNAME_S" ;; esac
-case "$OS" in
-  mac) UV_INSTALL="curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
-  windows) UV_INSTALL="powershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\"" ;;
-  *) UV_INSTALL="curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
-esac
+UV_INSTALL="$(uv_install_for "$OS")"
 
 if [ "$REMOTE" = yes ]; then
   echo "This is Claude Code on the web: sweatcast runs here with a cloud voice (your own key), not a local one."

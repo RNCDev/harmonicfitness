@@ -48,7 +48,8 @@ import xml.etree.ElementTree as ET
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
-from paths import DAILY, show  # noqa: E402
+import paths  # noqa: E402
+from paths import show  # noqa: E402
 USER_AGENT = "sweatcast feeds (personal workout audio; github.com/RNCDev/sweatcast)"
 TIMEOUT = 12            # seconds per request
 MAX_BYTES = 5_000_000   # most of any one response that's read
@@ -308,6 +309,11 @@ def gather(source, now, since):
     raise ValueError(f"unknown kind {kind}")
 
 
+def sheet_path(local):
+    """Where the day's feeds sheet goes: me/workouts/research/daily/<date>-feeds.md."""
+    return os.path.join(paths.DAILY, f"{local:%Y-%m-%d}-feeds.md")
+
+
 def main():
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--hours", type=float, default=72, help="how far back news items go (default 72)")
@@ -343,7 +349,7 @@ def main():
     if failed:
         out += ["## Couldn't fetch", *failed, ""]
     sheet = "\n".join(out)
-    path = args.out or os.path.join(DAILY, f"{local:%Y-%m-%d}-feeds.md")
+    path = args.out or sheet_path(local)
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(sheet)

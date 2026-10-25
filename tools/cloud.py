@@ -61,6 +61,11 @@ class ServiceError(Exception):
         return cli.SERVICE if self.listener_must_act else cli.ISSUES
 
 
+def service_name(service):
+    """The service's name as people say it (Fish Audio, ElevenLabs...), or the id itself for one we don't know."""
+    return services().get(service, {}).get("name", service or "no service")
+
+
 def scrub(text):
     """`text` with every key value set here (the environment's or me/.env's) replaced by <key>, so nothing a
     library or a service echoes can print one."""

@@ -197,7 +197,7 @@ def main(argv=None):
         print(f"No coach yet in {paths.show(paths.PERSONAS)}: make one first (the coach skill, or "
               "./sweatcast coaches design).")
         return cli.ISSUES
-    route = routes.pick(context.routes(context.profile()), coach, override=args.engine)
+    route = routes.pick(context.render_preferences(), coach, override=args.engine)
     os.makedirs(paths.LOGS, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
     log = os.path.join(paths.LOGS, f"{name}.log")

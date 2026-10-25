@@ -36,10 +36,7 @@ class Method:
     warmup: dict
     cooldown: dict
     work: str
-    blocks: List[dict]
-    min_slots: int
     finisher: Optional[dict] = None
-    fixed: Optional[dict] = None
     needs: List[str] = field(default_factory=list)
     rest_seconds: Optional[List[int]] = None   # rounds: the rest between rounds, in place of the dose's
 
@@ -58,10 +55,8 @@ def _method(name: str, raw: dict) -> Method:
         name=name, about=raw.get("about", ""), goals=list(raw.get("goals", [])),
         minutes=list(raw.get("minutes", [])), levels=list(raw.get("levels", [])),
         warmup=dict(raw.get("warmup", {})), cooldown=dict(raw.get("cooldown", {})),
-        work=raw.get("work", ""), blocks=[dict(b) for b in raw.get("blocks", [])],
-        min_slots=int(raw.get("min_slots", 0)),
+        work=raw.get("work", ""),
         finisher=dict(raw["finisher"]) if "finisher" in raw else None,
-        fixed=dict(raw["fixed"]) if "fixed" in raw else None,
         needs=list(raw.get("needs", [])),
         rest_seconds=list(raw["rest_seconds"]) if "rest_seconds" in raw else None)
 
@@ -117,27 +112,6 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
                 out.append(f"The {label} share of method {name} is not between zero and one.")
         if m.work not in WORK:
             out.append(f"Method {name} has the unknown work \"{m.work}\" (choose from: {', '.join(WORK)}).")
-        if m.min_slots < 1:
-            out.append(f"Method {name} has min_slots {m.min_slots}; it needs at least one.")
-        if not m.blocks:
-            out.append(f"Method {name} has no blocks.")
-        total = 0.0
-        for b in m.blocks:
-            if b.get("intensity") not in catalog.INTENSITIES:
-                out.append(f"Method {name} has a block with the unknown intensity \"{b.get('intensity')}\".")
-            elif b.get("intensity") not in s.dose:
-                out.append(f"Method {name} has a {b.get('intensity')} block, but there is no {b.get('intensity')} dose table.")
-            for p in b.get("patterns", []) + b.get("fallback", []):
-                if p not in cat.patterns:
-                    out.append(f"Method {name} has the unknown pattern \"{p}\".")
-            if not b.get("patterns"):
-                out.append(f"Method {name} has a block with no patterns.")
-            share = b.get("share", -1)
-            if not 0 < share <= 1:
-                out.append(f"Method {name} has a block share of {share}, not between zero and one.")
-            total += share
-        if m.blocks and abs(total - 1) > 0.01:
-            out.append(f"The block shares of method {name} sum to {total:g}, not one.")
         for need in m.needs:
             for alt in need.split("|"):
                 if alt not in cat.equipment:
@@ -180,12 +154,6 @@ def ranked(s: Sessions, goal: str, minutes: float, level: str, equipment: Set[st
     first), then file order; within that, the last session's method moves to the back."""
     fits = sorted(fitting(s, goal, minutes, level, equipment), key=lambda m: m.goals.index(goal))
     return [m for m in fits if m.name != last_format] + [m for m in fits if m.name == last_format]
-
-
-def all_out(s: Sessions, m: catalog.Movement) -> bool:
-    """True for an all-out sprint: a hard timed entry no longer than [all_out] most_seconds."""
-    return (m.effort == "hard" and m.measure == "time"
-            and 0 < m.hold_seconds <= s.all_out.get("most_seconds", 0))
 
 
 def dose(s: Sessions, intensity: str, level: str) -> dict:

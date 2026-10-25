@@ -34,15 +34,9 @@ import json
 import os
 import re
 import sys
-import tomllib
+import tomllib   # Python 3.11: ./sweatcast runs every tool in the project's environment
 from dataclasses import dataclass, field
 from typing import Dict, List, NamedTuple, Optional
-
-try:
-    import tomllib
-except ImportError:   # Python before 3.11, such as the Mac's own python3
-    raise SystemExit("sweatcast's tools need Python 3.11, which ./sweatcast runs them with. "
-                     "Use ./sweatcast <command> (./sweatcast help lists them).")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
@@ -309,6 +303,12 @@ class Issue(NamedTuple):
     line: int        # 0 means the whole file
     message: str
     note: bool = False   # True: worth knowing, but nothing breaks
+
+
+def render_preferences():
+    """The profile's render list (routes()), or ["local"] with no profile yet: what a build, a coach check
+    and a route lookup all start from."""
+    return routes(profile()) if os.path.exists(paths.PROFILE) else ["local"]
 
 
 def route_issues(p):

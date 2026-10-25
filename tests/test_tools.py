@@ -2230,5 +2230,92 @@ class AtomicWrite(unittest.TestCase):
         self.assertEqual(sweatcast.COMMANDS["check"][0], "check")   # ./sweatcast check runs tools/check.py
 
 
+class Dedupe(unittest.TestCase):
+    """Each small rule lives in one place: service names, the render list, coach matching, the research paths."""
+
+    def test_service_name_in_one_place(self):
+        import coaches
+        import routes
+        self.assertEqual(cloud.service_name("fish"), "Fish Audio")
+        self.assertEqual(cloud.service_name("nowhere"), "nowhere")
+        self.assertFalse(hasattr(coaches, "_service_name"))
+        self.assertFalse(hasattr(routes, "_service_name"))
+
+    def test_render_preferences_in_one_place(self):
+        with tempfile.TemporaryDirectory() as d:
+            with helpers.home(os.path.join(d, "absent")):
+                self.assertEqual(context.render_preferences(), ["local"])   # no profile: local
+            home = fresh_home(d)
+            prof = os.path.join(home, "settings.toml")
+            with open(prof, encoding="utf-8") as f:
+                text = f.read()
+            write_file(prof, text.replace('render = ["local"]', 'render = ["fish", "local"]', 1))
+            with helpers.home(home):
+                self.assertEqual(context.render_preferences(), ["fish", "local"])
+
+    def test_coach_matching_and_folder_listing_in_one_place(self):
+        with tempfile.TemporaryDirectory() as d:
+            folder = os.path.join(d, "personas")
+            shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"), folder)
+            os.makedirs(os.path.join(folder, ".archive", "old"))
+            os.makedirs(os.path.join(folder, "junk"))   # no persona.md: not a coach
+            self.assertEqual(personas.persona_dirs(folder), ["coach-julius", "coach-solo"])
+            pool = personas.all(folder)
+            self.assertEqual(personas.find("Chatterbox Coach", pool).slug, "coach-julius")   # an alias
+            self.assertEqual(personas.find("coach-solo", pool).slug, "coach-solo")            # a folder name
+            self.assertIsNone(personas.find("Nobody", pool))
+
+    def test_the_dispatcher_points_setup_and_doctor_at_the_shell(self):
+        import sweatcast
+        for cmd in ("setup", "doctor"):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(sweatcast.main([cmd]), cli.USAGE)
+            self.assertIn(f"./sweatcast {cmd}", err.getvalue())
+
+    def test_research_paths_follow_the_home_at_call_time(self):
+        with tempfile.TemporaryDirectory() as d, helpers.home(d):
+            os.makedirs(paths.VIDEOS)
+            write_file(os.path.join(paths.VIDEOS, "abc123.md"), "# x\n")
+            self.assertEqual(youtube.used(), {"abc123"})
+            self.assertTrue(feeds.sheet_path(dt.datetime(2026, 10, 25, 7)).startswith(d))
+            self.assertTrue(feeds.sheet_path(dt.datetime(2026, 10, 25, 7)).endswith("2026-10-25-feeds.md"))
+
+    def test_session_methods_carry_only_what_the_writer_sees(self):
+        import sessions
+        s = sessions.load()
+        for name in ("blocks", "min_slots", "fixed"):
+            self.assertFalse(hasattr(s.methods["circuit"], name), name)
+        self.assertEqual(s.methods["circuit"].rest_seconds, [45, 90])
+        self.assertFalse(hasattr(sessions, "all_out"))   # the composer's helper, unused since 7.2.0
+        self.assertEqual(sessions.problems(s, catalog.load()), [])
+
+    def test_the_shell_scripts_share_their_helpers(self):
+        def read(rel):
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+                return f.read()
+        common = read(os.path.join("tools", "common.sh"))
+        for fn in ("find_uv", "venv_python", "in_git", "uv_install_for"):
+            self.assertIn(f"{fn}()", common, fn)
+        for script in ("sweatcast", os.path.join("tools", "setup.sh"), os.path.join("tools", "doctor.sh")):
+            text = read(script)
+            self.assertIn("common.sh", text, script)
+            self.assertNotIn("find_uv()", text, script)
+            self.assertNotIn("venv_python()", text, script)
+        setup = read(os.path.join("tools", "setup.sh"))
+        self.assertIn("--get core.hooksPath", setup)            # a hooks path someone else set is kept
+        self.assertIn("grep -qxF '.env'", setup)                # the dot isn't a wildcard
+        self.assertNotIn("sed -n 's/^render", setup)           # the render list comes from the tools, not sed
+        self.assertIn("get routes", setup)
+
+    def test_one_float_to_pcm_and_one_version_lookup(self):
+        with open(os.path.join(ROOT, "tools", "engines.py"), encoding="utf-8") as f:
+            source = f.read()
+        self.assertEqual(source.count("32767"), 1)
+        self.assertEqual(source.count("from importlib.metadata import"), 1)
+        with open(os.path.join(ROOT, "tools", "context.py"), encoding="utf-8") as f:
+            self.assertEqual(f.read().count("import tomllib"), 1)   # the dead fallback is gone
+
+
 if __name__ == "__main__":
     unittest.main()

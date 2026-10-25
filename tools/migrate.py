@@ -480,13 +480,10 @@ def update_gitignore(home, add_lines=GITIGNORE_ADD):
 
 def persona_files(home=None):
     """Every coach file: personas/<coach>/persona.md and personas/.archive/<coach>/persona.md (not auditions)."""
-    out = []
+    import personas
     folder = os.path.join(home or paths.HOME, "personas")
-    for where in (folder, os.path.join(folder, ".archive")):
-        if os.path.isdir(where):
-            out += sorted(os.path.join(where, d, "persona.md") for d in os.listdir(where)
-                          if not d.startswith(".") and os.path.exists(os.path.join(where, d, "persona.md")))
-    return out
+    return [os.path.join(where, d, "persona.md") for where in (folder, os.path.join(folder, ".archive"))
+            for d in personas.persona_dirs(where)]
 
 
 def _behind(path, current):

@@ -25,12 +25,8 @@ warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and s
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 finisher = { share = 0.10, seconds = [90, 300], from_minutes = 25 }   # house default: the finisher is house policy in programming.md
 work = "sets"
-min_slots = 3   # house default: three multi-joint movements cover the major muscles, after Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 # Multi-joint lower and upper patterns first, as HPRC's summary of the NSCA order puts them
 # https://www.hprc-online.org/physical-fitness/training-performance/choosing-right-exercises-optimize-your-resistance-training
-blocks = [
-  { intensity = "strength", share = 1.0, patterns = ["squat", "hinge", "horizontal-push", "horizontal-pull", "lunge", "vertical-push", "vertical-pull", "anti-extension"] },   # house default: one block holds all the work
-]
 
 [methods.paired-sets]
 about = "Two movements in turn, a push with a pull or an upper with a lower, so one side rests while the other works."
@@ -41,10 +37,6 @@ warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and s
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 finisher = { share = 0.10, seconds = [90, 300], from_minutes = 25 }   # house default: the finisher is house policy in programming.md
 work = "pairs"
-min_slots = 3   # house default: three multi-joint movements cover the major muscles, after Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
-blocks = [
-  { intensity = "strength", share = 1.0, patterns = ["squat", "hinge", "horizontal-push", "horizontal-pull", "lunge", "vertical-push", "vertical-pull", "anti-extension"] },   # house default: one block holds all the work
-]
 
 [methods.circuit]
 about = "A short loop of movements, one after another with little rest, repeated for a few rounds."
@@ -55,12 +47,8 @@ warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and s
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 work = "rounds"   # rounds come from the strength dose's sets
 rest_seconds = [45, 90]   # house default: the rest between rounds, short as a circuit's "little rest" asks; the strength dose's rest is for straight sets
-min_slots = 3   # house default: a loop needs at least three stations to rest each one between rounds
 # Upper and lower alternate, push with pull, after HPRC's summary
 # https://www.hprc-online.org/physical-fitness/training-performance/choosing-right-exercises-optimize-your-resistance-training
-blocks = [
-  { intensity = "strength", share = 1.0, patterns = ["squat", "horizontal-push", "hinge", "horizontal-pull", "lunge", "anti-extension", "vertical-push", "vertical-pull", "anti-rotation"] },   # house default: one block holds all the work; the last three keep a long circuit's second pass from repeating siblings
-]
 
 # Conditioning methods ---------------------------------------------------------------------------
 
@@ -72,12 +60,6 @@ levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: an easy lead-in; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy then slow breathing; no opened source gives a length
 work = "intervals"
-min_slots = 1   # house default: one locomotion pattern may fill every slot
-blocks = [
-  # house default: one block holds all the work; when fewer than two locomotion movements are hard enough
-  # for interval work today, timed bodyweight work from the fallback patterns joins in, as tabata has it
-  { intensity = "conditioning", share = 1.0, patterns = ["locomotion"], fallback = ["squat", "lunge", "hinge", "anti-extension"] },
-]
 
 [methods.tabata]
 about = "Twenty seconds hard, ten seconds easy, eight rounds, about four minutes in all."
@@ -87,11 +69,6 @@ levels = ["experienced", "advanced"]   # house default: all-out efforts are kept
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: an easy lead-in; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy then slow breathing; no opened source gives a length
 work = "intervals"
-min_slots = 1   # house default: one pattern may fill every slot
-fixed = { work_seconds = 20, rest_seconds = 10, rounds = 8 }   # house default: the well known Tabata shape; the original study was not opened
-blocks = [
-  { intensity = "conditioning", share = 1.0, patterns = ["locomotion", "squat", "hinge", "horizontal-push", "anti-extension"] },   # house default: one block holds all the work
-]
 
 [methods.bike-intervals]
 about = "Thirty seconds hard on the bike, then a long easy spin, five times."
@@ -102,13 +79,8 @@ warmup = { share = 0.15, seconds = [120, 360] }     # house default: an easy spi
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: easy spin then slow breathing; no opened source gives a length
 work = "intervals"
 needs = ["bike|air-bike"]
-min_slots = 1   # house default: one locomotion pattern may fill every slot
 # Short hard efforts with long easy spins between, after Gillen's twenty second sprints within a ten minute
 # session https://pubmed.ncbi.nlm.nih.gov/27115137/
-fixed = { work_seconds = 30, rest_seconds = 90, rounds = 5 }   # house default: longer than Gillen's twenty seconds, not all out, with three times the easy
-blocks = [
-  { intensity = "conditioning", share = 1.0, patterns = ["locomotion"] },   # house default: one block holds all the work
-]
 
 # Mobility and skill methods ---------------------------------------------------------------------
 
@@ -120,10 +92,6 @@ levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: easy movement first; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 work = "holds"
-min_slots = 1   # house default: one pattern may fill several slots
-blocks = [
-  { intensity = "mobility", share = 1.0, patterns = ["mobility", "mobility", "breathing"] },   # house default: one block holds all the work, two mobility drills to each breathing one
-]
 
 [methods.skill]
 about = "Drill rounds that build a skill, then a short block of supporting strength."
@@ -133,16 +101,10 @@ levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 work = "rounds"
-min_slots = 3   # house default: a skill drill and at least two supporting movements
-blocks = [
-  { intensity = "skill", share = 0.6, patterns = ["skill"] },   # house default: most of the time on the skill, as the old templates had it
-  { intensity = "strength", share = 0.4, patterns = ["squat", "hinge", "horizontal-push", "horizontal-pull"] },   # house default: the rest on supporting strength
-]
 
 # All-out sprints ---------------------------------------------------------------------------------
-# An interval on an all-out sprint keeps the slot's time but rests at least `rest_ratio` times its work,
-# with fewer rounds when the slot can't hold as many; a finisher leads with one only when nothing
-# else fits, and then rests it the same way.
+# A hard timed effort of `most_seconds` or less is an all-out sprint, and rests at least `rest_ratio`
+# times its work; the brief says so to the writer (programming.md has the sources).
 
 [all_out]
 most_seconds = 20   # house default: a hard timed entry this short or shorter is an all-out sprint, as the catalog's sprint holds are

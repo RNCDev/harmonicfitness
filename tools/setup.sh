@@ -32,18 +32,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 CONTEXT="${SWEATCAST_HOME:-$ROOT/me}"
 cd "$ROOT"
-
-find_uv() {
-  if [ -n "${SWEATCAST_UV:-}" ]; then echo "$SWEATCAST_UV"; return; fi
-  for c in "$(command -v uv 2>/dev/null || true)" "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "$HOME/.local/bin/uv.exe"; do
-    if [ -n "$c" ] && [ -x "$c" ]; then echo "$c"; return; fi
-  done
-}
-
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) UV_INSTALL='powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"' ;;
-  *) UV_INSTALL='curl -LsSf https://astral.sh/uv/install.sh | sh' ;;
-esac
+. "$HERE/common.sh"
+UV_INSTALL="$(uv_install_for "$(detect_os)")"
 
 if [ "$1" = "--install-uv" ]; then
   shift
@@ -92,11 +82,12 @@ case "$1" in
   *) [ "$LOCAL" = no ] && WANT="$INSTALLED" || WANT="$LOCAL_ENGINE" ;;   # a floor never uninstalls an engine
 esac
 # A profile whose render list leaves out "local" (cloud voices only) gets no local engine from a plain
-# rerun; one already installed stays.
-# settings.toml holds it since 12.0.0; an older folder (migrated below) still has it in profile.md.
-RENDER_LINE="$(sed -n 's/^render[[:space:]]*=//p' "$CONTEXT/settings.toml" 2>/dev/null | head -1)"
-[ -n "$RENDER_LINE" ] || RENDER_LINE="$(sed -n '/^+++/,/^+++/s/^render[[:space:]]*=//p' "$CONTEXT/profile.md" 2>/dev/null | head -1)"
-if [ -z "$1" ] && [ -n "$RENDER_LINE" ] && ! echo "$RENDER_LINE" | grep -q '"local"'; then
+# rerun; one already installed stays. The tools read the list (a rerun has an environment to run them;
+# a first run has no profile to read yet).
+RENDER_LIST=""
+PY_NOW="$(venv_python)"
+if [ -n "$PY_NOW" ]; then RENDER_LIST="$("$PY_NOW" tools/context.py get routes 2>/dev/null | tr '\n' ' ' || true)"; fi
+if [ -z "$1" ] && [ -n "$RENDER_LIST" ] && ! echo " $RENDER_LIST " | grep -q ' local '; then
   echo "   The render list (settings.toml) has no \"local\", so the local engine isn't installed (./sweatcast setup --local adds it)."
   WANT="$INSTALLED"
 fi
@@ -112,8 +103,7 @@ elif [ "$LOCAL" = experimental ] && [ -n "$WANT" ]; then
   echo "   Local voices run on the processor here: experimental, speed unknown, likely slow."
   echo "   The smoke test measures this computer's speed."
 fi
-PY="${SWEATCAST_PYTHON:-.venv/bin/python}"
-[ -x "$PY" ] || PY=".venv/Scripts/python.exe"   # Windows
+PY="$(venv_python)"
 "$PY" tools/ffmpeg.py | sed 's/^/   /' || true
 # The context folder as every tool finds it (tools/paths.py): SWEATCAST_HOME, else me/, else (on Claude
 # Code on the web) the private repo attached beside the engine.
@@ -132,7 +122,7 @@ if [ -e "$CONTEXT/profile.md" ]; then
     cp "$ROOT/me.example/.gitignore" "$CONTEXT/.gitignore"
     echo "   added .gitignore, for keeping it as its own private repo (./sweatcast backup)"
   fi
-  if ! grep -qx '.env' "$CONTEXT/.gitignore"; then
+  if ! grep -qxF '.env' "$CONTEXT/.gitignore"; then
     printf '%s\n' "# API keys for cloud voices (./sweatcast keys): never committed, never pushed." ".env" >> "$CONTEXT/.gitignore"
     echo "   .gitignore now leaves out .env, where cloud voice keys go"
   fi
@@ -146,12 +136,17 @@ fi
 echo "3. Privacy guard (a git pre-push hook that refuses to push me/ in any commit)"
 if ! command -v git >/dev/null 2>&1; then
   echo "   skipped: git isn't installed. Only this hook and ./sweatcast backup need it."
-elif [ "$(git rev-parse --show-prefix 2>/dev/null || echo none)" != "" ]; then
+elif [ "$(in_git)" != yes ]; then
   echo "   skipped: this folder isn't a git checkout (a zip download?), so there's nothing to push from it."
   echo "   ./sweatcast backup needs git too."
-elif ! git config core.hooksPath tools/hooks 2>/dev/null; then
-  echo "   skipped: git's settings can't be changed from here (a sandbox, such as ChatGPT's Codex, protects them)."
-  echo "   Rerun ./sweatcast setup outside it to add the hook."
+else
+  HOOKS_NOW="$(git config --get core.hooksPath 2>/dev/null || true)"
+  if [ -n "$HOOKS_NOW" ] && [ "$HOOKS_NOW" != tools/hooks ]; then
+    echo "   skipped: git already takes its hooks from $HOOKS_NOW; add tools/hooks/pre-push to yours to keep me/ out."
+  elif ! git config core.hooksPath tools/hooks 2>/dev/null; then
+    echo "   skipped: git's settings can't be changed from here (a sandbox, such as ChatGPT's Codex, protects them)."
+    echo "   Rerun ./sweatcast setup outside it to add the hook."
+  fi
 fi
 
 echo "4. Voice models (once, from Hugging Face into models/; no account needed, and its"

@@ -30,7 +30,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
-from paths import OLD_PANTRY, PUZZLES, RESERVE, TOLD, VIDEOS, show  # noqa: E402
+import paths  # noqa: E402
+from paths import show  # noqa: E402
 
 MIN_SECONDS, MAX_SECONDS = 5 * 60, 3 * 60 * 60   # skip Shorts and marathon streams
 PUZZLE_MAX_SECONDS = 30 * 60                      # a quiz puzzle is short
@@ -63,7 +64,8 @@ def handles(label="YouTube favorites", profile=None):
     return found
 
 
-def used(folder=VIDEOS):
+def used(folder=None):
+    folder = folder or paths.VIDEOS
     if not os.path.isdir(folder):
         return set()
     return {name[:-3] for name in os.listdir(folder) if name.endswith(".md")}
@@ -72,9 +74,9 @@ def used(folder=VIDEOS):
 def named_ids():
     """Video ids a reserve sheet (or one in the old pantry/) or the record of what's been told links to,
     so a puzzle stocked or told isn't offered again."""
-    files = [os.path.join(d, n) for d in (RESERVE, OLD_PANTRY) if os.path.isdir(d) for n in os.listdir(d)]
+    files = [os.path.join(d, n) for d in (paths.RESERVE, paths.OLD_PANTRY) if os.path.isdir(d) for n in os.listdir(d)]
     found = set()
-    for path in files + [TOLD]:
+    for path in files + [paths.TOLD]:
         try:
             with open(path, encoding="utf-8") as f:
                 found |= set(VIDEO_ID_RE.findall(f.read()))
@@ -92,7 +94,8 @@ def series_state(sheet):
     return int(parts.group(1)), int(done.group(1)) if done else 0
 
 
-def in_progress(folder=VIDEOS):
+def in_progress(folder=None):
+    folder = folder or paths.VIDEOS
     """[(id, next part, parts, title)] for series with parts still to tell."""
     out = []
     if not os.path.isdir(folder):
@@ -108,7 +111,8 @@ def in_progress(folder=VIDEOS):
     return out
 
 
-def mark_done(video, folder=VIDEOS):
+def mark_done(video, folder=None):
+    folder = folder or paths.VIDEOS
     """Record that the next part of a series was told. Returns (parts done, parts)."""
     path = os.path.join(folder, f"{video}.md")
     if not os.path.exists(path):
@@ -158,7 +162,7 @@ def pick(recent):
 
 def puzzles(recent):
     # Puzzle videos can be short, so only YouTube Shorts (under a minute) are skipped.
-    list_recent(handles("Puzzles"), used(PUZZLES) | named_ids(), 60, PUZZLE_MAX_SECONDS, recent)
+    list_recent(handles("Puzzles"), used(paths.PUZZLES) | named_ids(), 60, PUZZLE_MAX_SECONDS, recent)
 
 
 def caption_track(info):
@@ -213,8 +217,8 @@ def transcript(ref):
         f"URL: https://www.youtube.com/watch?v={info['id']}",
         f"Captions: {'the creator’s own' if manual else 'automatic speech recognition, so names and numbers may be misheard'}",
     ]
-    os.makedirs(VIDEOS, exist_ok=True)
-    path = os.path.join(VIDEOS, f"{info['id']}.txt")
+    os.makedirs(paths.VIDEOS, exist_ok=True)
+    path = os.path.join(paths.VIDEOS, f"{info['id']}.txt")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(header) + "\n\n" + "\n\n".join(body) + "\n")
     words = sum(len(p.split()) for p in body)

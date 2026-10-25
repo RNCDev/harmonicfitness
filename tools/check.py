@@ -214,9 +214,9 @@ def check_coaches(folder=None):
     """[Issue] for the coaches in me/personas/ (not the archive or auditions): none yet, a persona.md the tools
     can't read, a local coach's missing clip, a web coach with no voice (a note while one is pending), and
     how-they-talk lines still showing the template's [hint]."""
+    import personas
     folder = folder or paths.PERSONAS
-    found = sorted(d for d in os.listdir(folder) if not d.startswith(".")
-                   and os.path.exists(os.path.join(folder, d, "persona.md"))) if os.path.isdir(folder) else []
+    found = personas.persona_dirs(folder)
     if not found:
         return [Issue(folder, 0, "no coach yet: the coach skill makes one (\"I want a new coach\"), or "
                                  "./sweatcast coaches design")]

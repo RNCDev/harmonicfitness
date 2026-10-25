@@ -220,6 +220,14 @@ def _limit_lines(cat: catalog.Catalog, scr, health, request: dict) -> List[str]:
     return out
 
 
+def _method_shape(m) -> str:
+    """What the method's rules say beyond its about: how its work is counted, and a rest of its own."""
+    parts = [f"work: {m.work}"]
+    if m.rest_seconds:
+        parts.append(f"rest {m.rest_seconds[0]} to {m.rest_seconds[1]} s between rounds")
+    return "; ".join(parts)
+
+
 def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List[str]:
     goal, minutes = request["goal"], request["minutes"]
     total = minutes * 60
@@ -244,7 +252,7 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         out += ["", f"Time ({total} s in all, house defaults): " + ", ".join(shares) + "; the work gets the rest."]
         out += ["", f"Formats that suit a {minutes} minute {goal} session at this level with this kit "
                 "(any of them, or a mix, as long as the doses fit):"]
-        out += [f"- {x.name}: {x.about}" for x in ranked]
+        out += [f"- {x.name}: {x.about} ({_method_shape(x)})" for x in ranked]
     else:
         out += ["", f"No format in knowledge/sessions.toml lists a {minutes} minute {goal} session at this level; "
                 "shape one from the doses above, or suggest a different length."]

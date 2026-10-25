@@ -34,25 +34,19 @@ TRIM_DB = -40.0                # engine silence below this level is trimmed from
 TRIM_KEEP = 0.04               # seconds of it kept at each end
 
 
-def mlx_audio_version():
-    """The installed mlx-audio's version, or None where it isn't installed (tests, CI)."""
+def _version(package):
+    """The installed version of `package`, or None where it isn't installed (tests, CI)."""
     try:
         from importlib.metadata import PackageNotFoundError, version
-        return version("mlx-audio")
+        return version(package)
     except (ImportError, PackageNotFoundError):
         return None
     except Exception:   # an odd install shouldn't stop a lint or a cache lookup
         return None
 
 
-def _version(package):
-    try:
-        from importlib.metadata import PackageNotFoundError, version
-        return version(package)
-    except (ImportError, PackageNotFoundError):
-        return None
-    except Exception:
-        return None
+def mlx_audio_version():
+    return _version("mlx-audio")
 
 
 def runtime(voice):
@@ -176,7 +170,7 @@ def speaker(voice):
         if results[0].sample_rate != SR:
             raise SystemExit(f"{engine} returned {results[0].sample_rate} Hz audio; expected {SR}")
         a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
-        return (np.clip(trim(a), -1.0, 1.0) * 32767).astype("<i2").tobytes()
+        return to_pcm(a)
     return say
 
 
@@ -251,7 +245,7 @@ def design_takes(model_repo, revision, description, line, takes, seed):
         if not results or results[0].sample_rate != SR:
             raise SystemExit("The design model returned no audio, or not at 24 kHz.")
         a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
-        out.append((np.clip(trim(a), -1.0, 1.0) * 32767).astype("<i2").tobytes())
+        out.append(to_pcm(a))
     del model
     release()
     return out

@@ -21,10 +21,9 @@ if [ "$1" = "doctor" ]; then
   shift
   exec sh "$ROOT/tools/doctor.sh" "$@"  # the readiness check runs before there's an environment too
 fi
-VENV_PY="$ROOT/.venv/bin/python"
-[ -x "$VENV_PY" ] || VENV_PY="$ROOT/.venv/Scripts/python.exe"   # Windows (Git Bash)
-PY="${SWEATCAST_PYTHON:-$VENV_PY}"
-if [ ! -x "$PY" ]; then
+. "$ROOT/tools/common.sh"
+PY="$(venv_python)"
+if [ -z "$PY" ] || [ ! -x "$PY" ]; then
   echo "sweatcast isn't set up on this computer yet: run ./sweatcast setup (or ask Claude Code to \"set me up\")." >&2
   exit 1
 fi

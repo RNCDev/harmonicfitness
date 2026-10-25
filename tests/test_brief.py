@@ -497,5 +497,14 @@ class BriefAdd(unittest.TestCase):
         self.assertEqual(saved["date"], "2026-10-21")
 
 
+class MethodLines(unittest.TestCase):
+    def test_a_methods_rest_and_work_reach_the_writer(self):
+        r = brief("--goal", "general", "--minutes", "20", "--kit", "home")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        circuit = next(line for line in r.stdout.splitlines() if line.startswith("- circuit:"))
+        self.assertIn("rest 45 to 90 s between rounds", circuit)
+        self.assertIn("work: rounds", circuit)
+
+
 if __name__ == "__main__":
     unittest.main()
