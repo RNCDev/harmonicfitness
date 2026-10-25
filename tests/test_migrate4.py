@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
@@ -133,6 +134,15 @@ class Migrate4(unittest.TestCase):
         rae = context.persona(os.path.join(self.home, "personas", "coach-rae", "persona.md"))
         self.assertIn("Qwen3 Custom", rae.settings["aliases"])
         self.assertFalse(os.path.exists(voices))   # copied into personas/ and the backup
+
+    def test_says_why_a_clip_is_missing_without_the_v8_tag(self):
+        import migrate
+        with mock.patch.object(migrate, "_from_git", return_value=None):
+            with mock.patch("sys.stdout", new_callable=__import__("io").StringIO) as out:
+                plan = migrate.plan_coaches(self.read("profile.md"), self.home)
+        self.assertIn("Chatterbox Coach's clip comes from sweatcast's v8.0.1 git tag", out.getvalue())
+        self.assertIn("./sweatcast coaches keep", out.getvalue())
+        self.assertTrue(all(p[4] is None for p in plan))
 
     def test_dry_run_says_who_each_voice_becomes(self):
         out = self.migrate("--dry-run")

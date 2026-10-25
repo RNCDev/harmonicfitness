@@ -205,9 +205,8 @@ class NeedsName(Exception):
 def _v8_voice(name, home):
     """{"wav": bytes, "txt": words, "conf": settings} for an old voice (by name or alias), or None."""
     want = name.lower()
-    for folder in (os.path.join(home, "voices"),):
-        if not os.path.isdir(folder):
-            continue
+    folder = os.path.join(home, "voices")
+    if os.path.isdir(folder):
         for f in os.listdir(folder):
             stem, ext = os.path.splitext(f)
             if ext != ".json":
@@ -270,6 +269,9 @@ def plan_coaches(profile_text, home, names=None):
             continue
         old = str(v["name"]).strip()
         found = _v8_voice(old, home)
+        if found is None:
+            print(f"{old}'s clip comes from sweatcast's v8.0.1 git tag, which this copy doesn't have "
+                  f"(a ZIP download?), and me/voices/ lacks it: keep a clip later with ./sweatcast coaches keep.")
         try:
             new, aliases = coach_name(old, found and found["stem"], names)
         except NeedsName:
