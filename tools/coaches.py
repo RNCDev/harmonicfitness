@@ -232,16 +232,18 @@ def _write_sample(coach, wav, mp3=None):
         shutil.copyfile(mp3, sample + ".part")
         os.replace(sample + ".part", sample)
         return
-    part = sample + ".part.wav"
+    part, part_mp3 = sample + ".part.wav", sample + ".part.mp3"
     with open(part, "wb") as f:
         f.write(wav)
     try:
-        if _mp3(part, sample + ".part.mp3"):
-            os.replace(sample + ".part.mp3", sample)
+        if _mp3(part, part_mp3):
+            os.replace(part_mp3, sample)
         else:
             print("(No sample.mp3: ffmpeg isn't here to make one.)")
     finally:
-        os.remove(part)
+        for leftover in (part, part_mp3):
+            if os.path.exists(leftover):
+                os.remove(leftover)
 
 
 def _estimate(coach, service, wav, text):
@@ -470,6 +472,10 @@ def keep_web(ref, name, replace_old=False):
         # a stand-in re-voiced is the listener's own choice now: no longer a placeholder
         settings = {k: v for k, v in existing.settings.items() if k not in ("schema", "pending", "placeholder")}
         settings.update(voice_id=voice_id, made=today, voice=voice)
+        if existing.placeholder and str(settings.get("description", "")).startswith("A stand-in"):
+            settings.pop("description", None)
+            if n.settings.get("description") and not str(n.settings["description"]).startswith("A stand-in"):
+                settings["description"] = n.settings["description"]
     else:
         target, prose = os.path.join(paths.PERSONAS, personas.slug(name)), n.body
         settings = {"name": name, "aliases": [], "kind": "web", "service": service, "voice_id": voice_id,
@@ -500,6 +506,38 @@ def keep_web(ref, name, replace_old=False):
     return target
 
 
+MADE = ".made.json"   # in a coach's folder while make is between saving a voice and writing persona.md
+MADE_WAV = ".made.wav"
+
+
+def _record_made(folder, service, voice_id, text, wav):
+    """Record a voice make just saved, before any local write, so a failed make resumes from it."""
+    with open(os.path.join(folder, MADE_WAV + ".part"), "wb") as f:
+        f.write(wav)
+    os.replace(os.path.join(folder, MADE_WAV + ".part"), os.path.join(folder, MADE_WAV))
+    context._atomic_write(os.path.join(folder, MADE), json.dumps(
+        {"service": service, "voice_id": voice_id, "text": text}, indent=1) + "\n")
+
+
+def _made(folder, service):
+    """(voice_id, text, wav) a failed make saved for this coach on `service`, else None."""
+    try:
+        with open(os.path.join(folder, MADE), encoding="utf-8") as f:
+            rec = json.load(f)
+        with open(os.path.join(folder, MADE_WAV), "rb") as f:
+            wav = f.read()
+    except (OSError, ValueError):
+        return None
+    if rec.get("service") != service or not rec.get("voice_id"):
+        return None
+    return rec["voice_id"], rec.get("text") or voices.DESIGN_LINE, wav
+
+
+def _made_description(text):
+    """A default's description once it's made: without "Made the first time it's used"."""
+    return re.sub(r"\s*Made the first time it's used; make", " Make", text or "").strip()
+
+
 def make(name):
     """Make a pending web coach (a default that ships with no voice): design one voice from its [voice] on
     its own service, save the first candidate with no audition, and write voice_id, made, sample.mp3 and a
@@ -520,21 +558,36 @@ def make(name):
     cost = (f"about ${s['design_usd']:.2f}" if s.get("design_usd") is not None else "design cost not published")
     if service == "elevenlabs":
         cost += "; it uses one of ElevenLabs Free's 3 voice slots"
-    print(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its description "
-          f"({cost}).", flush=True)
     module = importlib.import_module(f"services.{service}")
-    c = module.design(description, voices.DESIGN_LINE, 1, f"sweatcast {p.name}")[0]
-    voice_id = None
+    saved = _made(p.folder, service)
+    if saved:   # an earlier make saved the voice but stopped before persona.md: finish with it
+        voice_id, text, wav = saved
+        c, recorded = {}, True
+        print(f"Finishing {p.name}: its voice is already saved at {s['name']} (voice ID {voice_id}).", flush=True)
+    else:
+        print(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its description "
+              f"({cost}).", flush=True)
+        c = module.design(description, voices.DESIGN_LINE, 1, f"sweatcast {p.name}")[0]
+        voice_id, text, wav, recorded = None, c.get("text") or voices.DESIGN_LINE, c["wav"], False
     try:
-        voice_id = module.save(c, p.name, description, c["wav"])
+        if not recorded:
+            voice_id = module.save(c, p.name, description, wav)
+            _record_made(p.folder, service, voice_id, text, wav)
+            recorded = True
         settings = {k: v for k, v in p.settings.items() if k not in ("schema", "pending")}
         settings.update(voice_id=voice_id, made=datetime.date.today().isoformat())
+        if settings.get("description"):
+            settings["description"] = _made_description(settings["description"])
         coach = personas.Persona(p.slug, p.folder, settings, p.prose)
-        _write_sample(coach, c["wav"])
-        _estimate(coach, service, c["wav"], c.get("text") or voices.DESIGN_LINE)
+        _write_sample(coach, wav)
+        _estimate(coach, service, wav, text)
         context._atomic_write(p.path, context.persona_text(settings, p.prose))   # last: all or nothing
     except BaseException:
-        if service == "gemini" and c.get("draft_id"):   # stored at design: don't leave it behind
+        if recorded:   # the voice is recorded in the coach's folder: the next make finishes with it
+            print(f"{p.name}'s voice is saved at {s['name']} (voice ID {voice_id}) but the coach wasn't written; "
+                  "it's still pending, and the next build (or ./sweatcast coaches make) finishes it without "
+                  "designing again.", file=sys.stderr)
+        elif service == "gemini" and c.get("draft_id"):   # stored at design: don't leave it behind
             try:
                 module.delete(c["draft_id"])
             except (Exception, SystemExit):
@@ -545,6 +598,9 @@ def make(name):
                   f"it's still pending. Delete \"sweatcast {p.name}\" there, or put voice_id = \"{voice_id}\" "
                   f"in {show(p.path)}.", file=sys.stderr)
         raise
+    for done in (MADE, MADE_WAV):
+        if os.path.exists(os.path.join(p.folder, done)):
+            os.remove(os.path.join(p.folder, done))
     print(f"Made {p.name} ({s['name']}): a stand-in until you make your own (\"I want a new coach\").")
     return voice_id
 

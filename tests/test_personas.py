@@ -844,6 +844,9 @@ class Auditions(unittest.TestCase):
         _, said = self.quiet(coaches.make, "Coach Owen")
         self.assertIn("design cost not published", said)
         self.assertEqual(personas.lookup("Coach Owen").voice_id, "ws__design-0")
+        self.add_default("coach-nolan")
+        _, said = self.quiet(coaches.make, "Coach Nolan")
+        self.assertIn("designing a voice at Gemini from its description (about $0.01)", said)
 
     def test_failed_make_leaves_coach_pending(self):
         import cli
@@ -877,10 +880,44 @@ class Auditions(unittest.TestCase):
         self.assertIn("fish-model-1", out.getvalue())
         self.assertIn("Fish Audio", out.getvalue())
 
+    def test_make_resumes_after_a_saved_voice(self):
+        import coaches
+        before = self.add_default("coach-ellis")
+        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self.quiet(coaches.make, "Coach Ellis")
+        with open(os.path.join(self.folder, "coach-ellis", "persona.md"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), before)   # still pending
+        sent = len(self.fakes["elevenlabs"].requests)
+        _, said = self.quiet(coaches.make, "Coach Ellis")
+        self.assertEqual(len(self.fakes["elevenlabs"].requests), sent)   # no second design, no second save
+        p = personas.lookup("Coach Ellis")
+        self.assertEqual((p.voice_id, p.pending), ("el-saved-5", None))
+        self.assertEqual([f for f in os.listdir(p.folder) if f.startswith(".made")], [])   # the record is gone
+        v = personas.voice_for(p, "elevenlabs")
+        with open(p.pace_file, encoding="utf-8") as f:
+            self.assertTrue(json.load(f)[f"{v['key']}|elevenlabs|eleven_v4"]["estimate"])
+        if FFMPEG:
+            self.assertTrue(os.path.exists(p.sample))
+        self.assertEqual(p.description, "A stand-in web coach to start with: a man in his forties, warm baritone, "
+                                        "a seasoned trainer. Make your own any time (\"I want a new coach\").")
+        self.assertFalse([f for f in os.listdir(p.folder) if ".part" in f])
+
+    def test_failed_make_on_gemini_keeps_the_voice_to_resume(self):
+        import coaches
+        self.add_default("coach-nolan")
+        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self.quiet(coaches.make, "Coach Nolan")
+        self.assertEqual(self.paths_of("gemini", "DELETE"), [])   # recorded: the next make finishes with it
+        self.quiet(coaches.make, "Coach Nolan")
+        self.assertEqual(personas.lookup("Coach Nolan").voice_id, "gem-voice-1")
+        self.assertEqual(self.paths_of("gemini"), ["/v1beta/voices", "/v1beta/interactions"])
+
     def test_failed_make_on_gemini_deletes_the_stored_voice(self):
         import coaches
         before = self.add_default("coach-nolan")
-        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
+        with mock.patch.object(coaches, "_record_made", side_effect=OSError("disk full")):
             with self.assertRaises(OSError):
                 self.quiet(coaches.make, "Coach Nolan")
         self.assertEqual(self.paths_of("gemini", "DELETE"), ["/v1beta/voices/gem-voice-1"])
@@ -932,7 +969,7 @@ class Auditions(unittest.TestCase):
     def test_revoicing_a_stand_in_makes_it_yours(self):
         write_persona(self.folder, "coach-owen", context.persona_text(
             {"name": "Coach Owen", "kind": "web", "service": "inworld", "placeholder": True,
-             "voice_id": "ws__made-0", "made": "2026-10-25",
+             "voice_id": "ws__made-0", "made": "2026-10-25", "description": "A stand-in web coach to start with.",
              "voice": context.persona(self.narrative).settings["voice"]}, "## How this coach talks\n"))
         again = self.audition(None, coach="Coach Owen")
         self.keep(f"{again}/A", "Coach Owen")
@@ -940,6 +977,7 @@ class Auditions(unittest.TestCase):
         self.assertEqual(p.voice_id, "ws__design-0")
         self.assertFalse(p.placeholder)
         self.assertNotIn("placeholder", p.settings)
+        self.assertNotIn("description", p.settings)   # "A stand-in ..." went with it; the narrative has none
 
     def test_forget_audition_keeps_a_gemini_voice_a_coach_uses(self):
         import coaches

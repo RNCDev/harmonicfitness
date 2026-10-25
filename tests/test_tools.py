@@ -893,6 +893,26 @@ sys.exit(subprocess.call([{python!r}] + sys.argv[1:]))   # not execv: on Windows
         with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")):
             self.assertEqual(personas.lookup("Coach Reed").voice_id, "fish-model-1")
 
+    def test_no_coach_named_makes_the_keyed_default_once(self):
+        folder = os.path.join(self.home, "personas")
+        for slug_ in ("coach-julius", "coach-solo"):   # only the template's coaches: Coach Demo and the defaults
+            shutil.rmtree(os.path.join(folder, slug_))
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import fakes
+        fake = fakes.FakeService(fakes.design_answer("inworld"))
+        fake.__enter__()
+        self.addCleanup(fake.__exit__)
+        env = {"INWORLD_API_KEY": "test-key", "FISH_AUDIO_API_KEY": "", "ELEVENLABS_API_KEY": "",
+               "GEMINI_API_KEY": "", "SWEATCAST_INWORLD_URL": fake.url, "SWEATCAST_RETRY_WAIT": "0",
+               "SWEATCAST_FAKE_LOCAL_ENGINE": "0"}
+        for _ in range(2):
+            out = self.build(estimated_ok=False, **env)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("--coach Coach Owen --engine inworld", self.calls())
+        posts = [r.path.split(":")[-1] for r in fake.requests if r.method == "POST"]
+        self.assertEqual(posts, ["design", "publish"])   # made once across two builds
+        self.assertEqual(self.calls().count("render.py"), 2)
+
     def test_a_failed_make_stops_the_build(self):
         fake = self.add_pending_coach()
         fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')

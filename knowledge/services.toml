@@ -50,6 +50,7 @@ models = { "gemini-3.8-flash-tts" = "Gemini's current speech model", "gemini-3.8
 unit = "characters"
 # gemini-3.8-flash-tts: the effective rate from $0.27 per 20,000 characters; it doubles to 27 from 2027-01-01
 usd_per_million = { "gemini-3.8-flash-tts" = 13.5, "gemini-3.8-flash-lite-tts" = 9 }
+design_usd = 0.01            # about $0.01 a voice design (spec decision 2, 2026-10-25)
 concurrency = 2
 max_chars = 0
 tried_live = true

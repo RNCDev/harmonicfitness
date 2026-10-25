@@ -113,7 +113,8 @@ class Core(unittest.TestCase):
         self.assertEqual(cloud.rate("elevenlabs", "eleven_v4_turbo"), 40)
         for n in ("gemini", "inworld"):
             self.assertEqual(s[n]["unit"], "characters")
-            self.assertNotIn("design_usd", s[n])
+        self.assertEqual(s["gemini"]["design_usd"], 0.01)   # spec decision 2
+        self.assertNotIn("design_usd", s["inworld"])
 
 
 VOICE_IDS = {"fish": "fish-model-1", "elevenlabs": "el-voice-1", "gemini": "gemini-voice-1",
