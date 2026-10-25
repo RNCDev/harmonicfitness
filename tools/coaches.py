@@ -388,6 +388,20 @@ def _audition_folder(ref):
     raise SystemExit(f"No audition {ref} (in {show(_auditions())}).")
 
 
+def _resumable(c):
+    """Whether candidate `c` was saved at its service but its coach never written (keep stopped between the
+    two): a new coach with no persona.md, or a re-voiced coach still on the voice it replaces."""
+    if not (c.get("kept") and c.get("voice_id")):
+        return False
+    try:
+        coach = personas.lookup(c["kept"], archived=True)   # an archived coach was written: never resurrected
+    except SystemExit:
+        return True
+    if os.path.dirname(coach.folder) != paths.PERSONAS.rstrip(os.sep):
+        return False
+    return bool(coach and "replaces" in c and coach.voice_id == c["replaces"] and coach.voice_id != c["voice_id"])
+
+
 def _existing(name):
     try:
         return personas.lookup(name)
@@ -412,14 +426,18 @@ def keep_web(ref, name, replace_old=False):
     if c is None:
         raise SystemExit(f"No candidate {which} in audition {os.path.basename(folder)}: "
                          f"{', '.join(x['letter'] for x in cands)}.")
-    if c.get("kept"):
+    resume = _resumable(c)
+    if c.get("kept") and not resume:
         raise SystemExit(f"Candidate {c['letter']} is already {c['kept']}.")
-    name = name or c.get("coach")
+    if resume and name and personas.slug(name) != personas.slug(c["kept"]):
+        raise SystemExit(f"Candidate {c['letter']} was saved as {c['kept']}; finish keeping it with --name "
+                         f"\"{c['kept']}\".")
+    name = (c["kept"] if resume else name) or c.get("coach")
     if not name:
         raise SystemExit("Give the coach a person's name: --name \"Coach Maya\".")
     existing = _existing(name)
     revoice = c.get("coach")
-    if existing is None and os.path.exists(os.path.join(paths.PERSONAS, personas.slug(name))):
+    if existing is None and not resume and os.path.exists(os.path.join(paths.PERSONAS, personas.slug(name))):
         raise SystemExit(f"{show(os.path.join(paths.PERSONAS, personas.slug(name)))} is already there; pick another name.")
     revoiced = _existing(revoice) if revoice else None
     if existing is not None and (revoiced is None or revoiced.folder != existing.folder):
@@ -435,13 +453,22 @@ def keep_web(ref, name, replace_old=False):
         wav = f.read()
     candidate = {"wav": wav, "text": c["text"], "draft_id": c["draft_id"], "signature": c["signature"]}
     module = importlib.import_module(f"services.{service}")
-    print(f"Saving {c['letter']} at {_service_name(service)} as \"sweatcast {name}\".", flush=True)
-    voice_id = module.save(candidate, name, personas.voice_description(voice), wav)
+    if resume:   # saved before, but the coach was never written: finish with the voice already saved
+        voice_id = c["voice_id"]
+        print(f"Finishing {name}: {c['letter']} is already saved at {_service_name(service)}.", flush=True)
+    else:
+        print(f"Saving {c['letter']} at {_service_name(service)} as \"sweatcast {name}\".", flush=True)
+        voice_id = module.save(candidate, name, personas.voice_description(voice), wav)
+        c.update(voice_id=voice_id, kept=name)   # recorded before any local write, so it's never lost
+        if existing is not None:
+            c["replaces"] = existing.voice_id
+        _write_candidates(folder, cands)
 
     today = datetime.date.today().isoformat()
     if existing is not None:   # a new voice for a coach: how they talk stays
         target, prose = existing.folder, existing.prose
-        settings = {k: v for k, v in existing.settings.items() if k not in ("schema", "pending")}
+        # a stand-in re-voiced is the listener's own choice now: no longer a placeholder
+        settings = {k: v for k, v in existing.settings.items() if k not in ("schema", "pending", "placeholder")}
         settings.update(voice_id=voice_id, made=today, voice=voice)
     else:
         target, prose = os.path.join(paths.PERSONAS, personas.slug(name)), n.body
@@ -462,8 +489,6 @@ def keep_web(ref, name, replace_old=False):
     _estimate(coach, service, wav, c["text"])
     context._atomic_write(coach.path, context.persona_text(settings, prose))   # last: all or nothing
 
-    c["kept"] = name
-    _write_candidates(folder, cands)
     if existing is not None and existing.voice_id and replace_old:
         try:
             module.delete(existing.voice_id)
@@ -530,9 +555,11 @@ def forget_audition(audition):
     import cloud
     folder = _audition_folder(audition)
     cands = _read_candidates(folder)
+    in_use = {p.voice_id for p in personas.all() + personas.all(os.path.join(paths.PERSONAS, ".archive"))
+              if p.voice_id}
     lines = []
-    for c in cands:
-        if c["service"] == "gemini" and not c.get("kept") and c.get("draft_id"):
+    for c in cands:   # a voice a coach uses (active or archived) is never deleted, kept mark or not
+        if c["service"] == "gemini" and not c.get("kept") and c.get("draft_id") and c["draft_id"] not in in_use:
             gemini = importlib.import_module("services.gemini")
             try:
                 gemini.delete(c["draft_id"])

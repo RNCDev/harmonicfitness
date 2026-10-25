@@ -891,6 +891,69 @@ class Auditions(unittest.TestCase):
         label = json.loads(self.fakes["gemini"].requests[3].body)   # the second design, after the delete
         self.assertEqual(label["voice"]["display_name"], "sweatcast Coach Nolan")
 
+    def test_keep_records_the_saved_voice_and_resumes(self):
+        import coaches
+        folder = self.audition(self.narrative, services=["fish"])
+        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self.keep(f"{folder}/A", "Coach Maya")
+        a = self.candidates(folder)[0]
+        self.assertEqual((a["voice_id"], a["kept"]), ("fish-model-1", "Coach Maya"))   # before any local write
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "coach-maya", "persona.md")))
+        self.keep(f"{folder}/A", "Coach Maya")
+        self.assertEqual(len([r for r in self.fakes["fish"].requests if r.path == "/model"]), 1)   # not saved twice
+        self.assertEqual(personas.lookup("Coach Maya").voice_id, "fish-model-1")
+        with self.assertRaises(SystemExit) as e:   # now it's really kept
+            coaches.keep_web(f"{folder}/A", "Coach Maya")
+        self.assertIn("already", str(e.exception.code))
+
+    def test_keep_never_resurrects_an_archived_coach(self):
+        import coaches
+        folder = self.audition(self.narrative, services=["gemini"])
+        self.keep(f"{folder}/A", "Coach Nolan")
+        self.quiet(coaches.archive, "Coach Nolan")
+        with self.assertRaises(SystemExit) as e:
+            coaches.keep_web(f"{folder}/A", None)
+        self.assertIn("already", str(e.exception.code))
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "coach-nolan")))
+
+    def test_revoice_resumes_after_a_failed_local_write(self):
+        first = self.audition(self.narrative, services=["inworld"])
+        self.keep(f"{first}/A", "Coach Maya")
+        again = self.audition(None, coach="Coach Maya")
+        with mock.patch.object(voices, "record_estimate", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self.keep(f"{again}/B", "Coach Maya")
+        self.assertEqual(personas.lookup("Coach Maya").voice_id, "ws__design-0")   # persona.md unchanged
+        self.keep(f"{again}/B", "Coach Maya")
+        self.assertEqual(personas.lookup("Coach Maya").voice_id, "ws__design-1")
+        self.assertEqual(len([r for r in self.fakes["inworld"].requests if r.path.endswith(":publish")]), 2)
+
+    def test_revoicing_a_stand_in_makes_it_yours(self):
+        write_persona(self.folder, "coach-owen", context.persona_text(
+            {"name": "Coach Owen", "kind": "web", "service": "inworld", "placeholder": True,
+             "voice_id": "ws__made-0", "made": "2026-10-25",
+             "voice": context.persona(self.narrative).settings["voice"]}, "## How this coach talks\n"))
+        again = self.audition(None, coach="Coach Owen")
+        self.keep(f"{again}/A", "Coach Owen")
+        p = personas.lookup("Coach Owen")
+        self.assertEqual(p.voice_id, "ws__design-0")
+        self.assertFalse(p.placeholder)
+        self.assertNotIn("placeholder", p.settings)
+
+    def test_forget_audition_keeps_a_gemini_voice_a_coach_uses(self):
+        import coaches
+        folder = self.audition(self.narrative, services=["gemini"])
+        self.keep(f"{folder}/A", "Coach Nolan")
+        cands = self.candidates(folder)
+        del cands[0]["kept"]   # as if the record never got the mark
+        with open(os.path.join(folder, "candidates.json"), "w", encoding="utf-8") as f:
+            json.dump(cands, f)
+        self.quiet(coaches.archive, "Coach Nolan")   # archived coaches count too
+        self.quiet(coaches.forget_audition, os.path.basename(folder))
+        self.assertEqual(self.paths_of("gemini", "DELETE"), [])
+        self.assertFalse(os.path.exists(folder))
+
     def test_keep_refuses_an_existing_name_without_coach_revoice(self):
         import coaches
         folder = self.audition(self.narrative, services=["fish"])

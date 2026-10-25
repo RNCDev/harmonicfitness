@@ -47,8 +47,8 @@ def speaker(voice):
 
 
 def design(description, line, n=1, label=""):
-    """One candidate: a stored voice named `label`, saying `line`. If speaking the line fails, that failure
-    is raised (never a different line)."""
+    """One candidate: a stored voice named `label`, saying `line`. If speaking the line fails, the stored
+    voice is deleted (if it can be) and that failure is raised (never a different line)."""
     body = json.dumps({"voice": {"type": "prompted", "display_name": label, "prompted": {"input": description}},
                        "store": True}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1beta/voices", _headers(), body, timeout=180,
@@ -56,7 +56,14 @@ def design(description, line, n=1, label=""):
     voice_id = json.loads(data).get("id")
     if not voice_id:
         raise cloud.ServiceError("bad_request", SERVICE, "the design came back with no voice ID")
-    pcm = _speak(voice_id, cloud.services()[SERVICE]["default_model"], line)
+    try:
+        pcm = _speak(voice_id, cloud.services()[SERVICE]["default_model"], line)
+    except BaseException:
+        try:
+            delete(voice_id)
+        except (Exception, SystemExit):
+            pass   # the speech's failure is the one to report
+        raise
     return [{"pcm": pcm, "wav": cloud.wav_bytes(pcm), "text": line, "draft_id": voice_id, "signature": None}]
 
 

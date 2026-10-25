@@ -430,9 +430,23 @@ class Gemini(ServiceCase):
             if req.path == "/v1beta/interactions":
                 return 400, {}, b'{"error": {"message": "bad"}}'
             return self.design_answer(req)
-        self.serve(answer)
+        fake = self.serve(answer)
         with self.assertRaises(cloud.ServiceError):
             self.module.design("A man in his forties.", "Okay, set your feet.", 1, "label")
+        self.assertEqual([(r.method, r.path) for r in fake.requests if r.method == "DELETE"],
+                         [("DELETE", "/v1beta/voices/voice-abc")])   # the stored voice isn't left behind
+
+    def test_gemini_design_raises_the_speech_error_even_if_the_delete_fails(self):
+        def answer(req):
+            if req.path == "/v1beta/interactions":
+                return 400, {}, b'{"error": {"message": "bad speech"}}'
+            if req.method == "DELETE":
+                return 500, {}, b'{"error": {"message": "delete broke"}}'
+            return self.design_answer(req)
+        self.serve(answer)
+        with self.assertRaises(cloud.ServiceError) as e:
+            self.module.design("A man in his forties.", "Okay, set your feet.", 1, "label")
+        self.assertIn("bad speech", str(e.exception))
 
     def test_gemini_speech_finds_audio_anywhere_in_the_answer(self):
         fake = self.serve(lambda r: (200, {}, gemini_audio_answer(tone_wav(0.5, rate=44100))))
