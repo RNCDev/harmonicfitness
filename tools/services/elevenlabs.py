@@ -64,7 +64,7 @@ def save(candidate, name, description="", wav=None):
     body = json.dumps({"voice_name": f"sweatcast {name}", "voice_description": (description or "")[:1000],
                        "generated_voice_id": candidate["draft_id"]}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice", _headers(), body,
-                               timeout=120, service=SERVICE)
+                               timeout=120, service=SERVICE, idempotent=False)
     voice_id = json.loads(data).get("voice_id")
     if not voice_id:
         raise cloud.ServiceError("bad_request", SERVICE, "the saved voice came back with no voice ID")

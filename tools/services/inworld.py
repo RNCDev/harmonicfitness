@@ -69,7 +69,7 @@ def save(candidate, name, description="", wav=None):
     body = json.dumps({"displayName": f"sweatcast {name}", "description": (description or "")[:DESCRIPTION_CHARS],
                        "tags": ["sweatcast"]}).encode()
     _, _, data = cloud.request("POST", f"{cloud.base_url(SERVICE)}/voices/v1/voices/{draft}:publish", _headers(),
-                               body, timeout=120, service=SERVICE)
+                               body, timeout=120, service=SERVICE, idempotent=False)
     try:
         answer = json.loads(data) if data else {}
     except ValueError:

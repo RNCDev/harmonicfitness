@@ -64,7 +64,8 @@ def save(candidate, name, description=None, wav=None):
               "texts": candidate["text"], "voice_design_signatures": candidate.get("signature") or ""}
     body, ctype = cloud.multipart(fields, [("voices", "voice.wav", wav or candidate["wav"], "audio/wav")])
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/model",
-                               {"Authorization": _auth(), "Content-Type": ctype}, body, timeout=180, service=SERVICE)
+                               {"Authorization": _auth(), "Content-Type": ctype}, body, timeout=180, service=SERVICE,
+                               idempotent=False)
     voice_id = json.loads(data).get("_id")
     if not voice_id:
         raise cloud.ServiceError("bad_request", SERVICE, "the saved voice came back with no ID")

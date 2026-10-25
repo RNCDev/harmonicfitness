@@ -115,9 +115,12 @@ def _short(retry_after):
         return False
 
 
-def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=time.sleep):
+def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=time.sleep, idempotent=True):
     """(status, headers, body) for a 2xx answer. Rate limits, server errors and dropped connections are
-    retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason."""
+    retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason.
+    A request that saves something (idempotent=False: a saved voice, a stored design) is retried only when
+    the service can't have acted on it: a 429, or a connection refused before anything was sent. A server
+    error or a timeout after sending could have saved it, and a retry would save a second one."""
     last = None
     for attempt in range(tries):
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
@@ -130,12 +133,17 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             last = ServiceError(kind, service, f"{_message(data)} (HTTP {e.code})", status=e.code)
             retry_after = e.headers.get("Retry-After") if e.headers else None
             # A 429 asking for a short wait is a rate limit, even when its body says "quota" (Google-style APIs).
+            limited = e.code == 429 and (_short(retry_after) or kind == "unavailable")
             if not (e.code == 429 and _short(retry_after)) and (e.code not in RETRY_STATUS or kind != "unavailable"):
+                raise last from None
+            if not idempotent and not limited:
                 raise last from None
         except (urllib.error.URLError, socket.timeout, ConnectionError, TimeoutError) as e:
             reason = getattr(e, "reason", e)
             last = ServiceError("unavailable", service, f"couldn't reach the service ({reason})")
             retry_after = None
+            if not idempotent and not isinstance(reason, (ConnectionRefusedError, socket.gaierror)):
+                raise last from None
         if attempt < tries - 1:
             _wait(attempt, retry_after, sleep)
     raise last

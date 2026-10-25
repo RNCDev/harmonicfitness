@@ -60,6 +60,45 @@ class Core(unittest.TestCase):
             status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None)
         self.assertEqual((status, data, len(calls)), (200, b"ok", 3))
 
+    def test_a_request_that_saves_is_retried_only_on_429(self):
+        calls = []
+
+        def answer(req):
+            calls.append(1)
+            return (500, {}, b"{}")
+        with FakeService(answer) as fake:
+            with self.assertRaises(cloud.ServiceError):
+                cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None, idempotent=False)
+        self.assertEqual(len(calls), 1)   # the service may have saved it: never a second voice
+        calls.clear()
+
+        def limited(req):
+            calls.append(1)
+            return (429, {}, b"{}") if len(calls) < 2 else (201, {}, b"ok")
+        with FakeService(limited) as fake:
+            status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None, idempotent=False)
+        self.assertEqual((status, data, len(calls)), (201, b"ok", 2))
+
+    def test_a_request_that_saves_retries_a_refused_connection_not_a_timeout(self):
+        import socket
+        import urllib.error
+        tries = []
+
+        def refused(*a, **k):
+            tries.append(1)
+            raise urllib.error.URLError(ConnectionRefusedError(61, "refused"))
+        with mock.patch("urllib.request.urlopen", refused), self.assertRaises(cloud.ServiceError):
+            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
+        self.assertEqual(len(tries), 3)   # nothing was sent: safe to try again
+        tries.clear()
+
+        def timed_out(*a, **k):
+            tries.append(1)
+            raise socket.timeout("timed out")
+        with mock.patch("urllib.request.urlopen", timed_out), self.assertRaises(cloud.ServiceError):
+            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
+        self.assertEqual(len(tries), 1)
+
     def test_errors_by_kind(self):
         for status, body, kind in ((401, b'{"message": "Invalid api key"}', "auth"),
                                    (402, b'{"status": 402, "message": "No payment"}', "billing"),
@@ -247,6 +286,18 @@ class ServiceCase(unittest.TestCase):
         pcm, rate = cloud.wav_pcm(c["wav"])
         self.assertGreater(len(pcm), 0)
 
+    def check_saved_once(self, call, saved):
+        """A request that saves a voice: a 500 isn't retried (the service may have saved it), a 429 is."""
+        fake = self.serve(lambda r: (500, {}, b'{"message": "oops"}'))
+        with self.assertRaises(cloud.ServiceError):
+            call()
+        self.assertEqual(len(fake.requests), 1)
+        answers = iter([(429, {}, b"{}")])
+        fake.answer = lambda r: next(answers, None) or saved(r)
+        call()
+        path = fake.requests[0].path
+        self.assertEqual(len([r for r in fake.requests if r.path == path]), 3)
+
     def check_delete(self, path, gone_status=200):
         """delete(): True on the service's 2xx, True on a 404 (already gone), an error otherwise."""
         fake = self.serve(lambda r: (gone_status, {}, b"" if gone_status == 204 else b"{}"))
@@ -325,6 +376,11 @@ class Fish(ServiceCase):
         self.assertIn(b'name="voices"; filename="voice.wav"\r\nContent-Type: audio/wav\r\n\r\n' + FISH_WAVS[0],
                       req.body)
 
+    def test_fish_save_is_not_retried_after_sending(self):
+        c = {"pcm": b"", "wav": FISH_WAVS[0], "text": "x", "draft_id": "d-1", "signature": "sig"}
+        self.check_saved_once(lambda: self.module.save(c, "Coach Reed", "A man.", FISH_WAVS[0]),
+                              lambda r: (201, {}, b'{"_id": "model-1"}'))
+
     def test_fish_delete(self):
         self.check_delete("/model/{id}", gone_status=204)
 
@@ -372,6 +428,11 @@ class ElevenLabs(ServiceCase):
             self.assertIsNone(c["signature"])
         self.assertAlmostEqual(len(cloud.wav_pcm(out[0]["wav"])[0]) / 2 / 24000, len(out[0]["pcm"]) / 2 / 24000,
                                delta=0.01)
+
+    def test_elevenlabs_save_is_not_retried_after_sending(self):
+        c = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "g1", "signature": None}
+        self.check_saved_once(lambda: self.module.save(c, "Coach Ellis", "A man.", b""),
+                              lambda r: (200, {}, b'{"voice_id": "el-1"}'))
 
     def test_elevenlabs_save_posts_generated_voice_id(self):
         fake = self.serve(elevenlabs_answer)
@@ -474,6 +535,10 @@ class Gemini(ServiceCase):
         self.assertEqual(self.module.save(candidate, "Coach Nolan", "A man.", b""), "voice-abc")
         self.assertEqual(fake.requests, [])   # stored at design time
 
+    def test_gemini_design_is_not_retried_after_sending(self):
+        self.check_saved_once(lambda: self.module.design("A man.", "Okay.", 1, "label"),
+                              self.design_answer)
+
     def test_gemini_delete(self):
         self.check_delete("/v1beta/voices/{id}")
 
@@ -517,6 +582,11 @@ class Inworld(ServiceCase):
         self.assertEqual((publish.method, publish.path), ("POST", "/voices/v1/voices/ws__design-1:publish"))
         self.assertEqual(json.loads(publish.body), {"displayName": "sweatcast Coach Owen",
                                                     "description": "A man in his forties.", "tags": ["sweatcast"]})
+
+    def test_inworld_publish_is_not_retried_after_sending(self):
+        c = {"pcm": b"", "wav": FISH_WAVS[0], "text": "x", "draft_id": "d-1", "signature": "sig"}
+        self.check_saved_once(lambda: self.module.save(c, "Coach Owen", "A man.", b""),
+                              lambda r: (200, {}, b"{}"))
 
     def test_inworld_publish_without_an_id_keeps_the_draft_id(self):
         self.serve(lambda r: (200, {}, b"{}"))

@@ -52,7 +52,7 @@ def design(description, line, n=1, label=""):
     body = json.dumps({"voice": {"type": "prompted", "display_name": label, "prompted": {"input": description}},
                        "store": True}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1beta/voices", _headers(), body, timeout=180,
-                               service=SERVICE)
+                               service=SERVICE, idempotent=False)
     voice_id = json.loads(data).get("id")
     if not voice_id:
         raise cloud.ServiceError("bad_request", SERVICE, "the design came back with no voice ID")
