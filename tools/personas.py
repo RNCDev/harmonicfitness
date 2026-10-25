@@ -173,8 +173,14 @@ def all(folder=None):
     folder = folder or paths.PERSONAS
     if not os.path.isdir(folder):
         return []
-    found = [load(os.path.join(folder, d)) for d in os.listdir(folder)
-             if not d.startswith(".") and os.path.exists(os.path.join(folder, d, "persona.md"))]
+    found = []
+    for d in sorted(os.listdir(folder)):
+        if d.startswith(".") or not os.path.exists(os.path.join(folder, d, "persona.md")):
+            continue
+        try:
+            found.append(load(os.path.join(folder, d)))
+        except SystemExit as e:   # one coach file the tools can't read hides no other coach; check names it
+            print(f"Skipped the coach in {show(os.path.join(folder, d))}: {e.code}", file=sys.stderr)
     return sorted(found, key=lambda p: p.name.lower())
 
 

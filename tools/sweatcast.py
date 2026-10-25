@@ -28,7 +28,7 @@ COMMANDS = {
     "movements":   ("movements", None, "the movements a kit allows, by movement pattern, and --about for coaching notes"),
     "content":     ("content", None, "the filler plan for a session, what's been told, and the reserve"),
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
-    "check":       ("context", "check", "check every context file in me/ (format, unfilled lines)"),
+    "check":       ("check", None, "check every context file in me/ (format, unfilled lines)"),
     "get":         ("context", "get", "print a setting: coach (the one used last), route (what a build uses here), routes, wpm, experience"),
     "deliver":     ("context", "deliver", "print the delivery folders that exist"),
     "log-session": ("context", "log-session", "add a checked session line to me/log.md"),

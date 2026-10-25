@@ -63,6 +63,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import check  # noqa: E402
 import context  # noqa: E402
 import paths  # noqa: E402
 import workouts  # noqa: E402
@@ -652,9 +653,9 @@ def main(argv=None):
             print(f"  Moved {len(moves)} workout file(s) into a folder per workout (and checks/, research/daily/).")
         print(f"Backed up the originals to {show(backup)}.")
 
-    issues = context.check()
+    issues = check.check()
     for issue in issues:
-        print("  " + context.describe(issue))
+        print("  " + check.describe(issue))
     if any(not i.note for i in issues):
         print("Migrated, but the lines above need a look (./sweatcast check lists them again).")
         return cli.ISSUES

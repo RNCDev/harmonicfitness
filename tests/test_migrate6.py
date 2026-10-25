@@ -11,6 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 
 import context  # noqa: E402
+import check  # noqa: E402
 import migrate  # noqa: E402
 
 OLD = os.path.join(ROOT, "tests", "fixtures", "profile-5.md")   # the one-file template, as 11.x shipped it
@@ -48,7 +49,7 @@ class Split(unittest.TestCase):
                               capture_output=True, text=True)
 
     def test_an_old_profile_says_migrate_and_not_missing(self):
-        issues = context.check([os.path.join(self.home, n) for n in context.PROFILE_PARTS])
+        issues = check.check([os.path.join(self.home, n) for n in context.PROFILE_PARTS])
         self.assertTrue(any("./sweatcast migrate" in i.message for i in issues))
         self.assertFalse(any("missing" in i.message for i in issues), issues)
 
@@ -115,7 +116,7 @@ class Merge(unittest.TestCase):
         write(os.path.join(self.dir, "settings.toml"), 'schema = 6\ndeliver_to = "~/new"\n')
         p = context.profile(os.path.join(self.dir, "profile.md"))
         self.assertEqual(p.settings["deliver_to"], "~/new")
-        issues = context._check_profile(os.path.join(self.dir, "profile.md"))
+        issues = check._check_profile(os.path.join(self.dir, "profile.md"))
         dup = [i for i in issues if "also set in" in i.message]
         self.assertEqual(len(dup), 1)
         self.assertEqual(os.path.basename(dup[0].path), "profile.md")

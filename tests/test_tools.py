@@ -24,6 +24,7 @@ os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import cache  # noqa: E402
 import catalog  # noqa: E402
+import check  # noqa: E402
 
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
@@ -1154,7 +1155,7 @@ class QuickSetup(unittest.TestCase):
             path = os.path.join(d, "profile.md")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(profile_text(self.SETTINGS.format(stage=stage), self.PROSE))
-            return context._check_profile(path)
+            return check._check_profile(path)
 
     def test_quick_setup_unfilled_are_notes(self):
         found = self.issues('setup = "quick"')
@@ -1267,11 +1268,11 @@ value = "x\""""
             got = context.sessions(self.log)
         self.assertEqual([s.date for s in got], ["2026-10-20"])     # not read with its fields shifted
         self.assertIn("5 fields", err.getvalue())
-        issues = context.check([self.profile, self.log])
+        issues = check.check([self.profile, self.log])
         self.assertTrue(any(i.path == self.log and i.line == 5 for i in issues), issues)
 
     def test_check_flags_unfilled_lines_and_bad_feeds(self):
-        issues = [i for i in context.check([self.profile, self.log]) if i.path == self.profile]
+        issues = [i for i in check.check([self.profile, self.log]) if i.path == self.profile]
         problems = [i.message for i in issues if not i.note]
         notes = [i.message for i in issues if i.note]
         self.assertTrue(any("unknown kind 'smoke'" in m for m in problems), issues)
@@ -1370,7 +1371,7 @@ class Migrate(unittest.TestCase):
 
     def test_the_template_is_current_and_says_what_to_fill_in(self):
         home = fresh_home(self.tmp.name + "/t")
-        out = run([sys.executable, "tools/context.py", "check"], home=home)
+        out = run([sys.executable, "tools/check.py"], home=home)
         self.assertEqual(out.returncode, cli.OK, out.stdout)   # the quick start: what's left is a note
         self.assertIn("finish setting me up", out.stdout)
         self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
@@ -1378,7 +1379,7 @@ class Migrate(unittest.TestCase):
         with open(settings, encoding="utf-8") as f:
             text = f.read()
         write_file(settings, re.sub(r'(?m)^setup = "quick"\n', "", text))   # the full setup's standard
-        out = run([sys.executable, "tools/context.py", "check"], home=home)
+        out = run([sys.executable, "tools/check.py"], home=home)
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout)
         self.assertNotIn("schema", out.stdout)
         self.assertIn("'Neighborhood' isn't filled in yet", out.stdout)
@@ -1464,7 +1465,7 @@ note = "Therapist: no weight through the hand."
         path = self.health_file(bad)
         got = context.limits(context.health(path))
         self.assertEqual([(l.area, l.side, l.level) for l in got], [("knee", "both", "off-limits")])
-        msgs = [i.message for i in context.check([path]) if not i.note]
+        msgs = [i.message for i in check.check([path]) if not i.note]
         self.assertEqual(len(msgs), 3, msgs)
         self.assertTrue(any("elbowish" in m and "knee" in m for m in msgs))     # names the valid areas
         self.assertTrue(any("left, right or both" in m for m in msgs))
@@ -1475,15 +1476,15 @@ note = "Therapist: no weight through the hand."
             with self.subTest(bad=bad):
                 path = self.health_file(f'[[limits]]\narea = "knee"\nlevel = "off-limits"\n{bad}\n')
                 self.assertEqual(context.limits(context.health(path)), [])
-                msgs = [i.message for i in context.check([path]) if not i.note]
+                msgs = [i.message for i in check.check([path]) if not i.note]
                 self.assertTrue(any("[[limits]] row 1" in m and "ignored" in m for m in msgs), msgs)
         good = self.health_file('[[limits]]\narea = "knee"\nlevel = "off-limits"\nflags = ["floor"]\n')
         self.assertEqual(context.limits(context.health(good))[0].flags, ["floor"])
 
     def test_non_rehab_id_in_rehab_is_an_issue(self):
-        issues = context.check([self.health_file(self.ROW.replace('"calf-raise"', '"goblet-squat"'))])
+        issues = check.check([self.health_file(self.ROW.replace('"calf-raise"', '"goblet-squat"'))])
         self.assertTrue(any(not i.note and "goblet-squat" in i.message for i in issues), issues)
-        issues = context.check([self.health_file(self.ROW.replace('"calf-raise"', '"towel-scrunch"'))])
+        issues = check.check([self.health_file(self.ROW.replace('"calf-raise"', '"towel-scrunch"'))])
         self.assertFalse(any(not i.note and "towel-scrunch" in i.message for i in issues), issues)   # a rehab entry
 
     def test_unlisted_injuries_need_no_limits_row(self):
@@ -1491,13 +1492,13 @@ note = "Therapist: no weight through the hand."
             prose = self.HEALTH.replace("- Right wrist: invented strain.", line)
             path = self.health_file("", prose)
             self.assertFalse(context.prose_injuries(context.health(path)), line)
-            self.assertFalse(any("have no [[limits]]" in i.message for i in context.check([path])))
+            self.assertFalse(any("have no [[limits]]" in i.message for i in check.check([path])))
         both = self.HEALTH.replace("- Right wrist: invented strain.", "- Unlisted: invented jaw.\n- Left knee: invented.")
         self.assertTrue(context.prose_injuries(context.health(self.health_file("", both))))
 
     def test_rehab_ids_are_checked_as_notes(self):
         row = self.ROW.replace('"calf-raise"', '"no-such-move"')
-        issues = context.check([self.health_file(row)])
+        issues = check.check([self.health_file(row)])
         self.assertTrue(any(i.note and "no-such-move" in i.message for i in issues))
         self.assertFalse(any(not i.note for i in issues))
 
@@ -1505,13 +1506,13 @@ note = "Therapist: no weight through the hand."
         path = self.health_file("")
         h = context.health(path)
         self.assertTrue(context.prose_injuries(h))
-        found = [i for i in context.check([path]) if "no rule" in i.message or "[[limits]]" in i.message]
+        found = [i for i in check.check([path]) if "no rule" in i.message or "[[limits]]" in i.message]
         self.assertEqual(len(found), 1)
         self.assertFalse(found[0].note)
         self.assertIn("injuries written in prose have no [[limits]] entry", found[0].message)
         with_row = context.health(self.health_file(self.ROW))
         self.assertTrue(context.prose_injuries(with_row))
-        self.assertFalse(any("have no [[limits]]" in i.message for i in context.check([with_row.path])))
+        self.assertFalse(any("have no [[limits]]" in i.message for i in check.check([with_row.path])))
         none = self.HEALTH.replace("- Right wrist: invented strain.", "- None right now.")
         self.assertFalse(context.prose_injuries(context.health(self.health_file("", none))))
         commented = self.HEALTH.replace("- Right wrist: invented strain.",
@@ -1522,7 +1523,7 @@ note = "Therapist: no weight through the hand."
         write_file(os.path.join(self.dir, "profile.md"), profile_text(
             'experience = ""\nlikes = ["no-such-move"]\ndislikes = ["box-squat"]\n\n[[kits]]\nname = "x"\n'
             'equipment = ["dumbbells", "jetpack"]\n\n[[voices]]\nname = "V"\ndescription = "d"\n'))
-        msgs = [i.message for i in context.check([os.path.join(self.dir, "profile.md")]) if i.note]
+        msgs = [i.message for i in check.check([os.path.join(self.dir, "profile.md")]) if i.note]
         self.assertTrue(any("no experience level: novice, experienced or advanced" in m for m in msgs))
         self.assertTrue(any("no-such-move" in m for m in msgs))
         self.assertFalse(any("box-squat" in m for m in msgs))
@@ -1606,12 +1607,12 @@ class Migrate3(unittest.TestCase):
             out = run([sys.executable, "tools/migrate.py"], home=home)
             self.assertIn("schema 2 to 6", out.stdout, out.stderr)
             # the migrated prose injury has no [[limits]] row yet: the one issue left to fix
-            issues = [i for i in context.check([os.path.join(home, "health.md")]) if not i.note]
+            issues = [i for i in check.check([os.path.join(home, "health.md")]) if not i.note]
             self.assertEqual(len(issues), 1)
             self.assertIn("injuries written in prose have no [[limits]] entry", issues[0].message)
 
     def test_example_is_current(self):
-        issues = context.check([os.path.join(paths.EXAMPLE, n) for n in
+        issues = check.check([os.path.join(paths.EXAMPLE, n) for n in
                                 ("profile.md", "health.md", "log.md")])
         self.assertFalse([i for i in issues if "schema" in i.message])
         hard = [i for i in issues if not i.note]
@@ -1646,7 +1647,7 @@ class Wrapper(unittest.TestCase):
             out = self.sweatcast("lint", "--bogus", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
             self.assertIn("sweatcast lint", out.stderr)                # usage names the command
-            out = self.sweatcast("log-session", "--minutes", "10", "--kit", "Home", "--voice", "V",
+            out = self.sweatcast("log-session", "--minutes", "10", "--kit", "Home", "--coach", "Coach Andy",
                                  "--movements", "squat", "--topics", "t", home=home)
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertEqual(len(context.sessions(os.path.join(home, "log.md"))), 1)
@@ -2025,6 +2026,101 @@ class PrivatePaths(unittest.TestCase):
             self.assertEqual(bad.returncode, 1, bad.stdout + bad.stderr)
             self.assertIn("me.real/profile.md", bad.stdout)
             self.assertIn("  profile.md", bad.stdout)
+
+
+class ContextRobustness(unittest.TestCase):
+    """A damaged settings block is named as such (never "run migrate"), a BOM reads, an unknown key is noted,
+    one bad coach file hides no others, and log-session checks the coach, the kit and the format."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = fresh_home(self.tmp.name)
+        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
+                        os.path.join(self.home, "personas"), dirs_exist_ok=True)
+
+    def test_an_unclosed_settings_block_is_an_issue_not_migrate_advice(self):
+        import check
+        path = os.path.join(self.home, "health.md")
+        write_file(path, '+++\nschema = 6\n[[limits]]\narea = "knee"\n# the closing +++ line is missing\n\n## Clinician rules\n')
+        with helpers.home(self.home):
+            issues = [i.message for i in check.check([path])]
+            self.assertTrue(any("doesn't close" in m for m in issues), issues)
+            self.assertFalse(any("migrate" in m for m in issues), issues)
+            with self.assertRaises(SystemExit) as got:   # the tools stop with the same words
+                context.health(path)
+        self.assertIn("doesn't close", str(got.exception))
+
+    def test_a_byte_order_mark_reads_fine(self):
+        import check
+        path = os.path.join(self.home, "profile.md")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        with open(path, "w", encoding="utf-8-sig") as f:   # as a Windows editor may save it
+            f.write(text)
+        with helpers.home(self.home):
+            messages = [i.message for i in check.check([path])]
+            self.assertEqual([m for m in messages if "schema" in m or "migrate" in m or "close" in m], [], messages)
+            self.assertEqual(context.schema_of(context.read_raw(path)), 6)
+            self.assertIsNotNone(context.profile(path))   # reads, BOM and all
+
+    def test_an_unknown_setting_is_noted_with_a_hint(self):
+        import check
+        with open(os.path.join(self.home, "settings.toml"), "a", encoding="utf-8") as f:
+            f.write('deliver-to = "~/Drive"\n')
+        with helpers.home(self.home):
+            notes = [i for i in check.check([os.path.join(self.home, "profile.md")]) if "deliver-to" in i.message]
+        self.assertEqual(len(notes), 1, notes)
+        self.assertTrue(notes[0].note)
+        self.assertIn("deliver_to", notes[0].message)
+        self.assertTrue(notes[0].path.endswith("settings.toml"), notes[0].path)
+
+    def test_one_unreadable_coach_file_hides_no_others(self):
+        import check
+        folder = os.path.join(self.home, "personas")
+        write_file(os.path.join(folder, "coach-broken", "persona.md"), "+++\nname = \n+++\n")   # invalid TOML
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            names = [p.name for p in personas.all(folder)]
+        self.assertIn("Coach Julius", names)
+        self.assertIn("coach-broken", err.getvalue())
+        self.assertTrue(any("coach-broken" in i.path and not i.note for i in check.check_coaches(folder)))
+
+    def test_log_session_checks_the_coach_the_kit_and_the_format(self):
+        base = ["log-session", "--date", "2026-10-25", "--minutes", "10", "--kit", "home", "--coach", "Coach Julius",
+                "--movements", "goblet squat", "--topics", "none", "--format", "straight-sets"]
+        with helpers.home(self.home):
+            for flag, bad, words in (("--coach", "Nobody", "coach"), ("--kit", "Nowhere", "kit"),
+                                     ("--format", "rolling minutes", "format"), ("--topics", "a\u2028b", "line break")):
+                args = list(base)
+                args[args.index(flag) + 1] = bad
+                with self.assertRaises(SystemExit) as got:
+                    context.main(args)
+                self.assertIn("Not logged", str(got.exception))
+                self.assertIn(words, str(got.exception))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(context.main(base), cli.OK)
+                args = list(base)
+                args[args.index("--kit") + 1] = "hotel-room"   # a preset counts as a kit
+                self.assertEqual(context.main(args), cli.OK)
+            self.assertEqual(out.getvalue().count("Logged"), 2)
+
+
+class AtomicWrite(unittest.TestCase):
+    def test_writes_text_and_bytes_leaving_no_part_file(self):
+        import fileio
+        import sweatcast
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "sub", "x.json")
+            fileio.atomic_write(p, '{"a": 1}\n')   # makes the folder
+            with open(p, encoding="utf-8") as f:
+                self.assertEqual(f.read(), '{"a": 1}\n')
+            fileio.atomic_write(p, b"\x00\x01")
+            with open(p, "rb") as f:
+                self.assertEqual(f.read(), b"\x00\x01")
+            self.assertEqual(os.listdir(os.path.dirname(p)), ["x.json"])
+        self.assertEqual(sweatcast.COMMANDS["check"][0], "check")   # ./sweatcast check runs tools/check.py
 
 
 if __name__ == "__main__":

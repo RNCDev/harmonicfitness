@@ -48,6 +48,7 @@ import wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
+import fileio  # noqa: E402
 import paths  # noqa: E402
 import personas  # noqa: E402
 import voices  # noqa: E402
@@ -257,7 +258,7 @@ def _estimate(coach, service, wav, text):
 
 
 def _write_candidates(folder, cands):
-    context._atomic_write(os.path.join(folder, "candidates.json"), json.dumps(cands, indent=1) + "\n")
+    fileio.atomic_write(os.path.join(folder, "candidates.json"), json.dumps(cands, indent=1) + "\n")
 
 
 def _read_candidates(folder):
@@ -504,7 +505,7 @@ def keep_web(ref, name, replace_old=False):
         for model in dict.fromkeys(m for m in models if m):
             voices.forget_pace(existing.pace_file, personas.web_key(existing, model))
     _estimate(coach, service, wav, c["text"])
-    context._atomic_write(coach.path, context.persona_text(settings, prose))   # last: all or nothing
+    fileio.atomic_write(coach.path, context.persona_text(settings, prose))   # last: all or nothing
 
     if existing is not None and existing.voice_id and replace_old:
         try:
@@ -526,7 +527,7 @@ def _record_made(folder, service, voice_id, text, wav):
     with open(os.path.join(folder, MADE_WAV + ".part"), "wb") as f:
         f.write(wav)
     os.replace(os.path.join(folder, MADE_WAV + ".part"), os.path.join(folder, MADE_WAV))
-    context._atomic_write(os.path.join(folder, MADE), json.dumps(
+    fileio.atomic_write(os.path.join(folder, MADE), json.dumps(
         {"service": service, "voice_id": voice_id, "text": text}, indent=1) + "\n")
 
 
@@ -592,7 +593,7 @@ def make(name):
         coach = personas.Persona(p.slug, p.folder, settings, p.prose)
         _write_sample(coach, wav)
         _estimate(coach, service, wav, text)
-        context._atomic_write(p.path, context.persona_text(settings, p.prose))   # last: all or nothing
+        fileio.atomic_write(p.path, context.persona_text(settings, p.prose))   # last: all or nothing
     except BaseException:
         if recorded:   # the voice is recorded in the coach's folder: the next make finishes with it
             print(f"{p.name}'s voice is saved at {s['name']} but the coach wasn't written; "

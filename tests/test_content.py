@@ -8,6 +8,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
 import content  # noqa: E402
+import check  # noqa: E402
 import context  # noqa: E402
 
 TODAY = datetime.date(2026, 10, 23)
@@ -138,13 +139,13 @@ class Record(unittest.TestCase):
 
 class ProfileCheck(unittest.TestCase):
     def test_an_unknown_slot_is_an_issue(self):
-        issues = context._interest_problems("p", {"interests": [{"name": "jazz", "slot": "music"},
+        issues = check._interest_problems("p", {"interests": [{"name": "jazz", "slot": "music"},
                                                                 {"name": "x"}, "nope"]})
         self.assertEqual(len(issues), 3)
         self.assertIn("unknown slot 'music'", issues[0].message)
 
     def test_good_rows_pass(self):
-        self.assertEqual(context._interest_problems("p", {"interests": [{"name": "jazz", "slot": "delight"}]}), [])
+        self.assertEqual(check._interest_problems("p", {"interests": [{"name": "jazz", "slot": "delight"}]}), [])
 
 
 class Cli(unittest.TestCase):

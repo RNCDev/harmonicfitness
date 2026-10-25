@@ -9,6 +9,7 @@ import unittest.mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
 import catalog  # noqa: E402
+import check  # noqa: E402
 
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
@@ -125,7 +126,7 @@ class Screen(unittest.TestCase):
     def test_unknown_avoid_word_is_warned_not_fatal(self):
         scr = screen_for(health=self.health_with("- Avoid: wobbly-thing"))
         self.assertTrue(any("wobbly-thing" in w for w in scr.warnings), scr.warnings)
-        issues = context._check_health("health.md", open(self.health_with("- Avoid: wobbly-thing").path).read())
+        issues = check._check_health("health.md", open(self.health_with("- Avoid: wobbly-thing").path).read())
         self.assertTrue(any("wobbly-thing" in i.message for i in issues))
 
     def test_healthy_side_is_opposite_the_limit(self):
@@ -287,13 +288,13 @@ class Eval(unittest.TestCase):
         for name in "abcd":
             home = os.path.join(EVAL, "listeners", name)
             files = [os.path.join(home, f) for f in ("profile.md", "health.md", "log.md")]
-            issues = [context.describe(x) for x in context.check(files) if not x.note]
+            issues = [check.describe(x) for x in check.check(files) if not x.note]
             self.assertEqual(issues, [], name)
             profile, _, _ = eval_listener(name)
             coaches = os.path.join(home, "personas")
             self.assertTrue(os.listdir(coaches), name)
             # The eval's coaches are how they talk only: the eval writes scripts, it never renders them.
-            self.assertEqual([i for i in context.check_coaches(coaches) if "clip" not in i.message], [], name)
+            self.assertEqual([i for i in check.check_coaches(coaches) if "clip" not in i.message], [], name)
             self.assertIsNotNone(context.wpm(profile), name)
         likes, dislikes = context.likes(eval_listener("d")[0]), context.dislikes(eval_listener("d")[0])
         self.assertEqual((len(likes), len(dislikes)), (2, 2))

@@ -8,6 +8,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
 import catalog  # noqa: E402
+import check  # noqa: E402
 
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
@@ -212,7 +213,7 @@ class RealCatalog(unittest.TestCase):
             self.assertIn("air-squat", cat.movements)
             sys.path.insert(0, os.path.join(ROOT, "tools"))
             import context
-            self.assertIn("can't be read", context.check_movements(path)[0].message)
+            self.assertIn("can't be read", check.check_movements(path)[0].message)
 
     def test_check_lists_a_private_entry_missing_its_effort(self):
         import tempfile
@@ -227,10 +228,10 @@ class RealCatalog(unittest.TestCase):
             path = os.path.join(d, "movements.toml")
             with open(path, "w") as f:
                 f.write("format = 3\n[[movement]]\n" + "\n".join(lines) + "\n")
-            issues = context.check_movements(path)
+            issues = check.check_movements(path)
             self.assertEqual(len(issues), 1, issues)
             self.assertIn("garage-spin is not a draft but is missing effort", issues[0].message)
-            self.assertEqual(context.check_movements(os.path.join(d, "none.toml")), [])
+            self.assertEqual(check.check_movements(os.path.join(d, "none.toml")), [])
 
     def test_low_back_off_limits_rules_out_bending_and_twisting(self):
         cat = catalog.load()

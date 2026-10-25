@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import context  # noqa: E402
+import check  # noqa: E402
 import ffmpeg  # noqa: E402
 import personas  # noqa: E402
 import routes  # noqa: E402
@@ -341,7 +342,7 @@ class WebCoaches(unittest.TestCase):
         self.assertEqual([p.name for p in personas.all()], ["Coach Test"])
         self.assertTrue(personas.ARCHIVE.endswith(os.path.join("personas", ".archive")))
         self.assertTrue(personas.AUDITIONS.endswith(os.path.join("personas", ".auditions")))
-        self.assertEqual(context.check_coaches(self.folder), [])
+        self.assertEqual(check.check_coaches(self.folder), [])
 
     def test_archived_coach_found_only_when_asked(self):
         persona_home(self.d, ("Coach Julius", {"aliases": ["Chatterbox Coach"]}))
@@ -422,34 +423,34 @@ class WebCoaches(unittest.TestCase):
         with self.assertRaises(SystemExit) as e:
             context.persona(path)
         self.assertIn("./sweatcast migrate", str(e.exception.code))
-        issues = context.check_coaches(self.folder)
+        issues = check.check_coaches(self.folder)
         self.assertTrue(any("./sweatcast migrate" in i.message and not i.note for i in issues), issues)
 
     def test_check_web_coach(self):
         write_persona(self.folder, "coach-new", context.persona_text(
             {"name": "Coach New", "kind": "web", "service": "fish"}, "## How this coach talks\n"))
-        issues = context.check_coaches(self.folder)
+        issues = check.check_coaches(self.folder)
         self.assertEqual(len(issues), 1, issues)
         self.assertFalse(issues[0].note)
         self.assertIn("voice", issues[0].message)
         self.assertNotIn("clip", issues[0].message)
         context.set_persona_setting(issues[0].path, None, "pending", "design")
-        issues = context.check_coaches(self.folder)
+        issues = check.check_coaches(self.folder)
         self.assertEqual(len(issues), 1, issues)
         self.assertTrue(issues[0].note)
         self.maya()
-        self.assertEqual(len(context.check_coaches(self.folder)), 1)   # Maya has her voice: nothing to say
+        self.assertEqual(len(check.check_coaches(self.folder)), 1)   # Maya has her voice: nothing to say
 
     def test_check_flags_a_style_the_api_cant_take(self):
         write_persona(self.folder, "coach-nolan", context.persona_text(
             {"name": "Coach Nolan", "kind": "web", "service": "gemini", "voice_id": "voice-abc",
              "style": "Calm and warm"}, "## How this coach talks\n"))
-        issues = [i for i in context.check_coaches(self.folder) if "coach-nolan" in i.path]
+        issues = [i for i in check.check_coaches(self.folder) if "coach-nolan" in i.path]
         self.assertEqual(len(issues), 1, issues)
         self.assertFalse(issues[0].note)
         self.assertIn("Gemini's API takes no style setting yet (2026-10-25); leave style empty", issues[0].message)
         context.set_persona_setting(issues[0].path, None, "style", "")
-        self.assertEqual([i for i in context.check_coaches(self.folder) if "coach-nolan" in i.path], [])
+        self.assertEqual([i for i in check.check_coaches(self.folder) if "coach-nolan" in i.path], [])
 
 
 class CoachDemo(unittest.TestCase):
@@ -524,7 +525,7 @@ class CoachDemo(unittest.TestCase):
     def test_check_notes_placeholder(self):
         folder = os.path.join(self.d, "personas")
         shutil.copytree(self.DEMO, folder, ignore=shutil.ignore_patterns(".gitkeep"))
-        issues = context.check_coaches(folder)
+        issues = check.check_coaches(folder)
         self.assertTrue(all(i.note for i in issues), issues)   # five stand-ins, four made on first use
         self.assertEqual(sum("stand-in" in i.message for i in issues), 5, issues)
         pending = [i for i in issues if "pending" in i.message]
