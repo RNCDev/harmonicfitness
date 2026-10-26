@@ -12,12 +12,14 @@ a note here.
 - **Biomechanics:** how movements load joints and tissues (the catalog's `loads` and `support`, regressions).
 - **Exercises:** what each movement trains, how to coach it without a mirror, its common faults.
 - **Equipment:** what home and hotel kits hold and what each piece allows.
+- **Voices:** the local text-to-speech models and how their takes are rendered, checked and finished (`knowledge/voices.md`, `tools/verify.py`).
 
 ## Notes
 
 | Note | Topic | Feeds |
 |---|---|---|
 | [2026-10-21-session-structure.md](2026-10-21-session-structure.md) | Training: block order, methods, pattern balance, joint-load ladders, exercise count | `sessions.toml` (block order, push and pull balance) |
+| [2026-10-25-local-voices.md](2026-10-25-local-voices.md) | Voices: open models for a Mac, measured takes, checking and loudness | `voices.md`, `tts-rules.md` (countdowns), `tools/verify.py` |
 
 ## Writing a note
 
