@@ -2,6 +2,32 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [14.2.0] - 2026-10-26
+
+The audio bench: every candidate local voice model reads the same five-minute script on a Mac and on a PC, measured and scored the same way, so the next local voice can be chosen on evidence. Nothing a workout uses changes.
+
+### Added
+- **`./sweatcast bench`** (`tools/bench.py`, `tools/bench_worker.py`, `docs/audio-bench/`):
+  - **The candidates:** Chatterbox Turbo, Qwen3-TTS 1.7B, Lure 0.6B, Ming-3.0-tts 0.5B and Pocket TTS.
+  - **The script:** `docs/audio-bench/script.toml`, 44 lines with a kind each.
+  - **Where each model runs:**
+    - on a Mac, through mlx-audio 0.6.1 (Pocket TTS on the processor);
+    - on a PC, on the NVIDIA card, then the small ones on the processor;
+    - each in its own throwaway uv environment, pinned to one model revision.
+  - **The voice:** every model clones Coach Andy.
+  - **Scoring:** one recognizer for both computers (Parakeet TDT 0.6B v3 through ONNX) and `verify.judge`.
+  - **Results:** `docs/audio-bench/results/<date>-<mac|pc>/` holds `run.json`, `takes.jsonl`, `summary.md` and a listening MP3 per model.
+  - `--quick` checks that every model installs and speaks; `--models` and `--seeds` narrow a run.
+- **CLAUDE.md:** "run the MAC audio test harness" and "run the PC audio test harness" run the bench on that computer, then commit and push its results.
+- Tests: `tests/test_bench.py`.
+
+### Notes
+- **Pocket TTS's voice-cloning weights are gated on Hugging Face.** Each computer needs its terms accepted and `uvx hf auth login` once; without that, the bench records it as gated.
+- **Tried on an M5 Mac with `--quick`:**
+  - Turbo, Qwen3, Lure and Ming each spoke three lines with no word errors.
+  - The PC's PyTorch setups for Turbo and Lure ran on the Mac's processor.
+  - Ming on CUDA and Pocket TTS are untried until the PC run.
+
 ## [14.1.0] - 2026-10-25
 
 Every local take is now heard before it ships. A speech recognizer checks each clip against its line, renders a take that drops a cue word or breaks down again with the next seed, and stops the build only when four takes in a row lose the same cue. Clips are leveled to one speech level and lightly compressed before the loudness pass. Countdowns lose their ellipses, which made Chatterbox Turbo drop the words after them.

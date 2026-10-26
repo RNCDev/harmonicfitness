@@ -1,0 +1,228 @@
+# The audio bench's script: about five minutes of a workout, written to sweatcast's rules (no digits, no
+# ellipses, numbers and years spelled out). Every model reads every line, in order, cloning the same coach
+# (Coach Andy's clip, me.example/personas/coach-andy-local/). Each line is one take, as a paragraph is in a
+# build. `kind` lets the analysis compare models on what matters most: cues and countdowns first.
+#
+# kinds: welcome, safety, cue (a timing call), countdown, short (a one or two word line, where small models
+# misbehave), form (movement coaching, with exercise names), numbers (spelled-out amounts and years),
+# energy (a push), story (rest-time filler), breath, close.
+
+[[line]]
+id = "welcome"
+kind = "welcome"
+text = "Good morning, and welcome back. This is a twenty-five minute strength session with a kettlebell and a pair of dumbbells, and I'll be with you the whole way."
+
+[[line]]
+id = "plan"
+kind = "welcome"
+text = "Here's the plan. A short warm-up, three rounds of strength work, one finisher, and an easy cool-down to bring the heart rate home."
+
+[[line]]
+id = "safety"
+kind = "safety"
+text = "One rule before we start. Move only as far as feels easy on that left knee today. If anything feels sharp, stop, and take the easier version I'll give you."
+
+[[line]]
+id = "warmup-start"
+kind = "cue"
+text = "Let's begin the warm-up. Thirty seconds of marching in place. Lift the knees, swing the arms, and start now."
+
+[[line]]
+id = "warmup-form"
+kind = "form"
+text = "Stand tall. Shoulders down and away from the ears. Breathe through the nose and let the arms swing loose."
+
+[[line]]
+id = "count-switch"
+kind = "countdown"
+text = "Three, two, one, and switch."
+
+[[line]]
+id = "hip-circles"
+kind = "cue"
+text = "Hip circles now. Hands on the hips, big slow circles to the right for twenty seconds."
+
+[[line]]
+id = "other-way"
+kind = "short"
+text = "Other way."
+
+[[line]]
+id = "goblet-setup"
+kind = "form"
+text = "First strength move, the goblet squat. Hold the kettlebell close to your chest, elbows pointing down, feet a little wider than your hips."
+
+[[line]]
+id = "goblet-cue"
+kind = "form"
+text = "Sit down between your heels, keep the chest proud, and stand up by driving the floor away. Two seconds down, one second up."
+
+[[line]]
+id = "set-one"
+kind = "numbers"
+text = "Three sets of ten, with forty-five seconds of rest between sets. Set one starts now."
+
+[[line]]
+id = "go"
+kind = "short"
+text = "Go."
+
+[[line]]
+id = "goblet-check"
+kind = "form"
+text = "If the heels lift, widen the stance a little and sit back. You should feel this in your quadriceps and your glutes, not your lower back."
+
+[[line]]
+id = "last-rep"
+kind = "cue"
+text = "Last rep. Stand all the way up, squeeze, and rest."
+
+[[line]]
+id = "rest-story"
+kind = "story"
+text = "While you rest, a quick one. On this day in seventeen eighty-one, the British army surrendered at Yorktown, and the story goes that a band played a tune called The World Turned Upside Down. Historians still argue about whether it really happened."
+
+[[line]]
+id = "rest-count"
+kind = "countdown"
+text = "Fifteen seconds left in the rest. Pick up the dumbbells. Five, four, three, two, one."
+
+[[line]]
+id = "rdl-setup"
+kind = "form"
+text = "Romanian deadlift. Dumbbells in front of your thighs, a soft bend in the knees, and push your hips straight back like you're closing a car door with your backside."
+
+[[line]]
+id = "rdl-cue"
+kind = "form"
+text = "Feel the stretch in your hamstrings, keep the back flat, and stop when the weights pass your knees. Then drive the hips forward and stand tall."
+
+[[line]]
+id = "weights"
+kind = "numbers"
+text = "If you have the twenty-five pound dumbbells, use those. If ten reps feel easy, add two more next time, and write it down."
+
+[[line]]
+id = "begin"
+kind = "short"
+text = "Begin."
+
+[[line]]
+id = "halfway"
+kind = "cue"
+text = "Halfway there. Keep the weights close to your legs the whole way down."
+
+[[line]]
+id = "energy-one"
+kind = "energy"
+text = "That's it! Strong and steady. You've done harder things than this before breakfast. Four more!"
+
+[[line]]
+id = "hold"
+kind = "short"
+text = "Hold."
+
+[[line]]
+id = "rest-quiz"
+kind = "story"
+text = "Quiz time while you rest. Which planet has the longest day in our solar system? It's Venus. One day there lasts longer than its whole year, about two hundred and forty-three Earth days."
+
+[[line]]
+id = "round-two"
+kind = "cue"
+text = "Round two of three. Same weights, same tempo. Get set, and go when you're ready."
+
+[[line]]
+id = "rpe"
+kind = "numbers"
+text = "How hard was that, out of ten? If it was a seven or an eight, you picked the right weight. If it was a nine, take the lighter pair for the last round."
+
+[[line]]
+id = "pallof-setup"
+kind = "form"
+text = "Next, the Pallof press, standing side on to the band. Press your hands straight out from your chest and don't let the band pull you around."
+
+[[line]]
+id = "pallof-side"
+kind = "cue"
+text = "Ten presses with the band on your left side. Then we switch to the right side."
+
+[[line]]
+id = "switch-sides"
+kind = "countdown"
+text = "Three. Two. One. Switch sides."
+
+[[line]]
+id = "split-squat"
+kind = "form"
+text = "Bulgarian split squat, right foot forward, left foot back on the bench. Lower straight down until the back knee hovers just above the floor."
+
+[[line]]
+id = "split-delicate"
+kind = "safety"
+text = "Keep it shallow on the left side today. Half the depth is fine. The goal is smooth, pain-free reps, not a personal record."
+
+[[line]]
+id = "finisher"
+kind = "energy"
+text = "Here comes the finisher. Forty seconds of kettlebell swings, twenty seconds of rest, three rounds. Hips snap, arms float, breathe out hard at the top."
+
+[[line]]
+id = "finisher-push"
+kind = "energy"
+text = "Last round! Everything you've got left. Snap those hips. Ten seconds. Finish strong!"
+
+[[line]]
+id = "stop"
+kind = "short"
+text = "Stop. Park the bell."
+
+[[line]]
+id = "rest-story-two"
+kind = "story"
+text = "Fun fact while your breathing settles. The kettlebell started life in Russian markets in the seventeen hundreds, as a counterweight for weighing grain. Farmers began swinging them at fairs to show off their strength."
+
+[[line]]
+id = "walk"
+kind = "cue"
+text = "Walk it out for thirty seconds. Easy steps around the room, shake out the hands, and let the heart rate come down on its own."
+
+[[line]]
+id = "rest-story-three"
+kind = "story"
+text = "One more thing to think about. Researchers at McMaster University found that short bursts of hard effort, just a few minutes a week, improved fitness markers in sedentary adults. Small doses add up, which is why today counts."
+
+[[line]]
+id = "cooldown"
+kind = "breath"
+text = "Cool-down. Stand easy and breathe in slowly through your nose for four counts."
+
+[[line]]
+id = "breath-hold"
+kind = "breath"
+text = "Hold it gently at the top."
+
+[[line]]
+id = "breath-out"
+kind = "breath"
+text = "And let it out even slower through your mouth, for six counts. Let the shoulders drop."
+
+[[line]]
+id = "stretch"
+kind = "form"
+text = "Step your left foot back into a gentle calf stretch. Press the heel into the floor and hold for twenty seconds. No bouncing."
+
+[[line]]
+id = "numbers-recap"
+kind = "numbers"
+text = "Today you did thirty goblet squats, thirty Romanian deadlifts, forty Pallof presses, and about sixty kettlebell swings. That's two thousand pounds moved, give or take."
+
+[[line]]
+id = "close"
+kind = "close"
+text = "That was good work today. You showed up, you kept the knee happy, and you finished strong. Drink some water, and I'll see you on Thursday."
+
+[[line]]
+id = "sign-off"
+kind = "close"
+text = "You are done. Nicely done."
