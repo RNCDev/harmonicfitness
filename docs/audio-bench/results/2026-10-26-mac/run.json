@@ -1,0 +1,521 @@
+{
+ "bench": "sweatcast audio bench",
+ "date": "2026-10-26",
+ "where": "mac",
+ "quick": false,
+ "sweatcast": "14.2.0",
+ "computer": {
+  "system": "Darwin",
+  "release": "27.0.0",
+  "machine": "arm64",
+  "python": "3.11.16",
+  "chip": "Apple M5",
+  "memory_bytes": "25769803776",
+  "macos": "27.0.1",
+  "gpu": null,
+  "uv": "uv 0.11.16 (135a36367 2026-05-21 aarch64-apple-darwin)"
+ },
+ "script": "docs/audio-bench/script.toml",
+ "lines": 44,
+ "coach_clip": "me.example/personas/coach-andy-local/clip.wav",
+ "asr": {
+  "asr_model": "nemo-parakeet-tdt-0.6b-v3",
+  "asr_repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+  "asr_revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+  "providers": [
+   "CPUExecutionProvider"
+  ],
+  "packages": {
+   "numpy": "2.4.6",
+   "onnx-asr": "0.12.0",
+   "onnxruntime": "1.31.0"
+  },
+  "asr_s": 76.4
+ },
+ "pass_rule": "every cue word said, no audio problem, at most one word in twenty off (tools/verify.py)",
+ "models": {
+  "turbo-mlx": {
+   "status": "ok",
+   "takes": 88,
+   "takes_failed_to_render": 0,
+   "takes_not_ok": 4,
+   "takes_missing_a_cue": 0,
+   "takes_with_audio_problems": 0,
+   "word_error_rate": 0.0113,
+   "render_ratio": 0.396,
+   "audio_minutes": 8.93,
+   "load_s": 1.47,
+   "wall_minutes": 3.6,
+   "peak": {
+    "rss_bytes": 3299934208,
+    "mlx_peak_bytes": 4735170400
+   },
+   "packages": {
+    "mlx-audio": "0.6.1",
+    "mlx": "0.32.4",
+    "transformers": "5.20.2",
+    "numpy": "2.4.6"
+   },
+   "python": "3.11.16",
+   "speech_level_db_spread": 1.1,
+   "by_kind": {
+    "welcome": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 108
+    },
+    "safety": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 1,
+     "words": 108
+    },
+    "cue": {
+     "takes": 14,
+     "failed": 1,
+     "errors": 1,
+     "words": 230
+    },
+    "form": {
+     "takes": 18,
+     "failed": 3,
+     "errors": 10,
+     "words": 438
+    },
+    "countdown": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 50
+    },
+    "short": {
+     "takes": 10,
+     "failed": 0,
+     "errors": 0,
+     "words": 18
+    },
+    "numbers": {
+     "takes": 8,
+     "failed": 0,
+     "errors": 4,
+     "words": 196
+    },
+    "story": {
+     "takes": 8,
+     "failed": 0,
+     "errors": 3,
+     "words": 298
+    },
+    "energy": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 106
+    },
+    "breath": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 72
+    },
+    "close": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 62
+    }
+   },
+   "repo": "mlx-community/chatterbox-turbo-fp16",
+   "revision": "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75",
+   "engine": "mlx",
+   "seeds": 2
+  },
+  "qwen3-mlx": {
+   "status": "ok",
+   "takes": 88,
+   "takes_failed_to_render": 0,
+   "takes_not_ok": 3,
+   "takes_missing_a_cue": 1,
+   "takes_with_audio_problems": 0,
+   "word_error_rate": 0.0077,
+   "render_ratio": 0.853,
+   "audio_minutes": 8.37,
+   "load_s": 1.58,
+   "wall_minutes": 7.2,
+   "peak": {
+    "rss_bytes": 4777279488,
+    "mlx_peak_bytes": 9451656741
+   },
+   "packages": {
+    "mlx-audio": "0.6.1",
+    "mlx": "0.32.4",
+    "transformers": "5.20.2",
+    "numpy": "2.4.6"
+   },
+   "python": "3.11.16",
+   "speech_level_db_spread": 0.93,
+   "by_kind": {
+    "welcome": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 108
+    },
+    "safety": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 108
+    },
+    "cue": {
+     "takes": 14,
+     "failed": 0,
+     "errors": 0,
+     "words": 230
+    },
+    "form": {
+     "takes": 18,
+     "failed": 1,
+     "errors": 3,
+     "words": 438
+    },
+    "countdown": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 50
+    },
+    "short": {
+     "takes": 10,
+     "failed": 0,
+     "errors": 0,
+     "words": 18
+    },
+    "numbers": {
+     "takes": 8,
+     "failed": 0,
+     "errors": 3,
+     "words": 196
+    },
+    "story": {
+     "takes": 8,
+     "failed": 0,
+     "errors": 4,
+     "words": 298
+    },
+    "energy": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 106
+    },
+    "breath": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 72
+    },
+    "close": {
+     "takes": 4,
+     "failed": 2,
+     "errors": 3,
+     "words": 62
+    }
+   },
+   "repo": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
+   "revision": "a6eb4f68e4b056f1215157bb696209bc82a6db48",
+   "engine": "mlx",
+   "seeds": 2
+  },
+  "lure-mlx": {
+   "status": "ok",
+   "takes": 88,
+   "takes_failed_to_render": 0,
+   "takes_not_ok": 5,
+   "takes_missing_a_cue": 1,
+   "takes_with_audio_problems": 0,
+   "word_error_rate": 0.0107,
+   "render_ratio": 0.748,
+   "audio_minutes": 9.58,
+   "load_s": 1.77,
+   "wall_minutes": 7.2,
+   "peak": {
+    "rss_bytes": 2749562880,
+    "mlx_peak_bytes": 7399860855
+   },
+   "packages": {
+    "mlx-audio": "0.6.1",
+    "mlx": "0.32.4",
+    "transformers": "5.20.2",
+    "numpy": "2.4.6"
+   },
+   "python": "3.11.16",
+   "speech_level_db_spread": 0.92,
+   "by_kind": {
+    "welcome": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 108
+    },
+    "safety": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 108
+    },
+    "cue": {
+     "takes": 14,
+     "failed": 2,
+     "errors": 2,
+     "words": 230
+    },
+    "form": {
+     "takes": 18,
+     "failed": 1,
+     "errors": 6,
+     "words": 438
+    },
+    "countdown": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 50
+    },
+    "short": {
+     "takes": 10,
+     "failed": 0,
+     "errors": 0,
+     "words": 18
+    },
+    "numbers": {
+     "takes": 8,
+     "failed": 1,
+     "errors": 4,
+     "words": 196
+    },
+    "story": {
+     "takes": 8,
+     "failed": 0,
+     "errors": 3,
+     "words": 298
+    },
+    "energy": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 1,
+     "words": 106
+    },
+    "breath": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 72
+    },
+    "close": {
+     "takes": 4,
+     "failed": 1,
+     "errors": 2,
+     "words": 62
+    }
+   },
+   "repo": "Tesslate/Lure-TTS-0.6B",
+   "revision": "9e6bc57acde4e3c9f3ccfe46697d8d5abafacbc8",
+   "engine": "mlx",
+   "seeds": 2
+  },
+  "ming-mlx": {
+   "status": "ok",
+   "takes": 88,
+   "takes_failed_to_render": 0,
+   "takes_not_ok": 4,
+   "takes_missing_a_cue": 1,
+   "takes_with_audio_problems": 0,
+   "word_error_rate": 0.0125,
+   "render_ratio": 1.972,
+   "audio_minutes": 7.1,
+   "load_s": 1.59,
+   "wall_minutes": 14.1,
+   "peak": {
+    "rss_bytes": 3482730496,
+    "mlx_peak_bytes": 4138543552
+   },
+   "packages": {
+    "mlx-audio": "0.6.1",
+    "mlx": "0.32.4",
+    "transformers": "5.20.2",
+    "numpy": "2.4.6"
+   },
+   "python": "3.11.16",
+   "speech_level_db_spread": 1.19,
+   "by_kind": {
+    "welcome": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 1,
+     "words": 108
+    },
+    "safety": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 108
+    },
+    "cue": {
+     "takes": 14,
+     "failed": 0,
+     "errors": 1,
+     "words": 230
+    },
+    "form": {
+     "takes": 18,
+     "failed": 0,
+     "errors": 3,
+     "words": 438
+    },
+    "countdown": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 50
+    },
+    "short": {
+     "takes": 10,
+     "failed": 1,
+     "errors": 1,
+     "words": 18
+    },
+    "numbers": {
+     "takes": 8,
+     "failed": 2,
+     "errors": 6,
+     "words": 196
+    },
+    "story": {
+     "takes": 8,
+     "failed": 1,
+     "errors": 9,
+     "words": 298
+    },
+    "energy": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 106
+    },
+    "breath": {
+     "takes": 6,
+     "failed": 0,
+     "errors": 0,
+     "words": 72
+    },
+    "close": {
+     "takes": 4,
+     "failed": 0,
+     "errors": 0,
+     "words": 62
+    }
+   },
+   "repo": "mlx-community/Ming-3.0-tts-0.5B-bf16",
+   "revision": "283b3c342c6fb69a7a87832c97f9799567efe05d",
+   "engine": "mlx",
+   "seeds": 2
+  },
+  "pocket-cpu": {
+   "status": "ok",
+   "takes": 44,
+   "takes_failed_to_render": 0,
+   "takes_not_ok": 3,
+   "takes_missing_a_cue": 0,
+   "takes_with_audio_problems": 0,
+   "word_error_rate": 0.0071,
+   "render_ratio": 0.154,
+   "audio_minutes": 4.47,
+   "load_s": 2.33,
+   "wall_minutes": 0.7,
+   "peak": {
+    "rss_bytes": 1603092480
+   },
+   "packages": {
+    "torch": "2.6.0",
+    "pocket-tts": "4.0.1",
+    "numpy": "2.4.6"
+   },
+   "python": "3.11.16",
+   "speech_level_db_spread": 1.33,
+   "by_kind": {
+    "welcome": {
+     "takes": 2,
+     "failed": 0,
+     "errors": 0,
+     "words": 54
+    },
+    "safety": {
+     "takes": 2,
+     "failed": 0,
+     "errors": 0,
+     "words": 54
+    },
+    "cue": {
+     "takes": 7,
+     "failed": 1,
+     "errors": 1,
+     "words": 115
+    },
+    "form": {
+     "takes": 9,
+     "failed": 0,
+     "errors": 1,
+     "words": 219
+    },
+    "countdown": {
+     "takes": 3,
+     "failed": 0,
+     "errors": 0,
+     "words": 25
+    },
+    "short": {
+     "takes": 5,
+     "failed": 0,
+     "errors": 0,
+     "words": 9
+    },
+    "numbers": {
+     "takes": 4,
+     "failed": 1,
+     "errors": 2,
+     "words": 98
+    },
+    "story": {
+     "takes": 4,
+     "failed": 1,
+     "errors": 2,
+     "words": 149
+    },
+    "energy": {
+     "takes": 3,
+     "failed": 0,
+     "errors": 0,
+     "words": 53
+    },
+    "breath": {
+     "takes": 3,
+     "failed": 0,
+     "errors": 0,
+     "words": 36
+    },
+    "close": {
+     "takes": 2,
+     "failed": 0,
+     "errors": 0,
+     "words": 31
+    }
+   },
+   "repo": "kyutai/pocket-tts",
+   "revision": null,
+   "engine": "pocket",
+   "seeds": 1
+  }
+ }
+}
