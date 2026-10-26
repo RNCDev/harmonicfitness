@@ -29,7 +29,7 @@ Copy and send:
 **What you need:**
 - **A Mac or a Windows PC.** Linux runs with Claude Code (the tests run there), though local voices there are not yet tried. On Windows, `./sweatcast` runs in Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win); Claude Code needs it anyway. Codex has been tried end to end on a Mac, not yet on Windows.
 - **A voice**, one of two kinds:
-  - **On your own computer** (an Apple Silicon Mac, or a Windows or Linux PC with an NVIDIA card): free and private, after a one-time download of the voice engine and model (about 4 GB on a Mac, up to 8 GB on Windows or Linux). The readiness check wants at least 6 GB free.
+  - **On your own computer** (an Apple Silicon Mac, or a Windows or Linux PC with an NVIDIA card): free and private, after a one-time download of the voice engine and model (about 6.5 GB on a Mac, with the speech recognizer that checks every take; up to 8 GB on Windows or Linux). The readiness check wants at least 9 GB free.
   - **A web coach**, on any computer: a voice service with a pay-as-you-go key of your own, no subscription. The assistant suggests Fish Audio (about $0.30 a workout, no minimum) and walks you through getting the key.
 - **No programming, and no GitHub account** (that's only for a private backup of your profile).
 - **With ChatGPT,** turn off "Improve the model for everyone" (Settings, Data Controls) if you'd rather your health notes weren't used for training. Codex reminds you before the first workout.

@@ -34,6 +34,7 @@ import sys
 import tempfile
 import time
 import wave
+from array import array
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
@@ -45,7 +46,8 @@ from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, f
                    layout, parse, plan, spoken as is_spoken)
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
 import paths  # noqa: E402
-from voices import MLX_EDGE, check_pace_file, record_rate, weight  # noqa: E402
+import verify  # noqa: E402
+from voices import MLX_EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
 
 CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
 CHIME_LEVEL = 0.12    # peak; at 0.2 the bell averaged as loud as the voice, so this sits about 4 dB under
@@ -53,6 +55,13 @@ END_NOTES = (660, 880, 1320)   # Hz, rising, so the end can't be mistaken for a 
 END_NOTE = 0.3        # seconds per note
 END_LEAD = 1.0        # seconds of quiet before the end tone
 LOUDNESS = "I=-16:TP=-1.5:LRA=11"   # podcast level, with headroom under 0 dBFS
+# A gentle compressor ahead of the loudness pass, so quiet syllables stay audible over gym noise.
+COMPRESS = "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250"
+SPEECH_LEVEL = -24.0  # dBFS each clip's speech is leveled to before assembly (clips drift a few dB apart)
+LEVEL_MAX = 12.0      # most dB a clip is raised or lowered
+LEVEL_SKIP = 0.5      # a clip within this many dB is left alone
+LEVEL_PEAK = 0.89     # a raised clip's peak stays under this (-1 dBFS)
+CHECK_TAKES = 4       # takes a local line gets (its seed, then the next ones) before the best one stands
 FOLLOW_IDLE = 900    # seconds --follow waits with nothing new before it stops
 FOLLOW_POLL = 2.0    # seconds between looks at the draft when nothing is new
 CODECS = {".mp3": ["-c:a", "libmp3lame", "-b:a", "96k"],
@@ -62,6 +71,35 @@ CODECS = {".mp3": ["-c:a", "libmp3lame", "-b:a", "96k"],
 
 def silence(seconds):
     return b"\x00\x00" * max(int(seconds * SR), 0)
+
+
+def speech_level(pcm):
+    """The level of a clip's speech in dBFS: the mean power of its frames above the silence line."""
+    loud = [db for db in verify.frame_db(pcm) if db > verify.QUIET_DB + 5]
+    if not loud:
+        return None
+    return 10 * math.log10(sum(10 ** (db / 10) for db in loud) / len(loud))
+
+
+def level(pcm):
+    """The clip with its speech brought to SPEECH_LEVEL (at most LEVEL_MAX dB either way, its peak kept
+    under LEVEL_PEAK), so one clip doesn't sit a few dB under the next. The loudness pass then sets the
+    whole workout's level."""
+    found = speech_level(pcm)
+    if found is None:
+        return pcm
+    db = max(-LEVEL_MAX, min(LEVEL_MAX, SPEECH_LEVEL - found))
+    a = array("h")
+    a.frombytes(pcm[: len(pcm) // 2 * 2])
+    peak = max(1, max(a), -min(a))
+    gain = min(10 ** (db / 20), LEVEL_PEAK * 32767 / peak)
+    if abs(20 * math.log10(gain)) < LEVEL_SKIP:
+        return pcm
+    try:
+        import numpy as np
+        return (np.frombuffer(pcm[: len(a) * 2], dtype="<i2") * gain).astype("<i2").tobytes()
+    except ImportError:
+        return array("h", [int(x * gain) for x in a]).tobytes()
 
 
 def _bell(seconds, partials, decay=9.0):
@@ -179,9 +217,10 @@ def encode(pcm, out, title):
             w.setframerate(SR)
             w.writeframes(pcm)
         probe = _ffmpeg_run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
-                             f"loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"], "measure the loudness")
+                             f"{COMPRESS},loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"],
+                            "measure the loudness")
         m = loudness_stats(probe.stderr)
-        af = (f"loudnorm={LOUDNESS}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
+        af = (f"{COMPRESS},loudnorm={LOUDNESS}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
               f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}")
         # Encoded beside the output under a temporary name (its extension kept, so ffmpeg picks the format),
         # then renamed: an old MP3 is never left half-overwritten, and a failure leaves nothing behind.
@@ -296,11 +335,104 @@ def render_clip(say, text, seed, cache_path, **context):
     """Speak one line into the cache; returns its seconds of audio. `context` (previous_text, next_text)
     goes to a cloud engine that joins paragraphs."""
     pcm = say(text, seed, **context)
-    tmp = cache_path(text) + ".part"
+    _cache_write(cache_path(text), pcm)
+    with contextlib.suppress(FileNotFoundError):   # a new take hasn't been checked
+        os.remove(check_path(cache_path, text))
+    return len(pcm) / 2 / SR
+
+
+def _cache_write(path, pcm):
+    tmp = path + ".part"
     with open(tmp, "wb") as f:
         f.write(pcm)
-    os.replace(tmp, cache_path(text))
-    return len(pcm) / 2 / SR
+    os.replace(tmp, path)
+
+
+def check_path(cache_path, text):
+    """Where the verdict on a cached clip is kept, beside it (tools/cache.py prunes the two together)."""
+    return cache_path(text)[: -len(".pcm")] + ".check.json"
+
+
+def _verdict(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            v = json.load(f)
+        return v if isinstance(v, dict) and "ok" in v and "missed_cues" in v else None
+    except (OSError, ValueError):
+        return None
+
+
+def _short(text, n=8):
+    w = text.split()
+    return " ".join(w[:n]) + ("..." if len(w) > n else "")
+
+
+def check_takes(voice, clips, seed, cache_path):
+    """Hear every local clip not checked yet with the speech recognizer and score it against its line
+    (tools/verify.py). A take that misses a cue word, sounds broken or gets too many words wrong is
+    rendered again with the next seeds, up to CHECK_TAKES takes, and the best one is cached under the
+    line's own key, with its verdict beside it. Returns the summary for the build record; stops the
+    build (exit 1) when a line's best take still misses a cue word, naming the line to reword."""
+    import fileio
+    lines = list(dict.fromkeys(clips))
+    verdicts = {t: _verdict(check_path(cache_path, t)) for t in lines}
+    todo = [t for t in lines if verdicts[t] is None]
+    retried = 0
+    if todo:
+        started = time.time()
+        hear = engines.listener()
+        if hear is None:
+            print("Takes not checked: the speech recognizer that checks them runs only on an Apple Silicon Mac "
+                  "so far.", flush=True)
+            return {"checked": False, "reason": "no recognizer on this computer"}
+        print(f"checking {len(todo)} take(s) by ear", flush=True)
+        rate = pace(voice)[0]
+        say = None
+        try:
+            for n, text in enumerate(todo, 1):
+                with open(cache_path(text), "rb") as f:
+                    pcm = f.read()
+                predicted = clip_seconds(text, voice, rate)
+                best, best_seed, best_pcm = verify.judge(text, hear(pcm), pcm, predicted), seed, pcm
+                takes = 1
+                while not best["ok"] and takes < CHECK_TAKES:
+                    if say is None:
+                        say = engines.speaker(voice)
+                    take = say(text, seed + takes)
+                    v = verify.judge(text, hear(take), take, predicted)
+                    if verify.rank(v) < verify.rank(best):
+                        best, best_seed, best_pcm = v, seed + takes, take
+                    takes += 1
+                if best_pcm is not pcm:
+                    _cache_write(cache_path(text), best_pcm)
+                best.update(seed=best_seed, takes=takes)
+                fileio.atomic_write(check_path(cache_path, text), json.dumps(best) + "\n")
+                verdicts[text] = best
+                if takes > 1:
+                    retried += 1
+                    kept = "the first that passed" if best["ok"] else "the best of them"
+                    print(f"  [{n}/{len(todo)}] {takes} takes, kept {kept}: \"{_short(text)}\"", flush=True)
+        finally:
+            say = None
+            engines.release()
+        print(f"checked {len(todo)} take(s) in {(time.time() - started) / 60:.1f} min, {retried} rendered again",
+              flush=True)
+    missed = [(t, v) for t, v in verdicts.items() if v["missed_cues"]]
+    unclear = [(t, v) for t, v in verdicts.items() if not v["ok"] and not v["missed_cues"]]
+    for t, v in unclear:
+        print(f"  Unclear after {v.get('takes', 1)} takes, kept the best: \"{_short(t)}\" heard as "
+              f"\"{_short(v['heard'], 12)}\"{' (' + '; '.join(v['problems']) + ')' if v['problems'] else ''}",
+              flush=True)
+    summary = {"checked": True, "lines": len(lines), "checked_now": len(todo), "rendered_again": retried,
+               "unclear": [t for t, _ in unclear], "missed_cues": [t for t, _ in missed]}
+    if missed:
+        print(f"\n{len(missed)} line(s) lost a cue word in every take ({CHECK_TAKES} each):")
+        for t, v in missed:
+            print(f"  \"{t}\"\n    heard: \"{v['heard']}\" (missing: {', '.join(v['missed_cues'])})")
+        print("Reword each one (the cue in its own sentence, commas in a countdown, or a longer line) and "
+              "rerun; the other clips are cached and checked.")
+        sys.exit(cli.ISSUES)
+    return summary
 
 
 def render_cloud(voice, todo, clips, seed, cache_path, sent):
@@ -429,7 +561,7 @@ def drift_message(drift, tolerance):
 
 
 def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False,
-        model=None):
+        model=None, check=True):
     """Render parsed `segments` with `voice` to `out` (.mp3, .m4a or .wav): the clips not cached yet (on the
     voice's service, or the local engine, under the render lock), the layout on the plan's clock, the loudness
     pass, the encode, and the build record. Returns the drift, the fraction the whole ran over (+) or under (-)
@@ -455,13 +587,19 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                 raise
         elif todo:
             _render_local(voice, todo, seed, cache_path)
+        if voice.get("backend") == "cloud":
+            checked = {"checked": False, "reason": "a web voice (each take is billed)"}
+        elif not check:
+            checked = {"checked": False, "reason": "--no-check"}
+        else:
+            checked = check_takes(voice, clips, seed, cache_path)
 
         def clip(text):
             path = cache_path(text)
             with open(path, "rb") as f:
                 pcm = f.read()
             os.utime(path)   # marks the clip as recently used, for tools/cache.py prune
-            return pcm
+            return level(pcm)
 
         pcm_all, rows, drift = assemble(segments, clip,
                                         lead=b"" if no_chime else chime(), bell=chime(),
@@ -484,6 +622,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
     record = build_record(draft_path, draft_sha256, out, voice, seed, len(clips), len(todo), planned_total,
                           planned_total * (1 + drift), drift, time.time() - started, started)
     record["route"] = voice.get("route", "local")
+    record["check"] = checked
     if voice.get("backend") == "cloud":
         record.update(chars_sent=sent["chars"], usd_estimate=round(sent["usd"], 4))
     save_build_record(record, out)

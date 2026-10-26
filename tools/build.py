@@ -172,6 +172,8 @@ def main(argv=None):
                     help="how far the whole workout may run over or under plan, as a fraction (0 to 0.5)")
     ap.add_argument("--seed", type=int, default=42, help="a different seed gives a different take of every line")
     ap.add_argument("--no-chime", action="store_true", help="no bell at each new segment and no end tone")
+    ap.add_argument("--no-check", action="store_true",
+                    help="don't have the speech recognizer check each local take (a quicker test render)")
     ap.add_argument("--model", default=None, help="try another model repo for a local coach's engine")
     args = ap.parse_args(argv)
     name = args.name
@@ -270,7 +272,7 @@ def main(argv=None):
         with log_to(log, name):   # model loading is chatty: it goes to the log, shown on any failure but drift
             drift = render.run(segments, voice, mp3, seed=args.seed, tolerance=args.tolerance, no_chime=args.no_chime,
                                draft_path=args.draft, draft_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                               model=args.model)
+                               model=args.model, check=not args.no_check)
     except BaseException as e:
         if not isinstance(e, KeyboardInterrupt):
             show_log(log)

@@ -27,7 +27,7 @@ from draft import (CHIME, CHIME_SECONDS, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, 
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
-ALLOWED_NON_ASCII = set("’‘“”…—–é")  # curly quotes, ellipsis, dashes, common accent
+ALLOWED_NON_ASCII = set("’‘“”…—–é")  # curly quotes, ellipsis (refused on its own), dashes, common accent
 
 ABBREVIATIONS = [
     r"lbs?", r"kgs?", r"secs?", r"mins?", r"hrs?", r"e\.g\.", r"i\.e\.",
@@ -73,8 +73,8 @@ def lint_line(lineno, line):
         issues.append("digits: spell numbers and years out")
     for m in ABBREV_RE.finditer(line):
         issues.append(f"abbreviation '{m.group(0)}': spell it out")
-    if re.search(r"\.\.\.\.", line):
-        issues.append("more than three dots")
+    if re.search(r"\.\.\.|…", line):
+        issues.append("an ellipsis: use a comma or a period (a local voice drops the words after one)")
     return [f"  line {lineno}: {i}" for i in issues]
 
 

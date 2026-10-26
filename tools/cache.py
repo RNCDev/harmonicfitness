@@ -20,6 +20,7 @@ import locks  # noqa: E402
 import paths  # noqa: E402
 
 CLIP_EXTS = (".pcm", ".pcm.part")
+CHECK_EXT = ".check.json"   # a clip's verdict from the take checker (render.check_takes), pruned with it
 
 
 def clips(folder=None):
@@ -47,6 +48,11 @@ def prune(days, folder=None, now=None):
                 os.remove(path)
                 removed += 1
                 freed += st.st_size
+        for name in os.listdir(folder) if os.path.isdir(folder) else []:   # verdicts whose clip is gone
+            if name.endswith(CHECK_EXT) and not os.path.exists(os.path.join(folder, name[:-len(CHECK_EXT)] + ".pcm")):
+                path = os.path.join(folder, name)
+                freed += os.path.getsize(path)
+                os.remove(path)
     return removed, freed
 
 

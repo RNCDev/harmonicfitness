@@ -2,6 +2,32 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [14.1.0] - 2026-10-25
+
+Every local take is now heard before it ships. A speech recognizer checks each clip against its line, renders a take that drops a cue word or breaks down again with the next seed, and stops the build only when four takes in a row lose the same cue. Clips are leveled to one speech level and lightly compressed before the loudness pass. Countdowns lose their ellipses, which made Chatterbox Turbo drop the words after them.
+
+### For forks
+- **A Mac downloads 2.5 GB more:** Parakeet TDT 0.6B v3 (`voices.CHECK_MODEL`, pinned), fetched with the coach's model by `./sweatcast setup` or `coaches download`, else on the first build. The readiness check now wants 9 GB free, up from 6.
+- **The lint refuses an ellipsis** ("..." or "…") in spoken text. A draft with one fails until it uses commas or periods; `knowledge/tts-rules.md` and the smoke test changed to match. A customized `tts-rules.md` that teaches "Three... two... one..." needs the same change.
+- **Exit 1 has a new cause:** a line whose cue word (go, rest, switch, stop, left, right, a count) the voice dropped in every take. The workout skill says to reword it; run `./sweatcast harness sync` after merging the skill.
+- **The clip cache gains `<hash>.check.json` verdicts** beside the clips. Clips cached before this release are heard once on their next build, and only failed ones render again.
+
+### Added
+- **The take check** (`tools/verify.py`, `render.check_takes`, `engines.listener`):
+  - Each new local clip is transcribed and aligned with its line. Digits are read as words, and a compound heard split or joined counts as said.
+  - The audio itself is checked for a runaway or cut-off take against the coach's pace, a silence over a second and a half inside a clip, and clipping.
+  - A take passes with every cue word said, no audio problem, and at most one word in twenty off. Otherwise the next seeds are tried, up to four takes, and the best is cached under the line's own key, so builds stay repeatable.
+  - An unclear line keeps its best take and is listed; a line still missing a cue stops the build and names what was heard.
+  - The build record says what was checked (`check`).
+  - `./sweatcast build --no-check` skips the check. Web coaches aren't checked (each take is billed), nor is PyTorch on Windows or Linux yet.
+- Tests: `tests/test_verify.py`.
+
+### Changed
+- **Clip leveling:** each clip's speech is brought to -24 dBFS (at most 12 dB either way, peaks under -1 dBFS) before assembly. Measured takes sat up to 4 dB apart, which the whole-file loudness pass couldn't even out.
+- **A gentle compressor** (2.5:1 above -20 dBFS) runs ahead of both loudness passes, so quiet syllables stay audible over gym noise. The smoke test now measures a loudness range of 4.5 LU.
+- **Countdowns use commas or periods.** On Chatterbox Turbo, "Three... two... one... and rest." lost "and rest" in three takes of five (seed 42, the default, among them); with commas or periods, nothing was lost in ten takes.
+- `cache prune` removes a clip's verdict with it.
+
 ## [14.0.0] - 2026-10-25
 
 A second review of the harness, after 13.0.0. The safety gate closes the holes that let an unsafe movement reach the MP3; nothing is paid for before the draft passes its checks, and nothing half-written is left in the delivery folder; the session log takes its facts from the menu and the build instead of retyping them; and two commands, a pantry fallback and the copies of the service list are gone.

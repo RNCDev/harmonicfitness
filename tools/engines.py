@@ -227,6 +227,38 @@ def _torch_speaker(voice):
     return say
 
 
+CHECK_SR = 16000   # what the speech recognizer listens at
+
+
+def listener():
+    """Load the speech recognizer that checks local takes (voices.CHECK_MODEL, Parakeet through MLX) and
+    return hear(pcm) -> the words it heard in 16-bit mono PCM at SR. None where it can't run here (PyTorch
+    on Windows or Linux has no port of it yet), so the render goes on unchecked and says so."""
+    from voices import BACKEND, CHECK_MODEL
+    if BACKEND != "mlx":
+        return None
+    import mlx.core as mx
+    import numpy as np
+    from mlx_audio.stt.utils import load_model, resample_audio
+    try:
+        model = load_model(CHECK_MODEL[0], revision=CHECK_MODEL[1])
+    except RuntimeError as e:
+        if "metal" not in str(e).lower():
+            raise
+        raise SystemExit(no_gpu_message()) from e
+    except Exception as e:
+        raise SystemExit(f"Couldn't load the take checker ({CHECK_MODEL[0]} at {CHECK_MODEL[1][:8]}): {e}. "
+                         "Check the network and rerun (./sweatcast setup downloads it ahead of time), or build "
+                         "with --no-check to skip checking the takes.")
+
+    def hear(pcm):
+        a = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
+        a = resample_audio(a, SR, CHECK_SR)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return model.generate(mx.array(a)).text.strip()
+    return hear
+
+
 def design_takes(model_repo, revision, description, line, takes, seed):
     """Qwen3-TTS VoiceDesign: `takes` takes of `line` spoken by a voice made from
     `description`, as 16-bit mono PCM at SR. Each take uses its own seed."""

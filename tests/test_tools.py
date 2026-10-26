@@ -130,14 +130,17 @@ class Spans(unittest.TestCase):
 
 class Lint(unittest.TestCase):
     def test_clean_line(self):
-        self.assertEqual(lint_line(1, "Three sets of ten. [pause 3s] Three... two... one... switch."), [])
+        self.assertEqual(lint_line(1, "Three sets of ten. [pause 3s] Three, two, one, switch."), [])
 
     def test_catches_tts_hazards(self):
         joined = " ".join(lint_line(1, "Do 3 sets, 25 lbs e.g. # now"))
         for expected in ("digits", "abbreviation 'lbs'", "abbreviation 'e.g.'", "forbidden characters"):
             self.assertIn(expected, joined)
         self.assertIn("markdown", " ".join(lint_line(1, "- a bullet")))
-        self.assertIn("more than three dots", " ".join(lint_line(1, "Wait.... go")))
+        self.assertIn("an ellipsis", " ".join(lint_line(1, "Wait.... go")))
+        self.assertIn("an ellipsis", " ".join(lint_line(1, "Three... two... one... rest.")))
+        self.assertIn("an ellipsis", " ".join(lint_line(1, "Three… two… one, rest.")))
+        self.assertEqual(lint_line(1, "Three, two, one, rest."), [])
 
     def test_word_count_ignores_pauses_and_counts_hyphenated_as_one(self):
         self.assertEqual(word_count([(1, "Single-leg bridge. [pause 3s] Don't stop.")]), 4)

@@ -15,7 +15,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 . "$HERE/common.sh"
 MEM_FLOOR=8    # GB of memory for a local voice model (a guess: the models need 3 to 5 GB)
-DISK_FLOOR=6   # GB free for the local engine and one model (a guess: 2 to 4 GB of PyTorch or MLX, 3 to 4 GB of model)
+DISK_FLOOR=9   # GB free for the local engine, one model and the take checker (a guess: 2 to 4 GB of PyTorch or MLX, 3 to 4 GB of model, 2.5 GB of checker)
 
 # ---- what the computer is ----------------------------------------------------------------
 UNAME_S="${SWEATCAST_FAKE_OS-$(uname -s 2>/dev/null)}"

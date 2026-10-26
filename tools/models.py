@@ -31,6 +31,7 @@ def pinned():
     for extras in voices.ENGINE_EXTRAS.values():
         out += extras
     out.append(voices.VOICE_DESIGN)
+    out.append(voices.CHECK_MODEL)
     return list(dict.fromkeys(out))
 
 

@@ -18,7 +18,7 @@ The script is read aloud exactly as written by the coach's voice: a local one (C
 | 0:45 or 45 sec | forty-five seconds |
 | 8-10 reps | eight to ten reps |
 | 45/15 | forty-five seconds on, fifteen off |
-| 3-2-1 | three... two... one... |
+| 3-2-1 | three, two, one, |
 | 4.25% | four and a quarter percent |
 | $2.1B | two point one billion dollars |
 | 1st, 2nd | first, second |
@@ -42,7 +42,8 @@ Spell everything out: "for example" not "e.g.", "that is" not "i.e.", "versus" n
 - A paragraph break gives a pause of at least a third of a second, and the render spreads the segment's spare time over its breaks (up to about one and a half seconds more each). Start a new paragraph for each part of a segment (cue, narrative, handoff).
 - Keep each paragraph under about twenty seconds spoken, about fifty words. Long clips are where engines drift, rush or glitch, and short paragraphs give the voice natural breaths. The lint flags paragraphs over twenty-two seconds.
 - `[pause 3s]` inserts exactly that much silence (also `[pause 500ms]`; at most ten seconds). Use it where the listener needs real time, such as box breathing or getting into position, not as decoration.
-- An ellipsis gives a short beat, at most half a second: "Three... two... one... switch." Keep countdowns to one per segment.
+- Countdowns take commas or periods, never an ellipsis: "Three, two, one, switch." or "Three. Two. One. Switch." The lint refuses an ellipsis: tested on Chatterbox Turbo, "Three... two... one... and rest." lost "and rest" in three takes of five, and the commas lost nothing in ten. Keep countdowns to one per segment.
+- Every local take is checked by a speech recognizer as it renders. A take that drops a cue word (go, rest, switch, stop, left, right, a count) is rendered again, and if four takes all drop it the build stops and names the line: reword it (a longer line, the cue in its own sentence).
 - Commas give short breaths. Long sentences without commas sound rushed.
 - Short sentences land cues. "Hands on the bars. Chest tall. Easy spin." is better than one long sentence.
 - Box breathing: give each four-second phase a short cue and a pause. A one-word cue like "Hold." takes about a second, and a five-word cue about two, so: "Breathe in through your nose. [pause 2s] Hold. [pause 3s] Out through your mouth. [pause 2s] Hold. [pause 3s]" Pauses are exact; the cues run a little shorter with some voices. Vary the cue wording between rounds.

@@ -19,7 +19,8 @@
 #
 # Local voice models download once from Hugging Face (no account needed) into models/ (or
 # SWEATCAST_MODELS; ./sweatcast models adopt moves ones already in ~/.cache/huggingface/hub): about 3.3 GB for
-# Chatterbox Turbo (the model plus its speech tokenizer) and 4.2 GB for Qwen3-TTS on a Mac, and
+# Chatterbox Turbo (the model plus its speech tokenizer) and 4.2 GB for Qwen3-TTS on a Mac, plus 2.5 GB
+# for the speech recognizer that checks each take (Parakeet, on a Mac), and
 # about 4 GB for Chatterbox Turbo on Windows or Linux. Rendering works offline after that. Rerun
 # after giving a coach another local engine to fetch its model. An existing context folder is brought up to this version's
 # format (./sweatcast migrate), backed up first.

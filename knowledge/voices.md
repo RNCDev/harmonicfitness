@@ -139,6 +139,8 @@ The local engine is an optional part of the environment, installed by `./sweatca
 
 On the processor, PyTorch renders Chatterbox Turbo too; how slowly depends on the computer, and nobody has measured it yet. The smoke test records this computer's render speed beside the pace, and the readiness check then quotes the expected time for a 30-minute workout, suggesting a web coach when it runs far past an hour. `SWEATCAST_DEVICE=cpu` or `cuda` overrides the choice.
 
+On a Mac every local take is also heard by a speech recognizer, Parakeet TDT 0.6B v3 (`mlx-community/parakeet-tdt-0.6b-v3`, about 2.5 GB, CC-BY 4.0), downloaded with the coach's model: a take that drops a cue word, stalls, runs on or gets too many words wrong is rendered again with the next seed, up to four takes (`CLAUDE.md`, "The take check"). Measured on an M5 on 2026-10-25, six coaching lines in three seeds each: Chatterbox Turbo got a word wrong in five takes of eighteen (twice dropping the "and rest" that ends a countdown written with ellipses), Qwen3-TTS in one; a check hears a clip in about half a second.
+
 The models aren't gated, so no Hugging Face account is needed (the "unauthenticated requests" warning is harmless), and once downloaded, rendering needs no network. Chatterbox Turbo is MIT upstream (its MLX build is tagged Apache 2.0) and Qwen3-TTS is Apache 2.0.
 
 ### Making a local coach

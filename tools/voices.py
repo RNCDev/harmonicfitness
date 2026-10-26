@@ -43,11 +43,13 @@ LOCAL_MODELS = {("chatterbox", "mlx"): ("mlx-community/chatterbox-turbo-fp16", "
 ENGINE_EXTRAS = {"chatterbox": [("mlx-community/S3TokenizerV2", "e0c9886f0e1c35ae85b1f27277416fb19fc72bec")]}
 # Qwen3-TTS VoiceDesign: makes a voice from a description, pinned like the rest.
 VOICE_DESIGN = ("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16", "7d3824abff87e49756bb0f83fb5411de75d160c4")
+# The speech recognizer that checks each local take (tools/verify.py): Parakeet TDT 0.6B v3 through MLX.
+CHECK_MODEL = ("mlx-community/parakeet-tdt-0.6b-v3", "ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15")
 DESIGN_LINE = ("Okay, set your feet. Chest up, elbows in, and press. Good. Stay with it, two more. "
                "Breathe out as you drive. That's the pace we want.")
 SIZES_GB = {"mlx-community/chatterbox-turbo-fp16": 2.8, "mlx-community/S3TokenizerV2": 0.5,
             "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 4.2,
-            VOICE_DESIGN[0]: 4.5, "ResembleAI/chatterbox-turbo": 4.0}   # download sizes, for the message
+            VOICE_DESIGN[0]: 4.5, "ResembleAI/chatterbox-turbo": 4.0, CHECK_MODEL[0]: 2.5}   # download sizes, for the message
 # The files Resemble's own loader fetches from its Turbo repo (chatterbox.tts_turbo).
 TORCH_PATTERNS = ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"]
 MLX_EDGE = 0.08          # render.py trims engine silence to 40 ms at each end
@@ -221,7 +223,7 @@ def download(v):
         print(f"{v['name']}: no {v['backend']} model for its engine ({v['engine']}) yet; skipped.", flush=True)
         return
     torch = v.get("backend") == "torch"
-    extras = [] if torch else ENGINE_EXTRAS.get(v["engine"], [])   # the MLX port's own extra downloads
+    extras = [] if torch else ENGINE_EXTRAS.get(v["engine"], []) + [CHECK_MODEL]   # and the take checker
     for repo, rev in [(v["model"], v["revision"]), *extras]:
         size = f", about {SIZES_GB[repo]} GB" if repo in SIZES_GB else ""
         print(f"{v['name']}: {repo}" + (f" at {rev[:8]}" if rev else " (latest; no revision pinned)") + size,

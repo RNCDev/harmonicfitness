@@ -59,7 +59,7 @@ def _model_lines():
         if not pin:
             lines.append(f"  {engine}: renders locally only on an Apple Silicon Mac")
             continue
-        extras = [] if voices.BACKEND == "torch" else voices.ENGINE_EXTRAS.get(engine, [])
+        extras = [] if voices.BACKEND == "torch" else voices.ENGINE_EXTRAS.get(engine, []) + [voices.CHECK_MODEL]
         for repo, rev in [pin, *extras]:
             if repo in seen:
                 continue
