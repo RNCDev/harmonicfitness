@@ -2,6 +2,43 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.18.0] - 2026-10-27
+
+The safety gate can no longer be talked past, voice keys stay on their service's host, a replaced voice file is heard at once, every build leaves a trail to its end, and the middle of the engine is untangled. Workouts, drafts and coaches work as before; no context file changes its schema.
+
+### For forks
+- **Nothing in `me/` to migrate.** Things a listener notices once: every local coach's lines render again on the next build (the clip key now includes the voice file), every cached take is heard again once (verdicts now carry the checker's id), and a menu saved by an older brief asks for `brief --save` again (menus are daily anyway).
+- **A new exit code, 70:** an unexpected exception (an engine bug) exits 70 with its scrubbed traceback on stderr, where it used to exit 1, the code for "fix the draft". A script that branched on 1 for every failure should treat 70 as "stop and report".
+- **`log-session --draft` takes its coach from the build** when `--coach` is left out, refuses a different one, and ends the session line with `| build: <id>`; older lines read as before. `--coach` is still required without `--draft`.
+- **Errors:** `personas.UnknownCoach` and `routes.WebCoachUnavailable` are now `errors.UsageError` (exit 64), no longer `SystemExit`; catch them with `except Exception` or `errors.PROBLEMS` (which no longer includes `cli.Usage`). Exit codes live in `errors.py` (`cli` re-exports them).
+- **Moved:** `scrub` to `tools/redact.py` (`cloud.scrub` still works); coach choice (`default`, `resolve`, `pick`) to `tools/coachpick.py` (`personas.default`/`resolve` and `routes.pick` re-export it for this release); `doctor.facts`/`hub_dir` to `tools/machine.py`; `web_key` to `cloud`; log-session's logic to `tools/logsession.py`; `equipment_keys`/`about` to `catalog`. `context` no longer re-exports the health, store and session-log names: import them from `health`, `store`, `sessionlog`. Renamed public: `coverage.days_ago`, `personas.load_all`, `catalog.spoken_fault`.
+- **Failure summaries moved to stderr** (a build's menu, lint, drift and unmeasured-coach lines; backup's refusals). The reports themselves stay on stdout.
+- **A web service URL override** (`SWEATCAST_<SERVICE>_URL`) counts only for `https://` or `http://` to localhost.
+
+### Fixed
+- **The menu gate checks the menu itself.** `menu.validate` checks `menu.json`'s shape (a damaged menu is an issue, never a traceback), and a strict build re-runs the safety screen from the menu's request against today's `health.md`, profile and catalog, refusing any movement (or side) it doesn't allow: a movement added to the menu by hand no longer passes. The request can tighten health.md's limits, never loosen them. A missing `health.md` is named as such.
+- **Voice keys never follow a redirect** to another host; feeds re-check http/https on every redirect hop. Voice IDs are URL-encoded and must look like one a service gives.
+- **A local coach's clip cache key includes its voice file** (`pocket.safetensors`), so a remade voice is heard, not the old one's clips; the stock coaches' `pace.json` moved to the new keys (`tools/coachmaker/rekey_pace.py`).
+- **Take verdicts carry the checker's id** (`verify.checker_id`), so a stricter checker hears cached lines again.
+- `coaches forget-audition` and `keep` resolve an audition only inside the auditions folder (a folder elsewhere is never deleted); `candidates.json` is checked.
+- Two builds can't design and pay for the same pending web coach (`coaches.make` holds a lock); a Gemini voice left behind after a failure is named.
+- A local render that stops midway releases the model and keeps the pace it measured; a failed delivery records why (`couldn't copy to …: No space left on device`).
+- Every ffmpeg call has a timeout (the final encode's grows with the audio), so a hung ffmpeg can't hold the render lock forever.
+
+### Added
+- **Every full build leaves one outcome line** in `builds.jsonl`: `stopped` with its stage (coach, pace, lint, menu, design, render, drift, web-copy, deliver), `measured` for the smoke test, or `delivered`. The render log now also holds the engine's own progress and, for a crash, its traceback; the build record has per-stage `timings`.
+- `--json` on `coaches list`, `content plan`, `coverage` and `get`.
+- `./sweatcast cache prune --logs-older DAYS` removes old render logs (never `builds.jsonl` or `told.jsonl`).
+- `services.toml` is validated when read; `fileio.read_json` names a damaged JSON file.
+
+### Changed
+- `build.py` is split: `run_build(BuildOptions)` with `resolve_voice`, `gate`, `render_and_deliver` and a pure `delivery_plan`; `main` only parses.
+- `tools/ffmpeg.py`'s `run` and `to_mp3` are the one way to run ffmpeg.
+- The voice a build speaks with is built as a `LocalVoice` or `WebVoice` (`tools/voice.py`), passed on as today's dict.
+- Import cycles cut from six to four, each with its reason; `tests/test_imports.py` keeps new ones out and pins the voice dicts and cache keys. Only command modules import `cli`, and no tool copies a path constant at import (both checked).
+- One heading rule (`frontmatter.heading_index`), one movement key (`catalog.key`), one `--today` parser (`cli.today_arg`); `cli.py` states the `--date`/`--today` rule and a test holds every parser to it.
+- The take check's clipping count and clip leveling use numpy.
+
 ## [0.17.0] - 2026-10-27
 
 The engine, audited and reworked from the inside: the listener's records survive a crash or two writers at once, a hand-edited setting can no longer stop every command or be misread, errors are typed and reach stderr, the largest modules are split by job, and a build can be followed from its log to its delivery. Workouts, drafts, coaches, commands and exit codes work as before; briefs and exports come out byte-identical.
