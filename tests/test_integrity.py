@@ -213,6 +213,54 @@ class Apostrophes(unittest.TestCase):
                 self.assertIn(mid, [m for m, _, _ in menu.mentions(cat, f"Now the {name}.")])
 
 
+class Tracing(unittest.TestCase):
+    def test_outcome_lines_are_not_builds(self):
+        import records
+        d = tempfile.mkdtemp()
+        log = os.path.join(d, "builds.jsonl")
+        fileio.append_jsonl(log, [{"draft_sha256": "a", "route": "fish"},
+                                  {"failed": True, "draft_sha256": "b", "route": "gemini"},
+                                  {"event": "stopped", "draft_sha256": "c", "route": "fish"},
+                                  {"event": "delivered", "build_id": "x"}])
+        self.assertTrue(records.built("a", log))
+        self.assertFalse(records.built("b", log))
+        self.assertFalse(records.built("c", log))
+        self.assertEqual(records.web_builds(log), 2)   # the MP3 and the failed render sent text; the notes didn't
+
+    def test_a_long_log_starts_over_and_is_read_from_its_end(self):
+        import io
+        import contextlib
+        import build
+        d = tempfile.mkdtemp()
+        log = os.path.join(d, "x.log")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("old line\n" * (build.LOG_KEEP // 9 + 10))
+        with build.log_to(log, "x", "abc123", verbose=True):
+            pass
+        self.assertTrue(os.path.exists(log + ".1"))
+        with open(log, encoding="utf-8") as f:
+            self.assertIn("build x (abc123)", f.read())
+        with open(log, "a", encoding="utf-8") as f:
+            f.write("".join(f"line {n}\n" for n in range(100)))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            build.show_log(log)
+        self.assertIn("line 99", err.getvalue())
+        self.assertNotIn("line 79\n", err.getvalue())
+
+    def test_a_model_that_wont_load_says_why(self):
+        import engines
+        import errors
+        net = engines.load_error("Pocket TTS", "repo", ConnectionError("no route"), "fix")
+        self.assertIn("Check the network", str(net))
+        mem = engines.load_error("Pocket TTS", "repo", RuntimeError("CUDA out of memory"), "fix")
+        self.assertIn("ran out of memory", str(mem))
+        other = engines.load_error("Pocket TTS", "repo", KeyError("weights"), "fix")
+        self.assertIn("KeyError", str(other))
+        self.assertNotIn("network", str(other))
+        self.assertIsInstance(other, errors.EngineError)
+
+
 class Boundaries(unittest.TestCase):
     def test_player_links_survive_a_hash_in_the_name(self):
         with tempfile.TemporaryDirectory() as d:

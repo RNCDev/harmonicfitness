@@ -51,6 +51,7 @@ import json
 import os
 import shutil
 import sys
+import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -62,15 +63,30 @@ import paths  # noqa: E402
 import workouts  # noqa: E402
 
 
+LOG_KEEP = 1_000_000   # bytes: a build log past this starts over, its older lines kept once in <name>.log.1
+LOG_TAIL = 64_000      # bytes of the log read back to show its last lines on a failure
+CACHE_NOTE = 2 << 30   # bytes: past this, a build mentions ./sweatcast cache prune
+
+
 @contextlib.contextmanager
-def log_to(path, name):
+def log_to(path, name, build_id=None, verbose=False):
     """Send everything written to the standard error descriptor to the build log for the block: the engines'
     native libraries write there, not to Python's sys.stderr, so the descriptor itself is pointed at the log
-    (and back afterwards). The log is appended to, with a dated line, so two builds of one name both keep it."""
+    (and back afterwards). The log is appended to, with a dated line naming the build, so two builds of one name
+    both keep it. With `verbose`, the chatter stays on the terminal and the log gets only that line."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        if os.path.getsize(path) > LOG_KEEP:
+            os.replace(path, path + ".1")
+    except OSError:
+        pass
     with open(path, "a", encoding="utf-8") as log:
-        log.write(f"--- {dt.datetime.now().isoformat(timespec='seconds')} build {name}\n")
+        log.write(f"--- {dt.datetime.now().isoformat(timespec='seconds')} build {name}"
+                  + (f" ({build_id})" if build_id else "") + "\n")
         log.flush()
+        if verbose:
+            yield
+            return
         sys.stderr.flush()
         saved = os.dup(2)
         try:
@@ -87,8 +103,10 @@ def log_to(path, name):
 
 def show_log(log):
     print(f"--- last lines of {log}:", file=sys.stderr)
-    with open(log, encoding="utf-8", errors="replace") as f:
-        print("".join(f.readlines()[-20:]), end="", file=sys.stderr)
+    with open(log, "rb") as f:
+        f.seek(max(0, os.path.getsize(log) - LOG_TAIL))
+        tail = f.read().decode("utf-8", "replace")
+    print("".join(tail.splitlines(keepends=True)[-20:]), end="", file=sys.stderr)
 
 
 def deliver(mp3, out_dir):
@@ -175,8 +193,11 @@ def main(argv=None):
     ap.add_argument("--no-chime", action="store_true", help="no bell at each new segment and no end tone")
     ap.add_argument("--no-check", action="store_true",
                     help="don't have the speech recognizer check each local take (a quicker test render)")
+    ap.add_argument("--verbose", action="store_true",
+                    help="show the engines' loading and rendering chatter here, not only in the build log")
     ap.add_argument("--model", default=None, help="try another model repo for a local coach's engine")
     args = ap.parse_args(argv)
+    build_id = uuid.uuid4().hex[:12]   # in the log header, the build record, a failed line and each outcome line
     name = args.name
     if "/" in name or "\\" in name:
         raise cli.Usage(f"The name can't contain a slash: {name}")
@@ -220,13 +241,14 @@ def main(argv=None):
             return cli.USAGE
         voice = personas.voice_for(coach, route)
         try:   # rendering ahead while the rest of the draft is written: no lint, no MP3
-            with log_to(log, name):
+            with log_to(log, name, build_id, args.verbose):
                 if args.follow:
                     render.follow(voice, args.draft, seed=args.seed, **({"idle": args.idle} if args.idle else {}))
                 else:
                     render.clips(voice, segments, seed=args.seed)
         except BaseException:
-            show_log(log)
+            if not args.verbose:
+                show_log(log)
             raise
         return cli.OK
 
@@ -248,12 +270,21 @@ def main(argv=None):
                                                          strict=not args.lint_only)
     if not smoke:
         print("\n".join(menu.report_lines(args.draft, issues, warnings, len(draft.declared(text)))))
+    draft_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def stopped(stage, reason):   # a full build's stop, in builds.jsonl (a lint-only run is a writer's check)
+        if not args.lint_only:
+            import records
+            records.note("stopped", build_id=build_id, stage=stage, reason=reason, name=name,
+                         draft=paths.show(os.path.abspath(args.draft)), draft_sha256=draft_sha256)
     if issues:
         print(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
+        stopped("menu", f"{len(issues)} menu issue(s)")
         return cli.ISSUES
     problems = report.problems
     if problems and not smoke:
         print(f"\n{problems} issue(s). Fix and rerun. Nothing exported.")
+        stopped("lint", f"{problems} lint issue(s)")
         return cli.ISSUES
     out_text, count = tts_build.export_text(segments)
     txt = os.path.join(out_dir, f"{name}.txt")
@@ -269,12 +300,15 @@ def main(argv=None):
 
     mp3 = os.path.join(out_dir, f"{name}.mp3")
     try:
-        with log_to(log, name):   # model loading is chatty: it goes to the log, shown on any failure but drift
-            drift = render.run(segments, voice, mp3, seed=args.seed, tolerance=args.tolerance, no_chime=args.no_chime,
-                               draft_path=args.draft, draft_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                               model=args.model, check=not args.no_check)
+        with log_to(log, name, build_id, args.verbose):   # model loading is chatty: it goes to the log, shown on
+            drift = render.run(segments, voice, mp3, seed=args.seed,  # any failure but drift
+                               tolerance=args.tolerance, no_chime=args.no_chime, draft_path=args.draft,
+                               draft_sha256=draft_sha256, model=args.model, check=not args.no_check,
+                               build_id=build_id)
     except BaseException as e:
-        if not isinstance(e, KeyboardInterrupt):
+        import cloud
+        stopped("render", "interrupted" if isinstance(e, KeyboardInterrupt) else cloud.scrub(str(e) or type(e).__name__)[:300])
+        if not isinstance(e, KeyboardInterrupt) and not args.verbose:
             show_log(log)
         raise
     if abs(drift) > args.tolerance:   # the MP3 is written, not copied
@@ -297,7 +331,21 @@ def main(argv=None):
     else:
         record.update(deliver(mp3, out_dir))
     note_in_record(mp3, record)
+    import records
+    records.note("delivered", build_id=build_id, name=name, **{k: record.get(k) for k in
+                                                                ("delivered_to", "kept_local", "reason", "web")})
+    cache_note()
     return cli.OK
+
+
+def cache_note():
+    """A line when the clip cache has grown large: it's never pruned on its own, since a web coach's clips are
+    paid for and a render running ahead may be using them."""
+    import cache
+    count, size = cache.size()
+    if size > CACHE_NOTE:
+        print(f"(The clip cache holds {size / (1 << 30):.1f} GB in {count} clips; ./sweatcast cache prune clears "
+              "those unused for 45 days.)")
 
 
 if __name__ == "__main__":

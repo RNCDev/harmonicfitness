@@ -374,7 +374,7 @@ def drift_message(drift, tolerance):
 
 
 def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False,
-        model=None, check=True):
+        model=None, check=True, build_id=None):
     """Render parsed `segments` with `voice` to `out` (.mp3, .m4a or .wav): the clips not cached yet (on the
     voice's service, or the local engine, under the render lock), the layout on the plan's clock, the loudness
     pass, the encode, and the build record. Returns the drift, the fraction the whole ran over (+) or under (-)
@@ -396,7 +396,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                 render_cloud(voice, todo, clips, seed, cache_path, sent)
             except BaseException as e:
                 if sent["started"]:   # characters went out (and may be billed): builds.jsonl keeps a line for them
-                    save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e)
+                    save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e, build_id)
                 raise
         elif todo:
             _render_local(voice, todo, seed, cache_path)
@@ -428,7 +428,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
         encode(pcm_all, out, os.path.splitext(os.path.basename(out))[0])
     except BaseException as e:
         if sent["started"]:   # the clips are paid for and cached, but no MP3 (and no record) came of them
-            save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e)
+            save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e, build_id)
         raise
 
     total = len(pcm_all) / 2 / SR
@@ -436,6 +436,8 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
     record = build_record(draft_path, draft_sha256, out, voice, seed, len(clips), len(todo), planned_total,
                           planned_total * (1 + drift), drift, time.time() - started, started)
     record["route"] = voice.get("route", "local")
+    if build_id:
+        record["build_id"] = build_id
     record["check"] = checked
     if voice.get("backend") == "cloud":
         record.update(chars_sent=sent["chars"], usd_estimate=round(sent["usd"], 4))

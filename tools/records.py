@@ -20,7 +20,7 @@ def save_build_record(record, out, log=None):
     fileio.append_jsonl(log, record)
 
 
-def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, error):
+def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, error, build_id=None):
     """A cloud render that stopped partway: one line in builds.jsonl with the characters already sent, marked
     "failed" (no MP3, no <name>.build.json). A reader counting MP3s skips lines with "failed"."""
     import cloud
@@ -37,6 +37,8 @@ def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, erro
               "route": voice.get("route"), "chars_sent": sent["started"], "chars_rendered": sent["chars"],
               "usd_estimate": round(usd, 4), "reason": cloud.scrub(reason)[:300],
               "started_at": dt.datetime.fromtimestamp(started).astimezone().isoformat(timespec="seconds")}
+    if build_id:
+        record["build_id"] = build_id
     try:
         import fileio
         fileio.append_jsonl(paths.BUILDS, record)
@@ -67,13 +69,31 @@ def build_records(log=None):
         return
 
 
+def note(event, **fields):
+    """An outcome line in builds.jsonl beside the MP3 records: "stopped" (a full build stopped at the lint, the
+    menu or the render, with why) or "delivered" (where the MP3 went). Each carries the build's build_id, as its
+    record, its failed line and its log header do, so one build can be followed through all of them. Readers
+    that count MP3s skip lines with an "event". A line that can't be written never stops the build."""
+    import fileio
+    try:
+        fileio.append_jsonl(paths.BUILDS, {"event": event, "at": dt.datetime.now().astimezone().isoformat(
+            timespec="seconds"), **{k: v for k, v in fields.items() if v is not None}})
+    except OSError as e:
+        print(f"(Couldn't note the build's outcome in {paths.show(paths.BUILDS)}: {e})", file=sys.stderr)
+
+
+def is_mp3(rec):
+    """A record of an MP3 made (not a failed web render's line, nor an outcome line)."""
+    return not rec.get("failed") and not rec.get("event")
+
+
 def built(sha256, log=None):
     """True when builds.jsonl records an MP3 made from a draft with this hash. A failed web render made no
     MP3 and doesn't count; a build that ran off plan (exit 2) did make one, and counts."""
-    return any(not rec.get("failed") and rec.get("draft_sha256") == sha256 for rec in build_records(log))
+    return any(is_mp3(rec) and rec.get("draft_sha256") == sha256 for rec in build_records(log))
 
 
 def web_builds(log=None):
     """How many builds sent a script to a web voice service, failed ones included (the text went out)."""
     import cloud
-    return sum(rec.get("route") in cloud.SERVICES for rec in build_records(log))
+    return sum(rec.get("route") in cloud.SERVICES and not rec.get("event") for rec in build_records(log))

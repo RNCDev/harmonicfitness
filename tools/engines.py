@@ -122,8 +122,7 @@ def speaker(voice):
         with public_only(), contextlib.redirect_stdout(io.StringIO()):
             model = TTSModel.load_model(language=voice.get("language") or voices.POCKET_LANGUAGE)
     except Exception as e:
-        raise errors.EngineError(f"Couldn't load Pocket TTS ({voices.POCKET_REPO}): {e}. Check the network and rerun; "
-                         "./sweatcast setup downloads it ahead of time.") from e
+        raise load_error("Pocket TTS", voices.POCKET_REPO, e, "./sweatcast setup downloads it ahead of time") from e
     if model.has_voice_cloning:
         raise errors.EngineError("Pocket TTS loaded its gated cloning model, not the public one sweatcast uses. "
                          "Run ./sweatcast setup again, then retry.")
@@ -139,6 +138,32 @@ def speaker(voice):
             audio = model.generate_audio(state, text)          # don't inherit torch.inference_mode)
         return to_pcm(audio.float().cpu().numpy())
     return say
+
+
+def network_error(e):
+    """Whether `e` (or what caused it) is a download that couldn't reach Hugging Face."""
+    import socket
+    import urllib.error
+    while e is not None:
+        if isinstance(e, (ConnectionError, TimeoutError, socket.timeout, socket.gaierror, urllib.error.URLError)):
+            return True
+        if type(e).__module__.startswith(("requests", "urllib3", "httpx")) or type(e).__name__ in (
+                "HfHubHTTPError", "LocalEntryNotFoundError", "OfflineModeIsEnabled"):
+            return True
+        e = e.__cause__ or e.__context__
+    return False
+
+
+def load_error(what, where, e, fix):
+    """An EngineError for a model that wouldn't load: the network's advice only when it was the network, and
+    otherwise what actually went wrong (out of memory, a damaged file, a library that changed), by name."""
+    if network_error(e):
+        return errors.EngineError(f"Couldn't load {what} ({where}): {e}. Check the network and rerun; {fix}.")
+    if isinstance(e, MemoryError) or "out of memory" in str(e).lower():
+        return errors.EngineError(f"Couldn't load {what}: this computer ran out of memory. Close other apps and "
+                                  "rerun.")
+    return errors.EngineError(f"Couldn't load {what} ({where}): {type(e).__name__}: {e}. If its files are "
+                              f"damaged, ./sweatcast setup fetches them again; {fix}.")
 
 
 def listener():
@@ -157,7 +182,10 @@ def listener():
         except Exception as e:
             raise errors.EngineError(f"Couldn't fetch the take checker ({voices.CHECK_MODEL[0]}): {e}. Check the network "
                              "and rerun (./sweatcast setup downloads it ahead of time), or build with --no-check.")
-    model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", voices.CHECK_DIR, providers=["CPUExecutionProvider"])
+    try:
+        model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", voices.CHECK_DIR, providers=["CPUExecutionProvider"])
+    except Exception as e:
+        raise load_error("the take checker", voices.CHECK_DIR, e, "or build with --no-check") from e
 
     def hear(pcm):
         a = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0

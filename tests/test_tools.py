@@ -859,6 +859,25 @@ class InProcessBuild(unittest.TestCase):
         self.assertFalse(rec["kept_local"])
         self.assertEqual(rec["route"], "local")   # the render's own fields stay
 
+    def test_each_build_has_an_id_followed_into_builds_jsonl(self):
+        import records
+        self.assertEqual(self.build(), 0, self.said())
+        build_id = self.runs[0]["build_id"]
+        self.assertRegex(build_id, r"^[0-9a-f]{12}$")
+        lines = list(records.build_records())
+        self.assertEqual([(r["event"], r["build_id"]) for r in lines], [("delivered", build_id)])
+        self.assertFalse(any(records.is_mp3(r) for r in lines))   # an outcome line is never counted as an MP3
+        with open(os.path.join(paths.LOGS, "Test build.log"), encoding="utf-8") as f:
+            self.assertIn(f"({build_id})", f.read())
+
+    def test_a_stopped_render_leaves_a_stopped_line(self):
+        import records
+        self.render_fails = 1
+        self.assertEqual(self.build(), 1)
+        (line,) = list(records.build_records())
+        self.assertEqual((line["event"], line["stage"], line["build_id"]), ("stopped", "render", self.runs[0]["build_id"]))
+        self.assertFalse(records.built(line["draft_sha256"]))
+
     def test_record_without_a_folder_says_why(self):
         prof = os.path.join(self.home, "settings.toml")
         with open(prof, encoding="utf-8") as f:
