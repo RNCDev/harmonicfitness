@@ -203,3 +203,13 @@ seconds = 23.35
 device = "Apple GPU (MLX)"
 runtime = "mlx-audio 0.5.0"
 description = "A man in his early sixties, a former high school coach. A deep, slightly gravelly voice with an American Midwest accent. Patient and wry, with steady encouragement. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.maya]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 404
+seconds = 25.11
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A woman in her early thirties, a HIIT instructor. A warm, full mezzo voice, low to medium in pitch, with a general American accent. Confident and upbeat, with crisp counts. An adult woman's voice, never girlish or childlike. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
