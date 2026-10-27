@@ -293,6 +293,16 @@ class Migrate(Home):
         self.assertIn("coach-broken", err)
         self.assertTrue(os.path.isdir(folder))
 
+    def test_a_coach_file_that_isnt_utf8_is_named_not_a_crash(self):
+        import errors
+        import migrate
+        path = os.path.join(self.me, "persona-latin1.md")
+        with open(path, "wb") as f:
+            f.write("+++\nschema = 5\nname = \"Ren\xe9e\"\n+++\n".encode("latin-1"))
+        with self.assertRaises(errors.MigrateError) as caught:
+            migrate._behind(path, 5, 4, "the coach files")
+        self.assertIn("UTF-8", str(caught.exception))
+
 
 class DamagedKnowledge(unittest.TestCase):
     def test_a_corrupt_sessions_or_content_file_is_a_context_error(self):

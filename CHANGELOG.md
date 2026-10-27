@@ -2,6 +2,46 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.19.0] - 2026-10-27
+
+The audit's remediation: money spent on web voices is guarded at every step, settings and names are checked where they come in, an engine bug is never mistaken for a draft to fix, and the coaches code is split by job. Workouts, drafts, coaches and the `me/` folder work as before; no context file changes its schema.
+
+### For forks
+- **Nothing in `me/` to migrate.** New `builds.jsonl` lines carry `kind` (`"mp3"`, `"failed"`, `"outcome"`); older lines are read by their fields and never rewritten, and older engines still read the new ones. A reader of its own should go through `records.build_records()` or `records.parse()` and branch on `rec["kind"]`.
+- **Exit codes that changed, each to the one it should have been:**
+  - 64 (the command was wrong) where a value was accepted before: a build name with `: ? * | " < >`, a control character, a trailing dot or space, or a Windows device name (`con`, `nul`...); `brief --save` outside `me/workouts/`; any numeric option of 0 or less (`--minutes`, `--recent`, `--hours`, `--last`, `--idle`; `--seed` and `cache --days` may be 0).
+  - 1 (fix the file) where 64 was given before: `brief` or `content` with a damaged `sessions.toml`, `content.toml`, catalog or profile.
+  - 1 where a silent default was used before: a malformed `cloud_max_chars` or `words_per_minute`, or a coach whose `kind` is neither local nor web.
+  - 70 (an engine bug) where 1 was given before: an unexpected exception during a web render or an audition.
+- **Moved:** auditions to `tools/audition.py` (`audition`, `keep_web`, `forget_audition`), making a stock web coach to `tools/coachmake.py` (`make`); `coaches.X` still works for this release, but patch `coachmake.make`, which the build now calls. `render` no longer re-exports the internals of `audio`, `clipcache` and `records`: import them from there. Renamed: `clipcache._cache_write` to `clipcache.write`, `_verdict` to `verdict`.
+- **Signatures:** `logsession.log_session` takes keyword fields (`coach=`, `fmt=`, ...), not a parsed command line; `brief.main(argv)`; `cloud.request(..., deadline=)`; `cloud.audio_pcm(..., expect=, content_type=)`; `migrate.coaches_due` may list `("unreadable", coach)` (use `migrate.acting()` for the steps that change something).
+- **`keys.BadKey` is an `errors.SweatcastError`** (still exit 4), so `except errors.PROBLEMS` catches it: the readiness check and the brief carry on past a key with a stray character. `keys` no longer imports `cli`; `tests/test_imports.py` fails on any import loop at load time.
+- **`--route`** is the flag's name on `build`, `get route` and `coaches measured`; `--engine` still works.
+
+### Fixed
+- **The web spending cap can't be misread.** `cloud_max_chars = "5000"` (in quotes) no longer reads silently as the default 30,000: `./sweatcast check` names any single setting it can't use (`context.SCALARS`), and a build stops rather than guess.
+- **A paid voice left behind is said on screen.** When the first build with a stock web coach saves its voice at the service but can't write the coach, the terminal names the service and the voice ID; before, only the build log did. A failed or interrupted design shows the log's last lines.
+- **A slow web service can't hold a build for many minutes:** each paragraph gets five minutes in all, retries included, and three failures in a row stop the sending; the clips that came back are cached, so a rerun sends only the rest.
+- **A reply that isn't audio is refused** (text, a cut-off or unreadable stream, under 0.1 s) instead of being cached, paid for once and replayed in every later build. Each service says what it asked for, and raw sound is accepted only where it was.
+- **An empty or torn clip in the cache is rendered again**, and a clip that comes out empty stops the build naming its line. Clips are written atomically and flushed.
+- **Ctrl-C during a web render says what was sent** (characters, clips cached, and that a rerun sends only the rest); any interrupted command says "Interrupted.".
+- **A build name with a colon is refused on every system** ("Workout 1: Strength" hid the text in a Windows side stream); the build also checks the MP3 lands in its own folder.
+- **On Windows, a build no longer fails at its last step** because a player has last time's MP3 open: replacing a file is retried for a moment. The Windows lock retries only on "busy", and its re-entry key ignores case.
+- **Key values never print from the command line:** every message `cli.run` prints is scrubbed, a service's answer is scrubbed before it's shortened, and an unreadable `me/.env` still scrubs the environment's keys.
+- An unreadable `me/movements.toml` is listed by `./sweatcast check` instead of printing a warning on every command; a coach file `migrate` can't read is named, never skipped silently or crashed on.
+- A feed that declares a DOCTYPE or entities is refused unparsed; caption downloads are capped at 5 MB like feeds.
+
+### Changed
+- `tools/coaches.py` is the command line only; the list and `--json` are built from one `coaches.listing()`, and the rules for `coaches set` live in `personas.set_setting`.
+- Library code reports through the callback it's given, never `print`; the delivery-folder note is `context.delivery_note`.
+- Every numeric option is range-checked by one set of types (`cli.positive_int`, `non_negative_int`, `positive_float`, `non_negative_float`), and a test walks every parser to keep it so. `brief` checks its flags before it computes anything.
+- A local build with the take check loads the voice model once; each repeated line is read once per build, and less audio is held in memory while the workout is assembled.
+- Each build's part of its log ends with `--- end <build_id> <stage> <code>`. The sample, a made voice, audition files and the Codex skill copies are written atomically (`fileio.atomic_copy`, `fileio.replace`), and the `+++` block has one writer (`frontmatter.dump_block`).
+- `builds.jsonl` and `told.jsonl` are read by one rule (`fileio.read_jsonl`), which skips a line a crash cut mid-character instead of failing the read.
+
+### Added
+- `SWEATCAST_DEBUG=1` prints a reported problem's scrubbed traceback, with what it was raised from.
+
 ## [0.18.0] - 2026-10-27
 
 The safety gate can no longer be talked past, voice keys stay on their service's host, a replaced voice file is heard at once, every build leaves a trail to its end, and the middle of the engine is untangled. Workouts, drafts and coaches work as before; no context file changes its schema.

@@ -416,8 +416,13 @@ def rename_gitignore(home):
 
 
 def _behind(path, current, floor, what):
-    with open(path, encoding="utf-8") as f:
-        found = store.schema_of(f.read(), path)
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            text = f.read()
+    except (OSError, UnicodeError) as e:
+        raise errors.MigrateError(f"{show(path)} can't be read as UTF-8 text ({e}); save it as UTF-8 and "
+                                  "run ./sweatcast migrate again.") from e
+    found = store.schema_of(text, path)
     if found > current:
         raise errors.MigrateError(f"{show(path)} is schema {found}, newer than this engine (schema "
                          f"{current}). Pull the latest sweatcast instead of migrating.")

@@ -34,7 +34,8 @@ def clips(folder=None):
     folder = folder or paths.CACHE
     if not os.path.isdir(folder):
         return []
-    return [os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(CLIP_EXTS)]
+    return [os.path.join(folder, n) for n in os.listdir(folder)
+            if n.endswith(CLIP_EXTS) or (".pcm." in n and n.endswith(".part"))]   # atomic_write's <hash>.pcm.<rand>.part
 
 
 def size(folder=None):
