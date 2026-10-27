@@ -341,7 +341,7 @@ def gate(segments, voice, opts, text, smoke):
     import menu
     import tts_build
     report = tts_build.lint(segments, voice, total_tolerance=opts.tolerance, chime=not opts.no_chime)
-    issues, warnings = ([], []) if smoke else menu.gate(catalog.load(), opts.draft, text, segments,
+    issues, warnings = ([], []) if smoke else menu.gate(catalog.default(), opts.draft, text, segments,
                                                          strict=not opts.lint_only)
     return issues, warnings, report
 
@@ -352,9 +352,9 @@ def run_build(opts, say=print):
     outcome line is written."""
     name = opts.name
     if "/" in name or "\\" in name:
-        raise cli.Usage(f"The name can't contain a slash: {name}")
+        raise errors.UsageError(f"The name can't contain a slash: {name}")
     if not os.path.isfile(opts.draft):
-        raise cli.Usage(f"No draft at {opts.draft}")
+        raise errors.UsageError(f"No draft at {opts.draft}")
     if not os.path.isfile(paths.PROFILE):
         raise errors.ContextError(f"No profile at {paths.PROFILE}. Run ./sweatcast setup first (it copies "
                                   "me.example/ to me/).")

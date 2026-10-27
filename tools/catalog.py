@@ -219,7 +219,7 @@ def _hold_back_faulty_private(cat: Catalog) -> None:
             m.draft = True
 
 
-def _spoken_fault(text: str) -> Optional[str]:
+def spoken_fault(text: str) -> Optional[str]:
     """What is wrong with a piece of spoken text, or None."""
     if any(c.isdigit() for c in text):
         return "a digit"
@@ -306,7 +306,7 @@ def problems(cat: Catalog) -> List[str]:
                     out.append(f"Movement {m.id} lists \"{other}\" as {label}, which is not a movement in the catalog.")
         for label, text in ([("setup", m.setup), ("rep", m.rep), ("feel", m.feel)] + [("cue", c) for c in m.cues]
                             + [("fault", f) for f in m.faults]):
-            fault = _spoken_fault(text)
+            fault = spoken_fault(text)
             if fault == "a digit":
                 out.append(f"The {label} of movement {m.id} has a digit in it: \"{text}\".")
             elif fault:
@@ -337,7 +337,7 @@ def _cue_problems(cat: Catalog) -> List[str]:
                 out.append(f"The limit cues for {area} {level} need one to {CUES_MOST} lines of text.")
                 continue
             for line in lines:
-                fault = _spoken_fault(line.replace(SIDE_SLOT, "left"))
+                fault = spoken_fault(line.replace(SIDE_SLOT, "left"))
                 if fault:
                     out.append(f"A limit cue for {area} {level} has {fault} in it: \"{line}\".")
     return out
@@ -390,6 +390,13 @@ def resolve(cat: Catalog, name: str) -> Optional[Movement]:
     return min(hits, key=lambda h: h[0])[1] if hits else None   # the first movement in catalog order, as a scan would find it
 
 
+def key(cat: Optional[Catalog], name: str) -> str:
+    """A movement's identity in the log: its catalog id, or its name lowercased when the catalog (or no
+    catalog) doesn't know it."""
+    found = resolve(cat, name) if cat else None
+    return found.id if found else name.strip().lower()
+
+
 def _names_index(cat: Catalog) -> Dict[str, tuple]:
     """{plain name, id or alias: (catalog position, movement)}, the first holder of each kept; built once per
     catalog (and again if its movements change)."""
@@ -402,6 +409,40 @@ def _names_index(cat: Catalog) -> Dict[str, tuple]:
             index.setdefault(plain(known), (n, m))
     cat.__dict__["_index"] = (len(cat.movements), index)
     return index
+
+
+def equipment_keys(cat: Catalog, words: List[str]) -> Set[str]:
+    """Equipment keys for names given as keys or as a catalog alias; ValueError on an unknown one."""
+    by_word: Dict[str, str] = {}
+    for key, info in cat.equipment.items():
+        by_word[key.lower()] = key
+        for alias in info.get("aliases", []):
+            by_word.setdefault(alias.lower(), key)
+    out: Set[str] = set()
+    for word in words:
+        key = by_word.get(" ".join(word.lower().split()))
+        if key is None:
+            raise ValueError(f"unknown equipment \"{word}\" (choose from: {', '.join(cat.equipment)})")
+        out.add(key)
+    return out
+
+
+def about(cat: Catalog, m: Movement, side: str = "") -> List[str]:
+    """A movement's spoken coaching from the catalog, as indented lines: setup, cues, what one rep is,
+    where to feel it, the common faults with their fixes, and the easier and harder versions. `side`
+    names the one side to work when only the healthy side is allowed."""
+    where = m.position + (f", {side} side only" if side else ", one side at a time" if m.sided else "")
+    out = [f"  {m.name} ({where}):", f"    Setup: {m.setup}", f"    Cues: {' '.join(m.cues)}"]
+    if m.rep:
+        out.append(f"    Rep: {m.rep}")
+    if m.feel:
+        out.append(f"    Feel: {m.feel}")
+    if m.faults:
+        out.append(f"    Faults: {' '.join(m.faults)}")
+    for label, ids in (("Easier", m.easier), ("Harder", m.harder)):
+        if ids:
+            out.append(f"    {label}: {', '.join(cat.movements[i].name if i in cat.movements else i for i in ids)}")
+    return out
 
 
 def avoid_set(cat: Catalog, words: List[str]) -> Set[str]:

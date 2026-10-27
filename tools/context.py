@@ -536,18 +536,18 @@ def main(argv=None):
     loads = pairs(args.loads, "load", "load and tempo")
     rpe = pairs(args.rpe, "rpe", "effort")
     if bool(args.movements) == bool(args.draft):
-        raise cli.Usage("Not logged: give the movements with --movements or --draft (one of them).")
+        raise errors.UsageError("Not logged: give the movements with --movements or --draft (one of them).")
     if args.draft:
         date, minutes, kit, movements, build = from_draft(args.draft, args.date, args.minutes, args.kit)
         coach = build_coach(build, args.voice)
         build_id = build.get("build_id")
         if not (args.format or "").strip():
-            raise cli.Usage("Not logged: --format is required with --draft (the method you chose, from "
+            raise errors.UsageError("Not logged: --format is required with --draft (the method you chose, from "
                              "knowledge/sessions.toml), so the next session rotates away from it.")
     else:
         for flag, value in (("--coach", args.voice), ("--minutes", args.minutes), ("--kit", args.kit)):
             if value is None:
-                raise cli.Usage(f"Not logged: {flag} is required without --draft.")
+                raise errors.UsageError(f"Not logged: {flag} is required without --draft.")
         date, minutes, kit = args.date or dt.date.today().isoformat(), args.minutes, args.kit.strip()
         movements = [m.strip() for m in args.movements.split(",") if m.strip()]
         coach, build_id = args.voice.strip(), None
@@ -631,20 +631,14 @@ def build_coach(build, typed=None):
     return built_as
 
 
-def _movement_key(cat, name):
-    """A movement's catalog id, or its lowercased name when the catalog doesn't know it."""
-    found = catalog.resolve(cat, name) if cat else None
-    return found.id if found else name.strip().lower()
-
-
 def named_pairs(items, movements, what):
     """{movement: value} with each movement written by its catalog name, refused unless it is one of the
     session's movements, so coverage can read the load back for that movement."""
     cat = _catalog()
-    session = {_movement_key(cat, m) for m in movements}
+    session = {catalog.key(cat, m) for m in movements}
     out = {}
     for name, value in items.items():
-        key = _movement_key(cat, name)
+        key = catalog.key(cat, name)
         if key not in session:
             raise errors.LogRefused(f"Not logged: {what} for '{name}', which isn't one of the session's movements "
                              f"({', '.join(movements)}).")
@@ -655,9 +649,9 @@ def named_pairs(items, movements, what):
 def _check_not_logged(session, path=None):
     """Refuse a second line for the same session: the same date and the same movements."""
     cat = _catalog()
-    mine = {_movement_key(cat, m) for m in session.movements}
+    mine = {catalog.key(cat, m) for m in session.movements}
     for old in sessions(path, warn=False):
-        if old.date == session.date and {_movement_key(cat, m) for m in old.movements} == mine:
+        if old.date == session.date and {catalog.key(cat, m) for m in old.movements} == mine:
             raise errors.LogRefused(f"Not logged: this session is already logged (log.md line {old.line}: {old.date}, "
                              f"{', '.join(old.movements)}).")
 

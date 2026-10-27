@@ -74,13 +74,27 @@ def dump_settings(settings, comments=None):
     return "\n".join(out)
 
 
-def section(text, heading):
-    """The lines under a `## heading` (case doesn't matter), up to the next one, with
+def heading(line):
+    """The name of the `## name` heading `line` is (the one rule: stripped, exactly two hashes and a space,
+    case-folded), or None for any other line."""
+    s = line.strip()
+    return s[3:].strip().casefold() if s.startswith("## ") else None
+
+
+def heading_index(lines, name, start=0):
+    """The index in `lines` of the first `## name` heading at or after `start` (case doesn't matter), or None."""
+    want = name.strip().casefold()
+    return next((i for i in range(start, len(lines)) if heading(lines[i]) == want), None)
+
+
+def section(text, name):
+    """The lines under a `## name` heading (case doesn't matter), up to the next heading, with
     their 1-based line numbers in `text`."""
-    out, inside = [], False
+    out, inside, want = [], False, name.strip().casefold()
     for n, line in enumerate(text.splitlines(), 1):
-        if line.startswith("## "):
-            inside = line[3:].strip().lower() == heading.lower()
+        found = heading(line)
+        if found is not None:
+            inside = found == want
             continue
         if inside:
             out.append((n, line))

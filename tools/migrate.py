@@ -333,13 +333,13 @@ def persona_files(home=None):
 
 def _stock_web_names():
     import personas
-    return {p.name.lower() for p in personas._load_all(paths.SHIPPED) if p.is_web}
+    return {p.name.lower() for p in personas.load_all(paths.SHIPPED) if p.is_web}
 
 
 def _coach_settings(path):
     try:
         return context.front(context.read_raw(path, "coach"))[0]
-    except (Exception, cli.Usage):
+    except Exception:
         return None
 
 

@@ -33,10 +33,10 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import cli  # noqa: E402
 import errors  # noqa: E402
 import keys  # noqa: E402
 from redact import scrub  # noqa: E402,F401  (cloud.scrub, as before: it lives in the leaf module redact.py)
+from services import estimate, rate  # noqa: E402,F401  (they read only services.toml)
 
 SR = 24000
 RETRY_STATUS = (429, 500, 502, 503, 504)
@@ -69,7 +69,7 @@ class ServiceError(Exception):
     @property
     def exit_code(self):
         """What a tool exits with when this stops it (cli.run): 4 when the listener must act, else 1."""
-        return cli.SERVICE if self.listener_must_act else cli.ISSUES
+        return errors.SERVICE if self.listener_must_act else errors.ISSUES
 
 
 def service_name(service):
@@ -384,38 +384,18 @@ def audio_pcm(data, rate_hint=SR, service=None):
 def ffmpeg_pcm(data, what="The audio"):
     """16-bit mono PCM at 24 kHz from any audio file's bytes, through ffmpeg. A file ffmpeg can't read stops
     with the end of what it said."""
-    import subprocess
     import ffmpeg
     exe = ffmpeg.exe()
     if not exe:
         raise errors.RenderStopped(f"{what}, which needs ffmpeg to read: rerun ./sweatcast setup.")
     try:
-        out = subprocess.run([exe, "-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", str(SR),
-                              "pipe:1"], input=data, capture_output=True, check=True, timeout=300)
-    except subprocess.CalledProcessError as e:
-        tail = (e.stderr or b"").decode("utf-8", "replace").strip()[-300:]
-        raise errors.RenderStopped(f"{what}, and ffmpeg couldn't read it: {tail or 'no reason given'}") from None
-    except subprocess.TimeoutExpired:
-        raise errors.RenderStopped(f"{what}, and ffmpeg took too long to read it.") from None
+        out = ffmpeg.run([exe, "-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", str(SR),
+                          "pipe:1"], "read it", 300, input=data)
+    except errors.RenderStopped as e:
+        raise errors.RenderStopped(f"{what}, and {e}") from None
     if not out.stdout:
         raise errors.RenderStopped(f"{what}, and ffmpeg found no audio in it.")
     return out.stdout
-
-
-def rate(service, model):
-    """US dollars per million billed units (characters, or bytes for Fish), approximate."""
-    rates = services()[service]["usd_per_million"]
-    if isinstance(rates, dict):
-        return rates.get(model) or next(iter(rates.values()))
-    return rates
-
-
-def estimate(service, model, texts):
-    """(characters, approximate US dollars) for sending `texts`."""
-    s = services()[service]
-    chars = sum(len(t) for t in texts)
-    units = sum(len(t.encode("utf-8")) for t in texts) if s.get("unit") == "bytes" else chars
-    return chars, units * rate(service, model) / 1e6
 
 
 VOICE_ID = re.compile(r"[A-Za-z0-9_.:-]{1,128}")   # what every service hands back

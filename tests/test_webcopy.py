@@ -70,11 +70,11 @@ class Timeouts(unittest.TestCase):
         from unittest import mock
         stuck = subprocess.TimeoutExpired(["ffmpeg"], 60)
         with tempfile.TemporaryDirectory() as d, mock.patch.object(webcopy, "_ffmpeg", return_value="ffmpeg"):
-            with mock.patch.object(webcopy.subprocess, "run", side_effect=stuck), self.assertRaises(errors.PROBLEMS) as got:
+            with mock.patch.object(webcopy.ffmpeg_tool.subprocess, "run", side_effect=stuck), self.assertRaises(errors.PROBLEMS) as got:
                 webcopy.duration(os.path.join(d, "x.mp3"))
             self.assertIn("length", str(got.exception.code))
             with mock.patch.object(webcopy, "duration", return_value=30.0), \
-                    mock.patch.object(webcopy.subprocess, "run", side_effect=stuck), self.assertRaises(errors.PROBLEMS) as got:
+                    mock.patch.object(webcopy.ffmpeg_tool.subprocess, "run", side_effect=stuck), self.assertRaises(errors.PROBLEMS) as got:
                 webcopy.make(os.path.join(d, "x.mp3"), "X", d)
             self.assertIn("web copy", str(got.exception.code))
 

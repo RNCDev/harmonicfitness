@@ -14,28 +14,12 @@ from the movement catalog (knowledge/movements.toml).
 import os
 import sys
 from collections import Counter
-from typing import Dict, List, Optional, Set
+from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import paths  # noqa: E402
 import cli  # noqa: E402
-
-
-def equipment_keys(cat: catalog.Catalog, words: List[str]) -> Set[str]:
-    """Equipment keys for names given as keys or as a catalog alias; ValueError on an unknown one."""
-    by_word: Dict[str, str] = {}
-    for key, info in cat.equipment.items():
-        by_word[key.lower()] = key
-        for alias in info.get("aliases", []):
-            by_word.setdefault(alias.lower(), key)
-    out: Set[str] = set()
-    for word in words:
-        key = by_word.get(" ".join(word.lower().split()))
-        if key is None:
-            raise ValueError(f"unknown equipment \"{word}\" (choose from: {', '.join(cat.equipment)})")
-        out.add(key)
-    return out
 
 
 def line(cat: catalog.Catalog, m: catalog.Movement) -> str:
@@ -45,24 +29,6 @@ def line(cat: catalog.Catalog, m: catalog.Movement) -> str:
         if ids:
             text += f" {label}: {', '.join(cat.movements[i].name if i in cat.movements else i for i in ids)}"
     return text
-
-
-def about(cat: catalog.Catalog, m: catalog.Movement, side: str = "") -> List[str]:
-    """A movement's spoken coaching from the catalog, as indented lines: setup, cues, what one rep is,
-    where to feel it, the common faults with their fixes, and the easier and harder versions. `side`
-    names the one side to work when only the healthy side is allowed."""
-    where = m.position + (f", {side} side only" if side else ", one side at a time" if m.sided else "")
-    out = [f"  {m.name} ({where}):", f"    Setup: {m.setup}", f"    Cues: {' '.join(m.cues)}"]
-    if m.rep:
-        out.append(f"    Rep: {m.rep}")
-    if m.feel:
-        out.append(f"    Feel: {m.feel}")
-    if m.faults:
-        out.append(f"    Faults: {' '.join(m.faults)}")
-    for label, ids in (("Easier", m.easier), ("Harder", m.harder)):
-        if ids:
-            out.append(f"    {label}: {', '.join(cat.movements[i].name if i in cat.movements else i for i in ids)}")
-    return out
 
 
 def render(cat: catalog.Catalog, sel: catalog.Selection, only: Optional[str] = None) -> List[str]:
@@ -81,7 +47,8 @@ def render(cat: catalog.Catalog, sel: catalog.Selection, only: Optional[str] = N
     return out
 
 
-avoid_set = catalog.avoid_set   # movement ids, names or flags to rule out; ValueError on an unknown one
+# moved to catalog; the command still reaches them through this module
+avoid_set, equipment_keys, about = catalog.avoid_set, catalog.equipment_keys, catalog.about
 
 
 def default_level():

@@ -17,7 +17,6 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import cli  # noqa: E402
 import errors  # noqa: E402
 import cloud  # noqa: E402
 import keys  # noqa: E402
@@ -26,7 +25,7 @@ import paths  # noqa: E402
 ROUTES, SERVICES = cloud.ROUTES, cloud.SERVICES   # knowledge/services.toml, plus "local"
 
 
-class WebCoachUnavailable(cli.Usage):
+class WebCoachUnavailable(errors.UsageError):
     """A web coach can't speak here: its service has no key on this computer, or --engine names another
     service. `get route` and `build` exit 64 on it."""
 
@@ -110,7 +109,7 @@ def pick(preferences, persona=None, override=None, facts=None):
     if override:
         ok, reason = usable(override, persona, facts)
         if not ok:
-            raise (cli.Usage if override not in ROUTES else errors.RouteUnavailable)(f"Can't render with {override} here: {reason}")
+            raise (errors.UsageError if override not in ROUTES else errors.RouteUnavailable)(f"Can't render with {override} here: {reason}")
         return override
     known = []
     for route in preferences or ["local"]:

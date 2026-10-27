@@ -34,6 +34,27 @@ def settings():
     return found
 
 
+def names():
+    """The web services, in services.toml's order (cloud.SERVICES is this tuple)."""
+    return tuple(settings())
+
+
+def rate(service, model):
+    """US dollars per million billed units (characters, or bytes for Fish), approximate."""
+    rates = settings()[service]["usd_per_million"]
+    if isinstance(rates, dict):
+        return rates.get(model) or next(iter(rates.values()))
+    return rates
+
+
+def estimate(service, model, texts):
+    """(characters, approximate US dollars) for sending `texts`."""
+    s = settings()[service]
+    chars = sum(len(t) for t in texts)
+    units = sum(len(t.encode("utf-8")) for t in texts) if s.get("unit") == "bytes" else chars
+    return chars, units * rate(service, model) / 1e6
+
+
 def _number(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool) and x >= 0
 

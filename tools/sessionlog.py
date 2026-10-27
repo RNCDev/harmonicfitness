@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
-from frontmatter import section  # noqa: E402
+from frontmatter import heading, heading_index, section  # noqa: E402
 from store import read, write  # noqa: E402
 
 
@@ -134,10 +134,10 @@ def append_session(session, path=None):
         raise errors.LogRefused("Not logged: " + "; ".join(problems) + ".")
     path = path or paths.LOG
     lines = log(path).splitlines()
-    start = next((i for i, line in enumerate(lines) if line.strip().lower() == "## sessions"), None)
+    start = heading_index(lines, "Sessions")
     if start is None:
         raise errors.ContextError(f"No '## Sessions' heading in {show(path)}.")
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    end = next((i for i in range(start + 1, len(lines)) if heading(lines[i]) is not None), len(lines))
     last = max([i for i in range(start + 1, end) if lines[i].strip()], default=start)
     insert = [session.to_line()]
     if last == start:

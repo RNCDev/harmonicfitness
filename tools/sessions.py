@@ -86,7 +86,7 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
     if s.format != FORMAT:
         out.append(f"The session file has format {s.format}; this version reads format {FORMAT}.")
     for name, m in s.methods.items():
-        fault = catalog._spoken_fault(m.about)
+        fault = catalog.spoken_fault(m.about)
         if not m.about:
             out.append(f"Method {name} has no about.")
         elif fault:

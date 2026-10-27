@@ -33,7 +33,6 @@ import counts  # noqa: E402
 import paths  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
-import cli  # noqa: E402
 import errors  # noqa: E402
 
 LOCAL_ENGINES = ("pocket",)
@@ -205,7 +204,7 @@ def find(name, pool):
     return next((p for p in pool if _match(p, name)), None)
 
 
-def _load_all(folder):
+def load_all(folder):
     found = []
     for d in persona_dirs(folder):
         try:
@@ -219,10 +218,10 @@ def all(folder=None):
     """Every coach, by name: the listener's own in me/coaches/ and, unless another folder is named, the ten the
     engine ships in coaches/ (a coach of the listener's own wins on a name clash). Dot folders (the archive,
     auditions) are left out."""
-    found = _load_all(folder or paths.PERSONAS)
+    found = load_all(folder or paths.PERSONAS)
     if folder is None:
         names = {p.name.lower() for p in found}
-        found += [p for p in _load_all(paths.SHIPPED) if p.name.lower() not in names]
+        found += [p for p in load_all(paths.SHIPPED) if p.name.lower() not in names]
     return sorted(found, key=lambda p: p.name.lower())
 
 
@@ -232,7 +231,7 @@ def _match(p, name):
             or want in (a.lower() for a in p.aliases))
 
 
-class UnknownCoach(cli.Usage):
+class UnknownCoach(errors.UsageError):
     """No coach by that name, alias or folder (exit 64: the command named the wrong coach)."""
 
 

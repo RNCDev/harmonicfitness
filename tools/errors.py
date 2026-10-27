@@ -1,17 +1,18 @@
 """The problems the engine reports, as exceptions a caller can tell apart.
 
 Library code raises one of these; it never exits the process. Each carries the exit code the command ends
-with (tools/cli.py: 1 unless it says otherwise), which cli.run reads, printing the message on stderr. A caller
-that wants to carry on past a problem catches the kind it means, or PROBLEMS for any reported one: these and
-cli.Usage (the command itself was wrong: an unknown coach, a web coach with no key here), which stays a
-SystemExit because exit 64 is its whole meaning.
+with (1 unless it says otherwise; tools/cli.py says what each means), which cli.run reads, printing the message
+on stderr. A caller that wants to carry on past a problem catches the kind it means, or PROBLEMS for any
+reported one. The exit codes live here, a module that imports nothing, so library code needn't import cli;
+cli re-exports them, and cli.Usage (a SystemExit) is left to argparse and the commands' main functions.
 """
-import cli
+
+OK, ISSUES, DRIFT, UNMEASURED, SERVICE, USAGE, BUG = 0, 1, 2, 3, 4, 64, 70   # see tools/cli.py
 
 
 class SweatcastError(Exception):
     """A problem the listener or the writer must fix. `message` is what they read."""
-    exit_code = cli.ISSUES
+    exit_code = ISSUES
 
     def __init__(self, message="", exit_code=None):
         super().__init__(message)
@@ -22,6 +23,12 @@ class SweatcastError(Exception):
     def code(self):
         """The message, as SystemExit's `code` was: code that printed `e.code` keeps working."""
         return str(self)
+
+
+class UsageError(SweatcastError):
+    """The command itself was wrong (exit 64), found below main: an unknown coach, a web coach that can't
+    speak here, a draft or an output path that isn't one."""
+    exit_code = USAGE
 
 
 class ContextError(SweatcastError):
@@ -56,4 +63,4 @@ class MigrateError(SweatcastError):
     """The context folder can't be migrated as it stands."""
 
 
-PROBLEMS = (SweatcastError, cli.Usage)   # every problem a command reports; catch this to carry on past one
+PROBLEMS = (SweatcastError,)   # every problem a command reports; catch this to carry on past one

@@ -29,7 +29,6 @@ import context  # noqa: E402
 import coverage  # noqa: E402
 import draft  # noqa: E402
 import menu  # noqa: E402
-import movements  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
 import screen  # noqa: E402
@@ -126,7 +125,7 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
                          if side else f"load on today's limits: {load}")
         tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
-        return [head] + ["  " + line.strip() for line in movements.about(cat, m)[1:]]
+        return [head] + ["  " + line.strip() for line in catalog.about(cat, m)[1:]]
 
     out = []
     for p in cat.patterns:
@@ -148,8 +147,8 @@ def _week_lines(cat: catalog.Catalog, log, today: datetime.date, feedback: List[
     if not log:
         return ["- No sessions logged yet: this is the first one, so welcome them to it."]
     last = log[-1]
-    since = coverage._days_ago(last.date, today)
-    seven = sum(1 for e in log if (d := coverage._days_ago(e.date, today)) is not None and 0 <= d < 7)
+    since = coverage.days_ago(last.date, today)
+    seven = sum(1 for e in log if (d := coverage.days_ago(e.date, today)) is not None and 0 <= d < 7)
     hit, _ = coverage.coverage(last.movements, cat)
     trained = [p for p in cat.patterns if hit.get(p)]
     out = [f"- Last session: {last.date}" + (f", {since} day{'s' if since != 1 else ''} ago" if since is not None else "")
@@ -470,7 +469,7 @@ def main():
     ap.add_argument("--avoid", default="", help="comma-separated movements (ids or names) or flags to rule out")
     ap.add_argument("--save", help="the draft's path (or its stem): write <stem>.brief.md and <stem>.menu.json")
     ap.add_argument("--log", help="the log to read (default: the context folder's)")
-    ap.add_argument("--today", help="today's date, YYYY-MM-DD (default: today)")
+    cli.today_arg(ap)
     ap.add_argument("--coach", dest="voice",
                     help="the coach the script is written for: how they talk, and their words a minute "
                          "(default: the one used last)")
@@ -480,16 +479,16 @@ def main():
     try:
         request = {"goal": args.goal, "minutes": args.minutes, "level": args.level,
                    "target": screen.words(args.target), "limits": [screen.parse_limit(x, cat) for x in args.limit],
-                   "avoid": movements.avoid_set(cat, screen.words(args.avoid))}
+                   "avoid": catalog.avoid_set(cat, screen.words(args.avoid))}
         if args.add:
-            request["add"] = movements.equipment_keys(cat, screen.words(args.add))
+            request["add"] = catalog.equipment_keys(cat, screen.words(args.add))
         if args.kit:
             request["kit"] = args.kit
         elif args.preset:
             request["preset"] = args.preset
         else:
-            request["equipment"] = movements.equipment_keys(cat, screen.words(args.equipment))
-        today = datetime.date.fromisoformat(args.today) if args.today else datetime.date.today()
+            request["equipment"] = catalog.equipment_keys(cat, screen.words(args.equipment))
+        today = args.today or datetime.date.today()
         profile = context.profile()
         lines, record = build(request, cat, sessions.load(), profile, context.health(),
                               context.sessions(args.log), today, context.feedback(args.log),

@@ -264,7 +264,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("plan", help="the filler plan for a session, what's been told, the reserve")
     p.add_argument("--minutes", type=int, default=25, help="the session's length (default 25)")
-    p.add_argument("--today", help="today's date, YYYY-MM-DD (default: today)")
+    cli.today_arg(p)
     lg = sub.add_parser("log", help="record the items a session told")
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
@@ -273,7 +273,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
     try:
         if args.cmd == "plan":
-            today = datetime.date.fromisoformat(args.today) if args.today else datetime.date.today()
+            today = args.today or datetime.date.today()
             if args.minutes <= 0:
                 raise ValueError("--minutes must be above zero")
             print("\n".join(plan(args.minutes, today, profile=context.profile())))

@@ -497,5 +497,36 @@ class Boundaries(unittest.TestCase):
             self.assertEqual(feeds.web_link(bad), "", bad)
 
 
+class OneRule(unittest.TestCase):
+    """Small rules written once: a ## heading, a movement's log key, --today."""
+
+    def test_a_heading_is_two_hashes_stripped_and_case_folded(self):
+        import frontmatter
+        lines = ["# Log", "### Sessions", "  ## SESSIONS  ", "- a", "## Feedback", "- b"]
+        self.assertEqual(frontmatter.heading_index(lines, "Sessions"), 2)
+        self.assertIsNone(frontmatter.heading_index(lines, "Kits"))
+        self.assertEqual(frontmatter.section("\n".join(lines), "sessions"), [(4, "- a")])
+        self.assertEqual(frontmatter.section("\n".join(lines), "Feedback"), [(6, "- b")])
+        self.assertIsNone(frontmatter.heading("##Sessions"))
+
+    def test_a_movement_key_is_its_id_or_its_name_lowercased(self):
+        cat = catalog.default()
+        some = next(iter(cat.movements.values()))
+        self.assertEqual(catalog.key(cat, some.name.upper()), some.id)
+        self.assertEqual(catalog.key(cat, "  Nothing Like It  "), "nothing like it")
+        self.assertEqual(catalog.key(None, " Goblet Squat "), "goblet squat")
+
+    def test_today_is_a_date_or_exit_64(self):
+        import datetime
+        import cli
+        ap = cli.ArgumentParser(prog="x")
+        cli.today_arg(ap)
+        self.assertEqual(ap.parse_args(["--today", "2026-10-27"]).today, datetime.date(2026, 10, 27))
+        self.assertIsNone(ap.parse_args([]).today)
+        with mock.patch("sys.stderr"), self.assertRaises(SystemExit) as got:
+            ap.parse_args(["--today", "tomorrow"])
+        self.assertEqual(got.exception.code, cli.USAGE)
+
+
 if __name__ == "__main__":
     unittest.main()

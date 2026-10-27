@@ -16,7 +16,6 @@ Delete: DELETE /v1beta/voices/{id}.
 import json
 import sys
 
-import cli
 import cloud
 
 SERVICE = "gemini"
@@ -64,7 +63,7 @@ def design(description, line, n=1, label=""):
     except BaseException:
         try:
             delete(voice_id)
-        except (Exception, cli.Usage):   # the speech's failure is the one to raise; the voice is named
+        except Exception:   # the speech's failure is the one to raise; the voice is named
             print(f"(Gemini keeps a voice \"{label}\", ID {voice_id}: delete it there by hand.)", file=sys.stderr)
         raise
     return [{"pcm": pcm, "wav": cloud.wav_bytes(pcm), "text": line, "draft_id": voice_id, "signature": None}]

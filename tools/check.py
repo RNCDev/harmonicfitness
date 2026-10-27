@@ -21,6 +21,7 @@ from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SCHEMA, SETTING_HOM
                      part_paths, persona, placeholder, profile, read_raw, route_issues, schema_of, schema_problem,
                      section, shape_problems, SHAPED, split, str_list, table_list, unfilled, wpm, files as context_files)
 from context import _catalog, _names, kit_problems  # noqa: E402
+from frontmatter import heading_index  # noqa: E402
 from health import _limit_row, clinician_avoids, limit_rows, prose_injury_gap  # noqa: E402
 
 
@@ -228,7 +229,7 @@ def check(home_files=None):
         elif name == "log.md":
             rest = body(text)
             offset = len(text.splitlines()) - len(rest.splitlines())
-            if not any(line.strip().lower() == "## sessions" for line in rest.splitlines()):
+            if heading_index(rest.splitlines(), "Sessions") is None:
                 out.append(Issue(path, 0, "no '## Sessions' heading"))
             for n, line in section(rest, "Sessions"):
                 if line.startswith("- "):

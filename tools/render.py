@@ -24,13 +24,11 @@ import datetime as dt
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import cli  # noqa: E402
 import errors  # noqa: E402
 import engines  # noqa: E402
 import ffmpeg as ffmpeg_tool  # noqa: E402
@@ -77,26 +75,20 @@ def loudness_stats(stderr):
 
 
 def ffmpeg_version():
-    ffmpeg = ffmpeg_tool.exe()
-    if not ffmpeg:
-        return None
-    try:
-        out = subprocess.run([ffmpeg, "-version"], capture_output=True, text=True, timeout=10).stdout
-        return out.splitlines()[0] if out else None
-    except (OSError, subprocess.SubprocessError):
-        return None
+    return ffmpeg_tool.version()
 
 
 def encode(pcm, out, title):
     """Two-pass loudness normalization, then encode by the output's extension (checked by preflight)."""
     ffmpeg = preflight(out)
     codec = CODECS[os.path.splitext(out)[1].lower()]
+    timeout = max(120, 2 * len(pcm) / (2 * SR))   # 16-bit mono: a hung ffmpeg never holds the render lock forever
     with tempfile.TemporaryDirectory() as td:
         raw = os.path.join(td, "raw.wav")
         wav.write_wav(raw, pcm, SR)
         probe = _ffmpeg_run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
                              f"{COMPRESS},loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"],
-                            "measure the loudness")
+                            "measure the loudness", timeout)
         m = loudness_stats(probe.stderr)
         af = (f"{COMPRESS},loudnorm={LOUDNESS}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
               f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}")
@@ -106,21 +98,16 @@ def encode(pcm, out, title):
         part = f"{stem}.part{ext}"
         try:
             _ffmpeg_run([ffmpeg, "-y", "-loglevel", "error", "-i", raw, "-af", af, "-ar", str(SR),
-                         "-metadata", f"title={title}", *codec, part], "encode the audio")
+                         "-metadata", f"title={title}", *codec, part], "encode the audio", timeout)
             os.replace(part, out)
         finally:
             if os.path.exists(part):
                 os.remove(part)
 
 
-def _ffmpeg_run(cmd, what):
-    """Run ffmpeg; a failure stops with the end of what it said, not a traceback."""
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError as e:
-        tail = (e.stderr or "").strip()[-300:]
-        raise errors.RenderStopped(f"ffmpeg couldn't {what} ({ffmpeg_version() or 'ffmpeg'}, exit {e.returncode}): "
-                         f"{tail or 'no reason given'}") from None
+def _ffmpeg_run(cmd, what, timeout):
+    """Run ffmpeg; a failure or a hang stops with the end of what it said, not a traceback."""
+    return ffmpeg_tool.run(cmd, what, timeout)
 
 
 def engine_version():
@@ -316,7 +303,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
                 raise errors.RenderStopped(
                     f"{e}\nCheck the key with ./sweatcast keys (it's {service['key_var']} in me/.env), and the "
                     f"account's plan and balance at {service['name']}. The {done} clip(s) rendered are cached.",
-                    exit_code=cli.SERVICE) from e
+                    exit_code=errors.SERVICE) from e
             advice = ("A rerun won't fix that by itself" if e.kind == "bad_request"
                       else "Rerun to send only the rest")
             raise errors.RenderStopped(f"{e}\n{advice}; the {done} clip(s) rendered are cached.") from e
@@ -366,7 +353,7 @@ def preflight(out):
     """What must hold before a single clip is rendered (or billed), and again at the encode: the output's
     extension is one we encode, and ffmpeg is here to encode it. Returns ffmpeg's path."""
     if os.path.splitext(out)[1].lower() not in CODECS:
-        raise cli.Usage(f"The output must end in one of: {', '.join(CODECS)} (not {os.path.basename(out)})")
+        raise errors.UsageError(f"The output must end in one of: {', '.join(CODECS)} (not {os.path.basename(out)})")
     ffmpeg = ffmpeg_tool.exe()
     if not ffmpeg:
         raise errors.RenderStopped(f"ffmpeg not found, and the environment's own copy isn't installed: rerun "

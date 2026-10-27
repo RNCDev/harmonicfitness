@@ -122,7 +122,8 @@ class Routes(unittest.TestCase):
         with self.assertRaises(routes.WebCoachUnavailable) as e:
             routes.pick(["local"], owen, facts=MAC)
         message = str(e.exception.code)
-        self.assertIsInstance(e.exception, SystemExit)
+        self.assertIsInstance(e.exception, errors.UsageError)   # exit 64, and caught as any engine problem
+        self.assertNotIsInstance(e.exception, SystemExit)
         self.assertIn("INWORLD_API_KEY", message)
         self.assertIn("keys init inworld", message)
         self.assertIn("Coach Owen", message)

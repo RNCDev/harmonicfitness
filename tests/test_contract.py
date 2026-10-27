@@ -91,13 +91,15 @@ class Contract(unittest.TestCase):
 
 class ErrorChannel(unittest.TestCase):
     """Library code reports a problem by raising a typed error carrying its exit code; only cli.run ends the
-    process. (cli.Usage stays a SystemExit: exit 64 is its whole meaning.)"""
+    process. (cli.Usage, a SystemExit, is left to argparse and the commands' main functions; below main a
+    wrong command is errors.UsageError, exit 64.)"""
 
     def test_typed_errors_map_to_their_codes(self):
         import errors
         for exc, code in ((errors.ContextError("x"), cli.ISSUES), (errors.LogRefused("Not logged: x"), cli.ISSUES),
                           (errors.RenderStopped("x", exit_code=cli.SERVICE), cli.SERVICE),
-                          (errors.DraftError("x"), cli.ISSUES), (cli.Usage("x"), cli.USAGE)):
+                          (errors.DraftError("x"), cli.ISSUES), (cli.Usage("x"), cli.USAGE),
+                          (errors.UsageError("x"), cli.USAGE)):
             def main(e=exc):
                 raise e
             err = io.StringIO()
@@ -132,6 +134,56 @@ class ErrorChannel(unittest.TestCase):
                             if re.search(r"raise[ (][^#]*\bSystemExit\b|sys\.exit\((?!cli\.run|main)", line):
                                 found.append(f"{name}:{n}: {line.strip()}")
         self.assertEqual(found, [], "raise an errors.SweatcastError (or cli.Usage) instead")
+
+    def test_only_commands_import_cli(self):
+        """A module with no main is library code: it raises errors' typed errors and reads the exit codes from
+        errors, so it never imports cli (whose Usage is a SystemExit)."""
+        import ast
+        tools = os.path.join(paths.ROOT, "tools")
+        found = []
+        for folder in (tools, os.path.join(tools, "services")):
+            for name in sorted(os.listdir(folder)):
+                if not name.endswith(".py") or name == "cli.py":
+                    continue
+                with open(os.path.join(folder, name), encoding="utf-8") as f:
+                    tree = ast.parse(f.read())
+                if any(isinstance(n, ast.FunctionDef) and n.name == "main" for n in tree.body):
+                    continue
+                for n in ast.walk(tree):
+                    names = ([a.name for a in n.names] if isinstance(n, ast.Import)
+                             else [n.module] if isinstance(n, ast.ImportFrom) else [])
+                    if "cli" in names:
+                        found.append(f"{name}:{n.lineno}")
+        self.assertEqual(found, [], "library code raises errors.UsageError and reads codes from errors")
+
+
+    def test_paths_are_read_at_call_time(self):
+        """`from paths import X` copies X at import, so a test (or SWEATCAST_HOME read later) that points paths
+        elsewhere misses it. Only show (a function) and ROOT (the engine's own folder) may be imported so."""
+        import ast
+        found = []
+        for folder, _, files in os.walk(os.path.join(paths.ROOT, "tools")):
+            for name in sorted(files):
+                if name.endswith(".py"):
+                    with open(os.path.join(folder, name), encoding="utf-8") as f:
+                        tree = ast.parse(f.read())
+                    for n in ast.walk(tree):
+                        if isinstance(n, ast.ImportFrom) and n.module == "paths":
+                            found += [f"{name}:{n.lineno}: {a.name}" for a in n.names if a.name not in ("show", "ROOT")]
+        self.assertEqual(found, [], "read paths.X when it's needed")
+
+    def test_libraries_import_no_command_or_http_module_they_dont_need(self):
+        """brief reads the catalog, not the movements command; records reads services.toml and redact, not the
+        HTTP engine in cloud.py."""
+        import ast
+
+        def imports(module):
+            with open(os.path.join(paths.ROOT, "tools", module + ".py"), encoding="utf-8") as f:
+                tree = ast.parse(f.read())
+            return {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names} | \
+                {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+        self.assertNotIn("movements", imports("brief"))
+        self.assertNotIn("cloud", imports("records"))
 
 
 if __name__ == "__main__":

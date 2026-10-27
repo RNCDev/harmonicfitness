@@ -13,20 +13,20 @@ Python's argparse exits 2 on a mistyped option, which would read as "the workout
 long", so every tool parses its arguments with ArgumentParser below, which exits 64.
 
 Every tool's main runs through run(), which turns what it raises into these codes: a Usage
-(or a subclass, such as an unknown coach or a web coach with no key here) is 64; an exception
-carrying an `exit_code` (a web service's refusal, a limits row that can't be read) exits with
-it; any other SystemExit with a message is 1, the message on stderr. Any other exception is a bug in the
+(argparse's or a main's refusal) is 64; an exception carrying an `exit_code` (errors.UsageError, 64,
+for an unknown coach or a web coach with no key here; a web service's refusal; a limits row that can't
+be read) exits with it; any other SystemExit with a message is 1, the message on stderr. Any other exception is a bug in the
 engine: its traceback (with every key value taken out) goes to stderr and the code is 70, so a skill never
 reads a crash as a draft to fix.
 """
 import argparse
 import sys
 
-OK, ISSUES, DRIFT, UNMEASURED, SERVICE, USAGE, BUG = 0, 1, 2, 3, 4, 64, 70
+from errors import OK, ISSUES, DRIFT, UNMEASURED, SERVICE, USAGE, BUG   # noqa: F401  (they live in errors.py)
 
 
 class Usage(SystemExit):
-    """The command itself was wrong (exit 64): an unknown option, coach, draft or route. The message
+    """The command line itself was wrong (exit 64), raised by argparse or a main. The message
     is the exit code's payload, as with any SystemExit, so code that prints `e.code` still works."""
 
 
@@ -64,6 +64,19 @@ def _traceback():
         return redact.scrub(text)
     except Exception:
         return text
+
+
+def _date(text):
+    import datetime
+    try:
+        return datetime.date.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a date: {text!r} (YYYY-MM-DD)") from None
+
+
+def today_arg(parser):
+    """--today: the date to plan for (a datetime.date, None for today); a value that isn't one exits 64."""
+    parser.add_argument("--today", type=_date, help="today's date, YYYY-MM-DD (default: today)")
 
 
 class ArgumentParser(argparse.ArgumentParser):

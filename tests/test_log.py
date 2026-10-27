@@ -199,7 +199,7 @@ class LogSession(unittest.TestCase):
         self.assertTrue(bad.problems())
 
     def test_without_a_draft_the_coach_is_typed(self):
-        with self.assertRaises(cli.Usage):
+        with self.assertRaises(errors.UsageError):
             with helpers.home(self.home):
                 context.main(["log-session", "--topics", "t", "--movements", "goblet squat", "--minutes", "10",
                               "--kit", "home"])

@@ -285,11 +285,82 @@ class Encode(unittest.TestCase):
                     f.write(b"mp3")
             return subprocess.CompletedProcess(cmd, 0, "", stats)
         with tempfile.TemporaryDirectory() as d, mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"), \
-                mock.patch.object(render.subprocess, "run", side_effect=fake_run):
+                mock.patch.object(render.ffmpeg_tool, "version", return_value="ffmpeg test"), \
+                mock.patch.object(render.ffmpeg_tool.subprocess, "run", side_effect=fake_run):
             render.encode(quiet(0.1), os.path.join(d, "x.mp3"), "x")
         chains = [c[c.index("-af") + 1] for c in cmds]
         self.assertEqual(len(chains), 2)
         self.assertTrue(all(c.startswith(render.COMPRESS + ",loudnorm=") for c in chains), chains)
+
+
+@unittest.skipIf(sys.platform == "win32", "the fake ffmpeg is a shell script")
+class FfmpegStops(unittest.TestCase):
+    """Every ffmpeg the engine starts runs through ffmpeg.run: a hang past its timeout or a failure is a
+    RenderStopped naming ffmpeg's version, the exit code and the end of what it said, never a traceback."""
+
+    def fake(self, body):
+        d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, d, True)
+        path = os.path.join(d, "ffmpeg")
+        with open(path, "w") as f:
+            f.write("#!/bin/sh\n"
+                    "if [ \"$1\" = -version ]; then echo 'ffmpeg version 9.9-fake'; exit 0; fi\n" + body + "\n")
+        os.chmod(path, 0o755)
+        env = mock.patch.dict(os.environ, {"PATH": d + os.pathsep + os.environ.get("PATH", "")})
+        env.start()
+        self.addCleanup(env.stop)
+        import ffmpeg
+        self.assertEqual(ffmpeg.exe(), path)   # first on PATH: the one the engine finds
+        return path
+
+    def test_a_hung_ffmpeg_is_stopped_at_its_timeout(self):
+        import ffmpeg
+        exe = self.fake("sleep 10")
+        with self.assertRaises(errors.RenderStopped) as got:
+            ffmpeg.run([exe, "-i", "x.wav", "x.mp3"], "encode the audio", 0.5)
+        message = str(got.exception)
+        self.assertIn("ffmpeg couldn't encode the audio", message)
+        self.assertIn("9.9-fake", message)
+        self.assertIn("0.5 seconds", message)
+        self.assertEqual(got.exception.exit_code, cli.ISSUES)
+
+    def test_a_failing_ffmpeg_says_its_exit_code_and_last_words(self):
+        import ffmpeg
+        exe = self.fake("echo 'Unknown encoder libmp3lame' >&2; exit 1")
+        with tempfile.TemporaryDirectory() as d:
+            src, dst = os.path.join(d, "x.wav"), os.path.join(d, "x.mp3")
+            with self.assertRaises(errors.RenderStopped) as got:
+                ffmpeg.to_mp3(src, dst, what="make the sample")
+            message = str(got.exception)
+            self.assertIn("make the sample", message)
+            self.assertIn("exit 1", message)
+            self.assertIn("Unknown encoder libmp3lame", message)
+            self.assertIn("9.9-fake", message)
+            import coaches   # the audition's sample keeps its yes-or-no answer: no MP3, the WAV plays
+            self.assertFalse(coaches._mp3(src, dst))
+            import webcopy
+            with mock.patch.object(webcopy, "duration", return_value=30.0), self.assertRaises(errors.RenderStopped):
+                webcopy.make(src, "X", d)
+            self.assertEqual(os.listdir(d), [])
+        with self.assertRaises(errors.RenderStopped) as got:   # bytes in: a web service's compressed audio
+            render.ffmpeg_tool.run([exe, "-i", "pipe:0", "pipe:1"], "read it", 5, input=b"\x00" * 16)
+        self.assertIn("Unknown encoder", str(got.exception))
+
+    def test_the_final_encode_gets_a_timeout_that_grows_with_the_audio(self):
+        import subprocess
+        seen = []
+
+        def fake_run(cmd, **kw):
+            seen.append(kw.get("timeout"))
+            raise subprocess.TimeoutExpired(cmd, kw.get("timeout"))
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"), \
+                mock.patch.object(render.ffmpeg_tool, "version", return_value="ffmpeg test"), \
+                mock.patch.object(render.ffmpeg_tool.subprocess, "run", side_effect=fake_run):
+            for seconds, want in ((1, 120), (300, 600)):
+                with self.assertRaises(errors.RenderStopped) as got:
+                    render.encode(quiet(seconds), os.path.join(d, "x.mp3"), "x")
+                self.assertEqual(seen[-1], want)
+                self.assertIn(f"after {want} seconds", str(got.exception))
 
 
 class Prune(unittest.TestCase):

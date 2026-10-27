@@ -33,7 +33,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import wave
 
@@ -127,9 +126,11 @@ def _mp3(wav, mp3):
     exe = ffmpeg.exe()
     if not exe:
         return False
-    done = subprocess.run([exe, "-hide_banner", "-loglevel", "error", "-y", "-i", wav, "-ac", "1",
-                           "-c:a", "libmp3lame", "-b:a", "48k", mp3], capture_output=True, text=True, timeout=120)
-    return done.returncode == 0
+    try:
+        ffmpeg.to_mp3(wav, mp3, "48k", path=exe)
+    except errors.RenderStopped:   # a sample to listen to: the WAV is still there
+        return False
+    return True
 
 
 def _write_sample(coach, wav, mp3=None, report=say):
@@ -247,7 +248,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False, report=
     for s in keyed:   # service order, whatever finished first
         try:
             made = futures[s].result()
-        except (Exception, cli.Usage) as e:
+        except Exception as e:
             failures.append((s, e))
             continue
         usd = round(cloud.estimate(s, table[s]["default_model"], ["x" * WORKOUT_CHARS])[1], 4)
@@ -277,7 +278,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False, report=
                     c["mp3"] = stem + ".mp3"
                 else:
                     report(f"(no MP3 for {c['letter']}: ffmpeg failed; its WAV plays as well.)")
-            except (subprocess.SubprocessError, OSError) as e:
+            except OSError as e:   # ffmpeg.run already turns its failures and hangs into a False
                 report(f"(no MP3 for {c['letter']}: {e}; its WAV plays as well.)")
         _write_candidates(folder, cands)
     import player
@@ -563,7 +564,7 @@ def _make(p, report):
         elif getattr(module, "STORES_DRAFTS", False) and c.get("draft_id"):   # stored at design: don't leave it
             try:
                 module.delete(c["draft_id"])
-            except (Exception, cli.Usage):
+            except Exception:
                 print(f"({s['name']} keeps a voice \"sweatcast {p.name}\", ID {c['draft_id']}; delete it there "
                       "by hand.)", file=sys.stderr)
         elif voice_id:

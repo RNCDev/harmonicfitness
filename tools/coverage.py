@@ -59,8 +59,7 @@ def last_loads(log, look_back=6, cat: Optional[catalog.Catalog] = None):
     for e in log[-look_back:]:
         for mv, load in e.loads.items():
             found = catalog.resolve(cat, mv)
-            key = found.id if found else mv.strip().lower()
-            out[key] = (found.name if found else mv.strip(), e.date, load)
+            out[catalog.key(cat, mv)] = (found.name if found else mv.strip(), e.date, load)
     return {name: (date, load) for name, date, load in out.values()}
 
 
@@ -106,7 +105,7 @@ def week(sessions, today: datetime.date, days: int = 7, cat: Optional[catalog.Ca
     return counts
 
 
-def _days_ago(date: str, today: datetime.date) -> Optional[int]:
+def days_ago(date: str, today: datetime.date) -> Optional[int]:
     try:
         return (today - datetime.date.fromisoformat(date)).days
     except ValueError:
@@ -150,7 +149,7 @@ def main():
         since = (today - datetime.date.fromisoformat(full[-1].date)).days
     except ValueError:
         since = None
-    seven = sum(1 for e in full if _days_ago(e.date, today) is not None and 0 <= _days_ago(e.date, today) < 7)
+    seven = sum(1 for e in full if days_ago(e.date, today) is not None and 0 <= days_ago(e.date, today) < 7)
     print("Since the last session: " + (f"{since} day{'s' if since != 1 else ''}" if since is not None else "unknown")
           + f"; sessions in the last 7 days: {seven} (mention it if it's worth saying)")
     notes = context.feedback(args.log)

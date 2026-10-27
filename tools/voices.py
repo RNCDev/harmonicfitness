@@ -22,7 +22,7 @@ import errors  # noqa: E402
 from char_weight import weight  # noqa: E402,F401  (re-exported for render.py)
 import locks  # noqa: E402
 import paths  # noqa: E402
-from paths import PACE_FILE, ROOT, show  # noqa: E402,F401
+from paths import show  # noqa: E402
 
 ENGINES = ("pocket",)
 # Every local voice runs on PyTorch: an Apple Silicon Mac's processor, a PC's processor or an NVIDIA card.
@@ -61,7 +61,7 @@ def _recorded(path=None, strict=False):
     that won't parse is never silently treated as empty when it's about to be written
     (strict): it's set aside as voice-pace.json.corrupt-<time> and the tool stops, so one
     bad write can't erase every voice's measurements."""
-    path = path or PACE_FILE
+    path = path or paths.PACE_FILE
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -123,7 +123,7 @@ def record_rate(v, weight, seconds, path=None, render_seconds=None):
     The coach's own pace.json when the voice names one. Locked, and written to a temporary
     file then renamed, so it's never half-written. A record that is only an estimate (a web coach's
     approved sample) is replaced by the first real measurement, not added to."""
-    path = path or v.get("pace_file") or PACE_FILE
+    path = path or v.get("pace_file") or paths.PACE_FILE
     with _locked(path):
         data = _with_seed(v, path, _recorded(path, strict=True))
         rec = data.get(_rate_key(v))
@@ -141,7 +141,7 @@ def record_rate(v, weight, seconds, path=None, render_seconds=None):
 def record_estimate(v, weight, seconds, path=None):
     """A web coach's starting pace, from its approved sample: `weight` (char_weight units) over the sample's
     trimmed `seconds`. pace() uses it, unmeasured, until the first real render replaces it."""
-    path = path or v.get("pace_file") or PACE_FILE
+    path = path or v.get("pace_file") or paths.PACE_FILE
     with _locked(path):
         data = _recorded(path, strict=True)
         data[_rate_key(v)] = {"name": v["name"], "weight": weight, "seconds": seconds, "estimate": True}

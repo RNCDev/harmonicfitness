@@ -1151,7 +1151,7 @@ class RenderGates(unittest.TestCase):
     def test_the_output_name_and_ffmpeg_are_checked_before_any_clip(self):
         voice = personas.voice_for(personas.lookup("Coach Julius"), "local")
         segments = parse("@@ 30 | A\nHello.\n")
-        with self.assertRaises(cli.Usage):
+        with self.assertRaises(errors.UsageError):
             render.run(segments, voice, os.path.join(self.tmp.name, "x.ogg"), self.draft, "0" * 64)
         with mock.patch.object(render.ffmpeg_tool, "exe", return_value=None), self.assertRaises(errors.PROBLEMS) as got:
             render.run(segments, voice, os.path.join(self.tmp.name, "x.mp3"), self.draft, "0" * 64)
@@ -1173,8 +1173,8 @@ class Encode(unittest.TestCase):
                 write_file(cmd[-1], "half")   # ffmpeg dies partway through the encode
                 raise subprocess.CalledProcessError(1, cmd, "", "Error: the encoder gave up")
             with mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"), \
-                    mock.patch.object(render, "ffmpeg_version", return_value="ffmpeg test"), \
-                    mock.patch.object(render.subprocess, "run", side_effect=fake_run):
+                    mock.patch.object(render.ffmpeg_tool, "version", return_value="ffmpeg test"), \
+                    mock.patch.object(render.ffmpeg_tool.subprocess, "run", side_effect=fake_run):
                 with self.assertRaises(errors.PROBLEMS) as got:
                     render.encode(silence(0.1), out, "x")
             self.assertIn("the encoder gave up", str(got.exception.code))
@@ -1184,8 +1184,8 @@ class Encode(unittest.TestCase):
 
     def test_a_failed_loudness_probe_is_a_message(self):
         with mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"), \
-                mock.patch.object(render, "ffmpeg_version", return_value=None), \
-                mock.patch.object(render.subprocess, "run",
+                mock.patch.object(render.ffmpeg_tool, "version", return_value=None), \
+                mock.patch.object(render.ffmpeg_tool.subprocess, "run",
                                   side_effect=subprocess.CalledProcessError(1, ["ffmpeg"], "", "no such filter")), \
                 tempfile.TemporaryDirectory() as d:
             with self.assertRaises(errors.PROBLEMS) as got:
@@ -1262,7 +1262,7 @@ class PaceFile(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = os.path.join(self.tmp.name, "cache", "voice-pace.json")
-        self.patch = mock.patch.object(voices, "PACE_FILE", self.path)
+        self.patch = mock.patch.object(paths, "PACE_FILE", self.path)
         self.patch.start()
 
     def tearDown(self):
@@ -2106,8 +2106,10 @@ class ExitCodeMapper(unittest.TestCase):
     def test_the_known_stops_carry_their_codes(self):
         import routes
         import screen
-        self.assertTrue(issubclass(personas.UnknownCoach, cli.Usage))
-        self.assertTrue(issubclass(routes.WebCoachUnavailable, cli.Usage))
+        self.assertTrue(issubclass(personas.UnknownCoach, errors.UsageError))
+        self.assertTrue(issubclass(routes.WebCoachUnavailable, errors.UsageError))
+        self.assertEqual(personas.UnknownCoach("x").exit_code, cli.USAGE)
+        self.assertFalse(issubclass(personas.UnknownCoach, SystemExit))   # an ordinary error, caught as one
         self.assertEqual(cloud.ServiceError("auth", "fish", "bad key").exit_code, cli.SERVICE)
         self.assertEqual(cloud.ServiceError("bad_request", "fish", "odd").exit_code, cli.ISSUES)
         self.assertEqual(screen.Unfit("a row can't be read").exit_code, cli.ISSUES)

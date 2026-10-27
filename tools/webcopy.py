@@ -14,7 +14,6 @@ import json
 import math
 import os
 import re
-import subprocess
 import sys
 import urllib.parse
 
@@ -37,10 +36,8 @@ def _ffmpeg():
 
 def duration(path):
     """The audio's length in seconds, from ffmpeg's own report (no ffprobe needed)."""
-    try:
-        out = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, timeout=60)
-    except subprocess.TimeoutExpired:
-        raise errors.RenderStopped(f"Couldn't read the length of {path}: ffmpeg took over a minute.") from None
+    # ffmpeg with an input and no output exits 1 after printing the input's report: that report is the answer
+    out = ffmpeg_tool.run([_ffmpeg(), "-hide_banner", "-i", path], f"read the length of {path}", 60, check=False)
     m = DURATION_RE.search(out.stderr)
     if not m:
         raise errors.RenderStopped(f"Couldn't read the length of {path}.")
@@ -62,18 +59,12 @@ def make(mp3, name, out_dir, max_bytes=MAX_BYTES, bitrate=BITRATE):
     out = []
     for i in range(parts):
         path = os.path.join(out_dir, f"{name}.web-{i + 1}.mp3")
-        cmd = [_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{i * length:.3f}", "-i", mp3]
-        if i < parts - 1:
-            cmd += ["-t", f"{length:.3f}"]
-        cmd += ["-ac", "1", "-c:a", "libmp3lame", "-b:a", str(bitrate), path]
         try:
-            done = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        except subprocess.TimeoutExpired:
-            _remove_parts(out_dir, name)
-            raise errors.RenderStopped(f"Couldn't make the web copy: ffmpeg took over ten minutes on part {i + 1}.") from None
-        if done.returncode:
-            _remove_parts(out_dir, name)
-            raise errors.RenderStopped(f"Couldn't make the web copy: {done.stderr.strip()[-300:]}")
+            ffmpeg_tool.to_mp3(mp3, path, bitrate, start=i * length, length=length if i < parts - 1 else None,
+                               timeout=600, what=f"make part {i + 1} of the web copy", path=_ffmpeg())
+        except errors.RenderStopped:
+            _remove_parts(out_dir, name)   # a part set is made whole or not at all
+            raise
         out.append(path)
     return out
 
