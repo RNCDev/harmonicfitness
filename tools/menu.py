@@ -29,7 +29,7 @@ import catalog
 import draft
 import paths
 
-FORMAT = 2   # 2 (13.0.0): health_sha256, so the build knows the menu was made from today's health.md
+FORMAT = 2   # 2 (0.13.0): health_sha256, so the build knows the menu was made from today's health.md
 EFFORT_WORDS = {"easy", "steady", "hard", "brisk", "light", "slow", "quick", "fast", "gentle"}
 
 

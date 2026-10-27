@@ -362,11 +362,11 @@ class LocalExtra(unittest.TestCase):
     def test_a_failed_migration_stops_setup(self):
         shutil.copytree(os.path.join(ROOT, "me.example"), os.path.join(self.repo, "me"))
         prof = os.path.join(self.repo, "me", "profile.md")
-        with open(prof, "w", encoding="utf-8") as f:   # sweatcast 8 and before: older than this engine migrates
+        with open(prof, "w", encoding="utf-8") as f:   # sweatcast 0.8 and before: older than this engine migrates
             f.write("+++\nschema = 3\n+++\n# Profile\n")
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
-        self.assertIn("v12.0.0", out.stdout)
+        self.assertIn("v0.12.0", out.stdout)
         self.assertNotIn("Done. Next", out.stdout)
 
     def test_no_models_on_a_fresh_copy_is_the_base_only(self):

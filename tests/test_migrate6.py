@@ -14,7 +14,7 @@ import context  # noqa: E402
 import check  # noqa: E402
 import migrate  # noqa: E402
 
-OLD = os.path.join(ROOT, "tests", "fixtures", "profile-5.md")   # the one-file template, as 11.x shipped it
+OLD = os.path.join(ROOT, "tests", "fixtures", "profile-5.md")   # the one-file template, as 0.11.x shipped it
 
 
 def write(path, text):
@@ -35,7 +35,7 @@ class Split(unittest.TestCase):
         for name in context.PROFILE_PARTS[1:]:
             os.remove(os.path.join(self.home, name))
         shutil.copy(OLD, os.path.join(self.home, "profile.md"))
-        for name in ("health.md", "log.md"):   # back to schema 5, as an 11.x folder has them
+        for name in ("health.md", "log.md"):   # back to schema 5, as an 0.11.x folder has them
             path = os.path.join(self.home, name)
             write(path, read(path).replace("schema = 6", "schema = 5", 1))
         self.old = context.front(read(OLD))[0]
@@ -134,7 +134,7 @@ class Merge(unittest.TestCase):
 
 
 class Pantry(unittest.TestCase):
-    """The reserve's old name (before 10.2.0): research/pantry/ moves into research/reserve/, never overwriting,
+    """The reserve's old name (before 0.10.2): research/pantry/ moves into research/reserve/, never overwriting,
     and told.jsonl's `pantry` keys become `reserve`; a second run has nothing to do."""
 
     def setUp(self):

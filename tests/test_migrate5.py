@@ -1,4 +1,4 @@
-"""Schema 4 to 5: a folder per workout. The 4.x workouts folder is invented here, in a temp dir:
+"""Schema 4 to 5: a folder per workout. The 0.4.x workouts folder is invented here, in a temp dir:
 drafts in drafts/, every build's output loose beside them, a smoke test, a stray file, and the day's
 research loose in research/."""
 import json
@@ -113,7 +113,7 @@ class Migrate5(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.d)
         self.home = os.path.join(self.d, "me")
         shutil.copytree(os.path.join(ROOT, "me.example"), self.home)
-        for name in ("profile.md", "health.md", "log.md"):   # as 9.0.0 wrote them
+        for name in ("profile.md", "health.md", "log.md"):   # as 0.9.0 wrote them
             path = os.path.join(self.home, name)
             with open(path, encoding="utf-8") as f:
                 text = f.read()
@@ -169,7 +169,7 @@ class MigratePersonas(unittest.TestCase):
                       os.path.join(self.home, "personas", ".archive", "coach-older", "persona.md")]
         for path in self.paths:
             touch(path, OLD_PERSONA)
-        touch(os.path.join(self.home, "workouts", "x.txt"))   # a 4.x layout would move this to checks/
+        touch(os.path.join(self.home, "workouts", "x.txt"))   # a 0.4.x layout would move this to checks/
 
     def migrate(self, *args):
         env = dict(os.environ, SWEATCAST_HOME=self.home)
@@ -184,7 +184,7 @@ class MigratePersonas(unittest.TestCase):
         out = self.migrate()
         self.assertIn("Backed up the originals", out.stdout, out.stdout + out.stderr)
         want = OLD_PERSONA.replace("schema = 4\n", 'schema = 5\nkind = "local"\n', 1)
-        # 15.0.0 then moves personas/ to coaches/, and a local coach of the listener's own into the archive
+        # 0.15.0 then moves personas/ to coaches/, and a local coach of the listener's own into the archive
         moved = [os.path.join(self.home, "coaches", ".archive", c, "persona.md") for c in ("coach-old", "coach-older")]
         for path in moved:
             with open(path, encoding="utf-8") as f:
@@ -207,7 +207,7 @@ class MigratePersonas(unittest.TestCase):
         ignore = os.path.join(self.home, ".gitignore")
         with open(ignore, encoding="utf-8") as f:
             text = f.read()
-        with open(ignore, "w", encoding="utf-8") as f:   # as 9.x wrote it
+        with open(ignore, "w", encoding="utf-8") as f:   # as 0.9.x wrote it
             f.write("\n".join(ln for ln in text.splitlines()
                               if ln not in NEW_RULES) + "\n")
         self.migrate()

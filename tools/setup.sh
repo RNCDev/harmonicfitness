@@ -64,7 +64,7 @@ fact() { echo "$FACTS" | sed -n "s/^$1=//p"; }
 LOCAL="$(fact local)"; LOCAL_ENGINE="$(fact local_engine)"; LOCAL_REASON="$(fact local_reason)"
 MARKER=".venv/.sweatcast-extra"
 INSTALLED="$(cat "$MARKER" 2>/dev/null || true)"
-# Before 15.0.0 a Mac's extra was "mlx" (Chatterbox and Qwen3 on MLX): Pocket on the processor replaces it.
+# Before 0.15.0 a Mac's extra was "mlx" (Chatterbox and Qwen3 on MLX): Pocket on the processor replaces it.
 [ "$INSTALLED" = mlx ] && INSTALLED=cpu
 case "$1" in
   --no-models) WANT="$INSTALLED" ;;   # the base, keeping a local engine already installed

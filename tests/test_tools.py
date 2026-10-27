@@ -145,7 +145,7 @@ class Lint(unittest.TestCase):
 
 
 class Structure(unittest.TestCase):
-    """How a script sounds is guidance in knowledge/tts-rules.md, not a lint check (since 7.0.0)."""
+    """How a script sounds is guidance in knowledge/tts-rules.md, not a lint check (since 0.7.0)."""
 
     def test_the_lint_has_no_structure_checks(self):
         segs = parse("@@ 60 | A\nGo! Push! Yes!\n@@ 60 | B\nSquats now. Today's story is a chip.\n")
@@ -1704,7 +1704,7 @@ note = "Therapist: no weight through the hand."
 
 
 class MigrateFrom4(unittest.TestCase):
-    """Schema 4 (sweatcast 9.x) folders migrate to the current schema in one run; the example is current."""
+    """Schema 4 (sweatcast 0.9.x) folders migrate to the current schema in one run; the example is current."""
 
     HEALTH4 = ('+++\nschema = 4\n[[limits]]\narea = "wrist"\nside = "right"\nlevel = "off-limits"\n+++\n# Health\n\n'
                "## Active injuries and limitations\n- Right wrist: invented strain.\n")
@@ -2330,7 +2330,7 @@ class Dedupe(unittest.TestCase):
         for name in ("blocks", "min_slots", "fixed"):
             self.assertFalse(hasattr(s.methods["circuit"], name), name)
         self.assertEqual(s.methods["circuit"].rest_seconds, [45, 90])
-        self.assertFalse(hasattr(sessions, "all_out"))   # the composer's helper, unused since 7.2.0
+        self.assertFalse(hasattr(sessions, "all_out"))   # the composer's helper, unused since 0.7.2
         self.assertEqual(sessions.problems(s, catalog.load()), [])
 
     def test_the_shell_scripts_share_their_helpers(self):
@@ -2361,8 +2361,8 @@ class Dedupe(unittest.TestCase):
 
 
 class LegacyGone(unittest.TestCase):
-    """13.0.0 migrates from context schema 4 (sweatcast 9.x) and persona schema 4 (10.0.0); older folders go
-    through sweatcast 12 first. The old names (--voice, voices, get default-voice, ## Narrator) are gone, and
+    """0.13.0 migrates from context schema 4 (sweatcast 0.9.x) and persona schema 4 (0.10.0); older folders go
+    through sweatcast 0.12 first. The old names (--voice, voices, get default-voice, ## Narrator) are gone, and
     the folder steps after the file steps run again on a rerun until they're done."""
 
     def test_the_floor_is_schema_4_and_says_where_to_go(self):
@@ -2373,7 +2373,7 @@ class LegacyGone(unittest.TestCase):
             write_file(os.path.join(home, "profile.md"), "+++\nschema = 3\n+++\n# Profile\n")
             with helpers.home(home), contextlib.redirect_stderr(io.StringIO()) as err:
                 self.assertEqual(cli.run(lambda: migrate.main([])), cli.ISSUES)
-            self.assertIn("v12.0.0", err.getvalue())
+            self.assertIn("v0.12.0", err.getvalue())
         for name in ("to_1", "to_2", "to_3", "to_4", "plan_coaches", "make_coaches", "_from_git", "_without_narrator"):
             self.assertFalse(hasattr(migrate, name), name)
 

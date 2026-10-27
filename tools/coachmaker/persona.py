@@ -15,7 +15,7 @@ import context  # noqa: E402
 import fileio  # noqa: E402
 
 ROSTER = os.path.join(ROOT, "coaches", "roster.toml")
-ALIASES = {"andy": ["Coach Demo"]}   # Andy's name before 10.3.0
+ALIASES = {"andy": ["Coach Demo"]}   # Andy's name before 0.10.3
 
 
 def q(v):

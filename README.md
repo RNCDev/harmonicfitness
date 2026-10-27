@@ -95,7 +95,7 @@ The assistant runs these for you, but they work on their own too; `./sweatcast h
 | `./sweatcast feeds`, `content`, `youtube`, `log-session` | What the workout skill uses to research, plan the stories and log |
 | `./sweatcast backup` | Commits `me/` and pushes it to its own private repo (the workout skill runs it after each session) |
 | `./sweatcast harness` | Checks that ChatGPT's Codex files match the Claude Code ones; `sync` rewrites them |
-| `./sweatcast migrate`, `cache prune`, `test` | Upkeep (`migrate` brings a `me/` from sweatcast 9 or later up to date; an older one goes through v12.0.0 first) |
+| `./sweatcast migrate`, `cache prune`, `test` | Upkeep (`migrate` brings a `me/` from sweatcast 0.9 or later up to date; an older one goes through v0.12.0 first) |
 
 ## How it's organized
 
@@ -169,7 +169,7 @@ sweatcast is free and open source. If it gets you moving, you can [buy me a coff
 
 ## Versioning
 
-sweatcast follows [Semantic Versioning](https://semver.org). Each release is tagged `vX.Y.Z` on GitHub; `CHANGELOG.md` says what changed, and a release's "For forks" note says what to do after pulling it.
+sweatcast follows [Semantic Versioning](https://semver.org) and is pre-1.0: a 0.X.0 release may break something (its "For forks" note says what to do), a 0.x.Y release doesn't. The numbering restarted at 0.16.0 (it was 16.0.0); older releases were renumbered to match (`CHANGELOG.md` has the table). Each release is tagged `vX.Y.Z` on GitHub; `CHANGELOG.md` says what changed, and a release's "For forks" note says what to do after pulling it.
 
 ## License
 

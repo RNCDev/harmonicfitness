@@ -9,18 +9,18 @@ Run it again and it changes nothing.
     ./sweatcast migrate             # migrate, with a backup
     ./sweatcast migrate --dry-run   # say what would change, change nothing
 
-This engine migrates from context schema 4 (sweatcast 9.x) and coach schema 4 (10.0.0). An older
-folder (sweatcast 8 and before) goes through sweatcast 12 first: `git checkout v12.0.0 &&
+This engine migrates from context schema 4 (sweatcast 0.9.x) and coach schema 4 (0.10.0). An older
+folder (sweatcast 0.8 and before) goes through sweatcast 0.12 first: `git checkout v0.12.0 &&
 ./sweatcast migrate`, then back to this version and `./sweatcast migrate` again.
 
 Steps:
-    4 to 5 (sweatcast 9.1.0): a folder per workout. Each draft in workouts/drafts/ moves, with its
+    4 to 5 (sweatcast 0.9.1): a folder per workout. Each draft in workouts/drafts/ moves, with its
         brief and menu, to workouts/<stem>/, and each build's script and record (and an MP3 not
         yet delivered) moves beside the draft its record names (or, with no record, the one draft
         from the same date). Smoke tests, and anything that can't be placed for sure, go to
         workouts/checks/; each day's research sheet and feeds to workouts/research/daily/. Nothing
         is overwritten. The files' text changes only its schema number.
-    5 to 6 (sweatcast 12.0.0): the profile splits by how often each part changes and who reads it.
+    5 to 6 (sweatcast 0.12.0): the profile splits by how often each part changes and who reads it.
         profile.md keeps who you are (name, experience, and every prose section but these);
         training.md gets the kits, likes and dislikes and the Equipment kits and Default session
         sections; content.md the interests, feeds, YouTube favorites and puzzles and the Content and
@@ -28,7 +28,7 @@ Steps:
         words_per_minute. Each setting keeps its value (comments are the template's; the originals
         are in the backup). health.md and log.md change only their schema number. It backs up before
         overwriting a training.md, content.md or settings.toml already there (each goes to the backup first).
-    Coaches (sweatcast 15.0.0, a folder step with no schema change): personas/ becomes coaches/; each local
+    Coaches (sweatcast 0.15.0, a folder step with no schema change): personas/ becomes coaches/; each local
         coach of the listener's own moves to coaches/.archive/ (local coaches are now the ten sweatcast ships,
         and a voice of one's own is a web coach); and an unmade copy of a stock web coach (Reed, Ellis, Nolan,
         Owen, still pending design) goes to the backup, since the engine ships them now. A made one stays and
@@ -36,14 +36,14 @@ Steps:
 
 The folder steps (the split, the folder per workout, the reserve's old name, the .gitignore rules for
 coaches) run whenever they still have something to do, whatever the files' schema says, so a run that
-stopped halfway finishes on the next. The reserve's old name (sweatcast 14): before 10.2.0 the reserve
+stopped halfway finishes on the next. The reserve's old name (sweatcast 0.14): before 0.10.2 the reserve
 was research/pantry/ and told.jsonl named a piece under `pantry`; each sheet moves into research/reserve/
 (one already there by that name was the one read, so the pantry's copy goes to the backup unless it's
 the same), and each `pantry` key becomes `reserve`.
 
 Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own schema, migrated
 beside the context files, even when those are already current:
-    4 to 5 (sweatcast 10.0.0): web coaches. Each coach's settings gain `kind = "local"` after the
+    4 to 5 (sweatcast 0.10.0): web coaches. Each coach's settings gain `kind = "local"` after the
         schema line; nothing else in the file changes. me/.gitignore keeps each web coach's
         sample.mp3 (archived ones too) and leaves out auditions in progress (personas/.auditions/) and a
         make's in-between files (.made.json, .made.wav).
@@ -191,7 +191,7 @@ def split_profile(home):
 
 
 STEPS = {4: to_5, 5: to_6}   # from schema N, the function that makes it N + 1
-FLOOR = min(STEPS)           # the oldest context schema this engine migrates (sweatcast 9.x)
+FLOOR = min(STEPS)           # the oldest context schema this engine migrates (sweatcast 0.9.x)
 
 
 def persona_to_5(text, path):
@@ -258,7 +258,7 @@ def _told_lines(home):
 
 
 def pantry_due(home):
-    """What retiring the reserve's old name (before 10.2.0) still has to do, as lines to print; empty when nothing."""
+    """What retiring the reserve's old name (before 0.10.2) still has to do, as lines to print; empty when nothing."""
     out = []
     old = os.path.join(_research(home), "pantry")
     if os.path.isdir(old):
@@ -308,7 +308,7 @@ def retire_pantry(home, backup):
 
 
 def coach_root(home=None):
-    """The listener's coach folder: coaches/, or personas/ in a folder from before 15.0.0 not migrated yet."""
+    """The listener's coach folder: coaches/, or personas/ in a folder from before 0.15.0 not migrated yet."""
     home = home or paths.HOME
     new, old = os.path.join(home, "coaches"), os.path.join(home, "personas")
     return old if os.path.isdir(old) and not os.path.isdir(new) else new
@@ -316,7 +316,7 @@ def coach_root(home=None):
 
 def persona_files(home=None):
     """Every coach file: coaches/<coach>/persona.md and coaches/.archive/<coach>/persona.md (not auditions), and
-    the same under personas/ in a folder from before 15.0.0."""
+    the same under personas/ in a folder from before 0.15.0."""
     import personas
     home = home or paths.HOME
     folders = [os.path.join(home, n) for n in ("coaches", "personas")]
@@ -337,7 +337,7 @@ def _coach_settings(path):
 
 
 def coaches_due(home):
-    """15.0.0's coaches step: [(what, folder name)] still to do: ("rename", "personas"), ("archive", <coach>)
+    """0.15.0's coaches step: [(what, folder name)] still to do: ("rename", "personas"), ("archive", <coach>)
     for a local coach of the listener's own, ("stock", <coach>) for an unmade copy of a stock web coach."""
     import personas
     out = []
@@ -422,7 +422,7 @@ def _behind(path, current, floor, what):
                          f"{current}). Pull the latest sweatcast instead of migrating.")
     if found < floor:
         raise SystemExit(f"{show(path)} is schema {found}, older than this engine migrates ({what} from schema {floor}). "
-                         "Go through sweatcast 12 first: git checkout v12.0.0 && ./sweatcast migrate, then "
+                         "Go through sweatcast 0.12 first: git checkout v0.12.0 && ./sweatcast migrate, then "
                          "git checkout main && ./sweatcast migrate again.")
     return found if found < current else None
 

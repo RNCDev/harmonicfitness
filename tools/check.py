@@ -235,7 +235,7 @@ def check(home_files=None):
         out += check_coaches()
         out += check_movements()
         old = os.path.join(paths.HOME, "exercise-science.md")
-        if os.path.exists(old):   # 5.1.0 stopped reading it
+        if os.path.exists(old):   # 0.5.1 stopped reading it
             out.append(Issue(old, 0, "no longer used (sessions draw no exercise-science asides now); "
                                      "delete it once anything worth keeping is copied out", note=True))
     return out
@@ -273,7 +273,7 @@ def check_coaches(folder=None):
                                           "leave style empty"))
         else:
             out.append(Issue(path, 0, f"{p.settings.get('name') or slug} is a local coach of your own, which "
-                                      "sweatcast 15.0.0 no longer renders: ./sweatcast migrate archives it (the ten "
+                                      "sweatcast 0.15.0 no longer renders: ./sweatcast migrate archives it (the ten "
                                       "shipped coaches and web coaches remain)"))
         if p.settings.get("placeholder"):
             out.append(Issue(path, 0, f"{p.settings.get('name') or slug} is a stand-in coach: say \"I want a new "

@@ -47,8 +47,8 @@ import fileio  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
-SCHEMA = 6   # 6 (12.0.0) splits the profile into profile.md, training.md, content.md and settings.toml
-PERSONA_SCHEMA = 5   # me/personas/<slug>/persona.md, new in sweatcast 9; 5 (10.0.0) adds kind and web coaches
+SCHEMA = 6   # 6 (0.12.0) splits the profile into profile.md, training.md, content.md and settings.toml
+PERSONA_SCHEMA = 5   # me/personas/<slug>/persona.md, new in sweatcast 0.9; 5 (0.10.0) adds kind and web coaches
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday", "wikipedia")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")

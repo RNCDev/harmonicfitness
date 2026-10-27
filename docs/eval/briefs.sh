@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generate the judged grid's briefs (the 7.0.0 path): for each case in docs/eval/cases.toml and
+# Generate the judged grid's briefs (the 0.7.0 path): for each case in docs/eval/cases.toml and
 # docs/eval/extra-cases.toml, or only the ids given, run ./sweatcast brief --save as that case's
 # invented listener and write
 #   docs/eval/out/<id>.brief.md          the brief the writer designs the session from

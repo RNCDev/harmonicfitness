@@ -100,6 +100,6 @@ Then, once every approved one is kept: `./sweatcast coaches forget-audition <aud
 
 ## Local coaches
 
-Since sweatcast 15.0.0 the local coaches are the ten that ship: a listener can't design one or bring a clip (a cloned voice is where local engines garbled words, and a real person's voice needs consent). For a voice of their own, make a web coach (above); it needs a voice key. A local coach from an older sweatcast was moved to `me/coaches/.archive/` by `./sweatcast migrate`.
+Since sweatcast 0.15.0 the local coaches are the ten that ship: a listener can't design one or bring a clip (a cloned voice is where local engines garbled words, and a real person's voice needs consent). For a voice of their own, make a web coach (above); it needs a voice key. A local coach from an older sweatcast was moved to `me/coaches/.archive/` by `./sweatcast migrate`.
 
 A workout that asked for a new coach continues with them, passing `--coach "<name>"` to the build.

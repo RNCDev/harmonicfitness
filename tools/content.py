@@ -11,7 +11,7 @@ Three things, so the stories rotate instead of repeating and the slow research h
   session's items after it's built.
 - The reserve (me/workouts/research/reserve/<slug>.md): evergreen pieces (quiz, delight, learn)
   researched ahead of time, a sheet each. A piece is used once the record names its slug. The plan
-  lists the unused ones and says which slots run low. (Before 10.2.0 it was research/pantry/;
+  lists the unused ones and says which slots run low. (Before 0.10.2 it was research/pantry/;
   ./sweatcast migrate renames it.)
 
     ./sweatcast content plan --minutes 25

@@ -58,7 +58,7 @@ def env_python(env):
     folder = os.path.join(ROOT, env, ".venv")
     exe = os.path.join(folder, "Scripts", "python.exe") if os.name == "nt" else os.path.join(folder, "bin", "python")
     if not os.path.exists(exe):
-        raise SystemExit(f"No environment at {env}; make it first (see docs/plans/15.0.0-ten-local-coaches.md).")
+        raise SystemExit(f"No environment at {env}; make it first (see docs/plans/0.15.0-ten-local-coaches.md).")
     return exe
 
 

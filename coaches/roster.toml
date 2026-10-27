@@ -21,7 +21,7 @@ studio = "Speaks at a steady, natural pace, close to the microphone, in a quiet 
 
 [designers.qwen3]
 # Qwen3-TTS VoiceDesign through mlx-audio, on the Mac, in its own environment (the engine has no MLX since
-# 15.0.0). Make it once: uv venv .cache/coachmaker/design/.venv --python 3.11, then
+# 0.15.0). Make it once: uv venv .cache/coachmaker/design/.venv --python 3.11, then
 # uv pip install --python .cache/coachmaker/design/.venv/bin/python mlx-audio==0.5.0 mlx==0.32.1 numpy==2.2.6
 repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
 revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"

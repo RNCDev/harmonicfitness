@@ -81,7 +81,7 @@ Judge only what is in the files. Don't rewrite the scripts.
 
 When the run is compared with an earlier one, score blind first, as above. Then:
 
-1. **Warmth of the earlier scripts.** When the earlier run has no warmth score (runs before 6.2.0),
+1. **Warmth of the earlier scripts.** When the earlier run has no warmth score (runs before 0.6.2),
    read each of your cases' earlier scripts (the folder you're given, such as
    `docs/eval/out-before-7.0.0/<id>.draft.txt`) and score its warmth alone, on the scale above, with
    one line of reason. Add these as a `## Warmth of the earlier scripts` table (id, warmth, reason).
@@ -89,5 +89,5 @@ When the run is compared with an earlier one, score blind first, as above. Then:
    one line per case where a score moved, naming each moved score (old to new) and its cause:
    **design** (the writer designed it differently with the brief), **brief** (the ingredients helped
    or were missing), **script** (the writing itself) or **calibration** (judged differently). Ease
-   meant something else before 7.0.0 (how much the writer invented beyond a skeleton), so say what a
+   meant something else before 0.7.0 (how much the writer invented beyond a skeleton), so say what a
    moved ease score reflects. Don't change the blind scores.

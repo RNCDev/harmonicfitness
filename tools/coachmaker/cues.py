@@ -8,7 +8,7 @@
   .venv/bin/python tools/coachmaker/cues.py keep maya go=45         (keep, with another seed for one clip)
 
 A draft's `[count 5 go]` plays five, four, three, two, one and then "go", one a second, and `[cue rest]` one
-cue alone (docs/plans/15.0.0-ten-local-coaches.md, Counts and cues). Those are clips each coach ships, made
+cue alone (docs/plans/0.15.0-ten-local-coaches.md, Counts and cues). Those are clips each coach ships, made
 here once on Pocket from the coach's pocket.safetensors, through the public model as a listener runs it:
 
 - The counts come from one countdown, "Ten. Nine. ... One.", so they keep a counting voice and "one" sounds

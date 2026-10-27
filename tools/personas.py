@@ -359,7 +359,7 @@ def _local(p):
     local = p.table("local")
     engine = local.get("engine") or "pocket"
     if engine not in LOCAL_ENGINES or not p.shipped:
-        raise SystemExit(f"{p.name} is a local coach of your own ({show(p.folder)}), and since sweatcast 15.0.0 "
+        raise SystemExit(f"{p.name} is a local coach of your own ({show(p.folder)}), and since sweatcast 0.15.0 "
                          "local coaches are the ten it ships (./sweatcast coaches lists them; ./sweatcast migrate "
                          "archives older ones). A voice of your own is a web coach: the coach skill makes one.")
     if not os.path.exists(p.voice_state):

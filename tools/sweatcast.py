@@ -75,7 +75,7 @@ def main(argv=None):
         return 0
     cmd, rest = argv[0], argv[1:]
     if cmd in RETIRED:
-        print(f"./sweatcast {cmd} is gone (sweatcast 14): use {RETIRED[cmd]}.", file=sys.stderr)
+        print(f"./sweatcast {cmd} is gone (sweatcast 0.14): use {RETIRED[cmd]}.", file=sys.stderr)
         return cli.USAGE
     if cmd not in COMMANDS:
         print(f"Unknown command '{cmd}'.\n\n{usage()}", file=sys.stderr)

@@ -2,24 +2,36 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
-## [16.0.0] - 2026-10-27
+## [0.16.0] - 2026-10-27
 
 Pocket TTS is settled as the local voice, so the research that chose it leaves the engine: the audio bench, its results and the voice research note. Nothing a workout uses changes.
 
+**Version numbers restart at 0.16.0.** This release was first tagged 16.0.0; sweatcast is pre-1.0 in fact, so every release is renumbered in Semantic Versioning's 0.x form: old major X is now 0.X, and its releases count up as patches in order. The tags and GitHub releases were recreated under the new numbers on the same commits (each tagged commit's own `VERSION` file still shows the number it shipped with), and every version this changelog, the docs and the tools mention uses the new numbers.
+
+| Old | New | Old | New | Old | New |
+|---|---|---|---|---|---|
+| 0.1.0–0.6.0 | 0.0.1–0.0.6 | 6.0.0, 6.1.0, 6.2.0 | 0.6.0, 0.6.1, 0.6.2 | 10.0.0–10.4.0 | 0.10.0–0.10.4 |
+| 1.0.0, 1.1.0 | 0.1.0, 0.1.1 | 7.0.0, 7.1.0, 7.2.0 | 0.7.0, 0.7.1, 0.7.2 | 11.0.0, 11.0.1 | 0.11.0, 0.11.1 |
+| 2.0.0 | 0.2.0 | 8.0.0, 8.0.1, 8.1.0 | 0.8.0, 0.8.1, 0.8.2 | 12.0.0, 13.0.0 | 0.12.0, 0.13.0 |
+| 3.0.0, 3.0.1, 3.1.0 | 0.3.0, 0.3.1, 0.3.2 | 9.0.0, 9.1.0, 9.1.1, 9.1.2 | 0.9.0, 0.9.1, 0.9.2, 0.9.3 | 14.0.0, 14.1.0, 14.2.0 | 0.14.0, 0.14.1, 0.14.2 |
+| 4.0.0 | 0.4.0 | 5.0.0–5.4.0 | 0.5.0–0.5.4 | 15.0.0, 16.0.0 | 0.15.0, 0.16.0 |
+
 ### For forks
-- **`./sweatcast bench` is gone,** with `tools/bench.py`, `tools/bench_worker.py`, `tests/test_bench.py` and `docs/audio-bench/` (the script, the 2026-10-26 results and their listening files). CLAUDE.md no longer has "run the MAC/PC audio test harness". Git history keeps all of it: `git checkout v15.0.0 -- tools/bench.py tools/bench_worker.py docs/audio-bench` brings it back.
+- **Tags changed names.** `git fetch --tags --prune-tags --force` drops the old `v1.0.0`…`v16.0.0` tags and fetches the new ones. A checkout or script pinned to an old tag uses the new name from the table (`v12.0.0` is `v0.12.0`, which is where `./sweatcast migrate` sends a folder older than 0.9). The old `v0.3.0`…`v0.6.0` tags are now `v0.0.3`…`v0.0.6`, and the names `v0.3.0`…`v0.6.0` belong to old 3.0.0…6.0.0.
+- **From here,** a 0.X.0 release may break something and says what to do here; a 0.x.Y release doesn't.
+- **`./sweatcast bench` is gone,** with `tools/bench.py`, `tools/bench_worker.py`, `tests/test_bench.py` and `docs/audio-bench/` (the script, the 2026-10-26 results and their listening files). CLAUDE.md no longer has "run the MAC/PC audio test harness". Git history keeps all of it: `git checkout v0.15.0 -- tools/bench.py tools/bench_worker.py docs/audio-bench` brings it back.
 - **`knowledge/research/2026-10-25-local-voices.md` is gone;** `knowledge/voices.md` keeps what it decided.
 - **The maintainer's coach tools** (`tools/coachmaker/`) now run in the engine's own environment through `common.py` (Pocket, untrimmed, and the take checker's recognizer), not the bench's throwaway ones. `qa.py` and `embed_worker.py` are gone; the ear approvals and every build's take check cover what they measured. `export_pocket.py` loads the gated Pocket model in `.venv` (a Hugging Face login with its terms accepted, as before).
 - **Disk:** a computer that ran the bench can delete `.cache/bench/` and `.cache/uv-bench/`; `./sweatcast models` names the models nothing uses.
 
-## [15.0.0] - 2026-10-27
+## [0.15.0] - 2026-10-27
 
 Ten local coaches ship with sweatcast, all on one local engine, Pocket TTS, on every computer. Each was designed once from a description, heard and approved by ear, and ships with its voice file, recorded counts and cues, a measured pace and a 45-second sample to choose by ear. Countdowns play those recorded numbers one second apart instead of a voice rushing through them. Local coaches are now chosen, not made: a voice of your own is a web coach.
 
 ### For forks
 - **Run `./sweatcast migrate`** (setup runs it). `me/personas/` becomes `me/coaches/`. A local coach of your own moves to `me/coaches/.archive/`, since only the ten stock local coaches render now; old log lines still find it by name. An unmade copy of a stock web coach (Reed, Ellis, Nolan, Owen, still `pending = "design"`) goes to the backup, since the engine ships them now; a made one stays in `me/coaches/` and is used over the stock copy. `me/.gitignore`'s `personas/` rules become `coaches/` rules. No context file changes its schema.
 - **The local engine is Pocket TTS on PyTorch everywhere**, the extras `cpu` (an Apple Silicon Mac, or a PC's processor) and `cuda`. MLX, Chatterbox Turbo, Qwen3-TTS and the local voice designer are gone from the engine. A `.venv/.sweatcast-extra` of `mlx` becomes `cpu`; rerun `./sweatcast setup`, which downloads Pocket's public model (about 0.6 GB) and the take checker (2.5 GB, now the ONNX Parakeet on every computer, so a PC's takes are checked too). No Hugging Face login is needed. The old models stay in `models/` until you delete them: `./sweatcast models` lists them with their sizes (about 30 GB on a Mac that ran everything). An Intel Mac has no local voices any more (PyTorch has no build for it).
-- **Stock coaches live in the engine, in `coaches/`**, not in the template. This reverses 9.x's move of Coach Andy into `me.example/`: ten coaches with their voice files are public, versioned assets a release should be able to improve for everyone, and about 160 MB doesn't belong in each listener's private backup. The four stock web coaches moved there too. `personas.all()` merges `coaches/` with `me/coaches/`, yours winning on a name clash.
+- **Stock coaches live in the engine, in `coaches/`**, not in the template. This reverses 0.9.x's move of Coach Andy into `me.example/`: ten coaches with their voice files are public, versioned assets a release should be able to improve for everyone, and about 160 MB doesn't belong in each listener's private backup. The four stock web coaches moved there too. `personas.all()` merges `coaches/` with `me/coaches/`, yours winning on a name clash.
 - **Removed commands:** `coaches design`, the local `coaches keep` (a take or a clip), `coaches set <coach> local.engine`, `coaches download --all` and `setup --all`. `coaches keep <audition>/<letter>` for web coaches is unchanged.
 - **Countdowns are written as `[count 5 go]`.** With a coach that has recorded counts the lint refuses one written in words (three or more number words counting down); a coach without (a web coach) says the marker's count in words. With any coach, one word alone between markers ("Hold.") is refused too, since a local voice garbles it often; the message points to `[cue …]` where it's a cue. The smoke test changed to match; a fork's own drafts need the same change. The brief's new Counts line says how the coach counts.
 
@@ -40,7 +52,7 @@ Ten local coaches ship with sweatcast, all on one local engine, Pocket TTS, on e
 - **Why Pocket alone:** in a blind test on 2026-10-26 Pocket was preferred over Chatterbox Turbo for six coaches, Turbo for three, one even; on the audio bench it never dropped a cue word in 176 takes and renders two to six times faster, in a third of the memory.
 - **Not yet tried by hand:** a real build on the PC (its processor and its NVIDIA card), and the recognizer's speed on a PC's processor.
 
-## [14.2.0] - 2026-10-26
+## [0.14.2] - 2026-10-26
 
 The audio bench: every candidate local voice model reads the same five-minute script on a Mac and on a PC, measured and scored the same way, so the next local voice can be chosen on evidence. Nothing a workout uses changes.
 
@@ -66,7 +78,7 @@ The audio bench: every candidate local voice model reads the same five-minute sc
   - The PC's PyTorch setups for Turbo and Lure ran on the Mac's processor.
   - Ming on CUDA and Pocket TTS are untried until the PC run.
 
-## [14.1.0] - 2026-10-25
+## [0.14.1] - 2026-10-25
 
 Every local take is now heard before it ships. A speech recognizer checks each clip against its line, renders a take that drops a cue word or breaks down again with the next seed, and stops the build only when four takes in a row lose the same cue. Clips are leveled to one speech level and lightly compressed before the loudness pass. Countdowns lose their ellipses, which made Chatterbox Turbo drop the words after them.
 
@@ -92,9 +104,9 @@ Every local take is now heard before it ships. A speech recognizer checks each c
 - **Countdowns use commas or periods.** On Chatterbox Turbo, "Three... two... one... and rest." lost "and rest" in three takes of five (seed 42, the default, among them); with commas or periods, nothing was lost in ten takes.
 - `cache prune` removes a clip's verdict with it.
 
-## [14.0.0] - 2026-10-25
+## [0.14.0] - 2026-10-25
 
-A second review of the harness, after 13.0.0. The safety gate closes the holes that let an unsafe movement reach the MP3; nothing is paid for before the draft passes its checks, and nothing half-written is left in the delivery folder; the session log takes its facts from the menu and the build instead of retyping them; and two commands, a pantry fallback and the copies of the service list are gone.
+A second review of the harness, after 0.13.0. The safety gate closes the holes that let an unsafe movement reach the MP3; nothing is paid for before the draft passes its checks, and nothing half-written is left in the delivery folder; the session log takes its facts from the menu and the build instead of retyping them; and two commands, a pantry fallback and the copies of the service list are gone.
 
 ### For forks
 - **Commands gone:** `./sweatcast lint` (use `./sweatcast build <draft> "<name>" --lint-only`) and `./sweatcast render` (use `./sweatcast build`); both exit 64 naming the replacement. With them go lint without a coach and `--force`, `--strict`, `--wpm`, `--min-fill`, `--max-fill`, `--word-tolerance`, `--require-menu` and `--out`; also `content pantry` (use `content reserve`) and `coaches design --designer`.
@@ -121,7 +133,7 @@ A second review of the harness, after 13.0.0. The safety gate closes the holes t
 - **Simpler code:** the service list in one place, `encode` reusing the render's preflight, and dead constants, wrappers and one-option abstractions removed (about 130 fewer lines in `tools/`).
 
 ### Fixed
-- **`content plan` and `content reserve` crashed** (13.0.0): a parameter named `folders` hid the function of that name, so the workout skill's filler step failed every session.
+- **`content plan` and `content reserve` crashed** (0.13.0): a parameter named `folders` hid the function of that name, so the workout skill's filler step failed every session.
 - **A brought clip** in M4A, WebM, AIFF or another format was read as raw sound and saved as noise; every clip that isn't a 16-bit WAV now goes through ffmpeg.
 - **A `@@ 0` segment** is refused when the draft is read; before, it crashed the render after every clip was rendered (and billed).
 - **An unreadable answer from a voice service** (not JSON, or audio that isn't base64) and a dropped connection are service errors with their exit codes, not tracebacks; a dropped connection is retried for speech and never for a design or a save. Keeping an audition candidate marks it before the save is sent, so a voice saved at the service is never lost track of.
@@ -133,17 +145,17 @@ A second review of the harness, after 13.0.0. The safety gate closes the holes t
 ### Removed
 - `docs/superpowers/` and `docs/plans/` (shipped plans and specs; in the history), and `docs/eval/skeletons.sh` (the retired composer's baseline).
 
-## [13.0.0] - 2026-10-25
+## [0.13.0] - 2026-10-25
 
-A review of the whole harness, hardened where a check could be skipped and simplified where the same rule lived in several places. The build runs in one process; the menu is today's or the build stops; a key can't leak into a message; the tools exit with the documented codes from every entry point; and the code for sweatcast 8 and earlier is gone.
+A review of the whole harness, hardened where a check could be skipped and simplified where the same rule lived in several places. The build runs in one process; the menu is today's or the build stops; a key can't leak into a message; the tools exit with the documented codes from every entry point; and the code for sweatcast 0.8 and earlier is gone.
 
 ### For forks
-- **Run `./sweatcast migrate`** (or `./sweatcast setup`, which runs it) from a `me/` at sweatcast 9 or later. A folder from sweatcast 8 or earlier (context schema 3 or below) is no longer migrated here: check out `v12.0.0`, run `./sweatcast migrate` there, then come back and run it again; the tool says so.
-- **Gone:** `--voice` (use `--coach`) on build, render, lint, brief and log-session; `./sweatcast voices` (use `coaches`); `./sweatcast get default-voice` and `get voices` (use `get coach` and `coaches`); the sweatcast 8 voice import and `migrate --name`; the profile template's `## Narrator` section (how a coach talks lives in `persona.md`). `./sweatcast check` is its own tool (`tools/check.py`); `context.py check` is no more.
-- **The menu is today's.** `./sweatcast brief --save` now records the day and a hash of `me/health.md` in the menu, and a build (or `./sweatcast render`) stops on a menu from another day or from before `health.md` changed; `--lint-only` warns. Rerun the brief with `--save` and build again. A menu saved by 12.x has no hash, so the first build after upgrading asks for a fresh brief. `./sweatcast render` and `./sweatcast lint` now hold a draft to its menu as `build` does; only `knowledge/smoke-test.draft.txt` itself builds without one (a copy of it elsewhere doesn't).
+- **Run `./sweatcast migrate`** (or `./sweatcast setup`, which runs it) from a `me/` at sweatcast 0.9 or later. A folder from sweatcast 0.8 or earlier (context schema 3 or below) is no longer migrated here: check out `v0.12.0`, run `./sweatcast migrate` there, then come back and run it again; the tool says so.
+- **Gone:** `--voice` (use `--coach`) on build, render, lint, brief and log-session; `./sweatcast voices` (use `coaches`); `./sweatcast get default-voice` and `get voices` (use `get coach` and `coaches`); the sweatcast 0.8 voice import and `migrate --name`; the profile template's `## Narrator` section (how a coach talks lives in `persona.md`). `./sweatcast check` is its own tool (`tools/check.py`); `context.py check` is no more.
+- **The menu is today's.** `./sweatcast brief --save` now records the day and a hash of `me/health.md` in the menu, and a build (or `./sweatcast render`) stops on a menu from another day or from before `health.md` changed; `--lint-only` warns. Rerun the brief with `--save` and build again. A menu saved by 0.12.x has no hash, so the first build after upgrading asks for a fresh brief. `./sweatcast render` and `./sweatcast lint` now hold a draft to its menu as `build` does; only `knowledge/smoke-test.draft.txt` itself builds without one (a copy of it elsewhere doesn't).
 - **Drafts:** the text scan now reads one-word movement names (deadlift, thruster, woodchop, clamshell, inchworm, elliptical), spaced plurals ("push ups", "step ups"), and a shortened name that is itself another movement ("push-ups" after a declared wall push-up, "shadow boxing" after a declared seated shadow boxing); a "no" or "not" excuses a mention only in its own clause. A draft that passed before may now name a movement to reword or declare.
 - **`log-session`** refuses a coach that doesn't exist (archived ones still log), a kit that isn't one of the profile's or a preset, a format that isn't a `sessions.toml` method, and any line break in a field. **`content log`** accepts the slot as the plan names it ("deep dive") and refuses a reserve slug with no sheet.
-- **The template** (`me.example/`): `health.md`'s clinician line is `- Rule: [...]`, `content.md`'s "Never bring up" takes a hint (write "nothing" for none), an empty `- Label:` line is noted as unfilled in every file (a note, so a 12.x folder's empty lines don't fail `check`); `knowledge/sessions.toml` drops the retired composer's `blocks`, `min_slots` and `fixed` keys (a fork's copy keeps working; the loader ignores them).
+- **The template** (`me.example/`): `health.md`'s clinician line is `- Rule: [...]`, `content.md`'s "Never bring up" takes a hint (write "nothing" for none), an empty `- Label:` line is noted as unfilled in every file (a note, so a 0.12.x folder's empty lines don't fail `check`); `knowledge/sessions.toml` drops the retired composer's `blocks`, `min_slots` and `fixed` keys (a fork's copy keeps working; the loader ignores them).
 - A customized workout skill needs merging: the brief and the lint take `--coach`, the "Would open up" rerun uses `brief --add <item>`, and steps 6 and 7 explain a stale menu and a malformed `--item`. Run `./sweatcast harness sync` after.
 
 ### Added
@@ -175,9 +187,9 @@ A review of the whole harness, hardened where a check could be skipped and simpl
 - **`check`** notes a setting no tool reads (`deliver-to`: did you mean `deliver_to`?) and finds the quick-start flag beside the files it checks.
 
 ### Removed
-- Migration from context schemas 0 to 3 and the sweatcast 8 voice import (`to_1` to `to_4`, `plan_coaches`, `make_coaches`, the `v8.0.1` clips, `tests/test_migrate4.py`, `tests/v8.py`); `--voice`, `./sweatcast voices`, `get default-voice`, `get voices`; `context.voices`, `default_voice`, the schema-1 `---` front matter and the legacy profile parser; `sessions.all_out`; the unreachable `setup` and `doctor` branches in `tools/sweatcast.py`; the `## Narrator` section.
+- Migration from context schemas 0 to 3 and the sweatcast 0.8 voice import (`to_1` to `to_4`, `plan_coaches`, `make_coaches`, the `v0.8.1` clips, `tests/test_migrate4.py`, `tests/v8.py`); `--voice`, `./sweatcast voices`, `get default-voice`, `get voices`; `context.voices`, `default_voice`, the schema-1 `---` front matter and the legacy profile parser; `sessions.all_out`; the unreachable `setup` and `doctor` branches in `tools/sweatcast.py`; the `## Narrator` section.
 
-## [12.0.0] - 2026-10-25
+## [0.12.0] - 2026-10-25
 
 The profile is four files, split by how often each part changes and who reads it, so a workout reads a few dozen lines about you instead of a few hundred, and adding a feed can't touch your kits.
 
@@ -199,7 +211,7 @@ The profile is four files, split by how often each part changes and who reads it
 ### For forks
 Run `./sweatcast migrate` once (or rerun `./sweatcast setup`, which runs it). It backs up `me/` first, splits `profile.md` into the four files and bumps `health.md` and `log.md` to schema 6. Each setting keeps its value; the settings' comments become the template's (your originals are in the backup). Any `## ` section of your profile other than Equipment kits, Default session, Content and Taste stays in `profile.md`. If `training.md`, `content.md` or `settings.toml` is already in `me/` (copied from the new template, say), migrate replaces it; the original goes to the backup.
 
-## [11.0.1] - 2026-10-25
+## [0.11.1] - 2026-10-25
 
 The README, CLAUDE.md and AGENTS.md are rewritten to be shorter and checked claim by claim against the code, and sweatcast can now be supported.
 
@@ -209,12 +221,12 @@ The README, CLAUDE.md and AGENTS.md are rewritten to be shorter and checked clai
 
 ### Fixed
 - **README:** segments don't all start on the clock (a segment with spare time ends early; only the total is held to plan); the disk and download figures now match the readiness check (6 GB free; about 4 GB on a Mac, up to 8 GB on Windows or Linux); the backup command commits before pushing and says it needs the GitHub CLI; Qwen3's render speed is no longer folded into Chatterbox's; Windows needs Git for Windows; an audition needs a voice key; coach folder names; and the license list covers Linux and the MLX tokenizer.
-- **CLAUDE.md:** reorganized (what runs when, the listener's files, knowledge, tools by area, tests, audio, releases) with the errors fixed: the `render` setting lists routes, not engines; the lint doesn't read `words_per_minute`; the default web coach is made during setup's quick start; the feeds sheet's path; the `render` command and `test_tools.py`; the release rule now covers 11.0.0.
+- **CLAUDE.md:** reorganized (what runs when, the listener's files, knowledge, tools by area, tests, audio, releases) with the errors fixed: the `render` setting lists routes, not engines; the lint doesn't read `words_per_minute`; the default web coach is made during setup's quick start; the feeds sheet's path; the `render` command and `test_tools.py`; the release rule now covers 0.11.0.
 - **AGENTS.md:** tighter, and it gives every reason `./sweatcast` runs outside Codex's sandbox.
 - **The setup skill** quotes the same download sizes as the README.
 - **The profile template's `words_per_minute` comment** said the lint uses it; it doesn't.
 
-## [11.0.0] - 2026-10-25
+## [0.11.0] - 2026-10-25
 
 sweatcast runs under ChatGPT's Codex as well as Claude Code: Codex in the ChatGPT desktop app (any plan, Free included), the Codex CLI or an IDE, on the listener's own computer. Tried end to end with the Codex the ChatGPT app ships, on the Free plan's model: setup, then a ten-minute workout with Coach Andy on the local voice.
 
@@ -234,7 +246,7 @@ Nothing to migrate: `me/` and every command work as before. If you change a skil
 - The key in `me/.env` is kept from Codex by instruction, as it is from Claude Code's shell commands; Codex followed it in every test. A system-level block is possible in Codex, but it stops sweatcast's own engine reading the key too, so web coaches couldn't speak.
 - Not yet tried by hand in the ChatGPT app's window: its trust prompt, its multiple-choice questions, and its approval prompts.
 
-## [10.4.0] - 2026-10-25
+## [0.10.4] - 2026-10-25
 
 Onboarding is tidied for the two ways people actually start: a developer in an IDE or terminal, and a friend with the Claude desktop app. Claude Code on the web no longer sets up a new listener.
 
@@ -248,7 +260,7 @@ Onboarding is tidied for the two ways people actually start: a developer in an I
 - **The phone folder comes right after the first workout,** as one question (iCloud Drive, Google Drive, Dropbox, or keep them on this computer), instead of waiting for "finish setting me up".
 - **Claude Code on the web doesn't set up a new listener.** Setup and the README's For Claude section point to the desktop app instead. A listener already set up, with their private context repo attached, keeps working there.
 
-## [10.3.0] - 2026-10-25
+## [0.10.3] - 2026-10-25
 
 A new listener hears their stand-in coach before the first workout, and coach folders say where each coach speaks.
 
@@ -262,7 +274,7 @@ A new listener hears their stand-in coach before the first workout, and coach fo
 ### For forks
 Nothing to migrate: folders in `me/personas/` keep their names, and renaming one by hand to the new pattern is safe (pace and sample move with it; cached clips are keyed by the voice, not the folder). The new stand-ins come only with a new `me/`; to have Coach Andy's clip, copy `me.example/personas/coach-andy-local/sample.mp3` beside your Coach Demo.
 
-## [10.2.0] - 2026-10-25
+## [0.10.2] - 2026-10-25
 
 The pantry is now the reserve: the evergreen filler (quizzes, things to enjoy, things to learn) researched ahead of time.
 
@@ -273,7 +285,7 @@ The pantry is now the reserve: the evergreen filler (quizzes, things to enjoy, t
 ### For forks
 Nothing to migrate. A `research/pantry/` folder is still read beside `research/reserve/` (a slug in both counts once), a record item logged with `pantry` still marks its piece as told, and `./sweatcast content pantry` still works as an alias. New pieces go to `reserve/`; move the old sheets over whenever you like.
 
-## [10.1.0] - 2026-10-25
+## [0.10.1] - 2026-10-25
 
 Setup now opens with the one big choice: where the coach's voice is made.
 
@@ -283,7 +295,7 @@ Setup now opens with the one big choice: where the coach's voice is made.
 ### Changed
 - **A renamed context folder stays private.** The engine's `.gitignore` now ignores `me.*/` (such as `me.real/` or `me.test/`, kept aside while trying the new-listener flow), with `me.example/` still part of the engine.
 
-## [10.0.0] - 2026-10-25
+## [0.10.0] - 2026-10-25
 
 Web coaches: describe, audition, approve, keep. A web coach is an original voice a service designs from the listener's description and saves in the listener's own account, at Fish Audio, ElevenLabs, Gemini or Inworld, pay-as-you-go with no subscription anywhere. One audition makes candidates on every service with a key, lettered and priced a workout; the listener picks by ear, names each one they keep, and a workout then uses it by name, always on the service that made it. Four default web coaches ship, one per service, designed the first time they're used. Copying a clip on the web is gone, and so are Cartesia and Deepgram: a clip-based coach is now a local coach, which renders only on the computer's own engine.
 
@@ -294,7 +306,7 @@ This release changes the coach files (persona schema 4 to 5), the routes, the ke
 - **The profile's `render` list orders local engines only.** A web coach always speaks through its own service, whatever the list says; a service named there no longer renders a local coach. A local coach tries the local engine even when the list leaves it out; where local voices don't run (say Claude Code on the web, with `["fish"]` and only local coaches), `get route` and the build stop (exit 1) and name the way out: make a web coach, or copy the stand-in for a service with a key (`me.example/personas/coach-reed/` for Fish Audio, and so on) into `me/personas/`. The readiness check on the web says "No web coach yet" with the same way out, and the workout skill offers both. `cloud_max_chars` still caps what one build sends.
 - **Keys:** `GEMINI_API_KEY` and `INWORLD_API_KEY` are new (`./sweatcast keys init gemini`, `init inworld`); `CARTESIA_API_KEY` and `DEEPGRAM_API_KEY` are no longer read, so delete their lines from `me/.env`. `./sweatcast keys open` opens `me/.env` in the system's editor. On Claude Code on the web, the network allowlist gains `generativelanguage.googleapis.com` and `api.inworld.ai`.
 - **The four default web coaches come only with a new `me/`.** To have them, copy `me.example/personas/coach-reed/`, `coach-ellis/`, `coach-nolan/` and `coach-owen/` into `me/personas/`; each is made the first time a build uses it.
-- **A sweatcast 8 folder migrates only from a git clone** with the `v8.0.1` tag (`git fetch --tags`): `tools/migrate-assets/v8-voices/` is gone, as promised for 10.0.0, and the migration reads the clips sweatcast 8 shipped from the tag. A ZIP download can't migrate one.
+- **A sweatcast 0.8 folder migrates only from a git clone** with the `v0.8.1` tag (`git fetch --tags`): `tools/migrate-assets/v8-voices/` is gone, as promised for 0.10.0, and the migration reads the clips sweatcast 0.8 shipped from the tag. A ZIP download can't migrate one.
 - **Commands:** `./sweatcast coaches samples deepgram` is gone, and `coaches design` uses the local designer only (Fish Audio and ElevenLabs no longer design local coaches' clips). New: `coaches audition`, `coaches keep <audition>/<letter> --name`, `coaches forget-audition`, `coaches make`, `coaches archive`, `keys open`.
 - **`tools/msgpack_min.py` is gone** (Fish Audio now takes JSON), with `tools/services/cartesia.py` and `tools/services/deepgram.py`.
 - A customized coach, setup or workout skill needs merging: the coach skill is rewritten around auditions, setup gains the keys step and the default web coaches, and the workout skill checks the coach can speak here (exit 64) and offers the stable when the coach used last is archived.
@@ -318,9 +330,9 @@ This release changes the coach files (persona schema 4 to 5), the routes, the ke
 ### Removed
 - **Cartesia and Deepgram** (`tools/services/cartesia.py`, `tools/services/deepgram.py`, their keys and hosts, `coaches samples deepgram`): Cartesia's cloning needs a subscription, and Deepgram has stock voices only, so neither could make an original coach without one.
 - **Clip copying on the web:** Fish Audio's inline clip, the ElevenLabs clone, `services.json` and the clone-once code; and Fish Audio and ElevenLabs as designers of local coaches' clips.
-- **`tools/migrate-assets/`** (the clips sweatcast 8 shipped; the migration reads them from the `v8.0.1` tag) and **`tools/msgpack_min.py`**.
+- **`tools/migrate-assets/`** (the clips sweatcast 0.8 shipped; the migration reads them from the `v0.8.1` tag) and **`tools/msgpack_min.py`**.
 
-## [9.1.2] - 2026-10-24
+## [0.9.3] - 2026-10-24
 
 ElevenLabs and Cartesia tried live, and setup says plainly that both need a monthly subscription.
 
@@ -329,7 +341,7 @@ ElevenLabs and Cartesia tried live, and setup says plainly that both need a mont
 - **Subscriptions:** copying the coach's voice from a clip (cloning) isn't on either service's free or pay-as-you-go plan: ElevenLabs needs Starter (about $6 a month) and Cartesia Pro (about $5 a month). The setup skill says so before the listener picks one, and the README and `knowledge/voices.md` show it. Fish Audio needs no subscription for this.
 - An ElevenLabs key needs two permissions when it's made, Text to Speech and Voices: write; the setup skill and README say so.
 
-## [9.1.1] - 2026-10-24
+## [0.9.2] - 2026-10-24
 
 The README now starts where a new listener starts: "Can you use https://github.com/RNCDev/sweatcast and set me up?"
 
@@ -338,7 +350,7 @@ The README now starts where a new listener starts: "Can you use https://github.c
 - No GitHub account is fine: the README and the setup skill say `me/` then stays on the computer, and how to keep a copy.
 - CLAUDE.md points to the README's "For Claude" section.
 
-## [9.1.0] - 2026-10-24
+## [0.9.1] - 2026-10-24
 
 A stranger's first workout in minutes, Claude Code on the web, and a folder per workout. Setup's quick start asks four questions and starts the listener with Coach Demo, a stand-in coach that ships measured, so the first ten-minute workout needs no voice design and no smoke test. Claude Code on the web runs sweatcast with a cloud voice, and the workout arrives as a page with a player. Each workout's files now live together in their own folder.
 
@@ -349,7 +361,7 @@ This release moves files in `me/workouts/` (schema 4 to 5). It changes the `me/`
 - A customized workout skill needs its paths updated: the draft is `me/workouts/<stem>/<stem>.draft.txt`, and the feeds sheet `me/workouts/research/daily/<date>-feeds.md`. `SWEATCAST_ALLOW_CLOUD_SESSION` is gone.
 
 ### Added
-- **Coach Demo** in `me.example/personas/coach-demo/`: sweatcast 8's public Chatterbox Coach clip with its measured pace on Chatterbox Turbo (MLX and PyTorch) and Fish Audio. It's marked `placeholder = true`: `./sweatcast check` notes it, `./sweatcast coaches` marks it a stand-in, and a build with no coach named picks any other coach before it.
+- **Coach Demo** in `me.example/personas/coach-demo/`: sweatcast 0.8's public Chatterbox Coach clip with its measured pace on Chatterbox Turbo (MLX and PyTorch) and Fish Audio. It's marked `placeholder = true`: `./sweatcast check` notes it, `./sweatcast coaches` marks it a stand-in, and a build with no coach named picks any other coach before it.
 - **A quick start** in the setup skill: one round of four questions (name, experience, kit, injuries), the audio route only when local voices don't run here, Coach Demo, and a ten-minute workout. "Finish setting me up" runs the rest. The profile's new `setup = "quick"` makes `./sweatcast check` report what's left as notes, not issues.
 - **A quick coach** in the coach skill: three named sketches or their own, one take, keep it.
 - **Claude Code on the web, with cloud voices only.** The readiness check turns local voices off there and says what to set: the key as an environment variable in the cloud environment's settings (`./sweatcast keys init` prints the line), the service's host for the network allowlist (and the feeds' hosts, optional), and whether the context folder is kept. The context folder is found beside the engine when the listener attaches their private `sweatcast-me` repo (or named by `SWEATCAST_HOME`); without one, setup explains it's a one-time session. `coaches download` and `setup --local` refuse there.
@@ -363,7 +375,7 @@ This release moves files in `me/workouts/` (schema 4 to 5). It changes the `me/`
 - `./sweatcast backup`'s check for a public remote works without `gh`, through GitHub's API.
 - The README says where sweatcast runs: Claude Code on your own computer (terminal, IDE or the desktop app's Code tab) and Claude Code on the web, not the plain Claude chat.
 
-## [9.0.0] - 2026-10-24
+## [0.9.0] - 2026-10-24
 
 A standalone sweatcast: any reasonable computer, any voice engine, and coaches of the listener's own. Local audio now runs on Linux too, and on the processor where there's no NVIDIA card (experimental); a cloud voice with the listener's own key works on any computer, an Intel Mac included. Voices become coaches: a person's name, how they talk and a clip every engine copies, kept in `me/personas/`, so the same coach sounds the same locally or in the cloud.
 
@@ -372,7 +384,7 @@ This release changes the `me/` layout (schema 3 to 4), the commands and the envi
 - **Run `./sweatcast setup`.** It migrates `me/` (backing up the changed files to `me/.backup-<time>/` first, never `.env`), installs the local engine as an extra where this computer runs one, and suggests moving models you already have.
 - **Voices become coaches.** Each voice in the profile's `[[voices]]` becomes a folder in `me/personas/`, with its clip, words and measured pace: Chatterbox Coach becomes Coach Julius and Qwen3 Coach becomes Coach Solo, keeping their old names as aliases, so old log lines and `--voice "Chatterbox Coach"` still find them. The profile's `## Narrator` lines become how each coach talks (`## How this coach talks` in `persona.md`). Cached clips stay valid. A private voice named for a model needs a person's name: `./sweatcast migrate --name "<old>=Coach <Name>"`. `me/voices/` and `workouts/.audio-cache/voice-pace.json` move into the backup.
 - **The profile** loses `[[voices]]` and gains `render = ["local"]`, the audio routes in order of preference; add a cloud service there (`["local", "fish"]`) to use one where local doesn't work. `cloud_max_chars` (default 30,000) caps what one build sends.
-- **Commands:** `--voice` is now `--coach` on build, render, lint, brief and log-session (the old name still works); `./sweatcast voices` is now `./sweatcast coaches`; `./sweatcast get default-voice` is `get coach`. New: `doctor`, `keys`, `models`, `coaches`, `get route`, `build --engine`. The smoke test moved to `knowledge/smoke-test.draft.txt`. `voices/` is gone; the clips sweatcast 8 shipped wait in `tools/migrate-assets/v8-voices/` for the migration, until 10.0.0.
+- **Commands:** `--voice` is now `--coach` on build, render, lint, brief and log-session (the old name still works); `./sweatcast voices` is now `./sweatcast coaches`; `./sweatcast get default-voice` is `get coach`. New: `doctor`, `keys`, `models`, `coaches`, `get route`, `build --engine`. The smoke test moved to `knowledge/smoke-test.draft.txt`. `voices/` is gone; the clips sweatcast 0.8 shipped wait in `tools/migrate-assets/v8-voices/` for the migration, until 0.10.0.
 - **Models** download into `models/` at the repo root (git-ignored; a symlink or `SWEATCAST_MODELS` points it elsewhere) instead of `~/.cache/huggingface/hub`: `./sweatcast models adopt` moves the ones you have.
 - **The environment:** the local engines are optional extras (`mlx`, `cuda`, `cpu`); `./sweatcast setup` picks one and remembers it in `.venv/.sweatcast-extra`. Run `uv sync` yourself only with `--extra <it>`, or it uninstalls the engine.
 - **Keys** for cloud voices go in `me/.env` (`./sweatcast keys init <service>`), which `me/.gitignore` and `./sweatcast backup` keep out of the private repo. A customized setup or workout skill needs merging: setup gains the audio route and the coach step; the workout skill passes `--coach`, renders ahead only on a local route, and handles exit 4.
@@ -394,7 +406,7 @@ This release changes the `me/` layout (schema 3 to 4), the commands and the envi
 ### Not added
 - A local voice designer on Windows or Linux: Qwen's PyTorch package (`qwen-tts`) pins transformers 4.57.3 against Chatterbox's 5.2.0, so they can't share an environment. Those computers design with Fish Audio or ElevenLabs, or bring a clip.
 
-## [8.1.0] - 2026-10-24
+## [0.8.2] - 2026-10-24
 
 Setup that a stranger can't trip over. Someone who clones sweatcast and says "set up sweatcast" in Claude Code is told up front what their computer can do, and setup no longer stops halfway for a missing prerequisite.
 
@@ -413,13 +425,13 @@ Nothing to migrate: `me/` keeps schema 3. A customized setup skill gains a Step 
 - The setup skill answers "set up sweatcast", "setup sweatcast", "install sweatcast" and "get started", starts with the readiness check, and names the right installer for each system; the skills send samples with SendUserFile or the system's player, never `afplay` alone.
 - The README starts from "open it in Claude Code and say set up sweatcast".
 
-## [8.0.1] - 2026-10-23
+## [0.8.1] - 2026-10-23
 
 ### Fixed
 - On Windows, `./sweatcast` prints in UTF-8, so a video title or headline with an emoji no longer crashes `./sweatcast youtube pick` (the console's default code page couldn't encode it).
 - The pantry research template said "he" for the listener in one place; it says "they" like the rest.
 
-## [8.0.0] - 2026-10-23
+## [0.8.0] - 2026-10-23
 
 The filler between exercises gets a plan, a memory and a pantry. Each session's rests carry a planned mix (quick items from today, current science, a deep dive, a quiz, something to enjoy and something to learn), each slot rotating through the listener's interests, the one told longest ago first. A record of every item told keeps a story from being told twice. Evergreen pieces are researched ahead of time into a pantry, so session-day research covers only the news. The feeds reach further: Wikipedia's day, and whatever the listener's taste calls for.
 
@@ -441,12 +453,12 @@ The research step changed, so a customized workout skill needs merging:
 - `./sweatcast youtube puzzles` also skips puzzle videos already in the pantry or the record.
 - The workout skill reads the plan before the check-in, and again for the chosen length after it.
 
-## [7.2.0] - 2026-10-23
+## [0.7.2] - 2026-10-23
 
 Faster from check-in to MP3, with the same audio, and a smaller engine. The coaching is written while research runs, and the voice renders each paragraph as it lands in the draft, so the render mostly overlaps the writing instead of following it. The old session composer is retired: about 900 fewer lines of tools and 600 fewer of tests.
 
 ### For forks
-- `./sweatcast session` is gone. The workout skill hasn't used it since 7.0.0 (`./sweatcast brief` plans); `docs/eval/skeletons.sh` runs it from the v7.1.0 tag as the eval's baseline. Code that imported `tools/session.py` for the safety screen imports `tools/screen.py` (`screen`, `Screen`, `Unfit`, and the helpers under public names: `ids`, `clamp`, `healthy_side`, `would_open`, `cue_lines`, `loads_line`, `parse_limit`, `words`).
+- `./sweatcast session` is gone. The workout skill hasn't used it since 0.7.0 (`./sweatcast brief` plans); `docs/eval/skeletons.sh` runs it from the v0.7.1 tag as the eval's baseline. Code that imported `tools/session.py` for the safety screen imports `tools/screen.py` (`screen`, `Screen`, `Unfit`, and the helpers under public names: `ids`, `clamp`, `healthy_side`, `would_open`, `cue_lines`, `loads_line`, `parse_limit`, `words`).
 - `./sweatcast build` is Python now (`tools/build.py`); `tools/build.sh` is gone. Its options and exit codes are unchanged.
 - Nothing to migrate in `me/`. Cached clips are still used.
 
@@ -465,7 +477,7 @@ Faster from check-in to MP3, with the same audio, and a smaller engine. The coac
 ### Fixed
 - `docs/eval/briefs.sh` and `skeletons.sh` run on Windows (the venv's Python path, and no `\r` on the case lines).
 
-## [7.1.0] - 2026-10-23
+## [0.7.1] - 2026-10-23
 
 The check-in comes first, and the session adjusts to the listener: before it starts, from how they're coming in today, and during it, from a self-check after each main movement's first set.
 
@@ -481,7 +493,7 @@ Nothing to migrate. If you customized the workout skill, its first two steps cha
 - The workout skill asks the check-in straight after reading the profile, health and log; the feeds, the knowledge files and the brief wait until it's answered, so the listener can answer within seconds and step away.
 - Past four open questions, the check-in drops Voice, then Length.
 
-## [7.0.0] - 2026-10-23
+## [0.7.0] - 2026-10-23
 
 Ingredients, not skeletons. The harness supplies what a session is built from, and the writer designs it: `./sweatcast brief` gathers the listener, the week, today's limits and the safe menu of movements with their coaching notes, the programming guide and the kit's notes, and the workout skill chooses the format, the movements, their order, doses and timing, then writes the script. The hard checks stay only where something must never go wrong: every movement from today's safe menu, text a voice reads cleanly, paragraphs short enough for one clip, and the total within three percent.
 
@@ -513,7 +525,7 @@ Nothing to migrate in `me/`; the context files stay schema 3 and the catalog for
 ### Removed
 - The lint's structure warnings and the workout skill's skeleton steps (`session --draft` markers, first candidates, per-slot rules).
 
-## [6.2.0] - 2026-10-22
+## [0.6.2] - 2026-10-22
 
 Scripts that sound like a coach who knows the listener, not a template read aloud: a name, a person's register around the work, continuity from the log, a session arc, and lint checks that catch the mechanical patterns. Plus the engine fixes the last eval left open.
 
@@ -540,7 +552,7 @@ Nothing to migrate; the context files stay schema 3. Optional: add `name = "<fir
 - Every set's segment holds its reps at the movement's pace (both sides of a one-sided move, plus a side change) and a few seconds to start, carried by the last set; the fitting lowers reps by about one where time is short.
 - Intervals with several machines go round them: a hard movement on a machine nothing has led on yet comes before a second block on the same machine, and the steady block prefers an unused machine and is skipped when a machine change would leave it under ninety seconds.
 
-## [6.1.0] - 2026-10-22
+## [0.6.1] - 2026-10-22
 
 Better context for writing a script: the coaching a listener without a screen or a mirror needs for each movement, half of the unfinished catalog finished, sourced physiology for rest, effort, stretching, coverage and ankle rehab, and the kit's real weights.
 
@@ -572,7 +584,7 @@ Nothing to migrate; the catalog stays format 3 and the context files schema 3. O
 - Coaching notes have no limit-specific lines (head position under a delicate neck, the injured foot's place), so the script adds them from the health lines.
 - Forty-four drafts remain (barbell and machine extras, some mobility, the overhead seated punches); `./sweatcast movements` lists none of them.
 
-## [6.0.0] - 2026-10-22
+## [0.6.0] - 2026-10-22
 
 sweatcast renders on a Windows PC with an NVIDIA GPU as well as on an Apple Silicon Mac. Chatterbox Coach runs there from Resemble AI's own PyTorch Chatterbox Turbo on CUDA, cloned from the same reference clip.
 
@@ -599,7 +611,7 @@ Breaking: the Python environment and the voice settings change shape.
 ### Not yet on Windows
 - Qwen3 Coach and voice design (`voices design`) stay Mac-only: a Qwen3 voice lints on Windows, and its render says to pick a Chatterbox voice.
 
-## [5.4.0] - 2026-10-22
+## [0.5.4] - 2026-10-22
 
 ### For forks
 Nothing to migrate. To back up your context, make `me/` its own private repo (README, "Back up `me/`"); rerunning `./sweatcast setup` adds `me/.gitignore` if it has none.
@@ -609,18 +621,18 @@ Nothing to migrate. To back up your context, make `me/` its own private repo (RE
 - The workout skill's last step runs it, after the build and the log, so each session lands in the listener's private repo.
 - `me.example/.gitignore`: leaves the clip cache (but not the voices' measured pace), MP3s, render logs, unkept voice takes and migration backups out of that repo. Setup copies it into a new `me/` and adds it to an existing one.
 
-## [5.3.0] - 2026-10-22
+## [0.5.3] - 2026-10-22
 
 ### Changed
 - Safety: an off-limits ankle or foot now rules out anything done standing, which puts weight through both feet whatever the catalog rates the ankle, and the seated bikes and air bikes rate ankle 1 and foot 1, so an off-limits ankle keeps them out while a delicate one still allows them. A case `--limit` line says "and nothing done standing", and the injury playbook says both.
 
-## [5.2.0] - 2026-10-22
+## [0.5.2] - 2026-10-22
 
 ### Changed
 - `./sweatcast build` removes the local MP3 once every copy in the profile's `deliver_to` folder is in place and matches; `me/workouts/` keeps the script's `.txt` and `.build.json` as history. A failed copy, or no delivery folder, keeps the MP3 in `me/workouts/`.
 - The setup skill's delivery step says so, and a request to change where workouts go runs that step alone; the profile template's `deliver_to` comment matches.
 
-## [5.1.0] - 2026-10-22
+## [0.5.1] - 2026-10-22
 
 Intervals that fit their movements and leave the work quiet, and a cleaner engine. Re-judged, the twelve conditioning cases rose from a mean total of 13.4 to 16.3 (efficacy 2.67 to 3.67, adherence 3.17 to 3.92, ease 2.75 to 3.67, safety 4.83 to 5.00); `docs/eval/results-2026-10-22-run3.md` has the run.
 
@@ -642,15 +654,15 @@ Nothing to migrate. `knowledge/exercise-science.md` is gone and the tools no lon
 - `knowledge/exercise-science.md`, `me.example/exercise-science.md` and the listeners' copies; the completed plans and specs in `docs/superpowers/` and the old productization notes in `docs/research/` (the session-structure research the session rules cite stays).
 - Dead code: `paths.DRAFTS`, `paths.VENV_PYTHON`, `sessions.choose_method` (tests use `ranked`) and an unused branch of `voices.seed_pace`.
 
-## [5.0.0] - 2026-10-22
+## [0.5.0] - 2026-10-22
 
 The fixes from the second judged run of the grid: interval work that is hard enough, warm-ups that start easy, paired sets that can be spoken as pairs, rests that match the clock, and caps on volume. The catalog and the session rules each move up a format.
 
 ### For forks
 Breaking: the catalog moves to format 3, `knowledge/sessions.toml` to format 2, and paired-sets drafts get a marker per pair set. After pulling:
-1. If you keep private movements in `me/movements.toml`, they are now loaded (4.x ignored the file). Run `./sweatcast check`: every finished conditioning entry needs `effort = "easy"`, `"moderate"` or `"hard"`, and it lists any entry missing one or carrying another fault. Until it is fixed, a faulty entry is held back as a draft and never planned.
+1. If you keep private movements in `me/movements.toml`, they are now loaded (0.4.x ignored the file). Run `./sweatcast check`: every finished conditioning entry needs `effort = "easy"`, `"moderate"` or `"hard"`, and it lists any entry missing one or carrying another fault. Until it is fixed, a faulty entry is held back as a draft and never planned.
 2. A fork that edits `knowledge/movements.toml` or `knowledge/sessions.toml`: set `format = 3` and `format = 2`, add `effort` to every finished conditioning movement, and keep the new dose keys (`bodyweight_reps` above novice, `efforts_per_session`) in every conditioning level. `./sweatcast test` names anything missing.
-3. Drafts written under 4.x markers still render. A new paired-sets draft is written under one marker per pair set ("Pair 1 of 3, set 2 of 3: ..."), a circuit round's marker names the rest that ends it, and interval markers are numbered by block.
+3. Drafts written under 0.4.x markers still render. A new paired-sets draft is written under one marker per pair set ("Pair 1 of 3, set 2 of 3: ..."), a circuit round's marker names the rest that ends it, and interval markers are numbered by block.
 4. No context file changes; there is nothing to migrate.
 
 ### Added
@@ -678,7 +690,7 @@ Breaking: the catalog moves to format 3, `knowledge/sessions.toml` to format 2, 
 - The towel door row's setup names the door to use (an inside door that opens away from you, never the room's entry door); the world's greatest stretch keeps the head in line.
 - The judge prompt reads the writer's notes, scores adherence on the coaching alone, and compares with an earlier run only after scoring blind. The workout skill describes the new markers and attributes clinician rules to the clinician.
 
-## [4.0.0] - 2026-10-22
+## [0.4.0] - 2026-10-22
 
 Sessions built from atomic movement data: the catalog says what each movement loads, a tool picks the method, the timing and the candidates, and a judged grid of forty cases measures how the result reads.
 
@@ -709,7 +721,7 @@ Breaking: the context files move to schema 3, the catalog's tags and groups are 
 ### Removed
 - `knowledge/injury-rules.toml` and the phase model, the catalog's tags and groups, and `./sweatcast movements --group`.
 
-## [3.1.0] - 2026-10-21
+## [0.3.2] - 2026-10-21
 
 ### Added
 - The movement catalog, `knowledge/movements.toml`: every movement a session can use, with its equipment, muscle groups, spoken setup and cues, and tags for what it loads, plus kit presets. `tools/catalog.py` reads and checks it.
@@ -721,19 +733,19 @@ Breaking: the context files move to schema 3, the catalog's tags and groups are 
 - The equipment library is now `knowledge/kits.md`: what each kit usually holds and how to script around it. Its movement lists moved to the catalog.
 - The workout skill picks movements from the filter's output, avoiding the injury playbook's new "Tags to avoid early" for each injury in an early phase, then applies the health file and the playbook on top.
 
-## [3.0.1] - 2026-10-21
+## [0.3.1] - 2026-10-21
 
 ### Fixed
 - Inconsistent injury tags in `knowledge/equipment-library.md`: a movement now carries the same tags everywhere it appears (the strictest set), and movements that load a joint but had no tags now have them.
 - Removed listener-specific names: a named gym and a bike brand left two headings, which now read "Full gym" and "Stationary bike".
 
-## [3.0.0] - 2026-10-21
+## [0.3.0] - 2026-10-21
 
 Simpler to set up and to run: one `./sweatcast` command, the profile's settings in one block at the top, a check that says what's still to fill in, and a voice designer for a coach that sounds the way you want.
 
 ### For forks
 Breaking: commands, the profile's format and the Python they run on all change. After pulling:
-1. Run `./sweatcast setup`. It migrates `me/` (backing it up to `me/.backup-<date and time>/` first). In `profile.md`, the Voices list, "Copy finished MP3s to:", "Measured words per minute", the YouTube favorites and Puzzles handles, and the Feeds section move into a TOML block between `+++` lines at the top. Their lines leave the prose, and one sentence says where they went. The other context files only change their front matter. `./sweatcast migrate --dry-run` shows what would change. A 1.x folder migrates in the same run.
+1. Run `./sweatcast setup`. It migrates `me/` (backing it up to `me/.backup-<date and time>/` first). In `profile.md`, the Voices list, "Copy finished MP3s to:", "Measured words per minute", the YouTube favorites and Puzzles handles, and the Feeds section move into a TOML block between `+++` lines at the top. Their lines leave the prose, and one sentence says where they went. The other context files only change their front matter. `./sweatcast migrate --dry-run` shows what would change. A 0.1.x folder migrates in the same run.
 2. Run `./sweatcast check`. It lists anything the tools can't read and any line still showing the template's `[hint]`.
 3. Call tools as `./sweatcast <command>`: `python3 tools/feeds.py` is `./sweatcast feeds`, `tools/build.sh` is `./sweatcast build`, `LINT_ONLY=1 tools/build.sh` is `./sweatcast build ... --lint-only`, `ALLOW_ESTIMATED=1` is `--allow-estimated`, `python3 tools/context.py log-session` is `./sweatcast log-session`, and `voices.py --measured` and `--download` are `voices measured` and `voices download`. `./sweatcast help` lists everything. The project permissions now allow `./sweatcast` instead of each tool.
 4. The tools need Python 3.11 (the project's `.venv`); the Mac's own `python3` no longer runs them. Tests run with `./sweatcast test`.
@@ -742,7 +754,7 @@ Breaking: commands, the profile's format and the Python they run on all change. 
 - **`./sweatcast`**, one command for everything, run in the project's environment: `setup`, `build`, `lint`, `render`, `voices`, `feeds`, `coverage`, `youtube`, `check`, `get`, `deliver`, `log-session`, `migrate`, `cache`, `test`. `./sweatcast setup` needs no Python first. One permission rule covers every command the skills run.
 - **Voice design:** `./sweatcast voices design "<name>" "<description>"` renders takes of a coaching line in a voice made from a written description (Qwen3-TTS VoiceDesign, pinned; about 4.5 GB the first time). `./sweatcast voices keep <take> --engine chatterbox --default` makes the chosen take a private voice in `me/voices/` and adds it to the profile. The setup skill offers it during the interview, for a woman's voice, say, or another accent; `knowledge/voices.md` has a "Design a voice" section.
 - `./sweatcast check` flags every profile line still showing the template's `[hint]`, any feed not filled in, and a missing voice. It also notes, without failing, a missing delivery folder or no feeds.
-- Schema 2 and its migration step, chained after 2.0.0's, with tests that migrate 1.x and 2.x folders.
+- Schema 2 and its migration step, chained after 0.2.0's, with tests that migrate 0.1.x and 0.2.x folders.
 - Tests for the wrapper, voice design and keeping, adding a voice without losing the settings' comments, and the new check: 102 in all.
 
 ### Changed
@@ -755,7 +767,7 @@ Breaking: commands, the profile's format and the Python they run on all change. 
 ### Removed
 - Running the tools with the system `python3`, the `LINT_ONLY` and `ALLOW_ESTIMATED` environment switches, and `voices.py --measured` and `--download`.
 
-## [2.0.0] - 2026-10-21
+## [0.2.0] - 2026-10-21
 
 The engine's audit, fixed: one owner for the listener's files with a versioned format and a migration, safer state on disk, a privacy guard that checks every commit, consistent exit codes, and a record of how each MP3 was made.
 
@@ -763,7 +775,7 @@ The engine's audit, fixed: one owner for the listener's files with a versioned f
 Breaking: the context files now carry a format version, and tools refuse an older folder until it's migrated. After pulling:
 1. Run `tools/setup.sh` (or `python3 tools/migrate.py`). It backs up `profile.md`, `health.md`, `log.md` and `exercise-science.md` to `me/.backup-<date and time>/`, then adds a three-line front matter (`---`, `schema: 1`, `---`) to the top of each. Nothing else in them changes. `--dry-run` shows what it would do.
 2. Run `python3 tools/context.py check`. It lists any line the tools can't read, such as a log line with a field missing, with its line number.
-3. Clips cached before 2.0.0 render once more, since the cache key now includes the mlx-audio version. Right after upgrading, `python3 tools/cache.py prune --days 0` frees the old ones (it removes every cached clip, so run it before your next build, not after).
+3. Clips cached before 0.2.0 render once more, since the cache key now includes the mlx-audio version. Right after upgrading, `python3 tools/cache.py prune --days 0` frees the old ones (it removes every cached clip, so run it before your next build, not after).
 4. If you call the tools from your own scripts: a mistyped command now exits 64, not 2. The lint's word-count option is `--word-tolerance` (it was `--tolerance`). `tools/feeds.py` prints only the weather unless you pass `--print`. The draft functions (`parse`, `plan`, `spans`, `layout` and the timing constants) moved from `tts_build.py` to `tools/draft.py`, and the engine code from `render.py` to `tools/engines.py`.
 
 ### Added
@@ -792,7 +804,7 @@ Breaking: the context files now carry a format version, and tools refuse an olde
 - `tools/youtube.py` refuses a video id with path characters, finds `@handles` under Content first, and writes transcripts as UTF-8.
 - The render finds ffmpeg's loudness figures by their keys and explains a failure, rather than taking the last `{` in its output.
 
-## [1.1.0] - 2026-10-21
+## [0.1.1] - 2026-10-21
 
 The voices are named for the models that speak them, the model downloads are explained, and Chatterbox's speech tokenizer is held to its pinned version at render time too.
 
@@ -813,7 +825,7 @@ Nothing has to change: the old names still work. To use the new ones, rename the
 ### Fixed
 - Chatterbox Turbo's speech tokenizer is loaded at the revision `tools/voices.py` pins. mlx-audio asked for its latest version at every render, so the pin only applied to setup's download, and a failed load was only a warning that could leave the voice quietly wrong. A render now fetches the pinned version first and stops with a clear message if it can't.
 
-## [1.0.0] - 2026-10-21
+## [0.1.0] - 2026-10-21
 
 sweatcast becomes a forkable product: three layers (engine, voices, your context), its own Python environment instead of VoiceStudio's, and an onboarding skill.
 
@@ -841,13 +853,13 @@ Breaking: the listener's files moved into `me/`, and VoiceStudio is no longer us
 - The workout skill reads `me/` and the shared knowledge, takes kit options and injury phase criteria from your own files instead of the author's, and writes only inside `me/`. `.claude/settings.json` allows edits to `me/**` only.
 - `CLAUDE.md` and the README describe the product and the three layers rather than one listener; the author's first-person framing moved to their own profile.
 - The smoke test moved to `voices/smoke-test.draft.txt` and no longer mentions any one person's injuries.
-- The clip cache key includes the model revision, so clips rendered before 1.0.0 render once more.
+- The clip cache key includes the model revision, so clips rendered before 0.1.0 render once more.
 
 ### Removed
 - OmniVoice and every VoiceStudio dependency: the VoiceStudio voice database, OmniVoice's text helpers, the OmniVoice render options (`--steps`, `--guidance`, the temperatures, `--speed`) and the re-launch under VoiceStudio's Python.
 - The author's profile, log, drafts, scripts and research from the public repo's current tree. They remain in the git history of earlier versions.
 
-## [0.6.0] - 2026-10-21
+## [0.0.6] - 2026-10-21
 
 New content sources, a weekly feed kind for them, and an open-source license.
 
@@ -862,7 +874,7 @@ New content sources, a weekly feed kind for them, and an open-source license.
 ### Changed
 - Video transcripts (`workouts/research/videos/*.txt`) are kept out of git, since they're the channels' own text. The deep-dive summary sheets are still committed.
 
-## [0.5.0] - 2026-10-21
+## [0.0.5] - 2026-10-21
 
 Timing that holds the whole workout to plan instead of every segment, and brain teasers for the quiz.
 
@@ -876,7 +888,7 @@ Timing that holds the whole workout to plan instead of every segment, and brain 
 - Only the whole workout is held to plan, within three percent either way. The lint prints the predicted length and blocks only when the total is off by more than that, or when a segment is far off its slot (under 80 or over 110 percent of it, down from 90 to 100). The render exits 2 only when the finished workout is more than three percent over or under plan; `--tolerance` now sets that total allowance.
 - The workout skill, `CLAUDE.md`, `README.md`, `knowledge/tts-rules.md` and `knowledge/voices.md` describe the new timing and the puzzle quiz.
 
-## [0.4.0] - 2026-10-21
+## [0.0.4] - 2026-10-21
 
 Feeds before research, faster renders, a voice that's measured before it's trusted, and more variety: bells inside intervals, session types, video series and load tracking.
 
@@ -901,7 +913,7 @@ Feeds before research, faster renders, a voice that's measured before it's trust
 - Coach G's model is downloaded and its rate measured with the smoke test. Its render speed is about 1.45 times the speech's length, not 1.3.
 - The smoke test's close opens with "That was the whole test", so it passes the new locator check.
 
-## [0.3.0] - 2026-10-21
+## [0.0.3] - 2026-10-21
 
 A chime that marks each segment, coach-style cues, a coverage check from the log, and tests.
 
@@ -921,7 +933,7 @@ A chime that marks each segment, coach-style cues, a coverage check from the log
 ### Fixed
 - Coach E's expressiveness settings (`exaggeration`, `cfg_weight`) were hard-coded for Chatterbox, but Turbo ignores them, so they never had any effect. They're gone from Coach E, and `knowledge/voices.md` explains how to use them with the full-size model.
 
-## [0.2.0] - 2026-10-20
+## [0.0.2] - 2026-10-20
 
 A natural coach's voice, cleaner timing, and better content, after the first full listen.
 
@@ -944,7 +956,7 @@ A natural coach's voice, cleaner timing, and better content, after the first ful
 ### Removed
 - The VoiceStudio Gallery voices from the profile; they sounded mechanical on OmniVoice. OmniVoice still renders voices saved in the app.
 
-## [0.1.0] - 2026-10-19
+## [0.0.1] - 2026-10-19
 
 First working version.
 

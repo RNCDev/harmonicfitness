@@ -1,4 +1,4 @@
-"""The stock coaches (coaches/, 15.0.0): every shipped folder complete, the fixture copies in step, the stock and
+"""The stock coaches (coaches/, 0.15.0): every shipped folder complete, the fixture copies in step, the stock and
 the listener's own coaches merged, and migrate's coaches step. No models: Pocket's voice files are checked as
 files, never loaded."""
 import importlib.util
@@ -151,7 +151,7 @@ engine = "chatterbox"
 
 
 class MigrateCoaches(unittest.TestCase):
-    """15.0.0's coaches step: personas/ to coaches/, an own local coach archived, an unmade stock web coach set
+    """0.15.0's coaches step: personas/ to coaches/, an own local coach archived, an unmade stock web coach set
     aside, a made one kept, the .gitignore rules renamed; once."""
 
     def setUp(self):
@@ -159,7 +159,7 @@ class MigrateCoaches(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.d)
         self.home = os.path.join(self.d, "me")
         shutil.copytree(os.path.join(ROOT, "me.example"), self.home)
-        shutil.rmtree(os.path.join(self.home, "coaches"))   # a 14.x folder
+        shutil.rmtree(os.path.join(self.home, "coaches"))   # a 0.14.x folder
         old = os.path.join(self.home, "personas")
         os.makedirs(os.path.join(old, "coach-mine"))
         with open(os.path.join(old, "coach-mine", "persona.md"), "w", encoding="utf-8") as f:

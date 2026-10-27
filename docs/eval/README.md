@@ -54,7 +54,7 @@ the listeners and `docs/eval/out/` to read; each writes its part to `docs/eval/o
 make `docs/eval/results-<YYYY-MM-DD>.md` (a row per case, the lowest cases, and what the scores say about the
 catalog and menu, the programming guide and the design); a second run on the same day adds `-run2`, and so
 on. Keep the table's columns (id, listener, goal, minutes, preset, method, safety, efficacy, adherence,
-ease, warmth, note) so runs can be compared row by row; warmth was added in release 6.2.0, so earlier runs
-have none, and 7.0.0's ease measures what the writer invented beyond the brief, not beyond a skeleton.
+ease, warmth, note) so runs can be compared row by row; warmth was added in release 0.6.2, so earlier runs
+have none, and 0.7.0's ease measures what the writer invented beyond the brief, not beyond a skeleton.
 Copy `out/`'s drafts aside (as `out-before-<version>/`, git-ignored) before the next run if it will be
 compared with this one. The results file is committed; `out/` is not.
