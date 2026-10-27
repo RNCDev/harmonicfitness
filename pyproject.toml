@@ -16,30 +16,22 @@ dependencies = [
     "imageio-ffmpeg==0.6.0",
 ]
 
-# The local voice engines, installed only where the readiness check says they run
-# (./sweatcast setup picks one and remembers it in .venv/.sweatcast-extra).
+# The local voice, installed only where the readiness check says it runs (./sweatcast setup picks the
+# extra and remembers it in .venv/.sweatcast-extra): Kyutai's Pocket TTS on PyTorch, and the take check's
+# speech recognizer (Parakeet through ONNX). One engine on every computer: an Apple Silicon Mac's
+# processor, a PC's processor, or an NVIDIA card. PyTorch 2.6 has no Intel Mac build, so none there.
 [project.optional-dependencies]
-# Apple Silicon: Chatterbox Turbo and Qwen3-TTS through MLX.
-mlx = [
-    "mlx-audio==0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
-    "mlx==0.32.1; sys_platform == 'darwin' and platform_machine == 'arm64'",
-    "numpy==2.2.6; sys_platform == 'darwin' and platform_machine == 'arm64'",
-]
-# Windows or Linux with an NVIDIA card: Resemble AI's own PyTorch Chatterbox Turbo on CUDA
-# (tools/engines.py). It pins torch 2.6.0 and numpy below 2. Its watermarker (resemble-perth)
-# still imports pkg_resources, which setuptools 81 dropped.
-cuda = [
-    "chatterbox-tts==0.1.7; sys_platform != 'darwin'",
-    "torch==2.6.0; sys_platform != 'darwin'",
-    "torchaudio==2.6.0; sys_platform != 'darwin'",
-    "setuptools<81; sys_platform != 'darwin'",
-]
-# The same on the processor, for computers without an NVIDIA card: experimental, and slow.
+# The processor: an Apple Silicon Mac (PyTorch from PyPI), or Windows or Linux (PyTorch's processor build).
 cpu = [
-    "chatterbox-tts==0.1.7; sys_platform != 'darwin'",
+    "pocket-tts==4.0.1; sys_platform != 'darwin' or platform_machine == 'arm64'",
+    "torch==2.6.0; sys_platform != 'darwin' or platform_machine == 'arm64'",
+    "onnx-asr[cpu,hub]==0.12.0; sys_platform != 'darwin' or platform_machine == 'arm64'",
+]
+# Windows or Linux with an NVIDIA card: PyTorch's CUDA 12.4 build.
+cuda = [
+    "pocket-tts==4.0.1; sys_platform != 'darwin'",
     "torch==2.6.0; sys_platform != 'darwin'",
-    "torchaudio==2.6.0; sys_platform != 'darwin'",
-    "setuptools<81; sys_platform != 'darwin'",
+    "onnx-asr[cpu,hub]==0.12.0; sys_platform != 'darwin'",
 ]
 
 [tool.uv]
@@ -47,7 +39,8 @@ package = false
 environments = ["sys_platform == 'darwin'", "sys_platform == 'win32'", "sys_platform == 'linux'"]
 conflicts = [[{ extra = "cuda" }, { extra = "cpu" }]]
 
-# PyTorch's CUDA 12.4 builds (NVIDIA cards from the RTX 20 series on), and its processor builds.
+# PyTorch's CUDA 12.4 builds (NVIDIA cards from the RTX 20 series on), and its processor builds for
+# Windows and Linux (a Mac takes PyPI's).
 [[tool.uv.index]]
 name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
@@ -59,5 +52,5 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu124", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]
-torchaudio = [{ index = "pytorch-cu124", extra = "cuda" }, { index = "pytorch-cpu", extra = "cpu" }]
+torch = [{ index = "pytorch-cu124", extra = "cuda" },
+         { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform != 'darwin'" }]

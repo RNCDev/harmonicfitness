@@ -19,8 +19,6 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
-# The same voice settings on every system: the Mac's (MLX) unless a test patches voices.BACKEND.
-os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import cache  # noqa: E402
 import catalog  # noqa: E402
@@ -170,7 +168,7 @@ class Structure(unittest.TestCase):
         v = {"engine": "chatterbox", "key": "x", "name": "x"}
         with mock.patch("voices.pace", return_value=(10.0, True)):
             got = tts_build.spoken_seconds(seg, v)
-        self.assertAlmostEqual(got, 2 * (2 / 10.0 + voices.MLX_EDGE) + CHIME_SECONDS, places=6)
+        self.assertAlmostEqual(got, 2 * (2 / 10.0 + voices.EDGE) + CHIME_SECONDS, places=6)
 
 
 class Assemble(unittest.TestCase):
@@ -380,44 +378,73 @@ class SeedPace(unittest.TestCase):
         self.assertEqual(voices.seed_pace({}), voices.DEFAULT_PACE)
 
 
-class PinnedExtras(unittest.TestCase):
-    def fake_hub(self, fail=False):
+class PublicPocket(unittest.TestCase):
+    """Pocket TTS takes the public model whatever login the computer has (engines.public_only, speaker)."""
+
+    def setUp(self):
+        try:   # imported once, before any test patches sys.modules (PyTorch can't be imported twice)
+            import torch  # noqa: F401
+        except ImportError:
+            self.skipTest("PyTorch isn't installed here")
+
+    def fake_module(self):
         calls = []
 
-        class Hub:
+        class Module:
             @staticmethod
-            def snapshot_download(repo, revision=None):
-                if fail:
-                    raise OSError("offline")
-                calls.append(("snapshot", repo, revision))
+            def download_if_necessary(path):
+                calls.append(path)
+                return "/cache/" + path.rsplit("/", 1)[-1]
+        return Module, calls
 
+    def test_the_gated_model_is_refused_and_the_public_one_passes(self):
+        module, calls = self.fake_module()
+        original = module.download_if_necessary
+        gated = "hf://kyutai/pocket-tts/languages/english_2026-10/model.safetensors@db04f0e"
+        public = "hf://kyutai/pocket-tts-without-voice-cloning/languages/english_2026-10/model.safetensors@a7056f5"
+        with engines.public_only(module):
+            with self.assertRaises(PermissionError):
+                module.download_if_necessary(gated)
+            self.assertEqual(module.download_if_necessary(public), "/cache/model.safetensors@a7056f5")
+        self.assertEqual(calls, [public])   # the gated path never reached the download
+        self.assertIs(module.download_if_necessary, original)   # restored afterwards
+
+    def test_a_model_that_can_clone_is_refused(self):
+        class Model:
+            has_voice_cloning = True
+            sample_rate = engines.SR
+
+        class TTSModel:
             @staticmethod
-            def hf_hub_download(repo_id=None, filename=None, revision=None):
-                calls.append(("file", repo_id, revision))
-                return "/cache/" + filename
-        return Hub, calls
+            def load_model(language=None):
+                return Model()
+        fake = mock.MagicMock(TTSModel=TTSModel)
+        voice = {"name": "x", "backend": "torch", "device": "cpu", "voice_state": "x.safetensors"}
+        with mock.patch.dict(sys.modules, {"pocket_tts": fake}), \
+                mock.patch.object(engines, "public_only", contextlib.nullcontext), \
+                mock.patch.object(engines, "_version", return_value=voices.POCKET_VERSION):
+            with self.assertRaises(SystemExit) as e:
+                engines.speaker(voice)
+        self.assertIn("gated", str(e.exception.code))
 
-    def test_engine_extras_load_at_the_pinned_revision(self):
-        hub, calls = self.fake_hub()
-        repo, rev = voices.ENGINE_EXTRAS["chatterbox"][0]
-        original = hub.hf_hub_download
-        with engines.pinned_extras("chatterbox", hub):
-            hub.hf_hub_download(repo_id=repo, filename="model.safetensors")
-            hub.hf_hub_download(repo_id="other/repo", filename="x")
-        self.assertEqual(calls, [("snapshot", repo, rev), ("file", repo, rev), ("file", "other/repo", None)])
-        self.assertIs(hub.hf_hub_download, original)   # restored afterwards
+    def test_another_pocket_version_is_refused(self):
+        voice = {"name": "x", "backend": "torch", "device": "cpu", "voice_state": "x.safetensors"}
+        with mock.patch.dict(sys.modules, {"pocket_tts": mock.MagicMock()}), \
+                mock.patch.object(engines, "_version", return_value="9.9.9"):
+            with self.assertRaises(SystemExit) as e:
+                engines.speaker(voice)
+        self.assertIn(voices.POCKET_VERSION, str(e.exception.code))
 
-    def test_a_pinned_extra_that_cant_be_fetched_stops_the_render(self):
-        hub, _ = self.fake_hub(fail=True)
-        with self.assertRaises(SystemExit):
-            with engines.pinned_extras("chatterbox", hub):
-                pass
-
-    def test_qwen3_has_no_extras(self):
-        hub, calls = self.fake_hub(fail=True)
-        with engines.pinned_extras("qwen3", hub):
-            pass
-        self.assertEqual(calls, [])
+    def test_the_installed_config_names_the_pinned_files(self):
+        try:
+            import pocket_tts.utils.config as config
+        except ImportError:
+            self.skipTest("pocket-tts isn't installed here")
+        with open(os.path.join(config.CONFIGS_DIR, voices.POCKET_LANGUAGE + ".yaml"), encoding="utf-8") as f:
+            text = f.read()
+        named = {"hf://" + m for m in re.findall(r"hf://(kyutai/pocket-tts-without-voice-cloning/[^\s'\"]+)", text)}
+        self.assertEqual(named, {f"hf://{repo}/{name}@{rev}" for repo, name, rev in voices.POCKET_FILES})
+        self.assertEqual(voices.LOCAL_MODELS["pocket"], (voices.POCKET_REPO, voices.POCKET_FILES[0][2]))
 
 
 class FreshFork(unittest.TestCase):
@@ -446,7 +473,7 @@ class FreshFork(unittest.TestCase):
             self.assertEqual(len(feeds.config(prof)), 7)          # the three [hint] feeds are skipped
             self.assertIn("MindYourDecisions", youtube.handles("Puzzles", profile=os.path.join(home, "profile.md")))
             self.assertEqual(context.routes(prof), ["local"])
-            self.assertEqual(sorted(os.listdir(os.path.join(home, "personas"))), [".gitkeep", "coach-andy-local", "coach-ellis-elevenlabs", "coach-nolan-gemini", "coach-owen-inworld", "coach-reed-fish"])   # the stand-ins
+            self.assertEqual(sorted(os.listdir(os.path.join(home, "coaches"))), [".gitkeep"])   # the stock coaches ship in the engine
             self.assertIn("deliver_to", prof.settings)
 
     def test_missing_context_says_run_setup(self):
@@ -710,8 +737,6 @@ class ExitCodes(unittest.TestCase):
     def test_voices_measured_codes(self):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
-            shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
-                            os.path.join(home, "personas"), dirs_exist_ok=True)
             out = run([sys.executable, "tools/coaches.py", "measured", "Coach Julius", "--engine", "local"], home=home,
                       env={"SWEATCAST_FAKE_LOCAL_ENGINE": "1"})
             self.assertEqual(out.returncode, cli.ISSUES, out.stderr)   # estimated: nothing measured in a fresh copy
@@ -737,8 +762,6 @@ class InProcessBuild(unittest.TestCase):
             text = f.read()
         write_file(prof, re.sub(r"^deliver_to = .*$", f"deliver_to = {json.dumps(self.phone.replace(os.sep, '/'))}",
                                 text, flags=re.M))
-        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
-                        os.path.join(self.home, "personas"), dirs_exist_ok=True)
         self.folder = os.path.join(self.home, "workouts", "2026-10-25-test-25")
         self.draft = os.path.join(self.folder, "2026-10-25-test-25.draft.txt")
         os.makedirs(self.folder)
@@ -823,7 +846,7 @@ class InProcessBuild(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
         self.assertFalse(os.path.exists(os.path.join(self.folder, "Test build.mp3")), "the local MP3 is removed")
         self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.txt")))
-        self.assertEqual(self.runs[0]["voice"]["name"], "Coach Julius")   # the first coach, with no sessions yet
+        self.assertEqual(self.runs[0]["voice"]["name"], "Coach Andy")   # the first stock coach, with no sessions yet
         self.assertEqual(self.runs[0]["voice"]["route"], "local")
         self.assertEqual(len(self.lints), 1)
 
@@ -930,7 +953,7 @@ class InProcessBuild(unittest.TestCase):
 
     def add_web_coach(self, estimate=True):
         """Coach Reed on Fish Audio with a saved voice, and (by default) only an estimate of his pace."""
-        folder = os.path.join(self.home, "personas", "coach-reed-fish")
+        folder = os.path.join(self.home, "coaches", "coach-reed-fish")
         os.makedirs(folder, exist_ok=True)
         write_file(os.path.join(folder, "persona.md"), context.persona_text(
             {"name": "Coach Reed", "kind": "web", "service": "fish", "voice_id": "fish-model-1"},
@@ -997,8 +1020,9 @@ class InProcessBuild(unittest.TestCase):
         self.assertEqual(personas.lookup("Coach Reed").voice_id, "fish-model-1")
 
     def test_no_coach_named_makes_the_keyed_default_once(self):
-        for slug_ in ("coach-julius", "coach-solo"):   # only the template's coaches: Coach Andy and the defaults
-            shutil.rmtree(os.path.join(self.home, "personas", slug_))
+        stock = os.path.join(self.tmp.name, "stock")   # only the real stock: Coach Andy and the web defaults
+        shutil.copytree(paths.SHIPPED, stock, ignore=shutil.ignore_patterns("coach-julius", "coach-solo"))
+        self.stack.enter_context(mock.patch.object(paths, "SHIPPED", stock))
         sys.path.insert(0, os.path.join(ROOT, "tests"))
         import fakes
         fake = fakes.FakeService(fakes.design_answer("inworld"))
@@ -1014,6 +1038,10 @@ class InProcessBuild(unittest.TestCase):
                          [("Coach Owen", "inworld")] * 2)
         posts = [r.path.split(":")[-1] for r in fake.requests if r.method == "POST"]
         self.assertEqual(posts, ["design", "publish"])   # made once across two builds
+        made = os.path.join(paths.PERSONAS, "coach-owen-inworld", "persona.md")   # in me/, never in the stock
+        self.assertIn("voice_id", open(made, encoding="utf-8").read())
+        self.assertIn('pending = "design"', open(os.path.join(stock, "coach-owen-inworld", "persona.md"),
+                                                 encoding="utf-8").read())
 
     def test_a_failed_make_stops_the_build(self):
         fake = self.add_pending_coach()
@@ -1092,8 +1120,6 @@ class RenderGates(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.home = fresh_home(self.tmp.name)
-        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
-                        os.path.join(self.home, "personas"), dirs_exist_ok=True)
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(helpers.home(self.home))
@@ -1201,8 +1227,6 @@ class SmallHardening(unittest.TestCase):
     def test_the_lint_predicts_no_chime_when_the_render_has_none(self):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
-            shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
-                            os.path.join(home, "personas"), dirs_exist_ok=True)
             with helpers.home(home):
                 voice = personas.voice_for(personas.lookup("Coach Julius"), "local")
                 segments = parse("@@ 30 | A\nHello there, friend.\n@@ 30 | B\nAnd again.\n@@ 30 | C\nOnce more.\n")
@@ -1808,11 +1832,13 @@ class Ffmpeg(unittest.TestCase):
 
 
 class Engines(unittest.TestCase):
-    def test_tested_mlx_audio_matches_the_lock(self):
+    def test_pocket_and_the_recognizer_match_the_lock(self):
         with open(os.path.join(ROOT, "uv.lock"), encoding="utf-8") as f:
             lock = f.read()
-        m = re.search(r'name = "mlx-audio"\nversion = "([^"]+)"', lock)
-        self.assertEqual(m.group(1), engines.TESTED_MLX_AUDIO)
+        m = re.search(r'name = "pocket-tts"\nversion = "([^"]+)"', lock)
+        self.assertEqual(m.group(1), voices.POCKET_VERSION)
+        self.assertRegex(lock, r'name = "onnx-asr"\nversion = "0\.12\.0"')
+        self.assertNotIn('name = "mlx-audio"', lock)
 
     def test_loudness_stats(self):
         stderr = ('[Parsed_loudnorm_0 @ 0x1] \n{\n\t"input_i" : "-27.61",\n\t"input_tp" : "-4.47",\n'
@@ -1825,45 +1851,68 @@ class Engines(unittest.TestCase):
 
 
 class CoachBackends(unittest.TestCase):
-    """A coach on each local backend: the pinned model it renders with, and keys that keep cached clips."""
+    """A local coach's voice: Pocket, from a stock coach's voice file; a local coach of the listener's own is refused."""
 
     def setUp(self):
         import personas
         self.personas = personas
         self.tmp = tempfile.TemporaryDirectory()
-        folder = os.path.join(self.tmp.name, "personas")
-        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"), folder)
-        patcher = mock.patch.object(paths, "PERSONAS", folder)
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.addCleanup(self.tmp.cleanup)
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.home = self.stack.enter_context(helpers.home(os.path.join(self.tmp.name, "me")))
+        os.makedirs(self.home)
 
-    def test_torch_takes_the_torch_model(self):
-        with mock.patch.object(voices, "BACKEND", "torch"):
-            v = self.personas.voice_for(self.personas.lookup("Coach Julius"), "local")
-            self.assertEqual((v["backend"], v["model"]), ("torch", "ResembleAI/chatterbox-turbo"))
-            self.assertRegex(v["revision"], r"^[0-9a-f]{40}$")
-            self.assertTrue(engines.runtime(v).startswith("chatterbox-tts "))
-            with self.assertRaises(SystemExit) as e:   # Qwen3 renders locally only on a Mac
-                self.personas.voice_for(self.personas.lookup("Coach Solo"), "local")
-            self.assertIn("Mac", str(e.exception.code))
-        mlx = self.personas.voice_for(self.personas.lookup("Coach Julius"), "local")
-        self.assertNotEqual(voices._rate_key(v), voices._rate_key(mlx))   # each backend measured on its own
+    def test_a_stock_coach_speaks_with_pocket(self):
+        p = self.personas.lookup("Coach Julius")
+        v = self.personas.voice_for(p, "local")
+        self.assertEqual((v["engine"], v["backend"], v["model"]), ("pocket", "torch", voices.POCKET_REPO))
+        self.assertEqual(v["revision"], voices.LOCAL_MODELS["pocket"][1])
+        self.assertEqual(v["language"], voices.POCKET_LANGUAGE)
+        self.assertEqual(v["voice_state"], os.path.join(paths.SHIPPED, "coach-julius", "pocket.safetensors"))
+        self.assertEqual(v["pace_file"], paths.PACE_FILE)   # the shared pace file: me/coaches/ holds only their own
+        self.assertFalse(os.path.exists(v["pace_file"]))   # a lint or a brief writes nothing
+        with mock.patch.object(engines, "_version", side_effect=lambda p: {"pocket-tts": "4.0.1", "torch": "2.6.0"}[p]):
+            self.assertEqual(engines.runtime(v), "pocket-tts 4.0.1 english_2026-10 torch 2.6.0 cpu")
 
-    def test_mlx_keeps_its_cache_key(self):
-        v = self.personas.voice_for(self.personas.lookup("Coach Julius"), "local")
-        self.assertEqual(v["backend"], "mlx")
-        self.assertEqual(v["model"], "mlx-community/chatterbox-turbo-fp16")
-        self.assertEqual(engines.runtime(v), f"mlx-audio {engines.mlx_audio_version()}")
+    def test_a_local_coach_of_the_listeners_own_is_refused(self):
+        own = os.path.join(paths.PERSONAS, "coach-mine")
+        shutil.copytree(os.path.join(paths.SHIPPED, "coach-julius"), own)
+        with open(os.path.join(own, "persona.md"), encoding="utf-8") as f:
+            text = f.read().replace('name = "Coach Julius"', 'name = "Coach Mine"').replace(
+                'aliases = ["Chatterbox Coach", "Coach E"]', "aliases = []")
+        with open(os.path.join(own, "persona.md"), "w", encoding="utf-8") as f:
+            f.write(text)
+        with self.assertRaises(SystemExit) as e:
+            self.personas.voice_for(self.personas.lookup("Coach Mine"), "local")
+        self.assertIn("migrate", str(e.exception.code))
+
+    def test_a_stock_pace_is_read_until_this_computers_first_render(self):
+        p = self.personas.lookup("Coach Julius")
+        v = self.personas.voice_for(p, "local")
+        stock = {voices._rate_key(v): {"name": p.name, "weight": 300.0, "seconds": 20.0, "shipped": True}}
+        with mock.patch.object(type(p), "shipped_pace", new_callable=mock.PropertyMock,
+                               return_value=os.path.join(self.tmp.name, "stock-pace.json")):
+            with open(os.path.join(self.tmp.name, "stock-pace.json"), "w", encoding="utf-8") as f:
+                json.dump(stock, f)
+            v = self.personas.voice_for(p, "local")
+            os.makedirs(os.path.dirname(v["pace_file"]), exist_ok=True)
+            with open(v["pace_file"], "w", encoding="utf-8") as f:   # the shared file, holding another voice
+                json.dump({"other|pocket|x": {"name": "Other", "weight": 1.0, "seconds": 1.0}}, f)
+            self.assertEqual(voices.pace(v), (15.0, True))   # measured, though under MIN_MEASURED: it shipped so
+            voices.record_rate(v, 150.0, 5.0)
+            self.assertEqual(voices.pace(v)[0], 450.0 / 25.0)   # this computer's render adds to the stock pace
+            with open(v["pace_file"], encoding="utf-8") as f:
+                self.assertEqual(set(json.load(f)), {voices._rate_key(v), "other|pocket|x"})
+            self.assertFalse(os.path.exists(os.path.join(paths.PERSONAS, p.slug)))   # me/coaches/: their own only
 
 
 class TorchDevice(unittest.TestCase):
     def test_torch_runtime_marks_only_the_processor(self):
         v = {"backend": "torch"}
-        with mock.patch.object(engines, "_version", side_effect=lambda p: {"chatterbox-tts": "0.1.7", "torch": "2.6.0"}[p]):
-            self.assertEqual(engines.runtime(dict(v, device="cuda")), "chatterbox-tts 0.1.7 torch 2.6.0")
-            self.assertEqual(engines.runtime(v), "chatterbox-tts 0.1.7 torch 2.6.0")
-            self.assertEqual(engines.runtime(dict(v, device="cpu")), "chatterbox-tts 0.1.7 torch 2.6.0 cpu")
+        with mock.patch.object(engines, "_version", side_effect=lambda p: {"pocket-tts": "4.0.1", "torch": "2.6.0"}[p]):
+            self.assertEqual(engines.runtime(dict(v, device="cuda")), "pocket-tts 4.0.1 english_2026-10 torch 2.6.0 cuda")
+            self.assertEqual(engines.runtime(dict(v, device="cpu")), "pocket-tts 4.0.1 english_2026-10 torch 2.6.0 cpu")
 
     def test_device_choice(self):
         with mock.patch.dict(os.environ, {"SWEATCAST_DEVICE": "cpu"}):
@@ -1990,7 +2039,7 @@ class Isolation(unittest.TestCase):
                 self.assertEqual(paths.HOME, d)
                 self.assertEqual(paths.PROFILE, os.path.join(d, "profile.md"))
                 self.assertEqual(paths.TOLD, os.path.join(d, "workouts", "research", "told.jsonl"))
-                self.assertEqual(paths.PERSONAS, os.path.join(d, "personas"))
+                self.assertEqual(paths.PERSONAS, os.path.join(d, "coaches"))
                 self.assertEqual(paths.CACHE, os.path.join(d, "workouts", ".audio-cache"))
                 self.assertEqual(paths.ROOT, ROOT)                   # the engine's own paths don't move
         self.assertEqual((paths.HOME, paths.PROFILE, paths.TOLD, paths.PERSONAS, paths.CACHE), before)
@@ -2137,8 +2186,6 @@ class ContextRobustness(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.home = fresh_home(self.tmp.name)
-        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"),
-                        os.path.join(self.home, "personas"), dirs_exist_ok=True)
 
     def test_an_unclosed_settings_block_is_an_issue_not_migrate_advice(self):
         import check
@@ -2178,7 +2225,8 @@ class ContextRobustness(unittest.TestCase):
 
     def test_one_unreadable_coach_file_hides_no_others(self):
         import check
-        folder = os.path.join(self.home, "personas")
+        folder = os.path.join(self.home, "coaches")
+        shutil.copytree(os.path.join(paths.SHIPPED, "coach-julius"), os.path.join(folder, "coach-julius"))
         write_file(os.path.join(folder, "coach-broken", "persona.md"), "+++\nname = \n+++\n")   # invalid TOML
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
@@ -2250,11 +2298,11 @@ class Dedupe(unittest.TestCase):
 
     def test_coach_matching_and_folder_listing_in_one_place(self):
         with tempfile.TemporaryDirectory() as d:
-            folder = os.path.join(d, "personas")
-            shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener", "personas"), folder)
+            folder = os.path.join(d, "coaches")
+            shutil.copytree(paths.SHIPPED, folder, ignore=shutil.ignore_patterns("coach-*-*"))
             os.makedirs(os.path.join(folder, ".archive", "old"))
             os.makedirs(os.path.join(folder, "junk"))   # no persona.md: not a coach
-            self.assertEqual(personas.persona_dirs(folder), ["coach-julius", "coach-solo"])
+            self.assertEqual(personas.persona_dirs(folder), ["coach-julius", "coach-solo", "coach-test"])
             pool = personas.all(folder)
             self.assertEqual(personas.find("Chatterbox Coach", pool).slug, "coach-julius")   # an alias
             self.assertEqual(personas.find("coach-solo", pool).slug, "coach-solo")            # a folder name

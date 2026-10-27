@@ -1,6 +1,6 @@
 # The audio bench's script: about five minutes of a workout, written to sweatcast's rules (no digits, no
 # ellipses, numbers and years spelled out). Every model reads every line, in order, cloning the same coach
-# (Coach Andy's clip, me.example/personas/coach-andy-local/). Each line is one take, as a paragraph is in a
+# (the bench's reference voice, docs/audio-bench/voice/: Coach Andy's clip from sweatcast 8 to 14). Each line is one take, as a paragraph is in a
 # build. `kind` lets the analysis compare models on what matters most: cues and countdowns first.
 #
 # kinds: welcome, safety, cue (a timing call), countdown, short (a one or two word line, where small models

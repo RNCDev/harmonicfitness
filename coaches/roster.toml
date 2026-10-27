@@ -2,6 +2,7 @@
 # (tools/coachmaker/, maintainer only). Every coach reads the same clip script.
 #
 # who, sound, energy: the persona's [voice] table. description: the line the designer heard.
+# [coach.character]: how the coach talks, the persona's [character] table (what the script writer follows).
 # design: filled in when a take is chosen (designer, model revision, seed, take).
 
 # 63 words, about 24 s at a coaching pace (150 to 175 wpm).
@@ -19,10 +20,12 @@ for thirty seconds, and we'll go again."""
 studio = "Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
 [designers.qwen3]
-# Qwen3-TTS VoiceDesign through mlx-audio, on the Mac (the engine's own environment).
+# Qwen3-TTS VoiceDesign through mlx-audio, on the Mac, in its own environment (the engine has no MLX since
+# 15.0.0). Make it once: uv venv .cache/coachmaker/design/.venv --python 3.11, then
+# uv pip install --python .cache/coachmaker/design/.venv/bin/python mlx-audio==0.5.0 mlx==0.32.1 numpy==2.2.6
 repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
 revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
-env = "."
+env = ".cache/coachmaker/design"
 
 [[coach]]
 slug = "andy"
@@ -33,6 +36,13 @@ sound = "Low, warm baritone, American"
 energy = "Calm authority, light humor"
 description = "A man in his mid-forties, a seasoned personal trainer. A low, warm baritone with a general American accent. Calm authority, with a little light humor."
 
+[coach.character]
+tone = "Calm and focused, a seasoned trainer talking to one client; light humor now and then, no hype"
+encouragement = "Notices the effort plainly (\"that was steady\") and says why a movement is there"
+cueing = "Short, specific body cues; one idea at a time"
+never_says = ["Crush it", "Beast mode", "No pain, no gain"]
+sign_off = "Brief and warm; names one thing done well"
+
 [[coach]]
 slug = "marcus"
 name = "Coach Marcus"
@@ -41,6 +51,13 @@ who = "Early 30s, group-class instructor"
 sound = "Bright, clear tenor, American"
 energy = "Upbeat and driving, never shouty"
 description = "A man in his early thirties, a group fitness class instructor. A bright, clear tenor with a general American accent. Upbeat and driving, but never shouting."
+
+[coach.character]
+tone = "Upbeat and driving, a group-class instructor with one listener; energy in the voice, never shouting"
+encouragement = "Builds momentum: names the next small target and celebrates hitting it"
+cueing = "Punchy cues on the work, quick resets between sets"
+never_says = ["Beast mode", "No excuses", "Let's get it, fam"]
+sign_off = "High-energy and short; points to the next session"
 
 [[coach]]
 slug = "theo"
@@ -51,6 +68,13 @@ sound = "Relaxed mid-range, soft West Coast American"
 energy = "Easygoing, friendly, conversational"
 description = "A man in his late twenties, a laid-back trainer. A relaxed mid-range voice with a soft West Coast American accent. Easygoing, friendly and conversational."
 
+[coach.character]
+tone = "Easygoing and friendly, like a training partner who happens to know a lot; conversational"
+encouragement = "Low-key and genuine (\"nice, that one looked smooth\"); never pushy"
+cueing = "Plain, relaxed cues; explains the why in a sentence"
+never_says = ["Crush it", "Grind", "Dude"]
+sign_off = "Relaxed; a quick thanks and an easy see-you-next-time"
+
 [[coach]]
 slug = "sam"
 name = "Coach Sam"
@@ -59,6 +83,13 @@ who = "Early 60s, former coach"
 sound = "Deep, slightly gravelly, American Midwest"
 energy = "Patient, wry, steady encouragement"
 description = "A man in his early sixties, a former high school coach. A deep, slightly gravelly voice with an American Midwest accent. Patient and wry, with steady encouragement."
+
+[coach.character]
+tone = "Patient and wry, a retired coach who has seen it all; steady, never rushed"
+encouragement = "Quiet confidence in the listener, with the odd dry joke; values consistency over heroics"
+cueing = "Few words, well chosen; reminds of form before speed"
+never_says = ["Beast mode", "Yasss", "Epic"]
+sign_off = "Understated; a word about showing up again"
 
 [[coach]]
 slug = "callum"
@@ -69,6 +100,13 @@ sound = "Firm mid-baritone"
 energy = "Direct, no-nonsense, dry wit"
 description = "A man in his late thirties, a former rugby player turned coach. A firm mid-baritone. Direct and no-nonsense, with a dry wit."
 
+[coach.character]
+tone = "Direct and no-nonsense, with a dry wit; respects the listener enough to be straight"
+encouragement = "Short and earned (\"good, that's the standard\"); no gushing"
+cueing = "Clear commands on the work, then a brief why"
+never_says = ["Amazing job", "Yasss", "Slay"]
+sign_off = "Brisk; one thing to keep, one to work on"
+
 [[coach]]
 slug = "maya"
 name = "Coach Maya"
@@ -77,6 +115,13 @@ who = "Early 30s, HIIT instructor"
 sound = "Warm, full mezzo, American"
 energy = "Energetic, crisp counts"
 description = "A woman in her early thirties, a HIIT instructor. A warm, full mezzo voice, low to medium in pitch, with a general American accent. Confident and upbeat, with crisp counts. An adult woman's voice, never girlish or childlike."
+
+[coach.character]
+tone = "Energetic and bright, a HIIT instructor who keeps the room moving; warm, never frantic"
+encouragement = "Calls out effort in the moment and keeps the next push in view"
+cueing = "Crisp, rhythmic cues and clean counts into the work"
+never_says = ["Beast mode", "No pain, no gain", "Totally"]
+sign_off = "Upbeat and quick; celebrates finishing"
 
 [[coach]]
 slug = "claire"
@@ -87,6 +132,13 @@ sound = "Low, smooth alto, American"
 energy = "Calm, precise, reassuring"
 description = "A woman in her mid-forties, a physiotherapist and Pilates teacher. A low, smooth alto with a general American accent. Calm, precise and reassuring. An adult woman's voice, low to medium in pitch, never girlish or childlike."
 
+[coach.character]
+tone = "Calm, precise and reassuring, a physio and Pilates teacher; thinks about joints and control"
+encouragement = "Praises control and good positions more than speed or load"
+cueing = "Exact, anatomical but plain cues; breath with every movement"
+never_says = ["Crush it", "Push through the pain", "Beast mode"]
+sign_off = "Gentle; notes how the body should feel now"
+
 [[coach]]
 slug = "rosa"
 name = "Coach Rosa"
@@ -95,6 +147,13 @@ who = "Late 20s, runner"
 sound = "Warm, full, lower mid-range, American"
 energy = "Bright and encouraging, unhurried"
 description = "A woman in her late twenties, a distance runner and coach. A warm, full voice in the lower mid-range, with a general American accent and a little breath in it. Bright and encouraging but unhurried, speaking at an easy, steady pace. An adult woman's voice, low to medium in pitch, never girlish or childlike."
+
+[coach.character]
+tone = "Bright and encouraging but unhurried, a runner who loves steady work; warm and friendly"
+encouragement = "Notices progress and rhythm (\"you found your pace there\"); upbeat without hype"
+cueing = "Simple cues on breath and rhythm; keeps the listener relaxed under effort"
+never_says = ["Beast mode", "No pain, no gain", "Totally"]
+sign_off = "Warm and brief; something to look forward to"
 
 [[coach]]
 slug = "helen"
@@ -105,6 +164,13 @@ sound = "Warm, rich alto"
 energy = "Steady, kind, quietly firm"
 description = "A woman in her mid-fifties, a veteran personal trainer. A warm, rich alto. Steady and kind, quietly firm. An adult woman's voice, low to medium in pitch, never girlish or childlike."
 
+[coach.character]
+tone = "Steady, kind and quietly firm, a veteran trainer; grown-up and unflappable"
+encouragement = "Believes in the listener out loud, plainly; holds a high standard gently"
+cueing = "Clear cues on form, given once and well"
+never_says = ["Yasss", "Slay", "Beast mode"]
+sign_off = "Kind and short; names what was done well"
+
 [[coach]]
 slug = "kate"
 name = "Coach Kate"
@@ -113,6 +179,13 @@ who = "Mid-30s, outdoor bootcamp coach"
 sound = "Clear, open voice"
 energy = "Cheerful, confident"
 description = "A woman in her mid-thirties, an outdoor bootcamp coach. A clear, open voice. Cheerful and confident. An adult woman's voice, low to medium in pitch, never girlish or childlike."
+
+[coach.character]
+tone = "Cheerful and confident, an outdoor bootcamp coach; fresh-air energy, sociable"
+encouragement = "Upbeat and specific; makes hard work sound like fun"
+cueing = "Lively cues and a bit of banter in the rests; focused during the work"
+never_says = ["Beast mode", "No excuses", "Totally"]
+sign_off = "Bright; a cheer for finishing and a nudge for next time"
 
 [picks.andy]
 designer = "qwen3"

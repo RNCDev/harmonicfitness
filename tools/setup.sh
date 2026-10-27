@@ -3,9 +3,8 @@
 # hook and the voice models. Safe to rerun; it skips what's already done. Run it as ./sweatcast setup.
 #
 #   ./sweatcast setup               # environment, me/ from me.example/, and where local voices run
-#                                   # here, their engine and the default voice's model
+#                                   # here, the local voice (Pocket TTS) and the take checker
 #   ./sweatcast setup --local       # the same, but stop with the reason if local voices can't run here
-#   ./sweatcast setup --all         # every voice's model
 #   ./sweatcast setup --no-models   # the base environment (keeping a local engine already
 #                                   # installed), me/ and the hook; no models (the setup skill
 #                                   # runs this first, then fetches what the listener picks)
@@ -17,13 +16,12 @@
 # the Python environment when it isn't installed, and git is needed only for the privacy hook and
 # ./sweatcast backup, so a zip download sets up too.
 #
-# Local voice models download once from Hugging Face (no account needed) into models/ (or
-# SWEATCAST_MODELS; ./sweatcast models adopt moves ones already in ~/.cache/huggingface/hub): about 3.3 GB for
-# Chatterbox Turbo (the model plus its speech tokenizer) and 4.2 GB for Qwen3-TTS on a Mac, plus 2.5 GB
-# for the speech recognizer that checks each take (Parakeet, on a Mac), and
-# about 4 GB for Chatterbox Turbo on Windows or Linux. Rendering works offline after that. Rerun
-# after giving a coach another local engine to fetch its model. An existing context folder is brought up to this version's
-# format (./sweatcast migrate), backed up first.
+# The local voice downloads once from Hugging Face (no account or login needed) into models/ (or
+# SWEATCAST_MODELS; ./sweatcast models adopt moves one already in ~/.cache/huggingface/hub): about 0.6 GB for
+# Pocket TTS's public model and 2.5 GB for the speech recognizer that checks each take (Parakeet through
+# ONNX), the same on every computer. Rendering works offline after that. An existing context folder is
+# brought up to this version's format (./sweatcast migrate), backed up first; ./sweatcast models then lists
+# the models older versions downloaded that nothing uses now.
 #
 # On Claude Code on the web (CLAUDE_CODE_REMOTE=true) there's no local engine: cloud voices only.
 #
@@ -58,20 +56,16 @@ if [ -z "$UV" ]; then
   exit 1
 fi
 
-# The local voice engine is an extra, installed where the readiness check says it runs: MLX on
-# Apple Silicon, CUDA PyTorch with an NVIDIA card, processor PyTorch without one. It's remembered
-# in .venv/.sweatcast-extra, since a sync without it would uninstall it.
+# The local voice (Pocket TTS on PyTorch, and the take checker) is an extra, installed where the readiness
+# check says it runs: "cuda" with an NVIDIA card, "cpu" on an Apple Silicon Mac or a PC without one. It's
+# remembered in .venv/.sweatcast-extra, since a sync without it would uninstall it.
 FACTS="$(sh "$HERE/doctor.sh" --facts)"
 fact() { echo "$FACTS" | sed -n "s/^$1=//p"; }
 LOCAL="$(fact local)"; LOCAL_ENGINE="$(fact local_engine)"; LOCAL_REASON="$(fact local_reason)"
 MARKER=".venv/.sweatcast-extra"
 INSTALLED="$(cat "$MARKER" 2>/dev/null || true)"
-if [ -z "$INSTALLED" ] && [ -d .venv ]; then   # an environment from before 9.0, which had no marker
-  if [ -n "$(find .venv -maxdepth 6 -type d -name mlx_audio 2>/dev/null | head -1)" ]; then INSTALLED=mlx
-  elif [ -n "$(find .venv -maxdepth 6 -type d -name chatterbox 2>/dev/null | head -1)" ]; then
-    INSTALLED="$LOCAL_ENGINE"; [ -n "$INSTALLED" ] || INSTALLED=cuda
-  fi
-fi
+# Before 15.0.0 a Mac's extra was "mlx" (Chatterbox and Qwen3 on MLX): Pocket on the processor replaces it.
+[ "$INSTALLED" = mlx ] && INSTALLED=cpu
 case "$1" in
   --no-models) WANT="$INSTALLED" ;;   # the base, keeping a local engine already installed
   --local)
@@ -100,9 +94,6 @@ if [ -n "$WANT" ]; then
 fi
 if [ "$LOCAL" = no ] && [ "$1" != "--no-models" ]; then
   echo "   No local voices on this computer: $LOCAL_REASON"
-elif [ "$LOCAL" = experimental ] && [ -n "$WANT" ]; then
-  echo "   Local voices run on the processor here: experimental, speed unknown, likely slow."
-  echo "   The smoke test measures this computer's speed."
 fi
 PY="$(venv_python)"
 "$PY" tools/ffmpeg.py | sed 's/^/   /' || true
@@ -159,14 +150,12 @@ if [ "$1" = "--no-models" ]; then
   echo "   skipped (--no-models)"
 elif [ -z "$WANT" ]; then
   echo "   skipped: no local voices on this computer"
-elif [ "$1" = "--all" ]; then
-  "$PY" tools/coaches.py download --all
 else
-  "$PY" tools/coaches.py download   # the coaches' local model, or Chatterbox Turbo before there's a coach
+  "$PY" tools/coaches.py download   # Pocket TTS and the take checker
 fi
 
 echo
 echo "Done. Next:"
-echo "  - In Claude Code, say \"set up sweatcast\": four questions, then a ten-minute workout with Coach Andy,"
-echo "    a stand-in coach that's ready now (./sweatcast check lists anything still to fill in)."
-echo "  - Later: \"finish setting me up\" for your interests and feeds, and \"I want a new coach\" for your own."
+echo "  - In Claude Code, say \"set up sweatcast\": four questions, a coach to choose from the ten that ship"
+echo "    (each has a short sample), then a ten-minute workout (./sweatcast check lists anything still to fill in)."
+echo "  - Later: \"finish setting me up\" for your interests and feeds, and \"I want a new coach\" for a web voice of your own."

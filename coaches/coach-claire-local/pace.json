@@ -1,0 +1,9 @@
+{
+ "55a70c011b94|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Claire",
+  "weight": 387.7,
+  "seconds": 30.699,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

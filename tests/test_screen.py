@@ -292,10 +292,9 @@ class Eval(unittest.TestCase):
             issues = [check.describe(x) for x in check.check(files) if not x.note]
             self.assertEqual(issues, [], name)
             profile, _, _ = eval_listener(name)
-            coaches = os.path.join(home, "personas")
-            self.assertTrue(os.listdir(coaches), name)
-            # The eval's coaches are how they talk only: the eval writes scripts, it never renders them.
-            self.assertEqual([i for i in check.check_coaches(coaches) if "clip" not in i.message], [], name)
+            # The eval's listeners use the stock coaches: no folder of their own (the eval writes scripts only).
+            self.assertFalse(os.path.exists(os.path.join(home, "personas")), name)
+            self.assertEqual(check.check_coaches(os.path.join(home, "coaches")), [], name)
             self.assertIsNotNone(context.wpm(profile), name)
         likes, dislikes = context.likes(eval_listener("d")[0]), context.dislikes(eval_listener("d")[0])
         self.assertEqual((len(likes), len(dislikes)), (2, 2))

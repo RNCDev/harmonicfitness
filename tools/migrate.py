@@ -28,6 +28,11 @@ Steps:
         words_per_minute. Each setting keeps its value (comments are the template's; the originals
         are in the backup). health.md and log.md change only their schema number. It backs up before
         overwriting a training.md, content.md or settings.toml already there (each goes to the backup first).
+    Coaches (sweatcast 15.0.0, a folder step with no schema change): personas/ becomes coaches/; each local
+        coach of the listener's own moves to coaches/.archive/ (local coaches are now the ten sweatcast ships,
+        and a voice of one's own is a web coach); and an unmade copy of a stock web coach (Reed, Ellis, Nolan,
+        Owen, still pending design) goes to the backup, since the engine ships them now. A made one stays and
+        is used over the stock copy. me/.gitignore's personas/ rules become coaches/ rules.
 
 The folder steps (the split, the folder per workout, the reserve's old name, the .gitignore rules for
 coaches) run whenever they still have something to do, whatever the files' schema says, so a run that
@@ -209,8 +214,8 @@ GITIGNORE_ADD_5 = ("# A workout's web copy (Claude Code on the web) is kept: the
                    "!*.web-*.mp3")
 GITIGNORE_ADD_PERSONA_5 = ("# Each web coach's approved sample is kept (archived ones too); auditions in progress, "
                            "and a make between saving a voice and writing the coach, are not.",
-                           "!personas/*/sample.mp3", "!personas/.archive/*/sample.mp3", "personas/.auditions/",
-                           "personas/*/.made.json", "personas/*/.made.wav")
+                           "!coaches/*/sample.mp3", "!coaches/.archive/*/sample.mp3", "coaches/.auditions/",
+                           "coaches/*/.made.json", "coaches/*/.made.wav")
 
 
 def update_gitignore(home, add_lines):
@@ -302,12 +307,111 @@ def retire_pantry(home, backup):
     fileio.atomic_write(told, "".join(out))
 
 
+def coach_root(home=None):
+    """The listener's coach folder: coaches/, or personas/ in a folder from before 15.0.0 not migrated yet."""
+    home = home or paths.HOME
+    new, old = os.path.join(home, "coaches"), os.path.join(home, "personas")
+    return old if os.path.isdir(old) and not os.path.isdir(new) else new
+
+
 def persona_files(home=None):
-    """Every coach file: personas/<coach>/persona.md and personas/.archive/<coach>/persona.md (not auditions)."""
+    """Every coach file: coaches/<coach>/persona.md and coaches/.archive/<coach>/persona.md (not auditions), and
+    the same under personas/ in a folder from before 15.0.0."""
     import personas
-    folder = os.path.join(home or paths.HOME, "personas")
-    return [os.path.join(where, d, "persona.md") for where in (folder, os.path.join(folder, ".archive"))
-            for d in personas.persona_dirs(where)]
+    home = home or paths.HOME
+    folders = [os.path.join(home, n) for n in ("coaches", "personas")]
+    return [os.path.join(where, d, "persona.md") for folder in folders
+            for where in (folder, os.path.join(folder, ".archive")) for d in personas.persona_dirs(where)]
+
+
+def _stock_web_names():
+    import personas
+    return {p.name.lower() for p in personas._load_all(paths.SHIPPED) if p.is_web}
+
+
+def _coach_settings(path):
+    try:
+        return context.front(context.read_raw(path, "coach"))[0]
+    except (SystemExit, Exception):
+        return None
+
+
+def coaches_due(home):
+    """15.0.0's coaches step: [(what, folder name)] still to do: ("rename", "personas"), ("archive", <coach>)
+    for a local coach of the listener's own, ("stock", <coach>) for an unmade copy of a stock web coach."""
+    import personas
+    out = []
+    if os.path.isdir(os.path.join(home, "personas")):
+        out.append(("rename", "personas"))
+    root = coach_root(home)
+    stock = _stock_web_names()
+    for d in personas.persona_dirs(root):
+        settings = _coach_settings(os.path.join(root, d, "persona.md"))
+        if settings is None:
+            continue
+        if str(settings.get("kind") or "local") == "local":
+            out.append(("archive", d))
+        elif settings.get("pending") and not settings.get("voice_id") \
+                and str(settings.get("name") or "").lower() in stock:
+            out.append(("stock", d))
+    return out
+
+
+def coaches_lines(due):
+    names = {"rename": "personas/ becomes coaches/ (its new name)",
+             "archive": "coaches/{}: a local coach of your own, archived (local coaches are now the ten sweatcast "
+                        "ships; a voice of your own is a web coach)",
+             "stock": "coaches/{}: a stock web coach not made yet, now shipped with sweatcast (moved to the backup)"}
+    return [names[what].format(d) for what, d in due]
+
+
+def rename_coaches(home):
+    """personas/ to coaches/. With both there (a copy of the engine that ran before migrating), each coach not
+    in coaches/ moves across; the rest stay in personas/ to sort by hand. Returns whether personas/ is gone."""
+    old, new = os.path.join(home, "personas"), os.path.join(home, "coaches")
+    if not os.path.isdir(old):
+        return True
+    if not os.path.exists(new):
+        os.replace(old, new)
+        return True
+    for d in os.listdir(old):
+        if not os.path.exists(os.path.join(new, d)):
+            shutil.move(os.path.join(old, d), os.path.join(new, d))
+    if not os.listdir(old):
+        os.rmdir(old)
+        return True
+    return False
+
+
+def settle_coaches(home, backup):
+    """Archive the listener's own local coaches and set aside unmade stock web coaches (coaches_due)."""
+    root = os.path.join(home, "coaches")
+    for what, d in coaches_due(home):
+        src = os.path.join(root, d)
+        if what == "archive":
+            base = os.path.join(root, ".archive")
+            dest, n = os.path.join(base, d), 2
+            while os.path.exists(dest):
+                dest, n = os.path.join(base, f"{d}-{n}"), n + 1
+            os.makedirs(base, exist_ok=True)
+            shutil.move(src, dest)
+        elif what == "stock":
+            dest = os.path.join(backup, "coaches", d)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.move(src, dest)
+
+
+def rename_gitignore(home):
+    """me/.gitignore's personas/ rules as coaches/ rules."""
+    path = os.path.join(home, ".gitignore")
+    if not os.path.exists(path):
+        return False
+    with open(path, encoding="utf-8") as f:
+        have = f.read()
+    new = re.sub(r"(?m)^(!?)personas/", r"\1coaches/", have)
+    if new != have:
+        fileio.atomic_write(path, new)
+    return new != have
 
 
 def _behind(path, current, floor, what):
@@ -389,8 +493,8 @@ def move_strays(home):
 
 def folder_steps_due(home):
     """(the stray settings a split would move, the workout moves a relayout would make, what retiring the
-    reserve's old name would do)."""
-    return strays(home), workouts.reorganize(home, dry_run=True), pantry_due(home)
+    reserve's old name would do, what the coaches step would do)."""
+    return strays(home), workouts.reorganize(home, dry_run=True), pantry_due(home), coaches_due(home)
 
 
 def migrate(dry_run=False, stamp=None, moves=None):
@@ -398,13 +502,17 @@ def migrate(dry_run=False, stamp=None, moves=None):
     or None, [changed paths]). `moves`, a list, gets the workout files moved (src, dst)."""
     todo = plan()
     home = paths.HOME
-    stray, due_moves, pantry = folder_steps_due(home)
-    if dry_run or not (todo or stray or due_moves or pantry):
+    stray, due_moves, pantry, coach_steps = folder_steps_due(home)
+    if dry_run or not (todo or stray or due_moves or pantry or coach_steps):
         if moves is not None:
             moves.extend(due_moves)
         return None, [p for p, _ in todo]
     backup = os.path.join(home, f".backup-{stamp or time.strftime('%Y%m%d-%H%M%S')}")
     os.makedirs(backup, exist_ok=True)
+    if os.path.exists(os.path.join(home, ".gitignore")):
+        shutil.copy2(os.path.join(home, ".gitignore"), os.path.join(backup, ".gitignore"))
+    if coach_steps and rename_coaches(home):   # first, so every later step finds the coaches in coaches/
+        todo = plan()
     for path, _ in todo:
         if _is_persona(path):   # by their place in the folder: every coach's file is persona.md
             dest = os.path.join(backup, os.path.relpath(path, home))
@@ -416,8 +524,6 @@ def migrate(dry_run=False, stamp=None, moves=None):
         for name in context.PROFILE_PARTS:
             if os.path.exists(os.path.join(home, name)):
                 shutil.copy2(os.path.join(home, name), os.path.join(backup, name))
-    if os.path.exists(os.path.join(home, ".gitignore")):
-        shutil.copy2(os.path.join(home, ".gitignore"), os.path.join(backup, ".gitignore"))
     changed = [p for p, _ in todo]
     for path, found in todo:
         with open(path, encoding="utf-8") as f:
@@ -442,6 +548,9 @@ def migrate(dry_run=False, stamp=None, moves=None):
             moves.extend(moved)
     if pantry:
         retire_pantry(home, backup)
+    if coach_steps:
+        settle_coaches(home, backup)
+    rename_gitignore(home)
     update_gitignore(home, GITIGNORE_ADD_PERSONA_5)
     return backup, changed
 
@@ -459,8 +568,8 @@ def main(argv=None):
         raise SystemExit(f"No context files in {show(paths.HOME)}. A new copy starts with ./sweatcast setup.")
 
     todo = plan()
-    stray, due_moves, pantry = folder_steps_due(paths.HOME)
-    if not (todo or stray or due_moves or pantry):
+    stray, due_moves, pantry, coach_steps = folder_steps_due(paths.HOME)
+    if not (todo or stray or due_moves or pantry or coach_steps):
         print(f"{show(paths.HOME)} is already at schema {context.SCHEMA}; nothing to do.")
     else:
         for path, found in todo:
@@ -471,6 +580,8 @@ def main(argv=None):
         if due_moves:
             print(f"{len(due_moves)} workout file(s) move into a folder per workout (and checks/, research/daily/)")
         for line in pantry:
+            print(line)
+        for line in coaches_lines(coach_steps):
             print(line)
         if args.dry_run:
             for src, dst in due_moves:

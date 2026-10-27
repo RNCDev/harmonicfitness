@@ -1,9 +1,10 @@
-"""Coaches: audition a web coach and keep the one that sounds right; design or bring a local coach's clip;
-choose, measure and tune them.
+"""Coaches: choose one of the coaches sweatcast ships, or audition a web coach and keep the one that sounds
+right; measure and tune them.
 
-A coach is a persona folder in me/personas/ (tools/personas.py): a person's name, how they talk, and how
-they sound. A web coach is a voice a service designed and saved (Fish Audio, ElevenLabs, Gemini, Inworld,
-with the listener's key); a local coach is a ten-second clip every local engine copies.
+A coach is a persona folder (tools/personas.py): a person's name, how they talk, and how they sound. The ten
+local coaches ship in coaches/ (a clip, its Pocket TTS voice file, recorded counts and cues, a sample); they're
+chosen, not made. A web coach is a voice a service designed and saved (Fish Audio, ElevenLabs, Gemini, Inworld,
+with the listener's key), kept in me/coaches/.
 
     ./sweatcast coaches                                   # every coach and where it speaks, the last used marked
     ./sweatcast coaches audition maya.md                  # candidates from every keyed service, nothing saved
@@ -15,23 +16,15 @@ with the listener's key); a local coach is a ten-second clip every local engine 
     ./sweatcast coaches make "Coach Reed"                 # a pending default: design and save its voice (builds do)
     ./sweatcast coaches archive "Coach Julius"            # out of the list, still found for old log lines
     ./sweatcast coaches last                              # the coach a build uses when none is named
-    ./sweatcast coaches design "Coach Maya" "A woman in her thirties, warm and mid-low ..."   # local takes
-    ./sweatcast coaches keep "me/personas/coach-maya/takes/2.wav"
-    ./sweatcast coaches keep my-recording.wav --name "Coach Sam" --words "what the clip says"
-    ./sweatcast coaches set "Coach Maya" local.engine qwen3
     ./sweatcast coaches measured "Coach Maya" --engine local   # exit 0 measured, 1 estimated, 64 unknown
-    ./sweatcast coaches download ["Coach Maya"]           # the coach's local model
+    ./sweatcast coaches download                          # the local voice and the take checker (setup does it)
 
-An audition reads a narrative file (persona.md's format: a schema 5 +++ block with [voice], what the
-services design from, and [character], what the script writer follows, then free notes) and lands in
-me/personas/.auditions/<date>-<n>/: each candidate as <service>-<k>.wav and .mp3, lettered A, B, C... in
+An audition reads a narrative file (persona.md's format: a +++ block with [voice], what the services design
+from, and [character], what the script writer follows, then free notes) and lands in
+me/coaches/.auditions/<date>-<n>/: each candidate as <service>-<k>.wav and .mp3, lettered A, B, C... in
 service order, every one saying the same coaching line, with its cost per workout in candidates.json.
 Fish, ElevenLabs and Inworld keep nothing until a candidate is kept; Gemini stores each voice as it
 designs it, so forget-audition deletes the ones not kept.
-
-A local coach's takes come from the local designer (Qwen3-TTS VoiceDesign on MLX, an Apple Silicon Mac;
-a 4.5 GB model). Or bring a clip: about ten seconds of a voice with its exact words; a real person's
-voice needs that person's consent.
 """
 import argparse
 import concurrent.futures
@@ -57,55 +50,6 @@ from paths import show  # noqa: E402
 
 CANDIDATES = {s: v["candidates"] for s, v in cloud.services().items()}   # per audition, lettered in this order
 WORKOUT_CHARS = 20000   # a workout's characters, for the cost a candidate is labeled with
-PROSE = """## How this coach talks
-- Tone: calm and focused. Keep humor light and occasional, with no hype.
-- How the coach talks to me: like a coach who knows me, warm and direct, first name now and then, contractions, "let's" in the rests. Not a drill sergeant, not a radio host.
-- Encouragement that works for me: [for example, notice the effort plainly ("that last set was honest"), tell me why a movement is there, remind me what I did last time]
-- Pet peeves in workout audio:
-"""
-
-
-def can_design():
-    """Stop unless the local voice designer runs here (an Apple Silicon Mac with the local engine)."""
-    import routes
-    if not (voices.BACKEND == "mlx" and routes.local_installed()):
-        raise SystemExit("No voice designer works here: local design needs an Apple Silicon Mac. Bring a clip of "
-                         "about ten seconds with its words (./sweatcast coaches keep <clip.wav> --name ... --words ...), "
-                         "or make a web coach (the coach skill).")
-
-
-def _design_takes(description, line, takes, seed):
-    """[(pcm, words)]: the local designer's takes (Qwen3-TTS VoiceDesign), one model at a time."""
-    import engines
-    from locks import render_lock
-    with render_lock(paths.CACHE):   # another model: one at a time
-        pcm = engines.design_takes(voices.VOICE_DESIGN[0], voices.VOICE_DESIGN[1], description, line, takes, seed)
-    return [(x, line) for x in pcm]
-
-
-def design(name, description, takes=2, seed=7, line=voices.DESIGN_LINE, make_takes=None):
-    """Render takes of a new (or existing) coach into me/personas/<slug>/takes/<n>.wav, beside each its words
-    (<n>.txt) and how it was made (<n>.take.json). Earlier takes are kept. Returns the .wav paths. `make_takes`
-    stands in for the local designer."""
-    if make_takes is None:
-        can_design()
-    folder = os.path.join(personas.folder_for(name, "local"), "takes")
-    os.makedirs(folder, exist_ok=True)
-    made = (make_takes or _design_takes)(description, line, takes, seed)
-    n = max([int(f[:-4]) for f in os.listdir(folder) if f.endswith(".wav") and f[:-4].isdigit()], default=0)
-    out = []
-    for i, (pcm, words) in enumerate(made):
-        n += 1
-        stem = os.path.join(folder, str(n))
-        voices.write_wav(stem + ".wav", pcm)
-        with open(stem + ".txt", "w", encoding="utf-8") as f:
-            f.write(words.strip() + "\n")
-        meta = {"name": name, "description": description, "designer": "local", "line": words, "seed": seed + i,
-                "model": voices.VOICE_DESIGN[0], "revision": voices.VOICE_DESIGN[1]}
-        with open(stem + ".take.json", "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=1)
-        out.append(stem + ".wav")
-    return out
 
 
 def _clip_bytes(src):
@@ -127,43 +71,6 @@ def _clip_bytes(src):
         except ValueError:   # a WAV this reader doesn't handle (24-bit, float): ffmpeg does
             pass
     return cloud.wav_bytes(cloud.ffmpeg_pcm(data, f"The clip {os.path.basename(src)} isn't a WAV"))
-
-
-def keep(take, name=None, words=None, description="", engine="chatterbox", force=False):
-    """Make a take (or any clip, with its words) a coach's clip: clip.wav and clip.txt in the coach's folder,
-    and a persona.md when the coach is new. Returns the coach's name."""
-    if not os.path.exists(take):
-        raise SystemExit(f"No clip at {take}.")
-    stem = os.path.splitext(take)[0]
-    meta = {}
-    if os.path.exists(stem + ".take.json"):
-        with open(stem + ".take.json", encoding="utf-8") as f:
-            meta = json.load(f)
-    if words is None and os.path.exists(stem + ".txt"):
-        with open(stem + ".txt", encoding="utf-8") as f:
-            words = f.read()
-    if not (words or "").strip():
-        raise SystemExit("A clip needs its exact words: pass --words \"...\" (or a .txt of them beside it).")
-    name = name or meta.get("name")
-    if not name:
-        raise SystemExit("Give the coach a person's name: --name \"Coach Sam\".")
-    if engine not in personas.LOCAL_ENGINES:
-        raise SystemExit(f"--engine must be one of {', '.join(personas.LOCAL_ENGINES)}")
-    folder = personas.folder_for(name, "local")
-    os.makedirs(folder, exist_ok=True)
-    clip, clip_txt, persona_md = (os.path.join(folder, f) for f in ("clip.wav", "clip.txt", "persona.md"))
-    if os.path.exists(clip) and not force:
-        raise SystemExit(f"{name} already has a clip ({show(clip)}); pass --force to replace it (their pace is "
-                         "measured again on the next smoke test).")
-    fileio.atomic_write(clip, _clip_bytes(take))
-    fileio.atomic_write(clip_txt, words.strip() + "\n")
-    if not os.path.exists(persona_md):
-        settings = {"name": name, "kind": "local", "description": description or meta.get("description", "")}
-        if meta.get("description"):
-            settings["designed_from"] = meta["description"]
-        settings["local"] = {"engine": engine}
-        fileio.atomic_write(persona_md, context.persona_text(settings, PROSE))
-    return name
 
 
 # --- Web coaches: audition, keep, forget-audition, archive ---------------------------------------------------
@@ -473,8 +380,11 @@ def keep_web(ref, name, replace_old=False):
         _write_candidates(folder, cands)
 
     today = datetime.date.today().isoformat()
-    if existing is not None:   # a new voice for a coach: how they talk stays
-        target, prose = existing.folder, existing.prose
+    if existing is not None and existing.shipped and not existing.is_web:
+        raise SystemExit(f"{existing.name} is one of the local coaches sweatcast ships; give the web coach "
+                         "another name.")
+    if existing is not None:   # a new voice for a coach: how they talk stays (a stock coach's goes to me/coaches/)
+        target, prose = existing.home_folder, existing.prose
         # a stand-in re-voiced is the listener's own choice now: no longer a placeholder
         settings = {k: v for k, v in existing.settings.items() if k not in ("schema", "pending", "placeholder")}
         settings.update(voice_id=voice_id, made=today, voice=voice)
@@ -564,7 +474,9 @@ def make(name):
     if service == "elevenlabs":
         cost += "; it uses one of ElevenLabs Free's 3 voice slots"
     module = importlib.import_module(f"services.{service}")
-    saved = _made(p.folder, service)
+    home = p.home_folder   # a stock coach's made voice goes to me/coaches/<slug>/, never into the engine
+    os.makedirs(home, exist_ok=True)
+    saved = _made(home, service)
     if saved:   # an earlier make saved the voice but stopped before persona.md: finish with it
         voice_id, text, wav = saved
         c, recorded = {}, True
@@ -577,16 +489,16 @@ def make(name):
     try:
         if not recorded:
             voice_id = module.save(c, p.name, description, wav)
-            _record_made(p.folder, service, voice_id, text, wav)
+            _record_made(home, service, voice_id, text, wav)
             recorded = True
         settings = {k: v for k, v in p.settings.items() if k not in ("schema", "pending")}
         settings.update(voice_id=voice_id, made=datetime.date.today().isoformat())
         if settings.get("description"):
             settings["description"] = _made_description(settings["description"])
-        coach = personas.Persona(p.slug, p.folder, settings, p.prose)
+        coach = personas.Persona(p.slug, home, settings, p.prose)
         _write_sample(coach, wav)
         _estimate(coach, service, wav, text)
-        fileio.atomic_write(p.path, context.persona_text(settings, p.prose))   # last: all or nothing
+        fileio.atomic_write(coach.path, context.persona_text(settings, p.prose))   # last: all or nothing
     except BaseException:
         if recorded:   # the voice is recorded in the coach's folder: the next make finishes with it
             print(f"{p.name}'s voice is saved at {s['name']} but the coach wasn't written; "
@@ -601,11 +513,11 @@ def make(name):
         elif voice_id:
             print(f"{p.name}'s voice was saved at {s['name']} (voice ID {voice_id}) but the coach wasn't written; "
                   f"it's still pending. Delete \"sweatcast {p.name}\" there, or put voice_id = \"{voice_id}\" "
-                  f"in {show(p.path)}.", file=sys.stderr)
+                  f"in {show(os.path.join(home, 'persona.md'))}.", file=sys.stderr)
         raise
     for done in (MADE, MADE_WAV):
-        if os.path.exists(os.path.join(p.folder, done)):
-            os.remove(os.path.join(p.folder, done))
+        if os.path.exists(os.path.join(home, done)):
+            os.remove(os.path.join(home, done))
     print(f"Made {p.name} ({s['name']}): a stand-in until you make your own (\"I want a new coach\").")
     return voice_id
 
@@ -659,29 +571,16 @@ def main(argv=None):
     m = sub.add_parser("measured", help="exit 0 if the coach's pace is measured on the route, 1 if estimated, 64 unknown")
     m.add_argument("coach")
     m.add_argument("--engine", default=None, help="the route (default: the profile's render list)")
-    g = sub.add_parser("design", help="render takes of a coach from a description")
-    g.add_argument("name", help="a person's name, such as 'Coach Maya'")
-    g.add_argument("description", help="who they are and how they sound (knowledge/voices.md)")
-    g.add_argument("--takes", type=int, default=2)
-    g.add_argument("--seed", type=int, default=7)
-    g.add_argument("--line", default=voices.DESIGN_LINE, help="what the takes say (a coaching line)")
-    g.add_argument("--play", action="store_true", help="play each take with the system's player")
     a = sub.add_parser("audition", help="candidates for a web coach from every keyed service; nothing saved")
     a.add_argument("narrative", nargs="?", help="the coach narrative: persona.md's format, with [voice]")
     a.add_argument("--services", help=f"only these, comma-separated ({', '.join(CANDIDATES)})")
     a.add_argument("--coach", help="a new voice for this web coach, on its own service")
     a.add_argument("--play", action="store_true", help="play each candidate with the system's player")
-    k = sub.add_parser("keep", help="keep an audition's candidate as a web coach (<audition>/<letter>), or make "
-                                    "a take or a clip you bring a local coach's clip")
-    k.add_argument("take", help="<audition>/<letter> or <audition>/<service>-<k>; or a take or clip")
+    k = sub.add_parser("keep", help="keep an audition's candidate as a web coach (<audition>/<letter>)")
+    k.add_argument("take", help="<audition>/<letter> or <audition>/<service>-<k>")
     k.add_argument("--name", help="the coach's name (a new web coach needs one; default: the take's)")
     k.add_argument("--replace-old", action="store_true",
                    help="re-voicing: delete the coach's old voice at its service")
-    k.add_argument("--words", help="the clip's exact words (default: the .txt beside it)")
-    k.add_argument("--description", default="", help="who the coach is, in a line")
-    k.add_argument("--engine", choices=personas.LOCAL_ENGINES, default="chatterbox",
-                   help="the local model: chatterbox (most natural) or qwen3 (clearest; Mac only)")
-    k.add_argument("--force", action="store_true", help="replace the coach's clip")
     mk = sub.add_parser("make", help="make a pending web coach: design its voice and save the first candidate")
     mk.add_argument("coach")
     f = sub.add_parser("forget-audition", help="close an audition: Gemini's unkept voices deleted, the folder removed")
@@ -690,11 +589,9 @@ def main(argv=None):
     r.add_argument("coach")
     s = sub.add_parser("set", help="set one of a coach's settings: <table>.<key> <value>")
     s.add_argument("coach")
-    s.add_argument("setting", help="for example local.engine, elevenlabs.model, or description")
+    s.add_argument("setting", help="for example elevenlabs.model, or description")
     s.add_argument("value")
-    d = sub.add_parser("download", help="fetch the local model the coaches use (Chatterbox Turbo with none yet)")
-    d.add_argument("coach", nargs="*")
-    d.add_argument("--all", action="store_true", help="every local engine's model this computer can run")
+    sub.add_parser("download", help="fetch the local voice (Pocket TTS) and the take checker (setup does it)")
     args = ap.parse_args(argv)
 
     if args.cmd == "last":
@@ -716,19 +613,6 @@ def main(argv=None):
         route = routes.pick(context.render_preferences(), p, override=args.engine)
         v = personas.voice_for(p, route)
         return cli.OK if voices.pace(v)[1] else cli.ISSUES
-    if args.cmd == "design":
-        can_design()
-        print(f"Designing {args.name}: {args.takes} takes with the local designer ({voices.VOICE_DESIGN[0]}, about "
-              f"{voices.SIZES_GB[voices.VOICE_DESIGN[0]]} GB the first time).", flush=True)
-        takes = design(args.name, args.description, args.takes, args.seed, args.line)
-        import player
-        for t in takes:
-            print(f"  {show(t)}")
-            if args.play and not player.play(t):
-                print("    (no audio player found here; open the file to listen)")
-        print(f"Listen, then keep the one that sounds right:\n  ./sweatcast coaches keep \"{show(takes[0])}\"\n"
-              "None right? Say what's off, reword the description, and design again (or another --seed).")
-        return cli.OK
     if args.cmd == "audition":
         wanted = [x.strip() for x in args.services.split(",") if x.strip()] if args.services else None
         folder, cands, failures = _run_audition(args.narrative, wanted, args.coach, args.play)
@@ -754,17 +638,17 @@ def main(argv=None):
         print(f"Archived {p.name} in {show(personas.archive(p))}: out of the list; old log lines still find them.")
         return cli.OK
     if args.cmd == "keep":
-        name = keep(args.take, args.name, args.words, args.description, args.engine, args.force)
-        print(f"Kept {name} in {show(personas.folder_for(name, 'local'))}. Write how they talk in "
-              f"persona.md, then measure their pace with the smoke test:\n"
-              f"  ./sweatcast build {show(paths.SMOKE_DRAFT)} \"smoke-test\" --coach \"{name}\"")
-        return cli.OK
+        raise cli.Usage(f"{args.take} isn't an audition's candidate (<audition>/<letter>). Local coaches are the "
+                        "ten sweatcast ships, chosen rather than made; a voice of your own is a web coach.")
     if args.cmd == "set":
         p = personas.lookup(args.coach)
+        if p.shipped:
+            raise SystemExit(f"{p.name} ships with sweatcast, so its settings live in the engine "
+                             "(coaches/roster.toml).")
         table, _, key = args.setting.rpartition(".")
+        if table == "local":
+            raise SystemExit("A local coach's sound is set by the voice file it ships with; there's nothing to set.")
         value = _value(args.value)
-        if table == "local" and key == "engine" and value not in personas.LOCAL_ENGINES:
-            raise SystemExit(f"local.engine must be one of {', '.join(personas.LOCAL_ENGINES)}")
         context.set_persona_setting(p.path, table or None, key, value)
         print(f"{p.name}: {args.setting} = {value}")
         return cli.OK
@@ -772,19 +656,7 @@ def main(argv=None):
         if paths.REMOTE:
             print("Claude Code on the web renders with a cloud voice only, so there's no local model to fetch here.")
             return cli.USAGE
-        if args.all:
-            engines_wanted = [e for e in personas.LOCAL_ENGINES if (e, voices.BACKEND) in voices.LOCAL_MODELS]
-        else:
-            chosen = [personas.lookup(n) for n in args.coach] or personas.all()
-            engines_wanted = list(dict.fromkeys(p.table("local").get("engine") or "chatterbox"
-                                                for p in chosen if p.has_clip)) or ["chatterbox"]
-        for engine in engines_wanted:
-            if (engine, voices.BACKEND) not in voices.LOCAL_MODELS:
-                print(f"{engine}: renders locally only on an Apple Silicon Mac; skipped.")
-                continue
-            model, revision = voices.LOCAL_MODELS[(engine, voices.BACKEND)]
-            voices.download({"name": engine, "engine": engine, "backend": voices.BACKEND, "model": model,
-                             "revision": revision})
+        voices.download()
         return cli.OK
     try:
         last, archived = personas.default(), None
@@ -792,18 +664,19 @@ def main(argv=None):
         last, archived = None, str(e.code)
     found = personas.all()
     if not found:
-        print("No coaches yet: audition a web coach (./sweatcast coaches audition), or design or bring a local "
-              "coach's clip (./sweatcast coaches design, ./sweatcast coaches keep).")
+        print("No coaches found: the ten local coaches ship in coaches/ (git pull), and a web coach comes from "
+              "an audition (./sweatcast coaches audition).")
         return cli.OK
     for p in found:
         mark = "*" if last and p.slug == last.slug else " "
         if p.is_web:
             where = f"web · {cloud.service_name(p.service)}"
         else:
-            where = f"local · {p.table('local').get('engine') or 'chatterbox'}"
+            where = "local · pocket"
         notes = (["(a stand-in)"] if p.placeholder else []) \
             + (["(made the first time it's used)"] if p.is_web and p.pending else []) \
-            + (["(no clip yet)"] if not p.is_web and not p.has_clip else []) + [p.description[:60]]
+            + ([] if p.is_web or p.shipped else ["(a local coach of your own: ./sweatcast migrate archives it)"]) \
+            + [p.description[:60]]
         print((f"{mark} {p.name:22} {where:22} " + " ".join(x for x in notes if x)).rstrip())
     print(archived or "* the coach a build uses when none is named (the one used last; your own over a stand-in)")
     return cli.OK

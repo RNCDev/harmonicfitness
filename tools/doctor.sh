@@ -15,7 +15,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 . "$HERE/common.sh"
 MEM_FLOOR=8    # GB of memory for a local voice model (a guess: the models need 3 to 5 GB)
-DISK_FLOOR=9   # GB free for the local engine, one model and the take checker (a guess: 2 to 4 GB of PyTorch or MLX, 3 to 4 GB of model, 2.5 GB of checker)
+DISK_FLOOR=6   # GB free for the local engine, its model and the take checker (about 1 to 3 GB of PyTorch, 0.6 GB of model, 2.5 GB of checker)
 
 # ---- what the computer is ----------------------------------------------------------------
 UNAME_S="${SWEATCAST_FAKE_OS-$(uname -s 2>/dev/null)}"
@@ -82,14 +82,16 @@ REMOTE=no; [ "${CLAUDE_CODE_REMOTE:-}" = true ] && REMOTE=yes
 
 # ---- which local engine, if any ----------------------------------------------------------
 LOCAL=no; LOCAL_ENGINE=""; LOCAL_REASON=""
+# Pocket TTS on PyTorch: the processor on an Apple Silicon Mac or a PC (about a sixth and under half of real
+# time, measured 2026-10-26), or an NVIDIA card.
 if [ "$OS" = mac ] && [ "$ARCH" = arm64 ]; then
-  LOCAL=fast; LOCAL_ENGINE=mlx
+  LOCAL=fast; LOCAL_ENGINE=cpu
 elif [ "$OS" = mac ]; then
-  LOCAL_REASON="Neither MLX nor current PyTorch runs the voices on an Intel Mac; a cloud voice works here."
+  LOCAL_REASON="PyTorch has no build for an Intel Mac any more, so the local voice can't run here; a cloud voice works here."
 elif { [ "$OS" = windows ] || [ "$OS" = linux ]; } && [ -n "$GPU_NAME" ]; then
   LOCAL=fast; LOCAL_ENGINE=cuda
 elif { [ "$OS" = linux ] && [ "$ARCH" != other ]; } || { [ "$OS" = windows ] && [ "$ARCH" = x86_64 ]; }; then
-  LOCAL=experimental; LOCAL_ENGINE=cpu   # PyTorch on the processor: works, untimed, likely slow
+  LOCAL=fast; LOCAL_ENGINE=cpu
 else
   LOCAL_REASON="PyTorch has no build for this system or processor ($UNAME_S, $UNAME_M); a cloud voice works here."
 fi
@@ -171,7 +173,7 @@ fi
 echo
 echo "Audio here"
 case "$LOCAL" in
-  fast) echo "  Local voices: yes, on $( [ "$LOCAL_ENGINE" = mlx ] && echo "Apple Silicon (MLX)" || echo "the NVIDIA card (CUDA)" )" ;;
+  fast) echo "  Local voices: yes (Pocket TTS), on $( [ "$LOCAL_ENGINE" = cuda ] && echo "the NVIDIA card (CUDA)" || echo "the processor" )" ;;
   experimental) echo "  Local voices: on the processor (no NVIDIA card): experimental, speed unknown, likely slow" ;;
   *) echo "  Local voices: no. $LOCAL_REASON" ;;
 esac

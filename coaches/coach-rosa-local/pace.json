@@ -1,0 +1,9 @@
+{
+ "089919085ac4|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Rosa",
+  "weight": 385.7,
+  "seconds": 29.865,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

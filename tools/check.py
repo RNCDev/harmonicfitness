@@ -242,15 +242,14 @@ def check(home_files=None):
 
 
 def check_coaches(folder=None):
-    """[Issue] for the coaches in me/personas/ (not the archive or auditions): none yet, a persona.md the tools
-    can't read, a local coach's missing clip, a web coach with no voice (a note while one is pending), and
-    how-they-talk lines still showing the template's [hint]."""
+    """[Issue] for the coaches in me/personas/ (not the archive or auditions): a persona.md the tools can't read,
+    a local coach of the listener's own (no longer rendered), a web coach with no voice (a note while one is
+    pending), and how-they-talk lines still showing the template's [hint]."""
     import personas
     folder = folder or paths.PERSONAS
     found = personas.persona_dirs(folder)
     if not found:
-        return [Issue(folder, 0, "no coach yet: the coach skill makes one (\"I want a new coach\"), or "
-                                 "./sweatcast coaches design")]
+        return []   # the ten shipped coaches are always there to choose from
     out = []
     for slug in found:
         path = os.path.join(folder, slug, "persona.md")
@@ -272,10 +271,10 @@ def check_coaches(folder=None):
             if p.settings.get("style"):
                 out.append(Issue(path, 0, f"{name}: Gemini's API takes no style setting yet (2026-10-25); "
                                           "leave style empty"))
-        elif not all(
-                os.path.exists(os.path.join(folder, slug, f)) for f in ("clip.wav", "clip.txt")):
-            out.append(Issue(path, 0, "no clip.wav and clip.txt beside it: keep a take or bring a clip "
-                                      "(./sweatcast coaches keep)"))
+        else:
+            out.append(Issue(path, 0, f"{p.settings.get('name') or slug} is a local coach of your own, which "
+                                      "sweatcast 15.0.0 no longer renders: ./sweatcast migrate archives it (the ten "
+                                      "shipped coaches and web coaches remain)"))
         if p.settings.get("placeholder"):
             out.append(Issue(path, 0, f"{p.settings.get('name') or slug} is a stand-in coach: say \"I want a new "
                                       "coach\" to make your own", note=True))

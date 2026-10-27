@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 
 import models  # noqa: E402
 
-REV = "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75"
-REPO = "mlx-community/chatterbox-turbo-fp16"
+REV = "a7056f505a4a8ca72d8b5fb1440071d6f1a35739"   # voices.LOCAL_MODELS["pocket"]
+REPO = "kyutai/pocket-tts-without-voice-cloning"
 
 
 def fake_hub(hub, repo=REPO, rev=REV, shared=True, name="model.safetensors", data=b"weights"):

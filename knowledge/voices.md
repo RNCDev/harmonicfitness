@@ -1,38 +1,39 @@
 # Coaches and voices
 
-A coach is a person the listener creates: a name ("Coach Maya", never a model's or a service's name), how they talk, and how they sound. There are two kinds, set by `kind` in the coach's `persona.md`:
+A coach is a person: a name ("Coach Maya", never a model's or a service's name), how they talk, and how they sound. There are two kinds, set by `kind` in the coach's `persona.md`:
 
-- **A web coach** (`kind = "web"`): an original voice a web service designed from the listener's description and saved in the listener's own account there (Fish Audio, ElevenLabs, Gemini or Inworld). It speaks only through that service, by its saved voice, and a service's voice is the same voice on every request, so the coach sounds like the same person from session to session. It's never copied from a recording.
-- **A local coach** (`kind = "local"`): a short reference clip with its exact words, which every local engine copies for every line. It copies the clip's delivery as well as its sound (a sleepy clip clones sleepy, an announcer clip like an announcer), so the clip is picked by ear. A local coach renders only locally.
+- **A local coach** (`kind = "local"`): one of the ten sweatcast ships, made once by the maintainer and spoken on this computer by Pocket TTS from the coach's saved voice file. Listeners choose one; they don't make one. A local coach renders only locally.
+- **A web coach** (`kind = "web"`): an original voice a web service designed from a description and saved in the listener's own account there (Fish Audio, ElevenLabs, Gemini or Inworld). It speaks only through that service, by its saved voice, and a service's voice is the same voice on every request, so the coach sounds like the same person from session to session. It's never copied from a recording. A listener makes their own with the coach skill.
 
-A coach is not a tuned model: the models are used exactly as published. Each listener makes their own when they like (the coach skill), and can keep several.
+A coach is not a tuned model: the models are used exactly as published.
 
-**Stand-ins.** The template ships five, all `placeholder = true` (`./sweatcast check` notes them, and a build with no coach named picks the listener's own coach before any of them):
-- **Coach Andy** (`me.example/personas/coach-andy-local/`), the local stand-in: sweatcast 8's public Chatterbox Coach clip, a designed voice, with its pace measured on Chatterbox Turbo (MLX and PyTorch), so a first local workout needs no design and no smoke test. His `sample.mp3` is a fifteen-second test clip rendered on Chatterbox Turbo, which setup plays before the first workout.
-- **Four default web coaches**, one per service, all from one description (a man in his forties, a low, warm baritone, a seasoned trainer): Coach Reed (Fish Audio), Coach Ellis (ElevenLabs), Coach Nolan (Gemini) and Coach Owen (Inworld), in `coach-reed-fish/`, `coach-ellis-elevenlabs/`, `coach-nolan-gemini/` and `coach-owen-inworld/`. None can ship ready, since a designed voice belongs to the account that made it, so each ships with `pending = "design"` and no voice. The first build that needs one designs its voice from the description, saves the first candidate in the listener's account (no audition), and says so first: about $0.01 on Fish Audio and Gemini; Inworld doesn't publish its design cost; on ElevenLabs it uses one of the account's custom voice slots (Free keeps 3). `./sweatcast coaches make "<name>"` does the same by hand; `--lint-only` never makes one.
+**The stock coaches** ship in `coaches/` at the engine's root (public, versioned with the engine, so a release that improves one reaches every listener):
+- **Ten local coaches**, five men and five women, each designed from a description (`coaches/roster.toml`): Coach Andy (mid-40s, a low, warm baritone, calm authority; his alias Coach Demo still finds him), Marcus (early 30s, bright tenor, upbeat), Theo (late 20s, relaxed, conversational), Sam (early 60s, deep and gravelly, wry), Callum (late 30s, firm mid-baritone, direct), Maya (early 30s, full mezzo, energetic), Claire (mid-40s, smooth alto, calm and precise), Rosa (late 20s, warm, unhurried), Helen (mid-50s, rich alto, steady and kind) and Kate (mid-30s, clear and cheerful). Each folder holds the coach's clip, its Pocket voice file, its recorded counts and cues, its measured pace and a 45-second `sample.mp3` for choosing by ear. Every one was heard and approved by ear.
+- **Four stock web coaches**, one per service, all from one description (a man in his forties, a low, warm baritone, a seasoned trainer): Coach Reed (Fish Audio), Coach Ellis (ElevenLabs), Coach Nolan (Gemini) and Coach Owen (Inworld), `placeholder = true`. None can ship ready, since a designed voice belongs to the account that made it, so each ships with `pending = "design"` and no voice. The first build that needs one designs its voice from the description, saves the first candidate in the listener's account (no audition) and writes the made coach to `me/coaches/<slug>/`, which is used from then on; it says so first: about $0.01 on Fish Audio and Gemini; Inworld doesn't publish its design cost; on ElevenLabs it uses one of the account's custom voice slots (Free keeps 3). `./sweatcast coaches make "<name>"` does the same by hand; `--lint-only` never makes one.
 
-With no coach named, a build takes the coach used last (from the log); with none yet, the listener's own coach; else the first stand-in that can speak here (a web default whose service has a key, in the order above, then Coach Andy where local voices run). If the coach used last has been archived, it stops and asks for a coach by name.
+With no coach named, a build takes the coach used last (from the log); with none yet, the listener's own web coach; else the first stand-in that can speak here (a stock web coach whose service has a key, in the order above, then Coach Andy where local voices run). If the coach used last has been archived, it stops and asks for a coach by name.
 
 ## Where coaches live
 
-Each coach is one folder in `me/personas/`, part of the private `me/` backup:
-
 ```
-me/personas/coach-maya/        a web coach
+coaches/coach-maya-local/      a stock local coach (in the engine; never edited for one listener)
+  persona.md          settings: name, gender, description, [voice], [character] (coaches/roster.toml makes it)
+  clip.wav, clip.txt  the voice it was made from (about 24 seconds, 24 kHz mono) and its words
+  pocket.safetensors  its Pocket TTS voice state, which every build speaks with
+  cues/               its recorded counts and cues, with cues.toml
+  pace.json           its pace, measured from its sample
+  sample.mp3          45 seconds of it, for choosing
+coaches/coach-reed-fish/       a stock web coach: persona.md only, until it's made
+
+me/coaches/coach-dana-fish/    a web coach of the listener's own (part of the private me/ backup)
   persona.md     settings ([voice], [character]) and free notes
   sample.mp3     the approved audition candidate
   pace.json      pace, one entry per service, model and voice
-
-me/personas/coach-sam/         a local coach
-  persona.md     settings (one table per engine), then how the coach talks
-  clip.wav       the sound: about ten seconds, 16-bit mono at 24 kHz
-  clip.txt       exactly what the clip says
-  pace.json      measured pace, one entry per engine and model, and each computer's render speed
-  takes/         designed takes, before one is kept (not backed up)
-
-me/personas/.auditions/        auditions in progress (not backed up)
-me/personas/.archive/          coaches no longer in use (backed up; old log lines still find them)
+me/coaches/.auditions/         auditions in progress (not backed up)
+me/coaches/.archive/           coaches no longer in use (backed up; old log lines still find them)
 ```
+
+`me/coaches/` was `me/coaches/` before 15.0.0; `./sweatcast migrate` renames it. `me/coaches/` holds only the listener's own coaches; a stock coach is used straight from `coaches/`, by name. The one exception is a stock web coach once it's used: its voice is made in the listener's account, so the made copy goes to `me/coaches/<slug>/` and wins over the stock one.
 
 A web coach's `persona.md`:
 
@@ -65,17 +66,17 @@ sign_off = "Brief and warm; names one thing done well"
 - Notes: free notes on how this coach talks, as "- Label: text" lines (the brief quotes those).
 ```
 
-The description a service designs from is `[voice]` joined in order: "who. sound. energy. Pace: pace. Avoid: avoid." `[character]` takes any `key = "text"` (or a list of texts). A local coach's `persona.md` has `kind = "local"`, a `description`, an optional `[local] engine` table (`chatterbox`, or `qwen3` for the clearest diction, on a Mac only), and its talk under `## How this coach talks`, which the brief quotes the same way. `aliases` are older names that still find the coach: a migrated coach keeps its sweatcast 8 voice names, so old log lines still name them.
+The description a service designs from is `[voice]` joined in order: "who. sound. energy. Pace: pace. Avoid: avoid." `[character]` takes any `key = "text"` (or a list of texts). A stock local coach's `persona.md` has `kind = "local"`, `gender`, a `description`, `[local] engine = "pocket"`, `[voice]` and `[character]`, which the brief quotes the same way. `aliases` are older names that still find the coach: a migrated coach keeps its sweatcast 8 voice names, so old log lines still name them.
 
-`./sweatcast coaches` lists the coaches with where each speaks (`web · Fish Audio`, `local · chatterbox`), marks the one a build uses when none is named, and says which are stand-ins and which are made the first time they're used. `./sweatcast build` takes `--coach`. `./sweatcast coaches archive "<name>"` moves a coach to `.archive/`: out of the list, still found by name for old log lines, its voice left at the service.
+`./sweatcast coaches` lists the coaches with where each speaks (`web · Fish Audio`, `local · pocket`), marks the one a build uses when none is named, and says which are stand-ins and which are made the first time they're used. `./sweatcast build` takes `--coach`. `./sweatcast coaches archive "<name>"` moves a coach of the listener's own to `.archive/`: out of the list, still found by name for old log lines, its voice left at the service (a stock coach can't be archived).
 
 ## Making a web coach
 
 The `coach` skill runs it: **keys, describe, audition, approve and name, the stable.**
 
 1. **Keys.** `./sweatcast keys` says which services have a key (never the key). Each key is the listener's own, pay-as-you-go: no subscription anywhere.
-2. **Describe.** Claude writes the narrative, a file in `persona.md`'s format with `[voice]` and `[character]`, to `me/personas/.auditions/<slug>.md`.
-3. **Audition.** `./sweatcast coaches audition <narrative>` designs on every keyed service at once (asking Fish Audio for two candidates, ElevenLabs three, Gemini one, Inworld two; a service may return fewer, as Inworld once did live), each saying the coaching line below, and lands them in `me/personas/.auditions/<date>-<n>/` as `<service>-<k>.wav` and `.mp3`, lettered A, B, C... in that service order, with each one's approximate cost a workout. A service that fails is one line; the others still land. `--services fish,gemini` auditions only those. Nothing is saved at Fish Audio, ElevenLabs or Inworld; Gemini stores each voice as it designs it (it has to), and is named "sweatcast audition <id> <letter>" there.
+2. **Describe.** Claude writes the narrative, a file in `persona.md`'s format with `[voice]` and `[character]`, to `me/coaches/.auditions/<slug>.md`.
+3. **Audition.** `./sweatcast coaches audition <narrative>` designs on every keyed service at once (asking Fish Audio for two candidates, ElevenLabs three, Gemini one, Inworld two; a service may return fewer, as Inworld once did live), each saying the coaching line below, and lands them in `me/coaches/.auditions/<date>-<n>/` as `<service>-<k>.wav` and `.mp3`, lettered A, B, C... in that service order, with each one's approximate cost a workout. A service that fails is one line; the others still land. `--services fish,gemini` auditions only those. Nothing is saved at Fish Audio, ElevenLabs or Inworld; Gemini stores each voice as it designs it (it has to), and is named "sweatcast audition <id> <letter>" there.
 4. **Approve and name.** `./sweatcast coaches keep <audition>/<letter> --name "Coach Maya"` saves the voice at its service as "sweatcast Coach Maya" (Fish Audio a private model, ElevenLabs a voice in the account, Inworld a published voice; Gemini's is already stored), and writes the coach's folder with the candidate as `sample.mp3` and a pace estimated from it. Several candidates from one audition can each become a coach. `./sweatcast coaches forget-audition <audition>` then closes it: Gemini's voices not kept are deleted, and the folder is removed.
 5. **The stable.** A workout uses a coach by name.
 
@@ -117,56 +118,34 @@ Checked 2026-10-25; the rates the cost estimate uses are in `knowledge/services.
 
 Set aside on 2026-10-24 and 2026-10-25: MiniMax (clones deleted after a week unused), OpenAI (every model on its speech endpoint shuts down on 2027-01-06), Google Chirp 3 (allowlist only), Hume (its TTS API ends November 13, 2026), Resemble AI (hosted voices' commercial terms unclear), and services whose voices need a subscription to be original or are stock voices only. PlayHT shut down in July 2025.
 
-## Local coaches (unchanged until the local redesign)
+## Local coaches
 
 A route is how a local coach's workout becomes audio on this computer. The `render` setting in `me/settings.toml` lists the routes in order of preference (`["local"]`); a web coach always speaks through its own service and a local coach always renders locally, so it matters only with no coach to go by. `./sweatcast doctor` shows whether local voices work here.
 
-| Computer | Engine | Status |
+| Computer | Engine | Speed (render time over speech time) |
 |---|---|---|
-| Apple Silicon Mac | Chatterbox Turbo or Qwen3-TTS through MLX (`mlx-audio`) | Tested |
-| Windows with an NVIDIA card | Chatterbox Turbo, Resemble AI's PyTorch release on CUDA | Tested |
-| Linux with an NVIDIA card | The same | Not yet tried |
-| Windows or Linux without one | The same on the processor | Experimental, speed unknown, likely slow |
-| Intel Mac, or under the memory or disk floor | None | A web coach instead |
+| Apple Silicon Mac | Pocket TTS on PyTorch, the processor | About 0.15 (M5, 2026-10-26): a 30-minute workout in about five minutes |
+| Windows or Linux, processor only | The same | About 0.43 (2026-10-26) |
+| Windows or Linux with an NVIDIA card | The same on CUDA | About 0.29 on an RTX 2080 Super |
+| Intel Mac (no PyTorch build), or under the memory or disk floor | None | A web coach instead |
 
-The local engine is an optional part of the environment, installed by `./sweatcast setup` only where the readiness check says it runs (`--local` asks for it). The models download from Hugging Face into `models/` at the repo root (git-ignored; it may be a symlink to a shared place, or set `SWEATCAST_MODELS`), pinned to exact revisions in `tools/voices.py` (`LOCAL_MODELS`, plus Chatterbox Turbo's speech tokenizer). `./sweatcast models adopt` moves ones already in `~/.cache/huggingface/hub` instead of downloading again.
+**Pocket TTS** (Kyutai, `pocket-tts` 4.0.1, CC-BY 4.0) runs its public model, `kyutai/pocket-tts-without-voice-cloning` (about 0.6 GB, at a pinned revision, language config `english_2026-10`). The public model can't clone a recording, but it loads a saved voice state, so each stock coach ships one (`pocket.safetensors`): the maintainer made it once from the coach's clip with Kyutai's gated cloning model, which no listener needs or downloads, and no Hugging Face login is ever asked for. Pocket tries the gated model first when a login allows it, so the engine refuses that request and checks the model it got (`tools/engines.py`). A voice file belongs to the Pocket model and language config it was made with: a new Pocket means exporting all ten again (`tools/coachmaker/`).
 
-| Engine | Strength | Speed | Download |
-|---|---|---|---|
-| Chatterbox Turbo (`mlx-community/chatterbox-turbo-fp16`, with `mlx-community/S3TokenizerV2`) | Most natural, human delivery | About 0.7 times the speech's length on an M3 | About 3.3 GB |
-| Qwen3-TTS (`mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16`) | Clearest diction | About 1.3 to 1.45 times on an M3 | About 4.2 GB |
-| Chatterbox Turbo on PyTorch (`ResembleAI/chatterbox-turbo`) | The same model and clip, so very close to the Mac's; Resemble's package adds its inaudible Perth watermark | About 0.52 times on an RTX 2080 Super, after a 40-second load | About 4 GB |
+Chosen by a blind listening test on 2026-10-26, Pocket against Chatterbox Turbo on each coach's voice: Pocket for six coaches, Turbo for three, one even. On the audio bench (`docs/audio-bench/results/2026-10-26-*`) Pocket never dropped a cue word in 176 takes and renders two to six times faster than Turbo, on every computer, in a third of the memory. Pocket copies the pace of the clip a voice was made from (about a tenth faster), so each clip was made at 135 to 175 words a minute.
 
-On the processor, PyTorch renders Chatterbox Turbo too; how slowly depends on the computer, and nobody has measured it yet. The smoke test records this computer's render speed beside the pace, and the readiness check then quotes the expected time for a 30-minute workout, suggesting a web coach when it runs far past an hour. `SWEATCAST_DEVICE=cpu` or `cuda` overrides the choice.
+The engine and the take checker are an optional part of the environment (the `cpu` or `cuda` extra), installed by `./sweatcast setup` only where the readiness check says it runs (`--local` asks for it). They download into `models/` at the repo root (git-ignored; it may be a symlink to a shared place, or set `SWEATCAST_MODELS`), at the revisions `tools/voices.py` pins. `./sweatcast models` lists them, and the models older versions downloaded that nothing uses now (Chatterbox Turbo, Qwen3-TTS, the MLX recognizer), with their sizes, to delete. `SWEATCAST_DEVICE=cpu` or `cuda` overrides where Pocket runs.
 
-On a Mac every local take is also heard by a speech recognizer, Parakeet TDT 0.6B v3 (`mlx-community/parakeet-tdt-0.6b-v3`, about 2.5 GB, CC-BY 4.0), downloaded with the coach's model: a take that drops a cue word, stalls, runs on or gets too many words wrong is rendered again with the next seed, up to four takes (`CLAUDE.md`, "The take check"). Measured on an M5 on 2026-10-25, six coaching lines in three seeds each: Chatterbox Turbo got a word wrong in five takes of eighteen (twice dropping the "and rest" that ends a countdown written with ellipses), Qwen3-TTS in one; a check hears a clip in about half a second.
+Every local take is heard by a speech recognizer, Parakeet TDT 0.6B v3 through ONNX (`istupakov/parakeet-tdt-0.6b-v3-onnx`, about 2.5 GB, CC-BY 4.0), the same on every computer: a take that drops a cue word, stalls, runs on or gets too many words wrong is rendered again with the next seed, up to four takes (`CLAUDE.md`, "The take check").
 
-The models aren't gated, so no Hugging Face account is needed (the "unauthenticated requests" warning is harmless), and once downloaded, rendering needs no network. Chatterbox Turbo is MIT upstream (its MLX build is tagged Apache 2.0) and Qwen3-TTS is Apache 2.0.
+**Counts and cues.** A countdown spoken by a voice runs two or three times too fast to move to, and a one-word cue is the line a local voice garbles most. So each stock coach ships recorded counts (ten down to one) and cues (go, rest, switch, switch sides, stop, hold), made once on Pocket from the coach's voice, checked by the recognizer and approved by ear; a draft's `[count 5 go]` plays them a second apart, and `[cue rest]` plays one cue (`knowledge/tts-rules.md`, Pacing). They sound the same in every workout and on every computer.
 
-### Making a local coach
+**How the ten were made** (maintainer only, `tools/coachmaker/`, on an Apple Silicon Mac): Qwen3-TTS VoiceDesign 1.7B (Apache 2.0, through mlx-audio in its own environment) designed three or four takes of each coach reading one 63-word script, from the roster's description; the take approved by ear became `clip.wav`; the gated Pocket model exported it to `pocket.safetensors`; `cues.py` made the counts and cues and `sample.py` the sample, each approved by ear; `persona.py` writes each `persona.md` from the roster. Qwen3 doesn't make accents (asked for Scottish, southern English and Australian, every take came out without one), so no description asks for one; women's takes sometimes came out girlish and high, so every woman's description asks for an adult voice, low to medium in pitch. VoxCPM2 was tried as the designer and rejected by ear (2026-10-26).
 
-The takes come from the local designer, or the listener brings a clip:
-
-1. **Local:** Qwen3-TTS VoiceDesign on MLX (`mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16`, pinned, about 4.5 GB; delete it from `models/` when you're done), on an Apple Silicon Mac.
-2. **A clip the listener brings:** about ten seconds of a voice with its exact words. A real person's voice needs that person's consent.
-
-There's no local designer on Windows or Linux: Qwen's own PyTorch package (`qwen-tts`) pins a transformers version that conflicts with Chatterbox's (checked 2026-10-24), so they can't share an environment. There, a web coach, or a brought clip.
-
-```
-./sweatcast coaches design "Coach Sam" "A man in his forties with a low, warm baritone voice and an American accent. A seasoned personal trainer: direct, encouraging and focused. No hype. Clear diction, natural pace." --play
-./sweatcast coaches keep "me/personas/coach-sam/takes/2.wav"
-./sweatcast build knowledge/smoke-test.draft.txt "smoke-test" --coach "Coach Sam"
-```
-
-- `--takes 3` makes more; `--seed` gives different takes of the same description; `--line` changes what they say. Earlier takes are kept, numbered on.
-- `keep` writes `clip.wav` (converted to 24 kHz mono if it isn't), `clip.txt`, and for a new coach `persona.md` with the template's `## How this coach talks`, to fill in. `--engine qwen3` picks Qwen3 for local renders on a Mac; Chatterbox Turbo is the default and the most natural.
-- A brought clip: `./sweatcast coaches keep my-recording.wav --name "Coach Sam" --words "exactly what it says"`.
-
-Tried and dropped on 2026-10-20: OmniVoice's gallery voices (mechanical), Kokoro (flat), Qwen3-TTS preset speakers (fine, but too slow), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower).
+Since 15.0.0 a listener can't design a local coach or bring a clip: a voice of their own is a web coach. Tried and dropped earlier: OmniVoice's gallery voices (mechanical), Kokoro (flat), Qwen3-TTS preset speakers (fine, but too slow), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower), and Chatterbox Turbo and Qwen3-TTS as the local engines (sweatcast 9 to 14).
 
 ## Pace
 
 No engine decides a clip's length in advance, so the lint predicts it from the coach's rate (in `pace.json`, recorded by every render) and the render lays segments on the plan's clock, ending a short one early and paying back a long one from the next. The whole workout is held within three percent of plan.
 
 - **A web coach** starts from a pace estimated from its approved sample (the coaching line's weighted characters over its trimmed seconds), so its first workout needs no smoke test. The first real render replaces the estimate with measured pace, kept per service, model and voice; a new voice starts again from its sample.
-- **A local coach** is measured on each engine and model by the smoke test: `./sweatcast build knowledge/smoke-test.draft.txt "smoke-test" --coach "<name>"`. Until then the lint assumes the median rate of the coaches already measured; a reference clip's own rate is a poor guess (for the clip sweatcast 8 shipped, about 30 percent slow), so `./sweatcast build` won't render a session for an unmeasured local coach (exit 3; `--allow-estimated` overrides).
+- **A stock local coach** ships measured: its `pace.json` comes from its approved sample, and is read until this computer's first render with that coach, which adds to it in the shared `me/workouts/.audio-cache/voice-pace.json` (so `me/coaches/` holds only the listener's own coaches). A local coach without a measured pace (one from before 15.0.0) won't render a session (exit 3; `--allow-estimated` overrides); the smoke test, `./sweatcast build knowledge/smoke-test.draft.txt "smoke-test" --coach "<name>"`, measures one, and checks a computer end to end.

@@ -11,7 +11,6 @@ from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import context  # noqa: E402
 import check  # noqa: E402
@@ -20,14 +19,15 @@ import personas  # noqa: E402
 import routes  # noqa: E402
 import voices  # noqa: E402
 
-FIXTURE = os.path.join(ROOT, "tests", "fixtures", "personas")
+FIXTURE = personas.paths.SHIPPED   # the stock coaches the tests see (tests/fixtures/stock: ./sweatcast test sets SWEATCAST_SHIPPED)
 FFMPEG = ffmpeg.exe()   # the MP3s need it; without it they're skipped, as in test_webcopy
 
 
 def persona_home(d, *extra):
-    """A personas folder holding the fixture coach, plus (name, settings) for each extra coach."""
-    folder = os.path.join(d, "personas")
-    shutil.copytree(FIXTURE, folder, dirs_exist_ok=True)
+    """The listener's coaches folder, holding (name, settings) for each extra coach; the stock fixture coaches
+    (Coach Test among them) come from paths.SHIPPED."""
+    folder = os.path.join(d, "coaches")
+    os.makedirs(folder, exist_ok=True)
     for name, settings in extra:
         slug = personas.slug(name)
         os.makedirs(os.path.join(folder, slug))
@@ -61,7 +61,8 @@ class Personas(unittest.TestCase):
         with self.assertRaises(SystemExit) as e:
             personas.lookup("Coach Nobody")
         self.assertIn("Coach Test", str(e.exception.code))
-        self.assertEqual([p.name for p in personas.all()], ["Coach O'Neil", "Coach Test", "Coach Zoë"])
+        self.assertEqual([p.name for p in personas.all(personas.paths.PERSONAS)], ["Coach O'Neil", "Coach Zoë"])
+        self.assertIn("Coach Test", [p.name for p in personas.all()])   # the stock coaches are merged in
 
     def test_voice_for_local_keeps_todays_keys(self):
         self.use(persona_home(self.d))
@@ -70,9 +71,10 @@ class Personas(unittest.TestCase):
         with open(os.path.join(FIXTURE, "coach-test", "clip.wav"), "rb") as f:
             audio = hashlib.sha256(f.read()).hexdigest()
         self.assertEqual(v["key"], hashlib.sha256(f"{audio}|Set your feet. Chest up, and press.".encode()).hexdigest()[:12])
-        self.assertEqual((v["model"], v["revision"]), voices.LOCAL_MODELS[("chatterbox", "mlx")])
-        self.assertEqual((v["engine"], v["backend"], v["route"], v["name"]), ("chatterbox", "mlx", "local", "Coach Test"))
-        self.assertEqual(v["pace_file"], os.path.join(self.d, "personas", "coach-test", "pace.json"))
+        self.assertEqual((v["model"], v["revision"]), voices.LOCAL_MODELS["pocket"])
+        self.assertEqual((v["engine"], v["backend"], v["route"], v["name"]), ("pocket", "torch", "local", "Coach Test"))
+        self.assertEqual(v["pace_file"], personas.paths.PACE_FILE)   # the shared pace file: me/coaches/ holds only their own
+        self.assertEqual(v["voice_state"], os.path.join(FIXTURE, "coach-test", "pocket.safetensors"))
 
 class KeepWeb(unittest.TestCase):
     """coaches keep <audition>/<letter>: the audition says a save went out before the service answers."""

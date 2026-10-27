@@ -1,20 +1,23 @@
-"""Coaches: each one a persona folder in me/personas/, owned by the listener.
+"""Coaches: the ten local coaches sweatcast ships, and the listener's own web coaches.
 
-    me/personas/coach-julius/
-      persona.md     settings (name, aliases, description, one table per engine) and how the coach talks
-      clip.wav       the sound: about ten seconds, which every engine copies
-      clip.txt       the clip's exact words
-      pace.json      measured pace, one entry per engine and model (and this computer's render speed)
-      takes/         designed takes, before one is kept
+    coaches/coach-maya-local/      (in the engine: one of the ten, chosen, never made by the listener)
+      persona.md          settings (name, aliases, description, [voice], [character]); coaches/roster.toml makes it
+      clip.wav, clip.txt  the voice it was made from, and its words
+      pocket.safetensors  its Pocket TTS voice state, which every build speaks with
+      cues/               its recorded counts and cues ([count 5 go], [cue rest]: tools/counts.py)
+      pace.json           its pace, measured from its sample (this computer's renders add to it in voice-pace.json)
+      sample.mp3          45 seconds of it, for choosing
 
-A local coach is the same person on every local engine: render.py gets a voice dict from voice_for(),
-with the clip, the engine's pinned model and the coach's own pace file. A local coach renders only
-locally.
+    me/coaches/coach-jess-gemini/ (the listener's own: a web coach)
 
-A web coach (kind = "web", schema 5) has no clip: a voice a service designed and saved (service,
-voice_id, model, style), which it speaks only through that service (cloud.voice_for), described by its [voice] table, with how it talks in [character], and the approved audition kept
-as sample.mp3. Coaches no longer in use move to personas/.archive/ (out of the list, still found by name
-for old log lines); auditions in progress live in personas/.auditions/. Every dot folder is left out.
+render.py gets a voice dict from voice_for(): a local coach's voice state, the pinned Pocket model and the
+coach's pace file. A local coach renders only locally.
+
+A web coach (kind = "web") has no clip: a voice a service designed and saved (service, voice_id, model,
+style), which it speaks only through that service (cloud.voice_for), described by its [voice] table, with how
+it talks in [character], and the approved audition kept as sample.mp3. Coaches no longer in use move to
+personas/.archive/ (out of the list, still found by name for old log lines); auditions in progress live in
+personas/.auditions/. Every dot folder is left out.
 """
 import hashlib
 import json
@@ -32,7 +35,7 @@ import voices  # noqa: E402
 from paths import show  # noqa: E402
 import cli  # noqa: E402
 
-LOCAL_ENGINES = ("chatterbox", "qwen3")
+LOCAL_ENGINES = ("pocket",)
 VOICE_PARTS = (("who", ""), ("sound", ""), ("energy", ""), ("pace", "Pace: "), ("avoid", "Avoid: "))
 
 
@@ -92,12 +95,35 @@ class Persona:
         return os.path.exists(self.clip) and os.path.exists(self.clip_words)
 
     @property
-    def pace_file(self):
-        return os.path.join(self.folder, "pace.json")
+    def shipped(self):
+        """One of the ten local coaches the engine ships (coaches/), not the listener's own."""
+        return os.path.dirname(os.path.abspath(self.folder)) == os.path.abspath(paths.SHIPPED)
 
     @property
-    def takes(self):
-        return os.path.join(self.folder, "takes")
+    def home_folder(self):
+        """Where what's made for this coach is written: its own folder, or for a stock web coach
+        me/coaches/<slug>/ (the voice made in the listener's account), which then wins over the stock copy."""
+        return os.path.join(paths.PERSONAS, self.slug) if self.shipped else self.folder
+
+    @property
+    def voice_state(self):
+        """A local coach's Pocket TTS voice, made once from its clip (tools/coachmaker/export_pocket.py)."""
+        return os.path.join(self.folder, "pocket.safetensors")
+
+    @property
+    def pace_file(self):
+        """Where renders record this coach's pace: beside it; for a stock local coach, the shared voice-pace.json
+        beside the clip cache, so a build never writes into the engine and me/coaches/ holds only the
+        listener's own coaches (the shipped pace.json is read until this computer's first render:
+        voices._with_seed)."""
+        if self.shipped and not self.is_web:
+            return paths.PACE_FILE
+        return os.path.join(self.home_folder, "pace.json")
+
+    @property
+    def shipped_pace(self):
+        return os.path.join(self.folder, "pace.json")
+
 
     def table(self, name):
         t = self.settings.get(name)
@@ -178,15 +204,24 @@ def find(name, pool):
     return next((p for p in pool if _match(p, name)), None)
 
 
-def all(folder=None):
-    """Every coach in me/personas/, by name; dot folders (the archive, auditions) are left out."""
-    folder = folder or paths.PERSONAS
+def _load_all(folder):
     found = []
     for d in persona_dirs(folder):
         try:
             found.append(load(os.path.join(folder, d)))
         except SystemExit as e:   # one coach file the tools can't read hides no other coach; check names it
             print(f"Skipped the coach in {show(os.path.join(folder, d))}: {e.code}", file=sys.stderr)
+    return found
+
+
+def all(folder=None):
+    """Every coach, by name: the listener's own in me/coaches/ and, unless another folder is named, the ten the
+    engine ships in coaches/ (a coach of the listener's own wins on a name clash). Dot folders (the archive,
+    auditions) are left out."""
+    found = _load_all(folder or paths.PERSONAS)
+    if folder is None:
+        names = {p.name.lower() for p in found}
+        found += [p for p in _load_all(paths.SHIPPED) if p.name.lower() not in names]
     return sorted(found, key=lambda p: p.name.lower())
 
 
@@ -220,6 +255,8 @@ def archive(p):
     """Move coach `p` to personas/.archive/ (out of the list, still found by lookup(archived=True)).
     Returns its new folder."""
     import shutil
+    if p.shipped:
+        raise SystemExit(f"{p.name} ships with sweatcast and can't be archived; just choose another coach.")
     base = os.path.join(os.path.dirname(p.folder), ".archive")
     dest, n = os.path.join(base, p.slug), 2
     while os.path.exists(dest):
@@ -256,13 +293,13 @@ def default(folder=None):
         p = find(session.voice, found)
         if p is not None:
             if p.placeholder:   # their own coach beats a stand-in used last, if it can speak here
-                own = next((o for o in found if not o.placeholder and _usable_here(o)), None)
+                own = next((o for o in found if not o.placeholder and not o.shipped and _usable_here(o)), None)
                 return own or p
             return p
         old = find(session.voice, archived)
         if old is not None:
             raise SystemExit(f"{old.name} is archived; name a coach: {', '.join(p.name for p in found)}.")
-    own = next((p for p in found if not p.placeholder), None)
+    own = next((p for p in found if not p.placeholder and not p.shipped), None)
     if own is not None:
         return own
     import cloud
@@ -291,7 +328,7 @@ def resolve(coach=None, engine=None, pending=False):
     import routes
     p = lookup(coach) if coach else default()
     if p is None:
-        raise SystemExit("No coach yet: make one first (the coach skill, or ./sweatcast coaches design).")
+        raise SystemExit("No coach yet: choose one (./sweatcast coaches lists them), or make a web coach (the coach skill).")
     return voice_for(p, routes.pick(context.render_preferences(), p, override=engine), pending)
 
 
@@ -313,28 +350,24 @@ def voice_for(p, route, pending=False):
     if route != "local":
         raise SystemExit(f"{p.name} is a local coach: a local coach renders only locally, not on {route}. "
                          "A web coach (the coach skill makes one) speaks through a web service.")
-    if not p.has_clip:
-        raise SystemExit(f"{p.name} has no clip yet ({show(p.clip)} and clip.txt): keep a take first "
-                         "(./sweatcast coaches keep).")
+    if not p.has_clip and p.shipped:
+        raise SystemExit(f"{p.name} is missing its clip ({show(p.clip)}): update sweatcast (git pull).")
     return _local(p)
 
 
 def _local(p):
     local = p.table("local")
-    engine = local.get("engine") or "chatterbox"
-    if engine not in LOCAL_ENGINES:
-        raise SystemExit(f"{show(p.path)}: [local] engine must be one of {', '.join(LOCAL_ENGINES)}.")
-    backend = voices.BACKEND
-    if (engine, backend) not in voices.LOCAL_MODELS:
-        raise SystemExit(f"{p.name} speaks with {engine}, which renders locally only on an Apple Silicon Mac. "
-                         f"On this computer: ./sweatcast coaches set \"{p.name}\" local.engine chatterbox, "
-                         "or a cloud voice.")
-    model, revision = voices.LOCAL_MODELS[(engine, backend)]
-    if local.get("model"):   # a coach may try another model; its pace is then measured under that model
-        model, revision = local["model"], local.get("revision")
+    engine = local.get("engine") or "pocket"
+    if engine not in LOCAL_ENGINES or not p.shipped:
+        raise SystemExit(f"{p.name} is a local coach of your own ({show(p.folder)}), and since sweatcast 15.0.0 "
+                         "local coaches are the ten it ships (./sweatcast coaches lists them; ./sweatcast migrate "
+                         "archives older ones). A voice of your own is a web coach: the coach skill makes one.")
+    if not os.path.exists(p.voice_state):
+        raise SystemExit(f"{p.name} has no voice file ({show(p.voice_state)}): update sweatcast (git pull).")
+    model, revision = voices.LOCAL_MODELS[engine]
     key, words = clip_key(p)
-    gen = local.get("torch_generate" if backend == "torch" else "generate") or {}
-    return {"name": p.name, "persona": p.slug, "engine": engine, "backend": backend, "route": "local",
-            "model": model, "revision": revision, "generate": gen,
-            "ref_audio": p.clip, "ref_text": words, "key": key, "pace_file": p.pace_file,
+    return {"name": p.name, "persona": p.slug, "engine": engine, "backend": voices.BACKEND, "route": "local",
+            "model": model, "revision": revision, "language": voices.POCKET_LANGUAGE, "generate": {},
+            "voice_state": p.voice_state, "ref_audio": p.clip, "ref_text": words, "key": key,
+            "pace_file": p.pace_file, "pace_seed": p.shipped_pace if p.shipped else None,
             "cues": counts.folder(p.clip)}

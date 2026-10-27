@@ -33,7 +33,7 @@ The audio bench reads one five-minute workout script with each candidate local v
 | Pocket TTS 100M (`pocket`) | pocket-tts 4.0.1 on the processor | pocket-tts 4.0.1 | pocket-tts 4.0.1 |
 
 **Every model, on every computer:**
-- clones the same voice: Coach Andy's clip (`me.example/personas/coach-andy-local/clip.wav`) and its words;
+- clones the same voice: the bench's reference voice (`docs/audio-bench/voice/clip.wav`, Coach Andy's 10.4-second clip from sweatcast 8 to 14, kept so runs stay comparable) and its words;
 - is pinned to one model revision (`tools/bench.py`);
 - runs in its own environment: `uv run --isolated` on the Mac; on the PC, a small uv project that takes PyTorch 2.6.0 from PyTorch's CUDA 12.4 or CPU index.
 

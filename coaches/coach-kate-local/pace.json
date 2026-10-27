@@ -1,0 +1,9 @@
+{
+ "05abaae691cd|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Kate",
+  "weight": 385.7,
+  "seconds": 27.923,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

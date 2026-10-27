@@ -205,8 +205,8 @@ def main(argv=None):
     # in the profile's render list that works here. Resolved once, for the lint and the render alike.
     coach = personas.lookup(args.coach) if args.coach else personas.default()
     if coach is None:
-        print(f"No coach yet in {paths.show(paths.PERSONAS)}: make one first (the coach skill, or "
-              "./sweatcast coaches design).")
+        print("No coach found: the ten local coaches ship in coaches/ (git pull), and a web coach comes from the "
+              "coach skill.")
         return cli.ISSUES
     route = routes.pick(context.render_preferences(), coach, override=args.engine)
     os.makedirs(paths.LOGS, exist_ok=True)

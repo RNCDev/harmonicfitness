@@ -1,10 +1,9 @@
 """Render a segmented workout draft to one MP3, voicing each paragraph in-process.
 
 Runs in the project's own environment, .venv (./sweatcast setup makes it; ./sweatcast
-runs it there). Each local coach is cloned from its reference clip with Chatterbox Turbo or
-Qwen3-TTS through mlx-audio on a Mac, or with Resemble AI's PyTorch Chatterbox Turbo on
-a Windows PC's NVIDIA GPU (tools/engines.py); a web coach speaks by its saved voice on its
-own service (tools/cloud.py). A soft chime opens each segment after the first, a [chime]
+runs it there). Each local coach speaks with Pocket TTS from its saved voice state, on the processor or
+an NVIDIA card (tools/engines.py), and its counts and cues are its recorded clips (tools/counts.py); a web
+coach speaks by its saved voice on its own service (tools/cloud.py). A soft chime opens each segment after the first, a [chime]
 marker rings it inside a segment, and a three-note tone marks the end of the
 workout. A segment's spare seconds widen its paragraph breaks and then it ends
 early, a slightly long segment is paid back from the next ones' spare time, the
@@ -48,7 +47,7 @@ import counts  # noqa: E402
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
 import paths  # noqa: E402
 import verify  # noqa: E402
-from voices import MLX_EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
+from voices import EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
 
 CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
 CHIME_LEVEL = 0.12    # peak; at 0.2 the bell averaged as loud as the voice, so this sits about 4 dB under
@@ -267,8 +266,8 @@ def build_record(draft_path, draft_sha256, out, voice, seed, clips_total, clips_
     return {"out": show(os.path.abspath(out)), "engine_version": engine_version(), "draft": show(os.path.abspath(draft_path)),
             "draft_sha256": draft_sha256, "voice": voice["name"], "voice_key": voice["key"],
             "engine": voice["engine"], "model": voice["model"], "revision": voice["revision"],
-            "backend": voice.get("backend", "mlx"), "runtime": engines.runtime(voice),
-            "mlx_audio": engines.mlx_audio_version(), "ffmpeg": ffmpeg_version(), "seed": seed,
+            "backend": voice.get("backend", "torch"), "runtime": engines.runtime(voice),
+            "ffmpeg": ffmpeg_version(), "seed": seed,
             "clips_total": clips_total, "clips_rendered": clips_rendered,
             "planned_s": round(planned, 2), "actual_s": round(actual, 2), "drift": round(drift, 4),
             "render_s": round(render_seconds, 1),
@@ -322,7 +321,7 @@ def prepare_voice(voice, model=None, seed=42):
 
 def clip_cache(voice, seed):
     """cache_path(text): where a line's clip is cached. Everything that changes how a clip sounds goes in
-    its key, so changing a setting (or upgrading mlx-audio) re-renders instead of silently reusing old
+    its key, so changing a setting (or upgrading pocket-tts) re-renders instead of silently reusing old
     clips; the coach's name and any API key don't, so a renamed coach keeps its clips."""
     settings = (f"{voice['model']}@{voice['revision'] or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
                 f"trim {TRIM_DB} {TRIM_KEEP}|{engines.runtime(voice)}")
@@ -387,10 +386,6 @@ def check_takes(voice, clips, seed, cache_path):
     if todo:
         started = time.time()
         hear = engines.listener()
-        if hear is None:
-            print("Takes not checked: the speech recognizer that checks them runs only on an Apple Silicon Mac "
-                  "so far.", flush=True)
-            return {"checked": False, "reason": "no recognizer on this computer"}
         print(f"checking {len(todo)} take(s) by ear", flush=True)
         rate = pace(voice)[0]
         say = None
@@ -501,7 +496,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
         stop.set()
         pool.shutdown(wait=True, cancel_futures=True)
         if done:
-            record_rate(voice, measured_weight, audio_secs - MLX_EDGE * done)
+            record_rate(voice, measured_weight, audio_secs - EDGE * done)
         if isinstance(e, cloud.ServiceError):
             print(f"\n{e}")
             if e.listener_must_act:
@@ -522,7 +517,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     pool.shutdown()
     sent["usd"] = cloud.estimate(voice["service"], voice["model"], todo)[1]
     took = time.time() - started
-    record_rate(voice, measured_weight, audio_secs - MLX_EDGE * len(todo), render_seconds=took)
+    record_rate(voice, measured_weight, audio_secs - EDGE * len(todo), render_seconds=took)
     print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min", flush=True)
 
 
@@ -543,7 +538,7 @@ def _render_local(voice, todo, seed, cache_path):
     engines.release()   # the model's memory isn't needed to assemble and encode
     took = time.time() - speaking_started
     # The lint predicts this voice's length from its measured rate; the speed is this computer's.
-    record_rate(voice, measured_weight, audio_secs - MLX_EDGE * len(todo), render_seconds=took)
+    record_rate(voice, measured_weight, audio_secs - EDGE * len(todo), render_seconds=took)
     print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min "
           f"({took / audio_secs:.2f} times its length, not counting the model load)", flush=True)
 
@@ -688,5 +683,5 @@ def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
             del say
             engines.release()
         if done:
-            record_rate(voice, measured_weight, audio_secs - MLX_EDGE * done)
+            record_rate(voice, measured_weight, audio_secs - EDGE * done)
     print(f"Rendered {done} clip(s) ahead; the full build reuses them.", flush=True)

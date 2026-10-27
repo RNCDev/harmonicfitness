@@ -48,10 +48,8 @@ def local_installed():
     """Whether the local engine for this system is installed in the environment (not imported)."""
     if os.environ.get("SWEATCAST_FAKE_LOCAL_ENGINE"):   # test-only: as if the local engine were installed
         return os.environ["SWEATCAST_FAKE_LOCAL_ENGINE"] == "1"
-    import voices
-    module = "mlx_audio" if voices.BACKEND == "mlx" else "chatterbox"
     try:
-        return importlib.util.find_spec(module) is not None
+        return importlib.util.find_spec("pocket_tts") is not None
     except (ImportError, ValueError):
         return False
 
@@ -140,35 +138,24 @@ def pick(preferences, persona=None, override=None, facts=None):
 
 
 def stand_ins():
-    """{service: the web stand-in that ships for it in me.example/personas/}."""
+    """{service: the stock web coach that ships for it in coaches/}."""
     import personas
-    return {p.service: p for p in personas.all(os.path.join(paths.EXAMPLE, "personas"))
-            if p.is_web and p.service in SERVICES}
+    return {p.service: p for p in personas.all() if p.is_web and p.shipped and p.service in SERVICES}
 
 
 def way_out(folder=None):
-    """How to get a coach that speaks here when local voices don't: make a web coach, or use the stand-in
-    of a service with a key here (copied into the listener's coaches, `folder`, if it isn't there yet)."""
-    import personas
-    folder = folder or paths.PERSONAS
+    """How to get a coach that speaks here when local voices don't: make a web coach, or use the stock web coach
+    of a service with a key here."""
     shipped = stand_ins()
-    have = {p.name for p in personas.all(folder)}
     make = 'make a web coach (the coach skill: "I want a new coach")'
     keyed = [s for s in SERVICES if keys.is_set(s) and s in shipped]
     if keyed:
-        uses = []
-        for s in keyed:
-            p = shipped[s]
-            uses.append(f"{p.name} ({cloud.service_name(s)}): " + (f"build with --coach \"{p.name}\"" if p.name in have
-                        else f"copy {paths.show(p.path)} to {paths.show(os.path.join(folder, p.slug, 'persona.md'))}, then build with "
-                             f"--coach \"{p.name}\""))
-        return f"{make}, or use the stand-in for a service with a key here: " + "; ".join(uses) + "."
+        uses = [f"{shipped[s].name} ({cloud.service_name(s)}): build with --coach \"{shipped[s].name}\"" for s in keyed]
+        return f"{make}, or use the stock coach for a service with a key here: " + "; ".join(uses) + "."
     add = ("set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
            else "./sweatcast keys init <service>, then paste the key into the file")
     names = ", ".join(f"{shipped[s].name} ({cloud.service_name(s)})" for s in SERVICES if s in shipped)
-    return (f"{make}, or add a service's key ({add}) and use its stand-in: {names} (in "
-            f"{paths.show(os.path.join(paths.EXAMPLE, 'personas'))}/; copy its persona.md to the same place in "
-            f"{paths.show(folder)}/ if your coaches don't have it).")
+    return f"{make}, or add a service's key ({add}) and use its stock coach: {names}."
 
 
 FEED_HOSTS = ("site.api.espn.com", "api.open-meteo.com", "en.wikipedia.org", "www.youtube.com")

@@ -45,14 +45,14 @@ def copy_repo(dest):
 class Doctor(unittest.TestCase):
     def test_facts_on_faked_platforms(self):
         mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""}
-        cases = [(mac, "fast", "mlx"),
+        cases = [(mac, "fast", "cpu"),
                  (dict(mac, ARCH="x86_64"), "no", ""),
                  ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90",
                    "GPU": "NVIDIA GeForce RTX 2080 SUPER, 8"}, "fast", "cuda"),
-                 ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "experimental", "cpu"),
+                 ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "fast", "cpu"),
                  ({"OS": "Linux", "ARCH": "other", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "no", ""),
                  ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": "NVIDIA A10, 24"}, "fast", "cuda"),
-                 ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "experimental", "cpu"),
+                 ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "fast", "cpu"),
                  (dict(mac, MEM_GB="4"), "no", ""),
                  (dict(mac, DISK_GB="2"), "no", "")]
         for fake, local, engine in cases:
@@ -67,11 +67,11 @@ class Doctor(unittest.TestCase):
     def test_floors_dont_count_against_hardware_that_runs_voices(self):
         mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "2", "GPU": ""}
         f = facts(mac)
-        self.assertEqual((f["local"], f["local_hw"], f["local_engine_hw"]), ("no", "fast", "mlx"))
+        self.assertEqual((f["local"], f["local_hw"], f["local_engine_hw"]), ("no", "fast", "cpu"))
         f = facts(dict(mac, MEM_GB="", DISK_GB="40"))   # memory unreadable: unknown, not zero
         self.assertEqual(f["local"], "fast")
         f = facts({"OS": "Linux", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""})
-        self.assertEqual((f["local"], f["local_engine"]), ("experimental", "cpu"))   # PyTorch has Linux ARM builds
+        self.assertEqual((f["local"], f["local_engine"]), ("fast", "cpu"))   # PyTorch has Linux ARM builds
 
     def test_facts_name_the_tools_found(self):
         f = facts()
@@ -155,7 +155,7 @@ class CloudSession(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         with open(log) as f:
             self.assertNotIn("--extra", f.read())
-        self.assertTrue(os.path.exists(os.path.join(repo, "me", "personas", "coach-andy-local", "clip.wav")))
+        self.assertTrue(os.path.isdir(os.path.join(repo, "me", "coaches")))
         out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh"), "--local"], cwd=repo, env=env,
                              capture_output=True, text=True, timeout=120)
         self.assertEqual(out.returncode, 1)
@@ -167,7 +167,7 @@ class CloudSession(unittest.TestCase):
             root = os.path.join(d, "sweatcast")
             os.makedirs(os.path.join(root, "tools"))
             mine = os.path.join(d, "sweatcast-me")
-            os.makedirs(os.path.join(mine, "personas"))
+            os.makedirs(os.path.join(mine, "coaches"))
             open(os.path.join(mine, "profile.md"), "w").close()
             remote = {"CLAUDE_CODE_REMOTE": "true"}
             self.assertEqual(paths.find_home(root, remote), mine)
@@ -213,15 +213,14 @@ class CloudSession(unittest.TestCase):
             env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
             with mock.patch.dict(os.environ, dict(env, FISH_AUDIO_API_KEY="test-key"), clear=True), \
                     mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
-                self.assertNotIn("No web coach yet", "\n".join(doctor.web_lines(home)))
-                for slug in ("coach-reed-fish", "coach-ellis-elevenlabs", "coach-nolan-gemini", "coach-owen-inworld"):   # a 9.x folder
-                    shutil.rmtree(os.path.join(home, "personas", slug))
+                self.assertNotIn("No web coach yet", "\n".join(doctor.web_lines(home)))   # the stock Coach Reed
+            with mock.patch.dict(os.environ, env, clear=True), \
+                    mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
                 lines = "\n".join(doctor.web_lines(home))
             self.assertIn("No web coach yet", lines)
             self.assertIn("I want a new coach", lines)
-            self.assertIn("Coach Reed", lines)
-            self.assertIn(os.path.join("me.example", "personas", "coach-reed-fish"), lines)
-            self.assertNotIn("Coach Owen", lines)
+            for name in ("Coach Reed", "Coach Ellis", "Coach Nolan", "Coach Owen"):
+                self.assertIn(name, lines)
 
 STUB_UV = """#!/bin/sh
 echo "$@" >> "$UV_LOG"
@@ -327,33 +326,36 @@ class LocalExtra(unittest.TestCase):
         mac = dict(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         out = self.setup(**mac)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra mlx", self.calls())
+        self.assertIn("sync --frozen --extra cpu", self.calls())
         self.assertIn("tools/coaches.py download", self.calls())
         with open(os.path.join(self.repo, ".venv", ".sweatcast-extra")) as f:
-            self.assertEqual(f.read().strip(), "mlx")
+            self.assertEqual(f.read().strip(), "cpu")
 
     def test_no_models_keeps_an_installed_extra(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
         with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
+            f.write("cuda\n")
+        out = self.setup("--no-models", OS="Linux", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("sync --frozen --extra cuda", self.calls())
+        self.assertNotIn("coaches.py download", self.calls())
+
+    def test_a_macs_mlx_extra_from_before_15_becomes_cpu(self):
+        os.makedirs(os.path.join(self.repo, ".venv"))
+        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
             f.write("mlx\n")
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra mlx", self.calls())
-        self.assertNotIn("coaches.py download", self.calls())
-
-    def test_an_environment_from_before_the_extras_keeps_its_engine(self):
-        os.makedirs(os.path.join(self.repo, ".venv", "lib", "python3.11", "site-packages", "mlx_audio"))
-        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra mlx", self.calls())
+        self.assertIn("sync --frozen --extra cpu", self.calls())
+        self.assertNotIn("--extra mlx", self.calls())
 
     def test_low_disk_never_uninstalls_an_engine(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
         with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
-            f.write("mlx\n")
+            f.write("cpu\n")
         out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra mlx", self.calls())
+        self.assertIn("sync --frozen --extra cpu", self.calls())
         out = self.setup("--local", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
 
@@ -400,7 +402,7 @@ class LocalExtra(unittest.TestCase):
         out = self.setup("--local", OS="Linux", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("sync --frozen --extra cpu", self.calls())
-        self.assertIn("experimental", out.stdout)
+        self.assertNotIn("experimental", out.stdout)
 
 
 class Lock(unittest.TestCase):
@@ -411,14 +413,16 @@ class Lock(unittest.TestCase):
         versions = {}
         for pkg in lock["package"]:
             versions.setdefault(pkg["name"], []).append((pkg["version"], str(pkg.get("source"))))
-        self.assertIn("0.5.0", [v for v, _ in versions["mlx-audio"]])
-        self.assertIn("2.2.6", [v for v, _ in versions["numpy"]])
+        self.assertNotIn("mlx-audio", versions)
+        self.assertIn("4.0.1", [v for v, _ in versions["pocket-tts"]])
+        self.assertIn("0.12.0", [v for v, _ in versions["onnx-asr"]])
         torch = [src for v, src in versions["torch"] if v.startswith("2.6.0")]
         self.assertTrue(any("cu124" in s for s in torch), torch)
         self.assertTrue(any("whl/cpu" in s for s in torch), torch)
+        self.assertTrue(any("pypi.org" in s for s in torch), torch)   # a Mac's
         with open(os.path.join(ROOT, "pyproject.toml"), "rb") as f:
             project = tomllib.load(f)
-        self.assertEqual(set(project["project"]["optional-dependencies"]), {"mlx", "cuda", "cpu"})
+        self.assertEqual(set(project["project"]["optional-dependencies"]), {"cuda", "cpu"})
         self.assertIn("sys_platform == 'linux'", " ".join(project["tool"]["uv"]["environments"]))
 
 

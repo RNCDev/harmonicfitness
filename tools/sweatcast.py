@@ -59,6 +59,8 @@ def test_env(env):
     env = dict(env)
     if not env.get("SWEATCAST_HOME"):
         env["SWEATCAST_HOME"] = os.path.join(tempfile.mkdtemp(prefix="sweatcast-tests-"), "me")
+    # The stock coaches the tests see: a fixture set, so a test never depends on the real ten.
+    env.setdefault("SWEATCAST_SHIPPED", os.path.join(ROOT, "tests", "fixtures", "stock"))
     return env
 
 

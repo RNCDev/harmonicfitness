@@ -1,0 +1,9 @@
+{
+ "f64b8ac50868|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Theo",
+  "weight": 385.7,
+  "seconds": 29.042,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

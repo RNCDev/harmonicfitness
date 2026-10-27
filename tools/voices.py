@@ -1,15 +1,14 @@
-"""Voices: how long a coach will speak, the local models each engine renders with, and their download.
+"""Voices: how long a coach will speak, the local model it renders with, and its download.
 
-A coach (tools/personas.py) is a ten-second reference clip with its words, which every engine copies; a
-voice here is that coach on one engine, as the dict render.py takes. The models are used as published.
+A local coach (tools/personas.py) is one of the ten shipped in coaches/: a clip, its words and the Pocket TTS
+voice state made from it; a voice here is that coach on one engine, as the dict render.py takes.
 
-Chatterbox, Qwen3-TTS and the cloud voices decide a clip's length as they speak, so the prediction
-is the voice's measured rate (weighted characters per second, recorded by each render into the coach's
-pace.json, one entry per engine and model) applied to the text. It is an estimate, typically within
-a few percent over a whole segment; render.py absorbs the difference in the next segments' spare time.
-Until a coach's first render on an engine, its rate is seeded from the other coaches' measured rates: a
-reference clip's own rate came out about 30 percent slow for Chatterbox Turbo. The character weights
-are vendored in char_weight.py. Each render also records this computer's render speed beside the pace.
+Pocket TTS and the cloud voices decide a clip's length as they speak, so the prediction is the voice's
+measured rate (weighted characters per second, recorded by each render into the coach's pace.json, one entry
+per engine and model) applied to the text. It is an estimate, typically within a few percent over a whole
+segment; render.py absorbs the difference in the next segments' spare time. A shipped coach's pace.json comes
+measured, from its sample; a coach no render has measured yet is seeded from the other coaches' rates. The
+character weights are vendored in char_weight.py. Each render also records this computer's render speed.
 """
 import contextlib
 import hashlib
@@ -26,33 +25,34 @@ import locks  # noqa: E402
 import paths  # noqa: E402
 from paths import PACE_FILE, ROOT, show  # noqa: E402,F401
 
-ENGINES = ("qwen3", "chatterbox")
-# What runs the local models here: MLX on a Mac, PyTorch (CUDA, or the processor) on Windows and Linux.
-# SWEATCAST_BACKEND overrides the choice (the tests set it).
-BACKENDS = ("mlx", "torch")
-BACKEND = os.environ.get("SWEATCAST_BACKEND") or ("mlx" if sys.platform == "darwin" else "torch")
-TORCH_ENGINES = ("chatterbox",)   # engines with a PyTorch path in tools/engines.py so far
-# The local models each engine renders with, per backend, pinned to the revisions tested. A coach
-# names only its engine; these strings are part of every pace and clip cache key, so they never change
-# without a migration.
-LOCAL_MODELS = {("chatterbox", "mlx"): ("mlx-community/chatterbox-turbo-fp16", "b2d0a13aa7cfff0a06d9acb247ae91c8f19a6d75"),
-                ("chatterbox", "torch"): ("ResembleAI/chatterbox-turbo", "749d1c1a46eb10492095d68fbcf55691ccf137cd"),
-                ("qwen3", "mlx"): ("mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16", "a6eb4f68e4b056f1215157bb696209bc82a6db48")}
-# The extra repos an engine loads on its own (Chatterbox Turbo's speech tokenizer), pinned so a fresh
-# machine downloads exactly what was tested.
-ENGINE_EXTRAS = {"chatterbox": [("mlx-community/S3TokenizerV2", "e0c9886f0e1c35ae85b1f27277416fb19fc72bec")]}
-# Qwen3-TTS VoiceDesign: makes a voice from a description, pinned like the rest.
-VOICE_DESIGN = ("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16", "7d3824abff87e49756bb0f83fb5411de75d160c4")
-# The speech recognizer that checks each local take (tools/verify.py): Parakeet TDT 0.6B v3 through MLX.
-CHECK_MODEL = ("mlx-community/parakeet-tdt-0.6b-v3", "ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15")
+ENGINES = ("pocket",)
+# Every local voice runs on PyTorch: an Apple Silicon Mac's processor, a PC's processor or an NVIDIA card.
+BACKEND = "torch"
+# Pocket TTS (Kyutai, CC-BY-4.0): the public model, which can't clone a clip but loads a coach's saved voice
+# state (pocket.safetensors, made once by the maintainer: tools/coachmaker/export_pocket.py). The voice files
+# belong to this model and language config, so neither moves without exporting all ten again.
+POCKET_VERSION = "4.0.1"
+POCKET_LANGUAGE = "english_2026-10"
+POCKET_REPO = "kyutai/pocket-tts-without-voice-cloning"
+GATED_POCKET = "kyutai/pocket-tts"     # the cloning model: never loaded in a listener's build
+# The local model each engine renders with, pinned to the revision tested; part of every pace and clip key.
+LOCAL_MODELS = {"pocket": (POCKET_REPO, "a7056f505a4a8ca72d8b5fb1440071d6f1a35739")}
+# The files the language config loads (pocket_tts/config/english_2026-10.yaml), each at its own revision:
+# setup fetches exactly these, and a test checks the installed config still names them.
+POCKET_FILES = [(POCKET_REPO, "languages/english_2026-10/model.safetensors", "a7056f505a4a8ca72d8b5fb1440071d6f1a35739"),
+                (POCKET_REPO, "languages/english_2026-09/tokenizer.json", "00eac05ed3d16bdc3f6b5d598874019c34a89214")]
+# The speech recognizer that checks each local take (tools/verify.py): Parakeet TDT 0.6B v3 through ONNX, on
+# the processor, the same on every computer (the audio bench's). Kept as a plain folder in models/, since
+# onnxruntime won't load weights through the Hugging Face cache's links.
+CHECK_MODEL = ("istupakov/parakeet-tdt-0.6b-v3-onnx", "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce")
+CHECK_FILES = ["config.json", "vocab.txt", "nemo128.onnx", "encoder-model.onnx", "encoder-model.onnx.data",
+               "decoder_joint-model.onnx"]
+CHECK_DIR = os.path.join(paths.MODELS, "parakeet-tdt-0.6b-v3-onnx")
+# The line a web service's voice design speaks (tools/coaches.py's auditions).
 DESIGN_LINE = ("Okay, set your feet. Chest up, elbows in, and press. Good. Stay with it, two more. "
                "Breathe out as you drive. That's the pace we want.")
-SIZES_GB = {"mlx-community/chatterbox-turbo-fp16": 2.8, "mlx-community/S3TokenizerV2": 0.5,
-            "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16": 4.2,
-            VOICE_DESIGN[0]: 4.5, "ResembleAI/chatterbox-turbo": 4.0, CHECK_MODEL[0]: 2.5}   # download sizes, for the message
-# The files Resemble's own loader fetches from its Turbo repo (chatterbox.tts_turbo).
-TORCH_PATTERNS = ["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"]
-MLX_EDGE = 0.08          # render.py trims engine silence to 40 ms at each end
+SIZES_GB = {POCKET_REPO: 0.4, CHECK_MODEL[0]: 2.5}   # download sizes, for the message
+EDGE = 0.08              # render.py trims engine silence to 40 ms at each end
 MIN_MEASURED = 30.0      # seconds of rendered speech before a voice's rate counts as measured
 DEFAULT_PACE = 14.5      # weighted chars/s for a new voice when no voice has been measured yet
 
@@ -109,7 +109,7 @@ def speed_key(v):
     is a short hash of its name, so pace.json (backed up) never holds the hostname."""
     import platform
     computer = hashlib.sha256((platform.node() or "this computer").encode("utf-8")).hexdigest()[:8]
-    return f"{computer}|{v.get('device') or v.get('backend') or 'mlx'}"
+    return f"{computer}|{v.get('device') or v.get('backend') or 'torch'}"
 
 
 def _write_rates(path, data):
@@ -121,6 +121,16 @@ def _write_rates(path, data):
     os.replace(tmp, path)
 
 
+def _with_seed(v, path, data):
+    """A stock coach's pace before this computer's first render: its entry from the shipped pace.json
+    (v["pace_seed"]), added to what `path` (the shared voice-pace.json) holds for the other voices."""
+    if v.get("pace_seed") and path == v.get("pace_file") and _rate_key(v) not in data:
+        rec = _recorded(v["pace_seed"]).get(_rate_key(v))
+        if rec:
+            data = dict(data, **{_rate_key(v): dict(rec)})
+    return data
+
+
 def record_rate(v, weight, seconds, path=None, render_seconds=None):
     """Fold a render's measured speech into the voice's rate (called by render.py), and with
     render_seconds, this computer's render speed (seconds of rendering per second of speech).
@@ -129,7 +139,7 @@ def record_rate(v, weight, seconds, path=None, render_seconds=None):
     approved sample) is replaced by the first real measurement, not added to."""
     path = path or v.get("pace_file") or PACE_FILE
     with _locked(path):
-        data = _recorded(path, strict=True)
+        data = _with_seed(v, path, _recorded(path, strict=True))
         rec = data.get(_rate_key(v))
         if not rec or rec.get("estimate"):
             rec = {"weight": 0.0, "seconds": 0.0}
@@ -174,19 +184,19 @@ def seed_pace(data):
     against a measured 14.6."""
     rates = [r["weight"] / r["seconds"] for r in data.values()
              if isinstance(r, dict) and r.get("weight") and not r.get("estimate")
-             and (r.get("seconds") or 0) > MIN_MEASURED]
+             and ((r.get("seconds") or 0) > MIN_MEASURED or r.get("shipped"))]
     return statistics.median(rates) if rates else DEFAULT_PACE
 
 
 def _every_coach_measured():
     """Every coach's measured entries, merged, for seeding a coach not measured yet."""
     out = {}
-    folder = paths.PERSONAS
-    if os.path.isdir(folder):
-        for slug in sorted(os.listdir(folder)):
-            pace_file = os.path.join(folder, slug, "pace.json")
-            if os.path.exists(pace_file):
-                out.update({f"{slug}|{k}": r for k, r in _recorded(pace_file).items()})
+    for folder in (paths.SHIPPED, paths.PERSONAS):   # this computer's copy of a shipped coach's pace wins
+        if os.path.isdir(folder):
+            for slug in sorted(os.listdir(folder)):
+                pace_file = os.path.join(folder, slug, "pace.json")
+                if os.path.exists(pace_file):
+                    out.update({f"{slug}|{k}": r for k, r in _recorded(pace_file).items()})
     return out
 
 
@@ -194,41 +204,44 @@ def pace(v, path=None):
     """Weighted characters per second: the voice's speaking rate, and whether it's measured.
     A coach's comes from its own pace.json, seeded from the other coaches until measured."""
     path = path or v.get("pace_file")
-    data = _recorded(path)
+    data = _with_seed(v, path, _recorded(path))
     rec = data.get(_rate_key(v))
     if rec and rec.get("estimate") and rec.get("seconds"):
         return rec["weight"] / rec["seconds"], False
-    if rec and rec.get("seconds", 0) > MIN_MEASURED:
+    if rec and (rec.get("seconds", 0) > MIN_MEASURED or rec.get("shipped")):   # a shipped coach comes measured
         return rec["weight"] / rec["seconds"], True
     return seed_pace(_every_coach_measured() if v.get("pace_file") else data), False
 
 
 def speed(v, path=None):
     """This computer's measured render speed for the voice (seconds per second of speech), or None."""
-    rec = _recorded(path or v.get("pace_file")).get(_rate_key(v)) or {}
+    path = path or v.get("pace_file")
+    rec = _with_seed(v, path, _recorded(path)).get(_rate_key(v)) or {}
     return (rec.get("speed") or {}).get(speed_key(v))
 
 
 def clip_seconds(text, v, rate=None):
     """Predicted length of one clip of `text`, including its trimmed edges. Pass `rate`
     (from pace()) when predicting many clips, so the pace file is read once."""
-    return weight(text) / (rate if rate is not None else pace(v)[0]) + MLX_EDGE
+    return weight(text) / (rate if rate is not None else pace(v)[0]) + EDGE
 
 
-def download(v):
-    """Fetch the voice's model at its pinned revision, plus what its engine loads on its
-    own, into the shared Hugging Face cache. Files already in the cache aren't fetched again."""
-    from huggingface_hub import snapshot_download
-    if not v["model"]:
-        print(f"{v['name']}: no {v['backend']} model for its engine ({v['engine']}) yet; skipped.", flush=True)
-        return
-    torch = v.get("backend") == "torch"
-    extras = [] if torch else ENGINE_EXTRAS.get(v["engine"], []) + [CHECK_MODEL]   # and the take checker
-    for repo, rev in [(v["model"], v["revision"]), *extras]:
-        size = f", about {SIZES_GB[repo]} GB" if repo in SIZES_GB else ""
-        print(f"{v['name']}: {repo}" + (f" at {rev[:8]}" if rev else " (latest; no revision pinned)") + size,
-              flush=True)
-        snapshot_download(repo, revision=rev, allow_patterns=TORCH_PATTERNS if torch else None)
+def download(v=None):
+    """Fetch the local voice's model files and the take checker at their pinned revisions, into models/. Files
+    already there aren't fetched again."""
+    from huggingface_hub import hf_hub_download, snapshot_download
+    print(f"Pocket TTS ({POCKET_REPO}, about {SIZES_GB[POCKET_REPO]} GB)", flush=True)
+    for repo, filename, rev in POCKET_FILES:
+        hf_hub_download(repo, filename, revision=rev)
+    print(f"The take checker ({CHECK_MODEL[0]}, about {SIZES_GB[CHECK_MODEL[0]]} GB)", flush=True)
+    snapshot_download(CHECK_MODEL[0], revision=CHECK_MODEL[1], local_dir=CHECK_DIR, allow_patterns=CHECK_FILES)
+
+
+def downloaded():
+    """Whether the local voice's files and the take checker are all in models/."""
+    from huggingface_hub import try_to_load_from_cache
+    have = all(isinstance(try_to_load_from_cache(repo, f, revision=rev), str) for repo, f, rev in POCKET_FILES)
+    return have and all(os.path.exists(os.path.join(CHECK_DIR, f)) for f in CHECK_FILES)
 
 
 def write_wav(path, pcm, rate=24000):

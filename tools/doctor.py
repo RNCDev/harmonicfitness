@@ -44,30 +44,17 @@ def model_present(repo, revision, hub=None):
 
 
 def _model_lines():
-    """The local models this computer's coaches render with (Chatterbox Turbo when there are none yet)."""
-    import personas
+    """The local voice (Pocket TTS) and the take checker: downloaded or not."""
     import voices
-    engines_used = []
-    for p in personas.all():
-        if p.has_clip:
-            engine = p.table("local").get("engine") or "chatterbox"
-            if engine not in engines_used:
-                engines_used.append(engine)
-    lines, seen = [], set()
-    for engine in engines_used or ["chatterbox"]:
-        pin = voices.LOCAL_MODELS.get((engine, voices.BACKEND))
-        if not pin:
-            lines.append(f"  {engine}: renders locally only on an Apple Silicon Mac")
-            continue
-        extras = [] if voices.BACKEND == "torch" else voices.ENGINE_EXTRAS.get(engine, []) + [voices.CHECK_MODEL]
-        for repo, rev in [pin, *extras]:
-            if repo in seen:
-                continue
-            seen.add(repo)
-            size = voices.SIZES_GB.get(repo)
-            state = "downloaded" if model_present(repo, rev) else \
-                "not downloaded" + (f" (about {size} GB)" if size else "")
-            lines.append(f"  {repo}: {state}")
+    lines = []
+    for repo, filename, rev in voices.POCKET_FILES:
+        here = os.path.exists(os.path.join(hub_dir(), "models--" + repo.replace("/", "--"), "snapshots", rev,
+                                           filename))
+        lines.append(f"  {repo}/{filename}: " + ("downloaded" if here else
+                                                  f"not downloaded (about {voices.SIZES_GB[repo]} GB in all)"))
+    here = all(os.path.exists(os.path.join(voices.CHECK_DIR, f)) for f in voices.CHECK_FILES)
+    lines.append(f"  {voices.CHECK_MODEL[0]} (the take checker): " + ("downloaded" if here else
+                 f"not downloaded (about {voices.SIZES_GB[voices.CHECK_MODEL[0]]} GB)"))
     return lines
 
 
@@ -144,10 +131,11 @@ def web_lines(home, profile=None):
              "only the service your coach speaks through is needed).",
              "  Feeds, optional (research searches without them): " + ", ".join(routes.feed_hosts(profile)) + "."]
     import personas
-    coaches = personas.all(os.path.join(home, "personas"))
-    if not any(p.is_web for p in coaches):   # local coaches can't speak here
+    own = personas.all(os.path.join(home, "coaches"))
+    stock = [p for p in routes.stand_ins().values() if keys.is_set(p.service)]
+    if not any(p.is_web for p in own) and not stock:   # local coaches can't speak here
         lines.append("  No web coach yet (a local coach can't speak here). The way out: "
-                     + routes.way_out(os.path.join(home, "personas")))
+                     + routes.way_out(os.path.join(home, "coaches")))
     if kept(home):
         lines.append(f"  Your context folder: {paths.show(home)}, its own private repo, so ./sweatcast backup keeps it.")
     else:

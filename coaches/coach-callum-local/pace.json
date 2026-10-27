@@ -1,0 +1,9 @@
+{
+ "fffaeb6d4bce|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Callum",
+  "weight": 387.7,
+  "seconds": 31.482,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

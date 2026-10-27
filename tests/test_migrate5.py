@@ -184,12 +184,15 @@ class MigratePersonas(unittest.TestCase):
         out = self.migrate()
         self.assertIn("Backed up the originals", out.stdout, out.stdout + out.stderr)
         want = OLD_PERSONA.replace("schema = 4\n", 'schema = 5\nkind = "local"\n', 1)
-        for path in self.paths:
+        # 15.0.0 then moves personas/ to coaches/, and a local coach of the listener's own into the archive
+        moved = [os.path.join(self.home, "coaches", ".archive", c, "persona.md") for c in ("coach-old", "coach-older")]
+        for path in moved:
             with open(path, encoding="utf-8") as f:
                 self.assertEqual(f.read(), want, path)
+        self.assertFalse(os.path.exists(os.path.join(self.home, "personas")))
         backup = [d for d in os.listdir(self.home) if d.startswith(".backup-")]
         self.assertEqual(len(backup), 1)
-        with open(os.path.join(self.home, backup[0], "personas", ".archive", "coach-older", "persona.md"),
+        with open(os.path.join(self.home, backup[0], "coaches", ".archive", "coach-older", "persona.md"),
                   encoding="utf-8") as f:
             self.assertEqual(f.read(), OLD_PERSONA)
         # the layout step runs whenever something is still loose in workouts/: x.txt goes to checks/
@@ -199,8 +202,8 @@ class MigratePersonas(unittest.TestCase):
         self.assertEqual(len([d for d in os.listdir(self.home) if d.startswith(".backup-")]), 1)
 
     def test_migrate_adds_the_sample_and_audition_ignore_rules(self):
-        NEW_RULES = ("!personas/*/sample.mp3", "!personas/.archive/*/sample.mp3", "personas/.auditions/",
-                     "personas/*/.made.json", "personas/*/.made.wav")
+        NEW_RULES = ("!coaches/*/sample.mp3", "!coaches/.archive/*/sample.mp3", "coaches/.auditions/",
+                     "coaches/*/.made.json", "coaches/*/.made.wav")
         ignore = os.path.join(self.home, ".gitignore")
         with open(ignore, encoding="utf-8") as f:
             text = f.read()
@@ -215,7 +218,7 @@ class MigratePersonas(unittest.TestCase):
         for have in (lines, shipped):
             for rule in NEW_RULES:
                 self.assertIn(rule, have)
-            for kept in ("!personas/*/sample.mp3", "!personas/.archive/*/sample.mp3"):
+            for kept in ("!coaches/*/sample.mp3", "!coaches/.archive/*/sample.mp3"):
                 self.assertGreater(have.index(kept), have.index("*.mp3"))
         before = open(ignore, encoding="utf-8").read()
         self.migrate()

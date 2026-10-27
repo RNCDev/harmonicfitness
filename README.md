@@ -24,12 +24,12 @@ Copy and send:
 
 **In a terminal or an editor** (VS Code, Cursor, JetBrains): `git clone https://github.com/RNCDev/sweatcast.git ~/sweatcast` (or GitHub's **Code > Download ZIP**), open the folder in Claude Code or Codex, and say "set up sweatcast". Keep the folder out of iCloud Drive, Dropbox and other synced folders: it grows to several gigabytes.
 
-**Setup** asks four questions (your name, experience, equipment, injuries), plays a short test clip of your stand-in coach, and makes a ten-minute first workout. Once you've answered the questions you can step away: the assistant researches, writes and renders the workout on its own, then shows you where the MP3 is and asks which folder syncs to your phone (iCloud Drive, Google Drive or Dropbox), so later workouts land there.
+**Setup** asks four questions (your name, experience, equipment, injuries), lets you choose a coach by ear from short samples, and makes a ten-minute first workout. Once you've answered the questions you can step away: the assistant researches, writes and renders the workout on its own, then shows you where the MP3 is and asks which folder syncs to your phone (iCloud Drive, Google Drive or Dropbox), so later workouts land there.
 
 **What you need:**
-- **A Mac or a Windows PC.** Linux runs with Claude Code (the tests run there), though local voices there are not yet tried. On Windows, `./sweatcast` runs in Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win); Claude Code needs it anyway. Codex has been tried end to end on a Mac, not yet on Windows.
+- **A Mac or a Windows PC.** Linux runs with Claude Code (the tests run there), though local voices there are not yet tried by hand. On Windows, `./sweatcast` runs in Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win); Claude Code needs it anyway. Codex has been tried end to end on a Mac, not yet on Windows.
 - **A voice**, one of two kinds:
-  - **On your own computer** (an Apple Silicon Mac, or a Windows or Linux PC with an NVIDIA card): free and private, after a one-time download of the voice engine and model (about 6.5 GB on a Mac, with the speech recognizer that checks every take; up to 8 GB on Windows or Linux). The readiness check wants at least 9 GB free.
+  - **On your own computer** (an Apple Silicon Mac, or a Windows or Linux PC, with or without an NVIDIA card): free and private, after a one-time download of about 4 GB (the voice engine, Pocket TTS, and the speech recognizer that checks every line). A 30-minute workout renders in about five minutes on a Mac, ten to fifteen on a PC's processor. The readiness check wants at least 6 GB free. You choose from ten coaches that ship with sweatcast.
   - **A web coach**, on any computer: a voice service with a pay-as-you-go key of your own, no subscription. The assistant suggests Fish Audio (about $0.30 a workout, no minimum) and walks you through getting the key.
 - **No programming, and no GitHub account** (that's only for a private backup of your profile).
 - **With ChatGPT,** turn off "Improve the model for everyone" (Settings, Data Controls) if you'd rather your health notes weren't used for training. Codex reminds you before the first workout.
@@ -63,10 +63,10 @@ If someone asks you to use this repository and set them up, and your session isn
 
 ## Setup, step by step
 
-1. **The readiness check** (`./sweatcast doctor`): your system, memory, disk and graphics, what's installed, and whether a voice can be made on this computer. Then the one big choice: a voice made on your computer (free and private, a one-time download, slower to render) or a web coach (no download, fast, pay-as-you-go), which one this computer starts with, and how to add the other later.
+1. **The readiness check** (`./sweatcast doctor`): your system, memory, disk and graphics, what's installed, and whether a voice can be made on this computer. Then the one big choice: a voice made on your computer (free and private, a one-time download) or a web coach (no download, fast, pay-as-you-go), which one this computer starts with, and how to add the other later.
 2. **The tools:** uv, which builds the project's Python environment (about half a gigabyte), is installed with Astral's official installer if it's missing, after the assistant asks. ffmpeg comes with that environment. git is optional: without it, setup skips the privacy hook (which keeps your details out of a push), and `./sweatcast backup` can't run.
-3. **The quick start:** the four questions, and, where it's a web coach, the key: the assistant gives you the service's links and opens a file in your computer's text editor where you paste the key yourself, never into the chat. Your stand-in coach plays a short test clip first: Coach Andy for a voice on your computer (his clip ships with him), or the web service's default coach, whose voice is designed and saved in your account before the first workout (about a cent on Fish Audio or Gemini; Inworld doesn't publish the price; on ElevenLabs it takes one of the account's voice slots). Then the ten-minute workout, end to end.
-4. **Later:** "finish setting me up" covers interests, teams and taste, and finds news feeds for them; "I want a new coach" auditions voices from every service you have a key for.
+3. **The quick start:** the four questions, and, where it's a web coach, the key: the assistant gives you the service's links and opens a file in your computer's text editor where you paste the key yourself, never into the chat. Then you choose your coach by ear: on your computer, one of the ten local coaches (pick a style, hear their 45-second samples, choose one); or the web service's stock coach, whose voice is designed and saved in your account before the first workout (about a cent on Fish Audio or Gemini; Inworld doesn't publish the price; on ElevenLabs it takes one of the account's voice slots). Then the ten-minute workout, end to end.
+4. **Later:** "finish setting me up" covers interests, teams and taste, and finds news feeds for them; "switch coach" picks another of the ten, and "I want a new coach" auditions voices of your own from every service you have a key for.
 
 ## How a session works
 
@@ -75,7 +75,7 @@ If someone asks you to use this repository and set them up, and your session isn
 3. **The plan:** `./sweatcast brief` gathers who you are, how the week has gone, today's limits with your clinician's rules, the safe menu (every movement your kit, level and limits allow, with coaching notes) and the programming guide. The assistant designs the session from it, posts the plan, and writes the script.
 4. **The build:** `./sweatcast build` refuses any movement that isn't on today's menu, checks the script reads cleanly aloud, predicts each segment's spoken length for the coach, renders a loudness-normalized MP3, and copies it to your phone's folder. The script's text stays in the workout's folder in `me/workouts/`; the local MP3 is removed once the copy lands.
 
-A soft chime opens each segment after the first, and a rising three-note tone ends the workout. A segment with time to spare widens its pauses and then ends early rather than going quiet, except timed work (`[hold]`), which keeps its full length. Only the total is held to plan. With a voice on an Apple Silicon Mac, Chatterbox Turbo renders a 30-minute workout in about 20 minutes (Qwen3 takes about twice as long), starting while the script is still being written; a web coach renders in a minute or two, once the script is done.
+A soft chime opens each segment after the first, and a rising three-note tone ends the workout. A segment with time to spare widens its pauses and then ends early rather than going quiet, except timed work (`[hold]`), which keeps its full length. Only the total is held to plan. With a voice on your computer, Pocket TTS renders a 30-minute workout in about five minutes on an Apple Silicon Mac, ten to fifteen on a PC, starting while the script is still being written; a web coach renders in a minute or two, once the script is done.
 
 ## Commands
 
@@ -139,15 +139,15 @@ cd me && git init && git add -A && git commit -m "My sweatcast" && gh repo creat
 
 ## Coaches and voices
 
-A coach is a person's name, how they talk and how they sound, in `me/personas/<coach>-<where>/` (such as `coach-andy-local`). Stand-ins ship so you can start at once: Coach Andy for a voice on your computer, and one default web coach per service (Coach Reed on Fish Audio, Ellis on ElevenLabs, Nolan on Gemini, Owen on Inworld), each designed in your account the first time it's used. Make your own whenever you like, and keep several.
+A coach is a person's name, how they talk and how they sound. Fourteen stock coaches ship in `coaches/`, so you can start at once: **ten local coaches** for a voice on your computer (Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate, each with a 45-second sample to choose by ear), and **one stock web coach per service** (Coach Reed on Fish Audio, Ellis on ElevenLabs, Nolan on Gemini, Owen on Inworld), each designed in your account the first time it's used. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
 - **A web coach** is an original voice a service designs from your description and saves in your account. You hear candidates from every service you have a key for, pick by ear, and name the ones you keep.
-- **A local coach** is a ten-second clip that your computer's voice engine copies.
+- **A local coach** is one of the ten: a voice designed once for sweatcast, with its counts and cues recorded and checked by ear, spoken on your computer by Pocket TTS. It sounds the same in every workout.
 
 | Where the voice comes from | Engine or service | Cost | Notes |
 |---|---|---|---|
-| Apple Silicon Mac | Chatterbox Turbo, or Qwen3-TTS, through MLX | Free | Chatterbox about 0.7 times the length of the speech on an M3, Qwen3 about 1.3 to 1.45 |
-| Windows or Linux with an NVIDIA card | Chatterbox Turbo on CUDA | Free | About 0.5 times on an RTX 2080 Super; Linux not yet tried |
-| Windows or Linux, processor only | The same, on the processor | Free | Experimental and slow; the smoke test measures it |
+| Apple Silicon Mac | Pocket TTS on the processor | Free | About 0.15 times the length of the speech on an M5 |
+| Windows or Linux with an NVIDIA card | Pocket TTS on CUDA | Free | About 0.3 times on an RTX 2080 Super; Linux not yet tried by hand |
+| Windows or Linux, processor only | Pocket TTS on the processor | Free | About 0.43 times |
 | Fish Audio | A designed voice, saved as a private model | About $0.30 a workout | Prepaid credit, no minimum; about $0.01 a design |
 | Gemini | A designed voice | About $0.27 a workout through 2026, about $0.54 from 2027 | A Google AI Studio key; its free tier uses requests for training |
 | Inworld | A designed voice, in your workspace | About $0.50 a workout | On-Demand plan, prepaid credit |
@@ -161,7 +161,7 @@ sweatcast is not medical advice. It programs conservatively around the injuries 
 
 ## Coaches and consent
 
-A web coach's voice is designed from a written description, never copied from a recording, and sweatcast never offers voices that imitate real people or characters. A local coach's clip comes from the local voice designer, or from a recording you bring: your own voice, or someone's who has agreed. It stays in `me/` and is used only by your computer's own engine.
+A web coach's voice is designed from a written description, never copied from a recording, and sweatcast never offers voices that imitate real people or characters. The ten local coaches are original voices too, designed from descriptions (`coaches/roster.toml`); you can't bring a recording to clone.
 
 ## Support
 
@@ -173,4 +173,4 @@ sweatcast follows [Semantic Versioning](https://semver.org). Each release is tag
 
 ## License
 
-MIT, see [LICENSE](LICENSE). `tools/char_weight.py` is vendored from [OmniVoice](https://github.com/k2-fsa/OmniVoice) under the Apache License 2.0, with its header kept. The voice models are downloaded, not distributed here: Chatterbox Turbo ([ResembleAI/chatterbox-turbo](https://huggingface.co/ResembleAI/chatterbox-turbo), MIT, used as is on Windows and Linux through Resemble's `chatterbox-tts`; MLX build [mlx-community/chatterbox-turbo-fp16](https://huggingface.co/mlx-community/chatterbox-turbo-fp16), Apache 2.0, with its tokenizer [mlx-community/S3TokenizerV2](https://huggingface.co/mlx-community/S3TokenizerV2)) and Qwen3-TTS ([Qwen/Qwen3-TTS-12Hz-1.7B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base), Apache 2.0; MLX build [mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16)).
+MIT, see [LICENSE](LICENSE). `tools/char_weight.py` is vendored from [OmniVoice](https://github.com/k2-fsa/OmniVoice) under the Apache License 2.0, with its header kept. The local voice is [Pocket TTS](https://huggingface.co/kyutai/pocket-tts-without-voice-cloning) by Kyutai (CC-BY 4.0), downloaded, not distributed here, and used as is; each local coach's `pocket.safetensors` is a voice state made with Kyutai's Pocket TTS from an original voice designed with [Qwen3-TTS VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) (Apache 2.0), no real person's voice. The take checker is [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) (NVIDIA, CC-BY 4.0), in [istupakov's ONNX conversion](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx).

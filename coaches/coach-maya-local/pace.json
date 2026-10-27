@@ -1,0 +1,9 @@
+{
+ "1d2c6553cbf5|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Maya",
+  "weight": 385.7,
+  "seconds": 28.692,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

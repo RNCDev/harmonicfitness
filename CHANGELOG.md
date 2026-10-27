@@ -2,6 +2,34 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [15.0.0] - unreleased
+
+Ten local coaches ship with sweatcast, all on one local engine, Pocket TTS, on every computer. Each was designed once from a description, heard and approved by ear, and ships with its voice file, recorded counts and cues, a measured pace and a 45-second sample to choose by ear. Countdowns play those recorded numbers one second apart instead of a voice rushing through them. Local coaches are now chosen, not made: a voice of your own is a web coach.
+
+### For forks
+- **Run `./sweatcast migrate`** (setup runs it). `me/personas/` becomes `me/coaches/`. A local coach of your own moves to `me/coaches/.archive/`, since only the ten stock local coaches render now; old log lines still find it by name. An unmade copy of a stock web coach (Reed, Ellis, Nolan, Owen, still `pending = "design"`) goes to the backup, since the engine ships them now; a made one stays in `me/coaches/` and is used over the stock copy. `me/.gitignore`'s `personas/` rules become `coaches/` rules. No context file changes its schema.
+- **The local engine is Pocket TTS on PyTorch everywhere**, the extras `cpu` (an Apple Silicon Mac, or a PC's processor) and `cuda`. MLX, Chatterbox Turbo, Qwen3-TTS and the local voice designer are gone from the engine. A `.venv/.sweatcast-extra` of `mlx` becomes `cpu`; rerun `./sweatcast setup`, which downloads Pocket's public model (about 0.6 GB) and the take checker (2.5 GB, now the ONNX Parakeet on every computer, so a PC's takes are checked too). No Hugging Face login is needed. The old models stay in `models/` until you delete them: `./sweatcast models` lists them with their sizes (about 30 GB on a Mac that ran everything). An Intel Mac has no local voices any more (PyTorch has no build for it).
+- **Stock coaches live in the engine, in `coaches/`**, not in the template. This reverses 9.x's move of Coach Andy into `me.example/`: ten coaches with their voice files are public, versioned assets a release should be able to improve for everyone, and about 160 MB doesn't belong in each listener's private backup. The four stock web coaches moved there too. `personas.all()` merges `coaches/` with `me/coaches/`, yours winning on a name clash.
+- **Removed commands:** `coaches design`, the local `coaches keep` (a take or a clip), `coaches set <coach> local.engine`, `coaches download --all` and `setup --all`. `coaches keep <audition>/<letter>` for web coaches is unchanged.
+- **The lint, with a coach that has recorded counts, refuses a countdown written in words** (three or more number words counting down) and points to `[count]`. With any coach, one word alone between markers ("Hold.") is refused too, since a local voice garbles it often; the message points to `[cue …]` where it's a cue. The smoke test changed to match; a fork's own drafts need the same change. The brief's new Counts line tells the writer which a coach takes.
+
+### Added
+- **The ten stock local coaches** (`coaches/coach-<name>-local/`): Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate. `coaches/roster.toml` holds each description and how it talks, and how each was made (designer, model revision, seed).
+- **`[count N cue]` and `[cue x]`** in drafts (`tools/counts.py`): a coach's recorded five, four, three, two, one, a second apart, then go, rest, switch, switch sides, stop or hold; or one cue alone. The lint times them exactly from the clips; the render lays them on the beat; the transcript says them in words.
+- **Choosing a coach by ear:** setup's quick start and the coach skill's "switch coach" offer the ten by style, with their samples.
+- **Maintainer tools** (`tools/coachmaker/`, not listener commands): `design.py` (Qwen3-TTS VoiceDesign through mlx-audio, in its own environment), `pick.py`, `export_pocket.py` (the gated Pocket model makes each `pocket.safetensors`), `qa.py`, `cues.py`, `sample.py` and `persona.py`.
+- **`./sweatcast models`** lists the models older versions downloaded that nothing uses now.
+
+### Changed
+- **The take check runs on every computer** with Parakeet TDT 0.6B v3 through ONNX on the processor.
+- **The engine refuses Pocket's gated cloning model** (`engines.public_only`), so a Hugging Face login never changes a coach's voice.
+- **A stock local coach ships measured** (its pace from its sample), so no smoke test before a first workout; this computer's measurements go to the shared `me/workouts/.audio-cache/voice-pace.json`, so `me/coaches/` holds only your own coaches.
+- **The audio bench** keeps cloning Andy's old clip, now `docs/audio-bench/voice/`, so runs stay comparable.
+
+### Notes
+- **Why Pocket alone:** in a blind test on 2026-10-26 Pocket was preferred over Chatterbox Turbo for six coaches, Turbo for three, one even; on the audio bench it never dropped a cue word in 176 takes and renders two to six times faster, in a third of the memory.
+- **Not yet tried by hand:** a real build on the PC (its processor and its NVIDIA card), and the recognizer's speed on a PC's processor.
+
 ## [14.2.0] - 2026-10-26
 
 The audio bench: every candidate local voice model reads the same five-minute script on a Mac and on a PC, measured and scored the same way, so the next local voice can be chosen on evidence. Nothing a workout uses changes.

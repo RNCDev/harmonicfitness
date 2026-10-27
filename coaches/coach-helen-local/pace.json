@@ -1,0 +1,9 @@
+{
+ "3f14229e06ed|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Helen",
+  "weight": 386.7,
+  "seconds": 29.241,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

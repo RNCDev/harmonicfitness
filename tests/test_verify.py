@@ -172,12 +172,14 @@ class CheckTakes(unittest.TestCase):
         render.render_clip(lambda t, s: self.take(s), line, 42, self.cache_path)
         self.assertFalse(os.path.exists(render.check_path(self.cache_path, line)))
 
-    def test_no_recognizer_here_goes_on_unchecked(self):
-        self.cached("Go.")
-        with mock.patch.object(engines, "listener", return_value=None), \
-                contextlib.redirect_stdout(io.StringIO()):
-            got = render.check_takes(self.voice, ["Go."], 42, self.cache_path)
-        self.assertFalse(got["checked"])
+    def test_a_line_heard_before_never_loads_the_recognizer(self):
+        line = "Three, two, one, and rest."
+        self.cached(line)
+        self.heard[len(self.take(42))] = "3, 2, 1, and rest."
+        render.check_takes(self.voice, [line], 42, self.cache_path)
+        with mock.patch.object(engines, "listener", side_effect=AssertionError("loaded")):
+            got = render.check_takes(self.voice, [line], 42, self.cache_path)   # its verdict is cached
+        self.assertEqual(got["checked_now"], 0)
 
 
 class Level(unittest.TestCase):

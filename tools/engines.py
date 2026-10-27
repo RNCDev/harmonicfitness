@@ -1,17 +1,13 @@
-"""The voice engines: load a voice's model and speak a line with it.
+"""The voice engine: load a coach's voice and speak a line with it.
 
-Everything that depends on another library's internals lives here, so an upgrade
-breaks in one place: mlx-audio's model classes, huggingface_hub's download function
-(patched while a model loads, to hold its extra downloads to their pinned revisions),
-MLX's memory cache, and on Windows Resemble AI's PyTorch Chatterbox Turbo
-(chatterbox-tts) on CUDA. render.py calls speaker(), runtime() and release(), and
-nothing else touches mlx, mlx_audio, torch, chatterbox or huggingface_hub's loaders.
+Everything that depends on another library's internals lives here, so an upgrade breaks in one place: Kyutai's
+Pocket TTS (pocket_tts) on PyTorch, and the take check's recognizer (onnx_asr). render.py calls speaker(),
+listener(), runtime() and release(), and nothing else touches pocket_tts, torch or onnx_asr.
 
-Which one runs is the voice's "backend" (tools/voices.py: mlx on a Mac, torch on
-Windows), and with it the model: each voice's .json pins both.
-
-The engines are tested with the mlx-audio version in uv.lock (TESTED_MLX_AUDIO; a
-test keeps the two in step). Another version still runs, with a one-line warning.
+Pocket runs the public model (voices.POCKET_REPO), which can't clone a clip but loads a coach's saved voice
+state (pocket.safetensors). Pocket tries the gated cloning model first and falls back to the public one only
+when that fails, so a listener with a Hugging Face login that accepted the gated model's terms would get it
+silently; public_only() makes that first try fail, and speaker() refuses a model that can clone anyway.
 """
 import contextlib
 import io
@@ -19,17 +15,15 @@ import os
 import sys
 import warnings
 
-# The engines draw a progress bar per clip and warn about their own dependencies; in a render
-# log that buried the lines that matter (a 25-minute render logged about 150 KB of bars).
+# The engines warn about their own dependencies; in a render log that buried the lines that matter.
 os.environ.setdefault("TQDM_DISABLE", "1")
-for _message in ("pkg_resources is deprecated", ".*LoRACompatibleLinear"):
+for _message in ("pkg_resources is deprecated",):
     warnings.filterwarnings("ignore", message=_message)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from voices import ENGINE_EXTRAS, TORCH_ENGINES, TORCH_PATTERNS  # noqa: E402
+import voices  # noqa: E402
 
-SR = 24000                     # every engine's output rate, in samples per second
-TESTED_MLX_AUDIO = "0.5.0"     # the mlx-audio version uv.lock pins
+SR = 24000                     # the engine's output rate, in samples per second
 TRIM_DB = -40.0                # engine silence below this level is trimmed from each clip's ends
 TRIM_KEEP = 0.04               # seconds of it kept at each end
 
@@ -45,19 +39,12 @@ def _version(package):
         return None
 
 
-def mlx_audio_version():
-    return _version("mlx-audio")
-
-
 def runtime(voice):
-    """What speaks the voice, with versions, for the clip cache key and the build record.
-    On a Mac it stays "mlx-audio <version>", as it always was, so cached clips still match."""
+    """What speaks the voice, with versions, for the clip cache key and the build record."""
     if voice.get("backend") == "cloud":
         return f"{voice['service']} {voice['model']}"
-    if voice.get("backend") == "torch":
-        base = f"chatterbox-tts {_version('chatterbox-tts')} torch {_version('torch')}"
-        return base + " cpu" if voice.get("device") == "cpu" else base   # CUDA keys stay as they were
-    return f"mlx-audio {mlx_audio_version()}"
+    return (f"pocket-tts {_version('pocket-tts')} {voice.get('language') or voices.POCKET_LANGUAGE} "
+            f"torch {_version('torch')} {voice.get('device') or 'cpu'}")
 
 
 def trim(a):
@@ -70,108 +57,10 @@ def trim(a):
     return a[max(loud[0] - keep, 0):loud[-1] + keep]
 
 
-@contextlib.contextmanager
-def pinned_extras(engine, hub=None):
-    """While a model loads, fetch the repos its engine pulls in on its own (Chatterbox
-    Turbo's speech tokenizer) at the revisions tools/voices.py pins. mlx-audio asks for
-    their latest version and only warns if that fails, which would leave the voice
-    quietly wrong; this fetches the pinned one first, failing loudly, and points
-    mlx-audio's own request at it."""
-    if hub is None:
-        import huggingface_hub as hub
-    pins = dict(ENGINE_EXTRAS.get(engine, []))
-    for repo, rev in pins.items():
-        try:
-            hub.snapshot_download(repo, revision=rev)
-        except Exception as e:
-            raise SystemExit(f"Couldn't fetch {repo} at {rev[:8]}, which {engine} needs: {e}. "
-                             "Check the network and rerun; ./sweatcast setup downloads it ahead of time.")
-    if pins and not callable(getattr(hub, "hf_hub_download", None)):
-        raise SystemExit("huggingface_hub no longer has hf_hub_download, which tools/engines.py pins "
-                         "the engine's extra downloads through. Rerun ./sweatcast setup to restore the "
-                         "locked versions.")
-    original = hub.hf_hub_download
-
-    def pinned(*args, **kwargs):
-        repo = kwargs.get("repo_id", args[0] if args else None)
-        if repo in pins:
-            kwargs["revision"] = pins[repo]
-        return original(*args, **kwargs)
-
-    hub.hf_hub_download = pinned
-    try:
-        yield
-    finally:
-        hub.hf_hub_download = original
-
-
 def to_pcm(a):
     """Float samples to 16-bit mono PCM, with the engine's edge silence trimmed."""
     import numpy as np
     return (np.clip(trim(np.asarray(a, dtype=np.float32).reshape(-1)), -1.0, 1.0) * 32767).astype("<i2").tobytes()
-
-
-def no_gpu_message():
-    """Why a local voice can't see the Mac's GPU, and the way out."""
-    if os.environ.get("CODEX_SANDBOX"):
-        return ("The local voice needs the Mac's GPU, which ChatGPT's Codex sandbox hides. Run this same command "
-                "outside the sandbox (approve it when asked), or trust this folder in Codex so its rule for "
-                "./sweatcast does that.")
-    return ("The local voice needs the Mac's GPU, and none is visible to this process (a headless or sandboxed "
-            "session?). Run the command from a normal session on this Mac.")
-
-
-def speaker(voice):
-    """Load the voice's model (Qwen3-TTS or Chatterbox through mlx-audio, or Chatterbox
-    Turbo through PyTorch) and return say(text, seed) -> 16-bit mono PCM at SR, cloning
-    the voice's reference clip."""
-    if voice.get("backend") == "cloud":
-        import cloud
-        return cloud.speaker(voice)
-    if voice.get("backend") == "torch":
-        return _torch_speaker(voice)
-    try:
-        import mlx.core as mx
-        import numpy as np
-        from mlx_audio.tts.utils import load_model
-        found = mlx_audio_version()
-        if found and found != TESTED_MLX_AUDIO:
-            print(f"Warning: mlx-audio {found} is installed; sweatcast is tested with {TESTED_MLX_AUDIO}. "
-                  "Rerun ./sweatcast setup to restore the locked version if a voice sounds wrong.", file=sys.stderr)
-        engine = voice["engine"]
-        with pinned_extras(engine):
-            model = load_model(voice["model"], revision=voice["revision"])
-    except RuntimeError as e:
-        if "metal" not in str(e).lower():
-            raise
-        raise SystemExit(no_gpu_message()) from e
-    gen = voice.get("generate") or {}   # per-voice engine settings, from voices/<name>.json
-    # Chatterbox Turbo re-encodes the reference clip on every call that passes it
-    # (about half a second each) and keeps the result on the model. So pass it on the
-    # first clip only: the same code path computes the same conditioning, once.
-    # The full-size Chatterbox keeps nothing (without the clip it falls back to its
-    # built-in voice), and Qwen3 caches its reference codes itself, so both pass it
-    # every time. mlx-audio has no public flag for this, so it's told by class name.
-    keeps_conditioning = type(model).__name__ == "ChatterboxTurboTTS"
-    primed = []
-
-    def say(text, seed):
-        mx.random.seed(seed)
-        if engine == "qwen3":
-            results = model.generate(text=text, ref_audio=voice["ref_audio"], ref_text=voice["ref_text"],
-                                     verbose=False, **gen)
-        elif keeps_conditioning and primed:
-            results = model.generate(text=text, verbose=False, **gen)
-        else:
-            results = model.generate(text=text, ref_audio=voice["ref_audio"], verbose=False, **gen)
-            primed.append(True)
-        with contextlib.redirect_stdout(io.StringIO()):   # the models print progress per clip
-            results = list(results)
-        if results[0].sample_rate != SR:
-            raise SystemExit(f"{engine} returned {results[0].sample_rate} Hz audio; expected {SR}")
-        a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
-        return to_pcm(a)
-    return say
 
 
 def cuda_available():
@@ -184,108 +73,101 @@ def cuda_available():
 
 
 def torch_device(cuda_available):
-    """Where PyTorch renders: the NVIDIA card when it can see one, else the processor
-    (experimental and slow). SWEATCAST_DEVICE=cpu or cuda overrides."""
+    """Where PyTorch renders: the NVIDIA card when it can see one, else the processor. SWEATCAST_DEVICE=cpu or
+    cuda overrides."""
     forced = os.environ.get("SWEATCAST_DEVICE", "").strip().lower()
     if forced in ("cpu", "cuda"):
         return forced
     return "cuda" if cuda_available else "cpu"
 
 
-def _torch_speaker(voice):
-    """Chatterbox Turbo with Resemble AI's own PyTorch release, on an NVIDIA GPU or else the
-    processor. The reference clip is encoded once and kept on the model, as the MLX path does."""
-    if voice["engine"] not in TORCH_ENGINES or not voice["model"]:
-        raise SystemExit(f"{voice['name']} runs on {voice['engine']}, which has no PyTorch model here yet, "
-                         "so it only renders on a Mac. On this PC, pick a Chatterbox coach with --coach.")
-    import numpy as np
-    import torch
-    device = voice.get("device") or torch_device(torch.cuda.is_available())
-    # tools/ is on sys.path, so its coverage.py would pass for the coverage package that
-    # numba (under librosa) probes for, and break its import. Mark that package absent.
-    if "coverage" not in sys.modules:
-        sys.modules["coverage"] = None
-    from huggingface_hub import snapshot_download
+@contextlib.contextmanager
+def public_only(module=None):
+    """While Pocket loads, refuse its request for the gated model's files, so it takes the public model whatever
+    login this computer has."""
+    if module is None:
+        import pocket_tts.models.tts_model as module
+    original = module.download_if_necessary
+    gated = f"hf://{voices.GATED_POCKET}/"
+
+    def public(path, *args, **kwargs):
+        if str(path).startswith(gated):
+            raise PermissionError("sweatcast uses the public Pocket TTS model only")
+        return original(path, *args, **kwargs)
+
+    module.download_if_necessary = public
     try:
-        path = snapshot_download(voice["model"], revision=voice["revision"], allow_patterns=TORCH_PATTERNS)
+        yield
+    finally:
+        module.download_if_necessary = original
+
+
+def speaker(voice):
+    """Load the coach's voice and return say(text, seed) -> 16-bit mono PCM at SR."""
+    if voice.get("backend") == "cloud":
+        import cloud
+        return cloud.speaker(voice)
+    import torch
+    try:
+        from pocket_tts import TTSModel
+    except ImportError as e:
+        raise SystemExit("Pocket TTS isn't installed in this environment: run ./sweatcast setup.") from e
+    found = _version("pocket-tts")
+    if found and found != voices.POCKET_VERSION:
+        raise SystemExit(f"pocket-tts {found} is installed; the coaches' voice files are made for "
+                         f"{voices.POCKET_VERSION}. Run ./sweatcast setup to restore the locked version.")
+    device = voice.get("device") or torch_device(torch.cuda.is_available())
+    try:
+        with public_only(), contextlib.redirect_stdout(io.StringIO()):
+            model = TTSModel.load_model(language=voice.get("language") or voices.POCKET_LANGUAGE)
     except Exception as e:
-        raise SystemExit(f"Couldn't fetch {voice['model']} at {(voice['revision'] or 'latest')[:8]}: {e}. "
-                         "Check the network and rerun; ./sweatcast setup downloads it ahead of time.")
-    from chatterbox.tts_turbo import ChatterboxTurboTTS
-    with contextlib.redirect_stdout(io.StringIO()):
-        model = ChatterboxTurboTTS.from_local(path, device)
-        model.prepare_conditionals(voice["ref_audio"])
-    if model.sr != SR:
-        raise SystemExit(f"chatterbox returned {model.sr} Hz audio; expected {SR}")
-    gen = voice.get("generate") or {}
+        raise SystemExit(f"Couldn't load Pocket TTS ({voices.POCKET_REPO}): {e}. Check the network and rerun; "
+                         "./sweatcast setup downloads it ahead of time.") from e
+    if model.has_voice_cloning:
+        raise SystemExit("Pocket TTS loaded its gated cloning model, not the public one sweatcast uses. "
+                         "Run ./sweatcast setup again, then retry.")
+    if model.sample_rate != SR:
+        raise SystemExit(f"Pocket TTS returned {model.sample_rate} Hz audio; expected {SR}")
+    if device == "cuda":
+        model = model.to("cuda")
+    state = model.get_state_for_audio_prompt(voice["voice_state"])
 
     def say(text, seed):
         torch.manual_seed(seed)   # seeds the GPU too
-        with torch.inference_mode(), contextlib.redirect_stdout(io.StringIO()):
-            wav = model.generate(text, **gen)
-        return to_pcm(wav.squeeze(0).cpu().numpy())
+        with contextlib.redirect_stdout(io.StringIO()):   # as the audio bench calls it (Pocket's own threads
+            audio = model.generate_audio(state, text)          # don't inherit torch.inference_mode)
+        return to_pcm(audio.float().cpu().numpy())
     return say
 
 
-CHECK_SR = 16000   # what the speech recognizer listens at
-
-
 def listener():
-    """Load the speech recognizer that checks local takes (voices.CHECK_MODEL, Parakeet through MLX) and
-    return hear(pcm) -> the words it heard in 16-bit mono PCM at SR. None where it can't run here (PyTorch
-    on Windows or Linux has no port of it yet), so the render goes on unchecked and says so."""
-    from voices import BACKEND, CHECK_MODEL
-    if BACKEND != "mlx":
-        return None
-    import mlx.core as mx
+    """Load the speech recognizer that checks local takes (voices.CHECK_MODEL, Parakeet through ONNX, on the
+    processor) and return hear(pcm) -> the words it heard in 16-bit mono PCM at SR."""
     import numpy as np
-    from mlx_audio.stt.utils import load_model, resample_audio
     try:
-        model = load_model(CHECK_MODEL[0], revision=CHECK_MODEL[1])
-    except RuntimeError as e:
-        if "metal" not in str(e).lower():
-            raise
-        raise SystemExit(no_gpu_message()) from e
-    except Exception as e:
-        raise SystemExit(f"Couldn't load the take checker ({CHECK_MODEL[0]} at {CHECK_MODEL[1][:8]}): {e}. "
-                         "Check the network and rerun (./sweatcast setup downloads it ahead of time), or build "
-                         "with --no-check to skip checking the takes.")
+        import onnx_asr
+    except ImportError as e:
+        raise SystemExit("The take checker isn't installed in this environment: run ./sweatcast setup, or "
+                         "build with --no-check.") from e
+    missing = [f for f in voices.CHECK_FILES if not os.path.exists(os.path.join(voices.CHECK_DIR, f))]
+    if missing:
+        try:
+            voices.download()
+        except Exception as e:
+            raise SystemExit(f"Couldn't fetch the take checker ({voices.CHECK_MODEL[0]}): {e}. Check the network "
+                             "and rerun (./sweatcast setup downloads it ahead of time), or build with --no-check.")
+    model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", voices.CHECK_DIR, providers=["CPUExecutionProvider"])
 
     def hear(pcm):
         a = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
-        a = resample_audio(a, SR, CHECK_SR)
-        with contextlib.redirect_stdout(io.StringIO()):
-            return model.generate(mx.array(a)).text.strip()
+        text = model.recognize(a, sample_rate=SR)
+        return (text if isinstance(text, str) else str(text)).strip()
     return hear
 
 
-def design_takes(model_repo, revision, description, line, takes, seed):
-    """Qwen3-TTS VoiceDesign: `takes` takes of `line` spoken by a voice made from
-    `description`, as 16-bit mono PCM at SR. Each take uses its own seed."""
-    from voices import BACKEND
-    if BACKEND != "mlx":
-        raise SystemExit("Designing a voice needs Qwen3-TTS VoiceDesign on MLX, so it runs on a Mac only for now.")
-    import mlx.core as mx
-    import numpy as np
-    from mlx_audio.tts.utils import load_model
-    model = load_model(model_repo, revision=revision)
-    out = []
-    for n in range(takes):
-        mx.random.seed(seed + n)
-        with contextlib.redirect_stdout(io.StringIO()):
-            results = list(model.generate(text=line, instruct=description, verbose=False))
-        if not results or results[0].sample_rate != SR:
-            raise SystemExit("The design model returned no audio, or not at 24 kHz.")
-        a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
-        out.append(to_pcm(a))
-    del model
-    release()
-    return out
-
-
 def release():
-    """Hand the model's memory back once the last reference to say() is gone, so
-    assembling and encoding the MP3 don't run with the model still loaded."""
+    """Hand the model's memory back once the last reference to say() is gone, so assembling and encoding the MP3
+    don't run with the model still loaded."""
     import gc
     gc.collect()
     if "torch" in sys.modules:
@@ -293,10 +175,3 @@ def release():
             sys.modules["torch"].cuda.empty_cache()
         except Exception:
             pass
-    try:
-        import mlx.core as mx
-        clear = getattr(mx, "clear_cache", None) or getattr(getattr(mx, "metal", None), "clear_cache", None)
-        if clear:
-            clear()
-    except Exception:
-        pass

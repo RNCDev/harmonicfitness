@@ -11,15 +11,14 @@ workouts/.audio-cache/*
 !*.web-*.mp3
 # Each web coach's approved sample is kept (archived ones too); auditions in progress, and a
 # make between saving a voice and writing the coach, are not.
-!personas/*/sample.mp3
-!personas/.archive/*/sample.mp3
-personas/.auditions/
-personas/*/.made.json
-personas/*/.made.wav
+!coaches/*/sample.mp3
+!coaches/.archive/*/sample.mp3
+coaches/.auditions/
+coaches/*/.made.json
+coaches/*/.made.wav
 workouts/.logs/*.log
-# Designed takes not kept, stock-voice samples, and ./sweatcast migrate's backups (git has the history).
-personas/*/takes/
-personas/.samples/
+# Stock-voice samples, and ./sweatcast migrate's backups (git has the history).
+coaches/.samples/
 .backup-*/
 *.lock
 .DS_Store

@@ -46,7 +46,7 @@ BENCH = os.path.join(ROOT, "docs", "audio-bench")
 SCRIPT = os.path.join(BENCH, "script.toml")
 WORK = os.path.join(ROOT, ".cache", "bench")
 WORKER = os.path.join(ROOT, "tools", "bench_worker.py")
-COACH = os.path.join(ROOT, "me.example", "personas", "coach-andy-local")
+COACH = os.path.join(ROOT, "docs", "audio-bench", "voice")   # Coach Andy's 8.x clip, so runs stay comparable
 PYTHON = "3.11"
 MLX_AUDIO = "mlx-audio==0.6.1"
 TORCH = ["torch==2.6.0", "torchaudio==2.6.0"]

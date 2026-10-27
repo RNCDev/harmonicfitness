@@ -17,7 +17,7 @@ REMOTE = os.environ.get("CLAUDE_CODE_REMOTE") == "true"   # Claude Code on the w
 
 def find_home(root, env):
     """The context folder: SWEATCAST_HOME; else me/ when it holds a profile; else, on Claude Code on the
-    web, the one folder beside the engine holding a profile.md and personas/ (the listener's private
+    web, the one folder beside the engine holding a profile.md and coaches/ (personas/ before 15.0.0) (the listener's private
     sweatcast-me repo, attached to the session); else me/."""
     if env.get("SWEATCAST_HOME"):
         return os.path.abspath(os.path.expanduser(env["SWEATCAST_HOME"]))
@@ -31,7 +31,7 @@ def find_home(root, env):
         found = [os.path.join(parent, n) for n in names
                  if os.path.join(parent, n) != os.path.abspath(root)
                  and os.path.isfile(os.path.join(parent, n, "profile.md"))
-                 and os.path.isdir(os.path.join(parent, n, "personas"))]
+                 and any(os.path.isdir(os.path.join(parent, n, c)) for c in ("coaches", "personas"))]
         if len(found) == 1:
             return found[0]
     return default
@@ -71,7 +71,9 @@ LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log,
 # one record per rendered MP3, and a "failed" one per web render that sent text and then stopped
 BUILDS = os.path.join(LOGS, "builds.jsonl")
 
-PERSONAS = os.path.join(HOME, "personas")   # each coach: personas/<slug>/ (persona.md, clip, pace, service voices)
+# The stock coaches the engine ships: ten local, four web (coaches/<slug>/). SWEATCAST_SHIPPED is test-only.
+SHIPPED = os.path.abspath(os.environ.get("SWEATCAST_SHIPPED") or os.path.join(ROOT, "coaches"))
+PERSONAS = os.path.join(HOME, "coaches")   # the listener's own coaches, coaches/<slug>/ (personas/ before 15.0.0; migrate renames it)
 
 SMOKE_DRAFT = os.path.join(ROOT, "knowledge", "smoke-test.draft.txt")   # one minute, which measures a coach's pace
 EXAMPLE = os.path.join(ROOT, "me.example")

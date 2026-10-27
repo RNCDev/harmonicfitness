@@ -11,7 +11,6 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 sys.path.insert(0, os.path.join(ROOT, "tests"))
-os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import context  # noqa: E402
 import keys  # noqa: E402
@@ -86,7 +85,7 @@ class Routes(unittest.TestCase):
                 routes.pick(["fish"], self.coach, facts=INTEL_MAC)
         message = str(e.exception.code)
         self.assertIn("Coach Reed", message)
-        self.assertIn(os.path.join("me.example", "personas", "coach-reed"), message)
+        self.assertIn('--coach "Coach Reed"', message)
         for other in ("Coach Ellis", "Coach Nolan", "Coach Owen"):   # no key for those
             self.assertNotIn(other, message)
         self.assertIn("I want a new coach", message)

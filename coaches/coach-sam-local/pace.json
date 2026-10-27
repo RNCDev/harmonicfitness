@@ -1,0 +1,9 @@
+{
+ "8e28889e5b6b|pocket|kyutai/pocket-tts-without-voice-cloning": {
+  "name": "Coach Sam",
+  "weight": 384.7,
+  "seconds": 26.461,
+  "source": "the approved 45-second sample (tools/coachmaker/sample.py)",
+  "shipped": true
+ }
+}

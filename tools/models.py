@@ -1,4 +1,4 @@
-"""The local voice models: list them, and adopt the ones already downloaded elsewhere.
+"""The local voice models: list them (and the old ones no longer used), and adopt ones downloaded elsewhere.
 
 They live in models/ at the repo root (git-ignored, and outside me/, since they aren't personal and
 shouldn't go into the private backup), or wherever SWEATCAST_MODELS points; tools/paths.py points
@@ -25,14 +25,10 @@ from paths import show  # noqa: E402
 
 
 def pinned():
-    """[(repo, revision)] for every model sweatcast renders or designs with."""
+    """[(repo, revision)] for every Hugging Face cache model sweatcast renders with (the take checker is a plain
+    folder, voices.CHECK_DIR)."""
     import voices
-    out = list(voices.LOCAL_MODELS.values())
-    for extras in voices.ENGINE_EXTRAS.values():
-        out += extras
-    out.append(voices.VOICE_DESIGN)
-    out.append(voices.CHECK_MODEL)
-    return list(dict.fromkeys(out))
+    return list(dict.fromkeys(voices.LOCAL_MODELS.values()))
 
 
 def folder(hub, repo):
@@ -158,10 +154,18 @@ def main(argv=None):
     if not os.path.isdir(where):
         print("  none yet")
         return cli.OK
+    import voices
+    ours = {folder(where, repo) for repo, _ in pinned()}
     for repo, rev in pinned():
         if os.path.isdir(folder(where, repo)):
             state = "complete" if complete(where, repo, rev) else "partial"
             print(f"  {repo}: {state}")
+    if os.path.isdir(voices.CHECK_DIR):
+        print(f"  {voices.CHECK_MODEL[0]} (the take checker): {size(voices.CHECK_DIR) / 1e9:.1f} GB")
+    unused = sorted(d for d in os.listdir(where) if d.startswith("models--") and os.path.join(where, d) not in ours)
+    for d in unused:
+        print(f"  {d[len('models--'):].replace('--', '/')}: not used by this sweatcast "
+              f"({size(os.path.join(where, d)) / 1e9:.1f} GB; delete the folder to free the space)")
     print(f"  {size(where) / 1e9:.1f} GB in all")
     return cli.OK
 

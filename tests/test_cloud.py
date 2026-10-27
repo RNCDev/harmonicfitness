@@ -14,7 +14,6 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 sys.path.insert(0, os.path.join(ROOT, "tests"))
-os.environ.setdefault("SWEATCAST_BACKEND", "mlx")
 
 import cli  # noqa: E402
 import cloud  # noqa: E402
@@ -855,7 +854,7 @@ class CloudRender(unittest.TestCase):
                 texts = [out.stdout, out.stderr]
                 for path in glob.glob(os.path.join(self.d, "*.build.json")) + \
                         glob.glob(os.path.join(self.home, "workouts", ".logs", "*")) + \
-                        glob.glob(os.path.join(self.home, "personas", "*", "*.json")):
+                        glob.glob(os.path.join(self.home, "coaches", "*", "*.json")):
                     with open(path, encoding="utf-8") as f:
                         texts.append(f.read())
                 self.assertFalse(any(SECRET in t for t in texts))
@@ -866,7 +865,7 @@ class CloudRender(unittest.TestCase):
                 self.assertIn("usd_estimate", record)
                 import keys
                 var = keys.SERVICE_VARS[service]
-                with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "personas")), \
+                with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "coaches")), \
                         mock.patch.object(personas.paths, "PROFILE", os.path.join(self.home, "profile.md")), \
                         mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.home, ".env")), \
                         mock.patch.dict(os.environ, {var: SECRET}), \

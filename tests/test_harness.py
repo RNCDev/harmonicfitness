@@ -119,15 +119,6 @@ class Harness(unittest.TestCase):
 
 
 class CodexSandbox(unittest.TestCase):
-    def test_no_gpu_says_how_to_get_out_of_codexs_sandbox(self):
-        import engines
-        from unittest import mock
-        with mock.patch.dict(os.environ, {"CODEX_SANDBOX": "seatbelt"}):
-            self.assertIn("outside the sandbox", engines.no_gpu_message())
-        env = {k: v for k, v in os.environ.items() if k != "CODEX_SANDBOX"}
-        with mock.patch.dict(os.environ, env, clear=True):
-            self.assertNotIn("Codex", engines.no_gpu_message())
-
     def test_inside_codexs_sandbox_uvs_cache_stays_in_the_project(self):
         with tempfile.TemporaryDirectory() as d:
             fake = os.path.join(d, "python")
