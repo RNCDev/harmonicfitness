@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import cloud  # noqa: E402
 import keys  # noqa: E402
 import paths  # noqa: E402
@@ -109,7 +110,7 @@ def pick(preferences, persona=None, override=None, facts=None):
     if override:
         ok, reason = usable(override, persona, facts)
         if not ok:
-            raise (cli.Usage if override not in ROUTES else SystemExit)(f"Can't render with {override} here: {reason}")
+            raise (cli.Usage if override not in ROUTES else errors.RouteUnavailable)(f"Can't render with {override} here: {reason}")
         return override
     known = []
     for route in preferences or ["local"]:
@@ -126,14 +127,14 @@ def pick(preferences, persona=None, override=None, facts=None):
         if persona.has_clip and _facts(facts).get("local") == "no":   # name the way to a coach that speaks here
             lines.append(f"{persona.name} is a local coach, and local voices don't run here. The way out: "
                          + way_out())
-        raise SystemExit(f"No audio route works on this computer for {persona.name}:\n  " + "\n  ".join(lines))
+        raise errors.RouteUnavailable(f"No audio route works on this computer for {persona.name}:\n  " + "\n  ".join(lines))
     reasons = []
     for route in known or ["local"]:
         ok, reason = usable(route, persona, facts)
         if ok:
             return route
         reasons.append(reason)
-    raise SystemExit("No audio route works on this computer:\n  " + "\n  ".join(
+    raise errors.RouteUnavailable("No audio route works on this computer:\n  " + "\n  ".join(
         reasons + ["The way out: " + way_out()]))
 
 
@@ -199,6 +200,6 @@ def report_lines(persona=None, preferences=None, facts=None):
     try:
         out.append(f"  A build here would use: {pick(preferences, persona, facts=facts)}"
                    + (f" (for {persona.name})" if persona else ""))
-    except SystemExit:
+    except errors.PROBLEMS:
         out.append("  A build here would find no route that works (see above).")
     return out

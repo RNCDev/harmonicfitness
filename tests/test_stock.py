@@ -21,6 +21,7 @@ import context  # noqa: E402
 import counts  # noqa: E402
 import draft  # noqa: E402
 import helpers  # noqa: E402
+import errors  # noqa: E402
 import paths  # noqa: E402
 import personas  # noqa: E402
 import voices  # noqa: E402
@@ -114,7 +115,7 @@ class StockAndOwn(unittest.TestCase):
         self.assertTrue(personas.lookup("Coach Julius").shipped)
 
     def test_a_stock_coach_cant_be_archived(self):
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             personas.archive(personas.lookup("Coach Julius"))
         self.assertIn("ships with sweatcast", str(e.exception.code))
         self.assertTrue(os.path.exists(os.path.join(paths.SHIPPED, "coach-julius", "persona.md")))

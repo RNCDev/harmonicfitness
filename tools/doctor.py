@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import paths  # noqa: E402
 
 DOCTOR_SH = os.path.join(paths.ROOT, "tools", "doctor.sh")
@@ -148,24 +149,24 @@ def report_lines(f=None, home=None):
         try:
             if os.path.exists(os.path.join(home, "profile.md")):
                 prof = context.profile(os.path.join(home, "profile.md"))
-        except SystemExit:
+        except errors.PROBLEMS:
             prof = None
         out = web_lines(home, prof)
     else:
         try:
             out = _models_section()
-        except SystemExit as e:   # a coach file this engine can't read yet (./sweatcast migrate)
+        except errors.PROBLEMS as e:   # a coach file this engine can't read yet (./sweatcast migrate)
             out = [f"Voice models (in {paths.show(paths.MODELS)})", f"  {e}"]
     out += ["", "Your context folder"]
     try:
         out += _context_lines(home)
-    except SystemExit as e:
+    except errors.PROBLEMS as e:
         out.append(f"  {e}")
     out += ["", "Audio tools"]
     out += _ffmpeg_lines()
     try:
         out += ["", "Audio routes"] + _route_lines(f, home)
-    except SystemExit as e:
+    except errors.PROBLEMS as e:
         out += [f"  {e}"]
     return out
 
@@ -183,7 +184,7 @@ def _route_lines(f, home):
     p = context.profile()
     try:
         coach, archived = personas.default(), None
-    except SystemExit as e:   # the coach used last is archived: report it, and the routes for no coach
+    except errors.PROBLEMS as e:   # the coach used last is archived: report it, and the routes for no coach
         coach, archived = None, str(e.code)
     lines = routes.report_lines(coach, context.routes(p), f)
     if archived:
@@ -195,7 +196,7 @@ def _route_lines(f, home):
         if coach is not None and coach.has_clip:
             try:
                 measured = voices.speed(personas.voice_for(coach, "local"))
-            except SystemExit:
+            except errors.PROBLEMS:
                 measured = None
         if measured:
             minutes = measured * 30 * SPEECH_SHARE

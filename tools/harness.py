@@ -20,6 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import cli  # noqa: E402
+import errors  # noqa: E402
 import paths  # noqa: E402
 
 CLAUDE_SKILLS = os.path.join(".claude", "skills")
@@ -43,7 +44,7 @@ def skills(root):
             text = f.read()
         parts = text.split("---\n", 2)
         if not text.startswith("---\n") or len(parts) < 3:
-            raise SystemExit(f"{path}: no frontmatter between --- lines.")
+            raise errors.SweatcastError(f"{path}: no frontmatter between --- lines.")
         found[name] = parts[1]
     return found
 

@@ -37,6 +37,7 @@ from array import array
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import engines  # noqa: E402
 import ffmpeg as ffmpeg_tool  # noqa: E402
 import locks  # noqa: E402
@@ -150,7 +151,7 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
                         p += [None, bytearray()]
                 elif is_mark(text):
                     if mark is None:
-                        raise SystemExit(f"{text}: this render has no recorded counts to play")
+                        raise errors.RenderStopped(f"{text}: this render has no recorded counts to play")
                     p[-1] += mark(text)
                 elif text:
                     p[-1] += clip(text)
@@ -195,7 +196,7 @@ def loudness_stats(stderr):
             return stats
     except (ValueError, KeyError):
         pass
-    raise SystemExit(f"Couldn't read ffmpeg's loudness measurement ({ffmpeg_version() or 'ffmpeg'}). "
+    raise errors.RenderStopped(f"Couldn't read ffmpeg's loudness measurement ({ffmpeg_version() or 'ffmpeg'}). "
                      f"The end of its output was: {(stderr or '')[-300:].strip()}")
 
 
@@ -246,7 +247,7 @@ def _ffmpeg_run(cmd, what):
         return subprocess.run(cmd, capture_output=True, text=True, check=True)
     except subprocess.CalledProcessError as e:
         tail = (e.stderr or "").strip()[-300:]
-        raise SystemExit(f"ffmpeg couldn't {what} ({ffmpeg_version() or 'ffmpeg'}, exit {e.returncode}): "
+        raise errors.RenderStopped(f"ffmpeg couldn't {what} ({ffmpeg_version() or 'ffmpeg'}, exit {e.returncode}): "
                          f"{tail or 'no reason given'}") from None
 
 
@@ -288,6 +289,8 @@ def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, erro
     import cloud
     if isinstance(error, SystemExit):
         reason = str(error.code) if not isinstance(error.code, int) else f"exit {error.code}"
+    elif isinstance(error, errors.SweatcastError):
+        reason = str(error)
     else:
         reason = type(error).__name__ + (f": {error}" if str(error) else "")
     usd = cloud.estimate(voice["service"], voice["model"], ["x" * sent["started"]])[1]
@@ -442,12 +445,12 @@ def check_takes(voice, clips, seed, cache_path):
     summary = {"checked": True, "lines": len(lines), "checked_now": len(todo), "rendered_again": retried,
                "unclear": [t for t, _ in unclear], "missed_cues": [t for t, _ in missed]}
     if missed:
-        print(f"\n{len(missed)} line(s) lost a cue word in every take ({CHECK_TAKES} each):")
+        lines = [f"{len(missed)} line(s) lost a cue word in every take ({CHECK_TAKES} each):"]
         for t, v in missed:
-            print(f"  \"{t}\"\n    heard: \"{v['heard']}\" (missing: {', '.join(v['missed_cues'])})")
-        print("Reword each one (the cue in its own sentence, commas in a countdown, or a longer line) and "
-              "rerun; the other clips are cached and checked.")
-        sys.exit(cli.ISSUES)
+            lines.append(f"  \"{t}\"\n    heard: \"{v['heard']}\" (missing: {', '.join(v['missed_cues'])})")
+        lines.append("Reword each one (the cue in its own sentence, commas in a countdown, or a longer line) and "
+                     "rerun; the other clips are cached and checked.")
+        raise errors.RenderStopped("\n".join(lines))
     return summary
 
 
@@ -463,14 +466,14 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     print(f"Sending {chars:,} characters to {service['name']} ({voice['model']}): about ${usd:.2f} "
           f"(approximate; rates checked {service.get('rates_checked')})", flush=True)
     if chars > ceiling:
-        print(f"That's over this profile's ceiling of {ceiling:,} characters a build (cloud_max_chars in "
-              "me/settings.toml), so nothing was sent. Shorten the script, or raise the ceiling and rerun.")
-        sys.exit(cli.ISSUES)
+        raise errors.RenderStopped(f"That's over this profile's ceiling of {ceiling:,} characters a build "
+                                   "(cloud_max_chars in me/settings.toml), so nothing was sent. Shorten the script, "
+                                   "or raise the ceiling and rerun.")
     long = [t for t in todo if voice.get("max_chars") and len(t) > voice["max_chars"]]
     if long:
-        print(f"A paragraph runs {len(long[0])} characters, over {service['name']}'s {voice['max_chars']} a request: "
-              f"split \"{' '.join(long[0].split()[:6])}...\" and rerun. Nothing was sent.")
-        sys.exit(cli.ISSUES)
+        raise errors.RenderStopped(f"A paragraph runs {len(long[0])} characters, over {service['name']}'s "
+                                   f"{voice['max_chars']} a request: split \"{' '.join(long[0].split()[:6])}...\" and "
+                                   "rerun. Nothing was sent.")
     order = list(dict.fromkeys(clips))   # each paragraph's real neighbors, for services that join them
     at = {t: i for i, t in enumerate(order)}
     started = time.time()
@@ -515,19 +518,17 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
         if done:
             record_rate(voice, measured_weight, audio_secs - EDGE * done)
         if isinstance(e, cloud.ServiceError):
-            print(f"\n{e}")
             if e.listener_must_act:
-                print(f"Check the key with ./sweatcast keys (it's {service['key_var']} in me/.env), and the account's "
-                      f"plan and balance at {service['name']}. The {done} clip(s) rendered are cached.")
-                sys.exit(cli.SERVICE)
-            if e.kind == "bad_request":
-                print(f"A rerun won't fix that by itself; the {done} clip(s) rendered are cached.")
-            else:
-                print(f"The {done} clip(s) rendered are cached; rerun to send only the rest.")
-            sys.exit(cli.ISSUES)
-        if isinstance(e, Exception) and not isinstance(e, SystemExit):
-            print(f"\nStopped sending to {service['name']}: {cloud.scrub(str(e))}. The {done} clip(s) rendered are cached.")
-            sys.exit(cli.ISSUES)
+                raise errors.RenderStopped(
+                    f"{e}\nCheck the key with ./sweatcast keys (it's {service['key_var']} in me/.env), and the "
+                    f"account's plan and balance at {service['name']}. The {done} clip(s) rendered are cached.",
+                    exit_code=cli.SERVICE) from e
+            advice = ("A rerun won't fix that by itself" if e.kind == "bad_request"
+                      else "Rerun to send only the rest")
+            raise errors.RenderStopped(f"{e}\n{advice}; the {done} clip(s) rendered are cached.") from e
+        if isinstance(e, Exception):
+            raise errors.RenderStopped(f"Stopped sending to {service['name']}: {cloud.scrub(str(e))}. The {done} "
+                                       "clip(s) rendered are cached.") from e
         raise
     finally:
         cloud.stop_on(None)
@@ -567,7 +568,7 @@ def preflight(out):
         raise cli.Usage(f"The output must end in one of: {', '.join(CODECS)} (not {os.path.basename(out)})")
     ffmpeg = ffmpeg_tool.exe()
     if not ffmpeg:
-        raise SystemExit(f"ffmpeg not found, and the environment's own copy isn't installed: rerun "
+        raise errors.RenderStopped(f"ffmpeg not found, and the environment's own copy isn't installed: rerun "
                          f"./sweatcast setup, or install it ({ffmpeg_tool.install_hint()})")
     return ffmpeg
 
@@ -679,7 +680,7 @@ def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
             try:
                 with open(draft_path, encoding="utf-8") as f:
                     todo = [t for t in spoken_clips(parse(f.read()), voice) if not os.path.exists(cache_path(t))]
-            except (OSError, ValueError, SystemExit):   # missing for now, or caught mid-edit
+            except (OSError, ValueError, *errors.PROBLEMS):   # missing for now, or caught mid-edit
                 todo = []
             if not todo:
                 if time.time() - idle_since > idle:

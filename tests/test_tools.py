@@ -38,6 +38,7 @@ import feeds  # noqa: E402
 import paths  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import helpers  # noqa: E402
+import errors  # noqa: E402
 helpers.assert_isolated(paths.HOME)   # never over a real me/: ./sweatcast test points SWEATCAST_HOME elsewhere
 import render  # noqa: E402
 import tts_build  # noqa: E402
@@ -85,15 +86,15 @@ class Parse(unittest.TestCase):
         self.assertEqual(plan(segs[0]), [[("Hello there. Still one paragraph.", 0.0)], [("Second one.", 0.0)]])
 
     def test_text_before_first_marker_is_an_error(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.PROBLEMS):
             parse("stray words\n@@ 60 | A\nHi.\n")
 
     def test_no_markers_is_an_error(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.PROBLEMS):
             parse("Just text.\n")
 
     def test_a_zero_second_segment_is_refused(self):
-        with self.assertRaises(SystemExit) as got:
+        with self.assertRaises(errors.PROBLEMS) as got:
             parse("@@ 30 | A\nHi.\n@@ 0 | x\nGo.\n")
         self.assertIn("Line 3", str(got.exception.code))
         self.assertIn("at least 1 second", str(got.exception.code))
@@ -423,7 +424,7 @@ class PublicPocket(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"pocket_tts": fake}), \
                 mock.patch.object(engines, "public_only", contextlib.nullcontext), \
                 mock.patch.object(engines, "_version", return_value=voices.POCKET_VERSION):
-            with self.assertRaises(SystemExit) as e:
+            with self.assertRaises(errors.PROBLEMS) as e:
                 engines.speaker(voice)
         self.assertIn("gated", str(e.exception.code))
 
@@ -431,7 +432,7 @@ class PublicPocket(unittest.TestCase):
         voice = {"name": "x", "backend": "torch", "device": "cpu", "voice_state": "x.safetensors"}
         with mock.patch.dict(sys.modules, {"pocket_tts": mock.MagicMock()}), \
                 mock.patch.object(engines, "_version", return_value="9.9.9"):
-            with self.assertRaises(SystemExit) as e:
+            with self.assertRaises(errors.PROBLEMS) as e:
                 engines.speaker(voice)
         self.assertIn(voices.POCKET_VERSION, str(e.exception.code))
 
@@ -568,7 +569,7 @@ class YouTube(unittest.TestCase):
             self.assertEqual(youtube.in_progress(d), [("abc", 2, 2, "Long One")])
             self.assertEqual(youtube.mark_done("abc", d), (2, 2))
             self.assertEqual(youtube.in_progress(d), [])
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(errors.PROBLEMS):
                 youtube.mark_done("old", d)
 
     def test_paragraphs_break_at_sentence_ends(self):
@@ -1133,7 +1134,7 @@ class RenderGates(unittest.TestCase):
         segments = parse("@@ 30 | A\nHello.\n")
         with self.assertRaises(cli.Usage):
             render.run(segments, voice, os.path.join(self.tmp.name, "x.ogg"), self.draft, "0" * 64)
-        with mock.patch.object(render.ffmpeg_tool, "exe", return_value=None), self.assertRaises(SystemExit) as got:
+        with mock.patch.object(render.ffmpeg_tool, "exe", return_value=None), self.assertRaises(errors.PROBLEMS) as got:
             render.run(segments, voice, os.path.join(self.tmp.name, "x.mp3"), self.draft, "0" * 64)
         self.assertIn("ffmpeg", str(got.exception))
 
@@ -1155,7 +1156,7 @@ class Encode(unittest.TestCase):
             with mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"), \
                     mock.patch.object(render, "ffmpeg_version", return_value="ffmpeg test"), \
                     mock.patch.object(render.subprocess, "run", side_effect=fake_run):
-                with self.assertRaises(SystemExit) as got:
+                with self.assertRaises(errors.PROBLEMS) as got:
                     render.encode(silence(0.1), out, "x")
             self.assertIn("the encoder gave up", str(got.exception.code))
             self.assertEqual(os.listdir(d), ["x.mp3"])
@@ -1168,7 +1169,7 @@ class Encode(unittest.TestCase):
                 mock.patch.object(render.subprocess, "run",
                                   side_effect=subprocess.CalledProcessError(1, ["ffmpeg"], "", "no such filter")), \
                 tempfile.TemporaryDirectory() as d:
-            with self.assertRaises(SystemExit) as got:
+            with self.assertRaises(errors.PROBLEMS) as got:
                 render.encode(silence(0.1), os.path.join(d, "x.mp3"), "x")
         self.assertIn("no such filter", str(got.exception.code))
 
@@ -1280,14 +1281,14 @@ class PaceFile(unittest.TestCase):
             f.write("\n{garbage")
         with open(self.path) as f:
             damaged = f.read()
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.PROBLEMS):
             voices.record_rate(self.V2, 700.0, 50.0)
         kept = glob.glob(self.path + ".corrupt-*")
         self.assertEqual(len(kept), 1)
         with open(kept[0]) as f:
             self.assertEqual(f.read(), damaged)
         self.assertFalse(os.path.exists(self.path))
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.PROBLEMS):
             write_file(self.path, "{nope")
             voices.check_pace_file()      # what render.py calls before loading a model
 
@@ -1501,7 +1502,7 @@ value = "x\""""
         for bad in (context.Session("21 Oct", 25, "Home", "V", ["squat"], "t"),
                     context.Session("2026-10-21", 25, "Home", "V", [], "t"),
                     context.Session("2026-10-21", 25, "Home | Gym", "V", ["squat"], "t")):
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(errors.PROBLEMS):
                 context.append_session(bad, self.log)
 
     def test_a_shifted_log_line_is_skipped_and_reported(self):
@@ -1528,11 +1529,11 @@ value = "x\""""
 
     def test_old_and_new_schemas_are_refused(self):
         write_file(self.profile, self.PROSE)
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             context.profile(self.profile)
         self.assertIn("./sweatcast migrate", str(e.exception.code))
         write_file(self.profile, f"+++\nschema = {context.SCHEMA + 1}\n+++\n" + self.PROSE)
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             context.profile(self.profile)
         self.assertIn("newer", str(e.exception.code))
 
@@ -1826,7 +1827,7 @@ class Ffmpeg(unittest.TestCase):
 
     def test_render_uses_the_found_ffmpeg(self):
         with mock.patch.object(render.ffmpeg_tool, "exe", return_value=None):
-            with self.assertRaises(SystemExit) as e:
+            with self.assertRaises(errors.PROBLEMS) as e:
                 render.encode(b"", "x.mp3", "x")
             self.assertIn("ffmpeg", str(e.exception.code))
 
@@ -1845,7 +1846,7 @@ class Engines(unittest.TestCase):
                   '\t"input_lra" : "18.06",\n\t"input_thresh" : "-39.20",\n\t"output_i" : "-16.58",\n'
                   '\t"target_offset" : "0.58"\n}\n')
         self.assertEqual(render.loudness_stats(stderr)["input_i"], "-27.61")
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             render.loudness_stats("Error opening input")
         self.assertIn("Error opening input", str(e.exception.code))
 
@@ -1883,7 +1884,7 @@ class CoachBackends(unittest.TestCase):
                 'aliases = ["Chatterbox Coach", "Coach E"]', "aliases = []")
         with open(os.path.join(own, "persona.md"), "w", encoding="utf-8") as f:
             f.write(text)
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             self.personas.voice_for(self.personas.lookup("Coach Mine"), "local")
         self.assertIn("migrate", str(e.exception.code))
 
@@ -2027,7 +2028,7 @@ class Isolation(unittest.TestCase):
             helpers.assert_isolated(d)                               # empty: fine
             helpers.assert_isolated(os.path.join(d, "absent"))       # absent: fine
             write_file(os.path.join(d, "profile.md"), "+++\nschema = 6\n+++\n")
-            with self.assertRaises(SystemExit) as got:
+            with self.assertRaises(SystemExit) as got:   # the tests' own guard: it stops the run
                 helpers.assert_isolated(d)
             self.assertIn("./sweatcast test", str(got.exception))
 
@@ -2195,7 +2196,7 @@ class ContextRobustness(unittest.TestCase):
             issues = [i.message for i in check.check([path])]
             self.assertTrue(any("doesn't close" in m for m in issues), issues)
             self.assertFalse(any("migrate" in m for m in issues), issues)
-            with self.assertRaises(SystemExit) as got:   # the tools stop with the same words
+            with self.assertRaises(errors.PROBLEMS) as got:   # the tools stop with the same words
                 context.health(path)
         self.assertIn("doesn't close", str(got.exception))
 
@@ -2243,7 +2244,7 @@ class ContextRobustness(unittest.TestCase):
                                      ("--format", "rolling minutes", "format"), ("--topics", "a\u2028b", "line break")):
                 args = list(base)
                 args[args.index(flag) + 1] = bad
-                with self.assertRaises(SystemExit) as got:
+                with self.assertRaises(errors.PROBLEMS) as got:
                     context.main(args)
                 self.assertIn("Not logged", str(got.exception))
                 self.assertIn(words, str(got.exception))
@@ -2392,7 +2393,7 @@ class LegacyGone(unittest.TestCase):
         with open(os.path.join(paths.EXAMPLE, "profile.md"), encoding="utf-8") as f:
             self.assertNotIn("Narrator", f.read())
         with contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as got:
+            with self.assertRaises(SystemExit) as got:   # argparse's refusal, exit 64
                 context.main(["get", "default-voice"])
         self.assertEqual(got.exception.code, cli.USAGE)
         fixture = os.path.join("tests", "fixtures", "example.draft.txt")

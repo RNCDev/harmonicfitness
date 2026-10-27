@@ -13,6 +13,7 @@ import tomllib
 import wave
 
 import draft
+import errors
 
 FILE = "cues.toml"
 
@@ -66,14 +67,14 @@ def seconds(text, voice):
 def _pcm(path):
     with wave.open(path, "rb") as w:
         if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, 2, 24000):
-            raise SystemExit(f"{path}: a count or cue clip must be 24 kHz mono 16-bit")
+            raise errors.CoachError(f"{path}: a count or cue clip must be 24 kHz mono 16-bit")
         return w.readframes(w.getnframes())
 
 
 def pcm(text, voice):
     """The audio of a count or cue: each number padded to the beat, so the next starts on it."""
     if not voice.get("cues"):
-        raise SystemExit(f"{voice.get('name', 'This coach')} has no recorded counts: write {text} out in words.")
+        raise errors.CoachError(f"{voice.get('name', 'This coach')} has no recorded counts: write {text} out in words.")
     got = table(voice["cues"])
     out = bytearray()
     for name, beat in draft.mark_pieces(text):

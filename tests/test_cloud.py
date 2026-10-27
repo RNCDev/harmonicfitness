@@ -19,6 +19,7 @@ import cli  # noqa: E402
 import cloud  # noqa: E402
 import personas  # noqa: E402
 import helpers  # noqa: E402
+import errors  # noqa: E402
 from fakes import FakeService, tone_pcm, tone_wav  # noqa: E402
 from test_personas import FIXTURE, persona_home  # noqa: E402
 
@@ -148,7 +149,7 @@ class Core(unittest.TestCase):
                 data = coaches._clip_bytes(path)
             conv.assert_called_once()
             self.assertEqual(cloud.wav_pcm(data), (tone_pcm(0.2), 24000))
-            with mock.patch("ffmpeg.exe", return_value=None), self.assertRaises(SystemExit) as got:
+            with mock.patch("ffmpeg.exe", return_value=None), self.assertRaises(errors.PROBLEMS) as got:
                 coaches._clip_bytes(path)
             self.assertIn("ffmpeg", str(got.exception.code))
             wav = os.path.join(d, "clip.wav")
@@ -160,7 +161,7 @@ class Core(unittest.TestCase):
 
     @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_ffmpeg_refusing_a_clip_is_a_message(self):
-        with self.assertRaises(SystemExit) as got:
+        with self.assertRaises(errors.PROBLEMS) as got:
             cloud.ffmpeg_pcm(b"\x00\x00\x00\x20ftypM4A " + bytes(64), "The clip")
         self.assertIn("The clip", str(got.exception.code))
 
@@ -296,13 +297,13 @@ class WebVoice(unittest.TestCase):
         with open(os.path.join(path, "persona.md"), "w", encoding="utf-8") as f:
             f.write(context.persona_text({"name": "Coach Reed", "kind": "web", "service": "fish", "placeholder": True,
                                           "pending": "design"}, "## How this coach talks\n"))
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             personas.voice_for(personas.lookup("Coach Reed"), "fish")
         self.assertIn("Coach Reed", str(e.exception.code))
         self.assertIn("audition", str(e.exception.code))
 
     def test_a_local_coach_never_renders_on_a_web_route(self):
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             personas.voice_for(personas.lookup("Coach Test"), "fish")
         self.assertIn("local coach", str(e.exception.code))
         self.assertEqual(personas.voice_for(personas.lookup("Coach Test"), "local")["route"], "local")
@@ -853,7 +854,7 @@ class CloudRender(unittest.TestCase):
             out = self.render(fake.url)
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
         self.assertEqual(fake.requests, [])
-        self.assertIn("cloud_max_chars", out.stdout)
+        self.assertIn("cloud_max_chars", out.stderr)   # an error: on stderr, through cli.run
 
     @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_key_never_reaches_records_logs_or_cache_keys(self):

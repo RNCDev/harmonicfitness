@@ -13,6 +13,7 @@ import tomllib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import cli  # noqa: E402
+import errors  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SCHEMA, SETTING_HOMES, Health, Issue, Session,  # noqa: E402
@@ -34,7 +35,7 @@ def _check_profile(path):
             return []
     try:
         p = profile(path)
-    except SystemExit as e:
+    except errors.PROBLEMS as e:
         return [Issue(path, 1, str(e.code))]
     settings = p.settings
 
@@ -109,7 +110,7 @@ def _hint_issues(path, text):
     A block that won't parse is reported elsewhere; it has no prose to scan."""
     try:
         rest = body(text)
-    except SystemExit:
+    except errors.PROBLEMS:
         return []
     offset = len(text.splitlines()) - len(rest.splitlines())
     out = []
@@ -151,7 +152,7 @@ def _interest_problems(path, settings):
 def _check_health(path, text):
     try:
         settings, rest = front(text)
-    except SystemExit as e:
+    except errors.PROBLEMS as e:
         return [Issue(path, 1, str(e.code))]
     h = Health(settings, rest, path)
     cat = _catalog()
@@ -199,7 +200,7 @@ def check(home_files=None):
             prof = os.path.join(folder, "profile.md")
             try:
                 quick_by_folder[folder] = os.path.exists(prof) and setup_stage(profile(prof)) == "quick"
-            except SystemExit:
+            except errors.PROBLEMS:
                 quick_by_folder[folder] = False
         return quick_by_folder[folder]
 
@@ -258,7 +259,7 @@ def check_coaches(folder=None):
         path = os.path.join(folder, slug, "persona.md")
         try:
             p = persona(path)
-        except SystemExit as e:
+        except errors.PROBLEMS as e:
             out.append(Issue(path, 0, str(e.code)))
             continue
         if isinstance(p.settings.get("aliases"), str):

@@ -55,6 +55,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import cli  # noqa: E402
+import errors  # noqa: E402
 import draft  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
@@ -182,8 +183,8 @@ def main(argv=None):
     if not os.path.isfile(args.draft):
         raise cli.Usage(f"No draft at {args.draft}")
     if not os.path.isfile(paths.PROFILE):
-        print(f"No profile at {paths.PROFILE}. Run ./sweatcast setup first (it copies me.example/ to me/).")
-        return cli.ISSUES
+        raise errors.ContextError(f"No profile at {paths.PROFILE}. Run ./sweatcast setup first (it copies "
+                                  "me.example/ to me/).")
     cloud_session = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
     web = (args.web or cloud_session) and not args.no_web
     out_dir = workouts.out_dir(args.draft)
@@ -205,9 +206,8 @@ def main(argv=None):
     # in the profile's render list that works here. Resolved once, for the lint and the render alike.
     coach = personas.lookup(args.coach) if args.coach else personas.default()
     if coach is None:
-        print("No coach found: the ten local coaches ship in coaches/ (git pull), and a web coach comes from the "
-              "coach skill.")
-        return cli.ISSUES
+        raise errors.CoachError("No coach found: the ten local coaches ship in coaches/ (git pull), and a web coach "
+                                "comes from the coach skill.")
     route = routes.pick(context.render_preferences(), coach, override=args.engine)
     os.makedirs(paths.LOGS, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)

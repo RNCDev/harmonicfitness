@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import cli  # noqa: E402
+import errors  # noqa: E402
 import context  # noqa: E402
 import coverage  # noqa: E402
 import draft  # noqa: E402
@@ -304,7 +305,7 @@ def _coach(name):
     import personas
     try:
         return personas.lookup(name) if name else personas.default()
-    except SystemExit:
+    except errors.PROBLEMS:
         return None
 
 
@@ -315,11 +316,11 @@ def talk_rate(voice_name: str):
     import personas
     try:
         voice = personas.resolve(voice_name, pending=True)
-    except SystemExit:   # no route works here (yet): the coach's local pace is still the best guess
+    except errors.PROBLEMS:   # no route works here (yet): the coach's local pace is still the best guess
         coach = _coach(voice_name)
         try:
             voice = personas.voice_for(coach, "local") if coach else None
-        except SystemExit:
+        except errors.PROBLEMS:
             voice = None
     if voice is None:
         return None

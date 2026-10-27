@@ -47,6 +47,7 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
@@ -332,7 +333,7 @@ def main():
 
     sources = config(context.profile(args.profile))
     if not sources:
-        raise SystemExit("No feeds filled in yet: add [[feeds]] entries (label, kind, value) to the "
+        raise errors.SweatcastError("No feeds filled in yet: add [[feeds]] entries (label, kind, value) to the "
                          "settings at the top of content.md.")
     now = dt.datetime.now(dt.timezone.utc)
     since = now - dt.timedelta(hours=args.hours)

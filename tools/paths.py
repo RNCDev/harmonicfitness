@@ -10,6 +10,7 @@ so pulling engine updates never touches it; `me.example/` is the template that
 Every tool takes its paths from here, so a different context folder needs no edits.
 """
 import os
+import errors
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REMOTE = os.environ.get("CLAUDE_CODE_REMOTE") == "true"   # Claude Code on the web
@@ -86,7 +87,7 @@ CONTENT = os.path.join(ROOT, "knowledge", "content.toml")               # the fi
 def require(path, what="file"):
     """Exit with a setup hint when a context file is missing."""
     if not os.path.exists(path):
-        raise SystemExit(f"No {what} at {show(path)}. A new copy of sweatcast starts its context "
+        raise errors.ContextError(f"No {what} at {show(path)}. A new copy of sweatcast starts its context "
                          "folder with ./sweatcast setup, which copies me.example/ to me/.")
     return path
 

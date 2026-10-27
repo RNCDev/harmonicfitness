@@ -21,6 +21,7 @@ for _message in ("pkg_resources is deprecated",):
     warnings.filterwarnings("ignore", message=_message)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import errors  # noqa: E402
 import voices  # noqa: E402
 
 SR = 24000                     # the engine's output rate, in samples per second
@@ -111,23 +112,23 @@ def speaker(voice):
     try:
         from pocket_tts import TTSModel
     except ImportError as e:
-        raise SystemExit("Pocket TTS isn't installed in this environment: run ./sweatcast setup.") from e
+        raise errors.EngineError("Pocket TTS isn't installed in this environment: run ./sweatcast setup.") from e
     found = _version("pocket-tts")
     if found and found != voices.POCKET_VERSION:
-        raise SystemExit(f"pocket-tts {found} is installed; the coaches' voice files are made for "
+        raise errors.EngineError(f"pocket-tts {found} is installed; the coaches' voice files are made for "
                          f"{voices.POCKET_VERSION}. Run ./sweatcast setup to restore the locked version.")
     device = voice.get("device") or torch_device(torch.cuda.is_available())
     try:
         with public_only(), contextlib.redirect_stdout(io.StringIO()):
             model = TTSModel.load_model(language=voice.get("language") or voices.POCKET_LANGUAGE)
     except Exception as e:
-        raise SystemExit(f"Couldn't load Pocket TTS ({voices.POCKET_REPO}): {e}. Check the network and rerun; "
+        raise errors.EngineError(f"Couldn't load Pocket TTS ({voices.POCKET_REPO}): {e}. Check the network and rerun; "
                          "./sweatcast setup downloads it ahead of time.") from e
     if model.has_voice_cloning:
-        raise SystemExit("Pocket TTS loaded its gated cloning model, not the public one sweatcast uses. "
+        raise errors.EngineError("Pocket TTS loaded its gated cloning model, not the public one sweatcast uses. "
                          "Run ./sweatcast setup again, then retry.")
     if model.sample_rate != SR:
-        raise SystemExit(f"Pocket TTS returned {model.sample_rate} Hz audio; expected {SR}")
+        raise errors.EngineError(f"Pocket TTS returned {model.sample_rate} Hz audio; expected {SR}")
     if device == "cuda":
         model = model.to("cuda")
     state = model.get_state_for_audio_prompt(voice["voice_state"])
@@ -147,14 +148,14 @@ def listener():
     try:
         import onnx_asr
     except ImportError as e:
-        raise SystemExit("The take checker isn't installed in this environment: run ./sweatcast setup, or "
+        raise errors.EngineError("The take checker isn't installed in this environment: run ./sweatcast setup, or "
                          "build with --no-check.") from e
     missing = [f for f in voices.CHECK_FILES if not os.path.exists(os.path.join(voices.CHECK_DIR, f))]
     if missing:
         try:
             voices.download()
         except Exception as e:
-            raise SystemExit(f"Couldn't fetch the take checker ({voices.CHECK_MODEL[0]}): {e}. Check the network "
+            raise errors.EngineError(f"Couldn't fetch the take checker ({voices.CHECK_MODEL[0]}): {e}. Check the network "
                              "and rerun (./sweatcast setup downloads it ahead of time), or build with --no-check.")
     model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", voices.CHECK_DIR, providers=["CPUExecutionProvider"])
 

@@ -19,6 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import cloud  # noqa: E402
 import paths  # noqa: E402
 
@@ -38,7 +39,7 @@ class BadKey(Exception):
 
 def _var(service):
     if service not in SERVICE_VARS:
-        raise SystemExit(f"No cloud voice service '{service}'. The services: {', '.join(SERVICE_VARS)}.")
+        raise errors.SweatcastError(f"No cloud voice service '{service}'. The services: {', '.join(SERVICE_VARS)}.")
     return SERVICE_VARS[service]
 
 

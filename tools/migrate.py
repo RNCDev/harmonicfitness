@@ -58,6 +58,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import check  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
@@ -202,7 +203,7 @@ def persona_to_5(text, path):
     block = m.group(1) if m else ""
     line = re.search(r"(?m)^schema\s*=\s*4\b.*$", block)
     if not m or not line:
-        raise SystemExit(f"{show(path)}: no schema = 4 line in its settings block to migrate.")
+        raise errors.MigrateError(f"{show(path)}: no schema = 4 line in its settings block to migrate.")
     kind = "" if re.search(r"(?m)^kind\s*=", block) else '\nkind = "local"'
     new = block[:line.start()] + "schema = 5" + kind + block[line.end():]
     context.tomllib.loads(new)   # never write a block that doesn't parse
@@ -334,7 +335,7 @@ def _stock_web_names():
 def _coach_settings(path):
     try:
         return context.front(context.read_raw(path, "coach"))[0]
-    except (SystemExit, Exception):
+    except (Exception, cli.Usage):
         return None
 
 
@@ -420,10 +421,10 @@ def _behind(path, current, floor, what):
     with open(path, encoding="utf-8") as f:
         found = context.schema_of(f.read(), path)
     if found > current:
-        raise SystemExit(f"{show(path)} is schema {found}, newer than this engine (schema "
+        raise errors.MigrateError(f"{show(path)} is schema {found}, newer than this engine (schema "
                          f"{current}). Pull the latest sweatcast instead of migrating.")
     if found < floor:
-        raise SystemExit(f"{show(path)} is schema {found}, older than this engine migrates ({what} from schema {floor}). "
+        raise errors.MigrateError(f"{show(path)} is schema {found}, older than this engine migrates ({what} from schema {floor}). "
                          "Go through sweatcast 0.12 first: git checkout v0.12.0 && ./sweatcast migrate, then "
                          "git checkout main && ./sweatcast migrate again.")
     return found if found < current else None
@@ -567,7 +568,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
     missing = [p for p in context.files() if not os.path.exists(p)]
     if len(missing) == len(context.files()):
-        raise SystemExit(f"No context files in {show(paths.HOME)}. A new copy starts with ./sweatcast setup.")
+        raise errors.MigrateError(f"No context files in {show(paths.HOME)}. A new copy starts with ./sweatcast setup.")
 
     todo = plan()
     stray, due_moves, pantry, coach_steps = folder_steps_due(paths.HOME)

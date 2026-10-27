@@ -29,6 +29,7 @@ from typing import Dict, List, NamedTuple, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
 import locks  # noqa: E402
@@ -71,7 +72,7 @@ def recipe(path=RECIPE) -> Recipe:
     for b in bands:
         unknown = set(b) - set(slots) - {"up_to"}
         if unknown:
-            raise SystemExit(f"{paths.show(path)}: a band names unknown slots: {', '.join(sorted(unknown))}")
+            raise errors.SweatcastError(f"{paths.show(path)}: a band names unknown slots: {', '.join(sorted(unknown))}")
     return Recipe(slots, bands, {k: list(v) for k, v in data.get("defaults", {}).items()})
 
 

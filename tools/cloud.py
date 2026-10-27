@@ -32,6 +32,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import paths  # noqa: E402
 
 SR = 24000
@@ -373,17 +374,17 @@ def ffmpeg_pcm(data, what="The audio"):
     import ffmpeg
     exe = ffmpeg.exe()
     if not exe:
-        raise SystemExit(f"{what}, which needs ffmpeg to read: rerun ./sweatcast setup.")
+        raise errors.RenderStopped(f"{what}, which needs ffmpeg to read: rerun ./sweatcast setup.")
     try:
         out = subprocess.run([exe, "-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", str(SR),
                               "pipe:1"], input=data, capture_output=True, check=True, timeout=300)
     except subprocess.CalledProcessError as e:
         tail = (e.stderr or b"").decode("utf-8", "replace").strip()[-300:]
-        raise SystemExit(f"{what}, and ffmpeg couldn't read it: {tail or 'no reason given'}") from None
+        raise errors.RenderStopped(f"{what}, and ffmpeg couldn't read it: {tail or 'no reason given'}") from None
     except subprocess.TimeoutExpired:
-        raise SystemExit(f"{what}, and ffmpeg took too long to read it.") from None
+        raise errors.RenderStopped(f"{what}, and ffmpeg took too long to read it.") from None
     if not out.stdout:
-        raise SystemExit(f"{what}, and ffmpeg found no audio in it.")
+        raise errors.RenderStopped(f"{what}, and ffmpeg found no audio in it.")
     return out.stdout
 
 
@@ -410,13 +411,13 @@ def voice_for(p, route=None, pending=False):
     lint's and the brief's estimated pace only; nothing renders from it."""
     import personas
     if not p.is_web:
-        raise SystemExit(f"{p.name} is a local coach: a local coach renders only locally.")
+        raise errors.CoachError(f"{p.name} is a local coach: a local coach renders only locally.")
     service = p.service
     if service not in services():
-        raise SystemExit(f"{p.name} names no known web service ({service or 'none'}); "
+        raise errors.CoachError(f"{p.name} names no known web service ({service or 'none'}); "
                          f"the services: {', '.join(services())}.")
     if not p.voice_id and not (pending and p.pending):
-        raise SystemExit(f"{p.name} has no voice yet" + (f" ({p.pending} pending)" if p.pending else "")
+        raise errors.CoachError(f"{p.name} has no voice yet" + (f" ({p.pending} pending)" if p.pending else "")
                          + ": audition one and keep it (the coach skill).")
     s = services()[service]
     model = p.model or s["default_model"]

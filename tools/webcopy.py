@@ -20,6 +20,7 @@ import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ffmpeg as ffmpeg_tool  # noqa: E402
+import errors  # noqa: E402
 import fileio  # noqa: E402
 
 MAX_BYTES = 14_000_000
@@ -30,7 +31,7 @@ DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 def _ffmpeg():
     exe = ffmpeg_tool.exe()
     if not exe:
-        raise SystemExit(f"ffmpeg isn't here, so there's no web copy ({ffmpeg_tool.install_hint()}).")
+        raise errors.RenderStopped(f"ffmpeg isn't here, so there's no web copy ({ffmpeg_tool.install_hint()}).")
     return exe
 
 
@@ -39,10 +40,10 @@ def duration(path):
     try:
         out = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, timeout=60)
     except subprocess.TimeoutExpired:
-        raise SystemExit(f"Couldn't read the length of {path}: ffmpeg took over a minute.") from None
+        raise errors.RenderStopped(f"Couldn't read the length of {path}: ffmpeg took over a minute.") from None
     m = DURATION_RE.search(out.stderr)
     if not m:
-        raise SystemExit(f"Couldn't read the length of {path}.")
+        raise errors.RenderStopped(f"Couldn't read the length of {path}.")
     h, mi, s = m.groups()
     return int(h) * 3600 + int(mi) * 60 + float(s)
 
@@ -69,10 +70,10 @@ def make(mp3, name, out_dir, max_bytes=MAX_BYTES, bitrate=BITRATE):
             done = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         except subprocess.TimeoutExpired:
             _remove_parts(out_dir, name)
-            raise SystemExit(f"Couldn't make the web copy: ffmpeg took over ten minutes on part {i + 1}.") from None
+            raise errors.RenderStopped(f"Couldn't make the web copy: ffmpeg took over ten minutes on part {i + 1}.") from None
         if done.returncode:
             _remove_parts(out_dir, name)
-            raise SystemExit(f"Couldn't make the web copy: {done.stderr.strip()[-300:]}")
+            raise errors.RenderStopped(f"Couldn't make the web copy: {done.stderr.strip()[-300:]}")
         out.append(path)
     return out
 

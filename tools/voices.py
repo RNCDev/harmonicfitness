@@ -20,6 +20,7 @@ import time
 import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import errors  # noqa: E402
 from char_weight import weight  # noqa: E402,F401  (re-exported for render.py)
 import locks  # noqa: E402
 import paths  # noqa: E402
@@ -78,7 +79,7 @@ def _recorded(path=None, strict=False):
             return {}
         bad = f"{path}.corrupt-{time.strftime('%Y%m%d%H%M%S')}"
         os.replace(path, bad)
-        raise SystemExit(f"{show(path)} was damaged ({e}), so it was moved to {show(bad)} rather than "
+        raise errors.ContextError(f"{show(path)} was damaged ({e}), so it was moved to {show(bad)} rather than "
                          "overwritten. Fix it by hand and move it back, or delete it and render the "
                          "smoke test with each voice to measure them again.")
 

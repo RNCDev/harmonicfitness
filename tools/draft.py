@@ -24,6 +24,7 @@ from it and the render (render.py) lays clips out with it, so they agree.
 """
 import os
 import re
+import errors
 
 MARKER = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*)$")
 HEADER = re.compile(r"^movements\s*:\s*(.*)$", re.IGNORECASE)   # the declaration, before the first marker
@@ -68,19 +69,19 @@ def parse(text):
         m = MARKER.match(line.strip())
         if m:
             if int(m.group(1)) < 1:
-                raise SystemExit(f"Line {lineno}: a segment of {m.group(1)} seconds; every @@ segment needs at "
+                raise errors.DraftError(f"Line {lineno}: a segment of {m.group(1)} seconds; every @@ segment needs at "
                                  "least 1 second on the plan's clock.")
             current = {"seconds": int(m.group(1)), "label": m.group(2).strip(),
                        "lines": [], "start": lineno}
             segments.append(current)
         elif current is None:
             if line.strip() and not HEADER.match(line.strip()):
-                raise SystemExit(f"Line {lineno}: text before the first @@ marker "
+                raise errors.DraftError(f"Line {lineno}: text before the first @@ marker "
                                  "(only a movements: line may come first).")
         else:
             current["lines"].append((lineno, line))
     if not segments:
-        raise SystemExit("No @@ segment markers found.")
+        raise errors.DraftError("No @@ segment markers found.")
     return segments
 
 

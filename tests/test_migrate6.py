@@ -9,6 +9,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+import errors  # noqa: E402
 
 import context  # noqa: E402
 import check  # noqa: E402
@@ -128,7 +129,7 @@ class Merge(unittest.TestCase):
     def test_bad_toml_in_settings_names_the_file(self):
         write(os.path.join(self.dir, "profile.md"), '+++\nschema = 6\n+++\n# Me\n')
         write(os.path.join(self.dir, "settings.toml"), 'schema = 6\ndeliver_to = \n')
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             context.profile(os.path.join(self.dir, "profile.md"))
         self.assertIn("settings.toml", str(e.exception.code))
 

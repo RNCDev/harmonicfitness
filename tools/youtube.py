@@ -29,6 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
@@ -53,7 +54,7 @@ def load_yt_dlp():
     try:
         import yt_dlp as module
     except ImportError:
-        raise SystemExit("yt-dlp not found: run this as ./sweatcast youtube ..., after ./sweatcast setup")
+        raise errors.SweatcastError("yt-dlp not found: run this as ./sweatcast youtube ..., after ./sweatcast setup")
     yt_dlp = module
 
 
@@ -61,7 +62,7 @@ def handles(label="YouTube favorites", profile=None):
     found = context.handles(context.profile(profile), label)
     if not found:
         key = context.HANDLE_KEYS.get(label, label)
-        raise SystemExit(f"No @handles in {key} in the settings at the top of content.md.")
+        raise errors.SweatcastError(f"No @handles in {key} in the settings at the top of content.md.")
     return found
 
 
@@ -117,12 +118,12 @@ def mark_done(video, folder=None):
     """Record that the next part of a series was told. Returns (parts done, parts)."""
     path = os.path.join(folder, f"{video}.md")
     if not os.path.exists(path):
-        raise SystemExit(f"No sheet at {show(path)}")
+        raise errors.SweatcastError(f"No sheet at {show(path)}")
     with open(path, encoding="utf-8") as f:
         sheet = f.read()
     parts, done = series_state(sheet)
     if not PARTS_RE.search(sheet):
-        raise SystemExit(f"{video} isn't a series (its sheet has no '- Parts:' line)")
+        raise errors.SweatcastError(f"{video} isn't a series (its sheet has no '- Parts:' line)")
     done = min(done + 1, parts)
     if DONE_RE.search(sheet):
         sheet = DONE_RE.sub(f"- Parts done: {done}", sheet, count=1)
@@ -201,10 +202,10 @@ def transcript(ref):
         try:
             info = y.extract_info(url, download=False)
         except yt_dlp.utils.DownloadError as e:
-            raise SystemExit(f"Couldn't load {url}: {e}")
+            raise errors.SweatcastError(f"Couldn't load {url}: {e}")
         track, manual = caption_track(info)
         if not track:
-            raise SystemExit(f"No English captions for {url}; pick another video.")
+            raise errors.SweatcastError(f"No English captions for {url}; pick another video.")
         events = json.loads(y.urlopen(track).read()).get("events", [])
 
     body = paragraphs(events)

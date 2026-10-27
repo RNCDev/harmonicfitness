@@ -40,6 +40,7 @@ import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import cloud  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
@@ -82,11 +83,11 @@ def _auditions():
 def _narrative(path):
     """The narrative file as a context Persona (settings, body), refused without a [voice] to design from."""
     if not os.path.exists(path):
-        raise SystemExit(f"No narrative at {path}.")
+        raise errors.CoachError(f"No narrative at {path}.")
     n = context.persona(path)
     voice = n.settings.get("voice")
     if not isinstance(voice, dict) or not personas.voice_description(voice):
-        raise SystemExit(f"{show(path)} has no [voice] to design from (who, sound, energy, pace, avoid).")
+        raise errors.CoachError(f"{show(path)} has no [voice] to design from (who, sound, energy, pace, avoid).")
     return n
 
 
@@ -172,20 +173,20 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
     if coach:
         revoice = personas.lookup(coach)
         if not revoice.is_web or revoice.service not in CANDIDATES:
-            raise SystemExit(f"{revoice.name} is a local coach: a web audition makes a new web coach "
+            raise errors.CoachError(f"{revoice.name} is a local coach: a web audition makes a new web coach "
                              "(audition a narrative without --coach).")
         if services and list(services) != [revoice.service]:
-            raise SystemExit(f"{revoice.name} speaks on {cloud.service_name(revoice.service)}: a coach is re-voiced on "
+            raise errors.CoachError(f"{revoice.name} speaks on {cloud.service_name(revoice.service)}: a coach is re-voiced on "
                              "its own service only (leave out --services).")
         services = [revoice.service]
         narrative = narrative or revoice.path
     if not narrative:
-        raise SystemExit("Name the narrative file to design from (or --coach for a coach's new voice).")
+        raise errors.CoachError("Name the narrative file to design from (or --coach for a coach's new voice).")
     n = _narrative(narrative)
     wanted = list(services) if services else list(CANDIDATES)
     unknown = [s for s in wanted if s not in CANDIDATES]
     if unknown:
-        raise SystemExit(f"No web service {', '.join(unknown)}: the services are {', '.join(CANDIDATES)}.")
+        raise errors.CoachError(f"No web service {', '.join(unknown)}: the services are {', '.join(CANDIDATES)}.")
     wanted = [s for s in CANDIDATES if s in wanted]
     keyed = [s for s in wanted if keys.is_set(s)]
     for s in wanted:
@@ -219,7 +220,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
     for s in keyed:   # service order, whatever finished first
         try:
             made = futures[s].result()
-        except (Exception, SystemExit) as e:
+        except (Exception, cli.Usage) as e:
             failures.append((s, e))
             continue
         usd = round(cloud.estimate(s, table[s]["default_model"], ["x" * WORKOUT_CHARS])[1], 4)
@@ -273,7 +274,7 @@ def audition(narrative, services=None, coach=None, play=False):
     the audition folder."""
     folder, _, failures = _run_audition(narrative, services, coach, play)
     if folder is None:
-        raise SystemExit("No candidates: " + ("; ".join(f"{cloud.service_name(s)}: {_reason(e)}" for s, e in failures)
+        raise errors.CoachError("No candidates: " + ("; ".join(f"{cloud.service_name(s)}: {_reason(e)}" for s, e in failures)
                                               or "no web service has a key here (./sweatcast keys)."))
     return folder
 
@@ -295,7 +296,7 @@ def _audition_folder(ref):
     for folder in (ref, os.path.join(_auditions(), ref)):
         if os.path.isfile(os.path.join(folder, "candidates.json")):
             return folder
-    raise SystemExit(f"No audition {ref} (in {show(_auditions())}).")
+    raise errors.CoachError(f"No audition {ref} (in {show(_auditions())}).")
 
 
 def _resumable(c):
@@ -305,7 +306,7 @@ def _resumable(c):
         return False
     try:
         coach = personas.lookup(c["kept"], archived=True)   # an archived coach was written: never resurrected
-    except SystemExit:
+    except errors.PROBLEMS:
         return True
     if os.path.dirname(coach.folder) != paths.PERSONAS.rstrip(os.sep):
         return False
@@ -315,7 +316,7 @@ def _resumable(c):
 def _existing(name):
     try:
         return personas.lookup(name)
-    except SystemExit:
+    except errors.PROBLEMS:
         return None
 
 
@@ -327,34 +328,34 @@ def keep_web(ref, name, replace_old=False):
     the old voice deleted at the service. Returns the coach's folder."""
     found = _web_ref(ref)
     if not found:
-        raise SystemExit(f"{ref} isn't a candidate in an audition: <audition>/<letter>, such as "
+        raise errors.CoachError(f"{ref} isn't a candidate in an audition: <audition>/<letter>, such as "
                          f"{datetime.date.today().isoformat()}-1/B.")
     folder, which = found
     cands = _read_candidates(folder)
     c = next((x for x in cands if which.lower() in (x["letter"].lower(), f"{x['service']}-{x['k']}")), None)
     if c is None:
-        raise SystemExit(f"No candidate {which} in audition {os.path.basename(folder)}: "
+        raise errors.CoachError(f"No candidate {which} in audition {os.path.basename(folder)}: "
                          f"{', '.join(x['letter'] for x in cands)}.")
     resume = _resumable(c)
     if c.get("kept") and not resume:
-        raise SystemExit(f"Candidate {c['letter']} is already {c['kept']}.")
+        raise errors.CoachError(f"Candidate {c['letter']} is already {c['kept']}.")
     if resume and name and personas.slug(name) != personas.slug(c["kept"]):
-        raise SystemExit(f"Candidate {c['letter']} was saved as {c['kept']}; finish keeping it with --name "
+        raise errors.CoachError(f"Candidate {c['letter']} was saved as {c['kept']}; finish keeping it with --name "
                          f"\"{c['kept']}\".")
     name = (c["kept"] if resume else name) or c.get("coach")
     if not name:
-        raise SystemExit("Give the coach a person's name: --name \"Coach Maya\".")
+        raise errors.CoachError("Give the coach a person's name: --name \"Coach Maya\".")
     existing = _existing(name)
     revoice = c.get("coach")
     if existing is None and not resume and os.path.exists(personas.folder_for(name, c["service"])):
-        raise SystemExit(f"{show(personas.folder_for(name, c['service']))} is already there; pick another name.")
+        raise errors.CoachError(f"{show(personas.folder_for(name, c['service']))} is already there; pick another name.")
     revoiced = _existing(revoice) if revoice else None
     if existing is not None and (revoiced is None or revoiced.folder != existing.folder):
-        raise SystemExit(f"There's already a coach called {existing.name}. Pick another name, or for a new voice "
+        raise errors.CoachError(f"There's already a coach called {existing.name}. Pick another name, or for a new voice "
                          f"for {existing.name}, audition with --coach \"{existing.name}\" and keep from that.")
     service = c["service"]
     if existing is not None and existing.service != service:
-        raise SystemExit(f"{existing.name} speaks on {cloud.service_name(existing.service)}; candidate {c['letter']} is "
+        raise errors.CoachError(f"{existing.name} speaks on {cloud.service_name(existing.service)}; candidate {c['letter']} is "
                          f"from {cloud.service_name(service)}. A coach is re-voiced on its own service only.")
     n = context.persona(os.path.join(folder, "narrative.md"))
     voice = n.settings.get("voice") or {}
@@ -381,7 +382,7 @@ def keep_web(ref, name, replace_old=False):
 
     today = datetime.date.today().isoformat()
     if existing is not None and existing.shipped and not existing.is_web:
-        raise SystemExit(f"{existing.name} is one of the local coaches sweatcast ships; give the web coach "
+        raise errors.CoachError(f"{existing.name} is one of the local coaches sweatcast ships; give the web coach "
                          "another name.")
     if existing is not None:   # a new voice for a coach: how they talk stays (a stock coach's goes to me/coaches/)
         target, prose = existing.home_folder, existing.prose
@@ -415,7 +416,7 @@ def keep_web(ref, name, replace_old=False):
         try:
             module.delete(existing.voice_id)
             print(f"Deleted {existing.name}'s old voice at {cloud.service_name(service)}.")
-        except (cloud.ServiceError, SystemExit) as e:
+        except (cloud.ServiceError, *errors.PROBLEMS) as e:
             print(f"Couldn't delete the old voice at {cloud.service_name(service)} ({_reason(e)}); delete "
                   f"\"sweatcast {existing.name}\" there by hand.")
     print(f"Kept {name} ({cloud.service_name(service)}) in {show(target)}.")
@@ -461,14 +462,14 @@ def make(name):
     leaves persona.md as it was, still pending."""
     p = personas.lookup(name)
     if not p.is_web or not p.pending:
-        raise SystemExit(f"{p.name} is already made: nothing to design.")
+        raise errors.CoachError(f"{p.name} is already made: nothing to design.")
     description = personas.voice_description(p.voice)
     if not description:
-        raise SystemExit(f"{show(p.path)} has no [voice] to design from (who, sound, energy, pace, avoid).")
+        raise errors.CoachError(f"{show(p.path)} has no [voice] to design from (who, sound, energy, pace, avoid).")
     service = p.service
     table = cloud.services()
     if service not in table or service not in CANDIDATES:
-        raise SystemExit(f"{p.name} names no known web service ({service or 'none'}).")
+        raise errors.CoachError(f"{p.name} names no known web service ({service or 'none'}).")
     s = table[service]
     cost = (f"about ${s['design_usd']:.2f}" if s.get("design_usd") is not None else "design cost not published")
     if service == "elevenlabs":
@@ -507,7 +508,7 @@ def make(name):
         elif service == "gemini" and c.get("draft_id"):   # stored at design: don't leave it behind
             try:
                 module.delete(c["draft_id"])
-            except (Exception, SystemExit):
+            except (Exception, cli.Usage):
                 print(f"(Gemini keeps a voice \"sweatcast {p.name}\", ID {c['draft_id']}; delete it there "
                       "by hand.)", file=sys.stderr)
         elif voice_id:
@@ -535,8 +536,8 @@ def forget_audition(audition):
             gemini = importlib.import_module("services.gemini")
             try:
                 gemini.delete(c["draft_id"])
-            except (cloud.ServiceError, SystemExit) as e:
-                raise SystemExit(f"Gemini: couldn't delete audition voice {c['letter']} ({_reason(e)}); the "
+            except (cloud.ServiceError, *errors.PROBLEMS) as e:
+                raise errors.CoachError(f"Gemini: couldn't delete audition voice {c['letter']} ({_reason(e)}); the "
                                  f"audition stays in {show(folder)} so forget-audition can try again.")
             lines.append(f"Deleted Gemini's stored audition voice {c['letter']}.")
     for c in cands:   # a keep whose save went out but whose answer was lost: a voice may be there
@@ -597,7 +598,7 @@ def main(argv=None):
     if args.cmd == "last":
         try:
             p = personas.default()
-        except SystemExit as e:   # the coach used last is archived
+        except errors.PROBLEMS as e:   # the coach used last is archived
             print(e.code, file=sys.stderr)
             return cli.ISSUES
         if not p:
@@ -643,11 +644,11 @@ def main(argv=None):
     if args.cmd == "set":
         p = personas.lookup(args.coach)
         if p.shipped:
-            raise SystemExit(f"{p.name} ships with sweatcast, so its settings live in the engine "
+            raise errors.CoachError(f"{p.name} ships with sweatcast, so its settings live in the engine "
                              "(coaches/roster.toml).")
         table, _, key = args.setting.rpartition(".")
         if table == "local":
-            raise SystemExit("A local coach's sound is set by the voice file it ships with; there's nothing to set.")
+            raise errors.CoachError("A local coach's sound is set by the voice file it ships with; there's nothing to set.")
         value = _value(args.value)
         context.set_persona_setting(p.path, table or None, key, value)
         print(f"{p.name}: {args.setting} = {value}")
@@ -660,7 +661,7 @@ def main(argv=None):
         return cli.OK
     try:
         last, archived = personas.default(), None
-    except SystemExit as e:   # the coach used last is archived: list them all, and say so
+    except errors.PROBLEMS as e:   # the coach used last is archived: list them all, and say so
         last, archived = None, str(e.code)
     found = personas.all()
     if not found:

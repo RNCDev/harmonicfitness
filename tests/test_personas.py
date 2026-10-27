@@ -11,6 +11,7 @@ from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+import errors  # noqa: E402
 
 import context  # noqa: E402
 import check  # noqa: E402
@@ -58,7 +59,7 @@ class Personas(unittest.TestCase):
         self.assertEqual(personas.lookup("COACH ZOË").slug, "coach-zoe")
         self.assertEqual(personas.lookup("coach o'neil").slug, "coach-oneil")
         self.assertEqual(personas.lookup("test voice").name, "Coach Test")   # an alias
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(errors.PROBLEMS) as e:
             personas.lookup("Coach Nobody")
         self.assertIn("Coach Test", str(e.exception.code))
         self.assertEqual([p.name for p in personas.all(personas.paths.PERSONAS)], ["Coach O'Neil", "Coach Zoë"])

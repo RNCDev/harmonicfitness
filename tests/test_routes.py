@@ -10,6 +10,7 @@ from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+import errors  # noqa: E402
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 import context  # noqa: E402
@@ -55,13 +56,13 @@ class Routes(unittest.TestCase):
         self.key("fish")
         with mock.patch.object(routes, "local_installed", return_value=True):
             self.assertEqual(routes.pick(["local"], None, override="fish", facts=MAC), "fish")
-            with self.assertRaises(SystemExit) as e:
+            with self.assertRaises(errors.PROBLEMS) as e:
                 routes.pick(["local"], None, override="elevenlabs", facts=MAC)
         self.assertIn("ELEVENLABS_API_KEY", str(e.exception.code))
 
     def test_no_usable_route_says_what_would_fix_it(self):
         with mock.patch.object(routes, "local_installed", return_value=False):
-            with self.assertRaises(SystemExit) as e:
+            with self.assertRaises(errors.PROBLEMS) as e:
                 routes.pick(["local", "fish"], None, facts=INTEL_MAC)
         message = str(e.exception.code)
         self.assertIn("Intel Mac", message)
@@ -71,7 +72,7 @@ class Routes(unittest.TestCase):
             self.assertIn(name, message)
         self.assertIn("./sweatcast keys init", message)
         with mock.patch.object(routes, "local_installed", return_value=False):
-            with self.assertRaises(SystemExit) as e:
+            with self.assertRaises(errors.PROBLEMS) as e:
                 routes.pick(["local", "fish"], self.coach, facts=INTEL_MAC)
         message = str(e.exception.code)
         self.assertIn("Intel Mac", message)
@@ -81,7 +82,7 @@ class Routes(unittest.TestCase):
     def test_a_local_coach_where_local_doesnt_run_names_the_keyed_stand_in(self):
         self.key("fish")
         with mock.patch.object(routes, "local_installed", return_value=False):
-            with self.assertRaises(SystemExit) as e:
+            with self.assertRaises(errors.PROBLEMS) as e:
                 routes.pick(["fish"], self.coach, facts=INTEL_MAC)
         message = str(e.exception.code)
         self.assertIn("Coach Reed", message)
@@ -143,16 +144,16 @@ class Routes(unittest.TestCase):
         ok, reason = routes.usable("fish", self.coach, facts=MAC)
         self.assertFalse(ok)
         self.assertIn("local coach", reason)
-        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(SystemExit) as e:
+        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
             routes.pick(["fish"], self.coach, facts=INTEL_MAC)
         self.assertIn("local coach", str(e.exception.code))
 
     def test_way_out_only_where_local_voices_dont_run(self):
-        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(SystemExit) as e:
+        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
             routes.pick(["local"], self.coach, facts=MAC)   # runs here, just not installed
         self.assertIn("./sweatcast setup --local", str(e.exception.code))
         self.assertNotIn("The way out", str(e.exception.code))
-        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(SystemExit) as e:
+        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
             routes.pick(["local"], self.coach, facts=INTEL_MAC)
         self.assertIn("The way out", str(e.exception.code))
 

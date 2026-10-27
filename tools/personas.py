@@ -34,6 +34,7 @@ import paths  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
 import cli  # noqa: E402
+import errors  # noqa: E402
 
 LOCAL_ENGINES = ("pocket",)
 VOICE_PARTS = (("who", ""), ("sound", ""), ("energy", ""), ("pace", "Pace: "), ("avoid", "Avoid: "))
@@ -209,7 +210,7 @@ def _load_all(folder):
     for d in persona_dirs(folder):
         try:
             found.append(load(os.path.join(folder, d)))
-        except SystemExit as e:   # one coach file the tools can't read hides no other coach; check names it
+        except errors.PROBLEMS as e:   # one coach file the tools can't read hides no other coach; check names it
             print(f"Skipped the coach in {show(os.path.join(folder, d))}: {e.code}", file=sys.stderr)
     return found
 
@@ -247,7 +248,7 @@ def lookup(name, folder=None, archived=False):
         return old
     there = ", ".join(p.name for p in found) or "none yet (the coach skill makes one)"
     if old is not None:
-        raise SystemExit(f"{old.name} is archived. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
+        raise errors.CoachError(f"{old.name} is archived. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
     raise UnknownCoach(f"No coach '{name}'. Coaches: {there} (in {show(folder or paths.PERSONAS)}).")
 
 
@@ -256,7 +257,7 @@ def archive(p):
     Returns its new folder."""
     import shutil
     if p.shipped:
-        raise SystemExit(f"{p.name} ships with sweatcast and can't be archived; just choose another coach.")
+        raise errors.CoachError(f"{p.name} ships with sweatcast and can't be archived; just choose another coach.")
     base = os.path.join(os.path.dirname(p.folder), ".archive")
     dest, n = os.path.join(base, p.slug), 2
     while os.path.exists(dest):
@@ -287,7 +288,7 @@ def default(folder=None):
     archived = all(_archive(folder))
     try:
         sessions = list(reversed(context.sessions(warn=False)))
-    except SystemExit:   # no log yet, or one in an older format
+    except errors.PROBLEMS:   # no log yet, or one in an older format
         sessions = []
     for session in sessions:
         p = find(session.voice, found)
@@ -298,7 +299,7 @@ def default(folder=None):
             return p
         old = find(session.voice, archived)
         if old is not None:
-            raise SystemExit(f"{old.name} is archived; name a coach: {', '.join(p.name for p in found)}.")
+            raise errors.CoachError(f"{old.name} is archived; name a coach: {', '.join(p.name for p in found)}.")
     own = next((p for p in found if not p.placeholder and not p.shipped), None)
     if own is not None:
         return own
@@ -328,7 +329,7 @@ def resolve(coach=None, engine=None, pending=False):
     import routes
     p = lookup(coach) if coach else default()
     if p is None:
-        raise SystemExit("No coach yet: choose one (./sweatcast coaches lists them), or make a web coach (the coach skill).")
+        raise errors.CoachError("No coach yet: choose one (./sweatcast coaches lists them), or make a web coach (the coach skill).")
     return voice_for(p, routes.pick(context.render_preferences(), p, override=engine), pending)
 
 
@@ -348,10 +349,10 @@ def voice_for(p, route, pending=False):
         import cloud
         return cloud.voice_for(p, p.service, pending)
     if route != "local":
-        raise SystemExit(f"{p.name} is a local coach: a local coach renders only locally, not on {route}. "
+        raise errors.CoachError(f"{p.name} is a local coach: a local coach renders only locally, not on {route}. "
                          "A web coach (the coach skill makes one) speaks through a web service.")
     if not p.has_clip and p.shipped:
-        raise SystemExit(f"{p.name} is missing its clip ({show(p.clip)}): update sweatcast (git pull).")
+        raise errors.CoachError(f"{p.name} is missing its clip ({show(p.clip)}): update sweatcast (git pull).")
     return _local(p)
 
 
@@ -359,11 +360,11 @@ def _local(p):
     local = p.table("local")
     engine = local.get("engine") or "pocket"
     if engine not in LOCAL_ENGINES or not p.shipped:
-        raise SystemExit(f"{p.name} is a local coach of your own ({show(p.folder)}), and since sweatcast 0.15.0 "
+        raise errors.CoachError(f"{p.name} is a local coach of your own ({show(p.folder)}), and since sweatcast 0.15.0 "
                          "local coaches are the ten it ships (./sweatcast coaches lists them; ./sweatcast migrate "
                          "archives older ones). A voice of your own is a web coach: the coach skill makes one.")
     if not os.path.exists(p.voice_state):
-        raise SystemExit(f"{p.name} has no voice file ({show(p.voice_state)}): update sweatcast (git pull).")
+        raise errors.CoachError(f"{p.name} has no voice file ({show(p.voice_state)}): update sweatcast (git pull).")
     model, revision = voices.LOCAL_MODELS[engine]
     key, words = clip_key(p)
     return {"name": p.name, "persona": p.slug, "engine": engine, "backend": voices.BACKEND, "route": "local",

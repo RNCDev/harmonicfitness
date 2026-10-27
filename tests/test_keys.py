@@ -12,6 +12,7 @@ from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+import errors  # noqa: E402
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 import keys  # noqa: E402
@@ -151,7 +152,7 @@ class Keys(unittest.TestCase):
         self.assertIn("open it in any text editor", out.getvalue())
 
     def test_unknown_service(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.PROBLEMS):
             keys.init("playht", path=self.env)
 
 

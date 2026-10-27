@@ -88,5 +88,36 @@ class Contract(unittest.TestCase):
         self.assertTrue(err.strip())
 
 
+class ErrorChannel(unittest.TestCase):
+    """Library code reports a problem by raising a typed error carrying its exit code; only cli.run ends the
+    process. (cli.Usage stays a SystemExit: exit 64 is its whole meaning.)"""
+
+    def test_typed_errors_map_to_their_codes(self):
+        import errors
+        for exc, code in ((errors.ContextError("x"), cli.ISSUES), (errors.LogRefused("Not logged: x"), cli.ISSUES),
+                          (errors.RenderStopped("x", exit_code=cli.SERVICE), cli.SERVICE),
+                          (errors.DraftError("x"), cli.ISSUES), (cli.Usage("x"), cli.USAGE)):
+            def main(e=exc):
+                raise e
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(cli.run(main), code, type(exc).__name__)
+            self.assertIn("x", err.getvalue())
+        self.assertEqual(errors.CoachError("named").code, "named")   # read like SystemExit's code
+
+    def test_no_engine_module_raises_systemexit(self):
+        import re
+        tools = os.path.join(paths.ROOT, "tools")
+        found = []
+        for folder in (tools, os.path.join(tools, "services")):
+            for name in sorted(os.listdir(folder)):
+                if name.endswith(".py") and name not in ("cli.py", "errors.py"):
+                    with open(os.path.join(folder, name), encoding="utf-8") as f:
+                        for n, line in enumerate(f, 1):
+                            if re.search(r"raise[ (][^#]*\bSystemExit\b|sys\.exit\((?!cli\.run|main)", line):
+                                found.append(f"{name}:{n}: {line.strip()}")
+        self.assertEqual(found, [], "raise an errors.SweatcastError (or cli.Usage) instead")
+
+
 if __name__ == "__main__":
     unittest.main()

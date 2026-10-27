@@ -25,6 +25,7 @@ import context  # noqa: E402
 import coverage  # noqa: E402
 import draft  # noqa: E402
 import helpers  # noqa: E402
+import errors  # noqa: E402
 import menu  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,7 +87,7 @@ class LogSession(unittest.TestCase):
         return code, out.getvalue()
 
     def refused(self, *extra, words, base=True):
-        with self.assertRaises(SystemExit) as got:
+        with self.assertRaises(errors.PROBLEMS) as got:
             self.log(*extra, base=base)
         self.assertIn("Not logged", str(got.exception))
         self.assertIn(words, str(got.exception))
@@ -115,7 +116,7 @@ class LogSession(unittest.TestCase):
 
     def test_format_is_required_with_a_draft(self):
         self.record()
-        with self.assertRaises(SystemExit) as got, helpers.home(self.home):
+        with self.assertRaises(errors.PROBLEMS) as got, helpers.home(self.home):
             context.main(["log-session", "--coach", "Chatterbox Coach", "--topics", "t", "--draft", self.draft])
         self.assertIn("--format", str(got.exception))
 

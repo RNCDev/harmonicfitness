@@ -43,6 +43,7 @@ from typing import Dict, List, NamedTuple, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import cli  # noqa: E402
+import errors  # noqa: E402
 import fileio  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
@@ -90,9 +91,9 @@ def split(path, text):
             return tomllib.loads(text), ""
         return front(text)
     except tomllib.TOMLDecodeError as e:
-        raise SystemExit(f"{show(path)} isn't valid TOML: {e}")
-    except SystemExit as e:
-        raise SystemExit(f"{show(path)}: {e.code}")
+        raise errors.ContextError(f"{show(path)} isn't valid TOML: {e}")
+    except errors.PROBLEMS as e:
+        raise errors.ContextError(f"{show(path)}: {e.code}")
 
 
 # ---- front matter --------------------------------------------------------------------
@@ -106,9 +107,9 @@ def front(text):
         try:
             return tomllib.loads(m.group(1)), text[m.end():]
         except tomllib.TOMLDecodeError as e:
-            raise SystemExit(f"The settings block at the top of the file isn't valid TOML: {e}")
+            raise errors.ContextError(f"The settings block at the top of the file isn't valid TOML: {e}")
     if text.startswith("+++"):
-        raise SystemExit("the +++ settings block at the top doesn't close: the settings need a line holding "
+        raise errors.ContextError("the +++ settings block at the top doesn't close: the settings need a line holding "
                          "only +++ after them")
     return {}, text
 
@@ -117,7 +118,7 @@ def schema_of(text, path=None):
     """The schema a file's front matter (or a .toml file's `schema` key) names; 0 when it has none."""
     try:
         settings, _ = split(path or "", text)
-    except SystemExit:
+    except errors.PROBLEMS:
         return SCHEMA   # a TOML block, just a broken one: check() says what's wrong
     try:
         return int(settings.get("schema", 0))
@@ -191,7 +192,7 @@ def read(path, what="file"):
     text = read_raw(path, what)
     problem = schema_problem(path, text)
     if problem:
-        raise SystemExit(problem)
+        raise errors.ContextError(problem)
     return body(text)
 
 
@@ -251,7 +252,7 @@ def profile(path=None):
             continue
         problem = schema_problem(part, text)
         if problem:
-            raise SystemExit(problem)
+            raise errors.ContextError(problem)
         settings, rest = split(part, text)
         for k, v in settings.items():
             if k == "schema":
@@ -541,7 +542,7 @@ def persona(path):
     found = settings.get("schema")
     if found != PERSONA_SCHEMA:
         older = isinstance(found, int) and found < PERSONA_SCHEMA
-        raise SystemExit(f"{show(path)} is schema {found}; this engine reads coaches at schema {PERSONA_SCHEMA}: "
+        raise errors.ContextError(f"{show(path)} is schema {found}; this engine reads coaches at schema {PERSONA_SCHEMA}: "
                          + ("run ./sweatcast migrate." if older else "pull the latest sweatcast."))
     return Persona(settings, rest, path)
 
@@ -595,7 +596,7 @@ def health(path=None):
     text = read_raw(path, "health file")
     problem = schema_problem(path, text)
     if problem:
-        raise SystemExit(problem)
+        raise errors.ContextError(problem)
     settings, rest = front(text)
     return Health(settings, rest, path)
 
@@ -843,12 +844,12 @@ def append_session(session, path=None):
     """Add a session line at the end of `## Sessions`, after checking it."""
     problems = session.problems()
     if problems:
-        raise SystemExit("Not logged: " + "; ".join(problems) + ".")
+        raise errors.LogRefused("Not logged: " + "; ".join(problems) + ".")
     path = path or paths.LOG
     lines = log(path).splitlines()
     start = next((i for i, line in enumerate(lines) if line.strip().lower() == "## sessions"), None)
     if start is None:
-        raise SystemExit(f"No '## Sessions' heading in {show(path)}.")
+        raise errors.ContextError(f"No '## Sessions' heading in {show(path)}.")
     end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
     last = max([i for i in range(start + 1, end) if lines[i].strip()], default=start)
     insert = [session.to_line()]
@@ -868,11 +869,11 @@ def declared_movements(path):
     knows it."""
     import draft
     if not os.path.exists(path):
-        raise SystemExit(f"Not logged: no draft at {show(path)}.")
+        raise errors.LogRefused(f"Not logged: no draft at {show(path)}.")
     with open(path, encoding="utf-8") as f:
         words = draft.declared(f.read())
     if not words:
-        raise SystemExit(f"Not logged: {show(path)} has no movements: line.")
+        raise errors.LogRefused(f"Not logged: {show(path)} has no movements: line.")
     cat = _catalog()
     found = [(cat.movements.get(w) or catalog.resolve(cat, w)) if cat else None for w in words]
     return list(dict.fromkeys(m.name if m else w for m, w in zip(found, words)))
@@ -940,7 +941,7 @@ def main(argv=None):
         for item in text.split(";"):
             mv, sep, val = item.partition("=")
             if item.strip() and not (sep and mv.strip() and val.strip()):
-                raise SystemExit(f"Not logged: {what} '{item.strip()}' isn't '<movement> = <{shape}>'.")
+                raise errors.LogRefused(f"Not logged: {what} '{item.strip()}' isn't '<movement> = <{shape}>'.")
             if sep:
                 out[mv.strip()] = val.strip()
         return out
@@ -1026,21 +1027,21 @@ def from_draft(path, date=None, minutes=None, kit=None):
     try:
         m = menu.load(menu_file)
     except ValueError as e:
-        raise SystemExit(f"Not logged: the menu beside the draft can't be read ({show(menu_file)}: {e}).")
+        raise errors.LogRefused(f"Not logged: the menu beside the draft can't be read ({show(menu_file)}: {e}).")
     if not isinstance(m, dict) or not isinstance(m.get("request"), dict):
-        raise SystemExit(f"Not logged: no menu beside the draft ({show(menu_file)}); a built draft has one.")
+        raise errors.LogRefused(f"Not logged: no menu beside the draft ({show(menu_file)}); a built draft has one.")
     request = m["request"]
     want = {"--date": m.get("date"),
             "--minutes": request.get("minutes") or (m.get("seconds") or 0) // 60 or None,
             "--kit": menu_kit(request)}
     for flag, typed in (("--date", date), ("--minutes", minutes), ("--kit", kit)):
         if want[flag] is None:
-            raise SystemExit(f"Not logged: the menu ({show(menu_file)}) holds no {flag[2:]}.")
+            raise errors.LogRefused(f"Not logged: the menu ({show(menu_file)}) holds no {flag[2:]}.")
         if typed is not None and str(typed).strip().lower() != str(want[flag]).lower():
-            raise SystemExit(f"Not logged: {flag} {typed} disagrees with the menu's {want[flag]} "
+            raise errors.LogRefused(f"Not logged: {flag} {typed} disagrees with the menu's {want[flag]} "
                              f"({show(menu_file)}); leave it out, the menu gives it.")
     if not built(draft_hash(path)):
-        raise SystemExit(f"Not logged: no build of {show(path)} as it stands (no record in {show(paths.BUILDS)} "
+        raise errors.LogRefused(f"Not logged: no build of {show(path)} as it stands (no record in {show(paths.BUILDS)} "
                          "with its hash). Build it first; if you edited it after building, build it again.")
     return want["--date"], int(want["--minutes"]), want["--kit"], movements
 
@@ -1060,7 +1061,7 @@ def named_pairs(items, movements, what):
     for name, value in items.items():
         key = _movement_key(cat, name)
         if key not in session:
-            raise SystemExit(f"Not logged: {what} for '{name}', which isn't one of the session's movements "
+            raise errors.LogRefused(f"Not logged: {what} for '{name}', which isn't one of the session's movements "
                              f"({', '.join(movements)}).")
         out[cat.movements[key].name if cat and key in cat.movements else name] = value
     return out
@@ -1072,7 +1073,7 @@ def _check_not_logged(session, path=None):
     mine = {_movement_key(cat, m) for m in session.movements}
     for old in sessions(path, warn=False):
         if old.date == session.date and {_movement_key(cat, m) for m in old.movements} == mine:
-            raise SystemExit(f"Not logged: this session is already logged (log.md line {old.line}: {old.date}, "
+            raise errors.LogRefused(f"Not logged: this session is already logged (log.md line {old.line}: {old.date}, "
                              f"{', '.join(old.movements)}).")
 
 
@@ -1084,23 +1085,23 @@ def _check_session_names(session, kit_from_menu=False):
     import sessions
     try:
         personas.lookup(session.voice, archived=True)
-    except SystemExit as e:
-        raise SystemExit(f"Not logged: no coach '{session.voice}' ({e.code})")
+    except errors.PROBLEMS as e:
+        raise errors.LogRefused(f"Not logged: no coach '{session.voice}' ({e.code})")
     if not kit_from_menu and os.path.exists(paths.PROFILE):   # with no profile there's nothing to check against
         known_kits = set(kits(profile())) | set(_catalog_presets())
         if session.kit.lower() not in {k.lower() for k in known_kits}:
-            raise SystemExit(f"Not logged: kit '{session.kit}' isn't one of the profile's kits or a catalog preset "
+            raise errors.LogRefused(f"Not logged: kit '{session.kit}' isn't one of the profile's kits or a catalog preset "
                              f"({', '.join(sorted(known_kits))}).")
     methods = sessions.load().methods
     if session.format and session.format not in methods:
-        raise SystemExit(f"Not logged: format '{session.format}' isn't a method in knowledge/sessions.toml "
+        raise errors.LogRefused(f"Not logged: format '{session.format}' isn't a method in knowledge/sessions.toml "
                          f"({', '.join(methods)}).")
 
 
 def _catalog():
     try:
         return catalog.default()
-    except (SystemExit, ValueError, OSError):
+    except (*errors.PROBLEMS, ValueError, OSError):
         return None   # the catalog's own check says what's wrong
 
 

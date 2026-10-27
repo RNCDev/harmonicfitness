@@ -12,6 +12,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import errors  # noqa: E402
 import cache  # noqa: E402
 import cli  # noqa: E402
 import engines  # noqa: E402
@@ -144,11 +145,12 @@ class CheckTakes(unittest.TestCase):
         self.cached(line)
         for seed in range(42, 42 + render.CHECK_TAKES):
             self.heard[len(self.take(seed))] = "Which sides."
-        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as got:
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(errors.PROBLEMS) as got:
             render.check_takes(self.voice, [line], 42, self.cache_path)
-        self.assertEqual(got.exception.code, cli.ISSUES)
+        self.assertEqual(got.exception.exit_code, cli.ISSUES)
+        self.assertIn("Which sides", str(got.exception))   # what was heard, in the message the build prints
         self.assertEqual(len(self.said), render.CHECK_TAKES - 1)
-        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(errors.PROBLEMS):
             render.check_takes(self.voice, [line], 42, self.cache_path)
         self.assertEqual(len(self.said), render.CHECK_TAKES - 1)   # the verdict stands; no takes are rendered again
 

@@ -12,6 +12,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import errors  # noqa: E402
 
 import catalog  # noqa: E402
 
@@ -314,7 +315,7 @@ class Header(unittest.TestCase):
         self.assertEqual(draft.declared(DRAFT), ["goblet squat", "dead bug", "box breathing"])
 
     def test_other_text_before_the_first_marker_still_fails(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(errors.PROBLEMS):
             draft.parse("Hello.\n" + DRAFT)
 
     def test_menu_and_brief_sit_beside_the_draft(self):
