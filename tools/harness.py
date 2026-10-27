@@ -20,6 +20,7 @@ sys.path.insert(0, HERE)
 
 import cli  # noqa: E402
 import errors  # noqa: E402
+import fileio  # noqa: E402
 import paths  # noqa: E402
 
 CLAUDE_SKILLS = os.path.join(".claude", "skills")
@@ -157,9 +158,7 @@ def sync(root=None):
     for rel, text in want.items():
         path = os.path.join(root, rel)
         if _read(path) != text:
-            os.makedirs(os.path.dirname(path) or root, exist_ok=True)
-            with open(path, "wb") as f:
-                f.write(text)
+            fileio.atomic_write(path, text)   # the exact bytes: an image, or text as the skill holds it
             changed.append(rel)
     for rel in _extras(root, want):
         os.remove(os.path.join(root, rel))

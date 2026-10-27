@@ -47,7 +47,7 @@ CHECK_MODEL = ("istupakov/parakeet-tdt-0.6b-v3-onnx", "8f23f0c03c8761650bdb5b40a
 CHECK_FILES = ["config.json", "vocab.txt", "nemo128.onnx", "encoder-model.onnx", "encoder-model.onnx.data",
                "decoder_joint-model.onnx"]
 CHECK_DIR = os.path.join(paths.MODELS, "parakeet-tdt-0.6b-v3-onnx")
-# The line a web service's voice design speaks (tools/coaches.py's auditions).
+# The line a web service's voice design speaks (tools/audition.py's auditions, tools/coachmake.py's make).
 DESIGN_LINE = ("Okay, set your feet. Chest up, elbows in, and press. Good. Stay with it, two more. "
                "Breathe out as you drive. That's the pace we want.")
 SIZES_GB = {POCKET_REPO: 0.4, CHECK_MODEL[0]: 2.5}   # download sizes, for the message
@@ -56,11 +56,17 @@ MIN_MEASURED = 30.0      # seconds of rendered speech before a voice's rate coun
 DEFAULT_PACE = 14.5      # weighted chars/s for a new voice when no voice has been measured yet
 
 
-def _recorded(path=None, strict=False):
+def _stderr(line):
+    """Where a pace-file warning goes unless a caller passes its own `warn`."""
+    print(line, file=sys.stderr)
+
+
+def _recorded(path=None, strict=False, warn=_stderr):
     """Every voice's recorded speech, from the pace file. A missing file is empty. A file
     that won't parse is never silently treated as empty when it's about to be written
     (strict): it's set aside as voice-pace.json.corrupt-<time> and the tool stops, so one
-    bad write can't erase every voice's measurements."""
+    bad write can't erase every voice's measurements. Read only (not strict), it's treated as
+    empty, and `warn` says so."""
     path = path or paths.PACE_FILE
     try:
         with open(path, encoding="utf-8") as f:
@@ -72,8 +78,7 @@ def _recorded(path=None, strict=False):
         return {}
     except (OSError, ValueError) as e:
         if not strict:
-            print(f"Warning: couldn't read {show(path)} ({e}); treating every voice as unmeasured.",
-                  file=sys.stderr)
+            warn(f"Warning: couldn't read {show(path)} ({e}); treating every voice as unmeasured.")
             return {}
         bad = f"{path}.corrupt-{time.strftime('%Y%m%d%H%M%S')}"
         os.replace(path, bad)

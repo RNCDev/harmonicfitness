@@ -72,10 +72,23 @@ class Appends(unittest.TestCase):
 
 class AtomicWrites(unittest.TestCase):
     # Engine modules that may open a file for writing themselves: fileio itself, a .part file renamed into place
-    # (render, coaches), the build log (appended, never rewritten), WAV writers, the harness's exact copies,
-    # the key file (created 0600 then appended), and the lock files.
-    ALLOWED = {"fileio.py", "build.py", "render.py", "cloud.py", "voices.py", "coaches.py", "harness.py",
+    # (render), the build log (appended, never rewritten), WAV writers, the key file (created 0600 then
+    # appended), and the lock files.
+    ALLOWED = {"fileio.py", "build.py", "render.py", "cloud.py", "voices.py",
                "keys.py", "locks.py", "clipcache.py", "wav.py"}
+
+    def test_atomic_copy(self):
+        d = tempfile.mkdtemp()
+        src, dst = os.path.join(d, "a.mp3"), os.path.join(d, "out", "b.mp3")
+        with open(src, "wb") as f:
+            f.write(b"ID3" + bytes(range(256)) * 50)
+        fileio.atomic_copy(src, dst)
+        with open(src, "rb") as a, open(dst, "rb") as b:
+            self.assertEqual(a.read(), b.read())
+        self.assertEqual(os.listdir(os.path.dirname(dst)), ["b.mp3"])   # no .part left behind
+        with self.assertRaises(FileNotFoundError):
+            fileio.atomic_copy(os.path.join(d, "missing"), dst)
+        self.assertEqual(os.listdir(os.path.dirname(dst)), ["b.mp3"])
 
     def test_engine_writes_go_through_fileio(self):
         tools = os.path.join(paths.ROOT, "tools")
@@ -492,12 +505,68 @@ class BuildTrail(unittest.TestCase):
         self.one_event("stopped", "deliver")
 
     def test_a_failed_design(self):
-        import coaches
+        import coachmake
         import errors
         with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}), \
-                mock.patch.object(coaches, "make", side_effect=errors.CoachError("the design failed")):
+                mock.patch.object(coachmake, "make", side_effect=errors.CoachError("the design failed")):
             self.assertEqual(self.build("--coach", "Coach Reed", estimated=False), 1, self.out.getvalue())
         self.one_event("stopped", "design")
+        self.assertIn("--- last lines of", self.out.getvalue())   # a design's failure shows the log's end
+        self.assertTrue(self.read_log().rstrip().endswith(f"--- end {self.events()[0]['build_id']} design 1"))
+
+    def test_a_voice_saved_but_not_written_reaches_the_terminal(self):
+        """The first build with a stock web coach saves its voice at the service; if writing the coach then
+        fails, the voice's ID and what to do reach the listener's terminal (say), not only the build log."""
+        import build
+        import cloud
+        import coachmake
+        import contextlib
+        import io
+        from fakes import tone_wav
+
+        class Saves:
+            @staticmethod
+            def design(description, line, n, label):
+                return [{"wav": tone_wav(0.5), "text": line}]
+
+            @staticmethod
+            def save(candidate, name, description, wav):
+                return "voice-left-behind-7"
+
+        said, self.out = [], io.StringIO()
+        with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}), \
+                mock.patch.object(cloud, "service_module", lambda s: Saves), \
+                mock.patch.object(coachmake, "_write_sample", side_effect=OSError("disk full")), \
+                contextlib.redirect_stdout(self.out), contextlib.redirect_stderr(self.out):
+            with self.assertRaises(OSError):
+                build.run_build(build.BuildOptions(draft=self.draft, name="Test build", coach="Coach Reed"),
+                                say=said.append)
+        self.assertTrue(any("voice-left-behind-7" in line and "Fish Audio" in line for line in said), said)
+        self.one_event("stopped", "design")
+        self.assertIn("voice-left-behind-7", self.out.getvalue())   # and on stderr (the log, from the command line)
+
+    def test_the_log_closes_each_build(self):
+        self.assertEqual(self.build(), 0, self.out.getvalue())
+        build_id = self.ids[-1]
+        log = self.read_log()
+        self.assertIn(f"({build_id})", log)
+        self.assertTrue(log.rstrip().endswith(f"--- end {build_id} done 0"), log[-300:])
+        self.fails = SystemExit("the engine stopped")
+        self.build()
+        self.assertTrue(self.read_log().rstrip().endswith(f"--- end {self.ids[-1]} render 1"))
+
+    def test_a_missing_delivery_folder_is_said_as_a_failure_line(self):
+        import shutil
+        import build
+        import context
+        shutil.rmtree(self.phone)
+        self.assertEqual(context.delivery_note(context.profile()),
+                         f"Delivery folder {self.phone.replace(os.sep, '/')} not found.")
+        said, failed = [], []
+        result = build.run_build(build.BuildOptions(draft=self.draft, name="Test build", allow_estimated=True),
+                                 say=said.append, fail=failed.append)
+        self.assertEqual(result.code, 0)
+        self.assertTrue(any("not found" in line for line in failed), failed)
 
     def test_lint_only_leaves_none(self):
         self.assertEqual(self.build("--lint-only"), 0)

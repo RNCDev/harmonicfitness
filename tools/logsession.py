@@ -6,6 +6,7 @@ record of the draft as it stands. context.main parses the command and calls log_
 import datetime as dt
 import os
 import sys
+from typing import Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
@@ -22,33 +23,39 @@ import sessions  # noqa: E402
 from paths import show  # noqa: E402
 
 
-def log_session(opts):
-    """Check one session and add it to log.md; returns the "Logged: ..." line to print. `opts` holds the
-    log-session command's options (draft, date, minutes, kit, voice: the coach, movements, topics, format,
-    loads, rpe). A refusal raises errors.LogRefused, a missing or clashing option errors.UsageError."""
-    loads = pairs(opts.loads, "load", "load and tempo")
-    rpe = pairs(opts.rpe, "rpe", "effort")
-    if bool(opts.movements) == bool(opts.draft):
+def log_session(*, topics: str, draft: Optional[str] = None, date: Optional[str] = None,
+                minutes: Optional[int] = None, kit: Optional[str] = None, coach: Optional[str] = None,
+                movements: Optional[str] = None, fmt: Optional[str] = None, loads: str = "",
+                rpe: str = "") -> str:
+    """Check one session and add it to log.md; returns the "Logged: ..." line to print. The fields are the
+    log-session command's: `draft` (the built draft; its movements: line, menu and build record give the
+    movements, date, length, kit and coach) or `movements` (comma-separated, with `coach`, `minutes` and
+    `kit`), the `topics`, the session method `fmt` (required with a draft), and `loads` and `rpe` as
+    '<movement> = <value>; ...'. A refusal raises errors.LogRefused, a missing or clashing field
+    errors.UsageError (named by its command-line flag)."""
+    load_pairs = pairs(loads or "", "load", "load and tempo")
+    rpe_pairs = pairs(rpe or "", "rpe", "effort")
+    if bool(movements) == bool(draft):
         raise errors.UsageError("Not logged: give the movements with --movements or --draft (one of them).")
-    if opts.draft:
-        date, minutes, kit, movements, build = from_draft(opts.draft, opts.date, opts.minutes, opts.kit)
-        coach = build_coach(build, opts.voice)
+    if draft:
+        date, minutes, kit, moves, build = from_draft(draft, date, minutes, kit)
+        coach = build_coach(build, coach)
         build_id = build.get("build_id")
-        if not (opts.format or "").strip():
+        if not (fmt or "").strip():
             raise errors.UsageError("Not logged: --format is required with --draft (the method you chose, from "
                                     "knowledge/sessions.toml), so the next session rotates away from it.")
     else:
-        for flag, value in (("--coach", opts.voice), ("--minutes", opts.minutes), ("--kit", opts.kit)):
+        for flag, value in (("--coach", coach), ("--minutes", minutes), ("--kit", kit)):
             if value is None:
                 raise errors.UsageError(f"Not logged: {flag} is required without --draft.")
-        date, minutes, kit = opts.date or dt.date.today().isoformat(), opts.minutes, opts.kit.strip()
-        movements = [m.strip() for m in opts.movements.split(",") if m.strip()]
-        coach, build_id = opts.voice.strip(), None
-    session = sessionlog.Session(date, minutes, kit, coach, movements, opts.topics.strip(),
-                                 (opts.format or "").strip() or None,
-                                 named_pairs(loads, movements, "load"), named_pairs(rpe, movements, "rpe"),
+        date, kit = date or dt.date.today().isoformat(), kit.strip()
+        moves = [m.strip() for m in movements.split(",") if m.strip()]
+        coach, build_id = coach.strip(), None
+    session = sessionlog.Session(date, minutes, kit, coach, moves, topics.strip(),
+                                 (fmt or "").strip() or None,
+                                 named_pairs(load_pairs, moves, "load"), named_pairs(rpe_pairs, moves, "rpe"),
                                  build_id=build_id)
-    _check_session_names(session, kit_from_menu=bool(opts.draft))
+    _check_session_names(session, kit_from_menu=bool(draft))
     with locks.file_lock(paths.LOG):   # the duplicate check and the write as one step
         _check_not_logged(session)
         return "Logged: " + sessionlog.append_session(session)

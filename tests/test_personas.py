@@ -265,6 +265,183 @@ class AuditionReport(unittest.TestCase):
         self.assertEqual(out.getvalue().count("down for a moment"), 1)   # the failure: once, on stderr
         self.assertNotIn("down for a moment", stdout.getvalue())
 
+    def test_no_key_anywhere_is_warned_not_printed(self):
+        import contextlib
+        import io
+        import audition
+        import keys
+        said, warned, out = [], [], io.StringIO()
+        with mock.patch.object(keys, "is_set", lambda s: False), contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(out):
+            got = audition._run_audition(self.narrative, report=said.append, warn=warned.append)
+        self.assertEqual(got, (None, [], []))
+        self.assertTrue(any("No web service has a key" in line for line in warned))
+        self.assertEqual(out.getvalue(), "")
+
+    def test_a_bug_in_a_service_module_is_raised_not_a_failure(self):
+        """A TypeError while designing is the engine's bug (exit 70), never "no candidates" (exit 1)."""
+        import cli
+        import cloud
+        import coaches
+
+        class Broken:
+            @staticmethod
+            def design(*a):
+                raise TypeError("a bug in the service module")
+
+        with mock.patch.object(cloud, "service_module", lambda s: Broken):
+            with self.assertRaises(TypeError):
+                coaches._run_audition(self.narrative, ["fish"], report=lambda line: None)
+            import contextlib
+            import io
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(cli.run(lambda: coaches.main(["audition", self.narrative, "--services", "fish"])),
+                                 cli.BUG)
+
+
+class MakeLeftBehind(unittest.TestCase):
+    """A make that saved a voice and then couldn't write the coach says so, with the voice's ID, through warn."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        from fakes import tone_wav
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        wav = tone_wav(0.5)
+
+        class Saves:
+            @staticmethod
+            def design(description, line, n, label):
+                return [{"wav": wav, "text": line}]
+
+            @staticmethod
+            def save(candidate, name, description, wav):
+                return "voice-9"
+
+        import cloud
+        for patch in (mock.patch.object(personas.paths, "PERSONAS", persona_home(self.d)),
+                      mock.patch.object(cloud, "service_module", lambda s: Saves)):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def make(self, failing):
+        import contextlib
+        import io
+        import coachmake
+        said, warned, out = [], [], io.StringIO()
+        with mock.patch.object(coachmake, failing, side_effect=OSError("disk full")), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(out), self.assertRaises(OSError):
+            coachmake.make("Coach Reed", report=said.append, warn=warned.append)
+        self.assertEqual(out.getvalue(), "")   # nothing printed: the caller decides where it goes
+        self.assertTrue(personas.lookup("Coach Reed").pending)
+        return warned
+
+    def test_saved_and_recorded(self):
+        warned = self.make("_write_sample")
+        self.assertTrue(any("voice-9" in w and "Fish Audio" in w and "next build" in w for w in warned), warned)
+
+    def test_saved_but_not_recorded(self):
+        warned = self.make("_record_made")
+        self.assertTrue(any("voice-9" in w and 'Delete "sweatcast Coach Reed"' in w for w in warned), warned)
+
+    def test_the_old_names_still_reach_the_new_modules(self):
+        import audition
+        import coachmake
+        import coaches
+        self.assertIs(coaches.make, coachmake.make)
+        self.assertIs(coaches.keep_web, audition.keep_web)
+        self.assertIs(coaches.forget_audition, audition.forget_audition)
+        self.assertIs(coaches.audition, audition.audition)
+
+
+class SetAndList(unittest.TestCase):
+    """The rules behind ./sweatcast coaches set and the list, reachable without the command line."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        folder = persona_home(self.d, ("Coach Dana", {"kind": "web", "service": "fish", "voice_id": "v1"}),
+                              ("Coach Mine", {"kind": "local"}))
+        patcher = mock.patch.object(personas.paths, "PERSONAS", folder)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_set_setting(self):
+        for name in ("Coach Test", "Coach Reed"):   # stock: local and web alike
+            with self.assertRaises(errors.CoachError) as got:
+                personas.set_setting(personas.lookup(name), "description", "x")
+            self.assertIn("roster.toml", str(got.exception))
+        with self.assertRaises(errors.CoachError):   # a local coach of their own: its sound is its voice file
+            personas.set_setting(personas.lookup("Coach Mine"), "description", "x")
+        dana = personas.lookup("Coach Dana")
+        with self.assertRaises(errors.CoachError):
+            personas.set_setting(dana, "local.engine", "pocket")
+        personas.set_setting(dana, "fish.model", "s2")
+        personas.set_setting(dana, "description", "Warm and quick.")
+        dana = personas.lookup("Coach Dana")
+        self.assertEqual((dana.table("fish").get("model"), dana.description), ("s2", "Warm and quick."))
+
+    def test_listing(self):
+        import coaches
+        found = coaches.listing(personas.lookup("Coach Dana"))
+        by = {c["name"]: c for c in found}
+        self.assertEqual(sorted(by["Coach Dana"]), sorted(["name", "slug", "kind", "service", "service_name", "default",
+                                                           "placeholder", "pending", "shipped", "description",
+                                                           "notes"]))
+        self.assertTrue(by["Coach Dana"]["default"])
+        self.assertEqual(by["Coach Dana"]["service_name"], "Fish Audio")
+        self.assertIn("(made the first time it's used)", by["Coach Reed"]["notes"])
+        self.assertTrue(any("migrate archives it" in n for n in by["Coach Mine"]["notes"]))
+        lines = coaches.listing_lines(found)
+        self.assertTrue(any(line.startswith("* Coach Dana") and "web · Fish Audio" in line for line in lines))
+        self.assertTrue(lines[-1].startswith("* the coach a build uses"))
+        self.assertIn("No coaches found", coaches.listing_lines([])[0])
+
+    def test_measured_takes_route_and_the_old_engine(self):
+        import cli
+        import coaches
+        for flag in ("--route", "--engine"):
+            with mock.patch.object(coaches.voices, "pace", return_value=(14.0, True)), \
+                    mock.patch.object(coaches.coachpick, "pick", return_value="local") as pick:
+                self.assertEqual(coaches.main(["measured", "Coach Test", flag, "local"]), cli.OK)
+            self.assertEqual(pick.call_args.kwargs["override"], "local")
+
+
+class NoPrintInLibrary(unittest.TestCase):
+    """Library modules this release cleaned say things through report/warn callbacks: print only in the
+    default sinks (say, stderr) and main."""
+    CLEAN = ("audition.py", "coachmake.py", "catalog.py", "logsession.py", "frontmatter.py", "fileio.py")
+    SINKS = {"say", "stderr", "_stderr", "main"}
+
+    def test_no_print_outside_the_sinks(self):
+        import ast
+        found = []
+        for name in self.CLEAN:
+            path = os.path.join(ROOT, "tools", name)
+            with open(path, encoding="utf-8") as f:
+                tree = ast.parse(f.read(), path)
+            for fn in ast.walk(tree):
+                if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and fn.name not in self.SINKS:
+                    for node in ast.walk(fn):
+                        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "print":
+                            found.append(f"{name}:{node.lineno} in {fn.name}")
+        self.assertEqual(found, [])
+
+    def test_an_unreadable_private_movements_file_is_a_fault_not_a_print(self):
+        import contextlib
+        import io
+        import catalog
+        path = os.path.join(tempfile.mkdtemp(), "movements.toml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("[[movement]\nid = ")
+        out = io.StringIO()
+        with mock.patch.object(catalog.paths, "MY_MOVEMENTS", path), contextlib.redirect_stderr(out):
+            cat = catalog.load()
+        self.assertEqual(out.getvalue(), "")
+        self.assertTrue(any("can't be read" in f for f in cat.private_faults))
+        self.assertTrue(any("can't be read" in p for p in catalog.problems(cat)))
+        self.assertIn("air-squat", cat.movements)
+
 
 if __name__ == "__main__":
     unittest.main()

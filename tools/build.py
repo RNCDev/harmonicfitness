@@ -306,23 +306,52 @@ class _Trail:
 
     def crashed(self, e):
         """Any exception, at any stage: its traceback (a bug's) or its message into the build log, the stop in
-        builds.jsonl, and the log's end shown after a failed render."""
+        builds.jsonl, the log's closing line, and the log's end shown after a failed render or design (a design
+        interrupted too: a voice it saved at the service is named there)."""
         import redact
         interrupted = isinstance(e, KeyboardInterrupt)
         known = isinstance(e, SystemExit) or getattr(e, "exit_code", None) is not None
         reason = "interrupted" if interrupted else redact.scrub(str(e) or type(e).__name__)[:300]
+        self._log_line(f"--- build {self.opts.name} ({self.build_id}) stopped at {self.stage}: {reason}\n"
+                       + ("" if known or interrupted else redact.scrub(traceback.format_exc())))
+        self.stopped(reason)
+        self.end(exit_code(e))
+        ahead = self.opts.follow or self.opts.clips_only
+        if not self.opts.verbose and os.path.exists(self.log) and (
+                ahead or (self.stage == "render" and not interrupted) or self.stage == "design"):
+            show_log(self.log)
+
+    def end(self, code):
+        """The build's closing line in its log, `--- end <build_id> <stage> <code>`, so each build's part of the
+        shared log is bracketed (its opening line names the build_id too). Only a build that wrote to the log: a
+        lint-only run leaves no section to close."""
+        try:
+            with open(self.log, encoding="utf-8", errors="replace") as f:
+                opened = f"({self.build_id})" in f.read()   # the log starts over past LOG_KEEP: a small read
+        except OSError:
+            return
+        if opened:
+            self._log_line(f"--- end {self.build_id} {self.stage} {code}\n")
+
+    def _log_line(self, text):
         try:
             os.makedirs(os.path.dirname(self.log), exist_ok=True)
             with open(self.log, "a", encoding="utf-8") as f:
-                f.write(f"--- build {self.opts.name} ({self.build_id}) stopped at {self.stage}: {reason}\n"
-                        + ("" if known or interrupted else redact.scrub(traceback.format_exc())))
+                f.write(text)
         except OSError:
             pass
-        self.stopped(reason)
-        ahead = self.opts.follow or self.opts.clips_only
-        if not self.opts.verbose and os.path.exists(self.log) and (
-                ahead or (self.stage == "render" and not interrupted)):
-            show_log(self.log)
+
+
+def exit_code(e):
+    """The exit code cli.run gives what a build raised (130 for Ctrl-C, 70 for a bug)."""
+    if isinstance(e, KeyboardInterrupt):
+        return 130
+    if isinstance(e, cli.Usage):
+        return cli.USAGE
+    if isinstance(e, SystemExit):
+        return e.code if isinstance(e.code, int) else (cli.OK if e.code is None else cli.ISSUES)
+    code = getattr(e, "exit_code", None)
+    return cli.BUG if code is None else code
 
 
 def resolve_voice(opts):
@@ -371,13 +400,15 @@ def run_build(opts, say=print, fail=None):
     b = _Trail(opts, say, os.path.join(paths.LOGS, f"{name}.log"), hashlib.sha256(text.encode("utf-8")).hexdigest(),
                fail)
     try:
-        return _run(b, text)
+        result = _run(b, text)
     except BaseException as e:
         try:
             b.crashed(e)
         except Exception:   # noting the stop must never hide what stopped it
             pass
         raise
+    b.end(result.code)
+    return result
 
 
 def _run(b, text):
@@ -446,9 +477,14 @@ def _run(b, text):
         return BuildResult(cli.OK, None, b.lines)
     if coach.pending:   # the draft passed: now the first build that needs this default designs its voice
         b.stage = "design"
-        import coaches
+        import audition
+        import coachmake
+
+        def warn(line):   # a voice left at the service: on the terminal, not only in the log (stderr is the log)
+            b.say("  " + line)
+            audition.stderr(line)
         with log_to(b.log, opts.name, b.build_id, opts.verbose):
-            coaches.make(coach.name, report=lambda line: b.say("  " + line))
+            coachmake.make(coach.name, report=lambda line: b.say("  " + line), warn=warn)
         coach = personas.lookup(coach.name)   # the make wrote its voice
         voice = personas.voice_for(coach, route)
     return render_and_deliver(b, segments, voice, out_dir, smoke)
@@ -483,9 +519,11 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
     folders = []
     if not paths.REMOTE:
         import context
-        pattern, folders = context.delivery_folders(context.profile())
-        if pattern and not folders:
-            print(f"Delivery folder {pattern} not found.", file=sys.stderr)
+        p = context.profile()
+        _, folders = context.delivery_folders(p)
+        missing = context.delivery_note(p)
+        if missing:
+            b.fail(missing)
     plan = delivery_plan(paths.REMOTE, web, folders)
     if plan["remove_local"]:
         os.remove(mp3)
