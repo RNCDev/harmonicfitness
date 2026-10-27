@@ -42,7 +42,7 @@ LOCAL_MODELS = {"pocket": (POCKET_REPO, "a7056f505a4a8ca72d8b5fb1440071d6f1a3573
 POCKET_FILES = [(POCKET_REPO, "languages/english_2026-10/model.safetensors", "a7056f505a4a8ca72d8b5fb1440071d6f1a35739"),
                 (POCKET_REPO, "languages/english_2026-09/tokenizer.json", "00eac05ed3d16bdc3f6b5d598874019c34a89214")]
 # The speech recognizer that checks each local take (tools/verify.py): Parakeet TDT 0.6B v3 through ONNX, on
-# the processor, the same on every computer (the audio bench's). Kept as a plain folder in models/, since
+# the processor, the same on every computer. Kept as a plain folder in models/, since
 # onnxruntime won't load weights through the Hugging Face cache's links.
 CHECK_MODEL = ("istupakov/parakeet-tdt-0.6b-v3-onnx", "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce")
 CHECK_FILES = ["config.json", "vocab.txt", "nemo128.onnx", "encoder-model.onnx", "encoder-model.onnx.data",

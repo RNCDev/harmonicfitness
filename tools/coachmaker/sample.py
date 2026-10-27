@@ -6,12 +6,12 @@ Pocket (the public model, as a listener runs it) speaks each line in four seeds,
 first take heard right; render.assemble lays the lines out with the coach's recorded [count 3 go], and
 render.encode masters it as a build does. The MP3s go in the folder named first; copy approved ones to
 coaches/coach-<slug>-local/sample.mp3."""
-import json, os, subprocess, sys, tomllib
+import json, os, sys, tomllib
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [ROOT + "/tools", ROOT + "/tools/coachmaker"]
 os.environ.setdefault("SWEATCAST_HOME", "/nonexistent")
 import numpy as np
-import bench, qa, asr, verify, engines, counts, draft, render
+import common, asr, verify, engines, counts, draft, render
 
 SEEDS = [42, 43, 44, 45]
 DRAFT = """@@ 45 | Sample
@@ -32,20 +32,13 @@ for slug in sys.argv[2:]:
     segs = draft.parse(DRAFT.format(name=name))
     lines = list(dict.fromkeys(t for seg in segs for para in draft.plan(seg) for t, _ in para if draft.spoken(t)))
     work = os.path.join(OUT, slug)
-    job = {"model": "pocket", "device": "cpu", "engine": "pocket", "repo": "kyutai/pocket-tts-without-voice-cloning",
-           "language": qa.LANGUAGE, "public_only": True, "ref_audio": folder + "/pocket.safetensors", "out": work,
-           "seeds": SEEDS, "lines": [{"id": f"l{i}", "text": t} for i, t in enumerate(lines)]}
     os.makedirs(work, exist_ok=True)
-    jp = os.path.join(work, "job.json"); json.dump(job, open(jp, "w"))
-    env = dict(os.environ, HF_HUB_CACHE=qa.public_cache(), HF_HOME=qa.PUBLIC_HF + "/home", HF_HUB_DISABLE_IMPLICIT_TOKEN="1")
-    env.pop("HF_TOKEN", None)
-    subprocess.run([qa.env_python("pocket-cpu"), "-I", bench.WORKER, "render", jp], cwd=ROOT, env=env,
-                   stdout=open(work + "/log", "w"), stderr=subprocess.STDOUT, check=True)
+    common.speak(slug, [{"id": f"l{i}", "text": t} for i, t in enumerate(lines)], SEEDS, work)
     # trimmed and leveled as a build's clip; the recognizer hears the trimmed take
     pcms, wavs = {}, {}
     for i in range(len(lines)):
         for s in SEEDS:
-            raw = np.frombuffer(bench.pcm_24k(os.path.join(work, str(s), f"l{i}.wav")), dtype="<i2").astype(np.float32) / 32768
+            raw = np.frombuffer(common.pcm_24k(os.path.join(work, str(s), f"l{i}.wav")), dtype="<i2").astype(np.float32) / 32768
             pcm = engines.to_pcm(raw)
             p = os.path.join(work, "trim", f"l{i}-{s}.wav"); os.makedirs(os.path.dirname(p), exist_ok=True)
             import wave

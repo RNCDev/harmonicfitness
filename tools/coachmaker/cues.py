@@ -34,13 +34,12 @@ TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, TOOLS)
 sys.path.insert(0, os.path.join(TOOLS, "coachmaker"))
 import asr  # noqa: E402
-import bench  # noqa: E402
-import qa  # noqa: E402
+import common  # noqa: E402
 import render  # noqa: E402
 import verify  # noqa: E402
 
-ROOT = qa.ROOT
-COACHES = qa.COACHES
+ROOT = common.ROOT
+COACHES = common.COACHES
 WORK = os.path.join(ROOT, ".cache", "design", "cues")
 SEEDS = list(range(42, 50))
 NUMBERS = ["ten", "nine", "eight", "seven", "six", "five", "four", "three", "two", "one"]
@@ -175,29 +174,14 @@ def pcm(a):
 
 def load(path):
     import numpy as np
-    return np.frombuffer(bench.pcm_24k(path), dtype="<i2").astype(np.float32) / 32768
+    return np.frombuffer(common.pcm_24k(path), dtype="<i2").astype(np.float32) / 32768
 
 
 def render_takes(slug, singles=False):
-    folder = os.path.join(COACHES, f"coach-{slug}-local")
     out = os.path.join(WORK, slug, "takes")
     lines = ([{"id": f"n-{w}", "text": w.capitalize() + "."} for w in NUMBERS] if singles else
              [{"id": "countdown", "text": COUNTDOWN}] + [{"id": k, "text": t} for k, t in CUES.items()])
-    job = {"model": "pocket", "device": "cpu", "engine": "pocket", "repo": "kyutai/pocket-tts-without-voice-cloning",
-           "language": qa.LANGUAGE, "public_only": True, "ref_audio": os.path.join(folder, "pocket.safetensors"),
-           "out": out, "seeds": SEEDS, "lines": lines}
-    os.makedirs(out, exist_ok=True)
-    job_path = os.path.join(out, "job.json")
-    with open(job_path, "w", encoding="utf-8") as f:
-        json.dump(job, f, indent=1)
-    env = dict(os.environ, HF_HUB_CACHE=qa.public_cache(), HF_HOME=os.path.join(qa.PUBLIC_HF, "home"),
-               HF_HUB_DISABLE_IMPLICIT_TOKEN="1", PYTHONIOENCODING="utf-8")
-    env.pop("HF_TOKEN", None)
-    with open(os.path.join(out, "worker.log"), "w", encoding="utf-8") as log:
-        code = subprocess.call([qa.env_python("pocket-cpu"), "-I", bench.WORKER, "render", job_path],
-                               stdout=log, stderr=subprocess.STDOUT, cwd=ROOT, env=env)
-    if code:
-        raise SystemExit(f"{slug}: Pocket stopped (exit {code}); see {out}/worker.log")
+    common.speak(slug, lines, SEEDS, out)
     ids = [l["id"] for l in lines]
     return {(k, s): os.path.join(out, str(s), k + ".wav") for k in ids for s in SEEDS}
 

@@ -134,7 +134,7 @@ def speaker(voice):
 
     def say(text, seed):
         torch.manual_seed(seed)   # seeds the GPU too
-        with contextlib.redirect_stdout(io.StringIO()):   # as the audio bench calls it (Pocket's own threads
+        with contextlib.redirect_stdout(io.StringIO()):   # no inference_mode: Pocket's own threads
             audio = model.generate_audio(state, text)          # don't inherit torch.inference_mode)
         return to_pcm(audio.float().cpu().numpy())
     return say

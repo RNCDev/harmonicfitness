@@ -25,7 +25,8 @@ TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, TOOLS)
 sys.path.insert(0, os.path.join(TOOLS, "coachmaker"))
 import asr  # noqa: E402
-import bench  # noqa: E402
+import common  # noqa: E402
+import voices  # noqa: E402
 import ffmpeg as ffmpeg_tool  # noqa: E402
 import paths  # noqa: E402
 import render  # noqa: E402
@@ -94,7 +95,7 @@ def run_designer(r, name, coaches, seeds, text, hint=None):
 def to_clip(raw):
     """A raw take as a clip candidate: 24 kHz mono 16-bit PCM, ends trimmed, speech leveled."""
     import numpy as np
-    pcm = bench.pcm_24k(raw)
+    pcm = common.pcm_24k(raw)
     a = np.frombuffer(pcm, dtype="<i2").astype(np.float32)
     frame = int(0.01 * verify.SR)
     n = len(a) // frame
@@ -228,7 +229,7 @@ def main(argv=None):
         if heard.get(t["wav"]) is not None:
             with open(t["wav"], "rb") as f:
                 pcm = f.read()[44:]
-            v = verify.judge(t["text"], heard[t["wav"]], pcm, weight(t["text"]) / bench.PACE)
+            v = verify.judge(t["text"], heard[t["wav"]], pcm, weight(t["text"]) / voices.DEFAULT_PACE)
             t.update(heard=v["heard"], words=v["words"], errors=v["errors"], missed_cues=v["missed_cues"],
                      problems=v["problems"])
             t["level_db"] = round(render.speech_level(pcm) or 0, 2)
