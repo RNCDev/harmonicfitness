@@ -350,6 +350,20 @@ def _coach_lines(name) -> List[str]:
     return out
 
 
+def _counts_line(voice_name: Optional[str]) -> List[str]:
+    """How this coach counts down: its recorded counts and cues, or in words."""
+    import counts
+    coach = _coach(voice_name)
+    if coach is None:
+        return []
+    if not coach.is_web and coach.has_clip and counts.folder(coach.clip):
+        return [f"- Counts: {coach.name} has recorded counts and cues, played a second apart. Write a countdown as "
+                "`[count 5]` (five down to one) or `[count 3 go]` (then the cue; the cues are go, rest, switch, "
+                "switch sides, stop and hold), and a cue said alone as `[cue rest]`. A countdown in words is "
+                "refused (knowledge/tts-rules.md, Pacing)."]
+    return ["- Counts: write a countdown in words, with commas (\"Three, two, one, go.\"), one per segment."]
+
+
 def _budget_line(voice_name: Optional[str]) -> List[str]:
     coach = _coach(voice_name)
     found = talk_rate(coach.name) if coach else None
@@ -421,7 +435,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             f"separated>`. Then the `@@ <seconds> | <label>` segments, adding up to exactly {minutes * 60} s. "
             "You choose the segments: one can be a set, a pair, a whole round or the whole warm-up.",
             "- Coach each movement from its notes above (setup, cues, what one rep is, where to feel it, the "
-            "faults and their fixes); voice and format follow knowledge/tts-rules.md."] + _budget_line(voice)
+            "faults and their fixes); voice and format follow knowledge/tts-rules.md."] + _budget_line(voice) + _counts_line(voice)
 
     req = {k: v for k, v in (("goal", goal), ("minutes", minutes), ("kit", request.get("kit")),
                              ("preset", request.get("preset")),

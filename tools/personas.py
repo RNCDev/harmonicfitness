@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import context  # noqa: E402
+import counts  # noqa: E402
 import paths  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
@@ -335,4 +336,5 @@ def _local(p):
     gen = local.get("torch_generate" if backend == "torch" else "generate") or {}
     return {"name": p.name, "persona": p.slug, "engine": engine, "backend": backend, "route": "local",
             "model": model, "revision": revision, "generate": gen,
-            "ref_audio": p.clip, "ref_text": words, "key": key, "pace_file": p.pace_file}
+            "ref_audio": p.clip, "ref_text": words, "key": key, "pace_file": p.pace_file,
+            "cues": counts.folder(p.clip)}

@@ -8,7 +8,10 @@ that point, for example when work starts in a forty-five-and-fifteen interval, a
 [hold] marks where the listener works in silence: a segment with a hold keeps its
 full planned length, its spare time silent at its bare holds, shared equally ([hold 20s]
 is exactly that much silence, with no ten-second cap, and the rest of the spare time
-goes to the bare holds, or to the end when there are none).
+goes to the bare holds, or to the end when there are none). For a coach with recorded counts (a
+cues/ folder beside its clip), [count 5] plays five, four, three, two, one, a second apart, from where it
+sits; [count 5 go] adds the cue a second after "one" (go, rest, switch, switch sides, stop, hold); and
+[cue rest] plays one cue alone.
 
 Before the first marker, a draft declares the movements it scripts, once, on one or more
 header lines that are never spoken:
@@ -28,9 +31,20 @@ DRAFT_SUFFIX = ".draft.txt"
 PAUSE_RE = re.compile(r"\[\s*pause(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
 CHIME_RE = re.compile(r"\[\s*chime\s*\]", re.IGNORECASE)
 HOLD_RE = re.compile(r"\[\s*hold(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNORECASE)
-MARK_RE = re.compile(PAUSE_RE.pattern + "|" + CHIME_RE.pattern + "|" + HOLD_RE.pattern, re.IGNORECASE)
+# Counts and cues: a coach's recorded clips, laid on a beat (counts.py holds the clips). Matched loosely, so a
+# misspelled one ("[count five]") is still a marker the lint names, not text a voice would read.
+COUNT_RE = re.compile(r"\[\s*count\b[^\]]*\]", re.IGNORECASE)
+CUE_RE = re.compile(r"\[\s*cue\b[^\]]*\]", re.IGNORECASE)
+MARK_RE = re.compile("|".join(r.pattern for r in (PAUSE_RE, CHIME_RE, HOLD_RE, COUNT_RE, CUE_RE)), re.IGNORECASE)
 CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
 HOLD = "[hold]"     # a span whose text is this takes a share of the segment's spare time as silence
+NUMBER_WORDS = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+CUE_NAMES = ("go", "rest", "switch", "switch sides", "stop", "hold")
+COUNT_MIN, COUNT_MAX = 2, 10
+BEAT = 1.0          # seconds from one count's start to the next, and from "one" to the cue
+_CUE = "(" + "|".join(c.replace(" ", r"\s+") for c in sorted(CUE_NAMES, key=len, reverse=True)) + ")"
+COUNT_PARTS = re.compile(r"\[count (\d+)(?: " + _CUE + r")?\]")
+CUE_PARTS = re.compile(r"\[cue " + _CUE + r"\]")
 PAUSE_DEFAULT, PAUSE_MAX = 0.35, 10.0   # seconds: a bare [pause], and the longest one
 PARAGRAPH_GAP = 0.35                    # least silence between paragraphs within a segment
 MAX_CLIP = 22.0                         # longest a paragraph may speak, in seconds
@@ -139,6 +153,11 @@ def spans(paragraph):
     for m in MARK_RE.finditer(paragraph):
         text = paragraph[last:m.start()].strip()
         last = m.end()
+        if COUNT_RE.fullmatch(m.group(0)) or CUE_RE.fullmatch(m.group(0)):
+            if text:
+                out.append((text, 0.0))
+            out.append(("[" + " ".join(m.group(0)[1:-1].lower().split()) + "]", 0.0))   # "[count 5 go]"
+            continue
         for mark_re, mark in ((CHIME_RE, CHIME), (HOLD_RE, HOLD)):
             got = mark_re.fullmatch(m.group(0))
             if got:
@@ -166,8 +185,55 @@ def spans(paragraph):
 
 
 def spoken(text):
-    """True for a span the voice speaks (not a bare pause, the bell or a hold)."""
-    return bool(text) and text not in (CHIME, HOLD)
+    """True for a span the voice speaks (not a bare pause, the bell, a hold, a count or a cue)."""
+    return bool(text) and text not in (CHIME, HOLD) and not is_mark(text)
+
+
+def is_mark(text):
+    """A count or cue span, as spans() writes it ("[count 5 go]", "[cue rest]"), well formed or not."""
+    return text.startswith(("[count", "[cue")) and text.endswith("]")
+
+
+def count_of(text):
+    """(N, cue or None) for a well-formed count span, else None."""
+    m = COUNT_PARTS.fullmatch(text)
+    return (int(m.group(1)), m.group(2)) if m else None
+
+
+def cue_of(text):
+    m = CUE_PARTS.fullmatch(text)
+    return m.group(1) if m else None
+
+
+def mark_issue(text):
+    """What's wrong with a count or cue span, or None."""
+    if text.startswith("[cue"):
+        return None if cue_of(text) else (f"{text}: the cues are " + ", ".join(CUE_NAMES) + " ([cue rest])")
+    got = count_of(text)
+    if not got:
+        return (f"{text}: write a count as [count N] or [count N cue], N a numeral from {COUNT_MIN} to {COUNT_MAX} "
+                "and the cue one of " + ", ".join(CUE_NAMES) + " ([count 5 go])")
+    if not COUNT_MIN <= got[0] <= COUNT_MAX:
+        return f"{text}: a count runs from {COUNT_MIN} to {COUNT_MAX}"
+    return None
+
+
+def mark_pieces(text):
+    """A well-formed count or cue as the clips it plays, in order: [(clip name, beat)], where beat is the
+    seconds the clip's slot lasts (BEAT for a number with something after it, so the next starts on the
+    beat) or None (the slot is the clip itself). `[count 3 go]`: three, two, one on the beat, then go."""
+    cue = cue_of(text)
+    if cue:
+        return [(cue, None)]
+    n, cue = count_of(text)
+    nums = [NUMBER_WORDS[k - 1] for k in range(n, 0, -1)]
+    return [(w, BEAT if cue or i < n - 1 else None) for i, w in enumerate(nums)] + ([(cue, None)] if cue else [])
+
+
+def mark_words(text):
+    """What a count or cue says, for the transcript: "Three, two, one, go." """
+    words = [name for name, _ in mark_pieces(text)]
+    return ", ".join(words).capitalize() + "."
 
 
 def holds(seg):

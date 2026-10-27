@@ -12,6 +12,7 @@ What goes into a workout script, from the welcome to the sign-off. How it should
 ## Timed work
 
 - Inside one segment, mark each change of an interval (work starts, rest starts) with `[chime]`, and say it too: "At the bell, go. [chime] Push."
+- Count into the work with the coach's recorded counts when the brief's Counts line says it has them: "Pick up the dumbbells. [count 3 go] [chime] Push." (`knowledge/tts-rules.md`, Pacing).
 - Put `[hold]` where the listener works in silence: the segment keeps its full length and its spare time goes quiet there, so a short effort needs a few cues, not nonstop talk. Time the work with a fixed hold (`[hold 20s]`) and give the rest one bare `[hold]`. Never use a hold to pad a story or a long strength rest.
 - Say the rest the segment actually holds, not a number it can't contain.
 - The lint's table shows a held segment's spare seconds, which it spends in silence. More than about ten in a strength rest or a stretch sounds like a dropped earbud: fill it with coaching, or move the time to where the work is.

@@ -43,7 +43,8 @@ import ffmpeg as ffmpeg_tool  # noqa: E402
 import locks  # noqa: E402
 from locks import FOLLOWING, render_lock, stop_file  # noqa: E402,F401
 from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds,  # noqa: E402
-                   layout, parse, plan, spoken as is_spoken)
+                   is_mark, layout, parse, plan, spoken as is_spoken)
+import counts  # noqa: E402
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
 import paths  # noqa: E402
 import verify  # noqa: E402
@@ -125,11 +126,12 @@ def end_tone():
                                         for f in END_NOTES) + silence(0.5)
 
 
-def assemble(segments, clip, lead=b"", bell=None, tail=b""):
+def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
     """Lay the clips out on the plan's clock, as draft.layout predicts.
 
     clip(text) returns a clip's PCM. `lead` (the chime) opens every segment after
-    the first, `bell` rings at each [chime] marker (default: the chime), and `tail`
+    the first, `bell` rings at each [chime] marker (default: the chime), `mark(text)` returns a
+    count's or cue's PCM (the coach's recorded clips on the beat, counts.pcm), and `tail`
     (the end tone) follows the last segment, past the plan's clock. A segment with
     time to spare widens its breaks and ends early instead of padding with silence,
     unless it has a [hold]: its spare time is then silence at its holds.
@@ -147,6 +149,10 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b""):
                 elif text == HOLD:   # a fixed hold is its silence; a bare one takes its share of the spare
                     if not pause:
                         p += [None, bytearray()]
+                elif is_mark(text):
+                    if mark is None:
+                        raise SystemExit(f"{text}: this render has no recorded counts to play")
+                    p[-1] += mark(text)
                 elif text:
                     p[-1] += clip(text)
                 p[-1] += silence(pause)
@@ -603,7 +609,8 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
 
         pcm_all, rows, drift = assemble(segments, clip,
                                         lead=b"" if no_chime else chime(), bell=chime(),
-                                        tail=b"" if no_chime else end_tone())
+                                        tail=b"" if no_chime else end_tone(),
+                                        mark=lambda text: counts.pcm(text, voice))
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
     for i, planned, spoken, label, flag in rows:

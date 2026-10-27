@@ -22,8 +22,10 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from draft import (CHIME, CHIME_SECONDS, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, PARAGRAPH_GAP,  # noqa: E402
-                   TOTAL_TOLERANCE, fill_flag, holds, layout, paragraphs, plan, spoken)
+from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, NUMBER_WORDS,  # noqa: E402
+                   PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_mark, layout, mark_issue, mark_words,
+                   paragraphs, plan, spans, spoken)
+import counts  # noqa: E402
 
 # Characters a voice may announce or mispronounce.
 FORBIDDEN_CHARS = set("#*_`|<>[]{}/\\@&%+=~^$°•→×")
@@ -50,10 +52,48 @@ def spoken_seconds(seg, voice, lead=0.0, rate=None, paras=None):
     from voices import clip_seconds
     paras = plan(seg) if paras is None else paras
     return lead + sum(clip_seconds(text, voice, rate) if spoken(text) else
-                      (CHIME_SECONDS if text == CHIME else 0.0)
+                      CHIME_SECONDS if text == CHIME else mark_seconds(text, voice)
                       for para in paras for text, _ in para) \
         + sum(pause for para in paras for _, pause in para) \
         + PARAGRAPH_GAP * max(len(paras) - 1, 0)
+
+
+def mark_seconds(text, voice):
+    """A count's or cue's seconds with this coach, or 0 for anything else (or one the lint will refuse)."""
+    if not is_mark(text) or mark_issue(text) or counts.missing(text, voice):
+        return 0.0
+    return counts.seconds(text, voice)
+
+
+def mark_problem(text, voice):
+    """Why a count or cue can't play with this coach, or None."""
+    issue = mark_issue(text)
+    if issue:
+        return issue
+    if not voice:
+        return None
+    if not voice.get("cues"):
+        return (f"{text}: {voice.get('name', 'this coach')} has no recorded counts (a web coach, or a local coach "
+                "without a cues/ folder); write the count out in words (\"Three, two, one, go.\")")
+    gone = counts.missing(text, voice)
+    if gone:
+        return f"{text}: {voice.get('name', 'this coach')}'s cues/ folder has no clip for " + ", ".join(gone)
+    return None
+
+
+NUMBER_RANK = {w: i for i, w in enumerate(NUMBER_WORDS, 1)}
+COUNTDOWN_RUN = 3   # number words counting down by one, in a row, that make a written-out countdown
+
+
+def written_countdown(text):
+    """The first run of COUNTDOWN_RUN or more number words counting down by one ("five, four, three"), or None."""
+    words = [w.lower() for w in WORD_RE.findall(text)]
+    for i in range(len(words) - COUNTDOWN_RUN + 1):
+        run = words[i:i + COUNTDOWN_RUN]
+        ranks = [NUMBER_RANK.get(w) for w in run]
+        if all(ranks) and all(a - b == 1 for a, b in zip(ranks, ranks[1:])):
+            return ", ".join(run)
+    return None
 
 
 def lint_line(lineno, line):
@@ -192,12 +232,29 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                 row.flag = "long" if row.diff > 0 else "short"
         for lineno, line in seg["lines"]:
             row.line_issues += lint_line(lineno, line)
+        has_cues = bool(voice and voice.get("cues"))
         for para in plans[i - 1]:
             for text, _ in para:
-                if spoken(text) and len(WORD_RE.findall(text)) < MIN_CLIP_WORDS:
+                if is_mark(text):
+                    problem = mark_problem(text, voice)
+                    if problem:
+                        row.clip_issues.append("  " + problem)
+                    continue
+                if not spoken(text):
+                    continue
+                words = WORD_RE.findall(text)
+                if len(words) < MIN_CLIP_WORDS:
+                    cue = words[0].lower() if words and words[0].lower() in CUE_NAMES else None
+                    hint = (f", or play the coach's recorded cue: [cue {cue}]" if cue and has_cues else
+                            ", or a recorded cue ([cue rest])" if has_cues else "")
                     row.clip_issues.append(
                         f"  \"{text}\" is one word between markers, and a local voice often garbles a word "
-                        f"on its own; give it two or more (\"Hold it there.\", \"And go.\")")
+                        f"on its own; give it two or more (\"Hold it there.\", \"And go.\"){hint}")
+                run = written_countdown(text) if has_cues else None
+                if run:
+                    row.clip_issues.append(
+                        f"  \"{run}\" counts down in words, which a voice rushes; use [count N] or [count N go], "
+                        "which plays the coach's recorded numbers a second apart")
         rows.append(row)
     report = Report(rows, strict, guide_wpm, voice, rate, exact,
                     total_tolerance=total_tolerance, word_wpm=wpm)
@@ -254,7 +311,10 @@ def render_report(report):
 
 
 def export_text(segments):
-    """The clean transcript: paragraphs with markers stripped."""
-    paras = [re.sub(r"\s{2,}", " ", MARK_RE.sub(" ", p)).strip()
+    """The clean transcript: paragraphs with markers stripped, and counts and cues as the words they say."""
+    def said(p):
+        return " ".join(mark_words(t) if is_mark(t) and not mark_issue(t) else MARK_RE.sub(" ", t)
+                        for t, _ in spans(p))
+    paras = [re.sub(r"\s{2,}", " ", said(p)).strip()
              for seg in segments for p in paragraphs(seg["lines"])]
     return "\n\n".join(p for p in paras if p) + "\n", len([p for p in paras if p])
