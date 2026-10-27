@@ -4,13 +4,8 @@
 # who, sound, energy: the persona's [voice] table. description: the line the designer heard.
 # design: filled in when a take is chosen (designer, model revision, seed, take).
 
+# 63 words, about 24 s at a coaching pace (150 to 175 wpm).
 script = """Alright, let's get to work. Set your feet about shoulder width, chest up, and breathe in. \
-Lower down slow, two, three, and drive back up. Good. That's exactly the pace we want. Four more, stay \
-with me. Last one, and rest. Shake it out, take a sip of water, and we'll go again."""
-
-# The same script with a sentence more (63 words, about 24 s at a coaching pace), to test whether a longer
-# clip helps Pocket: design.py --script long.
-script_long = """Alright, let's get to work. Set your feet about shoulder width, chest up, and breathe in. \
 Lower down slow, two, three, and drive back up. Good. That's exactly the pace we want. Four more, stay \
 with me. Last one, and rest. Shake it out, take a sip of water. Next we switch sides, left leg forward \
 for thirty seconds, and we'll go again."""

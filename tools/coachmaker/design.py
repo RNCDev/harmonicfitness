@@ -1,7 +1,6 @@
 """Design takes of the shipped coaches' clips (maintainer only; not a listener command).
 
-  .venv/Scripts/python tools/coachmaker/design.py marcus maya --takes 6
-  .venv/Scripts/python tools/coachmaker/design.py sam --script long        (the longer clip script, about 24 s)
+  .venv/bin/python tools/coachmaker/design.py andy marcus --takes 6
 
 Each designer runs tools/coachmaker/design_worker.py in its own environment (coaches/roster.toml names it)
 on the NVIDIA card or a Mac's GPU (VoxCPM2; Qwen3 needs the card), from the model already in models/
@@ -67,10 +66,6 @@ def model_dir(repo, revision):
     if not os.path.isdir(path):
         raise SystemExit(f"{repo} at {revision[:8]} isn't in models/.")
     return path
-
-
-def script(r, which):
-    return r["script"] if which == "standard" else r["script_long"]
 
 
 def wpm(text, seconds):
@@ -187,8 +182,6 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("coaches", nargs="+", help="coach slugs from coaches/roster.toml")
     p.add_argument("--designers", default="voxcpm")
-    p.add_argument("--script", choices=("standard", "long"), default="standard",
-                   help="the roster's clip script (about 20 s at a coaching pace) or script_long (about 24 s)")
     p.add_argument("--takes", type=int, default=3)
     p.add_argument("--seed", type=int, default=101, help="the first take's seed; the next takes count up")
     p.add_argument("--no-render", action="store_true",
@@ -211,7 +204,7 @@ def main(argv=None):
                 rec = json.load(f)
             rec["takes"] = [t for t in rec["takes"] if t["slug"] in a.coaches and t["seed"] in seeds]
         else:
-            rec = run_designer(r, name, coaches, seeds, script(r, a.script))
+            rec = run_designer(r, name, coaches, seeds, r["script"])
         for t in rec["takes"]:
             if "wav" not in t:
                 continue
@@ -226,7 +219,8 @@ def main(argv=None):
                           "wav": wav, "mp3": mp3, "seconds": round(len(pcm) / 2 / verify.SR, 2),
                           "render_s": t["render_s"], "source_sr": t["sr"],
                           "revision": r["designers"][name]["revision"], "description": description(r, by_slug[t["slug"]], name),
-                          "text": t.get("text") or script(r, a.script), "script": a.script}
+                          "text": t.get("text") or r["script"],
+                          "device": rec.get("gpu"), "torch": rec.get("torch")}
             fresh.append(key)
     heard = transcribe([takes[k]["wav"] for k in fresh])
     for k in fresh:

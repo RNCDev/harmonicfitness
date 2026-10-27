@@ -48,7 +48,7 @@ def main(argv):
         block = (f"[picks.{slug}]\ndesigner = {toml_str(t['designer'])}\n"
                  f"repo = {toml_str(roster['designers'][t['designer']]['repo'])}\n"
                  f"revision = {toml_str(t['revision'])}\nseed = {t['seed']}\n"
-                 f"seconds = {t['seconds']}\nscript = {toml_str(t.get('script', 'standard'))}\ndescription = {toml_str(t['description'])}\n")
+                 f"seconds = {t['seconds']}\ndevice = {toml_str(t.get('device') or '')}\ntorch = {toml_str(t.get('torch') or '')}\ndescription = {toml_str(t['description'])}\n")
         text = re.sub(rf"\n\[picks\.{slug}\]\n(?:[^\[\n].*\n)*", "\n", text)   # a re-pick replaces the old one
         text = text.rstrip("\n") + "\n\n" + block
         print(f"{slug}: {take}, {t['seconds']} s -> {os.path.relpath(folder, ROOT)}")
