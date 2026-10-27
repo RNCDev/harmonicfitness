@@ -41,6 +41,30 @@ def out_dir(draft, workouts=None):
     return os.path.join(workouts, "checks")
 
 
+# What a file name may not hold on Windows (and so nowhere: drafts and folders move between a Mac and a PC). A
+# colon there writes the text into a hidden side stream ("Workout 1: Strength") or leaves the folder ("D:foo").
+UNSAFE_NAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+RESERVED_NAMES = {"con", "prn", "aux", "nul", *(f"com{n}" for n in range(1, 10)), *(f"lpt{n}" for n in range(1, 10))}
+
+
+def safe_name(name):
+    """`name` when it can be a file name on every computer, else errors.UsageError (exit 64) saying why: no
+    < > : " / \\ | ? * or control character, no trailing dot or space, not "." or "..", and not a name Windows
+    keeps for a device (con, prn, aux, nul, com1-9, lpt1-9, with any extension)."""
+    bad = sorted(set(UNSAFE_NAME_RE.findall(name)))
+    if bad:
+        shown = " ".join(repr(c) if ord(c) < 32 else c for c in bad)
+        raise errors.UsageError(f"The name can't contain {shown}: {name!r}. Use a dash instead, such as "
+                                "\"Workout 2026-10-25 Strength 25 min\".")
+    if not name.strip() or name in (".", ".."):
+        raise errors.UsageError(f"{name!r} isn't a name for a file.")
+    if name.endswith((".", " ")):
+        raise errors.UsageError(f"The name can't end with a dot or a space: {name!r}.")
+    if name.split(".")[0].strip().casefold() in RESERVED_NAMES:
+        raise errors.UsageError(f"{name!r} is a name Windows keeps for a device; choose another.")
+    return name
+
+
 def record_path(mp3):
     """The build record beside an MP3 (or .m4a, .wav): <name>.build.json."""
     return os.path.splitext(mp3)[0] + ".build.json"

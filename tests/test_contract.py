@@ -114,6 +114,45 @@ class FlagNames(unittest.TestCase):
                 run(cmd, "--help")
         return seen
 
+    def numeric_options(self):
+        """{(prog, flag): type} for every option whose value is a number, found by its type= or its default."""
+        import argparse
+        from unittest import mock
+        seen = {}
+        real = argparse.ArgumentParser.add_argument
+
+        def record(parser, *args, **kw):
+            flags = [a for a in args if a.startswith("--")]
+            kind = kw.get("type")
+            if flags and (kind in (int, float) or kind in cli.NUMBER_TYPES
+                          or (kind is None and isinstance(kw.get("default"), (int, float))
+                              and not isinstance(kw.get("default"), bool) and kw.get("action") is None)):
+                seen[(parser.prog, flags[0])] = kind
+            return real(parser, *args, **kw)
+
+        with tempfile.TemporaryDirectory() as d, helpers.home(os.path.join(d, "me")), \
+                mock.patch.object(argparse.ArgumentParser, "add_argument", record):
+            shutil.copytree(paths.EXAMPLE, paths.HOME)
+            for cmd in PYTHON_COMMANDS:
+                run(cmd, "--help")
+        return seen
+
+    def test_every_numeric_option_is_range_checked(self):
+        seen = self.numeric_options()
+        self.assertIn(("sweatcast brief", "--minutes"), seen)   # the walk reached the commands
+        loose = {k: getattr(t, "__name__", t) for k, t in seen.items() if t not in cli.NUMBER_TYPES}
+        self.assertEqual(loose, {}, "use cli.positive_int, non_negative_int, positive_float or non_negative_float")
+
+    def test_a_bad_number_is_usage(self):
+        for argv in (["brief", "--goal", "strength", "--minutes", "0", "--preset", "bodyweight"],
+                     ["content", "plan", "--minutes", "-3"], ["coverage", "--last", "0"],
+                     ["cache", "prune", "--days", "-1"], ["feeds", "--hours", "nan"],
+                     ["youtube", "pick", "--recent", "two"]):
+            with self.subTest(argv=argv):
+                code, _, err = run(*argv)
+                self.assertEqual(code, cli.USAGE)
+                self.assertIn("error:", err)
+
     def test_date_and_today_follow_the_rule(self):
         seen = self.flags()
         self.assertIn("sweatcast coverage", seen)   # the walk reached the commands

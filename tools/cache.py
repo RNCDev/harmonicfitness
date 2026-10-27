@@ -85,16 +85,13 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd")
     p = sub.add_parser("prune", help="remove clips no build has used recently")
-    p.add_argument("--days", type=float, default=None,
+    p.add_argument("--days", type=cli.non_negative_float, default=None,
                    help=f"clips unused for this many days (default {DEFAULT_DAYS}, unless only --logs-older is given)")
-    p.add_argument("--logs-older", type=float, default=None, metavar="DAYS",
+    p.add_argument("--logs-older", type=cli.non_negative_float, default=None, metavar="DAYS",
                    help="also remove render logs (.logs/*.log, *.log.1) not written in this many days; "
                         "builds.jsonl and told.jsonl are never touched. Alone, it prunes no clips")
     args = ap.parse_args(argv)
     if args.cmd == "prune":
-        for value in (args.days, args.logs_older):
-            if value is not None and value < 0:
-                raise cli.Usage("days can't be negative")
         if args.days is not None or args.logs_older is None:
             removed, freed = prune(DEFAULT_DAYS if args.days is None else args.days)
             n, total = size()

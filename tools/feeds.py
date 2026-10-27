@@ -161,7 +161,12 @@ def web_link(url):
 
 
 def parse_rss(data, since, keep=PER_FEED):
-    """Items newer than `since` from RSS or Atom, newest first: [{title, link, date, summary}]."""
+    """Items newer than `since` from RSS or Atom, newest first: [{title, link, date, summary}]. A body declaring a
+    document type or entities is refused unparsed (ValueError: a failed feed, like any that won't parse): feeds
+    need neither, and entity expansion is how a hostile one would try to blow up."""
+    head = data if isinstance(data, str) else bytes(data).decode("utf-8", "replace")
+    if re.search(r"<!\s*(DOCTYPE|ENTITY)", head, re.I):
+        raise ValueError("the feed declares a DOCTYPE or ENTITY; refused unparsed")
     root = ET.fromstring(data)
     items = []
     for it in root.iter("item"):
@@ -343,7 +348,7 @@ def sheet_path(local):
 
 def main():
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--hours", type=float, default=72, help="how far back news items go (default 72)")
+    ap.add_argument("--hours", type=cli.positive_float, default=72, help="how far back news items go (default 72)")
     ap.add_argument("--profile", default=None)
     ap.add_argument("--out", help="sheet path (default me/workouts/research/daily/<date>-feeds.md)")
     ap.add_argument("--print", action="store_true", help="print the whole sheet, not just the weather")

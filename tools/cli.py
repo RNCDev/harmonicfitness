@@ -40,38 +40,58 @@ class Usage(SystemExit):
 
 
 def run(main, argv=None):
-    """Run a tool's main() and return its exit code, mapping what it raises (see above)."""
+    """Run a tool's main() and return its exit code, mapping what it raises (see above). Every message it prints
+    has each key value taken out first. With SWEATCAST_DEBUG set, a reported problem's message is followed by
+    its traceback, scrubbed the same way (what it was raised from included)."""
     try:
         code = main() if argv is None else main(argv)
     except Usage as e:
-        print(e.code, file=sys.stderr)
+        _say(e.code)
         return USAGE
     except SystemExit as e:
         if e.code is None or isinstance(e.code, int):
             return e.code or OK
-        print(e.code, file=sys.stderr)
+        _say(e.code)
+        _debug()
         return ISSUES
     except Exception as e:
         code = getattr(e, "exit_code", None)
         if code is None:
             print(_traceback(), file=sys.stderr, end="")
             return BUG
-        print(e, file=sys.stderr)
+        _say(e)
+        _debug()
         return code
     except KeyboardInterrupt:
+        print("Interrupted.", file=sys.stderr)
         return 130
     return code or OK
 
 
-def _traceback():
-    """The current exception's traceback with every key value taken out; the raw one if scrubbing fails, since
-    a crash handler that crashes would hide the bug."""
-    import traceback
-    text = traceback.format_exc()
+def _say(message):
+    print(_scrub(str(message)), file=sys.stderr)
+
+
+def _debug():
+    """With SWEATCAST_DEBUG set, the current exception's traceback (scrubbed) after its message."""
+    import os
+    if os.environ.get("SWEATCAST_DEBUG"):
+        print(_traceback(), file=sys.stderr, end="")
+
+
+def _scrub(text):
+    """`text` with every key value taken out. If scrubbing itself fails, the text is withheld rather than
+    printed raw: a key must never reach the terminal."""
     try:
         return redact.scrub(text)
-    except Exception:
-        return text
+    except Exception as e:
+        return f"(a message was withheld: taking key values out of it failed with {type(e).__name__})"
+
+
+def _traceback():
+    """The current exception's traceback, what it was raised from included, with every key value taken out."""
+    import traceback
+    return _scrub(traceback.format_exc())
 
 
 def _date(text):
@@ -80,6 +100,43 @@ def _date(text):
         return datetime.date.fromisoformat(text)
     except ValueError:
         raise argparse.ArgumentTypeError(f"not a date: {text!r} (YYYY-MM-DD)") from None
+
+
+def _number(kind, text, least, strict):
+    import math
+    try:
+        value = kind(text)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError(f"not a {'whole ' if kind is int else ''}number: {text!r}") from None
+    if kind is float and not math.isfinite(value):
+        raise argparse.ArgumentTypeError(f"not a finite number: {text!r}")
+    if value < least or (strict and value == least):
+        raise argparse.ArgumentTypeError(f"must be {'more than' if strict else 'at least'} {least}: {text!r}")
+    return value
+
+
+def positive_int(text):
+    """argparse type: a whole number of at least 1 (a count, minutes, days); anything else exits 64."""
+    return _number(int, text, 1, False)
+
+
+def non_negative_int(text):
+    """argparse type: a whole number of at least 0 (a seed)."""
+    return _number(int, text, 0, False)
+
+
+def positive_float(text):
+    """argparse type: a number above 0 (seconds, hours, gigabytes)."""
+    return _number(float, text, 0, True)
+
+
+def non_negative_float(text):
+    """argparse type: a number of at least 0 (cache prune's days, where 0 means every clip)."""
+    return _number(float, text, 0, False)
+
+
+# test_contract holds every numeric option to one of these
+NUMBER_TYPES = (positive_int, non_negative_int, positive_float, non_negative_float)
 
 
 def today_arg(parser):

@@ -12,7 +12,11 @@ import keys  # noqa: E402
 def scrub(text):
     """`text` with every key value set here (the environment's or me/.env's) replaced by <key>, so nothing a
     library or a service echoes can print one."""
-    for value in sorted(keys.raw_values(), key=len, reverse=True):
+    try:
+        values = keys.raw_values()
+    except (OSError, UnicodeError):   # me/.env unreadable: the environment's keys still come out, never none
+        values = [v for v in (os.environ.get(var) for var in keys.SERVICE_VARS.values()) if v]
+    for value in sorted(values, key=len, reverse=True):
         for form in (value, value.strip()):
             if len(form) >= 8:
                 text = text.replace(form, "<key>")

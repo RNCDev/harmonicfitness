@@ -142,12 +142,15 @@ class Brief(unittest.TestCase):
 
     def test_save_writes_the_brief_and_the_menu_beside_the_draft(self):
         with tempfile.TemporaryDirectory() as d:
-            target = os.path.join(d, "drafts", "2026-10-21-strength.draft.txt")
-            r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--save", target)
+            home = os.path.join(d, "me")
+            shutil.copytree(LISTENER, home)
+            folder = os.path.join(home, "workouts", "2026-10-21-strength")
+            target = os.path.join(folder, "2026-10-21-strength.draft.txt")
+            r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--save", target, home=home)
             self.assertEqual(r.returncode, 0, r.stderr)
-            with open(os.path.join(d, "drafts", "2026-10-21-strength.brief.md")) as f:
+            with open(os.path.join(folder, "2026-10-21-strength.brief.md")) as f:
                 self.assertEqual(f.read(), r.stdout)
-            with open(os.path.join(d, "drafts", "2026-10-21-strength.menu.json")) as f:
+            with open(os.path.join(folder, "2026-10-21-strength.menu.json")) as f:
                 saved = json.load(f)
         self.assertEqual(saved["seconds"], 1800)
         self.assertEqual(saved["request"]["kit"], "home")
@@ -188,6 +191,41 @@ class Brief(unittest.TestCase):
             r = brief("--goal", "strength", "--minutes", "30", *args)
             self.assertEqual(r.returncode, 64, args)
             self.assertTrue(r.stderr.strip(), args)
+
+    def test_usage_on_bad_numbers_and_a_save_outside_the_workouts(self):
+        for minutes in ("0", "-5", "ten", "2.5"):
+            r = brief("--goal", "strength", "--minutes", minutes, "--kit", "home")
+            self.assertEqual(r.returncode, 64, minutes)
+            self.assertIn("--minutes", r.stderr)
+        with tempfile.TemporaryDirectory() as d:
+            target = os.path.join(d, "elsewhere", "x.draft.txt")
+            r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--save", target)
+            self.assertEqual(r.returncode, 64, r.stderr)
+            self.assertIn("--save", r.stderr)
+            self.assertFalse(os.path.exists(os.path.join(d, "elsewhere")))
+            self.assertEqual(r.stdout, "")   # refused before anything is printed
+
+    def test_a_damaged_knowledge_file_is_the_files_problem_not_the_commands(self):
+        """A corrupt sessions.toml is exit 1 (fix the file), never 64 (the flags were wrong)."""
+        import sessions
+        with tempfile.TemporaryDirectory() as d:
+            bad = os.path.join(d, "sessions.toml")
+            with open(bad, "w", encoding="utf-8") as f:
+                f.write("format = 2\n[methods.broken\n")
+            with self.assertRaises(errors.ContextError):
+                sessions.load(bad)
+            import contextlib
+            import io
+            import brief as brief_tool
+            import cli
+            import paths
+            from unittest import mock
+            err = io.StringIO()
+            with helpers.home(LISTENER), mock.patch.object(paths, "SESSIONS", bad), \
+                    contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = cli.run(brief_tool.main, ["--goal", "strength", "--minutes", "30", "--kit", "home"])
+            self.assertEqual(code, 1, err.getvalue())
+            self.assertIn("isn't valid TOML", err.getvalue())
 
     def test_a_first_session_says_so(self):
         with tempfile.TemporaryDirectory() as d:
@@ -502,8 +540,11 @@ class BriefAdd(unittest.TestCase):
         plain = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
         self.assertEqual(plain.returncode, 0, plain.stderr)
         with tempfile.TemporaryDirectory() as d:
-            target = os.path.join(d, "2026-10-21-strength-30", "2026-10-21-strength-30.draft.txt")
-            more = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--add", "bench", "--save", target)
+            home = os.path.join(d, "me")
+            shutil.copytree(LISTENER, home)
+            target = os.path.join(home, "workouts", "2026-10-21-strength-30", "2026-10-21-strength-30.draft.txt")
+            more = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--add", "bench", "--save", target,
+                         home=home)
             self.assertEqual(more.returncode, 0, more.stderr)
             self.assertTrue(ids_in(menu_section(more.stdout)) > ids_in(menu_section(plain.stdout)))
             self.assertEqual("Loads on hand" in more.stdout, "Loads on hand" in plain.stdout)   # the same kit, plus

@@ -19,7 +19,7 @@ from paths import show  # noqa: E402
 from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SETTING_HOMES, Issue,  # noqa: E402
                      delivery_patterns, experience, feed_sources, kits, listener_name,
                      part_paths, persona, profile, route_issues,
-                     shape_problems, SHAPED, str_list, table_list, wpm, files as context_files)
+                     scalar_problems, shape_problems, SHAPED, str_list, table_list, files as context_files)
 from context import _names, kit_problems  # noqa: E402
 from frontmatter import body, front, placeholder, section, unfilled  # noqa: E402
 from sessionlog import Session, parse_session  # noqa: E402
@@ -65,7 +65,10 @@ def _check_profile(path):
                     out.append(Issue(part, 0, f"unknown setting '{key}', which no tool reads"
                                               + (f" (did you mean {close[0]}?)" if close else ""), note=True))
     out += [i._replace(path=at("render")) for i in route_issues(p)]
-    if wpm(p) is None:
+    refused = scalar_problems(settings)   # a single setting the tools refuse as written
+    out += [Issue(at(key), 0, message, note=note) for key, message, note in refused]
+    refused = {key for key, _, _ in refused}
+    if "words_per_minute" not in settings:
         out.append(Issue(at("words_per_minute"), 0, "no words_per_minute (./sweatcast get wpm prints "
                                                     "nothing; builds use each coach's measured pace)", note=True))
     if not delivery_patterns(p):
@@ -90,7 +93,7 @@ def _check_profile(path):
             if placeholder(h):
                 out.append(Issue(at(key), 0, f"{key}: '{h}' isn't filled in yet"))
     cat = _catalog()
-    if experience(p) is None:
+    if experience(p) is None and "experience" not in refused:
         out.append(Issue(at("experience"), 0, "no experience level: novice, experienced or advanced", note=True))
     if listener_name(p) is None:
         out.append(Issue(at("name"), 0, "no name: the coach can't greet the listener by name", note=True))
@@ -277,7 +280,13 @@ def check_coaches(folder=None):
         if isinstance(p.settings.get("aliases"), str):
             out.append(Issue(path, 0, f'aliases is one name; write it as a list, aliases = ["{p.settings["aliases"]}"] '
                                       "(read as one for now)", note=True))
-        if p.settings.get("kind") == "web":
+        kind = p.settings.get("kind") or "local"
+        kind = kind.strip().casefold() if isinstance(kind, str) else kind
+        if kind not in ("local", "web"):
+            out.append(Issue(path, 0, f"kind = {p.settings.get('kind')!r} isn't a kind of coach: write \"web\" (a "
+                                      "voice a service designed) or \"local\""))
+            continue
+        if kind == "web":
             name = p.settings.get("name") or slug
             if p.settings.get("pending"):
                 how = ("made the first time a build uses it" if p.settings.get("placeholder")

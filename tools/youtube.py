@@ -179,6 +179,28 @@ def caption_track(info):
     return None, False
 
 
+def caption_events(response, url):
+    """The caption events from a json3 caption download (an open response), read under the same cap as a
+    feed (feeds.MAX_BYTES); an answer too large, not JSON or not the shape json3 has raises SweatcastError."""
+    import feeds
+    try:
+        data = response.read(feeds.MAX_BYTES + 1)
+    finally:
+        response.close()
+    if len(data) > feeds.MAX_BYTES:
+        raise errors.SweatcastError(f"The captions for {url} are over {feeds.MAX_BYTES // 1_000_000} MB; "
+                                    "pick another video.")
+    try:
+        doc = json.loads(data)
+    except ValueError:
+        doc = None
+    events = doc.get("events", []) if isinstance(doc, dict) else None
+    if not isinstance(events, list):
+        raise errors.SweatcastError(f"The captions for {url} came back in a form this tool can't read; "
+                                    "pick another video.")
+    return [e for e in events if isinstance(e, dict)]
+
+
 def paragraphs(events):
     out, buf = [], []
     for ev in events:
@@ -206,7 +228,7 @@ def transcript(ref):
         track, manual = caption_track(info)
         if not track:
             raise errors.SweatcastError(f"No English captions for {url}; pick another video.")
-        events = json.loads(y.urlopen(track).read()).get("events", [])
+        events = caption_events(y.urlopen(track), url)
 
     body = paragraphs(events)
     d = info.get("upload_date") or ""
@@ -229,13 +251,13 @@ def main():
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pick", help="list recent unused videos from each favorite channel")
-    p.add_argument("--recent", type=int, default=3, help="videos per channel (default 3)")
+    p.add_argument("--recent", type=cli.positive_int, default=3, help="videos per channel (default 3)")
     t = sub.add_parser("transcript", help="save a video's transcript for the deep dive")
     t.add_argument("video", help="video id or URL")
     d = sub.add_parser("done", help="mark the next part of a series as told")
     d.add_argument("video", help="video id")
     z = sub.add_parser("puzzles", help="list recent puzzle videos not yet used as a quiz")
-    z.add_argument("--recent", type=int, default=8, help="videos to list (default 8)")
+    z.add_argument("--recent", type=cli.positive_int, default=8, help="videos to list (default 8)")
     args = ap.parse_args()
     if args.cmd in ("done", "transcript") and not (args.video.startswith("http") or ID_RE.match(args.video)):
         ap.error(f"'{args.video}' isn't a video id or URL")

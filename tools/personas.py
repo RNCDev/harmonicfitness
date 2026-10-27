@@ -131,8 +131,16 @@ class Persona:
 
     @property
     def kind(self):
-        """"web" (a voice a service designed) or "local" (a clip every engine copies)."""
-        return str(self.settings.get("kind") or "local")
+        """"web" (a voice a service designed) or "local" (a clip every engine copies); unset reads as "local", and
+        any case goes ("Web"). Anything else raises errors.CoachError: a misspelt kind must never read as local."""
+        v = self.settings.get("kind")
+        if v is None or v == "":
+            return "local"
+        kind = v.strip().casefold() if isinstance(v, str) else None
+        if kind not in ("local", "web"):
+            raise errors.CoachError(f"{self.name}'s persona.md says kind = {v!r}; write \"local\" or \"web\" "
+                                    f"({show(self.path)})")
+        return kind
 
     @property
     def is_web(self):
