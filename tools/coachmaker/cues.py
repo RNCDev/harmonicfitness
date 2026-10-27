@@ -54,6 +54,7 @@ GAP_DB = 30.0        # a gap is a run of frames this far under the take's loudes
 MIN_GAP = 0.06       # seconds of quiet that count as a gap between numbers
 BREATH_DB = 8.0      # a voiced stretch this far under the others' median is a breath, not a number
 KEEP = 0.03          # seconds of quiet kept at each end of a clip
+SOFT_DB = 50.0       # a number's own trim: only what's this far under its loudest is silence
 FRAME = 0.01
 
 
@@ -64,10 +65,10 @@ def frames(a):
     return 10 * np.log10(np.mean(a[: n * f].reshape(n, f) ** 2, axis=1) + 1e-12)
 
 
-def trim(a):
+def trim(a, below=GAP_DB):
     import numpy as np
     db = frames(a)
-    loud = np.flatnonzero(db > db.max() - GAP_DB)
+    loud = np.flatnonzero(db > db.max() - below)
     if not len(loud):
         return a[:0]
     f, k = int(FRAME * verify.SR), int(KEEP * verify.SR)
@@ -134,8 +135,11 @@ def split_countdown(a, way="breaths"):
             _join(runs, gaps.index(min(gaps)))
     if len(runs) != 10:
         return None
-    f, k = int(FRAME * verify.SR), int(KEEP * verify.SR)
-    return [a[max(0, s_ * f - k): min(len(a), e * f + k)] for s_, e in runs]
+    # Cut halfway through each gap, then trim only true silence: a number's soft edges (the s of "six" and
+    # "seven", the t of "eight") sit far under its vowel, and a tight cut clips them (2026-10-27, by ear).
+    f = int(FRAME * verify.SR)
+    cuts = [0] + [(runs[i][1] + runs[i + 1][0]) // 2 * f for i in range(9)] + [len(a)]
+    return [trim(a[cuts[i]:cuts[i + 1]], SOFT_DB) for i in range(10)]
 
 
 WAYS = ("breaths", "gaps", "fragments")

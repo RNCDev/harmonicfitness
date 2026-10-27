@@ -1,0 +1,89 @@
+# The coach's count and cue clips (tools/coachmaker/cues.py): Pocket, the public model, from
+# pocket.safetensors. Counts come from one countdown take, cut at its gaps. Leveled as a build
+# levels a clip.
+
+[count.ten]
+words = "Ten."
+seed = 48
+seconds = 0.32
+
+[count.nine]
+words = "Nine."
+seed = 48
+seconds = 0.52
+
+[count.eight]
+words = "Eight."
+seed = 48
+seconds = 0.19
+
+[count.seven]
+words = "Seven."
+seed = 48
+seconds = 0.36
+
+[count.six]
+words = "Six."
+seed = 48
+seconds = 0.31
+
+[count.five]
+words = "Five."
+seed = 48
+seconds = 0.3
+
+[count.four]
+words = "Four."
+seed = 48
+seconds = 0.35
+
+[count.three]
+words = "Three."
+seed = 48
+seconds = 0.28
+
+[count.two]
+words = "Two."
+seed = 48
+seconds = 0.34
+
+[count.one]
+words = "One."
+seed = 48
+seconds = 0.4
+
+[cue.go]
+file = "go.wav"
+words = "Go!"
+seed = 44
+seconds = 0.42
+
+[cue.rest]
+file = "rest.wav"
+words = "Rest."
+seed = 43
+seconds = 0.49
+
+[cue.switch]
+file = "switch.wav"
+words = "Switch."
+seed = 45
+seconds = 0.53
+
+[cue.switch_sides]
+file = "switch-sides.wav"
+words = "Switch sides."
+seed = 42
+seconds = 0.81
+
+[cue.stop]
+file = "stop.wav"
+words = "Stop."
+seed = 43
+seconds = 0.45
+
+[cue.hold]
+file = "hold.wav"
+words = "Hold."
+seed = 44
+seconds = 0.37
