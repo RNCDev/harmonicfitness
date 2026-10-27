@@ -50,9 +50,12 @@ def check_path(cache_path, text):
 
 
 def _verdict(path):
+    """A cached take's verdict, or None (heard again) when there's none or another checker made it."""
+    import verify
     try:
         with open(path, encoding="utf-8") as f:
             v = json.load(f)
-        return v if isinstance(v, dict) and "ok" in v and "missed_cues" in v else None
     except (OSError, ValueError):
         return None
+    ok = isinstance(v, dict) and "ok" in v and "missed_cues" in v and v.get("checker") == verify.checker_id()
+    return v if ok else None

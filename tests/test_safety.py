@@ -1,7 +1,10 @@
 """Checks for holes in the safety path: what the menu scan catches (jumping and sprint moves, one-word
 aliases, negations), what an off-limits area rules out, and how health.md's [[limits]] rows, Avoid:
 lines and injury prose are read. They run on the shipped catalog, with no models or network."""
+import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -15,6 +18,8 @@ catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file
 import check  # noqa: E402
 import context  # noqa: E402
 import draft  # noqa: E402
+import errors  # noqa: E402
+import helpers  # noqa: E402
 import menu  # noqa: E402
 import movements  # noqa: E402
 import screen  # noqa: E402
@@ -195,6 +200,139 @@ class InjuryProse(unittest.TestCase):
             path = health(self.ROW, injuries=injuries)
             self.assertFalse(any("injur" in w for w in screen_with(path).warnings), injuries)
             self.assertEqual(issues_in(path), [], injuries)
+
+
+class MenuTampering(unittest.TestCase):
+    """The build's gate re-runs the safety screen from the menu's request against the current health.md and
+    profile, so a movement added to menu.json by hand is refused; a malformed menu is an issue, never a
+    traceback; and a missing health.md is named as such."""
+    TEXT = "movements: dead bug\n@@ 300 | Work\nThe dead bug now.\n"
+    TODAY = "2026-10-21"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.home = os.path.join(cls.tmp.name, "me")
+        shutil.copytree(os.path.join(ROOT, "tests", "fixtures", "listener"), cls.home)
+        cls.draft = os.path.join(cls.home, "workouts", "x", "x.draft.txt")
+        os.makedirs(os.path.dirname(cls.draft))
+        with open(cls.draft, "w", encoding="utf-8") as f:
+            f.write(cls.TEXT)
+        env = dict(os.environ, SWEATCAST_PYTHON=sys.executable, SWEATCAST_HOME=cls.home)
+        r = subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), "brief", "--today", cls.TODAY, "--goal", "general",
+                            "--minutes", "5", "--kit", "home", "--save", cls.draft],
+                           capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+        assert r.returncode == 0, r.stderr
+        with open(draft.menu_path(cls.draft), encoding="utf-8") as f:
+            cls.saved = json.load(f)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def setUp(self):
+        ctx = helpers.home(self.home)
+        ctx.__enter__()
+        self.addCleanup(ctx.__exit__, None, None, None)
+        self.addCleanup(menu.write, draft.menu_path(self.draft), self.saved)
+
+    def gate(self, data, strict=True):
+        if isinstance(data, str):
+            with open(draft.menu_path(self.draft), "w", encoding="utf-8") as f:
+                f.write(data)
+        else:
+            menu.write(draft.menu_path(self.draft), data)
+        return menu.gate(CAT, self.draft, self.TEXT, draft.parse(self.TEXT), today=self.TODAY, strict=strict)
+
+    def edited(self, **changes):
+        return dict(json.loads(json.dumps(self.saved)), **changes)
+
+    def test_the_brief_menu_passes(self):
+        self.assertEqual(self.gate(self.saved), ([], []))
+
+    def test_malformed_menus_are_issues_not_tracebacks(self):
+        for bad in (json.dumps([1, 2]),
+                    json.dumps(self.edited(movements=[{"name": "dead bug"}, 7])),
+                    json.dumps(self.edited(seconds="300", date="yesterday", request=[])),
+                    json.dumps(self.edited(movements={"dead-bug": {}}))):
+            issues, _ = self.gate(bad)
+            self.assertTrue(issues, bad)
+            self.assertTrue(all("brief" in i for i in issues), issues)
+
+    def test_validate_names_each_problem(self):
+        self.assertEqual(menu.validate(self.saved), [])
+        found = menu.validate(self.edited(seconds=0, movements=[{"id": "dead-bug", "side": 1}]))
+        self.assertEqual(len(found), 2, found)
+
+    def test_a_menu_without_format_asks_for_a_rerun(self):
+        old = self.edited()
+        del old["format"]
+        issues, _ = self.gate(old)
+        self.assertTrue(any("format" in i and "brief ... --save" in i for i in issues), issues)
+
+    def test_a_movement_added_by_hand_is_refused(self):
+        on = {e["id"] for e in self.saved["movements"]}
+        self.assertNotIn("push-up", on)   # the listener dislikes it
+        added = self.edited(movements=self.saved["movements"] + [{"id": "push-up", "name": "Push-up", "aliases": []}])
+        issues, _ = self.gate(added)
+        self.assertTrue(any("push-up" in i and "screen doesn't allow" in i for i in issues), issues)
+        self.assertEqual(self.gate(added, strict=False)[0], [])   # a lint checks the shape and the text only
+
+    def test_a_movement_removed_passes(self):
+        fewer = self.edited(movements=[e for e in self.saved["movements"] if e["id"] != "box-breathing"])
+        self.assertEqual(self.gate(fewer), ([], []))
+
+    def test_a_healthy_side_only_movement_needs_its_side(self):
+        sided = [e for e in self.saved["movements"] if "side" in e]
+        if not sided:
+            self.skipTest("no healthy-side-only movement on this menu")
+        moves = [dict(e) for e in self.saved["movements"]]
+        for e in moves:
+            if e["id"] == sided[0]["id"]:
+                del e["side"]
+        issues, _ = self.gate(self.edited(movements=moves))
+        self.assertTrue(any(sided[0]["id"] in i and "side" in i for i in issues), issues)
+
+    def test_a_request_can_tighten_but_never_loosen_health(self):
+        # the request's own limit, kept in the menu, still applies: a knee limit rules out a knee movement
+        tight = self.edited()
+        tight["request"]["limits"] = tight["request"].get("limits", []) + ["knee=off-limits:both"]
+        issues, _ = self.gate(tight)
+        self.assertTrue(any("screen doesn't allow" in i for i in issues), issues)
+        # dropping health.md's own limit from the request changes nothing: the file is read again
+        loose = self.edited()
+        loose["request"].pop("limits", None)
+        loose["movements"] = loose["movements"] + [{"id": "push-up", "name": "Push-up", "aliases": []}]
+        self.assertTrue(any("push-up" in i for i in self.gate(loose)[0]))
+
+    def test_a_missing_health_file_is_named_not_called_an_old_menu(self):
+        health = os.path.join(self.home, "health.md")
+        moved = health + ".away"
+        os.rename(health, moved)
+        self.addCleanup(os.rename, moved, health)
+        issues, _ = self.gate(self.saved)
+        self.assertTrue(any("no health.md" in i and "setup" in i for i in issues), issues)
+        self.assertFalse(any("predates" in i for i in issues), issues)
+
+    def test_the_brief_refuses_without_health_md(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(self.home, home)
+            os.remove(os.path.join(home, "health.md"))
+            target = os.path.join(home, "workouts", "y", "y.draft.txt")
+            env = dict(os.environ, SWEATCAST_PYTHON=sys.executable, SWEATCAST_HOME=home)
+            r = subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), "brief", "--today", self.TODAY, "--goal",
+                                "general", "--minutes", "5", "--kit", "home", "--save", target],
+                               capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn("setup", r.stderr)
+            self.assertFalse(os.path.exists(draft.menu_path(target)))
+
+    def test_log_session_refuses_a_malformed_menu(self):
+        menu.write(draft.menu_path(self.draft), self.edited(movements="dead-bug"))
+        with self.assertRaises(errors.LogRefused) as e:
+            context.from_draft(self.draft)
+        self.assertIn("movements", str(e.exception))
 
 
 if __name__ == "__main__":

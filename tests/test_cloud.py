@@ -101,7 +101,7 @@ class Core(unittest.TestCase):
         def refused(*a, **k):
             tries.append(1)
             raise urllib.error.URLError(ConnectionRefusedError(61, "refused"))
-        with mock.patch("urllib.request.urlopen", refused), self.assertRaises(cloud.ServiceError):
+        with mock.patch.object(cloud, "_open", refused), self.assertRaises(cloud.ServiceError):
             cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
         self.assertEqual(len(tries), 3)   # nothing was sent: safe to try again
         tries.clear()
@@ -109,7 +109,7 @@ class Core(unittest.TestCase):
         def timed_out(*a, **k):
             tries.append(1)
             raise socket.timeout("timed out")
-        with mock.patch("urllib.request.urlopen", timed_out), self.assertRaises(cloud.ServiceError):
+        with mock.patch.object(cloud, "_open", timed_out), self.assertRaises(cloud.ServiceError):
             cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
         self.assertEqual(len(tries), 1)
 
@@ -120,11 +120,11 @@ class Core(unittest.TestCase):
         def cut_off(*a, **k):
             tries.append(1)
             raise http.client.IncompleteRead(b"RIFF")
-        with mock.patch("urllib.request.urlopen", cut_off), self.assertRaises(cloud.ServiceError) as got:
+        with mock.patch.object(cloud, "_open", cut_off), self.assertRaises(cloud.ServiceError) as got:
             cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3)
         self.assertEqual((len(tries), got.exception.kind), (3, "unavailable"))
         tries.clear()
-        with mock.patch("urllib.request.urlopen", cut_off), self.assertRaises(cloud.ServiceError):
+        with mock.patch.object(cloud, "_open", cut_off), self.assertRaises(cloud.ServiceError):
             cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3, idempotent=False)
         self.assertEqual(len(tries), 1)   # a save may have landed: never sent twice
 
@@ -141,6 +141,96 @@ class Core(unittest.TestCase):
             with self.assertRaises(cloud.ServiceError):
                 cloud.request("POST", fake.url + "/x", {}, b"", service="fish")   # no backoff slept through
         self.assertEqual(len(fake.requests), 1)
+
+    def test_a_stop_belongs_to_its_own_render(self):
+        """The stop signal reaches a render's worker threads through its speaker, and stops no other render."""
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        stop, other = threading.Event(), threading.Event()
+
+        def answer(req):
+            stop.set()   # this render fails elsewhere while the request is out
+            return 503, {}, b"{}"
+        voice = {"service": "fish", "voice_id": "v", "model": "s2.1-pro"}
+        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url,
+                                                                      "FISH_AUDIO_API_KEY": SECRET,
+                                                                      "SWEATCAST_RETRY_WAIT": "0"}):
+            cloud.stop_on(stop)
+            self.addCleanup(cloud.stop_on, None)
+            say = cloud.speaker(voice)
+            with ThreadPoolExecutor(1) as pool, self.assertRaises(cloud.ServiceError):
+                pool.submit(say, "Hi.", 1).result()   # a worker thread, as render_cloud runs it
+            self.assertEqual(len(fake.requests), 1)   # no retry once its own render stopped
+            fake.requests.clear()   # a request in another thread, outside that render, isn't stopped by it
+            with ThreadPoolExecutor(1) as pool, self.assertRaises(cloud.ServiceError):
+                pool.submit(cloud.request, "POST", fake.url + "/x", {}, b"", service="fish").result()
+            self.assertEqual(len(fake.requests), cloud.TRIES)
+            cloud.stop_on(other)   # another render, whose stop isn't set: it retries as usual
+            fake.requests.clear()
+            with ThreadPoolExecutor(1) as pool, self.assertRaises(cloud.ServiceError):
+                pool.submit(cloud.speaker(voice), "Hi.", 1).result()
+            self.assertEqual(len(fake.requests), cloud.TRIES)
+
+    def test_a_redirect_is_never_followed(self):
+        with FakeService(lambda r: (200, {}, b"{}")) as elsewhere:
+            with FakeService(lambda r: (302, {"Location": elsewhere.url + "/stolen"}, b"")) as fake:
+                with self.assertRaises(cloud.ServiceError) as got:
+                    cloud.request("POST", fake.url + "/x", {"Authorization": f"Bearer {SECRET}"}, b"{}",
+                                  service="fish", sleep=lambda s: None)
+        self.assertEqual(elsewhere.requests, [])   # the key never went there
+        self.assertEqual(len(fake.requests), 1)    # and it isn't retried
+        self.assertEqual(got.exception.kind, "unavailable")
+        self.assertIn("redirected to 127.0.0.1; not followed", str(got.exception))
+
+    def test_feeds_follow_a_redirect_only_to_http_or_https(self):
+        import feeds
+        with FakeService(lambda r: (200, {}, b"the feed")) as there:
+            with FakeService(lambda r: (301, {"Location": there.url + "/feed"}, b"")) as fake:
+                self.assertEqual(feeds.fetch(fake.url + "/old"), b"the feed")
+                fake.answer = lambda r: (302, {"Location": "ftp://127.0.0.1/feed"}, b"")
+                with self.assertRaises(ValueError) as got:
+                    feeds.fetch(fake.url + "/old")
+        self.assertIn("only http and https", str(got.exception))
+
+    def test_an_address_override_must_be_https_or_this_computer(self):
+        for url in ("http://evil.example", "http://10.0.0.5:8080", "ftp://127.0.0.1/x", "file:///tmp/x"):
+            with mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": url}), self.assertRaises(cloud.ServiceError) as got:
+                cloud.base_url("fish")
+            self.assertEqual(got.exception.kind, "bad_request")
+            self.assertIn("SWEATCAST_FISH_URL", str(got.exception))
+        for url in ("https://proxy.example/", "http://127.0.0.1:9", "http://localhost:9"):
+            with mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": url}):
+                self.assertEqual(cloud.base_url("fish"), url.rstrip("/"))
+        with mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": ""}):
+            self.assertEqual(cloud.base_url("fish"), "https://api.fish.audio")
+
+    def test_a_tls_fallback_says_so(self):
+        import contextlib
+        import io
+        import ssl
+        cloud._tls.cache_clear()
+        self.addCleanup(cloud._tls.cache_clear)
+        err = io.StringIO()
+        with mock.patch.object(ssl, "create_default_context", side_effect=OSError("no bundle")), \
+                contextlib.redirect_stderr(err):
+            self.assertIsNone(cloud._tls())
+        self.assertIn("certifi", err.getvalue())
+
+    def test_the_shipped_services_file_validates_and_a_bad_table_doesnt(self):
+        import copy
+        import services
+        shipped = services.settings()
+        self.assertEqual(services.validate(shipped), [])
+        bad = copy.deepcopy(shipped)
+        bad["fish"].update(url="http://api.fish.audio", concurrency="5", candidates=0, unit="words")
+        del bad["inworld"]["key_var"]
+        bad["gemini"]["default_model"] = "not-a-model"
+        problems = " | ".join(services.validate(bad))
+        for want in ("[fish] url", "[fish] concurrency", "[fish] candidates", "[fish] unit", "[inworld] key_var",
+                     "[gemini] default_model"):
+            self.assertIn(want, problems)
+        self.assertEqual(services.validate({"elevenlabs": dict(shipped["elevenlabs"], tried_live="yes")}),
+                         ["[elevenlabs] tried_live must be true or false (it's 'yes')"])
 
     def test_an_unreadable_2xx_answer_is_a_service_error(self):
         for body in (b"<html>oops</html>", b"[1, 2]", b"", b"\xff\xfe"):
@@ -295,6 +385,14 @@ class WebVoice(unittest.TestCase):
         self.assertNotIn("ref_audio", v)
         self.assertEqual(cloud.voice_for(p, "inworld"), v)
 
+    def test_a_voice_id_a_service_never_gives_stops(self):
+        for bad in ("../voices/x", "a/b", "id?x=1", "x" * 129):
+            web_coach(self.folder, "elevenlabs", voice_id=bad)
+            with self.assertRaises(errors.CoachError):
+                personas.voice_for(personas.lookup("Coach Ellis"), "elevenlabs")
+        web_coach(self.folder, "elevenlabs", voice_id="voice_Ab9.c:d-e")
+        self.assertEqual(personas.voice_for(personas.lookup("Coach Ellis"), "elevenlabs")["voice_id"], "voice_Ab9.c:d-e")
+
     def test_a_chosen_model_changes_the_key(self):
         web_coach(self.folder, "elevenlabs", model="eleven_v4_turbo")
         p = personas.lookup("Coach Ellis")
@@ -389,6 +487,10 @@ class ServiceCase(unittest.TestCase):
         with self.assertRaises(cloud.ServiceError) as e:
             self.module.delete("voice-9")
         self.assertEqual(e.exception.kind, "auth")
+        fake.requests.clear()
+        fake.answer = lambda r: (200, {}, b"{}")
+        self.module.delete("../a/b?c")   # an edited voice ID stays one path segment
+        self.assertEqual(fake.requests[0].path, path.format(id="..%2Fa%2Fb%3Fc"))
 
 
 def fish_design_answer(req):
@@ -491,6 +593,13 @@ class ElevenLabs(ServiceCase):
         self.assertEqual(len(fake.requests), 1)   # no clone first, ever
         self.assertFalse(any(r.path == "/v1/voices/add" for r in fake.requests))
 
+    def test_elevenlabs_speech_keeps_an_edited_voice_id_in_one_segment(self):
+        fake = self.serve(elevenlabs_answer)
+        voice = dict(self.voice(), voice_id="x/../../v1/voices/other")
+        cloud.speaker(voice)("Two more.", 42)
+        self.assertEqual(fake.requests[0].path,
+                         "/v1/text-to-speech/x%2F..%2F..%2Fv1%2Fvoices%2Fother?output_format=pcm_24000")
+
     def test_elevenlabs_design_returns_three_with_generated_ids(self):
         fake = self.serve(elevenlabs_answer)
         out = self.module.design("A warm coach in her forties.", "Okay, set your feet.", 2, "ignored")
@@ -578,9 +687,13 @@ class Gemini(ServiceCase):
                 return 500, {}, b'{"error": {"message": "delete broke"}}'
             return self.design_answer(req)
         self.serve(answer)
-        with self.assertRaises(cloud.ServiceError) as e:
+        import contextlib
+        import io
+        err = io.StringIO()
+        with self.assertRaises(cloud.ServiceError) as e, contextlib.redirect_stderr(err):
             self.module.design("A man in his forties.", "Okay, set your feet.", 1, "label")
         self.assertIn("bad speech", str(e.exception))
+        self.assertIn('(Gemini keeps a voice "label", ID voice-abc: delete it there by hand.)', err.getvalue())
 
     def test_gemini_speech_finds_audio_anywhere_in_the_answer(self):
         fake = self.serve(lambda r: (200, {}, gemini_audio_answer(tone_wav(0.5, rate=44100))))
@@ -661,6 +774,8 @@ class Inworld(ServiceCase):
         self.assertEqual((publish.method, publish.path), ("POST", "/voices/v1/voices/ws__design-1:publish"))
         self.assertEqual(json.loads(publish.body), {"displayName": "sweatcast Coach Owen",
                                                     "description": "A man in his forties.", "tags": ["sweatcast"]})
+        self.module.save(dict(out[0], draft_id="a/b"), "Coach Owen")   # an edited draft ID: one segment
+        self.assertEqual(fake.requests[-1].path, "/voices/v1/voices/a%2Fb:publish")
 
     def test_inworld_publish_is_not_retried_after_sending(self):
         c = {"pcm": b"", "wav": FISH_WAVS[0], "text": "x", "draft_id": "d-1", "signature": "sig"}

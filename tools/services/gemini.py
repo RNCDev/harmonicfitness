@@ -14,6 +14,7 @@ words are never added to the text. Key in `x-goog-api-key`.
 Delete: DELETE /v1beta/voices/{id}.
 """
 import json
+import sys
 
 import cli
 import cloud
@@ -63,8 +64,8 @@ def design(description, line, n=1, label=""):
     except BaseException:
         try:
             delete(voice_id)
-        except (Exception, cli.Usage):
-            pass   # the speech's failure is the one to report
+        except (Exception, cli.Usage):   # the speech's failure is the one to raise; the voice is named
+            print(f"(Gemini keeps a voice \"{label}\", ID {voice_id}: delete it there by hand.)", file=sys.stderr)
         raise
     return [{"pcm": pcm, "wav": cloud.wav_bytes(pcm), "text": line, "draft_id": voice_id, "signature": None}]
 
@@ -75,5 +76,5 @@ def save(candidate, name=None, description=None, wav=None):
 
 
 def delete(voice_id):
-    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/v1beta/voices/{voice_id}",
+    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/v1beta/voices/{cloud.path_part(voice_id)}",
                         {"x-goog-api-key": cloud.key_or_stop(SERVICE)})

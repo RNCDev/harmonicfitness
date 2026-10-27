@@ -96,16 +96,34 @@ def ssl_context():
 _TLS = None
 
 
-def fetch(url, limit=MAX_BYTES):
-    """A web address's body: http or https only, at most `limit` bytes."""
-    global _TLS
+def _check_scheme(url):
     scheme = urllib.parse.urlsplit(url).scheme.lower()
     if scheme not in ("http", "https"):
         raise ValueError(f"only http and https addresses are fetched, not {scheme or 'this'}: {url[:80]}")
+
+
+class _WebOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follows a redirect only to another http or https address (the default handler would follow ftp too)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _check_scheme(urllib.parse.urljoin(req.full_url, newurl))
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _open(req):
+    """The answer to `req`, every redirect hop checked for its scheme."""
+    global _TLS
     if _TLS is None:
         _TLS = ssl_context()
+    opener = urllib.request.build_opener(_WebOnlyRedirects, urllib.request.HTTPSHandler(context=_TLS))
+    return opener.open(req, timeout=TIMEOUT)
+
+
+def fetch(url, limit=MAX_BYTES):
+    """A web address's body: http or https only (each redirect too), at most `limit` bytes."""
+    _check_scheme(url)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=TIMEOUT, context=_TLS) as r:
+    with _open(req) as r:
         data = r.read(limit + 1)
     if len(data) > limit:
         raise ValueError(f"response over {limit // 1_000_000} MB; skipped")

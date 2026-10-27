@@ -52,7 +52,11 @@ def menu_for(draft_path, home, today=None, health_sha256=None):
     ids |= {mid for mid, _, _ in menu.mentions(cat, menu.spoken_text(segments))}
     rec = {"format": menu.FORMAT, "date": today or datetime.date.today().isoformat(),
            "health_sha256": health_sha256 or menu.health_hash(os.path.join(home, "health.md")),
-           "request": {}, "seconds": sum(seg["seconds"] for seg in segments),
+           # a request the build's re-screen accepts: every piece of equipment, any level (health.md's
+           # limits and the profile's dislikes still apply, as they would to a real brief)
+           "request": {"goal": "general", "minutes": max(1, sum(seg["seconds"] for seg in segments) // 60),
+                       "equipment": sorted(cat.equipment), "level": "advanced"},
+           "seconds": sum(seg["seconds"] for seg in segments),
            "movements": [{"id": i, "name": cat.movements[i].name, "aliases": cat.movements[i].aliases} for i in sorted(ids)]}
     menu.write(draft.menu_path(draft_path), rec)
     return draft.menu_path(draft_path)

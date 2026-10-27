@@ -24,7 +24,8 @@ def _headers(content_type="application/json"):
 
 
 def speaker(voice):
-    url = f"{cloud.base_url(SERVICE)}/v1/text-to-speech/{voice['voice_id']}?output_format=pcm_24000"
+    voice_id = cloud.path_part(voice["voice_id"])
+    url = f"{cloud.base_url(SERVICE)}/v1/text-to-speech/{voice_id}?output_format=pcm_24000"
 
     def say(text, seed, previous_text=None, next_text=None):
         body = {"text": text, "model_id": voice["model"], "seed": int(seed) % 4294967296}
@@ -72,5 +73,5 @@ def save(candidate, name, description="", wav=None):
 
 
 def delete(voice_id):
-    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/v1/voices/{voice_id}",
+    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/v1/voices/{cloud.path_part(voice_id)}",
                         {"xi-api-key": cloud.key_or_stop(SERVICE)})

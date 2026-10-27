@@ -65,9 +65,10 @@ def design(description, line, n=2, label=None):
 def save(candidate, name, description="", wav=None):
     """Publish the preview to the listener's workspace; returns its voice ID."""
     draft = candidate["draft_id"]
+    path = cloud.path_part(draft)
     body = json.dumps({"displayName": f"sweatcast {name}", "description": (description or "")[:DESCRIPTION_CHARS],
                        "tags": ["sweatcast"]}).encode()
-    _, _, data = cloud.request("POST", f"{cloud.base_url(SERVICE)}/voices/v1/voices/{draft}:publish", _headers(),
+    _, _, data = cloud.request("POST", f"{cloud.base_url(SERVICE)}/voices/v1/voices/{path}:publish", _headers(),
                                body, timeout=120, service=SERVICE, idempotent=False)
     try:
         answer = json.loads(data) if data else {}
@@ -80,5 +81,5 @@ def save(candidate, name, description="", wav=None):
 
 
 def delete(voice_id):
-    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/voices/v1/voices/{voice_id}",
+    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/voices/v1/voices/{cloud.path_part(voice_id)}",
                         {"Authorization": f"Basic {cloud.key_or_stop(SERVICE)}"})

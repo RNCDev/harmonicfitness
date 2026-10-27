@@ -581,8 +581,11 @@ def from_draft(path, date=None, minutes=None, kit=None):
         m = menu.load(menu_file)
     except ValueError as e:
         raise errors.LogRefused(f"Not logged: the menu beside the draft can't be read ({show(menu_file)}: {e}).")
-    if not isinstance(m, dict) or not isinstance(m.get("request"), dict):
+    if m is None:
         raise errors.LogRefused(f"Not logged: no menu beside the draft ({show(menu_file)}); a built draft has one.")
+    shape = menu.validate(m)
+    if shape:
+        raise errors.LogRefused(f"Not logged: the menu beside the draft ({show(menu_file)}) won't do: {shape[0]}.")
     request = m["request"]
     want = {"--date": m.get("date"),
             "--minutes": request.get("minutes") or (m.get("seconds") or 0) // 60 or None,

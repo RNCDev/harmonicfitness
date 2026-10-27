@@ -13,6 +13,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 import errors  # noqa: E402
+import helpers  # noqa: E402
 
 import catalog  # noqa: E402
 
@@ -217,7 +218,9 @@ def fake_menu(*ids, seconds=300, side=None):
     movements = [{"id": i, "name": cat.movements[i].name, "aliases": cat.movements[i].aliases} for i in ids]
     if side:
         movements[-1]["side"] = side
-    return {"format": 1, "date": "2026-10-21", "request": {}, "seconds": seconds, "movements": movements}
+    request = {"goal": "general", "minutes": seconds // 60, "kit": "home"}
+    return {"format": menu.FORMAT, "date": "2026-10-21", "request": request, "seconds": seconds,
+            "movements": movements}
 
 
 class Menu(unittest.TestCase):
@@ -370,7 +373,8 @@ class LogSession(unittest.TestCase):
             with open(path, "w") as f:
                 f.write(text)
             # a built draft: its menu (the date, length and kit) and a build record with its hash
-            menu.write(draft.menu_path(path), {"date": "2026-10-21", "request": {"minutes": 5, "kit": "home"},
+            menu.write(draft.menu_path(path), {"format": menu.FORMAT, "date": "2026-10-21",
+                                               "request": {"minutes": 5, "kit": "home"},
                                                "seconds": 300, "movements": []})
             os.makedirs(os.path.join(home, "workouts", ".logs"))
             with open(os.path.join(home, "workouts", ".logs", "builds.jsonl"), "w") as f:
@@ -434,9 +438,12 @@ class MenuGate(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.cat = catalog.load()
-        self.health = os.path.join(self.tmp.name, "health.md")
-        with open(self.health, "w", encoding="utf-8") as f:
-            f.write("+++\nschema = 6\n+++\n# Health\n")
+        home = os.path.join(self.tmp.name, "me")   # the re-screen reads the profile and health.md
+        shutil.copytree(LISTENER, home)
+        ctx = helpers.home(home)
+        ctx.__enter__()
+        self.addCleanup(ctx.__exit__, None, None, None)
+        self.health = os.path.join(home, "health.md")
         self.draft_path = os.path.join(self.tmp.name, "x.draft.txt")
         with open(self.draft_path, "w", encoding="utf-8") as f:
             f.write(DRAFT)

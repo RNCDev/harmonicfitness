@@ -2021,7 +2021,7 @@ class FeedLimits(unittest.TestCase):
 
             def read(self, n=-1):
                 return b"x" * (n if n > 0 else 10)
-        with mock.patch("urllib.request.urlopen", return_value=Resp()):
+        with mock.patch.object(feeds, "_open", return_value=Resp()):
             with self.assertRaises(ValueError):
                 feeds.fetch("https://example.org/feed", limit=100)
             self.assertEqual(len(Resp().read(50)), 50)

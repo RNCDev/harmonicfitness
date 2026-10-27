@@ -72,4 +72,5 @@ def save(candidate, name, description=None, wav=None):
 
 
 def delete(voice_id):
-    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/model/{voice_id}", {"Authorization": _auth()})
+    return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/model/{cloud.path_part(voice_id)}",
+                        {"Authorization": _auth()})

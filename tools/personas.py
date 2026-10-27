@@ -333,13 +333,24 @@ def resolve(coach=None, engine=None, pending=False):
     return voice_for(p, routes.pick(context.render_preferences(), p, override=engine), pending)
 
 
+_clip_keys = {}   # per process: (path, size, mtime) of each file -> (key, words)
+
+
 def clip_key(p):
-    """The clip's identity in every pace and cache key: the same rule voices.lookup always used."""
-    with open(p.clip, "rb") as a:
-        audio_hash = hashlib.sha256(a.read()).hexdigest()
-    with open(p.clip_words, encoding="utf-8") as t:
-        words = t.read().strip()
-    return hashlib.sha256(f"{audio_hash}|{words}".encode()).hexdigest()[:12], words
+    """A local coach's identity in every pace and cache key: its clip, the clip's words and the voice file
+    it speaks from (pocket.safetensors), so a remade voice renders afresh. Kept per process while the
+    three files are unchanged, since every voice_for asks."""
+    files = (p.clip, p.clip_words, p.voice_state)
+    stamp = tuple((f, st.st_size, st.st_mtime_ns) for f in files for st in [os.stat(f)])
+    if stamp not in _clip_keys:
+        def digest(path):
+            with open(path, "rb") as f:
+                return hashlib.sha256(f.read()).hexdigest()
+        with open(p.clip_words, encoding="utf-8") as t:
+            words = t.read().strip()
+        raw = f"{digest(p.clip)}|{words}|{digest(p.voice_state)}"
+        _clip_keys[stamp] = hashlib.sha256(raw.encode()).hexdigest()[:12], words
+    return _clip_keys[stamp]
 
 
 def voice_for(p, route, pending=False):

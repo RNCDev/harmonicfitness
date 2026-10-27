@@ -17,22 +17,26 @@ goes into a voice dict, a message, a record or a cache key.
 import array
 import base64
 import binascii
+import contextvars
 import functools
 import http.client
 import importlib
 import json
 import os
 import random
+import re
 import socket
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
 import keys  # noqa: E402
+from redact import scrub  # noqa: E402,F401  (cloud.scrub, as before: it lives in the leaf module redact.py)
 
 SR = 24000
 RETRY_STATUS = (429, 500, 502, 503, 504)
@@ -40,7 +44,11 @@ TRIES = 6
 RATE_WAIT = 120             # seconds: a 429 asking to wait this long or less is retried, whatever its body says
 TRIM_LEVEL = 0.01 * 32767   # engines.TRIM_DB (-40 dB) in 16-bit samples
 TRIM_KEEP = 0.04            # seconds kept at each end, as engines.TRIM_KEEP
-_stop = None   # a threading.Event a render sets when it's stopping: no retry, no new attempt
+LOCAL_HOSTS = ("127.0.0.1", "localhost")   # where an address override may use plain http (the tests' fakes)
+# The stop signal of the render this code runs for: a threading.Event that render sets when it's stopping (no
+# retry, no new attempt). One per render, never shared: stop_on sets it in the render's own context, and
+# speaker() carries it into the worker threads that speak.
+_stop = contextvars.ContextVar("sweatcast_stop", default=None)
 
 
 class ServiceError(Exception):
@@ -69,16 +77,6 @@ def service_name(service):
     return services().get(service, {}).get("name", service or "no service")
 
 
-def scrub(text):
-    """`text` with every key value set here (the environment's or me/.env's) replaced by <key>, so nothing a
-    library or a service echoes can print one."""
-    for value in sorted(keys.raw_values(), key=len, reverse=True):
-        for form in (value, value.strip()):
-            if len(form) >= 8:
-                text = text.replace(form, "<key>")
-    return text
-
-
 def services():
     """{service: settings} from knowledge/services.toml (read once, by the services package)."""
     import services as service_modules
@@ -90,8 +88,18 @@ ROUTES = ("local", *SERVICES)  # every route: this computer's own engine, then e
 
 
 def base_url(service):
-    """The service's API address; SWEATCAST_<SERVICE>_URL points it elsewhere (the tests' fake servers)."""
-    return (os.environ.get(f"SWEATCAST_{service.upper()}_URL") or services()[service]["url"]).rstrip("/")
+    """The service's API address. SWEATCAST_<SERVICE>_URL points it elsewhere (the tests' fake servers), but only
+    at an https:// address or this computer (127.0.0.1, localhost): a stray setting never sends a key in the
+    clear, or anywhere off this machine unencrypted."""
+    var = f"SWEATCAST_{service.upper()}_URL"
+    override = os.environ.get(var)
+    if override:
+        parts = urllib.parse.urlsplit(override)
+        if parts.scheme.lower() != "https" and (parts.scheme.lower() != "http" or parts.hostname not in LOCAL_HOSTS):
+            raise ServiceError("bad_request", service, f"{var} is set to an address that isn't https:// or this "
+                                                       f"computer, so nothing was sent: unset it")
+        return override.rstrip("/")
+    return services()[service]["url"].rstrip("/")
 
 
 def _message(body):
@@ -124,25 +132,27 @@ def _kind(status, body):
 
 
 def stop_on(event):
-    """From now on (until stop_on(None)), `event` being set stops every request's retries: a render that failed
-    or was interrupted sends nothing more, and a worker waiting out a backoff wakes at once."""
-    global _stop
-    _stop = event
+    """From now on (until stop_on(None)), in this thread's context, `event` being set stops every request's
+    retries: a render that failed or was interrupted sends nothing more, and a worker waiting out a backoff wakes
+    at once. A speaker made after this call carries the event into whichever thread runs it; another render,
+    in another thread, keeps its own."""
+    _stop.set(event)
 
 
-def stopping():
-    return _stop is not None and _stop.is_set()
+def stopping(stop=None):
+    stop = stop if stop is not None else _stop.get()
+    return stop is not None and stop.is_set()
 
 
-def _wait(attempt, retry_after, sleep):
+def _wait(attempt, retry_after, sleep, stop=None):
     scale = float(os.environ.get("SWEATCAST_RETRY_WAIT", "1"))   # the tests set 0
     try:
         seconds = float(retry_after) if retry_after else min(2 ** attempt, 30) * (0.75 + random.random() / 2)
     except ValueError:
         seconds = min(2 ** attempt, 30)
     if sleep is None:   # the default: wait, but wake as soon as the render stops
-        if _stop is not None:
-            _stop.wait(seconds * scale)
+        if stop is not None:
+            stop.wait(seconds * scale)
         else:
             time.sleep(seconds * scale)
     else:
@@ -164,20 +174,38 @@ def _short(retry_after):
         return False
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """None of the services' APIs redirects, and following one would send the key to wherever it points."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        host = urllib.parse.urlsplit(newurl).hostname or newurl[:80]
+        fp.close()
+        raise ServiceError("unavailable", getattr(req, "sweatcast_service", None),
+                           f"redirected to {host}; not followed (HTTP {code})", status=code)
+
+
+def _open(req, timeout):
+    """The answer to `req`, through an opener that never follows a redirect (plain http stays, for the fakes)."""
+    opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=_tls()))
+    return opener.open(req, timeout=timeout)
+
+
 def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=None, idempotent=True):
     """(status, headers, body) for a 2xx answer. Rate limits, server errors and dropped connections are
     retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason.
     A request that saves something (idempotent=False: a saved voice, a stored design) is retried only when
     the service can't have acted on it: a 429, or a connection refused before anything was sent. A server
     error or a timeout after sending could have saved it, and a retry would save a second one. Once a render
-    is stopping (stop_on), nothing more is sent."""
+    is stopping (stop_on), nothing more is sent. A redirect is never followed: it raises ServiceError."""
     last = None
+    stop = _stop.get()
     for attempt in range(tries):
-        if stopping():
+        if stopping(stop):
             raise last or ServiceError("unavailable", service, "not sent: the render is stopping")
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        req.sweatcast_service = service
         try:
-            with urllib.request.urlopen(req, timeout=timeout, context=_tls()) as r:
+            with _open(req, timeout) as r:
                 return r.status, dict(r.headers), r.read()
         except urllib.error.HTTPError as e:
             data = e.read() or b""
@@ -212,8 +240,8 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
                 raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray character "
                                    f"in it?): re-paste it after {var}= (./sweatcast keys open)") from None
             raise ServiceError("bad_request", service, f"the request couldn't be built: {scrub(str(e))}") from None
-        if attempt < tries - 1 and not stopping():
-            _wait(attempt, retry_after, sleep)
+        if attempt < tries - 1 and not stopping(stop):
+            _wait(attempt, retry_after, sleep, stop)
     raise last
 
 
@@ -251,7 +279,9 @@ def _tls():
         import ssl
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception:   # CI and the fake servers (plain HTTP) don't need it
+    except Exception as e:   # CI and the fake servers (plain HTTP) don't need it; a real request says so
+        print(f"(No certificate bundle from certifi ({type(e).__name__}): using the system's certificates.)",
+              file=sys.stderr)
         return None
 
 
@@ -388,6 +418,9 @@ def estimate(service, model, texts):
     return chars, units * rate(service, model) / 1e6
 
 
+VOICE_ID = re.compile(r"[A-Za-z0-9_.:-]{1,128}")   # what every service hands back
+
+
 def voice_for(p, route=None, pending=False):
     """The voice dict for web coach `p`: its saved voice on its own service (`route` is ignored; a web coach
     speaks only through the service that made it). No key in it, and no clip: the service holds the voice.
@@ -403,6 +436,9 @@ def voice_for(p, route=None, pending=False):
     if not p.voice_id and not (pending and p.pending):
         raise errors.CoachError(f"{p.name} has no voice yet" + (f" ({p.pending} pending)" if p.pending else "")
                          + ": audition one and keep it (the coach skill).")
+    if p.voice_id and not VOICE_ID.fullmatch(p.voice_id):
+        raise errors.CoachError(f"{p.name}'s voice_id in {p.folder}/persona.md isn't a voice ID a service gives "
+                                "(letters, digits and _ . : - only): copy it again from the service.")
     s = services()[service]
     model = p.model or s["default_model"]
     return {"name": p.name, "persona": p.slug, "persona_dir": p.folder, "engine": service, "backend": "cloud",
@@ -421,8 +457,18 @@ def service_module(name):
 
 
 def speaker(voice):
-    """say(text, seed, previous_text=None, next_text=None) for the voice's service."""
-    return service_module(voice["service"]).speaker(voice)
+    """say(text, seed, previous_text=None, next_text=None) for the voice's service. It carries the stop signal
+    in force here (stop_on) into whatever thread calls it, so a render's workers stop with that render alone."""
+    say = service_module(voice["service"]).speaker(voice)
+    stop = _stop.get()
+
+    def carried(*args, **kwargs):
+        token = _stop.set(stop)
+        try:
+            return say(*args, **kwargs)
+        finally:
+            _stop.reset(token)
+    return carried
 
 
 def key_or_stop(service):
@@ -431,6 +477,12 @@ def key_or_stop(service):
         raise ServiceError("auth", service, f"no key on this computer: ./sweatcast keys init {service}, then paste "
                                             f"the key into me/.env after {keys.SERVICE_VARS[service]}=")
     return value
+
+
+def path_part(value):
+    """`value` (a voice ID read from an editable file) made safe as one segment of a URL path: a stray / or ..
+    can't reach another endpoint."""
+    return urllib.parse.quote(str(value), safe="")
 
 
 def multipart(fields, files):

@@ -43,6 +43,7 @@ import errors  # noqa: E402
 import cloud  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
+import locks  # noqa: E402
 import paths  # noqa: E402
 import personas  # noqa: E402
 import voices  # noqa: E402
@@ -50,6 +51,12 @@ from paths import show  # noqa: E402
 
 CANDIDATES = {s: v["candidates"] for s, v in cloud.services().items()}   # per audition, lettered in this order
 WORKOUT_CHARS = 20000   # a workout's characters, for the cost a candidate is labeled with
+
+
+def say(line):
+    """What the coach tools say, by default: printed and flushed, so it lands in order with the render's output.
+    make, keep_web and _run_audition take another `report` (a build passes its own)."""
+    print(line, flush=True)
 
 
 def _clip_bytes(src):
@@ -125,7 +132,7 @@ def _mp3(wav, mp3):
     return done.returncode == 0
 
 
-def _write_sample(coach, wav, mp3=None):
+def _write_sample(coach, wav, mp3=None, report=say):
     """The coach's sample.mp3: a copy of `mp3` if there is one, else made from the `wav` bytes."""
     sample = coach.sample
     if mp3 and os.path.exists(mp3):
@@ -139,7 +146,7 @@ def _write_sample(coach, wav, mp3=None):
         if _mp3(part, part_mp3):
             os.replace(part_mp3, sample)
         else:
-            print("(No sample.mp3: ffmpeg isn't here to make one.)")
+            report("(No sample.mp3: ffmpeg isn't here to make one.)")
     finally:
         for leftover in (part, part_mp3):
             if os.path.exists(leftover):
@@ -158,14 +165,35 @@ def _write_candidates(folder, cands):
     fileio.atomic_write(os.path.join(folder, "candidates.json"), json.dumps(cands, indent=1) + "\n")
 
 
+def _plain_file(name):
+    """A file name with no folder in it (a candidate's WAV or MP3 sits in its audition's folder)."""
+    return isinstance(name, str) and name not in ("", ".", "..") and os.path.basename(name) == name \
+        and "/" not in name and "\\" not in name
+
+
 def _read_candidates(folder):
-    with open(os.path.join(folder, "candidates.json"), encoding="utf-8") as f:
-        return json.load(f)
+    """The audition's candidates, refused (CoachError) unless each is a dict with a str letter, a known
+    service, an int k and a plain WAV (and MP3) file name in the folder."""
+    path = os.path.join(folder, "candidates.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            cands = json.load(f)
+    except (OSError, ValueError) as e:
+        raise errors.CoachError(f"{show(path)} can't be read ({e}).")
+    ok = isinstance(cands, list) and all(
+        isinstance(c, dict) and isinstance(c.get("letter"), str) and c.get("service") in cloud.SERVICES
+        and type(c.get("k")) is int and _plain_file(c.get("wav"))
+        and (c.get("mp3") is None or _plain_file(c.get("mp3"))) for c in cands)
+    if not ok:
+        raise errors.CoachError(f"{show(path)} isn't an audition's candidates list (a letter, service, k and wav "
+                                "for each); it was changed by hand, so nothing was done.")
+    return cands
 
 
-def _run_audition(narrative=None, services=None, coach=None, play=False):
+def _run_audition(narrative=None, services=None, coach=None, play=False, report=say):
     """Design candidates on every keyed service (or `services`) in parallel. Returns (folder, candidates,
-    failures as (service, error)); folder is None when no candidate landed."""
+    failures as (service, error)); folder is None when no candidate landed. The failures are returned, not
+    said: the caller says them (_failure_lines)."""
     import keys
     table = cloud.services()   # loaded once, before the threads
     revoice = None
@@ -190,7 +218,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
     keyed = [s for s in wanted if keys.is_set(s)]
     for s in wanted:
         if s not in keyed and services:
-            print(f"{cloud.service_name(s)}: no key here, skipped (./sweatcast keys).")
+            report(f"{cloud.service_name(s)}: no key here, skipped (./sweatcast keys).")
     if not keyed:
         print("No web service has a key here, so there's nothing to audition on. Add one: ./sweatcast keys "
               "(then ./sweatcast keys init <service>).", file=sys.stderr)
@@ -205,8 +233,8 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
     description = personas.voice_description(n.settings["voice"])
     for s in keyed:
         cost = table[s].get("design_usd")
-        print(f"{table[s]['name']}: asking for {CANDIDATES[s]} candidate{'s' if CANDIDATES[s] > 1 else ''}, "
-              + (f"design about ${cost:.2f}" if cost is not None else "design cost not published"), flush=True)
+        report(f"{table[s]['name']}: asking for {CANDIDATES[s]} candidate{'s' if CANDIDATES[s] > 1 else ''}, "
+               + (f"design about ${cost:.2f}" if cost is not None else "design cost not published"))
 
     def design(service):
         module = cloud.service_module(service)
@@ -248,54 +276,69 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
                 if _mp3(os.path.join(folder, c["wav"]), os.path.join(folder, stem + ".mp3")):
                     c["mp3"] = stem + ".mp3"
                 else:
-                    print(f"(no MP3 for {c['letter']}: ffmpeg failed; its WAV plays as well.)")
+                    report(f"(no MP3 for {c['letter']}: ffmpeg failed; its WAV plays as well.)")
             except (subprocess.SubprocessError, OSError) as e:
-                print(f"(no MP3 for {c['letter']}: {e}; its WAV plays as well.)")
+                report(f"(no MP3 for {c['letter']}: {e}; its WAV plays as well.)")
         _write_candidates(folder, cands)
     import player
     for c in cands:
         listen = os.path.join(folder, c["mp3"] or c["wav"])
-        print(f"{c['letter']}  {table[c['service']]['name']:10}  about ${c['usd_per_workout']:.2f} a workout  "
-              f"{show(listen)}" + (f"  ({c['note']})" if c["note"] else ""))
+        report(f"{c['letter']}  {table[c['service']]['name']:10}  about ${c['usd_per_workout']:.2f} a workout  "
+               f"{show(listen)}" + (f"  ({c['note']})" if c["note"] else ""))
         if play and not player.play(listen):
-            print("    (no audio player found here; open the file to listen)")
-    for s, e in failures:
-        print(f"{table[s]['name']}: no candidates ({_reason(e)})")
+            report("    (no audio player found here; open the file to listen)")
     if cands and not have_ffmpeg:
-        print(f"(No MP3s: ffmpeg isn't here, {ffmpeg.install_hint()}; the WAVs play as well.)")
+        report(f"(No MP3s: ffmpeg isn't here, {ffmpeg.install_hint()}; the WAVs play as well.)")
     return (folder if cands else None), cands, failures
 
 
-def audition(narrative, services=None, coach=None, play=False):
+def _failure_lines(failures):
+    """One line per service that sent no candidates, and why."""
+    return [f"{cloud.service_name(s)}: no candidates ({_reason(e)})" for s, e in failures]
+
+
+def audition(narrative, services=None, coach=None, play=False, report=say):
     """Candidates for a web coach from `narrative` (a persona.md-format file), one design per keyed service
     (or each of `services`), in parallel, each saying the coaching line; nothing saved. With `coach`, a new
     voice for that coach on its own service, from its own persona.md unless a narrative is given. Returns
     the audition folder."""
-    folder, _, failures = _run_audition(narrative, services, coach, play)
+    folder, _, failures = _run_audition(narrative, services, coach, play, report)
+    if folder is not None:
+        for line in _failure_lines(failures):
+            report(line)
     if folder is None:
         raise errors.CoachError("No candidates: " + ("; ".join(f"{cloud.service_name(s)}: {_reason(e)}" for s, e in failures)
                                               or "no web service has a key here (./sweatcast keys)."))
     return folder
 
 
+def _find_audition(ref):
+    """The audition folder `ref` names (its id, or a path to it), or None. Only a folder directly inside
+    the auditions folder counts, however the path is written: forget-audition removes what this returns."""
+    base = os.path.realpath(_auditions())
+    for guess in (os.path.join(base, ref), ref):   # by id; else a path as given (absolute, or from here)
+        folder = os.path.realpath(guess)
+        if os.path.dirname(folder) == base and os.path.isfile(os.path.join(folder, "candidates.json")):
+            return folder
+    return None
+
+
 def _web_ref(ref):
     """(audition folder, candidate) for `<audition>/<letter>` or `<audition>/<service>-<k>` (the audition
-    by id or path; a .wav or .mp3 on the candidate is allowed), else None."""
+    by id or path, inside the auditions folder; a .wav or .mp3 on the candidate is allowed), else None."""
     head, _, tail = ref.replace("\\", "/").rstrip("/").rpartition("/")
     if not head or not tail:
         return None
     tail = re.sub(r"\.(wav|mp3)$", "", tail, flags=re.IGNORECASE)
-    for folder in (head, os.path.join(_auditions(), head)):
-        if os.path.isfile(os.path.join(folder, "candidates.json")):
-            return folder, tail
-    return None
+    folder = _find_audition(head)
+    return (folder, tail) if folder else None
 
 
 def _audition_folder(ref):
-    for folder in (ref, os.path.join(_auditions(), ref)):
-        if os.path.isfile(os.path.join(folder, "candidates.json")):
-            return folder
-    raise errors.CoachError(f"No audition {ref} (in {show(_auditions())}).")
+    folder = _find_audition(ref)
+    if folder is None:
+        raise errors.CoachError(f"No audition {ref} (in {show(_auditions())}).")
+    return folder
 
 
 def _resumable(c):
@@ -319,7 +362,7 @@ def _existing(name):
         return None
 
 
-def keep_web(ref, name, replace_old=False):
+def keep_web(ref, name, replace_old=False, report=say):
     """Save candidate `ref` (`<audition>/<letter>` or `<audition>/<service>-<k>`) at its service as
     "sweatcast <name>" and write the coach: persona.md (the narrative's [voice], [character] and notes,
     with kind, service, voice_id, made), sample.mp3 and a pace estimate. An audition made with --coach
@@ -364,12 +407,13 @@ def keep_web(ref, name, replace_old=False):
     module = cloud.service_module(service)
     if resume:   # saved before, but the coach was never written: finish with the voice already saved
         voice_id = c["voice_id"]
-        print(f"Finishing {name}: {c['letter']} is already saved at {cloud.service_name(service)}.", flush=True)
+        report(f"Finishing {name}: {c['letter']} is already saved at {cloud.service_name(service)}.")
     else:
         if c.get("saving") and not c.get("voice_id"):
-            print(f"(An earlier keep of {c['letter']} sent a save to {cloud.service_name(service)} whose answer couldn't "
-                  f"be read: if \"sweatcast {c['saving']}\" is there, this keep makes a second; delete one there.)")
-        print(f"Saving {c['letter']} at {cloud.service_name(service)} as \"sweatcast {name}\".", flush=True)
+            report(f"(An earlier keep of {c['letter']} sent a save to {cloud.service_name(service)} whose answer "
+                   f"couldn't be read: if \"sweatcast {c['saving']}\" is there, this keep makes a second; delete one "
+                   "there.)")
+        report(f"Saving {c['letter']} at {cloud.service_name(service)} as \"sweatcast {name}\".")
         c["saving"] = name   # on disk before the save is sent: if its answer is lost, the audition still says so
         _write_candidates(folder, cands)
         voice_id = module.save(candidate, name, personas.voice_description(voice), wav)
@@ -403,7 +447,7 @@ def keep_web(ref, name, replace_old=False):
             settings["character"] = n.settings["character"]
     os.makedirs(target, exist_ok=True)
     coach = personas.Persona(os.path.basename(target), target, settings, prose)
-    _write_sample(coach, wav, os.path.join(folder, c["mp3"]) if c.get("mp3") else None)
+    _write_sample(coach, wav, os.path.join(folder, c["mp3"]) if c.get("mp3") else None, report)
     if existing is not None and existing.voice_id:
         models = list(cloud.services()[service].get("models") or {}) + [existing.model or ""]
         for model in dict.fromkeys(m for m in models if m):
@@ -414,11 +458,11 @@ def keep_web(ref, name, replace_old=False):
     if existing is not None and existing.voice_id and replace_old:
         try:
             module.delete(existing.voice_id)
-            print(f"Deleted {existing.name}'s old voice at {cloud.service_name(service)}.")
+            report(f"Deleted {existing.name}'s old voice at {cloud.service_name(service)}.")
         except (cloud.ServiceError, *errors.PROBLEMS) as e:
-            print(f"Couldn't delete the old voice at {cloud.service_name(service)} ({_reason(e)}); delete "
-                  f"\"sweatcast {existing.name}\" there by hand.")
-    print(f"Kept {name} ({cloud.service_name(service)}) in {show(target)}.")
+            report(f"Couldn't delete the old voice at {cloud.service_name(service)} ({_reason(e)}); delete "
+                   f"\"sweatcast {existing.name}\" there by hand.")
+    report(f"Kept {name} ({cloud.service_name(service)}) in {show(target)}.")
     return target
 
 
@@ -454,14 +498,26 @@ def _made_description(text):
     return re.sub(r"\s*Made the first time it's used; make", " Make", text or "").strip()
 
 
-def make(name):
+def make(name, report=say):
     """Make a pending web coach (a default that ships with no voice): design one voice from its [voice] on
     its own service, save the first candidate with no audition, and write voice_id, made, sample.mp3 and a
     pace estimate, persona.md last. Says so (and what it costs) first. Returns the voice ID. A failure
-    leaves persona.md as it was, still pending."""
+    leaves persona.md as it was, still pending.
+
+    One make at a time (a lock in the coaches folder): a design is paid for, and two builds started
+    together would each make one. The second finds the coach made once the first is done, and returns
+    its voice ID."""
     p = personas.lookup(name)
     if not p.is_web or not p.pending:
         raise errors.CoachError(f"{p.name} is already made: nothing to design.")
+    with locks.file_lock(os.path.join(paths.PERSONAS, ".make")):
+        p = personas.lookup(p.name)   # again, under the lock: another make may have finished it
+        if not p.pending:
+            return p.voice_id
+        return _make(p, report)
+
+
+def _make(p, report):
     description = personas.voice_description(p.voice)
     if not description:
         raise errors.CoachError(f"{show(p.path)} has no [voice] to design from (who, sound, energy, pace, avoid).")
@@ -480,10 +536,10 @@ def make(name):
     if saved:   # an earlier make saved the voice but stopped before persona.md: finish with it
         voice_id, text, wav = saved
         c, recorded = {}, True
-        print(f"Finishing {p.name}: its voice is already saved at {s['name']}.", flush=True)
+        report(f"Finishing {p.name}: its voice is already saved at {s['name']}.")
     else:
-        print(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its description "
-              f"({cost}).", flush=True)
+        report(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its "
+               f"description ({cost}).")
         c = module.design(description, voices.DESIGN_LINE, 1, f"sweatcast {p.name}")[0]
         voice_id, text, wav, recorded = None, c.get("text") or voices.DESIGN_LINE, c["wav"], False
     try:
@@ -496,7 +552,7 @@ def make(name):
         if settings.get("description"):
             settings["description"] = _made_description(settings["description"])
         coach = personas.Persona(p.slug, home, settings, p.prose)
-        _write_sample(coach, wav)
+        _write_sample(coach, wav, report=report)
         _estimate(coach, service, wav, text)
         fileio.atomic_write(coach.path, context.persona_text(settings, p.prose))   # last: all or nothing
     except BaseException:
@@ -518,7 +574,7 @@ def make(name):
     for done in (MADE, MADE_WAV):
         if os.path.exists(os.path.join(home, done)):
             os.remove(os.path.join(home, done))
-    print(f"Made {p.name} ({s['name']}): a stand-in until you make your own (\"I want a new coach\").")
+    report(f"Made {p.name} ({s['name']}): a stand-in until you make your own (\"I want a new coach\").")
     return voice_id
 
 
@@ -619,6 +675,8 @@ def main(argv=None):
     if args.cmd == "audition":
         wanted = [x.strip() for x in args.services.split(",") if x.strip()] if args.services else None
         folder, cands, failures = _run_audition(args.narrative, wanted, args.coach, args.play)
+        for line in _failure_lines(failures):
+            print(line)
         if not cands:
             must_act = any(isinstance(e, cloud.ServiceError) and e.listener_must_act for _, e in failures)
             return cli.SERVICE if must_act else cli.ISSUES

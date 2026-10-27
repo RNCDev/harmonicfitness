@@ -218,7 +218,7 @@ def check_takes(voice, clips, seed, cache_path):
                     takes += 1
                 if best_pcm is not pcm:
                     _cache_write(cache_path(text), best_pcm)
-                best.update(seed=best_seed, takes=takes)
+                best.update(seed=best_seed, takes=takes, checker=verify.checker_id())
                 fileio.atomic_write(check_path(cache_path, text), json.dumps(best) + "\n")
                 verdicts[text] = best
                 if takes > 1:
@@ -336,18 +336,25 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
 def _render_local(voice, todo, seed, cache_path):
     """Voice `todo` on the local engine, one clip at a time, and fold the measurements into the pace file."""
     started = time.time()
-    say = engines.speaker(voice)
-    print(f"model ready in {time.time() - started:.0f}s", flush=True)
-    speaking_started = time.time()
-    audio_secs, measured_weight = 0.0, 0.0
-    for n, text in enumerate(todo, 1):
-        t0 = time.time()
-        secs = render_clip(say, text, seed, cache_path)
-        audio_secs += secs
-        measured_weight += weight(text)
-        print(f"  [{n}/{len(todo)}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
-    del say
-    engines.release()   # the model's memory isn't needed to assemble and encode
+    audio_secs, measured_weight, done, finished = 0.0, 0.0, 0, False
+    say = None
+    try:
+        say = engines.speaker(voice)
+        print(f"model ready in {time.time() - started:.0f}s", flush=True)
+        speaking_started = time.time()
+        for n, text in enumerate(todo, 1):
+            t0 = time.time()
+            secs = render_clip(say, text, seed, cache_path)
+            audio_secs += secs
+            measured_weight += weight(text)
+            done = n
+            print(f"  [{n}/{len(todo)}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
+        finished = True
+    finally:
+        say = None
+        engines.release()   # the model's memory isn't needed to assemble and encode, nor after a failure
+        if not finished and done:   # what was rendered still measures the voice (not this computer's speed)
+            record_rate(voice, measured_weight, audio_secs - EDGE * done)
     took = time.time() - speaking_started
     # The lint predicts this voice's length from its measured rate; the speed is this computer's.
     record_rate(voice, measured_weight, audio_secs - EDGE * len(todo), render_seconds=took)

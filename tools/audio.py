@@ -60,17 +60,24 @@ def level(pcm):
     if found is None:
         return pcm
     db = max(-LEVEL_MAX, min(LEVEL_MAX, SPEECH_LEVEL - found))
-    a = array("h")
-    a.frombytes(pcm[: len(pcm) // 2 * 2])
-    peak = max(1, max(a), -min(a))
+    pcm = pcm[: len(pcm) // 2 * 2]
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+    if np is not None:   # where the local voices run; the loop below does the same, slower
+        x = np.frombuffer(pcm, dtype="<i2")
+        peak = max(1, int(np.abs(x.astype(np.int32)).max()))
+    else:
+        a = array("h")
+        a.frombytes(pcm)
+        peak = max(1, max(a), -min(a))
     gain = min(10 ** (db / 20), LEVEL_PEAK * 32767 / peak)
     if abs(20 * math.log10(gain)) < LEVEL_SKIP:
         return pcm
-    try:
-        import numpy as np
-        return (np.frombuffer(pcm[: len(a) * 2], dtype="<i2") * gain).astype("<i2").tobytes()
-    except ImportError:
-        return array("h", [int(x * gain) for x in a]).tobytes()
+    if np is not None:
+        return (x * gain).astype("<i2").tobytes()
+    return array("h", [int(v * gain) for v in a]).tobytes()
 
 
 def _bell(seconds, partials, decay=9.0):

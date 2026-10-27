@@ -3,9 +3,10 @@
 `./sweatcast brief --save <stem>` writes `<stem>.menu.json` beside the draft: the request and every
 movement `catalog.select` allowed today, healthy-side-only ones with the side to work. The draft
 declares what it scripts on a `movements:` line (draft.py), and `check` finds:
-- issues (the build stops): no menu; a declared movement that isn't on it or
-  isn't a movement at all; nothing declared; the text naming a catalog movement that isn't on the
-  menu; segments that don't add up to the request's seconds;
+- issues (the build stops): no menu, or one that isn't shaped like one (validate); a movement on it the
+  safety screen, run again from its request and the current health.md, doesn't allow (rescreen, on a
+  render); a declared movement that isn't on it or isn't a movement at all; nothing declared; the
+  text naming a catalog movement that isn't on the menu; segments that don't add up to the request's seconds;
 - warnings: the text naming a menu movement the declaration leaves out (add it, so the log has it).
 
 The text is scanned for every name and alias, longest first, so "single-leg glute bridge" isn't also
@@ -58,18 +59,99 @@ def health_hash(path: Optional[str] = None) -> Optional[str]:
 
 def staleness(menu: dict, today: Optional[str] = None, health_path: Optional[str] = None) -> List[str]:
     """Why this menu can't stand for today: it was saved another day (a check-in's limit for today lives only
-    in the menu), or health.md has changed since the brief read it. Empty when it can."""
+    in the menu), health.md is gone, or it has changed since the brief read it. Empty when it can."""
     today = today or datetime.date.today().isoformat()
     out = []
     if menu.get("date") != today:
         out.append(f"the menu is from {menu.get('date') or 'an unknown day'}, not today ({today}): rerun "
                    "./sweatcast brief ... --save <the draft's path>, so today's limits apply")
     current = health_hash(health_path)
-    if not menu.get("health_sha256"):
+    if current is None:   # the brief refuses to run without one, so the file went missing since
+        out.append(f"no health.md at {paths.show(health_path or paths.HEALTH)}: run ./sweatcast setup, then "
+                   "./sweatcast brief ... --save <the draft's path>")
+    elif not menu.get("health_sha256"):
         out.append("the menu predates the brief's health check: rerun ./sweatcast brief ... --save <the draft's path>")
-    elif current and menu["health_sha256"] != current:
+    elif menu["health_sha256"] != current:
         out.append("health.md changed since the brief read it: rerun ./sweatcast brief ... --save <the draft's path>, "
                    "so the menu follows the new limits")
+    return out
+
+
+def validate(obj) -> List[str]:
+    """What's wrong with a menu file's shape, as sentences (empty when it's sound): the format this version
+    writes, an ISO date, a request table, the seconds as a whole number above zero, and the movements as a
+    list of {"id": str, optional "side": str}. Every reader checks this before it indexes into a menu."""
+    if not isinstance(obj, dict):
+        return ["it isn't a menu (not a JSON object)"]
+    out = []
+    if obj.get("format") != FORMAT or isinstance(obj.get("format"), bool):
+        out.append(f"it has format {obj.get('format', 'none')}, from an older brief; this version reads format {FORMAT}")
+    date = obj.get("date")
+    try:
+        datetime.date.fromisoformat(date)
+    except (TypeError, ValueError):
+        out.append(f"its date ({date!r}) isn't YYYY-MM-DD")
+    if not isinstance(obj.get("request"), dict):
+        out.append("it has no request table")
+    seconds = obj.get("seconds")
+    if not isinstance(seconds, int) or isinstance(seconds, bool) or seconds <= 0:
+        out.append(f"its seconds ({seconds!r}) aren't a whole number above zero")
+    moves = obj.get("movements")
+    if not isinstance(moves, list):
+        out.append("its movements aren't a list")
+    else:
+        for n, e in enumerate(moves, 1):
+            if not isinstance(e, dict) or not isinstance(e.get("id"), str):
+                out.append(f"movement {n} has no id")
+            elif "side" in e and not isinstance(e["side"], str):
+                out.append(f"movement {n} ({e['id']}) has a side that isn't a word")
+    return out
+
+
+def rescreen(cat: catalog.Catalog, menu: dict, health_path: Optional[str] = None) -> List[str]:
+    """The movements this menu lists that the safety screen, run again now, doesn't allow: one issue each
+    (or one for the side, when a healthy-side-only movement's side isn't the screen's). One screen pass,
+    from the menu's request, the current health.md, profile and catalog. Only additions are refused: a menu
+    narrower than the screen passes.
+
+    What it proves: health.md's [[limits]] rows and Avoid: lines, and the profile's dislikes, are read again
+    from the files, so a hand-edited menu can't put back a movement they rule out, and a request can only
+    tighten them. What it trusts: the request's own fields (goal, minutes, kit, preset, equipment, add,
+    level, target, its added limits and avoids) as the brief wrote them; it shows the movements follow from
+    the request, not that the request is the one the listener made."""
+    import context   # lazily: context imports menu for log-session
+    import errors
+    import screen
+    import sessions
+    req = menu["request"]
+    path = health_path or paths.HEALTH
+    try:
+        health = context.health(path)
+        own = {f"{lim.area}={lim.level}:{lim.side}" for lim in context.limits(health, cat.areas, cat.flags)}
+        request = {k: req[k] for k in ("goal", "minutes", "kit", "preset", "equipment", "add", "level", "target")
+                   if k in req}
+        # health.md's own rows were saved into the request's limits too; they're read again from the file
+        # (with their rehab exemptions), so only the ones the request added are taken from the menu
+        request["limits"] = [screen.parse_limit(s, cat) for s in req.get("limits") or [] if s not in own]
+        request["avoid"] = set(req.get("avoid") or ())
+        scr = screen.screen(request, cat, sessions.load().goals, context.profile(), health)
+    except (ValueError, TypeError, screen.Unfit, errors.ContextError) as e:
+        return [f"the menu's request can't be screened again ({e}): rerun ./sweatcast brief ... --save "
+                "<the draft's path>"]
+    allowed = {m.id for m in scr.sel.allowed}
+    sides = {m.id: screen.healthy_side(m, scr.limits) for m in scr.sel.healthy_side_only}
+    out = []
+    for e in menu["movements"]:
+        mid, side = e["id"], e.get("side")
+        if mid in allowed or (side is not None and sides.get(mid) == side):
+            continue
+        if mid in sides:
+            out.append(f"the menu lists {mid} for {'both sides' if side is None else f'the {side} side'}, but "
+                       f"today's screen allows only the {sides[mid]} side: rerun ./sweatcast brief ... --save "
+                       "<the draft's path>")
+        else:
+            out.append(f"the menu lists {mid}, which today's screen doesn't allow: rerun ./sweatcast brief ... "
+                       "--save <the draft's path>")
     return out
 
 
@@ -84,8 +166,10 @@ def report_lines(draft_path: str, issues: List[str], warnings: List[str], declar
 def gate(cat: catalog.Catalog, draft_path: str, text: str, segments, today: Optional[str] = None,
          health_path: Optional[str] = None, strict: bool = True, required: bool = True) -> Tuple[List[str], List[str]]:
     """(issues, warnings) for a draft against the menu beside it: the one entry point the build, the render and
-    the lint use. No menu is an issue when `required`; a menu that can't be read is one too; a stale menu
-    (staleness) is an issue when `strict` (a render) and a warning otherwise (a lint)."""
+    the lint use. No menu is an issue when `required`; a menu that can't be read, or isn't shaped like one
+    (validate), is one too; a stale menu (staleness) is an issue when `strict` (a render) and a warning
+    otherwise (a lint). When `strict` and the menu is current, the safety screen runs again (rescreen), so a
+    movement added to the menu by hand is refused."""
     path = draft.menu_path(draft_path)
     if not os.path.exists(path):
         return check(cat, None, text, segments) if required else ([], [])
@@ -94,13 +178,14 @@ def gate(cat: catalog.Catalog, draft_path: str, text: str, segments, today: Opti
     except ValueError as e:
         return ([f"the menu beside the draft can't be read ({os.path.basename(path)}: {e}): rerun ./sweatcast brief "
                  "... --save <the draft's path>"], [])
-    if not isinstance(menu, dict):
-        return ([f"the menu beside the draft isn't a menu ({os.path.basename(path)}): rerun ./sweatcast brief ... "
-                 "--save <the draft's path>"], [])
+    shape = validate(menu)
+    if shape:
+        return ([f"the menu beside the draft ({os.path.basename(path)}) won't do: {p}; rerun ./sweatcast brief ... "
+                 "--save <the draft's path>" for p in shape], [])
     issues, warnings = check(cat, menu, text, segments)
     stale = staleness(menu, today, health_path)
     if strict:
-        issues += stale
+        issues += stale or rescreen(cat, menu, health_path)
     else:
         warnings += stale
     return issues, warnings

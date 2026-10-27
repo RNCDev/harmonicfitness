@@ -130,6 +130,17 @@ class StockAndOwn(unittest.TestCase):
                 mock.patch.object(personas.context, "sessions", return_value=[]):
             self.assertEqual(personas.default().name, "Coach Jess")   # no log: the listener's own
 
+    def test_a_remade_voice_file_changes_the_key(self):
+        stock = os.path.join(self.tmp.name, "stock")
+        shutil.copytree(os.path.join(FIXTURE, "coach-test"), os.path.join(stock, "coach-test"))
+        with mock.patch.object(paths, "SHIPPED", stock):
+            p = personas.load(os.path.join(stock, "coach-test"))
+            before = personas.voice_for(p, "local")["key"]
+            self.assertEqual(personas.voice_for(p, "local")["key"], before)   # the same files, the same key
+            with open(p.voice_state, "ab") as f:   # only pocket.safetensors changes
+                f.write(b"remade")
+            self.assertNotEqual(personas.voice_for(p, "local")["key"], before)
+
     def test_with_no_log_and_nothing_of_their_own_a_stand_in(self):
         with mock.patch.object(personas, "_usable_here", side_effect=lambda p: not p.is_web), \
                 mock.patch.object(personas.context, "sessions", return_value=[]):

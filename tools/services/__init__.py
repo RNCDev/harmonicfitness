@@ -5,7 +5,8 @@ spoken by the web coach's saved voice ID, in that argument order (tests/test_clo
 Optional: STORES_DRAFTS = True where design() saves each candidate at the service, so one not kept is deleted;
 DESIGN_NOTE, what else a design costs there, said with its price. cloud.service_module(name) is the one lookup.
 The shared core (HTTP, retries, errors, audio, cost) is tools/cloud.py; settings are knowledge/services.toml,
-read by settings() here, which imports nothing of the engine's, so keys.py can read it without cloud.py."""
+read by settings() here (each table checked by validate()), which imports nothing of the engine's, so keys.py
+can read it without cloud.py."""
 import functools
 import os
 import tomllib
@@ -14,12 +15,68 @@ SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.
                              "knowledge", "services.toml")
 
 
+class SettingsError(ValueError):
+    """knowledge/services.toml holds a table the engine can't use: a damaged or mistyped file, named with what's
+    wrong rather than failing later as a KeyError. Exits 1 through cli.run (cli.ISSUES; cli isn't imported here)."""
+    exit_code = 1
+
+
 @functools.cache
 def settings():
-    """{service: settings} from knowledge/services.toml, in its order, each with the file's rates_checked."""
+    """{service: settings} from knowledge/services.toml, in its order, each with the file's rates_checked.
+    A table that fails validate() raises SettingsError."""
     with open(SETTINGS_FILE, "rb") as f:
         data = tomllib.load(f)
-    return {k: dict(v, rates_checked=data.get("rates_checked")) for k, v in data.items() if isinstance(v, dict)}
+    found = {k: dict(v, rates_checked=data.get("rates_checked")) for k, v in data.items() if isinstance(v, dict)}
+    problems = validate(found)
+    if problems:
+        raise SettingsError(f"{SETTINGS_FILE}: " + "; ".join(problems))
+    return found
+
+
+def _number(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and x >= 0
+
+
+def _count(x, least):
+    return isinstance(x, int) and not isinstance(x, bool) and x >= least
+
+
+def validate(tables):
+    """What's wrong with {service: settings} as the engine reads it (an empty list when nothing is): each needs
+    a name, an https:// url and key_page, a key_var, a default_model among its models, a unit (characters or
+    bytes), usd_per_million (a number, or one per model), concurrency and candidates (whole numbers, at least 1),
+    max_chars (a whole number, 0 for no limit) and tried_live (true or false); design_usd and note are optional."""
+    problems = []
+    for service, t in tables.items():
+        def bad(field, want):
+            problems.append(f"[{service}] {field} must be {want} (it's {t.get(field)!r})")
+        for field in ("name", "key_var", "default_model"):
+            if not isinstance(t.get(field), str) or not t[field].strip():
+                bad(field, "a non-empty string")
+        for field in ("url", "key_page"):
+            if not isinstance(t.get(field), str) or not t[field].startswith("https://"):
+                bad(field, "an https:// address")
+        models = t.get("models")
+        if not isinstance(models, dict) or not models:
+            bad("models", "a table of model ids")
+        elif t.get("default_model") not in models:
+            bad("default_model", "one of models")
+        if t.get("unit") not in ("characters", "bytes"):
+            bad("unit", '"characters" or "bytes"')
+        rates = t.get("usd_per_million")
+        if not (_number(rates) or (isinstance(rates, dict) and rates and all(_number(r) for r in rates.values()))):
+            bad("usd_per_million", "a number, or a table of numbers by model")
+        for field, least in (("concurrency", 1), ("candidates", 1), ("max_chars", 0)):
+            if not _count(t.get(field), least):
+                bad(field, f"a whole number, at least {least}")
+        if not isinstance(t.get("tried_live"), bool):
+            bad("tried_live", "true or false")
+        if "design_usd" in t and not _number(t["design_usd"]):
+            bad("design_usd", "a number")
+        if "note" in t and not isinstance(t["note"], str):
+            bad("note", "a string")
+    return problems
 
 REQUIRED = {"speaker": ["voice"], "design": ["description", "line", "n", "label"],
             "save": ["candidate", "name", "description", "wav"], "delete": ["voice_id"]}

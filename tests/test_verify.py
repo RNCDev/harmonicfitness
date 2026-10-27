@@ -183,6 +183,77 @@ class CheckTakes(unittest.TestCase):
             got = render.check_takes(self.voice, [line], 42, self.cache_path)   # its verdict is cached
         self.assertEqual(got["checked_now"], 0)
 
+    def test_another_checker_hears_the_line_again(self):
+        line = "Three, two, one, and rest."
+        self.cached(line)
+        self.heard[len(self.take(42))] = "3, 2, 1, and rest."
+        render.check_takes(self.voice, [line], 42, self.cache_path)
+        with open(render.check_path(self.cache_path, line), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["checker"], verify.checker_id())
+        with mock.patch.object(verify, "CUES", verify.CUES | {"breathe"}):   # a stricter checker ships
+            self.assertIsNone(render._verdict(render.check_path(self.cache_path, line)))
+            got = render.check_takes(self.voice, [line], 42, self.cache_path)
+        self.assertEqual((got["checked_now"], self.said), (1, []))   # heard again; the audio kept
+        with open(render.check_path(self.cache_path, line), "w", encoding="utf-8") as f:   # a verdict from before
+            f.write(json.dumps({"ok": True, "missed_cues": []}))
+        self.assertIsNone(render._verdict(render.check_path(self.cache_path, line)))
+
+
+class RenderLocal(unittest.TestCase):
+    """render._render_local: a render that fails midway still frees the model and keeps what it measured."""
+
+    def test_a_failure_midway_releases_the_model_and_records_the_pace(self):
+        voice = {"name": "Test", "engine": "pocket", "backend": "torch"}
+        calls = []
+
+        def say(text, seed):
+            if len(calls) == 2:
+                raise RuntimeError("out of memory")
+            calls.append(text)
+            return tone(1.0)
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(engines, "speaker", return_value=say), \
+                mock.patch.object(engines, "release") as release, \
+                mock.patch.object(render, "record_rate") as record, \
+                contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError):
+            render._render_local(voice, ["One line.", "Two lines.", "Three lines."], 42,
+                                 lambda t: os.path.join(d, f"{abs(hash(t))}.pcm"))
+        release.assert_called_once()
+        record.assert_called_once()
+        (v, measured, seconds), kw = record.call_args
+        self.assertEqual(measured, render.weight("One line.") + render.weight("Two lines."))
+        self.assertAlmostEqual(seconds, 2.0 - 2 * render.EDGE)
+        self.assertNotIn("render_seconds", kw)   # this computer's speed needs a whole render
+
+
+class Fallback(unittest.TestCase):
+    """verify's clipping count and audio.level's peak: numpy where it imports, plain Python otherwise, alike."""
+
+    def setUp(self):
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest("no numpy here to compare with")
+        self.pcm = struct.pack("<6h", 32767, -32768, -32767, 100, -5, 0) + tone(0.5, db=-35.0) + b"\x01"
+
+    def without_numpy(self):
+        return mock.patch.dict(sys.modules, {"numpy": None})
+
+    def test_the_clipping_count_agrees(self):
+        fast = verify.clipped_samples(self.pcm)
+        with self.without_numpy():
+            slow = verify.clipped_samples(self.pcm)
+        self.assertEqual(fast, slow)
+        self.assertEqual(fast[1], 3)
+
+    def test_the_leveled_clip_agrees(self):
+        quiet_clip = tone(1.0, db=-40.0) + struct.pack("<2h", -20000, 15000)
+        fast = render.level(quiet_clip)
+        with self.without_numpy():
+            slow = render.level(quiet_clip)
+        self.assertEqual(fast, slow)
+        self.assertNotEqual(fast, quiet_clip)
+
 
 class Level(unittest.TestCase):
     def test_a_quiet_clip_is_raised_to_the_speech_level(self):

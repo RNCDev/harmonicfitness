@@ -12,8 +12,13 @@ each new clip, and scores it here against the line it was given:
   runaway or a cut-off), a long silence inside it, or clipping.
 
 A take passes with every cue word said, no audio problem, and at most one word in twenty off (the
-recognizer mishears a little too). Plain Python, with no numpy, so it runs and is tested anywhere.
+recognizer mishears a little too). Plain Python, using numpy only for speed where it imports (it always does
+on a local render), so it runs and is tested anywhere.
+
+checker_id() names the checker (the recognizer's revision, the cue words and the thresholds); each verdict
+carries it, so a stricter checker hears every line again (clipcache._verdict).
 """
+import hashlib
 import os
 import re
 import sys
@@ -40,6 +45,14 @@ ORDINAL = {"one": "first", "two": "second", "three": "third", "five": "fifth", "
 CUES = frozenset(ONES[1:] + TENS[2:] + ["hundred", "go", "rest", "switch", "stop", "start", "begin", "left",
                                          "right", "done", "halfway", "last", "side", "sides", "hold"])
 SAME = {"ok": "okay", "alright": "all right"}
+
+
+def checker_id():
+    """What a verdict depends on, hashed: read at call time, so a changed cue list or threshold counts."""
+    import voices
+    raw = "|".join([voices.CHECK_MODEL[0], voices.CHECK_MODEL[1], ",".join(sorted(CUES)), str(ERROR_SHARE),
+                    str(QUIET_DB), str(MAX_GAP), str(LONG), str(LONG_PAD), str(SHORT), str(CLIPPED)])
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
 
 
 def say_number(n):
@@ -185,11 +198,25 @@ def problems(pcm, predicted):
             gap = max(gap, run)
         if gap * FRAME / SR > MAX_GAP:
             found.append(f"goes silent for {gap * FRAME / SR:.1f}s")
-    a = array("h")
-    a.frombytes(pcm[: len(pcm) // 2 * 2])
-    if a and sum(1 for x in a if x >= 32767 or x <= -32767) > CLIPPED * len(a):
+    n, clipped = clipped_samples(pcm)
+    if n and clipped > CLIPPED * n:
         found.append("clips")
     return found
+
+
+def clipped_samples(pcm):
+    """How many samples 16-bit PCM holds, and how many of them sit at full scale."""
+    pcm = pcm[: len(pcm) // 2 * 2]
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+    if np is not None:
+        x = np.frombuffer(pcm, dtype="<i2").astype(np.int32)
+        return len(x), int(np.count_nonzero(np.abs(x) >= 32767))
+    a = array("h")
+    a.frombytes(pcm)
+    return len(a), sum(1 for x in a if x >= 32767 or x <= -32767)
 
 
 def judge(line, heard, pcm, predicted):
