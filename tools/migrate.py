@@ -339,15 +339,22 @@ def _stock_web_names():
 
 
 def _coach_settings(path):
+    """A persona.md's settings, or None when it can't be read (missing, not UTF-8, a block that won't parse)."""
     try:
         return frontmatter.front(store.read_raw(path, "coach"))[0]
-    except Exception:
+    except (*errors.PROBLEMS, OSError, ValueError):   # UnicodeDecodeError is a ValueError
         return None
+
+
+def acting(steps):
+    """coaches_due's steps that change something: an unreadable coach is only reported."""
+    return [s for s in steps if s[0] != "unreadable"]
 
 
 def coaches_due(home):
     """0.15.0's coaches step: [(what, folder name)] still to do: ("rename", "personas"), ("archive", <coach>)
-    for a local coach of the listener's own, ("stock", <coach>) for an unmade copy of a stock web coach."""
+    for a local coach of the listener's own, ("stock", <coach>) for an unmade copy of a stock web coach; and
+    ("unreadable", <coach>) for a persona.md that can't be read, left as it is and reported (acting() drops it)."""
     import personas
     out = []
     if os.path.isdir(os.path.join(home, "personas")):
@@ -357,8 +364,9 @@ def coaches_due(home):
     for d in personas.persona_dirs(root):
         settings = _coach_settings(os.path.join(root, d, "persona.md"))
         if settings is None:
+            out.append(("unreadable", d))
             continue
-        if str(settings.get("kind") or "local") == "local":
+        if str(settings.get("kind") or "local").strip().casefold() == "local":
             out.append(("archive", d))
         elif settings.get("pending") and not settings.get("voice_id") \
                 and str(settings.get("name") or "").lower() in stock:
@@ -370,7 +378,9 @@ def coaches_lines(due):
     names = {"rename": "personas/ becomes coaches/ (its new name)",
              "archive": "coaches/{}: a local coach of your own, archived (local coaches are now the ten sweatcast "
                         "ships; a voice of your own is a web coach)",
-             "stock": "coaches/{}: a stock web coach not made yet, now shipped with sweatcast (moved to the backup)"}
+             "stock": "coaches/{}: a stock web coach not made yet, now shipped with sweatcast (moved to the backup)",
+             "unreadable": "coaches/{}: its persona.md can't be read, so it's left as it is (./sweatcast check "
+                           "says why)"}
     return [names[what].format(d) for what, d in due]
 
 
@@ -511,6 +521,7 @@ def migrate(dry_run=False, stamp=None, moves=None):
     todo = plan()
     home = paths.HOME
     stray, due_moves, pantry, coach_steps = folder_steps_due(home)
+    coach_steps = acting(coach_steps)
     if dry_run or not (todo or stray or due_moves or pantry or coach_steps):
         if moves is not None:
             moves.extend(due_moves)
@@ -579,6 +590,9 @@ def main(argv=None):
         print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added *.lock (lock files never go into a backup).")
     todo = plan()
     stray, due_moves, pantry, coach_steps = folder_steps_due(paths.HOME)
+    for line in coaches_lines([s for s in coach_steps if s not in acting(coach_steps)]):
+        print(line, file=sys.stderr)   # an unreadable coach: reported, never moved
+    coach_steps = acting(coach_steps)
     if not (todo or stray or due_moves or pantry or coach_steps):
         print(f"{show(paths.HOME)} is already at schema {store.SCHEMA}; nothing to do.")
     else:

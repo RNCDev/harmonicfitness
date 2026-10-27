@@ -189,7 +189,7 @@ def text(f: dict) -> List[str]:
 def main(argv=None):
     ap = cli.ArgumentParser(prog="sweatcast coverage", description=__doc__,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--last", type=int, default=1, help="how many recent sessions to pool (default 1)")
+    ap.add_argument("--last", type=cli.positive_int, default=1, help="how many recent sessions to pool (default 1)")
     ap.add_argument("--log", default=None)
     ap.add_argument("--json", action="store_true",
                     help="the same facts as one JSON object: sessions, pooled, span, covered, prioritize, week, "

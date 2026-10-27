@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
 import catalog
+import errors
 import paths
 
 FORMAT = 2
@@ -63,8 +64,12 @@ def _method(name: str, raw: dict) -> Method:
 
 def load(path: Optional[str] = None) -> Sessions:
     """Read the session rules at `path` (default: the shipped file)."""
-    with open(path or paths.SESSIONS, "rb") as f:
-        data = tomllib.load(f)
+    path = path or paths.SESSIONS
+    with open(path, "rb") as f:
+        try:
+            data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:   # the file's fault (exit 1), never the command's
+            raise errors.ContextError(f"{paths.show(path)} isn't valid TOML: {e}") from e
     return Sessions(
         format=data.get("format", 0), goals=list(data.get("goals", [])),
         methods={name: _method(name, raw) for name, raw in data.get("methods", {}).items()},

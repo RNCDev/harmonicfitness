@@ -455,12 +455,12 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     return out, record
 
 
-def main():
+def main(argv=None):
     ap = cli.ArgumentParser(prog="sweatcast brief", description=(
         "Today's ingredients for designing and writing a session: the listener, the week, the limits, the "
         "safe menu with coaching notes, the programming guide and the equipment notes."))
     ap.add_argument("--goal", required=True, help="strength, general, targeted, conditioning, mobility or skill")
-    ap.add_argument("--minutes", required=True, type=int, help="the session's length in minutes")
+    ap.add_argument("--minutes", required=True, type=cli.positive_int, help="the session's length in minutes")
     kit = ap.add_mutually_exclusive_group(required=True)
     kit.add_argument("--kit", help="a kit named in the profile's [[kits]]")
     kit.add_argument("--preset", help="a kit preset from the catalog, such as hotel-room")
@@ -477,38 +477,83 @@ def main():
     ap.add_argument("--coach", dest="voice",
                     help="the coach the script is written for: how they talk, and their words a minute "
                          "(default: the one used last)")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
+    # The files first: a damaged catalog, session rules or profile is that file's problem (exit 1 through cli.run),
+    # never "the command was wrong". Then every flag is checked (exit 64) before anything is computed.
     cat = catalog.load()
-    try:
-        request = {"goal": args.goal, "minutes": args.minutes, "level": args.level,
-                   "target": screen.words(args.target), "limits": [screen.parse_limit(x, cat) for x in args.limit],
-                   "avoid": catalog.avoid_set(cat, screen.words(args.avoid))}
-        if args.add:
-            request["add"] = catalog.equipment_keys(cat, screen.words(args.add))
-        if args.kit:
-            request["kit"] = args.kit
-        elif args.preset:
-            request["preset"] = args.preset
-        else:
-            request["equipment"] = catalog.equipment_keys(cat, screen.words(args.equipment))
-        today = args.today or datetime.date.today()
-        profile = context.profile()
-        lines, record = build(request, cat, sessions.load(), profile, health.health(),
-                              sessionlog.sessions(args.log), today, context.feedback(args.log),
-                              voice=args.voice)
-    except ValueError as e:   # an unknown goal, kit, level or flag value; screen.Unfit exits 1 through cli.run
-        raise cli.Usage(f"sweatcast brief: {e}")
+    sess = sessions.load()
+    profile = context.profile()
+    save = _save_target(args.save)
+    request = request_from(args, cat, sess, profile)
+    today = args.today or datetime.date.today()
+    lines, record = build(request, cat, sess, profile, health.health(), sessionlog.sessions(args.log), today,
+                          context.feedback(args.log), voice=args.voice)
     text = "\n".join(lines) + "\n"
     print(text, end="")
-    if args.save:
-        brief, menu_file = draft.brief_path(args.save), draft.menu_path(args.save)
+    if save:
+        brief, menu_file = draft.brief_path(save), draft.menu_path(save)
         fileio.atomic_write(brief, text)
         menu.write(menu_file, record)
         print(f"\nSaved the brief to {paths.show(os.path.abspath(brief))} and the menu to "
               f"{paths.show(os.path.abspath(menu_file))}; the draft goes to "
-              f"{paths.show(os.path.abspath(draft.stem(args.save) + draft.DRAFT_SUFFIX))}.", file=sys.stderr)
+              f"{paths.show(os.path.abspath(draft.stem(save) + draft.DRAFT_SUFFIX))}.", file=sys.stderr)
     return cli.OK
+
+
+def _usage(e):
+    return cli.Usage(f"sweatcast brief: {e}")
+
+
+def request_from(args, cat, sess, profile):
+    """The request build() takes, from the command line, every value checked against the catalog, the session
+    rules and the profile's kits first: an unknown goal, kit, preset, equipment, level, target, limit or avoid
+    word raises cli.Usage (exit 64) naming the choices."""
+    if args.goal not in sess.goals:
+        raise _usage(f"unknown goal \"{args.goal}\" (choose from: {', '.join(sess.goals)})")
+    if args.level is not None and args.level not in catalog.LEVELS:
+        raise _usage(f"unknown level \"{args.level}\" (choose from: {', '.join(catalog.LEVELS)})")
+    target = screen.words(args.target)
+    for t in target:
+        if t not in cat.patterns and t not in cat.muscles:
+            raise _usage(f"unknown target \"{t}\" (patterns: {', '.join(cat.patterns)}; "
+                         f"muscles: {', '.join(cat.muscles)})")
+    try:
+        request = {"goal": args.goal, "minutes": args.minutes, "level": args.level, "target": target,
+                   "limits": [screen.parse_limit(x, cat) for x in args.limit],
+                   "avoid": catalog.avoid_set(cat, screen.words(args.avoid))}
+        if args.add:
+            request["add"] = catalog.equipment_keys(cat, screen.words(args.add))
+        if args.kit:
+            kits = context.kits(profile)
+            if args.kit not in kits:
+                raise ValueError(f"unknown kit \"{args.kit}\" (kits in the profile: {', '.join(kits) or 'none'})")
+            request["kit"] = args.kit
+        elif args.preset:
+            catalog.kit_equipment(cat, {"preset": args.preset})   # an unknown preset names the choices
+            request["preset"] = args.preset
+        else:
+            request["equipment"] = catalog.equipment_keys(cat, screen.words(args.equipment))
+    except ValueError as e:   # only the flags' own values are read here
+        raise _usage(e) from None
+    return request
+
+
+EVAL_OUT = os.path.join(paths.ROOT, "docs", "eval", "out")   # the maintainer's eval grid (git-ignored; briefs.sh)
+
+
+def _save_target(save):
+    """--save's path, which must sit in the workouts folder (a workout's own folder, or checks/), or in the eval
+    grid's output folder: the brief and menu are written nowhere else. Anything else is cli.Usage (exit 64)."""
+    if not save:
+        return None
+    where = os.path.normcase(os.path.realpath(os.path.dirname(os.path.abspath(save))))
+    for root in (paths.WORKOUTS, EVAL_OUT):
+        root = os.path.normcase(os.path.realpath(root))
+        if where == root or where.startswith(root.rstrip(os.sep) + os.sep):
+            return save
+    raise _usage(f"--save must name a draft in {paths.show(paths.WORKOUTS)} (in its own folder, "
+                 f"<stem>/<stem>.draft.txt), not {save}")
 
 
 if __name__ == "__main__":

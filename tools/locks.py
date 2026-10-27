@@ -14,6 +14,7 @@ file_lock(path) guards one file's read, check and write (the pace file, the sess
 told.jsonl, builds.jsonl).
 """
 import contextlib
+import errno
 import os
 import time
 
@@ -25,6 +26,7 @@ else:
     import fcntl
 
 _FAR = 1 << 30   # Windows: the locked byte, well past anything written to the file
+BUSY = (errno.EACCES, errno.EDEADLK)   # Windows: what msvcrt.locking raises while another holds the byte
 
 
 def acquire(f, block=True):
@@ -42,7 +44,9 @@ def acquire(f, block=True):
             try:
                 msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
                 return True
-            except OSError:
+            except OSError as e:
+                if e.errno not in BUSY:   # held by another is EACCES (or EDEADLK); anything else is a real fault
+                    raise
                 if not block:
                     return False
                 time.sleep(0.5)
@@ -53,13 +57,18 @@ def acquire(f, block=True):
 _held = {}   # (lock path, thread id) -> depth, so a thread holding a file's lock can take it again
 
 
+def lock_key(path):
+    """One name per file, however it's spelt: links resolved and, on Windows, case and slashes folded."""
+    return os.path.normcase(os.path.realpath(path))
+
+
 @contextlib.contextmanager
 def file_lock(path):
     """An exclusive lock beside `path` (`<path>.lock`), held while its contents are read, checked and written:
     the pace file, the session log, told.jsonl, builds.jsonl. Re-entrant within one thread (a second flock on
     a new open of the same file would wait on itself)."""
     import threading
-    key = (os.path.abspath(path), threading.get_ident())
+    key = (lock_key(path), threading.get_ident())
     if _held.get(key):
         _held[key] += 1
         try:

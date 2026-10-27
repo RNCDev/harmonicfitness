@@ -3,14 +3,14 @@ menu, render the .mp3, copy it to the phone.
 
 Run it as ./sweatcast build.
 
-    ./sweatcast build <draft> "<name>" [--coach <name>] [--engine <route>] [--lint-only] [--follow] [--web] [render options]
+    ./sweatcast build <draft> "<name>" [--coach <name>] [--route <route>] [--lint-only] [--follow] [--web] [render options]
     ./sweatcast build me/workouts/2026-10-19-bench-25/2026-10-19-bench-25.draft.txt "Workout 2026-10-19 Bench 25 min"
 
 Writes <name>.txt and <name>.mp3 in the draft's workout folder (me/workouts/<stem>/), or in
 me/workouts/checks/ for the smoke test and any draft outside one (the context folder is SWEATCAST_HOME
 if set). The draft is read once: the lint, the menu check and the render all see the same text, so
 nothing can slip in between them. Stops after the lint if it finds issues (fix and rerun). --lint-only
-skips rendering. Without --coach, uses the coach used last; without --engine, the first route in the
+skips rendering. Without --coach, uses the coach used last; without --route (or --engine, its older name), the first route in the
 profile's render list that works on this computer (local, or a cloud voice with its key in me/.env). After
 a render, copies the MP3 to each deliver_to folder that exists and, once every copy matches, removes the
 local MP3.
@@ -356,9 +356,10 @@ def run_build(opts, say=print, fail=None):
     BuildResult; a stop the listener or the writer must act on is raised, as cli.run maps it, after the build's
     outcome line is written. `say` takes the report's lines and `fail` the one saying why it stopped (default:
     stderr when `say` is print, else `say`)."""
-    name = opts.name
-    if "/" in name or "\\" in name:
-        raise errors.UsageError(f"The name can't contain a slash: {name}")
+    name = workouts.safe_name(opts.name)   # before any path is joined from it (exit 64)
+    out = os.path.abspath(workouts.out_dir(opts.draft))
+    if os.path.dirname(os.path.abspath(os.path.join(out, f"{name}.mp3"))) != out:
+        raise errors.UsageError(f"The name would write outside {paths.show(out)}: {name!r}")
     if not os.path.isfile(opts.draft):
         raise errors.UsageError(f"No draft at {opts.draft}")
     if not os.path.isfile(paths.PROFILE):
@@ -505,19 +506,20 @@ def main(argv=None):
     ap.add_argument("draft", help="the draft (me/workouts/<stem>/<stem>.draft.txt)")
     ap.add_argument("name", help="the MP3's name, such as \"Workout 2026-10-25 Strength 25 min\"")
     ap.add_argument("--coach", help="the coach (default: the one used last, else your own, else a stand-in)")
-    ap.add_argument("--engine", help="the route: local, or a web service (default: the coach's own, or the "
-                                     "profile's render list)")
+    ap.add_argument("--route", "--engine", dest="engine", metavar="ROUTE",
+                    help="the route: local, or a web service (default: the coach's own, or the profile's render "
+                         "list); --engine is the older name")
     ap.add_argument("--lint-only", action="store_true", help="stop after the lint and the menu check")
     ap.add_argument("--allow-estimated", action="store_true",
                     help="render with a local coach whose pace isn't measured on this route yet")
     ap.add_argument("--follow", action="store_true", help="render ahead while the draft is written (local only)")
     ap.add_argument("--clips-only", action="store_true", help="render the draft's clips into the cache once (local only)")
-    ap.add_argument("--idle", type=float, default=None, help="with --follow, stop after this many idle seconds")
+    ap.add_argument("--idle", type=cli.positive_float, default=None, help="with --follow, stop after this many idle seconds")
     ap.add_argument("--web", action="store_true", help="also make the web copy and player page")
     ap.add_argument("--no-web", action="store_true", help="no web copy, even in a Claude Code cloud session")
     ap.add_argument("--tolerance", type=draft.tolerance_arg, default=draft.TOTAL_TOLERANCE,
                     help="how far the whole workout may run over or under plan, as a fraction (0 to 0.5)")
-    ap.add_argument("--seed", type=int, default=42, help="a different seed gives a different take of every line")
+    ap.add_argument("--seed", type=cli.non_negative_int, default=42, help="a different seed gives a different take of every line")
     ap.add_argument("--no-chime", action="store_true", help="no bell at each new segment and no end tone")
     ap.add_argument("--no-check", action="store_true",
                     help="don't have the speech recognizer check each local take (a quicker test render)")

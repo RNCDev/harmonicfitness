@@ -65,8 +65,11 @@ class Piece(NamedTuple):
 
 def recipe(path=RECIPE) -> Recipe:
     with open(path, "rb") as f:
-        data = tomllib.load(f)
-    slots = {s["id"]: Slot(s["id"], s["what"], int(s["words"]), bool(s.get("fresh")), int(s.get("reserve", 0)))
+        try:
+            data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:   # the file's fault (exit 1), never the command's
+            raise errors.ContextError(f"{paths.show(path)} isn't valid TOML: {e}") from e
+    slots ={s["id"]: Slot(s["id"], s["what"], int(s["words"]), bool(s.get("fresh")), int(s.get("reserve", 0)))
              for s in data["slot"]}
     bands = sorted(data["band"], key=lambda b: b["up_to"])
     for b in bands:
@@ -282,7 +285,7 @@ def main(argv=None):
     ap = cli.ArgumentParser(prog="sweatcast content", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("plan", help="the filler plan for a session, what's been told, the reserve")
-    p.add_argument("--minutes", type=int, default=25, help="the session's length (default 25)")
+    p.add_argument("--minutes", type=cli.positive_int, default=25, help="the session's length (default 25)")
     cli.today_arg(p)
     p.add_argument("--json", action="store_true",
                    help="the same plan as one JSON object: minutes, slots (slot, count, words, what, fresh, due: "
@@ -293,26 +296,27 @@ def main(argv=None):
                     help='"slot | category | title [| source [| reserve slug]]", once per item')
     sub.add_parser("reserve", help="list the reserve's unused pieces")
     args = ap.parse_args(argv)
-    try:
-        if args.cmd == "plan":
-            today = args.today or datetime.date.today()
-            if args.minutes <= 0:
-                raise ValueError("--minutes must be above zero")
-            if args.json:
-                print(json.dumps(plan_facts(args.minutes, today, profile=context.profile()), indent=1,
-                                 ensure_ascii=False))
-            else:
-                print("\n".join(plan(args.minutes, today, profile=context.profile())))
-        elif args.cmd == "log":
-            # the profile's [[interests]] name the categories; with no profile, the defaults
-            new = log(args.date, args.item, profile=context.profile() if os.path.exists(paths.PROFILE) else None)
-            print(f"Recorded {len(new)} item(s) in {paths.show(paths.TOLD)}.")
+    # --minutes is checked by argparse; a damaged knowledge or context file is the file's problem (exit 1, through
+    # cli.run), never "the command was wrong"
+    if args.cmd == "plan":
+        today = args.today or datetime.date.today()
+        if args.json:
+            print(json.dumps(plan_facts(args.minutes, today, profile=context.profile()), indent=1,
+                             ensure_ascii=False))
         else:
-            pieces = reserve()
-            print("\n".join(f"{p.slot} / {p.category}: {p.title} ({p.slug})" for p in pieces) or "The reserve is empty.")
-    except ValueError as e:
-        print(f"sweatcast content: {e}", file=sys.stderr)
-        return cli.USAGE
+            print("\n".join(plan(args.minutes, today, profile=context.profile())))
+    elif args.cmd == "log":
+        # the profile's [[interests]] name the categories; with no profile, the defaults
+        prof = context.profile() if os.path.exists(paths.PROFILE) else None
+        try:
+            new = log(args.date, args.item, profile=prof)   # its ValueError is an --item or --date it can't take
+        except ValueError as e:
+            print(f"sweatcast content: {e}", file=sys.stderr)
+            return cli.USAGE
+        print(f"Recorded {len(new)} item(s) in {paths.show(paths.TOLD)}.")
+    else:
+        pieces = reserve()
+        print("\n".join(f"{p.slot} / {p.category}: {p.title} ({p.slug})" for p in pieces) or "The reserve is empty.")
     return cli.OK
 
 

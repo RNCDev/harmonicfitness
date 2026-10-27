@@ -206,15 +206,82 @@ def route_issues(p):
             for r in routes(p) if r not in cloud.ROUTES]
 
 
+# The single-valued settings and what each may hold: (int, least, most) for a whole number (a bool is never one),
+# or (choices,) for text (read stripped and casefolded; "" means unset). ./sweatcast check reports any other value
+# (scalar_problems), and the readers below refuse one rather than quietly using the default: a spending cap
+# written "5000", in quotes, must never read as the default's 30,000.
+SCALARS = {
+    "cloud_max_chars": (int, 1, None),
+    "words_per_minute": (int, 60, 300),
+    "setup": (("quick", "full"),),
+    "experience": ("catalog.LEVELS",),   # read when checked: catalog loads the movement catalog
+}
+
+
+def _shown(v):
+    try:
+        return toml_value(v)
+    except TypeError:
+        return repr(v)
+
+
+def _scalar_problem(key, v):
+    """Why `v` can't be `key`'s value (SCALARS), or None when it can."""
+    rule = SCALARS[key]
+    if rule[0] is int:
+        _, least, most = rule
+        if type(v) is not int:   # bool is an int subclass: true is never a number of characters
+            return f"{key} should be a whole number, written without quotes, not {_shown(v)}"
+        if v < least or (most is not None and v > most):
+            span = f"at least {least}" if most is None else f"from {least} to {most}"
+            return f"{key} should be {span}, not {v}"
+        return None
+    choices = rule[0]
+    if choices == "catalog.LEVELS":
+        import catalog
+        choices = catalog.LEVELS
+    if not isinstance(v, str):
+        return f"{key} should be one of {', '.join(choices)}, in quotes, not {_shown(v)}"
+    if v.strip() and v.strip().casefold() not in choices:
+        return f"{key} should be one of {', '.join(choices)}, not {_shown(v)}"
+    return None
+
+
+def scalar_problems(settings):
+    """[(key, message, note)] for the single-valued settings (SCALARS) set to a value their reader refuses, as
+    shape_problems gives them; each is an issue (note False): the setting doesn't apply as written."""
+    out = []
+    for key in SCALARS:
+        if key in settings:
+            problem = _scalar_problem(key, settings[key])
+            if problem:
+                out.append((key, problem, False))
+    return out
+
+
+def _scalar(p, key):
+    """`key`'s value from the profile, None when unset; a value set but not one SCALARS allows raises
+    errors.ContextError naming it, never a quiet fallback to the default."""
+    if key not in p.settings:
+        return None
+    problem = _scalar_problem(key, p.settings[key])
+    if problem:
+        where = (p.sources or {}).get(key) or SETTING_HOMES.get(key, "settings.toml")
+        raise errors.ContextError(f"{show(where) if os.path.isabs(where) else where}: {problem} (./sweatcast check lists what else needs fixing).")
+    return p.settings[key]
+
+
 def cloud_max_chars(p):
-    """The most characters one build may send to a cloud voice, from cloud_max_chars (default 30,000)."""
-    v = p.settings.get("cloud_max_chars")
-    return int(v) if isinstance(v, (int, float)) and v > 0 else CLOUD_MAX_CHARS
+    """The most characters one build may send to a cloud voice, from cloud_max_chars (default 30,000); a value
+    that isn't a whole number of at least 1 raises errors.ContextError."""
+    v = _scalar(p, "cloud_max_chars")
+    return CLOUD_MAX_CHARS if v is None else v
 
 
 def wpm(p):
-    v = p.settings.get("words_per_minute")
-    return int(v) if isinstance(v, (int, float)) and v > 0 else None
+    """The profile's rough speaking rate (words_per_minute), or None when unset; a value that isn't a whole
+    number from 60 to 300 raises errors.ContextError."""
+    return _scalar(p, "words_per_minute")
 
 
 def delivery_patterns(p):
@@ -467,7 +534,8 @@ def main(argv=None):
     g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds"),
                    help="web-builds: how many builds have sent a script to a web voice service")
     g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
-    g.add_argument("--engine", help="with route: a route to use if it works here")
+    g.add_argument("--route", "--engine", dest="engine", metavar="ROUTE",
+                   help="with route: a route to use if it works here (--engine is the older name)")
     g.add_argument("--json", action="store_true",
                    help='the value as one JSON object keyed by its name, "-" as "_": {"web_builds": 3}, '
                         '{"routes": ["local"]}, {"coach": null} when there is none')
@@ -476,7 +544,7 @@ def main(argv=None):
     s.add_argument("--draft", help="the built draft: its movements: line gives the movements, and its menu the "
                                    "date, length and kit (a build of this exact draft must exist)")
     s.add_argument("--date", help="YYYY-MM-DD (default: the menu's date with --draft, else today)")
-    s.add_argument("--minutes", type=int, help="required without --draft")
+    s.add_argument("--minutes", type=cli.positive_int, help="required without --draft")
     s.add_argument("--kit", help="required without --draft")
     s.add_argument("--coach", dest="voice", help="the session's coach (with --draft, default: the build's; one "
                                                  "that disagrees with the build is refused)")
