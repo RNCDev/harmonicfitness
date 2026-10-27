@@ -119,6 +119,85 @@ class PrivateMovements(unittest.TestCase):
         self.assertTrue(check.check_movements(path))
 
 
+class SettingShapes(unittest.TestCase):
+    """A hand-edited setting in the wrong shape is read the way it was meant, and check says so."""
+
+    def profile(self, settings):
+        import context
+        return context.Profile(settings=settings, body="", path="p") if hasattr(context, "Profile") else \
+            type("P", (), {"settings": settings, "path": "p"})()
+
+    def test_a_bare_string_is_one_item_never_its_letters(self):
+        import context
+        p = self.profile({"likes": "goblet squat", "youtube_favorites": "@ch", "render": "fish",
+                          "deliver_to": "~/Drive"})
+        self.assertEqual(context.likes(p), ["goblet squat"])
+        self.assertEqual(context.handles(p, "YouTube favorites"), ["ch"])
+        self.assertEqual(context.routes(p), ["fish"])
+        self.assertEqual(len(context.delivery_patterns(p)), 1)
+        notes = context.shape_problems(p.settings)
+        self.assertEqual([k for k, _, note in notes], ["likes", "youtube_favorites"])
+        self.assertTrue(all(note for _, _, note in notes))
+
+    def test_a_single_table_is_one_row(self):
+        import context
+        p = self.profile({"kits": {"name": "home", "equipment": "dumbbells", "weights": {"dumbbells": [10, 20]}}})
+        self.assertEqual(context.kits(p), {"home": ["dumbbells"]})
+        self.assertEqual(context.kit_weights(p), {"home": ("lb", {"dumbbells": [10, 20]})})
+        self.assertIn("[[kits]]", context.shape_problems(p.settings)[0][1])
+        self.assertIn("equipment is one item", context.kit_problems(p.settings["kits"])[0])
+
+    def test_wrong_types_are_issues(self):
+        import context
+        found = context.shape_problems({"likes": 3, "feeds": ["x"], "deliver_to": 7})
+        self.assertEqual(sorted(k for k, _, note in found if not note), ["deliver_to", "feeds", "likes"])
+
+    def test_a_coach_alias_given_as_one_name(self):
+        import personas
+        p = personas.Persona(slug="coach-x", folder="/nowhere", settings={"aliases": "Maya"}, prose="")
+        self.assertEqual(p.aliases, ["Maya"])
+
+
+class CatalogCache(unittest.TestCase):
+    def test_the_index_finds_what_a_scan_finds(self):
+        cat = catalog.load()
+
+        def scan(name):   # resolve as it was before the index, for comparison
+            said = " ".join(name.lower().split())
+            for side in catalog.SIDE_WORDS:
+                if said.startswith(side):
+                    said = said[len(side):]
+                    break
+            if said in cat.movements:
+                return cat.movements[said]
+            key = catalog.plain(said)
+            forms = {key} | ({key[:-2]} if key.endswith("es") else set()) | \
+                ({key[:-1]} if key.endswith("s") and not key.endswith("ss") else set())
+            for m in cat.movements.values():
+                if any(catalog.plain(k) in forms for k in [m.name, m.id] + m.aliases):
+                    return m
+            return None
+        words = {w for m in cat.movements.values() for w in [m.name, m.id, *m.aliases]}
+        words |= {w + "s" for w in words} | {"left " + w for w in list(words)[:40]} | {"nothing like this"}
+        for w in sorted(words):
+            self.assertIs(catalog.resolve(cat, w), scan(w), w)
+
+    def test_default_loads_once_and_again_when_the_file_changes(self):
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "movements.toml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write('[[movement]]\nid = "garage-drag"\nname = "garage drag"\npatterns = ["locomotion"]\n')
+        with mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
+            first = catalog.default()
+            self.assertIs(catalog.default(), first)
+            self.assertIn("garage-drag", first.movements)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write('[[movement]]\nid = "garage-sled"\nname = "garage sled"\npatterns = ["locomotion"]\n\n')
+            again = catalog.default()
+        self.assertIsNot(again, first)
+        self.assertIn("garage-sled", again.movements)
+
+
 class Boundaries(unittest.TestCase):
     def test_player_links_survive_a_hash_in_the_name(self):
         with tempfile.TemporaryDirectory() as d:

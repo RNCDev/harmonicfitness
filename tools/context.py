@@ -271,11 +271,58 @@ def profile(path=None):
 CLOUD_MAX_CHARS = 30000   # a cloud build's default ceiling: a 40-minute workout with room for retakes
 
 
+# ---- the shapes settings come in ----------------------------------------------------------------
+# Settings are hand-edited, so each reader takes them through these, and ./sweatcast check reports what they
+# had to forgive (shape_issues). A bare string where a list belongs reads as a one-item list, never as its
+# letters; a single [table] where [[tables]] belong reads as one row.
+
+NAME_LISTS = ("likes", "dislikes", "youtube_favorites", "puzzles")   # a list of text
+ONE_OR_LIST = ("render", "deliver_to")                                # a text or a list of them, both meant
+TABLE_LISTS = ("kits", "interests", "feeds")   # [[tables]] ([[limits]] is stricter: limit_rows refuses a bad one)
+SHAPED = (*NAME_LISTS, *ONE_OR_LIST, *TABLE_LISTS)
+
+
+def str_list(value):
+    """A setting as a list of text: a bare string is one item; anything not text is dropped."""
+    if isinstance(value, str):
+        return [value]
+    return [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
+
+
+def table_list(value):
+    """A setting as a list of tables: a single table is one row; anything not a table is dropped."""
+    if isinstance(value, dict):
+        return [value]
+    return [x for x in value if isinstance(x, dict)] if isinstance(value, list) else []
+
+
+def shape_problems(settings, keys=None):
+    """[(key, message, note)] for settings not in the shape their reader expects: what the reader forgave
+    (a note) or had to drop (an issue)."""
+    out = []
+    for key in SHAPED if keys is None else keys:
+        if key not in settings:
+            continue
+        v = settings[key]
+        if key in NAME_LISTS:
+            if isinstance(v, str):
+                out.append((key, f'{key} is one name; write it as a list, {key} = ["{v}"] (read as one for now)', True))
+            elif not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+                out.append((key, f'{key} should be a list of names, such as ["..."]; what isn\'t text is ignored', False))
+        elif key in ONE_OR_LIST:
+            if not isinstance(v, str) and not (isinstance(v, list) and all(isinstance(x, str) for x in v)):
+                out.append((key, f'{key} should be text or a list of text; what isn\'t text is ignored', False))
+        elif key in TABLE_LISTS:
+            if isinstance(v, dict):
+                out.append((key, f"write [[{key}]] (two brackets) for each row; [{key}] is read as one row for now", True))
+            elif not isinstance(v, list) or not all(isinstance(x, dict) for x in v):
+                out.append((key, f"each {key} row should be a [[{key}]] table; what isn't one is ignored", False))
+    return out
+
+
 def routes(p):
     """The profile's render preference list (default ["local"]): each build takes the first that works here."""
-    value = p.settings.get("render")
-    values = value if isinstance(value, list) else [value] if isinstance(value, str) else []
-    found = [str(v).strip().lower() for v in values if str(v).strip()]
+    found = [v.strip().lower() for v in str_list(p.settings.get("render")) if v.strip()]
     return found or ["local"]
 
 
@@ -313,9 +360,7 @@ def wpm(p):
 def delivery_patterns(p):
     """The deliver_to folders with ~ expanded: one string, or a list of them (say one per
     computer, a Mac's Google Drive path and a Windows PC's); unset or hint lines dropped."""
-    value = p.settings.get("deliver_to")
-    values = value if isinstance(value, list) else [value]
-    return [os.path.expanduser(v.strip()) for v in values if isinstance(v, str) and not unfilled(v)]
+    return [os.path.expanduser(v.strip()) for v in str_list(p.settings.get("deliver_to")) if not unfilled(v)]
 
 
 def delivery_folders(p):
@@ -334,9 +379,7 @@ def delivery_folders(p):
 def feed_sources(p):
     """[(label, kind, value)] from [[feeds]], skipping entries not filled in yet."""
     out = []
-    for f in p.settings.get("feeds") or []:
-        if not isinstance(f, dict):
-            continue
+    for f in table_list(p.settings.get("feeds")):
         label, kind, value = (str(f.get(k, "")).strip() for k in ("label", "kind", "value"))
         if kind.lower() in FEED_KINDS and not unfilled(value) and not unfilled(label):
             out.append((label, kind.lower(), value))
@@ -346,7 +389,7 @@ def feed_sources(p):
 def handles(p, label):
     """The @handles for "YouTube favorites" or "Puzzles" (youtube_favorites, puzzles)."""
     key = HANDLE_KEYS.get(label, label)
-    return [h.strip().lstrip("@") for h in p.settings.get(key) or [] if isinstance(h, str) and not unfilled(h)]
+    return [h.strip().lstrip("@") for h in str_list(p.settings.get(key)) if not unfilled(h)]
 
 
 def experience(p):
@@ -374,14 +417,14 @@ def interests(p):
     """[(name, slot, detail)]: the profile's [[interests]], the categories the filler plan rotates
     through for each slot (knowledge/content.toml). Rows not filled in are skipped."""
     out = []
-    for row in p.settings.get("interests") or []:
-        if isinstance(row, dict) and not unfilled(row.get("name")) and not unfilled(row.get("slot")):
+    for row in table_list(p.settings.get("interests")):
+        if not unfilled(row.get("name")) and not unfilled(row.get("slot")):
             out.append((str(row["name"]).strip(), str(row["slot"]).strip(), str(row.get("detail") or "").strip()))
     return out
 
 
 def _names(p, key):
-    return [x.strip() for x in p.settings.get(key) or [] if isinstance(x, str) and x.strip()]
+    return [x.strip() for x in str_list(p.settings.get(key)) if x.strip()]
 
 
 def likes(p):
@@ -396,44 +439,58 @@ def dislikes(p):
 
 def kits(p):
     """{kit name: equipment ids} from [[kits]], as written."""
-    return {str(k["name"]).strip(): [e for e in k.get("equipment") or [] if isinstance(e, str)]
-            for k in p.settings.get("kits") or []
-            if isinstance(k, dict) and isinstance(k.get("name"), str) and k["name"].strip()}
+    return {k["name"].strip(): str_list(k.get("equipment"))
+            for k in table_list(p.settings.get("kits")) if isinstance(k.get("name"), str) and k["name"].strip()}
 
 
 UNITS = ("lb", "kg")
 
 
-def kit_weights(p):
-    """{kit name: (unit, {equipment id: sorted weights})} from each [[kits]] table's optional `weights`
-    (equipment id = list of numbers) and `unit` ("lb" by default), for the kits that give any."""
-    out = {}
-    for k in p.settings.get("kits") or []:
-        if not (isinstance(k, dict) and isinstance(k.get("name"), str) and isinstance(k.get("weights"), dict)):
-            continue
-        table = {e: sorted(w for w in ws if isinstance(w, (int, float)) and not isinstance(w, bool) and w > 0)
-                 for e, ws in k["weights"].items() if isinstance(ws, list)}
-        table = {e: ws for e, ws in table.items() if ws}
-        if table:
-            out[k["name"].strip()] = (k.get("unit") if k.get("unit") in UNITS else "lb", table)
-    return out
+def _weight(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and x > 0
 
 
-def _weight_problems(k):
-    """Faults in one [[kits]] table's `weights` and `unit`, as sentences."""
-    out = []
+def kit_weight_table(k):
+    """(unit, {equipment id: sorted weights}, problems) for one [[kits]] table's optional `weights` (equipment
+    id = list of numbers) and `unit` ("lb" by default): what the brief uses, and, as sentences, what it had to
+    leave out, which ./sweatcast check reports. One reading, so the two can't disagree."""
+    problems, table = [], {}
     w = k.get("weights")
     if w is not None and not isinstance(w, dict):
-        out.append("weights should be a table, such as { dumbbells = [10, 15, 20] }")
+        problems.append("weights should be a table, such as { dumbbells = [10, 15, 20] }")
     for e, ws in (w.items() if isinstance(w, dict) else []):
-        if e not in (k.get("equipment") or []):
-            out.append(f"weights lists '{e}', which isn't in the kit's equipment")
-        if not isinstance(ws, list) or not ws or not all(
-                isinstance(x, (int, float)) and not isinstance(x, bool) and x > 0 for x in ws):
-            out.append(f"weights for '{e}' should be a list of numbers above zero")
+        if e not in str_list(k.get("equipment")):
+            problems.append(f"weights lists '{e}', which isn't in the kit's equipment")
+        if not isinstance(ws, list) or not ws or not all(_weight(x) for x in ws):
+            problems.append(f"weights for '{e}' should be a list of numbers above zero")
+        good = sorted(x for x in ws if _weight(x)) if isinstance(ws, list) else []
+        if good:
+            table[e] = good
     if "unit" in k and k["unit"] not in UNITS:
-        out.append(f"unit should be {' or '.join(UNITS)}")
+        problems.append(f"unit should be {' or '.join(UNITS)}")
+    return (k.get("unit") if k.get("unit") in UNITS else "lb"), table, problems
+
+
+def kit_weights(p):
+    """{kit name: (unit, {equipment id: sorted weights})} for the kits that give any weights."""
+    out = {}
+    for k in table_list(p.settings.get("kits")):
+        if isinstance(k.get("name"), str):
+            unit, table, _ = kit_weight_table(k)
+            if table:
+                out[k["name"].strip()] = (unit, table)
     return out
+
+
+def kit_problems(k):
+    """Faults in one [[kits]] table, as sentences: its equipment's shape, and its weights and unit."""
+    out = []
+    e = k.get("equipment")
+    if isinstance(e, str):
+        out.append(f'equipment is one item; write it as a list, equipment = ["{e}"] (read as one for now)')
+    elif e is not None and not (isinstance(e, list) and all(isinstance(x, str) for x in e)):
+        out.append("equipment should be a list of equipment ids, such as [\"dumbbells\"]")
+    return out + kit_weight_table(k)[2]
 
 
 SETTINGS_COMMENTS = {
@@ -1042,7 +1099,7 @@ def _check_session_names(session, kit_from_menu=False):
 
 def _catalog():
     try:
-        return catalog.load()
+        return catalog.default()
     except (SystemExit, ValueError, OSError):
         return None   # the catalog's own check says what's wrong
 

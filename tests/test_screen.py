@@ -181,10 +181,10 @@ class Screen(unittest.TestCase):
     def test_kit_weight_faults_are_listed(self):
         k = {"name": "home", "equipment": ["dumbbells"], "weights": {"kettlebell": [16], "dumbbells": ["heavy"]},
              "unit": "stone"}
-        problems = " ".join(context._weight_problems(k))
+        problems = " ".join(context.kit_problems(k))
         for word in ("kettlebell", "numbers above zero", "unit"):
             self.assertIn(word, problems)
-        self.assertEqual(context._weight_problems({"name": "x", "equipment": ["dumbbells"],
+        self.assertEqual(context.kit_problems({"name": "x", "equipment": ["dumbbells"],
                                                    "weights": {"dumbbells": [5, 7.5]}}), [])
 
     def test_parse_limit(self):

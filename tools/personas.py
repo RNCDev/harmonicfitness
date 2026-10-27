@@ -71,7 +71,7 @@ class Persona:
 
     @property
     def aliases(self):
-        return [str(a) for a in self.settings.get("aliases") or []]
+        return [a.strip() for a in context.str_list(self.settings.get("aliases")) if a.strip()]
 
     @property
     def description(self):

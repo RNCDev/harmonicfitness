@@ -13,7 +13,11 @@ All notable changes to sweatcast. The format follows [Keep a Changelog](https://
 - **The web player's links** survive a `#` or `?` in a workout's name (URL-encoded).
 - The characters-sent count of a failed web render is exact (the workers' counter has a lock); the TLS context is built once per process.
 
+- **A setting in the wrong shape is read as meant, and `check` says so.** A bare string where a list belongs (`likes = "goblet squat"`, `aliases = "Maya"`, a kit's `equipment = "dumbbells"`) is one item, never its letters (before, every letter became a like, or an alias, so a lookup for "a" found that coach); a single `[kits]`, `[feeds]` or `[interests]` table is one row (before, no kits at all). `./sweatcast check` notes each one and how to write it. `[[limits]]` stays strict: a malformed row still stops the brief.
+
 ### Changed
+- **One reading of each setting.** `context.str_list` and `table_list` read the list settings for every tool, and `shape_problems` reports what they forgave; a kit's weights are read once (`kit_weight_table`) for both the brief and `check`, which used to keep its own copy of the rules.
+- **The catalog is loaded once per command** (`catalog.default()`, reloaded when either catalog file changes), and `resolve` looks names up in an index instead of scanning every name and alias: `log-session` parsed the catalog four or five times and resolved every movement of every past session by a scan. A test holds the index to the scan's answers for every name in the catalog. The brief's menus are unchanged.
 - A feed item's link goes into the research sheet only when it's a plain http(s) address.
 - Stale names: a persona file's comments name Pocket for a local coach and cover Gemini and Inworld; docs say `me/coaches/`; `doctor.model_present` (unused) is gone; `locks.py` no longer claims the maintainer's coach tools take the render lock.
 - `tests/test_contract.py` pins the command line's exit codes (help 0; a mistyped command or option 64 on every command); `tests/test_integrity.py` covers the above.

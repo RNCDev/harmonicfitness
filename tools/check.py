@@ -18,8 +18,8 @@ from paths import show  # noqa: E402
 from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SCHEMA, SETTING_HOMES, Health, Issue, Session,  # noqa: E402
                      body, delivery_patterns, experience, feed_sources, front, kits, listener_name, parse_session,
                      part_paths, persona, placeholder, profile, read_raw, route_issues, schema_of, schema_problem,
-                     section, split, unfilled, wpm, files as context_files)
-from context import (_catalog, _limit_row, _names, _weight_problems, clinician_avoids, limit_rows,  # noqa: E402
+                     section, shape_problems, SHAPED, split, str_list, table_list, unfilled, wpm, files as context_files)
+from context import (_catalog, _limit_row, _names, kit_problems, clinician_avoids, limit_rows,  # noqa: E402
                      prose_injury_gap)
 
 
@@ -58,9 +58,9 @@ def _check_profile(path):
     if not delivery_patterns(p):
         out.append(Issue(at("deliver_to"), 0, "no deliver_to folder, so finished MP3s stay in me/workouts/",
                          note=True))
-    for i, f in enumerate(settings.get("feeds") or [], 1):
-        if not isinstance(f, dict):
-            continue
+    for key, message, note in shape_problems(settings, [k for k in SHAPED if k != "interests"]):   # interests: below
+        out.append(Issue(at(key), 0, message, note=note))
+    for i, f in enumerate(table_list(settings.get("feeds")), 1):
         kind = str(f.get("kind", "")).lower()
         name = f.get("label") or f"feed {i}"
         if kind not in FEED_KINDS:
@@ -73,7 +73,7 @@ def _check_profile(path):
         out.append(Issue(at("feeds"), 0, "no feeds, so research searches for everything", note=True))
     out += _interest_problems(at("interests"), settings)
     for key in HANDLE_KEYS.values():
-        for h in settings.get(key) or []:
+        for h in str_list(settings.get(key)):
             if placeholder(h):
                 out.append(Issue(at(key), 0, f"{key}: '{h}' isn't filled in yet"))
     cat = _catalog()
@@ -91,10 +91,9 @@ def _check_profile(path):
                 if e not in cat.equipment:
                     out.append(Issue(at("kits"), 0, f"kit '{kit}': '{e}' isn't equipment in the catalog",
                                      note=True))
-    for k in settings.get("kits") or []:
-        if isinstance(k, dict):
-            for problem in _weight_problems(k):
-                out.append(Issue(at("kits"), 0, f"kit '{k.get('name', '?')}': {problem}"))
+    for k in table_list(settings.get("kits")):
+        for problem in kit_problems(k):
+            out.append(Issue(at("kits"), 0, f"kit '{k.get('name', '?')}': {problem}"))
     for name, part in parts.items():
         if name.endswith(".md") and os.path.exists(part):
             out += _hint_issues(part, read_raw(part))
@@ -134,7 +133,11 @@ def _interest_problems(path, settings):
     import content   # here, not at the top: content loads the filler plan, which only this check needs
     slots = content.recipe().slots
     out = []
-    for i, row in enumerate(settings.get("interests") or [], 1):
+    rows = settings.get("interests")
+    if isinstance(rows, dict):
+        out.append(Issue(path, 0, "write [[interests]] (two brackets) for each row; [interests] is read as one row "
+                                  "for now", note=True))
+    for i, row in enumerate([rows] if isinstance(rows, dict) else rows if isinstance(rows, list) else [], 1):
         if not isinstance(row, dict):
             out.append(Issue(path, 0, f"interests: entry {i} isn't a table (name, slot, detail)"))
         elif unfilled(row.get("name")) or unfilled(row.get("slot")):
@@ -258,6 +261,9 @@ def check_coaches(folder=None):
         except SystemExit as e:
             out.append(Issue(path, 0, str(e.code)))
             continue
+        if isinstance(p.settings.get("aliases"), str):
+            out.append(Issue(path, 0, f'aliases is one name; write it as a list, aliases = ["{p.settings["aliases"]}"] '
+                                      "(read as one for now)", note=True))
         if p.settings.get("kind") == "web":
             name = p.settings.get("name") or slug
             if p.settings.get("pending"):

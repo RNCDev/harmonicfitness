@@ -64,14 +64,8 @@ def last_loads(log, look_back=6, cat: Optional[catalog.Catalog] = None):
     return {name: (date, load) for name, date, load in out.values()}
 
 
-_catalog = None
-
-
 def _shared_catalog():
-    global _catalog
-    if _catalog is None:
-        _catalog = catalog.load()
-    return _catalog
+    return catalog.default()
 
 
 def patterns_of(movement: str, cat: Optional[catalog.Catalog] = None) -> List[str]:

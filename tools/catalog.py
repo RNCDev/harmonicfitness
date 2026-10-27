@@ -185,6 +185,28 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
     return cat
 
 
+_default: Optional[tuple] = None   # (the files' state, the catalog loaded from them)
+
+
+def _stamp(path):
+    try:
+        st = os.stat(path)
+        return path, st.st_mtime_ns, st.st_size
+    except OSError:
+        return path, None, None
+
+
+def default() -> Catalog:
+    """The shipped catalog plus the listener's private movements, as load() reads them, loaded once per process
+    and again only when either file changes. For reading: the log, the brief and check resolve names through
+    it many times in one command. Don't change what it returns."""
+    global _default
+    stamp = (_stamp(paths.MOVEMENTS), _stamp(paths.MY_MOVEMENTS))
+    if _default is None or _default[0] != stamp:
+        _default = (stamp, load())
+    return _default[1]
+
+
 def _hold_back_faulty_private(cat: Catalog) -> None:
     """A private entry with any fault (a missing load table, an unknown level) is planned as a draft,
     never with guessed values; `./sweatcast check` names the fault."""
@@ -354,11 +376,23 @@ def resolve(cat: Catalog, name: str) -> Optional[Movement]:
         forms.add(key[:-2])
     if key.endswith("s") and not key.endswith("ss"):
         forms.add(key[:-1])   # "goblet squats" means "goblet squat"
-    for m in cat.movements.values():
+    index = _names_index(cat)
+    hits = [index[f] for f in forms if f in index]
+    return min(hits, key=lambda h: h[0])[1] if hits else None   # the first movement in catalog order, as a scan would find it
+
+
+def _names_index(cat: Catalog) -> Dict[str, tuple]:
+    """{plain name, id or alias: (catalog position, movement)}, the first holder of each kept; built once per
+    catalog (and again if its movements change)."""
+    cached = cat.__dict__.get("_index")
+    if cached and cached[0] == len(cat.movements):
+        return cached[1]
+    index: Dict[str, tuple] = {}
+    for n, m in enumerate(cat.movements.values()):
         for known in [m.name, m.id] + m.aliases:
-            if plain(known) in forms:
-                return m
-    return None
+            index.setdefault(plain(known), (n, m))
+    cat.__dict__["_index"] = (len(cat.movements), index)
+    return index
 
 
 def avoid_set(cat: Catalog, words: List[str]) -> Set[str]:
