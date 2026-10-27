@@ -30,6 +30,7 @@ No command takes both; test_contract walks every parser to hold this.
 import argparse
 import sys
 
+import redact   # key values out of a crash's traceback; redact reads keys, which never imports this module
 from errors import OK, ISSUES, DRIFT, UNMEASURED, SERVICE, USAGE, BUG   # noqa: F401  (they live in errors.py)
 
 
@@ -68,7 +69,6 @@ def _traceback():
     import traceback
     text = traceback.format_exc()
     try:
-        import redact   # here, not at the top: redact reads keys, which imports this module
         return redact.scrub(text)
     except Exception:
         return text

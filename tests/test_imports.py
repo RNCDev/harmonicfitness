@@ -56,11 +56,78 @@ def two_cycles(graph):
     return {(a, b) for a in graph for b in graph[a] if a < b and a in graph.get(b, ())}
 
 
+def top_level_graph():
+    """{module: the sibling modules it imports when it's loaded}: the module's own statements (and those in its
+    top-level if/try blocks), not a function's body, nor the `if __name__ == "__main__":` block a script runs."""
+    mods = modules()
+
+    def main_block(node):
+        t = node.test
+        return (isinstance(node, ast.If) and isinstance(t, ast.Compare) and isinstance(t.left, ast.Name)
+                and t.left.id == "__name__")
+
+    def walk(body, out):
+        for node in body:
+            if isinstance(node, ast.Import):
+                out |= {a.name for a in node.names if a.name in mods}
+            elif isinstance(node, ast.ImportFrom) and node.module in mods and node.level == 0:
+                out.add(node.module)
+            elif isinstance(node, ast.If) and not main_block(node):
+                walk(node.body, out)
+                walk(node.orelse, out)
+            elif isinstance(node, ast.Try):
+                for part in (node.body, node.orelse, node.finalbody, *(h.body for h in node.handlers)):
+                    walk(part, out)
+    graph = {}
+    for name, path in mods.items():
+        with open(path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), path)
+        out = set()
+        walk(tree.body, out)
+        out.discard(name)
+        graph[name] = out
+    return graph
+
+
+def cycle_from(graph, start):
+    """A path of imports from `start` back to itself, or None."""
+    stack, seen = [(start, [start])], set()
+    while stack:
+        node, path = stack.pop()
+        for nxt in sorted(graph.get(node, ())):
+            if nxt == start:
+                return path + [start]
+            if nxt not in seen:
+                seen.add(nxt)
+                stack.append((nxt, path + [nxt]))
+    return None
+
+
 class ImportCycles(unittest.TestCase):
     def test_no_two_modules_import_each_other_beyond_the_allowlist(self):
         found = two_cycles(import_graph())
         self.assertEqual(sorted(found - set(CYCLES)), [], "new import cycles: break them (a module above both)")
         self.assertEqual(sorted(set(CYCLES) - found), [], "cycles gone: take them off CYCLES")
+
+    def test_no_module_imports_itself_back_when_loaded(self):
+        """Read from the top, every module's imports load without coming back to it, however long the loop
+        (cli -> redact -> keys -> cli was one, hidden by imports inside functions)."""
+        graph = top_level_graph()
+        loops = [" -> ".join(c) for c in (cycle_from(graph, m) for m in sorted(graph)) if c]
+        self.assertEqual(loops, [], "an import loop at load time: move the shared piece below both")
+
+    def test_the_command_line_scrubs_keys_without_a_loop(self):
+        """cli imports redact at its top, redact imports keys at its top, and keys reads its exit code from
+        errors: only keys' own command (main) reaches for cli."""
+        graph = top_level_graph()
+        self.assertIn("redact", graph["cli"])
+        self.assertIn("keys", graph["redact"])
+        self.assertNotIn("cli", graph["keys"])
+        import errors
+        import keys
+        self.assertTrue(issubclass(keys.BadKey, errors.SweatcastError))
+        self.assertEqual(keys.BadKey("x").exit_code, errors.SERVICE)
+        self.assertEqual((keys.BadKey.kind, keys.BadKey.listener_must_act), ("auth", True))
 
 
 class Reexports(unittest.TestCase):

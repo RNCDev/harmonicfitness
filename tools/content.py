@@ -94,19 +94,7 @@ def categories(r: Recipe, profile=None) -> Dict[str, List[str]]:
 def told(path=None) -> List[dict]:
     """Every item told, oldest first. A damaged line is skipped, not fatal."""
     path = path or paths.TOLD
-    out = []
-    try:
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                try:
-                    item = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(item, dict) and item.get("date") and item.get("title"):
-                    out.append(item)
-    except FileNotFoundError:
-        pass
-    return out
+    return [item for item in fileio.read_jsonl(path) if item.get("date") and item.get("title")]
 
 
 def due(cats: List[str], items: List[dict], slot: str, n: int) -> List[tuple]:

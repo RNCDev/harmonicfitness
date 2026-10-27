@@ -11,14 +11,16 @@ import functools
 import os
 import tomllib
 
+import errors   # tools/ is on the path wherever this package is imported; errors imports nothing
+
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                              "knowledge", "services.toml")
 
 
 class SettingsError(ValueError):
     """knowledge/services.toml holds a table the engine can't use: a damaged or mistyped file, named with what's
-    wrong rather than failing later as a KeyError. Exits 1 through cli.run (cli.ISSUES; cli isn't imported here)."""
-    exit_code = 1
+    wrong rather than failing later as a KeyError. Exits 1 through cli.run (errors.ISSUES)."""
+    exit_code = errors.ISSUES
 
 
 @functools.cache

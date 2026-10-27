@@ -255,13 +255,7 @@ def _told_lines(home):
             lines = f.readlines()
     except FileNotFoundError:
         return [], False
-    old = False
-    for line in lines:
-        try:
-            rec = json.loads(line)
-        except ValueError:
-            continue
-        old = old or (isinstance(rec, dict) and "pantry" in rec)
+    old = any("pantry" in (fileio.jsonl_record(line) or {}) for line in lines)
     return lines, old
 
 
@@ -303,11 +297,8 @@ def retire_pantry(home, backup):
         shutil.copy2(told, os.path.join(backup, "research", "told.jsonl"))
         out = []
         for line in lines:
-            try:
-                rec = json.loads(line)
-            except ValueError:
-                rec = None
-            if isinstance(rec, dict) and "pantry" in rec:
+            rec = fileio.jsonl_record(line)   # a damaged line is kept as it is
+            if rec is not None and "pantry" in rec:
                 slug = rec.get("reserve") or rec["pantry"]
                 rec = {("reserve" if k == "pantry" else k): (slug if k == "pantry" else v)
                        for k, v in rec.items() if k != "reserve"}

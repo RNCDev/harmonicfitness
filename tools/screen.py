@@ -15,6 +15,7 @@ from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import context  # noqa: E402
+import errors  # noqa: E402
 import health  # noqa: E402
 import paths  # noqa: E402
 
@@ -24,7 +25,7 @@ OTHER_SIDE = {"left": "right", "right": "left"}
 
 class Unfit(Exception):
     """The request can't be screened safely: a [[limits]] row or an Avoid: word can't be read (exit ISSUES)."""
-    exit_code = 1   # cli.ISSUES; a literal so this module keeps importing nothing but the catalog
+    exit_code = errors.ISSUES
 
 
 class Screen(NamedTuple):

@@ -44,7 +44,8 @@ class Keys(unittest.TestCase):
                 keys.get("fish", self.env)
             self.assertNotIn(SECRET[:8], str(got.exception))
             self.assertIn("FISH_AUDIO_API_KEY", str(got.exception))
-            self.assertEqual(got.exception.exit_code, 4)             # the listener must act (cli.SERVICE)
+            self.assertEqual(got.exception.exit_code, errors.SERVICE)  # the listener must act (4)
+            self.assertIsInstance(got.exception, errors.PROBLEMS)      # a reported problem, not an engine bug
             out = io.StringIO()
             with redirect_stdout(out), mock.patch.object(keys.paths, "ENV_FILE", self.env):
                 self.assertEqual(keys.main([]), 0)
