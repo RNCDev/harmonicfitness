@@ -332,8 +332,24 @@ def clip_cache(voice, seed):
     return cache_path
 
 
-def spoken_clips(segments):
-    return [text for seg in segments for para in plan(seg) for text, _ in para if is_spoken(text)]
+def spoken_clips(segments, voice=None):
+    """Every line the voice speaks, in order: the spoken spans, and each count or cue a coach without recorded
+    counts says in words (counts.in_words)."""
+    out = []
+    for seg in segments:
+        for para in plan(seg):
+            for text, _ in para:
+                if is_spoken(text):
+                    out.append(text)
+                elif is_mark(text) and counts.in_words(text, voice):
+                    out.append(counts.in_words(text, voice))
+    return out
+
+
+def mark_audio(text, voice, clip):
+    """A count's or cue's PCM: the coach's recorded clips on the beat, or the count in words from `clip`."""
+    words = counts.in_words(text, voice)
+    return clip(words) if words else counts.pcm(text, voice)
 
 
 def render_clip(say, text, seed, cache_path, **context):
@@ -572,7 +588,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
     started = time.time()
     voice, cache_path = prepare_voice(voice, model, seed)
     engine = voice["engine"]
-    clips = spoken_clips(segments)
+    clips = spoken_clips(segments, voice)
     with render_lock(paths.CACHE):
         # Counted after the lock, so clips a render that ran first cached aren't redone.
         todo = list(dict.fromkeys(t for t in clips if not os.path.exists(cache_path(t))))
@@ -605,7 +621,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
         pcm_all, rows, drift = assemble(segments, clip,
                                         lead=b"" if no_chime else chime(), bell=chime(),
                                         tail=b"" if no_chime else end_tone(),
-                                        mark=lambda text: counts.pcm(text, voice))
+                                        mark=lambda text: mark_audio(text, voice, clip))
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
     for i, planned, spoken, label, flag in rows:
@@ -637,7 +653,7 @@ def clips(voice, segments, seed=42):
     """--clips-only: render and cache the draft's clips once (local only), no timing check, no MP3."""
     voice, cache_path = prepare_voice(voice, None, seed)
     with render_lock(paths.CACHE):
-        todo = list(dict.fromkeys(t for t in spoken_clips(segments) if not os.path.exists(cache_path(t))))
+        todo = list(dict.fromkeys(t for t in spoken_clips(segments, voice) if not os.path.exists(cache_path(t))))
         if todo:
             _render_local(voice, todo, seed, cache_path)
     print(f"Clips cached for {len(segments)} segment(s); the full build reuses them.")
@@ -661,7 +677,7 @@ def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
         while not os.path.exists(stop):
             try:
                 with open(draft_path, encoding="utf-8") as f:
-                    todo = [t for t in spoken_clips(parse(f.read())) if not os.path.exists(cache_path(t))]
+                    todo = [t for t in spoken_clips(parse(f.read()), voice) if not os.path.exists(cache_path(t))]
             except (OSError, ValueError, SystemExit):   # missing for now, or caught mid-edit
                 todo = []
             if not todo:

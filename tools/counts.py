@@ -4,7 +4,8 @@ A shipped coach keeps them in cues/ beside its clip: one WAV per number (ten.wav
 (go.wav, switch-sides.wav ...), 24 kHz mono 16-bit, already leveled, and cues.toml listing each one's words
 and seed (tools/coachmaker/cues.py makes them once, by ear). The lint reads each WAV's length and the render
 its audio, and both lay them out by draft.mark_pieces, so the prediction is exact. Nothing about a count is
-rendered or checked at build time.
+rendered or checked at build time. A coach without recorded counts (a web coach) says the same count in
+words instead, as one spoken line (in_words).
 """
 import functools
 import os
@@ -37,6 +38,16 @@ def table(where):
                 with wave.open(path, "rb") as w:   # the file's own length, so the lint matches the render exactly
                     out[name] = (path, w.getnframes() / w.getframerate())
     return out
+
+
+def in_words(text, voice):
+    """What a coach without recorded counts (a web coach) says for a well-formed count or cue: "Three, two,
+    one, go." as one spoken clip, so one draft works with every coach. None when the coach plays its clips."""
+    if voice and voice.get("cues"):
+        return None
+    if draft.mark_issue(text):
+        return None
+    return draft.mark_words(text)
 
 
 def missing(text, voice):

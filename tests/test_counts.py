@@ -127,11 +127,17 @@ class Lint(Base):
             got = self.issues("Get ready now. " + text)
             self.assertEqual(len(got), 1, (text, got))
 
-    def test_a_coach_without_recorded_counts_writes_them_out(self):
+    def test_a_coach_without_recorded_counts_says_them_in_words(self):
         voice = dict(self.voice, cues=None)
-        got = self.issues("Get ready now. [count 3 go]", voice)
-        self.assertEqual(len(got), 1, got)
-        self.assertIn("write the count out", got[0])
+        self.assertEqual(self.issues("Get ready now. [count 3 go]", voice), [])
+        seg = parse("@@ 30 | A\n[count 3 go]\n")[0]
+        import voices
+        self.assertAlmostEqual(tts_build.spoken_seconds(seg, voice), voices.clip_seconds("Three, two, one, go.", voice))
+        import render
+        self.assertEqual(render.spoken_clips([seg], voice), ["Three, two, one, go."])
+        self.assertEqual(render.spoken_clips([seg], self.voice), [])   # recorded: nothing to speak
+        pcm, rows, _ = assemble([seg], lambda t: b"\x01\x00" * SR, mark=lambda t: render.mark_audio(t, voice, lambda w: b"\x01\x00" * SR))
+        self.assertAlmostEqual(rows[0][2], 1.0, places=3)
 
     def test_a_count_written_in_words_is_refused_when_the_coach_has_recorded_ones(self):
         for text in ("Three, two, one, rest.", "Five. Four. Three. Two. One. Go!", "ten nine eight, and go"):
@@ -177,6 +183,7 @@ class Brief(Base):
             self.assertIn("[count 5]", brief._counts_line("Coach Test")[0])
         with mock.patch("brief._coach", return_value=self.coach(web=True)):
             self.assertIn("in words", brief._counts_line("Coach Test")[0])
+            self.assertIn("[count 5]", brief._counts_line("Coach Test")[0])
         with mock.patch("brief._coach", return_value=self.coach(clip=os.path.join(self.tmp.name, "x", "clip.wav"))):
             self.assertIn("in words", brief._counts_line("Coach Test")[0])
 

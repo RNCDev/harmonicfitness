@@ -52,17 +52,22 @@ def spoken_seconds(seg, voice, lead=0.0, rate=None, paras=None):
     from voices import clip_seconds
     paras = plan(seg) if paras is None else paras
     return lead + sum(clip_seconds(text, voice, rate) if spoken(text) else
-                      CHIME_SECONDS if text == CHIME else mark_seconds(text, voice)
+                      CHIME_SECONDS if text == CHIME else mark_seconds(text, voice, rate)
                       for para in paras for text, _ in para) \
         + sum(pause for para in paras for _, pause in para) \
         + PARAGRAPH_GAP * max(len(paras) - 1, 0)
 
 
-def mark_seconds(text, voice):
-    """A count's or cue's seconds with this coach, or 0 for anything else (or one the lint will refuse)."""
-    if not is_mark(text) or mark_issue(text) or counts.missing(text, voice):
+def mark_seconds(text, voice, rate=None):
+    """A count's or cue's seconds with this coach (its recorded clips, or the count said in words by a coach
+    without them), or 0 for anything else (or one the lint will refuse)."""
+    from voices import clip_seconds
+    if not is_mark(text) or mark_issue(text):
         return 0.0
-    return counts.seconds(text, voice)
+    words = counts.in_words(text, voice)
+    if words:
+        return clip_seconds(words, voice, rate)
+    return 0.0 if counts.missing(text, voice) else counts.seconds(text, voice)
 
 
 def mark_problem(text, voice):
@@ -73,8 +78,7 @@ def mark_problem(text, voice):
     if not voice:
         return None
     if not voice.get("cues"):
-        return (f"{text}: {voice.get('name', 'this coach')} has no recorded counts (a web coach, or a local coach "
-                "without a cues/ folder); write the count out in words (\"Three, two, one, go.\")")
+        return None   # said in words by the coach's voice (counts.in_words)
     gone = counts.missing(text, voice)
     if gone:
         return f"{text}: {voice.get('name', 'this coach')}'s cues/ folder has no clip for " + ", ".join(gone)

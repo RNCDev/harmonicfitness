@@ -351,17 +351,18 @@ def _coach_lines(name) -> List[str]:
 
 
 def _counts_line(voice_name: Optional[str]) -> List[str]:
-    """How this coach counts down: its recorded counts and cues, or in words."""
+    """How this coach counts down: [count] markers either way; recorded clips on the beat, or said in words."""
     import counts
     coach = _coach(voice_name)
     if coach is None:
         return []
+    how = ("`[count 5]` (five down to one) or `[count 3 go]` (then the cue; the cues are go, rest, switch, "
+           "switch sides, stop and hold), and a cue said alone as `[cue rest]`")
     if not coach.is_web and coach.has_clip and counts.folder(coach.clip):
-        return [f"- Counts: {coach.name} has recorded counts and cues, played a second apart. Write a countdown as "
-                "`[count 5]` (five down to one) or `[count 3 go]` (then the cue; the cues are go, rest, switch, "
-                "switch sides, stop and hold), and a cue said alone as `[cue rest]`. A countdown in words is "
-                "refused (knowledge/tts-rules.md, Pacing)."]
-    return ["- Counts: write a countdown in words, with commas (\"Three, two, one, go.\"), one per segment."]
+        return [f"- Counts: write a countdown as {how}. {coach.name} plays recorded counts a second apart; a "
+                "countdown in words is refused (knowledge/tts-rules.md, Pacing)."]
+    return [f"- Counts: write a countdown as {how}. {coach.name} has no recorded counts, so the voice says it "
+            "in words (\"Three, two, one, go.\"), quickly: one per segment."]
 
 
 def _budget_line(voice_name: Optional[str]) -> List[str]:
