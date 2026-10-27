@@ -3,6 +3,7 @@
   .venv/bin/python tools/coachmaker/cues.py make andy marcus ...    (no names: every coach in the roster)
   .venv/bin/python tools/coachmaker/cues.py make --no-render ...     (score the takes already made)
   .venv/bin/python tools/coachmaker/cues.py make theo --seeds 50-57   (another batch of takes)
+  .venv/bin/python tools/coachmaker/cues.py make theo --singles       (the countdown from lone numbers)
   .venv/bin/python tools/coachmaker/cues.py keep andy marcus ...    (approved: copy into coaches/<coach>/cues/)
   .venv/bin/python tools/coachmaker/cues.py keep maya go=45         (keep, with another seed for one clip)
 
@@ -55,6 +56,7 @@ MIN_GAP = 0.06       # seconds of quiet that count as a gap between numbers
 BREATH_DB = 8.0      # a voiced stretch this far under the others' median is a breath, not a number
 KEEP = 0.03          # seconds of quiet kept at each end of a clip
 SOFT_DB = 50.0       # a number's own trim: only what's this far under its loudest is silence
+EDGE_REACH = 0.08    # seconds a lone word's trim reaches into its soft edges
 FRAME = 0.01
 
 
@@ -94,6 +96,27 @@ def _runs(db):
 
 def _join(runs, i):
     runs[i:i + 2] = [[runs[i][0], runs[i + 1][1]]]
+
+
+def trim_single(a):
+    """A lone word's trim: Pocket leaves a quiet tail after one (about 35 dB under it, which the recognizer
+    hears as words), so cut at GAP_DB, then reach out up to EDGE_REACH into soft edges still above SOFT_DB."""
+    import numpy as np
+    db = frames(a)
+    if not len(db):
+        return a
+    top = db.max()
+    loud = np.flatnonzero(db > top - GAP_DB)
+    if not len(loud):
+        return a[:0]
+    s_, e = loud[0], loud[-1] + 1
+    reach = int(EDGE_REACH / FRAME)
+    while s_ > 0 and loud[0] - s_ < reach and db[s_ - 1] > top - SOFT_DB + 10:
+        s_ -= 1
+    while e < len(db) and e - loud[-1] - 1 < reach and db[e] > top - SOFT_DB + 10:
+        e += 1
+    f, k = int(FRAME * verify.SR), int(KEEP * verify.SR)
+    return a[max(0, s_ * f - k): min(len(a), e * f + k)]
 
 
 def split_countdown(a, way="breaths"):
@@ -155,10 +178,11 @@ def load(path):
     return np.frombuffer(bench.pcm_24k(path), dtype="<i2").astype(np.float32) / 32768
 
 
-def render_takes(slug):
+def render_takes(slug, singles=False):
     folder = os.path.join(COACHES, f"coach-{slug}-local")
     out = os.path.join(WORK, slug, "takes")
-    lines = [{"id": "countdown", "text": COUNTDOWN}] + [{"id": k, "text": t} for k, t in CUES.items()]
+    lines = ([{"id": f"n-{w}", "text": w.capitalize() + "."} for w in NUMBERS] if singles else
+             [{"id": "countdown", "text": COUNTDOWN}] + [{"id": k, "text": t} for k, t in CUES.items()])
     job = {"model": "pocket", "device": "cpu", "engine": "pocket", "repo": "kyutai/pocket-tts-without-voice-cloning",
            "language": qa.LANGUAGE, "public_only": True, "ref_audio": os.path.join(folder, "pocket.safetensors"),
            "out": out, "seeds": SEEDS, "lines": lines}
@@ -174,7 +198,8 @@ def render_takes(slug):
                                stdout=log, stderr=subprocess.STDOUT, cwd=ROOT, env=env)
     if code:
         raise SystemExit(f"{slug}: Pocket stopped (exit {code}); see {out}/worker.log")
-    return {(k, s): os.path.join(out, str(s), k + ".wav") for k in ["countdown", *CUES] for s in SEEDS}
+    ids = [l["id"] for l in lines]
+    return {(k, s): os.path.join(out, str(s), k + ".wav") for k in ids for s in SEEDS}
 
 
 def on_beat(pieces):
@@ -262,6 +287,48 @@ def choose(slug, takes, heard, beats):
     return passing
 
 
+def padded(slug, takes):
+    """Each lone number's take, trimmed and padded with silence, for the recognizer: {take: WAV}."""
+    import numpy as np
+    import wave
+    out = {}
+    for (k, s_), path in takes.items():
+        if not k.startswith("n-") or not os.path.exists(path):
+            continue
+        a = trim_single(load(path))
+        dest = path.replace(".wav", "-pad.wav")
+        with wave.open(dest, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(verify.SR)
+            w.writeframes(pcm(np.concatenate([np.zeros(verify.SR // 2, np.float32), a, np.zeros(verify.SR // 2, np.float32)])))
+        out[path] = dest
+    return out
+
+
+def choose_singles(takes, heard, pads):
+    """The countdown from lone numbers: for each, the takes heard as that number and MIN_PIECE to MAX_COUNT
+    long, and of those the one nearest the typical length. {"seeds": {word: seed}, "pieces": [...]} or None."""
+    import numpy as np
+    seeds, pieces = {}, []
+    for w in NUMBERS:
+        ok = []
+        for s_ in SEEDS:
+            path = takes.get((f"n-{w}", s_))
+            if not path or not os.path.exists(path):
+                continue
+            a = trim_single(load(path))
+            if verify.words(heard.get(pads.get(path, "")) or "") == [w] and MIN_PIECE <= len(a) / verify.SR <= MAX_COUNT:
+                ok.append((s_, a))
+        if not ok:
+            return {"seeds": seeds, "pieces": None, "missing": w}
+        typical = np.median([len(a) for _, a in ok])
+        s_, a = min(ok, key=lambda o: abs(len(o[1]) - typical))
+        seeds[w] = s_
+        pieces.append(a)
+    return {"seeds": seeds, "pieces": pieces}
+
+
 def demo(slug, got):
     """Ten down to one on the beat; three, two, one, go; then each other cue alone, as a build lays them."""
     import numpy as np
@@ -306,7 +373,7 @@ def demo(slug, got):
     return mp3
 
 
-def make(slugs, rerender=True):
+def make(slugs, rerender=True, singles=False):
     report_path = os.path.join(WORK, "report.json")
     try:
         with open(report_path, encoding="utf-8") as f:
@@ -316,10 +383,15 @@ def make(slugs, rerender=True):
     for slug in slugs:
         if rerender:
             print(f"{slug}: {len(SEEDS)} takes of each clip on Pocket", flush=True)
-            takes = render_takes(slug)
+            takes = render_takes(slug, singles)
         else:
             takes = {(k, s_): os.path.join(WORK, slug, "takes", str(s_), k + ".wav") for k in ["countdown", *CUES]
                      for s_ in SEEDS}
+        if singles:
+            make_singles(slug, takes if rerender else None, report)
+            with open(report_path, "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=1)
+            continue
         beats = beat_takes(slug, takes)
         heard = asr.transcribe([p for p in takes.values() if os.path.exists(p) and "countdown" not in p]
                                + list(beats.values()), os.path.join(WORK, slug, "asr"))
@@ -336,6 +408,34 @@ def make(slugs, rerender=True):
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=1)
     return 0
+
+
+def make_singles(slug, takes, report):
+    """The countdown from lone numbers (for a coach whose one-take countdown won't cut cleanly); the coach's
+    cues stay as they were made. The demo is rebuilt with them."""
+    if takes is None:
+        takes = {(f"n-{w}", s_): os.path.join(WORK, slug, "takes", str(s_), f"n-{w}.wav") for w in NUMBERS for s_ in SEEDS}
+    pads = padded(slug, takes)
+    heard = asr.transcribe(list(pads.values()), os.path.join(WORK, slug, "asr-singles"))
+    got = choose_singles(takes, heard, pads)
+    r = report.setdefault(slug, {"chosen": {}, "passing": {}, "seconds": {}, "missing": []})
+    if got["pieces"] is None:
+        print(f"  {slug}: no take of \"{got['missing']}\" passed", flush=True)
+        r["missing"] = sorted(set(r.get("missing", [])) | {"countdown"})
+        return
+    r["count_seeds"] = got["seeds"]
+    r["countdown_way"] = "singles"
+    r["countdown_unverified"] = False
+    r["chosen"]["countdown"] = "singles"
+    r["missing"] = [k for k in r.get("missing", []) if k != "countdown"]
+    r["seconds"]["countdown"] = [round(len(p) / verify.SR, 2) for p in got["pieces"]]
+    cue_got = {}
+    for k in CUES:
+        if k in r["chosen"]:
+            path = os.path.join(WORK, slug, "takes", str(r["chosen"][k]), k + ".wav")
+            cue_got[k] = {"audio": trim(load(path))}
+    r["demo"] = demo(slug, {"countdown": {"pieces": got["pieces"]}, **cue_got})
+    print(f"  {slug}: countdown from lone numbers, seeds {got['seeds']}", flush=True)
 
 
 def keep(argv):
@@ -374,11 +474,16 @@ def keep(argv):
                 w.writeframes(data)
             return round(len(data) / 2 / verify.SR, 2)
 
-        pieces = split_countdown(load(takes["countdown", chosen["countdown"]]), r.get("countdown_way") or "breaths")
+        if r.get("countdown_way") == "singles":
+            pieces = [trim_single(load(os.path.join(WORK, slug, "takes", str(r["count_seeds"][w]), f"n-{w}.wav")))
+                      for w in NUMBERS]
+        else:
+            pieces = split_countdown(load(takes["countdown", chosen["countdown"]]), r.get("countdown_way") or "breaths")
         if not pieces:
             raise SystemExit(f"{slug}: countdown take {chosen['countdown']} doesn't split into ten.")
         for word, p in zip(NUMBERS, pieces):
-            rows.append(f'[count.{word}]\nwords = "{word.capitalize()}."\nseed = {chosen["countdown"]}\n'
+            seed = r["count_seeds"][word] if r.get("countdown_way") == "singles" else chosen["countdown"]
+            rows.append(f'[count.{word}]\nwords = "{word.capitalize()}."\nseed = {seed}\n'
                         f'seconds = {write(word, p)}\n')
         for k, text in CUES.items():
             a = trim(load(takes[k, chosen[k]]))
@@ -398,7 +503,8 @@ def keep(argv):
 def main(argv):
     global SEEDS
     rerender = "--no-render" not in argv
-    argv = [a for a in argv if a != "--no-render"]
+    singles = "--singles" in argv
+    argv = [a for a in argv if a not in ("--no-render", "--singles")]
     if "--seeds" in argv:   # another batch of takes: --seeds 50-57
         i = argv.index("--seeds")
         lo, hi = (int(x) for x in argv[i + 1].split("-"))
@@ -410,7 +516,7 @@ def main(argv):
     with open(os.path.join(COACHES, "roster.toml"), "rb") as f:
         roster = tomllib.load(f)
     rest = argv[1:] or [c["slug"] for c in roster["coach"]]
-    return make(rest, rerender) if argv[0] == "make" else keep(rest)
+    return make(rest, rerender, singles) if argv[0] == "make" else keep(rest)
 
 
 if __name__ == "__main__":
