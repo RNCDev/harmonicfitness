@@ -261,6 +261,29 @@ class Tracing(unittest.TestCase):
         self.assertIsInstance(other, errors.EngineError)
 
 
+class LockFilesStayPrivate(unittest.TestCase):
+    def test_migrate_adds_the_lock_rule_to_an_old_gitignore(self):
+        import contextlib
+        import io
+        import shutil
+        import migrate
+        d = tempfile.mkdtemp()
+        home = os.path.join(d, "me")
+        shutil.copytree(paths.EXAMPLE, home)
+        ignore = os.path.join(home, ".gitignore")
+        with open(ignore, encoding="utf-8") as f:
+            old = f.read().replace("*.lock\n", "")
+        with open(ignore, "w", encoding="utf-8") as f:
+            f.write(old)
+        with helpers.home(home), contextlib.redirect_stdout(io.StringIO()) as out:
+            migrate.main([])
+            migrate.main([])   # once only
+        with open(ignore, encoding="utf-8") as f:
+            text = f.read()
+        self.assertEqual(text.count("\n*.lock\n"), 1)
+        self.assertEqual(out.getvalue().count("added *.lock"), 1)
+
+
 class Boundaries(unittest.TestCase):
     def test_player_links_survive_a_hash_in_the_name(self):
         with tempfile.TemporaryDirectory() as d:

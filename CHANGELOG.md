@@ -2,7 +2,16 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.17.0] - 2026-10-27
+
+The engine, audited and reworked from the inside: the listener's records survive a crash or two writers at once, a hand-edited setting can no longer stop every command or be misread, errors are typed and reach stderr, the largest modules are split by job, and a build can be followed from its log to its delivery. Workouts, drafts, coaches, commands and exit codes work as before; briefs and exports come out byte-identical.
+
+### For forks
+- **Nearly nothing to migrate:** no context file changes its schema. `./sweatcast migrate` (which setup runs) adds `*.lock` to a `me/.gitignore` from before 0.5.4 that lacks it, so the new lock files beside `log.md`, `told.jsonl` and `builds.jsonl` never go into a backup.
+- **Library code no longer raises `SystemExit`.** A fork's own code that called an engine function and caught `SystemExit` should catch `errors.PROBLEMS` (the typed errors and `cli.Usage`) or the kind it means (`errors.ContextError`, `CoachError`, `RenderStopped`...). Commands, and the exit codes the skills branch on, are unchanged.
+- **Moved, still importable from where they were:** the front matter, the store, the health file and the session log from `context` (`frontmatter.py`, `store.py`, `health.py`, `sessionlog.py`); the PCM work, the clip cache and the build records from `render` (`audio.py`, `clipcache.py`, `records.py`). Both modules re-export every moved name.
+- **Some errors moved from stdout to stderr** (a build stopped by a lost cue, the web cost ceiling, a web service's refusal, a missing profile or coach). A script that read them from stdout reads stderr.
+- **`builds.jsonl` gains outcome lines** (`"event"`); a reader of its own that counts MP3s should skip them, as `records.is_mp3` does.
 
 ### Fixed
 - **A crash mid-write no longer loses the next record.** `builds.jsonl` and `told.jsonl` are appended through `fileio.append_jsonl`: under the file's lock, flushed to disk, and a last line a crash left without its newline is sealed first, so the reader skips only that fragment (before, the next record was glued onto it and both were lost, and `log-session` could then refuse a session whose MP3 existed).

@@ -220,6 +220,9 @@ GITIGNORE_ADD_PERSONA_5 = ("# Each web coach's approved sample is kept (archived
                            "!coaches/*/sample.mp3", "!coaches/.archive/*/sample.mp3", "coaches/.auditions/",
                            "coaches/*/.made.json", "coaches/*/.made.wav")
 
+GITIGNORE_ADD_LOCKS = ("# The lock files the tools hold while they change a record (log.md, told.jsonl, builds.jsonl).",
+                       "*.lock")   # in the template since 0.5.4; a folder older than that may lack it
+
 
 def update_gitignore(home, add_lines):
     """Add the rules in `add_lines` that me/.gitignore lacks (and the comment introducing them, once).
@@ -570,6 +573,8 @@ def main(argv=None):
     if len(missing) == len(context.files()):
         raise errors.MigrateError(f"No context files in {show(paths.HOME)}. A new copy starts with ./sweatcast setup.")
 
+    if not args.dry_run and update_gitignore(paths.HOME, GITIGNORE_ADD_LOCKS):
+        print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added *.lock (lock files never go into a backup).")
     todo = plan()
     stray, due_moves, pantry, coach_steps = folder_steps_due(paths.HOME)
     if not (todo or stray or due_moves or pantry or coach_steps):
