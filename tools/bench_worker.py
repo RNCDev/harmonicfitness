@@ -192,7 +192,9 @@ def pocket_speaker(job):
     import torch
     from pocket_tts import TTSModel
     device = _torch_device(job)
-    model = TTSModel.load_model()
+    model = TTSModel.load_model(language=job.get("language"))
+    if job.get("public_only") and model.has_voice_cloning:
+        raise SystemExit("The gated Pocket model loaded; this run must use the public one, as listeners do.")
     if device == "cuda":
         model = model.to("cuda")
     state = model.get_state_for_audio_prompt(job["ref_audio"])
