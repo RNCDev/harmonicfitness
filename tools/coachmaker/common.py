@@ -9,7 +9,6 @@ import io
 import os
 import subprocess
 import sys
-import wave
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.dirname(HERE)
@@ -37,12 +36,8 @@ def pcm_24k(path):
 
 
 def write_wav(path, pcm):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with wave.open(path, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(SR)
-        w.writeframes(pcm)
+    import wav
+    wav.write_wav(path, pcm, SR)
 
 
 def speak(slug, lines, seeds, out):

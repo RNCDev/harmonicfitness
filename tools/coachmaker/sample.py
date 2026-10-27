@@ -41,9 +41,8 @@ for slug in sys.argv[2:]:
             raw = np.frombuffer(common.pcm_24k(os.path.join(work, str(s), f"l{i}.wav")), dtype="<i2").astype(np.float32) / 32768
             pcm = engines.to_pcm(raw)
             p = os.path.join(work, "trim", f"l{i}-{s}.wav"); os.makedirs(os.path.dirname(p), exist_ok=True)
-            import wave
-            with wave.open(p, "wb") as w:
-                w.setnchannels(1); w.setsampwidth(2); w.setframerate(24000); w.writeframes(pcm)
+            import wav
+            wav.write_wav(p, pcm, 24000)
             pcms[(i, s)], wavs[(i, s)] = pcm, p
     heard = asr.transcribe(list(wavs.values()), os.path.join(work, "asr"))
     chosen, report = {}, []

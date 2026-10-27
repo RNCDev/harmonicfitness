@@ -168,7 +168,7 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
 def mentions(cat: catalog.Catalog, text: str) -> List[Tuple[str, str, str]]:
     """(movement id, the words used, the few words before them) for every time the spoken text names
     a catalog movement, in order."""
-    text = " ".join(text.lower().replace("’", "'").split())
+    text = " ".join(catalog.fold(text).split())
     original, hits = text, []
     for rx, mid, _ in _patterns(cat):
         for m in rx.finditer(text):

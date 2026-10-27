@@ -26,23 +26,20 @@ import random
 import socket
 import sys
 import time
-import tomllib
 import urllib.error
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
-import paths  # noqa: E402
+import keys  # noqa: E402
 
 SR = 24000
-SERVICES_FILE = os.path.join(paths.ROOT, "knowledge", "services.toml")
 RETRY_STATUS = (429, 500, 502, 503, 504)
 TRIES = 6
 RATE_WAIT = 120             # seconds: a 429 asking to wait this long or less is retried, whatever its body says
 TRIM_LEVEL = 0.01 * 32767   # engines.TRIM_DB (-40 dB) in 16-bit samples
 TRIM_KEEP = 0.04            # seconds kept at each end, as engines.TRIM_KEEP
-_settings = None
 _stop = None   # a threading.Event a render sets when it's stopping: no retry, no new attempt
 
 
@@ -75,7 +72,6 @@ def service_name(service):
 def scrub(text):
     """`text` with every key value set here (the environment's or me/.env's) replaced by <key>, so nothing a
     library or a service echoes can print one."""
-    import keys
     for value in sorted(keys.raw_values(), key=len, reverse=True):
         for form in (value, value.strip()):
             if len(form) >= 8:
@@ -84,13 +80,9 @@ def scrub(text):
 
 
 def services():
-    """{service: settings} from knowledge/services.toml."""
-    global _settings
-    if _settings is None:
-        with open(SERVICES_FILE, "rb") as f:
-            data = tomllib.load(f)
-        _settings = {k: dict(v, rates_checked=data.get("rates_checked")) for k, v in data.items() if isinstance(v, dict)}
-    return _settings
+    """{service: settings} from knowledge/services.toml (read once, by the services package)."""
+    import services as service_modules
+    return service_modules.settings()
 
 
 SERVICES = tuple(services())   # the web services, in services.toml's order: the one list of them
@@ -215,8 +207,7 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             if not idempotent and not isinstance(reason, (ConnectionRefusedError, socket.gaierror)):
                 raise last from None
         except (ValueError, UnicodeEncodeError) as e:   # the request couldn't be built: a header value the
-            import keys                                   # client refuses carries the key, so never echo it
-            var = keys.SERVICE_VARS.get(service, "the key")
+            var = keys.SERVICE_VARS.get(service, "the key")   # client refuses carries the key, so never echo it
             if "header" in str(e).lower():
                 raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray character "
                                    f"in it?): re-paste it after {var}= (./sweatcast keys open)") from None
@@ -297,15 +288,8 @@ def wav_pcm(data):
 
 def wav_bytes(pcm, rate=SR):
     """A WAV file's bytes holding 16-bit mono PCM."""
-    import io
-    import wave
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes(pcm)
-    return buf.getvalue()
+    import wav
+    return wav.wav_bytes(pcm, rate)
 
 
 def _samples(pcm):
@@ -428,14 +412,20 @@ def voice_for(p, route=None, pending=False):
             "key": personas.web_key(p, model)}
 
 
+def service_module(name):
+    """The module that speaks to web service `name` (tools/services/<name>.py, the contract in
+    tools/services/__init__.py): the one place a service is looked up by name."""
+    if name not in SERVICES:
+        raise errors.CoachError(f"No web service '{name}': the services are {', '.join(SERVICES)}.")
+    return importlib.import_module(f"services.{name}")
+
+
 def speaker(voice):
     """say(text, seed, previous_text=None, next_text=None) for the voice's service."""
-    module = importlib.import_module(f"services.{voice['service']}")
-    return module.speaker(voice)
+    return service_module(voice["service"]).speaker(voice)
 
 
 def key_or_stop(service):
-    import keys
     value = keys.get(service)
     if not value:
         raise ServiceError("auth", service, f"no key on this computer: ./sweatcast keys init {service}, then paste "

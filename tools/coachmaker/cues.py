@@ -37,6 +37,7 @@ import asr  # noqa: E402
 import common  # noqa: E402
 import render  # noqa: E402
 import verify  # noqa: E402
+import wav  # noqa: E402
 
 ROOT = common.ROOT
 COACHES = common.COACHES
@@ -197,7 +198,6 @@ def on_beat(pieces):
 
 def beat_takes(slug, takes):
     """Each countdown take, cut each way that gives ten, laid on the beat as a WAV: {(take path, way): WAV}."""
-    import wave
     out = {}
     for s_ in SEEDS:
         path = takes["countdown", s_]
@@ -209,11 +209,7 @@ def beat_takes(slug, takes):
             if not pieces:
                 continue
             dest = path.replace(".wav", f"-beat-{way}.wav")
-            with wave.open(dest, "wb") as w:
-                w.setnchannels(1)
-                w.setsampwidth(2)
-                w.setframerate(verify.SR)
-                w.writeframes(pcm(on_beat(pieces)))
+            wav.write_wav(dest, pcm(on_beat(pieces)), verify.SR)
             out[path, way] = dest
     return out
 
@@ -274,18 +270,14 @@ def choose(slug, takes, heard, beats):
 def padded(slug, takes):
     """Each lone number's take, trimmed and padded with silence, for the recognizer: {take: WAV}."""
     import numpy as np
-    import wave
     out = {}
     for (k, s_), path in takes.items():
         if not k.startswith("n-") or not os.path.exists(path):
             continue
         a = trim_single(load(path))
         dest = path.replace(".wav", "-pad.wav")
-        with wave.open(dest, "wb") as w:
-            w.setnchannels(1)
-            w.setsampwidth(2)
-            w.setframerate(verify.SR)
-            w.writeframes(pcm(np.concatenate([np.zeros(verify.SR // 2, np.float32), a, np.zeros(verify.SR // 2, np.float32)])))
+        wav.write_wav(dest, pcm(np.concatenate([np.zeros(verify.SR // 2, np.float32), a,
+                                                 np.zeros(verify.SR // 2, np.float32)])), verify.SR)
         out[path] = dest
     return out
 
@@ -344,12 +336,8 @@ def demo(slug, got):
             parts.append(lev(got[k]["audio"]))
             parts.append(np.zeros(int(1.2 * sr), dtype=np.float32))
     wav = os.path.join(WORK, slug, "demo.wav")
-    import wave
-    with wave.open(wav, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(sr)
-        w.writeframes(pcm(np.concatenate(parts) if parts else np.zeros(sr, dtype=np.float32)))
+    import wav as wavfile
+    wavfile.write_wav(wav, pcm(np.concatenate(parts) if parts else np.zeros(sr, dtype=np.float32)), sr)
     import ffmpeg as ffmpeg_tool
     mp3 = os.path.join(WORK, slug, "demo.mp3")
     subprocess.run([ffmpeg_tool.exe(), "-y", "-v", "error", "-i", wav, "-c:a", "libmp3lame", "-b:a", "128k", mp3],

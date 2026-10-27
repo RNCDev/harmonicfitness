@@ -16,6 +16,7 @@ import json
 import cloud
 
 SERVICE = "elevenlabs"
+DESIGN_NOTE = "it uses one of ElevenLabs Free's 3 voice slots"   # said with a design's cost
 
 
 def _headers(content_type="application/json"):

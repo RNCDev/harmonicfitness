@@ -42,8 +42,9 @@ HOME = find_home(ROOT, os.environ)
 
 # The local voice models: models/ at the repo root (git-ignored; it may be a symlink to a shared place), or
 # SWEATCAST_MODELS. Every download and load goes there: Hugging Face's cache is pointed at it here, at
-# import, since each tool (render.py included) runs as its own process. The cache it replaced is kept
-# for ./sweatcast models adopt.
+# import, since each tool (render.py included) runs as its own process. It has to be here: huggingface_hub
+# reads HF_HUB_CACHE once, when it's first imported, and every tool imports paths before it. The cache it
+# replaced is kept for ./sweatcast models adopt.
 OLD_HF_HUB_CACHE = os.environ.get("SWEATCAST_OLD_HF_HUB_CACHE") or os.environ.get("HF_HUB_CACHE") or os.path.join(
     os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface"), "hub")
 MODELS = os.path.abspath(os.path.expanduser(os.environ.get("SWEATCAST_MODELS") or os.path.join(ROOT, "models")))

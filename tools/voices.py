@@ -16,7 +16,6 @@ import os
 import statistics
 import sys
 import time
-import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
@@ -232,9 +231,6 @@ def downloaded():
 
 
 def write_wav(path, pcm, rate=24000):
-    """16-bit mono PCM to a .wav file."""
-    with wave.open(path, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes(pcm)
+    """16-bit mono PCM to a .wav file (tools/wav.py)."""
+    import wav
+    wav.write_wav(path, pcm, rate)

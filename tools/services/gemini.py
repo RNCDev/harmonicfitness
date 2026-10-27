@@ -19,6 +19,7 @@ import cli
 import cloud
 
 SERVICE = "gemini"
+STORES_DRAFTS = True   # design() saves each candidate; one not kept is deleted (coaches forget-audition)
 
 
 def _headers():

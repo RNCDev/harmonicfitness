@@ -28,7 +28,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
@@ -41,6 +40,7 @@ import counts  # noqa: E402
 from engines import SR  # noqa: E402
 import paths  # noqa: E402
 import verify  # noqa: E402
+import wav  # noqa: E402
 from voices import EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
 # moved to audio.py; the tools still reach them through this module
 from audio import (CHIME_TONE, CHIME_LEVEL, END_NOTES, END_NOTE, END_LEAD, SPEECH_LEVEL, LEVEL_MAX, LEVEL_SKIP,
@@ -93,11 +93,7 @@ def encode(pcm, out, title):
     codec = CODECS[os.path.splitext(out)[1].lower()]
     with tempfile.TemporaryDirectory() as td:
         raw = os.path.join(td, "raw.wav")
-        with wave.open(raw, "wb") as w:
-            w.setnchannels(1)
-            w.setsampwidth(2)
-            w.setframerate(SR)
-            w.writeframes(pcm)
+        wav.write_wav(raw, pcm, SR)
         probe = _ffmpeg_run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
                              f"{COMPRESS},loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"],
                             "measure the loudness")

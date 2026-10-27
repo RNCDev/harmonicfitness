@@ -20,11 +20,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
-import cloud  # noqa: E402
+import services  # noqa: E402  (knowledge/services.toml; not cloud.py, which reads keys)
 import paths  # noqa: E402
 
-SERVICE_VARS = {s: v["key_var"] for s, v in cloud.services().items()}    # knowledge/services.toml
-KEY_PAGES = {s: v["key_page"] for s, v in cloud.services().items()}
+SERVICE_VARS = {s: v["key_var"] for s, v in services.settings().items()}    # knowledge/services.toml
+KEY_PAGES = {s: v["key_page"] for s, v in services.settings().items()}
 LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 COMMENT_RE = re.compile(r"\s+#.*$")   # an inline comment after the value
 

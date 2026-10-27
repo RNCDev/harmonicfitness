@@ -29,7 +29,6 @@ designs it, so forget-audition deletes the ones not kept.
 import argparse
 import concurrent.futures
 import datetime
-import importlib
 import json
 import os
 import re
@@ -210,7 +209,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False):
               + (f"design about ${cost:.2f}" if cost is not None else "design cost not published"), flush=True)
 
     def design(service):
-        module = importlib.import_module(f"services.{service}")
+        module = cloud.service_module(service)
         return module.design(description, voices.DESIGN_LINE, CANDIDATES[service],
                              f"sweatcast audition {audition_id} {planned[service]}")
 
@@ -362,7 +361,7 @@ def keep_web(ref, name, replace_old=False):
     with open(os.path.join(folder, c["wav"]), "rb") as f:
         wav = f.read()
     candidate = {"wav": wav, "text": c["text"], "draft_id": c["draft_id"], "signature": c["signature"]}
-    module = importlib.import_module(f"services.{service}")
+    module = cloud.service_module(service)
     if resume:   # saved before, but the coach was never written: finish with the voice already saved
         voice_id = c["voice_id"]
         print(f"Finishing {name}: {c['letter']} is already saved at {cloud.service_name(service)}.", flush=True)
@@ -472,9 +471,9 @@ def make(name):
         raise errors.CoachError(f"{p.name} names no known web service ({service or 'none'}).")
     s = table[service]
     cost = (f"about ${s['design_usd']:.2f}" if s.get("design_usd") is not None else "design cost not published")
-    if service == "elevenlabs":
-        cost += "; it uses one of ElevenLabs Free's 3 voice slots"
-    module = importlib.import_module(f"services.{service}")
+    module = cloud.service_module(service)
+    if getattr(module, "DESIGN_NOTE", ""):   # what else a design costs there (ElevenLabs: a voice slot)
+        cost += "; " + module.DESIGN_NOTE
     home = p.home_folder   # a stock coach's made voice goes to me/coaches/<slug>/, never into the engine
     os.makedirs(home, exist_ok=True)
     saved = _made(home, service)
@@ -505,11 +504,11 @@ def make(name):
             print(f"{p.name}'s voice is saved at {s['name']} but the coach wasn't written; "
                   "it's still pending, and the next build (or ./sweatcast coaches make) finishes it without "
                   "designing again.", file=sys.stderr)
-        elif service == "gemini" and c.get("draft_id"):   # stored at design: don't leave it behind
+        elif getattr(module, "STORES_DRAFTS", False) and c.get("draft_id"):   # stored at design: don't leave it
             try:
                 module.delete(c["draft_id"])
             except (Exception, cli.Usage):
-                print(f"(Gemini keeps a voice \"sweatcast {p.name}\", ID {c['draft_id']}; delete it there "
+                print(f"({s['name']} keeps a voice \"sweatcast {p.name}\", ID {c['draft_id']}; delete it there "
                       "by hand.)", file=sys.stderr)
         elif voice_id:
             print(f"{p.name}'s voice was saved at {s['name']} (voice ID {voice_id}) but the coach wasn't written; "
@@ -531,21 +530,24 @@ def forget_audition(audition):
     in_use = {p.voice_id for p in personas.all() + personas.all(os.path.join(paths.PERSONAS, ".archive"))
               if p.voice_id}
     lines = []
+    def stores(service):   # a service that keeps a designed voice until it's deleted (Gemini)
+        return getattr(cloud.service_module(service), "STORES_DRAFTS", False)
+
     for c in cands:   # a voice a coach uses (active or archived) is never deleted, kept mark or not
-        if c["service"] == "gemini" and not c.get("kept") and c.get("draft_id") and c["draft_id"] not in in_use:
-            gemini = importlib.import_module("services.gemini")
+        if stores(c["service"]) and not c.get("kept") and c.get("draft_id") and c["draft_id"] not in in_use:
+            name = cloud.service_name(c["service"])
             try:
-                gemini.delete(c["draft_id"])
+                cloud.service_module(c["service"]).delete(c["draft_id"])
             except (cloud.ServiceError, *errors.PROBLEMS) as e:
-                raise errors.CoachError(f"Gemini: couldn't delete audition voice {c['letter']} ({_reason(e)}); the "
-                                 f"audition stays in {show(folder)} so forget-audition can try again.")
-            lines.append(f"Deleted Gemini's stored audition voice {c['letter']}.")
+                raise errors.CoachError(f"{name}: couldn't delete audition voice {c['letter']} ({_reason(e)}); the "
+                                        f"audition stays in {show(folder)} so forget-audition can try again.")
+            lines.append(f"Deleted {name}'s stored audition voice {c['letter']}.")
     for c in cands:   # a keep whose save went out but whose answer was lost: a voice may be there
         if c.get("saving") and not c.get("voice_id"):
             lines.append(f"{c['letter']}: a save was sent to {cloud.service_name(c['service'])} whose answer couldn't be "
                          f"read: look for \"sweatcast {c['saving']}\" there and delete it if it's not wanted.")
     others = list(dict.fromkeys(cloud.service_name(c["service"]) for c in cands
-                                if c["service"] != "gemini" and not c.get("kept") and not c.get("saving")))
+                                if not stores(c["service"]) and not c.get("kept") and not c.get("saving")))
     if others:
         lines.append(f"{', '.join(others)}: the unsaved drafts need nothing (nothing was saved there).")
     shutil.rmtree(folder)

@@ -75,7 +75,7 @@ class AtomicWrites(unittest.TestCase):
     # (render, coaches), the build log (appended, never rewritten), WAV writers, the harness's exact copies,
     # the key file (created 0600 then appended), and the lock files.
     ALLOWED = {"fileio.py", "build.py", "render.py", "cloud.py", "voices.py", "coaches.py", "harness.py",
-               "keys.py", "locks.py", "clipcache.py"}
+               "keys.py", "locks.py", "clipcache.py", "wav.py"}
 
     def test_engine_writes_go_through_fileio(self):
         tools = os.path.join(paths.ROOT, "tools")
@@ -196,6 +196,21 @@ class CatalogCache(unittest.TestCase):
             again = catalog.default()
         self.assertIsNot(again, first)
         self.assertIn("garage-sled", again.movements)
+
+
+class Apostrophes(unittest.TestCase):
+    def test_the_matchers_fold_every_apostrophe_alike(self):
+        import menu
+        import verify
+        cat = catalog.load()
+        mid = next(m.id for m in cat.movements.values() if "'" in m.name) if any(
+            "'" in m.name for m in cat.movements.values()) else None
+        for quote in ("\u2019", "\u2018", "\u02bc"):
+            self.assertEqual(verify.words(f"farmer{quote}s carry"), ["farmer's", "carry"])
+            self.assertEqual(catalog.plain(f"Farmer{quote}s Carry"), "farmer's carry")
+            if mid:
+                name = cat.movements[mid].name.replace("'", quote)
+                self.assertIn(mid, [m for m, _, _ in menu.mentions(cat, f"Now the {name}.")])
 
 
 class Boundaries(unittest.TestCase):

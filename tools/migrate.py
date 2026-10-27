@@ -62,6 +62,7 @@ import errors  # noqa: E402
 import check  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
+import frontmatter  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
 import workouts  # noqa: E402
@@ -74,7 +75,7 @@ def to_5(text, path):
     if not m:
         return context.with_front_matter(text, 5)
     block = re.sub(r"(?m)^schema\s*=\s*4\b", "schema = 5", m.group(1), count=1)
-    return f"+++\n{block}\n+++\n" + text[m.end():]
+    return frontmatter.wrap(block, text[m.end():])
 
 
 def to_6(text, path):
@@ -83,7 +84,7 @@ def to_6(text, path):
     if not m:
         return context.with_front_matter(text, 6)
     block = re.sub(r"(?m)^schema\s*=\s*5\b", "schema = 6", m.group(1), count=1)
-    return f"+++\n{block}\n+++\n" + text[m.end():]
+    return frontmatter.wrap(block, text[m.end():])
 
 
 # The settings each split file writes, in order, and the comment above each (the template's words).
@@ -178,7 +179,7 @@ def split_profile_text(text):
         body = re.sub(r"\n{3,}", "\n\n", "".join(prose[name]))
         if name in PART_INTROS:
             body = PART_INTROS[name] + ("\n" + body.lstrip("\n") if body.strip() else "")
-        out[name] = f"+++\n{block}\n+++\n{body}"
+        out[name] = frontmatter.wrap(block, body)
     return out
 
 
@@ -479,19 +480,18 @@ def move_strays(home):
                 body = context.read_raw(dest) if os.path.exists(dest) else f"{SETTINGS_HEADER}\nschema = {context.SCHEMA}\n"
                 fileio.atomic_write(dest, body.rstrip("\n") + f"\n{comment}{line}\n")
             else:
-                dest_text = context.read_raw(dest) if os.path.exists(dest) else f"+++\nschema = {context.SCHEMA}\n+++\n"
+                dest_text = (context.read_raw(dest) if os.path.exists(dest)
+                             else frontmatter.wrap(f"schema = {context.SCHEMA}"))
                 m = context.TOML_FRONT_RE.match(dest_text)
                 block = m.group(1).rstrip("\n") + f"\n{comment}{line}"
-                context.tomllib.loads(block)   # never write a block that doesn't parse
-                fileio.atomic_write(dest, f"+++\n{block}\n+++\n" + dest_text[m.end():])
+                fileio.atomic_write(dest, frontmatter.wrap(block, dest_text[m.end():]))
         settings.pop(key)
     m = context.TOML_FRONT_RE.match(text)
     block = m.group(1)
     for key in stray:   # drop the stray's lines (and a comment line just above it) from profile.md's block
         block = re.sub(rf"(?m)(^#[^\n]*\n)?^{re.escape(key)}\s*=.*\n", "", block, count=1)
         block = re.sub(rf"(?ms)^\[\[{re.escape(key)}\]\]\n.*?(?=^\[\[|\Z)", "", block)
-    context.tomllib.loads(block)
-    fileio.atomic_write(path, f"+++\n{block.rstrip(chr(10))}\n+++\n" + text[m.end():])
+    fileio.atomic_write(path, frontmatter.wrap(block, text[m.end():]))
 
 
 def folder_steps_due(home):

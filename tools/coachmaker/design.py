@@ -112,12 +112,8 @@ def to_clip(raw):
 
 
 def write_wav(path, pcm):
-    import wave
-    with wave.open(path, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(verify.SR)
-        w.writeframes(pcm)
+    import wav
+    wav.write_wav(path, pcm, verify.SR)
 
 
 def to_mp3(wav, mp3):

@@ -29,6 +29,14 @@ def front(text):
     return {}, text
 
 
+def wrap(block, rest=""):
+    """A file's text from a TOML settings block as written (its comments kept) and the text below it. Refuses
+    a block that doesn't parse: nothing is ever written that the tools can't read back."""
+    block = block.rstrip("\n")
+    tomllib.loads(block)
+    return f"+++\n{block}\n+++\n{rest}"
+
+
 def body(text):
     """A file's text without its front matter."""
     return front(text)[1]

@@ -14,8 +14,13 @@ each new clip, and scores it here against the line it was given:
 A take passes with every cue word said, no audio problem, and at most one word in twenty off (the
 recognizer mishears a little too). Plain Python, with no numpy, so it runs and is tested anywhere.
 """
+import os
 import re
+import sys
 from array import array
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from catalog import fold  # noqa: E402  (the apostrophes the menu scan and the name matcher fold too)
 
 SR = 24000
 FRAME = 480                 # 20 ms frames at SR
@@ -85,7 +90,7 @@ NUMBER_RE = re.compile(r"(\d+)(?:\.(\d+))?(st|nd|rd|th)?(%)?", re.IGNORECASE)
 
 def words(text):
     """The words of `text`, lowercased, digits read as words, punctuation and hyphens gone."""
-    text = text.lower().replace("’", "'").replace(",", "")
+    text = fold(text).replace(",", "")
     text = CURRENCY_RE.sub(lambda m: f"{m.group(2)} {CURRENCY[m.group(1)]}", text)   # "£2000": the recognizer's "2000 pounds"
     text = NUMBER_RE.sub(_number, text)
     out = []

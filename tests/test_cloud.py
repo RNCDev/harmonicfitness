@@ -32,6 +32,19 @@ def wav_answer(req):
 
 
 class Core(unittest.TestCase):
+    def test_every_service_module_keeps_the_contract(self):
+        import inspect
+        import services
+        for name in cloud.SERVICES:
+            module = cloud.service_module(name)
+            for fn, params in services.REQUIRED.items():
+                with self.subTest(service=name, fn=fn):
+                    self.assertEqual(list(inspect.signature(getattr(module, fn)).parameters)[:len(params)], params)
+            self.assertIsInstance(getattr(module, "STORES_DRAFTS", False), bool)
+        self.assertTrue(cloud.service_module("gemini").STORES_DRAFTS)
+        with self.assertRaises(errors.CoachError):
+            cloud.service_module("os")   # only a listed service, never any importable name
+
     def test_wav_with_a_bogus_size_reads_to_the_end(self):
         pcm, rate = cloud.wav_pcm(tone_wav(0.5, rate=24000, bogus_size=True))
         self.assertEqual(rate, 24000)

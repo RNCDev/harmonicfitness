@@ -352,11 +352,20 @@ def limit_cues(cat: Catalog, limit: "Limit") -> List[str]:
     return [line.replace(SIDE_SLOT, side) for line in lines if isinstance(line, str)] if isinstance(lines, list) else []
 
 
+QUOTES = str.maketrans({"\u2019": "'", "\u2018": "'", "\u02bc": "'"})   # curly and modifier apostrophes
+
+
+def fold(text: str) -> str:
+    """Lower case with every apostrophe as ': the one folding the menu scan, the name matcher and the take
+    check share, so they never disagree over "farmer’s carry"."""
+    return text.lower().translate(QUOTES)
+
+
 def plain(text: str, hyphens: bool = False) -> str:
     """Text as compared: lower case, letters and apostrophes only (and hyphens when `hyphens`), single
     spaces. Without hyphens, a hyphen and a space are alike."""
     keep = r"[^a-z'-]+" if hyphens else r"[^a-z']+"
-    return " ".join(re.sub(keep, " ", text.lower().replace("\u2019", "'")).split())
+    return " ".join(re.sub(keep, " ", fold(text)).split())
 
 
 def resolve(cat: Catalog, name: str) -> Optional[Movement]:
