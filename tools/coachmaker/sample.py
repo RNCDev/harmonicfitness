@@ -1,8 +1,13 @@
-"""45-second sample per coach: Pocket (public model) speaks each line, four seeds, the recognizer picks the
-first take heard right; render.assemble lays it out with the coach's recorded counts; render.encode masters it.
-usage: sample.py OUT slug [slug ...]"""
+"""Each shipped coach's 45-second sample.mp3 (maintainer only; not a listener command).
+
+  .venv/bin/python tools/coachmaker/sample.py .cache/design/samples andy marcus ...
+
+Pocket (the public model, as a listener runs it) speaks each line in four seeds, and the recognizer picks the
+first take heard right; render.assemble lays the lines out with the coach's recorded [count 3 go], and
+render.encode masters it as a build does. The MP3s go in the folder named first; copy approved ones to
+coaches/coach-<slug>-local/sample.mp3."""
 import json, os, subprocess, sys, tomllib
-ROOT = "/Users/ritujoychowdhury/Documents/Github/sweatcast"
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [ROOT + "/tools", ROOT + "/tools/coachmaker"]
 os.environ.setdefault("SWEATCAST_HOME", "/nonexistent")
 import numpy as np
