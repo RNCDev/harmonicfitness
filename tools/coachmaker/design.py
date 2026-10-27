@@ -40,7 +40,7 @@ LISTEN = os.path.join(WORK, "listen")
 WORKER = os.path.join(TOOLS, "coachmaker", "design_worker.py")
 EDGE = 0.1            # seconds of quiet kept at each end of a clip
 PEAK = 0.89           # -1 dBFS
-CLIP_WPM = (150, 175)   # a clip's pace; Pocket speaks a workout about a tenth faster than its clip
+CLIP_WPM = (135, 175)   # a clip's pace; Pocket speaks a workout about a tenth faster (150 to 195)
 
 
 def roster():
