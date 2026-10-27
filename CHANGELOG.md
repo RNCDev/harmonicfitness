@@ -2,6 +2,16 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [16.0.0] - 2026-10-27
+
+Pocket TTS is settled as the local voice, so the research that chose it leaves the engine: the audio bench, its results and the voice research note. Nothing a workout uses changes.
+
+### For forks
+- **`./sweatcast bench` is gone,** with `tools/bench.py`, `tools/bench_worker.py`, `tests/test_bench.py` and `docs/audio-bench/` (the script, the 2026-10-26 results and their listening files). CLAUDE.md no longer has "run the MAC/PC audio test harness". Git history keeps all of it: `git checkout v15.0.0 -- tools/bench.py tools/bench_worker.py docs/audio-bench` brings it back.
+- **`knowledge/research/2026-10-25-local-voices.md` is gone;** `knowledge/voices.md` keeps what it decided.
+- **The maintainer's coach tools** (`tools/coachmaker/`) now run in the engine's own environment through `common.py` (Pocket, untrimmed, and the take checker's recognizer), not the bench's throwaway ones. `qa.py` and `embed_worker.py` are gone; the ear approvals and every build's take check cover what they measured. `export_pocket.py` loads the gated Pocket model in `.venv` (a Hugging Face login with its terms accepted, as before).
+- **Disk:** a computer that ran the bench can delete `.cache/bench/` and `.cache/uv-bench/`; `./sweatcast models` names the models nothing uses.
+
 ## [15.0.0] - 2026-10-27
 
 Ten local coaches ship with sweatcast, all on one local engine, Pocket TTS, on every computer. Each was designed once from a description, heard and approved by ear, and ships with its voice file, recorded counts and cues, a measured pace and a 45-second sample to choose by ear. Countdowns play those recorded numbers one second apart instead of a voice rushing through them. Local coaches are now chosen, not made: a voice of your own is a web coach.
