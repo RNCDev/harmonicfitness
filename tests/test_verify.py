@@ -43,6 +43,12 @@ class Score(unittest.TestCase):
         self.assertEqual(verify.words("2026 and 1905 and 2.5%"),
                          "twenty twenty six and nineteen oh five and two point five percent".split())
 
+    def test_a_currency_sign_reads_as_its_word(self):
+        # Parakeet writes "two thousand pounds" as "£2,000" (every coach, 2026-10-26).
+        line = "That's two thousand pounds moved, give or take."
+        self.assertEqual(verify.score(line, "That's£2,000 moved, give or take.")["errors"], 0)
+        self.assertEqual(verify.words("$5 and €1.5"), "five dollars and one point five euros".split())
+
     def test_a_compound_split_or_joined_counts_as_said(self):
         self.assertEqual(verify.score("A good warm-up.", "A good warmup.")["errors"], 0)
         self.assertEqual(verify.score("Your warmup.", "Your warm up.")["errors"], 0)

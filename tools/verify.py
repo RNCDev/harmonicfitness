@@ -78,12 +78,15 @@ def _number(m):
     return f" {out} "
 
 
+CURRENCY = {"£": "pounds", "$": "dollars", "€": "euros"}
+CURRENCY_RE = re.compile(r"([£$€])\s*(\d+(?:\.\d+)?)")
 NUMBER_RE = re.compile(r"(\d+)(?:\.(\d+))?(st|nd|rd|th)?(%)?", re.IGNORECASE)
 
 
 def words(text):
     """The words of `text`, lowercased, digits read as words, punctuation and hyphens gone."""
     text = text.lower().replace("’", "'").replace(",", "")
+    text = CURRENCY_RE.sub(lambda m: f"{m.group(2)} {CURRENCY[m.group(1)]}", text)   # "£2000": the recognizer's "2000 pounds"
     text = NUMBER_RE.sub(_number, text)
     out = []
     for w in re.findall(r"[a-z0-9']+", text.replace("-", " ")):

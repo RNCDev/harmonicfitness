@@ -44,11 +44,11 @@ def main(argv):
         os.makedirs(folder, exist_ok=True)
         shutil.copyfile(t["wav"], os.path.join(folder, "clip.wav"))
         with open(os.path.join(folder, "clip.txt"), "w", encoding="utf-8", newline="\n") as f:
-            f.write(roster["script"] + "\n")
+            f.write(t.get("text", roster["script"]) + "\n")
         block = (f"[picks.{slug}]\ndesigner = {toml_str(t['designer'])}\n"
                  f"repo = {toml_str(roster['designers'][t['designer']]['repo'])}\n"
                  f"revision = {toml_str(t['revision'])}\nseed = {t['seed']}\n"
-                 f"seconds = {t['seconds']}\ndescription = {toml_str(t['description'])}\n")
+                 f"seconds = {t['seconds']}\nscript = {toml_str(t.get('script', 'standard'))}\ndescription = {toml_str(t['description'])}\n")
         text = re.sub(rf"\n\[picks\.{slug}\]\n(?:[^\[\n].*\n)*", "\n", text)   # a re-pick replaces the old one
         text = text.rstrip("\n") + "\n\n" + block
         print(f"{slug}: {take}, {t['seconds']} s -> {os.path.relpath(folder, ROOT)}")

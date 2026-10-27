@@ -54,10 +54,12 @@ def qwen3(job):
 
 def voxcpm(job):
     """VoxCPM2: the description in parentheses before the text. No denoiser (no reference audio here) and no
-    torch.compile (no Triton on Windows)."""
+    torch.compile (no Triton on Windows). The device is VoxCPM's own choice (CUDA, else Apple's MPS, else the
+    processor) unless the job names one; a take made on one device won't match the same seed on another."""
     import torch
     from voxcpm import VoxCPM
-    model = VoxCPM.from_pretrained(job["model_dir"], load_denoiser=False, optimize=False, device="cuda")
+    model = VoxCPM.from_pretrained(job["model_dir"], load_denoiser=False, optimize=False,
+                                 device=job.get("device") or "auto")
 
     def say(description, text, seed):
         torch.manual_seed(seed)
@@ -75,11 +77,13 @@ def main(job_path):
     with open(job_path, encoding="utf-8") as f:
         job = json.load(f)
     import torch
-    if not torch.cuda.is_available():
-        raise SystemExit("PyTorch can't see the NVIDIA card in this environment.")
     designer = job["designer"]
+    if designer == "qwen3" and not torch.cuda.is_available():
+        raise SystemExit("PyTorch can't see the NVIDIA card in this environment.")
+    gpu = (torch.cuda.get_device_name(0) if torch.cuda.is_available() else
+           "Apple MPS" if torch.backends.mps.is_available() else "processor")
     record = {"designer": designer, "model_dir": job["model_dir"], "torch": torch.__version__,
-              "gpu": torch.cuda.get_device_name(0), "takes": []}
+              "gpu": gpu, "takes": []}
     path = os.path.join(job["out"], f"{designer}-render.json")
 
     def save():

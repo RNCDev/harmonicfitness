@@ -1,12 +1,15 @@
 """Design takes of the shipped coaches' clips (maintainer only; not a listener command).
 
-  .venv/Scripts/python tools/coachmaker/design.py andy claire callum --designers qwen3,voxcpm --takes 3
+  .venv/Scripts/python tools/coachmaker/design.py marcus maya --takes 6
+  .venv/Scripts/python tools/coachmaker/design.py sam --script long        (the longer clip script, about 24 s)
 
 Each designer runs tools/coachmaker/design_worker.py in its own environment (coaches/roster.toml names it)
-on the NVIDIA card, from the model already in models/ (offline: nothing is downloaded). Every take is then
-made into a clip candidate the way a shipped clip.wav is: 24 kHz mono 16-bit, quiet ends trimmed to 0.1 s,
-speech leveled to render.SPEECH_LEVEL with the peak under -1 dBFS. The take check's recognizer hears each one, so
-clip.txt can follow what was said, not the script.
+on the NVIDIA card or a Mac's GPU (VoxCPM2; Qwen3 needs the card), from the model already in models/
+(offline: nothing is downloaded). Every take is then made into a clip candidate the way a shipped clip.wav
+is: 24 kHz mono 16-bit, quiet ends trimmed to 0.1 s, speech leveled to render.SPEECH_LEVEL with the peak
+under -1 dBFS. The take check's recognizer hears each one, so
+clip.txt can follow what was said, not the script. Each take's pace is shown in words a minute: Pocket copies
+a clip's pace into every workout (and speaks about a tenth faster), so pick a take inside CLIP_WPM.
 
 Takes go in .cache/design/takes/<coach>/<designer>-<seed>.wav, with takes.json (every take's numbers), and
 .cache/design/listen/index.html plays them side by side.
@@ -38,7 +41,7 @@ LISTEN = os.path.join(WORK, "listen")
 WORKER = os.path.join(TOOLS, "coachmaker", "design_worker.py")
 EDGE = 0.1            # seconds of quiet kept at each end of a clip
 PEAK = 0.89           # -1 dBFS
-CLIP_SECONDS = (18.0, 22.0)
+CLIP_WPM = (150, 175)   # a clip's pace; Pocket speaks a workout about a tenth faster than its clip
 
 
 def roster():
@@ -66,11 +69,19 @@ def model_dir(repo, revision):
     return path
 
 
-def run_designer(r, name, coaches, seeds):
+def script(r, which):
+    return r["script"] if which == "standard" else r["script_long"]
+
+
+def wpm(text, seconds):
+    return round(len(text.split()) / seconds * 60) if seconds else 0
+
+
+def run_designer(r, name, coaches, seeds, text):
     d = r["designers"][name]
     job = {"designer": name, "model_dir": model_dir(d["repo"], d["revision"]), "out": TAKES,
            "cfg_value": d.get("cfg_value"), "inference_timesteps": d.get("inference_timesteps"),
-           "takes": [{"slug": c["slug"], "description": description(r, c, name), "text": r["script"], "seed": s}
+           "takes": [{"slug": c["slug"], "description": description(r, c, name), "text": text, "seed": s}
                      for c in coaches for s in seeds]}
     os.makedirs(WORK, exist_ok=True)
     job_path = os.path.join(WORK, f"{name}-job.json")
@@ -151,9 +162,10 @@ def listening_page(r, takes):
         for key, t in sorted((k, t) for k, t in takes.items() if t["slug"] == slug):
             mp3 = os.path.relpath(t["mp3"], LISTEN).replace(os.sep, "/")
             length = t["seconds"]
-            flag = "" if CLIP_SECONDS[0] <= length <= CLIP_SECONDS[1] else " class=bad"
+            pace = wpm(t.get("text") or r["script"], length)
+            flag = "" if CLIP_WPM[0] <= pace <= CLIP_WPM[1] else " class=bad"
             rows.append(f"<tr><td><b>{html.escape(t['label'])}</b></td><td><audio controls preload=none "
-                        f"src='{mp3}'></audio></td><td{flag}>{length:.1f} s</td>"
+                        f"src='{mp3}'></audio></td><td{flag}>{length:.1f} s, {pace} wpm</td>"
                         f"<td>{t.get('errors', '?')}/{t.get('words', '?')}"
                         f"{' missed ' + ', '.join(t['missed_cues']) if t.get('missed_cues') else ''}</td>"
                         f"<td>{html.escape(', '.join(t.get('problems') or []))}</td>"
@@ -162,8 +174,8 @@ def listening_page(r, takes):
     page = ("<!doctype html><meta charset=utf-8><title>Coach takes</title><style>body{font:15px system-ui;"
             "margin:24px;max-width:1400px}td,th{padding:4px 8px;text-align:left;vertical-align:top}"
             ".d{color:#555}.h{font-size:12px;color:#444;max-width:520px}.bad{color:#b00}</style>"
-            "<h1>Coach takes</h1><p>Each take as its clip would ship: trimmed, leveled. Length in red is outside "
-            f"{CLIP_SECONDS[0]:.0f} to {CLIP_SECONDS[1]:.0f} s. Errors: words the recognizer heard differently "
+            "<h1>Coach takes</h1><p>Each take as its clip would ship: trimmed, leveled. Pace in red is outside "
+            f"{CLIP_WPM[0]} to {CLIP_WPM[1]} words a minute. Errors: words the recognizer heard differently "
             "from the script.</p>" + "".join(rows))
     path = os.path.join(LISTEN, "index.html")
     with open(path, "w", encoding="utf-8") as f:
@@ -174,7 +186,9 @@ def listening_page(r, takes):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("coaches", nargs="+", help="coach slugs from coaches/roster.toml")
-    p.add_argument("--designers", default="qwen3,voxcpm")
+    p.add_argument("--designers", default="voxcpm")
+    p.add_argument("--script", choices=("standard", "long"), default="standard",
+                   help="the roster's clip script (about 20 s at a coaching pace) or script_long (about 24 s)")
     p.add_argument("--takes", type=int, default=3)
     p.add_argument("--seed", type=int, default=101, help="the first take's seed; the next takes count up")
     p.add_argument("--no-render", action="store_true",
@@ -197,7 +211,7 @@ def main(argv=None):
                 rec = json.load(f)
             rec["takes"] = [t for t in rec["takes"] if t["slug"] in a.coaches and t["seed"] in seeds]
         else:
-            rec = run_designer(r, name, coaches, seeds)
+            rec = run_designer(r, name, coaches, seeds, script(r, a.script))
         for t in rec["takes"]:
             if "wav" not in t:
                 continue
@@ -211,7 +225,8 @@ def main(argv=None):
             takes[key] = {"slug": t["slug"], "designer": name, "seed": t["seed"], "label": f"{name} {t['seed']}",
                           "wav": wav, "mp3": mp3, "seconds": round(len(pcm) / 2 / verify.SR, 2),
                           "render_s": t["render_s"], "source_sr": t["sr"],
-                          "revision": r["designers"][name]["revision"], "description": description(r, by_slug[t["slug"]], name)}
+                          "revision": r["designers"][name]["revision"], "description": description(r, by_slug[t["slug"]], name),
+                          "text": t.get("text") or script(r, a.script), "script": a.script}
             fresh.append(key)
     heard = transcribe([takes[k]["wav"] for k in fresh])
     for k in fresh:
@@ -219,7 +234,7 @@ def main(argv=None):
         if heard.get(t["wav"]) is not None:
             with open(t["wav"], "rb") as f:
                 pcm = f.read()[44:]
-            v = verify.judge(r["script"], heard[t["wav"]], pcm, weight(r["script"]) / bench.PACE)
+            v = verify.judge(t["text"], heard[t["wav"]], pcm, weight(t["text"]) / bench.PACE)
             t.update(heard=v["heard"], words=v["words"], errors=v["errors"], missed_cues=v["missed_cues"],
                      problems=v["problems"])
             t["level_db"] = round(render.speech_level(pcm) or 0, 2)
@@ -228,7 +243,8 @@ def main(argv=None):
     print(f"\n{len(fresh)} take(s). Listen: {page}")
     for k in fresh:
         t = takes[k]
-        print(f"  {k}: {t['seconds']:.1f}s, {t.get('errors', '?')}/{t.get('words', '?')} words off"
+        print(f"  {k}: {t['seconds']:.1f}s at {wpm(t['text'], t['seconds'])} wpm, "
+              f"{t.get('errors', '?')}/{t.get('words', '?')} words off"
               + (f", problems: {', '.join(t['problems'])}" if t.get("problems") else ""))
     return 0
 

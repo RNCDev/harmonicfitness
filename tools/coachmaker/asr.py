@@ -1,24 +1,17 @@
-"""Transcribe WAVs with the take check's recognizer (Parakeet TDT-CTC 110M through sherpa-onnx), for the coach
-tools. The model is public (no login) and downloads once into .cache/design/asr-110m."""
+"""Transcribe WAVs for the coach tools with the audio bench's recognizer: Parakeet TDT 0.6B v3 through ONNX, on
+the processor, the same on a Mac and a PC (bench_worker.py's asr mode, in a throwaway environment).
+
+Not the 110M Parakeet: on the ten coaches' Pocket takes (2026-10-26) it heard about twice as many lines wrong
+as the 0.6B, and reported cues as dropped that the 0.6B heard said."""
 import json
 import os
 import subprocess
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-WORKER = os.path.join(HERE, "asr_worker.py")
-MODEL = ("csukuangfj/sherpa-onnx-nemo-parakeet_tdt_transducer_110m-en-36000", "e9bea5a06247dc3f55319ff23d34b0328f2f5ddf")
-PACKAGE = "sherpa-onnx==1.12.40"
-MODEL_DIR = os.path.join(ROOT, ".cache", "design", "asr-110m")
-FILES = ("encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt")
-
-
-def fetch():
-    if all(os.path.exists(os.path.join(MODEL_DIR, f)) for f in FILES):
-        return MODEL_DIR
-    from huggingface_hub import snapshot_download
-    snapshot_download(MODEL[0], revision=MODEL[1], local_dir=MODEL_DIR, allow_patterns=list(FILES))
-    return MODEL_DIR
+sys.path.insert(0, os.path.dirname(HERE))
+import bench  # noqa: E402
 
 
 def transcribe(wavs, work):
@@ -29,12 +22,14 @@ def transcribe(wavs, work):
     out = os.path.join(work, "heard.json")
     job = os.path.join(work, "asr-job.json")
     with open(job, "w", encoding="utf-8") as f:
-        json.dump({"files": list(wavs), "out": out, "model_dir": fetch()}, f)
-    print(f"Transcribing {len(wavs)} take(s) with Parakeet 110M", flush=True)
+        json.dump({"files": list(wavs), "out": out, "asr_repo": bench.ASR_MODEL[0],
+                   "asr_revision": bench.ASR_MODEL[1], "asr_dir": os.path.join(bench.WORK, "asr-model")}, f)
+    print(f"Transcribing {len(wavs)} take(s) with Parakeet 0.6B (ONNX)", flush=True)
+    cmd = ["uv", "run", "--isolated", "--no-project", "--python", bench.PYTHON,
+           *[x for p in [*bench.ASR, *bench.COMMON] for x in ("--with", p)], "python", "-I", bench.WORKER, "asr", job]
     with open(os.path.join(work, "asr.log"), "w", encoding="utf-8") as log:
-        code = subprocess.call(["uv", "run", "--isolated", "--no-project", "--python", "3.11", "--with", PACKAGE,
-                                "--with", "numpy", "python", "-I", WORKER, job],
-                               stdout=log, stderr=subprocess.STDOUT, cwd=ROOT)
+        code = subprocess.call(cmd, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT,
+                               env=dict(os.environ, PYTHONIOENCODING="utf-8"))
     try:
         with open(out, encoding="utf-8") as f:
             return json.load(f)["heard"]

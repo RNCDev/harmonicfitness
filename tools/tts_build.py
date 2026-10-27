@@ -5,8 +5,8 @@ The draft format (the `movements:` line, `@@ <seconds> | <label>` markers, [paus
 render_report() and writes export_text(); with --lint-only it stops there.
 
 What must hold: every line a voice can read cleanly (no digits, symbols, abbreviations or markup), every
-paragraph short enough to speak in one clip, and the whole workout's predicted length within three percent
-of plan. A segment far off its slot (under 80 or over 110 percent) is flagged in the table to help place
+paragraph short enough to speak in one clip, no clip of a single word, and the whole workout's predicted
+length within three percent of plan. A segment far off its slot (under 80 or over 110 percent) is flagged in the table to help place
 the fix, but only the total is held to plan; with strict=True the flags count as issues. A held segment
 (one with a [hold]) shows the spare seconds it will spend in silence, so a long quiet rest is easy to spot.
 How the script should sound (varied openings, the listener's name, friendly handoffs) is guidance in
@@ -78,9 +78,14 @@ def lint_line(lineno, line):
     return [f"  line {lineno}: {i}" for i in issues]
 
 
+WORD_RE = re.compile(r"[A-Za-z0-9’']+(?:-[A-Za-z0-9’']+)*")
+# A clip (the words between two markers) of one word: Pocket TTS garbled "Begin." and "Hold." in every take
+# of some coaches (2026-10-26, ten coaches, four seeds each), while two words ("Other way.") never failed.
+MIN_CLIP_WORDS = 2
+
+
 def word_count(lines):
-    return sum(len(re.findall(r"[A-Za-z0-9’']+(?:-[A-Za-z0-9’']+)*", MARK_RE.sub(" ", l)))
-               for _, l in lines)
+    return sum(len(WORD_RE.findall(MARK_RE.sub(" ", l))) for _, l in lines)
 
 
 HELD_QUIET = 10.0   # a held segment's spare silence, in seconds, worth pointing out
@@ -187,6 +192,12 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                 row.flag = "long" if row.diff > 0 else "short"
         for lineno, line in seg["lines"]:
             row.line_issues += lint_line(lineno, line)
+        for para in plans[i - 1]:
+            for text, _ in para:
+                if spoken(text) and len(WORD_RE.findall(text)) < MIN_CLIP_WORDS:
+                    row.clip_issues.append(
+                        f"  \"{text}\" is one word between markers, and a local voice often garbles a word "
+                        f"on its own; give it two or more (\"Hold it there.\", \"And go.\")")
         rows.append(row)
     report = Report(rows, strict, guide_wpm, voice, rate, exact,
                     total_tolerance=total_tolerance, word_wpm=wpm)
@@ -215,6 +226,7 @@ def render_report(report):
         else:
             flag = "  <-- too long" if r.flag == "long" else "  <-- too short" if r.flag == "short" else ""
             out.append(f"{r.index:>3} {r.seconds:>5} {r.guide:>6} {r.words:>5} {r.diff:>+6.0%}  {r.label}{flag}")
+            out += r.clip_issues
         out += r.line_issues
 
     summary = f"\nPlanned {report.total_seconds / 60:.1f} min | {report.total_words} words"

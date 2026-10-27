@@ -155,6 +155,16 @@ class Structure(unittest.TestCase):
         self.assertFalse(hasattr(report, "warnings"))
         self.assertFalse(hasattr(tts_build, "structure_warnings"))
 
+    def test_a_one_word_clip_is_refused(self):
+        segs = parse("@@ 30 | A\nAt the bell, go. [chime] Hold. [pause 3s] Other way. [hold] And go.\n\nRest.\n")
+        report = tts_build.lint(segs, wpm=60)
+        issues = report.rows[0].clip_issues
+        self.assertEqual(len(issues), 2, issues)
+        self.assertIn('"Hold."', issues[0])
+        self.assertIn('"Rest."', issues[1])
+        self.assertTrue(report.problems >= 2)
+        self.assertIn('"Hold."', "\n".join(tts_build.render_report(report)))
+
     def test_spoken_seconds_counts_an_inline_chime(self):
         seg = parse("@@ 10 | A\nab [chime] cd\n")[0]
         v = {"engine": "chatterbox", "key": "x", "name": "x"}

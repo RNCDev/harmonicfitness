@@ -8,6 +8,13 @@ script = """Alright, let's get to work. Set your feet about shoulder width, ches
 Lower down slow, two, three, and drive back up. Good. That's exactly the pace we want. Four more, stay \
 with me. Last one, and rest. Shake it out, take a sip of water, and we'll go again."""
 
+# The same script with a sentence more (63 words, about 24 s at a coaching pace), to test whether a longer
+# clip helps Pocket: design.py --script long.
+script_long = """Alright, let's get to work. Set your feet about shoulder width, chest up, and breathe in. \
+Lower down slow, two, three, and drive back up. Good. That's exactly the pace we want. Four more, stay \
+with me. Last one, and rest. Shake it out, take a sip of water. Next we switch sides, left leg forward \
+for thirty seconds, and we'll go again."""
+
 # Added to every description, so every clip comes out clean and alike.
 studio = "Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
@@ -24,8 +31,9 @@ env = ".cache/design/envs/voxcpm"
 package = "voxcpm==2.0.3"
 cfg_value = 2.0
 inference_timesteps = 10
-# Its takes ran fast (up to 280 words a minute in the bake-off); a clip's pace becomes the coach's.
-pace_hint = "Unhurried, with natural pauses between sentences, at a calm coaching pace."
+# Its takes ran fast (up to 280 words a minute in the bake-off), and Pocket copies a clip's pace into every
+# workout (Marcus's 249-wpm clip spoke workouts at 250). Aim for 150 to 175 words a minute.
+pace_hint = "Speaks slowly and clearly, unhurried, with natural pauses between sentences, at a calm coaching pace."
 
 [[coach]]
 slug = "andy"
