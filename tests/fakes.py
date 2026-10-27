@@ -4,6 +4,7 @@ import http.server
 import io
 import math
 import struct
+import sys
 import threading
 import wave
 
@@ -65,6 +66,12 @@ class FakeService:
                 pass
 
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        loud = self.server.handle_error
+
+        def handle_error(request, client_address):   # a client that gave up (a test's deadline) isn't news
+            if not isinstance(sys.exc_info()[1], ConnectionError):
+                loud(request, client_address)
+        self.server.handle_error = handle_error
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
 
     def __enter__(self):

@@ -1110,5 +1110,200 @@ class CloudRender(unittest.TestCase):
         self.assertIn("Sending", second.stdout)
 
 
+class TrimRule(unittest.TestCase):
+    def test_the_web_trim_is_the_engines_rule(self):
+        import engines
+        self.assertEqual((cloud.TRIM_DB, cloud.TRIM_KEEP), (engines.TRIM_DB, engines.TRIM_KEEP))
+        self.assertAlmostEqual(cloud.TRIM_LEVEL, 10 ** (engines.TRIM_DB / 20) * 32767)
+
+    def test_cloud_imports_no_model_library(self):
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); import cloud; "
+                "print(sorted(m for m in ('torch', 'numpy', 'pocket_tts', 'onnx_asr') if m in sys.modules))")
+        out = subprocess.run([sys.executable, "-c", code, os.path.join(ROOT, "tools")], capture_output=True,
+                             text=True, timeout=60)
+        self.assertEqual(out.stdout.strip(), "[]", out.stderr)
+
+
+class Deadline(unittest.TestCase):
+    """cloud.request's deadline: every try and wait together, so a slow service can't hold the render lock."""
+
+    def test_a_slow_service_runs_out_of_time(self):
+        import time
+
+        def slow(req):
+            time.sleep(1.5)
+            return wav_answer(req)
+        with FakeService(slow) as fake, mock.patch.dict(os.environ, {"SWEATCAST_RETRY_WAIT": "0"}):
+            started = time.monotonic()
+            with self.assertRaises(cloud.ServiceError) as got:
+                cloud.request("POST", fake.url + "/v1/tts", {}, b"{}", timeout=30, service="fish", deadline=0.4)
+            took = time.monotonic() - started
+        self.assertEqual(got.exception.kind, "unavailable")
+        self.assertIn("no answer within 0.4s", str(got.exception))
+        self.assertLess(took, 1.4)
+
+    def test_a_wait_past_the_deadline_is_not_slept(self):
+        slept = []
+        with FakeService(lambda r: (503, {"Retry-After": "5"}, b'{"message": "busy"}')) as fake, \
+                mock.patch.dict(os.environ, {"SWEATCAST_RETRY_WAIT": "1"}):
+            with self.assertRaises(cloud.ServiceError) as got:
+                cloud.request("POST", fake.url + "/v1/tts", {}, b"{}", service="fish", deadline=2,
+                              sleep=slept.append)
+        self.assertEqual(slept, [])
+        self.assertEqual(len(fake.requests), 1)
+        self.assertEqual(got.exception.kind, "unavailable")
+        self.assertIn("busy", str(got.exception))
+
+
+class Scrubbing(unittest.TestCase):
+    def test_a_refusal_is_scrubbed_before_it_is_cut(self):
+        import keys
+        body = ("x" * 290 + SECRET + " more").encode()
+        with mock.patch.dict(os.environ, {keys.SERVICE_VARS["fish"]: SECRET}):
+            message = cloud._message(body)
+        self.assertNotIn(SECRET[:8], message)
+        self.assertIn("<key", message)
+
+
+class AudioProof(unittest.TestCase):
+    """cloud.audio_pcm takes only what's proven to be audio: never gzip, a cut-off stream, a broken WAV or a
+    blip, which would be cached, paid for once and replayed in every build."""
+
+    def refused(self, data, **kw):
+        with self.assertRaises(cloud.ServiceError) as got:
+            cloud.audio_pcm(data, service="fish", **kw)
+        self.assertEqual(got.exception.kind, "bad_request")
+        return str(got.exception)
+
+    def test_raw_pcm_only_when_asked_for_and_typed_as_audio(self):
+        pcm = tone_pcm(0.3)
+        for ctype in (None, "audio/pcm", "application/octet-stream"):
+            self.assertEqual(cloud.audio_pcm(pcm, expect="pcm", content_type=ctype), pcm)
+        self.refused(pcm, expect="pcm", content_type="text/plain")
+        self.refused(pcm, expect="wav", content_type="audio/wav")
+        self.refused(b"\x1f\x8b\x08\x00" + bytes(20000), expect="wav")   # gzip
+
+    def test_a_broken_wav_is_the_services_fault_not_a_crash(self):
+        eight_bit = bytearray(tone_wav(0.3))
+        at = eight_bit.find(b"fmt ")
+        eight_bit[at + 8 + 14:at + 8 + 16] = (8).to_bytes(2, "little")
+        self.assertIn("WAV", self.refused(bytes(eight_bit)))
+        self.refused(b"RIFF\x00\x00\x00\x00WAVEfmt ")   # cut off before any audio
+        no_channels = bytearray(tone_wav(0.3))
+        no_channels[at + 8 + 2:at + 8 + 4] = (0).to_bytes(2, "little")
+        self.refused(bytes(no_channels))
+
+    def test_a_blip_is_not_a_spoken_line(self):
+        self.assertIn("too little", self.refused(tone_wav(0.05)))
+        self.refused(tone_pcm(0.05), expect="pcm")
+        self.assertTrue(cloud.audio_pcm(tone_wav(0.2)))
+
+    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
+    def test_compressed_audio_ffmpeg_cant_read_is_refused(self):
+        self.refused(b"ID3\x04\x00\x00\x00\x00\x00\x00" + bytes(500))
+
+    def test_content_type_reads_any_case(self):
+        self.assertEqual(cloud.content_type({"content-type": "Audio/WAV; charset=x"}), "audio/wav")
+        self.assertIsNone(cloud.content_type({}))
+
+
+class SpeakersSayWhatTheyAsked(ServiceCase):
+    SERVICE = "elevenlabs"
+
+    def test_elevenlabs_refuses_raw_bytes_typed_as_text(self):
+        self.serve(lambda r: (200, {"Content-Type": "text/plain"}, tone_pcm(0.3)))
+        with self.assertRaises(cloud.ServiceError) as got:
+            cloud.speaker(self.voice())("Two more.", 42)
+        self.assertIn("text/plain", str(got.exception))
+
+    def test_elevenlabs_takes_octet_stream(self):
+        self.serve(lambda r: (200, {"Content-Type": "application/octet-stream"}, tone_pcm(0.3)))
+        self.assertTrue(cloud.speaker(self.voice())("Two more.", 42))
+
+
+class FishAsksForWav(ServiceCase):
+    SERVICE = "fish"
+
+    def test_fish_refuses_raw_samples_when_it_asked_for_wav(self):
+        self.serve(lambda r: (200, {"Content-Type": "audio/wav"}, tone_pcm(0.3)))
+        with self.assertRaises(cloud.ServiceError):
+            cloud.speaker(self.voice())("Two more.", 42)
+
+
+class RenderCloudStops(unittest.TestCase):
+    """render.render_cloud in process, with a fake service behind engines.speaker."""
+
+    def setUp(self):
+        import render
+        self.render = render
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        self.voice = {"name": "Test", "service": "fish", "model": "s2.1-pro", "concurrency": 1, "max_chars": 0,
+                      "engine": "fish", "backend": "cloud"}
+        self.sent = {"chars": 0, "started": 0, "usd": 0.0}
+        self.todo = [f"Line number {i}, and go." for i in range(10)]
+        stack = __import__("contextlib").ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(render, "record_rate"))
+        self.out = stack.enter_context(mock.patch("sys.stdout", new_callable=__import__("io").StringIO))
+
+    def cache_path(self, text):
+        return os.path.join(self.d, f"{abs(hash(text))}.pcm")
+
+    def go(self, say):
+        import engines
+        with mock.patch.object(engines, "speaker", return_value=say):
+            self.render.render_cloud(self.voice, self.todo, self.todo, 42, self.cache_path, self.sent)
+
+    def test_three_unavailable_in_a_row_stop_sending(self):
+        calls = []
+
+        def say(text, seed, **kw):
+            calls.append(text)
+            raise cloud.ServiceError("unavailable", "fish", "couldn't reach the service (timed out)")
+        with self.assertRaises(errors.RenderStopped) as got:
+            self.go(say)
+        self.assertEqual(len(calls), self.render.BREAKER)
+        self.assertIn("in a row", str(got.exception))
+        self.assertEqual(got.exception.exit_code, cli.ISSUES)
+
+    def test_a_success_between_failures_keeps_sending_then_stops(self):
+        calls = []
+
+        def say(text, seed, **kw):
+            calls.append(text)
+            if len(calls) % 2:
+                raise cloud.ServiceError("unavailable", "fish", "busy (HTTP 503)")
+            return tone_pcm(0.3)
+        with self.assertRaises(errors.RenderStopped) as got:
+            self.go(say)
+        self.assertEqual(len(calls), len(self.todo))   # never three in a row: every line was tried
+        self.assertIn("busy", str(got.exception))
+        self.assertEqual(len(glob.glob(os.path.join(self.d, "*.pcm"))), len(self.todo) // 2)
+
+    def test_an_engine_bug_is_not_an_issue_to_fix(self):
+        def say(text, seed, **kw):
+            raise TypeError("a bug")
+        with self.assertRaises(TypeError):
+            self.go(say)
+        with mock.patch("sys.stderr", new_callable=__import__("io").StringIO) as err:
+            self.assertEqual(cli.run(lambda: self.go(say)), cli.BUG)
+        self.assertIn("TypeError: a bug", err.getvalue())
+
+    def test_ctrl_c_after_sending_says_what_was_sent(self):
+        calls = []
+
+        def say(text, seed, **kw):
+            calls.append(text)
+            if len(calls) == 2:
+                raise KeyboardInterrupt
+            return tone_pcm(0.3)
+        with self.assertRaises(KeyboardInterrupt):
+            self.go(say)
+        chars = len(self.todo[0]) + len(self.todo[1])
+        self.assertIn(f"Interrupted: {chars:,} characters sent to Fish Audio; 1 clips cached; a rerun sends only "
+                      "the rest.", self.out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

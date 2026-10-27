@@ -29,16 +29,18 @@ def _headers():
 def _speak(voice_id, model, text):
     body = json.dumps({"model": model, "input": [{"type": "text", "text": text}], "response_modalities": ["audio"],
                        "generation_config": {"speech_config": [{"voice": voice_id}]}}).encode()
-    _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1beta/interactions", _headers(), body,
-                               timeout=120, service=SERVICE)
+    _, headers, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1beta/interactions", _headers(), body,
+                                     timeout=120, service=SERVICE)
     try:
         answer = json.loads(data)
-    except ValueError:
-        return cloud.trim(cloud.audio_pcm(data, service=SERVICE))
+    except ValueError:   # audio itself, not JSON: raw 16-bit PCM (what Gemini speaks) only if it's typed as audio
+        return cloud.trim(cloud.audio_pcm(data, service=SERVICE, expect="pcm",
+                                          content_type=cloud.content_type(headers)))
     audio, mime = cloud.find_audio(answer)
     if not audio:
         raise cloud.ServiceError("bad_request", SERVICE, "the answer held no audio")
-    return cloud.trim(cloud.audio_pcm(cloud.b64_audio(audio, SERVICE), cloud.mime_rate(mime), service=SERVICE))
+    return cloud.trim(cloud.audio_pcm(cloud.b64_audio(audio, SERVICE), cloud.mime_rate(mime), service=SERVICE,
+                                      expect="pcm", content_type=cloud.content_type({"Content-Type": mime})))
 
 
 def speaker(voice):

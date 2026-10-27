@@ -45,13 +45,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import helpers  # noqa: E402
 import errors  # noqa: E402
 helpers.assert_isolated(paths.HOME)   # never over a real me/: ./sweatcast test points SWEATCAST_HOME elsewhere
+import records  # noqa: E402
 import render  # noqa: E402
 import tts_build  # noqa: E402
 import migrate  # noqa: E402
 import voices  # noqa: E402
 import youtube  # noqa: E402
 from draft import CHIME, CHIME_SECONDS, PARAGRAPH_GAP, parse, plan, spans  # noqa: E402
-from render import SR, assemble, chime, end_tone, silence  # noqa: E402
+from audio import SR, assemble, chime, end_tone, silence  # noqa: E402
 from tts_build import lint_line, word_count  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2079,7 +2080,7 @@ class BuildRecord(unittest.TestCase):
             v = {"name": "V", "key": "k", "engine": "qwen3", "model": "m", "revision": "r"}
             rec = render.build_record(draft_path, "ab" * 32, out, v, 42, 3, 1, 600, 606, 0.01, 12.3, time.time())
             log = os.path.join(d, ".logs", "builds.jsonl")
-            render.save_build_record(rec, out, log)
+            records.save_build_record(rec, out, log)
             with open(os.path.join(d, "Workout.build.json"), encoding="utf-8") as f:
                 self.assertEqual(json.load(f)["draft_sha256"], rec["draft_sha256"])
             with open(log, encoding="utf-8") as f:

@@ -33,8 +33,10 @@ def speaker(voice):
             body["previous_text"] = previous_text
         if next_text:
             body["next_text"] = next_text
-        _, _, data = cloud.request("POST", url, _headers(), json.dumps(body).encode(), timeout=120, service=SERVICE)
-        return cloud.trim(cloud.audio_pcm(data, service=SERVICE))
+        _, headers, data = cloud.request("POST", url, _headers(), json.dumps(body).encode(), timeout=120,
+                                         service=SERVICE)
+        return cloud.trim(cloud.audio_pcm(data, service=SERVICE, expect="pcm",
+                                          content_type=cloud.content_type(headers)))
     return say
 
 
@@ -52,7 +54,7 @@ def design(description, line, n=3, label=None):
     for preview in answer.get("previews") or []:
         audio = cloud.b64_audio(preview.get("audio_base_64"), SERVICE)
         if audio:
-            pcm = cloud.trim(cloud.audio_pcm(audio, service=SERVICE))
+            pcm = cloud.trim(cloud.audio_pcm(audio, service=SERVICE, expect="pcm"))   # pcm_24000, in JSON
             out.append({"pcm": pcm, "wav": cloud.wav_bytes(pcm), "text": words,
                         "draft_id": preview.get("generated_voice_id"), "signature": None})
     if not out:

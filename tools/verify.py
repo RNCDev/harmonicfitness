@@ -16,7 +16,7 @@ recognizer mishears a little too). Plain Python, using numpy only for speed wher
 on a local render), so it runs and is tested anywhere.
 
 checker_id() names the checker (the recognizer's revision, the cue words and the thresholds); each verdict
-carries it, so a stricter checker hears every line again (clipcache._verdict).
+carries it, so a stricter checker hears every line again (clipcache.verdict).
 """
 import hashlib
 import os
