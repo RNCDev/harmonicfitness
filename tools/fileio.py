@@ -75,3 +75,30 @@ def atomic_write(path, data):
         except OSError:
             pass
         raise
+
+
+def jsonl_record(line):
+    """One JSONL line (str or bytes) as the dict it holds, or None for a line that holds none: blank, torn by a
+    crash, not UTF-8, not JSON, or JSON that isn't an object. The one rule every JSONL reader skips by."""
+    try:
+        rec = json.loads(line.decode("utf-8") if isinstance(line, bytes) else line)
+    except ValueError:   # UnicodeDecodeError is one
+        return None
+    return rec if isinstance(rec, dict) else None
+
+
+def read_jsonl(path, parse=None):
+    """Each record in the JSONL file at `path`, oldest first, as a dict; a line that holds none is skipped
+    (jsonl_record), and a missing file yields nothing. With `parse`, each dict goes through it and a None it
+    returns is skipped too, so a reader can drop the records it can't use (records.parse for builds.jsonl)."""
+    try:
+        f = open(path, "rb")   # bytes: a line a crash cut mid-character is skipped, not fatal to the rest
+    except FileNotFoundError:
+        return
+    with f:
+        for line in f:
+            rec = jsonl_record(line)
+            if rec is not None and parse is not None:
+                rec = parse(rec)
+            if rec is not None:
+                yield rec

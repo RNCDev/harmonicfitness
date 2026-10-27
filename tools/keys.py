@@ -18,7 +18,6 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import cli  # noqa: E402
 import errors  # noqa: E402
 import services  # noqa: E402  (knowledge/services.toml; not cloud.py, which reads keys)
 import paths  # noqa: E402
@@ -29,12 +28,13 @@ LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*
 COMMENT_RE = re.compile(r"\s+#.*$")   # an inline comment after the value
 
 
-class BadKey(Exception):
+class BadKey(errors.SweatcastError):
     """A key holds a character a key can't (a stray line break, a space, a symbol): the listener re-pastes it.
-    Exits 4 through cli.run, like a service refusing the key; the message names the variable, never the value."""
+    Exits 4 through cli.run, like a service refusing the key; the message names the variable, never the value.
+    A reported problem (errors.PROBLEMS), so a caller that carries on past one carries on past this too."""
     kind = "auth"
     listener_must_act = True
-    exit_code = cli.SERVICE
+    exit_code = errors.SERVICE
 
 
 def _var(service):
@@ -161,6 +161,7 @@ def open_env(path=None, run=subprocess.Popen):
 
 
 def main(argv=None):
+    import cli   # the command only: cli imports redact, which imports this module, so the library never loads cli
     ap = cli.ArgumentParser(prog="sweatcast keys", description=__doc__)
     sub = ap.add_subparsers(dest="cmd")
     i = sub.add_parser("init", help="add the service's key line to me/.env (making the file if needed)")
@@ -169,26 +170,27 @@ def main(argv=None):
     args = ap.parse_args(argv)
     if args.cmd == "init" and paths.REMOTE:
         print(web_instructions(args.service))
-        return cli.OK
+        return errors.OK
     if args.cmd == "open":
         argv_run = open_env()
         if argv_run:
             print(f"Opened {os.path.abspath(paths.ENV_FILE)}. Paste the key after its NAME= (init adds the line), "
                   "and save.")
-        return cli.OK
+        return errors.OK
     if args.cmd == "init":
         path = init(args.service)
         print(f"Paste your {args.service} key after {SERVICE_VARS[args.service]}= in {os.path.abspath(path)} "
               f"(get one at {KEY_PAGES[args.service]}), and save. To remove it later, delete that line.")
-        return cli.OK
+        return errors.OK
     for service in SERVICE_VARS:
         try:   # get(), not is_set(): the listing is where a key that can't be read is named
             state = f"set ({where(service)})" if get(service) is not None else "not set"
         except BadKey:
             state = f"holds a character a key can't; re-paste it ({where(service)})"
         print(f"{service:10}: {state}")
-    return cli.OK
+    return errors.OK
 
 
 if __name__ == "__main__":
+    import cli
     sys.exit(cli.run(main))

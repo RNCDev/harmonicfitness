@@ -6,12 +6,12 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import keys  # noqa: E402
 
 
 def scrub(text):
     """`text` with every key value set here (the environment's or me/.env's) replaced by <key>, so nothing a
     library or a service echoes can print one."""
-    import keys   # here, not at the top: keys imports cli, and cli may import this module
     for value in sorted(keys.raw_values(), key=len, reverse=True):
         for form in (value, value.strip()):
             if len(form) >= 8:

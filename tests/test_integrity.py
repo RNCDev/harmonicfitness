@@ -261,6 +261,90 @@ class Tracing(unittest.TestCase):
         self.assertIsInstance(other, errors.EngineError)
 
 
+class TypedRecords(unittest.TestCase):
+    """builds.jsonl's lines name their kind (mp3, failed, outcome) from 0.19.0 on; a line from before then is read
+    by what its fields imply, and a hand-edited line with a field of the wrong type is skipped."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.log = os.path.join(self.d, ".logs", "builds.jsonl")
+
+    def raw(self):
+        with open(self.log, encoding="utf-8") as f:
+            return [json.loads(line) for line in f]
+
+    def test_every_new_line_names_its_kind(self):
+        import time
+        import records
+        out = os.path.join(self.d, "W.mp3")
+        records.save_build_record({"draft_sha256": "a", "route": "local"}, out, self.log)
+        voice = {"name": "Coach Pin", "key": "k", "engine": "fish", "service": "fish", "model": "s2.1-pro",
+                 "route": "fish"}
+        with mock.patch.object(paths, "BUILDS", self.log):
+            records.save_failed_record(voice, out, os.path.join(self.d, "x.draft.txt"), "b",
+                                       {"started": 10, "chars": 4}, time.time(), RuntimeError("cut"), "id1")
+            records.note("delivered", build_id="id2", kind="ignored")
+        self.assertEqual([r["kind"] for r in self.raw()], ["mp3", "failed", "outcome"])
+        self.assertTrue(self.raw()[1]["failed"])   # still there for an engine before 0.19.0
+        with open(os.path.join(self.d, "W.build.json"), encoding="utf-8") as f:
+            self.assertNotIn("kind", json.load(f))   # the record beside the MP3 is as it was
+        self.assertEqual([r["kind"] for r in records.build_records(self.log)], ["mp3", "failed", "outcome"])
+        self.assertTrue(records.built("a", self.log))
+        self.assertFalse(records.built("b", self.log))
+        self.assertEqual(records.web_builds(self.log), 1)   # the failed render sent text; the local MP3 didn't
+
+    def test_old_lines_without_a_kind_read_the_same(self):
+        import records
+        fileio.append_jsonl(self.log, [{"draft_sha256": "a", "route": "fish"},
+                                       {"failed": True, "draft_sha256": "b", "route": "gemini"},
+                                       {"event": "stopped", "draft_sha256": "c", "route": "fish"},
+                                       {"draft_sha256": "d"}])
+        got = list(records.build_records(self.log))
+        self.assertEqual([r["kind"] for r in got], ["mp3", "failed", "outcome", "mp3"])
+        self.assertEqual([records.is_mp3(r) for r in self.raw()], [True, False, False, True])
+        self.assertEqual(records.web_builds(self.log), 2)
+        self.assertEqual(records.latest_build("d", self.log)["kind"], "mp3")
+        self.assertNotIn("kind", self.raw()[0])   # read, never rewritten
+
+    def test_a_hand_edited_line_that_cant_be_its_kind_is_skipped(self):
+        import records
+        bad = [{"draft_sha256": "a", "route": 5},                      # route not text
+               {"draft_sha256": "a", "route": "fish", "failed": "yes"},  # failed not true or false
+               {"kind": "mp3", "draft_sha256": "a", "route": "fish", "failed": True},   # the kind contradicts it
+               {"kind": "receipt", "draft_sha256": "a", "route": "fish"},
+               {"kind": "failed", "failed": True, "route": "fish"},      # no draft_sha256
+               {"route": "fish"},                                        # an MP3 with no draft_sha256
+               {"kind": "outcome", "route": "fish"},                     # an outcome with no event
+               {"draft_sha256": "a", "route": "fish", "chars_sent": True}]
+        for rec in bad:
+            self.assertIsNone(records.parse(rec), rec)
+            self.assertFalse(records.is_mp3(rec), rec)
+        fileio.append_jsonl(self.log, bad)
+        self.assertEqual(list(records.build_records(self.log)), [])
+        self.assertEqual(records.web_builds(self.log), 0)
+        self.assertFalse(records.built("a", self.log))
+        self.assertEqual(records.parse('{"draft_sha256": "a"}')["kind"], "mp3")   # a line, as text
+        self.assertIsNone(records.parse("not json"))
+
+    def test_read_jsonl_skips_what_holds_no_record(self):
+        os.makedirs(os.path.dirname(self.log))
+        with open(self.log, "wb") as f:
+            f.write(b'{"a": 1}\n\n   \nnot json\n[1, 2]\n"text"\n{"b": 2, "torn\n{"c": "\xff\xfe"}\n'
+                    + '{"d": "café"}\n'.encode("utf-8") + b'{"e": 5}')
+        self.assertEqual(list(fileio.read_jsonl(self.log)), [{"a": 1}, {"d": "café"}, {"e": 5}])
+        self.assertEqual(list(fileio.read_jsonl(self.log, lambda r: r if "a" not in r else None)),
+                         [{"d": "café"}, {"e": 5}])
+        self.assertEqual(list(fileio.read_jsonl(os.path.join(self.d, "none.jsonl"))), [])
+
+    def test_told_reads_through_the_same_rule(self):
+        import content
+        told = os.path.join(self.d, "told.jsonl")
+        with open(told, "wb") as f:
+            f.write(b'{"date": "2026-10-01", "title": "A"}\nnot json\n{"date": "2026-10-02"}\n'
+                    b'{"date": "2026-10-03", "title": "\xff"}\n{"date": "2026-10-04", "title": "B"}\n')
+        self.assertEqual([i["title"] for i in content.told(told)], ["A", "B"])
+
+
 class ReadJson(unittest.TestCase):
     """fileio.read_json: a missing file is the caller's to answer (FileNotFoundError); a damaged one, or one of
     the wrong top-level shape, is a ContextError naming the file; and the readers that once trusted json.load
