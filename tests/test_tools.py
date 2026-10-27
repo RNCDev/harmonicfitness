@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import cache  # noqa: E402
 import catalog  # noqa: E402
 import check  # noqa: E402
+import coachpick  # noqa: E402
 
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
@@ -31,6 +32,10 @@ import cli  # noqa: E402
 import cloud  # noqa: E402
 import personas  # noqa: E402
 import context  # noqa: E402
+import store  # noqa: E402
+import sessionlog  # noqa: E402
+import health as health_md  # noqa: E402
+import frontmatter  # noqa: E402
 import coverage  # noqa: E402
 import draft  # noqa: E402
 import engines  # noqa: E402
@@ -60,12 +65,12 @@ def secs(pcm):
 
 def with_schema(text):
     """A context file's text as the current engine writes it, front matter first."""
-    return context.with_front_matter(text)
+    return store.with_front_matter(text)
 
 
 def profile_text(settings_toml, prose="# Profile\n"):
     """A schema-2 profile: TOML settings, then prose."""
-    return f"+++\nschema = {context.SCHEMA}\n{settings_toml}\n+++\n{prose}"
+    return f"+++\nschema = {store.SCHEMA}\n{settings_toml}\n+++\n{prose}"
 
 
 def write_file(path, text):
@@ -319,11 +324,11 @@ class Coverage(unittest.TestCase):
         os.remove(self.path)
 
     def test_reads_only_the_sessions_section(self):
-        log = context.sessions(self.path)
+        log = sessionlog.sessions(self.path)
         self.assertEqual([s.date for s in log], ["2026-10-19", "2026-10-20"])
 
     def test_patterns_and_gaps(self):
-        hit, unmapped = coverage.coverage(context.sessions(self.path)[-1].movements)
+        hit, unmapped = coverage.coverage(sessionlog.sessions(self.path)[-1].movements)
         self.assertIn("goblet squat", hit["squat"])
         self.assertIn("incline push-up", hit["horizontal-push"])
         self.assertEqual(hit["hinge"], [])
@@ -345,7 +350,7 @@ class Coverage(unittest.TestCase):
         self.assertEqual(unmapped, ["mystery move"])
 
     def test_week_counts_sessions_per_pattern(self):
-        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 21))
+        counts = coverage.week(sessionlog.sessions(self.path), dt.date(2026, 10, 21))
         self.assertEqual(counts["squat"], 2)
         self.assertEqual(counts["horizontal-push"], 1)
         self.assertEqual(counts["horizontal-pull"], 1)
@@ -353,7 +358,7 @@ class Coverage(unittest.TestCase):
         self.assertEqual(list(counts), catalog.load().patterns)
 
     def test_week_window_excludes_old_sessions(self):
-        counts = coverage.week(context.sessions(self.path), dt.date(2026, 10, 26))
+        counts = coverage.week(sessionlog.sessions(self.path), dt.date(2026, 10, 26))
         self.assertEqual(counts["horizontal-pull"], 0)   # the 19th is 7 days back: outside
         self.assertEqual(counts["horizontal-push"], 1)
 
@@ -511,19 +516,19 @@ class LogFields(unittest.TestCase):
         os.remove(self.path)
 
     def test_rpe_round_trips(self):
-        s = context.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "topics", rpe={"goblet squat": "7"})
+        s = sessionlog.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "topics", rpe={"goblet squat": "7"})
         line = s.to_line()
         self.assertIn("| rpe: goblet squat = 7", line)
-        self.assertEqual(context.parse_session(line).rpe, {"goblet squat": "7"})
-        self.assertEqual(context.parse_session(line.replace("= 7", "= 7 to 8")).rpe, {"goblet squat": "7 to 8"})
+        self.assertEqual(sessionlog.parse_session(line).rpe, {"goblet squat": "7"})
+        self.assertEqual(sessionlog.parse_session(line.replace("= 7", "= 7 to 8")).rpe, {"goblet squat": "7 to 8"})
 
     def test_rpe_rejects_separators(self):
         for bad in ("7; 8", "7 | 8"):
-            s = context.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "topics", rpe={"goblet squat": bad})
+            s = sessionlog.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "topics", rpe={"goblet squat": bad})
             self.assertTrue(s.problems(), bad)
 
     def test_format_and_loads(self):
-        e = context.sessions(self.path)
+        e = sessionlog.sessions(self.path)
         self.assertIsNone(e[0].format)
         self.assertEqual(e[0].loads, {})
         self.assertEqual(e[1].format, "circuits")
@@ -531,7 +536,7 @@ class LogFields(unittest.TestCase):
         self.assertEqual((e[1].date, e[1].minutes, e[1].movements), ("2026-10-20", 20, ["seated curl", "squat"]))
 
     def test_newest_load_wins(self):
-        loads = coverage.last_loads(context.sessions(self.path))   # by catalog name
+        loads = coverage.last_loads(sessionlog.sessions(self.path))   # by catalog name
         self.assertEqual(loads["seated dumbbell curl"], ("2026-10-21", "twenties"))
         self.assertEqual(loads["air squat"], ("2026-10-20", "bodyweight"))
 
@@ -1128,7 +1133,7 @@ class InProcessBuild(unittest.TestCase):
     def test_an_old_context_folder_stops_with_the_fix(self):
         prof = os.path.join(self.home, "profile.md")
         with open(prof, encoding="utf-8") as f:
-            write_file(prof, context.body(f.read()))
+            write_file(prof, frontmatter.body(f.read()))
         self.assertNotEqual(self.build(), 0)
         self.assertIn("./sweatcast migrate", self.said())
 
@@ -1234,13 +1239,13 @@ class SmallHardening(unittest.TestCase):
             self.assertEqual(paths.show("G:\\My Drive\\x.mp3"), "G:\\My Drive\\x.mp3")
 
     def test_the_readiness_facts_survive_a_missing_shell(self):
-        import doctor
-        doctor.facts.cache_clear()
+        import machine
+        machine.facts.cache_clear()
         try:
-            with mock.patch.object(doctor.subprocess, "run", side_effect=FileNotFoundError("sh")):
-                facts = doctor.facts()
+            with mock.patch.object(machine.subprocess, "run", side_effect=FileNotFoundError("sh")):
+                facts = machine.facts()
         finally:
-            doctor.facts.cache_clear()
+            machine.facts.cache_clear()
         self.assertEqual(facts.get("local"), "no")
         self.assertIn("couldn't run", facts.get("local_reason", ""))
 
@@ -1501,34 +1506,34 @@ value = "x\""""
         self.assertEqual(context.delivery_patterns(context.Profile({"deliver_to": []}, "")), [])
 
     def test_log_session_round_trip(self):
-        s = context.Session("2026-10-21", 25, "Home", "Chatterbox Coach", ["goblet squat", "seated row"],
+        s = sessionlog.Session("2026-10-21", 25, "Home", "Chatterbox Coach", ["goblet squat", "seated row"],
                             "deep dive: news, a story", "rolling minutes",
                             {"goblet squat": "twenties, three down"})
-        context.append_session(s, self.log)
-        context.append_session(context.Session("2026-10-22", 15, "Travel", "Qwen3 Coach", ["push-up"], "x"), self.log)
-        got = context.sessions(self.log)
+        sessionlog.append_session(s, self.log)
+        sessionlog.append_session(sessionlog.Session("2026-10-22", 15, "Travel", "Qwen3 Coach", ["push-up"], "x"), self.log)
+        got = sessionlog.sessions(self.log)
         self.assertEqual([(g.date, g.minutes, g.movements, g.format, g.loads) for g in got],
                          [("2026-10-21", 25, ["goblet squat", "seated row"], "rolling minutes",
                            {"goblet squat": "twenties, three down"}),
                           ("2026-10-22", 15, ["push-up"], None, {})])
         with open(self.log, encoding="utf-8") as f:
             text = f.read()
-        self.assertEqual(context.schema_of(text), context.SCHEMA)
+        self.assertEqual(store.schema_of(text), store.SCHEMA)
         self.assertIn("## Feedback\n- loved it", text)            # the rest of the file is untouched
         self.assertLess(text.index("2026-10-22"), text.index("## Feedback"))
 
     def test_bad_sessions_are_refused_on_write(self):
-        for bad in (context.Session("21 Oct", 25, "Home", "V", ["squat"], "t"),
-                    context.Session("2026-10-21", 25, "Home", "V", [], "t"),
-                    context.Session("2026-10-21", 25, "Home | Gym", "V", ["squat"], "t")):
+        for bad in (sessionlog.Session("21 Oct", 25, "Home", "V", ["squat"], "t"),
+                    sessionlog.Session("2026-10-21", 25, "Home", "V", [], "t"),
+                    sessionlog.Session("2026-10-21", 25, "Home | Gym", "V", ["squat"], "t")):
             with self.assertRaises(errors.PROBLEMS):
-                context.append_session(bad, self.log)
+                sessionlog.append_session(bad, self.log)
 
     def test_a_shifted_log_line_is_skipped_and_reported(self):
         write_file(self.log, with_schema("## Sessions\n- 2026-10-19 | 15 min | Home | squat, row | topics\n"
                                          "- 2026-10-20 | 20 min | Home | V | squat | topics | format: circuits\n"))
         with mock.patch("sys.stderr", new_callable=__import__("io").StringIO) as err:
-            got = context.sessions(self.log)
+            got = sessionlog.sessions(self.log)
         self.assertEqual([s.date for s in got], ["2026-10-20"])     # not read with its fields shifted
         self.assertIn("5 fields", err.getvalue())
         issues = check.check([self.profile, self.log])
@@ -1551,7 +1556,7 @@ value = "x\""""
         with self.assertRaises(errors.PROBLEMS) as e:
             context.profile(self.profile)
         self.assertIn("./sweatcast migrate", str(e.exception.code))
-        write_file(self.profile, f"+++\nschema = {context.SCHEMA + 1}\n+++\n" + self.PROSE)
+        write_file(self.profile, f"+++\nschema = {store.SCHEMA + 1}\n+++\n" + self.PROSE)
         with self.assertRaises(errors.PROBLEMS) as e:
             context.profile(self.profile)
         self.assertIn("newer", str(e.exception.code))
@@ -1595,7 +1600,7 @@ description = "crisp"
 
     def health_file(self, settings, prose=None):
         path = os.path.join(self.dir, "health.md")
-        write_file(path, f"+++\nschema = {context.SCHEMA}\n{settings}\n+++\n{prose or self.HEALTH}")
+        write_file(path, f"+++\nschema = {store.SCHEMA}\n{settings}\n+++\n{prose or self.HEALTH}")
         return path
 
     ROW = """[[limits]]
@@ -1609,32 +1614,32 @@ note = "Therapist: no weight through the hand."
     def test_profile_settings(self):
         write_file(os.path.join(self.dir, "profile.md"), profile_text(self.SETTINGS))
         p = context.profile(os.path.join(self.dir, "profile.md"))
-        self.assertEqual(context.SCHEMA, 6)
+        self.assertEqual(store.SCHEMA, 6)
         self.assertEqual(context.experience(p), "experienced")
         self.assertEqual(context.likes(p), ["goblet-squat"])
         self.assertEqual(context.dislikes(p), ["box-squat"])
         self.assertEqual(context.kits(p), {"garage": ["dumbbells", "mat"]})
         for settings in ('experience = ""', 'experience = "expert"', ""):
-            bare = context.Profile(context.front(profile_text(settings))[0], "")
+            bare = context.Profile(frontmatter.front(profile_text(settings))[0], "")
             self.assertIsNone(context.experience(bare))
             self.assertEqual((context.likes(bare), context.dislikes(bare), context.kits(bare)), ([], [], {}))
 
     def test_health_limits_and_clinician_lines(self):
-        h = context.health(self.health_file(self.ROW))
-        self.assertEqual(context.limits(h), [catalog.Limit("wrist", "right", "delicate", [], ["calf-raise"],
+        h = health_md.health(self.health_file(self.ROW))
+        self.assertEqual(health_md.limits(h), [catalog.Limit("wrist", "right", "delicate", [], ["calf-raise"],
                                                            "Therapist: no weight through the hand.")])
-        self.assertEqual(context.clinician_lines(h), ["wrist delicate right: Therapist: no weight through the hand.",
+        self.assertEqual(health_md.clinician_lines(h), ["wrist delicate right: Therapist: no weight through the hand.",
                                                       "No jumping until cleared."])
-        bare = context.health(self.health_file('[[limits]]\narea = "knee"\nlevel = "off-limits"\n'))
-        self.assertEqual(context.clinician_lines(bare), ["knee off-limits", "No jumping until cleared."])
-        self.assertEqual(context.limits(context.health(self.health_file(""))), [])
+        bare = health_md.health(self.health_file('[[limits]]\narea = "knee"\nlevel = "off-limits"\n'))
+        self.assertEqual(health_md.clinician_lines(bare), ["knee off-limits", "No jumping until cleared."])
+        self.assertEqual(health_md.limits(health_md.health(self.health_file(""))), [])
 
     def test_bad_limit_row_is_reported(self):
         bad = ('[[limits]]\narea = "elbowish"\nlevel = "delicate"\n\n[[limits]]\narea = "knee"\n'
                'side = "up"\nlevel = "off-limits"\n\n[[limits]]\narea = "knee"\nlevel = "sore"\n\n'
                '[[limits]]\narea = "knee"\nlevel = "off-limits"\n')
         path = self.health_file(bad)
-        got = context.limits(context.health(path))
+        got = health_md.limits(health_md.health(path))
         self.assertEqual([(l.area, l.side, l.level) for l in got], [("knee", "both", "off-limits")])
         msgs = [i.message for i in check.check([path]) if not i.note]
         self.assertEqual(len(msgs), 3, msgs)
@@ -1646,11 +1651,11 @@ note = "Therapist: no weight through the hand."
         for bad in ('flags = "floor"', 'rehab = "towel-scrunch"', 'flags = ["wobbly"]', 'rehab = [3]'):
             with self.subTest(bad=bad):
                 path = self.health_file(f'[[limits]]\narea = "knee"\nlevel = "off-limits"\n{bad}\n')
-                self.assertEqual(context.limits(context.health(path)), [])
+                self.assertEqual(health_md.limits(health_md.health(path)), [])
                 msgs = [i.message for i in check.check([path]) if not i.note]
                 self.assertTrue(any("[[limits]] row 1" in m and "ignored" in m for m in msgs), msgs)
         good = self.health_file('[[limits]]\narea = "knee"\nlevel = "off-limits"\nflags = ["floor"]\n')
-        self.assertEqual(context.limits(context.health(good))[0].flags, ["floor"])
+        self.assertEqual(health_md.limits(health_md.health(good))[0].flags, ["floor"])
 
     def test_non_rehab_id_in_rehab_is_an_issue(self):
         issues = check.check([self.health_file(self.ROW.replace('"calf-raise"', '"goblet-squat"'))])
@@ -1662,10 +1667,10 @@ note = "Therapist: no weight through the hand."
         for line in ("- Unlisted: invented jaw soreness.", "- unlisted: invented jaw soreness."):
             prose = self.HEALTH.replace("- Right wrist: invented strain.", line)
             path = self.health_file("", prose)
-            self.assertFalse(context.prose_injuries(context.health(path)), line)
+            self.assertFalse(health_md.prose_injuries(health_md.health(path)), line)
             self.assertFalse(any("have no [[limits]]" in i.message for i in check.check([path])))
         both = self.HEALTH.replace("- Right wrist: invented strain.", "- Unlisted: invented jaw.\n- Left knee: invented.")
-        self.assertTrue(context.prose_injuries(context.health(self.health_file("", both))))
+        self.assertTrue(health_md.prose_injuries(health_md.health(self.health_file("", both))))
 
     def test_rehab_ids_are_checked_as_notes(self):
         row = self.ROW.replace('"calf-raise"', '"no-such-move"')
@@ -1675,20 +1680,20 @@ note = "Therapist: no weight through the hand."
 
     def test_prose_injuries_without_limits_is_an_issue(self):
         path = self.health_file("")
-        h = context.health(path)
-        self.assertTrue(context.prose_injuries(h))
+        h = health_md.health(path)
+        self.assertTrue(health_md.prose_injuries(h))
         found = [i for i in check.check([path]) if "no rule" in i.message or "[[limits]]" in i.message]
         self.assertEqual(len(found), 1)
         self.assertFalse(found[0].note)
         self.assertIn("injuries written in prose have no [[limits]] entry", found[0].message)
-        with_row = context.health(self.health_file(self.ROW))
-        self.assertTrue(context.prose_injuries(with_row))
+        with_row = health_md.health(self.health_file(self.ROW))
+        self.assertTrue(health_md.prose_injuries(with_row))
         self.assertFalse(any("have no [[limits]]" in i.message for i in check.check([with_row.path])))
         none = self.HEALTH.replace("- Right wrist: invented strain.", "- None right now.")
-        self.assertFalse(context.prose_injuries(context.health(self.health_file("", none))))
+        self.assertFalse(health_md.prose_injuries(health_md.health(self.health_file("", none))))
         commented = self.HEALTH.replace("- Right wrist: invented strain.",
                                         "- None right now.\n<!-- e.g.\n- Right wrist: strain\n-->")
-        self.assertFalse(context.prose_injuries(context.health(self.health_file("", commented))))
+        self.assertFalse(health_md.prose_injuries(health_md.health(self.health_file("", commented))))
 
     def test_profile_check_notes(self):
         write_file(os.path.join(self.dir, "profile.md"), profile_text(
@@ -1735,7 +1740,7 @@ class MigrateFrom4(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "health.md")
             write_file(path, h)
-            got = context.limits(context.health(path))
+            got = health_md.limits(health_md.health(path))
         self.assertEqual(got, [catalog.Limit("wrist", "right", "off-limits", [], [], "")])
 
     def test_migrate_runs_through_the_command(self):
@@ -1760,11 +1765,11 @@ class MigrateFrom4(unittest.TestCase):
         hard = [i for i in issues if not i.note]
         self.assertTrue(all(os.path.basename(i.path) == "profile.md" and "isn't filled in yet" in i.message
                             for i in hard), hard)
-        h = context.health(os.path.join(paths.EXAMPLE, "health.md"))
-        self.assertEqual((context.limits(h), context.clinician_lines(h)), ([], []))
+        h = health_md.health(os.path.join(paths.EXAMPLE, "health.md"))
+        self.assertEqual((health_md.limits(h), health_md.clinician_lines(h)), ([], []))
         p = context.profile(os.path.join(paths.EXAMPLE, "profile.md"))
         self.assertEqual(context.kits(p), {"home": ["dumbbells", "band", "mat"]})
-        self.assertEqual(context.SCHEMA, 6)
+        self.assertEqual(store.SCHEMA, 6)
 
 
 class Wrapper(unittest.TestCase):
@@ -1796,7 +1801,7 @@ class Wrapper(unittest.TestCase):
             out = self.sweatcast("log-session", "--minutes", "10", "--kit", "Home", "--coach", "Coach Andy",
                                  "--movements", "squat", "--topics", "t", home=home)
             self.assertEqual(out.returncode, 0, out.stderr)
-            self.assertEqual(len(context.sessions(os.path.join(home, "log.md"))), 1)
+            self.assertEqual(len(sessionlog.sessions(os.path.join(home, "log.md"))), 1)
 
     def test_show_opens_a_files_folder(self):
         import player
@@ -2221,7 +2226,7 @@ class ContextRobustness(unittest.TestCase):
             self.assertTrue(any("doesn't close" in m for m in issues), issues)
             self.assertFalse(any("migrate" in m for m in issues), issues)
             with self.assertRaises(errors.PROBLEMS) as got:   # the tools stop with the same words
-                context.health(path)
+                health_md.health(path)
         self.assertIn("doesn't close", str(got.exception))
 
     def test_a_byte_order_mark_reads_fine(self):
@@ -2234,7 +2239,7 @@ class ContextRobustness(unittest.TestCase):
         with helpers.home(self.home):
             messages = [i.message for i in check.check([path])]
             self.assertEqual([m for m in messages if "schema" in m or "migrate" in m or "close" in m], [], messages)
-            self.assertEqual(context.schema_of(context.read_raw(path)), 6)
+            self.assertEqual(store.schema_of(store.read_raw(path)), 6)
             self.assertIsNotNone(context.profile(path))   # reads, BOM and all
 
     def test_an_unknown_setting_is_noted_with_a_hint(self):
@@ -2527,7 +2532,7 @@ class SkillsAndTemplate(unittest.TestCase):
             path = os.path.join(d, "health.md")
             write_file(path, "+++\nschema = 6\n+++\n# Health\n\n## Clinician rules\n- Rule: No deep knee bends.\n"
                              "- No pushing through wrist pain.\n- Rule: [what a doctor or physical therapist told you]\n")
-            self.assertEqual(context.clinician_lines(context.health(path)),
+            self.assertEqual(health_md.clinician_lines(health_md.health(path)),
                              ["No deep knee bends.", "No pushing through wrist pain."])
 
     def test_movements_default_to_the_profiles_level(self):
@@ -2569,7 +2574,7 @@ class BadKeyPredicates(unittest.TestCase):
         ok, reason = routes.usable("fish")
         self.assertFalse(ok)
         self.assertIn("FISH_AUDIO_API_KEY", reason)
-        self.assertEqual(personas.default().name, "Coach Owen")   # the keyed service's stand-in, Fish set aside
+        self.assertEqual(coachpick.default().name, "Coach Owen")   # the keyed service's stand-in, Fish set aside
         import coaches
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -2578,10 +2583,9 @@ class BadKeyPredicates(unittest.TestCase):
 
     def test_a_web_coach_on_the_bad_key_stops_with_the_variable(self):
         import keys
-        import routes
         reed = personas.lookup("Coach Reed")
         with self.assertRaises(keys.BadKey) as got:
-            routes.pick(["local"], reed)
+            coachpick.pick(["local"], reed)
         self.assertIn("FISH_AUDIO_API_KEY", str(got.exception))
         self.assertEqual(got.exception.exit_code, cli.SERVICE)
 

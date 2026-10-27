@@ -22,6 +22,8 @@ catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file
 import cli  # noqa: E402
 import content  # noqa: E402
 import context  # noqa: E402
+import sessionlog  # noqa: E402
+import records  # noqa: E402
 import coverage  # noqa: E402
 import draft  # noqa: E402
 import helpers  # noqa: E402
@@ -63,15 +65,15 @@ class LogSession(unittest.TestCase):
 
     def test_web_builds_counts_every_build_that_sent_a_script(self):
         """get web-builds: what the privacy line before the first web build reads; a failed web render sent text too."""
-        self.assertEqual(context.web_builds(self.builds), 0)                 # no file yet
+        self.assertEqual(records.web_builds(self.builds), 0)                 # no file yet
         self.record(route="local")
         self.record()                                                         # an old record, before routes
-        self.assertEqual(context.web_builds(self.builds), 0)
+        self.assertEqual(records.web_builds(self.builds), 0)
         self.record(route="fish", failed=True)
         with open(self.builds, "a", encoding="utf-8") as f:
             f.write("not json\n")
         self.record(route="gemini")
-        self.assertEqual(context.web_builds(self.builds), 2)
+        self.assertEqual(records.web_builds(self.builds), 2)
         out = io.StringIO()
         with helpers.home(self.home), contextlib.redirect_stdout(out):
             self.assertEqual(context.main(["get", "web-builds"]), cli.OK)
@@ -98,7 +100,7 @@ class LogSession(unittest.TestCase):
         self.assertEqual(code, cli.OK)
         self.assertIn("- 2026-10-25 | 5 min | custom: dumbbells, mat | Chatterbox Coach | goblet squat, dead bug", out)
         with helpers.home(self.home):
-            last = context.sessions()[-1]
+            last = sessionlog.sessions()[-1]
         self.assertEqual((last.kit, last.format), ("custom: dumbbells, mat", "circuit"))
 
     def test_a_kit_or_a_preset_is_logged_by_its_name(self):
@@ -162,14 +164,14 @@ class LogSession(unittest.TestCase):
         self.record(voice="Coach Julius", build_id="abc123def456")
         self.record(event="delivered", build_id="evt333333333")                   # an outcome line, not a build
         sha = hashlib.sha256(TEXT.encode("utf-8")).hexdigest()
-        self.assertEqual(context.latest_build(sha, self.builds)["build_id"], "abc123def456")
-        self.assertIsNone(context.latest_build("0" * 64, self.builds))
+        self.assertEqual(records.latest_build(sha, self.builds)["build_id"], "abc123def456")
+        self.assertIsNone(records.latest_build("0" * 64, self.builds))
         code, out = self.logged()   # no --coach: the build's coach
         self.assertEqual(code, cli.OK)
         self.assertIn("| Coach Julius |", out)
         self.assertTrue(out.rstrip().endswith("| build: abc123def456"), out)
         with helpers.home(self.home):
-            last = context.sessions()[-1]
+            last = sessionlog.sessions()[-1]
         self.assertEqual((last.voice, last.build_id), ("Coach Julius", "abc123def456"))
 
     def test_a_coach_that_disagrees_with_the_build_is_refused(self):
@@ -191,11 +193,11 @@ class LogSession(unittest.TestCase):
 
     def test_a_line_without_a_build_still_reads(self):
         line = "- 2026-10-21 | 20 min | Home | Coach Julius | goblet squat | t | format: circuit"
-        s = context.parse_session(line)
-        self.assertIsInstance(s, context.Session)
+        s = sessionlog.parse_session(line)
+        self.assertIsInstance(s, sessionlog.Session)
         self.assertIsNone(s.build_id)
-        self.assertEqual(context.parse_session(line + " | build: abc123def456").build_id, "abc123def456")
-        bad = context.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "t", build_id="a|b")
+        self.assertEqual(sessionlog.parse_session(line + " | build: abc123def456").build_id, "abc123def456")
+        bad = sessionlog.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "t", build_id="a|b")
         self.assertTrue(bad.problems())
 
     def test_without_a_draft_the_coach_is_typed(self):
@@ -213,9 +215,9 @@ class LogSession(unittest.TestCase):
 
 class Loads(unittest.TestCase):
     def test_last_loads_merge_spellings_of_one_movement(self):
-        log = [context.Session("2026-10-20", 20, "home", "V", ["goblet squat"], "t", loads={"Goblet squat": "15s"}),
-               context.Session("2026-10-22", 20, "home", "V", ["goblet squats"], "t", loads={"goblet squats": "20s"}),
-               context.Session("2026-10-23", 20, "home", "V", ["wall angel thing"], "t", loads={"Wall angel thing": "x"})]
+        log = [sessionlog.Session("2026-10-20", 20, "home", "V", ["goblet squat"], "t", loads={"Goblet squat": "15s"}),
+               sessionlog.Session("2026-10-22", 20, "home", "V", ["goblet squats"], "t", loads={"goblet squats": "20s"}),
+               sessionlog.Session("2026-10-23", 20, "home", "V", ["wall angel thing"], "t", loads={"Wall angel thing": "x"})]
         self.assertEqual(coverage.last_loads(log), {"goblet squat": ("2026-10-22", "20s"),
                                                     "Wall angel thing": ("2026-10-23", "x")})
 

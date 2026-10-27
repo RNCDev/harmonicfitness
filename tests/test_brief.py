@@ -20,6 +20,7 @@ import catalog  # noqa: E402
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import context  # noqa: E402
+import health as health_md  # noqa: E402
 import draft  # noqa: E402
 import menu  # noqa: E402
 
@@ -109,7 +110,7 @@ class Brief(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         listed = ids_in(menu_section(r.stdout))
         sel = catalog.select(cat, catalog.kit_equipment(cat, {"preset": "hotel-gym"}), "experienced",
-                             context.limits(context.health(os.path.join(LISTENER, "health.md")))
+                             health_md.limits(health_md.health(os.path.join(LISTENER, "health.md")))
                              + [catalog.Limit("knee", "both", "off-limits", [], [], "")],
                              dislikes={"push-up"})
         self.assertEqual(listed, {m.id for m in sel.allowed + sel.healthy_side_only})

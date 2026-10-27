@@ -2,39 +2,20 @@
 
 tools/doctor.sh describes the computer (and runs before any environment exists); this adds
 the voice models on disk, the context folder, the delivery folders and ffmpeg's abilities.
-Other tools read the computer's facts through facts(), so the shell script stays the one
+Other tools read the computer's facts through machine.facts(), so the shell script stays the one
 place that decides what this computer can do.
 
     ./sweatcast doctor        # runs doctor.sh, which runs this once the environment exists
 """
-import functools
 import glob
 import os
-import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
 import paths  # noqa: E402
-
-DOCTOR_SH = os.path.join(paths.ROOT, "tools", "doctor.sh")
-
-
-@functools.lru_cache(maxsize=1)
-def facts():
-    """The computer's facts, from `sh tools/doctor.sh --facts`, read once per process."""
-    try:
-        out = subprocess.run(["sh", DOCTOR_SH, "--facts"], capture_output=True, text=True, timeout=60)
-    except (OSError, subprocess.TimeoutExpired) as e:   # no sh here (Python started outside Git Bash), or a hang
-        return {"local": "no", "local_reason": f"the readiness check (tools/doctor.sh) couldn't run here ({e}); "
-                                                "run ./sweatcast doctor from Git Bash or a terminal"}
-    return dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line)
-
-
-def hub_dir():
-    """Where the local voice models are (models/, which tools/paths.py points Hugging Face at)."""
-    return paths.MODELS
+from machine import facts, hub_dir  # noqa: E402  (the computer's facts: tools/machine.py)
 
 
 def _model_lines():
@@ -54,14 +35,15 @@ def _model_lines():
 
 def _context_lines(home):
     import context
+    import store
     profile = os.path.join(home, "profile.md")
     if not os.path.exists(profile):
         return [f"  {paths.show(home)}: not made yet (./sweatcast setup copies it from me.example/)"]
     with open(profile, encoding="utf-8") as f:
-        found = context.schema_of(f.read())
+        found = store.schema_of(f.read())
     lines = [f"  {paths.show(home)}: there, schema {found}"
-             + ("" if found == context.SCHEMA else f" (this engine reads {context.SCHEMA}: ./sweatcast migrate)")]
-    if found != context.SCHEMA:
+             + ("" if found == store.SCHEMA else f" (this engine reads {store.SCHEMA}: ./sweatcast migrate)")]
+    if found != store.SCHEMA:
         return lines
     p = context.profile(profile)
     for pattern in context.delivery_patterns(p):
@@ -175,18 +157,18 @@ SPEECH_SHARE = 0.75   # about how much of a 30-minute workout is speech (an appr
 
 
 def _route_lines(f, home):
+    import coachpick
     import context
     import personas
-    import routes
     import voices
     if os.path.abspath(home) != os.path.abspath(paths.HOME) or not os.path.exists(paths.PROFILE):
         return ["  (checked once the context folder is set up)"]
     p = context.profile()
     try:
-        coach, archived = personas.default(), None
+        coach, archived = coachpick.default(), None
     except errors.PROBLEMS as e:   # the coach used last is archived: report it, and the routes for no coach
         coach, archived = None, str(e.code)
-    lines = routes.report_lines(coach, context.routes(p), f)
+    lines = coachpick.report_lines(coach, context.routes(p), f)
     if archived:
         lines.append(f"  {archived}")
     if coach is None and not archived:

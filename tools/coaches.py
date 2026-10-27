@@ -38,6 +38,7 @@ import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import coachpick  # noqa: E402
 import errors  # noqa: E402
 import cloud  # noqa: E402
 import context  # noqa: E402
@@ -452,7 +453,7 @@ def keep_web(ref, name, replace_old=False, report=say):
     if existing is not None and existing.voice_id:
         models = list(cloud.services()[service].get("models") or {}) + [existing.model or ""]
         for model in dict.fromkeys(m for m in models if m):
-            voices.forget_pace(existing.pace_file, personas.web_key(existing, model))
+            voices.forget_pace(existing.pace_file, cloud.web_key(existing, model))
     _estimate(coach, service, wav, c["text"])
     fileio.atomic_write(coach.path, context.persona_text(settings, prose))   # last: all or nothing
 
@@ -656,7 +657,7 @@ def main(argv=None):
 
     if args.cmd == "last":
         try:
-            p = personas.default()
+            p = coachpick.default()
         except errors.PROBLEMS as e:   # the coach used last is archived
             print(e.code, file=sys.stderr)
             return cli.ISSUES
@@ -666,11 +667,10 @@ def main(argv=None):
         print(p.name)
         return cli.OK
     if args.cmd == "measured":
-        import routes
         p = personas.lookup(args.coach)
         if p.is_web:   # a web coach needs no smoke test (made or pending): an estimate stands until its first render
             return cli.OK
-        route = routes.pick(context.render_preferences(), p, override=args.engine)
+        route = coachpick.pick(context.render_preferences(), p, override=args.engine)
         v = personas.voice_for(p, route)
         return cli.OK if voices.pace(v)[1] else cli.ISSUES
     if args.cmd == "audition":
@@ -721,7 +721,7 @@ def main(argv=None):
         voices.download()
         return cli.OK
     try:
-        last, archived = personas.default(), None
+        last, archived = coachpick.default(), None
     except errors.PROBLEMS as e:   # the coach used last is archived: list them all, and say so
         last, archived = None, str(e.code)
     found = personas.all()

@@ -323,14 +323,13 @@ def resolve_voice(opts):
     """(coach, route) for the build: the coach named, else the one used last (context.py stops here, with the
     fix, if the context folder needs migrating); the route the coach's own service, else --engine, else the
     first in the profile's render list that works here. Resolved once, for the lint and the render alike."""
+    import coachpick
     import context
-    import personas
-    import routes
-    coach = personas.lookup(opts.coach) if opts.coach else personas.default()
+    coach = coachpick.coach(opts.coach)
     if coach is None:
         raise errors.CoachError("No coach found: the ten local coaches ship in coaches/ (git pull), and a web coach "
                                 "comes from the coach skill.")
-    return coach, routes.pick(context.render_preferences(), coach, override=opts.engine)
+    return coach, coachpick.pick(context.render_preferences(), coach, override=opts.engine)
 
 
 def gate(segments, voice, opts, text, smoke):

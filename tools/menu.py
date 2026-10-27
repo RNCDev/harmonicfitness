@@ -119,22 +119,23 @@ def rescreen(cat: catalog.Catalog, menu: dict, health_path: Optional[str] = None
     tighten them. What it trusts: the request's own fields (goal, minutes, kit, preset, equipment, add,
     level, target, its added limits and avoids) as the brief wrote them; it shows the movements follow from
     the request, not that the request is the one the listener made."""
-    import context   # lazily: context imports menu for log-session
+    import context
     import errors
+    import health
     import screen
     import sessions
     req = menu["request"]
     path = health_path or paths.HEALTH
     try:
-        health = context.health(path)
-        own = {f"{lim.area}={lim.level}:{lim.side}" for lim in context.limits(health, cat.areas, cat.flags)}
+        h = health.health(path)
+        own = {f"{lim.area}={lim.level}:{lim.side}" for lim in health.limits(h, cat.areas, cat.flags)}
         request = {k: req[k] for k in ("goal", "minutes", "kit", "preset", "equipment", "add", "level", "target")
                    if k in req}
         # health.md's own rows were saved into the request's limits too; they're read again from the file
         # (with their rehab exemptions), so only the ones the request added are taken from the menu
         request["limits"] = [screen.parse_limit(s, cat) for s in req.get("limits") or [] if s not in own]
         request["avoid"] = set(req.get("avoid") or ())
-        scr = screen.screen(request, cat, sessions.load().goals, context.profile(), health)
+        scr = screen.screen(request, cat, sessions.load().goals, context.profile(), h)
     except (ValueError, TypeError, screen.Unfit, errors.ContextError) as e:
         return [f"the menu's request can't be screened again ({e}): rerun ./sweatcast brief ... --save "
                 "<the draft's path>"]

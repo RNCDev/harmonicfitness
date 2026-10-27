@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 import cli  # noqa: E402
 import cloud  # noqa: E402
+import coachpick  # noqa: E402
 import personas  # noqa: E402
 import helpers  # noqa: E402
 import errors  # noqa: E402
@@ -380,7 +381,7 @@ class WebVoice(unittest.TestCase):
                           "route": "inworld", "service": "inworld", "model": "inworld-tts-2",
                           "voice_id": VOICE_IDS["inworld"], "style": "", "revision": None, "generate": {},
                           "concurrency": 5, "max_chars": 2000})
-        self.assertEqual(v["key"], personas.web_key(p, "inworld-tts-2"))
+        self.assertEqual(v["key"], cloud.web_key(p, "inworld-tts-2"))
         self.assertEqual((v["persona_dir"], v["pace_file"]), (p.folder, p.pace_file))
         self.assertNotIn("ref_audio", v)
         self.assertEqual(cloud.voice_for(p, "inworld"), v)
@@ -398,8 +399,8 @@ class WebVoice(unittest.TestCase):
         p = personas.lookup("Coach Ellis")
         v = personas.voice_for(p, "elevenlabs")
         self.assertEqual(v["model"], "eleven_v4_turbo")
-        self.assertEqual(v["key"], personas.web_key(p, "eleven_v4_turbo"))
-        self.assertNotEqual(v["key"], personas.web_key(p, "eleven_v4"))
+        self.assertEqual(v["key"], cloud.web_key(p, "eleven_v4_turbo"))
+        self.assertNotEqual(v["key"], cloud.web_key(p, "eleven_v4"))
 
     def test_a_web_coach_with_no_voice_yet_stops(self):
         import context
@@ -902,13 +903,13 @@ class UnreadableAnswers(unittest.TestCase):
 # own process with the key in the environment: the draft, the coach, the output.
 RENDER = """import hashlib, sys
 sys.path.insert(0, sys.argv[1])
-import cli, context, draft, personas, render, routes
+import cli, coachpick, context, draft, personas, render
 path, coach, out = sys.argv[2:5]
 def main():
     with open(path, encoding="utf-8") as f:
         text = f.read()
     p = personas.lookup(coach)
-    voice = personas.voice_for(p, routes.pick(context.render_preferences(), p))
+    voice = personas.voice_for(p, coachpick.pick(context.render_preferences(), p))
     render.run(draft.parse(text), voice, out, path, hashlib.sha256(text.encode("utf-8")).hexdigest())
 sys.exit(cli.run(main))
 """
@@ -1015,9 +1016,9 @@ class CloudRender(unittest.TestCase):
                         mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.home, ".env")), \
                         mock.patch.dict(os.environ, {var: SECRET}), \
                         mock.patch.object(render, "check_pace_file"):
-                    a = render.prepare_voice(personas.resolve(COACHES[service], None))[1]("Hello.")
+                    a = render.prepare_voice(coachpick.resolve(COACHES[service], None))[1]("Hello.")
                     with mock.patch.dict(os.environ, {var: "another-key"}):
-                        b = render.prepare_voice(personas.resolve(COACHES[service], None))[1]("Hello.")
+                        b = render.prepare_voice(coachpick.resolve(COACHES[service], None))[1]("Hello.")
                 self.assertEqual(a, b)
 
     @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")

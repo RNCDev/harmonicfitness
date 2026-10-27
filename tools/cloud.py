@@ -19,6 +19,7 @@ import base64
 import binascii
 import contextvars
 import functools
+import hashlib
 import http.client
 import importlib
 import json
@@ -35,6 +36,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import keys  # noqa: E402
+import voice  # noqa: E402
 from redact import scrub  # noqa: E402,F401  (cloud.scrub, as before: it lives in the leaf module redact.py)
 from services import estimate, rate  # noqa: E402,F401  (they read only services.toml)
 
@@ -401,12 +403,18 @@ def ffmpeg_pcm(data, what="The audio"):
 VOICE_ID = re.compile(r"[A-Za-z0-9_.:-]{1,128}")   # what every service hands back
 
 
+def web_key(p, model):
+    """A web coach's identity in every pace and cache key: its service, voice, `model`, style and settings."""
+    settings = json.dumps(p.table("settings"), sort_keys=True)
+    raw = f"{p.service or ''}|{p.voice_id or ''}|{model}|{p.style}|{settings}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+
 def voice_for(p, route=None, pending=False):
     """The voice dict for web coach `p`: its saved voice on its own service (`route` is ignored; a web coach
     speaks only through the service that made it). No key in it, and no clip: the service holds the voice.
     With `pending`, a coach still to be made (no voice yet) gets a voice dict with no voice ID, for the
     lint's and the brief's estimated pace only; nothing renders from it."""
-    import personas
     if not p.is_web:
         raise errors.CoachError(f"{p.name} is a local coach: a local coach renders only locally.")
     service = p.service
@@ -421,11 +429,11 @@ def voice_for(p, route=None, pending=False):
                                 "(letters, digits and _ . : - only): copy it again from the service.")
     s = services()[service]
     model = p.model or s["default_model"]
-    return {"name": p.name, "persona": p.slug, "persona_dir": p.folder, "engine": service, "backend": "cloud",
-            "route": service, "service": service, "model": model, "voice_id": p.voice_id, "style": p.style,
-            "revision": None, "generate": {}, "pace_file": p.pace_file,
-            "concurrency": int(s.get("concurrency") or 1), "max_chars": int(s.get("max_chars") or 0),
-            "key": personas.web_key(p, model)}
+    return voice.WebVoice(
+        name=p.name, persona=p.slug, persona_dir=p.folder, engine=service, backend="cloud", route=service,
+        service=service, model=model, voice_id=p.voice_id, style=p.style, revision=None, generate={},
+        pace_file=p.pace_file, concurrency=int(s.get("concurrency") or 1), max_chars=int(s.get("max_chars") or 0),
+        key=web_key(p, model)).as_dict()
 
 
 def service_module(name):

@@ -8,7 +8,8 @@ in this computer's me/.env (never synced).
 
 The coach decides first. A web coach (kind = "web") speaks only through the service that designed its
 voice, whatever the render list says, and stops with WebCoachUnavailable when that service has no key
-here. A local coach renders only on the local route.
+here. A local coach renders only on the local route. This module says what works here; coachpick.pick
+makes the choice.
 
     ./sweatcast get route [--coach "Coach Julius"]    # the route a build would take here
 """
@@ -20,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import cloud  # noqa: E402
 import keys  # noqa: E402
+import machine  # noqa: E402
 import paths  # noqa: E402
 
 ROUTES, SERVICES = cloud.ROUTES, cloud.SERVICES   # knowledge/services.toml, plus "local"
@@ -30,9 +32,8 @@ class WebCoachUnavailable(errors.UsageError):
     service. `get route` and `build` exit 64 on it."""
 
 
-
-
-def _missing_key(persona):
+def missing_key(persona):
+    """Why web coach `persona` can't speak here, and the one thing to do: its service's key."""
     var = keys.SERVICE_VARS[persona.service]
     name = cloud.service_name(persona.service)
     if paths.REMOTE:
@@ -54,11 +55,9 @@ def local_installed():
         return False
 
 
-def _facts(facts):
-    if facts is not None:
-        return facts
-    import doctor
-    return doctor.facts()
+def computer(facts=None):
+    """`facts` when given (the tests), else this computer's (machine.facts, the readiness check's)."""
+    return facts if facts is not None else machine.facts()
 
 
 def usable(route, persona=None, facts=None):
@@ -68,7 +67,7 @@ def usable(route, persona=None, facts=None):
     if route == "local":
         if persona is not None and persona.is_web:
             return False, f"local: {persona.name} is a web coach, which speaks only through {persona.service}."
-        f = _facts(facts)
+        f = computer(facts)
         installed = local_installed()
         if f.get("local") == "no" and not (installed and f.get("local_hw") in ("fast", "experimental")):
             return False, f"local: {f.get('local_reason') or 'local voices do not run on this computer.'}"
@@ -93,48 +92,9 @@ def usable(route, persona=None, facts=None):
 
 
 def pick(preferences, persona=None, override=None, facts=None):
-    """The route a build takes: a web coach's own service (whatever the render list, and only if keyed here);
-    else `override` (--engine) if it works here; else the first usable preference."""
-    if persona is not None and persona.is_web:
-        if not persona.service or persona.service not in SERVICES:
-            raise WebCoachUnavailable(f"{persona.name} is a web coach with no known service "
-                                      f"({persona.service or 'none'}); the services are {', '.join(SERVICES)}.")
-        if override and override != persona.service:
-            raise WebCoachUnavailable(
-                f"{persona.name} speaks through {cloud.service_name(persona.service)} only, so --engine {override} "
-                f"can't render them here.")
-        if not keys.get(persona.service):   # a key that can't be read raises BadKey here: this coach needs it
-            raise WebCoachUnavailable(_missing_key(persona))
-        return persona.service
-    if override:
-        ok, reason = usable(override, persona, facts)
-        if not ok:
-            raise (errors.UsageError if override not in ROUTES else errors.RouteUnavailable)(f"Can't render with {override} here: {reason}")
-        return override
-    known = []
-    for route in preferences or ["local"]:
-        if route not in ROUTES:
-            print(f"Skipped '{route}' in the profile's render list: not a route ({', '.join(ROUTES)}).",
-                  file=sys.stderr)
-        else:
-            known.append(route)
-    if persona is not None and not persona.is_web:   # a local coach renders locally, whatever the list says
-        ok, reason = usable("local", persona, facts)
-        if ok:
-            return "local"
-        lines = [reason]
-        if persona.has_clip and _facts(facts).get("local") == "no":   # name the way to a coach that speaks here
-            lines.append(f"{persona.name} is a local coach, and local voices don't run here. The way out: "
-                         + way_out())
-        raise errors.RouteUnavailable(f"No audio route works on this computer for {persona.name}:\n  " + "\n  ".join(lines))
-    reasons = []
-    for route in known or ["local"]:
-        ok, reason = usable(route, persona, facts)
-        if ok:
-            return route
-        reasons.append(reason)
-    raise errors.RouteUnavailable("No audio route works on this computer:\n  " + "\n  ".join(
-        reasons + ["The way out: " + way_out()]))
+    """The route a build takes: coachpick.pick, kept here until the next minor release."""
+    import coachpick
+    return coachpick.pick(preferences, persona, override, facts)
 
 
 def stand_ins():
@@ -165,7 +125,6 @@ def hosts(route):
     """The hosts a cloud route sends to, for a network allowlist (Claude Code on the web)."""
     if route not in SERVICES:
         return []
-    import cloud
     from urllib.parse import urlparse
     return [urlparse(cloud.services()[route]["url"]).hostname]
 
@@ -181,24 +140,4 @@ def feed_hosts(profile=None):
                 host = urlparse(value).hostname
                 if host and host not in out:
                     out.append(host)
-    return out
-
-
-def report_lines(persona=None, preferences=None, facts=None):
-    """The readiness check's Routes section."""
-    out = []
-    for route in ROUTES:
-        # a service line says whether its key is here; which coach speaks where shows in the last line
-        ok, reason = usable(route, persona if route == "local" else None, facts)
-        label = "works here" if ok else reason.split(": ", 1)[-1]
-        if route in SERVICES:
-            import cloud
-            if not cloud.services()[route].get("tried_live"):
-                label += " (not yet tried live)"
-        out.append(f"  {route:10} {label}")
-    try:
-        out.append(f"  A build here would use: {pick(preferences, persona, facts=facts)}"
-                   + (f" (for {persona.name})" if persona else ""))
-    except errors.PROBLEMS:
-        out.append("  A build here would find no route that works (see above).")
     return out

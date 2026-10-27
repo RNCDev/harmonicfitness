@@ -26,6 +26,9 @@ import catalog  # noqa: E402
 import cli  # noqa: E402
 import errors  # noqa: E402
 import context  # noqa: E402
+import sessionlog  # noqa: E402
+import health  # noqa: E402
+import frontmatter  # noqa: E402
 import coverage  # noqa: E402
 import draft  # noqa: E402
 import menu  # noqa: E402
@@ -174,15 +177,15 @@ def _week_lines(cat: catalog.Catalog, log, today: datetime.date, feedback: List[
 def _profile_lines(profile) -> List[str]:
     out = []
     for heading in PROFILE_SECTIONS:
-        for _, line in context.section(profile.body, heading):
+        for _, line in frontmatter.section(profile.body, heading):
             item = line.strip()
             key, _, value = item[2:].partition(":") if item.startswith("- ") else ("", "", "")
-            if key and value.strip() and not context.placeholder(value.strip()):
+            if key and value.strip() and not frontmatter.placeholder(value.strip()):
                 out.append(f"- {key.strip()}: {value.strip()}")
     return out
 
 
-def _limit_lines(cat: catalog.Catalog, scr, health, request: dict) -> List[str]:
+def _limit_lines(cat: catalog.Catalog, scr, h, request: dict) -> List[str]:
     playbook = _sections(_read(PLAYBOOK))
     today = list(request.get("limits") or [])
     own = [lim for lim in scr.limits if lim not in today]
@@ -194,7 +197,7 @@ def _limit_lines(cat: catalog.Catalog, scr, health, request: dict) -> List[str]:
         out.append(f"- **{lim.area} {lim.level}{side}**{when}: {catalog.meaning(lim.area, lim.level, lim.side)}.{note}")
     if not out:
         out.append("- No limits today.")
-    rules = context.clinician_lines(health, cat.areas, cat.flags)[len(context.limits(health, cat.areas, cat.flags)):]
+    rules = health.clinician_lines(h, cat.areas, cat.flags)[len(health.limits(h, cat.areas, cat.flags)):]
     if rules:
         out += ["", "Clinician rules (say them in the clinician's words, attributed to the clinician; follow "
                 "them literally, and where one is stricter than the general stop rule, such as no pushing "
@@ -301,9 +304,9 @@ def _kit_words(request: dict, equipment) -> str:
 
 
 def _coach(name):
-    import personas
+    import coachpick
     try:
-        return personas.lookup(name) if name else personas.default()
+        return coachpick.coach(name)
     except errors.PROBLEMS:
         return None
 
@@ -312,9 +315,10 @@ def talk_rate(voice_name: str):
     """(words a minute, measured?) for a coach speaking the smoke test's coaching on the route a build
     would take here, or None for an unknown coach (or one with no route here). Spoken words only: holds,
     pauses and chimes take their own seconds."""
+    import coachpick
     import personas
     try:
-        voice = personas.resolve(voice_name, pending=True)
+        voice = coachpick.resolve(voice_name, pending=True)
     except errors.PROBLEMS:   # no route works here (yet): the coach's local pace is still the best guess
         coach = _coach(voice_name)
         try:
@@ -340,13 +344,13 @@ def _coach_lines(name) -> List[str]:
     for key, value in coach.character.items():
         text = "; ".join(str(v).strip() for v in value if str(v).strip()) if isinstance(value, list) \
             else str(value).strip()
-        if text and not context.placeholder(text):
+        if text and not frontmatter.placeholder(text):
             label = key.replace("_", " ").strip()
             out.append(f"- {label[:1].upper() + label[1:]}: {text}")
     for line in coach.prose.splitlines():
         item = line.strip()
         key, _, value = item[2:].partition(":") if item.startswith("- ") else ("", "", "")
-        if key and value.strip() and not context.placeholder(value.strip()):
+        if key and value.strip() and not frontmatter.placeholder(value.strip()):
             out.append(f"- {key.strip()}: {value.strip()}")
     return out
 
@@ -490,8 +494,8 @@ def main():
             request["equipment"] = catalog.equipment_keys(cat, screen.words(args.equipment))
         today = args.today or datetime.date.today()
         profile = context.profile()
-        lines, record = build(request, cat, sessions.load(), profile, context.health(),
-                              context.sessions(args.log), today, context.feedback(args.log),
+        lines, record = build(request, cat, sessions.load(), profile, health.health(),
+                              sessionlog.sessions(args.log), today, context.feedback(args.log),
                               voice=args.voice)
     except ValueError as e:   # an unknown goal, kit, level or flag value; screen.Unfit exits 1 through cli.run
         raise cli.Usage(f"sweatcast brief: {e}")

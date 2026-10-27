@@ -15,6 +15,7 @@ from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import context  # noqa: E402
+import health  # noqa: E402
 import paths  # noqa: E402
 
 LIMIT_SIDES, LIMIT_LEVELS = catalog.LIMIT_SIDES, catalog.LIMIT_LEVELS
@@ -65,9 +66,9 @@ def ids(cat: catalog.Catalog, names: List[str]) -> Set[str]:
     return {m.id for m in found if m}
 
 
-def screen(request: dict, cat: catalog.Catalog, goals, profile, health) -> Screen:
+def screen(request: dict, cat: catalog.Catalog, goals, profile, h) -> Screen:
     """Check `request` (goal, minutes, and one of kit, preset or equipment; optionally level, target,
-    limits, avoid) and select the movements its kit, level and limits allow, with health.md's
+    limits, avoid) and select the movements its kit, level and limits allow, with health.md's (`h`)
     [[limits]] rows and clinician Avoid: lines applied. ValueError names an unknown value; Unfit says
     a [[limits]] row can't be read, since a dropped row protects nothing."""
     goal, minutes = request.get("goal"), request.get("minutes")
@@ -92,23 +93,23 @@ def screen(request: dict, cat: catalog.Catalog, goals, profile, health) -> Scree
             raise ValueError(f"unknown area \"{lim.area}\" (choose from: {', '.join(cat.areas)})")
         if lim.level not in LIMIT_LEVELS or lim.side not in LIMIT_SIDES:
             raise ValueError(f"a limit needs a level ({', '.join(LIMIT_LEVELS)}) and a side ({', '.join(LIMIT_SIDES)})")
-    own, problems = context.limit_rows(health, cat.areas, cat.flags)
+    own, problems = health.limit_rows(h, cat.areas, cat.flags)
     if problems:   # a dropped row protects nothing
         raise Unfit(f"health.md: a [[limits]] row was ignored ({problems[0]}; run ./sweatcast check)")
-    gap = context.prose_injury_gap(health, len(own))
+    gap = health.prose_injury_gap(h, len(own))
     if gap:
         warnings.append(f"health.md: {gap}")
     limits = own + list(request.get("limits") or [])
     likes, dislikes = ids(cat, context.likes(profile)), ids(cat, context.dislikes(profile))
     avoid = set(request.get("avoid") or ())
     try:   # the clinician's Avoid: lines apply on every run; one that rules nothing out protects nothing
-        avoid |= catalog.avoid_set(cat, context.clinician_avoids(health))
+        avoid |= catalog.avoid_set(cat, health.clinician_avoids(h))
     except ValueError as e:
         raise Unfit(f"health.md, an Avoid: line under Clinician rules: {e} (run ./sweatcast check)")
     try:
         sel = catalog.select(cat, equipment, level, limits, avoid=avoid, dislikes=dislikes)
     except ValueError as e:   # request limits are checked above, so this is a row in health.md
-        raise Unfit(f"{paths.show(health.path or paths.HEALTH)}: {e}; fix the [[limits]] row")
+        raise Unfit(f"{paths.show(h.path or paths.HEALTH)}: {e}; fix the [[limits]] row")
     return Screen(equipment, level, limits, sel, likes, dislikes, avoid, warnings)
 
 

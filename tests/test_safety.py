@@ -17,6 +17,8 @@ import catalog  # noqa: E402
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import check  # noqa: E402
 import context  # noqa: E402
+import health as health_md  # noqa: E402
+import logsession  # noqa: E402
 import draft  # noqa: E402
 import errors  # noqa: E402
 import helpers  # noqa: E402
@@ -140,7 +142,7 @@ def health(settings="", injuries="- None right now.", rules="- Rule: [what a doc
 def screen_with(path):
     profile = context.Profile({"experience": "experienced"}, "")
     return screen.screen({"goal": "strength", "minutes": 30, "preset": "full-gym"}, CAT, GOALS, profile,
-                         context.health(path))
+                         health_md.health(path))
 
 
 def issues_in(path):
@@ -151,13 +153,13 @@ def issues_in(path):
 class LimitRows(unittest.TestCase):
     def test_a_misspelled_key_is_refused(self):
         path = health('[[limits]]\narea = "knee"\nlevel = "delicate"\nflag = ["impact"]\n')
-        _, problem = context._limit_row(context.health(path).settings["limits"][0], CAT.areas, CAT.flags)
+        _, problem = health_md._limit_row(health_md.health(path).settings["limits"][0], CAT.areas, CAT.flags)
         self.assertIn("flag", problem or "")
         with self.assertRaises(screen.Unfit) as caught:
             screen_with(path)
         self.assertIn("flag", str(caught.exception))
         self.assertTrue(any("flag" in i.message for i in issues_in(path)))
-        self.assertEqual(context.limits(context.health(path), CAT.areas, CAT.flags), [])
+        self.assertEqual(health_md.limits(health_md.health(path), CAT.areas, CAT.flags), [])
         good = health('[[limits]]\narea = "knee"\nlevel = "delicate"\nflags = ["impact"]\nnote = "x"\n'
                       'side = "left"\nrehab = []\n', injuries="- Left knee: invented.")
         self.assertEqual(issues_in(good), [])
@@ -331,7 +333,7 @@ class MenuTampering(unittest.TestCase):
     def test_log_session_refuses_a_malformed_menu(self):
         menu.write(draft.menu_path(self.draft), self.edited(movements="dead-bug"))
         with self.assertRaises(errors.LogRefused) as e:
-            context.from_draft(self.draft)
+            logsession.from_draft(self.draft)
         self.assertIn("movements", str(e.exception))
 
 

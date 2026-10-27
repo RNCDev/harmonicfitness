@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import cli  # noqa: E402
 import context  # noqa: E402
+import sessionlog  # noqa: E402
 
 # Fallback for names the catalog doesn't know: keywords per pattern (a movement can match several).
 KEYWORDS = [
@@ -119,7 +120,7 @@ def main():
     args = ap.parse_args()
 
     cat = catalog.load()
-    full = context.sessions(args.log)
+    full = sessionlog.sessions(args.log)
     if not full:
         print("No sessions in log.md yet: every pattern is open, nothing to avoid.")
         return 0

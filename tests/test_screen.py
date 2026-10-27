@@ -14,6 +14,8 @@ import check  # noqa: E402
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import context  # noqa: E402
+import sessionlog  # noqa: E402
+import health as health_md  # noqa: E402
 import screen  # noqa: E402
 import sessions  # noqa: E402
 
@@ -31,14 +33,14 @@ def listener_profile(**settings):
     return p
 
 
-def screen_for(health=None, profile=None, **request):
+def screen_for(h=None, profile=None, **request):
     """screen.screen for a request against the fixture catalog and the invented listener."""
     if not {"preset", "equipment"} & set(request):
         request.setdefault("kit", "home")
     request.setdefault("goal", "strength")
     request.setdefault("minutes", 30)
     return screen.screen(request, FIXTURE_CAT, GOALS, profile or listener_profile(),
-                         health or context.health(os.path.join(LISTENER, "health.md")))
+                         h or health_md.health(os.path.join(LISTENER, "health.md")))
 
 
 def offered(scr):
@@ -52,7 +54,7 @@ class Screen(unittest.TestCase):
         path = os.path.join(tempfile.mkdtemp(), "health.md")
         with open(path, "w") as f:
             f.write(text.replace("- No pushing through wrist pain.", "- No pushing through wrist pain.\n" + extra_rules))
-        return context.health(path)
+        return health_md.health(path)
 
     def test_wrist_limit_shapes_the_selection(self):
         scr = screen_for()
@@ -71,9 +73,9 @@ class Screen(unittest.TestCase):
         self.assertEqual(scr.likes, {"goblet-squat"})
         self.assertEqual(scr.dislikes, {"push-up"})
         self.assertNotIn("push-up", offered(scr))
-        none = context.Health({}, "")
-        self.assertIn("push-up", offered(screen_for(health=none, profile=listener_profile(dislikes=[]))))
-        self.assertNotIn("push-up", offered(screen_for(health=none)))
+        none = health_md.Health({}, "")
+        self.assertIn("push-up", offered(screen_for(h=none, profile=listener_profile(dislikes=[]))))
+        self.assertNotIn("push-up", offered(screen_for(h=none)))
 
     def test_ids_resolve_names_and_skip_unknown(self):
         self.assertEqual(screen.ids(FIXTURE_CAT, ["reverse lunge", "goblet-squat", "wobbly thing"]),
@@ -95,37 +97,37 @@ class Screen(unittest.TestCase):
                 screen_for(**bad)
         with self.assertRaises(ValueError):
             screen.screen({"goal": "strength", "minutes": 30}, FIXTURE_CAT, GOALS, listener_profile(),
-                          context.Health({}, ""))   # no kit, preset or equipment
+                          health_md.Health({}, ""))   # no kit, preset or equipment
 
     def test_bad_health_row_is_unfit_not_usage(self):
         with self.assertRaises(screen.Unfit) as caught:
-            with unittest.mock.patch.object(context, "limit_rows",
+            with unittest.mock.patch.object(health_md, "limit_rows",
                                             return_value=([catalog.Limit("wrist", "both", "sore", [], [], "")], [])):
-                screen_for(health=context.Health({}, ""))
+                screen_for(h=health_md.Health({}, ""))
         self.assertIn("health", str(caught.exception))
 
     def test_a_dropped_limits_row_is_unfit(self):
-        h = context.Health({"limits": [{"area": "wrist", "side": "left", "level": "sore"}]}, "")
+        h = health_md.Health({"limits": [{"area": "wrist", "side": "left", "level": "sore"}]}, "")
         with self.assertRaises(screen.Unfit) as caught:
-            screen_for(health=h)
+            screen_for(h=h)
         self.assertIn("a [[limits]] row was ignored", str(caught.exception))
 
     def test_prose_injuries_without_limits_warns(self):
-        h = context.Health({}, "## Active injuries and limitations\n- Left knee: invented.\n")
-        self.assertTrue(any("no [[limits]]" in w for w in screen_for(health=h).warnings))
+        h = health_md.Health({}, "## Active injuries and limitations\n- Left knee: invented.\n")
+        self.assertTrue(any("no [[limits]]" in w for w in screen_for(h=h).warnings))
         self.assertFalse(any("no [[limits]]" in w for w in screen_for().warnings))
 
     def test_clinician_avoid_lines_apply_without_a_flag(self):
         self.assertIn("goblet-squat", offered(screen_for()))
         h = self.health_with("- Avoid: goblet-squat, impact")
-        self.assertEqual(context.clinician_avoids(h), ["goblet-squat", "impact"])
-        scr = screen_for(health=h)
+        self.assertEqual(health_md.clinician_avoids(h), ["goblet-squat", "impact"])
+        scr = screen_for(h=h)
         self.assertNotIn("goblet-squat", offered(scr))
         self.assertEqual(scr.avoid, {"goblet-squat", "impact"})
 
     def test_unknown_avoid_word_stops_the_screen(self):
         with self.assertRaises(screen.Unfit) as caught:   # an avoid that rules nothing out protects nothing
-            screen_for(health=self.health_with("- Avoid: wobbly-thing"))
+            screen_for(h=self.health_with("- Avoid: wobbly-thing"))
         self.assertIn("wobbly-thing", str(caught.exception))
         issues = check._check_health("health.md", open(self.health_with("- Avoid: wobbly-thing").path).read())
         self.assertTrue(any("wobbly-thing" in i.message for i in issues))
@@ -220,8 +222,8 @@ def eval_cases():
 
 def eval_listener(name):
     home = os.path.join(EVAL, "listeners", name)
-    return (context.profile(os.path.join(home, "profile.md")), context.health(os.path.join(home, "health.md")),
-            context.sessions(os.path.join(home, "log.md")))
+    return (context.profile(os.path.join(home, "profile.md")), health_md.health(os.path.join(home, "health.md")),
+            sessionlog.sessions(os.path.join(home, "log.md")))
 
 
 class Eval(unittest.TestCase):

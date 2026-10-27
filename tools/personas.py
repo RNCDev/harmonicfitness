@@ -20,7 +20,6 @@ coaches/.archive/ (out of the list, still found by name for old log lines); audi
 coaches/.auditions/. Every dot folder is left out.
 """
 import hashlib
-import json
 import os
 import re
 import sys
@@ -31,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import context  # noqa: E402
 import counts  # noqa: E402
 import paths  # noqa: E402
+import voice  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
 import errors  # noqa: E402
@@ -266,45 +266,10 @@ def archive(p):
     return dest
 
 
-def _usable_here(p):
-    """Whether stand-in `p` can speak on this computer: a web coach's service has a key, a local coach's
-    engine runs here."""
-    if p.is_web:
-        import keys
-        return bool(p.service) and p.service in keys.SERVICE_VARS and keys.is_set(p.service)
-    import routes
-    return routes.usable("local", p)[0]
-
-
 def default(folder=None):
-    """The coach a build uses when none is named: the one used last (from the log), stopping if that one
-    is archived, and passing over a stand-in used last for a coach of the listener's own that can speak here; else the
-    first that isn't a stand-in; else the first stand-in that can speak here (web ones whose service has a
-    key, in service order, then local ones); else the first."""
-    found = all(folder)
-    if not found:
-        return None
-    archived = all(_archive(folder))
-    try:
-        sessions = list(reversed(context.sessions(warn=False)))
-    except errors.PROBLEMS:   # no log yet, or one in an older format
-        sessions = []
-    for session in sessions:
-        p = find(session.voice, found)
-        if p is not None:
-            if p.placeholder:   # their own coach beats a stand-in used last, if it can speak here
-                own = next((o for o in found if not o.placeholder and not o.shipped and _usable_here(o)), None)
-                return own or p
-            return p
-        old = find(session.voice, archived)
-        if old is not None:
-            raise errors.CoachError(f"{old.name} is archived; name a coach: {', '.join(p.name for p in found)}.")
-    own = next((p for p in found if not p.placeholder and not p.shipped), None)
-    if own is not None:
-        return own
-    import cloud
-    order = lambda p: (not p.is_web, cloud.SERVICES.index(p.service) if p.service in cloud.SERVICES else 99)
-    return next((p for p in sorted(found, key=order) if _usable_here(p)), found[0])
+    """The coach a build uses when none is named: coachpick.default, kept here until the next minor release."""
+    import coachpick
+    return coachpick.default(folder)
 
 
 def voice_description(voice):
@@ -314,22 +279,10 @@ def voice_description(voice):
     return " ".join(f"{label}{text}." for label, text in parts if text)
 
 
-def web_key(p, model):
-    """A web coach's identity in every pace and cache key: its service, voice, `model`, style and settings."""
-    settings = json.dumps(p.table("settings"), sort_keys=True)
-    raw = f"{p.service or ''}|{p.voice_id or ''}|{model}|{p.style}|{settings}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:12]
-
-
 def resolve(coach=None, engine=None, pending=False):
-    """The voice dict a build uses: `coach` (else the one used last) on `engine` (else the first route in the
-    profile's render list that works on this computer). With `pending`, a web coach still to be made gets
-    its estimated voice (the lint and the brief; never the render)."""
-    import routes
-    p = lookup(coach) if coach else default()
-    if p is None:
-        raise errors.CoachError("No coach yet: choose one (./sweatcast coaches lists them), or make a web coach (the coach skill).")
-    return voice_for(p, routes.pick(context.render_preferences(), p, override=engine), pending)
+    """The voice dict a build uses: coachpick.resolve, kept here until the next minor release."""
+    import coachpick
+    return coachpick.resolve(coach, engine, pending)
 
 
 _clip_keys = {}   # per process: (path, size, mtime) of each file -> (key, words)
@@ -377,8 +330,8 @@ def _local(p):
         raise errors.CoachError(f"{p.name} has no voice file ({show(p.voice_state)}): update sweatcast (git pull).")
     model, revision = voices.LOCAL_MODELS[engine]
     key, words = clip_key(p)
-    return {"name": p.name, "persona": p.slug, "engine": engine, "backend": voices.BACKEND, "route": "local",
-            "model": model, "revision": revision, "language": voices.POCKET_LANGUAGE, "generate": {},
-            "voice_state": p.voice_state, "ref_audio": p.clip, "ref_text": words, "key": key,
-            "pace_file": p.pace_file, "pace_seed": p.shipped_pace if p.shipped else None,
-            "cues": counts.folder(p.clip)}
+    return voice.LocalVoice(
+        name=p.name, persona=p.slug, engine=engine, backend=voices.BACKEND, route="local", model=model,
+        revision=revision, language=voices.POCKET_LANGUAGE, generate={}, voice_state=p.voice_state,
+        ref_audio=p.clip, ref_text=words, key=key, pace_file=p.pace_file,
+        pace_seed=p.shipped_pace if p.shipped else None, cues=counts.folder(p.clip)).as_dict()

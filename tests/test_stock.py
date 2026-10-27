@@ -17,6 +17,7 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 
+import coachpick  # noqa: E402
 import context  # noqa: E402
 import counts  # noqa: E402
 import draft  # noqa: E402
@@ -122,13 +123,13 @@ class StockAndOwn(unittest.TestCase):
 
     def test_a_stock_coach_used_last_stays_the_default(self):
         self.own("coach-jess-gemini", {"name": "Coach Jess", "kind": "web", "service": "gemini", "voice_id": "g1"})
-        with mock.patch.object(personas, "_usable_here", return_value=True), \
-                mock.patch.object(personas.context, "sessions",
+        with mock.patch.object(coachpick, "_usable_here", return_value=True), \
+                mock.patch.object(coachpick.sessionlog, "sessions",
                                   return_value=[SimpleNamespace(voice="Coach Jess"), SimpleNamespace(voice="Coach Julius")]):
-            self.assertEqual(personas.default().name, "Coach Julius")
-        with mock.patch.object(personas, "_usable_here", return_value=True), \
-                mock.patch.object(personas.context, "sessions", return_value=[]):
-            self.assertEqual(personas.default().name, "Coach Jess")   # no log: the listener's own
+            self.assertEqual(coachpick.default().name, "Coach Julius")
+        with mock.patch.object(coachpick, "_usable_here", return_value=True), \
+                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
+            self.assertEqual(coachpick.default().name, "Coach Jess")   # no log: the listener's own
 
     def test_a_remade_voice_file_changes_the_key(self):
         stock = os.path.join(self.tmp.name, "stock")
@@ -142,12 +143,12 @@ class StockAndOwn(unittest.TestCase):
             self.assertNotEqual(personas.voice_for(p, "local")["key"], before)
 
     def test_with_no_log_and_nothing_of_their_own_a_stand_in(self):
-        with mock.patch.object(personas, "_usable_here", side_effect=lambda p: not p.is_web), \
-                mock.patch.object(personas.context, "sessions", return_value=[]):
-            self.assertEqual(personas.default().name, "Coach Andy")   # the first stock coach that speaks here
-        with mock.patch.object(personas, "_usable_here", side_effect=lambda p: p.is_web and p.service == "inworld"), \
-                mock.patch.object(personas.context, "sessions", return_value=[]):
-            self.assertEqual(personas.default().name, "Coach Owen")   # a keyed web stand-in first
+        with mock.patch.object(coachpick, "_usable_here", side_effect=lambda p: not p.is_web), \
+                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
+            self.assertEqual(coachpick.default().name, "Coach Andy")   # the first stock coach that speaks here
+        with mock.patch.object(coachpick, "_usable_here", side_effect=lambda p: p.is_web and p.service == "inworld"), \
+                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
+            self.assertEqual(coachpick.default().name, "Coach Owen")   # a keyed web stand-in first
 
 
 OWN_LOCAL = """+++

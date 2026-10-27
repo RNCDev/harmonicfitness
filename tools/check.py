@@ -16,13 +16,24 @@ import cli  # noqa: E402
 import errors  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
-from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SCHEMA, SETTING_HOMES, Health, Issue, Session,  # noqa: E402
-                     body, delivery_patterns, experience, feed_sources, front, kits, listener_name, parse_session,
-                     part_paths, persona, placeholder, profile, read_raw, route_issues, schema_of, schema_problem,
-                     section, shape_problems, SHAPED, split, str_list, table_list, unfilled, wpm, files as context_files)
-from context import _catalog, _names, kit_problems  # noqa: E402
+from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SETTING_HOMES, Issue,  # noqa: E402
+                     delivery_patterns, experience, feed_sources, kits, listener_name,
+                     part_paths, persona, profile, route_issues,
+                     shape_problems, SHAPED, str_list, table_list, wpm, files as context_files)
+from context import _names, kit_problems  # noqa: E402
+from frontmatter import body, front, placeholder, section, unfilled  # noqa: E402
+from sessionlog import Session, parse_session  # noqa: E402
+from store import SCHEMA, read_raw, schema_of, schema_problem, split  # noqa: E402
 from frontmatter import heading_index  # noqa: E402
-from health import _limit_row, clinician_avoids, limit_rows, prose_injury_gap  # noqa: E402
+from health import Health, _limit_row, clinician_avoids, limit_rows, prose_injury_gap  # noqa: E402
+
+
+def _catalog():
+    """The movement catalog, or None when it can't load (its own check says what's wrong)."""
+    try:
+        return catalog.default()
+    except (*errors.PROBLEMS, ValueError, OSError):
+        return None
 
 
 BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*(\[|$)")   # "- Neighborhood: [neighborhood, city]", or nothing after the colon

@@ -55,12 +55,14 @@ import re
 import shutil
 import sys
 import time
+import tomllib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
 import check  # noqa: E402
 import context  # noqa: E402
+import store  # noqa: E402
 import fileio  # noqa: E402
 import frontmatter  # noqa: E402
 import locks  # noqa: E402
@@ -71,18 +73,18 @@ from paths import show  # noqa: E402
 
 def to_5(text, path):
     """Schema 4 to 5: only the schema number; the workouts folder moves once, in migrate()."""
-    m = context.TOML_FRONT_RE.match(text)
+    m = frontmatter.TOML_FRONT_RE.match(text)
     if not m:
-        return context.with_front_matter(text, 5)
+        return store.with_front_matter(text, 5)
     block = re.sub(r"(?m)^schema\s*=\s*4\b", "schema = 5", m.group(1), count=1)
     return frontmatter.wrap(block, text[m.end():])
 
 
 def to_6(text, path):
     """Schema 5 to 6: only the schema number; the profile splits once, in migrate()."""
-    m = context.TOML_FRONT_RE.match(text)
+    m = frontmatter.TOML_FRONT_RE.match(text)
     if not m:
-        return context.with_front_matter(text, 6)
+        return store.with_front_matter(text, 6)
     block = re.sub(r"(?m)^schema\s*=\s*5\b", "schema = 6", m.group(1), count=1)
     return frontmatter.wrap(block, text[m.end():])
 
@@ -145,18 +147,18 @@ def _dump_part(name, settings):
     for k in plain:
         if k in PART_COMMENTS:
             out.append(f"# {PART_COMMENTS[k]}")
-        out.append(f"{k} = {context.toml_value(settings[k])}")
+        out.append(f"{k} = {frontmatter.toml_value(settings[k])}")
     for k in tables:
         if k in PART_COMMENTS:
             out += ["", f"# {PART_COMMENTS[k]}"]
         for row in settings.get(k) or []:
-            out += ["", f"[[{k}]]"] + [f"{rk} = {context.toml_value(rv)}" for rk, rv in row.items()]
+            out += ["", f"[[{k}]]"] + [f"{rk} = {frontmatter.toml_value(rv)}" for rk, rv in row.items()]
     return "\n".join(out)
 
 
 def split_profile_text(text):
     """{file name: text} for a schema-6 profile.md written as one file: the four files it splits into."""
-    settings, rest = context.front(text)
+    settings, rest = frontmatter.front(text)
     groups = {name: {} for name in context.PROFILE_PARTS}
     for k, v in settings.items():
         if k != "schema":
@@ -171,8 +173,8 @@ def split_profile_text(text):
         prose[where].append(ln)
     out = {}
     for name in context.PROFILE_PARTS:
-        block = f"schema = {context.SCHEMA}\n" + _dump_part(name, groups[name])
-        context.tomllib.loads(block)   # never write a block that doesn't parse
+        block = f"schema = {store.SCHEMA}\n" + _dump_part(name, groups[name])
+        tomllib.loads(block)   # never write a block that doesn't parse
         if name == "settings.toml":
             out[name] = f"{SETTINGS_HEADER}\n{block}\n"
             continue
@@ -200,14 +202,14 @@ FLOOR = min(STEPS)           # the oldest context schema this engine migrates (s
 def persona_to_5(text, path):
     """A coach file, schema 4 to 5: `kind = "local"` after the schema line (unless it names a kind), as a
     text edit, so every other byte stays as it was."""
-    m = context.TOML_FRONT_RE.match(text)
+    m = frontmatter.TOML_FRONT_RE.match(text)
     block = m.group(1) if m else ""
     line = re.search(r"(?m)^schema\s*=\s*4\b.*$", block)
     if not m or not line:
         raise errors.MigrateError(f"{show(path)}: no schema = 4 line in its settings block to migrate.")
     kind = "" if re.search(r"(?m)^kind\s*=", block) else '\nkind = "local"'
     new = block[:line.start()] + "schema = 5" + kind + block[line.end():]
-    context.tomllib.loads(new)   # never write a block that doesn't parse
+    tomllib.loads(new)   # never write a block that doesn't parse
     return text[:m.start(1)] + new + text[m.end(1):]
 
 
@@ -338,7 +340,7 @@ def _stock_web_names():
 
 def _coach_settings(path):
     try:
-        return context.front(context.read_raw(path, "coach"))[0]
+        return frontmatter.front(store.read_raw(path, "coach"))[0]
     except Exception:
         return None
 
@@ -423,7 +425,7 @@ def rename_gitignore(home):
 
 def _behind(path, current, floor, what):
     with open(path, encoding="utf-8") as f:
-        found = context.schema_of(f.read(), path)
+        found = store.schema_of(f.read(), path)
     if found > current:
         raise errors.MigrateError(f"{show(path)} is schema {found}, newer than this engine (schema "
                          f"{current}). Pull the latest sweatcast instead of migrating.")
@@ -436,15 +438,15 @@ def _behind(path, current, floor, what):
 
 def plan():
     """[(path, from schema)] for each context file that's behind, then each coach file that's behind
-    (coach files are at context.PERSONA_SCHEMA). Stops on a file older than this engine migrates."""
+    (coach files are at store.PERSONA_SCHEMA). Stops on a file older than this engine migrates."""
     out = []
     for path in context.files():
         if os.path.exists(path):
-            found = _behind(path, context.SCHEMA, FLOOR, "the context files")
+            found = _behind(path, store.SCHEMA, FLOOR, "the context files")
             if found is not None:
                 out.append((path, found))
     for path in persona_files():
-        found = _behind(path, context.PERSONA_SCHEMA, min(PERSONA_STEPS), "coach files")
+        found = _behind(path, store.PERSONA_SCHEMA, min(PERSONA_STEPS), "coach files")
         if found is not None:
             out.append((path, found))
     return out
@@ -460,7 +462,7 @@ def strays(home):
     path = os.path.join(home, "profile.md")
     if not os.path.exists(path):
         return []
-    settings, _ = context.split(path, context.read_raw(path))
+    settings, _ = store.split(path, store.read_raw(path))
     return [k for k in settings if context.SETTING_HOMES.get(k, "profile.md") != "profile.md"]
 
 
@@ -469,27 +471,27 @@ def move_strays(home):
     doesn't set it, else dropped (the home file's value is the one in effect, as context.profile reads them).
     Prose stays where it is."""
     path = os.path.join(home, "profile.md")
-    text = context.read_raw(path)
-    settings, rest = context.front(text)
+    text = store.read_raw(path)
+    settings, rest = frontmatter.front(text)
     stray = [k for k in settings if context.SETTING_HOMES.get(k, "profile.md") != "profile.md"]
     for key in stray:
         home_name = context.SETTING_HOMES[key]
         dest = os.path.join(home, home_name)
-        have = context.split(dest, context.read_raw(dest))[0] if os.path.exists(dest) else {}
+        have = store.split(dest, store.read_raw(dest))[0] if os.path.exists(dest) else {}
         if key not in have:
-            line = f"{key} = {context.toml_value(settings[key])}"
+            line = f"{key} = {frontmatter.toml_value(settings[key])}"
             comment = f"# {PART_COMMENTS[key]}\n" if key in PART_COMMENTS else ""
             if home_name.endswith(".toml"):
-                body = context.read_raw(dest) if os.path.exists(dest) else f"{SETTINGS_HEADER}\nschema = {context.SCHEMA}\n"
+                body = store.read_raw(dest) if os.path.exists(dest) else f"{SETTINGS_HEADER}\nschema = {store.SCHEMA}\n"
                 fileio.atomic_write(dest, body.rstrip("\n") + f"\n{comment}{line}\n")
             else:
-                dest_text = (context.read_raw(dest) if os.path.exists(dest)
-                             else frontmatter.wrap(f"schema = {context.SCHEMA}"))
-                m = context.TOML_FRONT_RE.match(dest_text)
+                dest_text = (store.read_raw(dest) if os.path.exists(dest)
+                             else frontmatter.wrap(f"schema = {store.SCHEMA}"))
+                m = frontmatter.TOML_FRONT_RE.match(dest_text)
                 block = m.group(1).rstrip("\n") + f"\n{comment}{line}"
                 fileio.atomic_write(dest, frontmatter.wrap(block, dest_text[m.end():]))
         settings.pop(key)
-    m = context.TOML_FRONT_RE.match(text)
+    m = frontmatter.TOML_FRONT_RE.match(text)
     block = m.group(1)
     for key in stray:   # drop the stray's lines (and a comment line just above it) from profile.md's block
         block = re.sub(rf"(?m)(^#[^\n]*\n)?^{re.escape(key)}\s*=.*\n", "", block, count=1)
@@ -535,7 +537,7 @@ def migrate(dry_run=False, stamp=None, moves=None):
         with open(path, encoding="utf-8") as f:
             text = f.read()
         steps = PERSONA_STEPS if _is_persona(path) else STEPS
-        current = context.PERSONA_SCHEMA if _is_persona(path) else context.SCHEMA
+        current = store.PERSONA_SCHEMA if _is_persona(path) else store.SCHEMA
         for n in range(found, current):
             text = steps[n](text, path)
         fileio.atomic_write(path, text)
@@ -578,11 +580,11 @@ def main(argv=None):
     todo = plan()
     stray, due_moves, pantry, coach_steps = folder_steps_due(paths.HOME)
     if not (todo or stray or due_moves or pantry or coach_steps):
-        print(f"{show(paths.HOME)} is already at schema {context.SCHEMA}; nothing to do.")
+        print(f"{show(paths.HOME)} is already at schema {store.SCHEMA}; nothing to do.")
     else:
         for path, found in todo:
             print(f"{show(path)}: schema {found} to "
-                  f"{context.PERSONA_SCHEMA if _is_persona(path) else context.SCHEMA}")
+                  f"{store.PERSONA_SCHEMA if _is_persona(path) else store.SCHEMA}")
         if stray:
             print(f"profile.md: {', '.join(stray)} move to their home files (training.md, content.md, settings.toml)")
         if due_moves:

@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import errors  # noqa: E402
 
 import context  # noqa: E402
+import frontmatter  # noqa: E402
 import check  # noqa: E402
 import migrate  # noqa: E402
 
@@ -39,7 +40,7 @@ class Split(unittest.TestCase):
         for name in ("health.md", "log.md"):   # back to schema 5, as an 0.11.x folder has them
             path = os.path.join(self.home, name)
             write(path, read(path).replace("schema = 6", "schema = 5", 1))
-        self.old = context.front(read(OLD))[0]
+        self.old = frontmatter.front(read(OLD))[0]
 
     def tearDown(self):
         self.tmp.cleanup()
