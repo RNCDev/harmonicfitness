@@ -70,8 +70,9 @@ def build_records(log=None):
 
 
 def note(event, **fields):
-    """An outcome line in builds.jsonl beside the MP3 records: "stopped" (a full build stopped at the lint, the
-    menu or the render, with why) or "delivered" (where the MP3 went). Each carries the build's build_id, as its
+    """An outcome line in builds.jsonl beside the MP3 records, one per full build: "stopped" (at the stage it
+    reached, with why: the coach, the pace, the lint, the menu, the design, the render, a total off plan, the web
+    copy or the delivery), "measured" (the smoke test) or "delivered" (where the MP3 went). Each carries the build's build_id, as its
     record, its failed line and its log header do, so one build can be followed through all of them. Readers
     that count MP3s skip lines with an "event". A line that can't be written never stops the build."""
     import fileio
@@ -90,7 +91,17 @@ def is_mp3(rec):
 def built(sha256, log=None):
     """True when builds.jsonl records an MP3 made from a draft with this hash. A failed web render made no
     MP3 and doesn't count; a build that ran off plan (exit 2) did make one, and counts."""
-    return any(is_mp3(rec) and rec.get("draft_sha256") == sha256 for rec in build_records(log))
+    return latest_build(sha256, log) is not None
+
+
+def latest_build(sha256, log=None):
+    """The newest record of an MP3 made from a draft with this hash (not a failed web render, nor an outcome
+    line), or None: what log-session --draft links the session to."""
+    found = None
+    for rec in build_records(log):
+        if is_mp3(rec) and rec.get("draft_sha256") == sha256:
+            found = rec
+    return found
 
 
 def web_builds(log=None):

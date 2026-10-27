@@ -261,6 +261,202 @@ class Tracing(unittest.TestCase):
         self.assertIsInstance(other, errors.EngineError)
 
 
+class BuildTrail(unittest.TestCase):
+    """Every exit of a full build leaves exactly one outcome line ("stopped", "measured" or "delivered") in
+    builds.jsonl, carrying its build_id; a lint-only run leaves none. The lint and the render are stood in for;
+    the coach, the menu, the delivery and the records are real. The build log gets the engine's own lines and a
+    bug's traceback."""
+
+    def setUp(self):
+        import contextlib
+        import shutil
+        import render
+        import tts_build
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.home = os.path.join(self.tmp, "me")
+        shutil.copytree(paths.EXAMPLE, self.home)
+        self.phone = os.path.join(self.tmp, "phone")
+        os.makedirs(self.phone)
+        prof = os.path.join(self.home, "settings.toml")
+        with open(prof, encoding="utf-8") as f:
+            text = f.read()
+        with open(prof, "w", encoding="utf-8") as f:
+            f.write(re.sub(r"^deliver_to = .*$", "deliver_to = " + json.dumps(self.phone.replace(os.sep, "/")),
+                           text, flags=re.M))
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(helpers.home(self.home))
+        self.draft = os.path.join(self.home, "workouts", "2026-10-25-test-25", "2026-10-25-test-25.draft.txt")
+        helpers.draft_with_menu(os.path.join(paths.ROOT, "tests", "fixtures", "example.draft.txt"), self.draft,
+                                self.home)
+        stack.enter_context(mock.patch.dict(os.environ, {"SWEATCAST_FAKE_LOCAL_ENGINE": "1"}))
+        stack.enter_context(mock.patch.object(tts_build, "lint", side_effect=lambda *a, **k: tts_build.Report(
+            rows=[], strict=False, wpm=185.0)))
+        stack.enter_context(mock.patch.object(render, "run", side_effect=self.fake_run))
+        self.drift, self.fails, self.ids = 0.0, None, []
+
+    def fake_run(self, segments, voice, out, **kw):
+        self.ids.append(kw["build_id"])
+        print("rendering for a test")   # the engine's own progress: on the terminal and in the log
+        if self.fails:
+            raise self.fails
+        with open(out, "w") as f:
+            f.write("x")
+        with open(os.path.splitext(out)[0] + ".build.json", "w", encoding="utf-8") as f:
+            json.dump({"route": "local", "build_id": kw["build_id"]}, f)
+        return self.drift
+
+    def build(self, *extra, draft_path=None, estimated=True):
+        import contextlib
+        import io
+        import build
+        import cli
+        argv = [draft_path or self.draft, "Test build", *(["--allow-estimated"] if estimated else []), *extra]
+        self.out = io.StringIO()
+        with contextlib.redirect_stdout(self.out), contextlib.redirect_stderr(self.out):
+            return cli.run(lambda: build.main(argv))
+
+    def events(self):
+        import records
+        return [r for r in records.build_records() if r.get("event")]
+
+    def one_event(self, event, stage=None):
+        (line,) = self.events()
+        self.assertEqual(line["event"], event, self.out.getvalue())
+        if stage:
+            self.assertEqual(line["stage"], stage)
+        self.assertRegex(line["build_id"], r"^[0-9a-f]{12}$")
+        if self.ids:
+            self.assertEqual(line["build_id"], self.ids[-1])
+        return line
+
+    def read_log(self):
+        with open(os.path.join(paths.LOGS, "Test build.log"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_delivered(self):
+        import build
+        self.assertEqual(self.build(), 0, self.out.getvalue())
+        self.one_event("delivered")
+        self.assertIn("rendering for a test", self.out.getvalue())
+        self.assertIn("rendering for a test", self.read_log())   # stdout is teed into the build log
+
+    def test_run_build_without_a_command_line(self):
+        import build
+        import contextlib
+        import io
+        said, self.out = [], io.StringIO()
+        with contextlib.redirect_stdout(self.out):
+            result = build.run_build(build.BuildOptions(draft=self.draft, name="Test build", allow_estimated=True),
+                                     say=said.append)
+        self.assertEqual(result.code, 0)
+        self.assertEqual(result.record["delivered_to"], [self.phone.replace(os.sep, "/")])
+        self.assertEqual(result.record["build_id"], self.ids[0])
+        self.assertEqual(result.lines, said)
+        self.assertTrue(any(line.startswith("Copied to") for line in said))
+        self.one_event("delivered")
+
+    def test_a_crash_after_delivery_writes_no_second_line(self):
+        import build
+        with mock.patch.object(build, "cache_note", side_effect=RuntimeError("late")):
+            self.assertEqual(self.build(), 70)
+        self.one_event("delivered")
+
+    def test_drift(self):
+        self.drift = 0.2
+        self.assertEqual(self.build(), 2)
+        self.assertEqual(self.one_event("stopped", "drift")["drift"], 0.2)
+
+    def test_the_smoke_test_is_measured(self):
+        self.assertEqual(self.build(draft_path=paths.SMOKE_DRAFT), 0, self.out.getvalue())
+        self.one_event("measured")
+
+    def test_unmeasured(self):
+        self.assertEqual(self.build(estimated=False), 3, self.out.getvalue())
+        self.one_event("stopped", "pace")
+
+    def test_a_stale_menu(self):
+        helpers.menu_for(self.draft, self.home, today="2026-10-20")
+        self.assertEqual(self.build(), 1)
+        self.one_event("stopped", "menu")
+
+    def test_an_unknown_coach(self):
+        self.assertEqual(self.build("--coach", "Nobody At All"), 64)
+        self.one_event("stopped", "coach")
+
+    def test_a_render_that_stops(self):
+        self.fails = SystemExit("the engine stopped")
+        self.assertEqual(self.build(), 1)
+        self.assertEqual(self.one_event("stopped", "render")["reason"], "the engine stopped")
+        self.assertIn("stopped at render: the engine stopped", self.read_log())
+        self.assertIn(f"({self.ids[-1]}) stopped at render", self.read_log())
+
+    def test_a_bug_is_70_with_its_traceback_in_the_log(self):
+        self.fails = KeyError("a bug in the render")
+        self.assertEqual(self.build(), 70)
+        self.one_event("stopped", "render")
+        log = self.read_log()
+        self.assertIn("Traceback", log)
+        self.assertIn("a bug in the render", log)
+
+    def test_a_failed_web_copy(self):
+        import build
+        with mock.patch.object(build, "web_copy", side_effect=OSError("disk full")):
+            self.assertEqual(self.build("--web"), 70)
+        self.one_event("stopped", "web-copy")
+
+    def test_a_failed_delivery(self):
+        import build
+        with mock.patch.object(build, "deliver", side_effect=RuntimeError("sync folder gone")):
+            self.assertEqual(self.build(), 70)
+        self.one_event("stopped", "deliver")
+
+    def test_a_failed_design(self):
+        import coaches
+        import errors
+        with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}), \
+                mock.patch.object(coaches, "make", side_effect=errors.CoachError("the design failed")):
+            self.assertEqual(self.build("--coach", "Coach Reed", estimated=False), 1, self.out.getvalue())
+        self.one_event("stopped", "design")
+
+    def test_lint_only_leaves_none(self):
+        self.assertEqual(self.build("--lint-only"), 0)
+        helpers.menu_for(self.draft, self.home, today="2026-10-20")
+        self.build("--lint-only", "--coach", "Nobody At All")
+        self.assertEqual(self.events(), [])
+
+
+class DeliveryPlan(unittest.TestCase):
+    def test_each_branch(self):
+        import build
+        web = build.delivery_plan(True, True, ["/x"])
+        self.assertEqual((web["copy_to"], web["remove_local"], web["record"]["kept_local"]), ([], True, False))
+        kept = build.delivery_plan(True, False, ["/x"])
+        self.assertEqual((kept["copy_to"], kept["remove_local"], kept["record"]["kept_local"]), ([], False, True))
+        self.assertIn("--no-web", kept["record"]["reason"])
+        none = build.delivery_plan(False, True, [])
+        self.assertEqual((none["copy_to"], none["record"]["reason"]), ([], "no delivery folder on this computer"))
+        copy = build.delivery_plan(False, False, ["/a", "/b"])
+        self.assertEqual((copy["copy_to"], copy["remove_local"], copy["record"]), (["/a", "/b"], False, None))
+
+    def test_a_failed_copy_keeps_its_reason(self):
+        import build
+        d = tempfile.mkdtemp()
+        mp3 = os.path.join(d, "x.mp3")
+        with open(mp3, "w") as f:
+            f.write("x")
+
+        def refused(src, dst):
+            raise PermissionError(13, "Permission denied")
+        said = []
+        with mock.patch.object(build.shutil, "copyfile", side_effect=refused):
+            got = build.deliver(mp3, d, [os.path.join(d, "phone")], say=said.append)
+        self.assertTrue(got["kept_local"])
+        self.assertIn("Permission denied", got["reason"])
+        self.assertIn("Permission denied", said[0])
+
+
 class LockFilesStayPrivate(unittest.TestCase):
     def test_migrate_adds_the_lock_rule_to_an_old_gitignore(self):
         import contextlib

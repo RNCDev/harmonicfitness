@@ -964,7 +964,7 @@ class InProcessBuild(unittest.TestCase):
 
     def test_no_web_in_a_cloud_session_keeps_the_mp3(self):
         import build
-        with mock.patch.dict(os.environ, {"CLAUDE_CODE_REMOTE": "true"}), \
+        with mock.patch.object(paths, "REMOTE", True), \
                 mock.patch.object(build, "web_copy", side_effect=AssertionError("no web copy was asked for")):
             self.assertEqual(self.build("--no-web"), 0, self.said())
         self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.mp3")))
@@ -2097,8 +2097,11 @@ class ExitCodeMapper(unittest.TestCase):
 
         def bug():
             raise KeyError("x")
-        with self.assertRaises(KeyError):   # a real bug still shows its traceback
-            cli.run(bug)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):   # a real bug is 70, never 1 ("fix the draft"), with its traceback
+            self.assertEqual(cli.run(bug), cli.BUG)
+        self.assertIn("Traceback", err.getvalue())
+        self.assertIn("KeyError", err.getvalue())
 
     def test_the_known_stops_carry_their_codes(self):
         import routes

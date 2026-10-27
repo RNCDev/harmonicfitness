@@ -58,7 +58,7 @@ from health import (HTML_COMMENT_RE, INJURIES_HEADING, CLINICIAN_HEADING, Health
 # moved to sessionlog.py; the tools still reach them through this module
 from sessionlog import (DATE_RE, LINE_BREAKS, Session, parse_session, log, sessions, append_session)  # noqa: E402,F401
 # moved to records.py; the tools still reach them through this module
-from records import (draft_hash, build_records, built, web_builds)  # noqa: E402,F401
+from records import (draft_hash, build_records, built, latest_build, web_builds)  # noqa: E402,F401
 
 FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday", "wikipedia")
 HANDLE_KEYS = {"YouTube favorites": "youtube_favorites", "Puzzles": "puzzles"}
@@ -481,7 +481,8 @@ def main(argv=None):
     s.add_argument("--date", help="YYYY-MM-DD (default: the menu's date with --draft, else today)")
     s.add_argument("--minutes", type=int, help="required without --draft")
     s.add_argument("--kit", help="required without --draft")
-    s.add_argument("--coach", dest="voice", required=True, help="the session's coach")
+    s.add_argument("--coach", dest="voice", help="the session's coach (with --draft, default: the build's; one "
+                                                 "that disagrees with the build is refused)")
     s.add_argument("--movements", help="comma-separated, without --draft")
     s.add_argument("--topics", required=True)
     s.add_argument("--format", default=None, help="the session method (required with --draft)")
@@ -537,19 +538,22 @@ def main(argv=None):
     if bool(args.movements) == bool(args.draft):
         raise cli.Usage("Not logged: give the movements with --movements or --draft (one of them).")
     if args.draft:
-        date, minutes, kit, movements = from_draft(args.draft, args.date, args.minutes, args.kit)
+        date, minutes, kit, movements, build = from_draft(args.draft, args.date, args.minutes, args.kit)
+        coach = build_coach(build, args.voice)
+        build_id = build.get("build_id")
         if not (args.format or "").strip():
             raise cli.Usage("Not logged: --format is required with --draft (the method you chose, from "
                              "knowledge/sessions.toml), so the next session rotates away from it.")
     else:
-        for flag, value in (("--minutes", args.minutes), ("--kit", args.kit)):
+        for flag, value in (("--coach", args.voice), ("--minutes", args.minutes), ("--kit", args.kit)):
             if value is None:
                 raise cli.Usage(f"Not logged: {flag} is required without --draft.")
         date, minutes, kit = args.date or dt.date.today().isoformat(), args.minutes, args.kit.strip()
         movements = [m.strip() for m in args.movements.split(",") if m.strip()]
-    session = Session(date, minutes, kit, args.voice.strip(), movements, args.topics.strip(),
+        coach, build_id = args.voice.strip(), None
+    session = Session(date, minutes, kit, coach, movements, args.topics.strip(),
                       (args.format or "").strip() or None,
-                      named_pairs(loads, movements, "load"), named_pairs(rpe, movements, "rpe"))
+                      named_pairs(loads, movements, "load"), named_pairs(rpe, movements, "rpe"), build_id=build_id)
     _check_session_names(session, kit_from_menu=bool(args.draft))
     with locks.file_lock(paths.LOG):   # the duplicate check and the write as one step
         _check_not_logged(session)
@@ -571,8 +575,9 @@ def menu_kit(request):
 
 
 def from_draft(path, date=None, minutes=None, kit=None):
-    """(date, minutes, kit, movements) for a built draft: the movements from its movements: line, the rest
-    from the menu beside it. A typed date, length or kit must agree with the menu."""
+    """(date, minutes, kit, movements, build) for a built draft: the movements from its movements: line, the
+    date, length and kit from the menu beside it, and the newest build record of the draft as it stands. A
+    typed date, length or kit must agree with the menu."""
     import draft
     import menu
     movements = declared_movements(path)
@@ -596,10 +601,34 @@ def from_draft(path, date=None, minutes=None, kit=None):
         if typed is not None and str(typed).strip().lower() != str(want[flag]).lower():
             raise errors.LogRefused(f"Not logged: {flag} {typed} disagrees with the menu's {want[flag]} "
                              f"({show(menu_file)}); leave it out, the menu gives it.")
-    if not built(draft_hash(path)):
+    build = latest_build(draft_hash(path))
+    if build is None:
         raise errors.LogRefused(f"Not logged: no build of {show(path)} as it stands (no record in {show(paths.BUILDS)} "
                          "with its hash). Build it first; if you edited it after building, build it again.")
-    return want["--date"], int(want["--minutes"]), want["--kit"], movements
+    return want["--date"], int(want["--minutes"]), want["--kit"], movements, build
+
+
+def build_coach(build, typed=None):
+    """The coach to log for a session built as `build`: the build's own when none is typed; a typed one must be
+    the same coach (by name or alias), since the next build takes its default coach from the log. A record from
+    before builds named their coach takes the typed one."""
+    import personas
+    built_as = (build.get("voice") or "").strip()
+    typed = (typed or "").strip()
+    if not built_as:
+        if not typed:
+            raise errors.LogRefused("Not logged: the build record names no coach; give it with --coach.")
+        return typed
+    if not typed:
+        return built_as
+    try:
+        same = personas.lookup(typed, archived=True).slug == personas.lookup(built_as, archived=True).slug
+    except errors.PROBLEMS:
+        same = typed.lower() == built_as.lower()
+    if not same:
+        raise errors.LogRefused(f"Not logged: --coach {typed} disagrees with the build's coach, {built_as}; leave "
+                                "--coach out, the build gives it.")
+    return built_as
 
 
 def _movement_key(cat, name):

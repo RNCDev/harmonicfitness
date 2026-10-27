@@ -1035,6 +1035,8 @@ class CloudRender(unittest.TestCase):
             self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
             self.assertEqual(len(fake.requests), before)   # everything came from the cache
         self.assertNotIn("Sending", second.stdout)
+        with open(os.path.splitext(mp3)[0] + ".build.json", encoding="utf-8") as f:
+            self.assertEqual(set(json.load(f)["timings"]), {"render_s", "check_s", "assemble_s", "encode_s"})
 
     @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_cost_print_for_gemini(self):

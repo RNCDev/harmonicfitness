@@ -23,7 +23,8 @@ LINE_BREAKS = "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"   # every character str
 class Session:
     """One line under `## Sessions` in log.md:
     - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format>
-      | loads: <m> = <load>; ... | rpe: <m> = <n>; ...   (all on one line)"""
+      | loads: <m> = <load>; ... | rpe: <m> = <n>; ... | build: <build_id>   (all on one line)
+    Everything after the topics is optional; a line from before build: was added reads the same."""
     date: str
     minutes: int
     kit: str
@@ -33,6 +34,7 @@ class Session:
     format: Optional[str] = None
     loads: Dict[str, str] = field(default_factory=dict)
     rpe: Dict[str, str] = field(default_factory=dict)   # effort per movement; reserved for progress tracking
+    build_id: Optional[str] = None   # the build the session was logged against (log-session --draft)
     line: int = 0   # where it was read from, for messages
 
     def problems(self):
@@ -51,7 +53,7 @@ class Session:
                 out.append(f"no {name}")
         if not self.movements:
             out.append("no movements")
-        texts = [self.date, self.kit, self.voice, self.topics, self.format or "", *self.movements,
+        texts = [self.date, self.kit, self.voice, self.topics, self.format or "", self.build_id or "", *self.movements,
                  *self.loads.keys(), *self.loads.values(), *self.rpe.keys(), *self.rpe.values()]
         if any("|" in t or any(c in t for c in LINE_BREAKS) for t in texts):
             out.append("a field contains | or a line break")
@@ -72,6 +74,8 @@ class Session:
             out += " | loads: " + "; ".join(f"{k} = {v}" for k, v in self.loads.items())
         if self.rpe:
             out += " | rpe: " + "; ".join(f"{k} = {v}" for k, v in self.rpe.items())
+        if self.build_id:
+            out += f" | build: {self.build_id}"
         return out
 
 
@@ -89,13 +93,15 @@ def parse_session(line, lineno=0):
         key, value = key.strip().lower(), value.strip()
         if key == "format" and value:
             s.format = value
+        elif key == "build" and value:
+            s.build_id = value
         elif key in ("loads", "rpe"):
             for item in value.split(";"):
                 mv, _, load = item.partition("=")
                 if mv.strip() and load.strip():
                     (s.loads if key == "loads" else s.rpe)[mv.strip()] = load.strip()
         elif extra.strip():
-            return f"unknown field '{extra.strip()[:30]}'; only format:, loads: and rpe: follow the topics"
+            return f"unknown field '{extra.strip()[:30]}'; only format:, loads:, rpe: and build: follow the topics"
     problems = s.problems()
     return "; ".join(problems) if problems else s
 

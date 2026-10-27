@@ -1,6 +1,7 @@
 """The command line's contract with the skills and Codex, which branch on exit codes (tools/cli.py):
 a mistyped command or option is 64 on every command, and help is 0. The codes 1 to 4 on the paths that
-raise them are pinned where those paths are tested (test_tools, test_cloud, test_routes, test_verify)."""
+raise them are pinned where those paths are tested (test_tools, test_cloud, test_routes, test_verify);
+an unexpected exception is 70, here."""
 import contextlib
 import io
 import os
@@ -104,6 +105,20 @@ class ErrorChannel(unittest.TestCase):
                 self.assertEqual(cli.run(main), code, type(exc).__name__)
             self.assertIn("x", err.getvalue())
         self.assertEqual(errors.CoachError("named").code, "named")   # read like SystemExit's code
+
+    def test_an_engine_bug_is_70_with_its_traceback_scrubbed(self):
+        from unittest import mock
+        self.assertEqual(cli.BUG, 70)   # EX_SOFTWARE: the skills stop and report, never edit the draft
+
+        def main():
+            raise ValueError("broke near secret-key-123456")
+        err = io.StringIO()
+        with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "secret-key-123456"}), \
+                contextlib.redirect_stderr(err):
+            self.assertEqual(cli.run(main), cli.BUG)
+        self.assertIn("Traceback", err.getvalue())
+        self.assertIn("ValueError", err.getvalue())
+        self.assertNotIn("secret-key-123456", err.getvalue())
 
     def test_no_engine_module_raises_systemexit(self):
         import re

@@ -398,6 +398,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
         print(f"{len(clips)} clips, {len(todo)} to render ({len(clips) - len(todo)} cached), "
               f"voice {voice['name']} on {engine}", flush=True)
         sent = {"chars": 0, "started": 0, "usd": 0.0}
+        timings, lap = {}, time.time()   # seconds per stage, for the build record
         if todo and voice.get("backend") == "cloud":
             try:
                 render_cloud(voice, todo, clips, seed, cache_path, sent)
@@ -407,12 +408,14 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                 raise
         elif todo:
             _render_local(voice, todo, seed, cache_path)
+        timings["render_s"], lap = round(time.time() - lap, 1), time.time()
         if voice.get("backend") == "cloud":
             checked = {"checked": False, "reason": "a web voice (each take is billed)"}
         elif not check:
             checked = {"checked": False, "reason": "--no-check"}
         else:
             checked = check_takes(voice, clips, seed, cache_path)
+        timings["check_s"], lap = round(time.time() - lap, 1), time.time()
 
         def clip(text):
             path = cache_path(text)
@@ -425,6 +428,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                                         lead=b"" if no_chime else chime(), bell=chime(),
                                         tail=b"" if no_chime else end_tone(),
                                         mark=lambda text: mark_audio(text, voice, clip))
+        timings["assemble_s"], lap = round(time.time() - lap, 1), time.time()
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
     for i, planned, spoken, label, flag in rows:
@@ -437,6 +441,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
         if sent["started"]:   # the clips are paid for and cached, but no MP3 (and no record) came of them
             save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e, build_id)
         raise
+    timings["encode_s"] = round(time.time() - lap, 1)
 
     total = len(pcm_all) / 2 / SR
     planned_total = sum(seg["seconds"] for seg in segments)
@@ -446,6 +451,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
     if build_id:
         record["build_id"] = build_id
     record["check"] = checked
+    record["timings"] = timings
     if voice.get("backend") == "cloud":
         record.update(chars_sent=sent["chars"], usd_estimate=round(sent["usd"], 4))
     save_build_record(record, out)

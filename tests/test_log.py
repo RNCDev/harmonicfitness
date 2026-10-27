@@ -150,6 +150,60 @@ class LogSession(unittest.TestCase):
         self.assertEqual(code, cli.OK)
         self.assertIn("loads: goblet squat = twenties, three down | rpe: dead bug = 6", out)
 
+    def logged(self, *args):
+        out = io.StringIO()
+        with helpers.home(self.home), contextlib.redirect_stdout(out):
+            code = context.main(["log-session", "--topics", "t", "--draft", self.draft, "--format", "circuit", *args])
+        return code, out.getvalue()
+
+    def test_the_session_links_to_its_newest_build(self):
+        self.record(voice="Coach Julius", build_id="old111111111")
+        self.record(failed=True, voice="Coach Julius", build_id="failed222222")   # made no MP3
+        self.record(voice="Coach Julius", build_id="abc123def456")
+        self.record(event="delivered", build_id="evt333333333")                   # an outcome line, not a build
+        sha = hashlib.sha256(TEXT.encode("utf-8")).hexdigest()
+        self.assertEqual(context.latest_build(sha, self.builds)["build_id"], "abc123def456")
+        self.assertIsNone(context.latest_build("0" * 64, self.builds))
+        code, out = self.logged()   # no --coach: the build's coach
+        self.assertEqual(code, cli.OK)
+        self.assertIn("| Coach Julius |", out)
+        self.assertTrue(out.rstrip().endswith("| build: abc123def456"), out)
+        with helpers.home(self.home):
+            last = context.sessions()[-1]
+        self.assertEqual((last.voice, last.build_id), ("Coach Julius", "abc123def456"))
+
+    def test_a_coach_that_disagrees_with_the_build_is_refused(self):
+        self.record(voice="Coach Julius", build_id="abc123def456")
+        with self.assertRaises(errors.LogRefused) as got:
+            self.logged("--coach", "Coach Solo")
+        self.assertIn("disagrees", str(got.exception))
+        code, out = self.logged("--coach", "Chatterbox Coach")   # an alias of the build's coach is the same coach
+        self.assertEqual(code, cli.OK)
+        self.assertIn("| Coach Julius |", out)
+
+    def test_a_record_without_a_coach_needs_one_typed(self):
+        self.record()   # from before builds named their coach
+        with self.assertRaises(errors.LogRefused):
+            self.logged()
+        code, out = self.logged("--coach", "Chatterbox Coach")
+        self.assertEqual(code, cli.OK)
+        self.assertNotIn("build:", out)   # nor a build_id to link
+
+    def test_a_line_without_a_build_still_reads(self):
+        line = "- 2026-10-21 | 20 min | Home | Coach Julius | goblet squat | t | format: circuit"
+        s = context.parse_session(line)
+        self.assertIsInstance(s, context.Session)
+        self.assertIsNone(s.build_id)
+        self.assertEqual(context.parse_session(line + " | build: abc123def456").build_id, "abc123def456")
+        bad = context.Session("2026-10-21", 20, "Home", "V", ["goblet squat"], "t", build_id="a|b")
+        self.assertTrue(bad.problems())
+
+    def test_without_a_draft_the_coach_is_typed(self):
+        with self.assertRaises(cli.Usage):
+            with helpers.home(self.home):
+                context.main(["log-session", "--topics", "t", "--movements", "goblet squat", "--minutes", "10",
+                              "--kit", "home"])
+
     def test_without_a_draft_the_length_and_kit_are_typed(self):
         self.refused("--movements", "goblet squat", "--kit", "home", base=False, words="--minutes")
         self.refused("--movements", "goblet squat", "--minutes", "10", base=False, words="--kit")

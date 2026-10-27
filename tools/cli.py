@@ -7,6 +7,7 @@ The exit codes are the tools' contract with the skills, which branch on them:
     3   the voice's speaking rate hasn't been measured yet (build only)
     4   a cloud voice service refused: the key, the payment or the quota (the listener must act)
     64  the command itself was wrong: a mistyped option, an unknown voice
+    70  an engine bug (EX_SOFTWARE): nothing to fix in the draft or the command; report it
 
 Python's argparse exits 2 on a mistyped option, which would read as "the workout ran
 long", so every tool parses its arguments with ArgumentParser below, which exits 64.
@@ -14,13 +15,14 @@ long", so every tool parses its arguments with ArgumentParser below, which exits
 Every tool's main runs through run(), which turns what it raises into these codes: a Usage
 (or a subclass, such as an unknown coach or a web coach with no key here) is 64; an exception
 carrying an `exit_code` (a web service's refusal, a limits row that can't be read) exits with
-it; any other SystemExit with a message is 1, the message on stderr. A real bug still shows its
-traceback.
+it; any other SystemExit with a message is 1, the message on stderr. Any other exception is a bug in the
+engine: its traceback (with every key value taken out) goes to stderr and the code is 70, so a skill never
+reads a crash as a draft to fix.
 """
 import argparse
 import sys
 
-OK, ISSUES, DRIFT, UNMEASURED, SERVICE, USAGE = 0, 1, 2, 3, 4, 64
+OK, ISSUES, DRIFT, UNMEASURED, SERVICE, USAGE, BUG = 0, 1, 2, 3, 4, 64, 70
 
 
 class Usage(SystemExit):
@@ -43,12 +45,25 @@ def run(main, argv=None):
     except Exception as e:
         code = getattr(e, "exit_code", None)
         if code is None:
-            raise
+            print(_traceback(), file=sys.stderr, end="")
+            return BUG
         print(e, file=sys.stderr)
         return code
     except KeyboardInterrupt:
         return 130
     return code or OK
+
+
+def _traceback():
+    """The current exception's traceback with every key value taken out; the raw one if scrubbing fails, since
+    a crash handler that crashes would hide the bug."""
+    import traceback
+    text = traceback.format_exc()
+    try:
+        import redact   # here, not at the top: redact reads keys, which imports this module
+        return redact.scrub(text)
+    except Exception:
+        return text
 
 
 class ArgumentParser(argparse.ArgumentParser):
