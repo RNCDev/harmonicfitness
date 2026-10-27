@@ -178,10 +178,11 @@ def _read_candidates(folder):
     service, an int k and a plain WAV (and MP3) file name in the folder."""
     path = os.path.join(folder, "candidates.json")
     try:
-        with open(path, encoding="utf-8") as f:
-            cands = json.load(f)
-    except (OSError, ValueError) as e:
+        cands = fileio.read_json(path, shape=list)
+    except OSError as e:
         raise errors.CoachError(f"{show(path)} can't be read ({e}).")
+    except errors.ContextError as e:
+        raise errors.CoachError(str(e))
     ok = isinstance(cands, list) and all(
         isinstance(c, dict) and isinstance(c.get("letter"), str) and c.get("service") in cloud.SERVICES
         and type(c.get("k")) is int and _plain_file(c.get("wav"))
@@ -627,7 +628,11 @@ def main(argv=None):
     ap = cli.ArgumentParser(prog="sweatcast coaches", description=__doc__,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd")
-    sub.add_parser("list", help="every coach (the default)")
+    ls = sub.add_parser("list", help="every coach (the default)")
+    ls.add_argument("--json", action="store_true",
+                    help="the list as one JSON object: coaches [{name, slug, kind, service, service_name, "
+                         "default, placeholder, pending, shipped, description}], default (a name or null), "
+                         "note (why there's no default, or null)")
     sub.add_parser("last", help="the coach a build uses when none is named: the one used last (your own over a stand-in)")
     m = sub.add_parser("measured", help="exit 0 if the coach's pace is measured on the route, 1 if estimated, 64 unknown")
     m.add_argument("coach")
@@ -676,8 +681,8 @@ def main(argv=None):
     if args.cmd == "audition":
         wanted = [x.strip() for x in args.services.split(",") if x.strip()] if args.services else None
         folder, cands, failures = _run_audition(args.narrative, wanted, args.coach, args.play)
-        for line in _failure_lines(failures):
-            print(line)
+        for line in _failure_lines(failures):   # a service that sent none: a failure, on stderr
+            print(line, file=sys.stderr)
         if not cands:
             must_act = any(isinstance(e, cloud.ServiceError) and e.listener_must_act for _, e in failures)
             return cli.SERVICE if must_act else cli.ISSUES
@@ -716,7 +721,8 @@ def main(argv=None):
         return cli.OK
     if args.cmd == "download":
         if paths.REMOTE:
-            print("Claude Code on the web renders with a cloud voice only, so there's no local model to fetch here.")
+            print("Claude Code on the web renders with a cloud voice only, so there's no local model to fetch here.",
+                  file=sys.stderr)
             return cli.USAGE
         voices.download()
         return cli.OK
@@ -725,6 +731,15 @@ def main(argv=None):
     except errors.PROBLEMS as e:   # the coach used last is archived: list them all, and say so
         last, archived = None, str(e.code)
     found = personas.all()
+    if getattr(args, "json", False):
+        print(json.dumps({"coaches": [{
+            "name": p.name, "slug": p.slug, "kind": "web" if p.is_web else "local",
+            "service": p.service if p.is_web else None,
+            "service_name": cloud.service_name(p.service) if p.is_web else None,
+            "default": bool(last and p.slug == last.slug), "placeholder": bool(p.placeholder),
+            "pending": bool(p.is_web and p.pending), "shipped": bool(p.shipped), "description": p.description}
+            for p in found], "default": last.name if last else None, "note": archived}, indent=1, ensure_ascii=False))
+        return cli.OK
     if not found:
         print("No coaches found: the ten local coaches ship in coaches/ (git pull), and a web coach comes from "
               "an audition (./sweatcast coaches audition).")

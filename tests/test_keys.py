@@ -207,7 +207,7 @@ class OnTheWeb(unittest.TestCase):
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "coaches.py"), "download"], env=env,
                                  capture_output=True, text=True, timeout=60)
             self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
-            self.assertIn("cloud voice only", out.stdout)
+            self.assertIn("cloud voice only", out.stderr)   # a refusal: on stderr
 
 
 if __name__ == "__main__":

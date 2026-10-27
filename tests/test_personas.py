@@ -260,9 +260,10 @@ class AuditionReport(unittest.TestCase):
         self.assertEqual((folder, cands, [s for s, _ in failures]), (None, [], ["fish"]))
         self.assertFalse(any("down for a moment" in line for line in said))
         out = io.StringIO()
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(io.StringIO()) as stdout, contextlib.redirect_stderr(out):
             coaches.main(["audition", self.narrative, "--services", "fish"])
-        self.assertEqual(out.getvalue().count("down for a moment"), 1)
+        self.assertEqual(out.getvalue().count("down for a moment"), 1)   # the failure: once, on stderr
+        self.assertNotIn("down for a moment", stdout.getvalue())
 
 
 if __name__ == "__main__":

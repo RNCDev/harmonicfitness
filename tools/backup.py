@@ -157,14 +157,15 @@ def backup(home, message, push=True, unverified=False):
     if keyfiles:   # API keys never go into the backup, even when the ignore rule is missing
         git(home, "reset", "-q")
         print(f"Not backed up: {', '.join(keyfiles)} looks like a key file (.env and its copies hold API keys, "
-              f"which never go into the backup). Move it out of {where} or add it to {where}/.gitignore, then rerun.")
+              f"which never go into the backup). Move it out of {where} or add it to {where}/.gitignore, then rerun.",
+              file=sys.stderr)
         return cli.ISSUES
     if git(home, "diff", "--cached", "--quiet").returncode == 0:
         print("Nothing new to commit.")
     else:
         out = git(home, "commit", "-q", "-m", message)
         if out.returncode:
-            print(f"Commit failed: {(out.stderr or out.stdout).strip()}")
+            print(f"Commit failed: {(out.stderr or out.stdout).strip()}", file=sys.stderr)
             return cli.ISSUES
         print(f"Committed: {message}")
     if not push:
@@ -184,13 +185,13 @@ def backup(home, message, push=True, unverified=False):
         seen = "PRIVATE"   # confirmed before on this computer: GitHub said so, or the listener did
     if slug and seen == "PUBLIC":
         print(f"Not pushed: github.com/{slug} is public, and this folder holds health details. "
-              "Make it private (gh repo edit --visibility private) and rerun.")
+              "Make it private (gh repo edit --visibility private) and rerun.", file=sys.stderr)
         return cli.ISSUES
     if slug and seen is None:
         if not unverified:
             print(f"Not pushed: couldn't confirm github.com/{slug} is private (gh isn't signed in here, or GitHub "
                   "didn't answer; a GH_TOKEN in the environment would let it). Check it at github.com, then rerun with "
-                  "--unverified to push anyway; this computer remembers the answer for this remote.")
+                  "--unverified to push anyway; this computer remembers the answer for this remote.", file=sys.stderr)
             return cli.ISSUES
         remember_private(home, slug, "listener")
     if not slug:
@@ -199,7 +200,7 @@ def backup(home, message, push=True, unverified=False):
     if out.returncode:
         reason = (out.stderr.strip().splitlines() or ["no reason given"])[-1]
         print(f"Push to {remote} failed: {reason}\n"
-              f"If another machine pushed first: cd {where} && git pull --rebase, then rerun.")
+              f"If another machine pushed first: cd {where} && git pull --rebase, then rerun.", file=sys.stderr)
         return cli.ISSUES
     print(f"Pushed to {remote}.")
     return cli.OK

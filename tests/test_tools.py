@@ -327,6 +327,25 @@ class Coverage(unittest.TestCase):
         log = sessionlog.sessions(self.path)
         self.assertEqual([s.date for s in log], ["2026-10-19", "2026-10-20"])
 
+    def test_json_holds_the_facts_the_text_shows(self):
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            self.assertEqual(coverage.main(["--log", self.path, "--last", "2", "--json"]), 0)
+        f = json.loads(out.getvalue())
+        self.assertEqual(sorted(f), sorted(["sessions", "pooled", "span", "covered", "prioritize", "week", "avoid",
+                                            "unmapped", "last_format", "last_kit", "days_since", "sessions_7d",
+                                            "feedback", "last_loads"]))
+        self.assertEqual((f["sessions"], f["pooled"], f["span"]), (2, 2, "2026-10-19 to 2026-10-20"))
+        self.assertIn("goblet squat", f["covered"]["squat"])
+        self.assertEqual(f["unmapped"], ["mystery move"])
+        self.assertEqual(f["last_kit"], "Home")
+        text = io.StringIO()
+        with mock.patch("sys.stdout", text):
+            coverage.main(["--log", self.path, "--last", "2"])
+        self.assertEqual(text.getvalue(), "\n".join(coverage.text(f)) + "\n")
+        self.assertIn("Unmapped (judge these by hand): mystery move", text.getvalue())
+        self.assertIn("Prioritize: " + ", ".join(f["prioritize"]), text.getvalue())
+
     def test_patterns_and_gaps(self):
         hit, unmapped = coverage.coverage(sessionlog.sessions(self.path)[-1].movements)
         self.assertIn("goblet squat", hit["squat"])
@@ -472,7 +491,8 @@ class FreshFork(unittest.TestCase):
                                                  os.path.join(home, "workouts", "x", "x.draft.txt"), home)
             out = self.run_tool(home, "build", draft_path, "x", "--lint-only", "--coach", "Coach Andy")
             self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)   # short on purpose: the total
-            self.assertIn("1 issue(s)", out.stdout)
+            self.assertIn("1 issue(s)", out.stderr)   # the failure summary goes to stderr
+            self.assertNotIn("issue(s). Fix", out.stdout)
             self.assertNotIn("  line ", out.stdout)   # and no text-to-speech problems
             self.assertIn("every movement is on today's menu", out.stdout)
             prof = context.profile(os.path.join(home, "profile.md"))
@@ -481,6 +501,33 @@ class FreshFork(unittest.TestCase):
             self.assertEqual(context.routes(prof), ["local"])
             self.assertEqual(sorted(os.listdir(os.path.join(home, "coaches"))), [".gitkeep"])   # the stock coaches ship in the engine
             self.assertIn("deliver_to", prof.settings)
+
+    def test_json_outputs(self):
+        """--json on the commands the skills read: one JSON object each, with the keys their --help names."""
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(paths.EXAMPLE, home)
+            got = {}
+            for args in (("coverage",), ("content", "plan", "--minutes", "25"), ("coaches", "list"),
+                         ("get", "web-builds"), ("get", "routes")):
+                out = self.run_tool(home, *args, "--json")
+                self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+                got[args[0] + (" " + args[1] if len(args) > 1 else "")] = json.loads(out.stdout)
+            self.assertEqual(got["coverage"]["sessions"], 0)
+            self.assertEqual(got["coverage"]["avoid"], [])
+            plan = got["content plan"]
+            self.assertEqual(plan["minutes"], 25)
+            self.assertTrue(plan["slots"])
+            self.assertTrue({"slot", "count", "words", "what", "fresh", "due"} <= set(plan["slots"][0]))
+            self.assertEqual(sorted(plan), ["minutes", "recent_days", "reserve", "restock", "slots", "told_recent"])
+            coaches_ = got["coaches list"]
+            self.assertEqual(sorted(coaches_), ["coaches", "default", "note"])
+            self.assertTrue(coaches_["coaches"])
+            self.assertEqual(sorted(coaches_["coaches"][0]), sorted(["name", "slug", "kind", "service", "service_name",
+                                                                     "default", "placeholder", "pending", "shipped",
+                                                                     "description"]))
+            self.assertEqual(got["get web-builds"], {"web_builds": 0})
+            self.assertEqual(got["get routes"], {"routes": ["local"]})
 
     def test_missing_context_says_run_setup(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1834,6 +1881,35 @@ class CachePrune(unittest.TestCase):
             self.assertEqual(cache.prune(45, d), (1, 4))
             self.assertEqual(sorted(n for n in os.listdir(d) if not n.startswith(".")), ["new.pcm", "voice-pace.json"])
             self.assertEqual(cache.size(d), (1, 4))
+
+    def test_logs_older_prunes_only_old_render_logs(self):
+        with tempfile.TemporaryDirectory() as d:
+            names = ("old.log", "old.log.1", "new.log", "builds.jsonl", "builds.jsonl.lock", "told.jsonl", "notes.txt")
+            for n in names:
+                write_file(os.path.join(d, n), "abcd")
+            month = time.time() - 60 * 86400
+            for n in names:
+                if n != "new.log":
+                    os.utime(os.path.join(d, n), (month, month))
+            self.assertEqual(cache.prune_logs(30, d), (2, 8))
+            self.assertEqual(sorted(os.listdir(d)),
+                             ["builds.jsonl", "builds.jsonl.lock", "new.log", "notes.txt", "told.jsonl"])
+
+    def test_logs_older_alone_leaves_the_clips(self):
+        with tempfile.TemporaryDirectory() as d, helpers.home(d):
+            clip, log = os.path.join(paths.CACHE, "old.pcm"), os.path.join(paths.LOGS, "old.log")
+            for p in (clip, log):
+                write_file(p, "abcd")
+                os.utime(p, (time.time() - 90 * 86400,) * 2)
+            with mock.patch("sys.stdout", io.StringIO()):
+                self.assertEqual(cache.main(["prune", "--logs-older", "60"]), cli.OK)
+            self.assertTrue(os.path.exists(clip))
+            self.assertFalse(os.path.exists(log))
+            with mock.patch("sys.stdout", io.StringIO()):
+                cache.main(["prune", "--days", "60", "--logs-older", "60"])
+            self.assertFalse(os.path.exists(clip))
+            with mock.patch("sys.stderr", io.StringIO()):
+                self.assertEqual(cli.run(cache.main, ["prune", "--logs-older", "-1"]), cli.USAGE)
 
 
 class Ffmpeg(unittest.TestCase):

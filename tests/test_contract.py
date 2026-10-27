@@ -89,6 +89,41 @@ class Contract(unittest.TestCase):
         self.assertTrue(err.strip())
 
 
+class FlagNames(unittest.TestCase):
+    """The flag rule in cli.py: --date is a recorded day, --today only "pretend today is"; no parser takes both,
+    and --json is on the commands whose --help documents it. Every command's parsers are walked by running its
+    --help with add_argument recorded."""
+    TODAY = {"sweatcast brief", "sweatcast content plan"}
+    DATE = {"sweatcast log-session", "sweatcast content log"}
+    JSON = {"sweatcast coaches list", "sweatcast content plan", "sweatcast coverage", "sweatcast get"}
+
+    def flags(self):
+        import argparse
+        from unittest import mock
+        seen = {}
+        real = argparse.ArgumentParser.add_argument
+
+        def record(parser, *args, **kw):
+            seen.setdefault(parser.prog, set()).update(a for a in args if a.startswith("-"))
+            return real(parser, *args, **kw)
+
+        with tempfile.TemporaryDirectory() as d, helpers.home(os.path.join(d, "me")), \
+                mock.patch.object(argparse.ArgumentParser, "add_argument", record):
+            shutil.copytree(paths.EXAMPLE, paths.HOME)
+            for cmd in PYTHON_COMMANDS:
+                run(cmd, "--help")
+        return seen
+
+    def test_date_and_today_follow_the_rule(self):
+        seen = self.flags()
+        self.assertIn("sweatcast coverage", seen)   # the walk reached the commands
+        both = [prog for prog, f in seen.items() if {"--today", "--date"} <= f]
+        self.assertEqual(both, [])
+        self.assertEqual({prog for prog, f in seen.items() if "--today" in f}, self.TODAY)
+        self.assertEqual({prog for prog, f in seen.items() if "--date" in f}, self.DATE)
+        self.assertEqual({prog for prog, f in seen.items() if "--json" in f}, self.JSON)
+
+
 class ErrorChannel(unittest.TestCase):
     """Library code reports a problem by raising a typed error carrying its exit code; only cli.run ends the
     process. (cli.Usage, a SystemExit, is left to argparse and the commands' main functions; below main a

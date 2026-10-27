@@ -18,6 +18,14 @@ for an unknown coach or a web coach with no key here; a web service's refusal; a
 be read) exits with it; any other SystemExit with a message is 1, the message on stderr. Any other exception is a bug in the
 engine: its traceback (with every key value taken out) goes to stderr and the code is 70, so a skill never
 reads a crash as a draft to fix.
+
+Output: a command's report goes to stdout; the line saying why it failed (and every message cli.run
+prints) goes to stderr. A command the skills read for facts may take --json: one JSON object on stdout,
+the same facts as the text, with the keys its --help names (coaches list, content plan, coverage, get).
+
+Flag names: --date is a day on record (the session being logged: log-session, content log); --today
+only ever means "pretend today is" (planning as of another day: brief, content plan, via today_arg).
+No command takes both; test_contract walks every parser to hold this.
 """
 import argparse
 import sys

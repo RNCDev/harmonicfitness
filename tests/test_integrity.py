@@ -261,6 +261,85 @@ class Tracing(unittest.TestCase):
         self.assertIsInstance(other, errors.EngineError)
 
 
+class ReadJson(unittest.TestCase):
+    """fileio.read_json: a missing file is the caller's to answer (FileNotFoundError); a damaged one, or one of
+    the wrong top-level shape, is a ContextError naming the file; and the readers that once trusted json.load
+    answer through it."""
+
+    def setUp(self):
+        import shutil
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def put(self, name, text):
+        path = os.path.join(self.tmp, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return path
+
+    def test_shapes_and_damage(self):
+        import errors
+        self.assertEqual(fileio.read_json(self.put("a.json", '{"x": 1}')), {"x": 1})
+        self.assertEqual(fileio.read_json(self.put("b.json", "[1]"), shape=list), [1])
+        with self.assertRaises(FileNotFoundError):
+            fileio.read_json(os.path.join(self.tmp, "none.json"))
+        for name, text in (("torn.json", '{"x": '), ("list.json", "[1, 2]"), ("null.json", "null")):
+            path = self.put(name, text)
+            with self.assertRaises(errors.ContextError) as got:
+                fileio.read_json(path)
+            self.assertIn(name, str(got.exception))
+        with self.assertRaises(errors.ContextError) as got:
+            fileio.read_json(self.put("obj.json", "{}"), shape=list)
+        self.assertIn("array", str(got.exception))
+
+    def test_menu_load(self):
+        import errors
+        import menu
+        self.assertIsNone(menu.load(os.path.join(self.tmp, "none.menu.json")))
+        with self.assertRaises(errors.ContextError) as got:
+            menu.load(self.put("x.menu.json", "[]"))
+        self.assertIn("x.menu.json", str(got.exception))
+
+    def test_menu_gate_names_a_damaged_menu(self):
+        import draft as draftmod
+        import menu
+        d = self.put("2026-10-25-x.draft.txt", "movements: \n")
+        with open(draftmod.menu_path(d), "w", encoding="utf-8") as f:
+            f.write('"a string"')
+        issues, _ = menu.gate(catalog.default(), d, "", [])
+        self.assertEqual(len(issues), 1)
+        self.assertIn("can't be read", issues[0])
+
+    def test_build_record_readers(self):
+        import io
+        import build
+        import workouts
+        mp3 = os.path.join(self.tmp, "w.mp3")
+        rec = workouts.record_path(mp3)
+        with open(rec, "w", encoding="utf-8") as f:
+            f.write("[]")
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            self.assertIsNone(build.note_in_record(mp3, {"x": 1}))
+        self.assertIn("w.build.json", err.getvalue())
+        self.assertEqual(workouts._record_stem(rec), (None, False))
+        with open(rec, "w", encoding="utf-8") as f:
+            f.write('{"draft": "/a/2026-10-25-x.draft.txt"}')
+        self.assertEqual(build.note_in_record(mp3, {"x": 1})["x"], 1)
+        self.assertEqual(workouts._record_stem(rec), ("2026-10-25-x", False))
+
+    def test_harness_names_a_damaged_settings_file(self):
+        import shutil
+        import harness
+        root = os.path.join(self.tmp, "repo")
+        shutil.copytree(os.path.join(paths.ROOT, ".claude"), os.path.join(root, ".claude"))
+        with open(os.path.join(root, harness.SETTINGS), "w", encoding="utf-8") as f:
+            f.write("{not json")
+        out = harness.problems(root)
+        self.assertTrue(any(line.startswith(harness.SETTINGS + ":") and "can't be read" in line for line in out),
+                        out)
+
+
 class BuildTrail(unittest.TestCase):
     """Every exit of a full build leaves exactly one outcome line ("stopped", "measured" or "delivered") in
     builds.jsonl, carrying its build_id; a lint-only run leaves none. The lint and the render are stood in for;

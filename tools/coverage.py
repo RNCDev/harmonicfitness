@@ -21,7 +21,9 @@ can judge it; add the movement, or an alias for it, to the catalog when it becom
 regular. The last seven days are counted too, so a pattern the week has neglected is
 prioritized even when the last session touched it.
 """
+import argparse
 import datetime
+import json
 import os
 import re
 import sys
@@ -113,54 +115,91 @@ def days_ago(date: str, today: datetime.date) -> Optional[int]:
         return None
 
 
-def main():
-    ap = cli.ArgumentParser()
+def facts(log_path=None, last=1, today: Optional[datetime.date] = None) -> dict:
+    """What the report says, as data (the --json output; its keys are kept stable):
+    sessions (how many logged), pooled (how many recent sessions the coverage pools), span (their dates),
+    covered {pattern: [movements]} for every pattern, prioritize [patterns] (left out by the pooled
+    sessions, then those trained fewer than twice in the last 7 days), week {pattern: sessions in the last 7
+    days}, avoid [the last session's movements], unmapped [movements], last_format, last_kit, days_since,
+    sessions_7d, feedback (the latest, or null) and last_loads {movement: {date, load}}, newest first. With no
+    session logged, sessions is 0 and the rest are empty or null."""
+    today = today or datetime.date.today()
+    cat = catalog.load()
+    full = sessionlog.sessions(log_path)
+    out = {"sessions": len(full), "pooled": 0, "span": None, "covered": {name: [] for name in cat.patterns},
+           "prioritize": [], "week": {name: 0 for name in cat.patterns}, "avoid": [], "unmapped": [],
+           "last_format": None, "last_kit": None, "days_since": None, "sessions_7d": 0, "feedback": None,
+           "last_loads": {}}
+    if not full:
+        return out
+    log = [(e.date, e.movements) for e in full]
+    recent = log[-last:]
+    hit, unmapped = coverage([mv for _, mvs in recent for mv in mvs], cat)
+    missed = [name for name in cat.patterns if not hit[name]]
+    counts = week(full, today, cat=cat)
+    thin = [name for name in cat.patterns if counts[name] < 2 and name not in missed]
+    notes = context.feedback(log_path)
+    loads = sorted(last_loads(full, cat=cat).items(), key=lambda kv: kv[1][0], reverse=True)
+    out.update({
+        "pooled": len(recent),
+        "span": recent[0][0] if len(recent) == 1 else f"{recent[0][0]} to {recent[-1][0]}",
+        "covered": {name: list(hit[name]) for name in cat.patterns},
+        "prioritize": missed + thin,
+        "week": counts,
+        "avoid": list(log[-1][1]),
+        "unmapped": unmapped,
+        "last_format": full[-1].format or None,
+        "last_kit": full[-1].kit,
+        "days_since": days_ago(full[-1].date, today),
+        "sessions_7d": sum(1 for e in full if days_ago(e.date, today) is not None
+                           and 0 <= days_ago(e.date, today) < 7),
+        "feedback": notes[-1] if notes else None,
+        "last_loads": {mv: {"date": date, "load": load} for mv, (date, load) in loads},
+    })
+    return out
+
+
+def text(f: dict) -> List[str]:
+    """The report's lines, from facts()."""
+    if not f["sessions"]:
+        return ["No sessions in log.md yet: every pattern is open, nothing to avoid."]
+    lines = [f"Coverage, {f['pooled']} session(s), {f['span']}:"]
+    for name, mvs in f["covered"].items():
+        lines.append(f"  {'yes' if mvs else ' no'}  {name}" + (f": {', '.join(mvs)}" if mvs else ""))
+    lines.append("\nPrioritize: " + (", ".join(f["prioritize"]) if f["prioritize"] else "nothing, all patterns covered"))
+    lines.append("Last 7 days, sessions per pattern:")
+    lines += [f"  {n}  {name}" for name, n in f["week"].items()]
+    lines.append("Avoid (last session's main movements): " + ", ".join(f["avoid"]))
+    if f["unmapped"]:
+        lines.append("Unmapped (judge these by hand): " + ", ".join(f["unmapped"]))
+    fmt, since = f["last_format"], f["days_since"]
+    lines.append("Last format: " + (f"{fmt} (use a different one today)" if fmt else "not logged")
+                 + f"; last kit: {f['last_kit']}")
+    lines.append("Since the last session: " + (f"{since} day{'s' if since != 1 else ''}" if since is not None
+                                               else "unknown")
+                 + f"; sessions in the last 7 days: {f['sessions_7d']} (mention it if it's worth saying)")
+    if f["feedback"]:
+        lines.append("Latest feedback (honour it, and say so in the audio): " + f["feedback"])
+    if f["last_loads"]:
+        lines.append("Last loads (progress from these):")
+        lines += [f"  {mv}: {v['load']} ({v['date']})" for mv, v in f["last_loads"].items()]
+    return lines
+
+
+def main(argv=None):
+    ap = cli.ArgumentParser(prog="sweatcast coverage", description=__doc__,
+                            formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--last", type=int, default=1, help="how many recent sessions to pool (default 1)")
     ap.add_argument("--log", default=None)
-    args = ap.parse_args()
-
-    cat = catalog.load()
-    full = sessionlog.sessions(args.log)
-    if not full:
-        print("No sessions in log.md yet: every pattern is open, nothing to avoid.")
-        return 0
-    log = [(e.date, e.movements) for e in full]
-    recent = log[-args.last:]
-    movements = [mv for _, mvs in recent for mv in mvs]
-    hit, unmapped = coverage(movements, cat)
-    span = recent[0][0] if len(recent) == 1 else f"{recent[0][0]} to {recent[-1][0]}"
-    print(f"Coverage, {len(recent)} session(s), {span}:")
-    for name in cat.patterns:
-        print(f"  {'yes' if hit[name] else ' no'}  {name}" + (f": {', '.join(hit[name])}" if hit[name] else ""))
-    missed = [name for name in cat.patterns if not hit[name]]
-    counts = week(full, datetime.date.today(), cat=cat)
-    thin = [name for name in cat.patterns if counts[name] < 2 and name not in missed]
-    print("\nPrioritize: " + (", ".join(missed + thin) if missed + thin else "nothing, all patterns covered"))
-    print("Last 7 days, sessions per pattern:")
-    for name in cat.patterns:
-        print(f"  {counts[name]}  {name}")
-    print("Avoid (last session's main movements): " + ", ".join(log[-1][1]))
-    if unmapped:
-        print("Unmapped (judge these by hand): " + ", ".join(unmapped))
-    fmt = full[-1].format
-    print("Last format: " + (f"{fmt} (use a different one today)" if fmt else "not logged")
-          + f"; last kit: {full[-1].kit}")
-    today = datetime.date.today()
-    try:
-        since = (today - datetime.date.fromisoformat(full[-1].date)).days
-    except ValueError:
-        since = None
-    seven = sum(1 for e in full if days_ago(e.date, today) is not None and 0 <= days_ago(e.date, today) < 7)
-    print("Since the last session: " + (f"{since} day{'s' if since != 1 else ''}" if since is not None else "unknown")
-          + f"; sessions in the last 7 days: {seven} (mention it if it's worth saying)")
-    notes = context.feedback(args.log)
-    if notes:
-        print("Latest feedback (honour it, and say so in the audio): " + notes[-1])
-    loads = last_loads(full, cat=cat)
-    if loads:
-        print("Last loads (progress from these):")
-        for mv, (date, load) in sorted(loads.items(), key=lambda kv: kv[1][0], reverse=True):
-            print(f"  {mv}: {load} ({date})")
+    ap.add_argument("--json", action="store_true",
+                    help="the same facts as one JSON object: sessions, pooled, span, covered, prioritize, week, "
+                         "avoid, unmapped, last_format, last_kit, days_since, sessions_7d, feedback, last_loads")
+    args = ap.parse_args(argv)
+    f = facts(args.log, args.last)
+    if args.json:
+        print(json.dumps(f, indent=1, ensure_ascii=False))
+    else:
+        print("\n".join(text(f)))
     return 0
 
 

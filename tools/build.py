@@ -211,9 +211,8 @@ def note_in_record(mp3, fields):
     when it can't be read."""
     path = workouts.record_path(mp3)
     try:
-        with open(path, encoding="utf-8") as f:
-            rec = json.load(f)
-    except (OSError, ValueError) as e:
+        rec = fileio.read_json(path)
+    except (OSError, errors.ContextError) as e:
         print(f"Couldn't add where the MP3 went to {paths.show(path)}: {e}", file=sys.stderr)
         return None
     rec.update(fields)
@@ -276,17 +275,24 @@ class _Trail:
     leaves exactly one outcome line in builds.jsonl ("stopped", "measured" or "delivered"), carrying its
     build_id, as its record, its failed line and its log header do."""
 
-    def __init__(self, opts, say, log, draft_sha256):
+    def __init__(self, opts, say, log, draft_sha256, fail=None):
         self.opts, self.log, self.draft_sha256 = opts, log, draft_sha256
         self.build_id = uuid.uuid4().hex[:12]
         self.stage = "start"
         self.lines = []
         self.noted = False
         self._say = say
+        self._fail = fail or say
 
     def say(self, line=""):
         self.lines.append(line)
         self._say(line)
+
+    def fail(self, line):
+        """The line that says why the build stopped: on stderr from the command line (cli.run's rule for every
+        failure summary), in the lines all the same."""
+        self.lines.append(line)
+        self._fail(line)
 
     def note(self, event, **fields):
         if self.opts.full and not self.noted:
@@ -345,10 +351,11 @@ def gate(segments, voice, opts, text, smoke):
     return issues, warnings, report
 
 
-def run_build(opts, say=print):
+def run_build(opts, say=print, fail=None):
     """Lint, check against the menu, render and deliver one draft (see the module's docstring). Returns a
     BuildResult; a stop the listener or the writer must act on is raised, as cli.run maps it, after the build's
-    outcome line is written."""
+    outcome line is written. `say` takes the report's lines and `fail` the one saying why it stopped (default:
+    stderr when `say` is print, else `say`)."""
     name = opts.name
     if "/" in name or "\\" in name:
         raise errors.UsageError(f"The name can't contain a slash: {name}")
@@ -359,7 +366,10 @@ def run_build(opts, say=print):
                                   "me.example/ to me/).")
     with open(opts.draft, encoding="utf-8") as f:
         text = f.read()   # the one read: the lint, the menu check and the render all see this text
-    b = _Trail(opts, say, os.path.join(paths.LOGS, f"{name}.log"), hashlib.sha256(text.encode("utf-8")).hexdigest())
+    if fail is None:
+        fail = (lambda line: print(line, file=sys.stderr)) if say is print else say
+    b = _Trail(opts, say, os.path.join(paths.LOGS, f"{name}.log"), hashlib.sha256(text.encode("utf-8")).hexdigest(),
+               fail)
     try:
         return _run(b, text)
     except BaseException as e:
@@ -388,7 +398,7 @@ def _run(b, text):
 
     if opts.clips_only or opts.follow:
         if route != "local":
-            b.say(f"Rendering ahead is off for a cloud voice ({route}): every re-render would be billed. Run the "
+            b.fail(f"Rendering ahead is off for a cloud voice ({route}): every re-render would be billed. Run the "
                   "full build once the lint passes.")
             return BuildResult(cli.USAGE, None, b.lines)
         b.stage = "render-ahead"
@@ -405,7 +415,7 @@ def _run(b, text):
     b.stage = "pace"
     voice = personas.voice_for(coach, route, pending=bool(coach.pending))
     if not smoke and not opts.lint_only and not coach.is_web and not opts.allow_estimated and not voices.pace(voice)[1]:
-        b.say(f"{coach.name}'s speaking rate hasn't been measured on {route} yet, so this draft's timing is a guess.\n"
+        b.fail(f"{coach.name}'s speaking rate hasn't been measured on {route} yet, so this draft's timing is a guess.\n"
               "Render the smoke test with them first, which measures it, then rerun:\n"
               f'  ./sweatcast build {paths.show(paths.SMOKE_DRAFT)} "smoke-test" --coach "{coach.name}" --engine {route}\n'
               "(or pass --allow-estimated to render anyway)")
@@ -419,12 +429,12 @@ def _run(b, text):
         import menu
         b.say("\n".join(menu.report_lines(opts.draft, issues, warnings, len(draft.declared(text)))))
     if issues:
-        b.say(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
+        b.fail(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
         b.stopped(f"{len(issues)} menu issue(s)", stage="menu")
         return BuildResult(cli.ISSUES, None, b.lines)
     problems = report.problems
     if problems and not smoke:
-        b.say(f"\n{problems} issue(s). Fix and rerun. Nothing exported.")
+        b.fail(f"\n{problems} issue(s). Fix and rerun. Nothing exported.")
         b.stopped(f"{problems} lint issue(s)", stage="lint")
         return BuildResult(cli.ISSUES, None, b.lines)
     b.stage = "export"
@@ -457,7 +467,7 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
                            draft_sha256=b.draft_sha256, model=opts.model, check=not opts.no_check,
                            build_id=b.build_id)
     if abs(drift) > opts.tolerance:   # the MP3 is written, not copied
-        b.say(render.drift_message(drift, opts.tolerance))
+        b.fail(render.drift_message(drift, opts.tolerance))
         b.stopped(f"{drift:+.1%} of plan", stage="drift", drift=round(drift, 4))
         return BuildResult(cli.DRIFT, None, b.lines)
     if smoke:   # a voice check, not a workout: no copy

@@ -162,38 +162,57 @@ def read_piece(path) -> Optional[Piece]:
     return Piece(slug, title, fields["slot"], fields.get("category", ""), fields.get("source", ""), path)
 
 
-def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, items=None,
-         pieces=None) -> List[str]:
+def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=None, items=None,
+               pieces=None) -> dict:
+    """The filler plan as data (content plan --json; its keys are kept stable): minutes; slots, one per slot
+    the session carries, in the recipe's order: {slot, count, words, what, fresh, due: [{category, last_told
+    (a date or null), detail (the listener's, or null)}]}; recent_days and told_recent [{date, slot, category,
+    title}]; reserve [{slug, title, slot, category, source, path}]; restock [{slot, more, categories}]."""
     r = r or recipe()
     items = told() if items is None else items
     pieces = reserve(items=items) if pieces is None else pieces
     cats = categories(r, profile)
     n = counts(r, minutes)
     details = {name.lower(): detail for name, _, detail in context.interests(profile)} if profile else {}
+    since = (today - datetime.timedelta(days=RECENT_DAYS)).isoformat()
+    return {
+        "minutes": minutes,
+        "slots": [{"slot": sid, "count": n[sid], "words": slot.words, "what": slot.what, "fresh": slot.fresh,
+                   "due": [{"category": c, "last_told": d, "detail": details.get(c.lower()) or None}
+                           for c, d in due(cats[sid], items, sid, n[sid])]}
+                  for sid, slot in r.slots.items() if n[sid]],
+        "recent_days": RECENT_DAYS,
+        "told_recent": [{"date": i["date"], "slot": i.get("slot"), "category": i.get("category"),
+                         "title": i["title"]} for i in items if i["date"] >= since],
+        "reserve": [{"slug": p.slug, "title": p.title, "slot": p.slot, "category": p.category,
+                     "source": p.source, "path": paths.show(p.path)} for p in pieces],
+        "restock": [{"slot": sid, "more": k, "categories": [c for c, _ in due(cats[sid], items, sid, k)]}
+                    for sid, k in restock(r, cats, items, pieces).items()],
+    }
+
+
+def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, items=None,
+         pieces=None) -> List[str]:
+    """The filler plan's lines (plan_facts, as text)."""
+    f = plan_facts(minutes, today, r, profile, items, pieces)
     out = [f"# Filler plan, {minutes} minutes", "",
            "The items the session's rests carry, by slot, each with its category, when that category was "
            "last told, and what the listener likes in it. The deep dive is told in beats across several rests.", ""]
-    for sid, slot in r.slots.items():
-        if not n[sid]:
-            continue
-        source = "research it today" if slot.fresh else "from the reserve, or research it if none fits"
-        out.append(f"- {sid} x{n[sid]}, about {slot.words} words each ({slot.what}; {source}):")
-        for c, d in due(cats[sid], items, sid, n[sid]):
-            detail = details.get(c.lower())
-            out.append(f"  - {c}, {'last told ' + d if d else 'never told'}{': ' + detail if detail else ''}")
-    since = (today - datetime.timedelta(days=RECENT_DAYS)).isoformat()
-    recent = [i for i in items if i["date"] >= since]
+    for slot in f["slots"]:
+        source = "research it today" if slot["fresh"] else "from the reserve, or research it if none fits"
+        out.append(f"- {slot['slot']} x{slot['count']}, about {slot['words']} words each ({slot['what']}; {source}):")
+        for d in slot["due"]:
+            out.append(f"  - {d['category']}, {'last told ' + d['last_told'] if d['last_told'] else 'never told'}"
+                       f"{': ' + d['detail'] if d['detail'] else ''}")
     out += ["", f"## Told in the last {RECENT_DAYS} days (don't tell again; a follow-up needs something new)"]
-    out += [f"- {i['date']} {i.get('slot', '?')} / {i.get('category', '?')}: {i['title']}" for i in recent] \
+    out += [f"- {i['date']} {i['slot'] or '?'} / {i['category'] or '?'}: {i['title']}" for i in f["told_recent"]] \
         or ["- nothing yet"]
     out += ["", "## Reserve (unused pieces, ready to tell)"]
-    out += [f"- {p.slot} / {p.category}: {p.title} ({paths.show(p.path)}, slug {p.slug})" for p in pieces] \
+    out += [f"- {p['slot']} / {p['category']}: {p['title']} ({p['path']}, slug {p['slug']})" for p in f["reserve"]] \
         or ["- empty"]
-    low = restock(r, cats, items, pieces)
-    if low:
+    if f["restock"]:
         out += ["", "## Restock", "The reserve is low; stock these (the categories told longest ago first):"]
-        out += [f"- {sid}: {k} more, in {', '.join(c for c, _ in due(cats[sid], items, sid, k))}"
-                for sid, k in low.items()]
+        out += [f"- {x['slot']}: {x['more']} more, in {', '.join(x['categories'])}" for x in f["restock"]]
     return out
 
 
@@ -265,6 +284,9 @@ def main(argv=None):
     p = sub.add_parser("plan", help="the filler plan for a session, what's been told, the reserve")
     p.add_argument("--minutes", type=int, default=25, help="the session's length (default 25)")
     cli.today_arg(p)
+    p.add_argument("--json", action="store_true",
+                   help="the same plan as one JSON object: minutes, slots (slot, count, words, what, fresh, due: "
+                        "category, last_told, detail), recent_days, told_recent, reserve, restock")
     lg = sub.add_parser("log", help="record the items a session told")
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
@@ -276,7 +298,11 @@ def main(argv=None):
             today = args.today or datetime.date.today()
             if args.minutes <= 0:
                 raise ValueError("--minutes must be above zero")
-            print("\n".join(plan(args.minutes, today, profile=context.profile())))
+            if args.json:
+                print(json.dumps(plan_facts(args.minutes, today, profile=context.profile()), indent=1,
+                                 ensure_ascii=False))
+            else:
+                print("\n".join(plan(args.minutes, today, profile=context.profile())))
         elif args.cmd == "log":
             # the profile's [[interests]] name the categories; with no profile, the defaults
             new = log(args.date, args.item, profile=context.profile() if os.path.exists(paths.PROFILE) else None)

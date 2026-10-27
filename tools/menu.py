@@ -21,12 +21,12 @@ Library only; the brief and the build call it.
 """
 import datetime
 import hashlib
-import json
 import os
 import re
 from typing import Dict, List, Optional, Tuple
 
 import catalog
+import errors
 import draft
 import paths
 
@@ -120,7 +120,6 @@ def rescreen(cat: catalog.Catalog, menu: dict, health_path: Optional[str] = None
     level, target, its added limits and avoids) as the brief wrote them; it shows the movements follow from
     the request, not that the request is the one the listener made."""
     import context
-    import errors
     import health
     import screen
     import sessions
@@ -176,7 +175,7 @@ def gate(cat: catalog.Catalog, draft_path: str, text: str, segments, today: Opti
         return check(cat, None, text, segments) if required else ([], [])
     try:
         menu = load(path)
-    except ValueError as e:
+    except (OSError, errors.ContextError) as e:
         return ([f"the menu beside the draft can't be read ({os.path.basename(path)}: {e}): rerun ./sweatcast brief "
                  "... --save <the draft's path>"], [])
     shape = validate(menu)
@@ -198,11 +197,13 @@ def write(path: str, menu: dict) -> None:
 
 
 def load(path: str) -> Optional[dict]:
-    """The menu at `path`, or None when there is none."""
-    if not os.path.exists(path):
+    """The menu at `path`, or None when there is none; ContextError, naming the file, when it can't be read
+    or isn't a JSON object (validate checks what it holds)."""
+    import fileio
+    try:
+        return fileio.read_json(path)
+    except FileNotFoundError:
         return None
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
 
 
 def _norm(text: str) -> str:

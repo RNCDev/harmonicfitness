@@ -12,7 +12,6 @@ rule and the allow list still name the same command.
     ./sweatcast harness          # check: exit 1 and a list when the Codex files are out of step
     ./sweatcast harness sync     # rewrite AGENTS.md and .agents/skills/ from the Claude files
 """
-import json
 import os
 import sys
 
@@ -130,10 +129,15 @@ def problems(root=None):
     rules = (_read(os.path.join(root, CODEX_RULES)) or b"").decode("utf-8", "replace")
     if '"./sweatcast"' not in rules:
         out.append(f"{CODEX_RULES}: should allow [\"./sweatcast\"], as {SETTINGS} does")
+    import fileio
     try:
-        with open(os.path.join(root, SETTINGS), encoding="utf-8") as f:
-            permissions = json.load(f).get("permissions", {})
-    except (OSError, ValueError):
+        permissions = fileio.read_json(os.path.join(root, SETTINGS)).get("permissions", {})
+    except OSError:
+        permissions = {}
+    except errors.ContextError as e:
+        out.append(f"{SETTINGS}: can't be read as JSON, or isn't an object ({e.__cause__ or 'not an object'})")
+        permissions = {}
+    if not isinstance(permissions, dict):
         permissions = {}
     if "Bash(./sweatcast:*)" not in permissions.get("allow", []):
         out.append(f"{SETTINGS}: should allow Bash(./sweatcast:*), as {CODEX_RULES} does")

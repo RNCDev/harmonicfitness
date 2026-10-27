@@ -1,11 +1,34 @@
 """One way to write a file so a crash never leaves it half-written: to a temporary file beside it, then
 renamed into place (os.replace is atomic on every system sweatcast runs on). Text or bytes. And one way
-to add a line to a JSONL record (builds.jsonl, told.jsonl) so a torn line never takes the next one with it."""
+to add a line to a JSONL record (builds.jsonl, told.jsonl) so a torn line never takes the next one with it.
+And one way to read a JSON file whose top level must be one shape (read_json)."""
 import json
 import os
 import tempfile
 
+import errors
 import locks
+
+
+_JSON_NAME = {dict: "object", list: "array", str: "string", int: "number", float: "number",
+              bool: "true or false", type(None): "null"}
+
+
+def read_json(path, shape=dict):
+    """The JSON at `path`, whose top level must be a `shape` (dict or list). A missing file raises
+    FileNotFoundError as open() does, so each caller keeps its own answer for that; anything else that stops
+    it being read (unreadable, not JSON, the wrong top level) raises ContextError naming the file."""
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        raise
+    except (OSError, ValueError) as e:
+        raise errors.ContextError(f"{path} can't be read as JSON ({e}).") from e
+    if not isinstance(data, shape):
+        raise errors.ContextError(f"{path} should hold a JSON {_JSON_NAME.get(shape, shape.__name__)}, "
+                                  f"not {_JSON_NAME.get(type(data), type(data).__name__)}.")
+    return data
 
 
 def write_json(path, obj, indent=1):

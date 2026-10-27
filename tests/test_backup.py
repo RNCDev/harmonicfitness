@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,8 +31,8 @@ def new_repo(path):
 
 
 def run(home, message="Workout", push=True):
-    out = io.StringIO()
-    with redirect_stdout(out):
+    out = io.StringIO()   # both streams: a refusal goes to stderr
+    with redirect_stdout(out), redirect_stderr(out):
         code = backup.backup(home, message, push=push)
     return code, out.getvalue()
 

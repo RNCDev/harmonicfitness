@@ -101,7 +101,7 @@ def from_draft(path, date=None, minutes=None, kit=None):
     menu_file = draft.menu_path(path)
     try:
         m = menu.load(menu_file)
-    except ValueError as e:
+    except (OSError, errors.ContextError) as e:
         raise errors.LogRefused(f"Not logged: the menu beside the draft can't be read ({show(menu_file)}: {e}).")
     if m is None:
         raise errors.LogRefused(f"Not logged: no menu beside the draft ({show(menu_file)}); a built draft has one.")

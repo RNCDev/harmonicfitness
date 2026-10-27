@@ -608,7 +608,7 @@ def main(argv=None):
     for issue in issues:
         print("  " + check.describe(issue))
     if any(not i.note for i in issues):
-        print("Migrated, but the lines above need a look (./sweatcast check lists them again).")
+        print("Migrated, but the lines above need a look (./sweatcast check lists them again).", file=sys.stderr)
         return cli.ISSUES
     print("Every context file reads as this engine expects.")
     return cli.OK

@@ -18,6 +18,7 @@ flags, rehab, note) and its `## Clinician rules` section are what the brief appl
 older schema stops the tools with the command that brings it up to date, `./sweatcast migrate`.
 
     ./sweatcast get coach             # also: route, routes, wpm, experience, web-builds
+    ./sweatcast get web-builds --json # {"web_builds": 3}: any get value as JSON
     ./sweatcast deliver               # existing delivery folders, one per line
     ./sweatcast check                 # every file's format, and lines not filled in yet
     ./sweatcast log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
@@ -30,6 +31,7 @@ older schema stops the tools with the command that brings it up to date, `./swea
 """
 import argparse
 import glob
+import json
 import os
 import sys
 import tomllib   # Python 3.11: ./sweatcast runs every tool in the project's environment
@@ -441,6 +443,23 @@ def set_persona_setting(path, table, key, value):
 
 # ---- command line ----------------------------------------------------------------------
 
+def _get(args, p):
+    """The value `get` prints: a str, an int, a list (routes) or None (nothing set)."""
+    if args.what == "coach":
+        import coachpick
+        coach = coachpick.default()
+        return coach.name if coach else None
+    if args.what == "web-builds":
+        return web_builds()
+    if args.what == "routes":
+        return list(routes(p))
+    if args.what == "route":
+        import coachpick
+        # an unknown coach, a web coach with no key here or a bad --engine exit 64 through cli.run
+        return coachpick.pick(routes(p), coachpick.coach(args.coach), override=args.engine)
+    return {"wpm": wpm, "experience": experience}[args.what](p)
+
+
 def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -449,6 +468,9 @@ def main(argv=None):
                    help="web-builds: how many builds have sent a script to a web voice service")
     g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
     g.add_argument("--engine", help="with route: a route to use if it works here")
+    g.add_argument("--json", action="store_true",
+                   help='the value as one JSON object keyed by its name, "-" as "_": {"web_builds": 3}, '
+                        '{"routes": ["local"]}, {"coach": null} when there is none')
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
     s = sub.add_parser("log-session", help="add a session to log.md, checked")
     s.add_argument("--draft", help="the built draft: its movements: line gives the movements, and its menu the "
@@ -467,26 +489,13 @@ def main(argv=None):
 
     if args.cmd == "get":
         p = profile()
-        if args.what == "coach":
-            import coachpick
-            coach = coachpick.default()
-            if coach:
-                print(coach.name)
-            return cli.OK
-        if args.what == "web-builds":
-            print(web_builds())
-            return cli.OK
-        if args.what in ("route", "routes"):
-            if args.what == "routes":
-                print("\n".join(routes(p)))
-                return cli.OK
-            import coachpick
-            # an unknown coach, a web coach with no key here or a bad --engine exit 64 through cli.run
-            print(coachpick.pick(routes(p), coachpick.coach(args.coach), override=args.engine))
-            return cli.OK
-        v = {"wpm": wpm, "experience": experience}[args.what](p)
-        if v is not None:
-            print(v)
+        value = _get(args, p)
+        if args.json:
+            print(json.dumps({args.what.replace("-", "_"): value}, ensure_ascii=False))
+        elif isinstance(value, list):
+            print("\n".join(value))
+        elif value is not None:
+            print(value)
         return cli.OK
     if args.cmd == "deliver":
         pattern, found = delivery_folders(profile())

@@ -357,6 +357,8 @@ class Lint(unittest.TestCase):
         r = self.lint(DRAFT, fake_menu("goblet-squat", "box-breathing"))
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("isn't on today's menu", r.stdout)
+        self.assertIn("menu issue(s). Fix and rerun", r.stderr)   # the failure summary: stderr, as every command's
+        self.assertNotIn("menu issue(s)", r.stdout)
 
     def test_a_draft_on_its_menu_passes_the_menu_check(self):
         r = self.lint(DRAFT, fake_menu("goblet-squat", "dead-bug", "box-breathing"))

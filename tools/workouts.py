@@ -10,13 +10,14 @@
 reorganize() moves a folder from the old layout (drafts/ beside every build's output, and the day's
 research loose in research/) into this one; ./sweatcast migrate runs it once, at schema 4 to 5.
 """
-import json
 import os
 import re
 import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import errors  # noqa: E402
+import fileio  # noqa: E402
 import paths  # noqa: E402
 
 DRAFT_SUFFIXES = (".draft.txt", ".brief.md", ".menu.json")
@@ -68,9 +69,10 @@ def _free(dst):
 def _record_stem(record_path):
     """(the draft's stem, whether it's the smoke test) from a build record, or (None, False)."""
     try:
-        with open(record_path, encoding="utf-8") as f:
-            draft = json.load(f).get("draft") or ""
-    except (OSError, ValueError):
+        draft = fileio.read_json(record_path).get("draft") or ""
+    except (OSError, errors.ContextError):
+        return None, False
+    if not isinstance(draft, str):
         return None, False
     base = os.path.basename(draft)
     if base == "smoke-test.draft.txt":

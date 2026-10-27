@@ -51,7 +51,7 @@ def main(argv=None):
         print(f"No such file: {a.file}", file=sys.stderr)
         return 1
     if not show(a.file):
-        print(f"No file manager to open here; the file is {os.path.abspath(a.file)}")
+        print(f"No file manager to open here; the file is {os.path.abspath(a.file)}", file=sys.stderr)
         return 1
     print(f"Opened its folder: {os.path.abspath(a.file)}")
     return 0
