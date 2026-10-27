@@ -6,8 +6,12 @@ readable and writable by everyone. Either way the lock goes when the file is clo
 the process ends.
 
 render_lock(folder) is the one render at a time (two voice models don't fit in 16 GB):
-a render, a render-ahead (--follow), a voice design and a cache prune all take it, so
-none deletes or writes a clip another is reading.
+a render, a render-ahead (--follow) and a cache prune all take it, so none deletes or
+writes a clip another is reading. The maintainer's coachmaker tools don't: run them with
+no build going.
+
+file_lock(path) guards one file's read, check and write (the pace file, the session log,
+told.jsonl, builds.jsonl).
 """
 import contextlib
 import os
@@ -44,6 +48,34 @@ def acquire(f, block=True):
                 time.sleep(0.5)
     finally:
         f.seek(pos)
+
+
+_held = {}   # (lock path, thread id) -> depth, so a thread holding a file's lock can take it again
+
+
+@contextlib.contextmanager
+def file_lock(path):
+    """An exclusive lock beside `path` (`<path>.lock`), held while its contents are read, checked and written:
+    the pace file, the session log, told.jsonl, builds.jsonl. Re-entrant within one thread (a second flock on
+    a new open of the same file would wait on itself)."""
+    import threading
+    key = (os.path.abspath(path), threading.get_ident())
+    if _held.get(key):
+        _held[key] += 1
+        try:
+            yield
+        finally:
+            _held[key] -= 1
+        return
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path + ".lock", "a") as lock:
+        acquire(lock)
+        _held[key] = 1
+        try:
+            yield
+        finally:
+            _held.pop(key, None)
+            release(lock)
 
 
 def release(f):

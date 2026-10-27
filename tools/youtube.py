@@ -30,6 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
+import fileio  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
@@ -127,8 +128,7 @@ def mark_done(video, folder=None):
         sheet = DONE_RE.sub(f"- Parts done: {done}", sheet, count=1)
     else:
         sheet = PARTS_RE.sub(lambda m: f"{m.group(0)}\n- Parts done: {done}", sheet, count=1)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(sheet)
+    fileio.atomic_write(path, sheet)
     return done, parts
 
 
@@ -219,8 +219,7 @@ def transcript(ref):
     ]
     os.makedirs(paths.VIDEOS, exist_ok=True)
     path = os.path.join(paths.VIDEOS, f"{info['id']}.txt")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(header) + "\n\n" + "\n\n".join(body) + "\n")
+    fileio.atomic_write(path, "\n".join(header) + "\n\n" + "\n\n".join(body) + "\n")
     words = sum(len(p.split()) for p in body)
     print(f"{show(path)}  ({words} words)  {info.get('title', '')}")
 

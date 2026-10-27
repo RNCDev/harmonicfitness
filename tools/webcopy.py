@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ffmpeg as ffmpeg_tool  # noqa: E402
@@ -137,12 +138,14 @@ show();
 
 def page(name, parts, out_path):
     """Write the player page for `parts` (paths beside it) to `out_path`. Returns out_path."""
-    names = [os.path.basename(p) for p in parts]
+    # Each name as a link (a "#" or "?" in a workout's name would otherwise end the address early), and the
+    # script's list with "<" escaped, so no name can close the script.
+    names = [urllib.parse.quote(os.path.basename(p)) for p in parts]
     links = "".join(f'<li><a href="{html.escape(n)}" download>Download part {i + 1}</a></li>' if len(names) > 1
                     else f'<li><a href="{html.escape(n)}" download>Download the MP3</a></li>'
                     for i, n in enumerate(names))
     count = f"It's in {len(names)} parts, which play one after another." if len(names) > 1 else ""
     text = PAGE.format(title=html.escape(name), count=count, first=html.escape(names[0]), links=links,
-                       parts=json.dumps(names))
+                       parts=json.dumps(names).replace("<", "\\u003c"))
     fileio.atomic_write(out_path, text)
     return out_path

@@ -131,7 +131,7 @@ def setup_stage(p):
 
 
 def _interest_problems(path, settings):
-    import content   # here, not at the top: content imports this module
+    import content   # here, not at the top: content loads the filler plan, which only this check needs
     slots = content.recipe().slots
     out = []
     for i, row in enumerate(settings.get("interests") or [], 1):
@@ -242,7 +242,7 @@ def check(home_files=None):
 
 
 def check_coaches(folder=None):
-    """[Issue] for the coaches in me/personas/ (not the archive or auditions): a persona.md the tools can't read,
+    """[Issue] for the coaches in me/coaches/ (not the archive or auditions): a persona.md the tools can't read,
     a local coach of the listener's own (no longer rendered), a web coach with no voice (a note while one is
     pending), and how-they-talk lines still showing the template's [hint]."""
     import personas
@@ -296,10 +296,11 @@ def check_movements(path=None):
         extra = catalog.private_movements(path)
     except (tomllib.TOMLDecodeError, OSError) as e:
         return [Issue(path, 0, f"can't be read: {e}")]
-    ids = {str(m.get("id", "")) for m in extra}
+    ids = {str(m.get("id", "")) for m in extra if isinstance(m, dict)}
     cat = catalog.load(paths.MOVEMENTS, extra=extra)
-    return [Issue(path, 0, p) for p in catalog.problems(cat)
-            if any(re.search(rf"\b{re.escape(i)}\b", p) for i in ids if i)]
+    left_out = [Issue(path, 0, f + " (left out until fixed)") for f in cat.private_faults]
+    return left_out + [Issue(path, 0, p) for p in catalog.problems(cat)[len(cat.private_faults):]
+                       if any(re.search(rf"\b{re.escape(i)}\b", p) for i in ids if i)]
 
 
 def describe(issue):

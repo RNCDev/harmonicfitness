@@ -44,11 +44,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
 import cli  # noqa: E402
 import fileio  # noqa: E402
+import locks  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
 SCHEMA = 6   # 6 (0.12.0) splits the profile into profile.md, training.md, content.md and settings.toml
-PERSONA_SCHEMA = 5   # me/personas/<slug>/persona.md, new in sweatcast 0.9; 5 (0.10.0) adds kind and web coaches
+PERSONA_SCHEMA = 5   # me/coaches/<slug>/persona.md (me/personas/ before 0.15.0), new in sweatcast 0.9; 5 (0.10.0) adds kind and web coaches
 TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday", "wikipedia")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -455,7 +456,7 @@ SETTINGS_COMMENTS = {
 }
 
 
-# ---- coaches (me/personas/<slug>/persona.md) ------------------------------------------------
+# ---- coaches (me/coaches/<slug>/persona.md) -------------------------------------------------
 
 @dataclass
 class Persona:
@@ -465,8 +466,10 @@ class Persona:
 
 
 PERSONA_COMMENTS = {
-    "local": "How this coach sounds on this computer: engine chatterbox (most natural) or qwen3 (clearest; Mac only).",
+    "local": "How this coach sounds on this computer: Pocket TTS, from the voice file beside this one.",
     "fish": "Fish Audio: the model (a web voice; ./sweatcast keys).",
+    "gemini": "Gemini: the model (a web voice; ./sweatcast keys).",
+    "inworld": "Inworld: the model (a web voice; ./sweatcast keys).",
     "elevenlabs": "ElevenLabs: eleven_v4 (more natural) or eleven_v4_turbo (cheaper).",
     "voice": "How this coach sounds: what a web service designs the voice from (an edit means a new audition).",
     "character": "How this coach talks: what the script writer follows (the brief quotes it); edit freely.",
@@ -903,8 +906,9 @@ def main(argv=None):
                       (args.format or "").strip() or None,
                       named_pairs(loads, movements, "load"), named_pairs(rpe, movements, "rpe"))
     _check_session_names(session, kit_from_menu=bool(args.draft))
-    _check_not_logged(session)
-    print("Logged: " + append_session(session))
+    with locks.file_lock(paths.LOG):   # the duplicate check and the write as one step
+        _check_not_logged(session)
+        print("Logged: " + append_session(session))
     return cli.OK
 
 

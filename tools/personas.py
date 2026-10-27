@@ -16,8 +16,8 @@ coach's pace file. A local coach renders only locally.
 A web coach (kind = "web") has no clip: a voice a service designed and saved (service, voice_id, model,
 style), which it speaks only through that service (cloud.voice_for), described by its [voice] table, with how
 it talks in [character], and the approved audition kept as sample.mp3. Coaches no longer in use move to
-personas/.archive/ (out of the list, still found by name for old log lines); auditions in progress live in
-personas/.auditions/. Every dot folder is left out.
+coaches/.archive/ (out of the list, still found by name for old log lines); auditions in progress live in
+coaches/.auditions/. Every dot folder is left out.
 """
 import hashlib
 import json
@@ -252,7 +252,7 @@ def lookup(name, folder=None, archived=False):
 
 
 def archive(p):
-    """Move coach `p` to personas/.archive/ (out of the list, still found by lookup(archived=True)).
+    """Move coach `p` to coaches/.archive/ (out of the list, still found by lookup(archived=True)).
     Returns its new folder."""
     import shutil
     if p.shipped:

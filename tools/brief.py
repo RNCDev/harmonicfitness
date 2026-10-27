@@ -29,6 +29,7 @@ import coverage  # noqa: E402
 import draft  # noqa: E402
 import menu  # noqa: E402
 import movements  # noqa: E402
+import fileio  # noqa: E402
 import paths  # noqa: E402
 import screen  # noqa: E402
 import sessions  # noqa: E402
@@ -498,9 +499,7 @@ def main():
     print(text, end="")
     if args.save:
         brief, menu_file = draft.brief_path(args.save), draft.menu_path(args.save)
-        os.makedirs(os.path.dirname(os.path.abspath(brief)), exist_ok=True)
-        with open(brief, "w", encoding="utf-8") as f:
-            f.write(text)
+        fileio.atomic_write(brief, text)
         menu.write(menu_file, record)
         print(f"\nSaved the brief to {paths.show(os.path.abspath(brief))} and the menu to "
               f"{paths.show(os.path.abspath(menu_file))}; the draft goes to "

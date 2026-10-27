@@ -36,13 +36,6 @@ def hub_dir():
     return paths.MODELS
 
 
-def model_present(repo, revision, hub=None):
-    folder = os.path.join(hub or hub_dir(), "models--" + repo.replace("/", "--"), "snapshots")
-    if revision:
-        return os.path.isdir(os.path.join(folder, revision))
-    return bool(glob.glob(os.path.join(folder, "*")))
-
-
 def _model_lines():
     """The local voice (Pocket TTS) and the take checker: downloaded or not."""
     import voices

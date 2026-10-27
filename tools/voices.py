@@ -88,16 +88,7 @@ def check_pace_file(path=None):
     _recorded(path, strict=True)
 
 
-@contextlib.contextmanager
-def _locked(path):
-    """An exclusive lock beside `path`, held while its contents are read, changed and written."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path + ".lock", "a") as lock:
-        locks.acquire(lock)
-        try:
-            yield
-        finally:
-            locks.release(lock)
+_locked = locks.file_lock   # held while the pace file is read, changed and written
 
 
 def _rate_key(v):
@@ -113,12 +104,8 @@ def speed_key(v):
 
 
 def _write_rates(path, data):
-    tmp = path + ".part"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=1)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    import fileio
+    fileio.write_json(path, data)
 
 
 def _with_seed(v, path, data):

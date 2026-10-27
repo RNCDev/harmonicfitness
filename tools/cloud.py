@@ -17,6 +17,7 @@ goes into a voice dict, a message, a record or a cache key.
 import array
 import base64
 import binascii
+import functools
 import http.client
 import importlib
 import json
@@ -197,8 +198,11 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
                                    f"next request ({_message(data)}; HTTP 429): the quota is used up for now",
                                    status=429) from None
             # A 429 asking for a short wait is a rate limit, even when its body says "quota" (Google-style APIs).
-            limited = e.code == 429 and (_short(retry_after) or kind == "unavailable")
-            if not (e.code == 429 and _short(retry_after)) and (e.code not in RETRY_STATUS or kind != "unavailable"):
+            # So is one that names no wait at all: it's retried with backoff, and only a 429 that outlasts every
+            # try is reported as the quota (the last error raised below).
+            rate_limited = e.code == 429 and (_short(retry_after) or retry_after is None)
+            limited = rate_limited or (e.code == 429 and kind == "unavailable")
+            if not rate_limited and (e.code not in RETRY_STATUS or kind != "unavailable"):
                 raise last from None
             if not idempotent and not limited:
                 raise last from None
@@ -248,7 +252,9 @@ def b64_audio(text, service):
         raise ServiceError("bad_request", service, f"the answer's audio isn't base64 ({e})") from None
 
 
+@functools.cache
 def _tls():
+    """One TLS context per process (loading the certificate bundle for every request is slow)."""
     try:
         import ssl
         import certifi

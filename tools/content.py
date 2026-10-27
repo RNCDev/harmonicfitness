@@ -30,6 +30,8 @@ from typing import Dict, List, NamedTuple, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
+import fileio  # noqa: E402
+import locks  # noqa: E402
 import paths  # noqa: E402
 
 RECIPE = paths.CONTENT   # the engine's filler plan; the listener's told.jsonl and reserve are read at call time
@@ -89,8 +91,8 @@ def categories(r: Recipe, profile=None) -> Dict[str, List[str]]:
 
 
 def told(path=None) -> List[dict]:
-    path = path or paths.TOLD
     """Every item told, oldest first. A damaged line is skipped, not fatal."""
+    path = path or paths.TOLD
     out = []
     try:
         with open(path, encoding="utf-8") as f:
@@ -235,6 +237,11 @@ def log(date: str, texts: List[str], path=None, r: Recipe = None, profile=None) 
     datetime.date.fromisoformat(date)
     path = path or paths.TOLD
     new = [parse_item(t, date, r, profile) for t in texts]   # all checked before any is written
+    with locks.file_lock(path):   # read, check and append as one step, so a piece is told once
+        return _log_new(new, path)
+
+
+def _log_new(new: List[dict], path) -> List[dict]:
     used = {i.get("reserve") for i in told(path)} - {None}
     for item in new:
         slug = item.get("reserve")
@@ -246,10 +253,8 @@ def log(date: str, texts: List[str], path=None, r: Recipe = None, profile=None) 
                              "command); a piece is told once")
         if slug:
             used.add(slug)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        for item in new:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+    if new:
+        fileio.append_jsonl(path, new)
     return new
 
 

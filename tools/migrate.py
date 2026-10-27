@@ -61,6 +61,7 @@ import cli  # noqa: E402
 import check  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
+import locks  # noqa: E402
 import paths  # noqa: E402
 import workouts  # noqa: E402
 from paths import show  # noqa: E402
@@ -286,25 +287,26 @@ def retire_pantry(home, backup):
                 os.makedirs(os.path.dirname(kept), exist_ok=True)
                 shutil.move(src, kept)
         os.rmdir(old)
-    lines, due = _told_lines(home)
-    if not due:
+    if not _told_lines(home)[1]:
         return
     told = os.path.join(_research(home), "told.jsonl")
-    os.makedirs(os.path.join(backup, "research"), exist_ok=True)
-    shutil.copy2(told, os.path.join(backup, "research", "told.jsonl"))
-    out = []
-    for line in lines:
-        try:
-            rec = json.loads(line)
-        except ValueError:
-            rec = None
-        if isinstance(rec, dict) and "pantry" in rec:
-            slug = rec.get("reserve") or rec["pantry"]
-            rec = {("reserve" if k == "pantry" else k): (slug if k == "pantry" else v)
-                   for k, v in rec.items() if k != "reserve"}
-            line = json.dumps(rec, ensure_ascii=False) + "\n"
-        out.append(line)
-    fileio.atomic_write(told, "".join(out))
+    with locks.file_lock(told):   # no content log appends while the file is rewritten
+        lines, _ = _told_lines(home)
+        os.makedirs(os.path.join(backup, "research"), exist_ok=True)
+        shutil.copy2(told, os.path.join(backup, "research", "told.jsonl"))
+        out = []
+        for line in lines:
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                rec = None
+            if isinstance(rec, dict) and "pantry" in rec:
+                slug = rec.get("reserve") or rec["pantry"]
+                rec = {("reserve" if k == "pantry" else k): (slug if k == "pantry" else v)
+                       for k, v in rec.items() if k != "reserve"}
+                line = json.dumps(rec, ensure_ascii=False) + "\n"
+            out.append(line)
+        fileio.atomic_write(told, "".join(out))
 
 
 def coach_root(home=None):

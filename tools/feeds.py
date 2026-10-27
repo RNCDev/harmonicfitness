@@ -48,6 +48,7 @@ import xml.etree.ElementTree as ET
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import context  # noqa: E402
+import fileio  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 USER_AGENT = "sweatcast feeds (personal workout audio; github.com/RNCDev/sweatcast)"
@@ -133,12 +134,19 @@ def parse_date(value):
     return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
 
 
+def web_link(url):
+    """`url` when it's a plain web address (http or https, no spaces), else "": a feed's link goes into a sheet
+    the writer reads and may open, so a javascript:, file: or data: link is dropped."""
+    url = (url or "").strip()
+    return url if re.match(r"https?://[^\s<>\"]+$", url, re.I) else ""
+
+
 def parse_rss(data, since, keep=PER_FEED):
     """Items newer than `since` from RSS or Atom, newest first: [{title, link, date, summary}]."""
     root = ET.fromstring(data)
     items = []
     for it in root.iter("item"):
-        items.append({"title": clean(it.findtext("title"), 200), "link": (it.findtext("link") or "").strip(),
+        items.append({"title": clean(it.findtext("title"), 200), "link": web_link(it.findtext("link")),
                       "date": parse_date(it.findtext("pubDate") or it.findtext(DC + "date")),
                       "summary": clean(it.findtext("description"))})
     for it in root.iter(ATOM + "entry"):
@@ -146,7 +154,7 @@ def parse_rss(data, since, keep=PER_FEED):
         if link is None:
             link = it.find(ATOM + "link")
         items.append({"title": clean(it.findtext(ATOM + "title"), 200),
-                      "link": link.get("href", "") if link is not None else "",
+                      "link": web_link(link.get("href", "")) if link is not None else "",
                       "date": parse_date(it.findtext(ATOM + "published") or it.findtext(ATOM + "updated")),
                       "summary": clean(it.findtext(ATOM + "summary") or it.findtext(ATOM + "content"))})
     items = [i for i in items if i["date"] and i["date"] >= since and i["title"]]
@@ -350,9 +358,7 @@ def main():
         out += ["## Couldn't fetch", *failed, ""]
     sheet = "\n".join(out)
     path = args.out or sheet_path(local)
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(sheet)
+    fileio.atomic_write(path, sheet)
     if args.print:
         print(sheet)
     else:

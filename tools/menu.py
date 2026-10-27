@@ -107,10 +107,8 @@ def gate(cat: catalog.Catalog, draft_path: str, text: str, segments, today: Opti
 
 
 def write(path: str, menu: dict) -> None:
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(menu, f, indent=1)
-        f.write("\n")
+    import fileio
+    fileio.write_json(path, menu)
 
 
 def load(path: str) -> Optional[dict]:

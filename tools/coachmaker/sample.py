@@ -66,6 +66,7 @@ for slug in sys.argv[2:]:
     speech = sum(len(c) for c in chosen.values()) / 48000
     summary = {"slug": slug, "mp3": mp3, "seconds": round(len(pcm) / 48000, 1), "spoken": round(rows[0][2], 1),
                "wpm": round(spoken_words / speech * 60), "all_ok": all(r["ok"] for r in report), "lines": report}
-    json.dump(summary, open(os.path.join(work, "summary.json"), "w"), indent=1)
+    with open(os.path.join(work, "summary.json"), "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=1)
     print(slug, summary["seconds"], "s,", summary["wpm"], "wpm, all heard right:", summary["all_ok"],
           [r["seed"] for r in report], flush=True)

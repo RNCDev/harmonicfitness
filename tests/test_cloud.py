@@ -670,6 +670,22 @@ class Inworld(ServiceCase):
         self.assertEqual(len(self.module.design("A man.", "Okay.", 2, "label")), 2)
         self.assertEqual(len(calls), 2)
 
+    def test_a_429_naming_no_wait_is_retried_before_it_counts_as_quota(self):
+        calls = []
+
+        def answer(req):
+            calls.append(1)
+            if len(calls) == 1:   # "quota" in the body and no Retry-After: a per-minute limit, not an empty account
+                return 429, {}, b'{"message": "Rate quota exceeded"}'
+            return inworld_answer(req)
+        self.serve(answer)
+        self.assertEqual(len(self.module.design("A man.", "Okay.", 2, "label")), 2)
+        self.assertEqual(len(calls), 2)
+        self.serve(lambda r: (429, {}, b'{"message": "Rate quota exceeded"}'))
+        with self.assertRaises(cloud.ServiceError) as e:   # every try refused: now it's the quota
+            self.module.design("A man.", "Okay.", 2, "label")
+        self.assertEqual(e.exception.kind, "quota")
+
     def test_a_429_with_a_long_wait_is_quota(self):
         self.serve(lambda r: (429, {"Retry-After": "86400"}, b'{"message": "Quota exceeded for the month"}'))
         with self.assertRaises(cloud.ServiceError) as e:

@@ -89,6 +89,34 @@ class Catalog:
     movements: Dict[str, Movement]
     entries: List[Movement] = field(default_factory=list)   # every entry in order, repeats included
     limit_cues: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)   # area -> level -> spoken lines
+    private_faults: List[str] = field(default_factory=list)   # private entries left out, and why
+
+
+LIST_FIELDS = ("aliases", "needs", "patterns", "muscles", "flags", "cues", "easier", "harder", "faults")
+TABLE_FIELDS = ("loads", "support")
+INT_FIELDS = ("seconds_per_rep", "hold_seconds", "transition_seconds")
+
+
+def _shape_faults(raw) -> List[str]:
+    """What keeps a private [[movement]] table from being read at all (the shipped catalog is held to this by
+    its tests): not a table, no id, a list or table field of the wrong type, a count that isn't a number."""
+    if not isinstance(raw, dict):
+        return [f"an entry in {paths.show(paths.MY_MOVEMENTS)} isn't a table ([[movement]] with key = value lines)"]
+    mid = raw.get("id")
+    if not isinstance(mid, str) or not mid.strip():
+        return [f"a movement in {paths.show(paths.MY_MOVEMENTS)} has no id"
+                + (f" (named {raw['name']!r})" if isinstance(raw.get("name"), str) else "")]
+    out = []
+    for key in LIST_FIELDS:
+        if key in raw and not (isinstance(raw[key], list) and all(isinstance(x, str) for x in raw[key])):
+            out.append(f"Movement {mid}: {key} must be a list of text, such as [\"...\"]")
+    for key in TABLE_FIELDS:
+        if key in raw and not isinstance(raw[key], dict):
+            out.append(f"Movement {mid}: {key} must be a table, such as {{ knee = 2 }}")
+    for key in INT_FIELDS:
+        if key in raw and (isinstance(raw[key], bool) or not isinstance(raw[key], (int, float))):
+            out.append(f"Movement {mid}: {key} must be a number")
+    return out
 
 
 def _movement(raw: dict, private: bool) -> Movement:
@@ -115,7 +143,8 @@ def private_movements(path: Optional[str] = None) -> List[dict]:
     if not os.path.exists(path):
         return []
     with open(path, "rb") as f:
-        return list(tomllib.load(f).get("movement", []))
+        found = tomllib.load(f).get("movement", [])
+    return [found] if isinstance(found, dict) else list(found) if isinstance(found, list) else [found]
 
 
 def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Catalog:
@@ -134,7 +163,13 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
     with open(path or paths.MOVEMENTS, "rb") as f:
         data = tomllib.load(f)
     entries = [_movement(m, False) for m in data.get("movement", [])]
-    entries += [_movement(m, True) for m in (extra or [])]
+    private_faults = []
+    for raw in extra or []:   # one bad private entry is left out and named, never a crash for every command
+        faults = _shape_faults(raw)
+        if faults:
+            private_faults += faults
+        else:
+            entries.append(_movement(raw, True))
     movements: Dict[str, Movement] = {}
     for m in entries:
         movements.setdefault(m.id, m)
@@ -144,7 +179,7 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
         equipment=dict(data.get("equipment", {})),
         presets={k: list(v.get("equipment", [])) for k, v in data.get("presets", {}).items()},
         movements=movements, entries=entries,
-        limit_cues=dict(data.get("limit_cues", {})))
+        limit_cues=dict(data.get("limit_cues", {})), private_faults=private_faults)
     if auto:   # an explicit `extra` is being checked, so its faults stay visible
         _hold_back_faulty_private(cat)
     return cat
@@ -177,7 +212,7 @@ def loaded(m: Movement) -> bool:
 
 
 def problems(cat: Catalog) -> List[str]:
-    out: List[str] = []
+    out: List[str] = [f + " (left out until fixed)" for f in cat.private_faults]
     if cat.format != FORMAT:
         out.append(f"The catalog has format {cat.format}; this version reads format {FORMAT}.")
     seen: Dict[str, int] = {}   # lowercase id, name or alias -> index of the entry that holds it

@@ -2,6 +2,22 @@
 
 All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Fixed
+- **A crash mid-write no longer loses the next record.** `builds.jsonl` and `told.jsonl` are appended through `fileio.append_jsonl`: under the file's lock, flushed to disk, and a last line a crash left without its newline is sealed first, so the reader skips only that fragment (before, the next record was glued onto it and both were lost, and `log-session` could then refuse a session whose MP3 existed).
+- **Two writers at once can't lose or double a record.** `log-session` holds `me/log.md`'s lock across its duplicate check and the write; `content log` holds `told.jsonl`'s across its "told once" check and the append; `migrate` holds it while it rewrites the file. The lock (`locks.file_lock`, the pace file's lock moved up) is re-entrant within a thread.
+- **A hand-edited `me/movements.toml` can't stop every command.** An entry with no id, a list or table field of the wrong type, or a count that isn't a number is left out and named by `./sweatcast check` (before, `brief`, `build`, `movements` and `check` itself stopped with a traceback). A single `[movement]` table reads as one movement.
+- **Every engine write is atomic:** the menu, the brief, the feeds sheet and the YouTube sheets now go through `fileio.atomic_write` (a test keeps it so); the pace file's hand-rolled copy uses it too.
+- **A rate limit isn't a used-up quota.** A web service's 429 that names no wait is retried with backoff, even when its body says "quota"; only one that outlasts every try stops the build as the quota (exit 4).
+- **The web player's links** survive a `#` or `?` in a workout's name (URL-encoded).
+- The characters-sent count of a failed web render is exact (the workers' counter has a lock); the TLS context is built once per process.
+
+### Changed
+- A feed item's link goes into the research sheet only when it's a plain http(s) address.
+- Stale names: a persona file's comments name Pocket for a local coach and cover Gemini and Inworld; docs say `me/coaches/`; `doctor.model_present` (unused) is gone; `locks.py` no longer claims the maintainer's coach tools take the render lock.
+- `tests/test_contract.py` pins the command line's exit codes (help 0; a mistyped command or option 64 on every command); `tests/test_integrity.py` covers the above.
+
 ## [0.16.0] - 2026-10-27
 
 Pocket TTS is settled as the local voice, so the research that chose it leaves the engine: the audio bench, its results and the voice research note. Nothing a workout uses changes.

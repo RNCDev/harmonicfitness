@@ -279,9 +279,7 @@ def save_build_record(record, out, log=None):
     import fileio
     log = log or paths.BUILDS
     fileio.atomic_write(os.path.splitext(out)[0] + ".build.json", json.dumps(record, indent=1) + "\n")
-    os.makedirs(os.path.dirname(log), exist_ok=True)
-    with open(log, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record) + "\n")
+    fileio.append_jsonl(log, record)
 
 
 def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, error):
@@ -300,9 +298,8 @@ def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, erro
               "usd_estimate": round(usd, 4), "reason": cloud.scrub(reason)[:300],
               "started_at": dt.datetime.fromtimestamp(started).astimezone().isoformat(timespec="seconds")}
     try:
-        os.makedirs(os.path.dirname(paths.BUILDS), exist_ok=True)
-        with open(paths.BUILDS, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
+        import fileio
+        fileio.append_jsonl(paths.BUILDS, record)
     except OSError as e:   # the failure being reported matters more than this line
         print(f"(Couldn't note the failed render in {paths.show(paths.BUILDS)}: {e})", file=sys.stderr)
 
@@ -322,7 +319,9 @@ def prepare_voice(voice, model=None, seed=42):
 def clip_cache(voice, seed):
     """cache_path(text): where a line's clip is cached. Everything that changes how a clip sounds goes in
     its key, so changing a setting (or upgrading pocket-tts) re-renders instead of silently reusing old
-    clips; the coach's name and any API key don't, so a renamed coach keeps its clips."""
+    clips; the coach's name and any API key don't, so a renamed coach keeps its clips. A web service that hears
+    the neighboring paragraphs (ElevenLabs) isn't keyed on them, deliberately: an edit would re-render, and
+    re-bill, both neighbors of every changed paragraph, for a slightly different join."""
     settings = (f"{voice['model']}@{voice['revision'] or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
                 f"trim {TRIM_DB} {TRIM_KEEP}|{engines.runtime(voice)}")
 
@@ -480,6 +479,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     pool = ThreadPoolExecutor(max_workers=max(1, voice.get("concurrency") or 1))
     import threading
     stop = threading.Event()   # set by the first failure (or Ctrl-C), so no worker starts another request
+    counting = threading.Lock()   # the workers add to sent["started"] together
     cloud.stop_on(stop)   # and no request already out retries once it's set
     try:
         say = engines.speaker(voice)   # the first request goes out here
@@ -487,7 +487,8 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
         def one(text, **ctx):
             if stop.is_set():
                 return None
-            sent["started"] += len(text)   # counted as it goes out: a failure may still bill it
+            with counting:
+                sent["started"] += len(text)   # counted as it goes out: a failure may still bill it
             try:
                 return render_clip(say, text, seed, cache_path, **ctx)
             except BaseException:

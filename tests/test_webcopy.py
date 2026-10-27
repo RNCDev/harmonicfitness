@@ -57,7 +57,7 @@ class WebCopy(unittest.TestCase):
         page = webcopy.page("Long one", parts, os.path.join(self.d, "Long one.player.html"))
         with open(page, encoding="utf-8") as f:
             text = f.read()
-        at = [text.index(f'"Long one.web-{n}.mp3"') for n in (1, 2, 3)]
+        at = [text.index(f'"Long%20one.web-{n}.mp3"') for n in (1, 2, 3)]   # URL-encoded
         self.assertEqual(at, sorted(at))
         self.assertIn("Part ", text)
         self.assertIn("prefers-color-scheme: dark", text)
