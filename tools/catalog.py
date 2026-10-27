@@ -9,7 +9,6 @@ Library only; the command line lives elsewhere.
 """
 import os
 import re
-import sys
 import tomllib
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
@@ -150,20 +149,21 @@ def private_movements(path: Optional[str] = None) -> List[dict]:
 def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Catalog:
     """Read the catalog at `path` (default: the shipped one) plus private movement tables: `extra`,
     or, when neither is given, the listener's `movements.toml` (see `private_movements`), where an
-    entry with any fault is held back as a draft and an unreadable file is skipped with a warning.
+    entry with any fault is held back as a draft and an unreadable file is skipped, named in private_faults
+    (as a faulty entry is), which problems() and ./sweatcast check report.
     A shipped id wins over a private one with the same id."""
     auto = path is None and extra is None
+    private_faults = []
     if auto:
         try:
             extra = private_movements()
-        except (tomllib.TOMLDecodeError, OSError):   # ./sweatcast check says what is wrong with it
-            print(f"sweatcast: {paths.show(paths.MY_MOVEMENTS)} can't be read, so its movements are left "
-                  "out (run ./sweatcast check)", file=sys.stderr)
+        except (tomllib.TOMLDecodeError, OSError) as e:   # ./sweatcast check says what is wrong with it
+            private_faults.append(f"{paths.show(paths.MY_MOVEMENTS)} can't be read ({e}), so all its movements "
+                                  "are out (run ./sweatcast check)")
             extra = []
     with open(path or paths.MOVEMENTS, "rb") as f:
         data = tomllib.load(f)
     entries = [_movement(m, False) for m in data.get("movement", [])]
-    private_faults = []
     for raw in extra or []:   # one bad private entry is left out and named, never a crash for every command
         faults = _shape_faults(raw)
         if faults:

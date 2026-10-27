@@ -121,3 +121,24 @@ def read_jsonl(path, parse=None):
                 rec = parse(rec)
             if rec is not None:
                 yield rec
+
+
+def atomic_copy(src, dst):
+    """Copy the file at `src` to `dst` as atomic_write writes: through a temporary file beside `dst`, flushed
+    to disk and renamed into place, so `dst` is never a partial copy."""
+    import shutil
+    folder = os.path.dirname(os.path.abspath(dst)) or "."
+    os.makedirs(folder, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(dst) + ".", suffix=".part", dir=folder)
+    try:
+        with os.fdopen(fd, "wb") as f, open(src, "rb") as s:
+            shutil.copyfileobj(s, f)
+            f.flush()
+            os.fsync(f.fileno())
+        replace(tmp, dst)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise

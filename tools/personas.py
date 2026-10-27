@@ -274,6 +274,19 @@ def archive(p):
     return dest
 
 
+def set_setting(p, dotted, value):
+    """Set one of coach `p`'s settings, `dotted` as <table>.<key> (elevenlabs.model) or a plain key
+    (description), keeping its prose. A stock coach's settings live in the engine (coaches/roster.toml), and a
+    local coach's sound is its voice file: both are refused (errors.CoachError)."""
+    if p.shipped:
+        raise errors.CoachError(f"{p.name} ships with sweatcast, so its settings live in the engine "
+                                "(coaches/roster.toml).")
+    table, _, key = dotted.rpartition(".")
+    if table == "local" or not p.is_web:
+        raise errors.CoachError("A local coach's sound is set by the voice file it ships with; there's nothing to set.")
+    context.set_persona_setting(p.path, table or None, key, value)
+
+
 def default(folder=None):
     """The coach a build uses when none is named: coachpick.default, kept here until the next minor release."""
     import coachpick

@@ -139,21 +139,12 @@ STALE_PREFIXES = ("The settings the tools read", "Claude reads this before every
 
 
 def _dump_part(name, settings):
-    out = []
     keys = list(PART_KEYS[name]) + [k for k in settings if k not in PART_KEYS[name]]
     plain = [k for k in keys if k in settings and not (isinstance(settings[k], list) and settings[k]
                                                          and isinstance(settings[k][0], dict))]
     tables = [k for k in keys if k not in plain and (k in settings or k in ("kits", "interests", "feeds"))]
-    for k in plain:
-        if k in PART_COMMENTS:
-            out.append(f"# {PART_COMMENTS[k]}")
-        out.append(f"{k} = {frontmatter.toml_value(settings[k])}")
-    for k in tables:
-        if k in PART_COMMENTS:
-            out += ["", f"# {PART_COMMENTS[k]}"]
-        for row in settings.get(k) or []:
-            out += ["", f"[[{k}]]"] + [f"{rk} = {frontmatter.toml_value(rv)}" for rk, rv in row.items()]
-    return "\n".join(out)
+    return frontmatter.dump_block({k: settings[k] for k in plain}, arrays={k: settings.get(k) or [] for k in tables},
+                                  comments=PART_COMMENTS)
 
 
 def split_profile_text(text):

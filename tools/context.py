@@ -46,6 +46,7 @@ import paths  # noqa: E402
 from paths import show  # noqa: E402
 # the readers that moved out by job (frontmatter, store, health, sessionlog, records) are reached in their own
 # modules; context imports only what it uses
+import frontmatter  # noqa: E402
 from frontmatter import front, toml_value, section, placeholder, unfilled  # noqa: E402
 from store import PERSONA_SCHEMA, split, schema_problem, read_raw  # noqa: E402
 from sessionlog import log  # noqa: E402
@@ -303,6 +304,12 @@ def delivery_folders(p):
     return " or ".join(patterns), found
 
 
+def delivery_note(p):
+    """What to say when the profile names a delivery folder and none of it is on this computer, else None."""
+    pattern, found = delivery_folders(p)
+    return f"Delivery folder {pattern} not found." if pattern and not found else None
+
+
 def feed_sources(p):
     """[(label, kind, value)] from [[feeds]], skipping entries not filled in yet."""
     out = []
@@ -477,18 +484,12 @@ def persona(path):
 def persona_text(settings, prose):
     """A persona.md: the settings block (plain keys, then one [table] each: an engine's, [voice], [character]),
     then the prose."""
-    plain = {k: v for k, v in settings.items() if k != "schema" and not isinstance(v, dict)}
+    plain = {"schema": PERSONA_SCHEMA}
+    plain.update((k, v) for k, v in settings.items() if k != "schema" and not isinstance(v, dict))
     tables = {k: v for k, v in settings.items() if isinstance(v, dict)}
-    out = [f"schema = {PERSONA_SCHEMA}"] + [f"{k} = {toml_value(v)}" for k, v in plain.items()]
-    for name, table in tables.items():
-        out.append("")
-        if name in PERSONA_COMMENTS:
-            out.append(f"# {PERSONA_COMMENTS[name]}")
-        out.append(f"[{name}]")
-        out += [f"{k} = {toml_value(v)}" for k, v in table.items()]
-    block = "\n".join(out)
-    tomllib.loads(block)   # never write a block that doesn't parse
-    return f"+++\n{block}\n+++\n" + (prose if prose.endswith("\n") or not prose else prose + "\n")
+    block = frontmatter.dump_block(plain, tables=tables,
+                                   comments={k: PERSONA_COMMENTS[k] for k in tables if k in PERSONA_COMMENTS})
+    return frontmatter.wrap(block, prose if prose.endswith("\n") or not prose else prose + "\n")
 
 
 def set_persona_setting(path, table, key, value):
@@ -566,16 +567,20 @@ def main(argv=None):
             print(value)
         return cli.OK
     if args.cmd == "deliver":
-        pattern, found = delivery_folders(profile())
+        p = profile()
+        pattern, found = delivery_folders(p)
+        missing = delivery_note(p)
         if not pattern:
             print("No copy made: the profile's settings have no deliver_to folder.", file=sys.stderr)
-        elif not found:
-            print(f"Delivery folder {pattern} not found.", file=sys.stderr)
+        elif missing:
+            print(missing, file=sys.stderr)
         for d in found:
             print(d)
         return cli.OK
     import logsession
-    print(logsession.log_session(args))
+    print(logsession.log_session(
+        topics=args.topics, draft=args.draft, date=args.date, minutes=args.minutes, kit=args.kit, coach=args.voice,
+        movements=args.movements, fmt=args.format, loads=args.loads, rpe=args.rpe))
     return cli.OK
 
 

@@ -116,6 +116,27 @@ class LogSession(unittest.TestCase):
         code, _ = self.log("--minutes", "5", "--date", "2026-10-25", "--kit", "Custom: dumbbells, mat")
         self.assertEqual(code, cli.OK)
 
+    def test_log_session_takes_keywords_not_a_command_line(self):
+        """logsession.log_session is called with its fields by name: no parsed command line to fake."""
+        import inspect
+        import logsession
+        params = inspect.signature(logsession.log_session).parameters
+        self.assertTrue(all(p.kind is inspect.Parameter.KEYWORD_ONLY for p in params.values()))
+        self.assertEqual(list(params), ["topics", "draft", "date", "minutes", "kit", "coach", "movements", "fmt",
+                                        "loads", "rpe"])
+        self.record()
+        with helpers.home(self.home):
+            line = logsession.log_session(topics="t", draft=self.draft, coach="Chatterbox Coach", fmt="circuit",
+                                          loads="goblet squat = 12 kg")
+            self.assertIn("goblet squat", line)
+            self.assertTrue(line.startswith("Logged: - 2026-10-25 | 5 min | custom: dumbbells, mat | "
+                                            "Chatterbox Coach"), line)
+            with self.assertRaises(errors.UsageError):   # neither movements nor a draft
+                logsession.log_session(topics="t", coach="Chatterbox Coach", minutes=10, kit="home")
+            line = logsession.log_session(topics="t2", movements="glute bridge", coach="Chatterbox Coach",
+                                          minutes=10, kit="home", date="2026-10-26")
+        self.assertIn("2026-10-26 | 10 min | home | Chatterbox Coach | glute bridge", line)
+
     def test_format_is_required_with_a_draft(self):
         self.record()
         with self.assertRaises(errors.PROBLEMS) as got, helpers.home(self.home):

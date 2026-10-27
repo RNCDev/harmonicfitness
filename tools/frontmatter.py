@@ -56,22 +56,37 @@ def toml_value(v):
     raise TypeError(f"can't write {type(v).__name__} as TOML")
 
 
-def dump_settings(settings, comments=None):
-    """Settings as TOML: plain keys first, then each list of tables ([[voices]], [[feeds]])."""
+def dump_block(plain, tables=None, arrays=None, comments=None):
+    """A +++ settings block's TOML (without the +++ lines), the one writer every context file and coach file
+    uses: `plain` keys first ({key: value}, in order), then each [table] (`tables`, {name: {key: value}}), then
+    each list of tables (`arrays`, {name: [rows]}: [[kits]], [[feeds]]). `comments` ({name: text}) puts a
+    "# text" line above a plain key, a [table] or a list of tables (a list's comment stays when it has no
+    rows). See wrap for the whole block."""
     comments = comments or {}
-    plain = {k: v for k, v in settings.items() if not (isinstance(v, list) and v and isinstance(v[0], dict))}
-    tables = {k: v for k, v in settings.items() if k not in plain}
     out = []
     for k, v in plain.items():
         if k in comments:
             out.append(f"# {comments[k]}")
         out.append(f"{k} = {toml_value(v)}")
-    for k, rows in tables.items():
-        if k in comments:
-            out += ["", f"# {comments[k]}"]
-        for row in rows:
-            out += ["", f"[[{k}]]"] + [f"{rk} = {toml_value(rv)}" for rk, rv in row.items()]
+    for name, table in (tables or {}).items():
+        out.append("")
+        if name in comments:
+            out.append(f"# {comments[name]}")
+        out.append(f"[{name}]")
+        out += [f"{k} = {toml_value(v)}" for k, v in table.items()]
+    for name, rows in (arrays or {}).items():
+        if name in comments:
+            out += ["", f"# {comments[name]}"]
+        for row in rows or []:
+            out += ["", f"[[{name}]]"] + [f"{rk} = {toml_value(rv)}" for rk, rv in row.items()]
     return "\n".join(out)
+
+
+def dump_settings(settings, comments=None):
+    """Settings as TOML: plain keys first, then each list of tables ([[voices]], [[feeds]])."""
+    plain = {k: v for k, v in settings.items() if not (isinstance(v, list) and v and isinstance(v[0], dict))}
+    arrays = {k: v for k, v in settings.items() if k not in plain}
+    return dump_block(plain, arrays=arrays, comments=comments)
 
 
 def heading(line):
