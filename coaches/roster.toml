@@ -92,9 +92,9 @@ slug = "rosa"
 name = "Coach Rosa"
 gender = "woman"
 who = "Late 20s, runner"
-sound = "Lively, warm mid-range, American"
-energy = "Playful, quick, upbeat"
-description = "A woman in her late twenties, a distance runner and coach. A lively, warm mid-range voice with a general American accent. Playful, quick and upbeat. An adult woman's voice, low to medium in pitch, never girlish or childlike."
+sound = "Warm, full, lower mid-range, American"
+energy = "Bright and encouraging, unhurried"
+description = "A woman in her late twenties, a distance runner and coach. A warm, full voice in the lower mid-range, with a general American accent and a little breath in it. Bright and encouraging but unhurried, speaking at an easy, steady pace. An adult woman's voice, low to medium in pitch, never girlish or childlike."
 
 [[coach]]
 slug = "helen"
@@ -164,15 +164,6 @@ device = "Apple GPU (MLX)"
 runtime = "mlx-audio 0.5.0"
 description = "A woman in her mid-forties, a physiotherapist and Pilates teacher. A low, smooth alto with a general American accent. Calm, precise and reassuring. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
-[picks.rosa]
-designer = "qwen3"
-repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
-revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
-seed = 402
-seconds = 23.13
-device = "Apple GPU (MLX)"
-runtime = "mlx-audio 0.5.0"
-description = "A woman in her late twenties, a distance runner and coach. A lively, warm mid-range voice with a general American accent. Playful, quick and upbeat. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
 [picks.helen]
 designer = "qwen3"
@@ -213,3 +204,13 @@ seconds = 25.11
 device = "Apple GPU (MLX)"
 runtime = "mlx-audio 0.5.0"
 description = "A woman in her early thirties, a HIIT instructor. A warm, full mezzo voice, low to medium in pitch, with a general American accent. Confident and upbeat, with crisp counts. An adult woman's voice, never girlish or childlike. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.rosa]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 407
+seconds = 24.54
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A woman in her late twenties, a distance runner and coach. A warm, full voice in the lower mid-range, with a general American accent and a little breath in it. Bright and encouraging but unhurried, speaking at an easy, steady pace. An adult woman's voice, low to medium in pitch, never girlish or childlike. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
