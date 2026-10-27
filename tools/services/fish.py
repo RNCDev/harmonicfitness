@@ -32,8 +32,9 @@ def speaker(voice):
         body = json.dumps({"text": text, "reference_id": voice["voice_id"], "format": "wav",
                            "sample_rate": cloud.SR}).encode()
         headers = {"Authorization": _auth(), "model": voice["model"], "Content-Type": "application/json"}
-        _, _, data = cloud.request("POST", url, headers, body, timeout=120, service=SERVICE)
-        return cloud.trim(cloud.audio_pcm(data, service=SERVICE))
+        _, answer_headers, data = cloud.request("POST", url, headers, body, timeout=120, service=SERVICE)
+        return cloud.trim(cloud.audio_pcm(data, service=SERVICE, expect="wav",
+                                          content_type=cloud.content_type(answer_headers)))
     return say
 
 
@@ -49,7 +50,8 @@ def design(description, line, n, label=None):
     for c in cloud.json_answer(data, SERVICE, "the design").get("candidates") or []:
         wav = cloud.b64_audio(c.get("audio_base64"), SERVICE)
         if wav:
-            pcm = cloud.trim(cloud.audio_pcm(wav, int(c.get("sample_rate") or cloud.SR), service=SERVICE))
+            pcm = cloud.trim(cloud.audio_pcm(wav, int(c.get("sample_rate") or cloud.SR), service=SERVICE,
+                                             expect="wav"))
             out.append({"pcm": pcm, "wav": wav, "text": c.get("text") or line[:150],
                         "draft_id": c.get("id"), "signature": c.get("signature")})
     if not out:

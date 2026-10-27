@@ -41,7 +41,8 @@ def speaker(voice):
         audio = cloud.json_answer(data, SERVICE).get("audioContent")
         if not audio:
             raise cloud.ServiceError("bad_request", SERVICE, "the answer held no audio")
-        return cloud.trim(cloud.audio_pcm(cloud.b64_audio(audio, SERVICE), service=SERVICE))
+        return cloud.trim(cloud.audio_pcm(cloud.b64_audio(audio, SERVICE), service=SERVICE,
+                                          expect="pcm"))   # LINEAR16: a WAV, or raw samples, in JSON
     return say
 
 
@@ -55,7 +56,7 @@ def design(description, line, n=2, label=None):
     for v in cloud.json_answer(data, SERVICE, "the design").get("previewVoices") or []:
         wav = cloud.b64_audio(v.get("previewAudio"), SERVICE)
         if wav:
-            out.append({"pcm": cloud.trim(cloud.audio_pcm(wav, service=SERVICE)), "wav": wav,
+            out.append({"pcm": cloud.trim(cloud.audio_pcm(wav, service=SERVICE, expect="wav")), "wav": wav,
                         "text": v.get("previewText") or line, "draft_id": v.get("voiceId"), "signature": None})
     if not out:
         raise cloud.ServiceError("bad_request", SERVICE, "the design came back with no previews")

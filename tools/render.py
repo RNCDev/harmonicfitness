@@ -30,8 +30,10 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
+import clipcache  # noqa: E402
 import engines  # noqa: E402
 import ffmpeg as ffmpeg_tool  # noqa: E402
+import fileio  # noqa: E402
 from locks import render_lock, stop_file  # noqa: E402
 from draft import TOTAL_TOLERANCE, is_mark, parse, plan, spoken as is_spoken  # noqa: E402
 import counts  # noqa: E402
@@ -40,14 +42,13 @@ import paths  # noqa: E402
 import verify  # noqa: E402
 import wav  # noqa: E402
 from voices import EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
-# moved to audio.py; the tools still reach them through this module
-from audio import (CHIME_TONE, CHIME_LEVEL, END_NOTES, END_NOTE, END_LEAD, SPEECH_LEVEL, LEVEL_MAX, LEVEL_SKIP,
-                   LEVEL_PEAK, silence, speech_level, level, _bell, chime, end_tone, assemble)  # noqa: E402,F401
-# moved to clipcache.py; the tools still reach them through this module
-from clipcache import (clip_cache, render_clip, _cache_write, check_path, _verdict)  # noqa: E402,F401
-# moved to records.py; the tools still reach them through this module
-from records import (save_build_record, save_failed_record)  # noqa: E402,F401
+from audio import assemble, chime, end_tone, level  # noqa: E402
+# tools/coachmaker still reaches these two through this module
+from audio import SPEECH_LEVEL, speech_level  # noqa: E402,F401
+from clipcache import cached, check_path, clip_cache, render_clip  # noqa: E402
+from records import save_build_record, save_failed_record  # noqa: E402
 
+BREAKER = 3           # web requests failing in a row ("unavailable") before a render stops sending
 LOUDNESS = "I=-16:TP=-1.5:LRA=11"   # podcast level, with headroom under 0 dBFS
 # A gentle compressor ahead of the loudness pass, so quiet syllables stay audible over gym noise.
 COMPRESS = "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250"
@@ -99,7 +100,7 @@ def encode(pcm, out, title):
         try:
             _ffmpeg_run([ffmpeg, "-y", "-loglevel", "error", "-i", raw, "-af", af, "-ar", str(SR),
                          "-metadata", f"title={title}", *codec, part], "encode the audio", timeout)
-            os.replace(part, out)
+            fileio.replace(part, out)   # on Windows, waits a moment for a player holding the old MP3
         finally:
             if os.path.exists(part):
                 os.remove(part)
@@ -171,15 +172,22 @@ def _short(text, n=8):
     return " ".join(w[:n]) + ("..." if len(w) > n else "")
 
 
-def check_takes(voice, clips, seed, cache_path):
+def empty_clip(text, path):
+    """The error for a line whose clip holds no audio (or too little to be a take)."""
+    return errors.RenderStopped(f"The clip for \"{_short(text)}\" came out empty ({path}): rerun to render it "
+                                "again, or reword the line.")
+
+
+def check_takes(voice, clips, seed, cache_path, say=None):
     """Hear every local clip not checked yet with the speech recognizer and score it against its line
     (tools/verify.py). A take that misses a cue word, sounds broken or gets too many words wrong is
     rendered again with the next seeds, up to CHECK_TAKES takes, and the best one is cached under the
     line's own key, with its verdict beside it. Returns the summary for the build record; stops the
-    build (exit 1) when a line's best take still misses a cue word, naming the line to reword."""
-    import fileio
+    build (exit 1) when a line's best take still misses a cue word, naming the line to reword. `say` is the
+    voice the render just used, still loaded, so a retake doesn't load the model a second time; the caller
+    releases it."""
     lines = list(dict.fromkeys(clips))
-    verdicts = {t: _verdict(check_path(cache_path, t)) for t in lines}
+    verdicts = {t: clipcache.verdict(check_path(cache_path, t)) for t in lines}
     todo = [t for t in lines if verdicts[t] is None]
     retried = 0
     if todo:
@@ -187,7 +195,6 @@ def check_takes(voice, clips, seed, cache_path):
         hear = engines.listener()
         print(f"checking {len(todo)} take(s) by ear", flush=True)
         rate = pace(voice)[0]
-        say = None
         try:
             for n, text in enumerate(todo, 1):
                 with open(cache_path(text), "rb") as f:
@@ -204,7 +211,7 @@ def check_takes(voice, clips, seed, cache_path):
                         best, best_seed, best_pcm = v, seed + takes, take
                     takes += 1
                 if best_pcm is not pcm:
-                    _cache_write(cache_path(text), best_pcm)
+                    clipcache.write(cache_path(text), best_pcm)
                 best.update(seed=best_seed, takes=takes, checker=verify.checker_id())
                 fileio.atomic_write(check_path(cache_path, text), json.dumps(best) + "\n")
                 verdicts[text] = best
@@ -213,7 +220,7 @@ def check_takes(voice, clips, seed, cache_path):
                     kept = "the first that passed" if best["ok"] else "the best of them"
                     print(f"  [{n}/{len(todo)}] {takes} takes, kept {kept}: \"{_short(text)}\"", flush=True)
         finally:
-            say = None
+            say = hear = None   # the caller's own say (if it passed one) stays loaded until it lets go
             engines.release()
         print(f"checked {len(todo)} take(s) in {(time.time() - started) / 60:.1f} min, {retried} rendered again",
               flush=True)
@@ -259,6 +266,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     at = {t: i for i, t in enumerate(order)}
     started = time.time()
     audio_secs, measured_weight, done = 0.0, 0.0, 0
+    failed, in_a_row = [], [0]   # requests that found the service unavailable; how many of those in a row
     from concurrent.futures import ThreadPoolExecutor, as_completed
     pool = ThreadPoolExecutor(max_workers=max(1, voice.get("concurrency") or 1))
     import threading
@@ -274,10 +282,23 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
             with counting:
                 sent["started"] += len(text)   # counted as it goes out: a failure may still bill it
             try:
-                return render_clip(say, text, seed, cache_path, **ctx)
+                secs = render_clip(say, text, seed, cache_path, **ctx)
+            except cloud.ServiceError as e:
+                if e.kind != "unavailable":
+                    stop.set()
+                    raise
+                with counting:   # the service is struggling: the others still go, until BREAKER fail in a row
+                    failed.append(e)
+                    in_a_row[0] += 1
+                    if in_a_row[0] >= BREAKER:
+                        stop.set()
+                return None
             except BaseException:
                 stop.set()
                 raise
+            with counting:
+                in_a_row[0] = 0
+            return secs
         jobs = {}
         for text in todo:
             i = at[text]
@@ -293,11 +314,25 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
             measured_weight += weight(jobs[job])
             sent["chars"] += len(jobs[job])
             print(f"  [{done}/{len(todo)}] {secs:4.1f}s audio", flush=True)
+        if failed:   # a clip is missing: the render stops here, with the first failure's reason
+            first = failed[0]
+            if in_a_row[0] >= BREAKER:
+                raise cloud.ServiceError("unavailable", first.service, f"{first.message}; {BREAKER} requests in a "
+                                         "row failed, so nothing more was sent", status=first.status)
+            raise first
     except BaseException as e:   # anything at all: nothing still queued gets sent (and billed)
         stop.set()
         pool.shutdown(wait=True, cancel_futures=True)
         if done:
             record_rate(voice, measured_weight, audio_secs - EDGE * done)
+        if isinstance(e, KeyboardInterrupt) and sent["started"]:
+            # On the terminal, not only in the log: during a build the error descriptor points at the build log
+            # (build.log_to), while sys.stdout still reaches the terminal (and the log as well).
+            try:
+                print(f"\nInterrupted: {sent['started']:,} characters sent to {service['name']}; {done} clips "
+                      "cached; a rerun sends only the rest.", file=sys.stdout, flush=True)
+            except (OSError, ValueError):
+                pass
         if isinstance(e, cloud.ServiceError):
             if e.listener_must_act:
                 raise errors.RenderStopped(
@@ -307,10 +342,10 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
             advice = ("A rerun won't fix that by itself" if e.kind == "bad_request"
                       else "Rerun to send only the rest")
             raise errors.RenderStopped(f"{e}\n{advice}; the {done} clip(s) rendered are cached.") from e
-        if isinstance(e, Exception):
+        if isinstance(e, (OSError, ValueError)):   # a clip that couldn't be written or read: the listener's to fix
             raise errors.RenderStopped(f"Stopped sending to {service['name']}: {cloud.scrub(str(e))}. The {done} "
                                        "clip(s) rendered are cached.") from e
-        raise
+        raise   # a SweatcastError keeps its own message and code; anything else is a bug in the engine (exit 70)
     finally:
         cloud.stop_on(None)
     pool.shutdown()
@@ -320,8 +355,10 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min", flush=True)
 
 
-def _render_local(voice, todo, seed, cache_path):
-    """Voice `todo` on the local engine, one clip at a time, and fold the measurements into the pace file."""
+def _render_local(voice, todo, seed, cache_path, keep=False):
+    """Voice `todo` on the local engine, one clip at a time, and fold the measurements into the pace file. With
+    `keep`, returns say() still loaded (the take check retakes with it; the caller releases it); otherwise, and
+    always on a failure, the model is released here."""
     started = time.time()
     audio_secs, measured_weight, done, finished = 0.0, 0.0, 0, False
     say = None
@@ -332,21 +369,31 @@ def _render_local(voice, todo, seed, cache_path):
         for n, text in enumerate(todo, 1):
             t0 = time.time()
             secs = render_clip(say, text, seed, cache_path)
+            if not cached(cache_path(text)):   # no audio: it would measure the voice as silent, and play as nothing
+                raise empty_clip(text, cache_path(text))
             audio_secs += secs
             measured_weight += weight(text)
             done = n
             print(f"  [{n}/{len(todo)}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
         finished = True
     finally:
-        say = None
-        engines.release()   # the model's memory isn't needed to assemble and encode, nor after a failure
+        if not (keep and finished):
+            say = None
+            engines.release()   # the model's memory isn't needed to assemble and encode, nor after a failure
         if not finished and done:   # what was rendered still measures the voice (not this computer's speed)
             record_rate(voice, measured_weight, audio_secs - EDGE * done)
     took = time.time() - speaking_started
     # The lint predicts this voice's length from its measured rate; the speed is this computer's.
-    record_rate(voice, measured_weight, audio_secs - EDGE * len(todo), render_seconds=took)
+    try:
+        record_rate(voice, measured_weight, audio_secs - EDGE * len(todo), render_seconds=took)
+    except BaseException:
+        if say is not None:   # kept for the take check, which won't come now
+            say = None
+            engines.release()
+        raise
     print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min "
           f"({took / audio_secs:.2f} times its length, not counting the model load)", flush=True)
+    return say
 
 
 def preflight(out):
@@ -381,7 +428,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
     clips = spoken_clips(segments, voice)
     with render_lock(paths.CACHE):
         # Counted after the lock, so clips a render that ran first cached aren't redone.
-        todo = list(dict.fromkeys(t for t in clips if not os.path.exists(cache_path(t))))
+        todo = list(dict.fromkeys(t for t in clips if not cached(cache_path(t))))
         print(f"{len(clips)} clips, {len(todo)} to render ({len(clips) - len(todo)} cached), "
               f"voice {voice['name']} on {engine}", flush=True)
         sent = {"chars": 0, "started": 0, "usd": 0.0}
@@ -393,28 +440,41 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                 if sent["started"]:   # characters went out (and may be billed): builds.jsonl keeps a line for them
                     save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e, build_id)
                 raise
-        elif todo:
-            _render_local(voice, todo, seed, cache_path)
-        timings["render_s"], lap = round(time.time() - lap, 1), time.time()
-        if voice.get("backend") == "cloud":
-            checked = {"checked": False, "reason": "a web voice (each take is billed)"}
-        elif not check:
-            checked = {"checked": False, "reason": "--no-check"}
-        else:
-            checked = check_takes(voice, clips, seed, cache_path)
+        say = None   # the local model, kept loaded from the render into the take check, then released once
+        try:
+            if todo and voice.get("backend") != "cloud":
+                say = _render_local(voice, todo, seed, cache_path, keep=check)
+            timings["render_s"], lap = round(time.time() - lap, 1), time.time()
+            if voice.get("backend") == "cloud":
+                checked = {"checked": False, "reason": "a web voice (each take is billed)"}
+            elif not check:
+                checked = {"checked": False, "reason": "--no-check"}
+            else:
+                checked = check_takes(voice, clips, seed, cache_path, say=say)
+        finally:
+            if say is not None:
+                say = None
+                engines.release()
         timings["check_s"], lap = round(time.time() - lap, 1), time.time()
 
+        leveled = {}   # each line read and leveled once a build, however often it's said ("Rest.")
+
         def clip(text):
-            path = cache_path(text)
-            with open(path, "rb") as f:
-                pcm = f.read()
-            os.utime(path)   # marks the clip as recently used, for tools/cache.py prune
-            return level(pcm)
+            if text not in leveled:
+                path = cache_path(text)
+                with open(path, "rb") as f:
+                    pcm = f.read()
+                if len(pcm) < clipcache.MIN_BYTES:
+                    raise empty_clip(text, path)
+                os.utime(path)   # marks the clip as recently used, for tools/cache.py prune
+                leveled[text] = level(pcm)
+            return leveled[text]
 
         pcm_all, rows, drift = assemble(segments, clip,
                                         lead=b"" if no_chime else chime(), bell=chime(),
                                         tail=b"" if no_chime else end_tone(),
                                         mark=lambda text: mark_audio(text, voice, clip))
+        leveled.clear()
         timings["assemble_s"], lap = round(time.time() - lap, 1), time.time()
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
@@ -451,7 +511,7 @@ def clips(voice, segments, seed=42):
     """--clips-only: render and cache the draft's clips once (local only), no timing check, no MP3."""
     voice, cache_path = prepare_voice(voice, None, seed)
     with render_lock(paths.CACHE):
-        todo = list(dict.fromkeys(t for t in spoken_clips(segments, voice) if not os.path.exists(cache_path(t))))
+        todo = list(dict.fromkeys(t for t in spoken_clips(segments, voice) if not cached(cache_path(t))))
         if todo:
             _render_local(voice, todo, seed, cache_path)
     print(f"Clips cached for {len(segments)} segment(s); the full build reuses them.")
@@ -475,7 +535,7 @@ def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
         while not os.path.exists(stop):
             try:
                 with open(draft_path, encoding="utf-8") as f:
-                    todo = [t for t in spoken_clips(parse(f.read()), voice) if not os.path.exists(cache_path(t))]
+                    todo = [t for t in spoken_clips(parse(f.read()), voice) if not cached(cache_path(t))]
             except (OSError, ValueError, *errors.PROBLEMS):   # missing for now, or caught mid-edit
                 todo = []
             if not todo:

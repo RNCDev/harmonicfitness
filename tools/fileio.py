@@ -5,6 +5,7 @@ And one way to read a JSON file whose top level must be one shape (read_json).""
 import json
 import os
 import tempfile
+import time
 
 import errors
 import locks
@@ -57,6 +58,24 @@ def append_jsonl(path, records):
             os.fsync(f.fileno())
 
 
+REPLACE_TRIES = 10     # on Windows: tries at renaming over a file another program holds open
+REPLACE_WAIT = 0.1     # seconds between them
+
+
+def replace(src, dst):
+    """os.replace(src, dst). On Windows, renaming over a file fails while another program has it open (a media
+    player holding last time's MP3, a reader of the pace file), so a PermissionError is tried again, up to
+    REPLACE_TRIES times REPLACE_WAIT seconds apart, before it's raised. Elsewhere it's os.replace as is."""
+    for attempt in range(REPLACE_TRIES):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if os.name != "nt" or attempt == REPLACE_TRIES - 1:
+                raise
+            time.sleep(REPLACE_WAIT)
+
+
 def atomic_write(path, data):
     """Write `data` (str as UTF-8, or bytes) to `path`, making its folder, so readers see the old file or the
     new one and never a partial one."""
@@ -68,7 +87,7 @@ def atomic_write(path, data):
             f.write(data.encode("utf-8") if isinstance(data, str) else data)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        replace(tmp, path)
     except BaseException:
         try:
             os.remove(tmp)

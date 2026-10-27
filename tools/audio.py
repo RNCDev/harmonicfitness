@@ -143,7 +143,9 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
 
     pcm_all, rows = bytearray(), []
     timeline = layout([(spoken, gaps, seg["seconds"], held) for seg, (_, _, spoken, gaps, _, held) in zip(segments, built)])
-    for i, (seg, (head, paras, spoken, gaps, n, held), (extra, length)) in enumerate(zip(segments, built, timeline), 1):
+    for i, (seg, (extra, length)) in enumerate(zip(segments, timeline), 1):
+        head, paras, spoken, gaps, n, held = built[i - 1]
+        built[i - 1] = None   # this segment's paragraph copies go once it's laid out, not at the end
         hold = max(length - spoken, 0.0) / n if n else 0.0
         seg_pcm = bytearray(head)
         for j, p in enumerate(paras):
@@ -155,7 +157,7 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
         flag = fill_flag(spoken, seg["seconds"], held=held)
         rows.append((i, seg["seconds"], spoken, seg["label"], f"  <-- {flag}" if flag else ""))
         pcm_all += seg_pcm
-    built.clear()   # the per-paragraph copies aren't needed once laid out
+        del head, paras, seg_pcm
     planned = sum(seg["seconds"] for seg in segments)
     drift = len(pcm_all) / 2 / SR / planned - 1 if planned else 0.0
     pcm_all += tail

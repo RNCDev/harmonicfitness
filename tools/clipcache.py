@@ -9,7 +9,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import engines  # noqa: E402
 from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
+import fileio  # noqa: E402
 import paths  # noqa: E402
+
+MIN_BYTES = 2 * int(0.05 * SR)   # a cached clip shorter than 50 ms of 16-bit audio is a torn write, not a take
 
 
 def clip_cache(voice, seed):
@@ -31,17 +34,25 @@ def render_clip(say, text, seed, cache_path, **context):
     """Speak one line into the cache; returns its seconds of audio. `context` (previous_text, next_text)
     goes to a cloud engine that joins paragraphs."""
     pcm = say(text, seed, **context)
-    _cache_write(cache_path(text), pcm)
+    write(cache_path(text), pcm)
     with contextlib.suppress(FileNotFoundError):   # a new take hasn't been checked
         os.remove(check_path(cache_path, text))
     return len(pcm) / 2 / SR
 
 
-def _cache_write(path, pcm):
-    tmp = path + ".part"
-    with open(tmp, "wb") as f:
-        f.write(pcm)
-    os.replace(tmp, path)
+def write(path, pcm):
+    """Cache a clip: written whole and flushed to disk before it takes its name (fileio.atomic_write), so a crash
+    never leaves a short clip that later builds would trust."""
+    fileio.atomic_write(path, pcm)
+
+
+def cached(path):
+    """Whether a usable clip is cached at `path`: there, and at least MIN_BYTES long. An empty or torn file
+    counts as missing, so it's rendered again."""
+    try:
+        return os.path.getsize(path) >= MIN_BYTES
+    except OSError:
+        return False
 
 
 def check_path(cache_path, text):
@@ -49,7 +60,7 @@ def check_path(cache_path, text):
     return cache_path(text)[: -len(".pcm")] + ".check.json"
 
 
-def _verdict(path):
+def verdict(path):
     """A cached take's verdict, or None (heard again) when there's none or another checker made it."""
     import verify
     try:

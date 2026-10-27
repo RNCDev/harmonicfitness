@@ -44,8 +44,14 @@ SR = 24000
 RETRY_STATUS = (429, 500, 502, 503, 504)
 TRIES = 6
 RATE_WAIT = 120             # seconds: a 429 asking to wait this long or less is retried, whatever its body says
-TRIM_LEVEL = 0.01 * 32767   # engines.TRIM_DB (-40 dB) in 16-bit samples
-TRIM_KEEP = 0.04            # seconds kept at each end, as engines.TRIM_KEEP
+DEADLINE = 300.0            # seconds one request may take in all, its tries and the waits between them
+# The local engines' trim rule (engines.TRIM_DB, engines.TRIM_KEEP), which the clip cache's key names. Copied, not
+# imported (engines imports this module to speak a web voice), and test_cloud holds the copy to engines' values:
+# if the two drifted, paid clips would be trimmed one way and keyed another.
+TRIM_DB = -40.0
+TRIM_LEVEL = 10 ** (TRIM_DB / 20) * 32767   # in 16-bit samples
+TRIM_KEEP = 0.04                            # seconds kept at each end
+MIN_AUDIO = 0.1             # seconds: an answer holding less isn't a spoken line
 LOCAL_HOSTS = ("127.0.0.1", "localhost")   # where an address override may use plain http (the tests' fakes)
 # The stop signal of the render this code runs for: a threading.Event that render sets when it's stopping (no
 # retry, no new attempt). One per render, never shared: stop_on sets it in the render's own context, and
@@ -105,10 +111,13 @@ def base_url(service):
 
 
 def _message(body):
+    """A refusal's reason, from its body: scrubbed of every key before it's cut to 300 characters, so a key
+    cut in half can't slip through."""
+    text = scrub(body.decode("utf-8", "replace"))
     try:
-        data = json.loads(body.decode("utf-8", "replace"))
+        data = json.loads(text)
     except ValueError:
-        return body.decode("utf-8", "replace").strip()[:300] or "no reason given"
+        return text.strip()[:300] or "no reason given"
     if isinstance(data, dict):
         detail = data.get("detail")
         for value in (data.get("message"), detail.get("message") if isinstance(detail, dict) else detail,
@@ -146,19 +155,24 @@ def stopping(stop=None):
     return stop is not None and stop.is_set()
 
 
-def _wait(attempt, retry_after, sleep, stop=None):
+def _wait_seconds(attempt, retry_after):
+    """How long to wait before the next try: Retry-After when it's a number, else backoff with jitter."""
     scale = float(os.environ.get("SWEATCAST_RETRY_WAIT", "1"))   # the tests set 0
     try:
         seconds = float(retry_after) if retry_after else min(2 ** attempt, 30) * (0.75 + random.random() / 2)
     except ValueError:
         seconds = min(2 ** attempt, 30)
+    return seconds * scale
+
+
+def _wait(seconds, sleep, stop=None):
     if sleep is None:   # the default: wait, but wake as soon as the render stops
         if stop is not None:
-            stop.wait(seconds * scale)
+            stop.wait(seconds)
         else:
-            time.sleep(seconds * scale)
+            time.sleep(seconds)
     else:
-        sleep(seconds * scale)
+        sleep(seconds)
 
 
 def _seconds(retry_after):
@@ -192,22 +206,34 @@ def _open(req, timeout):
     return opener.open(req, timeout=timeout)
 
 
-def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=None, idempotent=True):
+def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=None, idempotent=True,
+            deadline=DEADLINE):
     """(status, headers, body) for a 2xx answer. Rate limits, server errors and dropped connections are
     retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason.
     A request that saves something (idempotent=False: a saved voice, a stored design) is retried only when
     the service can't have acted on it: a 429, or a connection refused before anything was sent. A server
     error or a timeout after sending could have saved it, and a retry would save a second one. Once a render
-    is stopping (stop_on), nothing more is sent. A redirect is never followed: it raises ServiceError."""
+    is stopping (stop_on), nothing more is sent. A redirect is never followed: it raises ServiceError.
+    `deadline` bounds the whole call, every try and every wait (a slow service holds the render lock): each try
+    gets at most what's left of it, and a wait that would outlast it raises ServiceError("unavailable")."""
     last = None
     stop = _stop.get()
+    start = time.monotonic()
+
+    def out_of_time():
+        why = f"; the last try: {last.message}" if last else ""
+        return ServiceError("unavailable", service, f"no answer within {deadline:g}s{why}",
+                            status=last.status if last else None)
     for attempt in range(tries):
         if stopping(stop):
             raise last or ServiceError("unavailable", service, "not sent: the render is stopping")
+        left = deadline - (time.monotonic() - start)
+        if left <= 0:
+            raise out_of_time()
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         req.sweatcast_service = service
         try:
-            with _open(req, timeout) as r:
+            with _open(req, min(timeout, left)) as r:
                 return r.status, dict(r.headers), r.read()
         except urllib.error.HTTPError as e:
             data = e.read() or b""
@@ -243,7 +269,10 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
                                    f"in it?): re-paste it after {var}= (./sweatcast keys open)") from None
             raise ServiceError("bad_request", service, f"the request couldn't be built: {scrub(str(e))}") from None
         if attempt < tries - 1 and not stopping(stop):
-            _wait(attempt, retry_after, sleep, stop)
+            seconds = _wait_seconds(attempt, retry_after)
+            if seconds > deadline - (time.monotonic() - start):
+                raise out_of_time()
+            _wait(seconds, sleep, stop)
     raise last
 
 
@@ -277,11 +306,11 @@ def b64_audio(text, service):
 @functools.cache
 def _tls():
     """One TLS context per process (loading the certificate bundle for every request is slow)."""
+    import ssl
     try:
-        import ssl
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception as e:   # CI and the fake servers (plain HTTP) don't need it; a real request says so
+    except (ImportError, OSError) as e:   # CI and the fake servers (plain HTTP) don't need it; a real request says so
         print(f"(No certificate bundle from certifi ({type(e).__name__}): using the system's certificates.)",
               file=sys.stderr)
         return None
@@ -304,6 +333,8 @@ def wav_pcm(data):
             pcm = data[start:start + size] if start + size <= len(data) else data[start:]
             if bits != 16:
                 raise ValueError(f"{bits}-bit WAV; expected 16-bit")
+            if channels < 1 or rate < 1:
+                raise ValueError(f"a WAV of {channels} channel(s) at {rate} Hz")
             pcm = pcm[:len(pcm) - len(pcm) % (2 * channels)]
             if channels > 1:
                 s = array.array("h", pcm)
@@ -368,19 +399,56 @@ def trim(pcm):
     return _bytes(s[max(first - keep, 0):last + keep])
 
 
-def audio_pcm(data, rate_hint=SR, service=None):
-    """16-bit mono PCM at 24 kHz from whatever a service sent: WAV, else (MP3 and the like) through
-    ffmpeg, else raw PCM at rate_hint. A text answer (JSON, HTML) is refused, never cached as noise."""
+def content_type(headers):
+    """A response's Content-Type (its media type, lowercased, without parameters), or None when it names none.
+    Header names are matched in any case."""
+    for k, v in (headers or {}).items():
+        if k.lower() == "content-type" and v:
+            return v.split(";")[0].strip().lower() or None
+    return None
+
+
+def _raw_ok(content_type):
+    """Whether a reply of this content type may be raw PCM: an audio type, plain bytes, or none named (a
+    service's base64 audio inside JSON carries no type of its own)."""
+    return content_type is None or content_type.startswith("audio/") or content_type == "application/octet-stream"
+
+
+def audio_pcm(data, rate_hint=SR, service=None, *, expect="wav", content_type=None):
+    """16-bit mono PCM at 24 kHz from what a service sent, proven to be audio. `expect` is what was asked for:
+    "wav", "mp3" or "pcm" (raw 16-bit mono at rate_hint); `content_type` the reply's (content_type(headers)),
+    or None for audio that came inside JSON. A WAV is read, MP3 and the like go through ffmpeg, and raw PCM is
+    taken only when raw PCM was asked for and the reply is typed as audio or bytes. Anything else (text, a
+    compressed or cut-off stream, a WAV that can't be read, under MIN_AUDIO of sound) raises ServiceError:
+    never cached as noise, paid for once and replayed in every build."""
     head = data[:64].lstrip()
     if not data or head[:1] in (b"{", b"[", b"<"):
         raise ServiceError("bad_request", service, "the service answered with text, not audio: "
                            + _message(data)[:200] if data else "the service answered with no audio")
     if data[:4] == b"RIFF":
-        pcm, rate = wav_pcm(data)
-        return resample(pcm, rate, SR)
-    if data[:3] == b"ID3" or data[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2") or data[:4] in (b"OggS", b"fLaC"):
-        return ffmpeg_pcm(data, "A service sent compressed audio")
-    return resample(data[:len(data) - len(data) % 2], rate_hint, SR)   # raw PCM, as the service announced
+        try:
+            pcm, rate = wav_pcm(data)
+        except (ValueError, IndexError) as e:
+            raise ServiceError("bad_request", service, f"the service's WAV couldn't be read ({e})") from None
+        pcm = resample(pcm, rate, SR)
+    elif data[:3] == b"ID3" or data[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2") or data[:4] in (b"OggS", b"fLaC"):
+        import ffmpeg
+        if not ffmpeg.exe():   # the listener's to fix (setup), not the service's
+            return ffmpeg_pcm(data, "A service sent compressed audio")
+        try:
+            pcm = ffmpeg_pcm(data, "A service sent compressed audio")
+        except errors.RenderStopped as e:
+            raise ServiceError("bad_request", service, f"its audio couldn't be read: {e}") from None
+    elif expect == "pcm" and _raw_ok(content_type):
+        pcm = resample(data[:len(data) - len(data) % 2], rate_hint, SR)   # raw PCM, as asked for
+    else:
+        sent = f" ({content_type})" if content_type else ""
+        raise ServiceError("bad_request", service, f"the service's answer{sent} isn't audio it can read: "
+                           f"{expect.upper()} was asked for")
+    if len(pcm) < 2 * int(MIN_AUDIO * SR):
+        raise ServiceError("bad_request", service, f"the service answered with {len(pcm) / 2 / SR:.2f}s of audio, "
+                           "too little to be a spoken line")
+    return pcm
 
 
 def ffmpeg_pcm(data, what="The audio"):

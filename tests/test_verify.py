@@ -16,6 +16,8 @@ import errors  # noqa: E402
 import cache  # noqa: E402
 import cli  # noqa: E402
 import engines  # noqa: E402
+import audio  # noqa: E402
+import clipcache  # noqa: E402
 import render  # noqa: E402
 import verify  # noqa: E402
 
@@ -122,7 +124,7 @@ class CheckTakes(unittest.TestCase):
         got = render.check_takes(self.voice, [line], 42, self.cache_path)
         self.assertEqual(self.said, [])
         self.assertEqual((got["checked_now"], got["rendered_again"]), (1, 0))
-        with open(render.check_path(self.cache_path, line), encoding="utf-8") as f:
+        with open(clipcache.check_path(self.cache_path, line), encoding="utf-8") as f:
             self.assertTrue(json.load(f)["ok"])
 
     def test_a_dropped_cue_renders_the_next_seed_and_keeps_it(self):
@@ -135,7 +137,7 @@ class CheckTakes(unittest.TestCase):
         self.assertEqual(got["rendered_again"], 1)
         with open(self.cache_path(line), "rb") as f:
             self.assertEqual(f.read(), self.take(43))   # the passing take replaced the cached one
-        with open(render.check_path(self.cache_path, line), encoding="utf-8") as f:
+        with open(clipcache.check_path(self.cache_path, line), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["seed"], 43)
         render.check_takes(self.voice, [line], 42, self.cache_path)   # checked once: a rerun hears nothing again
         self.assertEqual(len(self.said), 1)
@@ -168,11 +170,11 @@ class CheckTakes(unittest.TestCase):
 
     def test_a_new_take_drops_the_old_verdict(self):
         line = "Go."
-        render.render_clip(lambda t, s: self.take(s), line, 42, self.cache_path)
-        with open(render.check_path(self.cache_path, line), "w", encoding="utf-8") as f:
+        clipcache.render_clip(lambda t, s: self.take(s), line, 42, self.cache_path)
+        with open(clipcache.check_path(self.cache_path, line), "w", encoding="utf-8") as f:
             f.write("{}")
-        render.render_clip(lambda t, s: self.take(s), line, 42, self.cache_path)
-        self.assertFalse(os.path.exists(render.check_path(self.cache_path, line)))
+        clipcache.render_clip(lambda t, s: self.take(s), line, 42, self.cache_path)
+        self.assertFalse(os.path.exists(clipcache.check_path(self.cache_path, line)))
 
     def test_a_line_heard_before_never_loads_the_recognizer(self):
         line = "Three, two, one, and rest."
@@ -188,15 +190,128 @@ class CheckTakes(unittest.TestCase):
         self.cached(line)
         self.heard[len(self.take(42))] = "3, 2, 1, and rest."
         render.check_takes(self.voice, [line], 42, self.cache_path)
-        with open(render.check_path(self.cache_path, line), encoding="utf-8") as f:
+        with open(clipcache.check_path(self.cache_path, line), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["checker"], verify.checker_id())
         with mock.patch.object(verify, "CUES", verify.CUES | {"breathe"}):   # a stricter checker ships
-            self.assertIsNone(render._verdict(render.check_path(self.cache_path, line)))
+            self.assertIsNone(clipcache.verdict(clipcache.check_path(self.cache_path, line)))
             got = render.check_takes(self.voice, [line], 42, self.cache_path)
         self.assertEqual((got["checked_now"], self.said), (1, []))   # heard again; the audio kept
-        with open(render.check_path(self.cache_path, line), "w", encoding="utf-8") as f:   # a verdict from before
+        with open(clipcache.check_path(self.cache_path, line), "w", encoding="utf-8") as f:   # a verdict from before
             f.write(json.dumps({"ok": True, "missed_cues": []}))
-        self.assertIsNone(render._verdict(render.check_path(self.cache_path, line)))
+        self.assertIsNone(clipcache.verdict(clipcache.check_path(self.cache_path, line)))
+
+
+class CheckTakesReuse(CheckTakes):
+    def test_a_say_passed_in_is_reused_not_loaded_again(self):
+        line = "Three, two, one, and rest."
+        self.cached(line)
+        self.heard[len(self.take(42))] = "3, 2, 1."
+        self.heard[len(self.take(43))] = "3, 2, 1, and rest."
+        with mock.patch.object(engines, "speaker", side_effect=AssertionError("loaded a second time")), \
+                contextlib.redirect_stdout(io.StringIO()):
+            got = render.check_takes(self.voice, [line], 42, self.cache_path, say=self.say)
+        self.assertEqual(self.said, [(line, 43)])
+        self.assertEqual(got["rendered_again"], 1)
+
+
+class ClipCache(unittest.TestCase):
+    """clipcache.cached and write: a clip counts only when it's there and long enough to be a take."""
+
+    def test_missing_empty_and_torn_clips_are_not_cached(self):
+        import clipcache
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "a.pcm")
+            self.assertFalse(clipcache.cached(path))
+            for data in (b"", b"\x00\x01" * 100):
+                with open(path, "wb") as f:
+                    f.write(data)
+                self.assertFalse(clipcache.cached(path))
+            clipcache.write(path, tone(0.3))
+            self.assertTrue(clipcache.cached(path))
+            self.assertEqual(os.listdir(d), ["a.pcm"])   # no temporary file left beside it
+
+
+class RunLocal(unittest.TestCase):
+    """render.run with a fake local voice: what's cached, what's loaded, and how often a clip is read."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.d, True)
+        self.voice = {"name": "Test", "engine": "pocket", "backend": "torch", "model": "m", "revision": None,
+                      "generate": {}, "key": "test", "pace_file": None}
+        self.said = []
+        self.loads = 0
+        self.takes = {}   # text -> PCM the fake voice says
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(render.paths, "CACHE", os.path.join(self.d, "cache")))
+        stack.enter_context(mock.patch.object(render.ffmpeg_tool, "exe", return_value="ffmpeg"))
+        stack.enter_context(mock.patch.object(render.ffmpeg_tool, "version", return_value="ffmpeg test"))
+        stack.enter_context(mock.patch.object(render, "encode"))
+        stack.enter_context(mock.patch.object(render, "save_build_record"))
+        stack.enter_context(mock.patch.object(render, "record_rate"))
+        stack.enter_context(mock.patch.object(render, "pace", return_value=(14.5, True)))
+        stack.enter_context(mock.patch.object(render, "clip_seconds", return_value=1.0))
+        stack.enter_context(mock.patch.object(engines, "speaker", side_effect=self.speaker))
+        stack.enter_context(mock.patch.object(engines, "release"))
+        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+
+    def speaker(self, voice):
+        self.loads += 1
+
+        def say(text, seed):
+            self.said.append((text, seed))
+            return self.takes.get((text, seed), tone(1.0 + seed / 1000))
+        return say
+
+    def run_draft(self, text, check=False):
+        import draft
+        os.makedirs(os.path.join(self.d, "cache"), exist_ok=True)
+        return render.run(draft.parse(text), dict(self.voice), os.path.join(self.d, "x.mp3"),
+                          os.path.join(self.d, "x.draft.txt"), "ab" * 32, check=check)
+
+    def cache_path(self):
+        return render.clip_cache(render.prepare_voice(dict(self.voice))[0], 42)
+
+    def test_an_empty_cached_clip_is_rendered_again(self):
+        line = "Go now, easy."
+        os.makedirs(os.path.join(self.d, "cache"), exist_ok=True)
+        with open(self.cache_path()(line), "wb"):
+            pass
+        self.run_draft(f"@@ 10 | A\n{line}\n")
+        self.assertEqual(self.said, [(line, 42)])
+
+    def test_an_empty_take_stops_naming_its_line(self):
+        line = "Go now, easy."
+        self.takes[(line, 42)] = b""
+        with self.assertRaises(errors.RenderStopped) as got:
+            self.run_draft(f"@@ 10 | A\n{line}\n")
+        self.assertIn("Go now, easy.", str(got.exception))
+
+    def test_a_line_said_twice_is_read_and_leveled_once(self):
+        line = "Go now, easy."
+        with mock.patch.object(render, "level", side_effect=lambda pcm: pcm) as lev:
+            self.run_draft(f"@@ 10 | A\n{line}\n\n@@ 10 | B\n{line}\n")
+        self.assertEqual(lev.call_count, 1)
+
+    def test_the_model_loads_once_for_the_render_and_its_retakes(self):
+        line = "Three, two, one, and rest."
+        heard = {len(tone(1.042)): "3, 2, 1.", len(tone(1.043)): "3, 2, 1, and rest."}
+        with mock.patch.object(engines, "listener", return_value=lambda pcm: heard[len(pcm)]), \
+                mock.patch.object(render.clipcache, "write", wraps=render.clipcache.write):
+            self.run_draft(f"@@ 10 | A\n{line}\n", check=True)
+        self.assertEqual(self.loads, 1)
+        self.assertEqual(self.said, [(line, 42), (line, 43)])
+
+    def test_a_failed_render_releases_the_kept_model(self):
+        def speaker(voice):
+            def say(text, seed):
+                raise RuntimeError("out of memory")
+            return say
+        with mock.patch.object(engines, "speaker", side_effect=speaker), \
+                mock.patch.object(engines, "release") as release, self.assertRaises(RuntimeError):
+            self.run_draft("@@ 10 | A\nGo now, easy.\n", check=True)
+        release.assert_called_once()
 
 
 class RenderLocal(unittest.TestCase):
@@ -248,28 +363,28 @@ class Fallback(unittest.TestCase):
 
     def test_the_leveled_clip_agrees(self):
         quiet_clip = tone(1.0, db=-40.0) + struct.pack("<2h", -20000, 15000)
-        fast = render.level(quiet_clip)
+        fast = audio.level(quiet_clip)
         with self.without_numpy():
-            slow = render.level(quiet_clip)
+            slow = audio.level(quiet_clip)
         self.assertEqual(fast, slow)
         self.assertNotEqual(fast, quiet_clip)
 
 
 class Level(unittest.TestCase):
     def test_a_quiet_clip_is_raised_to_the_speech_level(self):
-        out = render.level(tone(1.0, db=-30.0))
-        self.assertAlmostEqual(render.speech_level(out), render.SPEECH_LEVEL, delta=0.3)
+        out = audio.level(tone(1.0, db=-30.0))
+        self.assertAlmostEqual(audio.speech_level(out), audio.SPEECH_LEVEL, delta=0.3)
 
     def test_a_clip_near_the_level_and_silence_are_left_alone(self):
-        near = tone(1.0, db=render.SPEECH_LEVEL + 0.2)
-        self.assertIs(render.level(near), near)
-        self.assertEqual(render.level(quiet(1.0)), quiet(1.0))
+        near = tone(1.0, db=audio.SPEECH_LEVEL + 0.2)
+        self.assertIs(audio.level(near), near)
+        self.assertEqual(audio.level(quiet(1.0)), quiet(1.0))
 
     def test_a_raised_clip_keeps_its_peak_under_full_scale(self):
         spiky = tone(1.0, db=-40.0) + struct.pack("<h", 20000)
-        out = render.level(spiky)
+        out = audio.level(spiky)
         samples = struct.unpack(f"<{len(out) // 2}h", out)
-        self.assertLessEqual(max(samples), int(render.LEVEL_PEAK * 32767) + 1)
+        self.assertLessEqual(max(samples), int(audio.LEVEL_PEAK * 32767) + 1)
 
 
 class Encode(unittest.TestCase):
@@ -291,6 +406,30 @@ class Encode(unittest.TestCase):
         chains = [c[c.index("-af") + 1] for c in cmds]
         self.assertEqual(len(chains), 2)
         self.assertTrue(all(c.startswith(render.COMPRESS + ",loudnorm=") for c in chains), chains)
+
+
+class WindowsReplace(unittest.TestCase):
+    """fileio.replace: on Windows a file another program holds open (last time's MP3 in a player) is tried
+    again for a moment before the build gives up; elsewhere a refusal is final at once."""
+
+    def attempt(self, os_name, failures):
+        import fileio
+        results = [PermissionError("in use")] * failures + [None]
+        with mock.patch.object(fileio.os, "name", os_name), \
+                mock.patch.object(fileio.os, "replace", side_effect=results) as rep, \
+                mock.patch.object(fileio.time, "sleep") as sleep:
+            try:
+                fileio.replace("a.part", "a.mp3")
+                return True, rep.call_count, sleep.call_count
+            except PermissionError:
+                return False, rep.call_count, sleep.call_count
+
+    def test_a_held_file_is_tried_again_on_windows(self):
+        self.assertEqual(self.attempt("nt", 2), (True, 3, 2))
+        self.assertEqual(self.attempt("nt", 10), (False, 10, 9))
+
+    def test_elsewhere_a_refusal_is_final(self):
+        self.assertEqual(self.attempt("posix", 1), (False, 1, 0))
 
 
 @unittest.skipIf(sys.platform == "win32", "the fake ffmpeg is a shell script")
