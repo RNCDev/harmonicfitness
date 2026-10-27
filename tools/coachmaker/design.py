@@ -3,7 +3,7 @@
   .venv/bin/python tools/coachmaker/design.py andy marcus --takes 6
 
 Each designer runs tools/coachmaker/design_worker.py in its own environment (coaches/roster.toml names it)
-on the NVIDIA card or a Mac's GPU (VoxCPM2; Qwen3 needs the card), from the model already in models/
+on the Mac through mlx-audio, from the model already in models/
 (offline: nothing is downloaded). Every take is then made into a clip candidate the way a shipped clip.wav
 is: 24 kHz mono 16-bit, quiet ends trimmed to 0.1 s, speech leveled to render.SPEECH_LEVEL with the peak
 under -1 dBFS. The take check's recognizer hears each one, so
@@ -48,8 +48,8 @@ def roster():
         return tomllib.load(f)
 
 
-def description(r, coach, designer=None):
-    hint = r["designers"].get(designer, {}).get("pace_hint")
+def description(r, coach, designer=None, hint=None):
+    hint = hint or r["designers"].get(designer, {}).get("pace_hint")
     return " ".join(x for x in (coach["description"], hint, r["studio"]) if x)
 
 
@@ -72,11 +72,10 @@ def wpm(text, seconds):
     return round(len(text.split()) / seconds * 60) if seconds else 0
 
 
-def run_designer(r, name, coaches, seeds, text):
+def run_designer(r, name, coaches, seeds, text, hint=None):
     d = r["designers"][name]
     job = {"designer": name, "model_dir": model_dir(d["repo"], d["revision"]), "out": TAKES,
-           "cfg_value": d.get("cfg_value"), "inference_timesteps": d.get("inference_timesteps"),
-           "takes": [{"slug": c["slug"], "description": description(r, c, name), "text": text, "seed": s}
+           "takes": [{"slug": c["slug"], "description": description(r, c, name, hint), "text": text, "seed": s}
                      for c in coaches for s in seeds]}
     os.makedirs(WORK, exist_ok=True)
     job_path = os.path.join(WORK, f"{name}-job.json")
@@ -181,8 +180,9 @@ def listening_page(r, takes):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("coaches", nargs="+", help="coach slugs from coaches/roster.toml")
-    p.add_argument("--designers", default="voxcpm")
+    p.add_argument("--designers", default="qwen3")
     p.add_argument("--takes", type=int, default=3)
+    p.add_argument("--pace-hint", help="a pace line in place of the roster's, to try one")
     p.add_argument("--seed", type=int, default=101, help="the first take's seed; the next takes count up")
     p.add_argument("--no-render", action="store_true",
                    help="process the takes a designer already rendered (its <designer>-render.json) instead")
@@ -204,7 +204,7 @@ def main(argv=None):
                 rec = json.load(f)
             rec["takes"] = [t for t in rec["takes"] if t["slug"] in a.coaches and t["seed"] in seeds]
         else:
-            rec = run_designer(r, name, coaches, seeds, r["script"])
+            rec = run_designer(r, name, coaches, seeds, r["script"], a.pace_hint)
         for t in rec["takes"]:
             if "wav" not in t:
                 continue
@@ -218,9 +218,9 @@ def main(argv=None):
             takes[key] = {"slug": t["slug"], "designer": name, "seed": t["seed"], "label": f"{name} {t['seed']}",
                           "wav": wav, "mp3": mp3, "seconds": round(len(pcm) / 2 / verify.SR, 2),
                           "render_s": t["render_s"], "source_sr": t["sr"],
-                          "revision": r["designers"][name]["revision"], "description": description(r, by_slug[t["slug"]], name),
+                          "revision": r["designers"][name]["revision"], "description": description(r, by_slug[t["slug"]], name, a.pace_hint),
                           "text": t.get("text") or r["script"],
-                          "device": rec.get("gpu"), "torch": rec.get("torch")}
+                          "device": rec.get("gpu"), "runtime": rec.get("runtime")}
             fresh.append(key)
     heard = transcribe([takes[k]["wav"] for k in fresh])
     for k in fresh:

@@ -40,12 +40,11 @@ All of these are in mlx-audio 0.5.0 unless noted. Speeds from elsewhere were mea
 | Higgs Audio v2 3B, q8 | Boson community license: commercial use under 100k annual users, with attribution [P] | about 6 GB | Clone from 5–15 s plus transcript | Strong emotion; repetition-avoiding sampling; 0.36 render ratio on an M5 Max [P, mlx-audio `docs/models/tts/higgs_audio.md`] | Keep the audio head bf16: quantizing it drifts the pitch [P] |
 | MOSS-TTS Local v1.5 | Apache 2.0 [P] | 4.5B, 14.5 GB peak | Clone | Inline `[pause Ns]` and duration control; 0.49 on an M5 Max [P, mlx-audio PR 797] | Tight in 24 GB; long-form claims are the maker's own |
 | Chatterbox Multilingual V3 | MIT [P] | about 0.7B | Clone | Turbo's family, with `exaggeration` back; claims fewer hallucinations [P] | No Mac speed published |
-| VoxCPM2 | Apache 2.0 [P] | 2.3B, 48 kHz | Clone, and design from text | Best open speaker similarity (Seed-EN SIM 75.3) [P] | Slow at bf16; int8 or int4 reported at 0.8–1.4 [S]; the card says long or expressive input is unstable [P] |
 | Breeze TTS 2 | **Non-commercial** [P] | 3B | Design, clone, clone plus instruction | Second-best open model on the Artificial Analysis arena (1230) [P]; 0.61 on an M5 Max [P] | Personal use only |
 
 **Leaderboard [P]** (https://artificialanalysis.ai/text-to-speech/leaderboard, opened 2026-10-25): open-weight entries are Fish Audio Drama 3 Preview 1246, Breeze TTS 2 1230, Ming-3.0-tts 1189, Fish Audio S2 Pro 1109, Voxtral TTS 1090, Kokoro 1063, Higgs Audio V3 1045 and Chatterbox (original) 1026.
 - These are short clips in each model's own voices, which says nothing about a cloned voice over 30 minutes.
-- Turbo, Qwen3-TTS (open weights), Higgs v2, VoxCPM2 and MOSS aren't on the board.
+- Turbo, Qwen3-TTS (open weights), Higgs v2 and MOSS aren't on the board.
 
 **Not now:**
 - Fish Drama 3 needs more than 24 GB, and an open issue has takes falling silent.
@@ -69,7 +68,7 @@ All of these are in mlx-audio 0.5.0 unless noted. Speeds from elsewhere were mea
 - This isn't enforced yet; a cue bank (fixed cue lines rendered once and checked) is a later option.
 
 **Long single passes degrade [P, abstract]:**
-- Qwen3-TTS and VoxCPM2 "significantly deteriorate" on very long prompts (arXiv 2609.16989).
+- Qwen3-TTS "significantly deteriorates" on very long prompts (arXiv 2609.16989).
 - Paragraph-sized clips with a check are the safe pattern.
 
 **Loudness [P]:**

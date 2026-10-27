@@ -162,7 +162,7 @@ There's no local designer on Windows or Linux: Qwen's own PyTorch package (`qwen
 - `keep` writes `clip.wav` (converted to 24 kHz mono if it isn't), `clip.txt`, and for a new coach `persona.md` with the template's `## How this coach talks`, to fill in. `--engine qwen3` picks Qwen3 for local renders on a Mac; Chatterbox Turbo is the default and the most natural.
 - A brought clip: `./sweatcast coaches keep my-recording.wav --name "Coach Sam" --words "exactly what it says"`.
 
-Tried and dropped on 2026-10-20: OmniVoice's gallery voices (mechanical), Kokoro (flat), Qwen3-TTS preset speakers (fine, but too slow), VoxCPM2 (good but nearly four times real time), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower).
+Tried and dropped on 2026-10-20: OmniVoice's gallery voices (mechanical), Kokoro (flat), Qwen3-TTS preset speakers (fine, but too slow), Chatterbox at 8-bit and 4-bit (no better than Turbo, and slower).
 
 ## Pace
 

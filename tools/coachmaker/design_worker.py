@@ -37,53 +37,32 @@ def _quiet():
 
 
 def qwen3(job):
-    """Qwen3-TTS VoiceDesign through Qwen's own package: the description as the instruction."""
-    import torch
-    from qwen_tts import Qwen3TTSModel
-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-    model = Qwen3TTSModel.from_pretrained(job["model_dir"], device_map="cuda:0", dtype=dtype,
-                                          attn_implementation="sdpa")
+    """Qwen3-TTS VoiceDesign through mlx-audio on the Mac, the description as the instruction. Coaches are made
+    once, by the maintainer, so the designer runs nowhere else."""
+    import mlx.core as mx
+    import numpy as np
+    from mlx_audio.tts.utils import load_model
+    model = load_model(job["model_dir"])
 
     def say(description, text, seed):
-        torch.manual_seed(seed)
+        mx.random.seed(seed)
         with _quiet():
-            wavs, sr = model.generate_voice_design(text=text, instruct=description, language="English")
-        return wavs[0], sr
+            results = list(model.generate(text=text, instruct=description, verbose=False))
+        a = np.concatenate([np.array(r.audio, dtype=np.float32).reshape(-1) for r in results])
+        return a, results[0].sample_rate
     return say
 
 
-def voxcpm(job):
-    """VoxCPM2: the description in parentheses before the text. No denoiser (no reference audio here) and no
-    torch.compile (no Triton on Windows). The device is VoxCPM's own choice (CUDA, else Apple's MPS, else the
-    processor) unless the job names one; a take made on one device won't match the same seed on another."""
-    import torch
-    from voxcpm import VoxCPM
-    model = VoxCPM.from_pretrained(job["model_dir"], load_denoiser=False, optimize=False,
-                                 device=job.get("device") or "auto")
-
-    def say(description, text, seed):
-        torch.manual_seed(seed)
-        with _quiet():
-            wav = model.generate(text=f"({description}){text}", cfg_value=job.get("cfg_value", 2.0),
-                                 inference_timesteps=job.get("inference_timesteps", 10))
-        return wav, model.tts_model.sample_rate
-    return say
-
-
-DESIGNERS = {"qwen3": qwen3, "voxcpm": voxcpm}
+DESIGNERS = {"qwen3": qwen3}
 
 
 def main(job_path):
     with open(job_path, encoding="utf-8") as f:
         job = json.load(f)
-    import torch
     designer = job["designer"]
-    if designer == "qwen3" and not torch.cuda.is_available():
-        raise SystemExit("PyTorch can't see the NVIDIA card in this environment.")
-    gpu = (torch.cuda.get_device_name(0) if torch.cuda.is_available() else
-           "Apple MPS" if torch.backends.mps.is_available() else "processor")
-    record = {"designer": designer, "model_dir": job["model_dir"], "torch": torch.__version__,
-              "gpu": gpu, "takes": []}
+    import importlib.metadata as md
+    record = {"designer": designer, "model_dir": job["model_dir"], "runtime": f"mlx-audio {md.version('mlx-audio')}",
+              "gpu": "Apple GPU (MLX)", "takes": []}
     path = os.path.join(job["out"], f"{designer}-render.json")
 
     def save():

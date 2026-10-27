@@ -1,6 +1,6 @@
 """Make a designed take a shipped coach's clip (maintainer only; not a listener command).
 
-  .venv/Scripts/python tools/coachmaker/pick.py andy qwen3-101 [claire voxcpm-101 ...]
+  .venv/Scripts/python tools/coachmaker/pick.py andy qwen3-101 [claire qwen3-102 ...]
 
 Copies .cache/design/takes/<coach>/<take>.wav to coaches/coach-<coach>-local/clip.wav, writes clip.txt (the
 script, after checking the recognizer heard every word of it in that take), and records the designer, its
@@ -48,7 +48,7 @@ def main(argv):
         block = (f"[picks.{slug}]\ndesigner = {toml_str(t['designer'])}\n"
                  f"repo = {toml_str(roster['designers'][t['designer']]['repo'])}\n"
                  f"revision = {toml_str(t['revision'])}\nseed = {t['seed']}\n"
-                 f"seconds = {t['seconds']}\ndevice = {toml_str(t.get('device') or '')}\ntorch = {toml_str(t.get('torch') or '')}\ndescription = {toml_str(t['description'])}\n")
+                 f"seconds = {t['seconds']}\ndevice = {toml_str(t.get('device') or '')}\nruntime = {toml_str(t.get('runtime') or '')}\ndescription = {toml_str(t['description'])}\n")
         text = re.sub(rf"\n\[picks\.{slug}\]\n(?:[^\[\n].*\n)*", "\n", text)   # a re-pick replaces the old one
         text = text.rstrip("\n") + "\n\n" + block
         print(f"{slug}: {take}, {t['seconds']} s -> {os.path.relpath(folder, ROOT)}")

@@ -14,21 +14,10 @@ for thirty seconds, and we'll go again."""
 studio = "Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
 [designers.qwen3]
-repo = "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
-revision = "5ecdb67327fd37bb2e042aab12ff7391903235d3"
-env = ".cache/bench/envs/qwen3-cuda"
-package = "qwen-tts==0.1.1"
-
-[designers.voxcpm]
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-env = ".cache/design/envs/voxcpm"
-package = "voxcpm==2.0.3"
-cfg_value = 2.0
-inference_timesteps = 10
-# Its takes ran fast (up to 280 words a minute in the bake-off), and Pocket copies a clip's pace into every
-# workout (Marcus's 249-wpm clip spoke workouts at 250). Aim for 150 to 175 words a minute.
-pace_hint = "Speaks slowly and clearly, unhurried, with natural pauses between sentences, at a calm coaching pace."
+# Qwen3-TTS VoiceDesign through mlx-audio, on the Mac (the engine's own environment).
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+env = "."
 
 [[coach]]
 slug = "andy"
@@ -128,74 +117,3 @@ seed = 101
 seconds = 19.14
 description = "A man in his mid-forties, a seasoned personal trainer. A low, warm baritone with a general American accent. Calm authority, with a little light humor. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
-[picks.claire]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 101
-seconds = 21.58
-description = "A woman in her mid-forties, a physiotherapist and Pilates teacher. A low, smooth alto with a general American accent. Calm, precise and reassuring. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.callum]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 101
-seconds = 16.13
-description = "A man in his late thirties, a former rugby player turned coach. A firm mid-baritone with a light Scottish accent. Direct and no-nonsense, with a dry wit. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.marcus]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 101
-seconds = 12.79
-description = "A man in his early thirties, a group fitness class instructor. A bright, clear tenor with a general American accent. Upbeat and driving, but never shouting. Unhurried, with natural pauses between sentences, at a calm coaching pace. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.theo]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 102
-seconds = 15.06
-description = "A man in his late twenties, a laid-back trainer. A relaxed mid-range voice with a soft West Coast American accent. Easygoing, friendly and conversational. Unhurried, with natural pauses between sentences, at a calm coaching pace. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.sam]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 103
-seconds = 14.36
-description = "A man in his early sixties, a former high school coach. A deep, slightly gravelly voice with an American Midwest accent. Patient and wry, with steady encouragement. Unhurried, with natural pauses between sentences, at a calm coaching pace. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.maya]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 102
-seconds = 13.47
-description = "A woman in her early thirties, a HIIT instructor. A bright, clear mezzo-soprano with a general American accent. Energetic, with crisp counts. Unhurried, with natural pauses between sentences, at a calm coaching pace. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.rosa]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 101
-seconds = 18.36
-description = "A woman in her late twenties, a distance runner and coach. A lively, warm mid-range voice with a general American accent. Playful, quick and upbeat. Unhurried, with natural pauses between sentences, at a calm coaching pace. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.kate]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 101
-seconds = 16.58
-description = "A woman in her mid-thirties, an outdoor bootcamp coach. A clear, open voice with a light Australian accent. Cheerful and confident. Unhurried, with natural pauses between sentences, at a calm coaching pace. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
-
-[picks.helen]
-designer = "voxcpm"
-repo = "openbmb/VoxCPM2"
-revision = "32279effe8c19989596f05d353d1447f51d9e915"
-seed = 202
-seconds = 21.25
-description = "A British woman from the south of England, in her mid-fifties, a veteran personal trainer. A warm, rich alto with a clear English accent, Received Pronunciation, like a BBC presenter. Steady and kind, quietly firm. Unhurried, with natural pauses between sentences, at a calm coaching pace. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
