@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sweatcast UI Options</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; each option is a scaled-down screen mock with a short verdict beside it */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --ink:#16202b; --muted:#5d6876; --line:#d9dee5;
+  --accent:#1d5fd1; --accent-soft:#e3ecfb; --warm:#e0702a; --warm-soft:#fbe9dd; --ok:#2f8a57;
+  --chat:#eef1f5;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Source Sans 3",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141a; --surface:#18202a; --ink:#e7ebf0; --muted:#97a2b0; --line:#2a3542;
+  --accent:#6a9cf2; --accent-soft:#1c2c48; --warm:#f08a4b; --warm-soft:#3a2617; --ok:#5cc489; --chat:#1f2935; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141a; --surface:#18202a; --ink:#e7ebf0; --muted:#97a2b0; --line:#2a3542;
+  --accent:#6a9cf2; --accent-soft:#1c2c48; --warm:#f08a4b; --warm-soft:#3a2617; --ok:#5cc489; --chat:#1f2935; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 56px;display:grid;gap:40px}
+h1,h2,h3{font-family:var(--display);letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(2.2rem,6vw,3.4rem)}
+h2{font-size:1.9rem}
+h3{font-size:1.15rem;text-transform:uppercase;letter-spacing:.06em}
+p{margin:0;max-width:65ch}
+.lede{color:var(--muted);font-size:1.08rem}
+.tag{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+header{display:grid;gap:12px}
+section.opt{display:grid;gap:18px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px}
+.pick{font-family:var(--mono);font-size:.72rem;background:var(--warm);color:#fff;padding:3px 8px;border-radius:4px;letter-spacing:.06em}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.verdict div{min-width:0}
+.verdict ul{margin:6px 0 0;padding-left:18px;color:var(--muted)}
+.verdict li{margin:3px 0}
+
+/* screen mock */
+.screen{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(0,0,0,.35)}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.bar b{color:var(--ink);font-weight:600;margin-left:6px}
+.split{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);min-height:400px}
+.chatcol{background:var(--chat);padding:14px;display:flex;flex-direction:column;gap:10px;border-right:1px solid var(--line);font-size:.86rem;min-width:0}
+.msg{padding:8px 11px;border-radius:10px;max-width:92%}
+.msg.c{background:var(--surface);align-self:flex-start;border:1px solid var(--line)}
+.msg.u{background:var(--accent);color:#fff;align-self:flex-end}
+.msg .who{display:block;font-family:var(--mono);font-size:.65rem;color:var(--muted);margin-bottom:2px}
+.msg.u .who{color:rgba(255,255,255,.75)}
+.composer{margin-top:auto;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;color:var(--muted);font-size:.8rem}
+.panelcol{padding:14px;display:grid;gap:12px;align-content:start;min-width:0}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs span{font-family:var(--mono);font-size:.66rem;padding:3px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+.tabs span.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px}
+.card h4{margin:0;font-family:var(--display);font-size:1.05rem;letter-spacing:.02em}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.82rem}
+.row label{color:var(--muted)}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg span{padding:2px 8px;font-size:.72rem;font-family:var(--mono);border-left:1px solid var(--line)}
+.seg span:first-child{border-left:0}
+.seg span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.slider{flex:1;max-width:140px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--accent) 0 60%,var(--line) 60%)}
+.chip{font-family:var(--mono);font-size:.68rem;padding:2px 7px;border-radius:4px}
+.chip.del{background:var(--warm-soft);color:var(--warm)}
+.chip.off{background:#b4232a;color:#fff}
+.chip.ok{background:var(--accent-soft);color:var(--accent)}
+.btn{justify-self:start;font-family:var(--mono);font-size:.72rem;background:var(--accent);color:#fff;padding:5px 10px;border-radius:5px}
+.coaches{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+.coach{border:1px solid var(--line);border-radius:6px;padding:6px;font-size:.74rem;display:grid;gap:2px}
+.coach.on{border-color:var(--accent);background:var(--accent-soft)}
+.coach small{color:var(--muted);font-size:.64rem}
+.player{display:grid;gap:6px}
+.wave{height:34px;border-radius:4px;background:repeating-linear-gradient(90deg,var(--accent) 0 2px,transparent 2px 5px);mask:linear-gradient(90deg,#000 0 35%,rgba(0,0,0,.25) 35%);-webkit-mask:linear-gradient(90deg,#000 0 35%,rgba(0,0,0,.25) 35%)}
+.segs{display:flex;gap:2px;height:8px}
+.segs i{display:block;border-radius:2px;background:var(--line)}
+.segs i.w{background:var(--ok)}.segs i.m{background:var(--accent)}.segs i.f{background:var(--warm)}
+.mono{font-family:var(--mono);font-size:.7rem;color:var(--muted)}
+
+/* option B: chat with inline cards */
+.single{max-width:520px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--chat);font-size:.86rem;min-height:400px}
+.single .card{background:var(--surface);max-width:92%}
+
+/* option C: dashboard */
+.dash{display:grid;grid-template-columns:150px minmax(0,1fr);min-height:400px}
+.nav{border-right:1px solid var(--line);padding:14px;display:grid;gap:4px;align-content:start;font-size:.82rem}
+.nav span{padding:5px 8px;border-radius:5px;color:var(--muted)}
+.nav span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.dmain{padding:14px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-content:start;position:relative;min-width:0}
+.fab{position:absolute;right:14px;bottom:14px;background:var(--ink);color:var(--surface);font-family:var(--mono);font-size:.7rem;padding:7px 11px;border-radius:20px}
+table{border-collapse:collapse;width:100%;font-size:.76rem;font-variant-numeric:tabular-nums}
+td{padding:4px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right;color:var(--muted)}
+
+/* phone frame for A on mobile */
+.phones{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.phone{width:210px;max-width:100%;border:1px solid var(--line);border-radius:22px;background:var(--surface);overflow:hidden;display:flex;flex-direction:column;height:400px}
+.phone .chatcol{border:0;flex:1}
+.sheet{border-top:1px solid var(--line);background:var(--surface);padding:10px;display:grid;gap:8px;border-radius:14px 14px 0 0;box-shadow:0 -8px 20px -14px rgba(0,0,0,.4)}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--line);justify-self:center}
+.cap{font-family:var(--mono);font-size:.7rem;color:var(--muted);text-align:center}
+
+.edges line{stroke:var(--line);stroke-width:1.5}
+.edges line.feed{stroke-dasharray:3 3}
+.me{fill:var(--ink)}
+.me-t{fill:var(--surface)!important;font-weight:600}
+.lbl{fill:var(--ink);font-family:var(--body);font-size:10px;text-anchor:middle}
+.lbl.sm{font-family:var(--mono);font-size:7px;fill:var(--muted)}
+.feedbox{fill:var(--surface);stroke:var(--line)}
+.s-today{fill:var(--warm)}.s-sci{fill:var(--accent)}.s-deep{fill:#7a4fc4}.s-quiz{fill:var(--ok)}.s-del{fill:#c9468a}.s-learn{fill:#2a9bb0}
+.hosts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.host{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:8px;align-content:start;min-width:0}
+.host.top{border:2px solid var(--warm);grid-column:1/-1}
+.host p{color:var(--muted);font-size:.94rem}
+.host ul{margin:0;padding-left:18px;font-size:.9rem;display:grid;gap:3px}
+.callout{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--warm);border-radius:8px;padding:18px 20px;display:grid;gap:10px}
+.callout ul{margin:0;padding-left:18px;display:grid;gap:6px}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.panels div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
+.panels code{font-family:var(--mono);font-size:.74rem;color:var(--accent)}
+.panels p{font-size:.88rem;color:var(--muted);margin-top:4px}
+
+@media (max-width:640px){
+  .split{grid-template-columns:1fr}
+  .chatcol{border-right:0;border-bottom:1px solid var(--line)}
+  .dash{grid-template-columns:1fr}
+  .nav{grid-auto-flow:column;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}
+}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="tag">sweatcast · a thin web UI</span>
+  <h1>Three ways to put a face on sweatcast</h1>
+  <p class="lede">sweatcast today is a conversation with Claude that ends in an MP3. These mocks show three shapes a web UI could take. The data in them is example data.</p>
+</header>
+
+<!-- OPTION A -->
+<section class="opt">
+  <div class="opt-head"><span class="tag">Option A</span><h2>Chat left, generated panels right</h2><span class="pick">MY PICK</span></div>
+  <div class="screen">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>sweatcast</b></div>
+    <div class="split">
+      <div class="chatcol">
+        <div class="msg u"><span class="who">you</span>25 minutes, hotel room, knee's a bit cranky</div>
+        <div class="msg c"><span class="who">coach</span>Got it. Quick check-in on the right first, then I'll build it with Maya.</div>
+        <div class="msg u"><span class="who">you · from panel</span>Sleep 6h · soreness 2/5 · left knee: delicate</div>
+        <div class="msg c"><span class="who">coach</span>Strength 25, no jumping, knee-friendly hinges. Rendering now.</div>
+        <div class="composer">Message your coach…</div>
+      </div>
+      <div class="panelcol">
+        <div class="tabs"><span class="on">Check-in</span><span>Workout</span><span>Coaches</span><span>Injuries</span><span>Log</span></div>
+        <div class="card">
+          <h4>Today's check-in</h4>
+          <div class="row"><label>Minutes</label><div class="seg"><span>10</span><span>20</span><span class="on">25</span><span>40</span></div></div>
+          <div class="row"><label>Kit</label><div class="seg"><span class="on">Hotel</span><span>Home</span><span>Gym</span></div></div>
+          <div class="row"><label>Sleep</label><div class="slider"></div><span class="mono">6h</span></div>
+          <div class="row"><label>Left knee</label><span class="chip del">delicate</span></div>
+          <span class="btn">Send to coach</span>
+        </div>
+        <div class="card">
+          <h4>Strength 25 · Coach Maya</h4>
+          <div class="player">
+            <div class="wave"></div>
+            <div class="segs"><i class="w" style="flex:4"></i><i class="m" style="flex:15"></i><i class="f" style="flex:3"></i><i class="w" style="flex:3"></i></div>
+            <div class="row"><span class="mono">warm-up · work · finisher · cool-down</span><span class="mono">25:08</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>On a phone, the panel becomes a bottom sheet</h3>
+  <div class="phones">
+    <div class="phone">
+      <div class="chatcol">
+        <div class="msg u"><span class="who">you</span>25 min, hotel</div>
+        <div class="msg c"><span class="who">coach</span>Check-in below ↓</div>
+      </div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="row"><label>Minutes</label><div class="seg"><span>20</span><span class="on">25</span></div></div>
+        <div class="row"><label>Left knee</label><span class="chip del">delicate</span></div>
+        <span class="btn">Send</span>
+      </div>
+    </div>
+    <div class="phone">
+      <div class="chatcol">
+        <div class="msg c"><span class="who">coach</span>Ready. Earbuds in.</div>
+      </div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="mono">Strength 25 · Maya</div>
+        <div class="wave"></div>
+        <span class="btn">▶ Play</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <div><h3>Why it fits</h3><ul>
+      <li>sweatcast's data is already typed: limit rows, kits, coaches, the log, the menu. Each maps to a stock control.</li>
+      <li>The check-in is a conversation, but its answers are fields. Chat for the talk, a form for the facts.</li>
+      <li>Panels can show what the CLI hides: the segment timeline, the coach samples, the log.</li>
+    </ul></div>
+    <div><h3>Watch out for</h3><ul>
+      <li>Two places to answer. Make panel submits post into the chat so there's one record.</li>
+      <li>Most of your listening happens on a phone, so the bottom-sheet version is the real product.</li>
+      <li>Keep the panel set fixed and small. Let the agent pick and prefill, never invent layouts.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- OPTION B -->
+<section class="opt">
+  <div class="opt-head"><span class="tag">Option B</span><h2>One chat, cards inline</h2></div>
+  <div class="screen">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>sweatcast</b></div>
+    <div class="single">
+      <div class="msg u"><span class="who">you</span>Switch coach</div>
+      <div class="msg c"><span class="who">coach</span>Have a listen and pick one.</div>
+      <div class="card">
+        <div class="coaches">
+          <div class="coach on">▶ Maya<small>warm, steady</small></div>
+          <div class="coach">▶ Marcus<small>punchy</small></div>
+          <div class="coach">▶ Helen<small>calm, dry</small></div>
+          <div class="coach">▶ Theo<small>bright</small></div>
+        </div>
+      </div>
+      <div class="msg u"><span class="who">you</span>Maya</div>
+      <div class="msg c"><span class="who">coach</span>Maya it is.</div>
+      <div class="composer">Message your coach…</div>
+    </div>
+  </div>
+  <div class="verdict">
+    <div><h3>Good</h3><ul>
+      <li>Simplest to build. Same cards as Option A, just placed in the stream.</li>
+      <li>Works the same on a phone and a laptop.</li>
+    </ul></div>
+    <div><h3>Weak</h3><ul>
+      <li>Stored things (log, injuries, coaches) scroll away. No home to come back to.</li>
+      <li>Hard to edit a profile setting without asking for it in words.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- OPTION C -->
+<section class="opt">
+  <div class="opt-head"><span class="tag">Option C</span><h2>App first, chat on request</h2></div>
+  <div class="screen">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>sweatcast</b></div>
+    <div class="dash">
+      <div class="nav"><span class="on">Today</span><span>Workouts</span><span>Coaches</span><span>Injuries</span><span>Profile</span></div>
+      <div class="dmain">
+        <div class="card"><h4>Build today's workout</h4>
+          <div class="row"><label>Goal</label><div class="seg"><span class="on">Strength</span><span>Cardio</span></div></div>
+          <div class="row"><label>Minutes</label><div class="seg"><span class="on">25</span><span>40</span></div></div>
+          <span class="btn">Build</span></div>
+        <div class="card"><h4>This week</h4>
+          <table><tr><td>Mon · Strength 25</td><td>Maya</td></tr><tr><td>Wed · Intervals 20</td><td>Maya</td></tr><tr><td>Fri · Mobility 15</td><td>Helen</td></tr></table></div>
+        <div class="card"><h4>Limits</h4>
+          <div class="row"><label>Left knee</label><span class="chip del">delicate</span></div>
+          <div class="row"><label>Lower back</label><span class="chip ok">clear</span></div></div>
+        <span class="fab">Ask coach</span>
+      </div>
+    </div>
+  </div>
+  <div class="verdict">
+    <div><h3>Good</h3><ul>
+      <li>Familiar fitness-app feel. Fast for "same as Tuesday".</li>
+    </ul></div>
+    <div><h3>Weak</h3><ul>
+      <li>Loses what makes sweatcast good: the check-in, the research, the coach who knows you.</li>
+      <li>A form can't ask "how did the knee feel on the lunges?"</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- Panels -->
+<section class="opt">
+  <div class="opt-head"><span class="tag">Option A in detail</span><h2>A starting set of stock panels</h2></div>
+  <p class="lede">The agent opens a panel by name with prefilled values. The panel writes back through the same tools the CLI uses, so the engine's checks still hold.</p>
+  <div class="panels">
+    <div><code>checkin</code><p>Minutes, goal, kit, sleep, soreness, each limit loosened or tightened. Feeds <code>brief</code>.</p></div>
+    <div><code>workout</code><p>Player, segment timeline, script, build status. Reads the build record.</p></div>
+    <div><code>coaches</code><p>The ten stock coaches with their 45-second samples, plus your web coaches.</p></div>
+    <div><code>limits</code><p>Each <code>[[limits]]</code> row: area, side, level, note. Clinician rules read-only.</p></div>
+    <div><code>log</code><p>Past sessions, feedback, coverage of the week.</p></div>
+    <div><code>profile</code><p>Name, kits and weights, likes, delivery.</p></div>
+    <div><code>keys</code><p>Your own keys for Claude and each voice service. Write-only: entered, tested, replaced, never shown again.</p></div>
+    <div><code>interests</code><p>Your interest graph: topics, feeds, favorites, what never to bring up, and what's been told.</p></div>
+  </div>
+</section>
+
+<!-- New panels -->
+<section class="opt">
+  <div class="opt-head"><span class="tag">New panels</span><h2>Your keys and your interest graph</h2></div>
+  <div class="screen">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>sweatcast · keys</b></div>
+    <div class="split">
+      <div class="chatcol">
+        <div class="msg u"><span class="who">you</span>I want to add my ElevenLabs key</div>
+        <div class="msg c"><span class="who">coach</span>Paste it in the panel, not here. I never see it. The panel saves it straight to your locked store.</div>
+        <div class="msg c"><span class="who">coach · from panel</span>ElevenLabs key saved and tested. Coach Ellis can speak now.</div>
+        <div class="composer">Message your coach…</div>
+      </div>
+      <div class="panelcol">
+        <div class="card">
+          <h4>Your keys</h4>
+          <div class="row"><label>Claude (Anthropic)</label><span class="chip ok">set · tested today</span></div>
+          <div class="row"><label>ElevenLabs</label><span class="chip ok">set · tested now</span></div>
+          <div class="row"><label>Fish Audio</label><span class="chip del">not set</span></div>
+          <div class="row"><label>Gemini</label><span class="chip del">not set</span></div>
+          <div class="row"><label>Inworld</label><span class="chip del">not set</span></div>
+        </div>
+        <div class="card">
+          <h4>Add Fish Audio key</h4>
+          <div class="composer">••••••••••••••••••••</div>
+          <div class="row"><span class="mono">Get a key at fish.audio →</span><span class="btn">Save &amp; test</span></div>
+          <span class="mono">Keys are encrypted on the server and never sent back to this page or to the chat.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="verdict">
+    <div><h3>Rules it keeps</h3><ul>
+      <li>Same rule as <code>me/.env</code> today: the agent never reads a key. The panel posts to the server, not the chat.</li>
+      <li>Shows set or not set and when it was last tested. Never the key, not even its last four characters.</li>
+      <li>"Test" sends one tiny request and reports the service's answer: works, wrong key, or out of credit.</li>
+    </ul></div>
+    <div><h3>Bring your own</h3><ul>
+      <li>Each listener pays their own Claude and voice bills. You host the app, not the usage.</li>
+      <li>Replace and delete are one tap. Deleting a key turns that service's coaches gray.</li>
+    </ul></div>
+  </div>
+
+  <div class="screen">
+    <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>sweatcast · interests</b><span style="margin-left:auto">example data</span></div>
+    <div class="split">
+      <div class="panelcol" style="border-right:1px solid var(--line)">
+        <div class="tabs"><span class="on">Graph</span><span>Feeds</span><span>Never bring up</span><span>Told</span></div>
+        <div style="overflow-x:auto">
+          <svg viewBox="0 0 340 230" width="100%" style="max-width:100%;display:block" role="img" aria-label="Interest graph with topics around you, colored by filler slot">
+            <g class="edges">
+              <line x1="170" y1="115" x2="70" y2="45"/><line x1="170" y1="115" x2="270" y2="40"/>
+              <line x1="170" y1="115" x2="300" y2="125"/><line x1="170" y1="115" x2="250" y2="200"/>
+              <line x1="170" y1="115" x2="90" y2="195"/><line x1="170" y1="115" x2="40" y2="120"/>
+              <line x1="270" y1="40" x2="320" y2="12" class="feed"/><line x1="70" y1="45" x2="20" y2="15" class="feed"/>
+            </g>
+            <circle cx="170" cy="115" r="22" class="me"/><text x="170" y="119" class="lbl me-t">You</text>
+            <circle cx="70" cy="45" r="15" class="s-today"/><text x="70" y="72" class="lbl">Local football club</text>
+            <circle cx="270" cy="40" r="15" class="s-sci"/><text x="270" y="67" class="lbl">Space missions</text>
+            <circle cx="300" cy="125" r="12" class="s-deep"/><text x="300" y="149" class="lbl">Jazz history</text>
+            <circle cx="250" cy="200" r="12" class="s-quiz"/><text x="250" y="223" class="lbl">Geography quiz</text>
+            <circle cx="90" cy="195" r="12" class="s-del"/><text x="90" y="218" class="lbl">Cooking</text>
+            <circle cx="40" cy="120" r="11" class="s-learn"/><text x="40" y="144" class="lbl">Spanish words</text>
+            <rect x="308" y="4" width="24" height="16" rx="3" class="feedbox"/><text x="320" y="15" class="lbl sm">RSS</text>
+            <rect x="8" y="7" width="24" height="16" rx="3" class="feedbox"/><text x="20" y="18" class="lbl sm">RSS</text>
+          </svg>
+        </div>
+        <div class="tabs"><span>today</span><span>science</span><span>deep dive</span><span>quiz</span><span>delight</span><span>learn</span></div>
+      </div>
+      <div class="panelcol">
+        <div class="card">
+          <h4>Space missions</h4>
+          <div class="row"><label>Slot</label><div class="seg"><span>today</span><span class="on">science</span><span>deep dive</span></div></div>
+          <div class="row"><label>Detail</label><span class="mono">launches, probes, not crewed politics</span></div>
+          <div class="row"><label>Feed</label><span class="mono">NASA news · daily</span></div>
+          <div class="row"><label>Told this month</label><span class="mono">4 items</span></div>
+          <div class="row"><label>Your reaction</label><span class="chip ok">loved it ×2</span></div>
+          <span class="btn">Save</span>
+        </div>
+        <div class="card">
+          <h4>Coach suggests</h4>
+          <div class="row"><span>Astronomy photo of the day</span><span class="btn">Add</span></div>
+          <div class="row"><span>Rocket engines deep dive</span><span class="btn">Add</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="verdict">
+    <div><h3>What it's built from</h3><ul>
+      <li>Each node is an <code>[[interests]]</code> row in <code>content.md</code>: name, slot, detail. The color is its slot.</li>
+      <li>Feeds, YouTube favorites and puzzles hang off the topics they serve.</li>
+      <li>Size and the "Told" tab come from <code>told.jsonl</code> and your feedback, so you see what the coach actually uses.</li>
+    </ul></div>
+    <div><h3>How it grows</h3><ul>
+      <li>After a workout, the coach can suggest new topics from what you reacted to. You add them with one tap.</li>
+      <li>"Never bring up" is its own list, always checked before research.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section class="opt">
+  <div class="opt-head"><span class="tag">Hosting</span><h2>Where to run it instead of Railway</h2></div>
+  <p class="lede">The thing that decides it: local coaches need a GPU or an Apple Silicon Mac to render quickly, while web coaches run anywhere. The app also has to hold health data and keys.</p>
+  <div class="hosts">
+    <div class="host top">
+      <div class="opt-head"><h3>Your own Mac, reached from your phone</h3><span class="pick">MY PICK</span></div>
+      <p>Run the app on the Mac that already runs sweatcast. Reach it from your phone through Tailscale, or Cloudflare Tunnel with a login in front.</p>
+      <ul><li>Local coaches work, about 5 minutes to render 30 minutes on Apple Silicon</li><li>Health data and keys never leave your computer</li><li>Keeps the "own computer" rule as it is</li><li>The Mac must be on and awake</li></ul>
+    </div>
+    <div class="host">
+      <h3>Fly.io</h3>
+      <p>Closest to Railway, but with persistent volumes and machines that stop when idle, so you pay little while nobody's using it.</p>
+      <ul><li>Good home for the app and <code>me/</code></li><li>Web coaches only, in practice</li></ul>
+    </div>
+    <div class="host">
+      <h3>Fly.io or Render, plus Modal for renders</h3>
+      <p>The app stays small. Each local-voice render goes to Modal, which starts a GPU, renders and stops, billed by the second.</p>
+      <ul><li>Local coaches in the cloud, fast</li><li>Two services to run, and the voice files go to Modal</li></ul>
+    </div>
+    <div class="host">
+      <h3>A small VPS (Hetzner, DigitalOcean)</h3>
+      <p>One cheap always-on box with a real disk. Simple and cheap, but you handle updates, backups and TLS.</p>
+      <ul><li>Local coaches work on its CPU, slowly (about 13 min per 30)</li></ul>
+    </div>
+    <div class="host">
+      <h3>Hugging Face Spaces</h3>
+      <p>Easy if you want others to try it. Free CPU tier, with GPU and persistent storage as paid upgrades.</p>
+      <ul><li>Weak fit for private health data</li></ul>
+    </div>
+  </div>
+  <p class="mono">Prices and plans change often. Check current pricing before choosing.</p>
+</section>
+
+<section class="callout">
+  <h2>What to settle on any host</h2>
+  <ul>
+    <li><b>The agent.</b> The skills need Claude running in the repo. That means the Claude Agent SDK on the server, using each listener's own Claude key.</li>
+    <li><b>Your <code>me/</code> folder.</b> It holds health data. It needs a persistent disk or the private backup repo, and the site needs a login.</li>
+    <li><b>Keys at rest.</b> Today's <code>me/.env</code> is plain text on your own computer. On a shared server, keys should be encrypted, one set per listener.</li>
+    <li><b>House rule.</b> CLAUDE.md says new listeners are set up only on their own computer. Any cloud host changes that, so the rule and the README would need updating. The Mac option doesn't.</li>
+  </ul>
+</section>
+</div>
+
+</html>
