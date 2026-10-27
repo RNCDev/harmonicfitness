@@ -10,7 +10,6 @@ segment; render.py absorbs the difference in the next segments' spare time. A sh
 measured, from its sample; a coach no render has measured yet is seeded from the other coaches' rates. The
 character weights are vendored in char_weight.py. Each render also records this computer's render speed.
 """
-import contextlib
 import hashlib
 import json
 import os

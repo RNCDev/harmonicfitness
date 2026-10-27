@@ -31,14 +31,11 @@ older schema stops the tools with the command that brings it up to date, `./swea
 import argparse
 import datetime as dt
 import glob
-import hashlib
-import json
 import os
-import re
 import sys
 import tomllib   # Python 3.11: ./sweatcast runs every tool in the project's environment
 from dataclasses import dataclass, field
-from typing import Dict, List, NamedTuple, Optional
+from typing import NamedTuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import catalog  # noqa: E402
@@ -48,13 +45,22 @@ import fileio  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
+# moved to frontmatter.py; the tools still reach them through this module
+from frontmatter import (TOML_FRONT_RE, front, body, toml_value, dump_settings, section, placeholder, unfilled)  # noqa: E402,F401
+# moved to store.py; the tools still reach them through this module
+from store import (SCHEMA, PERSONA_SCHEMA, split, schema_of, schema_problem, read_raw, read, write,
+                   with_front_matter)  # noqa: E402,F401
+# moved to health.py; the tools still reach them through this module
+from health import (HTML_COMMENT_RE, INJURIES_HEADING, CLINICIAN_HEADING, Health, health, LIMIT_KEYS,
+                    _limit_row, _vocab, limit_rows, limits, _section_lines, limit_line,
+                    clinician_lines, UNLISTED, AVOID, clinician_avoids, prose_injury_count,
+                    prose_injuries, prose_injury_gap, LIMIT_SIDES, LIMIT_LEVELS)  # noqa: E402,F401
+# moved to sessionlog.py; the tools still reach them through this module
+from sessionlog import (DATE_RE, LINE_BREAKS, Session, parse_session, log, sessions, append_session)  # noqa: E402,F401
+# moved to records.py; the tools still reach them through this module
+from records import (draft_hash, build_records, built, web_builds)  # noqa: E402,F401
 
-SCHEMA = 6   # 6 (0.12.0) splits the profile into profile.md, training.md, content.md and settings.toml
-PERSONA_SCHEMA = 5   # me/coaches/<slug>/persona.md (me/personas/ before 0.15.0), new in sweatcast 0.9; 5 (0.10.0) adds kind and web coaches
-TOML_FRONT_RE = re.compile(r"\A\+\+\+[ \t]*\n(.*?)\n?\+\+\+[ \t]*\n", re.DOTALL)
 FEED_KINDS = ("weather", "espn", "rss", "weekly", "onthisday", "wikipedia")
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-LINE_BREAKS = "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"   # every character str.splitlines breaks on
 HANDLE_KEYS = {"YouTube favorites": "youtube_favorites", "Puzzles": "puzzles"}
 
 
@@ -84,145 +90,7 @@ def part_paths(profile_path=None):
     return {name: os.path.join(folder, name) for name in PROFILE_PARTS}
 
 
-def split(path, text):
-    """(settings, prose) of any context file: a .toml file is all settings; the others have a +++ block."""
-    try:
-        if path.endswith(".toml"):
-            return tomllib.loads(text), ""
-        return front(text)
-    except tomllib.TOMLDecodeError as e:
-        raise errors.ContextError(f"{show(path)} isn't valid TOML: {e}")
-    except errors.PROBLEMS as e:
-        raise errors.ContextError(f"{show(path)}: {e.code}")
-
-
 # ---- front matter --------------------------------------------------------------------
-
-def front(text):
-    """(settings dict, body); no block gives {}. A `+++` block
-    that never closes stops here by name, so nobody is sent to migrate over a missing line."""
-    text = text.lstrip("\ufeff")   # a byte order mark, from a Windows editor
-    m = TOML_FRONT_RE.match(text)
-    if m:
-        try:
-            return tomllib.loads(m.group(1)), text[m.end():]
-        except tomllib.TOMLDecodeError as e:
-            raise errors.ContextError(f"The settings block at the top of the file isn't valid TOML: {e}")
-    if text.startswith("+++"):
-        raise errors.ContextError("the +++ settings block at the top doesn't close: the settings need a line holding "
-                         "only +++ after them")
-    return {}, text
-
-
-def schema_of(text, path=None):
-    """The schema a file's front matter (or a .toml file's `schema` key) names; 0 when it has none."""
-    try:
-        settings, _ = split(path or "", text)
-    except errors.PROBLEMS:
-        return SCHEMA   # a TOML block, just a broken one: check() says what's wrong
-    try:
-        return int(settings.get("schema", 0))
-    except (TypeError, ValueError):
-        return 0
-
-
-def body(text):
-    """A file's text without its front matter."""
-    return front(text)[1]
-
-
-def toml_value(v):
-    if isinstance(v, bool):
-        return "true" if v else "false"
-    if isinstance(v, (int, float)):
-        return str(v)
-    if isinstance(v, str):
-        return json.dumps(v, ensure_ascii=False)   # JSON's string escapes are valid TOML
-    if isinstance(v, list):
-        return "[" + ", ".join(toml_value(x) for x in v) + "]"
-    if isinstance(v, dict):
-        return "{ " + ", ".join(f"{k} = {toml_value(x)}" for k, x in v.items()) + " }"
-    raise TypeError(f"can't write {type(v).__name__} as TOML")
-
-
-def dump_settings(settings, comments=None):
-    """Settings as TOML: plain keys first, then each list of tables ([[voices]], [[feeds]])."""
-    comments = comments or {}
-    plain = {k: v for k, v in settings.items() if not (isinstance(v, list) and v and isinstance(v[0], dict))}
-    tables = {k: v for k, v in settings.items() if k not in plain}
-    out = []
-    for k, v in plain.items():
-        if k in comments:
-            out.append(f"# {comments[k]}")
-        out.append(f"{k} = {toml_value(v)}")
-    for k, rows in tables.items():
-        if k in comments:
-            out += ["", f"# {comments[k]}"]
-        for row in rows:
-            out += ["", f"[[{k}]]"] + [f"{rk} = {toml_value(rv)}" for rk, rv in row.items()]
-    return "\n".join(out)
-
-
-def with_front_matter(text, schema=SCHEMA, settings=None, comments=None):
-    """Text with TOML front matter for `schema`, replacing any it already has, carrying `settings` when given."""
-    rest = body(text)
-    merged = {"schema": schema, **{k: v for k, v in (settings or {}).items() if k != "schema"}}
-    return f"+++\n{dump_settings(merged, comments)}\n+++\n" + rest
-
-
-def schema_problem(path, text):
-    """A sentence saying why this file's schema won't do, or None."""
-    found = schema_of(text, path)
-    if found == SCHEMA:
-        return None
-    if found < SCHEMA:
-        return (f"{show(path)} is in an older sweatcast format (schema {found}; this engine reads "
-                f"schema {SCHEMA}). Bring the context folder up to date with: ./sweatcast migrate")
-    return (f"{show(path)} is in a newer format (schema {found}) than this engine reads (schema {SCHEMA}). "
-            "Pull the latest sweatcast.")
-
-
-def read_raw(path, what="file"):
-    with open(paths.require(path, what), encoding="utf-8-sig") as f:   # -sig drops a BOM a Windows editor may add
-        return f.read()
-
-
-def read(path, what="file"):
-    """A context file's body (without front matter), after checking its schema."""
-    text = read_raw(path, what)
-    problem = schema_problem(path, text)
-    if problem:
-        raise errors.ContextError(problem)
-    return body(text)
-
-
-def write(path, text):
-    """Replace a context file's body atomically, keeping its front matter."""
-    current = read_raw(path)
-    m = TOML_FRONT_RE.match(current)
-    fileio.atomic_write(path, (m.group(0) if m else "") + text)
-
-
-def section(text, heading):
-    """The lines under a `## heading` (case doesn't matter), up to the next one, with
-    their 1-based line numbers in `text`."""
-    out, inside = [], False
-    for n, line in enumerate(text.splitlines(), 1):
-        if line.startswith("## "):
-            inside = line[3:].strip().lower() == heading.lower()
-            continue
-        if inside:
-            out.append((n, line))
-    return out
-
-
-def placeholder(value):
-    """True for a value still showing me.example's [bracketed] hint."""
-    return isinstance(value, str) and value.strip().startswith("[")
-
-
-def unfilled(value):
-    return value is None or (isinstance(value, str) and (not value.strip() or placeholder(value)))
 
 
 # ---- the profile -----------------------------------------------------------------------
@@ -577,289 +445,8 @@ def set_persona_setting(path, table, key, value):
 
 # ---- the health file -------------------------------------------------------------------
 
-LIMIT_SIDES, LIMIT_LEVELS = catalog.LIMIT_SIDES, catalog.LIMIT_LEVELS
-HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-INJURIES_HEADING = "Active injuries and limitations"
-CLINICIAN_HEADING = "Clinician rules"
-
-
-@dataclass
-class Health:
-    settings: dict
-    body: str
-    path: str = ""
-
-
-def health(path=None):
-    """The health file: its settings (the [[limits]] rows) and its prose."""
-    path = path or paths.HEALTH
-    text = read_raw(path, "health file")
-    problem = schema_problem(path, text)
-    if problem:
-        raise errors.ContextError(problem)
-    settings, rest = front(text)
-    return Health(settings, rest, path)
-
-
-LIMIT_KEYS = ("area", "side", "level", "flags", "rehab", "note")
-
-
-def _limit_row(row, areas, flags=None):
-    """(Limit, None) for a good [[limits]] row, else (None, a sentence saying what's wrong).
-    `flags` are the catalog's; a flag outside them is wrong (None skips that check)."""
-    if not isinstance(row, dict):
-        return None, "isn't a table"
-    unknown = [k for k in row if k not in LIMIT_KEYS]
-    if unknown:   # a misspelled key ("flag") would drop what it says without a word
-        return None, f"'{unknown[0]}' isn't a key a limit takes (one of: {', '.join(LIMIT_KEYS)})"
-    area, side = row.get("area"), row.get("side", "both")
-    level = row.get("level")
-    if area not in areas:
-        return None, f"area '{area}' isn't one of: {', '.join(areas)}"
-    if side not in LIMIT_SIDES:
-        return None, f"side '{side}' must be {', '.join(LIMIT_SIDES[:-1])} or {LIMIT_SIDES[-1]}"
-    if level not in LIMIT_LEVELS:
-        return None, f"level '{level}' must be {' or '.join(LIMIT_LEVELS)}"
-    for key in ("flags", "rehab"):
-        value = row.get(key, [])
-        if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
-            example = "floor" if key == "flags" else "a-movement-id"
-            return None, f"{key} must be a list of quoted names, such as {key} = [\"{example}\"]"
-    unknown = [f for f in row.get("flags", []) if flags is not None and f not in flags]
-    if unknown:
-        return None, f"flag '{unknown[0]}' isn't one of: {', '.join(flags)}"
-    return catalog.Limit(area, side, level, list(row.get("flags", [])), list(row.get("rehab", [])),
-                         str(row.get("note") or "").strip()), None
-
-
-def _vocab(areas, flags):
-    """The catalog's areas and flags, loading the shipped catalog for whichever is None."""
-    if areas is None or flags is None:
-        cat = catalog.load()
-        areas = cat.areas if areas is None else areas
-        flags = cat.flags if flags is None else flags
-    return areas, flags
-
-
-def limit_rows(h, areas=None, flags=None):
-    """([catalog.Limit], [problem]) for the [[limits]] rows: each good row as a Limit, and for each bad one
-    (an unknown key, a bad area, side, level, flags or rehab) "row <n>: <what's wrong>"."""
-    areas, flags = _vocab(areas, flags)
-    rows = h.settings.get("limits") or []
-    if not isinstance(rows, list):
-        return [], ["limits must be written as [[limits]] tables"]
-    found, problems = [], []
-    for n, row in enumerate(rows, 1):
-        lim, problem = _limit_row(row, areas, flags)
-        if lim:
-            found.append(lim)
-        else:
-            problems.append(f"row {n}: {problem}")
-    return found, problems
-
-
-def limits(h, areas=None, flags=None):
-    """The valid [[limits]] rows as catalog.Limit; a bad row is left out (limit_rows names it; `check`
-    reports it, and the brief refuses to plan)."""
-    return limit_rows(h, areas, flags)[0]
-
-
-def _section_lines(h, heading):
-    text = HTML_COMMENT_RE.sub("", h.body)
-    return [line.strip() for _, line in section(text, heading)]
-
-
-def limit_line(lim):
-    """`<area> <level>[ <side>][: <note>]`: how a limit reads as a health line."""
-    head = f"{lim.area} {lim.level}" + (f" {lim.side}" if lim.side != "both" else "")
-    return f"{head}: {lim.note}" if lim.note else head
-
-
-def clinician_lines(h, areas=None, flags=None):
-    """One line per limit (its area, level, side and note), then every line under
-    `## Clinician rules`, as rules to follow literally. Blank lines and the template's
-    [hint] don't count."""
-    out = [limit_line(lim) for lim in limits(h, areas, flags)]
-    for line in _section_lines(h, CLINICIAN_HEADING):
-        line = line[2:].strip() if line.startswith("- ") else line
-        line = re.sub(r"^rule:\s*", "", line, flags=re.IGNORECASE)   # the template's label, not the clinician's words
-        if line and not line.startswith("#") and not (placeholder(line) and "]" in line):
-            out.append(line)
-    return out
-
-
-UNLISTED = "unlisted:"
-AVOID = "avoid:"
-
-
-def clinician_avoids(h):
-    """The movement ids and flags on every "Avoid: <ids or flags>" line under `## Clinician rules`,
-    in order, which the brief's safety screen rules out on every run."""
-    out = []
-    for line in _section_lines(h, CLINICIAN_HEADING):
-        line = line[2:].strip() if line.startswith(("- ", "* ")) else line.strip()
-        if line.lower().startswith(AVOID):
-            out += [w.strip() for w in line[len(AVOID):].split(",") if w.strip()]
-    return list(dict.fromkeys(out))
-
-
-def prose_injury_count(h):
-    """How many injuries `## Active injuries and limitations` lists, each a top-level "- " line (the
-    indented lines under one, such as "  - Programming:", are its details), leaving out "None right now"
-    and an injury outside the catalog's areas, written "- Unlisted: <what>" (its avoids go under
-    `## Clinician rules` as "Avoid: <ids or flags>"). Each one counted needs a [[limits]] row."""
-    count = 0
-    for _, line in section(HTML_COMMENT_RE.sub("", h.body), INJURIES_HEADING):
-        if not line.startswith(("- ", "* ")):
-            continue
-        item = line[2:].strip()
-        if item.rstrip(".").lower() != "none right now" and not item.lower().startswith(UNLISTED):
-            count += 1
-    return count
-
-
-def prose_injuries(h):
-    """True when the injuries section lists any injury that needs a [[limits]] row (prose_injury_count)."""
-    return prose_injury_count(h) > 0
-
-
-def prose_injury_gap(h, rows):
-    """A sentence when the injuries prose lists more injuries than there are good [[limits]] rows (`rows`),
-    so some injury has no limit applied; else None."""
-    count = prose_injury_count(h)
-    if count <= rows:
-        return None
-    if not rows:
-        return "injuries written in prose have no [[limits]] entry, so no limit is applied for them; add a row for each"
-    return (f"the injuries section lists {count} injuries but there are only {rows} [[limits]] rows, so one "
-            "has no limit applied; add a row for each (or write one outside the catalog's areas as "
-            "\"- Unlisted: <what>\")")
-
 
 # ---- the log ---------------------------------------------------------------------------
-
-@dataclass
-class Session:
-    """One line under `## Sessions` in log.md:
-    - <date> | <N> min | <kit> | <voice> | <movements> | <topics> | format: <format>
-      | loads: <m> = <load>; ... | rpe: <m> = <n>; ...   (all on one line)"""
-    date: str
-    minutes: int
-    kit: str
-    voice: str
-    movements: List[str]
-    topics: str
-    format: Optional[str] = None
-    loads: Dict[str, str] = field(default_factory=dict)
-    rpe: Dict[str, str] = field(default_factory=dict)   # effort per movement; reserved for progress tracking
-    line: int = 0   # where it was read from, for messages
-
-    def problems(self):
-        out = []
-        if not DATE_RE.match(self.date):
-            out.append(f"date '{self.date}' isn't YYYY-MM-DD")
-        else:
-            try:
-                dt.date.fromisoformat(self.date)
-            except ValueError:
-                out.append(f"date '{self.date}' isn't a real date")
-        if not isinstance(self.minutes, int) or self.minutes <= 0:
-            out.append(f"length '{self.minutes}' isn't a whole number of minutes")
-        for name in ("kit", "voice", "topics"):
-            if not str(getattr(self, name) or "").strip():
-                out.append(f"no {name}")
-        if not self.movements:
-            out.append("no movements")
-        texts = [self.date, self.kit, self.voice, self.topics, self.format or "", *self.movements,
-                 *self.loads.keys(), *self.loads.values(), *self.rpe.keys(), *self.rpe.values()]
-        if any("|" in t or any(c in t for c in LINE_BREAKS) for t in texts):
-            out.append("a field contains | or a line break")
-        if any("," in m for m in self.movements):
-            out.append("a movement contains a comma")
-        if any(";" in t or "=" in t for t in [*self.loads.keys(), *self.loads.values()]):
-            out.append("a load contains ; or =")
-        if any(";" in t or "=" in t for t in [*self.rpe.keys(), *self.rpe.values()]):
-            out.append("an rpe contains ; or =")
-        return out
-
-    def to_line(self):
-        out = (f"- {self.date} | {self.minutes} min | {self.kit} | {self.voice} | "
-               f"{', '.join(self.movements)} | {self.topics}")
-        if self.format:
-            out += f" | format: {self.format}"
-        if self.loads:
-            out += " | loads: " + "; ".join(f"{k} = {v}" for k, v in self.loads.items())
-        if self.rpe:
-            out += " | rpe: " + "; ".join(f"{k} = {v}" for k, v in self.rpe.items())
-        return out
-
-
-def parse_session(line, lineno=0):
-    """A log line as a Session, or a sentence saying why it isn't one."""
-    fields = [x.strip() for x in line[2:].split("|")]
-    if len(fields) < 6:
-        return (f"{len(fields)} fields; a session line has date, length, kit, voice, movements "
-                "and topics, then format, loads and rpe")
-    m = re.match(r"^(\d+)\s*min", fields[1])
-    s = Session(fields[0], int(m.group(1)) if m else fields[1], fields[2], fields[3],
-                [x.strip() for x in fields[4].split(",") if x.strip()], fields[5], line=lineno)
-    for extra in fields[6:]:
-        key, _, value = extra.partition(":")
-        key, value = key.strip().lower(), value.strip()
-        if key == "format" and value:
-            s.format = value
-        elif key in ("loads", "rpe"):
-            for item in value.split(";"):
-                mv, _, load = item.partition("=")
-                if mv.strip() and load.strip():
-                    (s.loads if key == "loads" else s.rpe)[mv.strip()] = load.strip()
-        elif extra.strip():
-            return f"unknown field '{extra.strip()[:30]}'; only format:, loads: and rpe: follow the topics"
-    problems = s.problems()
-    return "; ".join(problems) if problems else s
-
-
-def log(path=None):
-    return read(path or paths.LOG, "log")
-
-
-def sessions(path=None, text=None, warn=True):
-    """Each well-formed session in log.md, oldest first. A malformed line is skipped
-    with a warning on stderr (never read with its fields shifted); `check` lists them."""
-    path = path or paths.LOG
-    text = log(path) if text is None else text
-    out = []
-    for n, line in section(text, "Sessions"):
-        if line.startswith("- "):
-            s = parse_session(line, n)
-            if isinstance(s, Session):
-                out.append(s)
-            elif warn:
-                print(f"Skipped {show(path)} session line {n} (counting after the settings block): {s}. "
-                      "Fix it so the plan sees that session.", file=sys.stderr)
-    return out
-
-
-def append_session(session, path=None):
-    """Add a session line at the end of `## Sessions`, after checking it."""
-    problems = session.problems()
-    if problems:
-        raise errors.LogRefused("Not logged: " + "; ".join(problems) + ".")
-    path = path or paths.LOG
-    lines = log(path).splitlines()
-    start = next((i for i, line in enumerate(lines) if line.strip().lower() == "## sessions"), None)
-    if start is None:
-        raise errors.ContextError(f"No '## Sessions' heading in {show(path)}.")
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
-    last = max([i for i in range(start + 1, end) if lines[i].strip()], default=start)
-    insert = [session.to_line()]
-    if last == start:
-        insert = [""] + insert   # a blank line under the heading, as the template has it
-    if end < len(lines) and last + 1 == end:
-        insert.append("")        # keep a blank line before the next heading
-    lines[last + 1:last + 1] = insert
-    write(path, "\n".join(lines) + "\n")
-    return session.to_line()
 
 
 # ---- command line ----------------------------------------------------------------------
@@ -981,40 +568,6 @@ def menu_kit(request):
     if request.get("equipment"):
         return "custom: " + ", ".join(request["equipment"])
     return None
-
-
-def draft_hash(path):
-    """sha256 of a draft as the build hashes it: read as text (so line endings are \\n), encoded as UTF-8."""
-    with open(path, encoding="utf-8") as f:
-        return hashlib.sha256(f.read().encode("utf-8")).hexdigest()
-
-
-def build_records(log=None):
-    """Every record in builds.jsonl, oldest first: one per MP3, and a "failed" one for a web render that sent
-    text and stopped. A damaged line is skipped."""
-    try:
-        with open(log or paths.BUILDS, encoding="utf-8") as f:
-            for line in f:
-                try:
-                    rec = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(rec, dict):
-                    yield rec
-    except FileNotFoundError:
-        return
-
-
-def built(sha256, log=None):
-    """True when builds.jsonl records an MP3 made from a draft with this hash. A failed web render made no
-    MP3 and doesn't count; a build that ran off plan (exit 2) did make one, and counts."""
-    return any(not rec.get("failed") and rec.get("draft_sha256") == sha256 for rec in build_records(log))
-
-
-def web_builds(log=None):
-    """How many builds sent a script to a web voice service, failed ones included (the text went out)."""
-    import cloud
-    return sum(rec.get("route") in cloud.SERVICES for rec in build_records(log))
 
 
 def from_draft(path, date=None, minutes=None, kit=None):

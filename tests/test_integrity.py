@@ -75,7 +75,7 @@ class AtomicWrites(unittest.TestCase):
     # (render, coaches), the build log (appended, never rewritten), WAV writers, the harness's exact copies,
     # the key file (created 0600 then appended), and the lock files.
     ALLOWED = {"fileio.py", "build.py", "render.py", "cloud.py", "voices.py", "coaches.py", "harness.py",
-               "keys.py", "locks.py"}
+               "keys.py", "locks.py", "clipcache.py"}
 
     def test_engine_writes_go_through_fileio(self):
         tools = os.path.join(paths.ROOT, "tools")

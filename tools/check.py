@@ -20,8 +20,8 @@ from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SCHEMA, SETTING_HOM
                      body, delivery_patterns, experience, feed_sources, front, kits, listener_name, parse_session,
                      part_paths, persona, placeholder, profile, read_raw, route_issues, schema_of, schema_problem,
                      section, shape_problems, SHAPED, split, str_list, table_list, unfilled, wpm, files as context_files)
-from context import (_catalog, _limit_row, _names, kit_problems, clinician_avoids, limit_rows,  # noqa: E402
-                     prose_injury_gap)
+from context import _catalog, _names, kit_problems  # noqa: E402
+from health import _limit_row, clinician_avoids, limit_rows, prose_injury_gap  # noqa: E402
 
 
 BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*(\[|$)")   # "- Neighborhood: [neighborhood, city]", or nothing after the colon

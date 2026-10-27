@@ -20,169 +20,45 @@ in me/workouts/.logs/builds.jsonl (where a web render that sent text and then st
 clips() and follow(), to render ahead) in its own process, and decides what a drift past the tolerance
 means (exit 2).
 """
-import contextlib
 import datetime as dt
-import hashlib
 import json
-import math
 import os
 import re
-import struct
 import subprocess
 import sys
 import tempfile
 import time
 import wave
-from array import array
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
 import engines  # noqa: E402
 import ffmpeg as ffmpeg_tool  # noqa: E402
-import locks  # noqa: E402
-from locks import FOLLOWING, render_lock, stop_file  # noqa: E402,F401
-from draft import (CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds,  # noqa: E402
-                   is_mark, layout, parse, plan, spoken as is_spoken)
+from locks import render_lock, stop_file  # noqa: E402
+from draft import TOTAL_TOLERANCE, is_mark, parse, plan, spoken as is_spoken  # noqa: E402
 import counts  # noqa: E402
-from engines import SR, TRIM_DB, TRIM_KEEP  # noqa: E402
+from engines import SR  # noqa: E402
 import paths  # noqa: E402
 import verify  # noqa: E402
 from voices import EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
+# moved to audio.py; the tools still reach them through this module
+from audio import (CHIME_TONE, CHIME_LEVEL, END_NOTES, END_NOTE, END_LEAD, SPEECH_LEVEL, LEVEL_MAX, LEVEL_SKIP,
+                   LEVEL_PEAK, silence, speech_level, level, _bell, chime, end_tone, assemble)  # noqa: E402,F401
+# moved to clipcache.py; the tools still reach them through this module
+from clipcache import (clip_cache, render_clip, _cache_write, check_path, _verdict)  # noqa: E402,F401
+# moved to records.py; the tools still reach them through this module
+from records import (save_build_record, save_failed_record)  # noqa: E402,F401
 
-CHIME_TONE = 0.35     # seconds of bell; the rest of CHIME_SECONDS is quiet before the voice
-CHIME_LEVEL = 0.12    # peak; at 0.2 the bell averaged as loud as the voice, so this sits about 4 dB under
-END_NOTES = (660, 880, 1320)   # Hz, rising, so the end can't be mistaken for a segment bell
-END_NOTE = 0.3        # seconds per note
-END_LEAD = 1.0        # seconds of quiet before the end tone
 LOUDNESS = "I=-16:TP=-1.5:LRA=11"   # podcast level, with headroom under 0 dBFS
 # A gentle compressor ahead of the loudness pass, so quiet syllables stay audible over gym noise.
 COMPRESS = "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250"
-SPEECH_LEVEL = -24.0  # dBFS each clip's speech is leveled to before assembly (clips drift a few dB apart)
-LEVEL_MAX = 12.0      # most dB a clip is raised or lowered
-LEVEL_SKIP = 0.5      # a clip within this many dB is left alone
-LEVEL_PEAK = 0.89     # a raised clip's peak stays under this (-1 dBFS)
 CHECK_TAKES = 4       # takes a local line gets (its seed, then the next ones) before the best one stands
 FOLLOW_IDLE = 900    # seconds --follow waits with nothing new before it stops
 FOLLOW_POLL = 2.0    # seconds between looks at the draft when nothing is new
 CODECS = {".mp3": ["-c:a", "libmp3lame", "-b:a", "96k"],
           ".m4a": ["-c:a", "aac", "-b:a", "96k"],
           ".wav": ["-c:a", "pcm_s16le"]}
-
-
-def silence(seconds):
-    return b"\x00\x00" * max(int(seconds * SR), 0)
-
-
-def speech_level(pcm):
-    """The level of a clip's speech in dBFS: the mean power of its frames above the silence line."""
-    loud = [db for db in verify.frame_db(pcm) if db > verify.QUIET_DB + 5]
-    if not loud:
-        return None
-    return 10 * math.log10(sum(10 ** (db / 10) for db in loud) / len(loud))
-
-
-def level(pcm):
-    """The clip with its speech brought to SPEECH_LEVEL (at most LEVEL_MAX dB either way, its peak kept
-    under LEVEL_PEAK), so one clip doesn't sit a few dB under the next. The loudness pass then sets the
-    whole workout's level."""
-    found = speech_level(pcm)
-    if found is None:
-        return pcm
-    db = max(-LEVEL_MAX, min(LEVEL_MAX, SPEECH_LEVEL - found))
-    a = array("h")
-    a.frombytes(pcm[: len(pcm) // 2 * 2])
-    peak = max(1, max(a), -min(a))
-    gain = min(10 ** (db / 20), LEVEL_PEAK * 32767 / peak)
-    if abs(20 * math.log10(gain)) < LEVEL_SKIP:
-        return pcm
-    try:
-        import numpy as np
-        return (np.frombuffer(pcm[: len(a) * 2], dtype="<i2") * gain).astype("<i2").tobytes()
-    except ImportError:
-        return array("h", [int(x * gain) for x in a]).tobytes()
-
-
-def _bell(seconds, partials, decay=9.0):
-    n = int(seconds * SR)
-    samples = []
-    for i in range(n):
-        t = i / SR
-        env = min(t / 0.005, 1.0) * math.exp(-decay * t)   # quick attack, bell-like decay
-        v = sum(a * math.sin(2 * math.pi * f * t) for f, a in partials)
-        samples.append(int(CHIME_LEVEL * env * v * 32767))
-    return struct.pack(f"<{n}h", *samples)
-
-
-def chime():
-    """A soft two-note bell that marks a new segment, so the ear has a timing anchor
-    even if a spoken cue gets mangled. Followed by a short quiet before the voice."""
-    return _bell(CHIME_TONE, ((880, 0.6), (1320, 0.4))) + silence(CHIME_SECONDS - CHIME_TONE)
-
-
-def end_tone():
-    """Three rising notes after the last segment: the workout is over, not the earbud."""
-    return silence(END_LEAD) + b"".join(_bell(END_NOTE, ((f, 0.7), (f * 2, 0.3)), decay=6.0)
-                                        for f in END_NOTES) + silence(0.5)
-
-
-def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
-    """Lay the clips out on the plan's clock, as draft.layout predicts.
-
-    clip(text) returns a clip's PCM. `lead` (the chime) opens every segment after
-    the first, `bell` rings at each [chime] marker (default: the chime), `mark(text)` returns a
-    count's or cue's PCM (the coach's recorded clips on the beat, counts.pcm), and `tail`
-    (the end tone) follows the last segment, past the plan's clock. A segment with
-    time to spare widens its breaks and ends early instead of padding with silence,
-    unless it has a [hold]: its spare time is then silence at its holds.
-    Returns (pcm, rows, drift): rows as (n, planned, spoken, label, flag), drift as
-    the whole workout's fraction over (+) or under (-) plan, not counting the tail."""
-    bell = chime() if bell is None else bell
-    built = []
-    for i, seg in enumerate(segments, 1):
-        paras = []   # each paragraph: PCM pieces, with None where a hold falls
-        for para in plan(seg):
-            p = [bytearray()]
-            for text, pause in para:
-                if text == CHIME:
-                    p[-1] += bell
-                elif text == HOLD:   # a fixed hold is its silence; a bare one takes its share of the spare
-                    if not pause:
-                        p += [None, bytearray()]
-                elif is_mark(text):
-                    if mark is None:
-                        raise errors.RenderStopped(f"{text}: this render has no recorded counts to play")
-                    p[-1] += mark(text)
-                elif text:
-                    p[-1] += clip(text)
-                p[-1] += silence(pause)
-            paras.append(p)
-        head = lead if i > 1 else b""
-        gaps = len(paras) - 1
-        spoken = (len(head) + sum(len(x) for p in paras for x in p if x is not None)) / 2 / SR \
-            + PARAGRAPH_GAP * gaps
-        held = holds(seg)[1] > 0   # the one rule the lint uses too
-        built.append((head, paras, spoken, gaps, sum(x is None for p in paras for x in p), held))
-
-    pcm_all, rows = bytearray(), []
-    timeline = layout([(spoken, gaps, seg["seconds"], held) for seg, (_, _, spoken, gaps, _, held) in zip(segments, built)])
-    for i, (seg, (head, paras, spoken, gaps, n, held), (extra, length)) in enumerate(zip(segments, built, timeline), 1):
-        hold = max(length - spoken, 0.0) / n if n else 0.0
-        seg_pcm = bytearray(head)
-        for j, p in enumerate(paras):
-            if j:
-                seg_pcm += silence(PARAGRAPH_GAP + extra)
-            for x in p:
-                seg_pcm += silence(hold) if x is None else x
-        seg_pcm += silence(length - len(seg_pcm) / 2 / SR)
-        flag = fill_flag(spoken, seg["seconds"], held=held)
-        rows.append((i, seg["seconds"], spoken, seg["label"], f"  <-- {flag}" if flag else ""))
-        pcm_all += seg_pcm
-    built.clear()   # the per-paragraph copies aren't needed once laid out
-    planned = sum(seg["seconds"] for seg in segments)
-    drift = len(pcm_all) / 2 / SR / planned - 1 if planned else 0.0
-    pcm_all += tail
-    return pcm_all, rows, drift
 
 
 def loudness_stats(stderr):
@@ -275,38 +151,6 @@ def build_record(draft_path, draft_sha256, out, voice, seed, clips_total, clips_
             "started_at": dt.datetime.fromtimestamp(started).astimezone().isoformat(timespec="seconds")}
 
 
-def save_build_record(record, out, log=None):
-    """Write <out>.build.json beside the MP3 and append the record to builds.jsonl."""
-    import fileio
-    log = log or paths.BUILDS
-    fileio.atomic_write(os.path.splitext(out)[0] + ".build.json", json.dumps(record, indent=1) + "\n")
-    fileio.append_jsonl(log, record)
-
-
-def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, error):
-    """A cloud render that stopped partway: one line in builds.jsonl with the characters already sent, marked
-    "failed" (no MP3, no <name>.build.json). A reader counting MP3s skips lines with "failed"."""
-    import cloud
-    if isinstance(error, SystemExit):
-        reason = str(error.code) if not isinstance(error.code, int) else f"exit {error.code}"
-    elif isinstance(error, errors.SweatcastError):
-        reason = str(error)
-    else:
-        reason = type(error).__name__ + (f": {error}" if str(error) else "")
-    usd = cloud.estimate(voice["service"], voice["model"], ["x" * sent["started"]])[1]
-    record = {"failed": True, "out": paths.show(os.path.abspath(out)),
-              "draft": paths.show(os.path.abspath(draft_path)), "draft_sha256": draft_sha256,
-              "voice": voice["name"], "voice_key": voice["key"], "engine": voice["engine"], "model": voice["model"],
-              "route": voice.get("route"), "chars_sent": sent["started"], "chars_rendered": sent["chars"],
-              "usd_estimate": round(usd, 4), "reason": cloud.scrub(reason)[:300],
-              "started_at": dt.datetime.fromtimestamp(started).astimezone().isoformat(timespec="seconds")}
-    try:
-        import fileio
-        fileio.append_jsonl(paths.BUILDS, record)
-    except OSError as e:   # the failure being reported matters more than this line
-        print(f"(Couldn't note the failed render in {paths.show(paths.BUILDS)}: {e})", file=sys.stderr)
-
-
 def prepare_voice(voice, model=None, seed=42):
     """The voice as this render uses it, and cache_path(text), where a line's clip is cached. A damaged pace
     file stops the render now, not after it; `model` (--model) files the measured rate under that model; the
@@ -317,21 +161,6 @@ def prepare_voice(voice, model=None, seed=42):
     if voice.get("backend") == "torch":
         voice["device"] = engines.torch_device(engines.cuda_available())
     return voice, clip_cache(voice, seed)
-
-
-def clip_cache(voice, seed):
-    """cache_path(text): where a line's clip is cached. Everything that changes how a clip sounds goes in
-    its key, so changing a setting (or upgrading pocket-tts) re-renders instead of silently reusing old
-    clips; the coach's name and any API key don't, so a renamed coach keeps its clips. A web service that hears
-    the neighboring paragraphs (ElevenLabs) isn't keyed on them, deliberately: an edit would re-render, and
-    re-bill, both neighbors of every changed paragraph, for a slightly different join."""
-    settings = (f"{voice['model']}@{voice['revision'] or 'latest'}|{json.dumps(voice['generate'], sort_keys=True)}|"
-                f"trim {TRIM_DB} {TRIM_KEEP}|{engines.runtime(voice)}")
-
-    def cache_path(text):
-        key = f"{voice['key']}|{voice['engine']}|{seed}|{settings}|{text}"
-        return os.path.join(paths.CACHE, hashlib.sha256(key.encode()).hexdigest()[:24] + ".pcm")
-    return cache_path
 
 
 def spoken_clips(segments, voice=None):
@@ -352,37 +181,6 @@ def mark_audio(text, voice, clip):
     """A count's or cue's PCM: the coach's recorded clips on the beat, or the count in words from `clip`."""
     words = counts.in_words(text, voice)
     return clip(words) if words else counts.pcm(text, voice)
-
-
-def render_clip(say, text, seed, cache_path, **context):
-    """Speak one line into the cache; returns its seconds of audio. `context` (previous_text, next_text)
-    goes to a cloud engine that joins paragraphs."""
-    pcm = say(text, seed, **context)
-    _cache_write(cache_path(text), pcm)
-    with contextlib.suppress(FileNotFoundError):   # a new take hasn't been checked
-        os.remove(check_path(cache_path, text))
-    return len(pcm) / 2 / SR
-
-
-def _cache_write(path, pcm):
-    tmp = path + ".part"
-    with open(tmp, "wb") as f:
-        f.write(pcm)
-    os.replace(tmp, path)
-
-
-def check_path(cache_path, text):
-    """Where the verdict on a cached clip is kept, beside it (tools/cache.py prunes the two together)."""
-    return cache_path(text)[: -len(".pcm")] + ".check.json"
-
-
-def _verdict(path):
-    try:
-        with open(path, encoding="utf-8") as f:
-            v = json.load(f)
-        return v if isinstance(v, dict) and "ok" in v and "missed_cues" in v else None
-    except (OSError, ValueError):
-        return None
 
 
 def _short(text, n=8):
