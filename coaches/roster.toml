@@ -10,6 +10,11 @@ Lower down slow, two, three, and drive back up. Good. That's exactly the pace we
 with me. Last one, and rest. Shake it out, take a sip of water. Next we switch sides, left leg forward \
 for thirty seconds, and we'll go again."""
 
+# Qwen3-TTS VoiceDesign doesn't make accents: asked for Scottish, southern English and Australian
+# (2026-10-26), every take came out without one. So no description asks for an accent.
+# Women's takes sometimes came out very high, like a girl's, so every woman's description asks for an
+# adult voice, low to medium in pitch.
+
 # Added to every description, so every clip comes out clean and alike.
 studio = "Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
@@ -60,18 +65,18 @@ slug = "callum"
 name = "Coach Callum"
 gender = "man"
 who = "Late 30s, ex-rugby"
-sound = "Firm mid-baritone, light Scottish accent"
+sound = "Firm mid-baritone"
 energy = "Direct, no-nonsense, dry wit"
-description = "A man in his late thirties, a former rugby player turned coach. A firm mid-baritone with a light Scottish accent. Direct and no-nonsense, with a dry wit."
+description = "A man in his late thirties, a former rugby player turned coach. A firm mid-baritone. Direct and no-nonsense, with a dry wit."
 
 [[coach]]
 slug = "maya"
 name = "Coach Maya"
 gender = "woman"
 who = "Early 30s, HIIT instructor"
-sound = "Bright, clear mezzo, American"
+sound = "Warm, full mezzo, American"
 energy = "Energetic, crisp counts"
-description = "A woman in her early thirties, a HIIT instructor. A bright, clear mezzo-soprano with a general American accent. Energetic, with crisp counts."
+description = "A woman in her early thirties, a HIIT instructor. A warm, full mezzo voice, low to medium in pitch, with a general American accent. Confident and upbeat, with crisp counts. An adult woman's voice, never girlish or childlike."
 
 [[coach]]
 slug = "claire"
@@ -80,7 +85,7 @@ gender = "woman"
 who = "Mid-40s, physio and Pilates teacher"
 sound = "Low, smooth alto, American"
 energy = "Calm, precise, reassuring"
-description = "A woman in her mid-forties, a physiotherapist and Pilates teacher. A low, smooth alto with a general American accent. Calm, precise and reassuring."
+description = "A woman in her mid-forties, a physiotherapist and Pilates teacher. A low, smooth alto with a general American accent. Calm, precise and reassuring. An adult woman's voice, low to medium in pitch, never girlish or childlike."
 
 [[coach]]
 slug = "rosa"
@@ -89,31 +94,112 @@ gender = "woman"
 who = "Late 20s, runner"
 sound = "Lively, warm mid-range, American"
 energy = "Playful, quick, upbeat"
-description = "A woman in her late twenties, a distance runner and coach. A lively, warm mid-range voice with a general American accent. Playful, quick and upbeat."
+description = "A woman in her late twenties, a distance runner and coach. A lively, warm mid-range voice with a general American accent. Playful, quick and upbeat. An adult woman's voice, low to medium in pitch, never girlish or childlike."
 
 [[coach]]
 slug = "helen"
 name = "Coach Helen"
 gender = "woman"
 who = "Mid-50s, veteran trainer"
-sound = "Warm, rich alto, southern English (RP)"
+sound = "Warm, rich alto"
 energy = "Steady, kind, quietly firm"
-description = "A British woman from the south of England, in her mid-fifties, a veteran personal trainer. A warm, rich alto with a clear English accent, Received Pronunciation, like a BBC presenter. Steady and kind, quietly firm."
+description = "A woman in her mid-fifties, a veteran personal trainer. A warm, rich alto. Steady and kind, quietly firm. An adult woman's voice, low to medium in pitch, never girlish or childlike."
 
 [[coach]]
 slug = "kate"
 name = "Coach Kate"
 gender = "woman"
 who = "Mid-30s, outdoor bootcamp coach"
-sound = "Clear, open voice, light Australian accent"
+sound = "Clear, open voice"
 energy = "Cheerful, confident"
-description = "A woman in her mid-thirties, an outdoor bootcamp coach. A clear, open voice with a light Australian accent. Cheerful and confident."
+description = "A woman in her mid-thirties, an outdoor bootcamp coach. A clear, open voice. Cheerful and confident. An adult woman's voice, low to medium in pitch, never girlish or childlike."
 
 [picks.andy]
 designer = "qwen3"
-repo = "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
-revision = "5ecdb67327fd37bb2e042aab12ff7391903235d3"
-seed = 101
-seconds = 19.14
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 402
+seconds = 26.51
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
 description = "A man in his mid-forties, a seasoned personal trainer. A low, warm baritone with a general American accent. Calm authority, with a little light humor. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
+[picks.marcus]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 401
+seconds = 23.74
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A man in his early thirties, a group fitness class instructor. A bright, clear tenor with a general American accent. Upbeat and driving, but never shouting. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.theo]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 401
+seconds = 25.51
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A man in his late twenties, a laid-back trainer. A relaxed mid-range voice with a soft West Coast American accent. Easygoing, friendly and conversational. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.callum]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 402
+seconds = 26.94
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A man in his late thirties, a former rugby player turned coach. A firm mid-baritone with a light Scottish accent. Direct and no-nonsense, with a dry wit. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.claire]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 403
+seconds = 30.44
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A woman in her mid-forties, a physiotherapist and Pilates teacher. A low, smooth alto with a general American accent. Calm, precise and reassuring. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.rosa]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 402
+seconds = 23.13
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A woman in her late twenties, a distance runner and coach. A lively, warm mid-range voice with a general American accent. Playful, quick and upbeat. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.helen]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 403
+seconds = 26.73
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A British woman from the south of England, in her mid-fifties, a veteran personal trainer. A warm, rich alto with a clear English accent, Received Pronunciation, like a BBC presenter. Steady and kind, quietly firm. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.kate]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 402
+seconds = 25.55
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A woman in her mid-thirties, an outdoor bootcamp coach. A clear, open voice with a light Australian accent. Cheerful and confident. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+[picks.sam]
+designer = "qwen3"
+repo = "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16"
+revision = "7d3824abff87e49756bb0f83fb5411de75d160c4"
+seed = 403
+seconds = 23.35
+device = "Apple GPU (MLX)"
+runtime = "mlx-audio 0.5.0"
+description = "A man in his early sixties, a former high school coach. A deep, slightly gravelly voice with an American Midwest accent. Patient and wry, with steady encouragement. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."

@@ -1,6 +1,7 @@
 """Make a designed take a shipped coach's clip (maintainer only; not a listener command).
 
-  .venv/Scripts/python tools/coachmaker/pick.py andy qwen3-101 [claire qwen3-102 ...]
+  .venv/bin/python tools/coachmaker/pick.py andy qwen3-101 [claire qwen3-102 ...]
+  .venv/bin/python tools/coachmaker/pick.py --heard-ok sam qwen3-403     (approved by ear; the recognizer misheard)
 
 Copies .cache/design/takes/<coach>/<take>.wav to coaches/coach-<coach>-local/clip.wav, writes clip.txt (the
 script, after checking the recognizer heard every word of it in that take), and records the designer, its
@@ -25,6 +26,8 @@ def toml_str(s):
 
 
 def main(argv):
+    heard_ok = argv[:1] == ["--heard-ok"]
+    argv = argv[1:] if heard_ok else argv
     if not argv or len(argv) % 2:
         raise SystemExit(__doc__)
     with open(ROSTER, "rb") as f:
@@ -37,9 +40,9 @@ def main(argv):
         t = takes.get(f"{slug}/{take}")
         if not t:
             raise SystemExit(f"No take {slug}/{take} in {TAKES}/takes.json")
-        if t.get("errors") or t.get("missed_cues") or t.get("problems"):
+        if t.get("missed_cues") or t.get("problems") or (t.get("errors") and not heard_ok):
             raise SystemExit(f"{slug}/{take} doesn't say the script cleanly (heard: {t.get('heard')}); "
-                             "write its clip.txt by hand from what was said.")
+                             "if the take says it right and the recognizer misheard, pick it with --heard-ok.")
         folder = os.path.join(ROOT, "coaches", f"coach-{slug}-local")
         os.makedirs(folder, exist_ok=True)
         shutil.copyfile(t["wav"], os.path.join(folder, "clip.wav"))
