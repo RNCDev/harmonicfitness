@@ -1,0 +1,1104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sweatcast: Centre stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Figtree:ital,wght@0,400..800;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --base:#E3E8DF;         /* steel: the room */
+  --sheet:#F7F9F4;        /* the panel's page */
+  --ink:#1B2A1E;          /* text */
+  --ink-2:#4C5D4F;        /* secondary text */
+  --ink-3:#869488;        /* faint */
+  --rule:#C9D3C6;
+  --tok:#0E6A5C;          /* cobalt: every editable word */
+  --tok-tint:#CFEBE4;
+  --tok-on:#FFFFFF;
+  --engine:#7A4A8F;       /* clauses sweatcast writes itself */
+  --engine-tint:#ECE0F1;
+  --warn:#8A5C00;
+  --warn-tint:#F3E5C3;
+  --stop:#A42235;
+  --stop-tint:#F6DADE;
+  --ok:#3D7A1F;
+  --chat:#D8DFD3;
+  --shadow:0 18px 40px -22px rgba(19,32,42,.45);
+  --display:"Zilla Slab", Rockwell, Georgia, serif;
+  --body:"Figtree", system-ui, sans-serif;
+  --r-tok:.32em;
+  --r-sheet:22px;
+  /* layout: one stage, one dock */
+  --max:1760px;                         /* the stage's widest */
+  --gut:clamp(16px,4vw,72px);           /* page gutter */
+  --gap:clamp(14px,1.4vw,26px);         /* between tiles */
+  --col-gap:clamp(40px,4.5vw,112px);    /* between sentence and consequences */
+  --top-h:60px;
+  --dock-w:min(800px,calc(100vw - 32px));
+  --dock-h:150px;                       /* measured live */
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --base:#0F1612;
+    --sheet:#17211B;
+    --ink:#E6EFE7;
+    --ink-2:#A9B9AC;
+    --ink-3:#6B7C6E;
+    --rule:#26342B;
+    --tok:#5FD3B8;
+    --tok-tint:#173A32;
+    --tok-on:#0F1612;
+    --engine:#CFA3E0;
+    --engine-tint:#2E2236;
+    --warn:#F1B95A;
+    --warn-tint:#392A10;
+    --stop:#FF8796;
+    --stop-tint:#42161D;
+    --ok:#9BDB7A;
+    --chat:#0B110D;
+    --shadow:0 18px 40px -22px rgba(0,0,0,.8);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:calc(var(--top-h) + 16px)}
+body{margin:0;min-height:100vh;background:var(--base);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--tok);outline-offset:3px;border-radius:6px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- frame: a top bar, the stage, a dock ---------- */
+.topbar{position:sticky;top:0;z-index:30;height:var(--top-h);background:var(--base)}
+.topbar-in{max-width:var(--max);margin:0 auto;height:100%;display:flex;align-items:center;gap:22px;
+  padding:0 max(var(--gut), calc(210px - (100vw - min(100vw, var(--max))) / 2)) 0 var(--gut)}
+.mark{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em}
+.mark span{color:var(--tok)}
+.topbar .back{font-size:15px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;padding:6px 12px;border-radius:999px;border:1px solid var(--rule)}
+.topbar .back:hover{color:var(--tok);border-color:var(--tok)}
+.topbar .back[hidden]{display:none}
+.topbar .who{margin-left:auto;font-size:14px;color:var(--ink-2)}
+.sheet{max-width:var(--max);margin:0 auto;padding:clamp(20px,3vw,44px) var(--gut) calc(var(--dock-h) + 64px)}
+
+/* ---------- the dock: the agent's latest line over one composer ---------- */
+.dock-fade{position:fixed;left:0;right:0;bottom:0;height:calc(var(--dock-h) + 44px);z-index:34;pointer-events:none;
+  background:linear-gradient(to bottom, transparent, var(--base) 46%)}
+.dock{position:fixed;z-index:35;left:50%;bottom:16px;transform:translateX(-50%);width:var(--dock-w);
+  background:var(--sheet);border-radius:24px;box-shadow:0 22px 60px -24px rgba(0,0,0,.5),0 0 0 1px var(--rule);padding:12px 12px 10px}
+.dock-line{display:flex;align-items:flex-start;gap:14px;padding:2px 6px 10px}
+.said{flex:1;min-width:0;font-size:15px;line-height:1.45;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.said.a::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tok);margin-right:8px;vertical-align:1px}
+.said.note{color:var(--ink-2)}
+.said.stop{color:var(--stop);font-weight:600}
+.said.stop::before{background:var(--stop)}
+.said.fresh{animation:roll .4s ease}
+.said .diff{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:6px;vertical-align:1px}
+.said .diff span{font-size:12px;border-radius:7px;padding:0 6px;background:var(--base);border:1px solid var(--rule)}
+.said .diff s{color:var(--ink-3)}
+.said .diff b{color:var(--tok)}
+.convo{flex:none;font-size:13px;font-weight:700;color:var(--tok);padding:2px 0;white-space:nowrap}
+.convo:hover{text-decoration:underline;text-underline-offset:3px}
+.say{display:flex;gap:8px;background:var(--base);border-radius:16px;padding:6px 6px 6px 16px}
+.say input{flex:1;border:0;background:none;outline:none;min-width:0;font-size:16px;padding:6px 0}
+.say button{background:var(--ink);color:var(--sheet);border-radius:12px;padding:8px 16px;font-weight:700;font-size:14px}
+.hints{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;padding:0 2px}
+.hints:empty{display:none}
+.hints button{font-size:13px;color:var(--ink-2);border:1px solid var(--rule);border-radius:999px;padding:3px 10px}
+.hints button:hover{color:var(--tok);border-color:var(--tok)}
+
+/* ---------- the transcript, on demand ---------- */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);z-index:60;background:var(--chat);display:flex;flex-direction:column;
+  transform:translateX(100%);visibility:hidden;transition:transform .3s ease,visibility 0s .3s;box-shadow:-24px 0 60px -30px rgba(0,0,0,.55)}
+.drawer.open{transform:none;visibility:visible;transition:transform .3s ease}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 10px}
+.drawer-head h2{margin:0;font-family:var(--display);font-size:20px}
+.drawer-head button{font-size:14px;font-weight:700;color:var(--tok)}
+.chat-log{flex:1;overflow-y:auto;padding:8px 20px 24px;display:flex;flex-direction:column;gap:14px}
+.m{max-width:92%;font-size:15px}
+.m.a{color:var(--ink)}
+.m.a::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tok);margin-right:8px;vertical-align:1px}
+.m.u{align-self:flex-end;background:var(--ink);color:var(--sheet);padding:9px 14px;border-radius:16px 16px 4px 16px}
+.m.note{font-size:13px;color:var(--ink-3);align-self:center;text-align:center}
+.m .diff{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.m .diff span{font-size:13px;border-radius:8px;padding:2px 8px;background:var(--sheet);border:1px solid var(--rule)}
+.m .diff s{color:var(--ink-3)}
+.m .diff b{color:var(--tok)}
+.m.stop{border-left:3px solid var(--stop);padding-left:10px}
+.scrim2{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:55;display:none}
+.scrim2.show{display:block}
+
+/* ---------- the split: sentence left, consequences right ---------- */
+.split{display:flex;flex-direction:column}
+.split-l,.split-r{display:contents}
+.anchor.late{order:9}
+@media (min-width:1100px){
+  .split{display:grid;grid-template-columns:minmax(0,58fr) minmax(0,42fr);column-gap:var(--col-gap);align-items:start}
+  .split-l,.split-r{display:block}
+  .split.pin>.split-l{position:sticky;top:calc(var(--top-h) + 20px);display:flex;flex-direction:column;
+    min-height:min(760px, calc(100vh - var(--top-h) - var(--dock-h) - 92px))}
+  .split.pin .anchor{margin-top:auto;padding-top:32px}
+  .split .sentence{font-size:clamp(34px,2.2vw + 10px,58px)}
+  .split .sentence.small{font-size:clamp(26px,1.5vw + 8px,40px)}
+  .split-r>:first-child{margin-top:0}
+  .split-r{padding-top:6px}
+  .anchor.late{order:0}
+}
+
+/* ---------- the sentence ---------- */
+.lede{font-family:var(--display);font-size:16px;color:var(--ink-2);margin:0 0 10px;font-weight:500}
+.sentence{font-family:var(--display);font-weight:500;font-size:clamp(27px,4.3vw,46px);line-height:1.36;letter-spacing:-.018em;margin:0;text-wrap:pretty;max-width:26em}
+.sentence.small{font-size:clamp(22px,3vw,32px)}
+.tok{font-family:inherit;font-weight:700;color:var(--tok);border-bottom:.09em dashed currentColor;border-radius:0;padding:0 .04em;line-height:1.1;display:inline-block;transition:background .2s,color .2s;position:relative;white-space:nowrap}
+.tok:hover{background:var(--tok-tint)}
+.tok.set{background:var(--tok);color:var(--tok-on);border-bottom-color:transparent;border-radius:var(--r-tok);padding:0 .22em}
+.tok.open{outline:3px solid var(--tok);outline-offset:2px;border-radius:var(--r-tok)}
+.tok.warn{color:var(--warn);border-bottom-color:var(--warn)}
+.tok.warn.set{background:var(--warn);color:var(--sheet)}
+.tok.flash{animation:flash .9s ease}
+.tok.flash .v{display:inline-block;animation:roll .45s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes roll{from{transform:translateY(.55em);opacity:0}to{transform:none;opacity:1}}
+@keyframes flash{0%{box-shadow:0 0 0 0 var(--tok)}30%{box-shadow:0 0 0 .22em var(--tok-tint)}100%{box-shadow:0 0 0 0 transparent}}
+.tok.chip{font-size:.92em}
+.tok.chip .x{font-weight:400;opacity:.6;margin-left:.15em;font-size:.8em}
+.tok.add{color:var(--ink-3);border-bottom-style:dotted;font-weight:500}
+.engine{color:var(--engine);font-weight:500;display:inline;animation:roll .5s ease}
+.engine.stop{color:var(--stop)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);margin:18px 0 0}
+.legend i{font-style:normal;font-family:var(--display);font-weight:700;color:var(--tok)}
+.legend .g{border-bottom:2px dashed var(--tok)}
+.legend .s{background:var(--tok);color:var(--tok-on);padding:0 5px;border-radius:5px}
+.legend .e{color:var(--engine)}
+
+/* the Go row */
+.go-row{display:flex;align-items:center;gap:18px;margin-top:28px;flex-wrap:wrap}
+.go{font-family:var(--display);font-weight:800;font-size:22px;background:var(--tok);color:var(--tok-on);border-radius:999px;padding:14px 36px;box-shadow:var(--shadow);transition:transform .15s}
+.go:hover{transform:translateY(-2px)}
+.go:active{transform:none}
+.go[disabled]{opacity:.35;cursor:not-allowed;transform:none}
+.quiet{color:var(--ink-2);font-size:15px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--rule)}
+.quiet:hover{color:var(--tok);text-decoration-color:var(--tok)}
+.meta{font-size:14px;color:var(--ink-2)}
+
+/* recent sentences */
+.recent{margin:0 0 24px;display:flex;flex-direction:column;gap:2px}
+.recent button{text-align:left;font-family:var(--display);font-size:15px;color:var(--ink-3);padding:2px 0}
+.recent button:hover{color:var(--tok)}
+.recent button b{font-weight:500;color:var(--ink-2)}
+
+/* ---------- home: a grid of doors ---------- */
+.home-head{margin-bottom:clamp(22px,2.6vw,40px)}
+.home h1{font-family:var(--display);font-weight:800;font-size:clamp(34px,4.4vw,76px);letter-spacing:-.035em;line-height:1.02;margin:4px 0 0;max-width:16em}
+.tiles{display:grid;gap:var(--gap);grid-template-columns:1fr}
+.tile{display:flex;flex-direction:column;gap:8px;text-align:left;padding:clamp(20px,1.8vw,30px);border-radius:var(--r-sheet);border:1px solid var(--rule);min-height:150px;transition:border-color .2s,background .2s}
+button.tile:hover{border-color:var(--tok);background:var(--sheet)}
+.tile .t{font-family:var(--display);font-size:clamp(23px,1vw + 12px,32px);font-weight:600;letter-spacing:-.02em;line-height:1.15}
+button.tile:hover .t{color:var(--tok)}
+.tile .d{color:var(--ink-2);font-size:15px;max-width:38ch}
+.tile .k{margin-top:auto;padding-top:10px;font-size:13px;color:var(--ink-3)}
+.tile.hurt-tile .t::before{content:"";display:inline-block;width:.32em;height:.32em;border-radius:50%;background:var(--stop);margin-right:.35em;vertical-align:.18em}
+.tile.hero{background:var(--sheet);border-color:transparent;box-shadow:var(--shadow);padding:clamp(24px,3vw,52px);gap:26px}
+.hero-main{text-align:left;display:flex;flex-direction:column;gap:16px;flex:1}
+.hero-main .t{font-size:clamp(30px,1.9vw + 14px,56px);font-weight:700;line-height:1.05}
+.hero-main:hover .t{color:var(--tok)}
+.hero-s{font-family:var(--display);font-size:clamp(20px,1vw + 12px,32px);line-height:1.4;color:var(--ink-2);max-width:24em;text-wrap:pretty}
+.hero-s b{color:var(--tok);font-weight:700;border-bottom:.09em dashed currentColor}
+.hero-main .d{font-size:15px;color:var(--ink-3)}
+.mini-plan{display:flex;gap:3px;height:30px;max-width:620px;margin-top:6px}
+.mini-plan i{font-style:normal;border-radius:6px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:700;overflow:hidden;white-space:nowrap}
+.hero-go{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.tile.nudge-tile{background:var(--tok-tint);border-color:transparent}
+.nudge-tile strong{font-family:var(--display);font-size:clamp(21px,.8vw + 12px,27px);line-height:1.2;font-weight:600}
+.nudge-tile p{margin:0;color:var(--ink-2);font-size:15px}
+.nudge-tile .react{margin-top:auto;padding-top:12px}
+.react{display:flex;gap:6px;flex-wrap:wrap}
+.react button{border:1px solid var(--rule);border-radius:999px;padding:6px 12px;font-size:14px;background:var(--sheet)}
+.react button:hover,.react button.on{border-color:var(--tok);color:var(--tok)}
+.tour-link{margin:22px 0 0;color:var(--ink-2);font-size:15px}
+@media (min-width:821px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tile.hero{grid-column:1/-1}
+}
+@media (min-width:821px) and (max-width:1099px){ .tiles>.tile:last-child{grid-column:1/-1} }
+@media (min-width:1100px){
+  .tiles{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(200px,auto)}
+  .tile.hero{grid-column:1/3;grid-row:1/3}
+}
+
+/* ---------- plan preview ---------- */
+.plan{margin-top:36px;background:var(--sheet);border-radius:var(--r-sheet);padding:clamp(20px,1.8vw,30px) clamp(20px,1.8vw,30px) 10px;box-shadow:var(--shadow)}
+.plan-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.plan-head h2{font-family:var(--display);font-size:21px;margin:0;font-weight:700;letter-spacing:-.01em}
+.ribbon{display:flex;height:40px;margin:18px 0 4px;gap:3px}
+.ribbon div{border-radius:6px;display:flex;align-items:center;padding:0 8px;font-size:12px;font-weight:700;overflow:hidden;white-space:nowrap;transition:flex-grow .5s cubic-bezier(.3,.8,.3,1)}
+.b-warm{background:var(--tok-tint);color:var(--tok)}
+.b-work{background:var(--tok);color:var(--tok-on)}
+.b-fin{background:var(--engine);color:var(--sheet)}
+.b-cool{background:var(--rule);color:var(--ink-2)}
+.ribbon-scale{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3);margin-bottom:10px}
+table.rows{width:100%;border-collapse:collapse;font-size:15px}
+.rows th{text-align:left;font-weight:400;color:var(--ink-3);font-size:13px;padding:8px 8px 6px 0;border-bottom:1px solid var(--rule)}
+.rows td{padding:13px 8px 13px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.rows tr:last-child td{border-bottom:0}
+.rows td:first-child{font-family:var(--display);font-weight:700;white-space:nowrap}
+.rows td.sec{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap}
+.rows th:last-child{text-align:right}
+.rows .mv{display:block}
+.rows .dose{color:var(--ink-2);font-size:14px}
+.changed-row{animation:rowflash 1.2s ease}
+@keyframes rowflash{0%{background:var(--tok-tint)}100%{background:transparent}}
+.foot{font-size:14px;color:var(--ink-2);padding:12px 0 14px;border-top:1px solid var(--rule)}
+
+/* ---------- picker ---------- */
+.pop{position:fixed;z-index:50;background:var(--sheet);border-radius:16px;box-shadow:0 24px 60px -16px rgba(0,0,0,.45),0 0 0 1px var(--rule);width:min(300px,calc(100vw - 32px));padding:10px;display:none;max-height:min(420px,70vh);overflow:auto}
+.pop.show{display:block;animation:pop .16s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.pop .why{font-size:12px;color:var(--ink-3);padding:4px 8px 8px}
+.pop .opt{display:flex;justify-content:space-between;width:100%;text-align:left;padding:9px 10px;border-radius:10px;font-size:16px;gap:10px}
+.pop .opt:hover,.pop .opt:focus-visible{background:var(--tok-tint);outline:none}
+.pop .opt.cur{font-weight:700;color:var(--tok)}
+.pop .opt small{color:var(--ink-3);font-size:13px;font-weight:400}
+.pop .opt.danger{color:var(--stop)}
+.pop .free{display:flex;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--rule);margin-top:6px}
+.pop .free input{flex:1;min-width:0;border:1px solid var(--rule);border-radius:10px;padding:7px 10px;background:var(--base)}
+.pop .free button{background:var(--tok);color:var(--tok-on);border-radius:10px;padding:0 12px;font-weight:700}
+.scrim{display:none}
+
+/* ---------- render ---------- */
+.frozen{position:relative}
+.receipt .tok{border-bottom-color:transparent;cursor:default}
+.receipt .tok:hover{background:none}
+.frozen .sentence{color:var(--ink-3)}
+.frozen .sentence .tok{color:var(--ink-3);border-color:transparent;background:none;padding:0}
+.inkfill{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--p,0%)) 0 0);transition:clip-path .6s linear;pointer-events:none}
+.inkfill .sentence,.inkfill .sentence .tok{color:var(--ink)}
+.inkfill .sentence .tok{color:var(--tok)}
+.stages{list-style:none;padding:0;margin:30px 0 0;display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stage{background:var(--sheet);border-radius:14px;padding:14px 16px;min-height:100px;opacity:.55;transition:opacity .3s}
+.stage.now,.stage.done{opacity:1}
+.stage h3{margin:0 0 4px;font-family:var(--display);font-size:18px;display:flex;align-items:center;gap:8px}
+.stage .dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--ink-3);flex:none}
+.stage.now .dot{border-color:var(--tok);border-top-color:transparent;animation:spin .8s linear infinite}
+.stage.done .dot{background:var(--ok);border-color:var(--ok)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stage p{margin:0;font-size:14px;color:var(--ink-2)}
+.leave{margin-top:22px;font-size:15px;color:var(--ink-2)}
+@media (min-width:821px){ .stages{grid-template-columns:repeat(4,1fr)} }
+@media (min-width:1100px){
+  .split-r .stages{grid-template-columns:1fr;gap:12px}
+  .split-r .stage{min-height:0;padding:18px 22px}
+}
+
+/* ---------- player ---------- */
+.player{margin-top:30px;background:var(--ink);color:var(--sheet);border-radius:var(--r-sheet);padding:clamp(22px,2vw,34px);box-shadow:var(--shadow)}
+.player h2{font-family:var(--display);margin:0;font-size:clamp(26px,1vw + 16px,34px);letter-spacing:-.02em}
+.player .sub{color:var(--ink-3);font-size:14px;margin:2px 0 20px}
+.pl-row{display:flex;align-items:center;gap:18px}
+.play{width:64px;height:64px;border-radius:50%;background:var(--tok);color:var(--tok-on);display:grid;place-items:center;flex:none}
+.play svg{width:24px;height:24px}
+.track{flex:1;min-width:0}
+.bar{position:relative;height:40px}
+.bar .seg{position:absolute;top:12px;height:16px;border-radius:4px;opacity:.35}
+.bar .head{position:absolute;top:4px;width:2px;height:32px;background:var(--sheet);transition:left .25s linear}
+.bar .fill{position:absolute;top:12px;left:0;height:16px;background:var(--sheet);opacity:.18;border-radius:4px;transition:width .25s linear}
+.times{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.chap{font-size:14px;margin-top:6px}
+.pl-actions{display:flex;gap:12px;align-items:center;margin-top:22px;flex-wrap:wrap}
+.dl{background:var(--sheet);color:var(--ink);border-radius:999px;padding:10px 20px;font-weight:700}
+.expire{font-size:14px;color:var(--ink-3)}
+@media (prefers-color-scheme: dark){
+  .player{background:#070C09;color:var(--ink)}
+  .bar .head{background:var(--ink)}
+  .bar .fill{background:var(--ink)}
+  .dl{background:var(--ink);color:var(--base)}
+}
+
+/* ---------- coaches ---------- */
+.small-h{font-family:var(--display);font-size:18px;margin:32px 0 4px;font-weight:700}
+.stable{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 14px;margin:14px -2px 0;scrollbar-width:thin}
+.cc{flex:none;width:156px;background:var(--sheet);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;border:2px solid transparent}
+.cc.cur{border-color:var(--tok)}
+.cc b{font-family:var(--display);font-size:18px}
+.cc small{color:var(--ink-2);font-size:13px;line-height:1.35;flex:1}
+.cc .r{display:flex;justify-content:space-between;align-items:center;padding-top:4px}
+.mini{width:32px;height:32px;border-radius:50%;background:var(--tok-tint);color:var(--tok);display:grid;place-items:center}
+.mini svg{width:13px;height:13px}
+.mini.on{background:var(--tok);color:var(--tok-on)}
+.cc .use{font-size:13px;color:var(--tok);font-weight:700}
+@media (min-width:1100px){
+  .split-r .stable{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;overflow:visible;padding:0;margin:14px 0 0}
+  .split-r .cc{width:auto;min-height:132px}
+}
+.below{margin-top:clamp(28px,3vw,48px)}
+.cands{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:var(--gap)}
+.cand{background:var(--sheet);border-radius:18px;padding:18px;border:2px solid transparent;text-align:left;display:flex;flex-direction:column;gap:12px;transition:border-color .2s,transform .2s}
+.cand.pick{border-color:var(--tok);transform:translateY(-3px)}
+.cand .L{font-family:var(--display);font-weight:800;font-size:38px;line-height:1}
+.wave{display:flex;align-items:center;gap:2px;height:44px}
+.wave i{flex:1;background:var(--ink-3);border-radius:2px;transition:background .2s}
+.cand.playing .wave i{background:var(--tok);animation:bob .7s ease-in-out infinite alternate}
+@keyframes bob{to{transform:scaleY(.4)}}
+.cand .cost{font-size:13px;color:var(--ink-2)}
+.cand .acts{display:flex;justify-content:space-between;align-items:center}
+.cand .choose{font-size:14px;font-weight:700;color:var(--tok);align-self:flex-start}
+.loading-line{font-size:15px;color:var(--ink-2);display:flex;gap:10px;align-items:center}
+.loading-line .dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--tok);border-top-color:transparent;animation:spin .8s linear infinite}
+.namebox{display:inline-block;min-width:4ch;border:0;border-bottom:.09em solid var(--tok);background:none;color:var(--tok);font-weight:700;font-family:inherit;font-size:inherit;letter-spacing:inherit;outline:none;padding:0;width:7ch}
+.done-card{margin-top:var(--gap);background:var(--sheet);border-radius:var(--r-sheet);padding:clamp(20px,2vw,32px);box-shadow:var(--shadow)}
+.done-card h2{font-family:var(--display);margin:0 0 4px}
+.done-card .go-row{margin-top:18px}
+
+/* ---------- prefs ---------- */
+.para{display:grid;gap:clamp(22px,2.4vw,40px) var(--col-gap);grid-template-columns:1fr}
+.para .sentence{font-size:clamp(23px,1.4vw + 12px,38px)}
+@media (min-width:1100px){ .para{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.checked{margin-top:26px;font-size:15px;display:flex;gap:10px;align-items:center;color:var(--ok)}
+
+/* ---------- hurt ---------- */
+.flags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.flag{border:1.5px solid var(--rule);border-radius:999px;padding:9px 15px;font-size:15px;background:var(--sheet);text-align:left}
+.flag[aria-pressed="true"]{border-color:var(--stop);color:var(--stop);background:var(--stop-tint);font-weight:700}
+.flag.none[aria-pressed="true"]{border-color:var(--ok);color:var(--ok);background:var(--sheet)}
+@media (min-width:1100px){
+  .split-r .flags{flex-direction:column;align-items:stretch}
+  .split-r .flag{border-radius:14px;padding:12px 18px}
+}
+.stopcard{margin-top:26px;border-radius:var(--r-sheet);padding:24px;background:var(--stop-tint);color:var(--ink);border-left:6px solid var(--stop)}
+.stopcard h2{font-family:var(--display);margin:0 0 8px;color:var(--stop);font-size:26px;letter-spacing:-.02em}
+.stopcard p{margin:0 0 10px;max-width:60ch}
+.anchor .stopcard{margin-top:30px}
+
+/* ---------- feedback ---------- */
+.fbgrid{display:grid;gap:30px var(--col-gap);grid-template-columns:1fr}
+.fbgrid .react{margin-top:14px}
+@media (min-width:1100px){ .fbgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+/* ---------- analytics ---------- */
+.weeks{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;align-items:end;height:clamp(120px,22vh,220px);margin-top:28px}
+.weeks div{background:var(--tok);border-radius:6px 6px 2px 2px;position:relative}
+.weeks div.lo{background:var(--tok-tint)}
+.weeks-l{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;font-size:12px;color:var(--ink-3);margin-top:4px;text-align:center}
+.pats{display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;margin-top:30px;font-size:15px}
+.pats .track2{height:10px;background:var(--rule);border-radius:5px;overflow:hidden}
+.pats .track2 i{display:block;height:100%;background:var(--tok);border-radius:5px}
+.pats .track2 i.lo{background:var(--warn)}
+.pats span:last-child{color:var(--ink-2);font-variant-numeric:tabular-nums}
+
+/* ---------- tour ---------- */
+.tour{display:grid;gap:var(--gap);grid-template-columns:1fr;margin-top:18px}
+.tour-step{display:grid;grid-template-columns:44px 1fr;gap:4px 14px;padding:20px 0;border-top:1px solid var(--rule)}
+.tour-step .n{font-family:var(--display);font-weight:800;font-size:30px;color:var(--tok);line-height:1}
+.tour-step h3{margin:0;font-family:var(--display);font-size:22px}
+.tour-step p{grid-column:2;margin:0;color:var(--ink-2);max-width:62ch}
+@media (min-width:821px){ .tour{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (min-width:1300px){ .tour{grid-template-columns:repeat(4,minmax(0,1fr))} .tour-step{grid-template-columns:1fr} .tour-step p{grid-column:1} .tour-step .n{margin-bottom:8px} }
+
+/* ---------- misc ---------- */
+.toast{position:fixed;left:50%;bottom:calc(var(--dock-h) + 30px);transform:translateX(-50%) translateY(16px);opacity:0;background:var(--ink);color:var(--sheet);padding:10px 18px;border-radius:12px;font-size:14px;z-index:80;transition:transform .3s,opacity .3s;max-width:calc(100vw - 32px);pointer-events:none}
+.toast.show{transform:translateX(-50%);opacity:1}
+.corner{position:fixed;top:10px;right:12px;z-index:90;font-size:11px;background:var(--ink);color:var(--sheet);padding:3px 9px;border-radius:999px;opacity:.82;pointer-events:none}
+.view{animation:viewin .35s ease}
+@keyframes viewin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---------- phone ---------- */
+@media (max-width:820px){
+  :root{--top-h:52px}
+  .topbar-in{gap:12px;padding:0 140px 0 16px}
+  .topbar .who{display:none}
+  .mark{font-size:19px}
+  .topbar .back{padding:4px 10px;font-size:14px}
+  .dock{left:0;right:0;bottom:0;transform:none;width:auto;border-radius:22px 22px 0 0;padding:10px 12px 12px;box-shadow:0 -14px 40px -20px rgba(0,0,0,.45),0 0 0 1px var(--rule)}
+  .dock-fade{height:calc(var(--dock-h) + 24px)}
+  .said{-webkit-line-clamp:1;font-size:14px;color:var(--ink-2)}
+  .said .diff{display:none}
+  .dock-line{padding:2px 4px 8px}
+  .hints{flex-wrap:nowrap;overflow-x:auto;margin-top:8px;scrollbar-width:none}
+  .hints button{flex:none}
+  .drawer{top:auto;left:0;width:100%;height:82vh;border-radius:22px 22px 0 0;transform:translateY(100%)}
+  .rows td.mvcol{min-width:0}
+  .pop{left:0!important;right:0;bottom:0;top:auto!important;width:100%;border-radius:20px 20px 0 0;max-height:62vh;padding:14px 12px 22px}
+  .scrim.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:45}
+  .go{font-size:20px;padding:13px 28px}
+  .tile{min-height:0}
+  .corner{top:14px;right:8px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="corner">ui-4 · Centre stage</div>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="mark">sweat<span>cast</span></div>
+    <button class="back" id="backBtn" hidden><span aria-hidden="true">‹</span> Today</button>
+    <div class="who">Jordan</div>
+  </div>
+</header>
+
+<main class="sheet" id="panel"></main>
+
+<div class="dock-fade" aria-hidden="true"></div>
+<section class="dock" id="dock" aria-label="Talk to sweatcast">
+  <div class="dock-line">
+    <div class="said a" id="lastLine" aria-live="polite"></div>
+    <button class="convo" id="convBtn" aria-expanded="false" aria-controls="drawer">Transcript (<span id="convN">0</span>)</button>
+  </div>
+  <form class="say" id="sayForm">
+    <label class="sr" for="say">Say it</label>
+    <input id="say" autocomplete="off" placeholder="Say it your way: “make it 30, go easy on my knee”">
+    <button type="submit">Send</button>
+  </form>
+  <div class="hints" id="hints"></div>
+</section>
+
+<aside class="drawer" id="drawer" aria-label="Conversation">
+  <div class="drawer-head"><h2>Conversation</h2><button id="drawerClose">Close</button></div>
+  <div class="chat-log" id="log"></div>
+</aside>
+<div class="scrim2" id="scrim2"></div>
+
+<div class="scrim" id="scrim"></div>
+<div class="pop" id="pop" role="dialog" aria-label="Choose a word"></div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+"use strict";
+/* ================= data ================= */
+const COACHES = [
+  {name:"Coach Reed", blurb:"Low, unhurried, dry humour. Counts only when it matters."},
+  {name:"Coach Ellis", blurb:"Bright and precise; says why each move is there."},
+  {name:"Coach Nolan", blurb:"Easy-going, warm; good company in the rests."},
+  {name:"Coach Owen", blurb:"Crisp and brisk; keeps the clock honest."}
+];
+const T = {
+  minutes:{why:"Your usual length, from your training notes", opts:[10,15,20,25,30,45].map(n=>({v:n,l:n+"-minute"}))},
+  goal:{why:"Strength is due: your last session was conditioning", opts:[
+    {v:"strength",l:"strength"},{v:"conditioning",l:"conditioning"},{v:"general fitness",l:"general fitness"},{v:"mobility",l:"mobility and breathing"}]},
+  kit:{why:"Your first kit. You've used it the last three times", opts:[
+    {v:"hotel room",l:"hotel room",s:"bands, a mat"},{v:"home",l:"home",s:"two kettlebells, a mat"},{v:"bodyweight",l:"bodyweight",s:"nothing at all"},{v:"hotel gym",l:"hotel gym",s:"dumbbells to 20 kg, a bike"}]},
+  coach:{why:"The coach you used last", opts:COACHES.map(c=>({v:c.name,l:c.name,s:c.blurb.split(";")[0].split(",")[0]})).concat([{v:"__new",l:"Someone new…",s:"make a coach"}])},
+  limb:{why:"Your only limit in your health notes", opts:[{v:"left knee",l:"left knee"},{v:"nothing",l:"nothing",s:"I'm fine everywhere"}]},
+  limbState:{why:"Unchanged unless you say so", opts:[
+    {v:"the same",l:"the same"},{v:"better",l:"better"},{v:"worse",l:"worse",s:"treat it as delicate today"},{v:"__hurt",l:"something's wrong…",s:"open Something hurts",cls:"danger"}]},
+  feel:{why:"Normal unless you say otherwise", opts:[
+    {v:"normal",l:"normal"},{v:"low",l:"low",s:"tired, short on sleep, stressed"},{v:"fresh",l:"fresh",s:"last one felt easy"},{v:"beaten up",l:"beaten up",s:"last one was too hard"}]}
+};
+const S = {
+  view:"home",
+  w:{minutes:25,goal:"strength",kit:"hotel room",coach:"Coach Reed",limb:"left knee",limbState:"the same",feel:"normal"},
+  set:new Set(), flash:new Set(), prevRows:"",
+  coach:{sound:"warm",who:"woman in her 40s",talk:"patient physio",energy:"steady",never:"shouts"},
+  coachSet:new Set(),
+  prefs:{level:"novice",love:["kettlebells","intervals"],skip:["burpees"],rests:["science","football","puzzles"],length:25,days:"three"},
+  hurt:{area:"left knee",what:"aches",since:"since yesterday",how:"mild",keep:"just for today",flags:new Set()},
+  hurtSet:new Set(),
+  fb:{a:null,b:null},
+  render:{stage:-1,p:0}, play:{on:false,t:0,timer:null}
+};
+const label = (key,v)=>{const o=(T[key]?.opts||[]).find(o=>o.v===v);return o?o.l:String(v)};
+
+/* ================= helpers ================= */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const panel = $("#panel"), log = $("#log");
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("show"),2600)}
+let nMsg=0;
+function say(who,html,cls=""){
+  const d=document.createElement("div");d.className="m "+who+" "+cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;
+  nMsg++; $("#convN").textContent=nMsg;
+  if(who==="a"||who==="note"){
+    const l=$("#lastLine"); l.className="said "+who+" "+cls; l.innerHTML=html;
+    void l.offsetWidth; l.classList.add("fresh");
+  }
+}
+function tok(scope,key,val,opts={}){
+  const isSet=(scope==="w"?S.set:scope==="coach"?S.coachSet:scope==="hurt"?S.hurtSet:new Set()).has(key)||opts.set;
+  const fl=S.flash.has(scope+"."+key);
+  const cls=["tok",isSet?"set":"",fl?"flash":"",opts.cls||""].join(" ");
+  return `<button class="${cls}" data-tok="${scope}" data-key="${key}" aria-haspopup="dialog" aria-label="${esc(key)}: ${esc(val)}. Change"><span class="v">${esc(val)}</span></button>`;
+}
+function go(view){S.view=view;closePop();closeDrawer();render();window.scrollTo(0,0);setHints()}
+const play = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>`;
+const pause = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>`;
+
+/* ================= plan model ================= */
+function plan(){
+  const w=S.w, total=w.minutes*60;
+  const share = {strength:[.18,.58,.12,.12],conditioning:[.16,.54,.18,.12],"general fitness":[.18,.56,.14,.12],mobility:[.2,.6,0,.2]}[w.goal];
+  let sec = share.map(f=>Math.round(total*f/15)*15);
+  sec[1]+= total-sec.reduce((a,b)=>a+b,0);
+  const knee = w.limb==="left knee" && w.limbState==="worse";
+  const low = w.feel==="low"||w.feel==="beaten up", fresh=w.feel==="fresh";
+  const kb = w.kit==="home", gym=w.kit==="hotel gym", bw=w.kit==="bodyweight";
+  const load = kb?"kettlebell ":gym?"dumbbell ":bw?"":"band ";
+  const sets = (w.minutes>=30?4:3) - (low?1:0) + (fresh?1:0);
+  let rows;
+  if(w.goal==="mobility"){
+    rows=[["Warm-up","Cat-cow, thoracic rotations","slow, 8 each"],
+          ["Flow","World's greatest stretch, 90/90 hips, "+(knee?"supported hip flexor stretch":"deep squat hold"),"3 rounds, 45 s each"],
+          ["Finisher","—","—"],
+          ["Cool-down","Box breathing, legs up the wall","4-4-4-4"]];
+  } else {
+    const lower = knee? "Glute bridge" : kb?"Goblet squat":gym?"Dumbbell split squat":bw?"Tempo squat":"Banded squat";
+    const hinge = knee? (kb?"Kettlebell deadlift, short range":"Band good morning") : kb?"Kettlebell swing":gym?"Dumbbell Romanian deadlift":"Hip hinge, band";
+    const push = bw||!gym?"Incline push-up":"Dumbbell floor press";
+    const pull = kb?"Single-arm row":gym?"Dumbbell row":bw?"Towel row":"Banded row";
+    const fin = w.goal==="conditioning"? (knee?"Seated punches, 30 on 30 off":"Shadow boxing, 30 on 30 off") : (knee?"Dead bug and side plank":"Plank to downward dog");
+    rows=[["Warm-up","Marching, arm circles, "+(knee?"bridges":"bodyweight squats"),"easy, building"],
+          ["Work",[lower,hinge,push,pull].join(", "),(w.goal==="conditioning"?`${sets} rounds, 40 s on, 20 s off`:`${sets} sets of 8 to 10, `+load+(low?"lighter":"two in the tank"))],
+          ["Finisher",fin, w.goal==="conditioning"?"6 rounds":"3 rounds, 30 s"],
+          ["Cool-down","Hamstring stretch, child's pose, slow breathing","held, 40 s each"]];
+  }
+  return rows.map((r,i)=>({block:r[0],mv:r[1],dose:r[2],sec:sec[i]})).filter(r=>r.sec>0);
+}
+const fmt = s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+
+
+/* ================= views ================= */
+function vHome(){
+  const w=S.w, nudge=!(S.fb.a&&S.fb.b);
+  const hb=v=>`<b>${esc(v)}</b>`;
+  return `<div class="home view">
+    <header class="home-head"><p class="lede">Morning, Jordan. Light rain, 11°.</p>
+    <h1>What do you want to do today?</h1></header>
+    <div class="tiles">
+      <div class="tile hero">
+        <button class="hero-main" data-act="build">
+          <span class="t">Build a workout like Tuesday's</span>
+          <span class="hero-s">Give me a ${hb(label("minutes",w.minutes))} ${hb(label("goal",w.goal))} session with my ${hb(w.kit)} kit, coached by ${hb(w.coach)}.</span>
+          <span class="mini-plan" aria-hidden="true">${plan().map(r=>`<i class="${{"Warm-up":"b-warm","Work":"b-work","Flow":"b-work","Finisher":"b-fin","Cool-down":"b-cool"}[r.block]}" style="flex-grow:${r.sec}">${r.block}</i>`).join("")}</span>
+          <span class="d">Tap to change a word first.</span>
+        </button>
+        <div class="hero-go"><button class="go" data-act="quickgo">Go as it is</button><span class="meta">About 4 minutes to make. You can close the tab.</span></div>
+      </div>
+      <button class="tile hurt-tile" data-act="hurt"><span class="t">Something hurts</span><span class="d">A quick update that keeps today's workout safe.</span><span class="k">30 seconds</span></button>
+      ${nudge?`<div class="tile nudge-tile">
+        <strong>Got feedback on 2 older workouts?</strong>
+        <p>Tuesday's strength 25 and Saturday's conditioning 30.</p>
+        <div class="react">
+          <button data-act="fbq" data-v="About right for both">About right</button>
+          <button data-act="fbq" data-v="Both ran long">Too long</button>
+          <button data-act="feedback">Tell me more</button>
+        </div></div>`
+      :`<button class="tile" data-act="tour"><span class="t">Show me around</span><span class="d">How a sentence becomes a workout in your ears.</span><span class="k">1 minute</span></button>`}
+      <button class="tile" data-act="coach"><span class="t">Coaches</span><span class="d">Hear them, switch, or make one of your own.</span><span class="k">${4+(S.mine?1:0)} in your stable</span></button>
+      <button class="tile" data-act="prefs"><span class="t">Edit my stuff</span><span class="d">What you love, what you skip, what fills the rests.</span><span class="k">a paragraph</span></button>
+      <button class="tile" data-act="stats"><span class="t">Analytics</span><span class="d">Nine sessions in four weeks. You're light on hinges.</span><span class="k">read only</span></button>
+    </div>
+    ${nudge?`<p class="tour-link">New here? <button class="quiet" data-act="tour">Show me around</button>; it takes a minute.</p>`:""}
+  </div>`;
+}
+
+function engineClause(){
+  const w=S.w;
+  if(w.limb==="left knee"&&w.limbState==="worse") return ` <span class="engine">So I'll treat the knee as delicate today: no lunges, no jumping, nothing deep.</span>`;
+  if(w.limb==="left knee"&&w.limbState==="better") return ` <span class="engine">Good. It stays delicate until it's been better for a week; then I'll ask.</span>`;
+  if(w.feel==="low"||w.feel==="beaten up") return ` <span class="engine">I'll drop a set and keep the weights where they were.</span>`;
+  if(w.feel==="fresh") return ` <span class="engine">I'll add a set and nudge the loads up.</span>`;
+  return "";
+}
+function buildSentence(frozen){
+  const w=S.w, t=(k,v)=>frozen?`<span class="tok"><span class="v">${esc(v)}</span></span>`:tok("w",k,v);
+  const limb = w.limb==="nothing"
+    ? `Nothing hurts; `
+    : `My ${t("limb",w.limb)} feels ${t("limbState",w.limbState)}; `;
+  return `<p class="sentence">Give me a ${t("minutes",label("minutes",w.minutes))} ${t("goal",label("goal",w.goal))} session with my ${t("kit",w.kit)} kit, coached by ${t("coach",w.coach)}. ${limb}I'm feeling ${t("feel",w.feel)}.${frozen?"":engineClause()}</p>`;
+}
+function vBuild(){
+  const rows=plan(), total=S.w.minutes*60;
+  const rowsKey=JSON.stringify(rows);
+  const changed = S.prevRows && S.prevRows!==rowsKey ? JSON.parse(S.prevRows) : null;
+  S.prevRows=rowsKey;
+  const cls={"Warm-up":"b-warm","Work":"b-work","Flow":"b-work","Finisher":"b-fin","Cool-down":"b-cool"};
+  return `<div class="view split pin">
+    <div class="split-l">
+      <div class="recent" aria-label="Recent sentences">
+        <button data-act="again" data-i="0"><b>Tue:</b> a 25-minute strength session with my hotel room kit…</button>
+        <button data-act="again" data-i="1"><b>Sat:</b> a 30-minute conditioning session with my home kit…</button>
+      </div>
+      ${buildSentence(false)}
+      <div class="legend"><span><i class="g">dashed</i> my best guess</span><span><i class="s">filled</i> you said so</span><span><i class="e">violet</i> what I'll do about it</span></div>
+      <div class="go-row anchor">
+        <button class="go" data-act="go">Go</button>
+        <span class="meta">About 4 minutes to make. You can close the tab.</span>
+      </div>
+    </div>
+    <div class="split-r">
+      <section class="plan" aria-label="Plan preview">
+        <div class="plan-head"><h2>The plan, so far</h2><span class="meta">${S.w.minutes} minutes, ${esc(S.w.kit)}</span></div>
+        <div class="ribbon">${rows.map(r=>`<div class="${cls[r.block]}" style="flex-grow:${r.sec}" title="${r.block} ${fmt(r.sec)}">${r.block}</div>`).join("")}</div>
+        <div class="ribbon-scale"><span>0:00</span><span>${fmt(total)}</span></div>
+        <table class="rows"><thead><tr><th>Block</th><th>Movements and dose</th><th>Time</th></tr></thead><tbody>
+        ${rows.map((r,i)=>`<tr class="${changed&&JSON.stringify(changed[i])!==JSON.stringify(r)?"changed-row":""}"><td>${r.block}</td><td class="mvcol"><span class="mv">${esc(r.mv)}</span><span class="dose">${esc(r.dose)}</span></td><td class="sec">${fmt(r.sec)}</td></tr>`).join("")}
+        </tbody></table>
+        <div class="foot">Rests carry today's weather, a science short and one football story. Every movement comes from your safe menu.</div>
+      </section>
+    </div>
+  </div>`;
+}
+
+const STAGES=[
+  ["Research","Weather, today's stories, a science short"],
+  ["Writing","The script, coached from your safe menu"],
+  ["Checking","Every movement against your limits; timing within 3%"],
+  ["Rendering voice",""]
+];
+function vRender(){
+  const r=S.render;
+  return `<div class="view split pin">
+    <div class="split-l">
+      <p class="lede">Making it now. ${r.stage<4?"You can close this tab; it'll be here when you're back.":""}</p>
+      <div class="frozen" style="--p:${r.p}%">${buildSentence(true)}<div class="inkfill" aria-hidden="true">${buildSentence(true)}</div></div>
+    </div>
+    <div class="split-r">
+      <ol class="stages">
+        ${STAGES.map((s,i)=>`<li class="stage ${i<r.stage?"done":i===r.stage?"now":""}"><h3><span class="dot"></span>${s[0]}</h3><p>${i===3?esc(S.w.coach)+" is reading it, one paragraph at a time":s[1]}${i===r.stage&&r.sub?`<br><b>${esc(r.sub)}</b>`:""}</p></li>`).join("")}
+      </ol>
+      <p class="leave">The MP3 is kept for 24 hours after it's ready, so download it before then.</p>
+    </div>
+  </div>`;
+}
+function vDone(){
+  const rows=plan(), total=S.w.minutes*60, t=S.play.t;
+  let acc=0; const segs=rows.map(r=>{const s={l:acc/total*100,w:r.sec/total*100,b:r.block};acc+=r.sec;return s});
+  const cur=(()=>{let a=0;for(const r of rows){a+=r.sec;if(t<a)return r.block}return rows[rows.length-1].block})();
+  const colours={"Warm-up":"var(--tok-tint)","Work":"var(--tok)","Flow":"var(--tok)","Finisher":"var(--engine)","Cool-down":"var(--rule)"};
+  return `<div class="view split">
+    <div class="split-l">
+      <p class="lede">Ready. This is what you asked for.</p>
+      <div class="receipt">${buildSentence(true)}</div>
+      <div class="go-row anchor"><button class="quiet" data-act="build">Change a word and make another</button><button class="quiet" data-act="home">Back to today</button></div>
+    </div>
+    <div class="split-r">
+      <section class="player" aria-label="Your workout">
+        <h2>${esc(label("goal",S.w.goal).replace(/^./,c=>c.toUpperCase()))} ${S.w.minutes}, ${esc(S.w.kit)}</h2>
+        <p class="sub">With ${esc(S.w.coach)}, ready at 7:42</p>
+        <div class="pl-row">
+          <button class="play" data-act="play" aria-label="${S.play.on?"Pause":"Play"}">${S.play.on?pause:play}</button>
+          <div class="track">
+            <div class="bar">${segs.map(s=>`<span class="seg" style="left:${s.l}%;width:calc(${s.w}% - 3px);background:${colours[s.b]}"></span>`).join("")}<span class="fill" style="width:${t/total*100}%"></span><span class="head" style="left:${t/total*100}%"></span></div>
+            <div class="times"><span>${fmt(Math.floor(t))}</span><span>${fmt(total)}</span></div>
+            <div class="chap">Now: ${cur}</div>
+          </div>
+        </div>
+        <div class="pl-actions">
+          <button class="dl" data-act="dl">Download MP3</button>
+          <span class="expire">Kept until 7:42 tomorrow, then deleted. The script stays in your history.</span>
+        </div>
+      </section>
+    </div>
+  </div>`;
+}
+
+const CT={
+  sound:{why:"How the voice sounds",opts:["warm","crisp","low","bright","gravelly"].map(v=>({v,l:v}))},
+  who:{why:"Who they are",opts:["woman in her 40s","man in his 50s","woman in her 30s","man in his 30s","older woman","older man"].map(v=>({v,l:v}))},
+  talk:{why:"How they coach",opts:["patient physio","strength coach","old friend","drill sergeant, but kind","yoga teacher"].map(v=>({v,l:v}))},
+  energy:{why:"Energy through the session",opts:["steady","calm","lively","rising at the end"].map(v=>({v,l:v}))},
+  never:{why:"What they never do",opts:["shouts","says “crush it”","rushes the rests","talks over the counts"].map(v=>({v,l:v}))}
+};
+function vCoach(){
+  const c=S.coach, a=S.aud||{};
+  const stable = COACHES.concat(S.mine?[{name:S.mine,blurb:`${c.sound}, ${c.who}; ${c.talk}.`,own:1}]:[]);
+  let body="";
+  if(a.state==="loading") body=`<div class="loading-line"><span class="dot"></span>Every voice service you have a key for is designing from that sentence. About a minute.</div>`;
+  if(a.state==="ready"||a.state==="name") body=`<div class="cands" id="cands">${["A","B","C","D"].map((L,i)=>`
+      <div class="cand ${a.pick===L?"pick":""} ${a.playing===L?"playing":""}">
+        <div class="acts"><span class="L">${L}</span><button class="mini ${a.playing===L?"on":""}" data-act="cand-play" data-l="${L}" aria-label="Play candidate ${L}">${a.playing===L?pause:play}</button></div>
+        <div class="wave" aria-hidden="true">${wave(i)}</div>
+        <span class="cost">About ${["$0.30","$0.55","$0.20","$0.35"][i]} a workout</span>
+        <button class="choose" data-act="cand-pick" data-l="${L}">${a.pick===L?"This one":"Choose "+L}</button>
+      </div>`).join("")}</div>
+      <p class="meta" style="margin-top:14px">None right? <button class="quiet" data-act="retry">Change a word and audition again</button></p>`;
+  if(a.state==="name") body+=`<div class="done-card"><p class="sentence small">Call ${c.who.startsWith("woman")||c.who==="older woman"?"her":"him"} Coach <input class="namebox" id="cname" value="${esc(a.name||"Wren")}" aria-label="Coach name">.</p>
+      <div class="go-row"><button class="go" data-act="keep">Keep ${esc(a.pick)}</button><span class="meta">Saved in your voice account; only you can use it.</span></div></div>`;
+  if(a.state==="kept") body=`<div class="done-card"><h2>${esc(S.mine)} is in your stable.</h2><p class="meta">Their sample is saved. Next workout, they'll learn your pace.</p>
+      <div class="go-row"><button class="go" data-act="use-mine">Build a workout with ${esc(S.mine)}</button></div></div>`;
+  return `<div class="view">
+    <div class="split">
+      <div class="split-l">
+        <p class="lede">Make a coach of your own. Change any word, then audition.</p>
+        <p class="sentence">Make me a coach who sounds like a ${tok("coach","sound",c.sound)} ${tok("coach","who",c.who)}, talks like a ${tok("coach","talk",c.talk)}, keeps the energy ${tok("coach","energy",c.energy)}, and never ${tok("coach","never",c.never)}.</p>
+        <div class="go-row"><button class="go" data-act="audition" ${a.state==="loading"?"disabled":""}>Audition</button><span class="meta">About a cent a service. Only this description is sent.</span></div>
+      </div>
+      <div class="split-r">
+        <h2 class="small-h">Your stable</h2>
+        <p class="meta" style="margin:0">Tap to hear. The ring is who coaches next.</p>
+        <div class="stable">${stable.map(x=>`<div class="cc ${S.w.coach===x.name?"cur":""}"><b>${esc(x.name)}</b><small>${esc(x.blurb)}</small>
+          <div class="r"><button class="mini ${S.sample===x.name?"on":""}" data-act="sample" data-n="${esc(x.name)}" aria-label="Hear ${esc(x.name)}">${S.sample===x.name?pause:play}</button>
+          ${S.w.coach===x.name?`<span class="meta">next up</span>`:`<button class="use" data-act="switch" data-n="${esc(x.name)}">Use</button>`}</div></div>`).join("")}</div>
+      </div>
+    </div>
+    ${body?`<div class="below">${body}</div>`:""}
+  </div>`;
+}
+function wave(seed){let s="";for(let i=0;i<28;i++){const h=20+Math.abs(Math.sin(i*1.7+seed*2.3)*60)+Math.abs(Math.cos(i*.6+seed))*20;s+=`<i style="height:${Math.min(100,h)}%;animation-delay:${(i%7)*.08}s"></i>`}return s}
+
+const PT={
+  level:{why:"Sets how hard the menu goes",opts:["novice","intermediate","advanced"].map(v=>({v,l:v}))},
+  length:{why:"The default when you don't say",opts:[15,20,25,30,45].map(v=>({v,l:v+" minutes"}))},
+  days:{why:"Helps balance the week",opts:["two","three","four","five"].map(v=>({v,l:v}))},
+  love:{why:"Shows up more",sug:["kettlebells","intervals","mobility","bands","carries","boxing"]},
+  skip:{why:"Never on your menu",sug:["burpees","jumping","lunges","floor work","running"]},
+  rests:{why:"What the coach talks about in rests",sug:["science","football","puzzles","history","weather","music","space","food"]}
+};
+function list(key){
+  const arr=S.prefs[key];
+  const parts=arr.map((v,i)=>`<button class="tok set chip" data-tok="list" data-key="${key}" data-i="${i}" aria-label="${esc(v)}. Change or remove"><span class="v">${esc(v)}</span><span class="x" aria-hidden="true">×</span></button>`);
+  const joined = parts.length<=1?parts.join(""):parts.slice(0,-1).join(", ")+" and "+parts[parts.length-1];
+  return joined+` <button class="tok add" data-tok="list" data-key="${key}" data-i="-1" aria-label="Add to ${key}"><span class="v">+ more</span></button>`;
+}
+function vPrefs(){
+  const p=S.prefs, pt=(k,v)=>`<button class="tok ${S.prefSet?.has(k)?"set":""} ${S.flash.has("prefs."+k)?"flash":""}" data-tok="prefs" data-key="${k}"><span class="v">${esc(v)}</span></button>`;
+  return `<div class="view">
+    <p class="lede">This is you, as sweatcast understands it. Change any word.</p>
+    <div class="para">
+      <p class="sentence">I train at ${pt("level",p.level)} level, about ${pt("days",p.days)} times a week, usually for ${pt("length",p.length+" minutes")}.</p>
+      <p class="sentence">I love ${list("love")}.</p>
+      <p class="sentence">Skip ${list("skip")}.</p>
+      <p class="sentence">Fill my rests with ${list("rests")}.</p>
+      <p class="sentence">My kits are ${["hotel room","home","bodyweight"].map(k=>`<span class="tok set chip"><span class="v">${k}</span></span>`).join(", ")}. <button class="quiet" data-act="toast" data-v="Kits open their own sentence: “My home kit has two kettlebells, 12 and 16 kg, and a mat.”">Edit kits</button></p>
+    </div>
+    ${S.prefsSaved?`<div class="checked">✓ Saved. Checked your files: nothing to fix.</div>`:`<div class="go-row"><button class="go" data-act="save-prefs" ${S.prefsDirty?"":"disabled"}>Save</button><span class="meta">${S.prefsDirty?"Unsaved changes":"Nothing changed yet"}</span></div>`}
+  </div>`;
+}
+
+const HT={
+  area:{why:"Where",opts:["left knee","right knee","lower back","left shoulder","right shoulder","neck","left ankle","right ankle","wrist","hip"].map(v=>({v,l:v}))},
+  what:{why:"What it's doing",opts:["aches","is sore","is stiff","twinges on stairs","is sharp when loaded"].map(v=>({v,l:v}))},
+  since:{why:"Since when",opts:["since this morning","since yesterday","for a few days","for over a week"].map(v=>({v,l:v}))},
+  how:{why:"How bad, at rest",opts:["mild","moderate","bad"].map(v=>({v,l:v}))},
+  keep:{why:"Today only, or written to your health notes",opts:[{v:"just for today",l:"just for today"},{v:"until I say it's better",l:"until I say it's better",s:"saved to your health notes"}]}
+};
+const FLAGS=["I can't put weight on it","It's swelling fast","It's numb or tingling","It gives way","It's getting worse after a week or two"];
+function vHurt(){
+  const h=S.hurt, red=[...h.flags].some(f=>f!=="none"), none=h.flags.has("none");
+  const level = h.how==="bad"||h.what==="is sharp when loaded"?"off-limits":"delicate";
+  return `<div class="view split pin">
+    <div class="split-l">
+      <p class="lede">Something hurts. Four words, then we're done.</p>
+      <p class="sentence">My ${tok("hurt","area",h.area)} ${tok("hurt","what",h.what)} ${tok("hurt","since",h.since)}. It's ${tok("hurt","how",h.how)}.${!red&&none?` <span class="engine">So I'll treat it as ${level} ${h.keep==="just for today"?"today":"from now on"}${level==="off-limits"?": nothing that loads it at all":": lighter, shorter range, no impact"}.</span>`:""}</p>
+      ${red?`<div class="anchor late"><div class="stopcard" role="alert"><h2>Let's not train on this today.</h2>
+        <p>${esc([...h.flags].filter(f=>f!=="none").map(i=>FLAGS[i].replace(/^I |^It/, m=>m==="I "?"you ":"it")).join("; ")).replace(/^./,c=>c.toUpperCase())}: that's a sign to get it looked at by a doctor or physiotherapist before you load it again.</p>
+        <p>I won't build a workout around it until you've been seen. If it's sudden and severe, get urgent care.</p>
+        <div class="go-row"><button class="quiet" data-act="home">Back to today</button><button class="quiet" data-act="flag-clear">I picked one by mistake</button></div></div></div>`:""}
+      ${!red&&none?`<div class="anchor late"><p class="sentence small" style="margin-top:30px">Keep it ${tok("hurt","keep",h.keep)}.</p>
+        <div class="go-row"><button class="go" data-act="hurt-save">Save and build</button><button class="quiet" data-act="hurt-only">Just save</button></div></div>`:""}
+    </div>
+    <div class="split-r">
+      <h2 class="small-h">Is any of these true?</h2>
+      <p class="meta" style="margin:0">Tap all that apply. If none do, say so.</p>
+      <div class="flags" role="group" aria-label="Red flags">
+        ${FLAGS.map((f,i)=>`<button class="flag" data-act="flag" data-f="${i}" aria-pressed="${h.flags.has(String(i))}">${f}</button>`).join("")}
+        <button class="flag none" data-act="flag" data-f="none" aria-pressed="${none}">None of these</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function vFeedback(){
+  const r=(k,opts)=>`<div class="react">${opts.map(o=>`<button class="${S.fb[k]===o?"on":""}" data-act="fb" data-k="${k}" data-v="${o}">${o}</button>`).join("")}</div>`;
+  return `<div class="view">
+    <p class="lede">Two you haven't told me about.</p>
+    <div class="fbgrid">
+      <div><p class="sentence small">Tuesday's strength 25, with the story about bees counting, was…</p>
+      ${r("a",["too short","about right","too long","too easy","too hard"])}</div>
+      <div><p class="sentence small">Saturday's conditioning 30, with the octopus quiz, was…</p>
+      ${r("b",["too short","about right","too long","too easy","too hard"])}</div>
+    </div>
+    <div class="go-row" style="margin-top:36px"><button class="go" data-act="fb-send" ${S.fb.a&&S.fb.b?"":"disabled"}>Send both</button><span class="meta">It shapes the next one, nothing else.</span></div>
+  </div>`;
+}
+
+function vStats(){
+  const wk=[1,2,3,2,2,1,3,2], pats=[["Squat",9,""],["Push",8,""],["Pull",7,""],["Core",6,""],["Hinge",2,"lo"],["Carry",1,"lo"]];
+  return `<div class="view split pin">
+    <div class="split-l">
+      <p class="sentence small">In the last ${tok("st","range","8 weeks")} you trained <b>16</b> times, mostly <b>strength</b>. You're light on <b>hinges</b> and <b>carries</b>, and you've said “too long” twice.</p>
+      <div class="go-row anchor"><button class="go" data-act="fix-hinge">Next one leans on hinges</button></div>
+    </div>
+    <div class="split-r">
+      <div class="weeks" aria-label="Sessions per week">${wk.map(n=>`<div class="${n<2?"lo":""}" style="height:${n/3*100}%" title="${n} sessions"></div>`).join("")}</div>
+      <div class="weeks-l">${wk.map((_,i)=>`<span>w${i+1}</span>`).join("")}</div>
+      <div class="pats">${pats.map(p=>`<span>${p[0]}</span><span class="track2"><i class="${p[2]}" style="width:${p[1]/9*100}%"></i></span><span>${p[1]}</span>`).join("")}</div>
+    </div>
+  </div>`;
+}
+function vTour(){
+  const st=[["Say it once","Every task is one sentence with the usual already filled in. Blue words are the ones you can change; tap one, or say it in the box below."],
+    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what sweatcast will do about it."],
+    ["Go, then leave","Research, writing, checking and the voice run on their own, about four minutes. Close the tab; it'll be here."],
+    ["Press play","A podcast for your earbuds: the coach tells you what to do, counts you through it, and fills the rests. The MP3 is kept for a day."]];
+  return `<div class="view"><p class="lede">Show me around.</p><div class="tour">${st.map((s,i)=>`<div class="tour-step"><span class="n">${i+1}</span><h3>${s[0]}</h3><p>${s[1]}</p></div>`).join("")}</div>
+  <div class="go-row"><button class="go" data-act="build">Try a sentence</button></div></div>`;
+}
+
+function render(){
+  const v={home:vHome,build:vBuild,render:vRender,done:vDone,coach:vCoach,prefs:vPrefs,hurt:vHurt,feedback:vFeedback,stats:vStats,tour:vTour}[S.view];
+  panel.innerHTML=v();
+  $("#backBtn").hidden = S.view==="home";
+  S.flash.clear();
+}
+
+/* ================= picker ================= */
+const pop=$("#pop"), scrim=$("#scrim"); let popCtx=null;
+function defsFor(scope,key){
+  if(scope==="w")return T[key];
+  if(scope==="coach")return CT[key];
+  if(scope==="hurt")return HT[key];
+  if(scope==="prefs")return PT[key];
+  if(scope==="st")return {why:"Range",opts:["4 weeks","8 weeks","this year"].map(v=>({v,l:v}))};
+  if(scope==="list")return PT[key];
+}
+function openPop(el){
+  const scope=el.dataset.tok,key=el.dataset.key,d=defsFor(scope,key); if(!d)return;
+  document.querySelectorAll(".tok.open").forEach(e=>e.classList.remove("open"));
+  el.classList.add("open"); popCtx={scope,key,i:+el.dataset.i,el};
+  let cur = scope==="w"?S.w[key]:scope==="coach"?S.coach[key]:scope==="hurt"?S.hurt[key]:scope==="prefs"?S.prefs[key]:null;
+  let html=`<div class="why">${esc(d.why)}</div>`;
+  if(scope==="list"){
+    const arr=S.prefs[key], i=popCtx.i;
+    if(i>=0) html+=`<button class="opt danger" data-pick="__remove">Remove “${esc(arr[i])}”</button>`;
+    html+=d.sug.filter(s=>!arr.includes(s)).map(s=>`<button class="opt" data-pick="${esc(s)}">${i>=0?"Swap for ":"Add "}${esc(s)}</button>`).join("");
+    html+=`<form class="free" data-free><input placeholder="Something else" aria-label="Something else"><button>${i>=0?"Swap":"Add"}</button></form>`;
+  } else {
+    if(scope==="prefs"&&key==="length")cur=S.prefs.length;
+    html+=d.opts.map(o=>`<button class="opt ${o.cls||""} ${String(o.v)===String(cur)?"cur":""}" data-pick="${esc(o.v)}">${esc(o.l)}${o.s?`<small>${esc(o.s)}</small>`:""}</button>`).join("");
+    if(["talk","who","sound","area"].includes(key))html+=`<form class="free" data-free><input placeholder="In your words" aria-label="In your words"><button>Use</button></form>`;
+  }
+  pop.innerHTML=html; pop.classList.add("show"); scrim.classList.add("show");
+  const r=el.getBoundingClientRect();
+  pop.style.left=Math.max(16,Math.min(r.left,innerWidth-pop.offsetWidth-16))+"px";
+  const below=r.bottom+8, h=pop.offsetHeight;
+  pop.style.top=(below+h>innerHeight-8?Math.max(8,r.top-h-8):below)+"px";
+  (pop.querySelector(".opt.cur")||pop.querySelector(".opt,input")).focus();
+}
+function closePop(){pop.classList.remove("show");scrim.classList.remove("show");document.querySelectorAll(".tok.open").forEach(e=>e.classList.remove("open"));if(popCtx&&popCtx.el&&document.body.contains(popCtx.el))popCtx.el.focus();popCtx=null}
+function pick(v){
+  const {scope,key,i}=popCtx; closePop();
+  if(scope==="w"){
+    if(v==="__new"){say("a","Let's make you a coach. Change any word in the sentence, then Audition.");return go("coach")}
+    if(v==="__hurt"){S.hurt.area=S.w.limb==="nothing"?"left knee":S.w.limb;say("a","Tell me what's going on. Four words.");return go("hurt")}
+    setW({[key]:key==="minutes"?+v:v},"tap");
+  } else if(scope==="coach"){S.coach[key]=v;S.coachSet.add(key);S.flash.add("coach."+key);if(S.aud&&S.aud.state)S.aud={};render();}
+  else if(scope==="hurt"){S.hurt[key]=v;S.hurtSet.add(key);S.flash.add("hurt."+key);render();}
+  else if(scope==="prefs"){S.prefs[key]=key==="length"?+v:v;(S.prefSet=S.prefSet||new Set()).add(key);S.flash.add("prefs."+key);S.prefsDirty=1;S.prefsSaved=0;render();}
+  else if(scope==="list"){
+    const arr=S.prefs[key];
+    if(v==="__remove")arr.splice(i,1); else if(i>=0)arr[i]=v; else if(v&&!arr.includes(v))arr.push(v);
+    S.prefsDirty=1;S.prefsSaved=0;render();
+  } else if(scope==="st"){toast("Mockup: range changes the numbers.")}
+}
+pop.addEventListener("click",e=>{const b=e.target.closest("[data-pick]");if(b)pick(b.dataset.pick)});
+pop.addEventListener("submit",e=>{e.preventDefault();const v=pop.querySelector("input").value.trim();if(v)pick(v)});
+pop.addEventListener("keydown",e=>{
+  if(e.key==="Escape")closePop();
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){const o=[...pop.querySelectorAll(".opt")];const k=o.indexOf(document.activeElement);if(k>-1){e.preventDefault();o[(k+(e.key==="ArrowDown"?1:-1)+o.length)%o.length].focus()}}
+});
+scrim.addEventListener("click",closePop);
+document.addEventListener("click",e=>{if(pop.classList.contains("show")&&!pop.contains(e.target)&&!e.target.closest(".tok"))closePop()});
+
+
+/* ================= workout state changes ================= */
+const NAMES={minutes:"length",goal:"goal",kit:"kit",coach:"coach",limb:"limit",limbState:"knee",feel:"feeling"};
+function setW(changes,src){
+  const diffs=[];
+  for(const [k,v] of Object.entries(changes)){
+    if(S.w[k]===v){S.set.add(k);continue}
+    diffs.push([k,label(k,S.w[k]),label(k,v)]); S.w[k]=v; S.set.add(k); S.flash.add("w."+k);
+  }
+  if(S.view!=="build")S.view="build";
+  render(); setHints();
+  if(src==="tap"&&diffs.length) say("note",diffs.map(d=>`You set ${NAMES[d[0]]} to ${esc(d[2])}`).join(", "));
+  return diffs;
+}
+
+/* ================= chat parsing ================= */
+function parse(text){
+  const t=text.toLowerCase(), c={};
+  const n=t.match(/\b(10|15|20|25|30|45)\b/); if(n)c.minutes=+n[1];
+  if(/\bquick\b/.test(t))c.minutes=15;
+  if(/strength/.test(t))c.goal="strength";
+  if(/condition|cardio|sweat|hiit/.test(t))c.goal="conditioning";
+  if(/mobil|stretch|breath/.test(t))c.goal="mobility";
+  if(/general/.test(t))c.goal="general fitness";
+  if(/hotel gym/.test(t))c.kit="hotel gym"; else if(/hotel/.test(t))c.kit="hotel room";
+  if(/\bhome\b|kettlebell/.test(t))c.kit="home";
+  if(/bodyweight|no kit|nothing to use/.test(t))c.kit="bodyweight";
+  for(const co of COACHES)if(t.includes(co.name.split(" ")[1].toLowerCase()))c.coach=co.name;
+  if(/knee/.test(t)){
+    c.limb="left knee";
+    if(/worse|easy on|sore|hurts|bad|careful/.test(t))c.limbState="worse";
+    else if(/better|fine|good/.test(t))c.limbState="better";
+  }
+  if(/tired|slept badly|exhausted|stressed|go easy|easy day|low/.test(t)&&!/easy on/.test(t))c.feel="low";
+  if(/fresh|strong|too easy/.test(t))c.feel="fresh";
+  if(/too hard|wrecked|beaten/.test(t))c.feel="beaten up";
+  return c;
+}
+function intent(t){
+  t=t.toLowerCase();
+  if(/new coach|make .*coach|design .*coach|different voice/.test(t))return "coach";
+  if(/swelling|can't (put|bear) weight|numb|gives way|giving way/.test(t))return "redflag";
+  if(/\b(hurts?|injur|pain|tweaked|pulled)\b/.test(t)&&!/knee/.test(t))return "hurt";
+  if(/prefer|settings|edit my|my stuff|profile|skip burpees|i love|interests/.test(t))return "prefs";
+  if(/analytic|history|stats|how am i doing/.test(t))return "stats";
+  if(/feedback/.test(t))return "feedback";
+  if(/show me around|tour|how does/.test(t))return "tour";
+  if(/^(go|just go|do it)\b/.test(t.trim()))return "go";
+  return null;
+}
+$("#sayForm").addEventListener("submit",e=>{
+  e.preventDefault(); const inp=$("#say"), text=inp.value.trim(); if(!text)return; inp.value="";
+  say("u",esc(text)); handle(text);
+});
+function handle(text){
+  const it=intent(text);
+  if(it==="redflag"){
+    S.hurt.flags=new Set();
+    const t=text.toLowerCase();
+    if(/swelling/.test(t))S.hurt.flags.add("1"); if(/weight/.test(t))S.hurt.flags.add("0"); if(/numb|tingl/.test(t))S.hurt.flags.add("2"); if(/gives way|giving way/.test(t))S.hurt.flags.add("3");
+    if(/knee/.test(t))S.hurt.area="left knee";
+    say("a","That one's a stop sign. I've put it up on the screen; please read it before anything else.","stop");
+    return go("hurt");
+  }
+  if(it&&it!=="go"){
+    const m={coach:"Here's your stable. Change any word in the sentence and I'll audition voices.",hurt:"Tell me where, in four words. I'll keep today's workout around it.",prefs:"Here's you, in a paragraph. Change any word.",stats:"Here's the last eight weeks.",feedback:"Two workouts you haven't told me about.",tour:"Here's the one-minute version."}[it];
+    say("a",m); return go(it);
+  }
+  if(S.view==="coach"){
+    const t=text.toLowerCase(), c={};
+    if(/woman|female|her/.test(t))c.who=/30/.test(t)?"woman in her 30s":/old/.test(t)?"older woman":"woman in her 40s";
+    if(/\bman\b|male|\bhis\b/.test(t))c.who=/30/.test(t)?"man in his 30s":/old/.test(t)?"older man":"man in his 50s";
+    for(const s of CT.sound.opts)if(t.includes(s.v))c.sound=s.v;
+    for(const s of CT.energy.opts)if(t.includes(s.v))c.energy=s.v;
+    if(/physio/.test(t))c.talk="patient physio"; if(/friend/.test(t))c.talk="old friend"; if(/yoga/.test(t))c.talk="yoga teacher";
+    const ks=Object.keys(c);
+    if(ks.length){ks.forEach(k=>{S.coach[k]=c[k];S.coachSet.add(k);S.flash.add("coach."+k)});render();say("a",`Rewrote ${ks.length===1?"one word":ks.length+" words"}. Audition when it reads right.`);}
+    else say("a","I can change how they sound, who they are, how they coach or their energy. Try “older, calmer”.");
+    return;
+  }
+  const c=parse(text);
+  if(Object.keys(c).length){
+    const diffs=setW(c,"chat");
+    const g = it==="go";
+    if(diffs.length) say("a",`Done. ${g?"Starting now.":"Tap Go when it reads right."}<div class="diff">${diffs.map(d=>`<span>${NAMES[d[0]]}: <s>${esc(d[1])}</s> <b>${esc(d[2])}</b></span>`).join("")}</div>`);
+    else say("a",g?"Starting now.":"That's already what it says. Tap Go when you're ready.");
+    if(c.limbState==="worse")setTimeout(()=>say("a","Is it worse for today only, or should I write it into your health notes? Today only, unless you say otherwise."),500);
+    if(g)setTimeout(startRender,500);
+    return;
+  }
+  if(it==="go"){ if(S.view!=="build"){go("build")} setTimeout(startRender,300); say("a","Starting now. Same sentence as it stands."); return;}
+  say("a","I didn't catch a change there. Try a length, a goal, a kit, a coach, or how you feel. Or tap any blue word.");
+}
+
+
+/* ================= hints ================= */
+function setHints(){
+  const h={home:["build me a quick one","my back hurts","I want a new coach"],
+    build:["make it 30 and go easy on my knee","hotel gym, Ellis","slept badly","just go"],
+    coach:["older, calmer","a man in his 30s","more lively"],
+    prefs:["show me around"],hurt:["it's swelling fast"],render:[],done:["build me another"],feedback:[],stats:[],tour:["build me a quick one"]}[S.view]||[];
+  $("#hints").innerHTML=h.map(x=>`<button data-hint="${esc(x)}">${esc(x)}</button>`).join("");
+}
+$("#hints").addEventListener("click",e=>{const b=e.target.closest("[data-hint]");if(!b)return;say("u",esc(b.dataset.hint));handle(b.dataset.hint)});
+
+/* ================= render simulation ================= */
+function startRender(){
+  if(S.w.limbState==="worse")say("a",`The plan's beside the sentence. Knee stays delicate today: ${esc(plan().find(r=>r.block==="Work").mv)}. Writing now.`);
+  else say("a",`Plan's set. ${S.set.size?"":"Your usual, as you'd expect. "}Writing now; you can leave and come back.`);
+  if(!S.privacySaid){say("a","Before the first voice render: the script goes to your coach's voice service, and your profile and health notes go to your language model. Both on your own keys.");S.privacySaid=1}
+  S.render={stage:0,p:0,sub:""}; go("render");
+  const subs=[["Weather fetched","Three stories picked","Quiz written"],["Opening written","Work block coached","Rests filled"],["All movements on your menu","Lint passed","Timing: 24:41 of 25:00"],["Paragraph 12 of 46","Paragraph 31 of 46","Encoding the MP3"]];
+  let step=0;const total=12;
+  clearInterval(S.rt);
+  S.rt=setInterval(()=>{
+    step++; const st=Math.min(3,Math.floor((step-1)/3)); S.render.stage=st; S.render.sub=subs[st][(step-1)%3]; S.render.p=Math.round(step/total*100);
+    if(S.view==="render")render();
+    if(step>=total){clearInterval(S.rt);setTimeout(()=>{S.render.stage=4;say("a",`Ready. ${esc(S.w.coach)}'s waiting for you up there. The MP3 is kept for 24 hours.`);S.play.t=0;go("done")},700)}
+  },650);
+}
+
+/* ================= actions ================= */
+panel.addEventListener("click",e=>{
+  const t=e.target.closest(".tok[data-tok]"); if(t){ if(t.classList.contains("open"))return closePop(); openPop(t); return }
+  const a=e.target.closest("[data-act]"); if(!a)return; const act=a.dataset.act;
+  switch(act){
+    case "home": stopPlay(); return go("home");
+    case "build": say("a","Here's your usual, written out. Change any blue word, or tell me."); return go("build");
+    case "hurt": say("a","Tell me where, in four words."); return go("hurt");
+    case "prefs": return go("prefs");
+    case "coach": return go("coach");
+    case "stats": return go("stats");
+    case "tour": return go("tour");
+    case "feedback": return go("feedback");
+    case "again":{
+      const presets=[{minutes:25,goal:"strength",kit:"hotel room"},{minutes:30,goal:"conditioning",kit:"home"}];
+      setW(presets[+a.dataset.i],"tap"); return;
+    }
+    case "go": return startRender();
+    case "quickgo": S.view="build"; S.prevRows=""; return startRender();
+    case "play": return togglePlay();
+    case "dl": return toast("Mockup: the download would start here.");
+    case "fbq": S.fb={a:"x",b:"x"}; say("u",esc(a.dataset.v)); say("a","Noted under feedback. Thanks."); return render();
+    case "fb": S.fb[a.dataset.k]=a.dataset.v; return render();
+    case "fb-send": say("a",`Got it: Tuesday ${esc(S.fb.a)}, Saturday ${esc(S.fb.b)}. ${/long/.test(S.fb.a+S.fb.b)?"I'll keep the rests shorter.":"I'll keep doing that."}`); return go("home");
+    case "sample": S.sample=S.sample===a.dataset.n?null:a.dataset.n; render(); if(S.sample)setTimeout(()=>{S.sample=null;if(S.view==="coach")render()},3500); return;
+    case "switch": S.w.coach=a.dataset.n; S.set.add("coach"); say("note",`Next workout: ${esc(a.dataset.n)}`); return render();
+    case "audition": S.aud={state:"loading"}; render(); say("a","Auditioning. Only the description goes out; about a cent a service.");
+      setTimeout(()=>{S.aud={state:"ready"};if(S.view==="coach"){render();const c=$("#cands");if(c&&c.getBoundingClientRect().bottom>innerHeight-dock.offsetHeight)c.scrollIntoView({behavior:"smooth",block:"center"})}say("a","Four candidates, A to D. Listen and pick by ear.")},2200); return;
+    case "cand-play": S.aud.playing=S.aud.playing===a.dataset.l?null:a.dataset.l; render(); return;
+    case "cand-pick": S.aud.pick=a.dataset.l; S.aud.state="name"; S.aud.playing=null; render(); setTimeout(()=>{const n=$("#cname");n&&n.focus();n&&n.select()},50); return;
+    case "retry": S.aud={}; render(); return;
+    case "keep":{ const n=($("#cname").value.trim()||"Wren"); if(COACHES.some(c=>c.name==="Coach "+n)){toast("That name's taken. Pick another.");return}
+      S.mine="Coach "+n; S.aud={state:"kept"}; say("a",`${esc(S.mine)} is saved. Candidate ${esc(a.textContent.slice(-1))} it is.`); return render(); }
+    case "use-mine": S.w.coach=S.mine; T.coach.opts.splice(-1,0,{v:S.mine,l:S.mine,s:"your own"}); S.set.add("coach"); S.flash.add("w.coach"); return go("build");
+    case "save-prefs": S.prefsSaved=1;S.prefsDirty=0; say("a","Saved and checked. Nothing to fix."); return render();
+    case "toast": return toast(a.dataset.v);
+    case "flag":{const f=a.dataset.f, fl=S.hurt.flags;
+      if(f==="none"){fl.clear();fl.add("none")} else {fl.delete("none"); fl.has(f)?fl.delete(f):fl.add(f)}
+      if([...fl].some(x=>x!=="none")&&!S.redSaid){say("a","That's a red flag. I'll stop here: please see a clinician before training on it.","stop");S.redSaid=1}
+      return render();}
+    case "flag-clear": S.hurt.flags=new Set(); S.redSaid=0; return render();
+    case "hurt-save": case "hurt-only":{
+      const h=S.hurt, lvl=h.how==="bad"||h.what==="is sharp when loaded"?"off-limits":"delicate";
+      say("a",`Saved: ${esc(h.area)}, ${lvl}, ${esc(h.keep)}.${h.keep!=="just for today"?" Written to your health notes.":""}`);
+      if(act==="hurt-save"){ if(h.area==="left knee"){S.w.limb="left knee";S.w.limbState="worse";S.set.add("limbState");S.flash.add("w.limbState")} return go("build"); }
+      return go("home");}
+    case "fix-hinge": S.w.goal="strength"; S.set.add("goal"); say("a","Next one leans on hinges. It's in the sentence."); return go("build");
+  }
+});
+panel.addEventListener("keydown",e=>{ if(e.target.id==="cname"&&e.key==="Enter"){e.preventDefault();panel.querySelector('[data-act="keep"]').click()} });
+
+/* ================= player ================= */
+function togglePlay(){
+  S.play.on=!S.play.on;
+  clearInterval(S.play.timer);
+  if(S.play.on)S.play.timer=setInterval(()=>{S.play.t=Math.min(S.w.minutes*60,S.play.t+15);if(S.play.t>=S.w.minutes*60)stopPlay();if(S.view==="done")render()},250);
+  render();
+}
+function stopPlay(){S.play.on=false;clearInterval(S.play.timer)}
+
+
+/* ================= top bar, transcript drawer, dock height ================= */
+$("#backBtn").addEventListener("click",()=>{stopPlay();go("home")});
+const drawer=$("#drawer"), scrim2=$("#scrim2");
+function openDrawer(){drawer.classList.add("open");scrim2.classList.add("show");$("#convBtn").setAttribute("aria-expanded","true");log.scrollTop=log.scrollHeight;$("#drawerClose").focus()}
+function closeDrawer(){if(!drawer.classList.contains("open"))return;drawer.classList.remove("open");scrim2.classList.remove("show");$("#convBtn").setAttribute("aria-expanded","false")}
+$("#convBtn").addEventListener("click",()=>drawer.classList.contains("open")?closeDrawer():openDrawer());
+$("#drawerClose").addEventListener("click",()=>{closeDrawer();$("#convBtn").focus()});
+scrim2.addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&drawer.classList.contains("open")){closeDrawer();$("#convBtn").focus()}});
+const dock=$("#dock");
+const setDockH=()=>document.documentElement.style.setProperty("--dock-h",dock.offsetHeight+"px");
+if(window.ResizeObserver)new ResizeObserver(setDockH).observe(dock); setDockH();
+
+/* ================= boot ================= */
+say("a","Morning, Jordan. Pick a tile, or just tell me what you want. “25 minutes, hotel, just go” works.");
+render(); setHints();
+</script>
+</body>
+</html>

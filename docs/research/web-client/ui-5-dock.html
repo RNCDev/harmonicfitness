@@ -1,0 +1,1115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sweatcast: The Dock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Figtree:ital,wght@0,400..800;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --base:#E3E8DF;         /* steel: the room */
+  --sheet:#F7F9F4;        /* the panel's page */
+  --ink:#1B2A1E;          /* text */
+  --ink-2:#4C5D4F;        /* secondary text */
+  --ink-3:#869488;        /* faint */
+  --rule:#C9D3C6;
+  --tok:#0E6A5C;          /* every editable word */
+  --tok-tint:#CFEBE4;
+  --tok-on:#FFFFFF;
+  --engine:#7A4A8F;       /* clauses sweatcast writes itself */
+  --engine-tint:#ECE0F1;
+  --warn:#8A5C00;
+  --warn-tint:#F3E5C3;
+  --stop:#A42235;
+  --stop-tint:#F6DADE;
+  --ok:#3D7A1F;
+  --chat:#D8DFD3;
+  --shadow:0 18px 40px -22px rgba(19,32,42,.45);
+  --dock-shadow:0 -10px 34px -22px rgba(19,32,42,.5);
+  --display:"Zilla Slab", Rockwell, Georgia, serif;
+  --body:"Figtree", system-ui, sans-serif;
+  --r-tok:.32em;
+  --r-sheet:16px;
+  /* layout tokens for the dock arrangement */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:28px;
+  --gut:clamp(16px,2vw,36px);
+  --chat-w:320px;
+  --max:1480px;
+  --r-card:12px;
+  --dock-h:0px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --base:#0F1612;
+    --sheet:#17211B;
+    --ink:#E6EFE7;
+    --ink-2:#A9B9AC;
+    --ink-3:#6B7C6E;
+    --rule:#26342B;
+    --tok:#5FD3B8;
+    --tok-tint:#173A32;
+    --tok-on:#0F1612;
+    --engine:#CFA3E0;
+    --engine-tint:#2E2236;
+    --warn:#F1B95A;
+    --warn-tint:#392A10;
+    --stop:#FF8796;
+    --stop-tint:#42161D;
+    --ok:#9BDB7A;
+    --chat:#0B110D;
+    --shadow:0 18px 40px -22px rgba(0,0,0,.8);
+    --dock-shadow:0 -12px 40px -18px rgba(0,0,0,.85);
+  }
+}
+@media (min-width:1800px){ :root{ --chat-w:340px } }
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--base);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--tok);outline-offset:3px;border-radius:6px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.015em}
+
+/* ---------- frame: canvas above, dock below, chat column on the right ---------- */
+.app{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;height:100vh;height:100dvh}
+.top{grid-column:1;grid-row:1;display:flex;align-items:center;gap:var(--s3);padding:10px var(--gut);border-bottom:1px solid var(--rule);min-width:0}
+.mark{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:-.02em;flex:none}
+.mark span{color:var(--tok)}
+.crumb{font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.crumb b{color:var(--ink);font-weight:600}
+.top .who{margin-left:auto;font-size:14px;color:var(--ink-2);flex:none}
+.chat-toggle{flex:none;font-size:13px;font-weight:700;color:var(--tok);border:1px solid var(--rule);border-radius:999px;padding:4px 12px;background:var(--sheet)}
+.canvas{grid-column:1;grid-row:2;overflow-y:auto;min-height:0;padding:var(--s5) var(--gut) var(--s6)}
+.cv{max-width:var(--max);margin:0 auto}
+.dock{grid-column:1;grid-row:3;padding:0 var(--gut) 14px;position:relative;z-index:30}
+
+/* chat: a slim column on wide screens, a drawer otherwise */
+.chat{background:var(--chat);display:flex;flex-direction:column;min-height:0}
+.chat-head{display:flex;align-items:center;gap:10px;padding:14px 18px 8px}
+.chat-head h2{margin:0;font-size:16px;font-weight:600}
+.chat-head .sub{font-size:12px;color:var(--ink-3);margin-left:auto}
+.chat-close{display:none;font-size:13px;color:var(--tok);font-weight:700}
+.chat-log{flex:1;overflow-y:auto;padding:6px 18px 18px;display:flex;flex-direction:column;gap:12px}
+.m{max-width:94%;font-size:14px;line-height:1.45}
+.m.a{color:var(--ink)}
+.m.a::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--tok);margin-right:7px;vertical-align:1px}
+.m.u{align-self:flex-end;background:var(--ink);color:var(--sheet);padding:7px 12px;border-radius:14px 14px 4px 14px}
+.m.note{font-size:12px;color:var(--ink-3);align-self:center;text-align:center}
+.m .diff{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.m .diff span{font-size:12px;border-radius:7px;padding:1px 7px;background:var(--sheet);border:1px solid var(--rule)}
+.m .diff s{color:var(--ink-3)}
+.m .diff b{color:var(--tok)}
+.m.stop{border-left:3px solid var(--stop);padding-left:9px}
+@media (min-width:1280px){
+  .app{grid-template-columns:minmax(0,1fr) var(--chat-w)}
+  .chat{grid-column:2;grid-row:1/4;border-left:1px solid var(--rule)}
+  .chat-toggle{display:none}
+  .last-line{display:none!important}
+}
+@media (max-width:1279px){
+  .chat{position:fixed;top:0;right:0;bottom:0;width:min(380px,100vw);z-index:60;transform:translateX(102%);transition:transform .28s cubic-bezier(.3,.8,.3,1);border-left:1px solid var(--rule)}
+  .chat.open{transform:none;box-shadow:-20px 0 50px -24px rgba(0,0,0,.5)}
+  .chat-close{display:block;margin-left:var(--s3)}
+}
+
+/* ---------- the dock ---------- */
+.doors{display:flex;gap:2px;align-items:center;max-width:var(--max);margin:0 auto;padding:8px 0 6px;overflow-x:auto;scrollbar-width:none}
+.doors::-webkit-scrollbar{display:none}
+.door{flex:none;font-size:14px;color:var(--ink-2);padding:5px 11px;border-radius:999px;white-space:nowrap;font-weight:500}
+.door:hover{color:var(--tok);background:var(--sheet)}
+.door[aria-current="true"]{background:var(--ink);color:var(--sheet);font-weight:600}
+.door.hurt{color:var(--stop)}
+.door.hurt[aria-current="true"]{background:var(--stop);color:var(--sheet)}
+.door .n{font-size:11px;font-weight:700;background:var(--tok);color:var(--tok-on);border-radius:999px;padding:0 6px;margin-left:5px;vertical-align:1px}
+.composer{max-width:var(--max);margin:0 auto;background:var(--sheet);border:1px solid var(--rule);border-radius:20px;box-shadow:var(--dock-shadow);padding:12px 14px 10px 20px}
+.dock-body{padding:2px 0 8px;max-height:min(46vh,420px);overflow-y:auto}
+.d-lede{font-size:13px;color:var(--ink-2);margin:0 0 2px}
+.dock .sentence{font-size:clamp(21px,calc(1.1vw + 13px),32px);line-height:1.32;max-width:1180px}
+.dock .sentence.small{font-size:clamp(19px,calc(.8vw + 12px),25px)}
+.last-line{display:none;font-size:13px;color:var(--ink-2);margin:8px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;width:100%}
+.last-line::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--tok);margin-right:7px;vertical-align:1px}
+.last-line:not(:empty){display:block}
+.dock-bar{display:flex;align-items:center;gap:var(--s3);border-top:1px solid var(--rule);padding-top:10px;flex-wrap:wrap}
+.say{display:flex;align-items:center;gap:6px;flex:1 1 320px;max-width:560px;min-width:0;background:var(--base);border-radius:12px;padding:4px 4px 4px 12px}
+.say input{flex:1;border:0;background:none;outline:none;min-width:0;font-size:15px;padding:5px 0}
+.say input::placeholder{color:var(--ink-3)}
+.say button{font-size:13px;font-weight:700;color:var(--ink-2);padding:5px 10px;border-radius:9px}
+.say button:hover{color:var(--tok);background:var(--sheet)}
+.hints{display:flex;gap:6px;flex:1 1 200px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.hints::-webkit-scrollbar{display:none}
+.hints{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
+.nw{white-space:nowrap}
+.hints button{flex:none;font-size:12.5px;color:var(--ink-2);border:1px solid var(--rule);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.hints button:hover{color:var(--tok);border-color:var(--tok)}
+.goset{display:flex;align-items:center;gap:var(--s3);margin-left:auto;flex:none}
+.go-meta{font-size:13px;color:var(--ink-2);max-width:26ch;text-align:right;line-height:1.3}
+.go{font-family:var(--display);font-weight:700;font-size:20px;background:var(--tok);color:var(--tok-on);border-radius:14px;padding:10px 26px;min-width:120px;transition:transform .15s,opacity .2s;white-space:nowrap}
+.go:hover{transform:translateY(-1px)}
+.go:active{transform:none}
+.go[disabled]{opacity:.38;cursor:not-allowed;transform:none}
+.go.stopped{opacity:1;background:var(--stop-tint);color:var(--stop)}
+.go.busy{opacity:1;background:var(--tok-tint);color:var(--tok);cursor:progress}
+.quiet{color:var(--ink-2);font-size:14px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--rule);white-space:nowrap}
+.quiet:hover{color:var(--tok);text-decoration-color:var(--tok)}
+.meta{font-size:13px;color:var(--ink-2)}
+
+/* ---------- the sentence ---------- */
+.sentence{font-family:var(--display);font-weight:500;line-height:1.34;letter-spacing:-.015em;margin:0;text-wrap:pretty}
+.tok{font-family:inherit;font-weight:700;color:var(--tok);border-bottom:.09em dashed currentColor;border-radius:0;padding:0 .04em;line-height:1.1;display:inline-block;transition:background .2s,color .2s;position:relative;white-space:nowrap}
+.tok:hover{background:var(--tok-tint)}
+.tok.set{background:var(--tok);color:var(--tok-on);border-bottom-color:transparent;border-radius:var(--r-tok);padding:0 .22em}
+.tok.open{outline:3px solid var(--tok);outline-offset:2px;border-radius:var(--r-tok)}
+.tok.flash{animation:flash .9s ease}
+.tok.flash .v{display:inline-block;animation:roll .45s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes roll{from{transform:translateY(.55em);opacity:0}to{transform:none;opacity:1}}
+@keyframes flash{0%{box-shadow:0 0 0 0 var(--tok)}30%{box-shadow:0 0 0 .22em var(--tok-tint)}100%{box-shadow:0 0 0 0 transparent}}
+.tok.chip{font-size:.92em}
+.tok.chip .x{font-weight:400;opacity:.6;margin-left:.15em;font-size:.8em}
+.tok.add{color:var(--ink-3);border-bottom-style:dotted;font-weight:500}
+.engine{color:var(--engine);font-weight:500;display:inline;animation:roll .5s ease}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.legend i{font-style:normal;font-family:var(--display);font-weight:700;color:var(--tok)}
+.legend .g{border-bottom:2px dashed var(--tok)}
+.legend .s{background:var(--tok);color:var(--tok-on);padding:0 5px;border-radius:5px}
+.legend .e{color:var(--engine)}
+.para{display:grid;gap:6px 36px}
+.dock .para .sentence{font-size:clamp(18px,calc(.7vw + 12px),24px);max-width:none}
+@media (min-width:1100px){ .para{grid-template-columns:1fr 1fr} }
+.namebox{display:inline-block;min-width:4ch;border:0;border-bottom:.09em solid var(--tok);background:none;color:var(--tok);font-weight:700;font-family:inherit;font-size:inherit;letter-spacing:inherit;outline:none;padding:0;width:7ch}
+
+/* frozen sentence while rendering */
+.frozen{position:relative}
+.frozen .sentence{color:var(--ink-3)}
+.frozen .sentence .tok{color:var(--ink-3);border-color:transparent;background:none;padding:0}
+.inkfill{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--p,0%)) 0 0);transition:clip-path .6s linear;pointer-events:none}
+.inkfill .sentence{color:var(--ink)}
+.inkfill .sentence .tok{color:var(--tok)}
+.receipt .tok{border-bottom-color:transparent;cursor:default}
+.receipt .tok:hover{background:none}
+
+/* ---------- canvas building blocks ---------- */
+.view{animation:viewin .3s ease}
+@keyframes viewin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.card{background:var(--sheet);border-radius:var(--r-card);padding:var(--s4) var(--s4) var(--s3);min-width:0}
+.card h2{font-size:17px;font-weight:600;margin:0 0 2px}
+.card .meta{margin:0}
+.lnk{font-size:14px;font-weight:600;color:var(--tok)}
+.lnk:hover{text-decoration:underline;text-underline-offset:3px}
+.split{display:grid;gap:var(--s4);grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){ .split{grid-template-columns:minmax(0,2.2fr) minmax(260px,1fr)} }
+.stack{display:flex;flex-direction:column;gap:var(--s4);min-width:0}
+.cv-head{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;margin:0 0 var(--s4)}
+.cv-head h1{font-size:clamp(24px,2.2vw,32px);font-weight:600;margin:0;line-height:1.1}
+.cv-head p{margin:0;color:var(--ink-2);font-size:15px}
+
+/* home */
+.ov{display:grid;gap:var(--s4);grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.ov .wide{grid-column:span 2}
+@media (max-width:620px){ .ov .wide{grid-column:auto} }
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:14px 0 8px}
+.day{text-align:center;font-size:12px;color:var(--ink-3)}
+.day i{display:block;height:44px;border-radius:8px;background:var(--base);margin-bottom:4px;position:relative}
+.day.did i{background:var(--tok)}
+.day.did i::after{content:attr(data-m);position:absolute;inset:auto 0 6px;font-style:normal;font-size:11px;font-weight:700;color:var(--tok-on)}
+.day.today i{outline:2px dashed var(--tok);outline-offset:-2px;background:transparent}
+.day.today{color:var(--tok);font-weight:700}
+.cline{display:flex;align-items:center;gap:var(--s3);margin-top:12px}
+.limit{display:flex;justify-content:space-between;gap:8px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--rule)}
+.limit:last-of-type{border-bottom:0}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:1px 9px;background:var(--warn-tint);color:var(--warn)}
+.pill.ok{background:var(--tok-tint);color:var(--tok)}
+.recent{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+.recent button{text-align:left;font-family:var(--display);font-size:15px;color:var(--ink-2);padding:5px 0;border-bottom:1px solid var(--rule)}
+.recent button:last-child{border-bottom:0}
+.recent button:hover{color:var(--tok)}
+.recent button b{font-weight:600;color:var(--ink)}
+.react{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.react button{border:1px solid var(--rule);border-radius:999px;padding:5px 12px;font-size:14px;background:var(--base)}
+.react button:hover,.react button.on{border-color:var(--tok);color:var(--tok)}
+.nudge{border-left:4px solid var(--tok)}
+
+/* plan */
+.plan{background:var(--sheet);border-radius:var(--r-card);padding:var(--s4) var(--s5) 4px}
+.plan-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.plan-head h2{font-size:19px;margin:0;font-weight:600}
+.ribbon{display:flex;height:40px;margin:14px 0 4px;gap:3px}
+.ribbon div{border-radius:6px;display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:700;overflow:hidden;white-space:nowrap;transition:flex-grow .5s cubic-bezier(.3,.8,.3,1)}
+.b-warm{background:var(--tok-tint);color:var(--tok)}
+.b-work{background:var(--tok);color:var(--tok-on)}
+.b-fin{background:var(--engine);color:var(--sheet)}
+.b-cool{background:var(--rule);color:var(--ink-2)}
+.ribbon-scale{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3);margin-bottom:6px}
+table.rows{width:100%;border-collapse:collapse;font-size:15px}
+.rows th{text-align:left;font-weight:400;color:var(--ink-3);font-size:13px;padding:8px 8px 6px 0;border-bottom:1px solid var(--rule)}
+.rows td{padding:10px 10px 10px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.rows tr:last-child td{border-bottom:0}
+.rows td:first-child{font-family:var(--display);font-weight:700;white-space:nowrap;width:1%}
+.rows td.sec{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap;width:1%}
+.rows th:last-child{text-align:right}
+.rows .mv{display:block}
+.rows .dose{color:var(--ink-2);font-size:14px}
+@media (min-width:1280px){ .rows .mv{display:inline} .rows .dose::before{content:" · ";color:var(--ink-3)} }
+.changed-row{animation:rowflash 1.2s ease}
+@keyframes rowflash{0%{background:var(--tok-tint)}100%{background:transparent}}
+.foot{font-size:14px;color:var(--ink-2);padding:10px 0 12px;border-top:1px solid var(--rule)}
+.side h2{font-size:16px}
+.side ul{margin:8px 0 0;padding:0;list-style:none;font-size:14px}
+.side li{padding:6px 0;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:10px}
+.side li:last-child{border-bottom:0}
+.side li span:last-child{color:var(--ink-3)}
+.eng-note{font-size:14px;color:var(--engine);margin:8px 0 0}
+
+/* picker */
+.pop{position:fixed;z-index:75;background:var(--sheet);border-radius:16px;box-shadow:0 24px 60px -16px rgba(0,0,0,.45),0 0 0 1px var(--rule);width:min(300px,calc(100vw - 32px));padding:10px;display:none;max-height:min(420px,70vh);overflow:auto}
+.pop.show{display:block;animation:pop .16s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.pop .why{font-size:12px;color:var(--ink-3);padding:4px 8px 8px}
+.pop .opt{display:flex;justify-content:space-between;width:100%;text-align:left;padding:9px 10px;border-radius:10px;font-size:16px;gap:10px}
+.pop .opt:hover,.pop .opt:focus-visible{background:var(--tok-tint);outline:none}
+.pop .opt.cur{font-weight:700;color:var(--tok)}
+.pop .opt small{color:var(--ink-3);font-size:13px;font-weight:400}
+.pop .opt.danger{color:var(--stop)}
+.pop .free{display:flex;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--rule);margin-top:6px}
+.pop .free input{flex:1;min-width:0;border:1px solid var(--rule);border-radius:10px;padding:7px 10px;background:var(--base)}
+.pop .free button{background:var(--tok);color:var(--tok-on);border-radius:10px;padding:0 12px;font-weight:700}
+.scrim{display:none}
+.scrim.chat-scrim.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:55}
+
+/* render */
+.progress{height:8px;background:var(--sheet);border-radius:4px;overflow:hidden;margin:4px 0 var(--s4)}
+.progress i{display:block;height:100%;background:var(--tok);transition:width .6s linear}
+.stages{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3)}
+.stage{background:var(--sheet);border-radius:var(--r-card);padding:14px;min-height:132px;opacity:.55;transition:opacity .3s}
+.stage.now,.stage.done{opacity:1}
+.stage h3{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px}
+.stage .dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--ink-3)}
+.stage.now .dot{border-color:var(--tok);border-top-color:transparent;animation:spin .8s linear infinite}
+.stage.done .dot{background:var(--ok);border-color:var(--ok)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stage p{margin:0;font-size:13px;color:var(--ink-2)}
+.leave{margin:var(--s4) 0 0;font-size:14px;color:var(--ink-2)}
+
+/* player */
+.player{background:var(--ink);color:var(--sheet);border-radius:var(--r-card);padding:var(--s5) var(--s5) var(--s4)}
+.player h2{margin:0;font-size:26px;letter-spacing:-.02em}
+.player .sub{color:var(--ink-3);font-size:14px;margin:2px 0 16px}
+.pl-row{display:flex;align-items:center;gap:16px}
+.play{width:60px;height:60px;border-radius:50%;background:var(--tok);color:var(--tok-on);display:grid;place-items:center;flex:none}
+.play svg{width:22px;height:22px}
+.track{flex:1;min-width:0}
+.bar{position:relative;height:44px}
+.bar .seg{position:absolute;top:12px;height:20px;border-radius:4px;opacity:.35}
+.bar .head{position:absolute;top:4px;width:2px;height:36px;background:var(--sheet);transition:left .25s linear}
+.bar .fill{position:absolute;top:12px;left:0;height:20px;background:var(--sheet);opacity:.18;border-radius:4px;transition:width .25s linear}
+.times{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.chap{font-size:14px;margin-top:4px}
+.pl-actions{display:flex;gap:12px;align-items:center;margin-top:18px;flex-wrap:wrap}
+.dl{background:var(--sheet);color:var(--ink);border-radius:999px;padding:9px 18px;font-weight:700}
+.expire{font-size:14px;color:var(--ink-3)}
+@media (prefers-color-scheme: dark){
+  .player{background:#070C09;color:var(--ink)}
+  .bar .head{background:var(--ink)}
+  .bar .fill{background:var(--ink)}
+  .dl{background:var(--ink);color:var(--base)}
+}
+
+/* coaches */
+.stable{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--s3)}
+.cc{background:var(--sheet);border-radius:var(--r-card);padding:14px;display:flex;flex-direction:column;gap:6px;border:2px solid transparent}
+.cc.cur{border-color:var(--tok)}
+.cc b{font-family:var(--display);font-size:17px}
+.cc small{color:var(--ink-2);font-size:13px;line-height:1.35;flex:1}
+.cc .r{display:flex;justify-content:space-between;align-items:center}
+.mini{width:32px;height:32px;border-radius:50%;background:var(--tok-tint);color:var(--tok);display:grid;place-items:center;flex:none}
+.mini svg{width:13px;height:13px}
+.mini.on{background:var(--tok);color:var(--tok-on)}
+.cc .use{font-size:13px;color:var(--tok);font-weight:700}
+.sect-h{font-size:17px;font-weight:600;margin:var(--s6) 0 var(--s3);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.sect-h .meta{font-family:var(--body);font-weight:400}
+.cands{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--s3)}
+.cand{background:var(--sheet);border-radius:var(--r-card);padding:16px;border:2px solid transparent;text-align:left;display:flex;flex-direction:column;gap:10px;transition:border-color .2s,transform .2s}
+.cand.pick{border-color:var(--tok);transform:translateY(-3px)}
+.cand .L{font-family:var(--display);font-weight:700;font-size:34px;line-height:1}
+.wave{display:flex;align-items:center;gap:2px;height:40px}
+.wave i{flex:1;background:var(--ink-3);border-radius:2px;transition:background .2s}
+.cand.playing .wave i{background:var(--tok);animation:bob .7s ease-in-out infinite alternate}
+@keyframes bob{to{transform:scaleY(.4)}}
+.cand .cost{font-size:13px;color:var(--ink-2)}
+.cand .acts{display:flex;justify-content:space-between;align-items:center}
+.cand .choose{font-size:14px;font-weight:700;color:var(--tok);text-align:left}
+.empty{border:1.5px dashed var(--rule);border-radius:var(--r-card);padding:var(--s5);color:var(--ink-2);font-size:15px}
+.loading-line{font-size:15px;color:var(--ink-2);display:flex;gap:10px;align-items:center}
+.loading-line .dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--tok);border-top-color:transparent;animation:spin .8s linear infinite}
+.done-card{background:var(--sheet);border-radius:var(--r-card);padding:var(--s5);border-left:4px solid var(--ok)}
+.done-card h2{margin:0 0 4px}
+
+/* prefs */
+.cols3{display:grid;gap:var(--s4);grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.taglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.taglist span{font-size:14px;border-radius:8px;padding:2px 9px;background:var(--base)}
+.taglist.never span{text-decoration:line-through;color:var(--ink-2)}
+.kits{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:var(--s3)}
+.saved{font-size:14px;color:var(--ok);margin:var(--s4) 0 0}
+
+/* hurt */
+.flags{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.flag{border:1.5px solid var(--rule);border-radius:999px;padding:8px 14px;font-size:15px;background:var(--sheet)}
+.flag[aria-pressed="true"]{border-color:var(--stop);color:var(--stop);background:var(--stop-tint);font-weight:700}
+.flag.none[aria-pressed="true"]{border-color:var(--ok);color:var(--ok);background:var(--sheet)}
+.stopcard{border-radius:var(--r-card);padding:var(--s5);background:var(--stop-tint);color:var(--ink);border-left:6px solid var(--stop)}
+.stopcard h2{margin:0 0 8px;color:var(--stop);font-size:26px;letter-spacing:-.02em}
+.stopcard p{margin:0 0 10px;max-width:62ch}
+.stopcard .row{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}
+
+/* analytics */
+.weeks{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;align-items:end;height:150px;margin-top:14px}
+.weeks div{background:var(--tok);border-radius:6px 6px 2px 2px}
+.weeks div.lo{background:var(--tok-tint)}
+.weeks-l{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;font-size:12px;color:var(--ink-3);margin-top:4px;text-align:center}
+.pats{display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;margin-top:14px;font-size:15px}
+.pats .track2{height:10px;background:var(--base);border-radius:5px;overflow:hidden}
+.pats .track2 i{display:block;height:100%;background:var(--tok);border-radius:5px}
+.pats .track2 i.lo{background:var(--warn)}
+.pats span:last-child{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.duo{display:grid;gap:var(--s4);grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+
+/* tour */
+.tour{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.tour-step{background:var(--sheet);border-radius:var(--r-card);padding:var(--s4)}
+.tour-step .n{font-family:var(--display);font-weight:700;font-size:28px;color:var(--tok);line-height:1}
+.tour-step h3{margin:8px 0 4px;font-size:19px}
+.tour-step p{margin:0;color:var(--ink-2);font-size:15px}
+
+/* misc */
+.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%) translateY(-120px);background:var(--ink);color:var(--sheet);padding:9px 16px;border-radius:12px;font-size:14px;z-index:80;transition:transform .3s;max-width:calc(100vw - 32px)}
+.toast.show{transform:translateX(-50%)}
+.corner{position:fixed;bottom:4px;left:8px;z-index:90;font-size:10.5px;background:var(--ink);color:var(--sheet);padding:2px 8px;border-radius:999px;opacity:.7;pointer-events:none}
+
+/* ---------- phone: the dock is a bottom sheet ---------- */
+@media (max-width:720px){
+  .app{display:block;height:auto}
+  .top{position:sticky;top:0;z-index:20;background:var(--base);padding:9px 16px}
+  .top .who{display:none}
+  .chat-toggle{margin-left:auto}
+  .crumb{display:none}
+  .canvas{overflow:visible;padding:14px 16px calc(var(--dock-h) + 20px)}
+  .dock{position:fixed;left:0;right:0;bottom:0;padding:0}
+  .doors{padding:6px 12px 6px;background:var(--base)}
+  .composer{border-radius:18px 18px 0 0;border-bottom:0;padding:10px 14px 12px}
+  .dock-body{max-height:32vh;padding-bottom:6px}
+  .d-lede{display:none}
+  .dock .sentence{font-size:18.5px;line-height:1.3}
+  .dock .sentence.small,.dock .para .sentence{font-size:16.5px}
+  .last-line{margin-top:6px;font-size:12.5px}
+  .cands{grid-template-columns:1fr 1fr}
+  .cand{padding:12px}
+  .cand .L{font-size:26px}
+  .chat-head .sub{display:none}
+  .dock-bar{gap:8px}
+  .hints{order:-1;flex:1 1 100%}
+  .say{flex:1 1 0;max-width:none}
+  .say button{display:none}
+  .go-meta{display:none}
+  .goset{gap:8px}
+  .goset .quiet{font-size:13px}
+  .go{font-size:18px;padding:9px 18px;min-width:0}
+  .stages{grid-template-columns:1fr 1fr}
+  .stage{min-height:0}
+  .pop{left:0!important;right:0;bottom:0;top:auto!important;width:100%;border-radius:20px 20px 0 0;max-height:62vh;padding:14px 12px 22px}
+  .scrim.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:70}
+  .plan{padding:14px 14px 4px}
+  .ribbon div{padding:0 5px;font-size:11px}
+  .player h2{font-size:22px}
+  .corner{bottom:auto;top:13px;left:118px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="corner">ui-5 · The dock</div>
+
+<div class="app">
+  <header class="top">
+    <div class="mark">sweat<span>cast</span></div>
+    <div class="crumb" id="crumb"></div>
+    <div class="who">Jordan</div>
+    <button class="chat-toggle" id="chatToggle" aria-expanded="false" aria-controls="chat">Chat</button>
+  </header>
+
+  <main class="canvas" id="canvas" aria-live="polite"></main>
+
+  <section class="dock" id="dock" aria-label="Your sentence">
+    <nav class="doors" id="doors" aria-label="What to do">
+      <button class="door" data-act="home" data-v="home">Today</button>
+      <button class="door" data-act="build" data-v="build">Build a workout</button>
+      <button class="door hurt" data-act="hurt" data-v="hurt">Something hurts</button>
+      <button class="door" data-act="prefs" data-v="prefs">My stuff</button>
+      <button class="door" data-act="coach" data-v="coach">Coaches</button>
+      <button class="door" data-act="stats" data-v="stats">Analytics</button>
+      <button class="door" data-act="tour" data-v="tour">Show me around</button>
+    </nav>
+    <div class="composer">
+      <div class="dock-body">
+        <p class="d-lede" id="dLede"></p>
+        <div id="dS"></div>
+        <button class="last-line" id="lastLine" data-act="open-chat" aria-label="Open the chat"></button>
+      </div>
+      <div class="dock-bar">
+        <form class="say" id="sayForm">
+          <label class="sr" for="say">Say it</label>
+          <input id="say" autocomplete="off" placeholder="Or say it: “make it 30, easy on my knee”">
+          <button type="submit">Send</button>
+        </form>
+        <div class="hints" id="hints"></div>
+        <div class="goset">
+          <span class="go-meta" id="goMeta"></span>
+          <button class="quiet" id="go2" hidden></button>
+          <button class="go" id="go" data-act="go">Go</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="chat" id="chat" aria-label="Chat with sweatcast">
+    <div class="chat-head"><h2>Chat</h2><span class="sub">Edits land in the sentence</span><button class="chat-close" id="chatClose">Close</button></div>
+    <div class="chat-log" id="log" aria-live="polite"></div>
+  </aside>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="scrim chat-scrim" id="chatScrim"></div>
+<div class="pop" id="pop" role="dialog" aria-label="Choose a word"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+/* ================= data ================= */
+const COACHES = [
+  {name:"Coach Reed", blurb:"Low, unhurried, dry humour. Counts only when it matters."},
+  {name:"Coach Ellis", blurb:"Bright and precise; says why each move is there."},
+  {name:"Coach Nolan", blurb:"Easy-going, warm; good company in the rests."},
+  {name:"Coach Owen", blurb:"Crisp and brisk; keeps the clock honest."}
+];
+const T = {
+  minutes:{why:"Your usual length, from your training notes", opts:[10,15,20,25,30,45].map(n=>({v:n,l:n+"-minute"}))},
+  goal:{why:"Strength is due: your last session was conditioning", opts:[
+    {v:"strength",l:"strength"},{v:"conditioning",l:"conditioning"},{v:"general fitness",l:"general fitness"},{v:"mobility",l:"mobility and breathing"}]},
+  kit:{why:"Your first kit. You've used it the last three times", opts:[
+    {v:"hotel room",l:"hotel room",s:"bands, a mat"},{v:"home",l:"home",s:"two kettlebells, a mat"},{v:"bodyweight",l:"bodyweight",s:"nothing at all"},{v:"hotel gym",l:"hotel gym",s:"dumbbells to 20 kg, a bike"}]},
+  coach:{why:"The coach you used last", opts:COACHES.map(c=>({v:c.name,l:c.name,s:c.blurb.split(";")[0].split(",")[0]})).concat([{v:"__new",l:"Someone new…",s:"make a coach"}])},
+  limb:{why:"Your only limit in your health notes", opts:[{v:"left knee",l:"left knee"},{v:"nothing",l:"nothing",s:"I'm fine everywhere"}]},
+  limbState:{why:"Unchanged unless you say so", opts:[
+    {v:"the same",l:"the same"},{v:"better",l:"better"},{v:"worse",l:"worse",s:"treat it as delicate today"},{v:"__hurt",l:"something's wrong…",s:"open Something hurts",cls:"danger"}]},
+  feel:{why:"Normal unless you say otherwise", opts:[
+    {v:"normal",l:"normal"},{v:"low",l:"low",s:"tired, short on sleep, stressed"},{v:"fresh",l:"fresh",s:"last one felt easy"},{v:"beaten up",l:"beaten up",s:"last one was too hard"}]}
+};
+const S = {
+  view:"home",
+  w:{minutes:25,goal:"strength",kit:"hotel room",coach:"Coach Reed",limb:"left knee",limbState:"the same",feel:"normal"},
+  set:new Set(), flash:new Set(), prevRows:"",
+  coach:{sound:"warm",who:"woman in her 40s",talk:"patient physio",energy:"steady",never:"shouts"},
+  coachSet:new Set(),
+  prefs:{level:"novice",love:["kettlebells","intervals"],skip:["burpees"],rests:["science","football","puzzles"],length:25,days:"three"},
+  hurt:{area:"left knee",what:"aches",since:"since yesterday",how:"mild",keep:"just for today",flags:new Set()},
+  hurtSet:new Set(),
+  fb:{a:null,b:null},
+  render:{stage:-1,p:0}, play:{on:false,t:0,timer:null}
+};
+const label = (key,v)=>{const o=(T[key]?.opts||[]).find(o=>o.v===v);return o?o.l:String(v)};
+const KITS={"hotel room":"Bands, a mat","home":"Two kettlebells (12 and 16 kg), a mat","bodyweight":"Nothing at all"};
+
+/* ================= helpers ================= */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const canvas=$("#canvas"), dock=$("#dock"), log=$("#log");
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("show"),2600)}
+function say(who,html,cls=""){
+  const d=document.createElement("div");d.className="m "+who+" "+cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;
+  if(who==="a"){ $("#lastLine").textContent=d.textContent; }
+}
+function tok(scope,key,val,opts={}){
+  const isSet=(scope==="w"?S.set:scope==="coach"?S.coachSet:scope==="hurt"?S.hurtSet:new Set()).has(key)||opts.set;
+  const fl=S.flash.has(scope+"."+key);
+  const cls=["tok",isSet?"set":"",fl?"flash":"",opts.cls||""].join(" ");
+  return `<button class="${cls}" data-tok="${scope}" data-key="${key}" aria-haspopup="dialog" aria-label="${esc(key)}: ${esc(val)}. Change"><span class="v">${esc(val)}</span></button>`;
+}
+function go(view){S.view=view;closePop();render();canvas.scrollTop=0;window.scrollTo(0,0);setHints()}
+const play = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>`;
+const pause = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>`;
+
+/* ================= plan model ================= */
+function plan(){
+  const w=S.w, total=w.minutes*60;
+  const share = {strength:[.18,.58,.12,.12],conditioning:[.16,.54,.18,.12],"general fitness":[.18,.56,.14,.12],mobility:[.2,.6,0,.2]}[w.goal];
+  let sec = share.map(f=>Math.round(total*f/15)*15);
+  sec[1]+= total-sec.reduce((a,b)=>a+b,0);
+  const knee = w.limb==="left knee" && w.limbState==="worse";
+  const low = w.feel==="low"||w.feel==="beaten up", fresh=w.feel==="fresh";
+  const kb = w.kit==="home", gym=w.kit==="hotel gym", bw=w.kit==="bodyweight";
+  const load = kb?"kettlebell ":gym?"dumbbell ":bw?"":"band ";
+  const sets = (w.minutes>=30?4:3) - (low?1:0) + (fresh?1:0);
+  let rows;
+  if(w.goal==="mobility"){
+    rows=[["Warm-up","Cat-cow, thoracic rotations","slow, 8 each"],
+          ["Flow","World's greatest stretch, 90/90 hips, "+(knee?"supported hip flexor stretch":"deep squat hold"),"3 rounds, 45 s each"],
+          ["Finisher","—","—"],
+          ["Cool-down","Box breathing, legs up the wall","4-4-4-4"]];
+  } else {
+    const lower = knee? "Glute bridge" : kb?"Goblet squat":gym?"Dumbbell split squat":bw?"Tempo squat":"Banded squat";
+    const hinge = knee? (kb?"Kettlebell deadlift, short range":"Band good morning") : kb?"Kettlebell swing":gym?"Dumbbell Romanian deadlift":"Hip hinge, band";
+    const push = bw||!gym?"Incline push-up":"Dumbbell floor press";
+    const pull = kb?"Single-arm row":gym?"Dumbbell row":bw?"Towel row":"Banded row";
+    const fin = w.goal==="conditioning"? (knee?"Seated punches, 30 on 30 off":"Shadow boxing, 30 on 30 off") : (knee?"Dead bug and side plank":"Plank to downward dog");
+    rows=[["Warm-up","Marching, arm circles, "+(knee?"bridges":"bodyweight squats"),"easy, building"],
+          ["Work",[lower,hinge,push,pull].join(", "),(w.goal==="conditioning"?`${sets} rounds, 40 s on, 20 s off`:`${sets} sets of 8 to 10, `+load+(low?"lighter":"two in the tank"))],
+          ["Finisher",fin, w.goal==="conditioning"?"6 rounds":"3 rounds, 30 s"],
+          ["Cool-down","Hamstring stretch, child's pose, slow breathing","held, 40 s each"]];
+  }
+  return rows.map((r,i)=>({block:r[0],mv:r[1],dose:r[2],sec:sec[i]})).filter(r=>r.sec>0);
+}
+const fmt = s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+
+/* ================= sentences (live in the dock) ================= */
+function engineClause(){
+  const w=S.w;
+  if(w.limb==="left knee"&&w.limbState==="worse") return ` <span class="engine">So I'll treat the knee as delicate today: no lunges, no jumping, nothing deep.</span>`;
+  if(w.limb==="left knee"&&w.limbState==="better") return ` <span class="engine">Good. It stays delicate until it's been better for a week; then I'll ask.</span>`;
+  if(w.feel==="low"||w.feel==="beaten up") return ` <span class="engine">I'll drop a set and keep the weights where they were.</span>`;
+  if(w.feel==="fresh") return ` <span class="engine">I'll add a set and nudge the loads up.</span>`;
+  return "";
+}
+function buildSentence(frozen,cls=""){
+  const w=S.w, t=(k,v)=>frozen?`<span class="tok"><span class="v">${esc(v)}</span></span>`:tok("w",k,v);
+  const limb = w.limb==="nothing" ? `Nothing hurts; ` : `My ${t("limb",w.limb)} feels <span class="nw">${t("limbState",w.limbState)};</span> `;
+  return `<p class="sentence ${cls}">Give me a ${t("minutes",label("minutes",w.minutes))} ${t("goal",label("goal",w.goal))} session with my ${t("kit",w.kit)} kit, coached by <span class="nw">${t("coach",w.coach)}.</span> ${limb}I'm feeling <span class="nw">${t("feel",w.feel)}.</span>${frozen?"":engineClause()}</p>`;
+}
+const legend = `<div class="legend"><span><i class="g">dashed</i> my best guess</span><span><i class="s">filled</i> you said so</span><span><i class="e">violet</i> what I'll do about it</span></div>`;
+const blockCls={"Warm-up":"b-warm","Work":"b-work","Flow":"b-work","Finisher":"b-fin","Cool-down":"b-cool"};
+function planCard(title,anim){
+  const rows=plan(), total=S.w.minutes*60;
+  let changed=null;
+  if(anim){const k=JSON.stringify(rows);changed=S.prevRows&&S.prevRows!==k?JSON.parse(S.prevRows):null;S.prevRows=k}
+  return `<section class="plan" aria-label="Plan preview">
+      <div class="plan-head"><h2>${title}</h2><span class="meta">${S.w.minutes} minutes, ${esc(S.w.kit)}, ${esc(S.w.coach)}</span></div>
+      <div class="ribbon">${rows.map(r=>`<div class="${blockCls[r.block]}" style="flex-grow:${r.sec}" title="${r.block} ${fmt(r.sec)}">${r.block}</div>`).join("")}</div>
+      <div class="ribbon-scale"><span>0:00</span><span>${fmt(total)}</span></div>
+      <table class="rows"><thead><tr><th>Block</th><th>Movements and dose</th><th>Time</th></tr></thead><tbody>
+      ${rows.map((r,i)=>`<tr class="${changed&&JSON.stringify(changed[i])!==JSON.stringify(r)?"changed-row":""}"><td>${r.block}</td><td class="mvcol"><span class="mv">${esc(r.mv)}</span><span class="dose">${esc(r.dose)}</span></td><td class="sec">${fmt(r.sec)}</td></tr>`).join("")}
+      </tbody></table>
+      <div class="foot">Rests carry today's weather, a science short and one football story. Every movement comes from your safe menu.</div>
+    </section>`;
+}
+
+/* ================= views: each returns {c: canvas, d: dock} ================= */
+function vHome(){
+  const fbDone=S.fb.a&&S.fb.b;
+  const days=[["M",""],["T","25"],["W",""],["T",""],["F",""],["S","30"],["S","today"]];
+  return {
+    crumb:"Today",
+    c:`<div class="cv-head"><h1>Morning, Jordan.</h1><p>Light rain, 11°. Strength is due; your usual is in the box below.</p></div>
+    <div class="ov">
+      <section class="card wide"><h2>Last seven days</h2><p class="meta">Two sessions, 55 minutes. You're light on hinges this month.</p>
+        <div class="days">${days.map(d=>`<div class="day ${d[1]==="today"?"today":d[1]?"did":""}"><i data-m="${d[1]&&d[1]!=="today"?d[1]+"′":""}"></i>${d[1]==="today"?"Today":d[0]}</div>`).join("")}</div>
+        <button class="lnk" data-act="stats">See eight weeks</button></section>
+      <section class="card"><h2>Your coach</h2><p class="meta">${esc(S.w.coach)}: ${esc((COACHES.find(c=>c.name===S.w.coach)||{blurb:"your own"}).blurb)}</p>
+        <div class="cline"><button class="mini ${S.sample===S.w.coach?"on":""}" data-act="sample" data-n="${esc(S.w.coach)}" aria-label="Hear ${esc(S.w.coach)}">${S.sample===S.w.coach?pause:play}</button><button class="lnk" data-act="coach">Switch or make one</button></div></section>
+      <section class="card"><h2>Your limits</h2>
+        <div class="limit"><span>Left knee</span><span class="pill">${S.w.limbState==="worse"?"delicate, worse today":"delicate"}</span></div>
+        <div class="limit"><span>Everything else</span><span class="pill ok">fine</span></div>
+        <button class="lnk" data-act="hurt" style="margin-top:8px">Something hurts</button></section>
+      ${fbDone?"":`<section class="card nudge wide"><h2>Got feedback on two older workouts?</h2><p class="meta">Tuesday's strength 25 and Saturday's conditioning 30.</p>
+        <div class="react"><button data-act="fbq" data-v="About right for both">About right</button><button data-act="fbq" data-v="Both ran long">Too long</button><button data-act="feedback">Tell me more</button></div></section>`}
+      <section class="card"><h2>Say it again</h2><div class="recent">
+        <button data-act="again" data-i="0"><b>Tue:</b> 25-minute strength, hotel room kit</button>
+        <button data-act="again" data-i="1"><b>Sat:</b> 30-minute conditioning, home kit</button></div></section>
+    </div>`,
+    d:{lede:"Your usual, written out. Press Go, or change any word.",s:buildSentence(false),go:{l:"Go",act:"go"},meta:"About 4 minutes to make"}
+  };
+}
+function vBuild(){
+  const knee=S.w.limb==="left knee"&&S.w.limbState==="worse";
+  return {
+    crumb:"Build a workout",
+    c:`<div class="split">
+      ${planCard("The plan, so far",true)}
+      <div class="stack side">
+        <section class="card"><h2>Today's limits</h2>
+          <div class="limit"><span>Left knee</span><span class="pill">${knee?"delicate, worse":S.w.limb==="nothing"?"left out":"delicate"}</span></div>
+          ${knee?`<p class="eng-note">No lunges, no jumping, nothing deep.</p>`:""}</section>
+        <section class="card"><h2>In the rests</h2><ul><li><span>Today's weather</span><span>1 min</span></li><li><span>Why muscles shake</span><span>science</span></li><li><span>Last night's match</span><span>football</span></li></ul></section>
+        <section class="card"><h2>Say it again</h2><div class="recent">
+          <button data-act="again" data-i="0"><b>Tue:</b> 25-minute strength, hotel room kit</button>
+          <button data-act="again" data-i="1"><b>Sat:</b> 30-minute conditioning, home kit</button></div></section>
+        <section class="card">${legend}</section>
+      </div></div>`,
+    d:{lede:"Change any word; the plan above follows.",s:buildSentence(false),go:{l:"Go",act:"go"},meta:"About 4 minutes to make. You can close the tab."}
+  };
+}
+const STAGES=[["Research","Weather, today's stories, a science short"],["Writing","The script, coached from your safe menu"],["Checking","Every movement against your limits; timing within 3%"],["Rendering voice",""]];
+function vRender(){
+  const r=S.render;
+  return {
+    crumb:"Making your workout",
+    c:`<div class="cv-head"><h1>Making it now</h1><p>${r.p}% · You can close this tab; it'll be here when you're back.</p></div>
+    <div class="progress"><i style="width:${r.p}%"></i></div>
+    <ol class="stages">${STAGES.map((s,i)=>`<li class="stage ${i<r.stage?"done":i===r.stage?"now":""}"><h3><span class="dot"></span>${s[0]}</h3><p>${i===3?esc(S.w.coach)+" is reading it, one paragraph at a time":s[1]}${i===r.stage&&r.sub?`<br><b>${esc(r.sub)}</b>`:""}</p></li>`).join("")}</ol>
+    <div style="margin-top:var(--s4)">${planCard("What's going in",false)}</div>
+    <p class="leave">The MP3 is kept for 24 hours after it's ready, so download it before then.</p>`,
+    d:{lede:"Writing this one:",s:`<div class="frozen" style="--p:${r.p}%">${buildSentence(true)}<div class="inkfill" aria-hidden="true">${buildSentence(true)}</div></div>`,go:{l:"Making…",act:"",dis:true,busy:true},meta:"About 4 minutes"}
+  };
+}
+function vDone(){
+  const rows=plan(), total=S.w.minutes*60, t=S.play.t;
+  let acc=0; const segs=rows.map(r=>{const s={l:acc/total*100,w:r.sec/total*100,b:r.block};acc+=r.sec;return s});
+  const cur=(()=>{let a=0;for(const r of rows){a+=r.sec;if(t<a)return r.block}return rows[rows.length-1].block})();
+  const colours={"Warm-up":"var(--tok-tint)","Work":"var(--tok)","Flow":"var(--tok)","Finisher":"var(--engine)","Cool-down":"var(--rule)"};
+  return {
+    crumb:"Ready",
+    c:`<div class="split"><section class="player" aria-label="Your workout">
+      <h2>${esc(label("goal",S.w.goal).replace(/^./,c=>c.toUpperCase()))} ${S.w.minutes}, ${esc(S.w.kit)}</h2>
+      <p class="sub">With ${esc(S.w.coach)}, ready at 7:42</p>
+      <div class="pl-row">
+        <button class="play" data-act="play" aria-label="${S.play.on?"Pause":"Play"}">${S.play.on?pause:play}</button>
+        <div class="track">
+          <div class="bar">${segs.map(s=>`<span class="seg" style="left:${s.l}%;width:calc(${s.w}% - 3px);background:${colours[s.b]}"></span>`).join("")}<span class="fill" style="width:${t/total*100}%"></span><span class="head" style="left:${t/total*100}%"></span></div>
+          <div class="times"><span>${fmt(Math.floor(t))}</span><span>${fmt(total)}</span></div>
+          <div class="chap">Now: ${cur}</div>
+        </div>
+      </div>
+      <div class="pl-actions"><button class="dl" data-act="dl">Download MP3</button><span class="expire">Kept until 7:42 tomorrow, then deleted. The script stays in your history.</span></div>
+    </section>
+    <section class="card side"><h2>Chapters</h2><ul>${rows.map(r=>`<li><span>${r.block}</span><span>${fmt(r.sec)}</span></li>`).join("")}</ul></section></div>`,
+    d:{lede:"Made from:",s:`<div class="receipt">${buildSentence(true,"small")}</div>`,go:{l:"Make another",act:"build"},alt:{l:"Back to today",act:"home"},meta:"Change a word and go again"}
+  };
+}
+
+const CT={
+  sound:{why:"How the voice sounds",opts:["warm","crisp","low","bright","gravelly"].map(v=>({v,l:v}))},
+  who:{why:"Who they are",opts:["woman in her 40s","man in his 50s","woman in her 30s","man in his 30s","older woman","older man"].map(v=>({v,l:v}))},
+  talk:{why:"How they coach",opts:["patient physio","strength coach","old friend","drill sergeant, but kind","yoga teacher"].map(v=>({v,l:v}))},
+  energy:{why:"Energy through the session",opts:["steady","calm","lively","rising at the end"].map(v=>({v,l:v}))},
+  never:{why:"What they never do",opts:["shouts","says “crush it”","rushes the rests","talks over the counts"].map(v=>({v,l:v}))}
+};
+function wave(seed){let s="";for(let i=0;i<32;i++){const h=20+Math.abs(Math.sin(i*1.7+seed*2.3)*60)+Math.abs(Math.cos(i*.6+seed))*20;s+=`<i style="height:${Math.min(100,h)}%;animation-delay:${(i%7)*.08}s"></i>`}return s}
+function vCoach(){
+  const c=S.coach, a=S.aud||{};
+  const stable = COACHES.concat(S.mine?[{name:S.mine,blurb:`${c.sound}, ${c.who}; ${c.talk}.`,own:1}]:[]);
+  let aud="";
+  if(!a.state) aud=`<div class="empty">Describe a coach in the box below, then Audition. Every voice service you have a key for designs a candidate; you pick by ear.</div>`;
+  if(a.state==="loading") aud=`<div class="loading-line"><span class="dot"></span>Every voice service you have a key for is designing from that sentence. About a minute.</div>`;
+  if(a.state==="ready"||a.state==="name") aud=`<div class="cands">${["A","B","C","D"].map((L,i)=>`
+      <div class="cand ${a.pick===L?"pick":""} ${a.playing===L?"playing":""}">
+        <div class="acts"><span class="L">${L}</span><button class="mini ${a.playing===L?"on":""}" data-act="cand-play" data-l="${L}" aria-label="Play candidate ${L}">${a.playing===L?pause:play}</button></div>
+        <div class="wave" aria-hidden="true">${wave(i)}</div>
+        <span class="cost">About ${["$0.30","$0.55","$0.20","$0.35"][i]} a workout</span>
+        <button class="choose" data-act="cand-pick" data-l="${L}">${a.pick===L?"This one":"Choose "+L}</button>
+      </div>`).join("")}</div>
+      <p class="meta" style="margin-top:10px">None right? <button class="quiet" data-act="retry">Change a word and audition again</button></p>`;
+  if(a.state==="kept") aud=`<div class="done-card"><h2>${esc(S.mine)} is in your stable.</h2><p class="meta">Their sample is saved. Next workout, they'll learn your pace.</p></div>`;
+  const pron=c.who.startsWith("woman")||c.who==="older woman"?"her":"him";
+  let d;
+  if(a.state==="name") d={lede:`Candidate ${esc(a.pick)}. Name ${pron}, then keep.`,s:`<p class="sentence">Call ${pron} Coach <input class="namebox" id="cname" value="${esc(a.name||"Wren")}" aria-label="Coach name">.</p>`,go:{l:"Keep "+a.pick,act:"keep"},alt:{l:"Back",act:"retry"},meta:"Saved in your voice account; only you can use it."};
+  else if(a.state==="kept") d={lede:"Done.",s:`<p class="sentence">${esc(S.mine)} is ready to coach.</p>`,go:{l:"Build with "+S.mine.replace("Coach ",""),act:"use-mine"},alt:{l:"Make another",act:"retry"},meta:""};
+  else d={lede:"Describe a new coach. Change any word.",s:`<p class="sentence">Make me a coach who sounds like a ${tok("coach","sound",c.sound)} ${tok("coach","who",c.who)}, talks like a ${tok("coach","talk",c.talk)}, keeps the energy ${tok("coach","energy",c.energy)}, and never ${tok("coach","never",c.never)}.</p>`,go:{l:a.state==="loading"?"Auditioning…":"Audition",act:"audition",dis:a.state==="loading",busy:a.state==="loading"},meta:"About a cent a service. Only this description is sent."};
+  return {
+    crumb:"Coaches",
+    c:`<h2 class="sect-h" style="margin-top:0">Your stable <span class="meta">Tap to hear; the ring is who coaches next.</span></h2>
+    <div class="stable">${stable.map(x=>`<div class="cc ${S.w.coach===x.name?"cur":""}"><b>${esc(x.name)}</b><small>${esc(x.blurb)}</small>
+      <div class="r"><button class="mini ${S.sample===x.name?"on":""}" data-act="sample" data-n="${esc(x.name)}" aria-label="Hear ${esc(x.name)}">${S.sample===x.name?pause:play}</button>
+      ${S.w.coach===x.name?`<span class="meta">next up</span>`:`<button class="use" data-act="switch" data-n="${esc(x.name)}">Use</button>`}</div></div>`).join("")}</div>
+    <h2 class="sect-h">Audition</h2>${aud}`,
+    d
+  };
+}
+
+const PT={
+  level:{why:"Sets how hard the menu goes",opts:["novice","intermediate","advanced"].map(v=>({v,l:v}))},
+  length:{why:"The default when you don't say",opts:[15,20,25,30,45].map(v=>({v,l:v+" minutes"}))},
+  days:{why:"Helps balance the week",opts:["two","three","four","five"].map(v=>({v,l:v}))},
+  love:{why:"Shows up more",sug:["kettlebells","intervals","mobility","bands","carries","boxing"]},
+  skip:{why:"Never on your menu",sug:["burpees","jumping","lunges","floor work","running"]},
+  rests:{why:"What the coach talks about in rests",sug:["science","football","puzzles","history","weather","music","space","food"]}
+};
+function list(key){
+  const arr=S.prefs[key];
+  const parts=arr.map((v,i)=>`<button class="tok set chip" data-tok="list" data-key="${key}" data-i="${i}" aria-label="${esc(v)}. Change or remove"><span class="v">${esc(v)}</span><span class="x" aria-hidden="true">×</span></button>`);
+  const joined = parts.length<=1?parts.join(""):parts.slice(0,-1).join(", ")+" and "+parts[parts.length-1];
+  return joined+` <button class="tok add" data-tok="list" data-key="${key}" data-i="-1" aria-label="Add to ${key}"><span class="v">+ more</span></button>`;
+}
+function vPrefs(){
+  const p=S.prefs, pt=(k,v)=>`<button class="tok ${S.prefSet?.has(k)?"set":""} ${S.flash.has("prefs."+k)?"flash":""}" data-tok="prefs" data-key="${k}"><span class="v">${esc(v)}</span></button>`;
+  const tags=(arr,cls="")=>`<div class="taglist ${cls}">${arr.length?arr.map(x=>`<span>${esc(x)}</span>`).join(""):`<span>nothing yet</span>`}</div>`;
+  return {
+    crumb:"My stuff",
+    c:`<div class="cv-head"><h1>What this changes</h1><p>The menu and the rests follow the paragraph below.</p></div>
+    <div class="cols3">
+      <section class="card"><h2>Shows up more</h2>${tags(p.love)}</section>
+      <section class="card"><h2>Never on your menu</h2>${tags(p.skip,"never")}</section>
+      <section class="card"><h2>In the rests</h2>${tags(p.rests)}</section>
+      <section class="card"><h2>Your week</h2><p class="meta">${esc(p.days[0].toUpperCase()+p.days.slice(1))} sessions of about ${p.length} minutes, at ${esc(p.level)} level.</p></section>
+    </div>
+    <h2 class="sect-h">Kits <button class="lnk" data-act="toast" data-v="Kits open their own sentence: “My home kit has two kettlebells, 12 and 16 kg, and a mat.”">Edit kits</button></h2>
+    <div class="kits">${Object.entries(KITS).map(([k,v])=>`<section class="card"><h2>${k[0].toUpperCase()+k.slice(1)}</h2><p class="meta">${v}</p></section>`).join("")}</div>
+    ${S.prefsSaved?`<p class="saved">✓ Saved. Checked your files: nothing to fix.</p>`:""}`,
+    d:{lede:"This is you, as sweatcast understands it. Change any word.",s:`<div class="para">
+      <p class="sentence">I train at ${pt("level",p.level)} level, about ${pt("days",p.days)} times a week, usually for ${pt("length",p.length+" minutes")}.</p>
+      <p class="sentence">I love ${list("love")}.</p>
+      <p class="sentence">Skip ${list("skip")}.</p>
+      <p class="sentence">Fill my rests with ${list("rests")}.</p></div>`,
+      go:{l:S.prefsSaved?"Saved":"Save",act:"save-prefs",dis:!S.prefsDirty},meta:S.prefsSaved?"Checked: nothing to fix":S.prefsDirty?"Unsaved changes":"Nothing changed yet"}
+  };
+}
+
+const HT={
+  area:{why:"Where",opts:["left knee","right knee","lower back","left shoulder","right shoulder","neck","left ankle","right ankle","wrist","hip"].map(v=>({v,l:v}))},
+  what:{why:"What it's doing",opts:["aches","is sore","is stiff","twinges on stairs","is sharp when loaded"].map(v=>({v,l:v}))},
+  since:{why:"Since when",opts:["since this morning","since yesterday","for a few days","for over a week"].map(v=>({v,l:v}))},
+  how:{why:"How bad, at rest",opts:["mild","moderate","bad"].map(v=>({v,l:v}))},
+  keep:{why:"Today only, or written to your health notes",opts:[{v:"just for today",l:"just for today"},{v:"until I say it's better",l:"until I say it's better",s:"saved to your health notes"}]}
+};
+const FLAGS=["I can't put weight on it","It's swelling fast","It's numb or tingling","It gives way","It's getting worse after a week or two"];
+function vHurt(){
+  const h=S.hurt, red=[...h.flags].some(f=>f!=="none"), none=h.flags.has("none");
+  const level = h.how==="bad"||h.what==="is sharp when loaded"?"off-limits":"delicate";
+  return {
+    crumb:"Something hurts",
+    c:`<div class="cv-head"><h1>Is any of these true?</h1><p>Tap all that apply. If none do, say so.</p></div>
+    <div class="flags" role="group" aria-label="Red flags">
+      ${FLAGS.map((f,i)=>`<button class="flag" data-act="flag" data-f="${i}" aria-pressed="${h.flags.has(String(i))}">${f}</button>`).join("")}
+      <button class="flag none" data-act="flag" data-f="none" aria-pressed="${none}">None of these</button>
+    </div>
+    ${red?`<div class="stopcard" role="alert" style="margin-top:var(--s5)"><h2>Let's not train on this today.</h2>
+      <p>${esc([...h.flags].filter(f=>f!=="none").map(i=>FLAGS[i].replace(/^I |^It/, m=>m==="I "?"you ":"it")).join("; ")).replace(/^./,c=>c.toUpperCase())}: that's a sign to get it looked at by a doctor or physiotherapist before you load it again.</p>
+      <p>I won't build a workout around it until you've been seen. If it's sudden and severe, get urgent care.</p>
+      <div class="row"><button class="quiet" data-act="home">Back to today</button><button class="quiet" data-act="flag-clear">I picked one by mistake</button></div></div>`
+    : none?`<div class="card" style="margin-top:var(--s5);max-width:640px"><h2>Today's workout will work around it</h2><p class="meta">${level==="off-limits"?"Nothing that loads it at all.":"Lighter, shorter range, no impact."} You'll see it in the plan before you press Go.</p></div>`:""}`,
+    d:{lede:"Something hurts. Four words, then the questions above.",
+      s:`<p class="sentence">My ${tok("hurt","area",h.area)} ${tok("hurt","what",h.what)} ${tok("hurt","since",h.since)}. It's ${tok("hurt","how",h.how)}.${!red&&none?` <span class="engine">So I'll treat it as ${level} ${h.keep==="just for today"?"today":"from now on"}${level==="off-limits"?": nothing that loads it at all":": lighter, shorter range, no impact"}.</span> Keep it ${tok("hurt","keep",h.keep)}.`:""}</p>`,
+      go:{l:red?"Stopped":"Save and build",act:"hurt-save",dis:red||!none,stop:red},alt:!red&&none?{l:"Just save",act:"hurt-only"}:null,
+      meta:red?"See a clinician first":none?"":"Answer the questions above first"}
+  };
+}
+
+function vFeedback(){
+  const r=(k,opts)=>`<div class="react">${opts.map(o=>`<button class="${S.fb[k]===o?"on":""}" data-act="fb" data-k="${k}" data-v="${o}">${o}</button>`).join("")}</div>`;
+  const opts=["too short","about right","too long","too easy","too hard"];
+  return {
+    crumb:"Feedback",
+    c:`<div class="cv-head"><h1>Two you haven't told me about</h1></div>
+    <div class="duo">
+      <section class="card"><h2>Tuesday's strength 25</h2><p class="meta">With the story about bees counting.</p>${r("a",opts)}</section>
+      <section class="card"><h2>Saturday's conditioning 30</h2><p class="meta">With the octopus quiz.</p>${r("b",opts)}</section>
+    </div>`,
+    d:{lede:"It shapes the next one, nothing else.",s:`<p class="sentence">Tuesday's was <b>${esc(S.fb.a||"…")}</b>; Saturday's was <b>${esc(S.fb.b||"…")}</b>.</p>`,go:{l:"Send both",act:"fb-send",dis:!(S.fb.a&&S.fb.b)},alt:{l:"Not now",act:"home"},meta:""}
+  };
+}
+function vStats(){
+  const wk=[1,2,3,2,2,1,3,2], pats=[["Squat",9,""],["Push",8,""],["Pull",7,""],["Core",6,""],["Hinge",2,"lo"],["Carry",1,"lo"]];
+  return {
+    crumb:"Analytics",
+    c:`<div class="duo">
+      <section class="card"><h2>Sessions per week</h2><div class="weeks" aria-label="Sessions per week">${wk.map(n=>`<div class="${n<2?"lo":""}" style="height:${n/3*100}%" title="${n} sessions"></div>`).join("")}</div>
+      <div class="weeks-l">${wk.map((_,i)=>`<span>w${i+1}</span>`).join("")}</div></section>
+      <section class="card"><h2>Movement patterns</h2><div class="pats">${pats.map(p=>`<span>${p[0]}</span><span class="track2"><i class="${p[2]}" style="width:${p[1]/9*100}%"></i></span><span>${p[1]}</span>`).join("")}</div></section>
+    </div>`,
+    d:{lede:"Read only. The button changes your next workout.",s:`<p class="sentence small">In the last ${tok("st","range","8 weeks")} you trained <b>16</b> times, mostly <b>strength</b>. You're light on <b>hinges</b> and <b>carries</b>, and you've said “too long” twice.</p>`,go:{l:"Lean on hinges",act:"fix-hinge"},meta:"Next one leans on hinges"}
+  };
+}
+function vTour(){
+  const st=[["Say it once","Every task is one sentence in the box at the bottom, with the usual already filled in. Green words are the ones you can change; tap one, or type in the box."],
+    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what sweatcast will do about it."],
+    ["Go, then leave","Research, writing, checking and the voice run on their own, about four minutes. Close the tab; it'll be here."],
+    ["Press play","A podcast for your earbuds: the coach tells you what to do, counts you through it, and fills the rests. The MP3 is kept for a day."]];
+  return {
+    crumb:"Show me around",
+    c:`<div class="cv-head"><h1>How a sentence becomes a workout</h1><p>One minute.</p></div><div class="tour">${st.map((s,i)=>`<div class="tour-step"><span class="n">${i+1}</span><h3>${s[0]}</h3><p>${s[1]}</p></div>`).join("")}</div>`,
+    d:{lede:"Try it: this is your real sentence.",s:buildSentence(false),go:{l:"Go",act:"go"},meta:"About 4 minutes to make"}
+  };
+}
+
+const VIEWS={home:vHome,build:vBuild,render:vRender,done:vDone,coach:vCoach,prefs:vPrefs,hurt:vHurt,feedback:vFeedback,stats:vStats,tour:vTour};
+const TAB={render:"build",done:"build",feedback:"home"};
+let lastView=null, lastDockKey="";
+function render(){
+  const v=VIEWS[S.view](), fresh=lastView!==S.view;
+  canvas.innerHTML=`<div class="cv ${fresh?"view":""}">${v.c}</div>`;
+  const d=v.d;
+  $("#dLede").textContent=d.lede||"";
+  $("#dS").innerHTML=d.s;
+  const g=$("#go"); g.textContent=d.go.l; g.dataset.act=d.go.act||""; g.disabled=!!d.go.dis; g.classList.toggle("busy",!!d.go.busy); g.classList.toggle("stopped",!!d.go.stop);
+  const g2=$("#go2"); if(d.alt){g2.hidden=false;g2.textContent=d.alt.l;g2.dataset.act=d.alt.act}else{g2.hidden=true;g2.removeAttribute("data-act")}
+  $("#goMeta").textContent=d.meta||"";
+  $("#crumb").innerHTML=`<b>${esc(v.crumb)}</b>`;
+  const tab=TAB[S.view]||S.view;
+  document.querySelectorAll(".door").forEach(b=>b.setAttribute("aria-current",String(b.dataset.v===tab)));
+  if(fresh){ $("#dock .dock-body").scrollTop=0; const cb=document.querySelector(".door[aria-current=\"true\"]"), dv=$("#doors"); if(cb&&(cb.offsetLeft<dv.scrollLeft||cb.offsetLeft+cb.offsetWidth>dv.scrollLeft+dv.clientWidth))dv.scrollLeft=cb.offsetLeft-12; }
+  lastView=S.view;
+  S.flash.clear();
+}
+
+/* ================= picker ================= */
+const pop=$("#pop"), scrim=$("#scrim"); let popCtx=null;
+function defsFor(scope,key){
+  if(scope==="w")return T[key];
+  if(scope==="coach")return CT[key];
+  if(scope==="hurt")return HT[key];
+  if(scope==="prefs")return PT[key];
+  if(scope==="st")return {why:"Range",opts:["4 weeks","8 weeks","this year"].map(v=>({v,l:v}))};
+  if(scope==="list")return PT[key];
+}
+function openPop(el){
+  const scope=el.dataset.tok,key=el.dataset.key,d=defsFor(scope,key); if(!d)return;
+  document.querySelectorAll(".tok.open").forEach(e=>e.classList.remove("open"));
+  el.classList.add("open"); popCtx={scope,key,i:+el.dataset.i,el};
+  let cur = scope==="w"?S.w[key]:scope==="coach"?S.coach[key]:scope==="hurt"?S.hurt[key]:scope==="prefs"?S.prefs[key]:null;
+  let html=`<div class="why">${esc(d.why)}</div>`;
+  if(scope==="list"){
+    const arr=S.prefs[key], i=popCtx.i;
+    if(i>=0) html+=`<button class="opt danger" data-pick="__remove">Remove “${esc(arr[i])}”</button>`;
+    html+=d.sug.filter(s=>!arr.includes(s)).map(s=>`<button class="opt" data-pick="${esc(s)}">${i>=0?"Swap for ":"Add "}${esc(s)}</button>`).join("");
+    html+=`<form class="free" data-free><input placeholder="Something else" aria-label="Something else"><button>${i>=0?"Swap":"Add"}</button></form>`;
+  } else {
+    if(scope==="prefs"&&key==="length")cur=S.prefs.length;
+    html+=d.opts.map(o=>`<button class="opt ${o.cls||""} ${String(o.v)===String(cur)?"cur":""}" data-pick="${esc(o.v)}">${esc(o.l)}${o.s?`<small>${esc(o.s)}</small>`:""}</button>`).join("");
+    if(["talk","who","sound","area"].includes(key))html+=`<form class="free" data-free><input placeholder="In your words" aria-label="In your words"><button>Use</button></form>`;
+  }
+  pop.innerHTML=html; pop.classList.add("show"); scrim.classList.add("show");
+  const r=el.getBoundingClientRect();
+  pop.style.left=Math.max(16,Math.min(r.left,innerWidth-pop.offsetWidth-16))+"px";
+  /* the dock sits at the bottom, so open upward when there's room */
+  const h=pop.offsetHeight, above=r.top-h-8;
+  pop.style.top=(above>=8?above:Math.min(r.bottom+8,innerHeight-h-8))+"px";
+  (pop.querySelector(".opt.cur")||pop.querySelector(".opt,input")).focus();
+}
+function closePop(){pop.classList.remove("show");scrim.classList.remove("show");document.querySelectorAll(".tok.open").forEach(e=>e.classList.remove("open"));if(popCtx&&popCtx.el&&document.body.contains(popCtx.el))popCtx.el.focus();popCtx=null}
+function pick(v){
+  const {scope,key,i}=popCtx; closePop();
+  if(scope==="w"){
+    if(v==="__new"){say("a","Let's make you a coach. Change any word in the box, then Audition.");return go("coach")}
+    if(v==="__hurt"){S.hurt.area=S.w.limb==="nothing"?"left knee":S.w.limb;say("a","Tell me what's going on. Four words.");return go("hurt")}
+    setW({[key]:key==="minutes"?+v:v},"tap");
+  } else if(scope==="coach"){S.coach[key]=v;S.coachSet.add(key);S.flash.add("coach."+key);if(S.aud&&S.aud.state)S.aud={};render();}
+  else if(scope==="hurt"){S.hurt[key]=v;S.hurtSet.add(key);S.flash.add("hurt."+key);render();}
+  else if(scope==="prefs"){S.prefs[key]=key==="length"?+v:v;(S.prefSet=S.prefSet||new Set()).add(key);S.flash.add("prefs."+key);S.prefsDirty=1;S.prefsSaved=0;render();}
+  else if(scope==="list"){
+    const arr=S.prefs[key];
+    if(v==="__remove")arr.splice(i,1); else if(i>=0)arr[i]=v; else if(v&&!arr.includes(v))arr.push(v);
+    S.prefsDirty=1;S.prefsSaved=0;render();
+  } else if(scope==="st"){toast("Mockup: range changes the numbers.")}
+}
+pop.addEventListener("click",e=>{const b=e.target.closest("[data-pick]");if(b)pick(b.dataset.pick)});
+pop.addEventListener("submit",e=>{e.preventDefault();const v=pop.querySelector("input").value.trim();if(v)pick(v)});
+pop.addEventListener("keydown",e=>{
+  if(e.key==="Escape")closePop();
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){const o=[...pop.querySelectorAll(".opt")];const k=o.indexOf(document.activeElement);if(k>-1){e.preventDefault();o[(k+(e.key==="ArrowDown"?1:-1)+o.length)%o.length].focus()}}
+});
+scrim.addEventListener("click",closePop);
+document.addEventListener("click",e=>{if(pop.classList.contains("show")&&!pop.contains(e.target)&&!e.target.closest(".tok"))closePop()});
+
+/* ================= workout state changes ================= */
+const NAMES={minutes:"length",goal:"goal",kit:"kit",coach:"coach",limb:"limit",limbState:"knee",feel:"feeling"};
+function setW(changes,src){
+  const diffs=[];
+  for(const [k,v] of Object.entries(changes)){
+    if(S.w[k]===v){S.set.add(k);continue}
+    diffs.push([k,label(k,S.w[k]),label(k,v)]); S.w[k]=v; S.set.add(k); S.flash.add("w."+k);
+  }
+  if(S.view!=="build")S.view="build";
+  render(); setHints();
+  if(src==="tap"&&diffs.length) say("note",diffs.map(d=>`You set ${NAMES[d[0]]} to ${esc(d[2])}`).join(", "));
+  return diffs;
+}
+
+/* ================= chat parsing ================= */
+function parse(text){
+  const t=text.toLowerCase(), c={};
+  const n=t.match(/\b(10|15|20|25|30|45)\b/); if(n)c.minutes=+n[1];
+  if(/\bquick\b/.test(t))c.minutes=15;
+  if(/strength/.test(t))c.goal="strength";
+  if(/condition|cardio|sweat|hiit/.test(t))c.goal="conditioning";
+  if(/mobil|stretch|breath/.test(t))c.goal="mobility";
+  if(/general/.test(t))c.goal="general fitness";
+  if(/hotel gym/.test(t))c.kit="hotel gym"; else if(/hotel/.test(t))c.kit="hotel room";
+  if(/\bhome\b|kettlebell/.test(t))c.kit="home";
+  if(/bodyweight|no kit|nothing to use/.test(t))c.kit="bodyweight";
+  for(const co of COACHES)if(t.includes(co.name.split(" ")[1].toLowerCase()))c.coach=co.name;
+  if(/knee/.test(t)){
+    c.limb="left knee";
+    if(/worse|easy on|sore|hurts|bad|careful/.test(t))c.limbState="worse";
+    else if(/better|fine|good/.test(t))c.limbState="better";
+  }
+  if(/tired|slept badly|exhausted|stressed|go easy|easy day|low/.test(t)&&!/easy on/.test(t))c.feel="low";
+  if(/fresh|strong|too easy/.test(t))c.feel="fresh";
+  if(/too hard|wrecked|beaten/.test(t))c.feel="beaten up";
+  return c;
+}
+function intent(t){
+  t=t.toLowerCase();
+  if(/new coach|make .*coach|design .*coach|different voice/.test(t))return "coach";
+  if(/swelling|can't (put|bear) weight|numb|gives way|giving way/.test(t))return "redflag";
+  if(/\b(hurts?|injur|pain|tweaked|pulled)\b/.test(t)&&!/knee/.test(t))return "hurt";
+  if(/prefer|settings|edit my|my stuff|profile|skip burpees|i love|interests/.test(t))return "prefs";
+  if(/analytic|history|stats|how am i doing/.test(t))return "stats";
+  if(/feedback/.test(t))return "feedback";
+  if(/show me around|tour|how does/.test(t))return "tour";
+  if(/^(go|just go|do it)\b/.test(t.trim()))return "go";
+  return null;
+}
+$("#sayForm").addEventListener("submit",e=>{
+  e.preventDefault(); const inp=$("#say"), text=inp.value.trim(); if(!text)return; inp.value="";
+  say("u",esc(text)); handle(text);
+});
+function handle(text){
+  const it=intent(text);
+  if(it==="redflag"){
+    S.hurt.flags=new Set();
+    const t=text.toLowerCase();
+    if(/swelling/.test(t))S.hurt.flags.add("1"); if(/weight/.test(t))S.hurt.flags.add("0"); if(/numb|tingl/.test(t))S.hurt.flags.add("2"); if(/gives way|giving way/.test(t))S.hurt.flags.add("3");
+    if(/knee/.test(t))S.hurt.area="left knee";
+    say("a","That one's a stop sign. It's on screen now; please read it before anything else.","stop");
+    return go("hurt");
+  }
+  if(it&&it!=="go"){
+    const m={coach:"Here's your stable. Change any word in the box and I'll audition voices.",hurt:"Tell me where, in four words. I'll keep today's workout around it.",prefs:"Here's you, in a paragraph. Change any word.",stats:"Here's the last eight weeks.",feedback:"Two workouts you haven't told me about.",tour:"Here's the one-minute version."}[it];
+    say("a",m); return go(it);
+  }
+  if(S.view==="coach"){
+    const t=text.toLowerCase(), c={};
+    if(/woman|female|her/.test(t))c.who=/30/.test(t)?"woman in her 30s":/old/.test(t)?"older woman":"woman in her 40s";
+    if(/\bman\b|male|\bhis\b/.test(t))c.who=/30/.test(t)?"man in his 30s":/old/.test(t)?"older man":"man in his 50s";
+    for(const s of CT.sound.opts)if(t.includes(s.v))c.sound=s.v;
+    for(const s of CT.energy.opts)if(t.includes(s.v))c.energy=s.v;
+    if(/physio/.test(t))c.talk="patient physio"; if(/friend/.test(t))c.talk="old friend"; if(/yoga/.test(t))c.talk="yoga teacher";
+    const ks=Object.keys(c);
+    if(ks.length){if(S.aud&&S.aud.state)S.aud={};ks.forEach(k=>{S.coach[k]=c[k];S.coachSet.add(k);S.flash.add("coach."+k)});render();say("a",`Rewrote ${ks.length===1?"one word":ks.length+" words"}. Audition when it reads right.`);}
+    else say("a","I can change how they sound, who they are, how they coach or their energy. Try “older, calmer”.");
+    return;
+  }
+  const c=parse(text);
+  if(Object.keys(c).length){
+    const diffs=setW(c,"chat");
+    const g = it==="go";
+    if(diffs.length) say("a",`Done. ${g?"Starting now.":"Tap Go when it reads right."}<div class="diff">${diffs.map(d=>`<span>${NAMES[d[0]]}: <s>${esc(d[1])}</s> <b>${esc(d[2])}</b></span>`).join("")}</div>`);
+    else say("a",g?"Starting now.":"That's already what it says. Tap Go when you're ready.");
+    if(c.limbState==="worse")setTimeout(()=>say("a","Is it worse for today only, or should I write it into your health notes? Today only, unless you say otherwise."),500);
+    if(g)setTimeout(startRender,500);
+    return;
+  }
+  if(it==="go"){ if(S.view!=="build"){go("build")} setTimeout(startRender,300); say("a","Starting now. Same sentence as it stands."); return;}
+  say("a","I didn't catch a change there. Try a length, a goal, a kit, a coach, or how you feel. Or tap any green word.");
+}
+
+/* ================= hints ================= */
+function setHints(){
+  const h={home:["build me a quick one","slept badly","my back hurts","I want a new coach"],
+    build:["make it 30 and go easy on my knee","hotel gym, Ellis","slept badly","just go"],
+    coach:["older, calmer","a man in his 30s","more lively"],
+    prefs:["show me around"],hurt:["it's swelling fast"],render:[],done:["build me another"],feedback:[],stats:[],tour:["build me a quick one"]}[S.view]||[];
+  $("#hints").innerHTML=h.map(x=>`<button data-hint="${esc(x)}">${esc(x)}</button>`).join("");
+}
+$("#hints").addEventListener("click",e=>{const b=e.target.closest("[data-hint]");if(!b)return;say("u",esc(b.dataset.hint));handle(b.dataset.hint)});
+
+/* ================= render simulation ================= */
+function startRender(){
+  if(S.view==="render")return;
+  if(S.w.limbState==="worse")say("a",`The plan's on screen. Knee stays delicate today: ${esc(plan().find(r=>r.block==="Work").mv)}. Writing now.`);
+  else say("a",`Plan's set. ${S.set.size?"":"Your usual, as you'd expect. "}Writing now; you can leave and come back.`);
+  if(!S.privacySaid){say("a","Before the first voice render: the script goes to your coach's voice service, and your profile and health notes go to your language model. Both on your own keys.");S.privacySaid=1}
+  S.render={stage:0,p:0,sub:""}; go("render");
+  const subs=[["Weather fetched","Three stories picked","Quiz written"],["Opening written","Work block coached","Rests filled"],["All movements on your menu","Lint passed","Timing: 24:41 of 25:00"],["Paragraph 12 of 46","Paragraph 31 of 46","Encoding the MP3"]];
+  let step=0;const total=12;
+  clearInterval(S.rt);
+  S.rt=setInterval(()=>{
+    step++; const st=Math.min(3,Math.floor((step-1)/3)); S.render.stage=st; S.render.sub=subs[st][(step-1)%3]; S.render.p=Math.round(step/total*100);
+    if(S.view==="render")render();
+    if(step>=total){clearInterval(S.rt);setTimeout(()=>{S.render.stage=4;say("a",`Ready. ${esc(S.w.coach)}'s waiting for you. The MP3 is kept for 24 hours.`);S.play.t=0;go("done")},700)}
+  },650);
+}
+
+/* ================= actions (canvas and dock share one handler) ================= */
+function onClick(e){
+  const t=e.target.closest(".tok[data-tok]"); if(t){ if(t.classList.contains("open"))return closePop(); openPop(t); return }
+  const a=e.target.closest("[data-act]"); if(!a||!a.dataset.act||a.disabled)return; const act=a.dataset.act;
+  switch(act){
+    case "home": stopPlay(); return go("home");
+    case "build": say("a","Here's your usual, written out. Change any green word, or tell me."); return go("build");
+    case "hurt": say("a","Tell me where, in four words."); return go("hurt");
+    case "prefs": return go("prefs");
+    case "coach": return go("coach");
+    case "stats": return go("stats");
+    case "tour": return go("tour");
+    case "feedback": return go("feedback");
+    case "open-chat": return openChat(true);
+    case "again":{
+      const presets=[{minutes:25,goal:"strength",kit:"hotel room"},{minutes:30,goal:"conditioning",kit:"home"}];
+      setW(presets[+a.dataset.i],"tap"); return;
+    }
+    case "go": return startRender();
+    case "play": return togglePlay();
+    case "dl": return toast("Mockup: the download would start here.");
+    case "fbq": S.fb={a:"x",b:"x"}; say("u",esc(a.dataset.v)); say("a","Noted under feedback. Thanks."); return render();
+    case "fb": S.fb[a.dataset.k]=a.dataset.v; return render();
+    case "fb-send": say("a",`Got it: Tuesday ${esc(S.fb.a)}, Saturday ${esc(S.fb.b)}. ${/long/.test(S.fb.a+S.fb.b)?"I'll keep the rests shorter.":"I'll keep doing that."}`); return go("home");
+    case "sample": S.sample=S.sample===a.dataset.n?null:a.dataset.n; render(); if(S.sample)setTimeout(()=>{S.sample=null;render()},3500); return;
+    case "switch": S.w.coach=a.dataset.n; S.set.add("coach"); say("note",`Next workout: ${esc(a.dataset.n)}`); return render();
+    case "audition": S.aud={state:"loading"}; render(); say("a","Auditioning. Only the description goes out; about a cent a service.");
+      setTimeout(()=>{S.aud={state:"ready"};if(S.view==="coach")render();say("a","Four candidates, A to D. Listen and pick by ear.")},2200); return;
+    case "cand-play": S.aud.playing=S.aud.playing===a.dataset.l?null:a.dataset.l; render(); return;
+    case "cand-pick": S.aud.pick=a.dataset.l; S.aud.state="name"; S.aud.playing=null; render(); setTimeout(()=>{const n=$("#cname");n&&n.focus();n&&n.select()},50); return;
+    case "retry": S.aud={}; render(); return;
+    case "keep":{ const n=($("#cname").value.trim()||"Wren"); if(COACHES.some(c=>c.name==="Coach "+n)){toast("That name's taken. Pick another.");return}
+      const L=S.aud.pick; S.mine="Coach "+n; S.aud={state:"kept"}; say("a",`${esc(S.mine)} is saved. Candidate ${esc(L)} it is.`); return render(); }
+    case "use-mine": S.w.coach=S.mine; if(!T.coach.opts.some(o=>o.v===S.mine))T.coach.opts.splice(-1,0,{v:S.mine,l:S.mine,s:"your own"}); S.set.add("coach"); S.flash.add("w.coach"); return go("build");
+    case "save-prefs": S.prefsSaved=1;S.prefsDirty=0; say("a","Saved and checked. Nothing to fix."); return render();
+    case "toast": return toast(a.dataset.v);
+    case "flag":{const f=a.dataset.f, fl=S.hurt.flags;
+      if(f==="none"){fl.clear();fl.add("none")} else {fl.delete("none"); fl.has(f)?fl.delete(f):fl.add(f)}
+      if([...fl].some(x=>x!=="none")&&!S.redSaid){say("a","That's a red flag. I'll stop here: please see a clinician before training on it.","stop");S.redSaid=1}
+      return render();}
+    case "flag-clear": S.hurt.flags=new Set(); S.redSaid=0; return render();
+    case "hurt-save": case "hurt-only":{
+      const h=S.hurt, lvl=h.how==="bad"||h.what==="is sharp when loaded"?"off-limits":"delicate";
+      say("a",`Saved: ${esc(h.area)}, ${lvl}, ${esc(h.keep)}.${h.keep!=="just for today"?" Written to your health notes.":""}`);
+      if(act==="hurt-save"){ if(h.area==="left knee"){S.w.limb="left knee";S.w.limbState="worse";S.set.add("limbState");S.flash.add("w.limbState")} return go("build"); }
+      return go("home");}
+    case "fix-hinge": S.w.goal="strength"; S.set.add("goal"); say("a","Next one leans on hinges. It's in the sentence."); return go("build");
+  }
+}
+canvas.addEventListener("click",onClick);
+dock.addEventListener("click",e=>{ if(e.target.closest("#hints")||e.target.closest("#sayForm"))return; onClick(e) });
+dock.addEventListener("keydown",e=>{ if(e.target.id==="cname"&&e.key==="Enter"){e.preventDefault();$("#go").click()} });
+
+/* ================= player ================= */
+function togglePlay(){
+  S.play.on=!S.play.on;
+  clearInterval(S.play.timer);
+  if(S.play.on)S.play.timer=setInterval(()=>{S.play.t=Math.min(S.w.minutes*60,S.play.t+15);if(S.play.t>=S.w.minutes*60)stopPlay();if(S.view==="done")render()},250);
+  render();
+}
+function stopPlay(){S.play.on=false;clearInterval(S.play.timer)}
+
+/* ================= chat drawer (below 1280px) ================= */
+function openChat(x){
+  const c=$("#chat"); c.classList.toggle("open",x); $("#chatScrim").classList.toggle("show",x);
+  $("#chatToggle").setAttribute("aria-expanded",x); $("#chatToggle").textContent=x?"Close chat":"Chat";
+  if(x)log.scrollTop=log.scrollHeight;
+}
+$("#chatToggle").addEventListener("click",()=>openChat(!$("#chat").classList.contains("open")));
+$("#chatClose").addEventListener("click",()=>openChat(false));
+$("#chatScrim").addEventListener("click",()=>openChat(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#chat").classList.contains("open"))openChat(false)});
+
+/* phone: keep the canvas clear of the docked sheet */
+if("ResizeObserver" in window) new ResizeObserver(()=>document.documentElement.style.setProperty("--dock-h",dock.offsetHeight+"px")).observe(dock);
+
+/* ================= boot ================= */
+say("a","Morning, Jordan. Your usual is in the box at the bottom: press Go, change a word, or just tell me what you want.");
+render(); setHints();
+</script>
+</body>
+</html>

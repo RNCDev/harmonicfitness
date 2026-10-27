@@ -1,0 +1,1314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sweatcast Live Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9EDF4;
+  --surface:#FFFFFF;
+  --surface-2:#F4F6FA;
+  --ink:#172036;
+  --ink-2:#3B4560;
+  --muted:#667089;
+  --line:#D3D9E5;
+  --block:#24345C;
+  --block-ink:#F2F5FB;
+  --rest:#F7F3E3;
+  --rest-line:#E1D6AE;
+  --rest-ink:#6B5A1E;
+  --focus:#2F5BEA;
+  --t-time:#2F5BEA;
+  --t-goal:#C92A64;
+  --t-kit:#0B7F70;
+  --t-coach:#6E45CF;
+  --t-limit:#B26B00;
+  --t-mood:#3F7F17;
+  --danger:#B42318;
+  --danger-bg:#FDECEA;
+  --ok:#0B7F70;
+  --shadow:0 1px 0 rgba(23,32,54,.06), 0 8px 24px -12px rgba(23,32,54,.25);
+  --radius-s:6px;
+  --radius-m:12px;
+  --radius-l:20px;
+  --font-ui:"Schibsted Grotesk", system-ui, sans-serif;
+  --font-display:"Bricolage Grotesque", "Schibsted Grotesk", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#10172A;
+    --surface:#18223B;
+    --surface-2:#1F2A46;
+    --ink:#E8EDF8;
+    --ink-2:#C2CAE0;
+    --muted:#8C97B3;
+    --line:#2C3858;
+    --block:#C9D6F5;
+    --block-ink:#13203F;
+    --rest:#2A2A2E;
+    --rest-line:#4D4632;
+    --rest-ink:#E3CF8E;
+    --focus:#8FA8FF;
+    --t-time:#86A2FF;
+    --t-goal:#FF7EA6;
+    --t-kit:#45CDB8;
+    --t-coach:#B79BFF;
+    --t-limit:#F4B850;
+    --t-mood:#A3D66B;
+    --danger:#FF8A7D;
+    --danger-bg:#3A1E22;
+    --ok:#45CDB8;
+    --shadow:0 1px 0 rgba(0,0,0,.2), 0 10px 30px -14px rgba(0,0,0,.6);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font-ui);
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- frame ---------- */
+.app{
+  height:100dvh;display:grid;
+  grid-template-columns:minmax(320px,410px) 1fr;
+  grid-template-rows:auto 1fr auto;
+  grid-template-areas:"top canvas" "thread canvas" "composer canvas";
+}
+.top{grid-area:top;display:flex;align-items:center;gap:10px;padding:14px 18px 10px;border-right:1px solid var(--line);background:var(--surface)}
+.brand{font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.brand-mark{width:22px;height:14px;display:flex;gap:2px;align-items:flex-end}
+.brand-mark i{display:block;flex:1;background:var(--ink);border-radius:1px}
+.brand-mark i:nth-child(1){height:40%}.brand-mark i:nth-child(2){height:100%;background:var(--t-goal)}.brand-mark i:nth-child(3){height:65%}.brand-mark i:nth-child(4){height:30%;background:var(--t-time)}
+.top .spacer{flex:1}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;font-size:11px;font-weight:600;color:var(--muted);background:var(--surface)}
+.ghost-btn{background:none;border:1px solid var(--line);border-radius:999px;padding:5px 10px 5px 12px;display:inline-flex;gap:8px;align-items:center;color:var(--ink-2);font-size:13px}
+.ghost-btn:hover{border-color:var(--ink-2)}
+.viewtoggle{display:none}
+
+.thread{grid-area:thread;overflow-y:auto;padding:8px 18px 18px;border-right:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:12px}
+.msg{max-width:92%;font-size:14.5px}
+.msg.agent{color:var(--ink)}
+.msg.agent .who{font-size:12px;color:var(--muted);margin-bottom:2px;font-weight:600}
+.msg.user{align-self:flex-end;background:var(--surface-2);border:1px solid var(--line);padding:8px 12px;border-radius:14px 14px 4px 14px}
+.msg.user .tk{padding:0 2px}
+.msg.sys{align-self:center;font-size:12.5px;color:var(--muted);text-align:center}
+.msg p{margin:0 0 6px}
+.msg p:last-child{margin:0}
+
+/* ---------- composer (the memorable part) ---------- */
+.composer{grid-area:composer;padding:12px 14px 16px;border-right:1px solid var(--line);border-top:1px solid var(--line);background:var(--surface)}
+.field{position:relative;border:1.5px solid var(--line);border-radius:var(--radius-m);background:var(--surface-2);transition:border-color .15s}
+.field:focus-within{border-color:var(--focus)}
+.field.listening{border-color:var(--t-goal)}
+.hl,.input{
+  font-family:var(--font-ui);font-size:16px;line-height:1.5;padding:12px 88px 12px 14px;
+  white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;margin:0;border:0;
+  min-height:76px;max-height:180px;
+}
+.hl{position:absolute;inset:0;color:transparent;pointer-events:none;overflow:hidden}
+.input{position:relative;display:block;width:100%;background:transparent;resize:none;outline:none;color:var(--ink);caret-color:var(--focus);overflow-y:auto}
+.input::placeholder{color:var(--muted)}
+.hl mark{color:transparent;border-radius:4px;padding:1px 0;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.tk-time{background:color-mix(in srgb,var(--t-time) 22%,transparent);box-shadow:inset 0 -2px 0 var(--t-time)}
+.tk-goal{background:color-mix(in srgb,var(--t-goal) 20%,transparent);box-shadow:inset 0 -2px 0 var(--t-goal)}
+.tk-kit{background:color-mix(in srgb,var(--t-kit) 22%,transparent);box-shadow:inset 0 -2px 0 var(--t-kit)}
+.tk-coach{background:color-mix(in srgb,var(--t-coach) 22%,transparent);box-shadow:inset 0 -2px 0 var(--t-coach)}
+.tk-limit{background:color-mix(in srgb,var(--t-limit) 24%,transparent);box-shadow:inset 0 -2px 0 var(--t-limit)}
+.tk-mood{background:color-mix(in srgb,var(--t-mood) 22%,transparent);box-shadow:inset 0 -2px 0 var(--t-mood)}
+.tools{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
+.icon-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--ink-2)}
+.icon-btn svg{width:17px;height:17px}
+.icon-btn.send{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.icon-btn.send[disabled]{opacity:.35;cursor:default}
+.listening .icon-btn.mic{background:var(--t-goal);border-color:var(--t-goal);color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--t-goal) 50%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+.heard{display:flex;flex-wrap:wrap;gap:6px;min-height:24px;margin-top:8px;font-size:12.5px;color:var(--muted);align-items:center}
+.heard .lbl{margin-right:2px}
+.intent{display:inline-flex;gap:6px;align-items:center;font-weight:600;color:var(--ink)}
+.hint-row{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--muted);gap:8px}
+
+/* ---------- chips ---------- */
+.chip{
+  --c:var(--ink-2);
+  display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 11px 4px 9px;
+  font-size:13px;font-weight:600;border:1.5px solid var(--c);
+  background:color-mix(in srgb,var(--c) 14%,var(--surface));color:var(--ink);white-space:nowrap
+}
+.chip .k{font-weight:500;color:var(--c);font-size:12px}
+.chip.assumed{background:transparent;border-style:dashed;color:var(--ink-2)}
+.chip.assumed .k::after{content:" (usual)";font-weight:400;color:var(--muted)}
+button.chip:hover{background:color-mix(in srgb,var(--c) 26%,var(--surface))}
+.chip.open{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 30%,transparent)}
+.c-time{--c:var(--t-time)}.c-goal{--c:var(--t-goal)}.c-kit{--c:var(--t-kit)}.c-coach{--c:var(--t-coach)}.c-limit{--c:var(--t-limit)}.c-mood{--c:var(--t-mood)}
+.chip.sm{font-size:12px;padding:2px 9px 2px 7px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--c)}
+
+/* ---------- canvas ---------- */
+.canvas{grid-area:canvas;overflow-y:auto;position:relative;padding:28px clamp(16px,4vw,56px) 64px}
+.canvas-inner{max-width:1080px;margin:0 auto}
+.view{animation:viewin .25s ease-out}
+@keyframes viewin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+h1.q{font-family:var(--font-display);font-weight:800;font-size:clamp(34px,5.4vw,64px);line-height:1;letter-spacing:-.035em;margin:8px 0 26px;max-width:14ch}
+h2.t{font-family:var(--font-display);font-weight:700;font-size:clamp(26px,3.4vw,40px);line-height:1.05;letter-spacing:-.025em;margin:0 0 6px}
+h3{font-size:15px;margin:0 0 8px;font-weight:700}
+.sub{color:var(--muted);margin:0 0 20px;max-width:60ch}
+.back{background:none;border:0;color:var(--muted);padding:0;margin-bottom:16px;font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.back:hover{color:var(--ink)}
+
+/* home */
+.home-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(20px,4vw,56px);align-items:start}
+.doors{list-style:none;margin:0;padding:0;border-top:1.5px solid var(--ink)}
+.doors li{border-bottom:1px solid var(--line)}
+.door{width:100%;background:none;border:0;display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;text-align:left;padding:14px 4px}
+.door .name{font-family:var(--font-display);font-size:22px;font-weight:600;letter-spacing:-.015em}
+.door .what{display:block;font-size:13px;color:var(--muted);font-family:var(--font-ui);letter-spacing:0;font-weight:400}
+.door .sw{width:18px;height:18px;border-radius:5px;background:var(--c)}
+.door:hover .name{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.tries{margin-top:4px}
+.tries h3{color:var(--ink-2)}
+.try{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-m);padding:11px 14px;margin-bottom:8px;font-size:15px;color:var(--ink)}
+.try:hover{border-color:var(--ink-2)}
+.try .lead{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+.nudge{margin-top:22px;background:var(--surface);border-radius:var(--radius-l);padding:18px;box-shadow:var(--shadow)}
+.old{padding:12px 0;border-top:1px solid var(--line)}
+.old:first-of-type{border-top:0}
+.old .row{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600}
+.old .when{color:var(--muted);font-weight:400;font-size:12.5px}
+.mini{display:flex;height:10px;gap:1px;margin:8px 0;border-radius:3px;overflow:hidden}
+.mini i{display:block;background:var(--block)}
+.mini i.r{background:var(--rest-line)}
+.reacts{display:flex;flex-wrap:wrap;gap:6px}
+.react{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:4px 11px;font-size:13px}
+.react:hover{border-color:var(--ink-2)}
+.react.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.saved-note{font-size:12.5px;color:var(--ok);margin-top:6px}
+
+/* build */
+.build-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.total{text-align:right}
+.total .n{font-family:var(--font-display);font-size:34px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.total .tol{font-size:12px;color:var(--muted)}
+.tray{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.opts{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:var(--surface);border-radius:var(--radius-m);margin-bottom:12px;border:1px solid var(--line);align-items:center}
+.opts .q{font-size:13px;color:var(--muted);margin-right:6px;width:100%}
+.opt{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:5px 12px;font-size:13.5px}
+.opt:hover{border-color:var(--ink-2)}
+.opt.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+
+.tl-card{background:var(--surface);border-radius:var(--radius-l);padding:16px 16px 12px;box-shadow:var(--shadow);margin-bottom:14px}
+.tl-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:6px;scrollbar-width:thin}
+.tl{position:relative;min-width:100%}
+.ruler{position:relative;height:18px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ruler span{position:absolute;top:0;transform:translateX(-50%)}
+.ruler span:first-child{transform:none}
+.ruler span:last-child:not(:first-child){transform:translateX(-100%)}
+.lane{display:flex;height:118px;gap:2px;position:relative}
+.blk{position:relative;flex:0 0 auto;border-radius:8px;border:0;padding:8px 8px;text-align:left;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;min-width:0;transition:filter .15s, outline-color .15s;outline:2px solid transparent;outline-offset:1px}
+.blk .bn{font-weight:700;font-size:13px;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.blk .bs{font-size:11.5px;opacity:.8;font-variant-numeric:tabular-nums}
+.blk.work{background:var(--block);color:var(--block-ink)}
+.blk.warm,.blk.cool{background:color-mix(in srgb,var(--t-mood) 22%,var(--surface));color:var(--ink)}
+.blk.fin{background:var(--t-goal);color:#fff}
+.blk.rest{background:repeating-linear-gradient(135deg,var(--rest) 0 6px,color-mix(in srgb,var(--rest-line) 55%,var(--rest)) 6px 7px);color:var(--rest-ink);padding:8px 2px;align-items:center}
+.blk.rest .bn{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11.5px;font-weight:600;-webkit-line-clamp:unset;display:block;white-space:nowrap;max-height:100%;overflow:hidden;text-overflow:ellipsis}
+.blk.rest .bs{display:none}
+.blk:hover{filter:brightness(1.06)}
+.blk.sel{outline-color:var(--focus)}
+.blk.flash{animation:flash .9s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 4px var(--t-limit)}100%{box-shadow:0 0 0 0 transparent}}
+.blk .load{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--t-limit);box-shadow:0 0 0 2px var(--block)}
+.grip{position:absolute;top:0;bottom:0;right:-5px;width:10px;cursor:ew-resize;touch-action:none;z-index:2;display:grid;place-items:center}
+.grip::after{content:"";width:3px;height:26px;border-radius:2px;background:var(--surface);opacity:0;transition:opacity .15s;box-shadow:0 0 0 1px var(--ink-2)}
+.blk:hover .grip::after,.grip.drag::after{opacity:1}
+.body-lane{position:relative;height:38px;margin-top:6px}
+.body-lane svg{width:100%;height:100%;display:block;overflow:visible}
+.body-lane .bl-label{position:absolute;left:0;top:-1px;font-size:11px;color:var(--t-limit);font-weight:600;background:var(--surface);padding-right:6px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.playhead{position:absolute;top:18px;bottom:0;width:2px;background:var(--t-goal);z-index:3;pointer-events:none;display:none}
+.playhead::before{content:"";position:absolute;top:-6px;left:-5px;width:12px;height:12px;border-radius:50%;background:var(--t-goal)}
+.prog-mask{position:absolute;top:18px;left:0;height:118px;background:color-mix(in srgb,var(--bg) 70%,transparent);right:0;z-index:2;pointer-events:none;transition:left .4s linear;backdrop-filter:grayscale(1)}
+
+.detail{background:var(--surface);border-radius:var(--radius-l);padding:16px 18px;border:1px solid var(--line);margin-bottom:14px}
+.detail .dh{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.detail .cue{color:var(--muted);font-size:13.5px;margin:4px 0 12px}
+.swaps{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.swap{border:1px solid var(--line);background:var(--surface-2);border-radius:var(--radius-m);padding:9px 11px;text-align:left}
+.swap:hover{border-color:var(--ink-2)}
+.swap b{display:block;font-size:14px}
+.swap span{font-size:12px;color:var(--muted)}
+.swap.off{opacity:.5;text-decoration:line-through;cursor:not-allowed}
+.planfacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 24px;font-size:13.5px;color:var(--ink-2);margin-bottom:18px}
+.planfacts b{color:var(--ink);font-weight:600}
+.removed{font-size:13px;color:var(--ink-2);background:color-mix(in srgb,var(--t-limit) 12%,var(--surface));border-left:3px solid var(--t-limit);padding:9px 12px;border-radius:0 8px 8px 0;margin-bottom:14px}
+.removed s{color:var(--muted)}
+.gobar{position:sticky;bottom:0;margin:0 -8px;padding:12px 8px 18px;background:linear-gradient(transparent,var(--bg) 30%);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.go{background:var(--ink);color:var(--surface);border:0;border-radius:999px;padding:13px 22px;font-weight:700;font-size:16px;display:inline-flex;gap:10px;align-items:center}
+.go .kbd{background:transparent;color:var(--surface);border-color:color-mix(in srgb,var(--surface) 40%,transparent)}
+.go:hover{filter:brightness(1.15)}
+.go.alt{background:var(--surface);color:var(--ink);border:1.5px solid var(--ink)}
+.fine{font-size:12.5px;color:var(--muted);max-width:48ch}
+
+/* render */
+.stages{list-style:none;padding:0;margin:0 0 18px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stage{padding:12px;border-radius:var(--radius-m);background:var(--surface);border:1px solid var(--line);font-size:13.5px}
+.stage b{display:block;font-size:14px}
+.stage .bar{height:4px;border-radius:2px;background:var(--surface-2);margin-top:10px;overflow:hidden}
+.stage .bar i{display:block;height:100%;width:0;background:var(--t-time);transition:width .3s}
+.stage.done .bar i{background:var(--ok)}
+.stage.now{border-color:var(--t-time)}
+.stage .st{color:var(--muted);font-size:12px}
+.player{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--surface);border-radius:var(--radius-l);padding:16px 18px;box-shadow:var(--shadow);margin-bottom:14px}
+.pbtn{width:56px;height:56px;border-radius:50%;border:0;background:var(--t-goal);color:#fff;display:grid;place-items:center;flex:0 0 auto}
+.pbtn svg{width:22px;height:22px}
+.now{flex:1;min-width:180px}
+.now b{display:block;font-size:16px}
+.now span{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.expire{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ink-2);background:color-mix(in srgb,var(--t-limit) 12%,var(--surface));padding:10px 14px;border-radius:var(--radius-m);margin-bottom:14px}
+
+/* coach */
+.trait-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 18px}
+.slot{border:1.5px dashed var(--line);border-radius:var(--radius-m);padding:10px 12px;min-height:66px;background:var(--surface)}
+.slot.filled{border-style:solid;border-color:var(--c)}
+.slot .sk{font-size:12px;color:var(--c);font-weight:600}
+.slot .sv{font-size:15px;font-weight:600;margin-top:2px}
+.slot .sv.empty{color:var(--muted);font-weight:400;font-size:13px}
+.cands{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:16px}
+.cand{background:var(--surface);border-radius:var(--radius-l);padding:14px;border:1.5px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.cand.pick{border-color:var(--t-coach);box-shadow:0 0 0 3px color-mix(in srgb,var(--t-coach) 25%,transparent)}
+.cand .ch{display:flex;justify-content:space-between;align-items:center}
+.cand .letter{font-family:var(--font-display);font-size:30px;font-weight:800;line-height:1}
+.cand .cost{font-size:12.5px;color:var(--muted)}
+.wave{display:flex;gap:2px;align-items:center;height:36px}
+.wave i{flex:1;background:var(--ink-2);border-radius:1px;opacity:.35}
+.wave.playing i{opacity:1;background:var(--t-coach);animation:wv .7s ease-in-out infinite alternate}
+@keyframes wv{to{transform:scaleY(.4)}}
+.cand .row{display:flex;gap:8px}
+.sbtn{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:6px 12px;font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.sbtn:hover{border-color:var(--ink-2)}
+.sbtn.pri{background:var(--t-coach);color:#fff;border-color:var(--t-coach)}
+.namebox{background:var(--surface);border-radius:var(--radius-l);padding:16px;border:1px solid var(--line);margin-bottom:14px}
+.namebox input{border:1.5px solid var(--line);border-radius:var(--radius-m);padding:10px 12px;width:100%;max-width:340px;background:var(--surface-2);font-size:16px}
+.namebox input:focus{border-color:var(--t-coach);outline:none}
+.err{color:var(--danger);font-size:13px;margin-top:6px}
+.stable{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:22px}
+.coachrow{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-m);padding:12px;display:flex;gap:12px;align-items:center}
+.coachrow.cur{border-color:var(--t-coach)}
+.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-weight:800;color:#fff;flex:0 0 auto}
+.coachrow b{display:block;font-size:14.5px}
+.coachrow span{font-size:12.5px;color:var(--muted)}
+.coachrow .sp{flex:1;min-width:0}
+
+/* prefs doc */
+.doc{background:var(--surface);border-radius:var(--radius-l);padding:clamp(18px,3vw,34px);box-shadow:var(--shadow);max-width:760px}
+.doc h3{font-family:var(--font-display);font-size:21px;font-weight:700;letter-spacing:-.015em;margin:26px 0 8px}
+.doc h3:first-child{margin-top:0}
+.doc p{margin:0 0 10px;font-size:16px;line-height:1.7;color:var(--ink-2)}
+.val{color:var(--ink);font-weight:600;border-bottom:1.5px dashed var(--muted);padding:0 2px;border-radius:3px;outline:none}
+.val:hover,.val:focus{background:color-mix(in srgb,var(--t-time) 12%,transparent);border-bottom-color:var(--t-time)}
+.val.hot{animation:hot 2.2s ease-out}
+@keyframes hot{0%{background:color-mix(in srgb,var(--t-limit) 60%,transparent)}100%{background:transparent}}
+.tag{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:1px 4px 1px 8px;margin:2px 2px;background:var(--surface-2);border:1px solid var(--line);font-weight:600;color:var(--ink);font-size:14.5px;line-height:1.6}
+.tag button{border:0;background:none;color:var(--muted);padding:0 4px;font-size:15px;line-height:1}
+.tag.hot{animation:hot 2.2s ease-out;border-color:var(--t-limit)}
+.addtag{border:1px dashed var(--line);background:none;border-radius:6px;padding:1px 8px;font-size:13.5px;color:var(--muted)}
+.addtag:hover{color:var(--ink);border-color:var(--ink-2)}
+.checkline{margin-top:20px;font-size:13px;color:var(--ok);display:flex;gap:8px;align-items:center}
+
+/* hurt */
+.areas{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 18px}
+.big-opt{border:1.5px solid var(--line);background:var(--surface);border-radius:var(--radius-m);padding:10px 16px;font-size:15px;font-weight:600}
+.big-opt:hover{border-color:var(--ink-2)}
+.big-opt.on{border-color:var(--t-limit);background:color-mix(in srgb,var(--t-limit) 16%,var(--surface))}
+.big-opt small{display:block;font-weight:400;font-size:12.5px;color:var(--muted)}
+.qblock{margin-bottom:18px}
+.flags{display:grid;gap:6px;margin:8px 0 18px;max-width:560px}
+.flag{display:flex;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-m);background:var(--surface);font-size:14.5px;cursor:pointer}
+.flag input{width:18px;height:18px;accent-color:var(--danger)}
+.flag.on{border-color:var(--danger);background:var(--danger-bg)}
+.stop{background:var(--danger-bg);border:2px solid var(--danger);border-radius:var(--radius-l);padding:20px 22px;max-width:620px}
+.stop h2{font-family:var(--font-display);font-size:28px;margin:0 0 8px;color:var(--danger);letter-spacing:-.02em}
+.stop p{margin:0 0 10px}
+.okcard{background:var(--surface);border-radius:var(--radius-l);padding:18px 20px;box-shadow:var(--shadow);max-width:660px;margin-bottom:14px}
+
+/* stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.panel{background:var(--surface);border-radius:var(--radius-l);padding:16px 18px;border:1px solid var(--line)}
+.weeks{display:flex;gap:4px;align-items:flex-end;height:90px;margin-top:12px}
+.weeks div{flex:1;display:flex;flex-direction:column;gap:2px;justify-content:flex-end}
+.weeks i{display:block;height:16px;border-radius:3px;background:var(--block)}
+.weeks small{font-size:10.5px;color:var(--muted);text-align:center;margin-top:3px}
+.pat{display:grid;grid-template-columns:76px 1fr 30px;gap:8px;align-items:center;font-size:13px;margin-top:7px}
+.pat .bar{height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden}
+.pat .bar i{display:block;height:100%;background:var(--t-kit)}
+.pat.low .bar i{background:var(--t-limit)}
+
+/* tour */
+.tour{list-style:none;counter-reset:s;padding:0;margin:0;display:grid;gap:12px;max-width:680px}
+.tour li{counter-increment:s;display:grid;grid-template-columns:44px 1fr;gap:12px;background:var(--surface);border-radius:var(--radius-m);padding:14px;border:1px solid var(--line)}
+.tour li::before{content:counter(s);font-family:var(--font-display);font-size:30px;font-weight:800;line-height:1;color:var(--t-time)}
+.tour b{display:block}
+.tour span{font-size:13.5px;color:var(--ink-2)}
+
+/* palette */
+.pal-back{position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 35%,transparent);display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 0;z-index:50}
+.pal-back.on{display:flex}
+.pal{width:min(560px,100%);background:var(--surface);border-radius:var(--radius-l);box-shadow:0 30px 80px -20px rgba(0,0,0,.5);overflow:hidden;border:1px solid var(--line)}
+.pal input{width:100%;border:0;border-bottom:1px solid var(--line);padding:16px 18px;font-size:17px;background:transparent;outline:none}
+.pal ul{list-style:none;margin:0;padding:6px;max-height:50vh;overflow:auto}
+.pal li{padding:10px 12px;border-radius:var(--radius-s);display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;font-size:14.5px}
+.pal li small{color:var(--muted);font-size:12px}
+.pal li.on{background:var(--surface-2)}
+.pal li.on b::before{content:"";display:inline-block;width:3px;height:14px;background:var(--focus);margin-right:8px;vertical-align:-2px;border-radius:2px}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:.25s;z-index:60;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.label-corner{position:fixed;top:10px;right:12px;z-index:70;font-size:11px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:3px 9px;border-radius:999px;pointer-events:none}
+
+/* ---------- phone ---------- */
+@media (max-width:820px){
+  body{overflow:hidden}
+  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;grid-template-areas:"top" "main" "composer"}
+  .top{border-right:0;border-bottom:1px solid var(--line);padding:10px 14px 8px}
+  .top .ghost-btn .kbd{display:none}
+  .viewtoggle{display:inline-flex;background:var(--surface-2);border-radius:999px;padding:3px;border:1px solid var(--line)}
+  .viewtoggle button{border:0;background:none;padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;color:var(--muted)}
+  .viewtoggle button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .thread,.canvas{grid-area:main;border-right:0}
+  .app[data-pane="canvas"] .thread{display:none}
+  .app[data-pane="chat"] .canvas{display:none}
+  .composer{border-right:0;padding:10px 12px 12px}
+  .hl,.input{min-height:56px;padding-right:84px}
+  .hint-row .wide{display:none}
+  .canvas{padding:18px 16px 40px}
+  .home-grid{grid-template-columns:1fr}
+  .stages{grid-template-columns:repeat(2,1fr)}
+  .label-corner{top:auto;bottom:auto;top:52px;right:8px;font-size:10px}
+  .door .name{font-size:19px}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="label-corner">Concept 3 · The Live Canvas — mockup</div>
+
+<div class="app" id="app" data-pane="canvas">
+  <header class="top">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>sweatcast</div>
+    <span class="spacer"></span>
+    <div class="viewtoggle" role="tablist" aria-label="Show">
+      <button data-pane="chat" role="tab">Chat</button>
+      <button data-pane="canvas" role="tab" class="on">Canvas</button>
+    </div>
+    <button class="ghost-btn" data-act="palette" aria-label="Jump anywhere">Jump <span class="kbd">⌘K</span></button>
+  </header>
+
+  <section class="thread" id="thread" aria-live="polite"></section>
+
+  <section class="composer">
+    <div class="field" id="field">
+      <div class="hl" id="hl" aria-hidden="true"></div>
+      <label class="sr" for="input">Tell sweatcast what you want</label>
+      <textarea class="input" id="input" rows="2" placeholder="25 minutes, hotel room, knee's a bit sore…  or type / to jump"></textarea>
+      <div class="tools">
+        <button class="icon-btn mic" id="mic" aria-label="Dictate" title="Dictate">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <button class="icon-btn send" id="send" aria-label="Go" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="heard" id="heard"></div>
+    <div class="hint-row"><span><span class="kbd">Enter</span> go &nbsp; <span class="kbd">Shift</span>+<span class="kbd">Enter</span> new line</span><span class="wide"><span class="kbd">/</span> or <span class="kbd">⌘K</span> jump anywhere</span></div>
+  </section>
+
+  <main class="canvas" id="canvas"><div class="canvas-inner" id="cv"></div></main>
+</div>
+
+<div class="pal-back" id="palBack">
+  <div class="pal" role="dialog" aria-label="Jump anywhere">
+    <input id="palIn" placeholder="Jump to… (build, coach, hurts, about me)" autocomplete="off">
+    <ul id="palList"></ul>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mmss = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+
+/* ================= fictional data ================= */
+const KITS = {
+  'home':       {label:'Home kit', has:['bw','db','band']},
+  'hotel-room': {label:'Hotel room', has:['bw','towel']},
+  'bodyweight': {label:'Bodyweight', has:['bw']},
+  'hotel-gym':  {label:'Hotel gym', has:['bw','db','band']},
+  'full-gym':   {label:'Full gym', has:['bw','db','kb','band','bar']}
+};
+const GOALS = ['Strength','General fitness','Conditioning','Mobility and breathing'];
+const MOODS = {normal:'Normal', low:'Low', fresh:'Fresh', hard:'Last one was too hard'};
+const COACHES = [
+  {name:'Coach Reed', line:'Steady and warm, counts you in', col:'#6E45CF', svc:'about $0.20 a workout'},
+  {name:'Coach Ellis', line:'Bright, quick, a little cheeky', col:'#C92A64', svc:'about $0.45 a workout'},
+  {name:'Coach Nolan', line:'Low and unhurried', col:'#0B7F70', svc:'free tier'},
+  {name:'Coach Owen', line:'Crisp, precise, no fuss', col:'#B26B00', svc:'about $0.25 a workout'}
+];
+const MOVES = [
+  {id:'chair-squat', n:'Chair squat', p:'squat', k:['bw'], l:{knee:1}},
+  {id:'split-squat', n:'Split squat', p:'squat', k:['bw'], l:{knee:2}},
+  {id:'goblet-squat', n:'Goblet squat', p:'squat', k:['db','kb'], l:{knee:2,back:1}},
+  {id:'jump-squat', n:'Jump squat', p:'squat', k:['bw'], l:{knee:3,ankle:2}, imp:1},
+  {id:'glute-bridge', n:'Glute bridge', p:'hinge', k:['bw'], l:{back:1}},
+  {id:'sl-rdl', n:'Single-leg RDL', p:'hinge', k:['bw','db'], l:{knee:1,back:1,ankle:1}},
+  {id:'db-rdl', n:'Dumbbell RDL', p:'hinge', k:['db'], l:{back:2}},
+  {id:'kb-swing', n:'Kettlebell swing', p:'hinge', k:['kb'], l:{back:2}},
+  {id:'push-up', n:'Push-up', p:'push', k:['bw'], l:{shoulder:2,wrist:2}},
+  {id:'incline-push', n:'Incline push-up', p:'push', k:['bw'], l:{shoulder:1,wrist:1}},
+  {id:'pike-push', n:'Pike push-up', p:'push', k:['bw'], l:{shoulder:3,wrist:2}},
+  {id:'db-press', n:'Floor press', p:'push', k:['db'], l:{shoulder:1}},
+  {id:'towel-row', n:'Towel door row', p:'pull', k:['towel'], l:{shoulder:1,elbow:1}},
+  {id:'db-row', n:'One-arm row', p:'pull', k:['db'], l:{back:1}},
+  {id:'band-apart', n:'Band pull-apart', p:'pull', k:['band'], l:{shoulder:1}},
+  {id:'prone-y', n:'Prone Y raise', p:'pull', k:['bw'], l:{shoulder:1}},
+  {id:'dead-bug', n:'Dead bug', p:'core', k:['bw'], l:{}},
+  {id:'plank', n:'Forearm plank', p:'core', k:['bw'], l:{shoulder:1}},
+  {id:'side-plank', n:'Side plank', p:'core', k:['bw'], l:{shoulder:2}},
+  {id:'bird-dog', n:'Bird dog', p:'core', k:['bw'], l:{wrist:1}},
+  {id:'burpee', n:'Burpee', p:'cond', k:['bw'], l:{knee:2,wrist:2,shoulder:2}, imp:1},
+  {id:'skater', n:'Skater hop', p:'cond', k:['bw'], l:{knee:2,ankle:3}, imp:1},
+  {id:'march', n:'High-knee march', p:'cond', k:['bw'], l:{knee:1}},
+  {id:'mtn', n:'Mountain climber', p:'cond', k:['bw'], l:{wrist:2,shoulder:2}},
+  {id:'shadow', n:'Shadow boxing', p:'cond', k:['bw'], l:{shoulder:1}},
+  {id:'step-jack', n:'Step jack', p:'cond', k:['bw'], l:{knee:1}},
+  {id:'cat-cow', n:'Cat-cow', p:'mob', k:['bw'], l:{}},
+  {id:'hip-circles', n:'Hip circles', p:'mob', k:['bw'], l:{}},
+  {id:'worlds', n:'Lunge with reach', p:'mob', k:['bw'], l:{knee:1}},
+  {id:'thoracic', n:'Open book', p:'mob', k:['bw'], l:{}},
+  {id:'box-breath', n:'Box breathing', p:'mob', k:['bw'], l:{}}
+];
+const TOPICS = [
+  'Today: the forecast and what\'s on',
+  'Science: why your grip gives out first',
+  'Quiz: three questions on bones',
+  'Deep dive: a video on sleep, part 2',
+  'Delight: the octopus\'s three hearts',
+  'Learn: how a bicycle stays upright',
+  'Science: what a cramp actually is',
+  'Quiz: name that planet'
+];
+const AREAS = ['knee','shoulder','lower back','ankle','wrist','hip','neck','elbow'];
+const RED_FLAGS = [
+  'I can\'t put weight on it',
+  'The swelling is getting bigger fast',
+  'Numbness or tingling',
+  'It gives way under me',
+  'It\'s been getting worse for a week or two'
+];
+const PROFILE = {kit:'home', minutes:25, goal:'Strength', coach:'Coach Reed', mood:'normal', limits:[{area:'knee', side:'left', level:'delicate'}]};
+
+/* ================= state ================= */
+const S = {
+  view:'home', prev:'home', manual:{}, plan:null, planSig:'', sel:null, openSlot:null,
+  render:null, playing:false, playT:0, timer:null,
+  coach:{cands:null, picked:null, kept:null, playing:null, nameErr:''},
+  stable: COACHES.slice(), current:'Coach Reed',
+  hurt:{area:null, side:null, sev:null, span:null, flags:[]},
+  feedback:{}, built:false,
+  prefs:{
+    name:'Jordan', experience:'intermediate', place:'a flat with a balcony',
+    likes:['kettlebell work','short sharp intervals','supersets'],
+    dislikes:['long planks','jumping lunges'],
+    kits:['Home kit: two 12 kg dumbbells, a light band','Hotel room: a towel and a door'],
+    length:'25 minutes', interests:['space','weird animals','cycling history'],
+    never:['celebrity gossip'], puzzles:'yes, a short quiz most sessions'
+  },
+  hot:null
+};
+
+/* ================= parser ================= */
+const NUMW = {'fifteen':15,'twenty':20,'twenty five':25,'twenty-five':25,'thirty':30,'forty five':45,'forty-five':45,'half an hour':30,'an hour':60,'quick one':15,'quick':15,'ten':10};
+const RULES = [
+  {t:'time', re:/\b(\d{1,2})\s?(?:-\s?)?(?:minutes?|mins?|m)\b/gi, v:m=>+m[1]},
+  {t:'time', re:/\b(twenty[ -]five|forty[ -]five|fifteen|twenty|thirty|ten|half an hour|quick one|quick)\b(?:\s?(?:minutes?|mins?))?/gi, v:m=>NUMW[m[1].toLowerCase()]},
+  {t:'mood', re:/\b(slept (?:badly|terribly|poorly)|bad night|tired|knackered|exhausted|wiped|stressed|low energy|feeling (?:fresh|strong|great|good)|fresh|full of beans|last one was too (?:hard|easy)|too hard|too easy)\b/gi,
+    v:m=>{const s=m[1].toLowerCase(); if(/hard/.test(s))return 'hard'; if(/fresh|strong|great|good|beans|easy/.test(s))return 'fresh'; return 'low';}},
+  {t:'goal', re:/\b(strength|conditioning|cardio|hiit|sweaty|sweat|mobility|stretch(?:y|ing)?|breathing|general fitness|full[ -]body|legs|upper body|core)\b/gi,
+    v:m=>{const s=m[1].toLowerCase(); if(/cardio|hiit|sweat|conditioning/.test(s))return 'Conditioning'; if(/mobil|stretch|breath/.test(s))return 'Mobility and breathing'; if(/general|full/.test(s))return 'General fitness'; return 'Strength';}},
+  {t:'kit', re:/\b(hotel[ -]?room|hotel gym|hotel|bodyweight|no equipment|no kit|full gym|the gym|gym|at home|home|dumbbells?|bands?)\b/gi,
+    v:m=>{const s=m[1].toLowerCase(); if(s==='hotel gym')return 'hotel-gym'; if(/hotel/.test(s))return 'hotel-room'; if(/body|no /.test(s))return 'bodyweight'; if(/gym/.test(s))return 'full-gym'; return 'home';}},
+  {t:'coach', re:/\b(?:coach\s+)?(reed|ellis|nolan|owen)\b/gi, v:m=>'Coach '+m[1][0].toUpperCase()+m[1].slice(1).toLowerCase()},
+  {t:'limit', re:/\b(?:(left|right)\s+)?(knees?|shoulders?|lower back|back|ankles?|wrists?|hips?|neck|elbows?)\b/gi,
+    v:m=>({area:m[2].toLowerCase().replace(/s$/,'').replace(/^back$/,'lower back'), side:(m[1]||'').toLowerCase()})}
+];
+// coach-description traits
+const TRAITS = [
+  {slot:'who', c:'coach', re:/\b(older|younger|young|middle[- ]aged|in (?:his|her|their) (?:twenties|thirties|forties|fifties|sixties)|guy|man|woman|lady|bloke)\b/gi},
+  {slot:'sound', c:'time', re:/\b(gravelly|gravel|husky|low|deep|bright|crisp|warm|smooth|raspy|soft|clear)\b/gi},
+  {slot:'energy', c:'mood', re:/\b(calm|chill|relaxed|upbeat|energetic|intense|fired up|gentle|steady)\b/gi},
+  {slot:'pace', c:'kit', re:/\b(unhurried|slow|quick|fast|brisk|measured)\b/gi},
+  {slot:'character', c:'goal', re:/\b(dry (?:humour|humor|wit)|funny|playful|encouraging|no[- ]nonsense|strict|kind|cheeky|sarcastic|patient)\b/gi}
+];
+const PREF_RE = [
+  {k:'dislikes', re:/\bi (?:hate|can't stand|cannot stand|don't like|do not like|dislike|loathe)\s+([^.,!]+)/i},
+  {k:'likes', re:/\bi (?:love|really like|like|enjoy)\s+([^.,!]+)/i},
+  {k:'never', re:/\b(?:never|don't|do not|stop) (?:bring up|talk about|mention|talking about)\s+([^.,!]+)/i},
+  {k:'kits', re:/\bi (?:got|bought|now have|picked up) (?:a |an |some )?([^.,!]*(?:kettlebell|dumbbell|band|bench|mat|bar|rower|bike)[^.,!]*)/i},
+  {k:'interests', re:/\bi'?m (?:into|interested in)\s+([^.,!]+)/i}
+];
+
+function parse(text){
+  const spans = [], b = {limits:[]}, low = text.toLowerCase();
+  const take = (start,end,type) => {
+    if (spans.some(s => start < s.end && end > s.start)) return false;
+    spans.push({start,end,type}); return true;
+  };
+  for (const r of RULES){
+    r.re.lastIndex = 0; let m;
+    while ((m = r.re.exec(text))){
+      if (r.t==='limit' && !/sore|hurt|tweak|achy|aching|stiff|off|bad|niggl|pain|twinge|fine|better|worse|careful|dodgy/.test(low)) continue;
+      if (!take(m.index, m.index+m[0].length, r.t)) continue;
+      const v = r.v(m);
+      if (r.t==='limit'){
+        const lv = /can't use|cannot use|no (?:knee|shoulder|back|ankle|wrist|hip)|off[- ]limits|really (?:bad|hurts)/.test(low) ? 'off-limits' : 'delicate';
+        const trend = /better|fine/.test(low) ? 'better' : /worse/.test(low) ? 'worse' : '';
+        b.limits.push(Object.assign(v,{level:lv,trend}));
+      } else if (b[r.t]===undefined) b[r.t] = v;
+    }
+  }
+  if (b.time) b.time = Math.min(60, Math.max(10, b.time));
+  // intents
+  let intent = null, pref = null, traits = [];
+  for (const p of PREF_RE){ const m = text.match(p.re); if (m && m[1].trim().length>1){ pref = {k:p.k, v:m[1].trim().replace(/\s+$/,'')}; break; } }
+  const coachy = /\b(new coach|a coach (?:who|that|with)|coach (?:who|that)|voice|sounds? like|sounding)\b/i.test(text);
+  if (coachy || (!b.time && !b.goal && !b.kit)){
+    for (const t of TRAITS){ t.re.lastIndex=0; let m; while((m=t.re.exec(text))){ if (spans.some(s=>m.index<s.end&&m.index+m[0].length>s.start)) continue; spans.push({start:m.index,end:m.index+m[0].length,type:t.c}); traits.push({slot:t.slot,c:t.c,v:m[1]}); } }
+  }
+  const hurtWords = /\b(hurts?|hurting|pain|injur|tweaked|pulled|sprain|twinge)/i.test(text);
+  if (pref && !b.time) intent = 'prefs';
+  else if (coachy && traits.length) intent = 'coach';
+  else if (hurtWords && !b.time && !b.goal && !b.kit) intent = 'hurt';
+  else if (b.time || b.goal || b.kit || b.mood || b.coach || b.limits.length || /\b(workout|session|train|sweat)\b/i.test(text)) intent = 'build';
+  else if (traits.length >= 2) intent = 'coach';
+  spans.sort((a,b)=>a.start-b.start);
+  return {spans, b, intent, pref, traits};
+}
+
+/* ================= plan builder ================= */
+function effective(p){
+  const m = S.manual, b = p ? p.b : {limits:[]};
+  // health.md's limits always apply; what's said today can only add or tighten, never loosen
+  const base = PROFILE.limits.map(x=>Object.assign({},x,{trend:'same'}));
+  let lim = m.limit !== undefined ? m.limit : base.slice();
+  if (m.limit === undefined) b.limits.forEach(l=>{ const i = lim.findIndex(x=>x.area===l.area); if (i>=0) lim[i] = Object.assign({}, lim[i], {trend:l.trend||'sore today', level: l.level==='off-limits'?'off-limits':lim[i].level}); else lim.push(Object.assign({}, l, {trend:l.trend||'sore today'})); });
+  return {
+    minutes: m.time || b.time || PROFILE.minutes,
+    goal:    m.goal || b.goal || PROFILE.goal,
+    kit:     m.kit || b.kit || PROFILE.kit,
+    coach:   m.coach || b.coach || S.current,
+    mood:    m.mood || b.mood || PROFILE.mood,
+    limits:  lim,
+    said: {time:!!(m.time||b.time), goal:!!(m.goal||b.goal), kit:!!(m.kit||b.kit), coach:!!(m.coach||b.coach), mood:!!(m.mood||b.mood), limit: m.limit!==undefined || b.limits.length>0},
+    rawLimits: lim
+  };
+}
+function allowed(mv, e){
+  const kit = KITS[e.kit].has;
+  if (!mv.k.some(x=>kit.includes(x))) return {ok:false, why:'not in this kit'};
+  for (const l of e.limits){
+    const area = l.area==='lower back' ? 'back' : l.area;
+    const load = mv.l[area] || 0;
+    if (l.level==='off-limits' && load>=1) return {ok:false, why:l.area+' is off-limits'};
+    if (load>=2 || (mv.imp && (load>=1 || ['knee','ankle','hip','lower back'].includes(l.area)))) return {ok:false, why:'too much for your '+l.area};
+  }
+  return {ok:true};
+}
+function menu(e){ return MOVES.filter(m=>allowed(m,e).ok); }
+function pick(pattern, e, used){
+  const c = menu(e).filter(m=>m.p===pattern && !used.has(m.id));
+  if (!c.length) return null;
+  // prefer heavier tools when the kit has them
+  c.sort((a,b)=> (b.k[0]!=='bw') - (a.k[0]!=='bw'));
+  return c[0];
+}
+function buildPlan(e){
+  const total = e.minutes*60, blocks = [], used = new Set();
+  const warm = Math.round(total*0.14/5)*5, cool = Math.round(total*0.1/5)*5;
+  const hasFin = e.minutes>=20 && e.goal!=='Mobility and breathing';
+  const fin = hasFin ? Math.round(total*0.12/5)*5 : 0;
+  const main = total - warm - cool - fin;
+  blocks.push({type:'warm', sec:warm, name:'Warm-up', moves:['hip-circles','cat-cow','worlds'].filter(id=>allowed(MOVES.find(m=>m.id===id),e).ok)});
+  const pats = {
+    'Strength':['squat','push','hinge','pull','core','squat','push'],
+    'General fitness':['squat','cond','push','hinge','cond','pull','core'],
+    'Conditioning':['cond','squat','cond','push','cond','core','cond'],
+    'Mobility and breathing':['mob','mob','core','mob','mob','core','mob']
+  }[e.goal];
+  let n = Math.max(3, Math.min(7, Math.floor(main/150)));
+  if (e.mood==='low' || e.mood==='hard') n = Math.max(3, n-1);
+  const share = e.mood==='low' ? .58 : e.mood==='fresh' ? .74 : e.mood==='hard' ? .6 : .68;
+  const per = main / n;
+  let acc = 0, ti = 0;
+  for (let i=0;i<n;i++){
+    let mv = pick(pats[i % pats.length], e, used) || pick('core', e, used) || pick('mob', e, used);
+    if (!mv) mv = MOVES.find(m=>m.id==='box-breath');
+    used.add(mv.id);
+    const w = Math.round(per*share/5)*5;
+    let r = Math.round(per/5)*5 - w;
+    if (i===n-1) r = main - acc - w;
+    acc += w + r;
+    blocks.push({type:'work', sec:w, move:mv.id, name:mv.n});
+    if (r>0) blocks.push({type:'rest', sec:r, topic:TOPICS[ti++ % TOPICS.length]});
+  }
+  if (hasFin){
+    const fm = pick(e.goal==='Strength' ? 'cond' : 'core', e, used) || pick('cond', e, used) || MOVES.find(m=>m.id==='dead-bug');
+    used.add(fm.id);
+    blocks.push({type:'fin', sec:fin, move:fm.id, name:fm.n});
+  }
+  blocks.push({type:'cool', sec:cool, name:'Cool-down', moves:['thoracic','box-breath']});
+  return blocks;
+}
+const sig = e => JSON.stringify([e.minutes,e.goal,e.kit,e.mood,e.limits.map(l=>l.area+l.level)]);
+function ensurePlan(e){
+  const s = sig(e);
+  if (s !== S.planSig){ S.plan = buildPlan(e); S.planSig = s; S.sel = null; return true; }
+  return false;
+}
+
+/* ================= composer ================= */
+const input = $('#input'), hl = $('#hl'), heard = $('#heard'), sendB = $('#send');
+let P = parse('');
+function paintComposer(){
+  const t = input.value; P = parse(t);
+  let html = '', i = 0;
+  for (const s of P.spans){ html += esc(t.slice(i,s.start)) + '<mark class="tk-'+s.type+'">'+esc(t.slice(s.start,s.end))+'</mark>'; i = s.end; }
+  html += esc(t.slice(i)) + '\n';
+  hl.innerHTML = html; hl.scrollTop = input.scrollTop;
+  sendB.disabled = !t.trim();
+  // what I heard
+  const out = [];
+  const b = P.b;
+  if (P.intent==='build'){
+    if (b.time) out.push(chipHTML('time','Length',b.time+' min'));
+    if (b.goal) out.push(chipHTML('goal','Goal',b.goal));
+    if (b.kit) out.push(chipHTML('kit','Kit',KITS[b.kit].label));
+    if (b.coach) out.push(chipHTML('coach','Coach',b.coach));
+    b.limits.forEach(l=>out.push(chipHTML('limit','Body',(l.side?l.side+' ':'')+l.area+(l.trend?' '+l.trend:''))));
+    if (b.mood) out.push(chipHTML('mood','Feeling',MOODS[b.mood]));
+  }
+  if (P.pref && P.intent==='prefs') out.push(chipHTML(P.pref.k==='likes'?'mood':P.pref.k==='kits'?'kit':P.pref.k==='never'?'limit':'goal', {likes:'Like',dislikes:'Skip',never:'Never bring up',kits:'Kit',interests:'Interest'}[P.pref.k], P.pref.v));
+  const label = {build:'Building a workout', coach:'Describing a coach', prefs:'Saving to About me', hurt:'Something hurts'}[P.intent];
+  heard.innerHTML = t.trim() ? (label ? '<span class="intent"><span class="dot" style="--c:var(--ink)"></span>'+label+'</span>' : '<span class="lbl">Enter sends it to chat</span>') + out.join('') : '';
+  // live canvas
+  if (t.trim() && P.intent) setPane('canvas');
+  if (P.intent==='build' && (['home','build'].includes(S.view) || (S.view==='render' && S.render && S.render.done))){ go('build', true); }
+  else if (S.view==='build' && S.live && !t.trim()){ go('home', true); }
+  else if (S.view==='build' && S.live) renderView();
+  else if (P.intent==='coach' && ['home','coach'].includes(S.view) && !S.coach.cands){ go('coach', true); }
+  else if (S.view==='coach' && !S.coach.cands) renderView();
+}
+function chipHTML(type,k,v,extra){ return '<span class="chip sm c-'+type+(extra||'')+'"><span class="k">'+esc(k)+'</span>'+esc(v)+'</span>'; }
+input.addEventListener('input', paintComposer);
+input.addEventListener('scroll', ()=>{ hl.scrollTop = input.scrollTop; });
+input.addEventListener('keydown', e=>{
+  if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); submit(); }
+  if (e.key==='/' && !input.value){ e.preventDefault(); openPalette(); }
+});
+sendB.addEventListener('click', submit);
+
+function setText(t){ input.value = t; paintComposer(); input.focus(); input.setSelectionRange(t.length,t.length); }
+
+/* ================= chat ================= */
+const thread = $('#thread');
+function say(who, html){
+  const d = document.createElement('div');
+  d.className = 'msg '+who;
+  d.innerHTML = who==='agent' ? '<div class="who">sweatcast</div>'+html : html;
+  thread.appendChild(d); thread.scrollTop = thread.scrollHeight;
+}
+function userEcho(t){
+  let html='', i=0;
+  for (const s of P.spans){ html += esc(t.slice(i,s.start))+'<span class="tk tk-'+s.type+'">'+esc(t.slice(s.start,s.end))+'</span>'; i=s.end; }
+  say('user', html+esc(t.slice(i)));
+}
+
+function submit(){
+  const t = input.value.trim();
+  if (!t) return;
+  userEcho(t);
+  const parsed = P, intent = P.intent, pref = P.pref;
+  input.value=''; paintComposer();
+  if (intent==='build'){
+    startRender(parsed);
+  } else if (intent==='prefs'){
+    applyPref(pref);
+  } else if (intent==='coach'){
+    S.coachDesc = t; go('coach'); audition();
+  } else if (intent==='hurt'){
+    const m = t.toLowerCase().match(/\b(knee|shoulder|lower back|back|ankle|wrist|hip|neck|elbow)/);
+    S.hurt = {area: m ? (m[1]==='back'?'lower back':m[1]) : null, side:(t.match(/\b(left|right)\b/i)||[])[1]||null, sev:null, span:null, flags:[]};
+    go('hurt');
+    say('agent','<p>Sorry to hear it. Three taps on the right and I\'ll adjust everything to suit.</p>');
+  } else {
+    say('agent','<p>Got it. Try something like <em>“30 min strength, home kit”</em>, or press <span class="kbd">/</span> to jump to a page.</p>');
+  }
+  setPane('canvas');
+}
+
+/* ================= views ================= */
+const cv = $('#cv');
+function go(v, live){
+  const changed = S.view!==v;
+  if (changed){ S.prev = S.view; }
+  S.view = v; S.live = !!live;
+  if (!live) S.openSlot = null;
+  renderView(changed || !live);
+  if (!live) $('#canvas').scrollTop = 0;
+}
+function renderView(fresh){
+  const fn = VIEWS[S.view] || VIEWS.home;
+  cv.innerHTML = '<div class="'+(fresh?'view':'')+'">'+fn()+'</div>';
+  after[S.view] && after[S.view]();
+}
+const backBtn = () => '<button class="back" data-act="home"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 6l-6 6 6 6"/></svg>Home</button>';
+const after = {};
+
+const VIEWS = {
+home(){
+  const doors = [
+    ['B','build','Build a workout','Say it in one line and watch it take shape','var(--t-time)'],
+    ['E','prefs','Edit my stuff','Everything I know about you, on one page','var(--t-kit)'],
+    ['H','hurt','Something hurts','Three taps, and today\'s workout steers around it','var(--t-limit)'],
+    ['C','coaches','Coaches','Hear them, switch, or make your own','var(--t-coach)'],
+    ['T','tour','Show me around','What sweatcast does, in four steps','var(--muted)'],
+    ['A','stats','Analytics','What you\'ve done and what\'s been left out','var(--t-mood)']
+  ];
+  const olds = [
+    {id:'w1', t:'Strength, 25 min', when:'Thursday, Coach Reed', bars:[3,1,4,1,4,1,4,1,3,2]},
+    {id:'w2', t:'Conditioning, 15 min', when:'Last Sunday, Coach Reed', bars:[2,3,1,3,1,3,1,2]}
+  ];
+  const reacts = ['Just right','Too long','Too easy','Too hard','Loved the stories','Less chat'];
+  const dots = Object.keys(S.feedback).length;
+  return `
+  <div class="home-grid">
+    <div>
+      <p class="sub" style="margin:0">Tuesday morning, Jordan.</p>
+      <h1 class="q">What do you want to do today?</h1>
+      <ul class="doors">${doors.map(d=>`<li><button class="door" data-go="${d[1]}" style="--c:${d[4]}"><span class="sw"></span><span class="name">${d[2]}<span class="what">${d[3]}</span></span><span class="kbd">${d[0]}</span></button></li>`).join('')}</ul>
+    </div>
+    <div>
+      <div class="tries">
+        <h3>Or just type. These fill the box so you can watch it parse:</h3>
+        <button class="try" data-try="25 minute strength in the hotel room, knee's a bit sore, slept badly"><span class="lead">Travelling</span>25 minute strength in the hotel room, knee's a bit sore, slept badly</button>
+        <button class="try" data-try="quick sweaty one at home, feeling fresh, coach ellis"><span class="lead">Short on time</span>quick sweaty one at home, feeling fresh, coach ellis</button>
+        <button class="try" data-try="a new coach: gravelly older guy, dry humour, calm and unhurried"><span class="lead">New voice</span>a new coach: gravelly older guy, dry humour, calm and unhurried</button>
+        <button class="try" data-try="I hate burpees"><span class="lead">Tell it once</span>I hate burpees</button>
+      </div>
+      <div class="nudge">
+        <h3>Got feedback on 2 older workouts?</h3>
+        <p class="sub" style="margin:0 0 4px;font-size:13px">One tap each. It shapes the next one.</p>
+        ${olds.map(o=>`<div class="old"><div class="row"><span>${o.t}</span><span class="when">${o.when}</span></div>
+          <div class="mini">${o.bars.map((x,i)=>`<i class="${i%2?'r':''}" style="flex:${x}"></i>`).join('')}</div>
+          <div class="reacts">${reacts.map(r=>`<button class="react ${S.feedback[o.id]===r?'on':''}" data-fb="${o.id}" data-r="${esc(r)}">${r}</button>`).join('')}</div>
+          ${S.feedback[o.id]?'<div class="saved-note">Saved under Feedback.</div>':''}</div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+},
+build(){
+  const e = effective(S.live || S.view==='build' ? P : null);
+  ensurePlan(e);
+  const total = S.plan.reduce((a,b)=>a+b.sec,0);
+  const said = e.said;
+  const lim = e.rawLimits;
+  const limTxt = lim.length ? lim.map(l=>(l.side?l.side+' ':'')+l.area+': '+(l.trend||'same')).join(', ') : 'nothing new';
+  const chip = (slot,type,k,v)=>`<button class="chip c-${type} ${said[slot]?'':'assumed'} ${S.openSlot===slot?'open':''}" data-slot="${slot}"><span class="k">${k}</span>${esc(v)}</button>`;
+  const title = `${e.minutes} min ${e.goal.toLowerCase()}, ${KITS[e.kit].label.toLowerCase()}`;
+  const full = menu(Object.assign({},e,{limits:[]}));
+  const cut = full.filter(m=>!allowed(m,e).ok && m.p!=='mob');
+  const works = S.plan.filter(b=>b.type==='work'||b.type==='fin').length;
+  const rests = S.plan.filter(b=>b.type==='rest').length;
+  const moodNote = {low:'Lighter today: fewer rounds, longer rests.', hard:'Easing off after last time: fewer rounds.', fresh:'Fresh: a bit more work in each round.', normal:''}[e.mood];
+  return `
+  ${backBtn()}
+  <div class="build-head">
+    <div><h2 class="t">${esc(title)}</h2><div class="sub" style="margin:0">${S.live?'Live from what you\'re typing. Dashed means I took your usual; tap to change.':'Tap any part to change it.'}</div></div>
+    <div class="total"><div class="n">${mmss(total)}</div><div class="tol">held to ${e.minutes}:00, within 3%</div></div>
+  </div>
+  <div class="tray">
+    ${chip('time','time','Length',e.minutes+' min')}
+    ${chip('goal','goal','Goal',e.goal)}
+    ${chip('kit','kit','Kit',KITS[e.kit].label)}
+    ${chip('limit','limit','Body',limTxt)}
+    ${chip('mood','mood','Feeling',MOODS[e.mood])}
+    ${chip('coach','coach','Coach',e.coach)}
+  </div>
+  ${slotOptions(e)}
+  ${cut.length && e.limits.length ? `<div class="removed">Steering around your ${esc(e.limits.map(l=>l.area).join(' and '))}: ${cut.slice(0,6).map(m=>'<s>'+esc(m.n)+'</s>').join(', ')} are off today's menu.</div>`:''}
+  ${timelineHTML(e)}
+  ${detailHTML(e)}
+  <div class="planfacts">
+    <div><b>${works} movements</b>, ${rests} rests carrying a story, quiz or the news. ${moodNote}</div>
+    <div><b>Equipment:</b> ${esc(KITS[e.kit].label)}${e.kit==='hotel-room'?' (a towel and a sturdy door)':e.kit==='home'?' (two 12 kg dumbbells, a band)':''}</div>
+    <div><b>Left out:</b> ${e.goal==='Strength'?'nothing major':'heavy pulling, not the goal today'}</div>
+  </div>
+  <div class="gobar">
+    <button class="go" data-act="go">Make it <span class="kbd">Enter</span></button>
+    <span class="fine">About 6 minutes to make. You can close the tab; it keeps going. The MP3 is kept for 24 hours, so download it to keep it.</span>
+  </div>`;
+},
+render(){
+  const e = S.render.e, r = S.render;
+  const stages = [['research','Research','Today\'s weather, a science story, your quiz'],['writing','Writing','Coach '+e.coach.replace('Coach ','')+'\'s script, segment by segment'],['checking','Checking','Every move against today\'s safe menu, timing to plan'],['voice','Rendering voice','Paragraph by paragraph']];
+  return `
+  ${backBtn()}
+  <h2 class="t">${r.done ? 'Ready when you are' : 'Making it'}</h2>
+  <p class="sub">${r.done ? esc(e.minutes+' min '+e.goal.toLowerCase()+' with '+e.coach+'.') : 'You can close this tab. It keeps going, and it\'ll be here when you\'re back.'}</p>
+  ${r.done ? playerHTML(e) : `<ol class="stages">${stages.map((s,i)=>`<li class="stage ${i<r.stage?'done':i===r.stage?'now':''}" data-stage="${i}"><b>${s[1]}</b><span class="st">${i<r.stage?'Done':s[2]}</span><div class="bar"><i style="width:${i<r.stage?100:i===r.stage?r.pct:0}%"></i></div></li>`).join('')}</ol>`}
+  ${timelineHTML(e, true)}
+  ${r.done ? `<div class="expire"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Kept for 24 hours, until tomorrow at 7:42. The script stays in your history.</span></div>` : ''}
+  `;
+},
+coach(){
+  const desc = S.coach.cands ? (S.coachDesc||'') : input.value;
+  const p = S.coach.cands ? parse(S.coachDesc||'') : P;
+  const slots = {who:null,sound:null,energy:null,pace:null,character:null};
+  const cols = {who:'coach',sound:'time',energy:'mood',pace:'kit',character:'goal'};
+  (p.traits||[]).forEach(t=>{ slots[t.slot] = slots[t.slot] ? slots[t.slot]+', '+t.v : t.v; });
+  const names = {who:'Who',sound:'Sound',energy:'Energy',pace:'Pace',character:'How they talk'};
+  const slotHTML = Object.keys(slots).map(k=>`<div class="slot ${slots[k]?'filled':''}" style="--c:var(--t-${cols[k]})"><div class="sk">${names[k]}</div><div class="sv ${slots[k]?'':'empty'}">${slots[k]?esc(slots[k]):'say it, or I\'ll pick'}</div></div>`).join('');
+  let body = '';
+  if (!S.coach.cands){
+    body = `<p class="sub">Describe a voice in the box. Each word lands in its slot as you type. No celebrity or character voices: every coach is an original.</p>
+    <div class="trait-grid">${slotHTML}</div>
+    <div class="gobar"><button class="go" data-act="audition" ${Object.values(slots).filter(Boolean).length?'':'disabled style="opacity:.4"'}>Audition <span class="kbd">Enter</span></button>
+    <span class="fine">Your description goes to each voice service you have a key for (2 right now). About a cent each.</span></div>`;
+  } else if (S.coach.cands==='loading'){
+    body = `<div class="trait-grid">${slotHTML}</div><p class="sub">Designing voices on your 2 keyed services. Usually under a minute.</p><div class="cands">${[0,1,2].map(()=>`<div class="cand"><div class="wave">${'<i style="height:20%"></i>'.repeat(28)}</div></div>`).join('')}</div>`;
+  } else if (S.coach.kept){
+    body = `<div class="okcard"><h3>${esc(S.coach.kept)} is in your stable.</h3><p class="sub" style="margin:0 0 12px">Your next workout uses them. Switch back any time.</p>
+      <button class="go" data-act="build-with">Build a workout with ${esc(S.coach.kept)}</button></div>`;
+  } else {
+    body = `<div class="trait-grid">${slotHTML}</div>
+    <h3>Four candidates. Pick by ear.</h3>
+    <div class="cands">${S.coach.cands.map(c=>`<div class="cand ${S.coach.picked===c.l?'pick':''}">
+      <div class="ch"><span class="letter">${c.l}</span><span class="cost">${c.cost}</span></div>
+      <div class="wave ${S.coach.playing===c.l?'playing':''}">${c.wave.map((h,i)=>`<i style="height:${h}%;animation-delay:${i*37%400}ms"></i>`).join('')}</div>
+      <div class="row"><button class="sbtn" data-play="${c.l}">${S.coach.playing===c.l?'Stop':'Play'}</button><button class="sbtn ${S.coach.picked===c.l?'pri':''}" data-pick="${c.l}">${S.coach.picked===c.l?'Chosen':'This one'}</button></div>
+    </div>`).join('')}</div>
+    ${S.coach.picked?`<div class="namebox"><h3>Name candidate ${S.coach.picked}</h3>
+      <input id="cname" value="Coach Hale" aria-label="Coach name"> <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${['Coach Hale','Coach Abel','Coach Morrow'].map(n=>`<button class="opt" data-cname="${n}">${n}</button>`).join('')}</div>
+      ${S.coach.nameErr?`<div class="err">${esc(S.coach.nameErr)}</div>`:''}
+      <div style="margin-top:14px"><button class="go" data-act="keep">Keep this coach</button></div></div>`
+      :`<p class="fine">None right? Say what's off in the box ("too young", "brighter") and I'll audition again.</p>`}`;
+  }
+  return `${backBtn()}<h2 class="t">A coach of your own</h2>${body}`;
+},
+coaches(){
+  return `${backBtn()}<h2 class="t">Your coaches</h2><p class="sub">Tap to hear a sample, set one as the coach for your next workout, or make a new one.</p>
+  <div class="stable">${S.stable.map(c=>`<div class="coachrow ${S.current===c.name?'cur':''}"><span class="avatar" style="background:${c.col}">${c.name.split(' ')[1][0]}</span><span class="sp"><b>${esc(c.name)}</b><span>${esc(c.line)}</span></span>
+  ${S.current===c.name?'<span class="chip sm c-coach">Current</span>':`<button class="sbtn" data-use="${esc(c.name)}">Use</button>`}</div>`).join('')}</div>
+  <button class="go" data-act="newcoach">Make a new coach</button>
+  <p class="fine" style="margin-top:10px">Or just type it: <em>“a coach who sounds warm, fifties, encouraging”</em>.</p>`;
+},
+prefs(){
+  const p = S.prefs;
+  const tags = (k)=>p[k].map((v,i)=>`<span class="tag ${S.hot===k+':'+v?'hot':''}">${esc(v)}<button data-untag="${k}" data-i="${i}" aria-label="Remove ${esc(v)}">×</button></span>`).join('')+`<button class="addtag" data-addtag="${k}">+ add</button>`;
+  const v = (k)=>`<span class="val ${S.hot===k?'hot':''}" contenteditable="true" data-val="${k}" spellcheck="false">${esc(p[k])}</span>`;
+  return `${backBtn()}
+  <h2 class="t">About me</h2>
+  <p class="sub">Click any underlined bit to change it. Or say it in the box: “I hate burpees” lands under dislikes.</p>
+  <div class="doc">
+    <h3>Who you are</h3>
+    <p>Your coach calls you ${v('name')}. You train at an ${v('experience')} level, mostly at home in ${v('place')}.</p>
+    <h3>How you train</h3>
+    <p>A usual session is ${v('length')}. You like ${tags('likes')}</p>
+    <p>You'd rather skip ${tags('dislikes')}</p>
+    <p>Your kits: ${tags('kits')}</p>
+    <h3>What fills the rests</h3>
+    <p>You're into ${tags('interests')}. Puzzles: ${v('puzzles')}.</p>
+    <p>Never bring up ${tags('never')}</p>
+    <h3>Health</h3>
+    <p>Left knee: <span class="chip sm c-limit"><span class="k">delicate</span>no jumping, no deep knee bends</span> <button class="addtag" data-go="hurt">Something else hurts</button></p>
+    <h3>Keys</h3>
+    <p>Language model: <b>set</b>. Voice: Fish Audio <b>set</b>, Gemini <b>set</b>, ElevenLabs not set, Inworld not set. <button class="addtag" data-toast="Keys are entered on their own page and never shown again.">Manage keys</button></p>
+    <div class="checkline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-10"/></svg><span id="checkmsg">Checked: nothing to fill in.</span></div>
+  </div>`;
+},
+hurt(){
+  const h = S.hurt;
+  if (h.flags.length){
+    return `${backBtn()}<div class="stop" role="alert"><h2>Let's stop here today.</h2>
+      <p><b>${esc(h.flags.join('; '))}</b> is a sign to get it looked at before you train on it.</p>
+      <p>Please see a clinician (a doctor or a physio) soon, and sooner if it's getting worse. I won't build a workout that loads your ${esc(h.area||'injury')} until you tell me it's been checked.</p>
+      <p style="margin:0"><button class="go alt" data-unflag>I ticked that by mistake</button></p></div>`;
+  }
+  const sevs = [['today','A bit off today','Go easy on it this session'],['hurts','It properly hurts','Keep it out of anything that loads it'],['cant','I can\'t use it','Leave it out completely']];
+  return `${backBtn()}<h2 class="t">Something hurts</h2><p class="sub">Three taps. I'll tighten the limits and show what comes off the menu.</p>
+  <div class="qblock"><h3>Where?</h3><div class="areas">${AREAS.map(a=>`<button class="big-opt ${h.area===a?'on':''}" data-area="${a}">${a[0].toUpperCase()+a.slice(1)}</button>`).join('')}</div>
+  ${h.area && !['neck','lower back'].includes(h.area)?`<div class="areas">${['left','right','both'].map(s=>`<button class="opt ${h.side===s?'on':''}" data-side="${s}">${s}</button>`).join('')}</div>`:''}</div>
+  ${h.area?`<div class="qblock"><h3>How bad?</h3><div class="areas">${sevs.map(s=>`<button class="big-opt ${h.sev===s[0]?'on':''}" data-sev="${s[0]}">${s[1]}<small>${s[2]}</small></button>`).join('')}</div></div>`:''}
+  ${h.sev?`<div class="qblock"><h3>Any of these?</h3><div class="flags">${RED_FLAGS.map(f=>`<label class="flag"><input type="checkbox" data-flag="${esc(f)}"> ${esc(f)}</label>`).join('')}<label class="flag"><input type="radio" checked disabled> None of these</label></div>
+  <h3>For how long?</h3><div class="areas"><button class="big-opt ${h.span==='today'?'on':''}" data-span="today">Just today</button><button class="big-opt ${h.span==='lasting'?'on':''}" data-span="lasting">Save it to my health notes<small>Stays until you say it's better</small></button></div></div>`:''}
+  ${h.span?hurtResult():''}`;
+},
+stats(){
+  const weeks = [[2,'Sep 29'],[3,'Oct 6'],[1,'Oct 13'],[3,'Oct 20'],[1,'This week']];
+  const pats = [['Squat',9],['Push',8],['Hinge',7],['Core',9],['Pull',3],['Carry',0]];
+  return `${backBtn()}<h2 class="t">How it's going</h2><p class="sub">From your log. Ten sessions in five weeks.</p>
+  <div class="stats-grid">
+    <div class="panel"><h3>Sessions a week</h3><div class="weeks">${weeks.map(w=>`<div>${'<i></i>'.repeat(w[0])}<small>${w[1]}</small></div>`).join('')}</div></div>
+    <div class="panel"><h3>Patterns, last 30 days</h3>${pats.map(p=>`<div class="pat ${p[1]<4?'low':''}"><span>${p[0]}</span><span class="bar"><i style="width:${p[1]*10}%"></i></span><span>${p[1]}</span></div>`).join('')}<p class="fine" style="margin-top:10px">Pulling is behind. Next workout leans on it.</p></div>
+    <div class="panel"><h3>What you told me</h3><p style="margin:0 0 6px;font-size:14px">“Too long” on Oct 14. Sessions since are 20 to 25 min.</p><p style="margin:0;font-size:14px">“Loved the octopus one.” More animal stories queued.</p></div>
+  </div>`;
+},
+tour(){
+  return `${backBtn()}<h2 class="t">How sweatcast works</h2><p class="sub">An audio workout, made fresh each time, for earbuds. No screen, no timer.</p>
+  <ol class="tour">
+    <li><span><b>Say what you want</b><span>One line, typed or spoken. Length, kit, how you feel, anything sore. It parses as you type.</span></span></li>
+    <li><span><b>Shape it, if you like</b><span>The timeline is the workout. Drag an edge for more time, tap a block to swap the move, tap a rest to change the story.</span></span></li>
+    <li><span><b>Leave it to cook</b><span>Research, writing, a safety check against your limits, then your coach's voice. About six minutes; close the tab if you want.</span></span></li>
+    <li><span><b>Press play and go</b><span>The coach talks you through it, with news, science and a quiz in the rests. Download it: it's kept for 24 hours.</span></span></li>
+  </ol>
+  <div class="gobar"><button class="go" data-try="25 minute strength at home">Try one now</button></div>`;
+}
+};
+
+function slotOptions(e){
+  const s = S.openSlot; if (!s) return '';
+  const opt = (val,label,on)=>`<button class="opt ${on?'on':''}" data-set="${s}" data-v="${esc(val)}">${esc(label)}</button>`;
+  let q='', o='';
+  if (s==='time'){ q='How long?'; o=[15,25,30,45].map(n=>opt(n,n+' min',e.minutes===n)).join(''); }
+  if (s==='goal'){ q='What kind of session?'; o=GOALS.map(g=>opt(g,g,e.goal===g)).join(''); }
+  if (s==='kit'){ q='What have you got?'; o=Object.keys(KITS).map(k=>opt(k,KITS[k].label,e.kit===k)).join(''); }
+  if (s==='mood'){ q='How are you coming in today?'; o=Object.keys(MOODS).map(k=>opt(k,MOODS[k],e.mood===k)).join(''); }
+  if (s==='coach'){ q='Who\'s coaching?'; o=S.stable.map(c=>opt(c.name,c.name,e.coach===c.name)).join(''); }
+  if (s==='limit'){ q='Anything sore or off today?'; o=['same','better','worse'].map(t=>opt('knee:'+t,'Left knee: '+t,(e.rawLimits[0]||{}).trend===t)).join('')+opt('none','Nothing new',false)+`<button class="opt" data-go="hurt">Sore somewhere else</button>`; }
+  return `<div class="opts"><span class="q">${q}</span>${o}</div>`;
+}
+
+function timelineHTML(e, frozen){
+  const total = S.plan.reduce((a,b)=>a+b.sec,0);
+  const w = Math.max(total*0.45, 300);
+  const ticks = []; for (let t=0;t<=total;t+=300) ticks.push(`<span style="left:${t/total*100}%">${t/60}m</span>`);
+  const limArea = e.limits[0] && (e.limits[0].area==='lower back'?'back':e.limits[0].area);
+  const blocks = S.plan.map((b,i)=>{
+    const mv = b.move && MOVES.find(m=>m.id===b.move);
+    const loaded = limArea && mv && (mv.l[limArea]||0)>=1;
+    const label = b.type==='rest' ? b.topic : (b.name || (mv&&mv.n));
+    const grip = !frozen && i<S.plan.length-1 ? `<span class="grip" data-grip="${i}" aria-hidden="true"></span>` : '';
+    return `<button class="blk ${b.type} ${S.sel===i?'sel':''}" data-blk="${i}" style="width:calc(${b.sec/total*100}% - 2px)" title="${esc(label)}, ${mmss(b.sec)}">
+      ${loaded?'<span class="load" title="Light load on your '+esc(e.limits[0].area)+'"></span>':''}
+      <span class="bn">${esc(label)}</span><span class="bs">${mmss(b.sec)}</span>${grip}</button>`;
+  }).join('');
+  let body = '';
+  if (limArea){
+    let x=0; const pts=[];
+    S.plan.forEach(b=>{ const mv = b.move && MOVES.find(m=>m.id===b.move); const ld = mv ? (mv.l[limArea]||0) : (b.type==='warm'?0.5:0); const y = 34 - ld*10; pts.push([x/total*1000,y],[(x+b.sec)/total*1000,y]); x+=b.sec; });
+    body = `<div class="body-lane"><span class="bl-label">${esc(e.limits[0].area)} load</span><svg viewBox="0 0 1000 38" preserveAspectRatio="none"><line x1="0" x2="1000" y1="14" y2="14" stroke="var(--t-limit)" stroke-dasharray="4 4" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".7"/><polyline fill="none" stroke="var(--t-limit)" stroke-width="2" vector-effect="non-scaling-stroke" points="${pts.map(p=>p.join(',')).join(' ')}"/></svg></div>`;
+  }
+  const r = S.render;
+  const mask = frozen && r && !r.done ? `<div class="prog-mask" style="left:${r.overall}%"></div>` : '';
+  return `<div class="tl-card"><div class="tl-scroll"><div class="tl" id="tl" style="width:max(100%, ${w}px)">
+    <div class="ruler">${ticks.join('')}</div>
+    <div class="lane" id="lane">${blocks}</div>${mask}
+    <div class="playhead" id="ph"></div>
+    ${body}
+  </div></div>
+  <div class="legend"><span><i style="background:var(--block)"></i>Work</span><span><i style="background:var(--rest-line)"></i>Rest, with a story</span><span><i style="background:var(--t-goal)"></i>Finisher</span>${limArea?'<span><i style="background:var(--t-limit);border-radius:50%"></i>Some '+esc(e.limits[0].area)+' load, kept under the dashed line</span>':''}${frozen?'':'<span>Drag an edge to trade time between neighbours</span>'}</div></div>`;
+}
+
+function detailHTML(e){
+  const i = S.sel; if (i===null || !S.plan[i]) return '';
+  const b = S.plan[i];
+  if (b.type==='rest'){
+    return `<div class="detail"><div class="dh"><h3>Rest, ${mmss(b.sec)}</h3><span class="fine">What the coach talks about here</span></div><p class="cue">${esc(b.topic)}</p>
+      <div class="swaps">${TOPICS.map(t=>`<button class="swap" data-topic="${esc(t)}"><b>${esc(t.split(': ')[1])}</b><span>${esc(t.split(':')[0])}</span></button>`).join('')}</div></div>`;
+  }
+  if (b.type==='warm'||b.type==='cool'){
+    return `<div class="detail"><div class="dh"><h3>${b.name}, ${mmss(b.sec)}</h3></div><p class="cue">${b.moves.map(id=>MOVES.find(m=>m.id===id).n).join(', ')}. Chosen to suit what comes next.</p></div>`;
+  }
+  const mv = MOVES.find(m=>m.id===b.move);
+  const alts = MOVES.filter(m=>m.p===mv.p && m.id!==mv.id);
+  return `<div class="detail"><div class="dh"><h3>${esc(mv.n)}, ${mmss(b.sec)}</h3><span class="fine">Swap from today's safe menu</span></div>
+    <p class="cue">${b.type==='fin'?'Finisher. ':''}${{squat:'Squat pattern',hinge:'Hip hinge',push:'Push',pull:'Pull',core:'Core',cond:'Conditioning',mob:'Mobility'}[mv.p]}. The coach gives a harder and an easier option mid-set.</p>
+    <div class="swaps">${alts.map(m=>{const a=allowed(m,e);return `<button class="swap ${a.ok?'':'off'}" ${a.ok?`data-swap="${m.id}"`:'disabled'}><b>${esc(m.n)}</b><span>${a.ok?'On the menu':esc(a.why)}</span></button>`;}).join('')}</div></div>`;
+}
+
+function playerHTML(e){
+  const total = S.plan.reduce((a,b)=>a+b.sec,0);
+  const cur = blockAt(S.playT);
+  return `<div class="player"><button class="pbtn" data-act="play" aria-label="${S.playing?'Pause':'Play'}">${S.playing?'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>':'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>'}</button>
+    <div class="now"><b id="nowName">${esc(cur.label)}</b><span id="nowTime">${mmss(S.playT)} of ${mmss(total)}</span></div>
+    <button class="go alt" data-act="download">Download MP3</button></div>`;
+}
+function blockAt(t){
+  let x=0; for (const b of S.plan){ if (t < x+b.sec){ const mv=b.move&&MOVES.find(m=>m.id===b.move); return {label: b.type==='rest'?b.topic:(b.name||mv.n), b}; } x+=b.sec; }
+  return {label:'Sign-off', b:null};
+}
+
+function hurtResult(){
+  const h = S.hurt;
+  const lvl = h.sev==='cant' ? 'off-limits' : 'delicate';
+  const e = {kit:'home', limits:[{area:h.area, level:lvl}]};
+  const cut = MOVES.filter(m=>m.p!=='mob' && KITS.home.has.some(k=>m.k.includes(k)) && !allowed(m,e).ok);
+  return `<div class="okcard"><h3>${h.span==='today'?'For today':'Saved to your health notes'}: ${esc((h.side&&h.side!=='both'?h.side+' ':'')+h.area)} is ${lvl}.</h3>
+    <p class="sub" style="margin:0 0 10px">${lvl==='off-limits'?'Nothing that loads it.':'No impact, nothing fast or heavy through it.'} ${cut.length} moves come off your menu:</p>
+    <p style="margin:0 0 14px;font-size:14px">${cut.map(m=>'<s style="color:var(--muted)">'+esc(m.n)+'</s>').join(', ')}</p>
+    <p class="fine" style="margin:0 0 14px">If it gets worse, or you can't put weight on it, stop and see a clinician.</p>
+    <button class="go" data-act="hurt-build">Build today's workout around it</button></div>`;
+}
+
+/* ================= after-render hooks ================= */
+after.prefs = ()=>{ if (S.hot) setTimeout(()=>{S.hot=null;},2300); };
+after.render = ()=>{ positionPlayhead(); };
+
+/* ================= render flow ================= */
+function startRender(p){
+  const e = effective(p && p.intent==='build' ? p : null);
+  ensurePlan(e);
+  S.render = {e, stage:0, pct:0, overall:0, done:false};
+  S.manual = {}; S.playT = 0; S.playing = false;
+  say('agent', `<p>On it: ${e.minutes} min ${esc(e.goal.toLowerCase())}, ${esc(KITS[e.kit].label.toLowerCase())}, with ${esc(e.coach)}.</p><p>Your script goes to ${esc(e.coach)}'s voice service. About six minutes; you can close the tab.</p>`);
+  go('render');
+  clearInterval(S.timer);
+  S.timer = setInterval(()=>{
+    const r = S.render; if (!r) return;
+    r.pct += r.stage===3 ? 4 : 9;
+    if (r.pct>=100){ r.stage++; r.pct=0; }
+    r.overall = Math.min(100, ((r.stage*100 + r.pct)/400)*100);
+    if (r.stage>=4){
+      clearInterval(S.timer); r.done = true;
+      say('agent','<p>Done. Press play on the right, or download it. It\'s kept for 24 hours.</p>');
+      toast('Your workout is ready');
+    }
+    if (S.view==='render') renderView();
+  }, 160);
+}
+function positionPlayhead(){
+  const ph = $('#ph'), lane = $('#lane'); if (!ph||!lane||!S.render||!S.render.done) return;
+  const total = S.plan.reduce((a,b)=>a+b.sec,0);
+  ph.style.display = 'block';
+  ph.style.left = (S.playT/total*lane.offsetWidth)+'px';
+  ph.style.bottom = lane.parentElement.querySelector('.body-lane') ? '0' : '0';
+  const cur = blockAt(S.playT); const idx = S.plan.indexOf(cur.b);
+  lane.querySelectorAll('.blk').forEach((el,i)=>el.classList.toggle('sel', i===idx));
+}
+function togglePlay(){
+  S.playing = !S.playing;
+  clearInterval(S.playTimer);
+  if (S.playing){
+    const total = S.plan.reduce((a,b)=>a+b.sec,0);
+    S.playTimer = setInterval(()=>{
+      S.playT += 6; if (S.playT>=total){ S.playT = total; S.playing=false; clearInterval(S.playTimer); renderView(); return; }
+      const n = $('#nowName'), t = $('#nowTime');
+      if (n){ n.textContent = blockAt(S.playT).label; t.textContent = mmss(S.playT)+' of '+mmss(total); }
+      positionPlayhead();
+    }, 100);
+  }
+  renderView();
+}
+
+/* ================= coach flow ================= */
+function audition(){
+  S.coach.cands = 'loading'; S.coach.picked=null; S.coach.kept=null;
+  say('agent','<p>Before the first audition: your description goes to each voice service you have a key for, and later your workout scripts go to the one you pick. Designing four voices now.</p>');
+  renderView();
+  setTimeout(()=>{
+    const wave = seed => Array.from({length:28},(_,i)=>20+Math.abs(Math.sin(i*0.7+seed)*Math.cos(i*0.23+seed*2))*78);
+    S.coach.cands = [
+      {l:'A', cost:'about $0.20 a workout', wave:wave(1)},
+      {l:'B', cost:'about $0.20 a workout', wave:wave(2.3)},
+      {l:'C', cost:'free tier', wave:wave(3.1)},
+      {l:'D', cost:'free tier', wave:wave(4.6)}
+    ];
+    if (S.view==='coach') renderView(true);
+    say('agent','<p>Four candidates, lettered. Each says the same coaching line. Pick by ear; you can keep more than one.</p>');
+  }, 1600);
+}
+
+/* ================= prefs ================= */
+function applyPref(p){
+  if (!p) return;
+  let v = p.v.replace(/^(doing|the|any)\s+/i,'').trim();
+  if (p.k==='kits') v = 'Home kit: '+v;
+  if (!S.prefs[p.k].some(x=>x.toLowerCase()===v.toLowerCase())) S.prefs[p.k].push(v);
+  if (p.k==='likes') S.prefs.dislikes = S.prefs.dislikes.filter(x=>x.toLowerCase()!==v.toLowerCase());
+  if (p.k==='dislikes') S.prefs.likes = S.prefs.likes.filter(x=>x.toLowerCase()!==v.toLowerCase());
+  S.hot = p.k+':'+v;
+  const where = {likes:'what you like',dislikes:'what you\'d rather skip',never:'never bring up',kits:'your kits',interests:'your interests'}[p.k];
+  say('agent', `<p>Noted under ${where}: <b>${esc(v)}</b>.${p.k==='dislikes'?' It won\'t show up in a workout again unless you take it back.':''}</p>`);
+  go('prefs');
+  setTimeout(()=>{ const el = document.querySelector('.tag.hot'); el && el.scrollIntoView({block:'center',behavior:'smooth'}); }, 50);
+}
+
+/* ================= hurt ================= */
+/* (handled in click delegation) */
+
+/* ================= drag to resize ================= */
+let drag = null;
+document.addEventListener('pointerdown', ev=>{
+  const g = ev.target.closest('[data-grip]'); if (!g) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const i = +g.dataset.grip, lane = $('#lane');
+  const total = S.plan.reduce((a,b)=>a+b.sec,0);
+  drag = {i, x:ev.clientX, a:S.plan[i].sec, b:S.plan[i+1].sec, pps: lane.offsetWidth/total, g};
+  g.classList.add('drag'); g.setPointerCapture && g.setPointerCapture(ev.pointerId);
+});
+document.addEventListener('pointermove', ev=>{
+  if (!drag) return;
+  let d = Math.round(((ev.clientX - drag.x)/drag.pps)/5)*5;
+  d = Math.max(10-drag.a, Math.min(drag.b-10, d));
+  S.plan[drag.i].sec = drag.a + d; S.plan[drag.i+1].sec = drag.b - d;
+  const total = S.plan.reduce((a,b)=>a+b.sec,0);
+  const blks = document.querySelectorAll('#lane .blk');
+  [drag.i, drag.i+1].forEach(k=>{ const el = blks[k]; if (!el) return; el.style.width = `calc(${S.plan[k].sec/total*100}% - 2px)`; const bs = el.querySelector('.bs'); if (bs) bs.textContent = mmss(S.plan[k].sec); });
+});
+document.addEventListener('pointerup', ()=>{ if (drag){ const i = drag.i; drag = null; S.justDragged = true; setTimeout(()=>S.justDragged=false, 50); S.sel = i; renderView(); } });
+
+/* ================= clicks (delegated) ================= */
+document.addEventListener('click', ev=>{
+  const t = ev.target.closest('button,[data-go],label.flag'); if (!t) return;
+  const d = t.dataset;
+  if (d.pane){ setPane(d.pane); return; }
+  if (d.act==='palette') return openPalette();
+  if (d.act==='home'){ S.manual={}; input.value=''; paintComposer(); return go('home'); }
+  if (d.go){ if (d.go==='build'){ S.manual={}; setText(''); go('build'); say('agent','<p>Here\'s your usual, built from your profile. Type to change anything, or tap a part.</p>'); } else if (d.go==='coaches'){ go('coaches'); } else { if (d.go==='hurt') S.hurt={area:null,side:null,sev:null,span:null,flags:[]}; go(d.go); } setPane('canvas'); return; }
+  if (d.try){ setPane('canvas'); typeOut(d.try); return; }
+  if (d.fb){ S.feedback[d.fb] = d.r; say('agent','<p>Thanks. Noted “'+esc(d.r)+'” for that one.</p>'); renderView(); return; }
+  if (d.slot){ S.openSlot = S.openSlot===d.slot ? null : d.slot; S.live=false; renderView(); return; }
+  if (d.set){
+    const e = effective(P);
+    if (d.set==='time') S.manual.time = +d.v;
+    else if (d.set==='limit'){ S.manual.limit = d.v==='none' ? PROFILE.limits.map(x=>Object.assign({},x,{trend:'same'})) : [{area:'knee',side:'left',level:'delicate',trend:d.v.split(':')[1]}]; }
+    else S.manual[d.set] = d.v;
+    S.openSlot = null; renderView();
+    if (d.set==='limit' || d.set==='kit') document.querySelectorAll('#lane .blk').forEach(b=>b.classList.add('flash'));
+    return;
+  }
+  if (d.blk!==undefined && !S.justDragged){ if (S.view!=='build') return; S.sel = S.sel===+d.blk ? null : +d.blk; S.live=false; renderView(); return; }
+  if (d.swap){ const b = S.plan[S.sel]; const m = MOVES.find(x=>x.id===d.swap); b.move = m.id; b.name = m.n; toast('Swapped in '+m.n); renderView(); return; }
+  if (d.topic){ S.plan[S.sel].topic = d.topic; renderView(); return; }
+  if (d.act==='go'){ const p = P, t = input.value.trim(); if (t){ userEcho(t); input.value=''; paintComposer(); } startRender(p); return; }
+  if (d.act==='play') return togglePlay();
+  if (d.act==='download'){ toast('Downloading 2026-10-27-'+S.render.e.goal.split(' ')[0].toLowerCase()+'-'+S.render.e.minutes+'.mp3'); return; }
+  if (d.act==='audition'){ S.coachDesc = input.value; userEcho(input.value); input.value=''; paintComposer(); audition(); return; }
+  if (d.play){ S.coach.playing = S.coach.playing===d.play ? null : d.play; renderView(); clearTimeout(S.wt); if (S.coach.playing) S.wt=setTimeout(()=>{S.coach.playing=null; S.view==='coach'&&renderView();},4000); return; }
+  if (d.pick){ S.coach.picked = d.pick; S.coach.nameErr=''; renderView(); const n=$('#cname'); n&&n.focus(); return; }
+  if (d.cname){ $('#cname').value = d.cname; return; }
+  if (d.act==='keep'){
+    const n = ($('#cname').value||'').trim();
+    if (!/^coach \w+/i.test(n)){ S.coach.nameErr = 'Give them a person\'s name, like “Coach Hale”.'; return renderView(); }
+    if (S.stable.some(c=>c.name.toLowerCase()===n.toLowerCase())){ S.coach.nameErr = n+' is taken. Pick another name.'; return renderView(); }
+    S.stable.push({name:n, line:(S.coachDesc||'Your own coach').replace(/^a new coach:?\s*/i,''), col:'#3F7F17'});
+    S.current = n; S.coach.kept = n;
+    say('agent','<p>Kept candidate '+S.coach.picked+' as <b>'+esc(n)+'</b>, saved in your voice account. They\'ll coach your next workout.</p>');
+    renderView(); return;
+  }
+  if (d.act==='build-with'){ S.coach = {cands:null}; S.manual={coach:S.current}; go('build'); return; }
+  if (d.act==='newcoach'){ S.coach = {cands:null}; go('coach'); setText('a new coach: '); return; }
+  if (d.use){ S.current = d.use; toast(d.use+' will coach your next workout'); renderView(); return; }
+  if (d.untag){ S.prefs[d.untag].splice(+d.i,1); renderView(); checkMsg(); return; }
+  if (d.addtag){ const v = prompt('Add to '+d.addtag); if (v){ S.prefs[d.addtag].push(v.trim()); S.hot=d.addtag+':'+v.trim(); renderView(); checkMsg(); } return; }
+  if (d.toast){ toast(d.toast); return; }
+  if (d.area){ S.hurt.area = d.area; S.hurt.side = ['neck','lower back'].includes(d.area)?null:S.hurt.side; renderView(); return; }
+  if (d.side){ S.hurt.side = d.side; renderView(); return; }
+  if (d.sev){ S.hurt.sev = d.sev; renderView(); return; }
+  if (d.span){ S.hurt.span = d.span; renderView(); if (d.span==='lasting') say('agent','<p>Saved to your health notes, with your OK. It stays until you tell me it\'s better.</p>'); return; }
+  if (d.unflag!==undefined){ S.hurt.flags=[]; renderView(); return; }
+  if (d.act==='hurt-build'){ const h=S.hurt; S.manual={limit:[{area:h.area,side:h.side&&h.side!=='both'?h.side:'',level:h.sev==='cant'?'off-limits':'delicate',trend:''}]}; go('build'); return; }
+});
+document.addEventListener('change', ev=>{
+  const f = ev.target.dataset && ev.target.dataset.flag;
+  if (f){ if (ev.target.checked){ S.hurt.flags=[f]; say('agent','<p><b>Stop.</b> That\'s a red flag. Please get it looked at by a clinician before training on it.</p>'); renderView(); } }
+});
+document.addEventListener('focusout', ev=>{
+  const k = ev.target.dataset && ev.target.dataset.val;
+  if (k){ const v = ev.target.textContent.trim(); if (v && v!==S.prefs[k]){ S.prefs[k]=v; checkMsg(); toast('Saved'); } }
+});
+document.addEventListener('keydown', ev=>{
+  if (ev.target.dataset && ev.target.dataset.val && ev.key==='Enter'){ ev.preventDefault(); ev.target.blur(); }
+});
+function checkMsg(){ const c=$('#checkmsg'); if(c){ c.textContent='Checking…'; setTimeout(()=>{ c.textContent='Checked: nothing to fill in.'; },500);} }
+
+/* ================= dictation (simulated) ================= */
+let typing = null;
+function typeOut(text, cb){
+  clearInterval(typing); input.value=''; paintComposer(); input.focus();
+  let i=0; typing = setInterval(()=>{ input.value = text.slice(0, ++i); paintComposer(); if (i>=text.length){ clearInterval(typing); typing=null; cb&&cb(); } }, 26);
+}
+$('#mic').addEventListener('click', ()=>{
+  const f = $('#field');
+  if (f.classList.contains('listening')) return;
+  f.classList.add('listening'); input.placeholder='Listening…';
+  setTimeout(()=>typeOut('thirty minutes at home, shoulder\'s a bit stiff, feeling fresh', ()=>{ f.classList.remove('listening'); input.placeholder='25 minutes, hotel room, knee\'s a bit sore…  or type / to jump'; }), 600);
+});
+
+/* ================= palette ================= */
+const CMDS = [
+  ['Build a workout','build','B'],['Build my usual, right now','usual',''],['Edit my stuff (About me)','prefs','E'],['Something hurts','hurt','H'],
+  ['Coaches','coaches','C'],['Make a new coach','newcoach',''],['Analytics','stats','A'],['Show me around','tour','T'],['Home','home','']
+];
+let palSel = 0;
+function openPalette(){ $('#palBack').classList.add('on'); const i=$('#palIn'); i.value=''; palSel=0; drawPal(); i.focus(); }
+function closePalette(){ $('#palBack').classList.remove('on'); }
+function palItems(){ const q=$('#palIn').value.toLowerCase(); return CMDS.filter(c=>c[0].toLowerCase().includes(q)); }
+function drawPal(){ const it=palItems(); palSel=Math.min(palSel,Math.max(0,it.length-1)); $('#palList').innerHTML = it.map((c,i)=>`<li class="${i===palSel?'on':''}" data-cmd="${c[1]}"><b>${c[0]}</b>${c[2]?'<span class="kbd">'+c[2]+'</span>':''}</li>`).join('') || '<li><small>Nothing matches. Type it in the box instead.</small></li>'; }
+function runCmd(c){
+  closePalette();
+  if (c==='usual'){ S.manual={}; setText(''); go('build'); startRender(); return; }
+  if (c==='newcoach'){ S.coach={cands:null}; go('coach'); setText('a new coach: '); return; }
+  if (c==='home'){ go('home'); return; }
+  const b = document.createElement('button'); b.dataset.go=c; document.body.appendChild(b); b.click(); b.remove();
+}
+$('#palIn').addEventListener('input', drawPal);
+$('#palIn').addEventListener('keydown', e=>{
+  const it = palItems();
+  if (e.key==='ArrowDown'){ palSel=(palSel+1)%Math.max(1,it.length); drawPal(); e.preventDefault(); }
+  if (e.key==='ArrowUp'){ palSel=(palSel-1+it.length)%Math.max(1,it.length); drawPal(); e.preventDefault(); }
+  if (e.key==='Enter' && it[palSel]) runCmd(it[palSel][1]);
+  if (e.key==='Escape') closePalette();
+});
+$('#palList').addEventListener('click', e=>{ const li=e.target.closest('li[data-cmd]'); li && runCmd(li.dataset.cmd); });
+$('#palBack').addEventListener('click', e=>{ if (e.target.id==='palBack') closePalette(); });
+document.addEventListener('keydown', e=>{
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openPalette(); return; }
+  if (e.key==='Escape') closePalette();
+  const tag = (e.target.tagName||'').toLowerCase();
+  if (tag==='input'||tag==='textarea'||e.target.isContentEditable||e.metaKey||e.ctrlKey||e.altKey) return;
+  if (e.key==='/'){ e.preventDefault(); openPalette(); return; }
+  if (S.view==='home'){ const m = {b:'build',e:'prefs',h:'hurt',c:'coaches',t:'tour',a:'stats'}[e.key.toLowerCase()]; if (m){ e.preventDefault(); runCmd(m); } }
+  if (S.view==='build' && e.key==='Enter' && tag!=='button'){ e.preventDefault(); startRender(P); }
+});
+
+/* ================= misc ================= */
+function setPane(p){
+  $('#app').dataset.pane = p;
+  document.querySelectorAll('.viewtoggle button').forEach(b=>b.classList.toggle('on', b.dataset.pane===p));
+}
+let tt; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('on'),2400); }
+window.addEventListener('resize', ()=>{ if (S.view==='render') positionPlayhead(); });
+
+/* ================= boot ================= */
+say('agent','<p>Morning, Jordan. Last time was Thursday: strength, 25 minutes, with Coach Reed.</p><p>Say what you want in the box below. It takes shape on the right as you type, and <span class="kbd">Enter</span> makes it.</p>');
+paintComposer();
+renderView(true);
+})();
+</script>
+</body>
+</html>
