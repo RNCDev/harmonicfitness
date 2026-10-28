@@ -85,6 +85,7 @@ export const api = {
   record: (id: number, w: When) => call<{ job_id: number }>("POST", `/api/conversations/${id}/record`, w),
   stop: (id: number) => call<{ stopping: boolean }>("POST", `/api/conversations/${id}/stop`),
   signOut: () => call<void>("POST", "/api/sign-out"),
+  deleteAccount: (password: string) => call<void>("POST", "/api/account/delete", { password }),
   importFolder: async (zip: Blob): Promise<{ imported: number; left_out: number }> => {
     const r = await fetch("/api/import", {
       method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/zip" }, body: zip,

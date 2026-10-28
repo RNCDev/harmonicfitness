@@ -4,6 +4,8 @@ tools: run a `./harmonicfitness` command, read, write and list files. The model 
 nothing here knows which provider it is."""
 import functools
 import os
+import re
+import tomllib
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import replace
@@ -22,19 +24,37 @@ __all__ = ["AGENT", "Deps", "LIMITS", "prefetch", "start_feeds", "NOT_OPEN", "ST
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
 TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
 SKILL = (".claude/skills/workout/SKILL.md", ".claude/skills/workout/research.md")
+SETUP = (".claude/skills/setup/SKILL.md",)
+SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard)", re.IGNORECASE)
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.md"), encoding="utf-8") as _f:
     PREAMBLE = _f.read()
 
 
-@functools.lru_cache(maxsize=4)
-def skill_text(engine_root: str) -> str:
-    """The workout skill as the engine ships it, so the web follows the same steps as the CLI."""
+@functools.lru_cache(maxsize=8)
+def skill_text(engine_root: str, setup: bool = False) -> str:
+    """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet), so the
+    web follows the same steps as the CLI."""
     parts = []
-    for rel in SKILL:
+    for rel in (SETUP if setup else ()) + SKILL:
         with open(os.path.join(engine_root, rel), encoding="utf-8") as f:
             parts.append(f"<file path=\"{rel}\">\n{f.read()}\n</file>")
     return "\n\n".join(parts)
+
+
+def needs_setup(home: str) -> bool:
+    """A listener whose profile has no experience level yet: setup's quick start sets it first."""
+    try:
+        with open(os.path.join(home, "profile.md"), encoding="utf-8") as f:
+            text = f.read()
+        block = text.split("+++")[1] if text.startswith("+++") else ""
+        return not tomllib.loads(block).get("experience")
+    except (OSError, IndexError, ValueError):
+        return True
+
+
+def wants_setup(line: str | None) -> bool:
+    return bool(line and SETUP_WORDS.search(line))
 
 
 AGENT = Agent(deps_type=Deps, output_type=str, instructions=PREAMBLE, retries=1)
@@ -42,7 +62,7 @@ AGENT = Agent(deps_type=Deps, output_type=str, instructions=PREAMBLE, retries=1)
 
 @AGENT.instructions
 def _skill(ctx: RunContext[Deps]) -> str:
-    return skill_text(ctx.deps.engine_root)
+    return skill_text(ctx.deps.engine_root, ctx.deps.setup)
 
 
 @AGENT.instructions

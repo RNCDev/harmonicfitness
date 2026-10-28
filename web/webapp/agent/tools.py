@@ -27,10 +27,11 @@ BUILD_TIMEOUT = 600     # a full build: a pending coach's voice design, then the
 ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 
 # The commands the agent may run, and for some, the only subcommands. Everything else (setup, keys init,
-# migrate, backup, models, cache, a coach's audition or make) isn't part of this web client yet.
+# migrate, backup, models, cache, a coach's audition) isn't part of this web client yet. `coaches make`
+# designs a stock web coach's voice in the listener's account (about a cent), as setup's quick start does.
 COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "keys",
             "log-session", "movements", "youtube"}
-SUBCOMMANDS = {"coaches": {None, "list", "last", "measured"}, "keys": {None}}
+SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make"}, "keys": {None}}
 
 
 @dataclass
@@ -48,6 +49,7 @@ class Deps:
     approved: dict | None = None     # the recording the listener approved this turn (the offer, as made)
     chars_left: int | None = None    # what today's allowance has left, in characters
     offer: dict | None = None        # set when a build was priced and waits for the listener's approval
+    setup: bool = False              # the setup skill comes with the workout skill this turn
 
 
 class ToolResult(BaseModel):

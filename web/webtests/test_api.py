@@ -1011,3 +1011,44 @@ class Media(ApiCase):
         body = bytes(self.conn.execute("select body from media").fetchone()[0])
         self.conn.rollback()
         self.assertNotIn(self.MP3[:64], body)
+
+
+class Account(ApiCase):
+    def registered(self, name=None, pw="long enough"):
+        import uuid
+        name = name or f"leaver{uuid.uuid4().hex[:8]}"
+        r = self.client.post("/api/register", json={"username": name, "password": pw}, headers=self.origin())
+        self.assertEqual(r.status_code, 201, r.text)
+        return self.conn.execute("select id from users where username = %s", (name,)).fetchone()[0]
+
+    def test_export_is_the_folder_as_a_zip(self):
+        import io
+        import zipfile
+        self.registered()
+        r = self.client.get("/api/export")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.headers["content-disposition"].startswith('attachment; filename="harmonicfitness-me-'))
+        names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+        self.assertIn("me/profile.md", names)
+        self.assertFalse(any(n.endswith(".env") for n in names))
+
+    def test_export_needs_a_session(self):
+        self.assertEqual(self.client.get("/api/export").status_code, 401)
+
+    def test_delete_needs_the_password_then_removes_everything(self):
+        user_id = self.registered()
+        self.conn.rollback()
+        wrong = self.client.post("/api/account/delete", json={"password": "not it"}, headers=self.origin())
+        self.assertEqual(wrong.status_code, 400)
+        r = self.client.post("/api/account/delete", json={"password": "long enough"}, headers=self.origin())
+        self.assertEqual(r.status_code, 204)
+        for table in ("users", "context_files", "user_keys", "conversations", "media", "clip_cache", "spend"):
+            column = "id" if table == "users" else "user_id"
+            self.assertEqual(self.conn.execute(f"select count(*) from {table} where {column} = %s",
+                                               (user_id,)).fetchone()[0], 0, table)
+        self.conn.rollback()
+        self.assertEqual(self.client.get("/api/me").status_code, 401)
+
+    def test_delete_needs_the_origin(self):
+        self.registered()
+        self.assertEqual(self.client.post("/api/account/delete", json={"password": "long enough"}).status_code, 403)

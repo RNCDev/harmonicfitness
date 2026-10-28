@@ -116,6 +116,11 @@ Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # the worker's check_turn says the rest
 Line = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
 
+class Confirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: Annotated[StrictStr, StringConstraints(min_length=1, max_length=1024)]
+
+
 class TurnWhen(BaseModel):
     model_config = ConfigDict(extra="forbid")
     today: Day
@@ -525,6 +530,44 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                     raise
         await anyio.to_thread.run_sync(save)
         return {"imported": len(files), "left_out": left_out}
+
+    @app.get("/api/export")
+    def export(uk: User):
+        """Every file of the listener's folder as a ZIP, the same layout as me/ on a computer (unzip it as
+        me/ and HarmonicFitness on a computer reads it). Keys are never in it: they aren't files here."""
+        import io
+        import zipfile
+        with connection() as conn:
+            try:
+                files = store.read_all(conn, uk)
+            finally:
+                conn.rollback()
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for path in sorted(files):
+                z.writestr(f"me/{path}", files[path][1])
+        day = datetime.date.today().isoformat()
+        return Response(buf.getvalue(), media_type="application/zip", headers={
+            "Content-Disposition": f'attachment; filename="harmonicfitness-me-{day}.zip"', "Cache-Control": "no-store"})
+
+    @app.post("/api/account/delete", status_code=204, **post)
+    def delete_account(uk: User, body: Annotated[Confirm, Body()]):
+        """Delete the account and everything it holds: files, keys, chats, audio, kept clips, jobs. Needs the
+        password; nothing can bring it back."""
+        with connection() as conn:
+            try:
+                row = conn.execute("select password_hash from users where id = %s for update",
+                                   (uk.user_id,)).fetchone()
+                if row is None or not auth.verify_password(body.password, row[0]):
+                    raise HTTPException(400, "That password isn't right.")
+                conn.execute("delete from users where id = %s", (uk.user_id,))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        r = Response(status_code=204)
+        r.delete_cookie(COOKIE, path="/")
+        return r
 
     @app.get("/api/media/{mid}")
     def get_media(uk: User, request: Request, mid: Annotated[str, PathParam(max_length=40)], download: bool = False):

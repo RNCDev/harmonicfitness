@@ -5,10 +5,19 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 ## [Unreleased]
 
 ### Added
-- **The web coach records the audio.** The build runs in full on the site: the worker keeps each MP3 a turn makes for 24 hours, sealed with the listener's data key, and the chat shows it with a player and a download (`GET /api/media/{id}`, byte ranges for Safari, a private browser cache until it expires). Expired MP3s are deleted. A full build gets 10 minutes, a turn 15.
+- **The web coach records the audio.** The build runs in full on the site; each MP3 a turn makes is kept 24 hours, sealed with the listener's data key, and the chat shows it with a player and a download (`GET /api/media/{id}`: byte ranges for Safari, a private browser cache until it expires).
+- **Recording waits for the listener's Record button,** with its price: a full build is first only priced (characters and dollars, the voice design included), and approving it reserves those characters from a daily allowance (`HARMONICFITNESS_DAILY_CHARS`, default 60,000) and records within that count.
+- **Re-recording pays only for what changed:** recorded clips are kept a week per listener, sealed, and loaded for each recording.
+- **Stop.** A Stop button ends a running turn within a few seconds: the model run is cancelled and the engine's processes are killed.
+- **First-time setup on the site:** a new listener gets the setup skill's quick start in the chat (keys in Keys, the stock web coach for their service made and heard in the chat, a ten-minute first workout); "finish setting me up" runs the rest.
+- **Export and delete:** the Keys drawer downloads every file as a ZIP laid out as `me/`, and deletes the account and everything in it, with the password.
 
 ### Changed
-- **The web chat's steps say what they mean for the listener** ("Checking today's safety limits", "Writing your script", "Recording your workout"), never a command or a file's name; repeated steps show once.
+- **The check-in may change `health.md`** on the site, with the listener's permission, as on a computer.
+- **The chat's steps say what they mean for the listener** ("Checking today's safety limits", "Writing your script", "Recording your workout"), never a command or a file's name; repeated steps show once.
+
+### Removed
+- The web client's scoping research and milestone plans (`docs/research/web-client/`) and the 0.15.0 plan (`docs/plans/`).
 
 ## [0.22.0] - 2026-10-28
 

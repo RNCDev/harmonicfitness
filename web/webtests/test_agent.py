@@ -286,6 +286,25 @@ class Instructions(AgentCase):
         self.assertIn("one side only", text)
         self.assertIn(f"today is {TODAY}", text)
 
+    def test_a_new_listener_gets_the_setup_skill(self):
+        self.assertTrue(agent.needs_setup(self.home))   # the starter profile: no experience yet
+        self.assertIn(".claude/skills/setup/SKILL.md", agent.skill_text(ROOT, True))
+        self.assertNotIn(".claude/skills/setup/SKILL.md", agent.skill_text(ROOT, False))
+        path = os.path.join(self.home, "profile.md")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text.replace('experience = ""', 'experience = "novice"', 1))
+        self.assertFalse(agent.needs_setup(self.home))
+        self.assertTrue(agent.wants_setup("Finish setting me up"))
+        self.assertFalse(agent.wants_setup("a 20 minute workout"))
+
+    def test_coaches_make_is_allowed_and_audition_isnt(self):
+        from unittest import mock
+        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "made", "")):
+            self.assertEqual(tools.run(self.deps, ["coaches", "make", "Coach Reed"]).code, 0)
+        self.assertEqual(tools.run(self.deps, ["coaches", "audition", "x"]).code, 64)
+
     def test_every_tool_is_registered(self):
         self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "list_files"})
 

@@ -222,3 +222,5 @@ button[disabled] { cursor: not-allowed }
 .m.offer { display: grid; gap: 6px; border: 1px solid var(--tok) }
 .m.offer p { margin: 0 }
 .m.offer .go { justify-self: start; margin-top: 4px }
+.quiet.danger { color: var(--stop); text-decoration-color: var(--stop) }
+.go.danger { background: var(--stop); border-color: var(--stop) }

@@ -288,15 +288,18 @@ def _keep_audio(ctx: Ctx) -> list[dict]:
     """The MP3s this turn's builds made (the folder held none: materialize never writes one), kept 24 hours
     for the listener, newest first. Committed now, so the chat can link them as soon as the turn is saved."""
     found = []
-    for dirpath, _, files in os.walk(os.path.join(ctx.home, "workouts")):
-        found += [os.path.join(dirpath, f) for f in files if f.endswith(".mp3") and ".web-" not in f]
+    for top in ("workouts", "coaches"):   # a workout, or a coach's voice sample made at setup
+        for dirpath, _, files in os.walk(os.path.join(ctx.home, top)):
+            found += [os.path.join(dirpath, f) for f in files if f.endswith(".mp3") and ".web-" not in f]
     found.sort(key=os.path.getmtime, reverse=True)
     kept = []
     for path in found[:AUDIO_KEPT]:
         with open(path, "rb") as f:
             body = f.read(media.MAX_BYTES + 1)
         try:
-            kept.append(media.put(ctx.conn, ctx.uk, os.path.basename(path)[:-4], body))
+            coach = os.path.basename(path) == "sample.mp3"
+            name = f"{os.path.basename(os.path.dirname(path))}: voice sample" if coach else os.path.basename(path)[:-4]
+            kept.append(media.put(ctx.conn, ctx.uk, name, body))
         except ValueError:
             continue
     if kept:
@@ -361,6 +364,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
                       now=now, say=lambda text, tool, code: _step(ctx, text, tool, code), cancel=ctx.cancel)
+    deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     record = ctx.args.get("record") is True   # the listener pressed Record: the offer is approved
     deps.approved = conv.offer if record else None
     deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)

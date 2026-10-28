@@ -89,6 +89,52 @@ function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
   );
 }
 
+function AccountBox({ onSignedOut }: { onSignedOut: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteAccount(password);
+      onSignedOut();
+    } catch (e) {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      setError(e instanceof ApiError ? e.message : "Couldn't delete it. Try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="cx-box">
+      <p className="cx-s">Your files, as a ZIP you can open on your computer as HarmonicFitness's <code>me</code> folder. Keys are never in it.</p>
+      <a className="quiet import" href="/api/export" download>Download your files</a>
+      {!open ? (
+        <p className="cx-s"><button type="button" className="quiet danger" onClick={() => setOpen(true)}>Delete my account</button></p>
+      ) : (
+        <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove(); }}>
+          <p className="cx-s err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
+          <label>
+            Your password
+            <input type="password" autoComplete="current-password" value={password}
+              onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          {error && <p className="err" role="alert">{error}</p>}
+          <div className="keys-actions">
+            <button type="submit" className="go danger" disabled={busy || !password}>
+              {busy ? "Deleting…" : "Delete everything"}
+            </button>
+            <button type="button" className="quiet" onClick={() => { setOpen(false); setPassword(""); setError(null); }}>Cancel</button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut: () => void }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
@@ -130,6 +176,7 @@ export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut 
           <ImportBox onSignedOut={onSignedOut} />
           <DeviceLinkBox onSignedOut={onSignedOut} />
           <PasswordBox username={username} onSignedOut={onSignedOut} />
+          <AccountBox onSignedOut={onSignedOut} />
           <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>
         </div>
       </aside>

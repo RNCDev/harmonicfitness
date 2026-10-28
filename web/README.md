@@ -36,7 +36,13 @@ Every job runs the engine with `HARMONICFITNESS_WEB=1`: no local voices, "add a 
 
 ## Agent
 
-The app is a chat and a Keys drawer. The coach works as Claude Code does on a listener's computer: one agent (Pydantic AI) follows the workout skill itself (`.claude/skills/workout/SKILL.md` and `research.md`, read from the engine at run time) under a short preamble (`webapp/agent/instructions.md`) that says what the web client offers in place of each Claude Code tool, as `AGENTS.md` does for Codex. Questions are asked in the chat and research is done in turn. The build records the audio with the coach's web voice and the listener's key; the worker keeps each MP3 the turn made for 24 hours (`media`, sealed with the user's data key) and adds it to the chat as a player with a download. `GET /api/media/{id}` serves it to its owner only (byte ranges for Safari; `?download=1` for a download; `Cache-Control: private` until it expires), and the worker deletes expired ones. MP3s never go into the store.
+The app is a chat and a Keys drawer. The coach works as Claude Code does on a listener's computer: one agent (Pydantic AI) follows the workout skill itself (`.claude/skills/workout/SKILL.md` and `research.md`, read from the engine at run time) under a short preamble (`webapp/agent/instructions.md`) that says what the web client offers in place of each Claude Code tool, as `AGENTS.md` does for Codex. Questions are asked in the chat and research is done in turn. A new listener (no experience level in their profile yet), or one who asks to be set up, also gets the setup skill: its quick start in the chat, keys added in Keys, the stock web coach for a keyed service made with `coaches make` (its sample plays in the chat), then a ten-minute first workout. The check-in may change `health.md`, with the listener's permission, as the skill says.
+
+**Recording costs money, so it waits for the listener.** A full build is first only priced: the `run` tool lints the draft, counts its characters and prices them (`get cost`), and keeps the offer in the conversation; the chat shows a Record button with the price. `POST /api/conversations/{id}/record` reserves those characters from today's allowance (`spend`, `HARMONICFITNESS_DAILY_CHARS`, default 60,000 a day) and queues a turn in which the same build runs, with `--max-chars` set to the approved count. That turn loads the listener's kept clips (`clip_cache`, sealed, a week), so a re-record sends only lines that changed, and keeps the new ones. The worker keeps each MP3 the turn made for 24 hours (`media`, sealed with the user's data key) and adds it to the chat as a player with a download. `GET /api/media/{id}` serves it to its owner only (byte ranges for Safari; `?download=1` for a download; `Cache-Control: private` until it expires), and the worker deletes expired MP3s and week-old clips. MP3s never go into the store.
+
+**Stop.** `POST /api/conversations/{id}/stop` flags the running job; the heartbeat looks every two seconds and sets the job's cancel event, which cancels the model run and kills the engine's process group (`engine.run(cancel=)`), so nothing keeps billing. The conversation says "Stopped."
+
+**Leaving.** `GET /api/export` is every file as a ZIP laid out as `me/` (keys are never files here). `POST /api/account/delete`, with the password, deletes the user row and everything that hangs from it.
 
 Its four tools (`webapp/agent/tools.py`):
 - `run`: one `./harmonicfitness` command in the listener's folder (a full build gets 10 minutes, a turn 15). Allowed: brief, build (not `--follow` or `--clips-only`), check, content, coaches (list), coverage, feeds, get, help, keys, log-session, movements, youtube. `me/...` paths in arguments become the folder's own; any other path is refused.
@@ -58,7 +64,7 @@ The model provider sees the files the agent reads (the profile, health and log a
 
 "New chat" clears the page; the next message starts a new conversation, as does a message after a conversation from an earlier day.
 
-Routes: `POST /api/conversations`, `GET /api/conversations/latest`, `GET /api/conversations/{id}` and `POST /api/conversations/{id}/messages`.
+Routes: `POST /api/conversations`, `GET /api/conversations/latest`, `GET /api/conversations/{id}`, `POST /api/conversations/{id}/messages`, `.../record` and `.../stop`; `GET /api/media/{id}`; `POST /api/import`, `GET /api/export`, `POST /api/account/delete`.
 
 ## Serve
 
