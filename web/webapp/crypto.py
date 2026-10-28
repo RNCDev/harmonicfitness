@@ -17,12 +17,19 @@ class Tampered(Exception):
     """The value was altered, sealed for another place, or sealed under another key."""
 
 
+def _check(key: bytes) -> None:
+    if not isinstance(key, (bytes, bytearray)) or len(key) != 32:
+        raise ValueError("key must be 32 bytes")
+
+
 def seal(key: bytes, plaintext: bytes, aad: bytes) -> bytes:
+    _check(key)
     nonce = os.urandom(NONCE)
     return nonce + AESGCM(key).encrypt(nonce, plaintext, aad)
 
 
 def open_(key: bytes, sealed: bytes, aad: bytes) -> bytes:
+    _check(key)
     if len(sealed) < NONCE + TAG:
         raise Tampered("sealed value is too short")
     try:
@@ -32,6 +39,7 @@ def open_(key: bytes, sealed: bytes, aad: bytes) -> bytes:
 
 
 def new_data_key(master: bytes) -> tuple[bytes, bytes]:
+    _check(master)
     key = AESGCM.generate_key(bit_length=256)
     return key, seal(master, key, _WRAP_AAD)
 

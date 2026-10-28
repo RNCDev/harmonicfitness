@@ -2,7 +2,7 @@
 import base64
 import binascii
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Mapping
 
 ROLES = ("web", "worker")
@@ -14,8 +14,8 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Settings:
-    database_url: str
-    master_key: bytes
+    database_url: str = field(repr=False)
+    master_key: bytes = field(repr=False)
     base_url: str
     role: str = "web"
     engine_root: str = ""
@@ -40,7 +40,7 @@ def load(env: Mapping[str, str]) -> Settings:
         raise ConfigError("WT_MASTER_KEY is not valid base64") from None
     if len(master) != 32:
         raise ConfigError("WT_MASTER_KEY must decode to exactly 32 bytes")
-    role = env.get("WT_ROLE", "web").strip() or "web"
+    role = env.get("WT_ROLE", "web").strip()
     if role not in ROLES:
         raise ConfigError("WT_ROLE must be 'web' or 'worker'")
     root = env.get("WT_ENGINE_ROOT", "").strip() or os.path.dirname(

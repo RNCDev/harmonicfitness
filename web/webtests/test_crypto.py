@@ -41,6 +41,18 @@ class Crypto(unittest.TestCase):
         with self.assertRaises(crypto.Tampered):
             crypto.open_(os.urandom(32), b"short", b"a")
 
+    def test_key_length_enforced(self):
+        k16 = os.urandom(16)
+        with self.assertRaisesRegex(ValueError, "key must be 32 bytes") as cm:
+            crypto.seal(k16, b"x", b"a")
+        self.assertNotIn(repr(k16), str(cm.exception))
+        with self.assertRaisesRegex(ValueError, "key must be 32 bytes"):
+            crypto.unwrap(k16, os.urandom(60))
+        with self.assertRaises(ValueError):
+            crypto.new_data_key(k16)
+        with self.assertRaises(ValueError):
+            crypto.open_(k16, os.urandom(60), b"a")
+
     def test_nonces_differ(self):
         k = os.urandom(32)
         self.assertNotEqual(crypto.seal(k, b"x", b"a"), crypto.seal(k, b"x", b"a"))
@@ -62,6 +74,19 @@ class Config(unittest.TestCase):
             config.load(env(WT_MASTER_KEY=bad))
         self.assertIn("WT_MASTER_KEY", str(cm.exception))
         self.assertNotIn(bad, str(cm.exception))
+
+    def test_repr_hides_secrets(self):
+        raw = os.urandom(32)
+        e = env(WT_MASTER_KEY=base64.b64encode(raw).decode(),
+                DATABASE_URL="postgresql://u:hunter2pw@h/d")
+        r = repr(config.load(e))
+        self.assertNotIn(e["WT_MASTER_KEY"], r)
+        self.assertNotIn(repr(raw), r)
+        self.assertNotIn("hunter2pw", r)
+
+    def test_empty_role_refused(self):
+        with self.assertRaises(config.ConfigError):
+            config.load(env(WT_ROLE=""))
 
     def test_bad_base64(self):
         with self.assertRaises(config.ConfigError) as cm:
