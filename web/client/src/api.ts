@@ -18,6 +18,7 @@ export type ContextFile = { path: string; version: number; updated_at: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
   service: string; name: string; key_page: string; set: boolean; updated_at: string | null;
+  kind: "voice" | "model";
 };
 export type Stage = { stage: string; [field: string]: unknown };
 export type BriefResult = { brief_md: string; stem: string };

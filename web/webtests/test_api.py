@@ -470,11 +470,39 @@ class Keys(ApiCase):
     def test_list_shows_every_service_unset(self):
         self.signed_in()
         body = self.client.get("/api/keys").json()
-        self.assertEqual([k["service"] for k in body],
+        self.assertEqual([k["service"] for k in body if k["kind"] == "voice"],
                          list(worker.engine_services(ROOT)))
         for k in body:
             self.assertFalse(k["set"])
             self.assertIsNone(k["updated_at"])
+
+    def test_model_keys_listed_first_and_only_offered(self):
+        self.signed_in()
+        body = self.client.get("/api/keys").json()
+        self.assertEqual([k["service"] for k in body if k["kind"] == "model"], ["anthropic"])
+        self.assertEqual(body[0]["service"], "anthropic")
+        self.assertEqual(body[0]["name"], "Claude")
+        self.assertIn("anthropic", body[0]["key_page"])
+        self.assertTrue(all(k["kind"] == "voice" for k in body[1:]))
+        self.assertEqual([k["service"] for k in body[1:]], list(worker.engine_services(ROOT)))
+
+    def test_put_model_key(self):
+        self.signed_in()
+        r = self.client.put("/api/keys/anthropic", json={"key": "sk-ant-abc123def456abcd"}, headers=self.origin())
+        self.assertEqual(r.status_code, 204)
+        body = self.client.get("/api/keys")
+        self.assertTrue(next(k for k in body.json() if k["service"] == "anthropic")["set"])
+        self.assertNotIn("sk-ant-abc123def456abcd", body.text)
+        r = self.client.put("/api/keys/anthropic", json={"key": "has a space in it 1234"}, headers=self.origin())
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("That doesn't look like a Claude key", r.json()["detail"])
+        self.assertEqual(self.client.delete("/api/keys/anthropic", headers=self.origin()).status_code, 204)
+
+    def test_unoffered_provider_is_404(self):
+        self.signed_in()
+        self.assertEqual(self.client.put("/api/keys/openai", json={"key": "abc123def456abcd"},
+                                         headers=self.origin()).status_code, 404)
+        self.assertEqual(self.client.delete("/api/keys/openai", headers=self.origin()).status_code, 404)
 
     def test_put_then_list(self):
         self.signed_in()

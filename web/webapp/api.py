@@ -35,7 +35,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
     RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, config, db, engine, jobs, keystore, store, worker
+from . import APP_NAME, auth, config, db, engine, jobs, keystore, providers, store, worker
 
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -392,11 +392,17 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 have = keystore.listing(conn, uk)
             finally:
                 conn.rollback()
-        return [{"service": s, "name": v["name"], "key_page": v["key_page"], "set": s in have,
+        rows = [(p, providers.PROVIDERS[p].name, providers.PROVIDERS[p].key_page, "model")
+                for p in settings.providers]
+        rows += [(s, v["name"], v["key_page"], "voice") for s, v in services.items()]
+        return [{"service": s, "name": n, "key_page": page, "kind": kind, "set": s in have,
                  "updated_at": have[s].isoformat() if s in have else None}
-                for s, v in services.items()]
+                for s, n, page, kind in rows]
 
     def known(service: str) -> dict:
+        if service in settings.providers:
+            spec = providers.PROVIDERS[service]
+            return {"name": spec.name, "key_var": f"{service.upper()}_API_KEY"}
         if service not in services:
             raise HTTPException(404, "no such service")
         return services[service]

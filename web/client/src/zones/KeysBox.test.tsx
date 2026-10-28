@@ -9,9 +9,11 @@ vi.mock("../api", async (orig) => {
 });
 
 const FISH: KeyState = { service: "fish", name: "Fish Audio", key_page: "https://fish.example/keys",
-  set: true, updated_at: "2026-10-20T12:00:00Z" };
+  set: true, updated_at: "2026-10-20T12:00:00Z", kind: "voice" };
 const ELEVEN: KeyState = { service: "elevenlabs", name: "ElevenLabs", key_page: "https://el.example/keys",
-  set: false, updated_at: null };
+  set: false, updated_at: null, kind: "voice" };
+const CLAUDE: KeyState = { service: "anthropic", name: "Claude", key_page: "https://c.example/keys",
+  set: false, updated_at: null, kind: "model" };
 const m = api as unknown as { keys: ReturnType<typeof vi.fn>; setKey: ReturnType<typeof vi.fn>;
   deleteKey: ReturnType<typeof vi.fn> };
 
@@ -23,6 +25,19 @@ beforeEach(() => {
 });
 
 describe("the Keys box", () => {
+  it("groups keys by kind", async () => {
+    m.keys.mockResolvedValue([CLAUDE, FISH, ELEVEN]);
+    render(<KeysBox onSignedOut={() => {}} />);
+    expect(await screen.findByRole("heading", { name: "Keys" })).toBeInTheDocument();
+    const model = screen.getByRole("heading", { name: "Language model" }).parentElement!;
+    const voice = screen.getByRole("heading", { name: "Voice" }).parentElement!;
+    expect(model).toHaveTextContent("Claude");
+    expect(model).not.toHaveTextContent("Fish Audio");
+    expect(voice).toHaveTextContent("Fish Audio");
+    expect(voice).toHaveTextContent("ElevenLabs");
+    expect(screen.getByText("Stored encrypted, never shown again. Each key goes only to its own service, when you use it.")).toBeInTheDocument();
+  });
+
   it("shows every service, set or not", async () => {
     render(<KeysBox onSignedOut={() => {}} />);
     expect(await screen.findByText(/^Set\b/)).toBeInTheDocument();

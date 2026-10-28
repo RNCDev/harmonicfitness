@@ -1,4 +1,4 @@
-// The voice keys: which services have one, add, replace or remove. A key is never shown again.
+// The keys, language model and voice: which services have one, add, replace or remove. A key is never shown again.
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, NotSignedIn, plainError, type KeyState } from "../api";
 
@@ -111,21 +111,32 @@ export function KeysBox({ onSignedOut }: { onSignedOut: () => void }) {
     api.keys().then((k) => { if (live) setKeys(k); }, (e) => {
       if (!live) return;
       if (e instanceof NotSignedIn) return onSignedOut();
-      setError("Couldn't load your voice keys.");
+      setError("Couldn't load your keys.");
     });
     return () => { live = false; };
   }, [onSignedOut]);
 
   return (
     <div className="cx-box">
-      <h3 className="cx-s" style={{ fontWeight: 600, margin: 0 }}>Voice keys</h3>
+      <h3 className="cx-s" style={{ fontWeight: 600, margin: 0 }}>Keys</h3>
       {error && <p className="cx-s err" role="alert">{error}</p>}
       {keys === null && !error && <p className="cx-s">Loading…</p>}
-      {keys?.map((k) => (
-        <KeyRow key={k.service} k={k} onSignedOut={onSignedOut}
-          onChanged={(s) => setKeys((all) => all && all.map((x) => (x.service === s.service ? s : x)))} />
-      ))}
-      <p className="cx-s">Stored encrypted, never shown again. Your key goes only to its own service, when a workout is spoken.</p>
+      {(["model", "voice"] as const).map((kind) => {
+        const rows = keys?.filter((k) => k.kind === kind) ?? [];
+        if (rows.length === 0) return null;
+        return (
+          <div key={kind}>
+            <h4 className="cx-s" style={{ fontWeight: 600, margin: "8px 0 0" }}>
+              {kind === "model" ? "Language model" : "Voice"}
+            </h4>
+            {rows.map((k) => (
+              <KeyRow key={k.service} k={k} onSignedOut={onSignedOut}
+                onChanged={(s) => setKeys((all) => all && all.map((x) => (x.service === s.service ? s : x)))} />
+            ))}
+          </div>
+        );
+      })}
+      <p className="cx-s">Stored encrypted, never shown again. Each key goes only to its own service, when you use it.</p>
     </div>
   );
 }

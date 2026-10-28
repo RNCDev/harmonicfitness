@@ -21,6 +21,7 @@ class Settings:
     engine_root: str = ""
     session_days: int = 90
     registration: bool = True
+    providers: tuple[str, ...] = ("anthropic",)
 
 
 def _required(env: Mapping[str, str], name: str) -> str:
@@ -31,6 +32,7 @@ def _required(env: Mapping[str, str], name: str) -> str:
 
 
 def load(env: Mapping[str, str]) -> Settings:
+    from . import providers     # providers imports ConfigError from here
     database_url = _required(env, "DATABASE_URL")
     base_url = _required(env, "HARMONICFITNESS_BASE_URL")
     raw = _required(env, "HARMONICFITNESS_MASTER_KEY")
@@ -49,4 +51,5 @@ def load(env: Mapping[str, str]) -> Settings:
     root = env.get("HARMONICFITNESS_ENGINE_ROOT", "").strip() or os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return Settings(database_url=database_url, master_key=master, base_url=base_url,
-                    role=role, engine_root=root, registration=reg == "open")
+                    role=role, engine_root=root, registration=reg == "open",
+                    providers=tuple(providers.offered(env)))
