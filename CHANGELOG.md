@@ -4,6 +4,14 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-10-28
+
+### For forks
+- **Nothing to migrate.**
+
+### Changed
+- **The check-in's coach question offers "A new coach of your own"** as its last option whenever a voice key is set, and when the coach used last can't speak here, so a listener can start the coach skill's quick coach from a workout request, on the web client and on a computer.
+
 ## [0.24.0] - 2026-10-28
 
 A listener on the web client can make a coach of their own: an original voice designed from their description, auditioned on every voice service they have a key for (Fish Audio, ElevenLabs, Gemini, Inworld), and kept in their own account there.
