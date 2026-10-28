@@ -1,49 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Panel } from "./Panel";
-import type { JobView } from "../api";
 
-const BRIEF = "# Today's brief\n\nSome notes.\n\n## The menu\n\n- squat";
+const ASK = {
+  tool_call_id: "t1",
+  questions: [{ id: "a", prompt: "How are you?", multi: false, other: false, options: [{ label: "Fine", recommended: true }] }],
+};
+const PLAN = {
+  format: "Straight sets", equipment: "Bodyweight", total_seconds: 600, left_out: "",
+  rows: [{ block: "Work", movements: ["Push-up"], dose: "3 x 10", seconds: 600 }],
+};
 
 describe("the working panel", () => {
-  it("renders stages, then the brief", () => {
-    const job: JobView = {
-      id: 1, state: "done", error: null,
-      stages: [{ stage: "folder" }, { stage: "brief" }, { stage: "saved", conflicts: [] }],
-      result: { brief_md: BRIEF, stem: "2026-10-27-strength-20" },
-    };
-    render(<Panel job={job} onRetry={() => {}} />);
-    expect(screen.getByText("Getting your notes ready")).toBeInTheDocument();
-    expect(screen.getByText("Reading your limits and kit")).toBeInTheDocument();
-    expect(screen.getByText("Saved")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Today's brief" })).toBeInTheDocument();
+  it("shows the empty state with nothing open", () => {
+    render(<Panel />);
+    expect(screen.getByText(/then start/)).toBeInTheDocument();
   });
 
-  it("shows the stages as they stream, before the brief", () => {
-    const job: JobView = { id: 1, state: "running", error: null, stages: [{ stage: "folder" }], result: null };
-    render(<Panel job={job} onRetry={() => {}} />);
-    expect(screen.getByText("Getting your notes ready")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+  it("shows the open question before the plan", () => {
+    render(<Panel question={ASK} plan={PLAN} />);
+    expect(screen.getByRole("group", { name: "How are you?" })).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("on failure shows the error and no brief", () => {
-    const job: JobView = {
-      id: 1, state: "failed", error: "the engine stopped (exit 1)",
-      stages: [{ stage: "folder" }, { stage: "brief" }],
-      result: { brief_md: BRIEF, stem: "x" },
-    };
-    render(<Panel job={job} onRetry={() => {}} />);
-    expect(screen.getByText(/engine stopped \(exit 1\)/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
-    expect(screen.queryByText("Today's brief")).not.toBeInTheDocument();
-  });
-
-  it("renders no raw HTML from the brief", () => {
-    const job: JobView = {
-      id: 1, state: "done", error: null, stages: [],
-      result: { brief_md: "# Brief\n\n<b id=\"raw\">bold</b>", stem: "x" },
-    };
-    const { container } = render(<Panel job={job} onRetry={() => {}} />);
-    expect(container.querySelector("#raw")).toBeNull();
+  it("shows the plan when there is no question", () => {
+    render(<Panel plan={PLAN} />);
+    expect(screen.getByRole("table")).toBeInTheDocument();
   });
 });

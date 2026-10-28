@@ -7,18 +7,19 @@ type Props = {
   working: boolean;
   error: string | null;
   noKey: boolean;
-  onSend: (line: string) => void;
+  /** Resolves false when the line was refused, so the box gets its text back. */
+  onSend: (line: string) => Promise<boolean> | void;
   onOpenKeys: () => void;
 };
 
 export function Chat({ lines, working, error, noKey, onSend, onOpenKeys }: Props) {
   const [text, setText] = useState("");
 
-  function send() {
+  async function send() {
     const line = text.trim();
     if (!line || working) return;
     setText("");
-    onSend(line);
+    if ((await onSend(line)) === false) setText((t) => t || line);
   }
 
   return (

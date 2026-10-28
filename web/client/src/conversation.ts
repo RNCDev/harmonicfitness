@@ -5,7 +5,13 @@ import {
 } from "./api";
 import { localDate, localNow } from "./sentence/model";
 
-const when = () => ({ today: localDate(), now: localNow() });
+/** Waits before each new try at reading the conversation after a turn (about ten seconds in all). */
+const RELOAD_DELAYS = [1000, 3000, 6000];
+
+const when = () => {
+  const d = new Date();
+  return { today: localDate(d), now: localNow(d) };
+};
 
 export function useConversation(onSignedOut: () => void) {
   const [conv, setConv] = useState<Conversation | null>(null);
@@ -36,14 +42,29 @@ export function useConversation(onSignedOut: () => void) {
     api.latestConversation().then(adopt, fail);
   }, [adopt, fail]);
 
-  // A turn's job ended: read the conversation again.
+  // A turn's job ended: read the conversation again, a few times if it won't load. If it never
+  // does, stop showing "working" so the person can write again.
   const id = conv?.id;
   useEffect(() => {
     if (!job || id === undefined) return;
     if (job.state === "failed" && job.error) setError(plainError(new ApiError(0, job.error)));
-    if (job.state === "done" || job.state === "failed") {
-      api.conversation(id).then((c) => setConv(c), fail);
-    }
+    if (job.state !== "done" && job.state !== "failed") return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = (n: number) => {
+      api.conversation(id).then((c) => { if (live) setConv(c); }, (e) => {
+        if (!live) return;
+        if (e instanceof NotSignedIn) return onSignedOut();
+        if (n < RELOAD_DELAYS.length) {
+          timer = setTimeout(() => attempt(n + 1), RELOAD_DELAYS[n]);
+          return;
+        }
+        setConv((c) => (c && c.state === "working" ? { ...c, state: "idle", job_id: null } : c));
+        setError(plainError(e));
+      });
+    };
+    attempt(0);
+    return () => { live = false; clearTimeout(timer); };
   }, [job?.id, job?.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const turn = useCallback(async (run: () => Promise<{ job_id: number }>, show: (c: Conversation) => Conversation) => {
@@ -54,8 +75,10 @@ export function useConversation(onSignedOut: () => void) {
       const { job_id } = await run();
       setConv((c) => (c ? show(c) : c));
       follow(job_id);
+      return true;
     } catch (e) {
       fail(e);
+      return false;
     } finally {
       setPosting(false);
     }
@@ -65,10 +88,9 @@ export function useConversation(onSignedOut: () => void) {
 
   const send = useCallback(async (line: string) => {
     if (conv) {
-      await turn(() => api.sendMessage(conv.id, line, when()), (c) => ({
+      return turn(() => api.sendMessage(conv.id, line, when()), (c) => ({
         ...c, state: "working", question: null, lines: [...c.lines, { role: "user", text: line }],
       }));
-      return;
     }
     setError(null);
     setNoKey(false);
@@ -77,16 +99,18 @@ export function useConversation(onSignedOut: () => void) {
       const { id: cid, job_id } = await api.startConversation(line, when());
       setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }], question: null, plan: null });
       follow(job_id);
+      return true;
     } catch (e) {
       fail(e);
+      return false;
     } finally {
       setPosting(false);
     }
   }, [conv, fail, follow, turn]);
 
   const answer = useCallback(async (toolCallId: string, values: AnswerValues) => {
-    if (!conv) return;
-    await turn(() => api.answer(conv.id, toolCallId, values, when()),
+    if (!conv) return false;
+    return turn(() => api.answer(conv.id, toolCallId, values, when()),
       (c) => ({ ...c, state: "working", question: null }));
   }, [conv, turn]);
 

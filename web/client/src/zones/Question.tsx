@@ -8,7 +8,7 @@ function initial(q: AskedQuestion): string[] {
 }
 
 export function Question({ ask, onSend, disabled = false }: {
-  ask: OpenQuestion; onSend: (toolCallId: string, values: AnswerValues) => void; disabled?: boolean;
+  ask: OpenQuestion; onSend: (toolCallId: string, values: AnswerValues) => Promise<boolean> | void; disabled?: boolean;
 }) {
   const [picked, setPicked] = useState<Record<string, string[]>>(
     () => Object.fromEntries(ask.questions.map((q) => [q.id, initial(q)])));
@@ -25,7 +25,7 @@ export function Question({ ask, onSend, disabled = false }: {
     }));
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (sent || disabled || !answered) return;
     setSent(true);
@@ -34,7 +34,8 @@ export function Question({ ask, onSend, disabled = false }: {
       const t = typed(q);
       values[q.id] = t ? `other: ${t}` : q.options.map((o) => o.label).filter((l) => (picked[q.id] ?? []).includes(l));
     }
-    onSend(ask.tool_call_id, values);
+    // A refused answer (the chat shows why) opens the form again.
+    if ((await onSend(ask.tool_call_id, values)) === false) setSent(false);
   }
 
   return (
@@ -46,7 +47,7 @@ export function Question({ ask, onSend, disabled = false }: {
             const id = `q-${q.id}-${o.label}`;
             return (
               <div className="opt" key={o.label}>
-                <input id={id} type={q.multi ? "checkbox" : "radio"} name={q.id}
+                <input id={id} type={q.multi ? "checkbox" : "radio"} name={q.id} disabled={!!typed(q)}
                   checked={(picked[q.id] ?? []).includes(o.label)}
                   onChange={(e) => choose(q, o.label, e.target.checked)} />
                 <label htmlFor={id}>

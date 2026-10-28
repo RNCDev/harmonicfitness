@@ -108,10 +108,10 @@ export function App() {
         onGo={go} filesOpen={drawer}
         onFiles={() => setDrawer((d) => !d)} />
       <Chat lines={conv?.lines ?? []} working={working} error={error} noKey={noKey}
-        onSend={(line) => void send(line)} onOpenKeys={openKeys} />
+        onSend={send} onOpenKeys={openKeys} />
       <main className="panel">
         <Panel question={conv?.state === "waiting" ? conv.question : null} plan={conv?.plan ?? null}
-          working={working} onAnswer={(id, v) => void answer(id, v)} />
+          working={working} onAnswer={answer} />
       </main>
       <ContextColumn files={files} username={me?.username ?? ""} open={drawer} onClose={closeDrawer}
         onSignedOut={signedOut} onSignOut={signOut} />

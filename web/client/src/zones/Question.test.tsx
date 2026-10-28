@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Question } from "./Question";
 import type { OpenQuestion } from "../api";
 
@@ -50,5 +50,25 @@ describe("the check-in question", () => {
   it("will not send while a question has no answer", () => {
     render(<Question ask={ASK} onSend={() => {}} />);
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  });
+});
+
+describe("a refused answer", () => {
+  it("opens the form again so it can be sent once more", async () => {
+    const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<Question ask={ASK} onSend={onSend} />);
+    fireEvent.click(screen.getByRole("radio", { name: /Tired/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Knees" }));
+    const send = screen.getByRole("button", { name: "Send" });
+    fireEvent.click(send);
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+  });
+
+  it("locks the options while Other has text", () => {
+    render(<Question ask={ASK} onSend={() => {}} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Other" }), { target: { value: "x" } });
+    expect(screen.getByRole("radio", { name: /Tired/ })).toBeDisabled();
   });
 });

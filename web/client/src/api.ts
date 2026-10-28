@@ -1,6 +1,6 @@
 // The server's JSON API and a job's event stream.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { JobArgs, Options } from "./sentence/model";
+import type { Options } from "./sentence/model";
 
 /** The product's name, in one place on this side. */
 export const APP_NAME = "HarmonicFitness";
@@ -21,14 +21,12 @@ export type KeyState = {
   kind: "voice" | "model";
 };
 export type Stage = { stage: string; [field: string]: unknown };
-export type BriefResult = { brief_md: string; stem: string };
 export type JobState = "queued" | "running" | "done" | "failed";
 export type JobView = {
   id: number;
   state: JobState;
   error: string | null;
   stages: Stage[];
-  result: BriefResult | null;
 };
 
 export type ChatLine = { role: "user" | "agent"; text: string };
@@ -95,9 +93,8 @@ export const api = {
   answer: (id: number, tool_call_id: string, values: AnswerValues, w: When) =>
     call<{ job_id: number }>("POST", `/api/conversations/${id}/answer`, { tool_call_id, values, ...w }),
   signOut: () => call<void>("POST", "/api/sign-out"),
-  startJob: (args: JobArgs) => call<{ id: number }>("POST", "/api/jobs", args),
   job: (id: number) =>
-    call<{ id: number; state: JobState; error: string | null; result: BriefResult | null }>(
+    call<{ id: number; state: JobState; error: string | null }>(
       "GET", `/api/jobs/${id}`),
 };
 
@@ -113,7 +110,7 @@ function jobError(e: unknown): string {
   return plainError(e);
 }
 
-/** One job at a time: start it, follow its events, then read its result. */
+/** One job at a time: follow its events, then read how it ended. */
 export function useJob(onSignedOut: () => void) {
   const [job, setJob] = useState<JobView | null>(null);
   const source = useRef<EventSource | null>(null);
@@ -127,8 +124,7 @@ export function useJob(onSignedOut: () => void) {
   const finish = useCallback(async (id: number) => {
     try {
       const j = await api.job(id);
-      setJob((v) => (v && v.id === id ? { ...v, state: j.state, error: j.error,
-        result: j.state === "done" ? j.result : null } : v));
+      setJob((v) => (v && v.id === id ? { ...v, state: j.state, error: j.error } : v));
     } catch (e) {
       if (e instanceof NotSignedIn) return onSignedOut();
       setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: jobError(e) } : v));
@@ -175,24 +171,11 @@ export function useJob(onSignedOut: () => void) {
     };
   }, [finish, stop]);
 
-  const start = useCallback(async (args: JobArgs) => {
-    stop();
-    setJob({ id: 0, state: "queued", error: null, stages: [], result: null });
-    try {
-      const { id } = await api.startJob(args);
-      setJob({ id, state: "queued", error: null, stages: [], result: null });
-      follow(id);
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      setJob({ id: 0, state: "failed", error: jobError(e), stages: [], result: null });
-    }
-  }, [follow, onSignedOut, stop]);
-
   /** Follow a job another call started (a conversation's turn). */
   const watch = useCallback((id: number) => {
-    setJob({ id, state: "queued", error: null, stages: [], result: null });
+    setJob({ id, state: "queued", error: null, stages: [] });
     follow(id);
   }, [follow]);
 
-  return { job, start, watch, stop };
+  return { job, watch, stop };
 }

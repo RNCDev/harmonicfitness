@@ -6,7 +6,6 @@ export type SentenceModel = { parts: (string | Token)[] };
 
 export type Options = { minutes: number[]; goals: string[]; presets: string[] };
 export type Chosen = { minutes?: number; goal?: string; preset?: string };
-export type JobArgs = { kind: "brief"; goal: string; minutes: number; preset: string; today: string };
 
 const DEFAULTS = { minutes: 20, goal: "strength", preset: "bodyweight" };
 
@@ -59,26 +58,10 @@ export function tokens(m: SentenceModel): Token[] {
   return m.parts.filter((p): p is Token => typeof p !== "string");
 }
 
-function valueOf(m: SentenceModel, key: string): string | number {
-  const t = tokens(m).find((p) => p.key === key);
-  if (!t) throw new Error(`the sentence has no ${key}`);
-  return t.value;
-}
-
 /** The words a token shows in the sentence: the bare number for minutes, else its label. */
 export function shown(t: Token): string {
   if (t.key === "minutes") return String(t.value);
   return t.options.find((o) => o.value === t.value)?.label ?? String(t.value);
-}
-
-export function toJobArgs(m: SentenceModel, today: string): JobArgs {
-  return {
-    kind: "brief",
-    goal: String(valueOf(m, "goal")),
-    minutes: Number(valueOf(m, "minutes")),
-    preset: String(valueOf(m, "preset")),
-    today,
-  };
 }
 
 /** The browser's local date as YYYY-MM-DD (never UTC's). */
