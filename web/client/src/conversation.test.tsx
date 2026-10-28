@@ -6,7 +6,7 @@ import { ApiError, type Conversation } from "./api";
 const stop = () => {};
 
 const m = vi.hoisted(() => ({
-  latest: vi.fn(), latestJob: vi.fn(), conversation: vi.fn(), start: vi.fn(), send: vi.fn(), watch: vi.fn(),
+  latest: vi.fn(), conversation: vi.fn(), start: vi.fn(), send: vi.fn(), watch: vi.fn(),
   endJob: null as null | ((state: "done" | "failed", error?: string) => void),
 }));
 
@@ -14,7 +14,7 @@ vi.mock("./api", async (orig) => {
   const real = await orig<typeof import("./api")>();
   return {
     ...real,
-    api: { ...real.api, latestConversation: m.latest, latestJob: m.latestJob, conversation: m.conversation, startConversation: m.start,
+    api: { ...real.api, latestConversation: m.latest, conversation: m.conversation, startConversation: m.start,
       sendMessage: m.send },
     useJob: () => {
       const [job, setJob] = useState<{ id: number; state: string; error: string | null; stages: [] } | null>(null);
@@ -38,7 +38,7 @@ const conv = (over: Partial<Conversation>): Conversation => ({
 });
 
 beforeEach(() => {
-  m.latest.mockReset(); m.latestJob.mockReset(); m.latestJob.mockResolvedValue(undefined); m.conversation.mockReset(); m.start.mockReset(); m.send.mockReset(); m.watch.mockReset();
+  m.latest.mockReset(); m.conversation.mockReset(); m.start.mockReset(); m.send.mockReset(); m.watch.mockReset();
 });
 
 const yesterday = () => new Date(Date.now() - 36 * 3600 * 1000).toISOString();
@@ -52,21 +52,6 @@ describe("useConversation", () => {
     const { result } = renderHook(() => useConversation(out));
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
     expect(result.current.working).toBe(true);
-  });
-
-  it("follows a running job found on load when no conversation is working", async () => {
-    m.latest.mockResolvedValue(conv({ state: "idle" }));
-    m.latestJob.mockResolvedValue({ id: 9, kind: "brief", state: "running" });
-    const { result } = renderHook(() => useConversation(out));
-    await waitFor(() => expect(m.watch).toHaveBeenCalledWith(9));
-    expect(result.current.working).toBe(true);
-  });
-
-  it("does not ask for a job when the conversation is working", async () => {
-    m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
-    renderHook(() => useConversation(out));
-    await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
-    expect(m.latestJob).not.toHaveBeenCalled();
   });
 
   it("sets noKey when there is no model key", async () => {

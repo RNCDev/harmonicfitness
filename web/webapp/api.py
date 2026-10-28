@@ -43,8 +43,6 @@ MINUTES = [10, 15, 20, 25, 30, 45]
 MAX_QUEUED = 3            # queued jobs a user may have at once (a guard against a stuck button)
 KEEP_ALIVE = 15           # seconds between keep-alive comments on an event stream
 POLL_EVERY = 5            # seconds between status reads without a NOTIFY (fail and reap send none)
-STREAMS_PER_USER = 3      # event streams (open pages) one user may hold at once
-STREAMS_ALL = 40          # and all users together, in this web process
 WAIT_SLICE = 1.0          # seconds a stream blocks at most, so a client gone away is noticed soon
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 JOB_ID = PathParam(ge=1, le=2**63 - 1)
@@ -84,32 +82,6 @@ class Throttle:
                 for k in [k for k in self.hits if not self._live(k)]:
                     del self.hits[k]
             self._live(key).append(self.clock())
-
-
-class Streams:
-    """Open event streams, per user and in all, counted under a lock. `take` is False past a cap;
-    `release` frees the slot."""
-
-    def __init__(self, per_user: int, total: int):
-        self.per_user, self.total = per_user, total
-        self.by_user: dict[int, int] = {}
-        self.lock = threading.Lock()
-
-    def take(self, user_id: int) -> bool:
-        with self.lock:
-            if self.by_user.get(user_id, 0) >= self.per_user \
-                    or sum(self.by_user.values()) >= self.total:
-                return False
-            self.by_user[user_id] = self.by_user.get(user_id, 0) + 1
-            return True
-
-    def release(self, user_id: int) -> None:
-        with self.lock:
-            n = self.by_user.get(user_id, 0) - 1
-            if n > 0:
-                self.by_user[user_id] = n
-            else:
-                self.by_user.pop(user_id, None)
 
 
 def _address(request: Request) -> str:
@@ -338,7 +310,6 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     User = Annotated[store.UserKey, Depends(session)]
     post = {"dependencies": [Depends(same_origin)]}
-    streams = Streams(STREAMS_PER_USER, STREAMS_ALL)   # read the module's caps at app creation
     login_name, login_addr = Throttle(*LOGIN_PER_NAME), Throttle(*LOGIN_PER_ADDRESS)
     reg_addr, reg_all = Throttle(*REGISTER_PER_ADDRESS), Throttle(*REGISTER_ALL)
 
@@ -543,20 +514,6 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             job_id = jobs.enqueue(conn, uk, body.kind, args)   # commits, releasing the lock
         return {"id": job_id}
 
-    @app.get("/api/jobs/latest")
-    def latest_job(uk: User):
-        """The user's newest queued or running job, so a reloaded page can follow it; else 204."""
-        with connection() as conn:
-            try:
-                row = conn.execute("select id, kind, state from jobs where user_id = %s and "
-                                   "state in ('queued', 'running') order by id desc limit 1",
-                                   (uk.user_id,)).fetchone()
-            finally:
-                conn.rollback()
-        if row is None:
-            return Response(status_code=204)
-        return {"id": row[0], "kind": row[1], "state": row[2]}
-
     @app.get("/api/jobs/{job_id}")
     def get_job(uk: User, job_id: Annotated[int, JOB_ID]):
         with connection() as conn:
@@ -582,10 +539,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             after = max(0, int(request.headers.get("last-event-id", "0")))
         except ValueError:
             after = 0
-        if not streams.take(uk.user_id):
-            raise HTTPException(429, "Too many open pages; close one.")
-        return StreamingResponse(_stream(open_stream, uk, job_id, after,
-                                         lambda: streams.release(uk.user_id)),
+        return StreamingResponse(_stream(open_stream, uk, job_id, after),
                                  media_type="text/event-stream",
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
@@ -721,18 +675,14 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
 
 async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey, job_id: int,
-                  after: int, release: Callable[[], None] = lambda: None):
+                  after: int):
     """The job's events after `after`, then a `state` event once it is done or failed.
 
     LISTEN comes before the first read, so an event committed between them still wakes us. Each
     round reads the status first and the events after it: complete() writes its events in the
     same transaction that marks the job done, so a done status means every event is readable."""
     run = anyio.to_thread.run_sync
-    try:
-        conn = await run(open_conn)
-    except BaseException:
-        release()
-        raise
+    conn = await run(open_conn)
     try:
         conn.autocommit = True
         await run(lambda: conn.execute("listen job_events"))
@@ -770,7 +720,6 @@ async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey
                 yield ": keep-alive\n\n"
     finally:
         conn.close()
-        release()
 
 
 def create_app_from_env() -> FastAPI:

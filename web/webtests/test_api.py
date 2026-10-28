@@ -393,29 +393,6 @@ class Api(ApiCase):
                          {"id": job, "state": "done", "error": None,
                           "result": {"brief_md": "# Today's brief"}})
 
-    def test_latest_job(self):
-        _, uk = self.signed_in()
-        r = self.client.get("/api/jobs/latest")
-        self.assertEqual(r.status_code, 204)
-        old = jobs.enqueue(self.conn, uk, "brief", {})
-        jobs.claim(self.conn)
-        jobs.finish(self.conn, uk, old, {})
-        self.assertEqual(self.client.get("/api/jobs/latest").status_code, 204)
-        job = jobs.enqueue(self.conn, uk, "brief", {})
-        self.assertEqual(self.client.get("/api/jobs/latest").json(),
-                         {"id": job, "kind": "brief", "state": "queued"})
-        jobs.claim(self.conn)
-        self.assertEqual(self.client.get("/api/jobs/latest").json()["state"], "running")
-
-    def test_latest_job_is_per_user(self):
-        _, uk_a = self.make_user()
-        jobs.enqueue(self.conn, uk_a, "brief", {})
-        self.signed_in()
-        self.assertEqual(self.client.get("/api/jobs/latest").status_code, 204)
-
-    def test_latest_job_needs_session(self):
-        self.assertEqual(self.client.get("/api/jobs/latest").status_code, 401)
-
     def read_stream(self, job, headers=None):
         with self.client.stream("GET", f"/api/jobs/{job}/events", headers=headers or {}) as r:
             self.assertEqual(r.status_code, 200)
@@ -957,66 +934,3 @@ class Disconnect(ApiCase):
                 time.sleep(0.05)
         self.assertTrue(stream_conn.closed)
         self.assertTrue(all(conn.closed for conn in opened))
-
-
-class StreamCaps(ApiCase):
-    """A real server (TestClient buffers a whole response, so it can't hold streams open)."""
-
-    def serve(self, app):
-        import socket
-
-        import uvicorn
-        sock = socket.socket()
-        sock.bind(("127.0.0.1", 0))
-        server = uvicorn.Server(uvicorn.Config(app, log_level="warning", access_log=False,
-                                               lifespan="off"))
-        thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
-        thread.start()
-        self.addCleanup(thread.join, 10)
-        self.addCleanup(setattr, server, "should_exit", True)
-        deadline = time.monotonic() + 10
-        while not server.started and time.monotonic() < deadline:
-            time.sleep(0.02)
-        return sock.getsockname()[1]
-
-    def session_for(self, user_id):
-        return auth.redeem(self.conn, self.settings,
-                           token_of(auth.device_link(self.conn, self.settings, user_id).url))
-
-    def test_stream_caps(self):
-        import httpx
-        port = self.serve(api.create_app(self.settings, connect=self.connect,
-                                         client_dist=self.dist))
-        user_id, uk = self.make_user()
-        cookies = {"wt_session": self.session_for(user_id)}
-        job = jobs.enqueue(self.conn, uk, "brief", {})   # stays queued: streams never end
-        url = f"/api/jobs/{job}/events"
-        with mock.patch.object(api, "KEEP_ALIVE", 0.1), mock.patch.object(api, "POLL_EVERY", 0.1):
-            with httpx.Client(base_url=f"http://127.0.0.1:{port}", cookies=cookies) as c:
-                held = []
-                for _ in range(api.STREAMS_PER_USER):
-                    cm = c.stream("GET", url)
-                    r = cm.__enter__()
-                    self.assertEqual(r.status_code, 200)
-                    held.append(cm)
-                with c.stream("GET", url) as r:
-                    self.assertEqual(r.status_code, 429)
-                    r.read()
-                    self.assertEqual(r.json()["detail"], "Too many open pages; close one.")
-                held.pop().__exit__(None, None, None)
-                deadline, status = time.monotonic() + 5, 0
-                while status != 200 and time.monotonic() < deadline:
-                    with c.stream("GET", url) as r:
-                        status = r.status_code
-                    time.sleep(0.05)
-                self.assertEqual(status, 200)
-                for cm in held:
-                    cm.__exit__(None, None, None)
-
-    def test_streams_all_cap(self):
-        s = api.Streams(3, 2)
-        self.assertTrue(s.take(1))
-        self.assertTrue(s.take(2))
-        self.assertFalse(s.take(3))
-        s.release(1)
-        self.assertTrue(s.take(3))

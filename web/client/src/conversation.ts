@@ -48,24 +48,10 @@ export function useConversation(onSignedOut: () => void) {
     if (c?.state === "working" && c.job_id && c.job_id !== watched.current) follow(c.job_id);
   }, [follow]);
 
-  // The page opens on the latest conversation; with none working, a job still running (a reload
-  // in the middle of one) is followed.
+  // The page opens on the latest conversation.
   useEffect(() => {
-    let live = true;
-    (async () => {
-      try {
-        const c = await api.latestConversation();
-        if (!live) return;
-        adopt(c);
-        if (c?.state === "working") return;
-        const j = await api.latestJob();
-        if (live && j && watched.current === 0) follow(j.id);
-      } catch (e) {
-        if (live) fail(e);
-      }
-    })();
-    return () => { live = false; };
-  }, [adopt, fail, follow]);
+    api.latestConversation().then(adopt, fail);
+  }, [adopt, fail]);
 
   // A turn's job ended: read the conversation again, a few times if it won't load. If it never
   // does, stop showing "working" so the person can write again.
