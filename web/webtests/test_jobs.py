@@ -14,11 +14,6 @@ from webtests.dbcase import MASTER, DBCase  # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 
-def handler(fn):
-    """`fn` as a job kind that may write back workouts/, as brief and turn do."""
-    return worker.Handler(fn, ("workouts/",))
-
-
 def today() -> str:
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
@@ -136,39 +131,6 @@ class Worker(JobsCase):
         self.assertEqual([b["stage"] for _, b in jobs.events(self.conn, uk, job)],
                          ["folder", "brief", "saved"])
         self.assertEqual(jobs.events(self.conn, uk, job)[-1][1]["conflicts"], [])
-        self.assertEqual(jobs.events(self.conn, uk, job)[-1][1]["left_out"], [])
-        self.conn.rollback()
-
-    def test_handlers_write_back_only_workouts(self):
-        self.assertEqual(set(worker.HANDLERS), {"brief", "turn"})
-        for kind, h in worker.HANDLERS.items():
-            self.assertIsInstance(h, worker.Handler)
-            self.assertEqual(h.writes, ("workouts/",), kind)
-        self.assertFalse(hasattr(worker, "NEVER_WRITE_BACK"))
-
-    def test_brief_leaves_out_what_it_may_not_write(self):
-        _, uk = self.seeded_user()
-        before = store.read_all(self.conn, uk)
-        self.conn.commit()
-        real = worker.HANDLERS["brief"].fn
-
-        def scribble(ctx):
-            out = real(ctx)
-            for rel, data in (("health.md", b"changed"), ("log.md", b"changed"),
-                              ("workouts/big.md", b"x" * 3_000_000)):
-                with open(os.path.join(ctx.home, rel), "wb") as f:
-                    f.write(data)
-            ctx.save(ctx.harvest())
-            return out
-        with mock.patch.dict(worker.HANDLERS, {"brief": handler(scribble)}):
-            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
-            self.run_one()
-        self.assertEqual(self.state(job), ("done", None))
-        after = store.read_all(self.conn, uk)
-        for rel in ("health.md", "log.md"):
-            self.assertEqual(after[rel], before[rel])
-        self.assertNotIn("workouts/big.md", after)
-        self.assertEqual(jobs.events(self.conn, uk, job)[-1][1]["left_out"], ["workouts/big.md"])
         self.conn.rollback()
 
     def test_bad_args_never_run_the_engine(self):
@@ -208,9 +170,8 @@ class Worker(JobsCase):
         self.conn.commit()
         seen = []
 
-        def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
+        def record(root, home, argv, extra_env={}, timeout=120):
             seen.append(dict(extra_env))
-            self.assertIsNotNone(cancel)   # every engine call can be stopped
             return worker.engine.Result(1, "", "")
         with mock.patch.object(worker.engine, "run", side_effect=record):
             jobs.enqueue(self.conn, uk, "brief", self.brief_args())
@@ -241,7 +202,7 @@ class Worker(JobsCase):
     def test_folder_is_removed(self):
         _, uk = self.seeded_user()
         homes = []
-        real = worker.HANDLERS["brief"].fn
+        real = worker.HANDLERS["brief"]
 
         def ok(ctx):
             homes.append(ctx.home)
@@ -251,7 +212,7 @@ class Worker(JobsCase):
             homes.append(ctx.home)
             raise RuntimeError("something personal")
 
-        with mock.patch.dict(worker.HANDLERS, {"brief": handler(ok), "boom": handler(boom)}):
+        with mock.patch.dict(worker.HANDLERS, {"brief": ok, "boom": boom}):
             good = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(self.run_one())
             bad = jobs.enqueue(self.conn, uk, "boom", {})
@@ -293,7 +254,7 @@ class Worker(JobsCase):
             ctx.conn.commit()
             return {}
 
-        with mock.patch.dict(worker.HANDLERS, {"slow": handler(slow)}), \
+        with mock.patch.dict(worker.HANDLERS, {"slow": slow}), \
                 mock.patch.object(worker, "HEARTBEAT_EVERY", 0.1):
             job = jobs.enqueue(self.conn, uk, "slow", {})
             self.run_one()
@@ -309,7 +270,7 @@ class LostJobs(JobsCase):
     def test_job_reaped_before_completion_writes_nothing(self):
         _, uk = self.seeded_user()
         before = set(store.read_all(self.conn, uk))
-        real = worker.HANDLERS["brief"].fn
+        real = worker.HANDLERS["brief"]
 
         def reaped_meanwhile(ctx):
             out = real(ctx)   # the engine has run and the files are harvested
@@ -318,7 +279,7 @@ class LostJobs(JobsCase):
             self.conn.commit()
             return out
 
-        with mock.patch.dict(worker.HANDLERS, {"brief": handler(reaped_meanwhile)}), \
+        with mock.patch.dict(worker.HANDLERS, {"brief": reaped_meanwhile}), \
                 mock.patch("sys.stderr") as err:
             job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(self.run_one())
@@ -333,13 +294,13 @@ class LostJobs(JobsCase):
         import time
         _, uk = self.seeded_user()
         before = set(store.read_all(self.conn, uk))
-        real = worker.HANDLERS["brief"].fn
+        real = worker.HANDLERS["brief"]
 
         def slow(ctx):
             time.sleep(0.3)
             return real(ctx)
 
-        with mock.patch.dict(worker.HANDLERS, {"brief": handler(slow)}), \
+        with mock.patch.dict(worker.HANDLERS, {"brief": slow}), \
                 mock.patch.object(worker, "HEARTBEAT_EVERY", 0.05), \
                 mock.patch.object(jobs, "heartbeat", return_value=False), \
                 mock.patch("sys.stderr"):
@@ -376,7 +337,7 @@ class LostJobs(JobsCase):
             release.wait(60)
             return mock.MagicMock()   # the halt is set by then: it closes and ends quietly
 
-        with mock.patch.dict(worker.HANDLERS, {"noop": handler(lambda ctx: {})}), \
+        with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
                 mock.patch.object(worker, "CONNECT_TIMEOUT", 0), \
                 mock.patch.object(worker, "JOIN_SLACK", 0.2), mock.patch("sys.stderr"):
             job = jobs.enqueue(self.conn, uk, "noop", {})
@@ -388,7 +349,7 @@ class LostJobs(JobsCase):
 
     def test_default_heartbeat_connect_has_a_timeout(self):
         _, uk = self.make_user()
-        with mock.patch.dict(worker.HANDLERS, {"noop": handler(lambda ctx: {})}), \
+        with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
                 mock.patch.object(worker.psycopg, "connect") as connect:
             jobs.enqueue(self.conn, uk, "noop", {})
             self.assertTrue(worker.run_one(self.conn, self.settings))
@@ -639,9 +600,9 @@ class Turn(JobsCase):
         seen = []
         real = worker.engine.run
 
-        def record(root, home, argv, extra_env={}, **kw):
+        def record(root, home, argv, extra_env={}, timeout=120):
             seen.append(dict(extra_env))
-            return real(root, home, argv, extra_env=extra_env, **kw)
+            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
 
         def script(messages, info):
             names = returned(messages)
@@ -706,68 +667,6 @@ class Turn(JobsCase):
         self.assertEqual(conv.state, "failed")
         self.assertEqual(conv.lines[-1], {"role": "agent", "text": f"That didn't work: {message}"})
         self.assertEqual(len(calls), 1)   # nothing retried
-        self.conn.rollback()
-
-    def test_turn_never_writes_health(self):
-        uk = self.user()
-        cid = self.start(uk)
-        before = store.read_all(self.conn, uk)
-        self.conn.commit()
-        from webapp.agent import tools
-        real = tools.read_file
-
-        def scribbling_read(deps, name):
-            with open(os.path.join(deps.home, "health.md"), "wb") as f:
-                f.write(b"+++\nschema = 6\n+++\nwritten by a tool\n")
-            return real(deps, name)
-
-        def script(messages, info):
-            if not returned(messages):
-                return ModelResponse(parts=[ToolCallPart("read_file", {"name": "health.md"}, tool_call_id="r1")])
-            return ModelResponse(parts=[TextPart("Read it.")])
-        with mock.patch.object(tools, "read_file", side_effect=scribbling_read) as read:
-            job, conv = self.run_turn(uk, script, cid, line="go")
-        read.assert_called_once()
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(conv.state, "idle")
-        self.assertEqual(store.read_all(self.conn, uk)["health.md"], before["health.md"])
-        self.conn.rollback()
-
-    def test_turn_cap_kills_the_engine_call(self):
-        import time
-        from webapp import agent
-        import tempfile
-        from webtests.test_engine import stub
-        pidfile = os.path.join(tempfile.mkdtemp(), "engine.pid")   # outside the job's folder, which goes
-        slow_root = stub(f'sleep 30 & echo $! > "{pidfile}"; wait')
-        real_run = worker.engine.run
-        uk = self.user()
-        cid = self.start(uk)
-
-        def script(messages, info):
-            if not returned(messages):
-                return ModelResponse(parts=[ToolCallPart("get_coach", {}, tool_call_id="c1")])
-            return ModelResponse(parts=[TextPart("ok")])
-        t = time.monotonic()
-        with mock.patch.object(agent, "TURN_SECONDS", 1), \
-                mock.patch.object(worker.engine, "run",
-                                  side_effect=lambda root, *a, **k: real_run(slow_root, *a, **k)):
-            job, conv = self.run_turn(uk, script, cid, line="go")
-        self.assertLess(time.monotonic() - t, 8)
-        self.assertEqual(self.state(job), ("failed", worker.TOO_LONG))
-        self.assertEqual(conv.state, "failed")
-        with open(pidfile) as f:
-            pid = int(f.read())
-        deadline = time.monotonic() + 3
-        while time.monotonic() < deadline:   # the engine call is killed, not left to its own timeout
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
-                break
-            time.sleep(0.05)
-        else:
-            os.kill(pid, 9)
-            self.fail("the engine call outlived the turn's cap")
         self.conn.rollback()
 
     def test_bad_turn_args_fail_the_conversation(self):
@@ -843,13 +742,13 @@ class Turn(JobsCase):
 
     def lost_after_handler(self, uk, cid, after, **patches):
         """Run a turn whose handler finishes, then `after(ctx)`; (job, conversation)."""
-        real = worker.HANDLERS["turn"].fn
+        real = worker.HANDLERS["turn"]
 
-        def turn_handler(ctx):
+        def handler(ctx):
             out = real(ctx)
             after(ctx)
             return out
-        with mock.patch.dict(worker.HANDLERS, {"turn": handler(turn_handler)}), mock.patch("sys.stderr"):
+        with mock.patch.dict(worker.HANDLERS, {"turn": handler}), mock.patch("sys.stderr"):
             return self.run_turn(uk, lambda m, i: ModelResponse(parts=[ToolCallPart(
                 "brief", BRIEF_CALL, tool_call_id="b1")]) if not returned(m) else ModelResponse(
                 parts=[TextPart("ok")]), cid, line="go")

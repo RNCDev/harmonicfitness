@@ -173,50 +173,6 @@ class Turns(AgentCase):
         self.assertTrue(any(isinstance(m, ModelRequest) for m in history))
 
 
-class Cancel(AgentCase):
-    def test_setting_cancel_stops_the_turn_and_its_engine_call(self):
-        import threading
-        import time
-        from unittest import mock
-        from webapp import engine
-        from webtests.test_engine import stub
-        slow_root = stub("sleep 30")
-        real_run = engine.run
-        calls = []
-
-        def run(root, *a, **k):
-            calls.append(k.get("cancel"))
-            return real_run(slow_root, *a, **k)
-
-        def script(messages, info):
-            if not parts(messages, ToolReturnPart):
-                return ModelResponse(parts=[ToolCallPart("get_coach", {}, tool_call_id="c1")])
-            return ModelResponse(parts=[TextPart("ok")])
-        cancel = threading.Event()
-        threading.Timer(0.3, cancel.set).start()   # as the worker's heartbeat would, on a reaped job
-        t = time.monotonic()
-        with mock.patch.object(tools.engine, "run", side_effect=run):
-            with self.assertRaises(agent.TurnError) as e:
-                agent.run_turn(FunctionModel(script), self.deps, None, "go", None, cancel=cancel)
-        self.assertLess(time.monotonic() - t, 5)
-        self.assertEqual(e.exception.reason, agent.TIMED_OUT)
-        self.assertEqual(calls, [cancel])
-        self.assertIs(self.deps.cancel, cancel)
-        self.assertNotIn("Event", repr(self.deps))
-
-    def test_the_cap_sets_cancel(self):
-        import asyncio
-        from unittest import mock
-
-        async def slow(messages, info):
-            await asyncio.sleep(2)
-            return ModelResponse(parts=[TextPart("Hello.")])
-        with mock.patch.object(agent, "TURN_SECONDS", 0.2):
-            with self.assertRaises(agent.TurnError):
-                agent.run_turn(FunctionModel(slow), self.deps, None, "go", None)
-        self.assertTrue(self.deps.cancel.is_set())
-
-
 class ShowPlan(AgentCase):
     def plan(self, movements, seconds=(300, 600, 300), total=1200):
         rows = [{"block": b, "movements": movements, "dose": "3 x 10", "seconds": s}

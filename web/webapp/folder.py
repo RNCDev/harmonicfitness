@@ -71,45 +71,26 @@ def _walk(root: str):
             yield rel, full
 
 
-MAX_FILE = 2_000_000   # bytes: a bigger file is never taken back
-
-
-def allowed(path: str, only: tuple[str, ...] | None) -> bool:
-    """Whether `only` (exact paths, or folder prefixes ending in "/") lets `path` be written back;
-    None allows everything."""
-    return only is None or any(path.startswith(e) if e.endswith("/") else path == e for e in only)
-
-
-def harvest(root: str, written: dict[str, str], never: frozenset[str] = frozenset(),
-            only: tuple[str, ...] | None = None, max_file: int = MAX_FILE,
-            left_out: list[str] | None = None) -> dict[str, bytes | None]:
-    """Files new or changed since `written`; None for ones deleted. Skips links, SKIP paths, anything
-    in `never` and anything `only` doesn't allow (deletions included). A file over `max_file` bytes is
-    left out, its path appended to `left_out`."""
+def harvest(root: str, written: dict[str, str],
+            never: frozenset[str] = frozenset()) -> dict[str, bytes | None]:
+    """Files new or changed since `written`; None for ones deleted. Skips links,
+    SKIP paths and anything in `never`."""
     out: dict[str, bytes | None] = {}
     seen = set()
     for rel, full in _walk(root):
-        if rel in never or skipped(rel) or not allowed(rel, only):
+        if rel in never or skipped(rel):
             continue
         try:
             check_path(rel)
         except ValueError:
             continue
         seen.add(rel)
-        if os.stat(full, follow_symlinks=False).st_size > max_file:
-            if left_out is not None:
-                left_out.append(rel)
-            continue
         with open(full, "rb") as f:
-            data = f.read(max_file + 1)
-        if len(data) > max_file:   # grew since the stat
-            if left_out is not None:
-                left_out.append(rel)
-            continue
+            data = f.read()
         if written.get(rel) != _sha(data):
             out[rel] = data
     for rel in written:
-        if rel not in seen and rel not in never and not skipped(rel) and allowed(rel, only):
+        if rel not in seen and rel not in never and not skipped(rel):
             out[rel] = None
     return out
 

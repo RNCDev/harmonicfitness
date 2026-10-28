@@ -3,7 +3,6 @@ folder and nothing else. No tool takes a path, every argv is a list, arguments a
 the engine runs, and keys reach the engine only through engine.run's extra_env."""
 import os
 import re
-import threading
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -28,7 +27,6 @@ class Deps:
     now: str
     stem: str | None = None
     plan: dict | None = None
-    cancel: threading.Event | None = field(default=None, repr=False)   # set: every engine call stops
 
 
 class ToolResult(BaseModel):
@@ -50,8 +48,7 @@ def _refuse(message: str) -> ToolResult:
 
 
 def _run(deps: Deps, argv: list[str], limit: int = LIMIT) -> ToolResult:
-    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT,
-                   cancel=deps.cancel)
+    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT)
     return _result(r.code, r.stdout, r.stderr, limit)
 
 

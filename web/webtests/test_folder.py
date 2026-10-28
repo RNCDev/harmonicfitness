@@ -52,25 +52,6 @@ class FolderTests(unittest.TestCase):
         os.remove(os.path.join(self.root, "a.md"))
         self.assertEqual(folder.harvest(self.root, written), {"a.md": None})
 
-    def test_harvest_only_and_max_file(self):
-        written = folder.materialize({"health.md": b"h", "log.md": b"l", "workouts/a.md": b"a",
-                                      "old.md": b"o"}, self.root)
-        self.put("health.md", b"changed")
-        self.put("log.md", b"changed")
-        os.remove(os.path.join(self.root, "old.md"))   # a deletion outside `only`: ignored too
-        self.put("workouts/a.md", b"new")
-        self.put("workouts/x.md", b"y" * 3_000_000)
-        self.put("workouts/y/z.md", b"z")
-        self.put("workoutsx.md", b"not under workouts/")
-        left_out = []
-        got = folder.harvest(self.root, written, only=("workouts/",), left_out=left_out)
-        self.assertEqual(got, {"workouts/a.md": b"new", "workouts/y/z.md": b"z"})
-        self.assertEqual(left_out, ["workouts/x.md"])
-        self.assertEqual(folder.MAX_FILE, 2_000_000)
-        exact = folder.harvest(self.root, written, only=("log.md",))
-        self.assertEqual(exact, {"log.md": b"changed"})
-        self.assertEqual(folder.harvest(self.root, written, only=()), {})
-
     def test_never_set_is_respected(self):
         written = folder.materialize({"health.md": b"h", "b.md": b"b"}, self.root)
         self.put("health.md", b"changed")
