@@ -79,6 +79,7 @@ PY="$(venv_python)"
 VENV=no; [ -n "$PY" ] && VENV=yes
 INGIT="$(in_git)"
 REMOTE=no; [ "${CLAUDE_CODE_REMOTE:-}" = true ] && REMOTE=yes
+WEB=no; [ "${HARMONICFITNESS_WEB:-}" = 1 ] && WEB=yes
 
 # ---- which local engine, if any ----------------------------------------------------------
 LOCAL=no; LOCAL_ENGINE=""; LOCAL_REASON=""
@@ -101,9 +102,15 @@ if [ "$REMOTE" = yes ]; then
   LOCAL=no; LOCAL_ENGINE=""
   LOCAL_REASON="This is Claude Code on the web, with no graphics card for a local voice; a cloud voice works here."
 fi
+# The HarmonicFitness web client's worker: web coaches only, keys added in the app.
+if [ "$WEB" = yes ]; then
+  LOCAL=no; LOCAL_ENGINE=""
+  LOCAL_REASON="This is the HarmonicFitness web client, which speaks with web coaches only."
+fi
 # What the hardware runs, before the floors: the floors decide whether to offer a first install, and never
 # switch off an engine that's already installed (tools/routes.py and setup read local_hw for that).
-LOCAL_HW="$LOCAL"; LOCAL_ENGINE_HW="$LOCAL_ENGINE"   # no on the web: nothing local is ever installed there
+LOCAL_HW="$LOCAL"; LOCAL_ENGINE_HW="$LOCAL_ENGINE"
+[ "$WEB" = yes ] && { LOCAL_HW=no; LOCAL_ENGINE_HW=""; }   # no on the web: nothing local is ever installed there
 if [ "$LOCAL" != no ] && [ -n "$MEM" ] && [ "$MEM" -gt 0 ] 2>/dev/null && [ "$MEM" -lt "$MEM_FLOOR" ]; then
   LOCAL=no; LOCAL_ENGINE=""
   LOCAL_REASON="This computer has ${MEM} GB of memory; a local voice model needs about ${MEM_FLOOR} GB (a cautious guess)."
@@ -127,6 +134,7 @@ ffmpeg=$FFMPEG
 venv=$VENV
 in_git=$INGIT
 remote=$REMOTE
+web=$WEB
 local=$LOCAL
 local_engine=$LOCAL_ENGINE
 local_reason=$LOCAL_REASON
@@ -140,6 +148,10 @@ fi
 case "$OS" in mac) SYSTEM="macOS" ;; linux) SYSTEM="Linux" ;; windows) SYSTEM="Windows (Git Bash)" ;; *) SYSTEM="$UNAME_S" ;; esac
 UV_INSTALL="$(uv_install_for "$OS")"
 
+if [ "$WEB" = yes ]; then
+  echo "This is the HarmonicFitness web client: it speaks with web coaches, through your own keys."
+  echo
+fi
 if [ "$REMOTE" = yes ]; then
   echo "This is Claude Code on the web: HarmonicFitness runs here with a cloud voice (your own key), not a local one."
   echo

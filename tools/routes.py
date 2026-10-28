@@ -36,7 +36,9 @@ def missing_key(persona):
     """Why web coach `persona` can't speak here, and the one thing to do: its service's key."""
     var = keys.SERVICE_VARS[persona.service]
     name = cloud.service_name(persona.service)
-    if paths.REMOTE:
+    if paths.WEB:
+        fix = f"add your {name} key in {keys.APP_SETTINGS}"
+    elif paths.REMOTE:
         fix = (f"set {var}=<your key> in the cloud environment's settings, under Environment variables "
                "(a new session picks it up)")
     else:
@@ -112,7 +114,8 @@ def way_out(folder=None):
     if keyed:
         uses = [f"{shipped[s].name} ({cloud.service_name(s)}): build with --coach \"{shipped[s].name}\"" for s in keyed]
         return f"{make}, or use the stock coach for a service with a key here: " + "; ".join(uses) + "."
-    add = ("set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
+    add = (f"add its key in {keys.APP_SETTINGS}" if paths.WEB else
+           "set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
            else "./harmonicfitness keys init <service>, then paste the key into the file")
     names = ", ".join(f"{shipped[s].name} ({cloud.service_name(s)})" for s in SERVICES if s in shipped)
     return f"{make}, or add a service's key ({add}) and use its stock coach: {names}."

@@ -216,6 +216,9 @@ def main(argv=None):
         print(f"{p.name}: {args.setting} = {value}")
         return cli.OK
     if args.cmd == "download":
+        if paths.WEB:
+            print("The web client speaks with web coaches only, so there's no local model to fetch.", file=sys.stderr)
+            return cli.USAGE
         if paths.REMOTE:
             print("Claude Code on the web renders with a cloud voice only, so there's no local model to fetch here.",
                   file=sys.stderr)

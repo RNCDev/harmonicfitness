@@ -14,6 +14,7 @@ import errors
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REMOTE = os.environ.get("CLAUDE_CODE_REMOTE") == "true"   # Claude Code on the web
+WEB = os.environ.get("HARMONICFITNESS_WEB") == "1"   # the HarmonicFitness web client's worker
 
 
 def find_home(root, env):

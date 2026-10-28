@@ -126,6 +126,17 @@ class CloudSession(unittest.TestCase):
         linux = {"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "16", "DISK_GB": "30", "GPU": "NVIDIA A10, 24"}
         self.assertEqual(facts(linux, CLAUDE_CODE_REMOTE="true")["local"], "no")   # even with a card
 
+    def test_web_client_facts_no_local(self):
+        mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""}
+        f = facts(mac, HARMONICFITNESS_WEB="1")
+        self.assertEqual((f["local"], f["local_hw"], f["local_engine"]), ("no", "no", ""))
+        self.assertEqual((f["web"], f["remote"]), ("yes", "no"))
+        self.assertIn("web client", f["local_reason"])
+        linux = {"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "16", "DISK_GB": "30", "GPU": "NVIDIA A10, 24"}
+        g = facts(linux, HARMONICFITNESS_WEB="1")
+        self.assertEqual((g["local"], g["local_hw"], g["local_engine"], g["web"]), ("no", "no", "", "yes"))
+        self.assertEqual(facts(mac)["web"], "no")
+
     def test_wrapper_runs_in_cloud(self):
         out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_PYTHON=sys.executable)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)

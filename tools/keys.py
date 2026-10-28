@@ -64,7 +64,10 @@ def _read(path):
     return out
 
 
-def _clean(var, value):
+APP_SETTINGS = "HarmonicFitness's settings, under Keys"   # where the web client takes keys
+
+
+def clean_value(var, value):
     """`value` stripped of the whitespace around it; BadKey when what's left can't be a key."""
     value = (value or "").strip()
     if any(c.isspace() or not 32 < ord(c) < 127 for c in value):
@@ -85,7 +88,7 @@ def raw_values(path=None):
 def get(service, path=None):
     """The service's key: the process environment first, then me/.env. None when unset or empty."""
     var = _var(service)
-    value = _clean(var, os.environ.get(var) or _read(path or paths.ENV_FILE).get(var))
+    value = clean_value(var, os.environ.get(var) or _read(path or paths.ENV_FILE).get(var))
     return value or None
 
 
@@ -142,6 +145,9 @@ def open_env(path=None, run=subprocess.Popen):
     """Open the key file in the system's editor, so the listener can paste a key without it passing through
     the chat. Makes the file (with init's header, no service line) if it's missing; never reads it. Returns the
     command run, or [] on the web or when there's no opener (then it prints the file's path)."""
+    if paths.WEB:
+        print(f"Add your keys in {APP_SETTINGS}.")
+        return []
     if paths.REMOTE:
         print(web_instructions())
         return []
@@ -168,6 +174,9 @@ def main(argv=None):
     i.add_argument("service", choices=list(SERVICE_VARS))
     sub.add_parser("open", help="open me/.env in the system's editor, to paste a key")
     args = ap.parse_args(argv)
+    if args.cmd == "init" and paths.WEB:
+        print(f"Add your {args.service} key in {APP_SETTINGS}. Never paste it into the chat.")
+        return errors.OK
     if args.cmd == "init" and paths.REMOTE:
         print(web_instructions(args.service))
         return errors.OK

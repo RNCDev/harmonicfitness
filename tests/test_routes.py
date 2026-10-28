@@ -134,6 +134,20 @@ class Routes(unittest.TestCase):
         self.assertIn("environment", str(e.exception.code).lower())
         self.assertNotIn("keys init", str(e.exception.code))
 
+    def test_missing_key_in_the_web_client(self):
+        owen = self.web_coach()
+        with mock.patch.object(routes.paths, "WEB", True):
+            for text in (routes.missing_key(owen), routes.way_out()):
+                self.assertIn("HarmonicFitness's settings", text)
+                self.assertNotIn("keys init", text)
+
+    def test_download_refused_in_the_web_client(self):
+        import coaches
+        with mock.patch.object(coaches.paths, "WEB", True), \
+                mock.patch.object(coaches.voices, "download") as dl, redirect_stderr(io.StringIO()):
+            self.assertEqual(coaches.main(["download"]), 64)
+        dl.assert_not_called()
+
     def test_engine_override_naming_another_service_is_refused(self):
         self.key("inworld")
         self.key("fish")

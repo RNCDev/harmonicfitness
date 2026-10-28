@@ -181,6 +181,16 @@ class BackupRefusesKeys(unittest.TestCase):
             self.assertIn(".env", [line.strip() for line in f])
 
 
+class CleanValue(unittest.TestCase):
+    def test_clean_value(self):
+        self.assertEqual(keys.clean_value("X", " ab12cd34\n"), "ab12cd34")
+        for bad in ("ab 12", "ab\u00e9"):
+            with self.assertRaises(keys.BadKey) as e:
+                keys.clean_value("X", bad)
+            self.assertIn("X", str(e.exception))
+            self.assertNotIn(bad, str(e.exception))
+
+
 class OnTheWeb(unittest.TestCase):
     def test_init_on_the_web_points_to_the_environment_settings(self):
         with tempfile.TemporaryDirectory() as d:
@@ -201,6 +211,26 @@ class OnTheWeb(unittest.TestCase):
             self.assertIn("Environment variables", out.stdout)
             self.assertIn("GEMINI_API_KEY", out.stdout)
             self.assertFalse(os.path.exists(os.path.join(d, "me", ".env")))
+
+    def run_web_client(self, script, *args):
+        with tempfile.TemporaryDirectory() as d:
+            env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_REMOTE"}
+            env.update(HARMONICFITNESS_WEB="1", HARMONICFITNESS_HOME=os.path.join(d, "me"))
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", script), *args], env=env,
+                                 capture_output=True, text=True, timeout=60)
+            return out, os.path.exists(os.path.join(d, "me", ".env"))
+
+    def test_init_in_the_web_client_points_to_the_app(self):
+        out, made = self.run_web_client("keys.py", "init", "fish")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("HarmonicFitness's settings", out.stdout)
+        self.assertFalse(made)
+
+    def test_open_in_the_web_client_points_to_the_app(self):
+        out, made = self.run_web_client("keys.py", "open")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("HarmonicFitness's settings", out.stdout)
+        self.assertFalse(made)
 
     def test_download_refused_in_cloud(self):
         with tempfile.TemporaryDirectory() as d:
