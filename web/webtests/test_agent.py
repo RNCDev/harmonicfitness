@@ -279,6 +279,32 @@ class Sides(AgentCase):
         self.assertEqual(problems(both, "3 x 10 each side"), [])
 
 
+    def test_every_both_sides_phrase(self):
+        r = tools.brief(self.deps, **dict(BRIEF_ARGS, limits=["knee=delicate:left"]))
+        self.assertEqual(r.code, 0, r.error)
+        with open(os.path.join(self.home, "workouts", STEM, f"{STEM}.menu.json"), encoding="utf-8") as f:
+            menu = json.load(f)["movements"]
+        name = next(e["name"] for e in menu if e.get("side") == "right")
+        both = next(e["name"] for e in menu if "side" not in e)
+
+        def problems(movement, dose):
+            rows = [{"block": "Main", "movements": [movement], "dose": dose, "seconds": 1200}]
+            return agent.plan_problems(self.deps, agent.Plan(format="Sets", equipment="none", rows=rows,
+                                                             left_out="", total_seconds=1200))
+        phrases = ["each side", "both sides", "each leg", "both legs", "each arm", "both arms", "per side",
+                   "Per-Side", "alternating", "left and right", "every side", "every leg", "every arm",
+                   "then the other side", "other leg", "other arm", "opposite side", "opposite leg",
+                   "opposite arm", "switch", "switch sides", "swap sides", "repeat on the other",
+                   "bilateral", "two sides", "each hip", "per limb", "left/right", "left-right", "L/R",
+                   "r/l", "r and l", "l and r"]
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                dose = f"3 x 10, {phrase}"
+                self.assertTrue(any("right side only" in x for x in problems(f"right {name}", dose)), dose)
+                self.assertEqual(problems(both, dose), [])
+        self.assertEqual(problems(f"right {name}", "3 x 10, right side only"), [])
+
+
 class Rebrief(AgentCase):
     def plan(self, movements=("squat",)):
         rows = [{"block": "Main", "movements": list(movements), "dose": "3 x 10", "seconds": 1200}]

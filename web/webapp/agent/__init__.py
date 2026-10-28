@@ -171,8 +171,12 @@ def _side_problem(catalog, name: str, side: str) -> str | None:
 
 
 # words that put a movement on both sides (compared as catalog.plain words, so "per-side" is "per side")
+# ("left/right", "left-right" and "l/r" become "left right" and "l r"; "switch" covers "switch sides")
 BOTH_SIDES = ("each side", "both sides", "each leg", "both legs", "each arm", "both arms", "per side", "per leg",
-              "per arm", "alternating", "alternate", "left and right", "right and left", "either side")
+              "per arm", "alternating", "alternate", "left and right", "right and left", "either side",
+              "every side", "every leg", "every arm", "other side", "other leg", "other arm", "opposite side",
+              "opposite leg", "opposite arm", "switch", "swap sides", "repeat on the other", "bilateral",
+              "two sides", "each hip", "per limb", "left right", "right left", "l r", "r l", "r and l", "l and r")
 CLAUSE = re.compile(r"[.!?;:,()\n]")
 
 
