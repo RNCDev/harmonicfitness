@@ -1,11 +1,11 @@
 +++
 schema = 6
-# Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.
+# Movements you enjoy (ids or names from ./harmonicfitness movements); sessions favour them.
 likes = []
 # Movements to leave out (ids or names); the brief's menu never lists them.
 dislikes = []
 
-# Equipment kits a session can be planned with: a name and the equipment ids you have there (./sweatcast movements lists them); the first is the default. For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
+# Equipment kits a session can be planned with: a name and the equipment ids you have there (./harmonicfitness movements lists them); the first is the default. For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
 
 [[kits]]
 name = "bodyweight"

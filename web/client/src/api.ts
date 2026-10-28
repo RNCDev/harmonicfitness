@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { JobArgs, Options } from "./sentence/model";
 
 /** The product's name, in one place on this side. */
-export const APP_NAME = "Working Title";
+export const APP_NAME = "HarmonicFitness";
 
 export class NotSignedIn extends Error {}
 export class ApiError extends Error {

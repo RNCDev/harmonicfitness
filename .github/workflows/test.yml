@@ -16,12 +16,12 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      WT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      HARMONICFITNESS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # the privacy check reads every pushed commit
-      # The project's own environment, from uv.lock, as ./sweatcast setup makes it (no local voice engine):
+      # The project's own environment, from uv.lock, as ./harmonicfitness setup makes it (no local voice engine):
       # Python from .python-version, and the ffmpeg that imageio-ffmpeg brings, so the encode tests run.
       - uses: astral-sh/setup-uv@v6
         with:
@@ -29,8 +29,8 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --extra web
       # The tests need no models or network, and no personal context: they run on me.example/ and
-      # tests/fixtures/, with SWEATCAST_HOME pointed at an absent folder.
-      - run: ./sweatcast test -v
+      # tests/fixtures/, with HARMONICFITNESS_HOME pointed at an absent folder.
+      - run: ./harmonicfitness test -v
       - name: Nothing personal in the files
         run: |
           PATTERN="$(grep -v '^#' tools/hooks/private-paths | grep -v '^[[:space:]]*$' | head -1)"

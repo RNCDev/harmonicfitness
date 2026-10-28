@@ -1,0 +1,30 @@
+#!/bin/sh
+# HarmonicFitness: every command, in the project's own Python environment (.venv).
+#
+#   ./harmonicfitness doctor                    # what this computer can do (works before setup)
+#   ./harmonicfitness setup                     # first run: environment, me/, privacy hook, voice model
+#   ./harmonicfitness build <draft> "<name>"    # lint, render and deliver a workout
+#   ./harmonicfitness help                      # every command
+#
+# Set HARMONICFITNESS_PYTHON to use another interpreter (the tests do).
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+# Inside ChatGPT's Codex sandbox (CODEX_SANDBOX is set), uv's usual cache in the home folder can't be
+# written, so it lives in the project (git-ignored) instead.
+if [ -n "${CODEX_SANDBOX:-}" ] && [ -z "${UV_CACHE_DIR:-}" ]; then
+  export UV_CACHE_DIR="$ROOT/.cache/uv"
+fi
+if [ "$1" = "setup" ]; then
+  shift
+  exec sh "$ROOT/tools/setup.sh" "$@"   # makes .venv, so it can't need it
+fi
+if [ "$1" = "doctor" ]; then
+  shift
+  exec sh "$ROOT/tools/doctor.sh" "$@"  # the readiness check runs before there's an environment too
+fi
+. "$ROOT/tools/common.sh"
+PY="$(venv_python)"
+if [ -z "$PY" ] || [ ! -x "$PY" ]; then
+  echo "harmonicfitness isn't set up on this computer yet: run ./harmonicfitness setup (or ask Claude Code to \"set me up\")." >&2
+  exit 1
+fi
+exec "$PY" "$ROOT/tools/harmonicfitness.py" "$@"

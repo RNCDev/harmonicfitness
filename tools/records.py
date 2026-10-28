@@ -114,7 +114,7 @@ def save_failed_record(voice, out, draft_path, draft_sha256, sent, started, erro
     "failed" (no MP3, no <name>.build.json). A reader counting MP3s skips it."""
     if isinstance(error, SystemExit):
         reason = str(error.code) if not isinstance(error.code, int) else f"exit {error.code}"
-    elif isinstance(error, errors.SweatcastError):
+    elif isinstance(error, errors.HarmonicFitnessError):
         reason = str(error)
     else:
         reason = type(error).__name__ + (f": {error}" if str(error) else "")

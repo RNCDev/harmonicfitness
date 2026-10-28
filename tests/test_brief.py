@@ -31,8 +31,8 @@ SECTIONS = ("## The listener", "## Today in the week", "## Today's limits", "## 
 
 
 def run(cmd, *args, home=LISTENER):
-    env = dict(os.environ, SWEATCAST_PYTHON=sys.executable, SWEATCAST_HOME=home)
-    return subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), cmd, *args],
+    env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=home)
+    return subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), cmd, *args],
                           capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
 
 
@@ -367,7 +367,7 @@ class Header(unittest.TestCase):
 
 
 class Lint(unittest.TestCase):
-    """The lint stage of ./sweatcast build --lint-only: every draft but the smoke test needs its menu."""
+    """The lint stage of ./harmonicfitness build --lint-only: every draft but the smoke test needs its menu."""
 
     def lint(self, text, menu_data):
         with tempfile.TemporaryDirectory() as d:
@@ -381,7 +381,7 @@ class Lint(unittest.TestCase):
                 menu_data = dict(menu_data, date=datetime.date.today().isoformat(),
                                  health_sha256=menu.health_hash(os.path.join(home, "health.md")))
                 menu.write(draft.menu_path(path), menu_data)
-            env = dict(os.environ, SWEATCAST_HOME=home, SWEATCAST_FAKE_LOCAL_ENGINE="1")
+            env = dict(os.environ, HARMONICFITNESS_HOME=home, HARMONICFITNESS_FAKE_LOCAL_ENGINE="1")
             return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build.py"), path, "x", "--lint-only",
                                    "--coach", "Coach Julius"],
                                   capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)

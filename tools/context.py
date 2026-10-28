@@ -15,18 +15,18 @@ only Claude reads it. profile() reads the four profile files as one: their setti
 prose joined. Each setting has a home file (SETTING_HOMES); one found elsewhere still counts, and
 check() notes a setting written twice. The health file's `[[limits]]` rows (area, side, level,
 flags, rehab, note) and its `## Clinician rules` section are what the brief applies as rules. A file at an
-older schema stops the tools with the command that brings it up to date, `./sweatcast migrate`.
+older schema stops the tools with the command that brings it up to date, `./harmonicfitness migrate`.
 
-    ./sweatcast get coach             # also: route, routes, wpm, experience, web-builds
-    ./sweatcast get web-builds --json # {"web_builds": 3}: any get value as JSON
-    ./sweatcast deliver               # existing delivery folders, one per line
-    ./sweatcast check                 # every file's format, and lines not filled in yet
-    ./sweatcast log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
+    ./harmonicfitness get coach             # also: route, routes, wpm, experience, web-builds
+    ./harmonicfitness get web-builds --json # {"web_builds": 3}: any get value as JSON
+    ./harmonicfitness deliver               # existing delivery folders, one per line
+    ./harmonicfitness check                 # every file's format, and lines not filled in yet
+    ./harmonicfitness log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
         --coach "Coach Andy" --format straight-sets --topics "deep dive: news, a story" \\
         --loads "goblet squat = twenties, three down; seated row = fifteens" --rpe "goblet squat = 7"
                                       # the date, length and kit come from the draft's menu; the draft
                                       # must have been built as it stands, and a session is logged once
-    ./sweatcast log-session --date 2026-10-21 --minutes 25 --kit Home \\
+    ./harmonicfitness log-session --date 2026-10-21 --minutes 25 --kit Home \\
         --coach "Coach Andy" --movements "goblet squat, seated row" --topics "..."   # without a draft
 """
 import argparse
@@ -34,7 +34,7 @@ import glob
 import json
 import os
 import sys
-import tomllib   # Python 3.11: ./sweatcast runs every tool in the project's environment
+import tomllib   # Python 3.11: ./harmonicfitness runs every tool in the project's environment
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
@@ -133,7 +133,7 @@ CLOUD_MAX_CHARS = 30000   # a cloud build's default ceiling: a 40-minute workout
 
 
 # ---- the shapes settings come in ----------------------------------------------------------------
-# Settings are hand-edited, so each reader takes them through these, and ./sweatcast check reports what they
+# Settings are hand-edited, so each reader takes them through these, and ./harmonicfitness check reports what they
 # had to forgive (shape_issues). A bare string where a list belongs reads as a one-item list, never as its
 # letters; a single [table] where [[tables]] belong reads as one row.
 
@@ -188,7 +188,7 @@ def routes(p):
 
 
 class Issue(NamedTuple):
-    """One thing ./sweatcast check reports (tools/check.py): where, and whether anything breaks."""
+    """One thing ./harmonicfitness check reports (tools/check.py): where, and whether anything breaks."""
     path: str
     line: int        # 0 means the whole file
     message: str
@@ -208,7 +208,7 @@ def route_issues(p):
 
 
 # The single-valued settings and what each may hold: (int, least, most) for a whole number (a bool is never one),
-# or (choices,) for text (read stripped and casefolded; "" means unset). ./sweatcast check reports any other value
+# or (choices,) for text (read stripped and casefolded; "" means unset). ./harmonicfitness check reports any other value
 # (scalar_problems), and the readers below refuse one rather than quietly using the default: a spending cap
 # written "5000", in quotes, must never read as the default's 30,000.
 SCALARS = {
@@ -268,7 +268,7 @@ def _scalar(p, key):
     problem = _scalar_problem(key, p.settings[key])
     if problem:
         where = (p.sources or {}).get(key) or SETTING_HOMES.get(key, "settings.toml")
-        raise errors.ContextError(f"{show(where) if os.path.isabs(where) else where}: {problem} (./sweatcast check lists what else needs fixing).")
+        raise errors.ContextError(f"{show(where) if os.path.isabs(where) else where}: {problem} (./harmonicfitness check lists what else needs fixing).")
     return p.settings[key]
 
 
@@ -388,7 +388,7 @@ def _weight(x):
 def kit_weight_table(k):
     """(unit, {equipment id: sorted weights}, problems) for one [[kits]] table's optional `weights` (equipment
     id = list of numbers) and `unit` ("lb" by default): what the brief uses, and, as sentences, what it had to
-    leave out, which ./sweatcast check reports. One reading, so the two can't disagree."""
+    leave out, which ./harmonicfitness check reports. One reading, so the two can't disagree."""
     problems, table = [], {}
     w = k.get("weights")
     if w is not None and not isinstance(w, dict):
@@ -429,9 +429,9 @@ def kit_problems(k):
 
 
 SETTINGS_COMMENTS = {
-    "words_per_minute": "A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace.",
+    "words_per_minute": "A rough speaking rate (./harmonicfitness get wpm prints it); builds use each coach's measured pace.",
     "experience": "Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.",
-    "likes": "Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.",
+    "likes": "Movements you enjoy (ids or names from ./harmonicfitness movements); sessions favour them.",
     "dislikes": "Movements to leave out (ids or names); the brief's menu never lists them.",
     "deliver_to": "Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * "
                   "matches anything (any Google account). Once the copy is there the local MP3 is removed; "
@@ -441,7 +441,7 @@ SETTINGS_COMMENTS = {
     "interests": "What the filler between exercises rotates through: a name, its slot (today, science, "
                  "deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within "
                  "a slot, the one told longest ago comes next. Without any, knowledge/content.toml's defaults.",
-    "feeds": "Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, "
+    "feeds": "Fetched by ./harmonicfitness feeds at the start of each session. Kinds: weather (latitude, "
              "longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), "
              "onthisday (selected), wikipedia (featured: the featured article, most read, in the news "
              "and did you know).",
@@ -459,9 +459,9 @@ class Persona:
 
 PERSONA_COMMENTS = {
     "local": "How this coach sounds on this computer: Pocket TTS, from the voice file beside this one.",
-    "fish": "Fish Audio: the model (a web voice; ./sweatcast keys).",
-    "gemini": "Gemini: the model (a web voice; ./sweatcast keys).",
-    "inworld": "Inworld: the model (a web voice; ./sweatcast keys).",
+    "fish": "Fish Audio: the model (a web voice; ./harmonicfitness keys).",
+    "gemini": "Gemini: the model (a web voice; ./harmonicfitness keys).",
+    "inworld": "Inworld: the model (a web voice; ./harmonicfitness keys).",
     "elevenlabs": "ElevenLabs: eleven_v4 (more natural) or eleven_v4_turbo (cheaper).",
     "voice": "How this coach sounds: what a web service designs the voice from (an edit means a new audition).",
     "character": "How this coach talks: what the script writer follows (the brief quotes it); edit freely.",
@@ -477,7 +477,7 @@ def persona(path):
     if found != PERSONA_SCHEMA:
         older = isinstance(found, int) and found < PERSONA_SCHEMA
         raise errors.ContextError(f"{show(path)} is schema {found}; this engine reads coaches at schema {PERSONA_SCHEMA}: "
-                         + ("run ./sweatcast migrate." if older else "pull the latest sweatcast."))
+                         + ("run ./harmonicfitness migrate." if older else "pull the latest harmonicfitness."))
     return Persona(settings, rest, path)
 
 

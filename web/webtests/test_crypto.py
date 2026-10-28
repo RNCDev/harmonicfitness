@@ -14,8 +14,8 @@ def b64(n):
 
 
 def env(**over):
-    base = {"DATABASE_URL": "postgresql://x/y", "WT_MASTER_KEY": b64(32),
-            "WT_BASE_URL": "https://example.test"}
+    base = {"DATABASE_URL": "postgresql://x/y", "HARMONICFITNESS_MASTER_KEY": b64(32),
+            "HARMONICFITNESS_BASE_URL": "https://example.test"}
     base.update(over)
     return base
 
@@ -79,37 +79,37 @@ class Config(unittest.TestCase):
 
     def test_registration_switch(self):
         for raw, want in (("closed", False), (" CLOSED ", False), ("open", True), ("", True)):
-            self.assertEqual(config.load(env(WT_REGISTRATION=raw)).registration, want, raw)
+            self.assertEqual(config.load(env(HARMONICFITNESS_REGISTRATION=raw)).registration, want, raw)
         with self.assertRaises(config.ConfigError):
-            config.load(env(WT_REGISTRATION="maybe"))
+            config.load(env(HARMONICFITNESS_REGISTRATION="maybe"))
 
     def test_engine_root_override(self):
-        self.assertEqual(config.load(env(WT_ENGINE_ROOT="/x")).engine_root, "/x")
+        self.assertEqual(config.load(env(HARMONICFITNESS_ENGINE_ROOT="/x")).engine_root, "/x")
 
     def test_config_refuses_short_master_key(self):
         bad = b64(16)
         with self.assertRaises(config.ConfigError) as cm:
-            config.load(env(WT_MASTER_KEY=bad))
-        self.assertIn("WT_MASTER_KEY", str(cm.exception))
+            config.load(env(HARMONICFITNESS_MASTER_KEY=bad))
+        self.assertIn("HARMONICFITNESS_MASTER_KEY", str(cm.exception))
         self.assertNotIn(bad, str(cm.exception))
 
     def test_repr_hides_secrets(self):
         raw = os.urandom(32)
-        e = env(WT_MASTER_KEY=base64.b64encode(raw).decode(),
+        e = env(HARMONICFITNESS_MASTER_KEY=base64.b64encode(raw).decode(),
                 DATABASE_URL="postgresql://u:hunter2pw@h/d")
         r = repr(config.load(e))
-        self.assertNotIn(e["WT_MASTER_KEY"], r)
+        self.assertNotIn(e["HARMONICFITNESS_MASTER_KEY"], r)
         self.assertNotIn(repr(raw), r)
         self.assertNotIn("hunter2pw", r)
 
     def test_empty_role_refused(self):
         with self.assertRaises(config.ConfigError):
-            config.load(env(WT_ROLE=""))
+            config.load(env(HARMONICFITNESS_ROLE=""))
 
     def test_bad_base64(self):
         with self.assertRaises(config.ConfigError) as cm:
-            config.load(env(WT_MASTER_KEY="!!notbase64!!"))
-        self.assertIn("WT_MASTER_KEY", str(cm.exception))
+            config.load(env(HARMONICFITNESS_MASTER_KEY="!!notbase64!!"))
+        self.assertIn("HARMONICFITNESS_MASTER_KEY", str(cm.exception))
 
     def test_missing_and_bad_role(self):
         e = env()
@@ -118,8 +118,8 @@ class Config(unittest.TestCase):
             config.load(e)
         self.assertIn("DATABASE_URL", str(cm.exception))
         with self.assertRaises(config.ConfigError):
-            config.load(env(WT_ROLE="boss"))
-        self.assertEqual(config.load(env(WT_ROLE="worker")).role, "worker")
+            config.load(env(HARMONICFITNESS_ROLE="boss"))
+        self.assertEqual(config.load(env(HARMONICFITNESS_ROLE="worker")).role, "worker")
 
 
 if __name__ == "__main__":

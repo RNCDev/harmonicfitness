@@ -32,9 +32,9 @@ def json_value(v):
 
 
 def run_movements(args):
-    """Run `./sweatcast movements ...` against the real catalog; returns the CompletedProcess."""
-    env = dict(os.environ, SWEATCAST_PYTHON=sys.executable)
-    return subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), "movements", *args],
+    """Run `./harmonicfitness movements ...` against the real catalog; returns the CompletedProcess."""
+    env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable)
+    return subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "movements", *args],
                           capture_output=True, text=True, env=env, cwd=ROOT)
 
 
@@ -618,15 +618,15 @@ class KnowledgeFiles(unittest.TestCase):
             with open(os.path.join(ROOT, ".claude", "skills", name, "SKILL.md")) as f:
                 return f.read()
         workout, setup = skill("workout"), skill("setup")
-        for needle in ("./sweatcast brief", "--save", "./sweatcast check", "format: <method name>", "movements:",
-                       "./sweatcast log-session", "--draft", "knowledge/script.md", "./sweatcast backup"):
+        for needle in ("./harmonicfitness brief", "--save", "./harmonicfitness check", "format: <method name>", "movements:",
+                       "./harmonicfitness log-session", "--draft", "knowledge/script.md", "./harmonicfitness backup"):
             self.assertIn(needle, workout, needle)
         for needle in ("[[limits]]", "[[kits]]", "experience", "Unlisted:", "Avoid:"):
             self.assertIn(needle, setup, needle)
         for needle in ("--avoid", "Unlisted:", "Avoid:"):
             self.assertIn(needle, workout, needle)
         self.assertEqual(workout.count(EVERY_MOVEMENT_RULE), 1)
-        self.assertNotIn("./sweatcast session", workout)   # the composer is an optional reference now
+        self.assertNotIn("./harmonicfitness session", workout)   # the composer is an optional reference now
         self.assertIn("default is novice", workout)
         self.assertLess(len(workout.split()), 2600)        # procedure, not knowledge
         for name, text in (("workout", workout), ("setup", setup)):

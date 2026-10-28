@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sweatcast: Centre stage</title>
+<title>HarmonicFitness: Centre stage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Figtree:ital,wght@0,400..800;1,400&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
   --tok:#0E6A5C;          /* cobalt: every editable word */
   --tok-tint:#CFEBE4;
   --tok-on:#FFFFFF;
-  --engine:#7A4A8F;       /* clauses sweatcast writes itself */
+  --engine:#7A4A8F;       /* clauses HarmonicFitness writes itself */
   --engine-tint:#ECE0F1;
   --warn:#8A5C00;
   --warn-tint:#F3E5C3;
@@ -442,7 +442,7 @@ table.rows{width:100%;border-collapse:collapse;font-size:15px}
 <main class="sheet" id="panel"></main>
 
 <div class="dock-fade" aria-hidden="true"></div>
-<section class="dock" id="dock" aria-label="Talk to sweatcast">
+<section class="dock" id="dock" aria-label="Talk to harmonicfitness">
   <div class="dock-line">
     <div class="said a" id="lastLine" aria-live="polite"></div>
     <button class="convo" id="convBtn" aria-expanded="false" aria-controls="drawer">Transcript (<span id="convN">0</span>)</button>
@@ -754,7 +754,7 @@ function list(key){
 function vPrefs(){
   const p=S.prefs, pt=(k,v)=>`<button class="tok ${S.prefSet?.has(k)?"set":""} ${S.flash.has("prefs."+k)?"flash":""}" data-tok="prefs" data-key="${k}"><span class="v">${esc(v)}</span></button>`;
   return `<div class="view">
-    <p class="lede">This is you, as sweatcast understands it. Change any word.</p>
+    <p class="lede">This is you, as HarmonicFitness understands it. Change any word.</p>
     <div class="para">
       <p class="sentence">I train at ${pt("level",p.level)} level, about ${pt("days",p.days)} times a week, usually for ${pt("length",p.length+" minutes")}.</p>
       <p class="sentence">I love ${list("love")}.</p>
@@ -829,7 +829,7 @@ function vStats(){
 }
 function vTour(){
   const st=[["Say it once","Every task is one sentence with the usual already filled in. Blue words are the ones you can change; tap one, or say it in the box below."],
-    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what sweatcast will do about it."],
+    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what HarmonicFitness will do about it."],
     ["Go, then leave","Research, writing, checking and the voice run on their own, about four minutes. Close the tab; it'll be here."],
     ["Press play","A podcast for your earbuds: the coach tells you what to do, counts you through it, and fills the rests. The MP3 is kept for a day."]];
   return `<div class="view"><p class="lede">Show me around.</p><div class="tour">${st.map((s,i)=>`<div class="tour-step"><span class="n">${i+1}</span><h3>${s[0]}</h3><p>${s[1]}</p></div>`).join("")}</div>

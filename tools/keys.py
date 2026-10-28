@@ -1,16 +1,16 @@
 """API keys for the cloud voices, kept in me/.env and nowhere else.
 
 One NAME=value per line, with each service's conventional variable name. The file is never
-committed (me/.gitignore leaves it out, and ./sweatcast backup refuses it anyway), and this
+committed (me/.gitignore leaves it out, and ./harmonicfitness backup refuses it anyway), and this
 module never prints a value: only whether one is set. The cloud engines call get() at the
 moment they send a request; nothing else reads a key.
 
 A key pasted into Claude Code would stay in the transcript, so the listener pastes it into the
-file themselves: `./sweatcast keys init <service>` makes the line for them.
+file themselves: `./harmonicfitness keys init <service>` makes the line for them.
 
-    ./sweatcast keys                 # which services have a key set (never the key)
-    ./sweatcast keys init fish       # add an empty FISH_AUDIO_API_KEY= line to me/.env
-    ./sweatcast keys open            # open me/.env in the system's editor, to paste a key
+    ./harmonicfitness keys                 # which services have a key set (never the key)
+    ./harmonicfitness keys init fish       # add an empty FISH_AUDIO_API_KEY= line to me/.env
+    ./harmonicfitness keys open            # open me/.env in the system's editor, to paste a key
 """
 import os
 import re
@@ -28,7 +28,7 @@ LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*
 COMMENT_RE = re.compile(r"\s+#.*$")   # an inline comment after the value
 
 
-class BadKey(errors.SweatcastError):
+class BadKey(errors.HarmonicFitnessError):
     """A key holds a character a key can't (a stray line break, a space, a symbol): the listener re-pastes it.
     Exits 4 through cli.run, like a service refusing the key; the message names the variable, never the value.
     A reported problem (errors.PROBLEMS), so a caller that carries on past one carries on past this too."""
@@ -39,7 +39,7 @@ class BadKey(errors.SweatcastError):
 
 def _var(service):
     if service not in SERVICE_VARS:
-        raise errors.SweatcastError(f"No cloud voice service '{service}'. The services: {', '.join(SERVICE_VARS)}.")
+        raise errors.HarmonicFitnessError(f"No cloud voice service '{service}'. The services: {', '.join(SERVICE_VARS)}.")
     return SERVICE_VARS[service]
 
 
@@ -69,7 +69,7 @@ def _clean(var, value):
     value = (value or "").strip()
     if any(c.isspace() or not 32 < ord(c) < 127 for c in value):
         raise BadKey(f"{var} holds a character a key can't (a stray line break, space or symbol): re-paste the key "
-                     f"after {var}= in me/.env (./sweatcast keys open), or fix it in the environment.")
+                     f"after {var}= in me/.env (./harmonicfitness keys open), or fix it in the environment.")
     return value
 
 
@@ -91,7 +91,7 @@ def get(service, path=None):
 
 def is_set(service, path=None):
     """Whether a usable key is set. A key that can't be read (BadKey) counts as not set here, so listing coaches
-    or picking a default still works; get() raises where the key would be used, and ./sweatcast keys names it."""
+    or picking a default still works; get() raises where the key would be used, and ./harmonicfitness keys names it."""
     try:
         return get(service, path) is not None
     except BadKey:
@@ -111,7 +111,7 @@ def _make_file(path):
     if not os.path.exists(path):
         fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write("# API keys for sweatcast's cloud voices. Never committed or backed up; keep this file private.\n")
+            f.write("# API keys for HarmonicFitness's cloud voices. Never committed or backed up; keep this file private.\n")
 
 
 def init(service, path=None):
@@ -135,7 +135,7 @@ def web_instructions(service=None):
             "cloud environment's settings instead, under Environment variables, as one line:\n"
             + "\n".join(f"  {n}=<your key>" for n in names)
             + (f"\n(get one at {KEY_PAGES[service]})." if service else "\n(the service you use, one line each).")
-            + " Never paste it into the chat. A new session picks it up; ./sweatcast keys then says it's set.")
+            + " Never paste it into the chat. A new session picks it up; ./harmonicfitness keys then says it's set.")
 
 
 def open_env(path=None, run=subprocess.Popen):
@@ -162,7 +162,7 @@ def open_env(path=None, run=subprocess.Popen):
 
 def main(argv=None):
     import cli   # the command only: cli imports redact, which imports this module, so the library never loads cli
-    ap = cli.ArgumentParser(prog="sweatcast keys", description=__doc__)
+    ap = cli.ArgumentParser(prog="harmonicfitness keys", description=__doc__)
     sub = ap.add_subparsers(dest="cmd")
     i = sub.add_parser("init", help="add the service's key line to me/.env (making the file if needed)")
     i.add_argument("service", choices=list(SERVICE_VARS))

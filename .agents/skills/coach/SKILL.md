@@ -1,28 +1,28 @@
 ---
 name: coach
-description: Choose another of the coaches sweatcast ships, or create a web coach of the listener's own (a trainer persona with a person's name, how they talk and how they sound), or change how a coach of their own sounds or talks. Use when someone says "I want a new coach", "switch coach", "design a coach", "a different voice", "make the coach a woman", "change how my coach sounds", in setup or in a workout request, and whenever setup reaches the coach step.
+description: Choose another of the coaches HarmonicFitness ships, or create a web coach of the listener's own (a trainer persona with a person's name, how they talk and how they sound), or change how a coach of their own sounds or talks. Use when someone says "I want a new coach", "switch coach", "design a coach", "a different voice", "make the coach a woman", "change how my coach sounds", in setup or in a workout request, and whenever setup reaches the coach step.
 ---
 
 # Coach: choosing one, or making one of the listener's own
 
 A coach is a persona folder: a person's name, how they talk, and how they sound (`knowledge/voices.md` has the details).
-- **The stock coaches** ship with sweatcast in `coaches/`: **ten local coaches** (`kind = "local"`: Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate), each with its Pocket TTS voice, recorded counts and cues, and a 45-second `sample.mp3`; and **four stock web coaches** (Reed on Fish Audio, Ellis on ElevenLabs, Nolan on Gemini, Owen on Inworld), each made in the listener's own account the first time it's used. Local coaches are chosen, never made or re-voiced.
+- **The stock coaches** ship with HarmonicFitness in `coaches/`: **ten local coaches** (`kind = "local"`: Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate), each with its Pocket TTS voice, recorded counts and cues, and a 45-second `sample.mp3`; and **four stock web coaches** (Reed on Fish Audio, Ellis on ElevenLabs, Nolan on Gemini, Owen on Inworld), each made in the listener's own account the first time it's used. Local coaches are chosen, never made or re-voiced.
 - **A web coach of their own** (`kind = "web"`, in `me/coaches/<slug>/`, such as `coach-dana-fish`): a voice a web service (Fish Audio, ElevenLabs, Gemini or Inworld) designed from the listener's description and saved in the listener's own account there. It speaks only through that service. This is the way to make a coach: **keys, describe, audition, approve and name, the stable.**
 
 ## Switch coach: another of the ten
 
-When local voices run here (`./sweatcast doctor` says) and they want a different voice, offer the ten first: free, private, and ready now. One AskUserQuestion with the four styles: **Calm and experienced** (Andy, Sam, Helen), **Upbeat and energetic** (Marcus, Maya, Kate), **Easygoing and friendly** (Theo, Rosa), **Direct and precise** (Callum, Claire), with "A voice of my own (a web coach)" through Other. Send that style's samples (`coaches/coach-<name>-local/sample.mp3`; SendUserFile, else `./sweatcast show <file>`) with each coach's line from `./sweatcast coaches`, and ask which. The next workout passes `--coach "<name>"`, and builds keep using the coach used last, so nothing else changes. A man or a woman they ask for by name ("make the coach a woman") narrows the list the same way.
+When local voices run here (`./harmonicfitness doctor` says) and they want a different voice, offer the ten first: free, private, and ready now. One AskUserQuestion with the four styles: **Calm and experienced** (Andy, Sam, Helen), **Upbeat and energetic** (Marcus, Maya, Kate), **Easygoing and friendly** (Theo, Rosa), **Direct and precise** (Callum, Claire), with "A voice of my own (a web coach)" through Other. Send that style's samples (`coaches/coach-<name>-local/sample.mp3`; SendUserFile, else `./harmonicfitness show <file>`) with each coach's line from `./harmonicfitness coaches`, and ask which. The next workout passes `--coach "<name>"`, and builds keep using the coach used last, so nothing else changes. A man or a woman they ask for by name ("make the coach a woman") narrows the list the same way.
 
 Never send the listener to the README. Never offer, design or describe a voice that imitates a real person or a character (a celebrity, an announcer, a game or film voice); every coach is an original voice from a description. The listener picks a voice, never a vendor, a model or a voice ID: don't ask which service, and never show a voice ID.
 
 ## 0. Keys
 
-`./sweatcast keys` prints "set" or "not set" for each web service (never a key). An audition uses every service that's set. With none set, run setup's keys step first (the `setup` skill, Reference: Keys), then come back. A key goes in `me/.env` (on the web, the environment's settings), pasted by the listener, never into the chat.
+`./harmonicfitness keys` prints "set" or "not set" for each web service (never a key). An audition uses every service that's set. With none set, run setup's keys step first (the `setup` skill, Reference: Keys), then come back. A key goes in `me/.env` (on the web, the environment's settings), pasted by the listener, never into the chat.
 
 ## The quick coach (the default for a first coach of their own)
 
 One question, one audition, a few minutes:
-1. **One AskUserQuestion:** "Who should coach you?", with three named sketches and Other for their own description: "Coach Dana: a woman in her thirties, crisp and upbeat", "Coach Elliot: a calm man in his fifties, low and unhurried", "Coach Nina: a warm woman in her forties, encouraging, a little playful". Never a stock coach's name (`./sweatcast coaches` lists them): a name that's taken is refused. Use what they've said (their name, their tone) to pick the three when it points somewhere.
+1. **One AskUserQuestion:** "Who should coach you?", with three named sketches and Other for their own description: "Coach Dana: a woman in her thirties, crisp and upbeat", "Coach Elliot: a calm man in his fifties, low and unhurried", "Coach Nina: a warm woman in her forties, encouraging, a little playful". Never a stock coach's name (`./harmonicfitness coaches` lists them): a name that's taken is refused. Use what they've said (their name, their tone) to pick the three when it points somewhere.
 2. **Write the narrative** (step 1 below) to `me/coaches/.auditions/<slug>.md`, from the sketch or their words.
 3. **Audition** (step 2 below), in the background. It takes a minute or so and costs about a cent a service where the design cost is published (Fish Audio and Gemini; ElevenLabs and Inworld don't publish theirs).
 4. **Send the candidates** by letter and cost a workout, and ask which sounds right. One or more may be approved, each with a name.
@@ -62,14 +62,14 @@ sign_off = "Brief and warm; names one thing done well"
 
 - `[voice]` is what the services design from: the person and their role, how they sound, and always what to avoid. `knowledge/voices.md` lists what worked and what didn't ("upbeat, like leading a class" came out goofy; "calm, relaxed, unhurried" came out sleepy).
 - `[character]` is what the script writer follows: the brief quotes each line, and any `key = "text"` (or a list of texts) works. Lines below the block are quoted only in the `- Label: text` form.
-- Leave out `style`: Gemini's API takes no style setting yet, and `./sweatcast check` flags one.
+- Leave out `style`: Gemini's API takes no style setting yet, and `./harmonicfitness check` flags one.
 
 ## 2. Audition
 
-**Before the first audition**, say once, plainly, what goes where: the audition sends the coach's description to every keyed service, and each workout with a web coach sends its script, which can mention their injuries, to that coach's service; Gemini's free tier uses what it's sent for training, with human review. (This is the `setup` skill's privacy line; say it here unless it was said earlier in this conversation or a web build has already run: `./sweatcast get web-builds` counts them.)
+**Before the first audition**, say once, plainly, what goes where: the audition sends the coach's description to every keyed service, and each workout with a web coach sends its script, which can mention their injuries, to that coach's service; Gemini's free tier uses what it's sent for training, with human review. (This is the `setup` skill's privacy line; say it here unless it was said earlier in this conversation or a web build has already run: `./harmonicfitness get web-builds` counts them.)
 
 ```
-./sweatcast coaches audition me/coaches/.auditions/<slug>.md
+./harmonicfitness coaches audition me/coaches/.auditions/<slug>.md
 ```
 
 Run it with `run_in_background: true`; add `--play` when SendUserFile isn't available, so each candidate plays as it's listed (rerunning would be a new audition, and a new cost). Every keyed service designs from `[voice]` in parallel (asking Fish Audio for two candidates, ElevenLabs three, Gemini one, Inworld two; a service may return fewer), each saying the same coaching line, lettered A, B, C... It prints one line per candidate: the letter, the service, the approximate cost a workout there, the MP3's path (in `me/coaches/.auditions/<audition>/`, the audition's id such as `2026-10-25-1`), and any note (ElevenLabs: not yet tried on a Free account, which keeps 3 voices). A service that fails says why; the others still come. `--services fish,gemini` auditions only those.
@@ -83,23 +83,23 @@ Run it with `run_in_background: true`; add `--play` when SendUserFile isn't avai
 The listener approves one or more and names each ("B is Coach Dana, D is Coach Nina"). For each:
 
 ```
-./sweatcast coaches keep <audition>/<letter> --name "<name>"
+./harmonicfitness coaches keep <audition>/<letter> --name "<name>"
 ```
 
-Keep saves the voice at its service as "sweatcast <name>" and writes `me/coaches/<slug>/`: `persona.md` (the narrative's `[voice]`, `[character]` and notes, plus the service and the saved voice), `sample.mp3` (the approved candidate) and `pace.json` (a pace estimated from the sample; every render then measures it). Two coaches from one audition each get their own folder, and may grow apart. A name that's taken is refused: pick another.
+Keep saves the voice at its service as "harmonicfitness <name>" and writes `me/coaches/<slug>/`: `persona.md` (the narrative's `[voice]`, `[character]` and notes, plus the service and the saved voice), `sample.mp3` (the approved candidate) and `pace.json` (a pace estimated from the sample; every render then measures it). Two coaches from one audition each get their own folder, and may grow apart. A name that's taken is refused: pick another.
 
-Then, once every approved one is kept: `./sweatcast coaches forget-audition <audition>`. It deletes Gemini's voices that weren't kept and removes the audition's folder; unsaved drafts at the other services need nothing. Remove the narrative file too: each coach now has its own copy.
+Then, once every approved one is kept: `./harmonicfitness coaches forget-audition <audition>`. It deletes Gemini's voices that weren't kept and removes the audition's folder; unsaved drafts at the other services need nothing. Remove the narrative file too: each coach now has its own copy.
 
 ## 4. The stable
 
-`./sweatcast coaches` lists every coach with where it speaks (`web · Fish Audio`, `local · pocket`), marks the one a build uses when none is named (the one used last), and says which are stand-ins and which are made the first time they're used. A workout uses a coach by name: `--coach "<name>"`.
+`./harmonicfitness coaches` lists every coach with where it speaks (`web · Fish Audio`, `local · pocket`), marks the one a build uses when none is named (the one used last), and says which are stand-ins and which are made the first time they're used. A workout uses a coach by name: `--coach "<name>"`.
 
-- **No longer wanted:** `./sweatcast coaches archive "<name>"` moves a coach of their own to `me/coaches/.archive/` (a stock coach can't be archived; just choose another): out of the list, still backed up, and old log lines naming it stay valid. Its voice stays at the service.
-- **How they talk** (tone, pet phrases, how they push): for a coach of their own, edit `[character]` or the notes in their `persona.md` (`me/coaches/<slug>/`). No audition, no cost. How the stock coaches talk is part of sweatcast (never edit `coaches/`); feedback on a workout ("less chat") goes in the log as always.
-- **How they sound** (a web coach): a new voice on that coach's own service, from an edited `[voice]` in their `persona.md`: `./sweatcast coaches audition --coach "<name>"`, send the candidates as above, then `./sweatcast coaches keep <audition>/<letter> --name "<name>"`. It replaces the voice and `sample.mp3` and clears the old voice's pace. Adding `--replace-old` also deletes the old voice at the service: ask the listener first (on an ElevenLabs Free account it frees one of the 3 slots). Then `forget-audition`.
+- **No longer wanted:** `./harmonicfitness coaches archive "<name>"` moves a coach of their own to `me/coaches/.archive/` (a stock coach can't be archived; just choose another): out of the list, still backed up, and old log lines naming it stay valid. Its voice stays at the service.
+- **How they talk** (tone, pet phrases, how they push): for a coach of their own, edit `[character]` or the notes in their `persona.md` (`me/coaches/<slug>/`). No audition, no cost. How the stock coaches talk is part of HarmonicFitness (never edit `coaches/`); feedback on a workout ("less chat") goes in the log as always.
+- **How they sound** (a web coach): a new voice on that coach's own service, from an edited `[voice]` in their `persona.md`: `./harmonicfitness coaches audition --coach "<name>"`, send the candidates as above, then `./harmonicfitness coaches keep <audition>/<letter> --name "<name>"`. It replaces the voice and `sample.mp3` and clears the old voice's pace. Adding `--replace-old` also deletes the old voice at the service: ask the listener first (on an ElevenLabs Free account it frees one of the 3 slots). Then `forget-audition`.
 
 ## Local coaches
 
-Since sweatcast 0.15.0 the local coaches are the ten that ship: a listener can't design one or bring a clip (a cloned voice is where local engines garbled words, and a real person's voice needs consent). For a voice of their own, make a web coach (above); it needs a voice key. A local coach from an older sweatcast was moved to `me/coaches/.archive/` by `./sweatcast migrate`.
+Since HarmonicFitness 0.15.0 the local coaches are the ten that ship: a listener can't design one or bring a clip (a cloned voice is where local engines garbled words, and a real person's voice needs consent). For a voice of their own, make a web coach (above); it needs a voice key. A local coach from an older HarmonicFitness was moved to `me/coaches/.archive/` by `./harmonicfitness migrate`.
 
 A workout that asked for a new coach continues with them, passing `--coach "<name>"` to the build.

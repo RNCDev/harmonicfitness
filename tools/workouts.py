@@ -8,7 +8,7 @@
       .audio-cache/, .logs/        rendered clips and build logs
 
 reorganize() moves a folder from the old layout (drafts/ beside every build's output, and the day's
-research loose in research/) into this one; ./sweatcast migrate runs it once, at schema 4 to 5.
+research loose in research/) into this one; ./harmonicfitness migrate runs it once, at schema 4 to 5.
 """
 import os
 import re

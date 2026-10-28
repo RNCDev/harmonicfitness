@@ -1,5 +1,5 @@
 # ChatGPT's Codex reads this once the folder is trusted (AGENTS.md is its instructions).
-# sweatcast's commands reach the network: downloads, the voice services, the feeds.
+# HarmonicFitness's commands reach the network: downloads, the voice services, the feeds.
 sandbox_mode = "workspace-write"
 
 [sandbox_workspace_write]

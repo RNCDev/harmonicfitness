@@ -1,35 +1,35 @@
 #!/bin/sh
-# Set up sweatcast on this computer: the Python environment, your context folder, the privacy
-# hook and the voice models. Safe to rerun; it skips what's already done. Run it as ./sweatcast setup.
+# Set up HarmonicFitness on this computer: the Python environment, your context folder, the privacy
+# hook and the voice models. Safe to rerun; it skips what's already done. Run it as ./harmonicfitness setup.
 #
-#   ./sweatcast setup               # environment, me/ from me.example/, and where local voices run
+#   ./harmonicfitness setup               # environment, me/ from me.example/, and where local voices run
 #                                   # here, the local voice (Pocket TTS) and the take checker
-#   ./sweatcast setup --local       # the same, but stop with the reason if local voices can't run here
-#   ./sweatcast setup --no-models   # the base environment (keeping a local engine already
+#   ./harmonicfitness setup --local       # the same, but stop with the reason if local voices can't run here
+#   ./harmonicfitness setup --no-models   # the base environment (keeping a local engine already
 #                                   # installed), me/ and the hook; no models (the setup skill
 #                                   # runs this first, then fetches what the listener picks)
-#   ./sweatcast setup --install-uv  # first install uv with Astral's official installer (no admin
+#   ./harmonicfitness setup --install-uv  # first install uv with Astral's official installer (no admin
 #                                   # rights needed), then set up as above
 #
-# It starts with the readiness check (./sweatcast doctor), which says what this computer can do.
+# It starts with the readiness check (./harmonicfitness doctor), which says what this computer can do.
 # Needs uv (https://docs.astral.sh/uv/), which fetches the right Python itself. ffmpeg comes with
 # the Python environment when it isn't installed, and git is needed only for the privacy hook and
-# ./sweatcast backup, so a zip download sets up too.
+# ./harmonicfitness backup, so a zip download sets up too.
 #
 # The local voice downloads once from Hugging Face (no account or login needed) into models/ (or
-# SWEATCAST_MODELS; ./sweatcast models adopt moves one already in ~/.cache/huggingface/hub): about 0.6 GB for
+# HARMONICFITNESS_MODELS; ./harmonicfitness models adopt moves one already in ~/.cache/huggingface/hub): about 0.6 GB for
 # Pocket TTS's public model and 2.5 GB for the speech recognizer that checks each take (Parakeet through
 # ONNX), the same on every computer. Rendering works offline after that. An existing context folder is
-# brought up to this version's format (./sweatcast migrate), backed up first; ./sweatcast models then lists
+# brought up to this version's format (./harmonicfitness migrate), backed up first; ./harmonicfitness models then lists
 # the models older versions downloaded that nothing uses now.
 #
 # On Claude Code on the web (CLAUDE_CODE_REMOTE=true) there's no local engine: cloud voices only.
 #
-# Test-only: SWEATCAST_UV is the uv to run, and SWEATCAST_PYTHON the Python the tools run under.
+# Test-only: HARMONICFITNESS_UV is the uv to run, and HARMONICFITNESS_PYTHON the Python the tools run under.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
-CONTEXT="${SWEATCAST_HOME:-$ROOT/me}"
+CONTEXT="${HARMONICFITNESS_HOME:-$ROOT/me}"
 cd "$ROOT"
 . "$HERE/common.sh"
 UV_INSTALL="$(uv_install_for "$(detect_os)")"
@@ -44,25 +44,25 @@ if [ "$1" = "--install-uv" ]; then
   fi
 fi
 
-echo "0. This computer (./sweatcast doctor)"
+echo "0. This computer (./harmonicfitness doctor)"
 sh "$HERE/doctor.sh" --short | sed 's/^/   /'
 
 UV="$(find_uv)"
 if [ -z "$UV" ]; then
   echo
-  echo "uv is missing. It's the tool that makes sweatcast's Python environment, and it installs"
-  echo "without admin rights: ./sweatcast setup --install-uv (Claude Code can run it for you), which runs"
+  echo "uv is missing. It's the tool that makes HarmonicFitness's Python environment, and it installs"
+  echo "without admin rights: ./harmonicfitness setup --install-uv (Claude Code can run it for you), which runs"
   echo "Astral's official installer: $UV_INSTALL"
   exit 1
 fi
 
 # The local voice (Pocket TTS on PyTorch, and the take checker) is an extra, installed where the readiness
 # check says it runs: "cuda" with an NVIDIA card, "cpu" on an Apple Silicon Mac or a PC without one. It's
-# remembered in .venv/.sweatcast-extra, since a sync without it would uninstall it.
+# remembered in .venv/.harmonicfitness-extra, since a sync without it would uninstall it.
 FACTS="$(sh "$HERE/doctor.sh" --facts)"
 fact() { echo "$FACTS" | sed -n "s/^$1=//p"; }
 LOCAL="$(fact local)"; LOCAL_ENGINE="$(fact local_engine)"; LOCAL_REASON="$(fact local_reason)"
-MARKER=".venv/.sweatcast-extra"
+MARKER=".venv/.harmonicfitness-extra"
 INSTALLED="$(cat "$MARKER" 2>/dev/null || true)"
 # Before 0.15.0 a Mac's extra was "mlx" (Chatterbox and Qwen3 on MLX): Pocket on the processor replaces it.
 [ "$INSTALLED" = mlx ] && INSTALLED=cpu
@@ -83,7 +83,7 @@ PY_NOW="$(venv_python)"
 if [ -n "$PY_NOW" ]; then RENDER_LIST="$("$PY_NOW" tools/context.py get routes 2>/dev/null | tr '\n' ' ' || true)"
 else RENDER_LIST="$(render_routes_from_file "$CONTEXT/settings.toml" | tr '\n' ' ')"; fi
 if [ -z "$1" ] && [ -n "$RENDER_LIST" ] && ! echo " $RENDER_LIST " | grep -q ' local '; then
-  echo "   The render list (settings.toml) has no \"local\", so the local engine isn't installed (./sweatcast setup --local adds it)."
+  echo "   The render list (settings.toml) has no \"local\", so the local engine isn't installed (./harmonicfitness setup --local adds it)."
   WANT="$INSTALLED"
 fi
 
@@ -97,7 +97,7 @@ if [ "$LOCAL" = no ] && [ "$1" != "--no-models" ]; then
 fi
 PY="$(venv_python)"
 "$PY" tools/ffmpeg.py | sed 's/^/   /' || true
-# The context folder as every tool finds it (tools/paths.py): SWEATCAST_HOME, else me/, else (on Claude
+# The context folder as every tool finds it (tools/paths.py): HARMONICFITNESS_HOME, else me/, else (on Claude
 # Code on the web) the private repo attached beside the engine.
 CONTEXT="$("$PY" -c "import sys; sys.path.insert(0, 'tools'); import paths; print(paths.HOME)" 2>/dev/null || echo "$CONTEXT")"
 
@@ -112,10 +112,10 @@ if [ -e "$CONTEXT/profile.md" ]; then
   fi
   if [ ! -e "$CONTEXT/.gitignore" ]; then
     cp "$ROOT/me.example/.gitignore" "$CONTEXT/.gitignore"
-    echo "   added .gitignore, for keeping it as its own private repo (./sweatcast backup)"
+    echo "   added .gitignore, for keeping it as its own private repo (./harmonicfitness backup)"
   fi
   if ! grep -qxF '.env' "$CONTEXT/.gitignore"; then
-    printf '%s\n' "# API keys for cloud voices (./sweatcast keys): never committed, never pushed." ".env" >> "$CONTEXT/.gitignore"
+    printf '%s\n' "# API keys for cloud voices (./harmonicfitness keys): never committed, never pushed." ".env" >> "$CONTEXT/.gitignore"
     echo "   .gitignore now leaves out .env, where cloud voice keys go"
   fi
 else
@@ -127,17 +127,17 @@ fi
 
 echo "3. Privacy guard (a git pre-push hook that refuses to push me/ in any commit)"
 if ! command -v git >/dev/null 2>&1; then
-  echo "   skipped: git isn't installed. Only this hook and ./sweatcast backup need it."
+  echo "   skipped: git isn't installed. Only this hook and ./harmonicfitness backup need it."
 elif [ "$(in_git)" != yes ]; then
   echo "   skipped: this folder isn't a git checkout (a zip download?), so there's nothing to push from it."
-  echo "   ./sweatcast backup needs git too."
+  echo "   ./harmonicfitness backup needs git too."
 else
   HOOKS_NOW="$(git config --get core.hooksPath 2>/dev/null || true)"
   if [ -n "$HOOKS_NOW" ] && [ "$HOOKS_NOW" != tools/hooks ]; then
     echo "   skipped: git already takes its hooks from $HOOKS_NOW; add tools/hooks/pre-push to yours to keep me/ out."
   elif ! git config core.hooksPath tools/hooks 2>/dev/null; then
     echo "   skipped: git's settings can't be changed from here (a sandbox, such as ChatGPT's Codex, protects them)."
-    echo "   Rerun ./sweatcast setup outside it to add the hook."
+    echo "   Rerun ./harmonicfitness setup outside it to add the hook."
   fi
 fi
 
@@ -156,6 +156,6 @@ fi
 
 echo
 echo "Done. Next:"
-echo "  - In Claude Code, say \"set up sweatcast\": four questions, a coach to choose from the ten that ship"
-echo "    (each has a short sample), then a ten-minute workout (./sweatcast check lists anything still to fill in)."
+echo "  - In Claude Code, say \"set up HarmonicFitness\": four questions, a coach to choose from the ten that ship"
+echo "    (each has a short sample), then a ten-minute workout (./harmonicfitness check lists anything still to fill in)."
 echo "  - Later: \"finish setting me up\" for your interests and feeds, and \"I want a new coach\" for a web voice of your own."

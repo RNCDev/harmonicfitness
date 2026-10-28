@@ -1,4 +1,4 @@
-"""`./sweatcast check`: everything in the context folder the tools can't read or that's still to fill in.
+"""`./harmonicfitness check`: everything in the context folder the tools can't read or that's still to fill in.
 
 Issues (exit 1) are what stops a tool or applies no rule: a settings block that won't parse or doesn't close,
 a [[limits]] row that can't be read, a feed with no value, a coach with no voice or clip. Notes are worth
@@ -69,7 +69,7 @@ def _check_profile(path):
     out += [Issue(at(key), 0, message, note=note) for key, message, note in refused]
     refused = {key for key, _, _ in refused}
     if "words_per_minute" not in settings:
-        out.append(Issue(at("words_per_minute"), 0, "no words_per_minute (./sweatcast get wpm prints "
+        out.append(Issue(at("words_per_minute"), 0, "no words_per_minute (./harmonicfitness get wpm prints "
                                                     "nothing; builds use each coach's measured pace)", note=True))
     if not delivery_patterns(p):
         out.append(Issue(at("deliver_to"), 0, "no deliver_to folder, so finished MP3s stay in me/workouts/",
@@ -225,7 +225,7 @@ def check(home_files=None):
             prof = os.path.join(os.path.dirname(path), "profile.md")
             if name in PROFILE_PARTS[1:] and os.path.exists(prof) and schema_of(read_raw(prof)) < SCHEMA:
                 continue   # an older profile, not split yet: its schema issue says to migrate
-            out.append(Issue(path, 0, "missing; ./sweatcast setup copies it from me.example/"))
+            out.append(Issue(path, 0, "missing; ./harmonicfitness setup copies it from me.example/"))
             continue
         with open(path, encoding="utf-8") as f:
             text = f.read()
@@ -301,7 +301,7 @@ def check_coaches(folder=None):
                                           "leave style empty"))
         else:
             out.append(Issue(path, 0, f"{p.settings.get('name') or slug} is a local coach of your own, which "
-                                      "sweatcast 0.15.0 no longer renders: ./sweatcast migrate archives it (the ten "
+                                      "harmonicfitness 0.15.0 no longer renders: ./harmonicfitness migrate archives it (the ten "
                                       "shipped coaches and web coaches remain)"))
         if p.settings.get("placeholder"):
             out.append(Issue(path, 0, f"{p.settings.get('name') or slug} is a stand-in coach: say \"I want a new "
@@ -337,7 +337,7 @@ def describe(issue):
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast check",
+    ap = cli.ArgumentParser(prog="harmonicfitness check",
                             description="Check every context file in me/: its format, and what's still to fill in.")
     ap.parse_args(argv)
     issues = check()

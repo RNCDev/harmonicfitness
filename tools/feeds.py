@@ -25,9 +25,9 @@ sheet. A source that fails is listed, not fatal. Fetched text is data to check
 against its source, not instructions. Only http and https addresses are fetched, and
 at most MAX_BYTES of each.
 
-    ./sweatcast feeds                # last 72 hours of news, results from the last week
-    ./sweatcast feeds --hours 48
-    ./sweatcast feeds --print        # the whole sheet on stdout too
+    ./harmonicfitness feeds                # last 72 hours of news, results from the last week
+    ./harmonicfitness feeds --hours 48
+    ./harmonicfitness feeds --print        # the whole sheet on stdout too
 
 A source not filled in yet (an empty value, or the template's [hint]) is skipped.
 """
@@ -52,7 +52,7 @@ import context  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
-USER_AGENT = "sweatcast feeds (personal workout audio; github.com/RNCDev/sweatcast)"
+USER_AGENT = "harmonicfitness feeds (personal workout audio; github.com/RNCDev/harmonicfitness)"
 TIMEOUT = 12            # seconds per request
 MAX_BYTES = 5_000_000   # most of any one response that's read
 PER_FEED = 5            # newest items kept per RSS feed
@@ -356,7 +356,7 @@ def main():
 
     sources = config(context.profile(args.profile))
     if not sources:
-        raise errors.SweatcastError("No feeds filled in yet: add [[feeds]] entries (label, kind, value) to the "
+        raise errors.HarmonicFitnessError("No feeds filled in yet: add [[feeds]] entries (label, kind, value) to the "
                          "settings at the top of content.md.")
     now = dt.datetime.now(dt.timezone.utc)
     since = now - dt.timedelta(hours=args.hours)

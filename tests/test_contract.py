@@ -14,10 +14,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import helpers  # noqa: E402,F401  (puts tools/ on the path)
 import cli  # noqa: E402
 import paths  # noqa: E402
-import sweatcast  # noqa: E402
+import harmonicfitness  # noqa: E402
 
 # setup and doctor are shell scripts (the wrapper runs them); test runs the suite.
-PYTHON_COMMANDS = [c for c in sweatcast.COMMANDS if c not in ("setup", "doctor", "test")]
+PYTHON_COMMANDS = [c for c in harmonicfitness.COMMANDS if c not in ("setup", "doctor", "test")]
 
 
 def run(*argv):
@@ -25,7 +25,7 @@ def run(*argv):
     saved = sys.argv
     try:
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = sweatcast.main(list(argv))
+            code = harmonicfitness.main(list(argv))
     finally:
         sys.argv = saved
     return code, out.getvalue(), err.getvalue()
@@ -46,7 +46,7 @@ class Contract(unittest.TestCase):
         for argv in ([], ["help"], ["--help"]):
             code, out, _ = run(*argv)
             self.assertEqual(code, cli.OK, argv)
-            self.assertIn("usage: ./sweatcast", out)
+            self.assertIn("usage: ./harmonicfitness", out)
 
     def test_unknown_and_retired_commands_are_usage(self):
         for argv in (["nonsense"], ["lint", "x.draft.txt"], ["render", "x.draft.txt", "x"], ["setup"], ["doctor"]):
@@ -93,9 +93,9 @@ class FlagNames(unittest.TestCase):
     """The flag rule in cli.py: --date is a recorded day, --today only "pretend today is"; no parser takes both,
     and --json is on the commands whose --help documents it. Every command's parsers are walked by running its
     --help with add_argument recorded."""
-    TODAY = {"sweatcast brief", "sweatcast content plan"}
-    DATE = {"sweatcast log-session", "sweatcast content log"}
-    JSON = {"sweatcast coaches list", "sweatcast content plan", "sweatcast coverage", "sweatcast get"}
+    TODAY = {"harmonicfitness brief", "harmonicfitness content plan"}
+    DATE = {"harmonicfitness log-session", "harmonicfitness content log"}
+    JSON = {"harmonicfitness coaches list", "harmonicfitness content plan", "harmonicfitness coverage", "harmonicfitness get"}
 
     def flags(self):
         import argparse
@@ -139,7 +139,7 @@ class FlagNames(unittest.TestCase):
 
     def test_every_numeric_option_is_range_checked(self):
         seen = self.numeric_options()
-        self.assertIn(("sweatcast brief", "--minutes"), seen)   # the walk reached the commands
+        self.assertIn(("harmonicfitness brief", "--minutes"), seen)   # the walk reached the commands
         loose = {k: getattr(t, "__name__", t) for k, t in seen.items() if t not in cli.NUMBER_TYPES}
         self.assertEqual(loose, {}, "use cli.positive_int, non_negative_int, positive_float or non_negative_float")
 
@@ -155,7 +155,7 @@ class FlagNames(unittest.TestCase):
 
     def test_date_and_today_follow_the_rule(self):
         seen = self.flags()
-        self.assertIn("sweatcast coverage", seen)   # the walk reached the commands
+        self.assertIn("harmonicfitness coverage", seen)   # the walk reached the commands
         both = [prog for prog, f in seen.items() if {"--today", "--date"} <= f]
         self.assertEqual(both, [])
         self.assertEqual({prog for prog, f in seen.items() if "--today" in f}, self.TODAY)
@@ -207,7 +207,7 @@ class ErrorChannel(unittest.TestCase):
                         for n, line in enumerate(f, 1):
                             if re.search(r"raise[ (][^#]*\bSystemExit\b|sys\.exit\((?!cli\.run|main)", line):
                                 found.append(f"{name}:{n}: {line.strip()}")
-        self.assertEqual(found, [], "raise an errors.SweatcastError (or cli.Usage) instead")
+        self.assertEqual(found, [], "raise an errors.HarmonicFitnessError (or cli.Usage) instead")
 
     def test_only_commands_import_cli(self):
         """A module with no main is library code: it raises errors' typed errors and reads the exit codes from
@@ -232,7 +232,7 @@ class ErrorChannel(unittest.TestCase):
 
 
     def test_paths_are_read_at_call_time(self):
-        """`from paths import X` copies X at import, so a test (or SWEATCAST_HOME read later) that points paths
+        """`from paths import X` copies X at import, so a test (or HARMONICFITNESS_HOME read later) that points paths
         elsewhere misses it. Only show (a function) and ROOT (the engine's own folder) may be imported so."""
         import ast
         found = []

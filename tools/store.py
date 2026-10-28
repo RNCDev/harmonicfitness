@@ -1,5 +1,5 @@
 """The context folder's files on disk: read, written and held to their schema (SCHEMA for the context files,
-PERSONA_SCHEMA for a coach's persona.md). A file at an older schema stops a tool with ./sweatcast migrate."""
+PERSONA_SCHEMA for a coach's persona.md). A file at an older schema stops a tool with ./harmonicfitness migrate."""
 import os
 import sys
 import tomllib
@@ -13,7 +13,7 @@ from frontmatter import TOML_FRONT_RE, front, body, dump_settings  # noqa: E402
 
 
 SCHEMA = 6   # 6 (0.12.0) splits the profile into profile.md, training.md, content.md and settings.toml
-PERSONA_SCHEMA = 5   # me/coaches/<slug>/persona.md (me/personas/ before 0.15.0), new in sweatcast 0.9; 5 (0.10.0) adds kind and web coaches
+PERSONA_SCHEMA = 5   # me/coaches/<slug>/persona.md (me/personas/ before 0.15.0), new in HarmonicFitness 0.9; 5 (0.10.0) adds kind and web coaches
 
 
 def split(path, text):
@@ -53,10 +53,10 @@ def schema_problem(path, text):
     if found == SCHEMA:
         return None
     if found < SCHEMA:
-        return (f"{show(path)} is in an older sweatcast format (schema {found}; this engine reads "
-                f"schema {SCHEMA}). Bring the context folder up to date with: ./sweatcast migrate")
+        return (f"{show(path)} is in an older HarmonicFitness format (schema {found}; this engine reads "
+                f"schema {SCHEMA}). Bring the context folder up to date with: ./harmonicfitness migrate")
     return (f"{show(path)} is in a newer format (schema {found}) than this engine reads (schema {SCHEMA}). "
-            "Pull the latest sweatcast.")
+            "Pull the latest harmonicfitness.")
 
 
 def read_raw(path, what="file"):

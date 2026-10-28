@@ -1,10 +1,10 @@
-# sweatcast web: design spec
+# HarmonicFitness web: design spec
 
 Status: research, 2026-10-27. Not scheduled for a release. This spec covers what the web client does and how it is built. It takes no position on visual or interaction design: layouts, styling and component choices belong to the UI design files beside it in this folder.
 
 ## Intent
 
-sweatcast works well as a CLI under Claude Code or Codex, but only for someone comfortable running an assistant in a terminal on their own computer. The web client opens it to a small group of people the maintainer knows: same engine, same safety rules, same kind of MP3, in a browser.
+HarmonicFitness works well as a CLI under Claude Code or Codex, but only for someone comfortable running an assistant in a terminal on their own computer. The web client opens it to a small group of people the maintainer knows: same engine, same safety rules, same kind of MP3, in a browser.
 
 The product is one screen in two parts:
 - **The chat** (multi-modal: text, plus whatever the user attaches or the agent shows): where the user says what they want and the agent talks back.
@@ -19,7 +19,7 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
    - **Edit my stuff:** profile, training, content and health in the panel.
    - **Something hurts:** a quick injury update that tightens limits, short of a full profile edit.
    - **Coaches ("tell me about my coaches"):** hear samples, switch, or make a web coach of their own.
-   - **Show me around:** a guided tour of what sweatcast does.
+   - **Show me around:** a guided tour of what HarmonicFitness does.
    - **Analytics:** history and patterns from the log (sessions, patterns covered and neglected, loads over time, feedback).
    - **Feedback on older workouts:** when a user returns with workouts they haven't commented on, the app asks about them ("got any feedback on some of our older workouts?"). It replaces an immediate "how did it go?", because users often leave while a render runs.
 2. **Same engine, same guarantees.** The brief, the safety screen, the menu gate, the lint and the render are the existing Python engine, unchanged in behaviour. A workout that the CLI would refuse is refused here too.
@@ -35,7 +35,7 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 - **Week planning.** Filler content is tied to the day; no multi-day plan.
 - **Permanent audio storage.** The MP3 is kept for a limited time for download, and the app says so.
 - **Writing to a folder on the user's computer.** Delivery is a download.
-- ~~**Public sign-up.**~~ Changed 2026-10-27 by the maintainer: anyone can make an account with a username and password, while registration is open; a setting (`WT_REGISTRATION=closed`) shuts it. The group is still meant to be small.
+- ~~**Public sign-up.**~~ Changed 2026-10-27 by the maintainer: anyone can make an account with a username and password, while registration is open; a setting (`HARMONICFITNESS_REGISTRATION=closed`) shuts it. The group is still meant to be small.
 - **Replacing the CLI.** The CLI stays the primary product and keeps working exactly as it does.
 
 ## Anti-goals (a failure even if it technically works)
@@ -49,10 +49,10 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 ## Constraints
 
 - **The engine is the source of truth.** Everything in `tools/` and `knowledge/` is used as is. Changes the web needs (a web-only mode, for example) go into the engine as general features, with tests, released by the CLAUDE.md rules, and must not change CLI behaviour.
-- **The engine reads its context folder once per process.** `tools/paths.py` computes `HOME` and every path from `SWEATCAST_HOME` at import. So each user's engine work runs in its own process, never in a shared process switching folders.
+- **The engine reads its context folder once per process.** `tools/paths.py` computes `HOME` and every path from `HARMONICFITNESS_HOME` at import. So each user's engine work runs in its own process, never in a shared process switching folders.
 - **Keys reach the engine as environment variables.** The engine reads the environment before `me/.env`, so no `.env` file is ever written to disk on the server.
 - **Every engine write goes through the engine.** Log lines through `log-session`, filler through `content log`, health and profile through `tools/context.py`'s formats. The web layer may store the files but doesn't invent its own formats for them.
-- **The context schema still applies.** Stored context files carry `schema = 6` (or later); `./sweatcast migrate` brings stored folders up to date when the engine version changes.
+- **The context schema still applies.** Stored context files carry `schema = 6` (or later); `./harmonicfitness migrate` brings stored folders up to date when the engine version changes.
 - **Hosted on Railway.**
 - **Small group.** Optimise for simplicity and correctness, not scale. Tens of users, not thousands.
 
@@ -66,8 +66,8 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 - **Front end:** a React + TypeScript single-page app, built and served by the FastAPI service.
 - **Database:** Postgres.
 - **Object storage:** an S3-compatible bucket (Railway's own buckets or Cloudflare R2) for MP3s and other short-lived files, with an expiry rule.
-- **Where the code lives:** `web/` in this repo, versioned and released with the engine, so every web release runs the engine of the same commit and "no drift" is enforced by one test suite. `./sweatcast test` and CI cover `web/`'s tests too, and the privacy hook and `check-private.sh` apply to it as to the rest of the engine: no personal details in its code, tests or fixtures. The Docker image is built from the repo root.
-- **Migrations:** stored context folders are brought up to date with `./sweatcast migrate` lazily, at the start of a user's next job after a deploy that raised the schema *(spec author's call)*.
+- **Where the code lives:** `web/` in this repo, versioned and released with the engine, so every web release runs the engine of the same commit and "no drift" is enforced by one test suite. `./harmonicfitness test` and CI cover `web/`'s tests too, and the privacy hook and `check-private.sh` apply to it as to the rest of the engine: no personal details in its code, tests or fixtures. The Docker image is built from the repo root.
+- **Migrations:** stored context folders are brought up to date with `./harmonicfitness migrate` lazily, at the start of a user's next job after a deploy that raised the schema *(spec author's call)*.
 
 ### Railway layout
 
@@ -80,7 +80,7 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 ### Per-user isolation and the engine
 
 - Each user's context (the files that make up `me/`: the four profile files, `health.md`, `log.md`, `movements.toml`, their own `coaches/`, `workouts/` records, research sheets, `told.jsonl`, `builds.jsonl`) is stored in Postgres, keyed by user, every query scoped by user id.
-- **A job:** the worker writes that user's context out to a fresh temporary folder, runs the engine in a subprocess with `SWEATCAST_HOME` pointing there and the user's decrypted keys in its environment, then saves what changed back to Postgres and deletes the folder.
+- **A job:** the worker writes that user's context out to a fresh temporary folder, runs the engine in a subprocess with `HARMONICFITNESS_HOME` pointing there and the user's decrypted keys in its environment, then saves what changed back to Postgres and deletes the folder.
 - **One job per user at a time.** A user's jobs run in order, so two jobs never write back the same files.
 - The stock coaches (`coaches/`) and `knowledge/` come from the engine in the image, read-only and shared.
 - The temporary folder lives for the whole job, so the build's own retry loop (lint, build, exit 2, adjust, rebuild) reuses its clip cache and only changed paragraphs are billed again.
@@ -102,13 +102,13 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 ### The agent
 
 - One agent loop serves every provider. Its instructions are ported from the skills (`workout`, `setup`, `coach`) and the knowledge files they point to. Where the skills name Claude Code tools, the web agent has its own equivalents:
-  - **Engine tools:** each `./sweatcast` command the skills use (`check`, `brief`, `build`, `get`, `coaches`, `content`, `coverage`, `feeds`, `youtube`, `log-session`, `movements`) is a typed tool. Exit codes and typed errors become structured tool results the model can act on, as the skills already describe.
+  - **Engine tools:** each `./harmonicfitness` command the skills use (`check`, `brief`, `build`, `get`, `coaches`, `content`, `coverage`, `feeds`, `youtube`, `log-session`, `movements`) is a typed tool. Exit codes and typed errors become structured tool results the model can act on, as the skills already describe.
   - **Asking the user** (AskUserQuestion in the skills) becomes a tool that puts a question or form in the panel and waits for the answer.
   - **Showing** (the plan table, a coach sample, render progress, the finished MP3) becomes a tool that puts a result in the panel.
   - **Writing the draft** is a tool that writes only the current workout's draft file.
   - **Research** (background agents in the skills) runs in turn inside the job, as the Codex harness already does. Web search uses each provider's own search tool (Anthropic's web search, OpenAI's web search, Gemini's Google Search grounding), behind the same adapter as tool calling, billed to the user's key. Page fetches are a server tool with the skill's budgets. *(Spec author's call: no third-party search key.)*
 - The agent has no shell and no general file access.
-- **The web instructions are generated from the skills, not hand-written** *(spec author's call)*: a generator in the engine, like `./sweatcast harness sync`, writes them from `.claude/skills/` plus a mapping of each Claude Code tool to its web equivalent. A test fails when they are out of step, as the harness test does for Codex.
+- **The web instructions are generated from the skills, not hand-written** *(spec author's call)*: a generator in the engine, like `./harmonicfitness harness sync`, writes them from `.claude/skills/` plus a mapping of each Claude Code tool to its web equivalent. A test fails when they are out of step, as the harness test does for Codex.
 - **Model quality** *(spec author's call)*: before a provider is offered, its recommended model runs the eval grid in `docs/eval/` with the same writer and judge briefs as a CLI release, judged by the same Claude model, paid for by the maintainer. It must score no lower than the CLI's last release run on any safety item, and within one point of it overall. The grid runs again for each provider at each minor release. Each provider has one recommended model.
 
 ### Workflows (behaviour, not presentation)
@@ -116,7 +116,7 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 - **New user:** make an account (username and password), setup (the setup skill's quick start, web version): name, experience, kit, injuries, the disclaimer and red flags, a language-model key, a voice key, a stock web coach for that service (made in their account, saying so and the cost first), then a ten-minute workout. "Finish setting me up" stays available.
 - **Import from the CLI (one time):** an existing CLI user can upload their `me/` folder (as a ZIP) once, during or instead of setup. The import runs `migrate` on it, then `check`, and shows what came in and what `check` found. It never takes `.env` (keys are entered in the app), the clip cache, render logs, auditions in progress or MP3s. After import, the web store and the CLI's folder are separate: no sync in either direction. Export (below) gives a folder back in the same format.
 - **Build a workout:** the workout skill, in order: the check-in (limits, readiness, goal, length, kit, coach), research, the brief, design, the plan shown, write, lint, build, deliver, log. After the check-in, the user can leave. The privacy line comes before the first web build, and must now also cover the language-model provider, which sees the profile and health details too.
-- **Edit my stuff:** the panel edits the context files through the engine's formats; `./sweatcast check` runs after a change and its findings are shown.
+- **Edit my stuff:** the panel edits the context files through the engine's formats; `./harmonicfitness check` runs after a change and its findings are shown.
 - **Something hurts:** the check-in's limits logic on its own. A lasting change goes into `health.md` with the user's permission; a red flag stops and suggests a clinician, as in the skill.
 - **Coaches:** samples of the stock web coaches and their own; switch; make a web coach of their own (describe, audition across the keyed services, approve and name: the coach skill), with candidate audio served to the panel.
 - **Feedback on older workouts:** delivered workouts with no feedback are offered on return; answers go under Feedback in `log.md`.

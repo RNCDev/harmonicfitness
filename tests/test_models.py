@@ -47,10 +47,10 @@ class Models(unittest.TestCase):
 
     def test_paths_point_hugging_face_at_models(self):
         code = "import sys; sys.path.insert(0, 'tools'); import paths, os; print(os.environ['HF_HUB_CACHE'])"
-        env = {k: v for k, v in os.environ.items() if k not in ("SWEATCAST_MODELS", "HF_HUB_CACHE")}
+        env = {k: v for k, v in os.environ.items() if k not in ("HARMONICFITNESS_MODELS", "HF_HUB_CACHE")}
         out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(out.stdout.strip(), os.path.join(ROOT, "models"))
-        env["SWEATCAST_MODELS"] = self.new
+        env["HARMONICFITNESS_MODELS"] = self.new
         env["HF_HUB_CACHE"] = "/somewhere/else"
         out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(out.stdout.strip(), self.new)

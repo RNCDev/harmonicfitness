@@ -11,7 +11,7 @@ voice, whatever the render list says, and stops with WebCoachUnavailable when th
 here. A local coach renders only on the local route. This module says what works here; coachpick.pick
 makes the choice.
 
-    ./sweatcast get route [--coach "Coach Julius"]    # the route a build would take here
+    ./harmonicfitness get route [--coach "Coach Julius"]    # the route a build would take here
 """
 import importlib.util
 import os
@@ -40,15 +40,15 @@ def missing_key(persona):
         fix = (f"set {var}=<your key> in the cloud environment's settings, under Environment variables "
                "(a new session picks it up)")
     else:
-        fix = (f"./sweatcast keys init {persona.service}, then paste the key after {var}= "
+        fix = (f"./harmonicfitness keys init {persona.service}, then paste the key after {var}= "
                "(keys open opens the file)")
     return f"{persona.name} speaks through {name}, and there's no {name} key on this computer: {fix}."
 
 
 def local_installed():
     """Whether the local engine for this system is installed in the environment (not imported)."""
-    if os.environ.get("SWEATCAST_FAKE_LOCAL_ENGINE"):   # test-only: as if the local engine were installed
-        return os.environ["SWEATCAST_FAKE_LOCAL_ENGINE"] == "1"
+    if os.environ.get("HARMONICFITNESS_FAKE_LOCAL_ENGINE"):   # test-only: as if the local engine were installed
+        return os.environ["HARMONICFITNESS_FAKE_LOCAL_ENGINE"] == "1"
     try:
         return importlib.util.find_spec("pocket_tts") is not None
     except (ImportError, ValueError):
@@ -72,7 +72,7 @@ def usable(route, persona=None, facts=None):
         if f.get("local") == "no" and not (installed and f.get("local_hw") in ("fast", "experimental")):
             return False, f"local: {f.get('local_reason') or 'local voices do not run on this computer.'}"
         if not installed:
-            return False, "local: the local engine isn't installed yet: ./sweatcast setup --local"
+            return False, "local: the local engine isn't installed yet: ./harmonicfitness setup --local"
         if persona is not None and not persona.has_clip:
             return False, f"local: {persona.name} has no clip of their own."
         return True, ""
@@ -87,7 +87,7 @@ def usable(route, persona=None, facts=None):
         return False, f"{route}: {e}"
     if not have:
         return False, (f"{route}: no key on this computer ({keys.SERVICE_VARS[route]} in me/.env): "
-                       f"./sweatcast keys init {route}, then paste the key into the file")
+                       f"./harmonicfitness keys init {route}, then paste the key into the file")
     return True, ""
 
 
@@ -113,7 +113,7 @@ def way_out(folder=None):
         uses = [f"{shipped[s].name} ({cloud.service_name(s)}): build with --coach \"{shipped[s].name}\"" for s in keyed]
         return f"{make}, or use the stock coach for a service with a key here: " + "; ".join(uses) + "."
     add = ("set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
-           else "./sweatcast keys init <service>, then paste the key into the file")
+           else "./harmonicfitness keys init <service>, then paste the key into the file")
     names = ", ".join(f"{shipped[s].name} ({cloud.service_name(s)})" for s in SERVICES if s in shipped)
     return f"{make}, or add a service's key ({add}) and use its stock coach: {names}."
 
@@ -130,7 +130,7 @@ def hosts(route):
 
 
 def feed_hosts(profile=None):
-    """The hosts ./sweatcast feeds and ./sweatcast youtube fetch from: the fixed ones, plus each RSS feed's."""
+    """The hosts ./harmonicfitness feeds and ./harmonicfitness youtube fetch from: the fixed ones, plus each RSS feed's."""
     from urllib.parse import urlparse
     out = list(FEED_HOSTS)
     if profile is not None:

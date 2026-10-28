@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from webapp import crypto, db, store  # noqa: E402
 
-URL = os.environ.get("WT_TEST_DATABASE_URL", "").strip()
+URL = os.environ.get("HARMONICFITNESS_TEST_DATABASE_URL", "").strip()
 MASTER = bytes(range(32))
 
 
@@ -19,7 +19,7 @@ class DBCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not URL:
-            raise unittest.SkipTest("WT_TEST_DATABASE_URL is not set")
+            raise unittest.SkipTest("HARMONICFITNESS_TEST_DATABASE_URL is not set")
         cls.schema = "t_" + uuid.uuid4().hex[:12]
         admin = db.connect(URL)
         admin.autocommit = True

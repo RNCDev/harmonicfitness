@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sweatcast · The Deck</title>
+<title>HarmonicFitness · The Deck</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -353,9 +353,9 @@ h1.say{font-family:var(--display);font-weight:700;font-stretch:85%;font-size:cla
 </head>
 <body>
 <div class="app">
-  <aside class="rail min" id="rail" aria-label="Chat with sweatcast">
+  <aside class="rail min" id="rail" aria-label="Chat with harmonicfitness">
     <div class="rail-head">
-      <span class="mark">sweatcast</span>
+      <span class="mark">HarmonicFitness</span>
       <span class="who">Jordan, with Coach Ellis</span>
       <button class="rail-toggle" id="railToggle" aria-expanded="false">Chat</button>
     </div>
@@ -786,7 +786,7 @@ name(){
     <h1 class="say">Audition ${S.kept}. Who are they?</h1><p class="sub">A person's name. They'll call you Jordan.</p>
     <div class="namebox"><input id="cname" value="Coach Sable" aria-label="Coach name"><button class="btn" id="save">Save coach</button></div>
     <div class="chips">${["Coach Sable","Coach Juniper","Coach Rowan","Coach Wren"].map(n => `<button class="chip" data-n="${n}">${n}</button>`).join("")}</div>
-    <p class="small" style="margin-top:16px">Saved in your own ${svc} account as “sweatcast ” plus the name. You can archive them any time.</p>`,
+    <p class="small" style="margin-top:16px">Saved in your own ${svc} account as “HarmonicFitness ” plus the name. You can archive them any time.</p>`,
   wire(){
     $("#toAud").onclick = () => go("auditions");
     document.querySelectorAll("[data-n]").forEach(b => b.onclick = () => $("#cname").value = b.dataset.n);

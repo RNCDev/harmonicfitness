@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sweatcast: Three zones</title>
+<title>HarmonicFitness: Three zones</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Figtree:ital,wght@0,400..800;1,400&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
   --tok:#0E6A5C;          /* every editable word */
   --tok-tint:#CFEBE4;
   --tok-on:#FFFFFF;
-  --engine:#7A4A8F;       /* clauses sweatcast writes itself */
+  --engine:#7A4A8F;       /* clauses HarmonicFitness writes itself */
   --engine-tint:#ECE0F1;
   --warn:#8A5C00;
   --warn-tint:#F3E5C3;
@@ -426,7 +426,7 @@ table.rows{width:100%;border-collapse:collapse;font-size:15px}
     <div class="band-main" id="bandMain"></div>
   </header>
 
-  <aside class="chat" id="chat" aria-label="Chat with sweatcast">
+  <aside class="chat" id="chat" aria-label="Chat with harmonicfitness">
     <div class="chat-head">
       <div class="mark">Chat</div>
       <button class="chat-toggle" id="chatToggle" aria-expanded="false">Show chat</button>
@@ -739,7 +739,7 @@ function list(key){
 function vPrefs(){
   const p=S.prefs, pt=(k,v)=>`<button class="tok ${S.prefSet?.has(k)?"set":""} ${S.flash.has("prefs."+k)?"flash":""}" data-tok="prefs" data-key="${k}"><span class="v">${esc(v)}</span></button>`;
   return {where:"Edit my stuff",
-    band:`<p class="sentence">This is you, as sweatcast understands it. Change any word below.</p>`,
+    band:`<p class="sentence">This is you, as HarmonicFitness understands it. Change any word below.</p>`,
     go:S.prefsSaved?`<span class="checked">✓ Saved and checked</span><span class="meta">Nothing to fix</span>`:`<button class="go" data-act="save-prefs" ${S.prefsDirty?"":"disabled"}>Save</button><span class="meta">${S.prefsDirty?"Unsaved changes":"Nothing changed yet"}</span>`,
     body:`<div class="para">
       <p class="sentence">I train at ${pt("level",p.level)} level, about ${pt("days",p.days)} times a week, usually for ${pt("length",p.length+" minutes")}.</p>
@@ -804,7 +804,7 @@ function vStats(){
 }
 function vTour(){
   const st=[["Say it once","Every task is one sentence with the usual already filled in. Blue words are the ones you can change; tap one, or say it in the chat."],
-    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what sweatcast will do about it."],
+    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what HarmonicFitness will do about it."],
     ["Go, then leave","Research, writing, checking and the voice run on their own, about four minutes. Close the tab; it'll be here."],
     ["Press play","A podcast for your earbuds: the coach tells you what to do, counts you through it, and fills the rests. The MP3 is kept for a day."]];
   return {where:"Show me around",

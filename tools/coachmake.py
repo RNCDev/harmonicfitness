@@ -1,6 +1,6 @@
 """A pending stock web coach made the first time it's used: one voice designed from its [voice] on its own
 service, the first candidate saved with no audition, and the coach written to me/coaches/<slug>/
-(./sweatcast coaches make, or the first build that needs it).
+(./harmonicfitness coaches make, or the first build that needs it).
 
 Nothing here prints: progress goes through `report` and the notices about a voice left at a service through
 `warn` (default: stderr). A build passes both, so a notice reaches the listener's terminal, not only its log.
@@ -97,7 +97,7 @@ def _make(p, report, warn=stderr):
     else:
         report(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its "
                f"description ({cost}).")
-        c = module.design(description, voices.DESIGN_LINE, 1, f"sweatcast {p.name}")[0]
+        c = module.design(description, voices.DESIGN_LINE, 1, f"harmonicfitness {p.name}")[0]
         voice_id, text, wav, recorded = None, c.get("text") or voices.DESIGN_LINE, c["wav"], False
     try:
         if not recorded:
@@ -115,17 +115,17 @@ def _make(p, report, warn=stderr):
     except BaseException:
         if recorded:   # the voice is recorded in the coach's folder: the next make finishes with it
             warn(f"{p.name}'s voice is saved at {s['name']} (voice ID {voice_id}) but the coach wasn't written; "
-                 "it's still pending, and the next build (or ./sweatcast coaches make) finishes it without "
+                 "it's still pending, and the next build (or ./harmonicfitness coaches make) finishes it without "
                  "designing again.")
         elif getattr(module, "STORES_DRAFTS", False) and c.get("draft_id"):   # stored at design: don't leave it
             try:
                 module.delete(c["draft_id"])
             except Exception:   # cleanup only: what stopped the make is raised below either way
-                warn(f"({s['name']} keeps a voice \"sweatcast {p.name}\", ID {c['draft_id']}; delete it there "
+                warn(f"({s['name']} keeps a voice \"harmonicfitness {p.name}\", ID {c['draft_id']}; delete it there "
                      "by hand.)")
         elif voice_id:
             warn(f"{p.name}'s voice was saved at {s['name']} (voice ID {voice_id}) but the coach wasn't written; "
-                 f"it's still pending. Delete \"sweatcast {p.name}\" there, or put voice_id = \"{voice_id}\" "
+                 f"it's still pending. Delete \"harmonicfitness {p.name}\" there, or put voice_id = \"{voice_id}\" "
                  f"in {show(os.path.join(home, 'persona.md'))}.")
         raise
     for done in (MADE, MADE_WAV):

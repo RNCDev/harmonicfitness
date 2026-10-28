@@ -1,6 +1,6 @@
 """Render a segmented workout draft to one MP3, voicing each paragraph in-process.
 
-Runs in the project's own environment, .venv (./sweatcast setup makes it; ./sweatcast
+Runs in the project's own environment, .venv (./harmonicfitness setup makes it; ./harmonicfitness
 runs it there). Each local coach speaks with Pocket TTS from its saved voice state, on the processor or
 an NVIDIA card (tools/engines.py), and its counts and cues are its recorded clips (tools/counts.py); a web
 coach speaks by its saved voice on its own service (tools/cloud.py). A soft chime opens each segment after the first, a [chime]
@@ -16,7 +16,7 @@ a time: a second one waits for the first (two voice models don't fit in 16 GB).
 Each MP3 gets a record of how it was made: <name>.build.json beside it, and a line
 in me/workouts/.logs/builds.jsonl (where a web render that sent text and then stopped leaves a "failed" line).
 
-./sweatcast build is the one way in: it lints the draft, holds it to its menu, and then calls run() (or
+./harmonicfitness build is the one way in: it lints the draft, holds it to its menu, and then calls run() (or
 clips() and follow(), to render ahead) in its own process, and decides what a drift past the tolerance
 means (exit 2).
 """
@@ -336,7 +336,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
         if isinstance(e, cloud.ServiceError):
             if e.listener_must_act:
                 raise errors.RenderStopped(
-                    f"{e}\nCheck the key with ./sweatcast keys (it's {service['key_var']} in me/.env), and the "
+                    f"{e}\nCheck the key with ./harmonicfitness keys (it's {service['key_var']} in me/.env), and the "
                     f"account's plan and balance at {service['name']}. The {done} clip(s) rendered are cached.",
                     exit_code=errors.SERVICE) from e
             advice = ("A rerun won't fix that by itself" if e.kind == "bad_request"
@@ -345,7 +345,7 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
         if isinstance(e, (OSError, ValueError)):   # a clip that couldn't be written or read: the listener's to fix
             raise errors.RenderStopped(f"Stopped sending to {service['name']}: {cloud.scrub(str(e))}. The {done} "
                                        "clip(s) rendered are cached.") from e
-        raise   # a SweatcastError keeps its own message and code; anything else is a bug in the engine (exit 70)
+        raise   # a HarmonicFitnessError keeps its own message and code; anything else is a bug in the engine (exit 70)
     finally:
         cloud.stop_on(None)
     pool.shutdown()
@@ -404,7 +404,7 @@ def preflight(out):
     ffmpeg = ffmpeg_tool.exe()
     if not ffmpeg:
         raise errors.RenderStopped(f"ffmpeg not found, and the environment's own copy isn't installed: rerun "
-                         f"./sweatcast setup, or install it ({ffmpeg_tool.install_hint()})")
+                         f"./harmonicfitness setup, or install it ({ffmpeg_tool.install_hint()})")
     return ffmpeg
 
 
@@ -419,7 +419,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
     """Render parsed `segments` with `voice` to `out` (.mp3, .m4a or .wav): the clips not cached yet (on the
     voice's service, or the local engine, under the render lock), the layout on the plan's clock, the loudness
     pass, the encode, and the build record. Returns the drift, the fraction the whole ran over (+) or under (-)
-    plan; the caller decides what a drift past `tolerance` means (./sweatcast build exits 2). The caller has
+    plan; the caller decides what a drift past `tolerance` means (./harmonicfitness build exits 2). The caller has
     checked the draft against its menu: this renders what it's given."""
     preflight(out)
     started = time.time()

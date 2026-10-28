@@ -7,7 +7,7 @@ function serve(registration: boolean, signIn: { status: number; body?: unknown }
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (url === "/api/auth") {
-      return new Response(JSON.stringify({ app_name: "Working Title", registration }), { status: 200 });
+      return new Response(JSON.stringify({ app_name: "HarmonicFitness", registration }), { status: 200 });
     }
     return new Response(signIn.body ? JSON.stringify(signIn.body) : null, { status: signIn.status });
   }));

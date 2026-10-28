@@ -29,7 +29,7 @@ def text(c):
     lines = ["+++", f"schema = {store.PERSONA_SCHEMA}", 'kind = "local"', f"name = {q(c['name'])}",
              f"aliases = {q(ALIASES.get(c['slug'], []))}", f"gender = {q(c['gender'])}",
              f"description = {q(description)}", "",
-             "# One of the ten coaches sweatcast ships (coaches/roster.toml makes this file: edit there).",
+             "# One of the ten coaches HarmonicFitness ships (coaches/roster.toml makes this file: edit there).",
              "[local]", 'engine = "pocket"', "",
              "[voice]", *(f"{k} = {q(c[k])}" for k in ("who", "sound", "energy")), "",
              "[character]", *(f"{k} = {q(v)}" for k, v in c["character"].items()), "+++", ""]

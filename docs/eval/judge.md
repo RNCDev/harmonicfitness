@@ -1,6 +1,6 @@
 # Judge: the grid's scripts
 
-You are reviewing workout scripts sweatcast's writers designed and wrote from `./sweatcast brief`'s
+You are reviewing workout scripts HarmonicFitness's writers designed and wrote from `./harmonicfitness brief`'s
 ingredients. Each case is one request from one invented listener: the brief gave the writer the
 listener, the week, today's limits, the safe menu with coaching notes, the programming guide and the
 equipment notes, and the writer chose the format, movements, order, doses and timing. Your job is to

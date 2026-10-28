@@ -150,16 +150,16 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
     """Read the catalog at `path` (default: the shipped one) plus private movement tables: `extra`,
     or, when neither is given, the listener's `movements.toml` (see `private_movements`), where an
     entry with any fault is held back as a draft and an unreadable file is skipped, named in private_faults
-    (as a faulty entry is), which problems() and ./sweatcast check report.
+    (as a faulty entry is), which problems() and ./harmonicfitness check report.
     A shipped id wins over a private one with the same id."""
     auto = path is None and extra is None
     private_faults = []
     if auto:
         try:
             extra = private_movements()
-        except (tomllib.TOMLDecodeError, OSError) as e:   # ./sweatcast check says what is wrong with it
+        except (tomllib.TOMLDecodeError, OSError) as e:   # ./harmonicfitness check says what is wrong with it
             private_faults.append(f"{paths.show(paths.MY_MOVEMENTS)} can't be read ({e}), so all its movements "
-                                  "are out (run ./sweatcast check)")
+                                  "are out (run ./harmonicfitness check)")
             extra = []
     with open(path or paths.MOVEMENTS, "rb") as f:
         data = tomllib.load(f)
@@ -209,7 +209,7 @@ def default() -> Catalog:
 
 def _hold_back_faulty_private(cat: Catalog) -> None:
     """A private entry with any fault (a missing load table, an unknown level) is planned as a draft,
-    never with guessed values; `./sweatcast check` names the fault."""
+    never with guessed values; `./harmonicfitness check` names the fault."""
     private = [m for m in cat.entries if m.private and not m.draft]
     if not private:
         return

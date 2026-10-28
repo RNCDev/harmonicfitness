@@ -16,7 +16,7 @@ sits; [count 5 go] adds the cue a second after "one" (go, rest, switch, switch s
 Before the first marker, a draft declares the movements it scripts, once, on one or more
 header lines that are never spoken:
     movements: goblet squat, dumbbell floor press, dead bug, box breathing
-`./sweatcast build` checks them against the menu `./sweatcast brief --save` wrote beside
+`./harmonicfitness build` checks them against the menu `./harmonicfitness brief --save` wrote beside
 the draft (`menu_path`).
 
 This is the one source of truth for the draft: the lint (tts_build.py) predicts

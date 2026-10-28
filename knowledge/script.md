@@ -1,10 +1,10 @@
 # Writing the script
 
-What goes into a workout script, from the welcome to the sign-off. How it should sound (the coach's two registers, the name, the arc, varied openings, friendly handoffs) is in `knowledge/tts-rules.md`, Coaching voice, along with the rules for text a voice reads well. The movements, their coaching notes, today's limits and the dose guidance come from `./sweatcast brief`.
+What goes into a workout script, from the welcome to the sign-off. How it should sound (the coach's two registers, the name, the arc, varied openings, friendly handoffs) is in `knowledge/tts-rules.md`, Coaching voice, along with the rules for text a voice reads well. The movements, their coaching notes, today's limits and the dose guidance come from `./harmonicfitness brief`.
 
 ## The draft
 
-- It starts with one line, `movements: <every movement the script uses, by its name in the brief's menu, comma separated>`, which is never spoken. Then the `@@ <seconds> | <label>` segments, which add up to exactly the session's seconds. `./sweatcast build` checks both against the menu the brief saved, and stops when a movement isn't on it.
+- It starts with one line, `movements: <every movement the script uses, by its name in the brief's menu, comma separated>`, which is never spoken. Then the `@@ <seconds> | <label>` segments, which add up to exactly the session's seconds. `./harmonicfitness build` checks both against the menu the brief saved, and stops when a movement isn't on it.
 - You choose the segments. A segment can be one set, a pair, a round, an interval block or the whole warm-up; what matters is that the time each one holds is the time its work, rest and talk need. Long segments are fine for continuous work; short ones suit timed intervals, where each change gets a `[chime]`.
 - Draft to about the measured words a minute times the seconds over sixty per segment. The lint predicts each segment's spoken length for the chosen coach, and only the total must land within three percent of plan; a segment with time to spare ends a little early, and one that runs long is paid back by the next ones. Don't polish segments that are close.
 - Paragraph length and `[pause]`: `knowledge/tts-rules.md`, Pacing and pauses.
@@ -53,13 +53,13 @@ A coach in the room watches the last two reps and changes the next set. The list
 
 ## Filler: the plan, the deep dive, the quiz
 
-- `./sweatcast content plan --minutes <N>` says what the rests carry: how many items of each slot (today, science, deep dive, quiz, delight, learn) and the category due for each. Tell those, from the research sheet, the video sheet and the reserve; a slot with nothing verified gives its time to coaching. Never tell an item the plan lists as told in the last month; a follow-up says what's new ("They're three and one since that opener").
+- `./harmonicfitness content plan --minutes <N>` says what the rests carry: how many items of each slot (today, science, deep dive, quiz, delight, learn) and the category due for each. Tell those, from the research sheet, the video sheet and the reserve; a slot with nothing verified gives its time to coaching. Never tell an item the plan lists as told in the last month; a follow-up says what's new ("They're three and one since that opener").
 - Filler comes only from those sheets and the weather. Never invent scores, prices, quotes or events.
 - Open each item with its hook, the line that ties it to the listener (their team, their city, a show they loved), then tell it plainly. A recommendation names why they'd like it ("It has the same slow-burn dread as the last show you loved"), and never one they've rated three or less. "Science" in a session means the plan's science items; form cues stay cues, with no study facts behind them.
 - Tell a deep-dive beat as two or three short paragraphs. Credit a video deep dive to its channel when it starts ("This one comes from Asianometry's latest video"), and paraphrase it rather than quoting. A series part opens with a two-sentence recap of the earlier parts, says which part it is ("Part two of three."), and ends with a one-line hook for the next ("Next time: Y two K.").
 - One quiz beat a session: ask in one rest and answer two or three later, credited by source ("A puzzle from the channel Mind Your Decisions.", "From Will Shortz's Sunday Puzzle on NPR."): the question in two or three short paragraphs, then the answer and its one-line reason.
 - Stories live in the rests and the steady work, never in the middle of a cue the listener needs.
-- After the build, every item told goes on the record (`./sweatcast content log`), so the next session moves on.
+- After the build, every item told goes on the record (`./harmonicfitness content log`), so the next session moves on.
 
 ## Close
 

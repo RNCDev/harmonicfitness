@@ -10,7 +10,7 @@ cli re-exports them, and cli.Usage (a SystemExit) is left to argparse and the co
 OK, ISSUES, DRIFT, UNMEASURED, SERVICE, USAGE, BUG = 0, 1, 2, 3, 4, 64, 70   # see tools/cli.py
 
 
-class SweatcastError(Exception):
+class HarmonicFitnessError(Exception):
     """A problem the listener or the writer must fix. `message` is what they read."""
     exit_code = ISSUES
 
@@ -25,42 +25,42 @@ class SweatcastError(Exception):
         return str(self)
 
 
-class UsageError(SweatcastError):
+class UsageError(HarmonicFitnessError):
     """The command itself was wrong (exit 64), found below main: an unknown coach, a web coach that can't
     speak here, a draft or an output path that isn't one."""
     exit_code = USAGE
 
 
-class ContextError(SweatcastError):
+class ContextError(HarmonicFitnessError):
     """A file in the context folder is missing, unreadable, or at a schema this engine doesn't read."""
 
 
-class LogRefused(SweatcastError):
+class LogRefused(HarmonicFitnessError):
     """log-session refused a session line (its message starts "Not logged:")."""
 
 
-class CoachError(SweatcastError):
+class CoachError(HarmonicFitnessError):
     """A coach can't be used as asked: archived, no voice yet, the wrong kind for the route, an audition fault."""
 
 
-class RouteUnavailable(SweatcastError):
+class RouteUnavailable(HarmonicFitnessError):
     """No audio route works on this computer (for this coach)."""
 
 
-class EngineError(SweatcastError):
+class EngineError(HarmonicFitnessError):
     """The local engine or the take checker can't be loaded."""
 
 
-class DraftError(SweatcastError):
+class DraftError(HarmonicFitnessError):
     """A draft isn't in the draft format (tools/draft.py)."""
 
 
-class RenderStopped(SweatcastError):
+class RenderStopped(HarmonicFitnessError):
     """A render or its encode stopped: a take still dropping a cue, ffmpeg failing, a web render refused."""
 
 
-class MigrateError(SweatcastError):
+class MigrateError(HarmonicFitnessError):
     """The context folder can't be migrated as it stands."""
 
 
-PROBLEMS = (SweatcastError,)   # every problem a command reports; catch this to carry on past one
+PROBLEMS = (HarmonicFitnessError,)   # every problem a command reports; catch this to carry on past one

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Generate the judged grid's briefs (the 0.7.0 path): for each case in docs/eval/cases.toml and
-# docs/eval/extra-cases.toml, or only the ids given, run ./sweatcast brief --save as that case's
+# docs/eval/extra-cases.toml, or only the ids given, run ./harmonicfitness brief --save as that case's
 # invented listener and write
 #   docs/eval/out/<id>.brief.md          the brief the writer designs the session from
 #   docs/eval/out/<id>.menu.json         the menu the lint checks docs/eval/out/<id>.draft.txt against
@@ -12,7 +12,7 @@
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
-PY=${SWEATCAST_PYTHON:-.venv/bin/python}
+PY=${HARMONICFITNESS_PYTHON:-.venv/bin/python}
 [ -x "$PY" ] || PY=.venv/Scripts/python.exe   # Windows (Git Bash)
 OUT=docs/eval/out
 mkdir -p "$OUT"
@@ -48,7 +48,7 @@ while IFS="$(printf '\t')" read -r id listener flags; do
     # The flags hold no spaces, so the shell splits them on tabs and spaces alike.
     # shellcheck disable=SC2086
     set -- $flags
-    if SWEATCAST_HOME="docs/eval/listeners/$listener" ./sweatcast brief "$@" --today 2026-10-21 \
+    if HARMONICFITNESS_HOME="docs/eval/listeners/$listener" ./harmonicfitness brief "$@" --today 2026-10-21 \
             --save "$OUT/$id.draft.txt" > /dev/null 2> "$OUT/$id.brief.stderr.txt"; then
         echo "$id: ok"
     else

@@ -4,9 +4,9 @@ Every ffmpeg the engine starts goes through run() (or to_mp3()), with a timeout:
 with errors.RenderStopped naming ffmpeg's version, its exit code and the end of what it said, never a
 traceback, and never a build waiting forever under the render lock.
 
-sweatcast needs only ffmpeg itself (not ffprobe), with the MP3 encoder (libmp3lame) and the
+HarmonicFitness needs only ffmpeg itself (not ffprobe), with the MP3 encoder (libmp3lame) and the
 loudness filter (loudnorm). imageio-ffmpeg 0.6.0's ffmpeg 7.1 has both on an Apple Silicon Mac
-(checked 2026-10-24); ./sweatcast doctor checks whichever one is found, on every system.
+(checked 2026-10-24); ./harmonicfitness doctor checks whichever one is found, on every system.
 """
 import os
 import shutil

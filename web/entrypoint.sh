@@ -1,8 +1,8 @@
 #!/bin/sh
-# The container's start: WT_ROLE=web serves the API and client, WT_ROLE=worker runs jobs.
+# The container's start: HARMONICFITNESS_ROLE=web serves the API and client, HARMONICFITNESS_ROLE=worker runs jobs.
 set -eu
-APP="${WT_APP_DIR:-/app}"
-case "${WT_ROLE:-}" in
+APP="${HARMONICFITNESS_APP_DIR:-/app}"
+case "${HARMONICFITNESS_ROLE:-}" in
   web)
     cd "$APP/web"
     exec uvicorn webapp.api:create_app_from_env --factory --no-access-log \
@@ -14,7 +14,7 @@ case "${WT_ROLE:-}" in
     exec python -m webapp.worker
     ;;
   *)
-    echo "entrypoint: WT_ROLE must be 'web' or 'worker' (got '${WT_ROLE:-}')" >&2
+    echo "entrypoint: HARMONICFITNESS_ROLE must be 'web' or 'worker' (got '${HARMONICFITNESS_ROLE:-}')" >&2
     exit 64
     ;;
 esac

@@ -9,7 +9,7 @@ import webapp  # noqa: E402
 
 class Wiring(unittest.TestCase):
     def test_app_name(self):
-        self.assertEqual(webapp.APP_NAME, "Working Title")
+        self.assertEqual(webapp.APP_NAME, "HarmonicFitness")
 
 
 if __name__ == "__main__":

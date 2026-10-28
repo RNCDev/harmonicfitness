@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./sweatcast:*)",
+      "Bash(./harmonicfitness:*)",
       "Bash(tools/setup.sh:*)",
       "Bash(date:*)",
       "Edit(/me/**)",

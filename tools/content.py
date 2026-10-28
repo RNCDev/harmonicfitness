@@ -2,22 +2,22 @@
 """The filler between the exercises: what a session should carry, what's been told, and the reserve.
 
 Three things, so the stories rotate instead of repeating and the slow research happens ahead of time:
-- The plan (`./sweatcast content plan --minutes N`): how many items of each slot (today, science,
+- The plan (`./harmonicfitness content plan --minutes N`): how many items of each slot (today, science,
   deep dive, quiz, delight, learn; knowledge/content.toml) the session carries, and for each the
   categories due, the one told longest ago (or never) first. Categories come from the profile's
   [[interests]] (name, slot, detail), or content.toml's defaults.
 - The record of what's been told (me/workouts/research/told.jsonl, one item a line): the plan lists
-  the last few weeks of it, so research doesn't tell a story twice. `./sweatcast content log` adds a
+  the last few weeks of it, so research doesn't tell a story twice. `./harmonicfitness content log` adds a
   session's items after it's built.
 - The reserve (me/workouts/research/reserve/<slug>.md): evergreen pieces (quiz, delight, learn)
   researched ahead of time, a sheet each. A piece is used once the record names its slug. The plan
   lists the unused ones and says which slots run low. (Before 0.10.2 it was research/pantry/;
-  ./sweatcast migrate renames it.)
+  ./harmonicfitness migrate renames it.)
 
-    ./sweatcast content plan --minutes 25
-    ./sweatcast content log --date 2026-10-23 --item "today | sports | The home team wins in overtime" \\
+    ./harmonicfitness content plan --minutes 25
+    ./harmonicfitness content log --date 2026-10-23 --item "today | sports | The home team wins in overtime" \\
         --item "learn | history | Why old cities have crooked streets | https://... | crooked-streets"
-    ./sweatcast content reserve
+    ./harmonicfitness content reserve
 """
 import datetime
 import json
@@ -75,7 +75,7 @@ def recipe(path=RECIPE) -> Recipe:
     for b in bands:
         unknown = set(b) - set(slots) - {"up_to"}
         if unknown:
-            raise errors.SweatcastError(f"{paths.show(path)}: a band names unknown slots: {', '.join(sorted(unknown))}")
+            raise errors.HarmonicFitnessError(f"{paths.show(path)}: a band names unknown slots: {', '.join(sorted(unknown))}")
     return Recipe(slots, bands, {k: list(v) for k, v in data.get("defaults", {}).items()})
 
 
@@ -270,7 +270,7 @@ def _log_new(new: List[dict], path) -> List[dict]:
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast content", description=__doc__.split("\n\n")[0])
+    ap = cli.ArgumentParser(prog="harmonicfitness content", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("plan", help="the filler plan for a session, what's been told, the reserve")
     p.add_argument("--minutes", type=cli.positive_int, default=25, help="the session's length (default 25)")
@@ -299,7 +299,7 @@ def main(argv=None):
         try:
             new = log(args.date, args.item, profile=prof)   # its ValueError is an --item or --date it can't take
         except ValueError as e:
-            print(f"sweatcast content: {e}", file=sys.stderr)
+            print(f"harmonicfitness content: {e}", file=sys.stderr)
             return cli.USAGE
         print(f"Recorded {len(new)} item(s) in {paths.show(paths.TOLD)}.")
     else:

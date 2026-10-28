@@ -1,4 +1,4 @@
-# The filler plan: what a session's rests carry besides the coaching. `./sweatcast content plan` reads
+# The filler plan: what a session's rests carry besides the coaching. `./harmonicfitness content plan` reads
 # this through tools/content.py; the workout skill's research and script follow what it prints.
 #
 # A slot is one kind of filler. `words` is a rough size for one item of it, at about 175 words a

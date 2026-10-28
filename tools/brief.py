@@ -7,12 +7,12 @@ limits with the clinician's rules and the catalog's limit cues, the safe menu (e
 level and limits allow, with its coaching notes), the programming guide for the goal and level, and
 the kit's equipment notes. It plans nothing.
 
-    ./sweatcast brief --goal strength --minutes 30 --kit home
-    ./sweatcast brief --goal general --minutes 25 --preset hotel-gym --limit knee=delicate:left \\
+    ./harmonicfitness brief --goal strength --minutes 30 --kit home
+    ./harmonicfitness brief --goal general --minutes 25 --preset hotel-gym --limit knee=delicate:left \\
         --save me/workouts/2026-10-22-general-25/2026-10-22-general-25.draft.txt
 
 With --save <draft path> it also writes the brief (`<stem>.brief.md`) and the menu (`<stem>.menu.json`)
-beside the draft; `./sweatcast build` checks the draft's movements against that menu and won't build
+beside the draft; `./harmonicfitness build` checks the draft's movements against that menu and won't build
 without it. The safety screen (tools/screen.py) applies the limits, clinician Avoid: lines, dislikes
 and level, and refuses when a [[limits]] row can't be read.
 """
@@ -380,7 +380,7 @@ def _budget_line(voice_name: Optional[str]) -> List[str]:
     return [f"- Talk to time: {voice_name} speaks about {wpm:.0f} words a minute"
             f"{'' if exact else ' (estimated; not measured on this computer yet)'}, so twenty seconds of talk "
             f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds; "
-            "`./sweatcast build <draft> <name> --lint-only` gives each segment's exact guide."]
+            "`./harmonicfitness build <draft> <name> --lint-only` gives each segment's exact guide."]
 
 
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
@@ -419,7 +419,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     out += ["", "## Today's limits"] + _limit_lines(cat, scr, health, request)
     out += ["", "## Safe menu",
             f"Every movement in the script comes from this list, warm-up and cool-down included: {count} today "
-            f"({len(scr.sel.left_out)} left out: {left or 'none'}). Nothing from memory. `./sweatcast build` "
+            f"({len(scr.sel.left_out)} left out: {left or 'none'}). Nothing from memory. `./harmonicfitness build` "
             "checks the draft's `movements:` line and its text against it."]
     if scr.sel.allowed or scr.sel.healthy_side_only:
         out += menu_lines(cat, scr, sides, scr.likes, last_ids)
@@ -456,7 +456,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast brief", description=(
+    ap = cli.ArgumentParser(prog="harmonicfitness brief", description=(
         "Today's ingredients for designing and writing a session: the listener, the week, the limits, the "
         "safe menu with coaching notes, the programming guide and the equipment notes."))
     ap.add_argument("--goal", required=True, help="strength, general, targeted, conditioning, mobility or skill")
@@ -502,7 +502,7 @@ def main(argv=None):
 
 
 def _usage(e):
-    return cli.Usage(f"sweatcast brief: {e}")
+    return cli.Usage(f"harmonicfitness brief: {e}")
 
 
 def request_from(args, cat, sess, profile):

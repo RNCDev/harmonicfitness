@@ -4,9 +4,9 @@ Claude Code on the web has no folder that syncs to a phone, so a build there mak
 mono, 48 kbps (about 360 KB a minute), in parts of at most 14 MB (about 38 minutes
 each), named <name>.web-1.mp3, <name>.web-2.mp3, ..., and <name>.player.html, a page with one player
 that plays the parts in order and a download link for each. The workout skill publishes the page as a
-private artifact, with the parts beside it, and ./sweatcast backup commits the parts to the private repo.
+private artifact, with the parts beside it, and ./harmonicfitness backup commits the parts to the private repo.
 
-    ./sweatcast build <draft> "<name>" --web     # anywhere; on by default in a Claude Code cloud session
+    ./harmonicfitness build <draft> "<name>" --web     # anywhere; on by default in a Claude Code cloud session
 """
 import glob
 import html

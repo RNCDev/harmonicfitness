@@ -219,9 +219,9 @@ class Admin(DBCase):
         import io
         from contextlib import redirect_stderr, redirect_stdout
         from webapp import admin
-        env = {"DATABASE_URL": url or URL_FOR(self), "WT_BASE_URL": "https://wt.test",
-               "WT_MASTER_KEY": __import__("base64").b64encode(MASTER).decode(),
-               "WT_ENGINE_ROOT": ROOT}
+        env = {"DATABASE_URL": url or URL_FOR(self), "HARMONICFITNESS_BASE_URL": "https://wt.test",
+               "HARMONICFITNESS_MASTER_KEY": __import__("base64").b64encode(MASTER).decode(),
+               "HARMONICFITNESS_ENGINE_ROOT": ROOT}
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             code = admin.main(list(argv), env)
@@ -280,7 +280,7 @@ class Migration004(unittest.TestCase):
     def test_usernames_from_emails(self):
         import uuid
         if not dbcase.URL:
-            self.skipTest("WT_TEST_DATABASE_URL is not set")
+            self.skipTest("HARMONICFITNESS_TEST_DATABASE_URL is not set")
         name = "t_" + uuid.uuid4().hex[:12]
         admin_conn = db.connect(dbcase.URL)
         admin_conn.autocommit = True

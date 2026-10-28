@@ -1,15 +1,15 @@
 #!/bin/sh
 # The readiness check: what this computer is, what's installed, and which audio routes work here.
-# Runs before the Python environment exists, so it's a shell script. Run it as ./sweatcast doctor.
+# Runs before the Python environment exists, so it's a shell script. Run it as ./harmonicfitness doctor.
 #
-#   ./sweatcast doctor            # the report, in plain lines
+#   ./harmonicfitness doctor            # the report, in plain lines
 #   sh tools/doctor.sh --facts    # key=value lines only (tools/doctor.py and the tests read these)
 #   sh tools/doctor.sh --short    # the computer, prerequisites and local audio only (setup prints this)
 #
 # The floors below are cautious guesses, not measurements: under them, local voices aren't offered.
 #
-# Test-only: SWEATCAST_FAKE_OS (uname -s), SWEATCAST_FAKE_ARCH (uname -m), SWEATCAST_FAKE_GPU
-# ("<NVIDIA name>, <GB>", empty for none), SWEATCAST_FAKE_MEM_GB and SWEATCAST_FAKE_DISK_GB stand in
+# Test-only: HARMONICFITNESS_FAKE_OS (uname -s), HARMONICFITNESS_FAKE_ARCH (uname -m), HARMONICFITNESS_FAKE_GPU
+# ("<NVIDIA name>, <GB>", empty for none), HARMONICFITNESS_FAKE_MEM_GB and HARMONICFITNESS_FAKE_DISK_GB stand in
 # for what the computer reports, so the verdicts can be tested on any machine.
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
@@ -18,8 +18,8 @@ MEM_FLOOR=8    # GB of memory for a local voice model (a guess: the models need 
 DISK_FLOOR=6   # GB free for the local engine, its model and the take checker (about 1 to 3 GB of PyTorch, 0.6 GB of model, 2.5 GB of checker)
 
 # ---- what the computer is ----------------------------------------------------------------
-UNAME_S="${SWEATCAST_FAKE_OS-$(uname -s 2>/dev/null)}"
-UNAME_M="${SWEATCAST_FAKE_ARCH-$(uname -m 2>/dev/null)}"
+UNAME_S="${HARMONICFITNESS_FAKE_OS-$(uname -s 2>/dev/null)}"
+UNAME_M="${HARMONICFITNESS_FAKE_ARCH-$(uname -m 2>/dev/null)}"
 case "$UNAME_S" in
   Darwin) OS=mac ;;
   Linux) OS=linux ;;
@@ -27,7 +27,7 @@ case "$UNAME_S" in
   *) OS=other ;;
 esac
 # A Mac's shell running under Rosetta reports x86_64 on Apple Silicon; the hardware says otherwise.
-if [ "$OS" = mac ] && [ -z "${SWEATCAST_FAKE_ARCH+x}" ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ]; then
+if [ "$OS" = mac ] && [ -z "${HARMONICFITNESS_FAKE_ARCH+x}" ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ]; then
   UNAME_M=arm64
 fi
 case "$UNAME_M" in
@@ -45,7 +45,7 @@ chip() {
 }
 
 mem_gb() {
-  if [ -n "${SWEATCAST_FAKE_MEM_GB+x}" ]; then echo "$SWEATCAST_FAKE_MEM_GB"; return; fi
+  if [ -n "${HARMONICFITNESS_FAKE_MEM_GB+x}" ]; then echo "$HARMONICFITNESS_FAKE_MEM_GB"; return; fi
   case "$OS" in
     mac) sysctl -n hw.memsize 2>/dev/null | awk '{printf "%d\n", $1 / 1073741824 + 0.5}' ;;
     linux) awk '/^MemTotal:/ {printf "%d\n", $2 / 1048576 + 0.5}' /proc/meminfo 2>/dev/null ;;
@@ -55,12 +55,12 @@ mem_gb() {
 }
 
 disk_gb() {
-  if [ -n "${SWEATCAST_FAKE_DISK_GB+x}" ]; then echo "$SWEATCAST_FAKE_DISK_GB"; return; fi
+  if [ -n "${HARMONICFITNESS_FAKE_DISK_GB+x}" ]; then echo "$HARMONICFITNESS_FAKE_DISK_GB"; return; fi
   df -Pk "$ROOT" 2>/dev/null | awk 'NR == 2 {printf "%d\n", $4 / 1048576}'
 }
 
 gpu() {   # "<name>, <GB>" for the first NVIDIA card, or nothing
-  if [ -n "${SWEATCAST_FAKE_GPU+x}" ]; then echo "$SWEATCAST_FAKE_GPU"; return; fi
+  if [ -n "${HARMONICFITNESS_FAKE_GPU+x}" ]; then echo "$HARMONICFITNESS_FAKE_GPU"; return; fi
   command -v nvidia-smi >/dev/null 2>&1 || return 0
   nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d '\r' \
     | awk -F', *' 'NF >= 2 {printf "%s, %d\n", $1, $2 / 1024 + 0.5}'
@@ -141,7 +141,7 @@ case "$OS" in mac) SYSTEM="macOS" ;; linux) SYSTEM="Linux" ;; windows) SYSTEM="W
 UV_INSTALL="$(uv_install_for "$OS")"
 
 if [ "$REMOTE" = yes ]; then
-  echo "This is Claude Code on the web: sweatcast runs here with a cloud voice (your own key), not a local one."
+  echo "This is Claude Code on the web: HarmonicFitness runs here with a cloud voice (your own key), not a local one."
   echo
 fi
 echo "This computer"
@@ -149,27 +149,27 @@ echo "  System:   $SYSTEM, $ARCH${CHIP:+ ($CHIP)}"
 if [ "$OS" = mac ] && [ "$ARCH" = arm64 ]; then echo "  Graphics: built into the Apple Silicon chip"
 else echo "  Graphics: ${GPU_NAME:-no NVIDIA card found}${GPU_MEM:+, $GPU_MEM GB}"; fi
 echo "  Memory:   ${MEM:-unknown} GB"
-echo "  Free disk: ${DISK:-unknown} GB where sweatcast is"
+echo "  Free disk: ${DISK:-unknown} GB where HarmonicFitness is"
 case "$ROOT" in   # gigabytes of models and the environment would sync to every device
   *"Mobile Documents"*|*CloudStorage*|*Dropbox*|*"Google Drive"*|*OneDrive*)
-    echo "  Warning: sweatcast is inside a synced folder ($ROOT). Its models and Python environment"
-    echo "  (several GB) would sync too; a folder outside it is better, or set SWEATCAST_MODELS." ;;
+    echo "  Warning: HarmonicFitness is inside a synced folder ($ROOT). Its models and Python environment"
+    echo "  (several GB) would sync too; a folder outside it is better, or set HARMONICFITNESS_MODELS." ;;
 esac
 echo
 echo "Prerequisites"
 if [ -n "$UV" ]; then echo "  uv:     $UV"; else
-  echo "  uv:     missing. It installs without admin rights: ./sweatcast setup --install-uv"
+  echo "  uv:     missing. It installs without admin rights: ./harmonicfitness setup --install-uv"
   echo "          (which runs Astral's official installer: $UV_INSTALL)"
 fi
 if [ -n "$GIT" ]; then
   [ "$INGIT" = yes ] && echo "  git:    $GIT" || echo "  git:    $GIT (this folder isn't a git checkout, so the privacy hook is skipped)"
 else
-  echo "  git:    missing; only the privacy hook and ./sweatcast backup need it"
+  echo "  git:    missing; only the privacy hook and ./harmonicfitness backup need it"
 fi
 if [ -n "$FFMPEG" ]; then echo "  ffmpeg: $FFMPEG"; else
   echo "  ffmpeg: not installed; the Python environment brings its own"
 fi
-[ "$VENV" = yes ] && echo "  Python environment: ready" || echo "  Python environment: not made yet (./sweatcast setup makes it)"
+[ "$VENV" = yes ] && echo "  Python environment: ready" || echo "  Python environment: not made yet (./harmonicfitness setup makes it)"
 echo
 echo "Audio here"
 case "$LOCAL" in
@@ -182,5 +182,5 @@ echo
 if [ "$VENV" = yes ]; then
   cd "$ROOT" && "$PY" "$ROOT/tools/doctor.py"
 else
-  echo "The rest is checked once ./sweatcast setup has made the environment."
+  echo "The rest is checked once ./harmonicfitness setup has made the environment."
 fi

@@ -5,7 +5,7 @@ the voice models on disk, the context folder, the delivery folders and ffmpeg's 
 Other tools read the computer's facts through machine.facts(), so the shell script stays the one
 place that decides what this computer can do.
 
-    ./sweatcast doctor        # runs doctor.sh, which runs this once the environment exists
+    ./harmonicfitness doctor        # runs doctor.sh, which runs this once the environment exists
 """
 import glob
 import os
@@ -38,11 +38,11 @@ def _context_lines(home):
     import store
     profile = os.path.join(home, "profile.md")
     if not os.path.exists(profile):
-        return [f"  {paths.show(home)}: not made yet (./sweatcast setup copies it from me.example/)"]
+        return [f"  {paths.show(home)}: not made yet (./harmonicfitness setup copies it from me.example/)"]
     with open(profile, encoding="utf-8") as f:
         found = store.schema_of(f.read())
     lines = [f"  {paths.show(home)}: there, schema {found}"
-             + ("" if found == store.SCHEMA else f" (this engine reads {store.SCHEMA}: ./sweatcast migrate)")]
+             + ("" if found == store.SCHEMA else f" (this engine reads {store.SCHEMA}: ./harmonicfitness migrate)")]
     if found != store.SCHEMA:
         return lines
     p = context.profile(profile)
@@ -59,7 +59,7 @@ def _ffmpeg_lines():
     import ffmpeg
     exe = ffmpeg.exe()
     if not exe:
-        return ["  ffmpeg: not found, and the environment's own copy isn't installed: rerun ./sweatcast setup, "
+        return ["  ffmpeg: not found, and the environment's own copy isn't installed: rerun ./harmonicfitness setup, "
                 f"or install it ({ffmpeg.install_hint()})"]
     mp3, loud = ffmpeg.capable(exe)
     where = "bundled with the environment" if ffmpeg.bundled(exe) else exe
@@ -79,14 +79,14 @@ def _models_section():
         waiting = models.adopt(dry_run=True)
         if waiting:
             out.append(f"  Also in {paths.OLD_HF_HUB_CACHE}: {', '.join(r for r, _ in waiting)}. "
-                       "./sweatcast models adopt moves them here instead of downloading again.")
+                       "./harmonicfitness models adopt moves them here instead of downloading again.")
     except Exception as e:   # a broken voice file shouldn't hide the rest of the report
         out.append(f"  couldn't list them: {e}")
     return out
 
 
 def kept(home):
-    """True when the context folder is its own git repo with a remote, so ./sweatcast backup keeps it."""
+    """True when the context folder is its own git repo with a remote, so ./harmonicfitness backup keeps it."""
     import backup
     return backup.own_repo(home) and bool(backup.git(home, "remote").stdout.split())
 
@@ -113,11 +113,11 @@ def web_lines(home, profile=None):
         lines.append("  No web coach yet (a local coach can't speak here). The way out: "
                      + routes.way_out(os.path.join(home, "coaches")))
     if kept(home):
-        lines.append(f"  Your context folder: {paths.show(home)}, its own private repo, so ./sweatcast backup keeps it.")
+        lines.append(f"  Your context folder: {paths.show(home)}, its own private repo, so ./harmonicfitness backup keeps it.")
     else:
         lines.append(f"  Your context folder: {paths.show(home)}, not kept: this is a one-time session, and the "
-                     "profile, log and coach vanish when it ends. To keep them, attach your private sweatcast-me repo "
-                     "to the session (or set SWEATCAST_HOME to where it's cloned).")
+                     "profile, log and coach vanish when it ends. To keep them, attach your private harmonicfitness-me repo "
+                     "to the session (or set HARMONICFITNESS_HOME to where it's cloned).")
     return lines
 
 
@@ -137,7 +137,7 @@ def report_lines(f=None, home=None):
     else:
         try:
             out = _models_section()
-        except errors.PROBLEMS as e:   # a coach file this engine can't read yet (./sweatcast migrate)
+        except errors.PROBLEMS as e:   # a coach file this engine can't read yet (./harmonicfitness migrate)
             out = [f"Voice models (in {paths.show(paths.MODELS)})", f"  {e}"]
     out += ["", "Your context folder"]
     try:

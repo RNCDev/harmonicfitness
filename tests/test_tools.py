@@ -1,7 +1,7 @@
 """Fast checks for the text, timing, log and feed logic. No models, no audio rendering,
 no network. Python 3.11 or later (the project's environment).
 
-    ./sweatcast test        # or, in CI: python -m unittest discover tests
+    ./harmonicfitness test        # or, in CI: python -m unittest discover tests
 """
 import contextlib
 import datetime as dt
@@ -44,7 +44,7 @@ import paths  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import helpers  # noqa: E402
 import errors  # noqa: E402
-helpers.assert_isolated(paths.HOME)   # never over a real me/: ./sweatcast test points SWEATCAST_HOME elsewhere
+helpers.assert_isolated(paths.HOME)   # never over a real me/: ./harmonicfitness test points HARMONICFITNESS_HOME elsewhere
 import records  # noqa: E402
 import render  # noqa: E402
 import tts_build  # noqa: E402
@@ -477,8 +477,8 @@ class FreshFork(unittest.TestCase):
     """A new copy of the repo, with only me.example/ copied: the tools run on it."""
 
     def run_tool(self, home, *args):
-        env = dict(os.environ, SWEATCAST_HOME=home, SWEATCAST_PYTHON=sys.executable, SWEATCAST_FAKE_LOCAL_ENGINE="1")
-        return subprocess.run(["sh", "sweatcast", *args], cwd=ROOT, env=env,
+        env = dict(os.environ, HARMONICFITNESS_HOME=home, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_FAKE_LOCAL_ENGINE="1")
+        return subprocess.run(["sh", "harmonicfitness", *args], cwd=ROOT, env=env,
                               capture_output=True, text=True, timeout=60)
 
     def test_example_context_works(self):
@@ -534,7 +534,7 @@ class FreshFork(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             out = self.run_tool(os.path.join(d, "nowhere"), "coverage")
             self.assertNotEqual(out.returncode, 0)
-            self.assertIn("./sweatcast setup", out.stderr)
+            self.assertIn("./harmonicfitness setup", out.stderr)
 
     def test_nothing_personal_is_tracked(self):
         if not os.path.isdir(os.path.join(ROOT, ".git")):
@@ -765,7 +765,7 @@ def run(args, home=None, cwd=ROOT, env=None, stdin=None):
     """Run a command with the context folder at `home`; returns CompletedProcess."""
     e = dict(os.environ, **(env or {}))
     if home:
-        e["SWEATCAST_HOME"] = home
+        e["HARMONICFITNESS_HOME"] = home
     return subprocess.run(args, cwd=cwd, env=e, capture_output=True, text=True, input=stdin, timeout=120)
 
 
@@ -792,7 +792,7 @@ class ExitCodes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
             out = run([sys.executable, "tools/coaches.py", "measured", "Coach Julius", "--engine", "local"], home=home,
-                      env={"SWEATCAST_FAKE_LOCAL_ENGINE": "1"})
+                      env={"HARMONICFITNESS_FAKE_LOCAL_ENGINE": "1"})
             self.assertEqual(out.returncode, cli.ISSUES, out.stderr)   # estimated: nothing measured in a fresh copy
             out = run([sys.executable, "tools/coaches.py", "measured", "Coach Reed"], home=home,
                       env={"FISH_AUDIO_API_KEY": ""})
@@ -826,7 +826,7 @@ class InProcessBuild(unittest.TestCase):
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(helpers.home(self.home))
-        self.stack.enter_context(mock.patch.dict(os.environ, {"SWEATCAST_FAKE_LOCAL_ENGINE": "1"}))
+        self.stack.enter_context(mock.patch.dict(os.environ, {"HARMONICFITNESS_FAKE_LOCAL_ENGINE": "1"}))
         self.stack.enter_context(mock.patch.object(render, "run", side_effect=self.fake_run))
         self.stack.enter_context(mock.patch.object(render, "follow", side_effect=self.fake_follow))
         self.lint_patch = mock.patch.object(tts_build, "lint", side_effect=self.fake_lint)
@@ -1081,7 +1081,7 @@ class InProcessBuild(unittest.TestCase):
 
     def test_pending_default_is_made_once(self):
         fake = self.add_pending_coach()
-        env = {"SWEATCAST_FISH_URL": fake.url, "SWEATCAST_RETRY_WAIT": "0"}
+        env = {"HARMONICFITNESS_FISH_URL": fake.url, "HARMONICFITNESS_RETRY_WAIT": "0"}
         self.assertEqual(self.web_build(**env), 0, self.said())
         self.assertIn("Coach Reed is made the first time it's used", self.said())
         self.assertEqual(self.web_build(**env), 0, self.said())
@@ -1102,8 +1102,8 @@ class InProcessBuild(unittest.TestCase):
         fake.__enter__()
         self.addCleanup(fake.__exit__)
         env = {"INWORLD_API_KEY": "test-key", "FISH_AUDIO_API_KEY": "", "ELEVENLABS_API_KEY": "",
-               "GEMINI_API_KEY": "", "SWEATCAST_INWORLD_URL": fake.url, "SWEATCAST_RETRY_WAIT": "0",
-               "SWEATCAST_FAKE_LOCAL_ENGINE": "0"}
+               "GEMINI_API_KEY": "", "HARMONICFITNESS_INWORLD_URL": fake.url, "HARMONICFITNESS_RETRY_WAIT": "0",
+               "HARMONICFITNESS_FAKE_LOCAL_ENGINE": "0"}
         with mock.patch.dict(os.environ, env):
             for _ in range(2):
                 self.assertEqual(self.build(estimated_ok=False), 0, self.said())
@@ -1119,12 +1119,12 @@ class InProcessBuild(unittest.TestCase):
     def test_a_failed_make_stops_the_build(self):
         fake = self.add_pending_coach()
         fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
-        self.assertEqual(self.web_build(SWEATCAST_FISH_URL=fake.url, SWEATCAST_RETRY_WAIT="0"), cli.SERVICE, self.said())
+        self.assertEqual(self.web_build(HARMONICFITNESS_FISH_URL=fake.url, HARMONICFITNESS_RETRY_WAIT="0"), cli.SERVICE, self.said())
         self.assertEqual((len(self.lints), self.runs), (1, []))   # linted first, at the estimated pace
 
     def test_a_pending_coach_is_never_made_for_a_draft_that_fails(self):
         fake = self.add_pending_coach()
-        env = {"SWEATCAST_FISH_URL": fake.url, "SWEATCAST_RETRY_WAIT": "0"}
+        env = {"HARMONICFITNESS_FISH_URL": fake.url, "HARMONICFITNESS_RETRY_WAIT": "0"}
         self.write_menu(self.draft, today="2026-10-20")   # a stale menu: the gate stops it
         self.assertEqual(self.web_build(**env), cli.ISSUES, self.said())
         self.real_lint()
@@ -1153,7 +1153,7 @@ class InProcessBuild(unittest.TestCase):
 
     def test_lint_only_never_makes_a_coach(self):
         fake = self.add_pending_coach()
-        self.assertEqual(self.web_build("--lint-only", SWEATCAST_FISH_URL=fake.url), 0, self.said())
+        self.assertEqual(self.web_build("--lint-only", HARMONICFITNESS_FISH_URL=fake.url), 0, self.said())
         self.assertEqual(fake.requests, [])
         self.assertEqual((len(self.lints), self.runs), (1, []))
 
@@ -1183,7 +1183,7 @@ class InProcessBuild(unittest.TestCase):
         with open(prof, encoding="utf-8") as f:
             write_file(prof, frontmatter.body(f.read()))
         self.assertNotEqual(self.build(), 0)
-        self.assertIn("./sweatcast migrate", self.said())
+        self.assertIn("./harmonicfitness migrate", self.said())
 
 
 class RenderGates(unittest.TestCase):
@@ -1196,7 +1196,7 @@ class RenderGates(unittest.TestCase):
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(helpers.home(self.home))
-        self.stack.enter_context(mock.patch.dict(os.environ, {"SWEATCAST_FAKE_LOCAL_ENGINE": "1"}))
+        self.stack.enter_context(mock.patch.dict(os.environ, {"HARMONICFITNESS_FAKE_LOCAL_ENGINE": "1"}))
         self.stack.enter_context(mock.patch.object(engines, "speaker", side_effect=AssertionError("nothing may render")))
         self.draft = os.path.join(self.tmp.name, "x.draft.txt")
         shutil.copy(os.path.join(ROOT, "tests", "fixtures", "example.draft.txt"), self.draft)
@@ -1603,7 +1603,7 @@ value = "x\""""
         write_file(self.profile, self.PROSE)
         with self.assertRaises(errors.PROBLEMS) as e:
             context.profile(self.profile)
-        self.assertIn("./sweatcast migrate", str(e.exception.code))
+        self.assertIn("./harmonicfitness migrate", str(e.exception.code))
         write_file(self.profile, f"+++\nschema = {store.SCHEMA + 1}\n+++\n" + self.PROSE)
         with self.assertRaises(errors.PROBLEMS) as e:
             context.profile(self.profile)
@@ -1777,7 +1777,7 @@ note = "Therapist: no weight through the hand."
 
 
 class MigrateFrom4(unittest.TestCase):
-    """Schema 4 (sweatcast 0.9.x) folders migrate to the current schema in one run; the example is current."""
+    """Schema 4 (HarmonicFitness 0.9.x) folders migrate to the current schema in one run; the example is current."""
 
     HEALTH4 = ('+++\nschema = 4\n[[limits]]\narea = "wrist"\nside = "right"\nlevel = "off-limits"\n+++\n# Health\n\n'
                "## Active injuries and limitations\n- Right wrist: invented strain.\n")
@@ -1821,32 +1821,32 @@ class MigrateFrom4(unittest.TestCase):
 
 
 class Wrapper(unittest.TestCase):
-    """./sweatcast, the one command."""
+    """./harmonicfitness, the one command."""
 
-    def sweatcast(self, *args, home=None):
-        return run(["sh", "sweatcast", *args], home=home, env={"SWEATCAST_PYTHON": sys.executable})
+    def harmonicfitness(self, *args, home=None):
+        return run(["sh", "harmonicfitness", *args], home=home, env={"HARMONICFITNESS_PYTHON": sys.executable})
 
     def test_help_and_unknown_commands(self):
-        out = self.sweatcast("help")
+        out = self.harmonicfitness("help")
         self.assertEqual(out.returncode, 0)
         for cmd in ("build", "coaches", "check", "log-session", "migrate"):
             self.assertIn(cmd, out.stdout)
-        self.assertEqual(self.sweatcast("nonsense").returncode, cli.USAGE)
+        self.assertEqual(self.harmonicfitness("nonsense").returncode, cli.USAGE)
 
     def test_subcommands_reach_their_tools(self):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
-            self.assertEqual(self.sweatcast("get", "routes", home=home).stdout.strip(), "local")
-            out = self.sweatcast("voices", "measured", "Nobody", home=home)
+            self.assertEqual(self.harmonicfitness("get", "routes", home=home).stdout.strip(), "local")
+            out = self.harmonicfitness("voices", "measured", "Nobody", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
-            out = self.sweatcast("build", "--bogus", home=home)
+            out = self.harmonicfitness("build", "--bogus", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
-            self.assertIn("sweatcast build", out.stderr)               # usage names the command
-            for gone, instead in (("lint", "--lint-only"), ("render", "./sweatcast build")):
-                out = self.sweatcast(gone, "x.draft.txt", home=home)   # a retired command names its replacement
+            self.assertIn("harmonicfitness build", out.stderr)               # usage names the command
+            for gone, instead in (("lint", "--lint-only"), ("render", "./harmonicfitness build")):
+                out = self.harmonicfitness(gone, "x.draft.txt", home=home)   # a retired command names its replacement
                 self.assertEqual(out.returncode, cli.USAGE)
                 self.assertIn(instead, out.stderr)
-            out = self.sweatcast("log-session", "--minutes", "10", "--kit", "Home", "--coach", "Coach Andy",
+            out = self.harmonicfitness("log-session", "--minutes", "10", "--kit", "Home", "--coach", "Coach Andy",
                                  "--movements", "squat", "--topics", "t", home=home)
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertEqual(len(sessionlog.sessions(os.path.join(home, "log.md"))), 1)
@@ -1854,8 +1854,8 @@ class Wrapper(unittest.TestCase):
     def test_show_opens_a_files_folder(self):
         import player
         from unittest import mock
-        self.assertEqual(self.sweatcast("show", "/no/such/workout.mp3").returncode, cli.ISSUES)
-        self.assertEqual(self.sweatcast("show").returncode, cli.USAGE)
+        self.assertEqual(self.harmonicfitness("show", "/no/such/workout.mp3").returncode, cli.ISSUES)
+        self.assertEqual(self.harmonicfitness("show").returncode, cli.USAGE)
         with tempfile.NamedTemporaryFile(suffix=".mp3") as f, \
                 mock.patch.object(player.sys, "platform", "darwin"), \
                 mock.patch.object(player.shutil, "which", return_value="/usr/bin/open"), \
@@ -1865,9 +1865,9 @@ class Wrapper(unittest.TestCase):
             call.assert_called_once_with(["/usr/bin/open", "-R", os.path.abspath(f.name)])
 
     def test_without_an_environment_it_says_run_setup(self):
-        out = run(["sh", "sweatcast", "check"], env={"SWEATCAST_PYTHON": "/nonexistent/python"})
+        out = run(["sh", "harmonicfitness", "check"], env={"HARMONICFITNESS_PYTHON": "/nonexistent/python"})
         self.assertEqual(out.returncode, 1)
-        self.assertIn("./sweatcast setup", out.stderr)
+        self.assertIn("./harmonicfitness setup", out.stderr)
 
 
 class CachePrune(unittest.TestCase):
@@ -2017,10 +2017,10 @@ class TorchDevice(unittest.TestCase):
             self.assertEqual(engines.runtime(dict(v, device="cpu")), "pocket-tts 4.0.1 english_2026-10 torch 2.6.0 cpu")
 
     def test_device_choice(self):
-        with mock.patch.dict(os.environ, {"SWEATCAST_DEVICE": "cpu"}):
+        with mock.patch.dict(os.environ, {"HARMONICFITNESS_DEVICE": "cpu"}):
             self.assertEqual(engines.torch_device(cuda_available=True), "cpu")
         with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SWEATCAST_DEVICE", None)
+            os.environ.pop("HARMONICFITNESS_DEVICE", None)
             self.assertEqual(engines.torch_device(cuda_available=True), "cuda")
             self.assertEqual(engines.torch_device(cuda_available=False), "cpu")
 
@@ -2110,18 +2110,18 @@ class FeedLimits(unittest.TestCase):
 
 
 class Isolation(unittest.TestCase):
-    """The tests never touch the real me/: ./sweatcast test points SWEATCAST_HOME elsewhere, test_tools
+    """The tests never touch the real me/: ./harmonicfitness test points HARMONICFITNESS_HOME elsewhere, test_tools
     refuses to import over a real context folder, and helpers.home() redirects every path at once."""
 
     def test_the_test_command_points_home_at_an_absent_folder(self):
-        import sweatcast
-        env = sweatcast.test_env({"PATH": "/usr/bin"})
-        home = env["SWEATCAST_HOME"]
+        import harmonicfitness
+        env = harmonicfitness.test_env({"PATH": "/usr/bin"})
+        home = env["HARMONICFITNESS_HOME"]
         self.assertFalse(os.path.exists(home), home)                 # absent, as in CI, where there's no me/
         self.assertTrue(os.path.isdir(os.path.dirname(home)), home)  # inside a folder that exists
         self.assertEqual(env["PATH"], "/usr/bin")
-        kept = sweatcast.test_env({"SWEATCAST_HOME": "/elsewhere/me"})
-        self.assertEqual(kept["SWEATCAST_HOME"], "/elsewhere/me")   # an explicit home is respected
+        kept = harmonicfitness.test_env({"HARMONICFITNESS_HOME": "/elsewhere/me"})
+        self.assertEqual(kept["HARMONICFITNESS_HOME"], "/elsewhere/me")   # an explicit home is respected
 
     def test_the_guard_refuses_a_real_context_folder(self):
         import helpers
@@ -2131,7 +2131,7 @@ class Isolation(unittest.TestCase):
             write_file(os.path.join(d, "profile.md"), "+++\nschema = 6\n+++\n")
             with self.assertRaises(SystemExit) as got:   # the tests' own guard: it stops the run
                 helpers.assert_isolated(d)
-            self.assertIn("./sweatcast test", str(got.exception))
+            self.assertIn("./harmonicfitness test", str(got.exception))
 
     def test_helpers_home_redirects_every_path_and_restores(self):
         import helpers
@@ -2367,7 +2367,7 @@ class ContextRobustness(unittest.TestCase):
 class AtomicWrite(unittest.TestCase):
     def test_writes_text_and_bytes_leaving_no_part_file(self):
         import fileio
-        import sweatcast
+        import harmonicfitness
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "sub", "x.json")
             fileio.atomic_write(p, '{"a": 1}\n')   # makes the folder
@@ -2377,7 +2377,7 @@ class AtomicWrite(unittest.TestCase):
             with open(p, "rb") as f:
                 self.assertEqual(f.read(), b"\x00\x01")
             self.assertEqual(os.listdir(os.path.dirname(p)), ["x.json"])
-        self.assertEqual(sweatcast.COMMANDS["check"][0], "check")   # ./sweatcast check runs tools/check.py
+        self.assertEqual(harmonicfitness.COMMANDS["check"][0], "check")   # ./harmonicfitness check runs tools/check.py
 
 
 class Dedupe(unittest.TestCase):
@@ -2416,12 +2416,12 @@ class Dedupe(unittest.TestCase):
             self.assertIsNone(personas.find("Nobody", pool))
 
     def test_the_dispatcher_points_setup_and_doctor_at_the_shell(self):
-        import sweatcast
+        import harmonicfitness
         for cmd in ("setup", "doctor"):
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
-                self.assertEqual(sweatcast.main([cmd]), cli.USAGE)
-            self.assertIn(f"./sweatcast {cmd}", err.getvalue())
+                self.assertEqual(harmonicfitness.main([cmd]), cli.USAGE)
+            self.assertIn(f"./harmonicfitness {cmd}", err.getvalue())
 
     def test_research_paths_follow_the_home_at_call_time(self):
         with tempfile.TemporaryDirectory() as d, helpers.home(d):
@@ -2447,7 +2447,7 @@ class Dedupe(unittest.TestCase):
         common = read(os.path.join("tools", "common.sh"))
         for fn in ("find_uv", "venv_python", "in_git", "uv_install_for"):
             self.assertIn(f"{fn}()", common, fn)
-        for script in ("sweatcast", os.path.join("tools", "setup.sh"), os.path.join("tools", "doctor.sh")):
+        for script in ("harmonicfitness", os.path.join("tools", "setup.sh"), os.path.join("tools", "doctor.sh")):
             text = read(script)
             self.assertIn("common.sh", text, script)
             self.assertNotIn("find_uv()", text, script)
@@ -2468,8 +2468,8 @@ class Dedupe(unittest.TestCase):
 
 
 class LegacyGone(unittest.TestCase):
-    """0.13.0 migrates from context schema 4 (sweatcast 0.9.x) and persona schema 4 (0.10.0); older folders go
-    through sweatcast 0.12 first. The old names (--voice, voices, get default-voice, ## Narrator) are gone, and
+    """0.13.0 migrates from context schema 4 (HarmonicFitness 0.9.x) and persona schema 4 (0.10.0); older folders go
+    through HarmonicFitness 0.12 first. The old names (--voice, voices, get default-voice, ## Narrator) are gone, and
     the folder steps after the file steps run again on a rerun until they're done."""
 
     def test_the_floor_is_schema_4_and_says_where_to_go(self):
@@ -2486,15 +2486,15 @@ class LegacyGone(unittest.TestCase):
 
     def test_the_old_names_are_gone(self):
         import brief
-        import sweatcast
+        import harmonicfitness
         for name in ("voices", "default_voice", "legacy_settings", "legacy_body", "YAML_FRONT_RE"):
             self.assertFalse(hasattr(context, name), name)
         self.assertNotIn("voices", context.SETTINGS_COMMENTS)
-        self.assertNotIn("voices", sweatcast.COMMANDS)
+        self.assertNotIn("voices", harmonicfitness.COMMANDS)
         self.assertFalse(hasattr(paths, "OLD_VOICES"))
         self.assertFalse(hasattr(paths, "OLD_PANTRY"))
         for gone in ("lint", "render"):
-            self.assertNotIn(gone, sweatcast.COMMANDS)
+            self.assertNotIn(gone, harmonicfitness.COMMANDS)
         self.assertNotIn("Narrator", brief.PROFILE_SECTIONS)
         with open(os.path.join(paths.EXAMPLE, "profile.md"), encoding="utf-8") as f:
             self.assertNotIn("Narrator", f.read())
@@ -2543,11 +2543,11 @@ class SkillsAndTemplate(unittest.TestCase):
 
     def test_the_workout_skill_names_the_coach_and_the_add_flag(self):
         skill = self.read(os.path.join(".claude", "skills", "workout", "SKILL.md"))
-        brief_line = next(line for line in skill.splitlines() if line.startswith("./sweatcast brief "))
+        brief_line = next(line for line in skill.splitlines() if line.startswith("./harmonicfitness brief "))
         self.assertIn('--coach "<coach>"', brief_line)
         self.assertIn("--add", skill)
         for line in skill.splitlines():
-            if "--lint-only" in line and "./sweatcast build" in line:
+            if "--lint-only" in line and "./harmonicfitness build" in line:
                 self.assertIn("--coach", line)
         self.assertIn("exits 64", skill.split("## 7.")[1])         # a malformed --item
         self.assertIn("another day", skill.split("## 6.")[1])      # a stale menu stops the build
@@ -2639,7 +2639,7 @@ class BadKeyPredicates(unittest.TestCase):
         self.stack.enter_context(helpers.home(self.home))
         self.stack.enter_context(mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "abc def", "INWORLD_API_KEY": "good-key",
                                                                "ELEVENLABS_API_KEY": "", "GEMINI_API_KEY": "",
-                                                               "SWEATCAST_FAKE_LOCAL_ENGINE": "0"}))
+                                                               "HARMONICFITNESS_FAKE_LOCAL_ENGINE": "0"}))
 
     def test_the_predicates_say_not_set_and_the_default_coach_is_still_chosen(self):
         import keys

@@ -125,7 +125,7 @@ class ImportCycles(unittest.TestCase):
         self.assertNotIn("cli", graph["keys"])
         import errors
         import keys
-        self.assertTrue(issubclass(keys.BadKey, errors.SweatcastError))
+        self.assertTrue(issubclass(keys.BadKey, errors.HarmonicFitnessError))
         self.assertEqual(keys.BadKey("x").exit_code, errors.SERVICE)
         self.assertEqual((keys.BadKey.kind, keys.BadKey.listener_must_act), ("auth", True))
 

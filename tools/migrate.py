@@ -1,4 +1,4 @@
-"""Bring a context folder (me/, or SWEATCAST_HOME) up to the format this engine reads.
+"""Bring a context folder (me/, or HARMONICFITNESS_HOME) up to the format this engine reads.
 
 Each context file names its format in front matter (`schema`, see context.py).
 After pulling a major release, run this once: it backs up every file it will change
@@ -6,21 +6,21 @@ to me/.backup-<date and time>/, applies each step from the file's schema up to t
 current one, runs the folder steps that are still due, and then checks the folder.
 Run it again and it changes nothing.
 
-    ./sweatcast migrate             # migrate, with a backup
-    ./sweatcast migrate --dry-run   # say what would change, change nothing
+    ./harmonicfitness migrate             # migrate, with a backup
+    ./harmonicfitness migrate --dry-run   # say what would change, change nothing
 
-This engine migrates from context schema 4 (sweatcast 0.9.x) and coach schema 4 (0.10.0). An older
-folder (sweatcast 0.8 and before) goes through sweatcast 0.12 first: `git checkout v0.12.0 &&
-./sweatcast migrate`, then back to this version and `./sweatcast migrate` again.
+This engine migrates from context schema 4 (HarmonicFitness 0.9.x) and coach schema 4 (0.10.0). An older
+folder (HarmonicFitness 0.8 and before) goes through HarmonicFitness 0.12 first: `git checkout v0.12.0 &&
+./harmonicfitness migrate`, then back to this version and `./harmonicfitness migrate` again.
 
 Steps:
-    4 to 5 (sweatcast 0.9.1): a folder per workout. Each draft in workouts/drafts/ moves, with its
+    4 to 5 (HarmonicFitness 0.9.1): a folder per workout. Each draft in workouts/drafts/ moves, with its
         brief and menu, to workouts/<stem>/, and each build's script and record (and an MP3 not
         yet delivered) moves beside the draft its record names (or, with no record, the one draft
         from the same date). Smoke tests, and anything that can't be placed for sure, go to
         workouts/checks/; each day's research sheet and feeds to workouts/research/daily/. Nothing
         is overwritten. The files' text changes only its schema number.
-    5 to 6 (sweatcast 0.12.0): the profile splits by how often each part changes and who reads it.
+    5 to 6 (HarmonicFitness 0.12.0): the profile splits by how often each part changes and who reads it.
         profile.md keeps who you are (name, experience, and every prose section but these);
         training.md gets the kits, likes and dislikes and the Equipment kits and Default session
         sections; content.md the interests, feeds, YouTube favorites and puzzles and the Content and
@@ -28,22 +28,22 @@ Steps:
         words_per_minute. Each setting keeps its value (comments are the template's; the originals
         are in the backup). health.md and log.md change only their schema number. It backs up before
         overwriting a training.md, content.md or settings.toml already there (each goes to the backup first).
-    Coaches (sweatcast 0.15.0, a folder step with no schema change): personas/ becomes coaches/; each local
-        coach of the listener's own moves to coaches/.archive/ (local coaches are now the ten sweatcast ships,
+    Coaches (HarmonicFitness 0.15.0, a folder step with no schema change): personas/ becomes coaches/; each local
+        coach of the listener's own moves to coaches/.archive/ (local coaches are now the ten HarmonicFitness ships,
         and a voice of one's own is a web coach); and an unmade copy of a stock web coach (Reed, Ellis, Nolan,
         Owen, still pending design) goes to the backup, since the engine ships them now. A made one stays and
         is used over the stock copy. me/.gitignore's personas/ rules become coaches/ rules.
 
 The folder steps (the split, the folder per workout, the reserve's old name, the .gitignore rules for
 coaches) run whenever they still have something to do, whatever the files' schema says, so a run that
-stopped halfway finishes on the next. The reserve's old name (sweatcast 0.14): before 0.10.2 the reserve
+stopped halfway finishes on the next. The reserve's old name (HarmonicFitness 0.14): before 0.10.2 the reserve
 was research/pantry/ and told.jsonl named a piece under `pantry`; each sheet moves into research/reserve/
 (one already there by that name was the one read, so the pantry's copy goes to the backup unless it's
 the same), and each `pantry` key becomes `reserve`.
 
 Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own schema, migrated
 beside the context files, even when those are already current:
-    4 to 5 (sweatcast 0.10.0): web coaches. Each coach's settings gain `kind = "local"` after the
+    4 to 5 (HarmonicFitness 0.10.0): web coaches. Each coach's settings gain `kind = "local"` after the
         schema line; nothing else in the file changes. me/.gitignore keeps each web coach's
         sample.mp3 (archived ones too) and leaves out auditions in progress (personas/.auditions/) and a
         make's in-between files (.made.json, .made.wav).
@@ -103,7 +103,7 @@ PART_COMMENTS = {
     "likes": context.SETTINGS_COMMENTS["likes"],
     "dislikes": context.SETTINGS_COMMENTS["dislikes"],
     "kits": "Equipment kits a session can be planned with: a name and the equipment ids you have there "
-            "(./sweatcast movements lists them); the first is the default. For free weights, add the weights you "
+            "(./harmonicfitness movements lists them); the first is the default. For free weights, add the weights you "
             "have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and "
             "unit = \"lb\".",
     "youtube_favorites": context.SETTINGS_COMMENTS["youtube_favorites"],
@@ -114,7 +114,7 @@ PART_COMMENTS = {
                  "knowledge/content.toml's defaults.",
     "feeds": context.SETTINGS_COMMENTS["feeds"],
     "setup": "\"quick\" until the second half of setup is done (interests, feeds, delivery, your own coach): until "
-             "then ./sweatcast check lists what's left as notes. Say \"finish setting me up\" to do it.",
+             "then ./harmonicfitness check lists what's left as notes. Say \"finish setting me up\" to do it.",
     "render": "The audio routes to try, in order (local, fish, elevenlabs, gemini or inworld), when the coach doesn't settle it: a local coach always renders on this computer, and a web coach always speaks through its own service, with its key in me/.env.",
     "cloud_max_chars": "The most characters one web build may send to a voice service; a build over it stops "
                        "before sending (30000, the default, is a 40-minute workout with room for retakes).",
@@ -129,7 +129,7 @@ PART_INTROS = {
                   "puzzles (the settings above), and the topics and taste below. Research reads this before each "
                   "workout.\n",
 }
-SETTINGS_HEADER = ("# sweatcast's settings for this listener: the setup stage, how audio is made, a web build's "
+SETTINGS_HEADER = ("# HarmonicFitness's settings for this listener: the setup stage, how audio is made, a web build's "
                    "ceiling, where finished MP3s go, and the speaking rate. The tools read them; setup writes them.")
 PROFILE_NOTE = ("Your details are in four files, by how often each changes: this one (who you are), `training.md` "
                 "(kits, likes and dislikes, your usual session), `content.md` (interests, feeds and taste, for the "
@@ -187,7 +187,7 @@ def split_profile(home):
 
 
 STEPS = {4: to_5, 5: to_6}   # from schema N, the function that makes it N + 1
-FLOOR = min(STEPS)           # the oldest context schema this engine migrates (sweatcast 0.9.x)
+FLOOR = min(STEPS)           # the oldest context schema this engine migrates (HarmonicFitness 0.9.x)
 
 
 def persona_to_5(text, path):
@@ -358,10 +358,10 @@ def coaches_due(home):
 
 def coaches_lines(due):
     names = {"rename": "personas/ becomes coaches/ (its new name)",
-             "archive": "coaches/{}: a local coach of your own, archived (local coaches are now the ten sweatcast "
+             "archive": "coaches/{}: a local coach of your own, archived (local coaches are now the ten HarmonicFitness "
                         "ships; a voice of your own is a web coach)",
-             "stock": "coaches/{}: a stock web coach not made yet, now shipped with sweatcast (moved to the backup)",
-             "unreadable": "coaches/{}: its persona.md can't be read, so it's left as it is (./sweatcast check "
+             "stock": "coaches/{}: a stock web coach not made yet, now shipped with HarmonicFitness (moved to the backup)",
+             "unreadable": "coaches/{}: its persona.md can't be read, so it's left as it is (./harmonicfitness check "
                            "says why)"}
     return [names[what].format(d) for what, d in due]
 
@@ -421,15 +421,15 @@ def _behind(path, current, floor, what):
             text = f.read()
     except (OSError, UnicodeError) as e:
         raise errors.MigrateError(f"{show(path)} can't be read as UTF-8 text ({e}); save it as UTF-8 and "
-                                  "run ./sweatcast migrate again.") from e
+                                  "run ./harmonicfitness migrate again.") from e
     found = store.schema_of(text, path)
     if found > current:
         raise errors.MigrateError(f"{show(path)} is schema {found}, newer than this engine (schema "
-                         f"{current}). Pull the latest sweatcast instead of migrating.")
+                         f"{current}). Pull the latest HarmonicFitness instead of migrating.")
     if found < floor:
         raise errors.MigrateError(f"{show(path)} is schema {found}, older than this engine migrates ({what} from schema {floor}). "
-                         "Go through sweatcast 0.12 first: git checkout v0.12.0 && ./sweatcast migrate, then "
-                         "git checkout main && ./sweatcast migrate again.")
+                         "Go through HarmonicFitness 0.12 first: git checkout v0.12.0 && ./harmonicfitness migrate, then "
+                         "git checkout main && ./harmonicfitness migrate again.")
     return found if found < current else None
 
 
@@ -571,7 +571,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
     missing = [p for p in context.files() if not os.path.exists(p)]
     if len(missing) == len(context.files()):
-        raise errors.MigrateError(f"No context files in {show(paths.HOME)}. A new copy starts with ./sweatcast setup.")
+        raise errors.MigrateError(f"No context files in {show(paths.HOME)}. A new copy starts with ./harmonicfitness setup.")
 
     if not args.dry_run and update_gitignore(paths.HOME, GITIGNORE_ADD_LOCKS):
         print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added *.lock (lock files never go into a backup).")
@@ -609,7 +609,7 @@ def main(argv=None):
     for issue in issues:
         print("  " + check.describe(issue))
     if any(not i.note for i in issues):
-        print("Migrated, but the lines above need a look (./sweatcast check lists them again).", file=sys.stderr)
+        print("Migrated, but the lines above need a look (./harmonicfitness check lists them again).", file=sys.stderr)
         return cli.ISSUES
     print("Every context file reads as this engine expects.")
     return cli.OK

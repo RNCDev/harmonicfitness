@@ -56,7 +56,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")   # where an address override may use p
 # The stop signal of the render this code runs for: a threading.Event that render sets when it's stopping (no
 # retry, no new attempt). One per render, never shared: stop_on sets it in the render's own context, and
 # speaker() carries it into the worker threads that speak.
-_stop = contextvars.ContextVar("sweatcast_stop", default=None)
+_stop = contextvars.ContextVar("harmonicfitness_stop", default=None)
 
 
 class ServiceError(Exception):
@@ -96,10 +96,10 @@ ROUTES = ("local", *SERVICES)  # every route: this computer's own engine, then e
 
 
 def base_url(service):
-    """The service's API address. SWEATCAST_<SERVICE>_URL points it elsewhere (the tests' fake servers), but only
+    """The service's API address. HARMONICFITNESS_<SERVICE>_URL points it elsewhere (the tests' fake servers), but only
     at an https:// address or this computer (127.0.0.1, localhost): a stray setting never sends a key in the
     clear, or anywhere off this machine unencrypted."""
-    var = f"SWEATCAST_{service.upper()}_URL"
+    var = f"HARMONICFITNESS_{service.upper()}_URL"
     override = os.environ.get(var)
     if override:
         parts = urllib.parse.urlsplit(override)
@@ -157,7 +157,7 @@ def stopping(stop=None):
 
 def _wait_seconds(attempt, retry_after):
     """How long to wait before the next try: Retry-After when it's a number, else backoff with jitter."""
-    scale = float(os.environ.get("SWEATCAST_RETRY_WAIT", "1"))   # the tests set 0
+    scale = float(os.environ.get("HARMONICFITNESS_RETRY_WAIT", "1"))   # the tests set 0
     try:
         seconds = float(retry_after) if retry_after else min(2 ** attempt, 30) * (0.75 + random.random() / 2)
     except ValueError:
@@ -196,7 +196,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         host = urllib.parse.urlsplit(newurl).hostname or newurl[:80]
         fp.close()
-        raise ServiceError("unavailable", getattr(req, "sweatcast_service", None),
+        raise ServiceError("unavailable", getattr(req, "harmonicfitness_service", None),
                            f"redirected to {host}; not followed (HTTP {code})", status=code)
 
 
@@ -231,7 +231,7 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
         if left <= 0:
             raise out_of_time()
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
-        req.sweatcast_service = service
+        req.harmonicfitness_service = service
         try:
             with _open(req, min(timeout, left)) as r:
                 return r.status, dict(r.headers), r.read()
@@ -266,7 +266,7 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             var = keys.SERVICE_VARS.get(service, "the key")   # client refuses carries the key, so never echo it
             if "header" in str(e).lower():
                 raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray character "
-                                   f"in it?): re-paste it after {var}= (./sweatcast keys open)") from None
+                                   f"in it?): re-paste it after {var}= (./harmonicfitness keys open)") from None
             raise ServiceError("bad_request", service, f"the request couldn't be built: {scrub(str(e))}") from None
         if attempt < tries - 1 and not stopping(stop):
             seconds = _wait_seconds(attempt, retry_after)
@@ -292,7 +292,7 @@ def json_answer(data, service, what="the answer"):
 
 def saved_what(service, name):
     """How json_answer names a save's answer: the voice may be saved even though its answer can't be read."""
-    return f"the saved voice's answer (the voice may be saved at {service_name(service)}: look for \"sweatcast {name}\")"
+    return f"the saved voice's answer (the voice may be saved at {service_name(service)}: look for \"harmonicfitness {name}\")"
 
 
 def b64_audio(text, service):
@@ -457,7 +457,7 @@ def ffmpeg_pcm(data, what="The audio"):
     import ffmpeg
     exe = ffmpeg.exe()
     if not exe:
-        raise errors.RenderStopped(f"{what}, which needs ffmpeg to read: rerun ./sweatcast setup.")
+        raise errors.RenderStopped(f"{what}, which needs ffmpeg to read: rerun ./harmonicfitness setup.")
     try:
         out = ffmpeg.run([exe, "-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", str(SR),
                           "pipe:1"], "read it", 300, input=data)
@@ -530,7 +530,7 @@ def speaker(voice):
 def key_or_stop(service):
     value = keys.get(service)
     if not value:
-        raise ServiceError("auth", service, f"no key on this computer: ./sweatcast keys init {service}, then paste "
+        raise ServiceError("auth", service, f"no key on this computer: ./harmonicfitness keys init {service}, then paste "
                                             f"the key into me/.env after {keys.SERVICE_VARS[service]}=")
     return value
 
@@ -545,7 +545,7 @@ def multipart(fields, files):
     """(body, content type) for a multipart/form-data upload: `fields` {name: text}, `files`
     [(field, filename, bytes, content type)]."""
     import uuid
-    boundary = "sweatcast-" + uuid.uuid4().hex
+    boundary = "harmonicfitness-" + uuid.uuid4().hex
     out = bytearray()
     for name, value in fields.items():
         out += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").encode()

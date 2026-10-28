@@ -1,18 +1,18 @@
 """The local voice models: list them (and the old ones no longer used), and adopt ones downloaded elsewhere.
 
 They live in models/ at the repo root (git-ignored, and outside me/, since they aren't personal and
-shouldn't go into the private backup), or wherever SWEATCAST_MODELS points; tools/paths.py points
+shouldn't go into the private backup), or wherever HARMONICFITNESS_MODELS points; tools/paths.py points
 Hugging Face's cache there for every download and load. models/ may be a symlink to a shared place.
 
-`adopt` moves sweatcast's pinned models out of Hugging Face's usual cache (~/.cache/huggingface/hub)
-rather than downloading them again. Only sweatcast's repos move. A cache with shared blobs keeps a
+`adopt` moves HarmonicFitness's pinned models out of Hugging Face's usual cache (~/.cache/huggingface/hub)
+rather than downloading them again. Only HarmonicFitness's repos move. A cache with shared blobs keeps a
 repo's files in the cache's own blobs/ folder, linked from the repo by relative paths; those blobs move
 with the repo, so the links still resolve, and a blob another repo also uses is copied instead. On the
 same disk a move is a rename, so it's instant.
 
-    ./sweatcast models                       # each model folder and its size
-    ./sweatcast models adopt --dry-run       # what would move from the old cache
-    ./sweatcast models adopt [--from <hub>]  # move them into models/
+    ./harmonicfitness models                       # each model folder and its size
+    ./harmonicfitness models adopt --dry-run       # what would move from the old cache
+    ./harmonicfitness models adopt [--from <hub>]  # move them into models/
 """
 import os
 import shutil
@@ -25,7 +25,7 @@ from paths import show  # noqa: E402
 
 
 def pinned():
-    """[(repo, revision)] for every Hugging Face cache model sweatcast renders with (the take checker is a plain
+    """[(repo, revision)] for every Hugging Face cache model HarmonicFitness renders with (the take checker is a plain
     folder, voices.CHECK_DIR)."""
     import voices
     return list(dict.fromkeys(voices.LOCAL_MODELS.values()))
@@ -74,7 +74,7 @@ def _move(src, dst):
 
 
 def adopt(src=None, dst=None, dry_run=False):
-    """Move sweatcast's models from the old cache `src` into `dst`. Returns [(repo, revision)] moved (or that
+    """Move HarmonicFitness's models from the old cache `src` into `dst`. Returns [(repo, revision)] moved (or that
     would move, with dry_run). A repo already complete in `dst` is left where it is."""
     src = os.path.realpath(src or paths.OLD_HF_HUB_CACHE)
     dst = dst or paths.MODELS
@@ -124,9 +124,9 @@ def adopt(src=None, dst=None, dry_run=False):
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast models", description=__doc__)
+    ap = cli.ArgumentParser(prog="harmonicfitness models", description=__doc__)
     sub = ap.add_subparsers(dest="cmd")
-    a = sub.add_parser("adopt", help="move sweatcast's models from Hugging Face's usual cache into models/")
+    a = sub.add_parser("adopt", help="move HarmonicFitness's models from Hugging Face's usual cache into models/")
     a.add_argument("--from", dest="src", help=f"the old cache (default: {paths.OLD_HF_HUB_CACHE})")
     a.add_argument("--dry-run", action="store_true")
     a.add_argument("--quiet", action="store_true", help="say nothing when there's nothing to adopt")
@@ -141,8 +141,8 @@ def main(argv=None):
         gb = sum(size(folder(src, r)) for r, _ in found) / 1e9
         names = ", ".join(r for r, _ in found)
         if args.dry_run:
-            print(f"Found sweatcast's models in {src} ({names}), linked to about {gb:.1f} GB of files there. "
-                  f"./sweatcast models adopt moves them into {show(paths.MODELS)} instead of downloading them again.")
+            print(f"Found HarmonicFitness's models in {src} ({names}), linked to about {gb:.1f} GB of files there. "
+                  f"./harmonicfitness models adopt moves them into {show(paths.MODELS)} instead of downloading them again.")
             return cli.OK
         moved = adopt(src)
         for repo, rev in moved:
@@ -164,7 +164,7 @@ def main(argv=None):
         print(f"  {voices.CHECK_MODEL[0]} (the take checker): {size(voices.CHECK_DIR) / 1e9:.1f} GB")
     unused = sorted(d for d in os.listdir(where) if d.startswith("models--") and os.path.join(where, d) not in ours)
     for d in unused:
-        print(f"  {d[len('models--'):].replace('--', '/')}: not used by this sweatcast "
+        print(f"  {d[len('models--'):].replace('--', '/')}: not used by this HarmonicFitness "
               f"({size(os.path.join(where, d)) / 1e9:.1f} GB; delete the folder to free the space)")
     print(f"  {size(where) / 1e9:.1f} GB in all")
     return cli.OK

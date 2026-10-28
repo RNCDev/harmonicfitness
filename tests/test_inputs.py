@@ -1,5 +1,5 @@
 """The command line's inputs, checked where they come in: single settings (context.SCALARS) and a coach's kind,
-a build's name (workouts.safe_name), what cli.run prints (scrubbed; "Interrupted."; SWEATCAST_DEBUG), the key
+a build's name (workouts.safe_name), what cli.run prints (scrubbed; "Interrupted."; HARMONICFITNESS_DEBUG), the key
 scrub when me/.env can't be read, a feed declaring entities, a caption download's size and shape, the Windows
 lock's errors and key, an unreadable coach in migrate, and a damaged knowledge file read as the file's fault."""
 import contextlib
@@ -146,7 +146,7 @@ class SafeName(unittest.TestCase):
                     workouts.safe_name(name)
 
     def test_build_refuses_a_colon_before_writing_anything(self):
-        import sweatcast
+        import harmonicfitness
         with tempfile.TemporaryDirectory() as d:
             me = os.path.join(d, "me")
             shutil.copytree(paths.EXAMPLE, me)
@@ -154,7 +154,7 @@ class SafeName(unittest.TestCase):
                 draft = os.path.join(paths.ROOT, "knowledge", "smoke-test.draft.txt")
                 saved = sys.argv
                 try:
-                    code, _, err = capture(sweatcast.main, ["build", draft, "Workout 1: Strength", "--lint-only"])
+                    code, _, err = capture(harmonicfitness.main, ["build", draft, "Workout 1: Strength", "--lint-only"])
                 finally:
                     sys.argv = saved
                 self.assertEqual(code, cli.USAGE)
@@ -181,7 +181,7 @@ class RunOutput(unittest.TestCase):
             raise exc
         with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": KEY, **(env or {})}):
             if not env:
-                os.environ.pop("SWEATCAST_DEBUG", None)
+                os.environ.pop("HARMONICFITNESS_DEBUG", None)
             return capture(cli.run, main)
 
     def test_every_message_is_scrubbed(self):
@@ -208,7 +208,7 @@ class RunOutput(unittest.TestCase):
             exc = e
         got, _, err = self.run_main(exc)
         self.assertNotIn("Traceback", err)
-        got, _, err = self.run_main(exc, env={"SWEATCAST_DEBUG": "1"})
+        got, _, err = self.run_main(exc, env={"HARMONICFITNESS_DEBUG": "1"})
         self.assertEqual(got, cli.ISSUES)
         self.assertIn("couldn't read it", err)
         self.assertIn("Traceback", err)
@@ -250,9 +250,9 @@ class Captions(unittest.TestCase):
         self.assertEqual(youtube.caption_events(self.response(b'{"events": [{"segs": []}, 3]}'), "u"),
                          [{"segs": []}])
         for bad in (b"[1, 2]", b"not json", b'{"events": "x"}', b"null"):
-            with self.subTest(bad=bad), self.assertRaises(errors.SweatcastError):
+            with self.subTest(bad=bad), self.assertRaises(errors.HarmonicFitnessError):
                 youtube.caption_events(self.response(bad), "u")
-        with mock.patch.object(feeds, "MAX_BYTES", 10), self.assertRaises(errors.SweatcastError) as e:
+        with mock.patch.object(feeds, "MAX_BYTES", 10), self.assertRaises(errors.HarmonicFitnessError) as e:
             youtube.caption_events(self.response(b'{"events": []}' + b" " * 20), "u")
         self.assertIn("over", str(e.exception))
 

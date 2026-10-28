@@ -1,6 +1,24 @@
 # Changelog
 
-All notable changes to sweatcast. The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
+All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
+
+## [0.20.0] - 2026-10-27
+
+sweatcast is now **HarmonicFitness**: the command, the package, the environment variables, the repositories and the web app all take the new name. Nothing about how a workout is built, heard or logged changes, and no context file changes its schema. The release also carries the first slice of the web client.
+
+### For forks
+- **The command is `./harmonicfitness`** (it was `./sweatcast`, which is gone: there is no shim). `tools/sweatcast.py` is `tools/harmonicfitness.py`, and Codex's rule file is `.codex/rules/harmonicfitness.rules`. Claude Code's allow rule is `Bash(./harmonicfitness:*)`.
+- **Every `SWEATCAST_*` environment variable is `HARMONICFITNESS_*`** (`HARMONICFITNESS_HOME`, `HARMONICFITNESS_PYTHON`, `HARMONICFITNESS_DEVICE`, `HARMONICFITNESS_DEBUG`, `HARMONICFITNESS_<SERVICE>_URL`...). The old names are no longer read: a `SWEATCAST_HOME` left in a shell profile is ignored, so rename it.
+- **The web client's `WT_*` variables are `HARMONICFITNESS_*`** (`HARMONICFITNESS_MASTER_KEY`, `HARMONICFITNESS_BASE_URL`, `HARMONICFITNESS_ROLE`, `HARMONICFITNESS_REGISTRATION`, `HARMONICFITNESS_ENGINE_ROOT`, `HARMONICFITNESS_TEST_DATABASE_URL`). Set the new names, with the same values, before deploying this release.
+- **The Python package is `harmonicfitness`** and `errors.SweatcastError` is `errors.HarmonicFitnessError`. The local engine's marker is `.venv/.harmonicfitness-extra`: rerun `./harmonicfitness setup`, or rename the old `.venv/.sweatcast-extra` by hand.
+- **The repositories are `RNCDev/harmonicfitness`** and, for the maintainer's context, `RNCDev/harmonicfitness-me`. GitHub redirects the old addresses; point a clone at the new one with `git remote set-url origin https://github.com/RNCDev/harmonicfitness.git`.
+- **Nothing in `me/` to migrate.** Clip cache keys never held the name, so no clip renders again or is billed again.
+
+### Changed
+- New web voices are saved at the service as "harmonicfitness <name>". Voices saved before are still labeled "sweatcast <name>" there and keep working by their ID; the messages that say what to look for at the service name the new label.
+
+### Added
+- **The web client, Slice 1** (`web/`, the optional `web` extra; see `web/README.md`): a FastAPI server and a Python worker on Postgres, a React client, an encrypted per-file store for each listener's context, a job queue that runs `./harmonicfitness brief` in a sealed temporary context folder, and a live event stream. Sign-in is a username and password, with open registration behind `HARMONICFITNESS_REGISTRATION=open|closed` (default open). Deployed on Railway from this repository's `main`.
 
 ## [0.19.0] - 2026-10-27
 

@@ -12,7 +12,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-os.environ.setdefault("SWEATCAST_HOME", "/nonexistent")
+os.environ.setdefault("HARMONICFITNESS_HOME", "/nonexistent")
 import fileio  # noqa: E402
 import personas  # noqa: E402
 import voices  # noqa: E402

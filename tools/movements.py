@@ -4,12 +4,12 @@
 This filter applies no health limits: every movement printed fits the equipment and level and
 breaks none of the movements or flags to avoid, but the limits in the health file are not checked.
 It is for browsing (such as finding a movement's name for likes and dislikes); a session's plan,
-warm-up and cool-down included, comes from `./sweatcast brief`'s safe menu, which applies the limits. Read
+warm-up and cool-down included, comes from `./harmonicfitness brief`'s safe menu, which applies the limits. Read
 from the movement catalog (knowledge/movements.toml).
 
-    ./sweatcast movements --preset hotel-room --avoid impact
-    ./sweatcast movements --equipment dumbbells,mat --pattern squat --level novice
-    ./sweatcast movements --about goblet-squat,floor-press
+    ./harmonicfitness movements --preset hotel-room --avoid impact
+    ./harmonicfitness movements --equipment dumbbells,mat --pattern squat --level novice
+    ./harmonicfitness movements --about goblet-squat,floor-press
 """
 import os
 import sys
@@ -60,9 +60,9 @@ def default_level():
 
 
 def main():
-    ap = cli.ArgumentParser(prog="sweatcast movements", description=(
+    ap = cli.ArgumentParser(prog="harmonicfitness movements", description=(
         "Browse the movements a kit allows, by pattern. This filter applies no health limits; "
-        "plan sessions from ./sweatcast brief, which does."))
+        "plan sessions from ./harmonicfitness brief, which does."))
     kit = ap.add_mutually_exclusive_group()
     kit.add_argument("--preset", help="a kit preset from the catalog, such as hotel-room")
     kit.add_argument("--equipment", help="comma-separated equipment, as keys or aliases")
@@ -78,13 +78,13 @@ def main():
         for word in [w.strip() for w in args.about.split(",") if w.strip()]:
             m = cat.movements.get(word) or catalog.resolve(cat, word)
             if m is None:
-                print(f"sweatcast movements: unknown movement \"{word}\"", file=sys.stderr)
+                print(f"harmonicfitness movements: unknown movement \"{word}\"", file=sys.stderr)
                 return cli.USAGE
             out += about(cat, m)
         print("\n".join(out))
         return cli.OK
     if not (args.preset or args.equipment):
-        print("sweatcast movements: name a kit with --preset or --equipment, or movements with --about",
+        print("harmonicfitness movements: name a kit with --preset or --equipment, or movements with --about",
               file=sys.stderr)
         return cli.USAGE
     try:
@@ -99,7 +99,7 @@ def main():
         if args.pattern and args.pattern not in cat.patterns:
             raise ValueError(f"unknown pattern \"{args.pattern}\" (choose from: {', '.join(cat.patterns)})")
     except ValueError as e:
-        print(f"sweatcast movements: {e}", file=sys.stderr)
+        print(f"harmonicfitness movements: {e}", file=sys.stderr)
         return cli.USAGE
     print("\n".join(render(cat, catalog.select(cat, equipment, args.level, [], avoid=avoid), args.pattern)))
     return cli.OK

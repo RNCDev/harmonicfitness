@@ -1,5 +1,5 @@
 """The coach designer's worker (maintainer only): runs inside one designer's own environment
-(coaches/roster.toml names it) and imports nothing from sweatcast.
+(coaches/roster.toml names it) and imports nothing from harmonicfitness.
 
   python design_worker.py <job.json>
 

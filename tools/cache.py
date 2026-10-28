@@ -10,10 +10,10 @@ a while. The voices' measured pace (voice-pace.json) is never touched.
 <name>.log.1) not written in N days; builds.jsonl and told.jsonl, the record of what was built,
 paid for and told, are never touched. Given alone it prunes only the logs; with --days, both.
 
-    ./sweatcast cache                         # how big the cache is
-    ./sweatcast cache prune                   # remove clips unused for 45 days
-    ./sweatcast cache prune --days 0          # remove every clip (the next build renders all)
-    ./sweatcast cache prune --logs-older 60   # remove render logs not written in 60 days, no clips
+    ./harmonicfitness cache                         # how big the cache is
+    ./harmonicfitness cache prune                   # remove clips unused for 45 days
+    ./harmonicfitness cache prune --days 0          # remove every clip (the next build renders all)
+    ./harmonicfitness cache prune --logs-older 60   # remove render logs not written in 60 days, no clips
 """
 import os
 import sys

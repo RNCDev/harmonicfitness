@@ -1,4 +1,4 @@
-# The web voice services sweatcast can design coaches on and render with, each with the listener's own
+# The web voice services HarmonicFitness can design coaches on and render with, each with the listener's own
 # key in me/.env. Read only through tools/cloud.py (cloud.services()): this file is the one list of them,
 # in order, and a route is "local" or one of these. A new service is a section here and tools/services/<id>.py.
 #

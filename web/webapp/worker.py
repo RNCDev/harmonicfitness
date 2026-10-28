@@ -1,11 +1,11 @@
 """The worker: claims a job, runs its handler in a temporary folder, finishes or fails it.
 
-    python -m webapp.worker        (with DATABASE_URL, WT_MASTER_KEY, WT_BASE_URL in the environment)
+    python -m webapp.worker        (with DATABASE_URL, HARMONICFITNESS_MASTER_KEY, HARMONICFITNESS_BASE_URL in the environment)
 
 A user's files are touched only through `engine.run` in that user's own temporary folder, which is
 removed whatever happens; this process never reads or writes anyone's context as the engine would.
 Before importing any engine module (for the session goals and kit presets) the worker points
-SWEATCAST_HOME at a folder that doesn't exist, so the engine's libraries never find a real `me/`.
+HARMONICFITNESS_HOME at a folder that doesn't exist, so the engine's libraries never find a real `me/`.
 """
 import datetime
 import os
@@ -76,9 +76,9 @@ def _no_home() -> str:
 def engine_lists(engine_root: str) -> tuple[frozenset, frozenset]:
     """(session goals, kit presets) from the engine's tools/sessions.py and tools/catalog.py."""
     if engine_root not in _lists:
-        home = os.environ.get("SWEATCAST_HOME", "")
+        home = os.environ.get("HARMONICFITNESS_HOME", "")
         if not home or os.path.exists(home):
-            os.environ["SWEATCAST_HOME"] = _no_home()
+            os.environ["HARMONICFITNESS_HOME"] = _no_home()
         tools = os.path.join(engine_root, "tools")
         if tools not in sys.path:
             sys.path.append(tools)   # after everything else, so no engine module shadows another
@@ -124,7 +124,7 @@ def _brief_request(args: dict, settings: config.Settings) -> tuple[str, int, str
 
 
 def brief(ctx: Ctx) -> dict:
-    """Run `./sweatcast brief` on the user's files and save its brief and menu back."""
+    """Run `./harmonicfitness brief` on the user's files and save its brief and menu back."""
     goal, minutes, preset, today = _brief_request(ctx.args, ctx.settings)
     stem = f"{today}-{goal}-{minutes}"
     ctx.say("folder")

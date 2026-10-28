@@ -1,7 +1,7 @@
 # The movement catalog (format 3): every movement a session can use, in one vocabulary.
 #
 # The fixed lists come first (patterns, muscles, areas, flags), then equipment, kit presets and each
-# [[movement]]. Tools read this file through tools/catalog.py; `./sweatcast test` checks it.
+# [[movement]]. Tools read this file through tools/catalog.py; `./harmonicfitness test` checks it.
 # A movement says which movement patterns it trains, which muscles, and how much it loads each joint
 # area (`loads`, 0 to 3, from none to heavy; `support`, the same for the resting side of a one-sided
 # movement), plus flags for position and quality, its intensity, level and timing. An entry is a
@@ -41,14 +41,14 @@
 #   optional on a draft, expected on a finished entry): `rep`, what one rep is (and whether reps count
 #   per side), or for a timed entry what is held and what ends it, with a talk test on conditioning;
 #   `feel`, where it should be felt and where not; `faults`, one to three common mistakes, each with the
-#   cue that fixes it, safety first. `./sweatcast brief` prints them for every movement on today's menu,
-#   and `./sweatcast movements --about <ids>` for any.
+#   cue that fixes it, safety first. `./harmonicfitness brief` prints them for every movement on today's menu,
+#   and `./harmonicfitness movements --about <ids>` for any.
 # - `[limit_cues]` (after the kit presets), one table per area in `areas`, each with `off-limits` and
 #   `delicate`: one to three spoken lines a coach says while that limit is active, generic and
 #   practical (where the head, the resting foot or the arm goes, how to get to and from the floor).
 #   `{side}` in a line stands for the limit's side, left or right, or "injured" (off limits) or "sore"
 #   (delicate) when the limit is on both sides; it is the only brace a line may hold.
-#   `./sweatcast brief` prints the lines for each limit active today.
+#   `./harmonicfitness brief` prints the lines for each limit active today.
 format = 3   # the catalog's own format; the context schema is separate
 
 patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
@@ -103,7 +103,7 @@ equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "chair", "towel"
              "treadmill", "elliptical", "stair-climber"]
 
 # Limit cues: what a coach says while a limit is active, for each area and level, one to three lines.
-# `./sweatcast brief` prints them for each limit today. `{side}` becomes the limit's side (left or
+# `./harmonicfitness brief` prints them for each limit today. `{side}` becomes the limit's side (left or
 # right), or "injured" (off limits) or "sore" (delicate) for a limit on both sides or none.
 
 [limit_cues.foot]

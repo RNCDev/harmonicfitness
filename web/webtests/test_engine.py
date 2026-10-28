@@ -15,7 +15,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 
 def stub(body):
     d = tempfile.mkdtemp()
-    p = os.path.join(d, "sweatcast")
+    p = os.path.join(d, "harmonicfitness")
     with open(p, "w") as f:
         f.write("#!/bin/sh\n" + body + "\n")
     os.chmod(p, 0o755)
@@ -26,18 +26,18 @@ class Engine(unittest.TestCase):
     def test_engine_env_is_allowlisted(self):
         # the engine is `env` itself (no shell, which would add PWD, SHLVL and _ of its own)
         root, home = tempfile.mkdtemp(), tempfile.mkdtemp()
-        os.symlink(shutil.which("env"), os.path.join(root, "sweatcast"))
-        with mock.patch.dict(os.environ, {"WT_MASTER_KEY": "secret-master",
+        os.symlink(shutil.which("env"), os.path.join(root, "harmonicfitness"))
+        with mock.patch.dict(os.environ, {"HARMONICFITNESS_MASTER_KEY": "secret-master",
                                           "DATABASE_URL": "postgres://x",
                                           "SESSION_SECRET": "s", "SOMETHING_ELSE": "y",
                                           "TZ": "UTC"}):
-            want = {k for k in engine.ALLOWED if k in os.environ} | {"HOME", "SWEATCAST_HOME"}
+            want = {k for k in engine.ALLOWED if k in os.environ} | {"HOME", "HARMONICFITNESS_HOME"}
             r = engine.run(root, home, [])
         self.assertEqual(r.code, 0)
         got = dict(line.split("=", 1) for line in r.stdout.splitlines())
         self.assertEqual(set(got), want)
         self.assertIn("TZ", got)
-        self.assertEqual((got["HOME"], got["SWEATCAST_HOME"]), (home, home))
+        self.assertEqual((got["HOME"], got["HARMONICFITNESS_HOME"]), (home, home))
 
     def test_brief_runs_on_a_seeded_folder(self):
         home = tempfile.mkdtemp()
@@ -67,7 +67,7 @@ class Engine(unittest.TestCase):
 
     def test_extra_env_cannot_override_home(self):
         root, home = stub("env"), tempfile.mkdtemp()
-        for k in ("HOME", "SWEATCAST_HOME"):
+        for k in ("HOME", "HARMONICFITNESS_HOME"):
             with self.assertRaises(ValueError):
                 engine.run(root, home, [], extra_env={k: "/x"})
 

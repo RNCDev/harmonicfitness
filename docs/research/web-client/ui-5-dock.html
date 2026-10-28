@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sweatcast: The Dock</title>
+<title>HarmonicFitness: The Dock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Figtree:ital,wght@0,400..800;1,400&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
   --tok:#0E6A5C;          /* every editable word */
   --tok-tint:#CFEBE4;
   --tok-on:#FFFFFF;
-  --engine:#7A4A8F;       /* clauses sweatcast writes itself */
+  --engine:#7A4A8F;       /* clauses HarmonicFitness writes itself */
   --engine-tint:#ECE0F1;
   --warn:#8A5C00;
   --warn-tint:#F3E5C3;
@@ -475,7 +475,7 @@ table.rows{width:100%;border-collapse:collapse;font-size:15px}
     </div>
   </section>
 
-  <aside class="chat" id="chat" aria-label="Chat with sweatcast">
+  <aside class="chat" id="chat" aria-label="Chat with harmonicfitness">
     <div class="chat-head"><h2>Chat</h2><span class="sub">Edits land in the sentence</span><button class="chat-close" id="chatClose">Close</button></div>
     <div class="chat-log" id="log" aria-live="polite"></div>
   </aside>
@@ -756,7 +756,7 @@ function vPrefs(){
     <h2 class="sect-h">Kits <button class="lnk" data-act="toast" data-v="Kits open their own sentence: “My home kit has two kettlebells, 12 and 16 kg, and a mat.”">Edit kits</button></h2>
     <div class="kits">${Object.entries(KITS).map(([k,v])=>`<section class="card"><h2>${k[0].toUpperCase()+k.slice(1)}</h2><p class="meta">${v}</p></section>`).join("")}</div>
     ${S.prefsSaved?`<p class="saved">✓ Saved. Checked your files: nothing to fix.</p>`:""}`,
-    d:{lede:"This is you, as sweatcast understands it. Change any word.",s:`<div class="para">
+    d:{lede:"This is you, as HarmonicFitness understands it. Change any word.",s:`<div class="para">
       <p class="sentence">I train at ${pt("level",p.level)} level, about ${pt("days",p.days)} times a week, usually for ${pt("length",p.length+" minutes")}.</p>
       <p class="sentence">I love ${list("love")}.</p>
       <p class="sentence">Skip ${list("skip")}.</p>
@@ -822,7 +822,7 @@ function vStats(){
 }
 function vTour(){
   const st=[["Say it once","Every task is one sentence in the box at the bottom, with the usual already filled in. Green words are the ones you can change; tap one, or type in the box."],
-    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what sweatcast will do about it."],
+    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what HarmonicFitness will do about it."],
     ["Go, then leave","Research, writing, checking and the voice run on their own, about four minutes. Close the tab; it'll be here."],
     ["Press play","A podcast for your earbuds: the coach tells you what to do, counts you through it, and fills the rests. The MP3 is kept for a day."]];
   return {

@@ -4,7 +4,7 @@ paragraph is spoken by its voice ID with the paragraph before it as context.
 Design: POST /voices/v1/voices:design {designPrompt, previewText, languageCode: EN_US, numberOfSamples}
 -> previewVoices[].{voiceId, previewText, previewAudio (base64 WAV)}. Two designs a minute: a 429 is
 waited out (cloud.request honors Retry-After).
-Save: POST /voices/v1/voices/{voiceId}:publish {displayName, description, tags: [sweatcast]} -> the same
+Save: POST /voices/v1/voices/{voiceId}:publish {displayName, description, tags: [harmonicfitness]} -> the same
 voiceId.
 Speech: POST /tts/v1/voice {text, voiceId, modelId, audioConfig: {audioEncoding: LINEAR16,
 sampleRateHertz: 24000}, synthesisContext: {previousRequests: [{text: <previous paragraph>}]}} ->
@@ -67,8 +67,8 @@ def save(candidate, name, description="", wav=None):
     """Publish the preview to the listener's workspace; returns its voice ID."""
     draft = candidate["draft_id"]
     path = cloud.path_part(draft)
-    body = json.dumps({"displayName": f"sweatcast {name}", "description": (description or "")[:DESCRIPTION_CHARS],
-                       "tags": ["sweatcast"]}).encode()
+    body = json.dumps({"displayName": f"harmonicfitness {name}", "description": (description or "")[:DESCRIPTION_CHARS],
+                       "tags": ["harmonicfitness"]}).encode()
     _, _, data = cloud.request("POST", f"{cloud.base_url(SERVICE)}/voices/v1/voices/{path}:publish", _headers(),
                                body, timeout=120, service=SERVICE, idempotent=False)
     try:

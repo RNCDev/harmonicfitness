@@ -138,7 +138,7 @@ class Core(unittest.TestCase):
             return 503, {}, b"{}"
         cloud.stop_on(stop)
         self.addCleanup(cloud.stop_on, None)
-        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_RETRY_WAIT": "1"}):
+        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "1"}):
             with self.assertRaises(cloud.ServiceError):
                 cloud.request("POST", fake.url + "/x", {}, b"", service="fish")   # no backoff slept through
         self.assertEqual(len(fake.requests), 1)
@@ -153,9 +153,9 @@ class Core(unittest.TestCase):
             stop.set()   # this render fails elsewhere while the request is out
             return 503, {}, b"{}"
         voice = {"service": "fish", "voice_id": "v", "model": "s2.1-pro"}
-        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url,
+        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_FISH_URL": fake.url,
                                                                       "FISH_AUDIO_API_KEY": SECRET,
-                                                                      "SWEATCAST_RETRY_WAIT": "0"}):
+                                                                      "HARMONICFITNESS_RETRY_WAIT": "0"}):
             cloud.stop_on(stop)
             self.addCleanup(cloud.stop_on, None)
             say = cloud.speaker(voice)
@@ -195,14 +195,14 @@ class Core(unittest.TestCase):
 
     def test_an_address_override_must_be_https_or_this_computer(self):
         for url in ("http://evil.example", "http://10.0.0.5:8080", "ftp://127.0.0.1/x", "file:///tmp/x"):
-            with mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": url}), self.assertRaises(cloud.ServiceError) as got:
+            with mock.patch.dict(os.environ, {"HARMONICFITNESS_FISH_URL": url}), self.assertRaises(cloud.ServiceError) as got:
                 cloud.base_url("fish")
             self.assertEqual(got.exception.kind, "bad_request")
-            self.assertIn("SWEATCAST_FISH_URL", str(got.exception))
+            self.assertIn("HARMONICFITNESS_FISH_URL", str(got.exception))
         for url in ("https://proxy.example/", "http://127.0.0.1:9", "http://localhost:9"):
-            with mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": url}):
+            with mock.patch.dict(os.environ, {"HARMONICFITNESS_FISH_URL": url}):
                 self.assertEqual(cloud.base_url("fish"), url.rstrip("/"))
-        with mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": ""}):
+        with mock.patch.dict(os.environ, {"HARMONICFITNESS_FISH_URL": ""}):
             self.assertEqual(cloud.base_url("fish"), "https://api.fish.audio")
 
     def test_a_tls_fallback_says_so(self):
@@ -432,7 +432,7 @@ class ServiceCase(unittest.TestCase):
         self.folder = persona_home(self.d)
         web_coach(self.folder, self.SERVICE)
         patches = [mock.patch.object(personas.paths, "PERSONAS", self.folder),
-                   mock.patch.dict(os.environ, {keys.SERVICE_VARS[self.SERVICE]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})]
+                   mock.patch.dict(os.environ, {keys.SERVICE_VARS[self.SERVICE]: SECRET, "HARMONICFITNESS_RETRY_WAIT": "0"})]
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
@@ -452,7 +452,7 @@ class ServiceCase(unittest.TestCase):
         fake = FakeService(answer)
         fake.__enter__()
         self.addCleanup(fake.__exit__)
-        patch = mock.patch.dict(os.environ, {f"SWEATCAST_{self.SERVICE.upper()}_URL": fake.url})
+        patch = mock.patch.dict(os.environ, {f"HARMONICFITNESS_{self.SERVICE.upper()}_URL": fake.url})
         patch.start()
         self.addCleanup(patch.stop)
         return fake
@@ -551,7 +551,7 @@ class Fish(ServiceCase):
         self.assertEqual((req.method, req.path), ("POST", "/model"))
         self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
         self.assertTrue(req.headers["content-type"].startswith("multipart/form-data; boundary="))
-        for field, value in (("visibility", "private"), ("type", "tts"), ("title", "sweatcast Coach Reed"),
+        for field, value in (("visibility", "private"), ("type", "tts"), ("title", "harmonicfitness Coach Reed"),
                              ("train_mode", "fast"), ("texts", "Okay, set your feet."),
                              ("voice_design_signatures", "sig-0")):
             self.assertIn(f'name="{field}"\r\n\r\n{value}\r\n'.encode(), req.body, field)
@@ -629,7 +629,7 @@ class ElevenLabs(ServiceCase):
         self.assertEqual(self.module.save(candidate, "Coach Ellis", "D" * 1500, b""), "el-saved-5")
         req = fake.requests[0]
         self.assertEqual((req.method, req.path), ("POST", "/v1/text-to-voice"))
-        self.assertEqual(json.loads(req.body), {"voice_name": "sweatcast Coach Ellis", "voice_description": "D" * 1000,
+        self.assertEqual(json.loads(req.body), {"voice_name": "harmonicfitness Coach Ellis", "voice_description": "D" * 1000,
                                                 "generated_voice_id": "g1"})
 
     def test_elevenlabs_delete(self):
@@ -652,12 +652,12 @@ class Gemini(ServiceCase):
 
     def test_gemini_design_body_has_only_input_in_prompted(self):
         fake = self.serve(self.design_answer)
-        out = self.module.design("A man in his forties.", "Okay, set your feet.", 1, "sweatcast audition a1 C")
+        out = self.module.design("A man in his forties.", "Okay, set your feet.", 1, "harmonicfitness audition a1 C")
         create, speech = fake.requests
         self.assertEqual((create.method, create.path), ("POST", "/v1beta/voices"))
         self.assertEqual(create.headers["x-goog-api-key"], SECRET)
         self.assertEqual(json.loads(create.body), {"voice": {"type": "prompted",
-                                                             "display_name": "sweatcast audition a1 C",
+                                                             "display_name": "harmonicfitness audition a1 C",
                                                              "prompted": {"input": "A man in his forties."}},
                                                    "store": True})
         self.assertEqual(speech.path, "/v1beta/interactions")   # the line, spoken once by the new voice
@@ -773,8 +773,8 @@ class Inworld(ServiceCase):
         self.assertEqual(voice_id, "ws__design-1")
         publish = fake.requests[-1]
         self.assertEqual((publish.method, publish.path), ("POST", "/voices/v1/voices/ws__design-1:publish"))
-        self.assertEqual(json.loads(publish.body), {"displayName": "sweatcast Coach Owen",
-                                                    "description": "A man in his forties.", "tags": ["sweatcast"]})
+        self.assertEqual(json.loads(publish.body), {"displayName": "harmonicfitness Coach Owen",
+                                                    "description": "A man in his forties.", "tags": ["harmonicfitness"]})
         self.module.save(dict(out[0], draft_id="a/b"), "Coach Owen")   # an edited draft ID: one segment
         self.assertEqual(fake.requests[-1].path, "/voices/v1/voices/a%2Fb:publish")
 
@@ -855,7 +855,7 @@ class UnreadableAnswers(unittest.TestCase):
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
         env = {var: SECRET for var in keys.SERVICE_VARS.values()}
-        env["SWEATCAST_RETRY_WAIT"] = "0"
+        env["HARMONICFITNESS_RETRY_WAIT"] = "0"
         patch = mock.patch.dict(os.environ, env)
         patch.start()
         self.addCleanup(patch.stop)
@@ -865,7 +865,7 @@ class UnreadableAnswers(unittest.TestCase):
         fake.__enter__()
         self.addCleanup(fake.__exit__)
         for service in ("fish", "elevenlabs", "gemini", "inworld"):
-            patch = mock.patch.dict(os.environ, {f"SWEATCAST_{service.upper()}_URL": fake.url})
+            patch = mock.patch.dict(os.environ, {f"HARMONICFITNESS_{service.upper()}_URL": fake.url})
             patch.start()
             self.addCleanup(patch.stop)
 
@@ -896,10 +896,10 @@ class UnreadableAnswers(unittest.TestCase):
         from services import fish
         with self.assertRaises(cloud.ServiceError) as got:
             fish.save({"wav": tone_wav(0.2), "text": "Hi.", "signature": "s"}, "Coach Maya")
-        self.assertIn("sweatcast Coach Maya", str(got.exception))
+        self.assertIn("harmonicfitness Coach Maya", str(got.exception))
 
 
-# render.run as ./sweatcast build calls it once the lint and the menu pass (those are tested in test_tools), in its
+# render.run as ./harmonicfitness build calls it once the lint and the menu pass (those are tested in test_tools), in its
 # own process with the key in the environment: the draft, the coach, the output.
 RENDER = """import hashlib, sys
 sys.path.insert(0, sys.argv[1])
@@ -930,8 +930,8 @@ class CloudRender(unittest.TestCase):
     def render_on(self, service, url, out=None):
         import keys
         e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
-        e.update({"SWEATCAST_HOME": self.home, f"SWEATCAST_{service.upper()}_URL": url,
-                  keys.SERVICE_VARS[service]: SECRET, "SWEATCAST_RETRY_WAIT": "0"})
+        e.update({"HARMONICFITNESS_HOME": self.home, f"HARMONICFITNESS_{service.upper()}_URL": url,
+                  keys.SERVICE_VARS[service]: SECRET, "HARMONICFITNESS_RETRY_WAIT": "0"})
         if not helpers.HAS_FFMPEG:
             # no ffmpeg (bare Python, no environment): a stand-in passes the render's preflight, so the tests
             # that stop before the encode still run (the ones that encode skip without a real one)
@@ -975,7 +975,7 @@ class CloudRender(unittest.TestCase):
             out = self.render(fake.url)
         self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
         self.assertIn("Fish Audio", out.stdout + out.stderr)
-        self.assertIn("./sweatcast keys", out.stdout + out.stderr)
+        self.assertIn("./harmonicfitness keys", out.stdout + out.stderr)
 
     def test_ceiling_stops_before_sending(self):
         self.set_ceiling(10)
@@ -1133,7 +1133,7 @@ class Deadline(unittest.TestCase):
         def slow(req):
             time.sleep(1.5)
             return wav_answer(req)
-        with FakeService(slow) as fake, mock.patch.dict(os.environ, {"SWEATCAST_RETRY_WAIT": "0"}):
+        with FakeService(slow) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "0"}):
             started = time.monotonic()
             with self.assertRaises(cloud.ServiceError) as got:
                 cloud.request("POST", fake.url + "/v1/tts", {}, b"{}", timeout=30, service="fish", deadline=0.4)
@@ -1145,7 +1145,7 @@ class Deadline(unittest.TestCase):
     def test_a_wait_past_the_deadline_is_not_slept(self):
         slept = []
         with FakeService(lambda r: (503, {"Retry-After": "5"}, b'{"message": "busy"}')) as fake, \
-                mock.patch.dict(os.environ, {"SWEATCAST_RETRY_WAIT": "1"}):
+                mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "1"}):
             with self.assertRaises(cloud.ServiceError) as got:
                 cloud.request("POST", fake.url + "/v1/tts", {}, b"{}", service="fish", deadline=2,
                               sleep=slept.append)

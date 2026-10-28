@@ -1,13 +1,13 @@
 """One step from draft to deliverables, in one process: lint and export the .txt, check the draft against its
 menu, render the .mp3, copy it to the phone.
 
-Run it as ./sweatcast build.
+Run it as ./harmonicfitness build.
 
-    ./sweatcast build <draft> "<name>" [--coach <name>] [--route <route>] [--lint-only] [--follow] [--web] [render options]
-    ./sweatcast build me/workouts/2026-10-19-bench-25/2026-10-19-bench-25.draft.txt "Workout 2026-10-19 Bench 25 min"
+    ./harmonicfitness build <draft> "<name>" [--coach <name>] [--route <route>] [--lint-only] [--follow] [--web] [render options]
+    ./harmonicfitness build me/workouts/2026-10-19-bench-25/2026-10-19-bench-25.draft.txt "Workout 2026-10-19 Bench 25 min"
 
 Writes <name>.txt and <name>.mp3 in the draft's workout folder (me/workouts/<stem>/), or in
-me/workouts/checks/ for the smoke test and any draft outside one (the context folder is SWEATCAST_HOME
+me/workouts/checks/ for the smoke test and any draft outside one (the context folder is HARMONICFITNESS_HOME
 if set). The draft is read once: the lint, the menu check and the render all see the same text, so
 nothing can slip in between them. Stops after the lint if it finds issues (fix and rerun). --lint-only
 skips rendering. Without --coach, uses the coach used last; without --route (or --engine, its older name), the first route in the
@@ -16,7 +16,7 @@ a render, copies the MP3 to each deliver_to folder that exists and, once every c
 local MP3.
 
 The menu: every draft but the smoke test (knowledge/smoke-test.draft.txt, known by its place) needs the
-menu ./sweatcast brief --save wrote beside it, from today and from health.md as it stands; the build stops
+menu ./harmonicfitness brief --save wrote beside it, from today and from health.md as it stands; the build stops
 on a movement that isn't on it, a menu from another day or one made before health.md changed (--lint-only
 only warns about the last two, so a draft can be checked ahead).
 
@@ -40,7 +40,7 @@ off plan (the MP3 is written but not copied), 3 the coach's pace hasn't been mea
 service refused the key, the payment or the quota, 64 the command was wrong (a mistyped option, an
 unknown coach, a missing draft, rendering ahead on a cloud voice): fix the command, not the draft; 70 a
 bug in the engine (its traceback goes to stderr and the build log): nothing to fix in the draft. A
-default web coach with no voice yet (pending) is made (./sweatcast coaches make) once the lint and the
+default web coach with no voice yet (pending) is made (./harmonicfitness coaches make) once the lint and the
 menu check pass, never with --lint-only. The render's chatter (model loading, errors) goes to
 me/workouts/.logs/<name>.log with the engine's own lines, and its last lines print on a failure. Every
 full build (not --lint-only, --follow or --clips-only) leaves one outcome line in builds.jsonl.
@@ -73,7 +73,7 @@ import workouts  # noqa: E402
 
 LOG_KEEP = 1_000_000   # bytes: a build log past this starts over, its older lines kept once in <name>.log.1
 LOG_TAIL = 64_000      # bytes of the log read back to show its last lines on a failure
-CACHE_NOTE = 2 << 30   # bytes: past this, a build mentions ./sweatcast cache prune
+CACHE_NOTE = 2 << 30   # bytes: past this, a build mentions ./harmonicfitness cache prune
 
 
 class _Tee:
@@ -231,7 +231,7 @@ def web_copy(mp3, name, out_dir, say=print):
 
 @dataclass(frozen=True)
 class BuildOptions:
-    """One build's flags, as ./sweatcast build takes them (see the module's docstring)."""
+    """One build's flags, as ./harmonicfitness build takes them (see the module's docstring)."""
     draft: str
     name: str
     coach: Optional[str] = None
@@ -392,7 +392,7 @@ def run_build(opts, say=print, fail=None):
     if not os.path.isfile(opts.draft):
         raise errors.UsageError(f"No draft at {opts.draft}")
     if not os.path.isfile(paths.PROFILE):
-        raise errors.ContextError(f"No profile at {paths.PROFILE}. Run ./sweatcast setup first (it copies "
+        raise errors.ContextError(f"No profile at {paths.PROFILE}. Run ./harmonicfitness setup first (it copies "
                                   "me.example/ to me/).")
     with open(opts.draft, encoding="utf-8") as f:
         text = f.read()   # the one read: the lint, the menu check and the render all see this text
@@ -449,7 +449,7 @@ def _run(b, text):
     if not smoke and not opts.lint_only and not coach.is_web and not opts.allow_estimated and not voices.pace(voice)[1]:
         b.fail(f"{coach.name}'s speaking rate hasn't been measured on {route} yet, so this draft's timing is a guess.\n"
               "Render the smoke test with them first, which measures it, then rerun:\n"
-              f'  ./sweatcast build {paths.show(paths.SMOKE_DRAFT)} "smoke-test" --coach "{coach.name}" --engine {route}\n'
+              f'  ./harmonicfitness build {paths.show(paths.SMOKE_DRAFT)} "smoke-test" --coach "{coach.name}" --engine {route}\n'
               "(or pass --allow-estimated to render anyway)")
         b.stopped(f"{coach.name} isn't measured on {route}")
         return BuildResult(cli.UNMEASURED, None, b.lines)
@@ -539,7 +539,7 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast build", allow_abbrev=False,
+    ap = cli.ArgumentParser(prog="harmonicfitness build", allow_abbrev=False,
                             description="Lint a draft, check it against its menu, render it and copy the MP3.")
     ap.add_argument("draft", help="the draft (me/workouts/<stem>/<stem>.draft.txt)")
     ap.add_argument("name", help="the MP3's name, such as \"Workout 2026-10-25 Strength 25 min\"")
@@ -574,7 +574,7 @@ def cache_note(say=print):
     import cache
     count, size = cache.size()
     if size > CACHE_NOTE:
-        say(f"(The clip cache holds {size / (1 << 30):.1f} GB in {count} clips; ./sweatcast cache prune clears "
+        say(f"(The clip cache holds {size / (1 << 30):.1f} GB in {count} clips; ./harmonicfitness cache prune clears "
               "those unused for 45 days.)")
 
 

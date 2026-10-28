@@ -14,11 +14,11 @@ The quiz beat can come from a puzzle channel, listed by @handle in puzzles in th
 same settings. `puzzles` lists its recent videos not yet used as a quiz; one
 counts as used once me/workouts/research/puzzles/<id>.md exists.
 
-    ./sweatcast youtube pick                 # recent unused videos per channel
-    ./sweatcast youtube pick --recent 6      # look further back
-    ./sweatcast youtube transcript <id or URL>
-    ./sweatcast youtube done <id>            # after a session tells a series part
-    ./sweatcast youtube puzzles              # recent unused puzzles for the quiz
+    ./harmonicfitness youtube pick                 # recent unused videos per channel
+    ./harmonicfitness youtube pick --recent 6      # look further back
+    ./harmonicfitness youtube transcript <id or URL>
+    ./harmonicfitness youtube done <id>            # after a session tells a series part
+    ./harmonicfitness youtube puzzles              # recent unused puzzles for the quiz
 """
 import argparse
 import html
@@ -49,12 +49,12 @@ yt_dlp = None
 
 
 def load_yt_dlp():
-    """Import yt-dlp, which the project's environment has (./sweatcast runs this there)."""
+    """Import yt-dlp, which the project's environment has (./harmonicfitness runs this there)."""
     global yt_dlp
     try:
         import yt_dlp as module
     except ImportError:
-        raise errors.SweatcastError("yt-dlp not found: run this as ./sweatcast youtube ..., after ./sweatcast setup")
+        raise errors.HarmonicFitnessError("yt-dlp not found: run this as ./harmonicfitness youtube ..., after ./harmonicfitness setup")
     yt_dlp = module
 
 
@@ -62,7 +62,7 @@ def handles(label="YouTube favorites", profile=None):
     found = context.handles(context.profile(profile), label)
     if not found:
         key = context.HANDLE_KEYS.get(label, label)
-        raise errors.SweatcastError(f"No @handles in {key} in the settings at the top of content.md.")
+        raise errors.HarmonicFitnessError(f"No @handles in {key} in the settings at the top of content.md.")
     return found
 
 
@@ -118,12 +118,12 @@ def mark_done(video, folder=None):
     """Record that the next part of a series was told. Returns (parts done, parts)."""
     path = os.path.join(folder, f"{video}.md")
     if not os.path.exists(path):
-        raise errors.SweatcastError(f"No sheet at {show(path)}")
+        raise errors.HarmonicFitnessError(f"No sheet at {show(path)}")
     with open(path, encoding="utf-8") as f:
         sheet = f.read()
     parts, done = series_state(sheet)
     if not PARTS_RE.search(sheet):
-        raise errors.SweatcastError(f"{video} isn't a series (its sheet has no '- Parts:' line)")
+        raise errors.HarmonicFitnessError(f"{video} isn't a series (its sheet has no '- Parts:' line)")
     done = min(done + 1, parts)
     if DONE_RE.search(sheet):
         sheet = DONE_RE.sub(f"- Parts done: {done}", sheet, count=1)
@@ -181,14 +181,14 @@ def caption_track(info):
 
 def caption_events(response, url):
     """The caption events from a json3 caption download (an open response), read under the same cap as a
-    feed (feeds.MAX_BYTES); an answer too large, not JSON or not the shape json3 has raises SweatcastError."""
+    feed (feeds.MAX_BYTES); an answer too large, not JSON or not the shape json3 has raises HarmonicFitnessError."""
     import feeds
     try:
         data = response.read(feeds.MAX_BYTES + 1)
     finally:
         response.close()
     if len(data) > feeds.MAX_BYTES:
-        raise errors.SweatcastError(f"The captions for {url} are over {feeds.MAX_BYTES // 1_000_000} MB; "
+        raise errors.HarmonicFitnessError(f"The captions for {url} are over {feeds.MAX_BYTES // 1_000_000} MB; "
                                     "pick another video.")
     try:
         doc = json.loads(data)
@@ -196,7 +196,7 @@ def caption_events(response, url):
         doc = None
     events = doc.get("events", []) if isinstance(doc, dict) else None
     if not isinstance(events, list):
-        raise errors.SweatcastError(f"The captions for {url} came back in a form this tool can't read; "
+        raise errors.HarmonicFitnessError(f"The captions for {url} came back in a form this tool can't read; "
                                     "pick another video.")
     return [e for e in events if isinstance(e, dict)]
 
@@ -224,10 +224,10 @@ def transcript(ref):
         try:
             info = y.extract_info(url, download=False)
         except yt_dlp.utils.DownloadError as e:
-            raise errors.SweatcastError(f"Couldn't load {url}: {e}")
+            raise errors.HarmonicFitnessError(f"Couldn't load {url}: {e}")
         track, manual = caption_track(info)
         if not track:
-            raise errors.SweatcastError(f"No English captions for {url}; pick another video.")
+            raise errors.HarmonicFitnessError(f"No English captions for {url}; pick another video.")
         events = caption_events(y.urlopen(track), url)
 
     body = paragraphs(events)

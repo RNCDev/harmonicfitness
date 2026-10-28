@@ -14,10 +14,10 @@ HAS_FFMPEG = ffmpeg.exe() is not None
 
 def assert_isolated(home):
     """Stop when `home` is a real context folder (holds a profile): the tests must never read or write
-    one. ./sweatcast test points SWEATCAST_HOME at an absent folder, as CI has no me/."""
+    one. ./harmonicfitness test points HARMONICFITNESS_HOME at an absent folder, as CI has no me/."""
     if os.path.exists(os.path.join(home, "profile.md")):
         raise SystemExit(f"The tests would run over a real context folder, {home}. Run them with "
-                         "./sweatcast test (which sets SWEATCAST_HOME to an absent folder), or set SWEATCAST_HOME.")
+                         "./harmonicfitness test (which sets HARMONICFITNESS_HOME to an absent folder), or set HARMONICFITNESS_HOME.")
 
 
 @contextlib.contextmanager
@@ -39,7 +39,7 @@ def home(root):
 
 def menu_for(draft_path, home, today=None, health_sha256=None):
     """Write today's menu beside `draft_path`, holding every movement the draft declares or names, as if
-    ./sweatcast brief --save had made it from `home`'s health.md."""
+    ./harmonicfitness brief --save had made it from `home`'s health.md."""
     import datetime
     import catalog
     import draft

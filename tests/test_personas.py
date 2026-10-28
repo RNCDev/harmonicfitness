@@ -20,7 +20,7 @@ import personas  # noqa: E402
 import routes  # noqa: E402
 import voices  # noqa: E402
 
-FIXTURE = personas.paths.SHIPPED   # the stock coaches the tests see (tests/fixtures/stock: ./sweatcast test sets SWEATCAST_SHIPPED)
+FIXTURE = personas.paths.SHIPPED   # the stock coaches the tests see (tests/fixtures/stock: ./harmonicfitness test sets HARMONICFITNESS_SHIPPED)
 FFMPEG = ffmpeg.exe()   # the MP3s need it; without it they're skipped, as in test_webcopy
 
 
@@ -90,7 +90,7 @@ class KeepWeb(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.d)
         folder = persona_home(self.d)
         for patch in (mock.patch.object(personas.paths, "PERSONAS", folder),
-                      mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key", "SWEATCAST_RETRY_WAIT": "0"})):
+                      mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key", "HARMONICFITNESS_RETRY_WAIT": "0"})):
             patch.start()
             self.addCleanup(patch.stop)
         self.audition = os.path.join(folder, ".auditions", "2026-10-25-1")
@@ -109,15 +109,15 @@ class KeepWeb(unittest.TestCase):
         import coaches
         from fakes import FakeService
         with FakeService(lambda r: (201, {}, b"<html>saved, probably</html>")) as fake, \
-                mock.patch.dict(os.environ, {"SWEATCAST_FISH_URL": fake.url}):
+                mock.patch.dict(os.environ, {"HARMONICFITNESS_FISH_URL": fake.url}):
             with self.assertRaises(cloud.ServiceError) as got:
                 coaches.keep_web("2026-10-25-1/A", "Coach Maya")
-        self.assertIn("sweatcast Coach Maya", str(got.exception))
+        self.assertIn("harmonicfitness Coach Maya", str(got.exception))
         with open(self.cands, encoding="utf-8") as f:
             self.assertEqual(json.load(f)[0]["saving"], "Coach Maya")   # the paid save is never forgotten
         self.assertFalse(os.path.exists(personas.folder_for("Coach Maya", "fish")))
         said = "\n".join(coaches.forget_audition("2026-10-25-1"))
-        self.assertIn('look for "sweatcast Coach Maya"', said)
+        self.assertIn('look for "harmonicfitness Coach Maya"', said)
         self.assertNotIn("nothing was saved", said)
 
     def outside(self):
@@ -342,7 +342,7 @@ class MakeLeftBehind(unittest.TestCase):
 
     def test_saved_but_not_recorded(self):
         warned = self.make("_record_made")
-        self.assertTrue(any("voice-9" in w and 'Delete "sweatcast Coach Reed"' in w for w in warned), warned)
+        self.assertTrue(any("voice-9" in w and 'Delete "harmonicfitness Coach Reed"' in w for w in warned), warned)
 
     def test_the_old_names_still_reach_the_new_modules(self):
         import audition
@@ -355,7 +355,7 @@ class MakeLeftBehind(unittest.TestCase):
 
 
 class SetAndList(unittest.TestCase):
-    """The rules behind ./sweatcast coaches set and the list, reachable without the command line."""
+    """The rules behind ./harmonicfitness coaches set and the list, reachable without the command line."""
 
     def setUp(self):
         self.d = tempfile.mkdtemp()

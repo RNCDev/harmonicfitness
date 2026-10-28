@@ -100,7 +100,7 @@ class SignIn(ApiCase):
 
     def test_auth_info_needs_no_session(self):
         self.assertEqual(self.client.get("/api/auth").json(),
-                         {"app_name": "Working Title", "registration": True})
+                         {"app_name": "HarmonicFitness", "registration": True})
 
     def test_register_signs_in(self):
         r = self.register("Fresh.One")
@@ -110,7 +110,7 @@ class SignIn(ApiCase):
         for flag in ("HttpOnly", "Path=/", "SameSite=lax", "Max-Age=7776000", "Secure"):
             self.assertIn(flag, cookie)
         self.assertEqual(self.client.get("/api/me").json(),
-                         {"app_name": "Working Title", "username": "fresh.one",
+                         {"app_name": "HarmonicFitness", "username": "fresh.one",
                           "has_password": True})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/context").json()])
         r = self.register("FRESH.ONE", client=self.other_client())
@@ -218,7 +218,7 @@ class SignIn(ApiCase):
         for _ in range(2):
             r = self.client.get(f"/link/{t}")
             self.assertEqual(r.status_code, 200)
-            self.assertIn("<title>Sign in to Working Title</title>", r.text)
+            self.assertIn("<title>Sign in to HarmonicFitness</title>", r.text)
             self.assertIn('action="/api/link/redeem"', r.text)
             self.assertIn(t, r.text)
             self.assertNotIn("<script", r.text.lower())

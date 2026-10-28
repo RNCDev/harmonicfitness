@@ -4,7 +4,7 @@
 
 **Goal:** Ship the web client in `docs/research/web-client/design.md` as a series of milestones, starting with Slice 1: an invited user signs in, sets one sentence ("a 20-minute strength workout with bodyweight"), presses one button, and watches a background job run the engine's `brief` on their own stored context and show the result.
 
-**Architecture:** FastAPI (`web`) and a Python worker (`worker`) share Postgres. Each user's context files live in Postgres, one encrypted row per file. A job writes them to a fresh temporary folder, runs `./sweatcast` in a subprocess with `SWEATCAST_HOME` pointed there, writes back only what changed (with a version check), and deletes the folder. Progress goes worker → Postgres `NOTIFY` → server-sent events → the React app.
+**Architecture:** FastAPI (`web`) and a Python worker (`worker`) share Postgres. Each user's context files live in Postgres, one encrypted row per file. A job writes them to a fresh temporary folder, runs `./harmonicfitness` in a subprocess with `HARMONICFITNESS_HOME` pointed there, writes back only what changed (with a version check), and deletes the folder. Progress goes worker → Postgres `NOTIFY` → server-sent events → the React app.
 
 **Tech stack:** Python 3.11 (the engine's pin), FastAPI, uvicorn, psycopg 3 (plain SQL, no ORM), `cryptography` (AES-GCM), Pydantic AI from Milestone 3, boto3 from Milestone 4; React + TypeScript on Vite, vitest; Postgres and a bucket on Railway.
 
@@ -13,20 +13,20 @@
 ## Global constraints
 
 - The engine (`tools/`, `knowledge/`, `coaches/`) is used as is. Any change it needs goes into the engine as a general feature, with engine tests, and doesn't change CLI behaviour.
-- The web layer never writes context files in a format of its own; every write to a context file is the engine's (run as `./sweatcast …`) or a byte-for-byte store of a file the engine wrote.
+- The web layer never writes context files in a format of its own; every write to a context file is the engine's (run as `./harmonicfitness …`) or a byte-for-byte store of a file the engine wrote.
 - Web dependencies are the optional extra `web` in `pyproject.toml`, never core dependencies. A CLI install doesn't grow.
 - Python `>=3.11,<3.12`. The Docker image installs with `uv sync --locked --extra web`, never the `cpu` or `cuda` extras.
-- The user-facing name is **"Working Title"** in the app's title, wordmark and copy only (`APP_NAME` in one place on each side). Code, folders, packages, the engine and Railway stay `sweatcast` / `sweatcast-web`.
+- The user-facing name is **"HarmonicFitness"** in the app's title, wordmark and copy only (`APP_NAME` in one place on each side). Code, folders, packages, the engine and Railway stay `harmonicfitness` / `harmonicfitness-web`.
 - No personal details in `web/`'s code, tests or fixtures. `tools/hooks/private-paths` matches by file name anywhere (`profile.md`, `health.md`, `training.md`, `content.md`, `log.md`, `settings.toml`, `movements.toml`, `.env`): web tests build their context from `me.example/` at run time and never ship files with those names.
 - Keys, health details, context files, chat, transcripts, job arguments, results and events are stored encrypted with the user's data key. Plain columns hold only ids, states, timestamps, versions, service names and the email address.
 - Nothing is ever retried automatically after it may have reached a paid service. A job that dies is marked failed, not requeued.
-- The engine subprocess gets an allowlisted environment: never `DATABASE_URL`, `WT_MASTER_KEY`, `SESSION_SECRET` or bucket credentials.
-- Railway services deploy from the GitHub repo (`RNCDev/sweatcast`, branch `main`), never `railway up` from a working tree, so only committed files (never `me/`) reach a server. `.dockerignore` also leaves out `me/`, `me.*/` (sparing `me.example/`), `models`, `.venv`, `.cache`, `.codegraph`, `docs/eval/out*`.
+- The engine subprocess gets an allowlisted environment: never `DATABASE_URL`, `HARMONICFITNESS_MASTER_KEY`, `SESSION_SECRET` or bucket credentials.
+- Railway services deploy from the GitHub repo (`RNCDev/harmonicfitness`, branch `main`), never `railway up` from a working tree, so only committed files (never `me/`) reach a server. `.dockerignore` also leaves out `me/`, `me.*/` (sparing `me.example/`), `models`, `.venv`, `.cache`, `.codegraph`, `docs/eval/out*`.
 - Build on `main`. The release level is the maintainer's call (expected: minor, 0.20.0).
 
 ## Decisions this plan makes (builder's calls in the spec)
 
-- **Sign-in (changed 2026-10-27, after Slice 1):** username and password, and anyone may register while `WT_REGISTRATION` is `open` (the default; `closed` shuts it, sign-in still works). Passwords are hashed with the standard library's scrypt; failed sign-ins are throttled per username (10 in 15 minutes) and per address (50), registration attempts per address (10 an hour) and new accounts overall (50 an hour); at most 4 hashes run at once, in the web process's memory. Changing a password signs out every other device. No email: someone who forgets their password asks the maintainer, whose `python -m webapp.admin reset-password <username>` clears it and prints a one-time link (24 hours); signed in by it, the app asks for a new password. **Add a device** stays: a one-time link and QR code, valid for 10 minutes, through the same link page (`/link/<token>`, a button that POSTs, so a link preview never uses it up). Sessions as before: a cookie (HttpOnly, Secure, SameSite=Lax) for 90 days, renewed on use. Invite links were removed; migration 004 gave existing users a username from their email and no password, which the app asks them to set. *(Slice 1 shipped with invite links instead; the tasks below describe what was built then.)*
+- **Sign-in (changed 2026-10-27, after Slice 1):** username and password, and anyone may register while `HARMONICFITNESS_REGISTRATION` is `open` (the default; `closed` shuts it, sign-in still works). Passwords are hashed with the standard library's scrypt; failed sign-ins are throttled per username (10 in 15 minutes) and per address (50), registration attempts per address (10 an hour) and new accounts overall (50 an hour); at most 4 hashes run at once, in the web process's memory. Changing a password signs out every other device. No email: someone who forgets their password asks the maintainer, whose `python -m webapp.admin reset-password <username>` clears it and prints a one-time link (24 hours); signed in by it, the app asks for a new password. **Add a device** stays: a one-time link and QR code, valid for 10 minutes, through the same link page (`/link/<token>`, a button that POSTs, so a link preview never uses it up). Sessions as before: a cookie (HttpOnly, Secure, SameSite=Lax) for 90 days, renewed on use. Invite links were removed; migration 004 gave existing users a username from their email and no password, which the app asks them to set. *(Slice 1 shipped with invite links instead; the tasks below describe what was built then.)*
 - **Queue:** a `jobs` table claimed with `FOR UPDATE SKIP LOCKED`. "One job per user at a time" is a partial unique index on `jobs(user_id) WHERE state = 'running'`, so the database enforces it.
 - **A dead job:** the worker updates `heartbeat_at` every 15 s. A running job whose heartbeat is older than 120 s is marked `failed` ("interrupted") by the next worker poll, never requeued.
 - **Store:** one row per context file (`context_files`), body encrypted, with an integer `version`. Clip cache and voice pace are not stored in Slice 1; whether to keep them between jobs is decided in Milestone 4.
@@ -36,14 +36,14 @@
 
 ## Railway (created 2026-10-27)
 
-Project `sweatcast-web` (workspace "rncdev's Projects"), **one environment** (the maintainer's decision, 2026-10-27: no separate staging and production; the spec's two environments are dropped). It holds `Postgres`, the bucket `media` (region iad), and the `web` and `worker` services deployed from `main` (Task 10), at https://web-staging-1b5a.up.railway.app. The environment is still named `staging` until it's renamed in the dashboard; the old `production` environment held only a stray service and is to be deleted.
+Project `harmonicfitness-web` (workspace "rncdev's Projects"), **one environment** (the maintainer's decision, 2026-10-27: no separate staging and production; the spec's two environments are dropped). It holds `Postgres`, the bucket `media` (region iad), and the `web` and `worker` services deployed from `main` (Task 10), at https://web-staging-1b5a.up.railway.app. The environment is still named `staging` until it's renamed in the dashboard; the old `production` environment held only a stray service and is to be deleted.
 
 ## Milestones
 
 | | Milestone | What it proves | Spec sections |
 |---|---|---|---|
 | **1** | **Slice 1** (detailed below) | sign-in, the store, a job running the engine on a user's folder, write-back, live progress, deployed to staging | Stack, Railway layout, Per-user isolation, Jobs (no agent) |
-| 2 | Engine web mode and keys | `SWEATCAST_WEB=1` as an engine feature; encrypted per-service keys, entered once, never shown | Engine changes, Keys |
+| 2 | Engine web mode and keys | `HARMONICFITNESS_WEB=1` as an engine feature; encrypted per-service keys, entered once, never shown | Engine changes, Keys |
 | 3 | The agent, through the plan | a provider-agnostic loop with the engine's commands as typed tools, ask and show tools, the check-in and the plan shown | The agent, Jobs and conversations |
 | 4 | Build, render, deliver | the long job: write, lint, build, upload, signed link, 24 h expiry, log; spend guard | Delivery and storage, anti-goal on billing |
 | 5 | Instructions from the skills | a generator beside `harness sync` writes the web agent's instructions; a test fails when stale; the eval gate per provider | The agent |
@@ -54,7 +54,7 @@ The ui-6 polish (copy, motion, more separation between the working panel and the
 
 ### Milestone 2 in outline
 
-- Engine: `paths.WEB = os.environ.get("SWEATCAST_WEB") == "1"`. `doctor.sh --facts` reports `local=no` with the reason "the web client speaks with web coaches only"; `routes.missing_key` says to add the key in the app's settings; `coachpick.default` never falls back to a local stand-in; `coaches download` exits 64; `build` with no delivery folder records `kept_local` with the reason "the web client uploads the MP3". Engine tests for each, and the CHANGELOG.
+- Engine: `paths.WEB = os.environ.get("HARMONICFITNESS_WEB") == "1"`. `doctor.sh --facts` reports `local=no` with the reason "the web client speaks with web coaches only"; `routes.missing_key` says to add the key in the app's settings; `coachpick.default` never falls back to a local stand-in; `coaches download` exits 64; `build` with no delivery folder records `kept_local` with the reason "the web client uploads the MP3". Engine tests for each, and the CHANGELOG.
 - Web: `user_keys(user_id, service, secret, updated_at)`; a settings view listing which services have a key, replace and delete; keys decrypted only in the worker, passed only into a job's environment under the names in `knowledge/services.toml`.
 
 ### Carried into Milestone 4 (from Slice 1's final review)
@@ -70,7 +70,7 @@ Required before renders, which are long and billed:
 
 ## Review focus
 
-1. **The engine subprocess sees server secrets.** A job's environment holds `WT_MASTER_KEY` or `DATABASE_URL` because the runner copied `os.environ`. Expected: only the allowlist reaches it. Pinned by `test_engine_env_is_allowlisted` (Task 5).
+1. **The engine subprocess sees server secrets.** A job's environment holds `HARMONICFITNESS_MASTER_KEY` or `DATABASE_URL` because the runner copied `os.environ`. Expected: only the allowlist reaches it. Pinned by `test_engine_env_is_allowlisted` (Task 5).
 2. **One user reaches another's job or files by id.** `GET /api/jobs/{id}/events` for another user's job. Expected: 404, the same as a job that doesn't exist. Pinned by `test_other_users_job_is_404` (Task 8).
 3. **A worker dies mid-job.** The job stays `running` and blocks that user forever, or is retried and bills again. Expected: marked failed after 120 s without a heartbeat, the user's next job runs, nothing is retried. Pinned by `test_stale_running_job_fails_and_frees_user` (Task 6).
 4. **The user edits a file while a job runs.** Expected: the user's edit wins, the job's write of that file is dropped and noted. Pinned by `test_write_back_conflict_keeps_users_edit` (Task 3).
@@ -84,11 +84,11 @@ File map (all new unless marked):
 
 ```
 pyproject.toml, uv.lock              modify: the `web` extra
-sweatcast                            modify: `test` also discovers web/webtests when the extra is installed
+HarmonicFitness                            modify: `test` also discovers web/webtests when the extra is installed
 .github/workflows/test.yml           modify: a Postgres service, `uv sync --locked --extra web`
 .dockerignore, Dockerfile            the image (Task 10)
 web/README.md                        how to run it locally, the env variables, the admin commands
-web/entrypoint.sh                    WT_ROLE=web → migrate, then uvicorn; WT_ROLE=worker → the worker
+web/entrypoint.sh                    HARMONICFITNESS_ROLE=web → migrate, then uvicorn; HARMONICFITNESS_ROLE=worker → the worker
 web/webapp/__init__.py
 web/webapp/config.py                 Settings from the environment
 web/webapp/crypto.py                 envelope encryption
@@ -96,48 +96,48 @@ web/webapp/db.py                     connection pool, migration runner
 web/webapp/migrations/001_init.sql   the schema
 web/webapp/store.py                  context files: read, versioned write-back
 web/webapp/folder.py                 materialize a folder, harvest what changed, seed a new user
-web/webapp/engine.py                 run ./sweatcast in a subprocess
+web/webapp/engine.py                 run ./harmonicfitness in a subprocess
 web/webapp/jobs.py                   enqueue, claim, heartbeat, finish, events
 web/webapp/worker.py                 the loop and the handlers (Slice 1: `brief`)
 web/webapp/auth.py                   invites and sessions
 web/webapp/admin.py                  `python -m webapp.admin invite|login-link`
 web/webapp/api.py                    FastAPI app: API, SSE, the built client
-web/webtests/                           unittest; DB tests skip without WT_TEST_DATABASE_URL
+web/webtests/                           unittest; DB tests skip without HARMONICFITNESS_TEST_DATABASE_URL
 web/client/                          Vite + React + TypeScript
 ```
 
-Tests use `unittest` (as the engine does). Tests that need Postgres read `WT_TEST_DATABASE_URL` and skip when it's unset; each test class creates a fresh schema (`CREATE SCHEMA t_<random>`, `SET search_path`) and drops it after. The folder is `web/webtests/` (not `tests/`, which would clash with the engine's `tests` package); each test file inserts `web/` on `sys.path`, as engine tests insert `tools/`. Run them all with `./sweatcast test` once Task 1 lands; one file with `.venv/bin/python -m unittest discover -s web/webtests -t web -p test_crypto.py -v` from the repo root.
+Tests use `unittest` (as the engine does). Tests that need Postgres read `HARMONICFITNESS_TEST_DATABASE_URL` and skip when it's unset; each test class creates a fresh schema (`CREATE SCHEMA t_<random>`, `SET search_path`) and drops it after. The folder is `web/webtests/` (not `tests/`, which would clash with the engine's `tests` package); each test file inserts `web/` on `sys.path`, as engine tests insert `tools/`. Run them all with `./harmonicfitness test` once Task 1 lands; one file with `.venv/bin/python -m unittest discover -s web/webtests -t web -p test_crypto.py -v` from the repo root.
 
 ### Task 1: The `web` extra and test wiring
 
 **Files:**
-- Modify: `pyproject.toml` (`[project.optional-dependencies] web = [...]`), `uv.lock`, `sweatcast` (the `test` branch near line 88), `.github/workflows/test.yml`
+- Modify: `pyproject.toml` (`[project.optional-dependencies] web = [...]`), `uv.lock`, `harmonicfitness` (the `test` branch near line 88), `.github/workflows/test.yml`
 - Create: `web/webapp/__init__.py`, `web/webtests/__init__.py`, `web/webtests/test_wiring.py`, `web/README.md`
 
 **Interfaces:**
-- Produces: `import webapp` works with `web/` on `sys.path` (each web test file inserts it, as engine tests insert `tools/`); `webapp.APP_NAME = "Working Title"`.
+- Produces: `import webapp` works with `web/` on `sys.path` (each web test file inserts it, as engine tests insert `tools/`); `webapp.APP_NAME = "HarmonicFitness"`.
 
 - [ ] **Step 1:** Add the `web` extra: `fastapi`, `uvicorn[standard]`, `psycopg[binary,pool]`, `cryptography`, `httpx` (for FastAPI's TestClient), each pinned `==` to the newest release at least two weeks old. Run `uv lock` and `uv sync --extra web`.
-- [ ] **Step 2: Write the failing test** `test_wiring.py::test_app_name`: `assert webapp.APP_NAME == "Working Title"`.
-- [ ] **Step 3:** Run `./sweatcast test`. Expected: the web test isn't discovered yet (count unchanged).
-- [ ] **Step 4:** In `sweatcast`'s `test` branch, after the engine's discover, run `python -m unittest discover -s web/webtests -t web` when `importlib.util.find_spec("fastapi")` is found, else print `web tests skipped: install with uv sync --extra web` and don't fail. Create `webapp/__init__.py` with `APP_NAME`.
-- [ ] **Step 5:** Run `./sweatcast test`. Expected: all engine tests and `test_app_name` pass.
-- [ ] **Step 6:** CI: add `services: postgres: image: postgres:16` with a health check, `env: WT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres`, and change `uv sync --locked` to `uv sync --locked --extra web`.
-- [ ] **Step 7: Commit** `web: the web extra and its tests in ./sweatcast test`.
+- [ ] **Step 2: Write the failing test** `test_wiring.py::test_app_name`: `assert webapp.APP_NAME == "HarmonicFitness"`.
+- [ ] **Step 3:** Run `./harmonicfitness test`. Expected: the web test isn't discovered yet (count unchanged).
+- [ ] **Step 4:** In `harmonicfitness`'s `test` branch, after the engine's discover, run `python -m unittest discover -s web/webtests -t web` when `importlib.util.find_spec("fastapi")` is found, else print `web tests skipped: install with uv sync --extra web` and don't fail. Create `webapp/__init__.py` with `APP_NAME`.
+- [ ] **Step 5:** Run `./harmonicfitness test`. Expected: all engine tests and `test_app_name` pass.
+- [ ] **Step 6:** CI: add `services: postgres: image: postgres:16` with a health check, `env: HARMONICFITNESS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres`, and change `uv sync --locked` to `uv sync --locked --extra web`.
+- [ ] **Step 7: Commit** `web: the web extra and its tests in ./harmonicfitness test`.
 
 ### Task 2: Settings and envelope encryption
 
 **Files:** Create `web/webapp/config.py`, `web/webapp/crypto.py`, `web/webtests/test_crypto.py`
 
 **Interfaces:**
-- Produces: `config.Settings` (frozen dataclass): `database_url: str`, `master_key: bytes` (32 bytes, from base64 `WT_MASTER_KEY`), `engine_root: str` (default: the repo root, two levels up from `webapp/`), `session_days: int = 90`, `invite_days: int = 7`, `base_url: str` (`WT_BASE_URL`), `role: str` (`WT_ROLE`, `web` or `worker`). `config.load(env: Mapping[str, str]) -> Settings` raises `config.ConfigError` naming the missing or malformed variable (never its value).
+- Produces: `config.Settings` (frozen dataclass): `database_url: str`, `master_key: bytes` (32 bytes, from base64 `HARMONICFITNESS_MASTER_KEY`), `engine_root: str` (default: the repo root, two levels up from `webapp/`), `session_days: int = 90`, `invite_days: int = 7`, `base_url: str` (`HARMONICFITNESS_BASE_URL`), `role: str` (`HARMONICFITNESS_ROLE`, `web` or `worker`). `config.load(env: Mapping[str, str]) -> Settings` raises `config.ConfigError` naming the missing or malformed variable (never its value).
 - Produces: `crypto.new_data_key(master: bytes) -> tuple[bytes, bytes]` (plain data key, wrapped data key); `crypto.unwrap(master: bytes, wrapped: bytes) -> bytes`; `crypto.seal(key: bytes, plaintext: bytes, aad: bytes) -> bytes`; `crypto.open_(key: bytes, sealed: bytes, aad: bytes) -> bytes`, raising `crypto.Tampered`. AES-256-GCM, 12-byte random nonce prefixed to the ciphertext. The AAD binds a value to its place: `f"{user_id}:{table}:{key}".encode()`.
 
 - [ ] **Step 1: Write the failing tests:**
   - `test_round_trip`: `open_(k, seal(k, b"x", b"a"), b"a") == b"x"`.
   - `test_wrong_aad_fails`: a value sealed for `u1:context_files:health.md` raises `Tampered` when opened with `u2:context_files:health.md`.
   - `test_unwrap_needs_the_master`: a data key wrapped under one master raises `Tampered` under another.
-  - `test_config_refuses_short_master_key`: `load({"WT_MASTER_KEY": base64(16 bytes), ...})` raises `ConfigError` whose message contains `WT_MASTER_KEY` and not the value.
+  - `test_config_refuses_short_master_key`: `load({"HARMONICFITNESS_MASTER_KEY": base64(16 bytes), ...})` raises `ConfigError` whose message contains `HARMONICFITNESS_MASTER_KEY` and not the value.
 - [ ] **Step 2:** Run `.venv/bin/python -m unittest discover -s web/webtests -t web -p test_crypto.py -v`. Expected: FAIL, no module `webapp.crypto`.
 - [ ] **Step 3:** Implement both modules.
 - [ ] **Step 4:** Run the tests. Expected: PASS.
@@ -193,10 +193,10 @@ Tests use `unittest` (as the engine does). Tests that need Postgres read `WT_TES
 **Files:** Create `web/webapp/engine.py`, `web/webtests/test_engine.py`
 
 **Interfaces:**
-- Produces: `engine.Result` (NamedTuple: `code: int`, `stdout: str`, `stderr: str`). `engine.run(engine_root: str, home: str, argv: list[str], extra_env: Mapping[str, str] = {}, timeout: float = 120) -> Result`. Runs `[engine_root + "/sweatcast", *argv]` with `cwd=engine_root` and an environment built only from `engine.ALLOWED = ("PATH", "LANG", "LC_ALL", "TZ", "UV_CACHE_DIR", "SWEATCAST_PYTHON")` taken from `os.environ`, plus `HOME=home`, `SWEATCAST_HOME=home` and `extra_env`. On timeout it kills the process group and returns code 124 with `stderr` saying so. Output passes through the engine's own `redact.scrub` (imported from `tools/redact.py`, a leaf module) with every value in `extra_env` added as a secret to scrub.
+- Produces: `engine.Result` (NamedTuple: `code: int`, `stdout: str`, `stderr: str`). `engine.run(engine_root: str, home: str, argv: list[str], extra_env: Mapping[str, str] = {}, timeout: float = 120) -> Result`. Runs `[engine_root + "/harmonicfitness", *argv]` with `cwd=engine_root` and an environment built only from `engine.ALLOWED = ("PATH", "LANG", "LC_ALL", "TZ", "UV_CACHE_DIR", "HARMONICFITNESS_PYTHON")` taken from `os.environ`, plus `HOME=home`, `HARMONICFITNESS_HOME=home` and `extra_env`. On timeout it kills the process group and returns code 124 with `stderr` saying so. Output passes through the engine's own `redact.scrub` (imported from `tools/redact.py`, a leaf module) with every value in `extra_env` added as a secret to scrub.
 
 - [ ] **Step 1: Write the failing tests:**
-  - `test_engine_env_is_allowlisted`: with `os.environ` patched to hold `WT_MASTER_KEY=secret-master` and `DATABASE_URL=postgres://x`, run `["get", "wpm"]` through a stub `sweatcast` script in a temp engine root that prints `env` → stdout contains neither value, and contains `SWEATCAST_HOME=<home>`.
+  - `test_engine_env_is_allowlisted`: with `os.environ` patched to hold `HARMONICFITNESS_MASTER_KEY=secret-master` and `DATABASE_URL=postgres://x`, run `["get", "wpm"]` through a stub `harmonicfitness` script in a temp engine root that prints `env` → stdout contains neither value, and contains `HARMONICFITNESS_HOME=<home>`.
   - `test_brief_runs_on_a_seeded_folder`: materialize `folder.seed(ROOT)` into a temp dir and run the real engine: `["brief", "--goal", "strength", "--minutes", "20", "--preset", "bodyweight", "--today", "2026-10-27", "--save", f"{home}/workouts/2026-10-27-strength-20/2026-10-27-strength-20.draft.txt"]` → code 0, stdout starts with `# Today's brief: strength, 20 minutes`, and the `.menu.json` exists.
   - `test_extra_env_values_are_scrubbed`: a stub that echoes `$FISH_AUDIO_API_KEY` with `extra_env={"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"}` → stdout doesn't contain the key.
   - `test_timeout_kills`: a stub that sleeps 10 s with `timeout=0.5` → code 124.
@@ -213,7 +213,7 @@ Tests use `unittest` (as the engine does). Tests that need Postgres read `WT_TES
 - Consumes: Tasks 3 to 5.
 - Produces: `jobs.enqueue(conn, uk, kind: str, args: dict) -> int`; `jobs.claim(conn) -> Job | None` (`Job`: `id`, `user_id`, `kind`; claims the oldest queued job whose user has none running: `select … for update skip locked limit 1`, then `update … set state='running', started_at=now(), heartbeat_at=now()`, catching the unique violation from `one_running_job_per_user` as "nothing to claim"); `jobs.heartbeat(conn, job_id)`; `jobs.finish(conn, uk, job_id, result: dict)`; `jobs.fail(conn, uk, job_id, error: str)`; `jobs.reap(conn, stale_after: int = 120) -> list[int]` (running jobs with an old heartbeat → failed, `error = 'interrupted'`); `jobs.event(conn, uk, job_id, body: dict)` (inserts, then `select pg_notify('job_events', job_id::text)`); `jobs.events(conn, uk, job_id, after: int = 0) -> list[tuple[int, dict]]`; `jobs.args(conn, uk, job_id) -> dict`.
 - Produces: `worker.HANDLERS: dict[str, Callable[[Ctx], dict]]`; `worker.run_one(conn, settings) -> bool` (reap, claim, run the handler with heartbeats from a timer thread on its own connection (a psycopg connection is never shared between threads), finish or fail; returns whether a job ran); `worker.main()` (loop `run_one`, sleeping 1 s when idle, `LISTEN jobs_queued` to wake early). `Ctx` holds `conn`, `uk`, `job_id`, `args`, `settings`, `home` (the temp folder) and `say(stage: str, **fields)` (a job event).
-- Like the server, the worker sets `SWEATCAST_HOME` to a path that doesn't exist before importing any engine module (`tools/sessions.py`, `tools/catalog.py`), and touches a user's files only through `engine.run` in their own folder: no process ever switches between users' folders.
+- Like the server, the worker sets `HARMONICFITNESS_HOME` to a path that doesn't exist before importing any engine module (`tools/sessions.py`, `tools/catalog.py`), and touches a user's files only through `engine.run` in their own folder: no process ever switches between users' folders.
 - The `brief` handler: validate `args` (`goal` in the session goals from `tools/sessions.py`, `minutes` in 10..60, `preset` in the catalog's presets; anything else fails the job with a message, never runs the engine), `say("folder")`, materialize, `say("brief")`, run `brief` with `--today <args.today>` and `--save` into `workouts/<date>-<goal>-<minutes>/`, harvest with `never={"health.md"}`, write back, `say("saved", conflicts=[...])`, return `{"brief_md": stdout, "stem": stem}`. The folder is removed in a `finally`.
 
 - [ ] **Step 1: Write the failing tests:**
@@ -255,10 +255,10 @@ Tests use `unittest` (as the engine does). Tests that need Postgres read `WT_TES
 **Interfaces:**
 - Consumes: Tasks 2 to 7.
 - Produces, all JSON under `/api`, every route but the two invite routes needing the session cookie `wt_session` (else 401):
-  - `GET /invite/{token}` → a plain page with one button, "Sign in to Working Title", that POSTs the token; it doesn't redeem.
+  - `GET /invite/{token}` → a plain page with one button, "Sign in to HarmonicFitness", that POSTs the token; it doesn't redeem.
   - `POST /api/invite/redeem` body `{"token"}` → redeems, sets the cookie, 303 to `/`. A refused invite → 410.
-  - `GET /api/me` → `{"app_name": "Working Title", "email": ...}`.
-  - `GET /api/options` → `{"minutes": [10, 15, 20, 25, 30, 45], "goals": [...], "presets": [...]}`, goals and presets read from `tools/sessions.py` and `tools/catalog.py` (shared knowledge only: the server process sets `SWEATCAST_HOME` to a path that doesn't exist before importing any engine module).
+  - `GET /api/me` → `{"app_name": "HarmonicFitness", "email": ...}`.
+  - `GET /api/options` → `{"minutes": [10, 15, 20, 25, 30, 45], "goals": [...], "presets": [...]}`, goals and presets read from `tools/sessions.py` and `tools/catalog.py` (shared knowledge only: the server process sets `HARMONICFITNESS_HOME` to a path that doesn't exist before importing any engine module).
   - `GET /api/context` → `[{"path", "version", "updated_at"}]` (names only; bodies in Milestone 6).
   - `POST /api/jobs` body `{"kind": "brief", "goal", "minutes", "preset", "today"}` → `{"id"}` (202). `today` is the browser's local date (`YYYY-MM-DD`, within a day of the server's): the menu gate refuses a menu from another day, so the worker's UTC date must never stand in for the user's.
   - `GET /api/jobs/{id}` → `{"id", "state", "error", "result"}`.
@@ -288,7 +288,7 @@ Tests use `unittest` (as the engine does). Tests that need Postgres read `WT_TES
 **Interfaces:**
 - Consumes: the API (Task 8).
 - Produces: `model.ts`: `type Token = {key: string; value: string | number; options: {value: string | number; label: string}[]; why: string}`; `type SentenceModel = {parts: (string | Token)[]}`; `buildWorkoutSentence(opts: Options, chosen: Chosen): SentenceModel`; `setToken(m: SentenceModel, key: string, value): SentenceModel` (pure); `toJobArgs(m: SentenceModel, today: string): {kind: "brief"; goal: string; minutes: number; preset: string; today: string}`.
-- Layout as ui-6: the sticky band (wordmark "Working Title" on the left, the sentence, the button at its right end), then chat, the working panel, and the context column at 1700 px and wider (a drawer below). The context column gets a stronger edge than the mockup: its own surface colour (`--sheet` on `--base`) and a 1 px rule plus 24 px gap from the panel. Chat in Slice 1 holds one line: the agent arrives in Milestone 3. The panel shows the job's stages as they stream (Queued, Writing your folder, Reading your limits, Saved) and then the brief, rendered with `react-markdown` (raw HTML off). The context column lists the user's files by name, and under them a "Sign in another device" button that shows the link from `POST /api/device-link` as text and as a QR code (the `qrcode` npm package, drawn on a canvas), with its 10-minute expiry.
+- Layout as ui-6: the sticky band (wordmark "HarmonicFitness" on the left, the sentence, the button at its right end), then chat, the working panel, and the context column at 1700 px and wider (a drawer below). The context column gets a stronger edge than the mockup: its own surface colour (`--sheet` on `--base`) and a 1 px rule plus 24 px gap from the panel. Chat in Slice 1 holds one line: the agent arrives in Milestone 3. The panel shows the job's stages as they stream (Queued, Writing your folder, Reading your limits, Saved) and then the brief, rendered with `react-markdown` (raw HTML off). The context column lists the user's files by name, and under them a "Sign in another device" button that shows the link from `POST /api/device-link` as text and as a QR code (the `qrcode` npm package, drawn on a canvas), with its 10-minute expiry.
 - Motion in Slice 1 only where ui-6 has it: a changed token rolls in (`roll` and `flash` keyframes), with `prefers-reduced-motion` turning it off. The copy pass comes later.
 
 - [ ] **Step 1: Write the failing tests:**
@@ -306,11 +306,11 @@ Tests use `unittest` (as the engine does). Tests that need Postgres read `WT_TES
 **Files:** Create `Dockerfile`, `.dockerignore`, `web/entrypoint.sh`; modify `web/README.md`
 
 - [ ] **Step 1:** `Dockerfile`, two stages: `node:20-slim` runs `npm ci && npm run build` in `web/client`; `python:3.11-slim` installs `ffmpeg` and uv (the version CI pins), copies the repo, runs `uv sync --locked --extra web`, copies `web/client/dist`, and runs `web/entrypoint.sh`. `.dockerignore` as in Global constraints, plus `web/client/node_modules`.
-- [ ] **Step 2:** Build locally: `docker build -t sweatcast-web .`, then `docker run --rm sweatcast-web sh -c 'ls me 2>&1; .venv/bin/python -c "import importlib.util as u; assert u.find_spec(\"pocket_tts\") is None"'`. Expected: no `me`, and the assert passes (the local voice isn't installed; `doctor` still reports the hardware as able until Milestone 2's web mode).
-- [ ] **Step 3:** Check in Railway's dashboard that its GitHub app can read `RNCDev/sweatcast` (the CLI can't). Push `main`, then add the services from the repo: `railway add --repo RNCDev/sweatcast --branch main --service web` and the same for `worker`, in `staging`. Variables on both: `WT_ROLE` (`web` / `worker`), `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `WT_BASE_URL` (the web service's Railway domain, from `railway domain`), and `WT_MASTER_KEY`, generated and set in one pipe so it's never printed: `python3 -c 'import os,base64;print(base64.b64encode(os.urandom(32)).decode())' | railway variable set WT_MASTER_KEY --stdin` (check the flag in `railway variable set --help` first; if there's no stdin form, set it from the dashboard).
+- [ ] **Step 2:** Build locally: `docker build -t harmonicfitness-web .`, then `docker run --rm harmonicfitness-web sh -c 'ls me 2>&1; .venv/bin/python -c "import importlib.util as u; assert u.find_spec(\"pocket_tts\") is None"'`. Expected: no `me`, and the assert passes (the local voice isn't installed; `doctor` still reports the hardware as able until Milestone 2's web mode).
+- [ ] **Step 3:** Check in Railway's dashboard that its GitHub app can read `RNCDev/harmonicfitness` (the CLI can't). Push `main`, then add the services from the repo: `railway add --repo RNCDev/harmonicfitness --branch main --service web` and the same for `worker`, in `staging`. Variables on both: `HARMONICFITNESS_ROLE` (`web` / `worker`), `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `HARMONICFITNESS_BASE_URL` (the web service's Railway domain, from `railway domain`), and `HARMONICFITNESS_MASTER_KEY`, generated and set in one pipe so it's never printed: `python3 -c 'import os,base64;print(base64.b64encode(os.urandom(32)).decode())' | railway variable set HARMONICFITNESS_MASTER_KEY --stdin` (check the flag in `railway variable set --help` first; if there's no stdin form, set it from the dashboard).
 - [ ] **Step 4:** Check that `production` didn't also pick up the new services (`railway environment production` then `railway status`); remove them there if it did. Deploy staging and check: `railway logs --service web` shows the migration applied and uvicorn listening; `railway run --service web python -m webapp.admin invite <the maintainer's email>` prints a link; opening it and pressing the button shows the brief.
 - [ ] **Step 5: Commit** `web: the image and the staging deploy`. Note the staging URL in `web/README.md`.
 
 ## Done for Slice 1
 
-`./sweatcast test` passes with and without the `web` extra, CI passes with Postgres, and on staging an invited user gets from the invite link to a brief on their own stored context, with the job's stages streaming in. No language model, voice service, key or bucket is used yet.
+`./harmonicfitness test` passes with and without the `web` extra, CI passes with Postgres, and on staging an invited user gets from the invite link to a brief on their own stored context, with the job's stages streaming in. No language model, voice service, key or bucket is used yet.

@@ -67,7 +67,7 @@ def resolve(coach=None, engine=None, pending=False):
     its estimated voice (the lint and the brief; never the render)."""
     p = personas.lookup(coach) if coach else default()
     if p is None:
-        raise errors.CoachError("No coach yet: choose one (./sweatcast coaches lists them), or make a web coach (the coach skill).")
+        raise errors.CoachError("No coach yet: choose one (./harmonicfitness coaches lists them), or make a web coach (the coach skill).")
     return personas.voice_for(p, pick(context.render_preferences(), p, override=engine), pending)
 
 

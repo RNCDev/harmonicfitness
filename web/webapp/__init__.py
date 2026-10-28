@@ -1,1 +1,1 @@
-APP_NAME = "Working Title"
+APP_NAME = "HarmonicFitness"

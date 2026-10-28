@@ -41,7 +41,7 @@ class Usage(SystemExit):
 
 def run(main, argv=None):
     """Run a tool's main() and return its exit code, mapping what it raises (see above). Every message it prints
-    has each key value taken out first. With SWEATCAST_DEBUG set, a reported problem's message is followed by
+    has each key value taken out first. With HARMONICFITNESS_DEBUG set, a reported problem's message is followed by
     its traceback, scrubbed the same way (what it was raised from included)."""
     try:
         code = main() if argv is None else main(argv)
@@ -73,9 +73,9 @@ def _say(message):
 
 
 def _debug():
-    """With SWEATCAST_DEBUG set, the current exception's traceback (scrubbed) after its message."""
+    """With HARMONICFITNESS_DEBUG set, the current exception's traceback (scrubbed) after its message."""
     import os
-    if os.environ.get("SWEATCAST_DEBUG"):
+    if os.environ.get("HARMONICFITNESS_DEBUG"):
         print(_traceback(), file=sys.stderr, end="")
 
 

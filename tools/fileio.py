@@ -1,5 +1,5 @@
 """One way to write a file so a crash never leaves it half-written: to a temporary file beside it, then
-renamed into place (os.replace is atomic on every system sweatcast runs on). Text or bytes. And one way
+renamed into place (os.replace is atomic on every system HarmonicFitness runs on). Text or bytes. And one way
 to add a line to a JSONL record (builds.jsonl, told.jsonl) so a torn line never takes the next one with it.
 And one way to read a JSON file whose top level must be one shape (read_json)."""
 import json

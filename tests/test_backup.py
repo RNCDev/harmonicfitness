@@ -1,4 +1,4 @@
-"""`./sweatcast backup`: commit and push the context folder when it's its own repo.
+"""`./harmonicfitness backup`: commit and push the context folder when it's its own repo.
 Local repos and a bare remote only; no network."""
 import io
 import os
@@ -90,11 +90,11 @@ class Backup(unittest.TestCase):
 
     def test_public_github_remote_is_refused(self):
         new_repo(self.home)
-        git(self.home, "remote", "add", "origin", "https://github.com/someone/sweatcast-me.git")
+        git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
         with mock.patch.object(backup, "visibility", return_value="PUBLIC") as seen, \
              mock.patch.object(backup, "git", wraps=backup.git) as calls:
             code, out = run(self.home)
-        seen.assert_called_once_with("someone/sweatcast-me")
+        seen.assert_called_once_with("someone/harmonicfitness-me")
         self.assertEqual(code, cli.ISSUES)
         self.assertIn("is public", out)
         self.assertFalse([c for c in calls.call_args_list if "push" in c.args])
@@ -114,7 +114,7 @@ class Backup(unittest.TestCase):
         new_repo(self.home)
         git(self.home, "add", "-A")
         git(self.home, "commit", "-q", "-m", "first")
-        git(self.home, "remote", "add", "origin", "https://github.com/someone/sweatcast-me.git")
+        git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
         with mock.patch.object(backup, "visibility", return_value=None), \
                 mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")) as pushed:
             code, out = run(self.home)
@@ -140,7 +140,7 @@ class Backup(unittest.TestCase):
         new_repo(self.home)
         git(self.home, "add", "-A")
         git(self.home, "commit", "-q", "-m", "first")
-        git(self.home, "remote", "add", "origin", "https://github.com/someone/sweatcast-me.git")
+        git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
         with mock.patch.object(backup, "visibility", side_effect=["PRIVATE", None]), \
                 mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")):
             self.assertEqual(run(self.home)[0], cli.OK)   # GitHub said private
@@ -150,8 +150,8 @@ class Backup(unittest.TestCase):
         new_repo(self.home)
         git(self.home, "add", "-A")
         git(self.home, "commit", "-q", "-m", "first")
-        git(self.home, "remote", "add", "origin", "https://github.com/someone/sweatcast-me.git")
-        backup.remember_private(self.home, "someone/sweatcast-me", "github")
+        git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
+        backup.remember_private(self.home, "someone/harmonicfitness-me", "github")
         with mock.patch.object(backup, "visibility", return_value="PUBLIC"), \
                 mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")) as pushed:
             code, out = run(self.home)
@@ -184,7 +184,7 @@ class Backup(unittest.TestCase):
         import urllib.request
         with mock.patch.dict(os.environ, {"GH_TOKEN": "ghp_test_token"}), \
                 mock.patch.object(urllib.request, "urlopen", fake_urlopen):
-            self.assertEqual(backup._api_visibility("x/sweatcast-me"), "PRIVATE")
+            self.assertEqual(backup._api_visibility("x/harmonicfitness-me"), "PRIVATE")
         self.assertEqual(seen["auth"], "Bearer ghp_test_token")
 
     def test_git_never_waits_on_a_credential_prompt(self):
@@ -201,9 +201,9 @@ class Backup(unittest.TestCase):
 
 
     def test_github_slug(self):
-        self.assertEqual(backup.github_slug("https://github.com/RNC/sweatcast-me.git\n"), "RNC/sweatcast-me")
-        self.assertEqual(backup.github_slug("git@github.com:RNC/sweatcast-me.git"), "RNC/sweatcast-me")
-        self.assertEqual(backup.github_slug("https://github.com/RNC/sweatcast-me"), "RNC/sweatcast-me")
+        self.assertEqual(backup.github_slug("https://github.com/RNC/harmonicfitness-me.git\n"), "RNC/harmonicfitness-me")
+        self.assertEqual(backup.github_slug("git@github.com:RNC/harmonicfitness-me.git"), "RNC/harmonicfitness-me")
+        self.assertEqual(backup.github_slug("https://github.com/RNC/harmonicfitness-me"), "RNC/harmonicfitness-me")
         self.assertIsNone(backup.github_slug("/srv/git/me.git"))
 
 
@@ -240,9 +240,9 @@ class Visibility(unittest.TestCase):
     def test_visibility_without_gh(self):
         with mock.patch.object(backup.shutil, "which", return_value=None):
             with mock.patch.object(backup, "API", self.serve(200, '{"private": false, "visibility": "public"}')):
-                self.assertEqual(backup.visibility("x/sweatcast-me"), "PUBLIC")
+                self.assertEqual(backup.visibility("x/harmonicfitness-me"), "PUBLIC")
             with mock.patch.object(backup, "API", self.serve(404, '{"message": "Not Found"}')):
-                self.assertIsNone(backup.visibility("x/sweatcast-me"))
+                self.assertIsNone(backup.visibility("x/harmonicfitness-me"))
 
 
 if __name__ == "__main__":

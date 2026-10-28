@@ -7,7 +7,7 @@ puzzles = ["MindYourDecisions"]
 
 # What the filler between exercises rotates through: [[interests]] rows, each a name, its slot (today, science, deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within a slot, the one told longest ago comes next. Without any rows, knowledge/content.toml's defaults.
 
-# Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
+# Fetched by ./harmonicfitness feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
 
 [[feeds]]
 label = "Weather"

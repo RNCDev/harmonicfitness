@@ -1,6 +1,6 @@
 """A user's context files on disk for one engine run: write out, harvest, seed.
 
-Pure filesystem code; no database. The engine runs with SWEATCAST_HOME pointed
+Pure filesystem code; no database. The engine runs with HARMONICFITNESS_HOME pointed
 at the folder materialize wrote, and harvest returns what it changed.
 """
 import fnmatch

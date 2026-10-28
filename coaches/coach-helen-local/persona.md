@@ -6,7 +6,7 @@ aliases = []
 gender = "woman"
 description = "Mid-50s, veteran trainer. Warm, rich alto. Steady, kind, quietly firm."
 
-# One of the ten coaches sweatcast ships (coaches/roster.toml makes this file: edit there).
+# One of the ten coaches HarmonicFitness ships (coaches/roster.toml makes this file: edit there).
 [local]
 engine = "pocket"
 

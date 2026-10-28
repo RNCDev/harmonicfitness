@@ -123,7 +123,7 @@ class Migrate5(unittest.TestCase):
         touch(os.path.join(self.home, "workouts", "x.txt"))
 
     def migrate(self, *args):
-        env = dict(os.environ, SWEATCAST_HOME=self.home)
+        env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
         return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
                               capture_output=True, text=True, timeout=120)
 
@@ -172,7 +172,7 @@ class MigratePersonas(unittest.TestCase):
         touch(os.path.join(self.home, "workouts", "x.txt"))   # a 0.4.x layout would move this to checks/
 
     def migrate(self, *args):
-        env = dict(os.environ, SWEATCAST_HOME=self.home)
+        env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
         return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
                               capture_output=True, text=True, timeout=120)
 

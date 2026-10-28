@@ -1,6 +1,6 @@
 """This computer's facts, as the readiness check (tools/doctor.sh) decides them, for any tool to read: the
 shell script stays the one place that decides what this computer can do. A library: routes and doctor read it.
-In the tests, SWEATCAST_FAKE_* variables stand in for the hardware (doctor.sh reads them)."""
+In the tests, HARMONICFITNESS_FAKE_* variables stand in for the hardware (doctor.sh reads them)."""
 import functools
 import os
 import subprocess
@@ -19,7 +19,7 @@ def facts():
         out = subprocess.run(["sh", DOCTOR_SH, "--facts"], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:   # no sh here (Python started outside Git Bash), or a hang
         return {"local": "no", "local_reason": f"the readiness check (tools/doctor.sh) couldn't run here ({e}); "
-                                                "run ./sweatcast doctor from Git Bash or a terminal"}
+                                                "run ./harmonicfitness doctor from Git Bash or a terminal"}
     return dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line)
 
 

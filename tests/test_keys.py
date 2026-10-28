@@ -75,8 +75,8 @@ class Keys(unittest.TestCase):
         os.makedirs(home)
         with open(os.path.join(home, ".env"), "w") as f:
             f.write(f"FISH_AUDIO_API_KEY={SECRET}\n")
-        env = dict(os.environ, SWEATCAST_HOME=home, SWEATCAST_PYTHON=sys.executable)
-        out = subprocess.run(["sh", "sweatcast", "keys"], cwd=ROOT, env=env, capture_output=True, text=True,
+        env = dict(os.environ, HARMONICFITNESS_HOME=home, HARMONICFITNESS_PYTHON=sys.executable)
+        out = subprocess.run(["sh", "harmonicfitness", "keys"], cwd=ROOT, env=env, capture_output=True, text=True,
                              timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn(SECRET, out.stdout + out.stderr)
@@ -127,7 +127,7 @@ class Keys(unittest.TestCase):
         self.assertTrue(os.path.exists(self.env))   # made with init's header
         with open(self.env) as f:
             text = f.read()
-        self.assertIn("API keys for sweatcast", text)
+        self.assertIn("API keys for HarmonicFitness", text)
         self.assertNotIn("_API_KEY=", text)   # no service line added
         if os.name != "nt":
             self.assertEqual(os.stat(self.env).st_mode & 0o777, 0o600)
@@ -184,7 +184,7 @@ class BackupRefusesKeys(unittest.TestCase):
 class OnTheWeb(unittest.TestCase):
     def test_init_on_the_web_points_to_the_environment_settings(self):
         with tempfile.TemporaryDirectory() as d:
-            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", SWEATCAST_HOME=os.path.join(d, "me"))
+            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_HOME=os.path.join(d, "me"))
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "keys.py"), "init", "fish"], env=env,
                                  capture_output=True, text=True, timeout=60)
             self.assertEqual(out.returncode, 0, out.stderr)
@@ -194,7 +194,7 @@ class OnTheWeb(unittest.TestCase):
 
     def test_keys_open_on_the_web_points_to_settings(self):
         with tempfile.TemporaryDirectory() as d:
-            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", SWEATCAST_HOME=os.path.join(d, "me"))
+            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_HOME=os.path.join(d, "me"))
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "keys.py"), "open"], env=env,
                                  capture_output=True, text=True, timeout=60)
             self.assertEqual(out.returncode, 0, out.stderr)
@@ -204,7 +204,7 @@ class OnTheWeb(unittest.TestCase):
 
     def test_download_refused_in_cloud(self):
         with tempfile.TemporaryDirectory() as d:
-            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", SWEATCAST_HOME=os.path.join(d, "me"))
+            env = dict(os.environ, CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_HOME=os.path.join(d, "me"))
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "coaches.py"), "download"], env=env,
                                  capture_output=True, text=True, timeout=60)
             self.assertEqual(out.returncode, 64, out.stdout + out.stderr)

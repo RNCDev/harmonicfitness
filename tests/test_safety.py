@@ -220,8 +220,8 @@ class MenuTampering(unittest.TestCase):
         os.makedirs(os.path.dirname(cls.draft))
         with open(cls.draft, "w", encoding="utf-8") as f:
             f.write(cls.TEXT)
-        env = dict(os.environ, SWEATCAST_PYTHON=sys.executable, SWEATCAST_HOME=cls.home)
-        r = subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), "brief", "--today", cls.TODAY, "--goal", "general",
+        env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=cls.home)
+        r = subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "brief", "--today", cls.TODAY, "--goal", "general",
                             "--minutes", "5", "--kit", "home", "--save", cls.draft],
                            capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
         assert r.returncode == 0, r.stderr
@@ -322,8 +322,8 @@ class MenuTampering(unittest.TestCase):
             shutil.copytree(self.home, home)
             os.remove(os.path.join(home, "health.md"))
             target = os.path.join(home, "workouts", "y", "y.draft.txt")
-            env = dict(os.environ, SWEATCAST_PYTHON=sys.executable, SWEATCAST_HOME=home)
-            r = subprocess.run(["sh", os.path.join(ROOT, "sweatcast"), "brief", "--today", self.TODAY, "--goal",
+            env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=home)
+            r = subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "brief", "--today", self.TODAY, "--goal",
                                 "general", "--minutes", "5", "--kit", "home", "--save", target],
                                capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)

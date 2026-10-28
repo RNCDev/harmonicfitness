@@ -9,7 +9,7 @@ coaches/coach-<slug>-local/sample.mp3."""
 import json, os, sys, tomllib
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [ROOT + "/tools", ROOT + "/tools/coachmaker"]
-os.environ.setdefault("SWEATCAST_HOME", "/nonexistent")
+os.environ.setdefault("HARMONICFITNESS_HOME", "/nonexistent")
 import numpy as np
 import common, asr, verify, engines, counts, draft, render
 

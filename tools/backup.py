@@ -8,9 +8,9 @@ clip cache and MP3s) and pushes to the repo's remote. The workout skill runs it 
 A context folder that isn't its own repo is skipped with a note (exit 0), and a remote
 that GitHub reports as public is refused: me/ holds health details.
 
-    ./sweatcast backup                                  # commit and push
-    ./sweatcast backup -m "Workout 2026-10-22 Legs 30 min"
-    ./sweatcast backup --no-push                        # commit only
+    ./harmonicfitness backup                                  # commit and push
+    ./harmonicfitness backup -m "Workout 2026-10-22 Legs 30 min"
+    ./harmonicfitness backup --no-push                        # commit only
 """
 import argparse
 import json
@@ -92,7 +92,7 @@ def _api_visibility(slug, api=None):
     import json
     import urllib.error
     import urllib.request
-    headers = {"Accept": "application/vnd.github+json", "User-Agent": "sweatcast-backup"}
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "harmonicfitness-backup"}
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")   # Claude Code on the web, CI: an authenticated read sees a private repo
     if token:
         headers["Authorization"] = f"Bearer {token.strip()}"
@@ -149,7 +149,7 @@ def backup(home, message, push=True, unverified=False):
     if not own_repo(home):
         print(f"{where} isn't its own git repo, so nothing was backed up. To keep it backed up,\n"
               f"make it a private repo: cd {where} && git init && "
-              "gh repo create sweatcast-me --private --source . --push")
+              "gh repo create harmonicfitness-me --private --source . --push")
         return cli.OK
     git(home, "add", "-A")
     staged = git(home, "diff", "--cached", "--name-only", "-z").stdout.split("\0")
@@ -173,7 +173,7 @@ def backup(home, message, push=True, unverified=False):
     remote, args = push_target(home)
     if not remote:
         print(f"No remote, so it stays on this machine. To add a private one:\n"
-              f"  cd {where} && gh repo create sweatcast-me --private --source . --push")
+              f"  cd {where} && gh repo create harmonicfitness-me --private --source . --push")
         return cli.OK
     slug = github_slug(git(home, "remote", "get-url", "--push", remote).stdout)
     # GitHub is asked every time (a repo made public since must never get health data); the memory stands in
@@ -207,14 +207,14 @@ def backup(home, message, push=True, unverified=False):
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast backup", description=__doc__,
+    ap = cli.ArgumentParser(prog="harmonicfitness backup", description=__doc__,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-m", "--message", help="the commit message (default: sweatcast and the date and time)")
+    ap.add_argument("-m", "--message", help="the commit message (default: HarmonicFitness and the date and time)")
     ap.add_argument("--no-push", action="store_true", help="commit only")
     ap.add_argument("--unverified", action="store_true",
                     help="push even when GitHub won't say whether the remote is private (you checked)")
     args = ap.parse_args(argv)
-    message = args.message or time.strftime("sweatcast %Y-%m-%d %H:%M")
+    message = args.message or time.strftime("harmonicfitness %Y-%m-%d %H:%M")
     return backup(paths.HOME, message, push=not args.no_push, unverified=args.unverified)
 
 

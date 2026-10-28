@@ -1,6 +1,6 @@
 # Research
 
-The evidence behind sweatcast's training knowledge, kept current. The working files read it, the tools never do:
+The evidence behind HarmonicFitness's training knowledge, kept current. The working files read it, the tools never do:
 `knowledge/programming.md` (effort, rest, tempo, progression), `knowledge/sessions.toml` (session shapes and
 doses), `knowledge/movements.toml` (the catalog's loads, levels and coaching), `knowledge/injury-playbook.md`
 and `knowledge/kits.md`. When a number or rule there says `source:`, the source is in one of those files or in

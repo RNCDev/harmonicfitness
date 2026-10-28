@@ -61,7 +61,7 @@ def design(description, line, n, label=None):
 
 def save(candidate, name, description=None, wav=None):
     """Make the candidate a private Fish model; returns its ID."""
-    fields = {"visibility": "private", "type": "tts", "title": f"sweatcast {name}", "train_mode": "fast",
+    fields = {"visibility": "private", "type": "tts", "title": f"harmonicfitness {name}", "train_mode": "fast",
               "texts": candidate["text"], "voice_design_signatures": candidate.get("signature") or ""}
     body, ctype = cloud.multipart(fields, [("voices", "voice.wav", wav or candidate["wav"], "audio/wav")])
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/model",

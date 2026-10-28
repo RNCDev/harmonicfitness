@@ -1,4 +1,4 @@
-"""Coaches: the ten local coaches sweatcast ships, and the listener's own web coaches.
+"""Coaches: the ten local coaches HarmonicFitness ships, and the listener's own web coaches.
 
     coaches/coach-maya-local/      (in the engine: one of the ten, chosen, never made by the listener)
       persona.md          settings (name, aliases, description, [voice], [character]); coaches/roster.toml makes it
@@ -264,7 +264,7 @@ def archive(p):
     Returns its new folder."""
     import shutil
     if p.shipped:
-        raise errors.CoachError(f"{p.name} ships with sweatcast and can't be archived; just choose another coach.")
+        raise errors.CoachError(f"{p.name} ships with HarmonicFitness and can't be archived; just choose another coach.")
     base = os.path.join(os.path.dirname(p.folder), ".archive")
     dest, n = os.path.join(base, p.slug), 2
     while os.path.exists(dest):
@@ -279,7 +279,7 @@ def set_setting(p, dotted, value):
     (description), keeping its prose. A stock coach's settings live in the engine (coaches/roster.toml), and a
     local coach's sound is its voice file: both are refused (errors.CoachError)."""
     if p.shipped:
-        raise errors.CoachError(f"{p.name} ships with sweatcast, so its settings live in the engine "
+        raise errors.CoachError(f"{p.name} ships with HarmonicFitness, so its settings live in the engine "
                                 "(coaches/roster.toml).")
     table, _, key = dotted.rpartition(".")
     if table == "local" or not p.is_web:
@@ -336,7 +336,7 @@ def voice_for(p, route, pending=False):
         raise errors.CoachError(f"{p.name} is a local coach: a local coach renders only locally, not on {route}. "
                          "A web coach (the coach skill makes one) speaks through a web service.")
     if not p.has_clip and p.shipped:
-        raise errors.CoachError(f"{p.name} is missing its clip ({show(p.clip)}): update sweatcast (git pull).")
+        raise errors.CoachError(f"{p.name} is missing its clip ({show(p.clip)}): update HarmonicFitness (git pull).")
     return _local(p)
 
 
@@ -344,11 +344,11 @@ def _local(p):
     local = p.table("local")
     engine = local.get("engine") or "pocket"
     if engine not in LOCAL_ENGINES or not p.shipped:
-        raise errors.CoachError(f"{p.name} is a local coach of your own ({show(p.folder)}), and since sweatcast 0.15.0 "
-                         "local coaches are the ten it ships (./sweatcast coaches lists them; ./sweatcast migrate "
+        raise errors.CoachError(f"{p.name} is a local coach of your own ({show(p.folder)}), and since HarmonicFitness 0.15.0 "
+                         "local coaches are the ten it ships (./harmonicfitness coaches lists them; ./harmonicfitness migrate "
                          "archives older ones). A voice of your own is a web coach: the coach skill makes one.")
     if not os.path.exists(p.voice_state):
-        raise errors.CoachError(f"{p.name} has no voice file ({show(p.voice_state)}): update sweatcast (git pull).")
+        raise errors.CoachError(f"{p.name} has no voice file ({show(p.voice_state)}): update HarmonicFitness (git pull).")
     model, revision = voices.LOCAL_MODELS[engine]
     key, words = clip_key(p)
     return voice.LocalVoice(

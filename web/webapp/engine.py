@@ -1,4 +1,4 @@
-"""Runs `./sweatcast <command>` in a subprocess for one user's temporary context folder.
+"""Runs `./harmonicfitness <command>` in a subprocess for one user's temporary context folder.
 
 The engine sees only an allowlisted environment, so the server's own secrets (database URL, master
 key) never reach it. Output is scrubbed a second time here for the values passed in extra_env."""
@@ -9,8 +9,8 @@ import subprocess
 import sys
 from typing import Iterable, Mapping, NamedTuple
 
-ALLOWED = ("PATH", "LANG", "LC_ALL", "TZ", "UV_CACHE_DIR", "SWEATCAST_PYTHON")
-RESERVED = ("HOME", "SWEATCAST_HOME")
+ALLOWED = ("PATH", "LANG", "LC_ALL", "TZ", "UV_CACHE_DIR", "HARMONICFITNESS_PYTHON")
+RESERVED = ("HOME", "HARMONICFITNESS_HOME")
 TIMED_OUT = 124
 
 
@@ -49,7 +49,7 @@ def _env(home: str, extra_env: Mapping[str, str]) -> dict[str, str]:
         if name in extra_env:
             raise ValueError(f"extra_env may not set {name}")
     env = {k: os.environ[k] for k in ALLOWED if k in os.environ}
-    env.update(HOME=home, SWEATCAST_HOME=home)
+    env.update(HOME=home, HARMONICFITNESS_HOME=home)
     env.update(extra_env)
     return env
 
@@ -64,7 +64,7 @@ def _kill(proc: subprocess.Popen, sig: int) -> None:
 def run(engine_root: str, home: str, argv: list[str],
         extra_env: Mapping[str, str] = {}, timeout: float = 120) -> Result:
     env = _env(home, extra_env)
-    proc = subprocess.Popen([os.path.join(engine_root, "sweatcast"), *argv], cwd=engine_root, env=env,
+    proc = subprocess.Popen([os.path.join(engine_root, "harmonicfitness"), *argv], cwd=engine_root, env=env,
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             start_new_session=True)
     timed_out = False

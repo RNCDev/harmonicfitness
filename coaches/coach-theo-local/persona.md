@@ -6,7 +6,7 @@ aliases = []
 gender = "man"
 description = "Late 20s, laid-back. Relaxed mid-range, soft West Coast American. Easygoing, friendly, conversational."
 
-# One of the ten coaches sweatcast ships (coaches/roster.toml makes this file: edit there).
+# One of the ten coaches HarmonicFitness ships (coaches/roster.toml makes this file: edit there).
 [local]
 engine = "pocket"
 

@@ -68,7 +68,7 @@ class Harness(unittest.TestCase):
     def test_agents_md_sends_codex_to_claude_md_and_guards_the_keys(self):
         with open(os.path.join(ROOT, "AGENTS.md"), encoding="utf-8") as f:
             text = f.read()
-        for needle in ("CLAUDE.md", "me/.env", "./sweatcast show", "AskUserQuestion", "Data Controls"):
+        for needle in ("CLAUDE.md", "me/.env", "./harmonicfitness show", "AskUserQuestion", "Data Controls"):
             self.assertIn(needle, text)
 
     def test_an_edited_description_is_caught_and_synced(self):
@@ -112,8 +112,8 @@ class Harness(unittest.TestCase):
             self.assertTrue(any("should allow" in p for p in harness.problems(d)))
 
     def test_the_command(self):
-        out = subprocess.run(["sh", "sweatcast", "harness"], cwd=ROOT, capture_output=True, text=True,
-                             env=dict(os.environ, SWEATCAST_PYTHON=sys.executable))
+        out = subprocess.run(["sh", "harmonicfitness", "harness"], cwd=ROOT, capture_output=True, text=True,
+                             env=dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable))
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("in step", out.stdout)
 
@@ -126,11 +126,11 @@ class CodexSandbox(unittest.TestCase):
                 f.write('#!/bin/sh\necho "$UV_CACHE_DIR"\n')
             os.chmod(fake, 0o755)
             env = {k: v for k, v in os.environ.items() if k != "UV_CACHE_DIR"}
-            out = subprocess.run(["sh", "sweatcast", "help"], cwd=ROOT, capture_output=True, text=True,
-                                 env=dict(env, CODEX_SANDBOX="seatbelt", SWEATCAST_PYTHON=fake))
+            out = subprocess.run(["sh", "harmonicfitness", "help"], cwd=ROOT, capture_output=True, text=True,
+                                 env=dict(env, CODEX_SANDBOX="seatbelt", HARMONICFITNESS_PYTHON=fake))
             self.assertEqual(out.stdout.strip(), os.path.join(ROOT, ".cache", "uv"))
-            out = subprocess.run(["sh", "sweatcast", "help"], cwd=ROOT, capture_output=True, text=True,
-                                 env=dict(env, SWEATCAST_PYTHON=fake))
+            out = subprocess.run(["sh", "harmonicfitness", "help"], cwd=ROOT, capture_output=True, text=True,
+                                 env=dict(env, HARMONICFITNESS_PYTHON=fake))
             self.assertEqual(out.stdout.strip(), "")
 
 if __name__ == "__main__":

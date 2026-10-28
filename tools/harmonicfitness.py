@@ -1,7 +1,7 @@
-"""The `./sweatcast` command: one entry point that runs each tool in the project's
-environment (.venv, Python 3.11, made by `./sweatcast setup`).
+"""The `./harmonicfitness` command: one entry point that runs each tool in the project's
+environment (.venv, Python 3.11, made by `./harmonicfitness setup`).
 
-    ./sweatcast <command> [options]      # ./sweatcast help lists them
+    ./harmonicfitness <command> [options]      # ./harmonicfitness help lists them
 """
 import importlib
 import importlib.util
@@ -42,25 +42,25 @@ COMMANDS = {
 }
 
 # Commands that are gone, and what does their work now.
-RETIRED = {"lint": "./sweatcast build <draft> \"<name>\" --lint-only",
-           "render": "./sweatcast build <draft> \"<name>\""}
+RETIRED = {"lint": "./harmonicfitness build <draft> \"<name>\" --lint-only",
+           "render": "./harmonicfitness build <draft> \"<name>\""}
 
 
 def usage():
     width = max(map(len, COMMANDS))
-    lines = ["usage: ./sweatcast <command> [options]   (./sweatcast <command> --help for its options)", ""]
+    lines = ["usage: ./harmonicfitness <command> [options]   (./harmonicfitness <command> --help for its options)", ""]
     lines += [f"  {name:<{width}}  {what}" for name, (_, _, what) in COMMANDS.items()]
     return "\n".join(lines)
 
 
 def test_env(env):
-    """The environment the tests run in: SWEATCAST_HOME pointed at an absent folder (as in CI, where there is
+    """The environment the tests run in: HARMONICFITNESS_HOME pointed at an absent folder (as in CI, where there is
     no me/), unless it's already set, so no test can read or write the real context folder."""
     env = dict(env)
-    if not env.get("SWEATCAST_HOME"):
-        env["SWEATCAST_HOME"] = os.path.join(tempfile.mkdtemp(prefix="sweatcast-tests-"), "me")
+    if not env.get("HARMONICFITNESS_HOME"):
+        env["HARMONICFITNESS_HOME"] = os.path.join(tempfile.mkdtemp(prefix="harmonicfitness-tests-"), "me")
     # The stock coaches the tests see: a fixture set, so a test never depends on the real ten.
-    env.setdefault("SWEATCAST_SHIPPED", os.path.join(ROOT, "tests", "fixtures", "stock"))
+    env.setdefault("HARMONICFITNESS_SHIPPED", os.path.join(ROOT, "tests", "fixtures", "stock"))
     return env
 
 
@@ -76,13 +76,13 @@ def main(argv=None):
         return 0
     cmd, rest = argv[0], argv[1:]
     if cmd in RETIRED:
-        print(f"./sweatcast {cmd} is gone (sweatcast 0.14): use {RETIRED[cmd]}.", file=sys.stderr)
+        print(f"./harmonicfitness {cmd} is gone (HarmonicFitness 0.14): use {RETIRED[cmd]}.", file=sys.stderr)
         return cli.USAGE
     if cmd not in COMMANDS:
         print(f"Unknown command '{cmd}'.\n\n{usage()}", file=sys.stderr)
         return cli.USAGE
-    if cmd in ("setup", "doctor"):   # shell scripts, run by the ./sweatcast wrapper before any environment exists
-        print(f"Run ./sweatcast {cmd} (the shell wrapper runs tools/{cmd}.sh; it needs no Python environment).",
+    if cmd in ("setup", "doctor"):   # shell scripts, run by the ./harmonicfitness wrapper before any environment exists
+        print(f"Run ./harmonicfitness {cmd} (the shell wrapper runs tools/{cmd}.sh; it needs no Python environment).",
               file=sys.stderr)
         return cli.USAGE
     if cmd == "test":
@@ -96,9 +96,9 @@ def main(argv=None):
                               cwd=ROOT, env=env)
         return code or web
     module, sub, _ = COMMANDS[cmd]
-    sys.argv = [f"sweatcast {cmd}", *([sub] if sub else []), *rest]
+    sys.argv = [f"harmonicfitness {cmd}", *([sub] if sub else []), *rest]
     if sub:
-        sys.argv[0] = "sweatcast"   # context's own parser names the subcommand
+        sys.argv[0] = "harmonicfitness"   # context's own parser names the subcommand
     return cli.run(importlib.import_module(module).main)
 
 

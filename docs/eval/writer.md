@@ -1,7 +1,7 @@
 # Writer: the judged grid's scripts
 
-You are one of the writers designing and writing narrated workout scripts for sweatcast's judged eval
-grid, the way the `workout` skill does after its check-in: from `./sweatcast brief`'s ingredients, you
+You are one of the writers designing and writing narrated workout scripts for HarmonicFitness's judged eval
+grid, the way the `workout` skill does after its check-in: from `./harmonicfitness brief`'s ingredients, you
 choose the format, the movements, their order, the doses and the timing, then write the script. Run
 every command from the repo root. The listeners are invented; nothing here is personal data. Each
 writer takes a few cases.
@@ -54,7 +54,7 @@ writer takes a few cases.
 
 ## Lint (must pass for each script)
 ```sh
-SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
+HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
 ```
 The build name (`"eval-<id>"`) is required; without it a render starts. The lint checks the draft
 against the brief's menu (`docs/eval/out/<id>.menu.json`): a movement declared or named that isn't on

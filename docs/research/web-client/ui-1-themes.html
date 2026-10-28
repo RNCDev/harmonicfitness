@@ -21,7 +21,7 @@ document.documentElement.dataset.mode=d?"dark":"light";document.documentElement.
   --tok:#2346D6;          /* cobalt: every editable word */
   --tok-tint:#DDE4FC;
   --tok-on:#FFFFFF;
-  --engine:#6A4FB3;       /* clauses sweatcast writes itself */
+  --engine:#6A4FB3;       /* clauses HarmonicFitness writes itself */
   --engine-tint:#ECE6FA;
   --warn:#9A5B00;
   --warn-tint:#FBEBCB;
@@ -395,7 +395,7 @@ html[data-theme="sunrise"] .home h1{letter-spacing:-.04em}
 <div class="corner">Concept 1 · The Sentence — themes</div>
 
 <div class="app">
-  <aside class="chat" id="chat" aria-label="Chat with sweatcast">
+  <aside class="chat" id="chat" aria-label="Chat with harmonicfitness">
     <div class="chat-head">
       <div class="mark">sweat<span>cast</span></div>
       <div class="who">Jordan</div>
@@ -674,7 +674,7 @@ function list(key){
 function vPrefs(){
   const p=S.prefs, pt=(k,v)=>`<button class="tok ${S.prefSet?.has(k)?"set":""} ${S.flash.has("prefs."+k)?"flash":""}" data-tok="prefs" data-key="${k}"><span class="v">${esc(v)}</span></button>`;
   return `<div class="view">${back}
-    <p class="lede">This is you, as sweatcast understands it. Change any word.</p>
+    <p class="lede">This is you, as HarmonicFitness understands it. Change any word.</p>
     <div class="para">
       <p class="sentence">I train at ${pt("level",p.level)} level, about ${pt("days",p.days)} times a week, usually for ${pt("length",p.length+" minutes")}.</p>
       <p class="sentence">I love ${list("love")}.</p>
@@ -739,7 +739,7 @@ function vStats(){
 }
 function vTour(){
   const st=[["Say it once","Every task is one sentence with the usual already filled in. Blue words are the ones you can change; tap one, or say it in the chat."],
-    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what sweatcast will do about it."],
+    ["It stays safe","Your limits come from your health notes. Say a knee is worse and the sentence grows a violet clause: what HarmonicFitness will do about it."],
     ["Go, then leave","Research, writing, checking and the voice run on their own, about four minutes. Close the tab; it'll be here."],
     ["Press play","A podcast for your earbuds: the coach tells you what to do, counts you through it, and fills the rests. The MP3 is kept for a day."]];
   return `<div class="view">${back}<p class="lede">Show me around.</p><div class="tour">${st.map((s,i)=>`<div class="tour-step"><span class="n">${i+1}</span><h3>${s[0]}</h3><p>${s[1]}</p></div>`).join("")}</div>

@@ -466,7 +466,7 @@ class BuildTrail(unittest.TestCase):
         self.draft = os.path.join(self.home, "workouts", "2026-10-25-test-25", "2026-10-25-test-25.draft.txt")
         helpers.draft_with_menu(os.path.join(paths.ROOT, "tests", "fixtures", "example.draft.txt"), self.draft,
                                 self.home)
-        stack.enter_context(mock.patch.dict(os.environ, {"SWEATCAST_FAKE_LOCAL_ENGINE": "1"}))
+        stack.enter_context(mock.patch.dict(os.environ, {"HARMONICFITNESS_FAKE_LOCAL_ENGINE": "1"}))
         stack.enter_context(mock.patch.object(tts_build, "lint", side_effect=lambda *a, **k: tts_build.Report(
             rows=[], strict=False, wpm=185.0)))
         stack.enter_context(mock.patch.object(render, "run", side_effect=self.fake_run))

@@ -1,6 +1,6 @@
 """Today's menu, and the build's check that a draft scripts nothing else.
 
-`./sweatcast brief --save <stem>` writes `<stem>.menu.json` beside the draft: the request and every
+`./harmonicfitness brief --save <stem>` writes `<stem>.menu.json` beside the draft: the request and every
 movement `catalog.select` allowed today, healthy-side-only ones with the side to work. The draft
 declares what it scripts on a `movements:` line (draft.py), and `check` finds:
 - issues (the build stops): no menu, or one that isn't shaped like one (validate); a movement on it the
@@ -64,15 +64,15 @@ def staleness(menu: dict, today: Optional[str] = None, health_path: Optional[str
     out = []
     if menu.get("date") != today:
         out.append(f"the menu is from {menu.get('date') or 'an unknown day'}, not today ({today}): rerun "
-                   "./sweatcast brief ... --save <the draft's path>, so today's limits apply")
+                   "./harmonicfitness brief ... --save <the draft's path>, so today's limits apply")
     current = health_hash(health_path)
     if current is None:   # the brief refuses to run without one, so the file went missing since
-        out.append(f"no health.md at {paths.show(health_path or paths.HEALTH)}: run ./sweatcast setup, then "
-                   "./sweatcast brief ... --save <the draft's path>")
+        out.append(f"no health.md at {paths.show(health_path or paths.HEALTH)}: run ./harmonicfitness setup, then "
+                   "./harmonicfitness brief ... --save <the draft's path>")
     elif not menu.get("health_sha256"):
-        out.append("the menu predates the brief's health check: rerun ./sweatcast brief ... --save <the draft's path>")
+        out.append("the menu predates the brief's health check: rerun ./harmonicfitness brief ... --save <the draft's path>")
     elif menu["health_sha256"] != current:
-        out.append("health.md changed since the brief read it: rerun ./sweatcast brief ... --save <the draft's path>, "
+        out.append("health.md changed since the brief read it: rerun ./harmonicfitness brief ... --save <the draft's path>, "
                    "so the menu follows the new limits")
     return out
 
@@ -136,7 +136,7 @@ def rescreen(cat: catalog.Catalog, menu: dict, health_path: Optional[str] = None
         request["avoid"] = set(req.get("avoid") or ())
         scr = screen.screen(request, cat, sessions.load().goals, context.profile(), h)
     except (ValueError, TypeError, screen.Unfit, errors.ContextError) as e:
-        return [f"the menu's request can't be screened again ({e}): rerun ./sweatcast brief ... --save "
+        return [f"the menu's request can't be screened again ({e}): rerun ./harmonicfitness brief ... --save "
                 "<the draft's path>"]
     allowed = {m.id for m in scr.sel.allowed}
     sides = {m.id: screen.healthy_side(m, scr.limits) for m in scr.sel.healthy_side_only}
@@ -147,10 +147,10 @@ def rescreen(cat: catalog.Catalog, menu: dict, health_path: Optional[str] = None
             continue
         if mid in sides:
             out.append(f"the menu lists {mid} for {'both sides' if side is None else f'the {side} side'}, but "
-                       f"today's screen allows only the {sides[mid]} side: rerun ./sweatcast brief ... --save "
+                       f"today's screen allows only the {sides[mid]} side: rerun ./harmonicfitness brief ... --save "
                        "<the draft's path>")
         else:
-            out.append(f"the menu lists {mid}, which today's screen doesn't allow: rerun ./sweatcast brief ... "
+            out.append(f"the menu lists {mid}, which today's screen doesn't allow: rerun ./harmonicfitness brief ... "
                        "--save <the draft's path>")
     return out
 
@@ -176,11 +176,11 @@ def gate(cat: catalog.Catalog, draft_path: str, text: str, segments, today: Opti
     try:
         menu = load(path)
     except (OSError, errors.ContextError) as e:
-        return ([f"the menu beside the draft can't be read ({os.path.basename(path)}: {e}): rerun ./sweatcast brief "
+        return ([f"the menu beside the draft can't be read ({os.path.basename(path)}: {e}): rerun ./harmonicfitness brief "
                  "... --save <the draft's path>"], [])
     shape = validate(menu)
     if shape:
-        return ([f"the menu beside the draft ({os.path.basename(path)}) won't do: {p}; rerun ./sweatcast brief ... "
+        return ([f"the menu beside the draft ({os.path.basename(path)}) won't do: {p}; rerun ./harmonicfitness brief ... "
                  "--save <the draft's path>" for p in shape], [])
     issues, warnings = check(cat, menu, text, segments)
     stale = staleness(menu, today, health_path)
@@ -307,7 +307,7 @@ def spoken_text(segments) -> str:
 def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tuple[List[str], List[str]]:
     """(issues, warnings) for a draft's text and parsed segments against today's menu."""
     if menu is None:
-        return (["no menu for this draft: run ./sweatcast brief ... --save <the draft's path> first, "
+        return (["no menu for this draft: run ./harmonicfitness brief ... --save <the draft's path> first, "
                  "so the build can check every movement against today's limits"], [])
     issues, warnings = [], []
     on_menu = {e["id"]: e for e in menu.get("movements", [])}

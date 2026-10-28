@@ -1,5 +1,5 @@
 """Web coaches made by audition: candidates from every keyed service (audition), one kept as a coach
-(keep_web), the audition closed (forget_audition). ./sweatcast coaches is the command; this is the library.
+(keep_web), the audition closed (forget_audition). ./harmonicfitness coaches is the command; this is the library.
 
 An audition reads a narrative file (persona.md's format: a +++ block with [voice], what the services design
 from, and [character], what the script writer follows, then free notes) and lands in
@@ -181,10 +181,10 @@ def _run_audition(narrative=None, services=None, coach=None, play=False, report=
     keyed = [s for s in wanted if keys.is_set(s)]
     for s in wanted:
         if s not in keyed and services:
-            report(f"{cloud.service_name(s)}: no key here, skipped (./sweatcast keys).")
+            report(f"{cloud.service_name(s)}: no key here, skipped (./harmonicfitness keys).")
     if not keyed:
-        warn("No web service has a key here, so there's nothing to audition on. Add one: ./sweatcast keys "
-             "(then ./sweatcast keys init <service>).")
+        warn("No web service has a key here, so there's nothing to audition on. Add one: ./harmonicfitness keys "
+             "(then ./harmonicfitness keys init <service>).")
         return None, [], []
 
     folder = _new_audition()
@@ -202,7 +202,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False, report=
     def design(service):
         module = cloud.service_module(service)
         return module.design(description, voices.DESIGN_LINE, CANDIDATES[service],
-                             f"sweatcast audition {audition_id} {planned[service]}")
+                             f"harmonicfitness audition {audition_id} {planned[service]}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(keyed)) as pool:
         futures = {s: pool.submit(design, s) for s in keyed}
@@ -210,7 +210,7 @@ def _run_audition(narrative=None, services=None, coach=None, play=False, report=
     for s in keyed:   # service order, whatever finished first
         try:
             made = futures[s].result()
-        except (cloud.ServiceError, errors.SweatcastError, OSError) as e:
+        except (cloud.ServiceError, errors.HarmonicFitnessError, OSError) as e:
             failures.append((s, e))
             continue
         except Exception as e:   # a bug in the engine: raised once the other services' paid designs are kept
@@ -275,7 +275,7 @@ def audition(narrative, services=None, coach=None, play=False, report=say, warn=
             report(line)
     if folder is None:
         raise errors.CoachError("No candidates: " + ("; ".join(f"{cloud.service_name(s)}: {_reason(e)}" for s, e in failures)
-                                              or "no web service has a key here (./sweatcast keys)."))
+                                              or "no web service has a key here (./harmonicfitness keys)."))
     return folder
 
 
@@ -331,7 +331,7 @@ def _existing(name):
 
 def keep_web(ref, name, replace_old=False, report=say):
     """Save candidate `ref` (`<audition>/<letter>` or `<audition>/<service>-<k>`) at its service as
-    "sweatcast <name>" and write the coach: persona.md (the narrative's [voice], [character] and notes,
+    "harmonicfitness <name>" and write the coach: persona.md (the narrative's [voice], [character] and notes,
     with kind, service, voice_id, made), sample.mp3 and a pace estimate. An audition made with --coach
     re-voices that coach: a new voice_id and sample, the old voice's pace dropped, and with `replace_old`
     the old voice deleted at the service. Returns the coach's folder."""
@@ -378,9 +378,9 @@ def keep_web(ref, name, replace_old=False, report=say):
     else:
         if c.get("saving") and not c.get("voice_id"):
             report(f"(An earlier keep of {c['letter']} sent a save to {cloud.service_name(service)} whose answer "
-                   f"couldn't be read: if \"sweatcast {c['saving']}\" is there, this keep makes a second; delete one "
+                   f"couldn't be read: if \"harmonicfitness {c['saving']}\" is there, this keep makes a second; delete one "
                    "there.)")
-        report(f"Saving {c['letter']} at {cloud.service_name(service)} as \"sweatcast {name}\".")
+        report(f"Saving {c['letter']} at {cloud.service_name(service)} as \"harmonicfitness {name}\".")
         c["saving"] = name   # on disk before the save is sent: if its answer is lost, the audition still says so
         _write_candidates(folder, cands)
         voice_id = module.save(candidate, name, personas.voice_description(voice), wav)
@@ -392,7 +392,7 @@ def keep_web(ref, name, replace_old=False, report=say):
 
     today = datetime.date.today().isoformat()
     if existing is not None and existing.shipped and not existing.is_web:
-        raise errors.CoachError(f"{existing.name} is one of the local coaches sweatcast ships; give the web coach "
+        raise errors.CoachError(f"{existing.name} is one of the local coaches HarmonicFitness ships; give the web coach "
                          "another name.")
     if existing is not None:   # a new voice for a coach: how they talk stays (a stock coach's goes to me/coaches/)
         target, prose = existing.home_folder, existing.prose
@@ -428,7 +428,7 @@ def keep_web(ref, name, replace_old=False, report=say):
             report(f"Deleted {existing.name}'s old voice at {cloud.service_name(service)}.")
         except (cloud.ServiceError, *errors.PROBLEMS) as e:
             report(f"Couldn't delete the old voice at {cloud.service_name(service)} ({_reason(e)}); delete "
-                   f"\"sweatcast {existing.name}\" there by hand.")
+                   f"\"harmonicfitness {existing.name}\" there by hand.")
     report(f"Kept {name} ({cloud.service_name(service)}) in {show(target)}.")
     return target
 
@@ -456,7 +456,7 @@ def forget_audition(audition):
     for c in cands:   # a keep whose save went out but whose answer was lost: a voice may be there
         if c.get("saving") and not c.get("voice_id"):
             lines.append(f"{c['letter']}: a save was sent to {cloud.service_name(c['service'])} whose answer couldn't be "
-                         f"read: look for \"sweatcast {c['saving']}\" there and delete it if it's not wanted.")
+                         f"read: look for \"harmonicfitness {c['saving']}\" there and delete it if it's not wanted.")
     others = list(dict.fromkeys(cloud.service_name(c["service"]) for c in cands
                                 if not stores(c["service"]) and not c.get("kept") and not c.get("saving")))
     if others:

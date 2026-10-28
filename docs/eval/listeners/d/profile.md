@@ -19,5 +19,5 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
 - Training background and current fitness: trained in gyms for years, now works out mostly in hotel rooms (invented)
 - Goals right now: stay fit with no equipment while travelling
 ## Listening setup
-- Earbuds, one times speed. The MP3 that `./sweatcast build` renders is the workout.
+- Earbuds, one times speed. The MP3 that `./harmonicfitness build` renders is the workout.
 - Delivery wanted: a coach or instructor, grounded and motivating. Not an announcer, not sleepy, not goofy or high-pitched.

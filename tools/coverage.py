@@ -9,10 +9,10 @@ format (today's should differ) and each movement's last logged load and tempo, s
 the plan can progress from it.
 
 Sessions are read through tools/context.py, which owns the log's line format (and
-writes it: `./sweatcast log-session ...`).
+writes it: `./harmonicfitness log-session ...`).
 
-    ./sweatcast coverage            # the last session, plus a look further back
-    ./sweatcast coverage --last 3   # patterns across the last three sessions
+    ./harmonicfitness coverage            # the last session, plus a look further back
+    ./harmonicfitness coverage --last 3   # patterns across the last three sessions
 
 Each movement is looked up in the movement catalog (knowledge/movements.toml) first,
 and its patterns come from there. A name the catalog doesn't know falls back to the
@@ -187,7 +187,7 @@ def text(f: dict) -> List[str]:
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast coverage", description=__doc__,
+    ap = cli.ArgumentParser(prog="harmonicfitness coverage", description=__doc__,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--last", type=cli.positive_int, default=1, help="how many recent sessions to pool (default 1)")
     ap.add_argument("--log", default=None)

@@ -1,4 +1,4 @@
-# For keeping this context folder as its own private git repo, which `./sweatcast backup`
+# For keeping this context folder as its own private git repo, which `./harmonicfitness backup`
 # commits and pushes after each workout (README, "Back up me/"). Everything else is kept:
 # profile, health, log, drafts, research, and your coaches with their measured pace.
 
@@ -17,10 +17,10 @@ coaches/.auditions/
 coaches/*/.made.json
 coaches/*/.made.wav
 workouts/.logs/*.log
-# Stock-voice samples, and ./sweatcast migrate's backups (git has the history).
+# Stock-voice samples, and ./harmonicfitness migrate's backups (git has the history).
 coaches/.samples/
 .backup-*/
 *.lock
 .DS_Store
-# API keys for cloud voices (./sweatcast keys): never committed, never pushed.
+# API keys for cloud voices (./harmonicfitness keys): never committed, never pushed.
 .env

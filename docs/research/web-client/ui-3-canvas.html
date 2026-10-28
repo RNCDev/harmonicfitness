@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sweatcast Live Canvas</title>
+<title>HarmonicFitness Live Canvas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -406,7 +406,7 @@ h3{font-size:15px;margin:0 0 8px;font-weight:700}
 
 <div class="app" id="app" data-pane="canvas">
   <header class="top">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>sweatcast</div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>HarmonicFitness</div>
     <span class="spacer"></span>
     <div class="viewtoggle" role="tablist" aria-label="Show">
       <button data-pane="chat" role="tab">Chat</button>
@@ -420,7 +420,7 @@ h3{font-size:15px;margin:0 0 8px;font-weight:700}
   <section class="composer">
     <div class="field" id="field">
       <div class="hl" id="hl" aria-hidden="true"></div>
-      <label class="sr" for="input">Tell sweatcast what you want</label>
+      <label class="sr" for="input">Tell HarmonicFitness what you want</label>
       <textarea class="input" id="input" rows="2" placeholder="25 minutes, hotel room, knee's a bit sore…  or type / to jump"></textarea>
       <div class="tools">
         <button class="icon-btn mic" id="mic" aria-label="Dictate" title="Dictate">
@@ -738,7 +738,7 @@ const thread = $('#thread');
 function say(who, html){
   const d = document.createElement('div');
   d.className = 'msg '+who;
-  d.innerHTML = who==='agent' ? '<div class="who">sweatcast</div>'+html : html;
+  d.innerHTML = who==='agent' ? '<div class="who">HarmonicFitness</div>'+html : html;
   thread.appendChild(d); thread.scrollTop = thread.scrollHeight;
 }
 function userEcho(t){
@@ -795,7 +795,7 @@ home(){
     ['E','prefs','Edit my stuff','Everything I know about you, on one page','var(--t-kit)'],
     ['H','hurt','Something hurts','Three taps, and today\'s workout steers around it','var(--t-limit)'],
     ['C','coaches','Coaches','Hear them, switch, or make your own','var(--t-coach)'],
-    ['T','tour','Show me around','What sweatcast does, in four steps','var(--muted)'],
+    ['T','tour','Show me around','What HarmonicFitness does, in four steps','var(--muted)'],
     ['A','stats','Analytics','What you\'ve done and what\'s been left out','var(--t-mood)']
   ];
   const olds = [
@@ -978,7 +978,7 @@ stats(){
   </div>`;
 },
 tour(){
-  return `${backBtn()}<h2 class="t">How sweatcast works</h2><p class="sub">An audio workout, made fresh each time, for earbuds. No screen, no timer.</p>
+  return `${backBtn()}<h2 class="t">How HarmonicFitness works</h2><p class="sub">An audio workout, made fresh each time, for earbuds. No screen, no timer.</p>
   <ol class="tour">
     <li><span><b>Say what you want</b><span>One line, typed or spoken. Length, kit, how you feel, anything sore. It parses as you type.</span></span></li>
     <li><span><b>Shape it, if you like</b><span>The timeline is the workout. Drag an edge for more time, tap a block to swap the move, tap a rest to change the story.</span></span></li>

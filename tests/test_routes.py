@@ -71,7 +71,7 @@ class Routes(unittest.TestCase):
         self.assertIn("I want a new coach", message)
         for name in ("Coach Reed", "Coach Ellis", "Coach Nolan", "Coach Owen"):
             self.assertIn(name, message)
-        self.assertIn("./sweatcast keys init", message)
+        self.assertIn("./harmonicfitness keys init", message)
         with mock.patch.object(routes, "local_installed", return_value=False):
             with self.assertRaises(errors.PROBLEMS) as e:
                 coachpick.pick(["local", "fish"], self.coach, facts=INTEL_MAC)
@@ -104,7 +104,7 @@ class Routes(unittest.TestCase):
         with mock.patch.object(routes, "local_installed", return_value=False):
             ok, reason = routes.usable("local", self.coach, facts=MAC)
         self.assertFalse(ok)
-        self.assertIn("./sweatcast setup --local", reason)
+        self.assertIn("./harmonicfitness setup --local", reason)
 
     def web_coach(self, service="inworld", name="Coach Owen"):
         return personas.Persona(personas.slug(name), os.path.join(self.d, "x"),
@@ -153,7 +153,7 @@ class Routes(unittest.TestCase):
     def test_way_out_only_where_local_voices_dont_run(self):
         with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
             coachpick.pick(["local"], self.coach, facts=MAC)   # runs here, just not installed
-        self.assertIn("./sweatcast setup --local", str(e.exception.code))
+        self.assertIn("./harmonicfitness setup --local", str(e.exception.code))
         self.assertNotIn("The way out", str(e.exception.code))
         with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
             coachpick.pick(["local"], self.coach, facts=INTEL_MAC)

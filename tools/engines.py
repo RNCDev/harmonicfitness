@@ -74,9 +74,9 @@ def cuda_available():
 
 
 def torch_device(cuda_available):
-    """Where PyTorch renders: the NVIDIA card when it can see one, else the processor. SWEATCAST_DEVICE=cpu or
+    """Where PyTorch renders: the NVIDIA card when it can see one, else the processor. HARMONICFITNESS_DEVICE=cpu or
     cuda overrides."""
-    forced = os.environ.get("SWEATCAST_DEVICE", "").strip().lower()
+    forced = os.environ.get("HARMONICFITNESS_DEVICE", "").strip().lower()
     if forced in ("cpu", "cuda"):
         return forced
     return "cuda" if cuda_available else "cpu"
@@ -93,7 +93,7 @@ def public_only(module=None):
 
     def public(path, *args, **kwargs):
         if str(path).startswith(gated):
-            raise PermissionError("sweatcast uses the public Pocket TTS model only")
+            raise PermissionError("harmonicfitness uses the public Pocket TTS model only")
         return original(path, *args, **kwargs)
 
     module.download_if_necessary = public
@@ -112,20 +112,20 @@ def speaker(voice):
     try:
         from pocket_tts import TTSModel
     except ImportError as e:
-        raise errors.EngineError("Pocket TTS isn't installed in this environment: run ./sweatcast setup.") from e
+        raise errors.EngineError("Pocket TTS isn't installed in this environment: run ./harmonicfitness setup.") from e
     found = _version("pocket-tts")
     if found and found != voices.POCKET_VERSION:
         raise errors.EngineError(f"pocket-tts {found} is installed; the coaches' voice files are made for "
-                         f"{voices.POCKET_VERSION}. Run ./sweatcast setup to restore the locked version.")
+                         f"{voices.POCKET_VERSION}. Run ./harmonicfitness setup to restore the locked version.")
     device = voice.get("device") or torch_device(torch.cuda.is_available())
     try:
         with public_only(), contextlib.redirect_stdout(io.StringIO()):
             model = TTSModel.load_model(language=voice.get("language") or voices.POCKET_LANGUAGE)
     except Exception as e:
-        raise load_error("Pocket TTS", voices.POCKET_REPO, e, "./sweatcast setup downloads it ahead of time") from e
+        raise load_error("Pocket TTS", voices.POCKET_REPO, e, "./harmonicfitness setup downloads it ahead of time") from e
     if model.has_voice_cloning:
-        raise errors.EngineError("Pocket TTS loaded its gated cloning model, not the public one sweatcast uses. "
-                         "Run ./sweatcast setup again, then retry.")
+        raise errors.EngineError("Pocket TTS loaded its gated cloning model, not the public one HarmonicFitness uses. "
+                         "Run ./harmonicfitness setup again, then retry.")
     if model.sample_rate != SR:
         raise errors.EngineError(f"Pocket TTS returned {model.sample_rate} Hz audio; expected {SR}")
     if device == "cuda":
@@ -163,7 +163,7 @@ def load_error(what, where, e, fix):
         return errors.EngineError(f"Couldn't load {what}: this computer ran out of memory. Close other apps and "
                                   "rerun.")
     return errors.EngineError(f"Couldn't load {what} ({where}): {type(e).__name__}: {e}. If its files are "
-                              f"damaged, ./sweatcast setup fetches them again; {fix}.")
+                              f"damaged, ./harmonicfitness setup fetches them again; {fix}.")
 
 
 def listener():
@@ -173,7 +173,7 @@ def listener():
     try:
         import onnx_asr
     except ImportError as e:
-        raise errors.EngineError("The take checker isn't installed in this environment: run ./sweatcast setup, or "
+        raise errors.EngineError("The take checker isn't installed in this environment: run ./harmonicfitness setup, or "
                          "build with --no-check.") from e
     missing = [f for f in voices.CHECK_FILES if not os.path.exists(os.path.join(voices.CHECK_DIR, f))]
     if missing:
@@ -181,7 +181,7 @@ def listener():
             voices.download()
         except Exception as e:
             raise errors.EngineError(f"Couldn't fetch the take checker ({voices.CHECK_MODEL[0]}): {e}. Check the network "
-                             "and rerun (./sweatcast setup downloads it ahead of time), or build with --no-check.")
+                             "and rerun (./harmonicfitness setup downloads it ahead of time), or build with --no-check.")
     try:
         model = onnx_asr.load_model("nemo-parakeet-tdt-0.6b-v3", voices.CHECK_DIR, providers=["CPUExecutionProvider"])
     except Exception as e:

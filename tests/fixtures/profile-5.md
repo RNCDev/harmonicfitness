@@ -2,15 +2,15 @@
 schema = 5
 # What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
 name = ""
-# "quick" until the second half of setup is done (interests, feeds, delivery, your own coach): until then ./sweatcast check lists what's left as notes. Say "finish setting me up" to do it.
+# "quick" until the second half of setup is done (interests, feeds, delivery, your own coach): until then ./harmonicfitness check lists what's left as notes. Say "finish setting me up" to do it.
 setup = "quick"
-# A rough speaking rate (./sweatcast get wpm prints it); builds use each coach's measured pace, and the lint without a coach takes --wpm (default 185).
+# A rough speaking rate (./harmonicfitness get wpm prints it); builds use each coach's measured pace, and the lint without a coach takes --wpm (default 185).
 words_per_minute = 165
 # How a local coach's workouts become audio, in order of preference: local engines only (local: this computer's own engine; each build uses the first that works on the computer it runs on). A web coach always speaks through its own service (fish, elevenlabs, gemini or inworld), with its key in me/.env.
 render = ["local"]
 # Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.
 experience = ""
-# Movements you enjoy (ids or names from ./sweatcast movements); sessions favour them.
+# Movements you enjoy (ids or names from ./harmonicfitness movements); sessions favour them.
 likes = []
 # Movements to leave out (ids or names); the brief's menu never lists them.
 dislikes = []
@@ -21,7 +21,7 @@ youtube_favorites = ["Asianometry", "BranchEducation", "PracticalEngineeringChan
 # Channels (@handles) whose puzzles can be the session's quiz.
 puzzles = ["MindYourDecisions"]
 
-# Equipment kits a session can be planned with: a name and the equipment ids you have there (./sweatcast movements lists them). For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
+# Equipment kits a session can be planned with: a name and the equipment ids you have there (./harmonicfitness movements lists them). For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
 
 [[kits]]
 name = "home"
@@ -29,7 +29,7 @@ equipment = ["dumbbells", "band", "mat"]
 
 # What the filler between exercises rotates through: [[interests]] rows, each a name, its slot (today, science, deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within a slot, the one told longest ago comes next. Without any rows, knowledge/content.toml's defaults.
 
-# Fetched by ./sweatcast feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
+# Fetched by ./harmonicfitness feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
 
 [[feeds]]
 label = "Weather"
@@ -95,7 +95,7 @@ I listen to narrated workouts through earbuds, with no screen and no timer. The 
 - Training background and current fitness:
 - Goals right now:
 ## Listening setup
-- Earbuds, one times speed. The MP3 that `./sweatcast build` renders is the workout.
+- Earbuds, one times speed. The MP3 that `./harmonicfitness build` renders is the workout.
 - Delivery wanted: a coach or instructor, grounded and motivating. Not an announcer, not sleepy, not goofy or high-pitched.
 ## Default session
 - Usual length: twenty-five minutes

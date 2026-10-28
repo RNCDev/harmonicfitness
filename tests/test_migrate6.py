@@ -46,13 +46,13 @@ class Split(unittest.TestCase):
         self.tmp.cleanup()
 
     def migrate(self, *args):
-        env = dict(os.environ, SWEATCAST_HOME=self.home)
+        env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
         return subprocess.run([sys.executable, "tools/migrate.py", *args], cwd=ROOT, env=env,
                               capture_output=True, text=True)
 
     def test_an_old_profile_says_migrate_and_not_missing(self):
         issues = check.check([os.path.join(self.home, n) for n in context.PROFILE_PARTS])
-        self.assertTrue(any("./sweatcast migrate" in i.message for i in issues))
+        self.assertTrue(any("./harmonicfitness migrate" in i.message for i in issues))
         self.assertFalse(any("missing" in i.message for i in issues), issues)
 
     def test_each_setting_and_section_lands_in_its_home(self):
@@ -155,7 +155,7 @@ class Pantry(unittest.TestCase):
                          '{"date": "2026-10-02", "title": "New", "reserve": "same"}\n')
 
     def migrate(self):
-        env = dict(os.environ, SWEATCAST_HOME=self.home)
+        env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
         return subprocess.run([sys.executable, "tools/migrate.py"], cwd=ROOT, env=env, capture_output=True, text=True)
 
     def test_the_pantry_moves_into_the_reserve_once(self):

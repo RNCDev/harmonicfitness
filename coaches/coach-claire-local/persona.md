@@ -6,7 +6,7 @@ aliases = []
 gender = "woman"
 description = "Mid-40s, physio and Pilates teacher. Low, smooth alto, American. Calm, precise, reassuring."
 
-# One of the ten coaches sweatcast ships (coaches/roster.toml makes this file: edit there).
+# One of the ten coaches HarmonicFitness ships (coaches/roster.toml makes this file: edit there).
 [local]
 engine = "pocket"
 

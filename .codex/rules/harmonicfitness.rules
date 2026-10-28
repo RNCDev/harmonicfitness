@@ -1,9 +1,9 @@
-# ChatGPT's Codex: sweatcast's own commands run outside the sandbox, as .claude/settings.json allows them
+# ChatGPT's Codex: HarmonicFitness's own commands run outside the sandbox, as .claude/settings.json allows them
 # in Claude Code. They need what the sandbox withholds: uv's cache and downloads, the Mac's GPU for a local
 # voice, git's settings for the privacy hook, and me/.env for a web coach's key (which Codex itself never
 # reads; AGENTS.md says so).
 prefix_rule(
-    pattern = ["./sweatcast"],
+    pattern = ["./harmonicfitness"],
     decision = "allow",
-    justification = "sweatcast's own commands",
+    justification = "HarmonicFitness's own commands",
 )

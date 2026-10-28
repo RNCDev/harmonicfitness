@@ -64,7 +64,7 @@ def design(description, line, n=3, label=None):
 
 def save(candidate, name, description="", wav=None):
     """Save the preview as a voice in the listener's account; returns its voice ID."""
-    body = json.dumps({"voice_name": f"sweatcast {name}", "voice_description": (description or "")[:1000],
+    body = json.dumps({"voice_name": f"harmonicfitness {name}", "voice_description": (description or "")[:1000],
                        "generated_voice_id": candidate["draft_id"]}).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice", _headers(), body,
                                timeout=120, service=SERVICE, idempotent=False)

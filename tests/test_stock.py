@@ -118,7 +118,7 @@ class StockAndOwn(unittest.TestCase):
     def test_a_stock_coach_cant_be_archived(self):
         with self.assertRaises(errors.PROBLEMS) as e:
             personas.archive(personas.lookup("Coach Julius"))
-        self.assertIn("ships with sweatcast", str(e.exception.code))
+        self.assertIn("ships with HarmonicFitness", str(e.exception.code))
         self.assertTrue(os.path.exists(os.path.join(paths.SHIPPED, "coach-julius", "persona.md")))
 
     def test_a_stock_coach_used_last_stays_the_default(self):
@@ -191,7 +191,7 @@ class MigrateCoaches(unittest.TestCase):
             f.write(text.replace("coaches/", "personas/"))
 
     def migrate(self, *args):
-        env = dict(os.environ, SWEATCAST_HOME=self.home, SWEATCAST_SHIPPED=FIXTURE)
+        env = dict(os.environ, HARMONICFITNESS_HOME=self.home, HARMONICFITNESS_SHIPPED=FIXTURE)
         return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
                               capture_output=True, text=True, timeout=120)
 

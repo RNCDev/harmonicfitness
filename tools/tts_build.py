@@ -1,7 +1,7 @@
 """The lint: what a voice can read cleanly and how long a draft will speak, and the clean transcript.
 
 The draft format (the `movements:` line, `@@ <seconds> | <label>` markers, [pause], [chime] and
-[hold]) is defined in draft.py. Markers are stripped on export. ./sweatcast build runs lint(), prints
+[hold]) is defined in draft.py. Markers are stripped on export. ./harmonicfitness build runs lint(), prints
 render_report() and writes export_text(); with --lint-only it stops there.
 
 What must hold: every line a voice can read cleanly (no digits, symbols, abbreviations or markup), every

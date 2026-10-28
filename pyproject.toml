@@ -1,6 +1,6 @@
 [project]
-name = "sweatcast"
-version = "0.19.0"
+name = "harmonicfitness"
+version = "0.20.0"
 description = "Narrated workout podcasts, written by Claude Code and voiced on your own computer or by a cloud voice."
 readme = "README.md"
 license = "MIT"
@@ -16,8 +16,8 @@ dependencies = [
     "imageio-ffmpeg==0.6.0",
 ]
 
-# The local voice, installed only where the readiness check says it runs (./sweatcast setup picks the
-# extra and remembers it in .venv/.sweatcast-extra): Kyutai's Pocket TTS on PyTorch, and the take check's
+# The local voice, installed only where the readiness check says it runs (./harmonicfitness setup picks the
+# extra and remembers it in .venv/.harmonicfitness-extra): Kyutai's Pocket TTS on PyTorch, and the take check's
 # speech recognizer (Parakeet through ONNX). One engine on every computer: an Apple Silicon Mac's
 # processor, a PC's processor, or an NVIDIA card. PyTorch 2.6 has no Intel Mac build, so none there.
 [project.optional-dependencies]

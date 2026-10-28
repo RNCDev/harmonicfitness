@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Vendored into sweatcast from OmniVoice's omnivoice/utils/duration.py
+# Vendored into HarmonicFitness from OmniVoice's omnivoice/utils/duration.py
 # (RuleDurationEstimator: the weights table, the Unicode ranges and the per-character
 # rule, unchanged). Every voice's measured pace is counted in these weights, so the
 # table must not change without measuring the voices again. OmniVoice itself is no

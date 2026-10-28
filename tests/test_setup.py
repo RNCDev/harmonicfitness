@@ -1,6 +1,6 @@
-"""Setup and the readiness check (./sweatcast doctor), on faked computers. No network, no models.
+"""Setup and the readiness check (./harmonicfitness doctor), on faked computers. No network, no models.
 
-The fakes are the SWEATCAST_FAKE_* variables tools/doctor.sh reads (test-only), and a stub uv.
+The fakes are the HARMONICFITNESS_FAKE_* variables tools/doctor.sh reads (test-only), and a stub uv.
 """
 import os
 import shutil
@@ -16,13 +16,13 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 def clean_env(**extra):
     """The environment minus anything that would change the verdicts (a real cloud session, an override)."""
     env = {k: v for k, v in os.environ.items()
-           if not k.startswith("SWEATCAST_") and k not in ("CLAUDE_CODE_REMOTE",)}
+           if not k.startswith("HARMONICFITNESS_") and k not in ("CLAUDE_CODE_REMOTE",)}
     env.update(extra)
     return env
 
 
 def facts(fake=None, root=ROOT, **extra):
-    env = clean_env(**{f"SWEATCAST_FAKE_{k}": v for k, v in (fake or {}).items()}, **extra)
+    env = clean_env(**{f"HARMONICFITNESS_FAKE_{k}": v for k, v in (fake or {}).items()}, **extra)
     out = subprocess.run(["sh", os.path.join(root, "tools", "doctor.sh"), "--facts"], env=env,
                          capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
@@ -31,7 +31,7 @@ def facts(fake=None, root=ROOT, **extra):
 
 def copy_repo(dest):
     """A copy of the engine without .git, .venv, me/ or models (like a zip download)."""
-    keep = ("sweatcast", "tools", "me.example", "knowledge", "tests", "pyproject.toml", "uv.lock",
+    keep = ("harmonicfitness", "tools", "me.example", "knowledge", "tests", "pyproject.toml", "uv.lock",
             "VERSION", ".python-version")
     for name in keep:
         src = os.path.join(ROOT, name)
@@ -83,11 +83,11 @@ class Doctor(unittest.TestCase):
     def test_report_runs_without_an_environment(self):
         with tempfile.TemporaryDirectory() as d:
             repo = copy_repo(d)
-            out = subprocess.run(["sh", os.path.join(repo, "sweatcast"), "doctor"], env=clean_env(),
+            out = subprocess.run(["sh", os.path.join(repo, "harmonicfitness"), "doctor"], env=clean_env(),
                                  capture_output=True, text=True, timeout=60)
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
             self.assertIn("This computer", out.stdout)
-            self.assertIn("once ./sweatcast setup", out.stdout)
+            self.assertIn("once ./harmonicfitness setup", out.stdout)
 
     def test_doctor_py_flags_a_missing_delivery_folder(self):
         import doctor
@@ -108,13 +108,13 @@ class Doctor(unittest.TestCase):
 
 
 class CloudSession(unittest.TestCase):
-    """Claude Code on the web (CLAUDE_CODE_REMOTE=true): sweatcast runs, with cloud voices only."""
+    """Claude Code on the web (CLAUDE_CODE_REMOTE=true): HarmonicFitness runs, with cloud voices only."""
 
     def run_in_copy(self, *args, **env):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d)
         repo = copy_repo(d)
-        out = subprocess.run(["sh", os.path.join(repo, "sweatcast"), *args], cwd=repo, env=clean_env(**env),
+        out = subprocess.run(["sh", os.path.join(repo, "harmonicfitness"), *args], cwd=repo, env=clean_env(**env),
                              capture_output=True, text=True, timeout=60)
         return out, repo
 
@@ -127,11 +127,11 @@ class CloudSession(unittest.TestCase):
         self.assertEqual(facts(linux, CLAUDE_CODE_REMOTE="true")["local"], "no")   # even with a card
 
     def test_wrapper_runs_in_cloud(self):
-        out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", SWEATCAST_PYTHON=sys.executable)
+        out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_PYTHON=sys.executable)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        out, repo = self.run_in_copy("check", CLAUDE_CODE_REMOTE="true", SWEATCAST_PYTHON=sys.executable)
+        out, repo = self.run_in_copy("check", CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_PYTHON=sys.executable)
         self.assertNotIn("doesn't set up here", out.stdout + out.stderr)
-        self.assertIn("./sweatcast setup", out.stdout + out.stderr)   # no context folder yet: setup makes one
+        self.assertIn("./harmonicfitness setup", out.stdout + out.stderr)   # no context folder yet: setup makes one
 
     def test_doctor_names_the_web(self):
         out, _ = self.run_in_copy("doctor", CLAUDE_CODE_REMOTE="true")
@@ -148,8 +148,8 @@ class CloudSession(unittest.TestCase):
         with open(uv, "w") as f:
             f.write(STUB_UV)
         os.chmod(uv, 0o755)
-        env = clean_env(CLAUDE_CODE_REMOTE="true", SWEATCAST_UV=uv, UV_LOG=log, SWEATCAST_PYTHON=sys.executable,
-                        HOME=d, SWEATCAST_FAKE_OS="Linux", SWEATCAST_FAKE_ARCH="x86_64", SWEATCAST_FAKE_GPU="")
+        env = clean_env(CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_UV=uv, UV_LOG=log, HARMONICFITNESS_PYTHON=sys.executable,
+                        HOME=d, HARMONICFITNESS_FAKE_OS="Linux", HARMONICFITNESS_FAKE_ARCH="x86_64", HARMONICFITNESS_FAKE_GPU="")
         out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh")], cwd=repo, env=env,
                              capture_output=True, text=True, timeout=120)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -164,15 +164,15 @@ class CloudSession(unittest.TestCase):
     def test_find_home_sibling(self):
         import paths
         with tempfile.TemporaryDirectory() as d:
-            root = os.path.join(d, "sweatcast")
+            root = os.path.join(d, "harmonicfitness")
             os.makedirs(os.path.join(root, "tools"))
-            mine = os.path.join(d, "sweatcast-me")
+            mine = os.path.join(d, "harmonicfitness-me")
             os.makedirs(os.path.join(mine, "coaches"))
             open(os.path.join(mine, "profile.md"), "w").close()
             remote = {"CLAUDE_CODE_REMOTE": "true"}
             self.assertEqual(paths.find_home(root, remote), mine)
             self.assertEqual(paths.find_home(root, {}), os.path.join(root, "me"))   # only on the web
-            self.assertEqual(paths.find_home(root, dict(remote, SWEATCAST_HOME=os.path.join(d, "x"))),
+            self.assertEqual(paths.find_home(root, dict(remote, HARMONICFITNESS_HOME=os.path.join(d, "x"))),
                              os.path.join(d, "x"))
             other = os.path.join(d, "another")
             os.makedirs(os.path.join(other, "personas"))
@@ -199,7 +199,7 @@ class CloudSession(unittest.TestCase):
             for host in ("api.elevenlabs.io", "generativelanguage.googleapis.com", "api.inworld.ai"):
                 self.assertIn(host, lines)
             subprocess.run(["git", "init", "-q", home], check=True)
-            subprocess.run(["git", "-C", home, "remote", "add", "origin", "https://github.com/x/sweatcast-me.git"],
+            subprocess.run(["git", "-C", home, "remote", "add", "origin", "https://github.com/x/harmonicfitness-me.git"],
                            check=True)
             self.assertIn("keeps it", "\n".join(doctor.web_lines(home)))
 
@@ -255,9 +255,9 @@ class Setup(unittest.TestCase):
         self.uv_log = os.path.join(self.d, "uv.log")
 
     def setup(self, *args, path=None, uv=True, **env):
-        e = clean_env(UV_LOG=self.uv_log, SWEATCAST_PYTHON=sys.executable, HOME=self.d, **env)
+        e = clean_env(UV_LOG=self.uv_log, HARMONICFITNESS_PYTHON=sys.executable, HOME=self.d, **env)
         if uv:
-            e["SWEATCAST_UV"] = self.uv
+            e["HARMONICFITNESS_UV"] = self.uv
         if path:
             e["PATH"] = path
         return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=e,
@@ -281,7 +281,7 @@ class Setup(unittest.TestCase):
         out = self.setup("--no-models", path=restricted_path(self.d), uv=False)
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
         self.assertIn("astral.sh/uv/install", out.stdout)
-        self.assertIn("./sweatcast setup --install-uv", out.stdout)
+        self.assertIn("./harmonicfitness setup --install-uv", out.stdout)
 
     def test_missing_ffmpeg_does_not_stop_setup(self):
         out = self.setup("--no-models", path=restricted_path(self.d))
@@ -313,8 +313,8 @@ class LocalExtra(unittest.TestCase):
             os.chmod(path, 0o755)
 
     def setup(self, *args, **fake):
-        env = clean_env(UV_LOG=self.log, SWEATCAST_UV=self.uv, SWEATCAST_PYTHON=self.py, HOME=self.d,
-                        **{f"SWEATCAST_FAKE_{k}": v for k, v in fake.items()})
+        env = clean_env(UV_LOG=self.log, HARMONICFITNESS_UV=self.uv, HARMONICFITNESS_PYTHON=self.py, HOME=self.d,
+                        **{f"HARMONICFITNESS_FAKE_{k}": v for k, v in fake.items()})
         return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=env,
                               capture_output=True, text=True, timeout=120)
 
@@ -328,12 +328,12 @@ class LocalExtra(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("sync --frozen --extra cpu", self.calls())
         self.assertIn("tools/coaches.py download", self.calls())
-        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra")) as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra")) as f:
             self.assertEqual(f.read().strip(), "cpu")
 
     def test_no_models_keeps_an_installed_extra(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w") as f:
             f.write("cuda\n")
         out = self.setup("--no-models", OS="Linux", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -342,7 +342,7 @@ class LocalExtra(unittest.TestCase):
 
     def test_a_macs_mlx_extra_from_before_15_becomes_cpu(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w") as f:
             f.write("mlx\n")
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -351,7 +351,7 @@ class LocalExtra(unittest.TestCase):
 
     def test_low_disk_never_uninstalls_an_engine(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".sweatcast-extra"), "w") as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w") as f:
             f.write("cpu\n")
         out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -362,7 +362,7 @@ class LocalExtra(unittest.TestCase):
     def test_a_failed_migration_stops_setup(self):
         shutil.copytree(os.path.join(ROOT, "me.example"), os.path.join(self.repo, "me"))
         prof = os.path.join(self.repo, "me", "profile.md")
-        with open(prof, "w", encoding="utf-8") as f:   # sweatcast 0.8 and before: older than this engine migrates
+        with open(prof, "w", encoding="utf-8") as f:   # HarmonicFitness 0.8 and before: older than this engine migrates
             f.write("+++\nschema = 3\n+++\n# Profile\n")
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
@@ -433,7 +433,7 @@ class Skills(unittest.TestCase):
 
     def test_setup_skill_triggers(self):
         head = self.read("setup").split("---")[1]
-        for phrase in ("set up sweatcast", "setup sweatcast", "install sweatcast", "get started"):
+        for phrase in ("set up harmonicfitness", "setup harmonicfitness", "install harmonicfitness", "get started"):
             self.assertIn(phrase, head)
 
     def test_no_skill_assumes_a_mac(self):
@@ -444,18 +444,18 @@ class Skills(unittest.TestCase):
 
     def test_skills_name_only_current_commands(self):
         import re
-        import sweatcast
+        import harmonicfitness
         for name in ("setup", "workout", "coach"):
             text = self.read(name)
-            for cmd in re.findall(r"\./sweatcast ([a-z-]+)", text):
-                self.assertIn(cmd, set(sweatcast.COMMANDS) | {"help", "session"}, (name, cmd))
+            for cmd in re.findall(r"\./harmonicfitness ([a-z-]+)", text):
+                self.assertIn(cmd, set(harmonicfitness.COMMANDS) | {"help", "session"}, (name, cmd))
             self.assertNotIn("--voice", text, name)
             self.assertNotIn("voices/", text, name)
         for doc in ("CLAUDE.md", "README.md", os.path.join("knowledge", "voices.md")):
             with open(os.path.join(ROOT, doc), encoding="utf-8") as f:
                 text = f.read()
-            for cmd in re.findall(r"\./sweatcast ([a-z-]+)", text):
-                self.assertIn(cmd, set(sweatcast.COMMANDS) | {"help", "session"}, (doc, cmd))
+            for cmd in re.findall(r"\./harmonicfitness ([a-z-]+)", text):
+                self.assertIn(cmd, set(harmonicfitness.COMMANDS) | {"help", "session"}, (doc, cmd))
             self.assertNotIn("voices/smoke-test", text, doc)
 
     def test_player_picks_the_system_player(self):

@@ -6,7 +6,7 @@ aliases = []
 gender = "man"
 description = "Late 30s, ex-rugby. Firm mid-baritone. Direct, no-nonsense, dry wit."
 
-# One of the ten coaches sweatcast ships (coaches/roster.toml makes this file: edit there).
+# One of the ten coaches HarmonicFitness ships (coaches/roster.toml makes this file: edit there).
 [local]
 engine = "pocket"
 

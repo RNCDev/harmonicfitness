@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The safety screen behind `./sweatcast brief`: what today's request, profile and health file allow.
+"""The safety screen behind `./harmonicfitness brief`: what today's request, profile and health file allow.
 
 `screen` checks the request (goal, minutes, kit, level, target, limits, avoid), applies health.md's
 [[limits]] rows and the clinician's Avoid: lines, and selects the movements the kit, level, limits and
@@ -96,7 +96,7 @@ def screen(request: dict, cat: catalog.Catalog, goals, profile, h) -> Screen:
             raise ValueError(f"a limit needs a level ({', '.join(LIMIT_LEVELS)}) and a side ({', '.join(LIMIT_SIDES)})")
     own, problems = health.limit_rows(h, cat.areas, cat.flags)
     if problems:   # a dropped row protects nothing
-        raise Unfit(f"health.md: a [[limits]] row was ignored ({problems[0]}; run ./sweatcast check)")
+        raise Unfit(f"health.md: a [[limits]] row was ignored ({problems[0]}; run ./harmonicfitness check)")
     gap = health.prose_injury_gap(h, len(own))
     if gap:
         warnings.append(f"health.md: {gap}")
@@ -106,7 +106,7 @@ def screen(request: dict, cat: catalog.Catalog, goals, profile, h) -> Screen:
     try:   # the clinician's Avoid: lines apply on every run; one that rules nothing out protects nothing
         avoid |= catalog.avoid_set(cat, health.clinician_avoids(h))
     except ValueError as e:
-        raise Unfit(f"health.md, an Avoid: line under Clinician rules: {e} (run ./sweatcast check)")
+        raise Unfit(f"health.md, an Avoid: line under Clinician rules: {e} (run ./harmonicfitness check)")
     try:
         sel = catalog.select(cat, equipment, level, limits, avoid=avoid, dislikes=dislikes)
     except ValueError as e:   # request limits are checked above, so this is a row in health.md

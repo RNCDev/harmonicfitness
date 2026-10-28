@@ -1,7 +1,7 @@
 # The judged grid
 
 Forty requests over four invented listeners, used to judge sessions before a release: for each case a
-writer designs and writes a session from `./sweatcast brief`'s ingredients, the way the workout skill
+writer designs and writes a session from `./harmonicfitness brief`'s ingredients, the way the workout skill
 does, and reviewers score the scripts for safety, efficacy, adherence, ease of construction and warmth.
 
 - `cases.toml`: the forty cases. Strength, general and conditioning at the novice, experienced and
@@ -10,7 +10,7 @@ does, and reviewers score the scripts for safety, efficacy, adherence, ease of c
   case adds a `--limit`. `tests/test_screen.py` (class `Eval`) checks the grid and that every case screens.
 - `extra-cases.toml`: cases beyond the forty, in the same fields (a `limit` may be a list), such as c41,
   an off-limits ankle with a delicate foot on the same side.
-- `listeners/{a,b,c,d}/`: the listeners, each a complete context folder (`SWEATCAST_HOME`), all invented,
+- `listeners/{a,b,c,d}/`: the listeners, each a complete context folder (`HARMONICFITNESS_HOME`), all invented,
   with invented first names (Maya, Theo, Priya and Sam) for the coach to use.
   a is a novice with a mat and no limits; b is experienced in hotel gyms with a delicate neck; c is advanced
   in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
@@ -28,7 +28,7 @@ docs/eval/briefs.sh            # every case
 docs/eval/briefs.sh c06 c41    # just these
 ```
 
-For each case it runs `SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast brief --goal ... --minutes
+For each case it runs `HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness brief --goal ... --minutes
 ... --preset ... [--level ...] [--target ...] [--limit ...] --today 2026-10-21 --save docs/eval/out/<id>.draft.txt`,
 which writes `docs/eval/out/<id>.brief.md` and `<id>.menu.json` (its stderr into `<id>.brief.stderr.txt`).
 The date is fixed, so the briefs are the same on every run until the catalog, the dose rules or the
@@ -44,7 +44,7 @@ starts. The lint checks the draft against its menu, and exports a `.txt` into th
 which is git-ignored.
 
 ```sh
-SWEATCAST_HOME=docs/eval/listeners/<listener> ./sweatcast build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
+HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
 ```
 
 ## 3. Judge

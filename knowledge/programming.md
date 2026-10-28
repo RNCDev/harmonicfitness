@@ -95,7 +95,7 @@ Rule: train both sides by default. When an injury rules out one side, training t
 
 Two studies support short conditioning blocks: Gillen and colleagues (2016) found three 20-second all-out cycle sprints within a ten-minute session, three times a week for 12 weeks, raised fitness (peak oxygen uptake up 19 percent) as much as 50 minutes of steady cycling. Source: https://pubmed.ncbi.nlm.nih.gov/27115137/ Small study (9 sedentary young men in the sprint group), warm-up and cool-down included; all-out sprints may not suit every listener. Jenkins and colleagues (2019) found three short stair climbs a day, three days a week for six weeks, raised fitness modestly in sedentary young adults. Source: https://pubmed.ncbi.nlm.nih.gov/30649897/ It shows fitness snacks help, not that ten minutes builds strength.
 
-Session shapes live in `knowledge/sessions.toml`: each method's goals, length, levels, warm-up, cool-down and finisher shares, the patterns that fill its blocks, and the dose ranges for each level, every number marked as sourced or as a house default. `./sweatcast brief` prints the level's doses and the methods that fit today's goal, length, level and kit as guidance; the writer chooses the shape, rotating away from the last session's format.
+Session shapes live in `knowledge/sessions.toml`: each method's goals, length, levels, warm-up, cool-down and finisher shares, the patterns that fill its blocks, and the dose ranges for each level, every number marked as sourced or as a house default. `./harmonicfitness brief` prints the level's doses and the methods that fit today's goal, length, level and kit as guidance; the writer chooses the shape, rotating away from the last session's format.
 
 ## Rest between intervals
 

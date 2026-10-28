@@ -1,4 +1,4 @@
-"""Coaches: choose one of the coaches sweatcast ships, or audition a web coach and keep the one that sounds
+"""Coaches: choose one of the coaches HarmonicFitness ships, or audition a web coach and keep the one that sounds
 right; measure and tune them.
 
 A coach is a persona folder (tools/personas.py): a person's name, how they talk, and how they sound. The ten
@@ -6,18 +6,18 @@ local coaches ship in coaches/ (a clip, its Pocket TTS voice file, recorded coun
 chosen, not made. A web coach is a voice a service designed and saved (Fish Audio, ElevenLabs, Gemini, Inworld,
 with the listener's key), kept in me/coaches/.
 
-    ./sweatcast coaches                                   # every coach and where it speaks, the last used marked
-    ./sweatcast coaches audition maya.md                  # candidates from every keyed service, nothing saved
-    ./sweatcast coaches audition maya.md --services fish,gemini
-    ./sweatcast coaches audition --coach "Coach Maya"     # a new voice for a coach, on its own service
-    ./sweatcast coaches keep 2026-10-25-1/B --name "Coach Maya"   # save B at its service as the coach
-    ./sweatcast coaches keep 2026-10-26-1/A --name "Coach Maya" --replace-old   # re-voice; delete the old voice
-    ./sweatcast coaches forget-audition 2026-10-25-1      # close an audition (Gemini's unkept voices deleted)
-    ./sweatcast coaches make "Coach Reed"                 # a pending default: design and save its voice (builds do)
-    ./sweatcast coaches archive "Coach Julius"            # out of the list, still found for old log lines
-    ./sweatcast coaches last                              # the coach a build uses when none is named
-    ./sweatcast coaches measured "Coach Maya" --route local   # exit 0 measured, 1 estimated, 64 unknown
-    ./sweatcast coaches download                          # the local voice and the take checker (setup does it)
+    ./harmonicfitness coaches                                   # every coach and where it speaks, the last used marked
+    ./harmonicfitness coaches audition maya.md                  # candidates from every keyed service, nothing saved
+    ./harmonicfitness coaches audition maya.md --services fish,gemini
+    ./harmonicfitness coaches audition --coach "Coach Maya"     # a new voice for a coach, on its own service
+    ./harmonicfitness coaches keep 2026-10-25-1/B --name "Coach Maya"   # save B at its service as the coach
+    ./harmonicfitness coaches keep 2026-10-26-1/A --name "Coach Maya" --replace-old   # re-voice; delete the old voice
+    ./harmonicfitness coaches forget-audition 2026-10-25-1      # close an audition (Gemini's unkept voices deleted)
+    ./harmonicfitness coaches make "Coach Reed"                 # a pending default: design and save its voice (builds do)
+    ./harmonicfitness coaches archive "Coach Julius"            # out of the list, still found for old log lines
+    ./harmonicfitness coaches last                              # the coach a build uses when none is named
+    ./harmonicfitness coaches measured "Coach Maya" --route local   # exit 0 measured, 1 estimated, 64 unknown
+    ./harmonicfitness coaches download                          # the local voice and the take checker (setup does it)
 
 An audition reads a narrative file (persona.md's format: a +++ block with [voice], what the services design
 from, and [character], what the script writer follows, then free notes) and lands in
@@ -99,7 +99,7 @@ def listing(last=None):
         web = p.is_web
         notes = (["(a stand-in)"] if p.placeholder else []) \
             + (["(made the first time it's used)"] if web and p.pending else []) \
-            + ([] if web or p.shipped else ["(a local coach of your own: ./sweatcast migrate archives it)"])
+            + ([] if web or p.shipped else ["(a local coach of your own: ./harmonicfitness migrate archives it)"])
         out.append({"name": p.name, "slug": p.slug, "kind": "web" if web else "local",
                     "service": p.service if web else None,
                     "service_name": cloud.service_name(p.service) if web else None,
@@ -113,7 +113,7 @@ def listing_lines(coaches, note=None):
     """The list as the terminal shows it, from listing()."""
     if not coaches:
         return ["No coaches found: the ten local coaches ship in coaches/ (git pull), and a web coach comes from "
-                "an audition (./sweatcast coaches audition)."]
+                "an audition (./harmonicfitness coaches audition)."]
     lines = []
     for c in coaches:
         mark = "*" if c["default"] else " "
@@ -125,7 +125,7 @@ def listing_lines(coaches, note=None):
 
 
 def main(argv=None):
-    ap = cli.ArgumentParser(prog="sweatcast coaches", description=__doc__,
+    ap = cli.ArgumentParser(prog="harmonicfitness coaches", description=__doc__,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd")
     ls = sub.add_parser("list", help="every coach (the default)")
@@ -189,8 +189,8 @@ def main(argv=None):
             must_act = any(isinstance(e, cloud.ServiceError) and e.listener_must_act for _, e in failures)
             return cli.SERVICE if must_act else cli.ISSUES
         audition_id = os.path.basename(folder)
-        print(f"Listen, then keep the one that sounds right:\n  ./sweatcast coaches keep {audition_id}/"
-              f"{cands[0]['letter']} --name \"Coach ...\"\nWhen done: ./sweatcast coaches forget-audition {audition_id}")
+        print(f"Listen, then keep the one that sounds right:\n  ./harmonicfitness coaches keep {audition_id}/"
+              f"{cands[0]['letter']} --name \"Coach ...\"\nWhen done: ./harmonicfitness coaches forget-audition {audition_id}")
         return cli.OK
     if args.cmd == "keep" and _web_ref(args.take):
         keep_web(args.take, args.name, args.replace_old)   # a service's refusal exits through cli.run
@@ -208,7 +208,7 @@ def main(argv=None):
         return cli.OK
     if args.cmd == "keep":
         raise cli.Usage(f"{args.take} isn't an audition's candidate (<audition>/<letter>). Local coaches are the "
-                        "ten sweatcast ships, chosen rather than made; a voice of your own is a web coach.")
+                        "ten HarmonicFitness ships, chosen rather than made; a voice of your own is a web coach.")
     if args.cmd == "set":
         p = personas.lookup(args.coach)
         value = _value(args.value)

@@ -5,7 +5,7 @@
 Every route under /api but sign-in, registration and a link's redeem needs the session cookie
 `wt_session` (else 401). Failed sign-ins and registrations are throttled in memory (one web
 process), by username and by client address.
-Every POST needs an Origin (or, without one, a Referer) of WT_BASE_URL's origin (else 403).
+Every POST needs an Origin (or, without one, a Referer) of HARMONICFITNESS_BASE_URL's origin (else 403).
 A job or file of another user is 404, the same as one that doesn't exist. Nothing here logs a
 token, a job's arguments, its events or its result.
 
