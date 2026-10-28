@@ -1,0 +1,103 @@
+"""A user's context files on disk for one engine run: write out, harvest, seed.
+
+Pure filesystem code; no database. The engine runs with SWEATCAST_HOME pointed
+at the folder materialize wrote, and harvest returns what it changed.
+"""
+import fnmatch
+import hashlib
+import os
+
+from .store import check_path
+
+# Glob-style patterns matched against the relative POSIX path. A pattern ending
+# in "/" means anything under that folder. A pattern without "/" (such as
+# "*.mp3") matches the file name at any depth; one with "/" matches the whole
+# path from the root. "*" does not stop at "/" (fnmatch), which is harmless here.
+SKIP = (
+    ".env", "*.lock", "workouts/.audio-cache/", "coaches/.auditions/",
+    "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store",
+)
+
+
+def skipped(path: str) -> bool:
+    parts = path.split("/")
+    for pat in SKIP:
+        if pat.endswith("/"):
+            prefix = pat.split("/")[:-1]
+            if parts[:len(prefix)] == prefix and len(parts) > len(prefix):
+                return True
+        elif "/" in pat:
+            if fnmatch.fnmatchcase(path, pat):
+                return True
+        elif fnmatch.fnmatchcase(parts[-1], pat):
+            return True
+    return False
+
+
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def materialize(files: dict[str, bytes], root: str) -> dict[str, str]:
+    """Write each file under root; return path -> sha256 of what was written."""
+    for path in files:
+        check_path(path)
+    root = os.path.abspath(root)
+    written = {}
+    for path, data in files.items():
+        dest = os.path.join(root, *path.split("/"))
+        if os.path.commonpath([root, os.path.abspath(dest)]) != root:
+            raise ValueError(f"bad path: {path!r}")
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "wb") as f:
+            f.write(data)
+        written[path] = _sha(data)
+    return written
+
+
+def _walk(root: str):
+    """Yield (relative POSIX path, full path) of regular files, never following links."""
+    for base, dirs, names in os.walk(root, followlinks=False):
+        dirs[:] = sorted(d for d in dirs if not os.path.islink(os.path.join(base, d)))
+        for name in sorted(names):
+            full = os.path.join(base, name)
+            if os.path.islink(full) or not os.path.isfile(full):
+                continue
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            yield rel, full
+
+
+def harvest(root: str, written: dict[str, str],
+            never: frozenset[str] = frozenset()) -> dict[str, bytes | None]:
+    """Files new or changed since `written`; None for ones deleted. Skips links,
+    SKIP paths and anything in `never`."""
+    out: dict[str, bytes | None] = {}
+    seen = set()
+    for rel, full in _walk(root):
+        if rel in never or skipped(rel):
+            continue
+        try:
+            check_path(rel)
+        except ValueError:
+            continue
+        seen.add(rel)
+        with open(full, "rb") as f:
+            data = f.read()
+        if written.get(rel) != _sha(data):
+            out[rel] = data
+    for rel in written:
+        if rel not in seen and rel not in never and not skipped(rel):
+            out[rel] = None
+    return out
+
+
+def seed(engine_root: str) -> dict[str, bytes]:
+    """Every file in <engine_root>/me.example/ as path -> bytes, minus SKIP."""
+    base = os.path.join(engine_root, "me.example")
+    out = {}
+    for rel, full in _walk(base):
+        if skipped(rel):
+            continue
+        with open(full, "rb") as f:
+            out[rel] = f.read()
+    return out

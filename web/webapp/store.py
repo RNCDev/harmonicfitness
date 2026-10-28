@@ -19,7 +19,7 @@ def user_key(conn, settings, user_id) -> UserKey:
     return UserKey(user_id=UUID(str(user_id)), key=crypto.unwrap(settings.master_key, bytes(row[0])))
 
 
-def _check(path: str) -> str:
+def check_path(path: str) -> str:
     if (not isinstance(path, str) or not path or "\\" in path or "\x00" in path
             or path.startswith("/") or posixpath.normpath(path) != path
             or ".." in path.split("/")):
@@ -44,7 +44,7 @@ def write_back(conn, uk: UserKey, changes: dict[str, bytes | None],
     Deleting a path with no base version counts as a conflict.
     """
     for path in changes:
-        _check(path)
+        check_path(path)
     conflicts = []
     for path in sorted(changes):
         body = changes[path]
@@ -73,7 +73,7 @@ def write_back(conn, uk: UserKey, changes: dict[str, bytes | None],
 
 def put(conn, uk: UserKey, path: str, body: bytes) -> int:
     """A direct edit: always wins, bumps the version, returns it."""
-    _check(path)
+    check_path(path)
     sealed = crypto.seal(uk.key, body, _aad(uk, path))
     return conn.execute(
         "insert into context_files (user_id, path, version, body) values (%s, %s, 1, %s) "
