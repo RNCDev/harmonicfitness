@@ -73,6 +73,46 @@ class Turns(AgentCase):
         self.assertIsNone(second.question)
         self.assertIn("requests", second.usage)
 
+    def test_two_asks_in_one_step_never_wedge(self):
+        seen = {}
+
+        def script(messages, info):
+            returned = parts(messages, ToolReturnPart)
+            if not returned:
+                return ModelResponse(parts=[
+                    ToolCallPart("ask_user", {"questions": [QUESTION]}, tool_call_id="a1"),
+                    ToolCallPart("ask_user", {"questions": [dict(QUESTION, id="q2")]}, tool_call_id="a2")])
+            seen.update({p.tool_call_id: p.content for p in returned})
+            return ModelResponse(parts=[TextPart("ok")])
+
+        model = FunctionModel(script)
+        first = agent.run_turn(model, self.deps, None, "go", None)
+        self.assertEqual(first.question["tool_call_id"], "a1")
+        second = agent.run_turn(model, self.deps, first.history_json, None, ("a1", {"q1": ["Nothing new"]}))
+        self.assertEqual(second.reply, "ok")
+        self.assertEqual(seen["a1"], {"q1": ["Nothing new"]})
+        self.assertEqual(seen["a2"], agent.NOT_SHOWN)
+        third = agent.run_turn(model, self.deps, second.history_json, "and now?", None)
+        self.assertEqual(third.reply, "ok")
+
+    def test_a_new_line_closes_the_open_question(self):
+        seen = {}
+
+        def script(messages, info):
+            returned = parts(messages, ToolReturnPart)
+            if not returned:
+                return ModelResponse(parts=[ToolCallPart("ask_user", {"questions": [QUESTION]}, tool_call_id="a1")])
+            seen.update({p.tool_call_id: p.content for p in returned})
+            return ModelResponse(parts=[TextPart("ok")])
+
+        model = FunctionModel(script)
+        first = agent.run_turn(model, self.deps, None, "go", None)
+        second = agent.run_turn(model, self.deps, first.history_json, "actually, make it 30", None)
+        self.assertEqual(second.reply, "ok")
+        self.assertEqual(seen["a1"], agent.NOT_ANSWERED)
+        with self.assertRaises(agent.TurnError):
+            agent.run_turn(model, self.deps, second.history_json, None, ("a1", {"q1": ["Nothing new"]}))
+
     def test_ask_user_refuses_a_bad_question(self):
         retries = []
 
@@ -184,6 +224,53 @@ class ShowPlan(AgentCase):
         self.assertEqual(agent.plan_problems(self.deps, agent.Plan(**self.plan(names)["plan"])), [])
 
 
+class Sides(AgentCase):
+    def test_one_sided_movement_needs_its_side(self):
+        r = tools.brief(self.deps, **dict(BRIEF_ARGS, limits=["knee=off-limits:left"]))
+        self.assertEqual(r.code, 0, r.error)
+        with open(os.path.join(self.home, "workouts", STEM, f"{STEM}.menu.json"), encoding="utf-8") as f:
+            entry = next(e for e in json.load(f)["movements"] if e.get("side") == "right")
+        name = entry["name"]
+
+        def problems(movement):
+            rows = [{"block": "Main", "movements": [movement], "dose": "3 x 10", "seconds": 1200}]
+            return agent.plan_problems(self.deps, agent.Plan(format="Sets", equipment="none", rows=rows,
+                                                             left_out="", total_seconds=1200))
+        self.assertEqual(problems(f"right {name}"), [])
+        self.assertTrue(any("left" in p for p in problems(f"left {name}")), problems(f"left {name}"))
+        self.assertTrue(any("right side only" in p for p in problems(name)), problems(name))
+        self.assertTrue(problems(f"both sides {name}"))
+
+
+class Rebrief(AgentCase):
+    def test_failed_brief_drops_the_older_menu(self):
+        self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
+        self.deps.plan = {"shown": True}
+        self.assertEqual(tools.brief(self.deps, **dict(BRIEF_ARGS, goal="nap")).code, 64)
+        self.assertIsNone(self.deps.stem)
+        self.assertIsNone(self.deps.plan)
+        rows = [{"block": "Main", "movements": ["squat"], "dose": "3 x 10", "seconds": 1200}]
+        plan = agent.Plan(format="Sets", equipment="none", rows=rows, left_out="", total_seconds=1200)
+        self.assertEqual(agent.plan_problems(self.deps, plan), ["run brief first"])
+
+    def test_unreadable_menu_is_a_problem_not_a_crash(self):
+        self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
+        path = os.path.join(self.home, "workouts", STEM, f"{STEM}.menu.json")
+        os.remove(path)
+        os.mkdir(path)   # reading a folder is an OSError
+        rows = [{"block": "Main", "movements": ["squat"], "dose": "3 x 10", "seconds": 1200}]
+        plan = agent.Plan(format="Sets", equipment="none", rows=rows, left_out="", total_seconds=1200)
+        self.assertIn("run brief again", agent.plan_problems(self.deps, plan)[0])
+        with open(os.path.join(self.home, "health.md"), "a", encoding="utf-8") as f:
+            f.write("\nchanged\n")
+        os.rmdir(path)
+        self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
+        with open(os.path.join(self.home, "health.md"), "a", encoding="utf-8") as f:
+            f.write("\nchanged again\n")
+        stale = agent.plan_problems(self.deps, plan)
+        self.assertIn("health.md changed", stale[0])
+
+
 class Instructions(unittest.TestCase):
     def test_instructions_cover_the_check_in(self):
         with open(os.path.join(os.path.dirname(agent.__file__), "instructions.md"), encoding="utf-8") as f:
@@ -196,6 +283,8 @@ class Instructions(unittest.TestCase):
         self.assertIn("red flag", text.lower())
         self.assertIn("stop", text.lower())
         self.assertNotIn("./harmonicfitness", text)
+        for later in ("privacy line", "new coach", "too long", "one side only"):
+            self.assertIn(later, text)
 
     def test_every_tool_is_registered(self):
         names = set(agent.AGENT._function_toolset.tools)

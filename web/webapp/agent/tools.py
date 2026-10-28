@@ -113,6 +113,9 @@ def _stem(deps: Deps, goal: str, minutes: int) -> str:
 def brief(deps: Deps, goal: str, minutes: int, kit: str | None, preset: str | None,
           equipment: list[str] | None, coach: str, limits: list[str] = [], avoid: list[str] = [],
           target: list[str] = [], add: list[str] = []) -> ToolResult:
+    # a new brief replaces the last one, even when it fails: show_plan never checks against an older menu
+    deps.stem = None
+    deps.plan = None
     goals, presets = worker.engine_lists(deps.engine_root)
     if goal not in goals:
         return _refuse(f"goal must be one of {', '.join(sorted(goals))}")

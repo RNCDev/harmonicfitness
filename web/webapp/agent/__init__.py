@@ -2,11 +2,13 @@
 the turn for the user) and show_plan (the plan, shown only when every movement is on the brief's menu).
 The model is passed per turn; nothing here knows which provider it is."""
 import os
+import re
 import tomllib
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
+from pydantic_ai.messages import ModelResponse, RetryPromptPart, ToolCallPart, ToolReturnPart
 from pydantic_ai import (Agent, CallDeferred, DeferredToolRequests, DeferredToolResults,
                          ModelMessagesTypeAdapter, ModelRetry, RunContext, UsageLimits)
 
@@ -15,7 +17,7 @@ from webapp import worker
 from . import tools
 from .tools import Deps, ToolResult
 
-__all__ = ["AGENT", "Deps", "Option", "Plan", "PlanRow", "Question", "TurnOutcome", "LIMITS",
+__all__ = ["AGENT", "Deps", "Option", "Plan", "PlanRow", "Question", "TurnError", "TurnOutcome", "LIMITS",
            "plan_problems", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=25, tool_calls_limit=40, total_tokens_limit=400_000)
@@ -145,30 +147,58 @@ def _engine(deps: Deps):
     return catalog, menu, errors, catalog.load(extra=extra)
 
 
+SIDES = ("left", "right", "both", "healthy")
+HEALTHY = re.compile(r"^\s*healthy(?:[\s-]+side)?\s+", re.IGNORECASE)   # catalog.resolve drops left/right/both itself
+
+
+def _side_problem(catalog, name: str, side: str) -> str | None:
+    """Why a plan's name for a movement the menu allows on one side only doesn't hold that side, or None.
+    The name's words (catalog.plain) must include the menu's side ("left", "right", or "healthy" when the
+    limit named no side) and no other side word ("left", "right", "both"). catalog.resolve has already
+    matched the movement with a leading side word dropped, so "right single-leg glute bridge" is the bridge;
+    this says whether that side is the one allowed."""
+    words = set(catalog.plain(name).split())
+    named = words & set(SIDES)
+    if side in words and named == {side}:
+        return None
+    if named - {side}:
+        return f'"{name}" names the {", ".join(sorted(named - {side}))} side, but today\'s menu allows it on the {side} side only'
+    say = "healthy side" if side == "healthy" else side
+    return f'"{name}" is allowed on the {side} side only today; name the side (say "{say} {name}")'
+
+
 def plan_problems(deps: Deps, plan: Plan) -> list[str]:
     """What keeps this plan from being shown, as sentences (empty when it can be)."""
     if not deps.stem:
         return ["run brief first"]
-    catalog, menu, errors, cat = _engine(deps)
+    try:
+        catalog, menu, errors, cat = _engine(deps)
+    except (OSError, ValueError) as e:
+        return [f"the movement catalog can't be read ({type(e).__name__}); the plan can't be checked"]
     path = os.path.join(deps.home, "workouts", deps.stem, f"{deps.stem}.menu.json")
     try:
         found = menu.load(path)
-    except errors.HarmonicFitnessError:   # a damaged menu is the brief's to remake
+    except (errors.HarmonicFitnessError, OSError):   # a damaged menu is the brief's to remake
         found = None
     shape = menu.validate(found) if found is not None else ["there is no menu"]
     if shape:
         return ["the brief's menu can't be read (" + "; ".join(shape) + "): run brief again"]
     stale = menu.staleness(found, today=deps.today, health_path=os.path.join(deps.home, "health.md"))
     if stale:
-        return ["the brief's menu doesn't stand for today: run brief again"]
-    on_menu = {e["id"] for e in found["movements"]}
+        reasons = "; ".join(r.split(": rerun")[0] for r in stale)
+        return [f"the brief's menu doesn't stand for today ({reasons}): run brief again"]
+    on_menu = {e["id"]: e for e in found["movements"]}
     problems = []
     for row in plan.rows:
         for name in row.movements:
-            m = catalog.resolve(cat, name)
-            if m is not None and m.id in on_menu:
+            m = catalog.resolve(cat, HEALTHY.sub("", name))
+            if m is None or m.id not in on_menu:
+                problems.append(f'"{name}" ({row.block}) isn\'t on today\'s menu; use a movement the brief lists')
                 continue
-            problems.append(f'"{name}" ({row.block}) isn\'t on today\'s menu; use a movement the brief lists')
+            side = on_menu[m.id].get("side")
+            why = _side_problem(catalog, name, side) if side else None
+            if why:
+                problems.append(f"{why} ({row.block})")
     rows = sum(r.seconds for r in plan.rows)
     if rows != plan.total_seconds:
         problems.append(f"the rows add up to {rows} s, not total_seconds ({plan.total_seconds} s)")
@@ -192,6 +222,26 @@ def show_plan(ctx: RunContext[Deps], plan: Plan) -> str:
 
 # ---- a turn ------------------------------------------------------------------------------------
 
+class TurnError(Exception):
+    """A turn that can't go on as asked: an answer to a call that isn't open, or the agent stopping on a
+    deferred call that isn't a question. Nothing a retry fixes; the caller fails the turn with the message."""
+
+
+NOT_SHOWN = "This question wasn't shown: ask one set of questions at a time, in one ask_user call."
+NOT_ANSWERED = "The listener didn't answer this; they wrote a new message instead."
+
+
+def _pending(history) -> list[str]:
+    """The ids of the tool calls in the last model response that have no result yet: the deferred ones."""
+    for n in range(len(history) - 1, -1, -1):
+        if isinstance(history[n], ModelResponse):
+            done = {p.tool_call_id for m in history[n + 1:] for p in m.parts
+                    if isinstance(p, (ToolReturnPart, RetryPromptPart))}
+            return [p.tool_call_id for p in history[n].parts
+                    if isinstance(p, ToolCallPart) and p.tool_call_id not in done]
+    return []
+
+
 @dataclass
 class TurnOutcome:
     history_json: str
@@ -204,17 +254,27 @@ class TurnOutcome:
 
 def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
              answer: tuple[str, dict] | None) -> TurnOutcome:
-    """One run of the agent: the user's line (prompt) or the answer to the open question. UsageLimitExceeded
-    and provider errors propagate; the caller decides what they mean."""
+    """One run of the agent: the user's line (prompt) or the answer to the open question. Every call left
+    open in the history gets a result, so a conversation is never stuck on one: the answer for the question
+    shown, NOT_SHOWN for any other question of the same step, NOT_ANSWERED when the user wrote instead.
+    UsageLimitExceeded and provider errors propagate; the caller decides what they mean."""
     history = ModelMessagesTypeAdapter.validate_json(history_json) if history_json else None
-    results = DeferredToolResults(calls={answer[0]: answer[1]}) if answer else None
+    pending = _pending(history) if history else []
+    if answer and answer[0] not in pending:
+        raise TurnError("that question isn't open any more")
+    calls = {cid: NOT_SHOWN if answer else NOT_ANSWERED for cid in pending}
+    if answer:
+        calls[answer[0]] = answer[1]
+    results = DeferredToolResults(calls=calls) if calls else None
     result = AGENT.run_sync(prompt, model=model, deps=deps, message_history=history,
                             deferred_tool_results=results, usage_limits=LIMITS)
     reply = question = None
     if isinstance(result.output, DeferredToolRequests):
         asks = [c for c in result.output.calls if c.tool_name == "ask_user"]
-        if asks:
-            question = dict(asks[0].args_as_dict(), tool_call_id=asks[0].tool_call_id)
+        if not asks or result.output.approvals:
+            names = [c.tool_name for c in result.output.calls + result.output.approvals]
+            raise TurnError(f"the agent stopped on a call it can't finish ({', '.join(names)})")
+        question = dict(asks[0].args_as_dict(), tool_call_id=asks[0].tool_call_id)
     else:
         reply = result.output
     u = result.usage
