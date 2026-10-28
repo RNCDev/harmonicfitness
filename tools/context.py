@@ -19,6 +19,7 @@ older schema stops the tools with the command that brings it up to date, `./harm
 
     ./harmonicfitness get coach             # also: route, routes, wpm, experience, web-builds
     ./harmonicfitness get web-builds --json # {"web_builds": 3}: any get value as JSON
+    ./harmonicfitness get cost --coach "Coach Reed" --chars 12000 --json   # a web build's price (tools/cost.py)
     ./harmonicfitness deliver               # existing delivery folders, one per line
     ./harmonicfitness check                 # every file's format, and lines not filled in yet
     ./harmonicfitness log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
@@ -519,6 +520,9 @@ def _get(args, p):
         return coach.name if coach else None
     if args.what == "web-builds":
         return web_builds()
+    if args.what == "cost":
+        import cost
+        return cost.cost(args.coach, args.chars)
     if args.what == "routes":
         return list(routes(p))
     if args.what == "route":
@@ -532,9 +536,12 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds"),
-                   help="web-builds: how many builds have sent a script to a web voice service")
-    g.add_argument("--coach", help="with route: the coach the build is for (default: the last one used)")
+    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds", "cost"),
+                   help="web-builds: how many builds have sent a script to a web voice service; cost: what "
+                        "sending --chars characters costs with --coach (a web coach)")
+    g.add_argument("--coach", help="with route or cost: the coach the build is for (default: the last one used)")
+    g.add_argument("--chars", type=cli.positive_int, default=None,
+                   help="with cost: the characters to price (default: the profile's cloud_max_chars ceiling)")
     g.add_argument("--route", "--engine", dest="engine", metavar="ROUTE",
                    help="with route: a route to use if it works here (--engine is the older name)")
     g.add_argument("--json", action="store_true",
@@ -559,7 +566,10 @@ def main(argv=None):
     if args.cmd == "get":
         p = profile()
         value = _get(args, p)
-        if args.json:
+        if args.what == "cost":   # already an object: --json prints it as it is, else a sentence
+            import cost
+            print(json.dumps(value, ensure_ascii=False) if args.json else "\n".join(cost.lines(value)))
+        elif args.json:
             print(json.dumps({args.what.replace("-", "_"): value}, ensure_ascii=False))
         elif isinstance(value, list):
             print("\n".join(value))

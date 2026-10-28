@@ -905,12 +905,14 @@ RENDER = """import hashlib, sys
 sys.path.insert(0, sys.argv[1])
 import cli, coachpick, context, draft, personas, render
 path, coach, out = sys.argv[2:5]
+max_chars = int(sys.argv[5]) if len(sys.argv) > 5 else None
 def main():
     with open(path, encoding="utf-8") as f:
         text = f.read()
     p = personas.lookup(coach)
     voice = personas.voice_for(p, coachpick.pick(context.render_preferences(), p))
-    render.run(draft.parse(text), voice, out, path, hashlib.sha256(text.encode("utf-8")).hexdigest())
+    render.run(draft.parse(text), voice, out, path, hashlib.sha256(text.encode("utf-8")).hexdigest(),
+               max_chars=max_chars)
 sys.exit(cli.run(main))
 """
 
@@ -927,7 +929,7 @@ class CloudRender(unittest.TestCase):
         for service in COACHES:
             web_coach(folder, service)
 
-    def render_on(self, service, url, out=None):
+    def render_on(self, service, url, out=None, max_chars=None):
         import keys
         e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
         e.update({"HARMONICFITNESS_HOME": self.home, f"HARMONICFITNESS_{service.upper()}_URL": url,
@@ -943,7 +945,7 @@ class CloudRender(unittest.TestCase):
             e["PATH"] = stub + os.pathsep + e.get("PATH", "")
         draft_path = helpers.draft_with_menu(DRAFT, os.path.join(self.d, "cloud.draft.txt"), self.home)
         return subprocess.run([sys.executable, "-c", RENDER, os.path.join(ROOT, "tools"), draft_path, COACHES[service],
-                               out or os.path.join(self.d, "x.mp3")], env=e, capture_output=True, text=True, timeout=120)
+                               out or os.path.join(self.d, "x.mp3"), *([str(max_chars)] if max_chars else [])], env=e, capture_output=True, text=True, timeout=120)
 
     def render(self, url, out=None):
         return self.render_on("fish", url, out)
@@ -994,6 +996,22 @@ class CloudRender(unittest.TestCase):
         self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
         self.assertEqual(fake.requests, [])
         self.assertIn("cloud_max_chars", out.stderr)   # an error: on stderr, through cli.run
+
+    def test_max_chars_render_ceiling(self):
+        """The render checks the build's allowance against what it is about to send (the clips not cached yet),
+        after the lint's whole-script count passed: the lower of cloud_max_chars and --max-chars wins."""
+        with FakeService(wav_answer) as fake:
+            out = self.render_on("fish", fake.url, max_chars=10)
+        self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
+        self.assertEqual(fake.requests, [])
+        self.assertIn("--max-chars", out.stderr)
+        self.assertNotIn("cloud_max_chars", out.stderr)
+        self.set_ceiling(10)   # the profile's ceiling is the lower bound now: it is the one named
+        with FakeService(wav_answer) as fake:
+            out = self.render_on("fish", fake.url, max_chars=5000)
+        self.assertEqual(fake.requests, [])
+        self.assertIn("cloud_max_chars", out.stderr)
+        self.assertNotIn("--max-chars", out.stderr)
 
     @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
     def test_key_never_reaches_records_logs_or_cache_keys(self):

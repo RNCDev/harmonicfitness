@@ -166,6 +166,7 @@ class Report:
     predicted: Optional[float] = None   # laid-out seconds of the whole workout, with a voice
     total_tolerance: float = TOTAL_TOLERANCE
     word_wpm: float = DEFAULT_WPM       # --wpm, for the estimate without a voice
+    notes: List[str] = field(default_factory=list)   # issues of the whole draft (a web build over its allowance)
 
     @property
     def total_seconds(self):
@@ -192,14 +193,15 @@ class Report:
     @property
     def problems(self):
         n = sum(len(r.clip_issues) + len(r.line_issues) + (bool(r.flag) and self.strict) for r in self.rows)
-        return n + int(self.total_off)
+        return n + int(self.total_off) + len(self.notes)
 
 
 def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_FILL,
-         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, chime=True):
+         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, chime=True, max_chars=None):
     """Check a parsed draft. With a voice, predicts spoken seconds from its pace,
     which is read once for the whole lint. `chime` says whether the render opens each segment after the
-    first with the bell (--no-chime turns it off), so the prediction matches."""
+    first with the bell (--no-chime turns it off), so the prediction matches. `max_chars` is a web build's
+    allowance (build --max-chars): a web voice's script over it is an issue; a local voice ignores it."""
     rate, exact, spokens = None, False, []
     plans = [plan(seg) for seg in segments]   # as the render voices it, computed once
     if voice:
@@ -262,6 +264,13 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         rows.append(row)
     report = Report(rows, strict, guide_wpm, voice, rate, exact,
                     total_tolerance=total_tolerance, word_wpm=wpm)
+    if voice and max_chars and voice.get("backend") == "cloud":
+        said = {t if not is_mark(t) else counts.in_words(t, voice)
+                for plan_ in plans for para in plan_ for t, _ in para if (spoken(t) or is_mark(t))}
+        sent = sum(len(t) for t in said if t)
+        if sent > max_chars:
+            report.notes.append(f"  the script speaks {sent:,} characters; this build may send at most "
+                                f"{max_chars:,} (--max-chars)")
     if voice:
         report.predicted = sum(length for _, length in layout(
             [(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], holds(seg)[1]) for i, seg in enumerate(segments)]))
@@ -289,6 +298,7 @@ def render_report(report):
             out.append(f"{r.index:>3} {r.seconds:>5} {r.guide:>6} {r.words:>5} {r.diff:>+6.0%}  {r.label}{flag}")
             out += r.clip_issues
         out += r.line_issues
+    out += report.notes
 
     summary = f"\nPlanned {report.total_seconds / 60:.1f} min | {report.total_words} words"
     if voice:

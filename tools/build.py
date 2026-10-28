@@ -253,6 +253,7 @@ class BuildOptions:
     no_check: bool = False
     verbose: bool = False
     model: Optional[str] = None
+    max_chars: Optional[int] = None
 
     @property
     def full(self):
@@ -378,7 +379,8 @@ def gate(segments, voice, opts, text, smoke):
     import catalog
     import menu
     import tts_build
-    report = tts_build.lint(segments, voice, total_tolerance=opts.tolerance, chime=not opts.no_chime)
+    report = tts_build.lint(segments, voice, total_tolerance=opts.tolerance, chime=not opts.no_chime,
+                             max_chars=opts.max_chars)
     issues, warnings = ([], []) if smoke else menu.gate(catalog.default(), opts.draft, text, segments,
                                                          strict=not opts.lint_only)
     return issues, warnings, report
@@ -506,7 +508,7 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
         drift = render.run(segments, voice, mp3, seed=opts.seed,  # shown on any failure but drift
                            tolerance=opts.tolerance, no_chime=opts.no_chime, draft_path=opts.draft,
                            draft_sha256=b.draft_sha256, model=opts.model, check=not opts.no_check,
-                           build_id=b.build_id)
+                           build_id=b.build_id, max_chars=opts.max_chars)
     if abs(drift) > opts.tolerance:   # the MP3 is written, not copied
         b.fail(render.drift_message(drift, opts.tolerance))
         b.stopped(f"{drift:+.1%} of plan", stage="drift", drift=round(drift, 4))
@@ -567,6 +569,9 @@ def main(argv=None):
                     help="don't have the speech recognizer check each local take (a quicker test render)")
     ap.add_argument("--verbose", action="store_true",
                     help="show the engines' loading and rendering chatter here, not only in the build log")
+    ap.add_argument("--max-chars", type=cli.positive_int, default=None,
+                    help="a web voice's allowance: stop, before anything is sent, if the script is over this many "
+                         "characters (the profile's cloud_max_chars still applies); a local voice ignores it")
     ap.add_argument("--model", default=None, help="try another model repo for a local coach's engine")
     args = ap.parse_args(argv)
     return run_build(BuildOptions.from_args(args)).code   # each line is printed as it's said

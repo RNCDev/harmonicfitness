@@ -18,6 +18,7 @@ CYCLES = {
     ("coachpick", "personas"): "personas.default and resolve re-export coachpick's until the next minor release",
     ("coachpick", "routes"): "routes.pick re-exports coachpick's until the next minor release",
     ("coachpick", "context"): "context.main is the get command (get coach, get route); the library doesn't import back",
+    ("context", "cost"): "context.main is the get cost command; the library doesn't import back",
     ("context", "logsession"): "context.main is the log-session command; the library doesn't import back",
 }
 

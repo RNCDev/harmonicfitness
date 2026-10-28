@@ -243,9 +243,9 @@ def check_takes(voice, clips, seed, cache_path, say=None):
     return summary
 
 
-def render_cloud(voice, todo, clips, seed, cache_path, sent):
+def render_cloud(voice, todo, clips, seed, cache_path, sent, max_chars=None):
     """Send the clips not cached yet to the voice's service, a few at a time, after saying what it will cost
-    and stopping if it's over the profile's ceiling. Each clip is cached as it lands, so a rerun after a
+    and stopping if it's over the profile's ceiling (or the build's own `max_chars`, if lower). Each clip is cached as it lands, so a rerun after a
     failure sends only what's left."""
     import cloud
     import context
@@ -254,7 +254,12 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
     ceiling = context.cloud_max_chars(context.profile()) if os.path.exists(paths.PROFILE) else context.CLOUD_MAX_CHARS
     print(f"Sending {chars:,} characters to {service['name']} ({voice['model']}): about ${usd:.2f} "
           f"(approximate; rates checked {service.get('rates_checked')})", flush=True)
-    if chars > ceiling:
+    if max_chars and max_chars < ceiling:
+        if chars > max_chars:
+            raise errors.RenderStopped(f"That's over this build's allowance of {max_chars:,} characters "
+                                       "(--max-chars), so nothing was sent. Shorten the script, or raise the "
+                                       "allowance and rerun.")
+    elif chars > ceiling:
         raise errors.RenderStopped(f"That's over this profile's ceiling of {ceiling:,} characters a build "
                                    "(cloud_max_chars in me/settings.toml), so nothing was sent. Shorten the script, "
                                    "or raise the ceiling and rerun.")
@@ -418,7 +423,7 @@ def drift_message(drift, tolerance):
 
 
 def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False,
-        model=None, check=True, build_id=None):
+        model=None, check=True, build_id=None, max_chars=None):
     """Render parsed `segments` with `voice` to `out` (.mp3, .m4a or .wav): the clips not cached yet (on the
     voice's service, or the local engine, under the render lock), the layout on the plan's clock, the loudness
     pass, the encode, and the build record. Returns the drift, the fraction the whole ran over (+) or under (-)
@@ -438,7 +443,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
         timings, lap = {}, time.time()   # seconds per stage, for the build record
         if todo and voice.get("backend") == "cloud":
             try:
-                render_cloud(voice, todo, clips, seed, cache_path, sent)
+                render_cloud(voice, todo, clips, seed, cache_path, sent, max_chars=max_chars)
             except BaseException as e:
                 if sent["started"]:   # characters went out (and may be billed): builds.jsonl keeps a line for them
                     save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e, build_id)

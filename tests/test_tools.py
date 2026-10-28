@@ -1071,6 +1071,71 @@ class InProcessBuild(unittest.TestCase):
         with mock.patch.dict(os.environ, env):
             return self.build("--coach", "Coach Reed", *extra, estimated_ok=False, draft_path=draft_path)
 
+    def test_max_chars_stops_before_sending(self):
+        """--max-chars is a web build's allowance: the lint stops a longer script before the render is reached."""
+        import records
+        self.real_lint()
+        self.add_web_coach()
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import fakes
+        fake = fakes.FakeService(fakes.design_answer("fish"))   # a fake service, so "nothing sent" can be counted
+        fake.__enter__()
+        self.addCleanup(fake.__exit__)
+        path = self.small_draft("movements: box breathing\n@@ 60 | A\n"
+                                "Breathe in, and all the way out. Then once more, slow and easy. [hold]\n")
+        self.assertEqual(self.web_build("--max-chars", "50", draft_path=path, HARMONICFITNESS_FISH_URL=fake.url),
+                         cli.ISSUES, self.said())
+        self.assertIn("--max-chars", self.said())
+        self.assertIn("at most 50", self.said())
+        self.assertEqual(fake.requests, [])
+        self.assertEqual(self.runs, [])
+        (line,) = list(records.build_records())
+        self.assertEqual((line["event"], line["stage"]), ("stopped", "lint"))
+        self.assertEqual(self.web_build("--max-chars", "5000", draft_path=path, HARMONICFITNESS_FISH_URL=fake.url),
+                         0, self.said())   # the same script under a roomier allowance builds
+
+    def test_max_chars_ignored_for_local(self):
+        self.real_lint()
+        path = self.small_draft("movements: box breathing\n@@ 60 | A\nBreathe in, and all the way out. [hold]\n")
+        self.assertEqual(self.build("--lint-only", "--max-chars", "1", "--coach", "Coach Andy", draft_path=path),
+                         0, self.said())
+        self.assertNotIn("--max-chars", self.said())
+
+    def get_cost(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = cli.run(lambda: context.main(["get", "cost", *args]))
+        return code, out.getvalue()
+
+    def test_get_cost_json(self):
+        self.add_web_coach()
+        with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}):
+            code, text = self.get_cost("--coach", "Coach Reed", "--json")
+            self.assertEqual(code, 0)
+            got = json.loads(text)
+            self.assertEqual((got["coach"], got["service"]), ("Coach Reed", "fish"))
+            self.assertEqual((got["chars"], got["ceiling"]), (30000, 30000))
+            self.assertEqual(got["usd"], round(cloud.estimate("fish", got["model"], ["x" * 30000])[1], 4))
+            self.assertFalse(got["pending_design"])
+            self.assertIsNone(got["design_usd"])
+            code, text = self.get_cost("--coach", "Coach Reed", "--chars", "1000", "--json")
+            self.assertEqual(json.loads(text)["chars"], 1000)
+            code, text = self.get_cost("--coach", "Coach Reed")   # the plain form is a sentence
+            self.assertIn("Fish Audio", text)
+
+    def test_get_cost_for_a_pending_coach_adds_the_design(self):
+        with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}):
+            code, text = self.get_cost("--coach", "Coach Reed", "--json")
+        got = json.loads(text)
+        self.assertTrue(got["pending_design"])
+        self.assertEqual(got["design_usd"], cloud.services()["fish"]["design_usd"])
+
+    def test_get_cost_refuses_a_local_coach_and_a_coach_that_cant_speak(self):
+        self.assertEqual(self.get_cost("--coach", "Coach Andy")[0], cli.USAGE)
+        self.add_web_coach()
+        with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": ""}):
+            self.assertEqual(self.get_cost("--coach", "Coach Reed")[0], cli.USAGE)
+
     def test_build_refuses_follow_on_a_cloud_route(self):
         self.add_web_coach()
         self.assertEqual(self.web_build("--follow"), cli.USAGE, self.said())
