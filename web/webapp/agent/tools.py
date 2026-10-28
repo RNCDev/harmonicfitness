@@ -114,6 +114,10 @@ def _stem(deps: Deps, goal: str, minutes: int) -> str:
 def brief(deps: Deps, goal: str, minutes: int, kit: str | None, preset: str | None,
           equipment: list[str] | None, coach: str, limits: list[str] = [], avoid: list[str] = [],
           target: list[str] = [], add: list[str] = []) -> ToolResult:
+    # a new brief replaces the last one, even when it's refused or fails: the refused call may have carried
+    # today's stricter limit, so show_plan never checks against an older menu
+    deps.stem = None
+    deps.plan = None
     goals, presets = worker.engine_lists(deps.engine_root)
     if goal not in goals:
         return _refuse(f"goal must be one of {', '.join(sorted(goals))}")
@@ -133,10 +137,6 @@ def brief(deps: Deps, goal: str, minutes: int, kit: str | None, preset: str | No
         if not (_items(value) if name != "limits" else
                 isinstance(value, list) and len(value) <= 30 and all(_text(v) for v in value)):
             return _refuse(f"{name} must be a short list of plain names")
-    # a brief that runs replaces the last one, even when the engine fails: show_plan never checks against
-    # an older menu. A call refused above ran nothing and leaves the last brief standing.
-    deps.stem = None
-    deps.plan = None
     stem = _stem(deps, goal, minutes)
     draft = os.path.join(deps.home, "workouts", stem, f"{stem}.draft.txt")
     argv = ["brief", "--goal", goal, "--minutes", str(minutes)]

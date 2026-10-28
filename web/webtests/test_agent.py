@@ -258,12 +258,13 @@ class Rebrief(AgentCase):
         rows = [{"block": "Main", "movements": list(movements), "dose": "3 x 10", "seconds": 1200}]
         return agent.Plan(format="Sets", equipment="none", rows=rows, left_out="", total_seconds=1200)
 
-    def test_refused_brief_keeps_the_good_menu(self):
+    def test_refused_brief_drops_the_older_menu(self):
         self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
         self.deps.plan = {"shown": True}
         self.assertEqual(tools.brief(self.deps, **dict(BRIEF_ARGS, goal="nap")).code, 64)
-        self.assertEqual(self.deps.stem, STEM)
-        self.assertEqual(self.deps.plan, {"shown": True})
+        self.assertIsNone(self.deps.stem)
+        self.assertIsNone(self.deps.plan)
+        self.assertEqual(agent.plan_problems(self.deps, self.plan()), ["run brief first"])
 
     def test_failed_engine_brief_drops_the_older_menu(self):
         self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
