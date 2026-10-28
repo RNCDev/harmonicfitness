@@ -28,7 +28,7 @@ It clears their password, signs out their devices and prints a one-time sign-in 
 
 ## Keys
 
-Each listener's voice service keys (one per web voice service in the engine's `knowledge/services.toml`) are entered in the app's "Voice keys" box and stored in the `user_keys` table (migration 005), one row per user and service, sealed with that user's data key; only the service name and a timestamp are plain. A key is trimmed, must be printable ASCII with no spaces (the engine's `keys.clean_value`) and 16 to 1024 characters.
+Each listener's voice service keys (one per web voice service in the engine's `knowledge/services.toml`) are entered in the app's Keys box and stored in the `user_keys` table (migration 005), one row per user and service, sealed with that user's data key; only the service name and a timestamp are plain. A key is trimmed, must be printable ASCII with no spaces (the engine's `keys.clean_value`) and 16 to 1024 characters.
 
 The web process seals a key on entry and never opens one: `GET /api/keys` says only which services have a key, `PUT /api/keys/<service>` sets or replaces one and `DELETE` removes it. Only the worker opens a listener's keys, for a job, and passes them to the engine under the variable names in `services.toml` (such as `FISH_AUDIO_API_KEY`); the engine's output is scrubbed of them.
 
@@ -40,11 +40,15 @@ A conversation is a series of short `turn` jobs. Each runs one agent turn (Pydan
 
 The providers are Claude (`claude-sonnet-5-5`), ChatGPT (`gpt-6.1-sol`) and Gemini (`gemini-3.8-flash`). `HARMONICFITNESS_PROVIDERS` names the ones offered, on both services; it defaults to `anthropic`, and the others stay out until the eval grid passes them. A model key is stored like a voice key, and only that job's model client holds it: the engine's environment never gets it.
 
-Nothing retries a provider request: `max_retries=0` (Gemini gets one attempt), with a 180-second timeout per request. A turn stops at 25 model requests, 40 tool calls or 400,000 tokens. The only retry is the agent asking the model again when `show_plan` refuses a plan.
+Nothing retries a provider request: `max_retries=0` (Gemini gets one attempt), with a 180-second timeout per request. A turn stops at 25 model requests, 40 tool calls, 800,000 tokens or ten minutes (pydantic-ai's cancellation token, cancelled by a timer); each fails the turn with "this turn ran too long; try again with less to do", and nothing is retried. The model is asked again only by the agent itself: once when a tool's arguments don't validate (`Agent(retries=1)`), and up to twice when `show_plan` refuses a plan.
 
-The agent has no shell and no file access. Its tools run the engine's commands in the listener's folder (`check`, `get coach`, `get route`, `coaches`, `content plan`, `coverage`, `brief`) and read four files (`profile.md`, `training.md`, `health.md`, `log.md`). `ask_user` pauses the turn for the check-in, which the panel shows. `show_plan` refuses any movement that isn't on the brief's menu.
+A tool's output reaches the model cut at 20,000 characters, except the brief's, at 120,000 (a full-gym brief is about 87,000), so the whole safe menu, the programming guide and the equipment notes arrive. `brief` and `show_plan` never run alongside each other, even when the model asks for both in one step.
 
-The model provider sees those four files and the engine's output from those commands: the brief, with the safe menu and today's limits, among it.
+The agent has no shell and no file access. Its tools run the engine's commands in the listener's folder (`check`, `get coach`, `get route`, `coaches`, `content plan`, `coverage`, `brief`) and read four files (`profile.md`, `training.md`, `health.md`, `log.md`). `ask_user` pauses the turn for the check-in, which the panel shows. `show_plan` refuses any movement that isn't on the brief's menu: in the rows' movements, and in every word of the plan (blocks, doses, format, equipment and what's left out), scanned with the engine's own text scan (`menu.mentions`, with its everyday words and negations: "no box jumps today" is fine).
+
+The model provider sees those four files; the engine's output from those commands, the whole brief among it, with the safe menu and today's limits; the listener's chat lines and answers; and the local date and time.
+
+The band's Start begins a new conversation; the chat's text box goes on with the open one. A conversation last changed on an earlier day (the GET's `updated_at`) opens as history: its lines in the chat, its plan and question not shown as today's.
 
 Scope now runs through the plan. Research, the script, the audio and the log come in Milestone 4, and a turn never writes `health.md`.
 
