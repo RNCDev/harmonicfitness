@@ -183,6 +183,8 @@ class Worker(JobsCase):
         self.assertEqual(self.state(bad), ("failed", "the job stopped unexpectedly"))
         logged = "".join(str(c) for c in err.mock_calls)
         self.assertNotIn("something personal", logged)
+        self.assertIn("RuntimeError", logged)
+        self.assertIn(f"job {bad} ", logged)
         self.assertEqual(len(homes), 2)
         for home in homes:
             self.assertFalse(os.path.exists(home))
