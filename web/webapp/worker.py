@@ -18,6 +18,7 @@ import sys
 import tempfile
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -334,8 +335,19 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
                       now=now, say=lambda text, tool, code: _step(ctx, text, tool, code))
     ctx.say("thinking")
+    first = conv.history is None
+    background = ThreadPoolExecutor(max_workers=1)
+    sheet = os.path.join(ctx.home, "workouts", "research", "daily", f"{today}-feeds.md")
+    if not first and not os.path.exists(sheet):
+        deps.feeds = agent.start_feeds(deps, background)   # the check-in is answered: research begins now
     try:
-        outcome = agent.run_turn(model, deps, conv.history, line, answer)
+        context = None
+        if first and line:
+            try:
+                context = agent.prefetch(deps)
+            except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
+                print(f"worker: job {ctx.job_id} prefetch failed: {type(e).__name__}", file=sys.stderr)
+        outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
     except agent.TurnError as e:
         raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG}.get(e.reason, CANT_FINISH)) from None
     except UsageLimitExceeded:
@@ -343,6 +355,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
         print(f"worker: job {ctx.job_id} turn stopped: {type(e).__name__}", file=sys.stderr)
         raise _Stop(providers.explain(provider, e).message) from None
+    finally:
+        background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed
 
     lines = conv.lines if outcome.reply is None else _agent_line(conv, outcome.reply)
     done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle",

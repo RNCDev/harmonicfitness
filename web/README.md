@@ -44,6 +44,8 @@ Its four tools (`webapp/agent/tools.py`):
 - `write_file`: `me/...` only; never `me/.env`, `me/health.md` (read-only here for now) or the kinds of file the store doesn't keep.
 - `list_files`: under `me/`.
 
+To save round trips, the worker does two things itself. On a conversation's first turn it runs step 1 of the skill before the first model request, all at once (`check`, `content plan --minutes 25`, `get coach`, the coach's `get route`, `coaches list`, and reads of `profile.md`, `training.md`, `health.md` and `log.md`), and hands the results to the model with the listener's first message. On each later turn it starts `feeds` in the background as the turn begins, unless today's sheet is already there; the model's `run feeds` waits for that run instead of starting another, and the turn ends only once it has finished.
+
 Safety is the engine's: the brief's safe menu and the build's menu gate (movements off the menu, one side only, names the catalog doesn't hold) refuse what the writer gets wrong.
 
 A conversation is a series of short `turn` jobs. Each runs one turn in the listener's temporary folder with their own language-model key, then saves the conversation (its history and chat lines) sealed with their data key, and writes back the files its folder changed, never `health.md`. A turn stops at 60 model requests, 120 tool calls, 3,000,000 tokens or ten minutes; nothing is retried (`max_retries=0`, 180 seconds per request).

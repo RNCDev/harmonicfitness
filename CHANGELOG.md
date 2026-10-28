@@ -4,6 +4,17 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-28
+
+The web coach answers sooner: the worker does the skill's first reads itself, all at once, and fetches the day's feeds in the background.
+
+### For forks
+- **Nothing to migrate.** Only the web client changed.
+
+### Changed
+- **The check-in arrives in one round trip.** On a conversation's first turn the worker runs step 1 of the workout skill (check, content plan, get coach, the coach's route, coaches list, and the profile, training, health and log files) before the first model request, in parallel, and hands the results to the model with the listener's first message. The model sees the same information as before, without a model request for each read.
+- **Feeds run in the background.** On each turn after the first, the worker starts `feeds` as the turn begins (unless today's sheet is there), so the day's research is ready when the script needs it; the model's `run feeds` waits for that run. The coach no longer fetches feeds before the check-in.
+
 ## [0.21.0] - 2026-10-28
 
 The web client, stripped back to a chat and Keys: the coach on the site works as Claude Code does on a listener's computer, following the workout skill itself. The engine gains the build checks the web needs (one side only, names the catalog doesn't hold, a character allowance and its price).

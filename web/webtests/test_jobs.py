@@ -446,6 +446,40 @@ class Turn(JobsCase):
         self.assertEqual([b["stage"] for _, b in jobs.events(self.conn, uk, job)][:2], ["folder", "thinking"])
         self.conn.rollback()
 
+    def test_first_turn_has_step_one_and_later_turns_start_feeds(self):
+        from concurrent.futures import Future
+        from webapp import agent
+        from pydantic_ai.messages import UserPromptPart
+        uk = self.user()
+        cid = self.start(uk)
+        prompts = []
+
+        def script(messages, info):
+            prompts.append([p.content for m in messages for p in m.parts if isinstance(p, UserPromptPart)][-1])
+            return ModelResponse(parts=[TextPart("1. How long?")])
+        started = []
+
+        def fake_feeds(deps, pool):
+            started.append(deps.today)
+            f = Future()
+            f.set_result(agent.tools.ToolResult(code=0, output="sunny"))
+            return f
+        with mock.patch.object(agent, "start_feeds", side_effect=fake_feeds):
+            job, conv = self.run_turn(uk, script, cid, line="stretch please")
+            self.assertEqual(self.state(job), ("done", None))
+            self.assertTrue(prompts[0].startswith("Step 1 is done"))
+            self.assertIn("### ./harmonicfitness get coach (exit ", prompts[0])
+            self.assertEqual(started, [])   # the check-in comes first
+            self.assertIn("Read your files and settings",
+                          [b.get("text") for _, b in jobs.events(self.conn, uk, job)])
+            self.conn.rollback()
+            self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "25 minutes", None))
+            self.conn.commit()
+            job, conv = self.run_turn(uk, script, cid, line="25 minutes")
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(prompts[1], "25 minutes")
+        self.assertEqual(started, [today()])
+
     def test_turn_needs_a_model_key(self):
         uk = self.user(key=False)
         keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")   # a voice key is no model key
@@ -522,7 +556,7 @@ class Turn(JobsCase):
         with mock.patch.object(worker.engine, "run", side_effect=record):
             job, conv = self.run_turn(uk, script, cid, line="go")
         self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(len(seen), 2)
+        self.assertEqual(len(seen), 2 + 5)   # step 1 up front (4 runs and the route), then the model's two
         for env in seen:
             self.assertEqual(env, {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
             self.assertNotIn(MODEL_KEY, env.values())

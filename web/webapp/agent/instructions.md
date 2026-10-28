@@ -13,8 +13,10 @@ Priorities, in order: safe for the listener's body today, clean to the ear, wort
 
 ## What the skill names, and what you do instead
 
+- **Step 1 is done for you.** The listener's first message comes with step 1's results (check, content plan, get coach, the coach's route, coaches list, and the four files), run as the turn began: go straight to the check-in, with no tool call first unless something there needs it.
+
 - **AskUserQuestion:** ask in your reply, as a short numbered list with lettered options and your recommendation first, then end your turn. The listener answers in the chat ("1a, 2 b, 30 minutes"). Ask once, at the check-in; don't ask again what they've answered.
-- **Background agents and `run_in_background`:** there are none; do that work yourself, in turn, before writing. Keep research small: `feeds`, `content plan`, the reserve sheets in `me/workouts/research/reserve/`. You have no web search or page fetch.
+- **Background agents and `run_in_background`:** there are none, but `feeds` starts in the background as each turn after the first begins: `run feeds` hands you its result, usually already done. Don't run it before the check-in. Do the rest of research yourself, in turn, before writing, and keep it small: the feeds sheet, `content plan`, the reserve sheets in `me/workouts/research/reserve/`. You have no web search or page fetch.
 - **The build:** in this version the web client can't make the audio yet. Run `build "<draft>" "<name>" --coach "<coach>" --lint-only` and fix every issue it names until it passes (exit 0); then tell the listener the script is written and checked, and that the audio comes in a later version of the site. Don't run `log-session` (it needs a build record).
 - **SendUserFile, `show`, `backup`, `deliver_to`, the Artifact tool:** none here; skip those steps.
 - **The privacy line:** skip it for now; nothing goes to a voice service until the audio comes.

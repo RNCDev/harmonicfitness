@@ -5,6 +5,8 @@ nothing here knows which provider it is."""
 import functools
 import os
 import threading
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import replace
 from dataclasses import dataclass
 
 from pydantic_ai import Agent, CancellationToken, ModelMessagesTypeAdapter, RunContext, UsageLimits
@@ -14,7 +16,7 @@ from pydantic_ai.messages import ToolCallPart, ToolReturnPart
 from . import tools
 from .tools import Deps, ToolResult
 
-__all__ = ["AGENT", "Deps", "LIMITS", "NOT_OPEN", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
+__all__ = ["AGENT", "Deps", "LIMITS", "prefetch", "start_feeds", "NOT_OPEN", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
            "UNFINISHABLE", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
@@ -97,6 +99,44 @@ def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
     return _step(ctx.deps, f"Looking through {_shown(path)}", "list_files", tools.list_files(ctx.deps, path))
 
 
+# Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the
+# same results in the listener's first message, without a round trip for each.
+FIRST_RUNS = (["check"], ["content", "plan", "--minutes", "25"], ["get", "coach"], ["coaches", "list"])
+FIRST_READS = ("me/profile.md", "me/training.md", "me/health.md", "me/log.md")
+
+
+def _block(title: str, r: ToolResult) -> str:
+    body = (r.output + ("\n" + r.error if r.error else "")).strip() or "(nothing)"
+    return f"### {title} (exit {r.code})\n````\n{body}\n````"
+
+
+def prefetch(deps: Deps) -> str:
+    """Step 1's commands and reads, run at once; returned as text for the first message."""
+    plain = replace(deps, say=None, feeds=None)
+    with ThreadPoolExecutor(max_workers=len(FIRST_RUNS) + len(FIRST_READS)) as pool:
+        runs = [pool.submit(tools.run, plain, list(a)) for a in FIRST_RUNS]
+        reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS]
+        results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(FIRST_RUNS, runs)]
+        results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS, reads)]
+    coach = results[2][1]
+    if coach.code == 0 and coach.output.strip():
+        name = coach.output.strip().splitlines()[0].strip()
+        results.append((f"./harmonicfitness get route --coach \"{name}\"",
+                        tools.run(plain, ["get", "route", "--coach", name])))
+    if deps.say is not None:
+        try:
+            deps.say("Read your files and settings", "prefetch", 0)
+        except Exception:  # noqa: BLE001 - a progress line never fails the turn
+            pass
+    return ("Step 1 is done: these are its results, run as this turn began. Don't run or read them again "
+            "this turn; go on from the check-in.\n\n" + "\n\n".join(_block(t, r) for t, r in results))
+
+
+def start_feeds(deps: Deps, pool: ThreadPoolExecutor) -> Future:
+    """`feeds` in the background, so today's research is ready when the script needs it."""
+    return pool.submit(tools.run, replace(deps, say=None, feeds=None), ["feeds"])
+
+
 NOT_OPEN = "not_open"            # TurnError.reason: an answer to a question (this agent asks in the chat)
 UNFINISHABLE = "unfinishable"    # TurnError.reason: kept for the worker's wording
 TIMED_OUT = "timed_out"          # TurnError.reason: the turn ran past TURN_SECONDS and was cancelled
@@ -132,9 +172,9 @@ def _usable(history):
 
 
 def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
-             answer: tuple[str, dict] | None = None) -> TurnOutcome:
-    """One run of the agent on the user's line. UsageLimitExceeded and provider errors propagate; the
-    caller decides what they mean."""
+             answer: tuple[str, dict] | None = None, context: str | None = None) -> TurnOutcome:
+    """One run of the agent on the user's line, after `context` (prefetch's text) when given.
+    UsageLimitExceeded and provider errors propagate; the caller decides what they mean."""
     if answer is not None or not prompt:
         raise TurnError("this coach asks its questions in the chat; send a message", NOT_OPEN)
     history = None
@@ -143,6 +183,8 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
             history = _usable(ModelMessagesTypeAdapter.validate_json(history_json))
         except ValueError:
             history = None
+    if context:
+        prompt = f"{context}\n\n---\n\nThe listener says:\n\n{prompt}"
     token = CancellationToken()
     timer = threading.Timer(TURN_SECONDS, token.cancel)
     timer.daemon = True

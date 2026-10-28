@@ -7,6 +7,7 @@ The engine's own checks (the brief's menu, the build's gate) keep a workout safe
 the agent inside the user's folder and away from what this web client can't do yet."""
 import os
 from collections.abc import Callable
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel
@@ -38,6 +39,8 @@ class Deps:
     now: str
     # tells the listener what the coach is doing, as it happens: (step text, tool name, exit code or None)
     say: Callable[[str, str, int | None], None] | None = field(default=None, repr=False)
+    # `feeds`, started in the background as the turn began: `run feeds` waits for it instead of running again
+    feeds: Future | None = field(default=None, repr=False)
 
 
 class ToolResult(BaseModel):
@@ -111,6 +114,11 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
     if command == "build" and "--lint-only" not in args:
         return _refuse("the web client can't make the audio yet: run build with --lint-only to check the draft, "
                        "then tell the listener the script is ready and the audio comes in a later version")
+    if command == "feeds" and deps.feeds is not None:
+        try:
+            return deps.feeds.result(timeout=TIMEOUT)
+        except Exception:  # noqa: BLE001 - the background run failed or hung: run it here instead
+            pass
     argv = []
     for a in args:
         mapped = _arg(deps, a)

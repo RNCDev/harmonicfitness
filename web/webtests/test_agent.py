@@ -156,6 +156,45 @@ class Turns(AgentCase):
         self.assertEqual((out.reply, seen), ("fresh", [1]))
 
 
+class Prefetch(AgentCase):
+    def test_step_one_comes_with_the_first_message(self):
+        said = []
+        self.deps.say = lambda text, tool, code: said.append(text)
+        context = agent.prefetch(self.deps)
+        for title in ("./harmonicfitness check", "./harmonicfitness content plan --minutes 25",
+                      "./harmonicfitness get coach", "./harmonicfitness coaches list", "read me/profile.md",
+                      "read me/training.md", "read me/health.md", "read me/log.md"):
+            self.assertIn(f"### {title} (exit ", context)
+        self.assertNotIn(self.home, context)
+        self.assertEqual(said, ["Read your files and settings"])
+        seen = {}
+
+        def script(messages, info):
+            seen["prompt"] = parts(messages, UserPromptPart)[-1].content
+            return ModelResponse(parts=[TextPart("1. How long?")])
+
+        agent.run_turn(FunctionModel(script), self.deps, None, "stretch please", context=context)
+        self.assertTrue(seen["prompt"].startswith("Step 1 is done"))
+        self.assertTrue(seen["prompt"].endswith("The listener says:\n\nstretch please"))
+
+    def test_feeds_waits_for_the_background_run(self):
+        from concurrent.futures import Future
+        done = Future()
+        done.set_result(tools.ToolResult(code=0, output="sunny"))
+        self.deps.feeds = done
+        self.assertEqual(tools.run(self.deps, ["feeds"]).output, "sunny")
+
+    def test_a_failed_background_feeds_runs_again(self):
+        from concurrent.futures import Future
+        from unittest import mock
+        failed = Future()
+        failed.set_exception(RuntimeError("network"))
+        self.deps.feeds = failed
+        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "cloudy", "")) as run:
+            self.assertEqual(tools.run(self.deps, ["feeds"]).output, "cloudy")
+        self.assertEqual(run.call_args.args[2], ["feeds"])
+
+
 class Instructions(AgentCase):
     def test_instructions_hold_the_skill_and_the_web_rules(self):
         seen = {}
