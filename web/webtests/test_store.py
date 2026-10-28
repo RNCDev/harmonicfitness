@@ -18,7 +18,7 @@ class Migrations(DBCase):
         admin.execute(f"create schema {name}")
         conn = db.connect(dbcase.URL, schema=name)
         try:
-            self.assertEqual(db.migrate(conn), ["001_init.sql", "002_sessions_renewed.sql"])
+            self.assertEqual(db.migrate(conn), ["001_init.sql", "002_sessions_renewed.sql", "003_sealed_paths.sql"])
             self.assertEqual(db.migrate(conn), [])
         finally:
             conn.close()
@@ -47,7 +47,7 @@ class Migrations(DBCase):
             self.assertTrue(db.wait_for_migrations(make, timeout=0.3, interval=0.05))   # returns at once
             # a migration file not yet recorded counts as pending
             conn = make()
-            conn.execute("delete from schema_migrations where name = '002_sessions_renewed.sql'")
+            conn.execute("delete from schema_migrations where name = '003_sealed_paths.sql'")
             conn.commit()
             conn.close()
             with self.assertRaises(db.MigrationsPending):
@@ -82,7 +82,7 @@ class Migrations(DBCase):
             for t in threads:
                 t.join()
             self.assertEqual(errors, [])
-            self.assertEqual(sorted(results), [[], ["001_init.sql", "002_sessions_renewed.sql"]])
+            self.assertEqual(sorted(results), [[], ["001_init.sql", "002_sessions_renewed.sql", "003_sealed_paths.sql"]])
         finally:
             for c in conns:
                 c.close()
@@ -145,11 +145,63 @@ class Store(DBCase):
     def test_aad_binds_the_row_to_its_path(self):
         _, uk = self.make_user()
         store.put(self.conn, uk, "a.md", b"secret")
-        self.conn.execute("insert into context_files (user_id, path, version, body) "
-                          "select user_id, 'b.md', 1, body from context_files "
-                          "where user_id = %s and path = 'a.md'", (uk.user_id,))
+        # a.md's body moved under b.md's hash and sealed path
+        self.conn.execute("insert into context_files (user_id, path_hash, path, version, body) "
+                          "select user_id, %s, %s, 1, body from context_files "
+                          "where user_id = %s and path_hash = %s",
+                          (store._path_hash(uk, "b.md"), store._seal_path(uk, "b.md"),
+                           uk.user_id, store._path_hash(uk, "a.md")))
         with self.assertRaises(crypto.Tampered):
             store.read_all(self.conn, uk)
+        self.conn.rollback()
+
+    def test_sealed_path_is_bound_to_its_user(self):
+        _, a = self.make_user()
+        _, b = self.make_user()
+        sealed = store._seal_path(a, "health.md")
+        with self.assertRaises(crypto.Tampered):
+            store._open_path(store.UserKey(user_id=b.user_id, key=a.key), sealed)
+
+    def test_paths_never_stored_in_plain(self):
+        _, uk = self.make_user()
+        path = "workouts/zebra-quartz-path/zebra-quartz.draft.txt"
+        store.write_back(self.conn, uk, {path: b"x"}, {})
+        store.put(self.conn, uk, path, b"y")
+        self.conn.commit()
+        cur = self.conn.execute("select * from context_files where user_id = %s", (uk.user_id,))
+        rows = cur.fetchall()
+        self.assertEqual(len(rows), 1)
+        for name, value in zip([d.name for d in cur.description], rows[0]):
+            raw = bytes(value) if isinstance(value, (bytes, memoryview)) else str(value).encode()
+            for needle in (path, "zebra", "quartz"):
+                self.assertNotIn(needle.encode(), raw, name)
+        self.assertEqual(store.read_all(self.conn, uk), {path: (2, b"y")})
+        self.assertEqual([p for p, _, _ in store.listing(self.conn, uk)], [path])
+
+    def test_path_hash_is_per_user(self):
+        _, a = self.make_user()
+        _, b = self.make_user()
+        self.assertEqual(store._path_hash(a, "health.md"), store._path_hash(a, "health.md"))
+        self.assertNotEqual(store._path_hash(a, "health.md"), store._path_hash(a, "other.md"))
+        self.assertNotEqual(store._path_hash(a, "health.md"), store._path_hash(b, "health.md"))
+        store.put(self.conn, a, "health.md", b"x")
+        store.put(self.conn, b, "health.md", b"x")
+        self.conn.commit()
+        hashes = {uid: bytes(h) for uid, h in self.conn.execute(
+            "select user_id, path_hash from context_files where user_id in (%s, %s)",
+            (a.user_id, b.user_id)).fetchall()}
+        self.conn.rollback()
+        self.assertEqual(hashes[a.user_id], store._path_hash(a, "health.md"))
+        self.assertEqual(hashes[b.user_id], store._path_hash(b, "health.md"))
+        self.assertNotEqual(hashes[a.user_id], hashes[b.user_id])
+
+    def test_listing_is_sorted_by_path(self):
+        _, uk = self.make_user()
+        for p in ("c.md", "a.md", "b/z.md"):
+            store.put(self.conn, uk, p, b"x")
+        self.conn.commit()
+        self.assertEqual([p for p, _, _ in store.listing(self.conn, uk)], ["a.md", "b/z.md", "c.md"])
+        self.assertEqual(list(store.read_all(self.conn, uk)), ["a.md", "b/z.md", "c.md"])
 
     def test_bad_paths_rejected(self):
         _, uk = self.make_user()

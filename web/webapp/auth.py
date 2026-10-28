@@ -4,12 +4,20 @@ Tokens are 32 random bytes, URL-safe base64; only their sha256 is stored.
 """
 import base64
 import hashlib
+import datetime
 import secrets
-from uuid import UUID
+import uuid
+from typing import NamedTuple
 
 from . import crypto, folder, store
 
 DEVICE_MINUTES = 10
+KEY_VERSION = 1   # the version a new user's data key is wrapped under
+
+
+class DeviceLink(NamedTuple):
+    url: str
+    expires_at: datetime.datetime
 
 
 class Refused(Exception):
@@ -36,12 +44,13 @@ def _link(settings, token: str) -> str:
     return f"{settings.base_url.rstrip('/')}/invite/{token}"
 
 
-def _new_invite(conn, settings, user_id, interval: str, param) -> str:
+def _new_invite(conn, settings, user_id, interval: str, param) -> DeviceLink:
     token = _token()
-    conn.execute(
+    expires = conn.execute(
         f"insert into invites (token_hash, user_id, expires_at) "
-        f"values (%s, %s, now() + {interval})", (_hash(token), user_id, param))
-    return _link(settings, token)
+        f"values (%s, %s, now() + {interval}) returning expires_at",
+        (_hash(token), user_id, param)).fetchone()[0]
+    return DeviceLink(_link(settings, token), expires)
 
 
 def invite(conn, settings, email: str) -> str:
@@ -49,19 +58,21 @@ def invite(conn, settings, email: str) -> str:
     try:
         row = conn.execute("select id from users where email = %s", (email,)).fetchone()
         if row is None:
-            plain, wrapped = crypto.new_data_key(settings.master_key)
+            new_id = uuid.uuid4()
+            plain, wrapped = crypto.new_data_key(settings.master_key, new_id, KEY_VERSION)
             row = conn.execute(
-                "insert into users (email, wrapped_key) values (%s, %s) "
-                "on conflict (email) do nothing returning id", (email, wrapped)).fetchone()
+                "insert into users (id, email, wrapped_key, key_version) values (%s, %s, %s, %s) "
+                "on conflict (email) do nothing returning id",
+                (new_id, email, wrapped, KEY_VERSION)).fetchone()
             if row is not None:
-                uk = store.UserKey(user_id=UUID(str(row[0])), key=plain)
+                uk = store.UserKey(user_id=new_id, key=plain)
                 files = folder.seed(settings.engine_root)
                 if store.write_back(conn, uk, dict(files), {}):
                     raise RuntimeError("seeding a new user conflicted")
             else:  # lost a race to another invite for the same email
                 row = conn.execute("select id from users where email = %s", (email,)).fetchone()
         link = _new_invite(conn, settings, row[0], "make_interval(days => %s)",
-                           settings.invite_days)
+                           settings.invite_days).url
         conn.commit()
         return link
     except Exception:
@@ -69,7 +80,8 @@ def invite(conn, settings, email: str) -> str:
         raise
 
 
-def device_link(conn, settings, user_id) -> str:
+def device_link(conn, settings, user_id) -> DeviceLink:
+    """A one-time sign-in link for another device, and when it expires."""
     try:
         link = _new_invite(conn, settings, user_id, "make_interval(mins => %s)", DEVICE_MINUTES)
         conn.commit()

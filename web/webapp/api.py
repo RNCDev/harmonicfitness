@@ -13,7 +13,6 @@ for its whole life, in autocommit: it LISTENs on job_events and reads the job's 
 on that same connection (each read its own transaction, so it sees every commit), and closes it
 when the stream ends or the client goes away.
 """
-import hashlib
 import html
 import json
 import os
@@ -31,7 +30,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
     RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, config, db, jobs, store, worker
+from . import APP_NAME, auth, config, db, engine, jobs, store, worker
 
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -65,7 +64,7 @@ class _Headers:
     """Security headers on every response (pure ASGI, so streams aren't buffered or broken)."""
 
     BASE = ((b"x-content-type-options", b"nosniff"), (b"x-frame-options", b"DENY"),
-            (b"referrer-policy", b"same-origin"))
+            (b"referrer-policy", b"same-origin"), (b"x-robots-tag", b"noindex"))
 
     def __init__(self, app):
         self.app = app
@@ -91,6 +90,7 @@ def _invite_page(token: str) -> str:
     title = html.escape(f"Sign in to {APP_NAME}")
     return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<meta name="robots" content="noindex">'
             f"<title>{title}</title></head>\n<body>"
             f'<form method="post" action="/api/invite/redeem">'
             f'<input type="hidden" name="token" value="{t}">'
@@ -99,6 +99,7 @@ def _invite_page(token: str) -> str:
 
 def _refused_page() -> str:
     return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+            f'<meta name="robots" content="noindex">'
             f"<title>{html.escape(APP_NAME)}</title></head>\n<body><p>This link has expired or "
             f"was already used. Ask for a new one.</p></body></html>\n")
 
@@ -114,7 +115,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     pool = None
     if connect is None:
         from psycopg_pool import ConnectionPool
-        pool = ConnectionPool(settings.database_url, min_size=1, max_size=10, open=False)
+        pool = ConnectionPool(settings.database_url, min_size=1, max_size=10, open=False,
+                              check=ConnectionPool.check_connection)
         open_stream = lambda: psycopg.connect(settings.database_url)  # noqa: E731
     else:
         open_stream = connect
@@ -222,12 +224,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.post("/api/device-link", **post)
     def device_link(uk: User):
         with connection() as conn:
-            url = auth.device_link(conn, settings, uk.user_id)
-            token = url.rsplit("/invite/", 1)[1]
-            expires = conn.execute("select expires_at from invites where token_hash = %s",
-                                   (hashlib.sha256(token.encode()).digest(),)).fetchone()[0]
-            conn.rollback()
-        return {"url": url, "expires_at": expires.isoformat()}
+            link = auth.device_link(conn, settings, uk.user_id)
+        return {"url": link.url, "expires_at": link.expires_at.isoformat()}
 
     # ---- the signed-in API ------------------------------------------------------------------
 
@@ -246,9 +244,10 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/api/context")
     def context(uk: User):
         with connection() as conn:
-            rows = conn.execute("select path, version, updated_at from context_files "
-                                "where user_id = %s order by path", (uk.user_id,)).fetchall()
-            conn.rollback()
+            try:
+                rows = store.listing(conn, uk)
+            finally:
+                conn.rollback()
         return [{"path": p, "version": v, "updated_at": u.isoformat()} for p, v, u in rows]
 
     @app.post("/api/jobs", status_code=202, **post)
@@ -370,6 +369,7 @@ async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey
 def create_app_from_env() -> FastAPI:
     """For uvicorn's --factory: settings from the environment, migrations applied once."""
     settings = config.load(os.environ)
+    engine.not_dumpable()   # Linux: no engine child can read our environment via /proc
     conn = db.connect(settings.database_url)
     try:
         db.migrate(conn)

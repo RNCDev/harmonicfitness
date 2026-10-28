@@ -11,7 +11,7 @@ RUN npm run build
 
 FROM python:3.11-slim
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg tini \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /uvx /bin/
 
@@ -36,4 +36,6 @@ RUN python -m compileall -q /app/tools /app/web/webapp
 RUN useradd --system --uid 10001 --create-home app
 USER app
 EXPOSE 8000
+# tini is PID 1, so an engine grandchild orphaned by a killed job is reaped, not left a zombie
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "/app/web/entrypoint.sh"]

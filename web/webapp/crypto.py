@@ -1,7 +1,8 @@
 """Envelope encryption: a data key per user, wrapped under the master key.
 
 AES-256-GCM with a random 12-byte nonce prefixed to the ciphertext. The AAD
-binds a value to its place: f"{user_id}:{table}:{key}".encode().
+binds a value to its place: f"{user_id}:{table}:{key}".encode(). A wrapped data key is bound to
+its user and key version: f"wt:data-key:{user_id}:{key_version}".
 """
 import os
 
@@ -10,7 +11,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 NONCE = 12
 TAG = 16
-_WRAP_AAD = b"wt:data-key"
 
 
 class Tampered(Exception):
@@ -38,11 +38,19 @@ def open_(key: bytes, sealed: bytes, aad: bytes) -> bytes:
         raise Tampered("sealed value did not verify") from None
 
 
-def new_data_key(master: bytes) -> tuple[bytes, bytes]:
+def _wrap_aad(user_id, key_version: int) -> bytes:
+    if isinstance(key_version, bool) or not isinstance(key_version, int):
+        raise ValueError("key_version must be an int")
+    return f"wt:data-key:{user_id}:{key_version}".encode()
+
+
+def new_data_key(master: bytes, user_id, key_version: int) -> tuple[bytes, bytes]:
+    """A fresh data key and its wrap under `master`, bound to the user and key version."""
     _check(master)
+    aad = _wrap_aad(user_id, key_version)
     key = AESGCM.generate_key(bit_length=256)
-    return key, seal(master, key, _WRAP_AAD)
+    return key, seal(master, key, aad)
 
 
-def unwrap(master: bytes, wrapped: bytes) -> bytes:
-    return open_(master, wrapped, _WRAP_AAD)
+def unwrap(master: bytes, wrapped: bytes, user_id, key_version: int) -> bytes:
+    return open_(master, wrapped, _wrap_aad(user_id, key_version))

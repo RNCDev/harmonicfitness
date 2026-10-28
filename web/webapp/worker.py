@@ -246,6 +246,7 @@ def main() -> int:
     except config.ConfigError as e:
         print(f"worker: {e}", file=sys.stderr)
         return 2
+    engine.not_dumpable()   # Linux: the engine child can't read our environment via /proc
     _uv_cache()
     engine_lists(settings.engine_root)
     stopping = threading.Event()

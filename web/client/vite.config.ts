@@ -3,6 +3,8 @@ import { defineConfig, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 
 // The API checks every POST's Origin against WT_BASE_URL, so the dev proxy sends the API's own.
+// Rewriting Origin bypasses that CSRF check, in development only: production serves the client
+// from the API's own origin, with no proxy.
 const API = "http://localhost:8000";
 const proxy: ProxyOptions = {
   target: API,

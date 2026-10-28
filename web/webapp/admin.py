@@ -1,6 +1,7 @@
 """Maintainer commands: python -m webapp.admin invite|login-link <email>.
 
-Prints the link and nothing else on stdout, so it can be piped.
+Prints the link and nothing else on stdout, so it can be piped. Never migrates: the web service
+applies migrations at start, and these commands refuse a database that lacks any.
 """
 import os
 import sys
@@ -19,7 +20,10 @@ def main(argv=None, env=None) -> int:
         email = auth._email(raw)
         conn = db.connect(settings.database_url)
         try:
-            db.migrate(conn)
+            if db.missing(conn):
+                print("the database needs migrations the web service applies at start; deploy first",
+                      file=sys.stderr)
+                return 1
             if cmd == "login-link":
                 row = conn.execute("select 1 from users where email = %s", (email,)).fetchone()
                 conn.rollback()

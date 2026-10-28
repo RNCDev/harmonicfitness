@@ -2,14 +2,31 @@
 
 The engine sees only an allowlisted environment, so the server's own secrets (database URL, master
 key) never reach it. Output is scrubbed a second time here for the values passed in extra_env."""
+import ctypes
 import os
 import signal
 import subprocess
+import sys
 from typing import Iterable, Mapping, NamedTuple
 
 ALLOWED = ("PATH", "LANG", "LC_ALL", "TZ", "UV_CACHE_DIR", "SWEATCAST_PYTHON")
 RESERVED = ("HOME", "SWEATCAST_HOME")
 TIMED_OUT = 124
+
+
+PR_SET_DUMPABLE = 4
+
+
+def not_dumpable() -> bool:
+    """Linux only: mark this process non-dumpable, so its /proc/<pid>/environ and memory are
+    root-only and an engine child (same user; the flag resets on its own execve) can't read the
+    server's secrets through /proc. Returns whether it was set; False elsewhere (macOS, tests)."""
+    if not sys.platform.startswith("linux"):
+        return False
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_DUMPABLE, 0) failed")
+    return True
 
 
 class Result(NamedTuple):

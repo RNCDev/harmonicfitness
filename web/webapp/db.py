@@ -47,6 +47,19 @@ def migrate(conn: psycopg.Connection) -> list[str]:
     return applied
 
 
+def missing(conn: psycopg.Connection) -> set[str]:
+    """The migrations/*.sql not yet recorded in schema_migrations (all of them when the table
+    doesn't exist yet). Never migrates; ends the transaction it read in."""
+    wanted = {p.name for p in MIGRATIONS.glob("*.sql")}
+    try:
+        rows = conn.execute("select name from schema_migrations").fetchall()
+    except psycopg.errors.UndefinedTable:
+        conn.rollback()
+        return wanted
+    conn.rollback()
+    return wanted - {r[0] for r in rows}
+
+
 class MigrationsPending(Exception):
     """The database still lacks migrations after the wait."""
 
@@ -59,19 +72,15 @@ def wait_for_migrations(connect: Callable[[], psycopg.Connection], timeout: floa
     Raises MigrationsPending after `timeout` seconds.
     Returns True when migrated, False when `stop` was set first."""
     stop = stop or threading.Event()
-    wanted = {p.name for p in MIGRATIONS.glob("*.sql")}
     deadline = time.monotonic() + timeout
     while not stop.is_set():
         try:
             conn = connect()
             try:
-                rows = conn.execute("select name from schema_migrations").fetchall()
-                if wanted <= {r[0] for r in rows}:
+                if not missing(conn):
                     return True
             finally:
                 conn.close()
-        except psycopg.errors.UndefinedTable:
-            pass
         except psycopg.OperationalError:
             pass   # the database itself not up yet
         if time.monotonic() >= deadline:

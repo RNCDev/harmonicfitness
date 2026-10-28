@@ -40,9 +40,10 @@ class DBCase(unittest.TestCase):
     def make_user(self, email=None):
         """Insert a user with a fresh data key; return (user_id, UserKey)."""
         email = email or f"{uuid.uuid4().hex[:8]}@example.test"
-        plain, wrapped = crypto.new_data_key(MASTER)
-        row = self.conn.execute(
-            "insert into users (email, wrapped_key) values (%s, %s) returning id",
-            (email, wrapped)).fetchone()
+        user_id = uuid.uuid4()
+        plain, wrapped = crypto.new_data_key(MASTER, user_id, 1)
+        self.conn.execute(
+            "insert into users (id, email, wrapped_key, key_version) values (%s, %s, %s, 1)",
+            (user_id, email, wrapped))
         self.conn.commit()
-        return row[0], store.UserKey(user_id=row[0], key=plain)
+        return user_id, store.UserKey(user_id=user_id, key=plain)

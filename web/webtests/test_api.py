@@ -67,7 +67,7 @@ class ApiCase(DBCase):
         """A user and a client carrying its session cookie."""
         user_id, uk = self.make_user()
         client = client or self.client
-        t = token_of(auth.device_link(self.conn, self.settings, user_id))
+        t = token_of(auth.device_link(self.conn, self.settings, user_id).url)
         r = client.post("/api/invite/redeem", json={"token": t}, headers=self.origin(),
                         follow_redirects=False)
         self.assertEqual(r.status_code, 303)
@@ -188,7 +188,9 @@ class SignIn(ApiCase):
             r = self.client.get(path)
             self.assertEqual(r.headers["x-content-type-options"], "nosniff", path)
             self.assertEqual(r.headers["x-frame-options"], "DENY", path)
+            self.assertEqual(r.headers["x-robots-tag"], "noindex", path)
         self.assertEqual(self.client.get("/api/me").headers["referrer-policy"], "same-origin")
+        self.assertIn('<meta name="robots" content="noindex">', self.client.get("/invite/x").text)
 
 
 class LocalCookie(ApiCase):
@@ -397,7 +399,7 @@ class Disconnect(ApiCase):
             time.sleep(0.02)
         user_id, uk = self.make_user()
         session = auth.redeem(self.conn, self.settings,
-                              token_of(auth.device_link(self.conn, self.settings, user_id)))
+                              token_of(auth.device_link(self.conn, self.settings, user_id).url))
         job = jobs.enqueue(self.conn, uk, "brief", {})   # stays queued: the stream never ends
         with mock.patch.object(api, "KEEP_ALIVE", 0.1), mock.patch.object(api, "POLL_EVERY", 0.1):
             with httpx.Client(base_url=f"http://127.0.0.1:{port}",

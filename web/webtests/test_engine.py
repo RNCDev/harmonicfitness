@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -23,15 +24,20 @@ def stub(body):
 
 class Engine(unittest.TestCase):
     def test_engine_env_is_allowlisted(self):
-        root, home = stub("env"), tempfile.mkdtemp()
+        # the engine is `env` itself (no shell, which would add PWD, SHLVL and _ of its own)
+        root, home = tempfile.mkdtemp(), tempfile.mkdtemp()
+        os.symlink(shutil.which("env"), os.path.join(root, "sweatcast"))
         with mock.patch.dict(os.environ, {"WT_MASTER_KEY": "secret-master",
-                                          "DATABASE_URL": "postgres://x"}):
-            r = engine.run(root, home, ["get", "wpm"])
+                                          "DATABASE_URL": "postgres://x",
+                                          "SESSION_SECRET": "s", "SOMETHING_ELSE": "y",
+                                          "TZ": "UTC"}):
+            want = {k for k in engine.ALLOWED if k in os.environ} | {"HOME", "SWEATCAST_HOME"}
+            r = engine.run(root, home, [])
         self.assertEqual(r.code, 0)
-        self.assertNotIn("secret-master", r.stdout)
-        self.assertNotIn("postgres://x", r.stdout)
-        self.assertIn(f"SWEATCAST_HOME={home}", r.stdout)
-        self.assertIn(f"HOME={home}", r.stdout)
+        got = dict(line.split("=", 1) for line in r.stdout.splitlines())
+        self.assertEqual(set(got), want)
+        self.assertIn("TZ", got)
+        self.assertEqual((got["HOME"], got["SWEATCAST_HOME"]), (home, home))
 
     def test_brief_runs_on_a_seeded_folder(self):
         home = tempfile.mkdtemp()
@@ -69,6 +75,24 @@ class Engine(unittest.TestCase):
         root, home = stub("echo oops >&2; exit 3"), tempfile.mkdtemp()
         r = engine.run(root, home, [])
         self.assertEqual((r.code, r.stderr.strip()), (3, "oops"))
+
+
+class NotDumpable(unittest.TestCase):
+    def test_skipped_off_linux(self):
+        with mock.patch.object(engine.sys, "platform", "darwin"):
+            self.assertFalse(engine.not_dumpable())
+
+    def test_sets_the_flag_on_linux(self):
+        calls = []
+
+        class Libc:
+            def prctl(self, *args):
+                calls.append(args)
+                return 0
+        with mock.patch.object(engine.sys, "platform", "linux"), \
+                mock.patch.object(engine.ctypes, "CDLL", lambda *a, **k: Libc()):
+            self.assertTrue(engine.not_dumpable())
+        self.assertEqual(calls, [(4, 0, 0, 0, 0)])
 
 
 class Scrub(unittest.TestCase):

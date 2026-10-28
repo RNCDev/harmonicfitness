@@ -18,7 +18,7 @@ Set `WT_TEST_DATABASE_URL` (for example `postgresql://postgres@localhost:5432/po
 
 ## Admin
 
-Run from `web/` (or with `web/` on `PYTHONPATH`), with `DATABASE_URL`, `WT_BASE_URL` and `WT_MASTER_KEY` set. Each prints the sign-in link and nothing else:
+Run from `web/` (or with `web/` on `PYTHONPATH`), with `DATABASE_URL`, `WT_BASE_URL` and `WT_MASTER_KEY` set. Each prints the sign-in link and nothing else. They never migrate: against a database still missing a migration (one the web service hasn't applied yet) they refuse, exit 1, and say to deploy first.
 
     python -m webapp.admin invite <email>
     python -m webapp.admin login-link <email>    # an existing user only

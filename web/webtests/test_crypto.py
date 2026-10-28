@@ -1,5 +1,6 @@
 import base64
 import os
+import uuid
 import sys
 import unittest
 
@@ -32,10 +33,21 @@ class Crypto(unittest.TestCase):
 
     def test_unwrap_needs_the_master(self):
         m1, m2 = os.urandom(32), os.urandom(32)
-        key, wrapped = crypto.new_data_key(m1)
-        self.assertEqual(crypto.unwrap(m1, wrapped), key)
+        uid = uuid.uuid4()
+        key, wrapped = crypto.new_data_key(m1, uid, 1)
+        self.assertEqual(crypto.unwrap(m1, wrapped, uid, 1), key)
+        self.assertEqual(crypto.unwrap(m1, wrapped, str(uid), 1), key)
         with self.assertRaises(crypto.Tampered):
-            crypto.unwrap(m2, wrapped)
+            crypto.unwrap(m2, wrapped, uid, 1)
+
+    def test_wrapped_key_is_bound_to_its_user_and_version(self):
+        m = os.urandom(32)
+        uid = uuid.uuid4()
+        _, wrapped = crypto.new_data_key(m, uid, 1)
+        with self.assertRaises(crypto.Tampered):
+            crypto.unwrap(m, wrapped, uuid.uuid4(), 1)
+        with self.assertRaises(crypto.Tampered):
+            crypto.unwrap(m, wrapped, uid, 2)
 
     def test_short_blob_is_tampered(self):
         with self.assertRaises(crypto.Tampered):
@@ -47,9 +59,9 @@ class Crypto(unittest.TestCase):
             crypto.seal(k16, b"x", b"a")
         self.assertNotIn(repr(k16), str(cm.exception))
         with self.assertRaisesRegex(ValueError, "key must be 32 bytes"):
-            crypto.unwrap(k16, os.urandom(60))
+            crypto.unwrap(k16, os.urandom(60), uuid.uuid4(), 1)
         with self.assertRaises(ValueError):
-            crypto.new_data_key(k16)
+            crypto.new_data_key(k16, uuid.uuid4(), 1)
         with self.assertRaises(ValueError):
             crypto.open_(k16, os.urandom(60), b"a")
 
