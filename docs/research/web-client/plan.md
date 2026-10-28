@@ -54,7 +54,7 @@ The ui-6 polish (copy, motion, more separation between the working panel and the
 
 ### Milestone 2 in outline
 
-Detailed plan: `plan-m2.md`.
+Detailed plan: `plan-m2.md`. Milestone 3: `plan-m3.md`.
 
 - Engine: `paths.WEB = os.environ.get("HARMONICFITNESS_WEB") == "1"`. `doctor.sh --facts` reports `local=no` with the reason "the web client speaks with web coaches only"; `routes.missing_key` says to add the key in the app's settings; `coachpick.default` never falls back to a local stand-in; `coaches download` exits 64; `build` with no delivery folder records `kept_local` with the reason "the web client uploads the MP3". Engine tests for each, and the CHANGELOG.
 - Web: `user_keys(user_id, service, secret, updated_at)`; a settings view listing which services have a key, replace and delete; keys decrypted only in the worker, passed only into a job's environment under the names in `knowledge/services.toml`.
