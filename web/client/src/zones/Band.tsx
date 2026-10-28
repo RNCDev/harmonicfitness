@@ -1,4 +1,4 @@
-// The band: the wordmark, the sentence and the button that starts the job.
+// The band: the wordmark, the sentence and the button that starts the conversation.
 import { APP_NAME } from "../api";
 import { Sentence } from "../sentence/Sentence";
 import type { SentenceModel } from "../sentence/model";
@@ -30,7 +30,7 @@ export function Band({ model, onChange, onGo, busy, onFiles, filesOpen }: Props)
         </div>
         <div className="band-go">
           <button type="button" className="go" onClick={onGo} disabled={!model || busy}>
-            {busy ? "Working…" : "Get the brief"}
+            {busy ? "Working…" : "Start"}
           </button>
         </div>
       </div>

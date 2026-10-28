@@ -175,6 +175,35 @@ button[disabled] { cursor: not-allowed }
 .m { max-width: 94%; font-size: 15px; line-height: 1.45; margin: 0 }
 .m.a { background: var(--sheet); padding: 10px 14px; border-radius: 4px 16px 16px 16px; align-self: flex-start }
 
+.m.u { background: var(--tok); color: var(--base); padding: 10px 14px; border-radius: 16px 4px 16px 16px; align-self: flex-end }
+.m.thinking { color: var(--ink-2) }
+.chat-error { padding: 10px var(--s4); background: var(--stop-tint); border-left: 6px solid var(--stop) }
+.chat-error p { margin: 0 0 8px; font-size: 15px }
+.chat-form { display: flex; gap: var(--s2); align-items: flex-end; padding: var(--s3) var(--s4) var(--s4) }
+.chat-form textarea {
+  flex: 1; min-width: 0; resize: none; font: inherit; font-size: 15px; padding: 8px 10px;
+  border-radius: 10px; border: 1px solid var(--rule); background: var(--sheet); color: inherit;
+}
+.chat-form .go { font-size: 16px; padding: 8px 18px }
+
+/* ---------- the check-in and the plan ---------- */
+.question { display: grid; gap: var(--s4); max-width: 40em }
+.question fieldset { border: 0; margin: 0; padding: 16px 18px; background: var(--sheet); border-radius: var(--r-sheet) }
+.question legend { font-family: var(--display); font-weight: 600; font-size: 19px; padding: 0 }
+.question .opt { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0 }
+.question .opt label { display: grid; gap: 2px }
+.question .rec { font-size: 13px; font-weight: 700; color: var(--ok) }
+.question .desc { font-size: 14px; color: var(--ink-2) }
+.question .other { display: grid; gap: 4px; margin-top: 8px }
+.question .other input { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--rule); background: var(--base); color: inherit }
+.question .go { justify-self: start }
+.plan { max-width: 52em; background: var(--sheet); border-radius: var(--r-sheet); padding: 18px 22px; box-shadow: var(--shadow) }
+.plan table { width: 100%; border-collapse: collapse }
+.plan th, .plan td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top }
+.plan thead th { font-size: 13px; color: var(--ink-2) }
+.plan tbody th { font-weight: 600 }
+.plan .meta { margin: 10px 0 0 }
+
 /* ---------- the working panel ---------- */
 .panel-empty p { font-size: 17px; color: var(--ink-2); margin: 0 }
 .stages {

@@ -1,6 +1,8 @@
 // The working panel: the job's stages as they stream in, then the brief (or what went wrong).
 import Markdown from "react-markdown";
-import type { JobView, Stage } from "../api";
+import type { AnswerValues, JobView, OpenQuestion, Plan, Stage } from "../api";
+import { PlanTable } from "./PlanTable";
+import { Question } from "./Question";
 
 const STAGE_WORDS: Record<string, string> = {
   queued: "Waiting for a turn",
@@ -30,11 +32,29 @@ function rows(job: JobView): Row[] {
   });
 }
 
-export function Panel({ job, onRetry }: { job: JobView | null; onRetry: () => void }) {
+type Props = {
+  job?: JobView | null;
+  onRetry?: () => void;
+  question?: OpenQuestion | null;
+  plan?: Plan | null;
+  working?: boolean;
+  onAnswer?: (toolCallId: string, values: AnswerValues) => void;
+};
+
+export function Panel({ job = null, onRetry = () => {}, question = null, plan = null, working = false,
+  onAnswer = () => {} }: Props) {
+  if (question) {
+    return (
+      <section aria-label="Check-in">
+        <Question key={question.tool_call_id} ask={question} onSend={onAnswer} disabled={working} />
+      </section>
+    );
+  }
+  if (plan) return <PlanTable plan={plan} />;
   if (!job) {
     return (
-      <section className="panel-empty" aria-label="Today's brief">
-        <p>Change any underlined word, then get the brief.</p>
+      <section className="panel-empty" aria-label="Today's plan">
+        <p>Change any underlined word, then start.</p>
       </section>
     );
   }

@@ -31,6 +31,23 @@ export type JobView = {
   result: BriefResult | null;
 };
 
+export type ChatLine = { role: "user" | "agent"; text: string };
+export type QuestionOption = { label: string; description?: string; recommended?: boolean };
+export type AskedQuestion = {
+  id: string; prompt: string; options: QuestionOption[]; multi: boolean; other: boolean;
+};
+export type OpenQuestion = { questions: AskedQuestion[]; tool_call_id: string };
+export type PlanRow = { block: string; movements: string[]; dose: string; seconds: number };
+export type Plan = {
+  format: string; equipment: string; rows: PlanRow[]; left_out: string; total_seconds: number;
+};
+export type Conversation = {
+  id: number; state: "working" | "waiting" | "idle" | "failed"; job_id: number | null;
+  lines: ChatLine[]; question: OpenQuestion | null; plan: Plan | null;
+};
+export type AnswerValues = Record<string, string[] | string>;
+export type When = { today: string; now: string };
+
 async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, {
     method,
@@ -69,6 +86,14 @@ export const api = {
     call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
   deleteKey: (service: string) =>
     call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
+  startConversation: (line: string, w: When) =>
+    call<{ id: number; job_id: number }>("POST", "/api/conversations", { line, ...w }),
+  latestConversation: () => call<Conversation | undefined>("GET", "/api/conversations/latest"),
+  conversation: (id: number) => call<Conversation>("GET", `/api/conversations/${id}`),
+  sendMessage: (id: number, line: string, w: When) =>
+    call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w }),
+  answer: (id: number, tool_call_id: string, values: AnswerValues, w: When) =>
+    call<{ job_id: number }>("POST", `/api/conversations/${id}/answer`, { tool_call_id, values, ...w }),
   signOut: () => call<void>("POST", "/api/sign-out"),
   startJob: (args: JobArgs) => call<{ id: number }>("POST", "/api/jobs", args),
   job: (id: number) =>
@@ -163,5 +188,11 @@ export function useJob(onSignedOut: () => void) {
     }
   }, [follow, onSignedOut, stop]);
 
-  return { job, start, stop };
+  /** Follow a job another call started (a conversation's turn). */
+  const watch = useCallback((id: number) => {
+    setJob({ id, state: "queued", error: null, stages: [], result: null });
+    follow(id);
+  }, [follow]);
+
+  return { job, start, watch, stop };
 }

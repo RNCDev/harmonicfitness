@@ -1,8 +1,9 @@
 // The signed-in app: the band, chat, the working panel and the context column.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, APP_NAME, NotSignedIn, useJob, type ContextFile, type Me } from "./api";
+import { api, APP_NAME, NotSignedIn, type ContextFile, type Me } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
-import { buildWorkoutSentence, localDate, setToken, toJobArgs, type SentenceModel } from "./sentence/model";
+import { useConversation } from "./conversation";
+import { buildWorkoutSentence, sentenceText, setToken, type SentenceModel } from "./sentence/model";
 import { Band } from "./zones/Band";
 import { Chat } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
@@ -33,7 +34,7 @@ export function App() {
     stopRef.current();
     setAuth("out");
   }, []);
-  const { job, start, stop } = useJob(signedOut);
+  const { conv, working, error, noKey, send, answer, job, stop } = useConversation(signedOut);
   stopRef.current = stop;
 
   const load = useCallback(async () => {
@@ -75,8 +76,13 @@ export function App() {
   }, [drawer, closeDrawer]);
 
   const go = useCallback(() => {
-    if (model) void start(toJobArgs(model, localDate()));
-  }, [model, start]);
+    if (model) void send(sentenceText(model));
+  }, [model, send]);
+
+  const openKeys = useCallback(() => {
+    setDrawer(true);
+    setTimeout(() => document.querySelector<HTMLElement>("#ctx .cx-s")?.scrollIntoView?.(), 0);
+  }, []);
 
   const signOut = useCallback(async () => {
     try {
@@ -94,16 +100,18 @@ export function App() {
       onDone={() => setMe({ ...me, has_password: true })} />;
   }
 
-  const busy = job?.state === "queued" || job?.state === "running";
+  const busy = working;
   return (
     <div className="app">
       <Band model={model} busy={busy}
         onChange={(k, v) => setModel((m) => (m ? setToken(m, k, v) : m))}
         onGo={go} filesOpen={drawer}
         onFiles={() => setDrawer((d) => !d)} />
-      <Chat />
+      <Chat lines={conv?.lines ?? []} working={working} error={error} noKey={noKey}
+        onSend={(line) => void send(line)} onOpenKeys={openKeys} />
       <main className="panel">
-        <Panel job={job} onRetry={go} />
+        <Panel question={conv?.state === "waiting" ? conv.question : null} plan={conv?.plan ?? null}
+          working={working} onAnswer={(id, v) => void answer(id, v)} />
       </main>
       <ContextColumn files={files} username={me?.username ?? ""} open={drawer} onClose={closeDrawer}
         onSignedOut={signedOut} onSignOut={signOut} />
