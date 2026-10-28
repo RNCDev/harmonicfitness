@@ -381,10 +381,27 @@ class OneSideOnly(unittest.TestCase):
                     "Repeat with the left leg.", "Then ten on the left.", "Ten more on the left.",
                     "Same again on the left.", "Do the left leg too.", "Left now.", "Next, left.", "Change legs.",
                     "Change sides.", "Swap legs.", "Now the other one.", "Twenty total, ten a side.",
-                    "Switch arms.", "Ten per side.", "Then the other.")]:
+                    "Switch arms.", "Ten per side.", "Then the other.", "Now the second leg.", "Trade legs.",
+                    "Change over.", "Flip around.", "Turn around.", "Mirror it.", "Ten apiece.", "Ten with each.",
+                    "Now do the opposite.", "Ten a side.", "Do 10 a side.")]:
             with self.subTest(lines=lines):
                 issues = bridge_issues(*lines)
                 self.assertTrue(any("right side only" in i for i in issues), issues)
+
+    def test_the_limited_side_named_without_left_or_right_is_refused(self):
+        for side in ("right", "healthy"):
+            on_menu = {e["id"]: e for e in one_sided_menu(side)["movements"]}
+            first = f"{'Right' if side == 'right' else 'Healthy side'} single-leg glute bridge, ten."
+            for later in ("Now the injured leg.", "Now the sore side.", "Then the bad leg.", "Now the weaker side.",
+                          "Now the non-working leg.", "Then the painful knee."):
+                with self.subTest(side=side, later=later):
+                    self.assertTrue(menu.side_problems(CAT, on_menu, f"{first} {later}"), later)
+
+    def test_ordinary_words_pass_beside_a_one_sided_movement(self):
+        on_menu = {e["id"]: e for e in one_sided_menu()["movements"]}
+        for later in ("Repeat for three sets.", "Hold a side plank for ten.", "Rest, then repeat."):
+            with self.subTest(later=later):
+                self.assertEqual(menu.side_problems(CAT, on_menu, f"Right single-leg glute bridge, ten. {later}"), [])
 
     def test_the_shipped_limit_cues_pass_beside_a_one_sided_movement(self):
         # the brief fills {side} with the limit's side: the one the menu doesn't allow, or injured / sore

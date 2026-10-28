@@ -328,16 +328,28 @@ SWITCH = ("switch", "other side", "other leg", "swap sides", "repeat on the othe
 SENTENCE = re.compile(r"[.!?;\n]")
 
 
+NUMBER_WORDS = "|".join(["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+                          "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+                          "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "a few", "some"])
+# words that name the limited side without saying left or right ("the injured leg", "the weaker side")
+HURT_SIDE = re.compile(r"\b(?:injured|sore|bad|hurt|weak|weaker|non working|affected|painful) "
+                       r"(?:leg|side|arm|foot|knee|hip|hand|shoulder|ankle|wrist|elbow)s?\b")
+
+
 def turn_to(text: str, side: str) -> Optional[str]:
     """The words in `text` that turn to the other side without naming it ("change legs", "the other one",
     "ten a side") or naming it in a turn ("then the left"), or None. Every word naming another side is caught
     by opposite_side; this keeps the forms with no side word. For "healthy", either side is another one."""
     padded = f" {catalog.plain(text)} "
-    for rx in (r" (?:change|swap|switch) (?:the )?(?:legs|sides|arms|feet|hands) ", r" (?:the )?other one ",
-               r" the other ", r" a side ", r" per side "):
+    for rx in (r" (?:change|swap|switch|trade) (?:the )?(?:legs|sides|arms|feet|hands|over) ", r" (?:the )?other one ",
+               r" the other ", rf" (?:{NUMBER_WORDS}) a side ", r" per side ", r" second (?:leg|side|arm) ",
+               r" (?:flip|turn) around ", r" mirror ", r" apiece ", r" with each ", r" do the opposite "):
         m = re.search(rx, padded)
         if m:
             return m.group(0).strip()
+    m = re.search(r"\d+\s+a\s+side\b", catalog.fold(text))   # "10 a side" (plain drops the digits)
+    if m:
+        return m.group(0)
     return None
 
 
@@ -355,14 +367,15 @@ def _cue_sentences(cat: catalog.Catalog) -> set:
 
 def opposite_side(cat: catalog.Catalog, text: str, side: str) -> Optional[str]:
     """The first word in `text` naming a side other than `side` ("left" when the right is allowed; either
-    for "healthy"), outside a sentence that is one of the shipped limit cues with its side filled in, or
+    for "healthy"; "the injured leg", "the weaker side" for any),  outside a sentence that is one of the shipped limit cues with its side filled in, or
     None. Structural, so it fails safe: any turn to the other side says its name ("repeat with the left
     leg", "next, left"), and only the limit cues may say it."""
     opp = {"left", "right"} - {side}
     cues = _cue_sentences(cat)
     for sentence in SENTENCE.split(text):
-        words = catalog.plain(sentence)
-        hit = next((w for w in words.split() if w in opp), None)
+        words = catalog.plain(sentence)   # plain makes "non-working" "non working"
+        hurt = HURT_SIDE.search(words)
+        hit = next((w for w in words.split() if w in opp), None) or (hurt.group(0) if hurt else None)
         if hit and words not in cues:
             return hit
     return None
