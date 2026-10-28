@@ -253,6 +253,32 @@ class Sides(AgentCase):
         self.assertTrue(problems(f"both sides {name}"))
 
 
+    def test_one_sided_movement_in_words(self):
+        r = tools.brief(self.deps, **dict(BRIEF_ARGS, limits=["knee=delicate:left"]))
+        self.assertEqual(r.code, 0, r.error)
+        with open(os.path.join(self.home, "workouts", STEM, f"{STEM}.menu.json"), encoding="utf-8") as f:
+            menu = json.load(f)["movements"]
+        entry = next(e for e in menu if e.get("side") == "right")
+        name = entry["name"]
+        both = next(e["name"] for e in menu if "side" not in e)
+
+        def problems(movement, dose, block="Main", left_out=""):
+            rows = [{"block": block, "movements": [movement], "dose": dose, "seconds": 1200}]
+            return agent.plan_problems(self.deps, agent.Plan(format="Sets", equipment="none", rows=rows,
+                                                             left_out=left_out, total_seconds=1200))
+        for dose in ("3 x 10 each side", f"3 x 10, then left {name}", f"3 x 10, then {name} on both legs",
+                     "3 x 10 per-side", "3 x 10, Alternating", "3 x 10, left and right", "3 x 10 each leg"):
+            with self.subTest(dose=dose):
+                p = problems(f"right {name}", dose)
+                self.assertTrue(p, dose)
+                self.assertTrue(any(name in x and "right side only" in x for x in p), p)
+        self.assertTrue(problems(f"right {name}", "3 x 10", block="Main, both sides"))
+        # a mention of the one-sided movement elsewhere in the plan is side-checked too
+        self.assertTrue(problems(both, "3 x 10", left_out=f"{name} on the left side"))
+        self.assertEqual(problems(f"right {name}", "3 x 10, right side only"), [])
+        self.assertEqual(problems(both, "3 x 10 each side"), [])
+
+
 class Rebrief(AgentCase):
     def plan(self, movements=("squat",)):
         rows = [{"block": "Main", "movements": list(movements), "dose": "3 x 10", "seconds": 1200}]

@@ -170,30 +170,73 @@ def _side_problem(catalog, name: str, side: str) -> str | None:
     return f'"{name}" is allowed on the {side} side only today; name the side (say "{say} {name}")'
 
 
+# words that put a movement on both sides (compared as catalog.plain words, so "per-side" is "per side")
+BOTH_SIDES = ("each side", "both sides", "each leg", "both legs", "each arm", "both arms", "per side", "per leg",
+              "per arm", "alternating", "alternate", "left and right", "right and left", "either side")
+CLAUSE = re.compile(r"[.!?;:,()\n]")
+
+
+def _both_sides(catalog, text: str) -> str | None:
+    """The words in `text` that do a movement on both sides ("each side", "alternating"...), or None."""
+    padded = f" {catalog.plain(text)} "
+    return next((w for w in BOTH_SIDES if f" {w} " in padded), None)
+
+
+def _one_side_problem(catalog, text: str, mname: str, side: str) -> str | None:
+    """Why a clause naming (or dosing) a movement the menu allows on one side only puts it on another side
+    or both, or None: a both-sides phrase, or a side word ("left", "right", "both") other than the menu's."""
+    say = "healthy side" if side == "healthy" else f"{side} side"
+    phrase = _both_sides(catalog, text)
+    named = set(catalog.plain(text).split()) & {"left", "right", "both"}
+    if phrase is None and not (named - {side}):
+        return None
+    how = f'"{phrase}"' if phrase else f'the {", ".join(sorted(named - {side}))} side'
+    return (f'"{text.strip()}" puts {mname} on {how}, but today\'s menu allows it on the {say} only; write its '
+            f'dose for that side alone (say "3 x 10, {say} only")')
+
+
 def _text_problems(catalog, menu, cat, plan: Plan, on_menu: dict) -> list[str]:
-    """The movements the plan's free text (format, equipment, left_out, each row's block and dose) names
-    that aren't on today's menu, scanned as the build scans a draft's spoken text (menu.mentions, with its
-    EVERYDAY words, shortened names of the plan's own movements and negations: "no box jumps today")."""
-    declared = set()
+    """The plan's free text (format, equipment, left_out, each row's block and dose) checked as the build
+    checks a draft's spoken text (menu.mentions, with its EVERYDAY words, shortened names of the plan's own
+    movements and negations: "no box jumps today"): a movement that isn't on today's menu is refused, and a
+    movement the menu allows on one side only may not be put on another side or both, in the words that
+    name it or in the block and dose of a row that holds it."""
+    declared, sided_rows = set(), []
     for row in plan.rows:
         for name in row.movements:
             m = catalog.resolve(cat, HEALTHY.sub("", name))
             if m is not None and m.id in on_menu:
                 declared.add(m.id)
+                if on_menu[m.id].get("side"):
+                    sided_rows.append((row, m, on_menu[m.id]["side"]))
     names = [n for i in declared for n in [cat.movements[i].name] + cat.movements[i].aliases]
+    problems, flagged, sided = [], set(), set()   # sided: one-sided movements already refused (one line each)
+    for row, m, side in sided_rows:   # "3 x 10 each side" for a movement allowed on one side only
+        for text in (row.block, row.dose):
+            why = _one_side_problem(catalog, text, m.name, side) if _both_sides(catalog, text) else None
+            if why and m.id not in sided:
+                sided.add(m.id)
+                problems.append(why)
     fields = [("format", plan.format), ("equipment", plan.equipment), ("left_out", plan.left_out)]
     for row in plan.rows:
         fields += [(f'the "{row.block}" row\'s block', row.block), (f'the "{row.block}" row\'s dose', row.dose)]
-    problems, flagged = [], set()
     for where, text in fields:
-        for mid, said, before in menu.mentions(cat, text):
-            if mid in declared or mid in on_menu or mid in flagged or menu._part_of(cat, said, names, declared):
-                continue
-            if menu.negated(before):
-                continue   # "no box jumps today"
-            flagged.add(mid)
-            problems.append(f'the plan names "{said}" ({mid}, in {where}), which isn\'t on today\'s menu; take it out '
-                            f'(a "no {said} today" is fine)')
+        for clause in CLAUSE.split(text):
+            for mid, said, before in menu.mentions(cat, clause):
+                if menu.negated(before):
+                    continue   # "no box jumps today"
+                side = on_menu.get(mid, {}).get("side")
+                if side:   # a one-sided movement named: its clause must keep to that side
+                    why = _one_side_problem(catalog, clause, cat.movements[mid].name, side)
+                    if why and mid not in sided:
+                        sided.add(mid)
+                        problems.append(why)
+                    continue
+                if mid in declared or mid in on_menu or mid in flagged or menu._part_of(cat, said, names, declared):
+                    continue
+                flagged.add(mid)
+                problems.append(f'the plan names "{said}" ({mid}, in {where}), which isn\'t on today\'s menu; take '
+                                f'it out (a "no {said} today" is fine)')
     return problems
 
 
