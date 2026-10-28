@@ -11,6 +11,8 @@ me.*/
 # The local voice models (./harmonicfitness models); no trailing slash, so a symlink named models is ignored too.
 models
 .codegraph/
+# Railway's SDK for `railway config plan/apply`, installed in .railway/ (npm ci there).
+.railway/node_modules/
 __pycache__/
 .DS_Store
 

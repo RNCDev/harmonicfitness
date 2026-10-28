@@ -4,6 +4,7 @@
 .github
 .superpowers
 .codegraph
+.railway
 docs/eval/out*
 tests
 web/webtests

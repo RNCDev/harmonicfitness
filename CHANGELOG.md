@@ -4,6 +4,19 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-28
+
+The web client's Railway project is defined in code: `.railway/railway.ts` replaces `railway.json`, which Railway retires on 2026-12-01.
+
+### For forks
+- **Nothing in `me/` to migrate.** A fork that deploys the web client on Railway: `railway config pull` imports its own project into `.railway/railway.ts` (its variables as `preserve()`, never their values), then `railway config plan` and `apply` (web/README.md, Deploy).
+
+### Changed
+- **Railway's settings as code.** `.railway/railway.ts` holds the project as Railway has it: the web and worker services built from the root Dockerfile and restarted on failure, the web's `/healthz` health check, Postgres and its volume, and the `media` bucket; every variable is named but kept as set in Railway. Railway's SDK is pinned in `.railway/package.json` (its `node_modules/` git-ignored), and `.railway/` stays out of the Docker image.
+
+### Removed
+- `railway.json`.
+
 ## [0.24.1] - 2026-10-28
 
 ### For forks

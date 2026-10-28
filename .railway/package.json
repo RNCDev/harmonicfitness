@@ -1,0 +1,8 @@
+{
+  "name": "harmonicfitness-railway",
+  "private": true,
+  "description": "Railway infrastructure as code for the web client (railway config plan/apply)",
+  "dependencies": {
+    "railway": "3.16.0"
+  }
+}
