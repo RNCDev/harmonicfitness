@@ -422,7 +422,7 @@ class Lock(unittest.TestCase):
         self.assertTrue(any("pypi.org" in s for s in torch), torch)   # a Mac's
         with open(os.path.join(ROOT, "pyproject.toml"), "rb") as f:
             project = tomllib.load(f)
-        self.assertEqual(set(project["project"]["optional-dependencies"]), {"cuda", "cpu"})
+        self.assertEqual(set(project["project"]["optional-dependencies"]), {"cuda", "cpu", "web"})
         self.assertIn("sys_platform == 'linux'", " ".join(project["tool"]["uv"]["environments"]))
 
 

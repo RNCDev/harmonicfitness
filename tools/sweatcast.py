@@ -4,6 +4,7 @@ environment (.venv, Python 3.11, made by `./sweatcast setup`).
     ./sweatcast <command> [options]      # ./sweatcast help lists them
 """
 import importlib
+import importlib.util
 import os
 import subprocess
 import sys
@@ -85,8 +86,15 @@ def main(argv=None):
               file=sys.stderr)
         return cli.USAGE
     if cmd == "test":
-        return subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT,
-                               env=test_env(os.environ))
+        env = test_env(os.environ)
+        code = subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT, env=env)
+        # The web client's tests (web/), when its optional extra is installed; their failure fails the command.
+        if importlib.util.find_spec("fastapi") is None:
+            print("web tests skipped: install with uv sync --extra web")
+            return code
+        web = subprocess.call([sys.executable, "-m", "unittest", "discover", "-s", "web/webtests", "-t", "web", *rest],
+                              cwd=ROOT, env=env)
+        return code or web
     module, sub, _ = COMMANDS[cmd]
     sys.argv = [f"sweatcast {cmd}", *([sub] if sub else []), *rest]
     if sub:
