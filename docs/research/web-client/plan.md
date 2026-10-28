@@ -57,6 +57,17 @@ The ui-6 polish (copy, motion, more separation between the working panel and the
 - Engine: `paths.WEB = os.environ.get("SWEATCAST_WEB") == "1"`. `doctor.sh --facts` reports `local=no` with the reason "the web client speaks with web coaches only"; `routes.missing_key` says to add the key in the app's settings; `coachpick.default` never falls back to a local stand-in; `coaches download` exits 64; `build` with no delivery folder records `kept_local` with the reason "the web client uploads the MP3". Engine tests for each, and the CHANGELOG.
 - Web: `user_keys(user_id, service, secret, updated_at)`; a settings view listing which services have a key, replace and delete; keys decrypted only in the worker, passed only into a job's environment under the names in `knowledge/services.toml`.
 
+### Carried into Milestone 4 (from Slice 1's final review)
+
+Required before renders, which are long and billed:
+- **A deploy mid-job:** today SIGTERM waits between jobs, so a running job is reaped after 120 s as "interrupted". Choose: drain (Railway's draining time) or, on SIGTERM, kill the engine's process group and fail the job at once.
+- **Heartbeat:** one failed heartbeat fails the whole job. Reconnect and retry instead, let `jobs.complete` (row lock, `state='running'`) decide, and kill the engine when the job turns out to be reaped, so a reaped job stops billing.
+- **Event streams:** each holds a Postgres connection and a thread token. Cap them per user and overall, or move to one shared async LISTEN.
+- **Sizes:** a per-file cap in `folder.harvest`, and a cap on the engine's buffered output.
+- **Coming back to a job:** a "latest job" route so a reload finds a running job, the client re-following a stream that dropped while the job runs, and a `useJob` test.
+- **Per-job write rules:** `NEVER_WRITE_BACK` (`health.md`) applies to every job today; the check-in job must be able to write `health.md`.
+- **Key rotation:** a new `key_version` must re-seal and re-hash every stored path (the path hash is keyed by the data key).
+
 ## Review focus
 
 1. **The engine subprocess sees server secrets.** A job's environment holds `WT_MASTER_KEY` or `DATABASE_URL` because the runner copied `os.environ`. Expected: only the allowlist reaches it. Pinned by `test_engine_env_is_allowlisted` (Task 5).
