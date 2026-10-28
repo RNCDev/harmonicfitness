@@ -31,6 +31,8 @@ RUN uv sync --locked --extra web --no-dev
 COPY . .
 COPY --from=client /src/web/client/dist web/client/dist
 
+RUN python -m compileall -q /app/tools /app/web/webapp
+
 RUN useradd --system --uid 10001 --create-home app
 USER app
 EXPOSE 8000

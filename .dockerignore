@@ -1,16 +1,22 @@
-# Only committed, non-private files belong in the image.
+# Only committed, non-private files belong in the image. Patterns are unanchored (**/) so a nested
+# copy (web/.env, web/me/) is left out as well as the root one.
 .git
 .github
 .superpowers
 .codegraph
-.venv
-.cache
-models
-me
-me.*
-!me.example
 docs/eval/out*
+tests
+web/webtests
+**/.env
+**/.env.*
+**/*.env
+**/me
+**/me.*
+!me.example
+**/.venv
+**/.cache
+**/models
+**/node_modules
 **/__pycache__
 **/.DS_Store
-web/client/node_modules
 web/client/dist

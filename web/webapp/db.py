@@ -1,6 +1,7 @@
 """Postgres connection and the migration runner."""
 from pathlib import Path
 
+import threading
 import time
 from typing import Callable
 
@@ -51,19 +52,22 @@ class MigrationsPending(Exception):
 
 
 def wait_for_migrations(connect: Callable[[], psycopg.Connection], timeout: float = 120,
-                        interval: float = 2) -> None:
+                        interval: float = 2,
+                        stop: threading.Event | None = None) -> bool:
     """Poll until every migrations/*.sql is recorded in schema_migrations (the table may not exist
     yet), for a worker that starts before the server has migrated a fresh database. Never migrates.
-    Raises MigrationsPending after `timeout` seconds."""
+    Raises MigrationsPending after `timeout` seconds.
+    Returns True when migrated, False when `stop` was set first."""
+    stop = stop or threading.Event()
     wanted = {p.name for p in MIGRATIONS.glob("*.sql")}
     deadline = time.monotonic() + timeout
-    while True:
+    while not stop.is_set():
         try:
             conn = connect()
             try:
                 rows = conn.execute("select name from schema_migrations").fetchall()
                 if wanted <= {r[0] for r in rows}:
-                    return
+                    return True
             finally:
                 conn.close()
         except psycopg.errors.UndefinedTable:
@@ -72,4 +76,5 @@ def wait_for_migrations(connect: Callable[[], psycopg.Connection], timeout: floa
             pass   # the database itself not up yet
         if time.monotonic() >= deadline:
             raise MigrationsPending(f"the database is not migrated after {timeout:g} seconds")
-        time.sleep(interval)
+        stop.wait(interval)
+    return False

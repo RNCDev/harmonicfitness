@@ -37,10 +37,14 @@ class Migrations(DBCase):
             # a fresh schema: no schema_migrations table at all, so it times out
             with self.assertRaises(db.MigrationsPending):
                 db.wait_for_migrations(make, timeout=0.3, interval=0.05)
+            import threading
+            ev = threading.Event()
+            ev.set()
+            self.assertFalse(db.wait_for_migrations(make, timeout=5, interval=0.05, stop=ev))
             conn = make()
             db.migrate(conn)
             conn.close()
-            db.wait_for_migrations(make, timeout=0.3, interval=0.05)   # returns at once
+            self.assertTrue(db.wait_for_migrations(make, timeout=0.3, interval=0.05))   # returns at once
             # a migration file not yet recorded counts as pending
             conn = make()
             conn.execute("delete from schema_migrations where name = '002_sessions_renewed.sql'")
