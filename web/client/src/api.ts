@@ -95,6 +95,7 @@ export const api = {
   answer: (id: number, tool_call_id: string, values: AnswerValues, w: When) =>
     call<{ job_id: number }>("POST", `/api/conversations/${id}/answer`, { tool_call_id, values, ...w }),
   signOut: () => call<void>("POST", "/api/sign-out"),
+  latestJob: () => call<{ id: number; kind: string; state: JobState } | undefined>("GET", "/api/jobs/latest"),
   job: (id: number) =>
     call<{ id: number; state: JobState; error: string | null }>(
       "GET", `/api/jobs/${id}`),
@@ -112,35 +113,55 @@ function jobError(e: unknown): string {
   return plainError(e);
 }
 
-/** One job at a time: follow its events, then read how it ended. */
+/** Seconds to wait before following a dropped stream again: 2, then 5, then every 10. */
+export const REFOLLOW_MS = [2000, 5000, 10000];
+
+/** One job at a time: follow its events, then read how it ended. A stream that closes while the job
+ * still works is followed again (2 s, 5 s, then every 10 s) until the job ends or the user signs out. */
 export function useJob(onSignedOut: () => void) {
   const [job, setJob] = useState<JobView | null>(null);
   const source = useRef<EventSource | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tries = useRef(0);
+  const seen = useRef<{ id: number; ids: Set<string> }>({ id: 0, ids: new Set() });
 
   const stop = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
     source.current?.close();
     source.current = null;
   }, []);
   useEffect(() => stop, [stop]);
 
-  const finish = useCallback(async (id: number) => {
+  const followRef = useRef<(id: number) => void>(() => {});
+
+  /** Read how the job stands; true if it still works. */
+  const finish = useCallback(async (id: number): Promise<boolean> => {
     try {
       const j = await api.job(id);
       setJob((v) => (v && v.id === id ? { ...v, state: j.state, error: j.error } : v));
+      return j.state === "queued" || j.state === "running";
     } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
+      if (e instanceof NotSignedIn) {
+        stop();
+        onSignedOut();
+        return false;
+      }
       setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: jobError(e) } : v));
+      return false;
     }
-  }, [onSignedOut]);
+  }, [onSignedOut, stop]);
 
   const follow = useCallback((id: number) => {
     stop();
+    if (seen.current.id !== id) seen.current = { id, ids: new Set() };
+    const ids = seen.current.ids;
     const es = new EventSource(`/api/jobs/${id}/events`);
     source.current = es;
-    const seen = new Set<string>();
     es.onmessage = (e) => {
-      if (e.lastEventId && seen.has(e.lastEventId)) return;
-      seen.add(e.lastEventId);
+      tries.current = 0;
+      if (e.lastEventId && ids.has(e.lastEventId)) return;
+      ids.add(e.lastEventId);
       let body: Stage;
       try {
         body = JSON.parse(e.data);
@@ -165,16 +186,26 @@ export function useJob(onSignedOut: () => void) {
       }
     });
     es.onerror = () => {
-      // The browser reconnects on its own; a refused stream (signed out, gone) is closed: read the job.
-      if (es.readyState === EventSource.CLOSED) {
-        if (source.current === es) source.current = null;
-        void finish(id);
-      }
+      // The browser reconnects on its own; a refused or dropped stream is closed: read the job and,
+      // if it still works, follow it again after a wait.
+      if (es.readyState !== EventSource.CLOSED) return;
+      if (source.current === es) source.current = null;
+      void finish(id).then((working) => {
+        if (!working || source.current !== null || timer.current !== null) return;
+        const wait = REFOLLOW_MS[Math.min(tries.current, REFOLLOW_MS.length - 1)];
+        tries.current += 1;
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          followRef.current(id);
+        }, wait);
+      });
     };
   }, [finish, stop]);
+  followRef.current = follow;
 
-  /** Follow a job another call started (a conversation's turn). */
+  /** Follow a job another call started (a conversation's turn, or one found on load). */
   const watch = useCallback((id: number) => {
+    tries.current = 0;
     setJob({ id, state: "queued", error: null, stages: [] });
     follow(id);
   }, [follow]);
