@@ -15,3 +15,10 @@ Run its tests (`./sweatcast test` runs them after the engine's, or prints a skip
     .venv/bin/python -m unittest discover -s web/webtests -t web -v
 
 Set `WT_TEST_DATABASE_URL` (for example `postgresql://postgres@localhost:5432/postgres`) to a Postgres database to enable the database tests; without it they are skipped.
+
+## Admin
+
+Run from `web/` (or with `web/` on `PYTHONPATH`), with `DATABASE_URL`, `WT_BASE_URL` and `WT_MASTER_KEY` set. Each prints the sign-in link and nothing else:
+
+    python -m webapp.admin invite <email>
+    python -m webapp.admin login-link <email>    # an existing user only

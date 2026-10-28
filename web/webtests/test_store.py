@@ -18,7 +18,7 @@ class Migrations(DBCase):
         admin.execute(f"create schema {name}")
         conn = db.connect(dbcase.URL, schema=name)
         try:
-            self.assertEqual(db.migrate(conn), ["001_init.sql"])
+            self.assertEqual(db.migrate(conn), ["001_init.sql", "002_sessions_renewed.sql"])
             self.assertEqual(db.migrate(conn), [])
         finally:
             conn.close()
@@ -51,7 +51,7 @@ class Migrations(DBCase):
             for t in threads:
                 t.join()
             self.assertEqual(errors, [])
-            self.assertEqual(sorted(results), [[], ["001_init.sql"]])
+            self.assertEqual(sorted(results), [[], ["001_init.sql", "002_sessions_renewed.sql"]])
         finally:
             for c in conns:
                 c.close()
