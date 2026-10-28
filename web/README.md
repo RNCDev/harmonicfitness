@@ -32,3 +32,12 @@ Run from `web/`, with `DATABASE_URL`, `WT_BASE_URL` and `WT_MASTER_KEY` set (the
 `--no-access-log` matters: an invite's sign-in page is `GET /invite/<token>`, so an access log would write every sign-in token to the logs. The server itself logs no token, job argument, event or result.
 
 The session cookie is `Secure` unless `WT_BASE_URL` starts with `http://localhost` or `http://127.0.0.1`, so local development works over plain http. Every POST must carry an `Origin` (or `Referer`) of `WT_BASE_URL`'s origin, so set it to the address the browser uses.
+
+## Client
+
+The browser client is in `client/` (Vite, React and TypeScript; Node 20 or later). From `web/client`:
+
+    npm ci
+    npm test          # the client's own tests
+    npm run build     # writes dist/, which the server above serves
+    npm run dev       # a dev server on :5173 that sends /api and /invite to the server on :8000

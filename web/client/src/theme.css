@@ -1,0 +1,291 @@
+/* Trail: Zilla Slab and Figtree; sage and pine in light, near-black and teal in dark. */
+:root {
+  --base: #E3E8DF;
+  --sheet: #F7F9F4;
+  --ink: #1B2A1E;
+  --ink-2: #4C5D4F;
+  --ink-3: #869488;
+  --rule: #C9D3C6;
+  --tok: #0E6A5C;
+  --tok-tint: #CFEBE4;
+  --tok-on: #FFFFFF;
+  --stop: #A42235;
+  --stop-tint: #F6DADE;
+  --ok: #3D7A1F;
+  --chat: #D8DFD3;
+  --shadow: 0 18px 40px -22px rgba(19, 32, 42, .45);
+  --display: "Zilla Slab", Rockwell, Georgia, serif;
+  --body: "Figtree", system-ui, sans-serif;
+  --r-tok: .32em;
+  --r-sheet: 22px;
+  --gut: clamp(24px, 2vw, 40px);
+  --edge: clamp(20px, 2.4vw, 48px);
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+  --cA: 5;
+  --cB: 13;
+  --pr: var(--edge);
+  --band-size: clamp(24px, 1.1vw + 14px, 40px);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --base: #0F1612;
+    --sheet: #17211B;
+    --ink: #E6EFE7;
+    --ink-2: #A9B9AC;
+    --ink-3: #6B7C6E;
+    --rule: #26342B;
+    --tok: #5FD3B8;
+    --tok-tint: #173A32;
+    --tok-on: #0F1612;
+    --stop: #FF8796;
+    --stop-tint: #42161D;
+    --ok: #9BDB7A;
+    --chat: #0B110D;
+    --shadow: 0 18px 40px -22px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --base: #0F1612;
+  --sheet: #17211B;
+  --ink: #E6EFE7;
+  --ink-2: #A9B9AC;
+  --ink-3: #6B7C6E;
+  --rule: #26342B;
+  --tok: #5FD3B8;
+  --tok-tint: #173A32;
+  --tok-on: #0F1612;
+  --stop: #FF8796;
+  --stop-tint: #42161D;
+  --ok: #9BDB7A;
+  --chat: #0B110D;
+  --shadow: 0 18px 40px -22px rgba(0, 0, 0, .8);
+  color-scheme: dark;
+}
+@media (min-width: 1200px) { :root { --cA: 4 } }
+@media (min-width: 1700px) { :root { --cB: 10; --pr: 0px } }
+@media (min-width: 2000px) { :root { --cA: 3 } }
+
+* { box-sizing: border-box }
+html, body { margin: 0; height: 100% }
+body {
+  background: var(--base); color: var(--ink); font-family: var(--body); font-size: 16px;
+  line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer }
+button[disabled] { cursor: not-allowed }
+:focus-visible { outline: 3px solid var(--tok); outline-offset: 3px; border-radius: 6px }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+.mark { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -.02em; line-height: 1 }
+.meta { font-size: 14px; color: var(--ink-2) }
+.quiet {
+  color: var(--ink-2); font-size: 15px; text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: var(--rule); text-align: left;
+}
+.quiet:hover { color: var(--tok); text-decoration-color: var(--tok) }
+
+/* ---------- frame: band on top, the zones below ---------- */
+.app {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gut);
+  grid-template-rows: auto minmax(0, 1fr); height: 100vh; height: 100dvh;
+}
+.band {
+  grid-column: 1 / -1; grid-row: 1; display: grid; grid-template-columns: subgrid;
+  background: var(--sheet); border-bottom: 1px solid var(--rule); position: relative; z-index: 20;
+}
+.chat {
+  grid-column: 1 / var(--cA); grid-row: 2; background: var(--chat); display: flex;
+  flex-direction: column; min-height: 0; border-right: 1px solid var(--rule);
+}
+.panel {
+  grid-column: var(--cA) / var(--cB); grid-row: 2; min-height: 0; overflow-y: auto;
+  padding: var(--s6) var(--pr) 120px 0;
+}
+
+/* ---------- the band ---------- */
+.band-left {
+  grid-column: 1 / var(--cA); padding: var(--s5); display: flex; flex-direction: column;
+  gap: var(--s2); min-width: 0;
+}
+.ctx-toggle {
+  margin-top: auto; align-self: flex-start; font-size: 13px; font-weight: 700; color: var(--tok);
+  border: 1px solid var(--rule); border-radius: 999px; padding: 4px 12px; background: var(--base);
+}
+.ctx-toggle:hover { border-color: var(--tok) }
+.band-main {
+  grid-column: var(--cA) / -1; display: flex; align-items: center; gap: var(--s6);
+  padding: var(--s6) var(--edge) var(--s6) 0; min-width: 0;
+}
+.band-sent { flex: 1; min-width: 0 }
+.band-go { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s2) }
+
+/* ---------- the sentence ---------- */
+.sentence {
+  font-family: var(--display); font-weight: 500; font-size: var(--band-size); line-height: 1.36;
+  letter-spacing: -.015em; margin: 0; text-wrap: pretty;
+}
+.sentence.loading { color: var(--ink-3) }
+.tok {
+  font-family: inherit; font-weight: 700; color: var(--tok); border-bottom: .09em dashed currentColor;
+  border-radius: 0; padding: 0 .04em; line-height: 1.1; display: inline-block;
+  transition: background .2s, color .2s; position: relative; white-space: nowrap;
+}
+.tok:hover:not([disabled]) { background: var(--tok-tint) }
+.tok[disabled] { cursor: default; opacity: .7 }
+.tok.open { outline: 3px solid var(--tok); outline-offset: 2px; border-radius: var(--r-tok) }
+.tok.flash { animation: flash .9s ease }
+.tok.flash .v { display: inline-block; animation: roll .45s cubic-bezier(.2, .9, .3, 1.2) }
+@keyframes roll { from { transform: translateY(.55em); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes flash {
+  0% { box-shadow: 0 0 0 0 var(--tok) }
+  30% { box-shadow: 0 0 0 .22em var(--tok-tint) }
+  100% { box-shadow: 0 0 0 0 transparent }
+}
+
+/* the button */
+.go {
+  font-family: var(--display); font-weight: 700; font-size: 22px; background: var(--tok);
+  color: var(--tok-on); border-radius: 999px; padding: 14px 34px; box-shadow: var(--shadow);
+  transition: transform .15s; white-space: nowrap;
+}
+.go:hover:not([disabled]) { transform: translateY(-2px) }
+.go[disabled] { opacity: .45; transform: none }
+.go.alt { background: none; color: var(--tok); box-shadow: inset 0 0 0 2px var(--tok); font-size: 18px; padding: 10px 24px }
+
+/* ---------- the popover ---------- */
+.pop {
+  position: fixed; z-index: 60; background: var(--sheet); border-radius: 16px;
+  box-shadow: 0 24px 60px -16px rgba(0, 0, 0, .45), 0 0 0 1px var(--rule);
+  width: min(300px, calc(100vw - 32px)); padding: 10px; max-height: min(420px, 70vh); overflow: auto;
+  animation: pop .16s ease-out;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: none } }
+.pop .why { font-size: 12px; color: var(--ink-3); padding: 4px 8px 8px }
+.pop .opt {
+  display: flex; justify-content: space-between; width: 100%; text-align: left; padding: 9px 10px;
+  border-radius: 10px; font-size: 16px; gap: 10px;
+}
+.pop .opt:hover, .pop .opt:focus-visible { background: var(--tok-tint); outline: none }
+.pop .opt.cur { font-weight: 700; color: var(--tok) }
+.scrim { display: none }
+
+/* ---------- chat ---------- */
+.chat-log { flex: 1; overflow-y: auto; padding: var(--s5) var(--s4) var(--s4); display: flex; flex-direction: column; gap: var(--s3) }
+.m { max-width: 94%; font-size: 15px; line-height: 1.45; margin: 0 }
+.m.a { background: var(--sheet); padding: 10px 14px; border-radius: 4px 16px 16px 16px; align-self: flex-start }
+
+/* ---------- the working panel ---------- */
+.panel-empty p { font-size: 17px; color: var(--ink-2); margin: 0 }
+.stages {
+  list-style: none; padding: 0; margin: 0 0 var(--s5); display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--s3);
+}
+.stage {
+  background: var(--sheet); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center;
+  gap: 10px; font-family: var(--display); font-size: 17px; font-weight: 600;
+}
+.stage .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--ink-3); flex: none }
+.stage.now .dot { border-color: var(--tok); border-top-color: transparent; animation: spin .8s linear infinite }
+.stage.done .dot { background: var(--ok); border-color: var(--ok) }
+.stage.failed .dot { background: var(--stop); border-color: var(--stop) }
+@keyframes spin { to { transform: rotate(360deg) } }
+.failed {
+  border-radius: var(--r-sheet); padding: 20px 22px; background: var(--stop-tint);
+  border-left: 6px solid var(--stop); max-width: 52em;
+}
+.failed h2 { font-family: var(--display); margin: 0 0 6px; color: var(--stop); font-size: 22px }
+.failed p { margin: 0 0 14px }
+.brief {
+  background: var(--sheet); border-radius: var(--r-sheet); padding: 22px 28px; box-shadow: var(--shadow);
+  max-width: 52em; overflow-wrap: anywhere;
+}
+.brief h1, .brief h2, .brief h3 { font-family: var(--display); letter-spacing: -.01em; line-height: 1.2 }
+.brief h1 { font-size: 28px; margin: 0 0 12px }
+.brief h2 { font-size: 22px; margin: 28px 0 8px; padding-top: 16px; border-top: 1px solid var(--rule) }
+.brief h3 { font-size: 18px; margin: 20px 0 6px }
+.brief p, .brief li { max-width: 72ch }
+.brief ul, .brief ol { padding-left: 1.3em }
+.brief code { font-size: .92em; background: var(--base); border-radius: 4px; padding: 0 4px }
+.brief pre { overflow-x: auto; background: var(--base); padding: 12px; border-radius: 10px }
+.brief pre code { background: none; padding: 0 }
+
+/* ---------- the context column: its own surface, a rule and a gap from the panel ---------- */
+.ctx {
+  grid-column: var(--cB) / -1; grid-row: 2; min-height: 0; overflow-y: auto;
+  padding: var(--s6) var(--edge) var(--s6) var(--s5); background: var(--sheet);
+  border-left: 1px solid var(--rule); display: none;
+}
+.ctx-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s4) }
+.ctx-top h2 { font-family: var(--display); font-size: 20px; margin: 0 }
+.ctx-close { display: none; font-size: 14px; color: var(--ink-2) }
+.ctx-scrim { display: none }
+.cx-list { display: flex; flex-direction: column; gap: var(--s5) }
+.cx-box { padding: var(--s4); border-radius: 16px; background: var(--base) }
+.cx-s { font-size: 14px; color: var(--ink-2); margin: 4px 0 0 }
+.cx-s.err { color: var(--stop) }
+.files { list-style: none; margin: 0; padding: 0 }
+.files li {
+  font-family: var(--display); font-size: 17px; font-weight: 600; padding: 6px 0;
+  border-top: 1px solid var(--rule); overflow-wrap: anywhere;
+}
+.files li:first-child { border-top: 0 }
+.device { margin-top: var(--s3) }
+.qr { display: block; margin: var(--s3) 0; width: 200px; height: 200px; max-width: 100%; border-radius: 8px }
+.link { margin: 0; font-size: 13px; overflow-wrap: anywhere }
+.signout { align-self: flex-start; font-size: 14px }
+@media (min-width: 1700px) {
+  .ctx { display: block }
+  .ctx-toggle { display: none !important }
+}
+
+/* below 1700: the context column is a drawer */
+@media (max-width: 1699px) {
+  .ctx {
+    display: block; position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw); z-index: 70;
+    box-shadow: -20px 0 50px -20px rgba(0, 0, 0, .4); transform: translateX(105%);
+    transition: transform .25s ease, visibility .25s; visibility: hidden; padding: var(--s5);
+  }
+  .ctx.open { transform: none; visibility: visible }
+  .ctx-scrim.show { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(0, 0, 0, .28) }
+  .ctx-close { display: inline-block }
+}
+
+/* ---------- signed out, unreachable ---------- */
+.solo { max-width: 32em; margin: 0 auto; padding: 18vh 16px 48px }
+.solo h1 { font-family: var(--display); font-size: 30px; line-height: 1.15; letter-spacing: -.02em; margin: 24px 0 8px }
+.solo p { color: var(--ink-2); margin: 0 0 24px }
+
+/* ---------- phone ---------- */
+@media (max-width: 820px) {
+  .app { display: block; height: auto }
+  .band { position: sticky; top: 0; display: block; box-shadow: 0 10px 24px -18px rgba(0, 0, 0, .5) }
+  .band-left { flex-direction: row; align-items: center; padding: 10px 16px 0; gap: 12px }
+  .band-left .mark { font-size: 17px; margin-right: auto }
+  .ctx-toggle { margin: 0; font-size: 12px; padding: 3px 10px }
+  .band-main { padding: 8px 16px 12px; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end }
+  .band-sent { flex-basis: 100% }
+  .sentence { font-size: 21px; line-height: 1.4 }
+  .band-go { flex-direction: row; width: 100%; justify-content: flex-end }
+  .go { font-size: 17px; padding: 9px 22px }
+  .chat { border-right: 0; border-bottom: 1px solid var(--rule); background: none }
+  .chat-log { padding: 12px 16px 0 }
+  .panel { overflow: visible; padding: var(--s4) 16px 48px }
+  .stages { grid-template-columns: 1fr 1fr }
+  .stage { font-size: 15px; padding: 10px 12px }
+  .brief { padding: 18px 16px; border-radius: 16px }
+  .brief h1 { font-size: 24px }
+  .pop {
+    left: 0; right: 0; bottom: 0; top: auto; width: 100%; border-radius: 20px 20px 0 0;
+    max-height: 62vh; padding: 14px 12px 22px;
+  }
+  .scrim { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, .28); z-index: 55 }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .tok.flash, .tok.flash .v { animation: none }
+}
