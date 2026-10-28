@@ -43,7 +43,7 @@ Project `harmonicfitness-web` (workspace "rncdev's Projects"), **one environment
 | | Milestone | What it proves | Spec sections |
 |---|---|---|---|
 | **1** | **Slice 1** (detailed below) | sign-in, the store, a job running the engine on a user's folder, write-back, live progress, deployed to staging | Stack, Railway layout, Per-user isolation, Jobs (no agent) |
-| 2 | Engine web mode and keys | `HARMONICFITNESS_WEB=1` as an engine feature; encrypted per-service keys, entered once, never shown | Engine changes, Keys |
+| **2** | **Engine web mode and keys** (built and deployed 2026-10-28, `plan-m2.md`) | `HARMONICFITNESS_WEB=1` as an engine feature; encrypted per-service keys, entered once, never shown | Engine changes, Keys |
 | 3 | The agent, through the plan | a provider-agnostic loop with the engine's commands as typed tools, ask and show tools, the check-in and the plan shown | The agent, Jobs and conversations |
 | 4 | Build, render, deliver | the long job: write, lint, build, upload, signed link, 24 h expiry, log; spend guard | Delivery and storage, anti-goal on billing |
 | 5 | Instructions from the skills | a generator beside `harness sync` writes the web agent's instructions; a test fails when stale; the eval gate per provider | The agent |
