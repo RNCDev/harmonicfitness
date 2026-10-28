@@ -113,9 +113,6 @@ class BriefJob(BaseModel):
 Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # the worker's check_turn says the rest
 Line = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
-Label = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
-Choice = Annotated[list[Label], Field(min_length=1, max_length=6)] | Label
-
 
 class TurnLine(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -124,37 +121,7 @@ class TurnLine(BaseModel):
     now: Now
 
 
-class TurnAnswer(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    tool_call_id: Annotated[StrictStr, StringConstraints(min_length=1, max_length=200)]
-    values: Annotated[dict[Annotated[StrictStr, StringConstraints(max_length=40)], Choice],
-                      Field(min_length=1, max_length=4)]
-    today: Day
-    now: Now
-
-
 STILL_WORKING = "Still working on the last message."
-NOT_OPEN = "That question isn't open any more."
-
-
-def _bad_answer(question: dict, values: dict) -> str | None:
-    """What's wrong with `values` as the answer to the open `question`, or None. Each question gets
-    its option labels (more than one only when it is multi) or, when it allows other, "other: <text>"."""
-    asked = {q.get("id"): q for q in question.get("questions") or []}
-    if set(values) != set(asked):
-        return "answer every question, and only those"
-    for qid, value in values.items():
-        q = asked[qid]
-        if isinstance(value, str):
-            if not (q.get("other") and value.startswith("other:") and value[len("other:"):].strip()):
-                return "an answer names no option of its question"
-            continue
-        labels = {o.get("label") for o in q.get("options") or []}
-        if len(set(value)) != len(value) or not set(value) <= labels:
-            return "an answer names no option of its question"
-        if len(value) > 1 and not q.get("multi"):
-            return "that question takes one answer"
-    return None
 
 
 class Credentials(BaseModel):
@@ -634,23 +601,6 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             healed(conn, uk, cid)
             if not conversations.begin_turn(conn, uk, cid, body.line, None):
                 raise HTTPException(409, STILL_WORKING)
-            job_id = queue_turn(conn, uk, args)
-        return {"job_id": job_id}
-
-    @app.post("/api/conversations/{cid}/answer", status_code=202, **post)
-    def post_answer(uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnAnswer, Body()]):
-        answer = {"tool_call_id": body.tool_call_id, "values": body.values}
-        args = turn_args(cid, None, answer, body.today, body.now)
-        with turn_transaction(uk) as conn:
-            c = healed(conn, uk, cid)
-            if c.state != "waiting" or not c.question \
-                    or c.question.get("tool_call_id") != body.tool_call_id:
-                raise HTTPException(409, NOT_OPEN)
-            problem = _bad_answer(c.question, body.values)
-            if problem is not None:
-                raise HTTPException(422, problem)
-            if not conversations.begin_turn(conn, uk, cid, None, body.values):
-                raise HTTPException(409, NOT_OPEN)
             job_id = queue_turn(conn, uk, args)
         return {"job_id": job_id}
 

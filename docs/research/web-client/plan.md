@@ -40,6 +40,9 @@ Project `harmonicfitness-web` (workspace "rncdev's Projects"), **one environment
 
 ## Milestones
 
+**2026-10-28: stripped back.** The app is now a chat and Keys only, and the coach follows the workout skill itself with four tools (run a command, read, write, list files in the listener's folder), as Claude Code does. Milestone 4's plan (`plan-m4.md`) is paused after its engine tasks 1 to 3 (web-mode wording, the one-side rule and unlisted names, `build --max-chars` and `get cost`); its web tasks were reverted. Next, built up from the chat: the audio (a full build and a download link), then the rest as needed.
+
+
 | | Milestone | What it proves | Spec sections |
 |---|---|---|---|
 | **1** | **Slice 1** (detailed below) | sign-in, the store, a job running the engine on a user's folder, write-back, live progress, deployed to staging | Stack, Railway layout, Per-user isolation, Jobs (no agent) |

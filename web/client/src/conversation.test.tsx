@@ -33,7 +33,7 @@ import { isHistory, useConversation } from "./conversation";
 const out = () => {};
 
 const conv = (over: Partial<Conversation>): Conversation => ({
-  id: 7, state: "idle", job_id: null, lines: [{ role: "user", text: "hi" }], question: null, plan: null,
+  id: 7, state: "idle", job_id: null, lines: [{ role: "user", text: "hi" }],
   updated_at: new Date().toISOString(), ...over,
 });
 
@@ -42,8 +42,6 @@ beforeEach(() => {
 });
 
 const yesterday = () => new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-const PLAN = { format: "Sets", equipment: "none", rows: [], left_out: "", total_seconds: 1200 };
-const ASKED = { questions: [], tool_call_id: "a1" };
 afterEach(() => { vi.useRealTimers(); });
 
 describe("useConversation", () => {
@@ -99,17 +97,18 @@ describe("useConversation", () => {
     expect(result.current.conv?.lines[0].text).toMatch(/didn't work/);
   });
 
-  it("Start always begins a new conversation; the text box goes on with the open one", async () => {
+  it("New chat clears the page and the next message starts a new conversation", async () => {
     m.latest.mockResolvedValue(conv({ id: 7 }));
     m.start.mockResolvedValue({ id: 8, job_id: 50 });
     m.send.mockResolvedValue({ job_id: 51 });
     const { result } = renderHook(() => useConversation(out));
     await waitFor(() => expect(result.current.conv?.id).toBe(7));
-    await act(async () => { expect(await result.current.start("A 20-minute workout")).toBe(true); });
+    act(() => result.current.reset());
+    expect(result.current.conv).toBeNull();
+    await act(async () => { expect(await result.current.send("A 20-minute workout")).toBe(true); });
     expect(m.start).toHaveBeenCalledWith("A 20-minute workout", expect.anything());
     expect(m.send).not.toHaveBeenCalled();
     expect(result.current.conv?.id).toBe(8);
-    expect(result.current.conv?.lines).toEqual([{ role: "user", text: "A 20-minute workout" }]);
     m.conversation.mockResolvedValue(conv({ id: 8 }));
     act(() => m.endJob!("done"));
     await waitFor(() => expect(result.current.working).toBe(false));
@@ -118,10 +117,20 @@ describe("useConversation", () => {
     expect(m.start).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an earlier day's conversation as history", async () => {
-    m.latest.mockResolvedValue(conv({ state: "waiting", plan: PLAN, question: ASKED, updated_at: yesterday() }));
+  it("a message after an earlier day's conversation starts a new one", async () => {
+    m.latest.mockResolvedValue(conv({ id: 7, updated_at: yesterday() }));
+    m.start.mockResolvedValue({ id: 9, job_id: 60 });
     const { result } = renderHook(() => useConversation(out));
-    await waitFor(() => expect(result.current.conv?.state).toBe("waiting"));
+    await waitFor(() => expect(result.current.history).toBe(true));
+    await act(async () => { await result.current.send("today's workout"); });
+    expect(m.start).toHaveBeenCalledTimes(1);
+    expect(m.send).not.toHaveBeenCalled();
+  });
+
+  it("shows an earlier day's conversation as history", async () => {
+    m.latest.mockResolvedValue(conv({ updated_at: yesterday() }));
+    const { result } = renderHook(() => useConversation(out));
+    await waitFor(() => expect(result.current.conv?.state).toBe("idle"));
     expect(result.current.history).toBe(true);
     expect(result.current.conv?.lines[0].text).toBe("hi");   // its lines stay
   });

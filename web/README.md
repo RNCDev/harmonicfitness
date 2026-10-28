@@ -36,23 +36,25 @@ Every job runs the engine with `HARMONICFITNESS_WEB=1`: no local voices, "add a 
 
 ## Agent
 
-A conversation is a series of short `turn` jobs. Each runs one agent turn (Pydantic AI) in the listener's temporary folder with their own language-model key, then saves the conversation, sealed with their data key: the history, the chat lines, the open question, the plan and the brief's stem. The turn also writes back the files its folder changed (the brief and its menu among them), never `health.md`.
+The app is a chat and a Keys drawer. The coach works as Claude Code does on a listener's computer: one agent (Pydantic AI) follows the workout skill itself (`.claude/skills/workout/SKILL.md` and `research.md`, read from the engine at run time) under a short preamble (`webapp/agent/instructions.md`) that says what the web client offers in place of each Claude Code tool, as `AGENTS.md` does for Codex. Questions are asked in the chat, research is done in turn, and the build runs with `--lint-only` only: the audio comes in a later version.
 
-The providers are Claude (`claude-sonnet-5-5`), ChatGPT (`gpt-6.1-sol`) and Gemini (`gemini-3.8-flash`). `HARMONICFITNESS_PROVIDERS` names the ones offered, on both services; it defaults to `anthropic`, and the others stay out until the eval grid passes them. A model key is stored like a voice key, and only that job's model client holds it: the engine's environment never gets it.
+Its four tools (`webapp/agent/tools.py`):
+- `run`: one `./harmonicfitness` command in the listener's folder. Allowed: brief, build (`--lint-only`), check, content, coaches (list), coverage, feeds, get, help, keys, log-session, movements, youtube. `me/...` paths in arguments become the folder's own; any other path is refused.
+- `read_file`: `me/...` (never `me/.env`) and the engine's `knowledge/`, `.claude/skills/` and `coaches/`.
+- `write_file`: `me/...` only; never `me/.env`, `me/health.md` (read-only here for now) or the kinds of file the store doesn't keep.
+- `list_files`: under `me/`.
 
-Nothing retries a provider request: `max_retries=0` (Gemini gets one attempt), with a 180-second timeout per request. A turn stops at 25 model requests, 40 tool calls, 800,000 tokens or ten minutes (pydantic-ai's cancellation token, cancelled by a timer); each fails the turn with "this turn ran too long; try again with less to do", and nothing is retried. The model is asked again only by the agent itself: once when a tool's arguments don't validate (`Agent(retries=1)`), and up to twice when `show_plan` refuses a plan.
+Safety is the engine's: the brief's safe menu and the build's menu gate (movements off the menu, one side only, names the catalog doesn't hold) refuse what the writer gets wrong.
 
-A tool's output reaches the model cut at 20,000 characters, except the brief's, at 120,000 (a full-gym brief is about 87,000), so the whole safe menu, the programming guide and the equipment notes arrive. `brief` and `show_plan` never run alongside each other, even when the model asks for both in one step.
+A conversation is a series of short `turn` jobs. Each runs one turn in the listener's temporary folder with their own language-model key, then saves the conversation (its history and chat lines) sealed with their data key, and writes back the files its folder changed, never `health.md`. A turn stops at 60 model requests, 120 tool calls, 3,000,000 tokens or ten minutes; nothing is retried (`max_retries=0`, 180 seconds per request).
 
-The agent has no shell and no file access. Its tools run the engine's commands in the listener's folder (`check`, `get coach`, `get route`, `coaches`, `content plan`, `coverage`, `brief`) and read four files (`profile.md`, `training.md`, `health.md`, `log.md`). `ask_user` pauses the turn for the check-in, which the panel shows. `show_plan` refuses any movement that isn't on the brief's menu: in the rows' movements, and in every word of the plan (blocks, doses, format, equipment and what's left out), scanned with the engine's own text scan (`menu.mentions`, with its everyday words and negations: "no box jumps today" is fine).
+The providers are Claude (`claude-sonnet-5-5`), ChatGPT (`gpt-6.1-sol`) and Gemini (`gemini-3.8-flash`); `HARMONICFITNESS_PROVIDERS` names the ones offered, on both services (default `anthropic`). A model key is stored like a voice key, and only that job's model client holds it: the engine's environment never gets it.
 
-The model provider sees those four files; the engine's output from those commands, the whole brief among it, with the safe menu and today's limits; the listener's chat lines and answers; and the local date and time.
+The model provider sees the files the agent reads (the profile, health and log among them), the engine's output, the skill, the chat, and the local date and time.
 
-The band's Start begins a new conversation; the chat's text box goes on with the open one. A conversation last changed on an earlier day (the GET's `updated_at`) opens as history: its lines in the chat, its plan and question not shown as today's.
+"New chat" clears the page; the next message starts a new conversation, as does a message after a conversation from an earlier day.
 
-Scope now runs through the plan. Research, the script, the audio and the log come in Milestone 4, and a turn never writes `health.md`.
-
-Routes: `POST /api/conversations`, `GET /api/conversations/latest` and `GET /api/conversations/{id}`, `POST /api/conversations/{id}/messages` and `POST /api/conversations/{id}/answer`.
+Routes: `POST /api/conversations`, `GET /api/conversations/latest`, `GET /api/conversations/{id}` and `POST /api/conversations/{id}/messages`.
 
 ## Serve
 

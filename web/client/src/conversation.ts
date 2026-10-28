@@ -1,9 +1,7 @@
 // The conversation with the agent: load the latest, start a new one or continue it, follow each turn's job.
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  api, ApiError, NotSignedIn, plainError, useJob, type AnswerValues, type Conversation,
-} from "./api";
-import { localDate, localNow } from "./sentence/model";
+import { api, ApiError, NotSignedIn, plainError, useJob, type Conversation } from "./api";
+import { localDate, localNow } from "./when";
 
 /** Waits before each new try at reading the conversation after a turn (about ten seconds in all). */
 const RELOAD_DELAYS = [1000, 3000, 6000];
@@ -13,8 +11,8 @@ const when = () => {
   return { today: localDate(d), now: localNow(d) };
 };
 
-/** True when a conversation last changed on an earlier local day than today: its lines are history,
- * its plan and question not today's. A working one is always current. */
+/** True when a conversation last changed on an earlier local day than today: a new message starts a new
+ * conversation. A working one is always current. */
 export function isHistory(c: Conversation | null, today: Date = new Date()): boolean {
   if (!c || c.state === "working" || !c.updated_at) return false;
   const at = new Date(c.updated_at);
@@ -100,14 +98,14 @@ export function useConversation(onSignedOut: () => void) {
 
   const working = posting || conv?.state === "working" || job?.state === "queued" || job?.state === "running";
 
-  /** A new conversation, whatever is open: the band's Start. */
+  /** A new conversation, whatever is open. */
   const start = useCallback(async (line: string) => {
     setError(null);
     setNoKey(false);
     setPosting(true);
     try {
       const { id: cid, job_id } = await api.startConversation(line, when());
-      setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }], question: null, plan: null,
+      setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }],
         updated_at: new Date().toISOString() });
       follow(job_id);
       return true;
@@ -119,21 +117,25 @@ export function useConversation(onSignedOut: () => void) {
     }
   }, [fail, follow]);
 
-  /** The chat's text box: the open conversation goes on; with none, a new one. */
+  const history = isHistory(conv);
+
+  /** The chat's text box: the open conversation goes on; with none, or one from an earlier day, a new one. */
   const send = useCallback(async (line: string) => {
-    if (!conv) return start(line);
+    if (!conv || history) return start(line);
     return turn(() => api.sendMessage(conv.id, line, when()), (c) => ({
-      ...c, state: "working", question: null, lines: [...c.lines, { role: "user", text: line }],
+      ...c, state: "working", lines: [...c.lines, { role: "user", text: line }],
       updated_at: new Date().toISOString(),
     }));
-  }, [conv, start, turn]);
+  }, [conv, history, start, turn]);
 
-  const answer = useCallback(async (toolCallId: string, values: AnswerValues) => {
-    if (!conv) return false;
-    return turn(() => api.answer(conv.id, toolCallId, values, when()),
-      (c) => ({ ...c, state: "working", question: null, updated_at: new Date().toISOString() }));
-  }, [conv, turn]);
+  /** "New chat": clear the page; the next message starts a new conversation. */
+  const reset = useCallback(() => {
+    if (working) return;
+    stop();
+    setConv(null);
+    setError(null);
+    setNoKey(false);
+  }, [working, stop]);
 
-  const history = isHistory(conv);
-  return { conv, history, working, error, noKey, start, send, answer, job, stop };
+  return { conv, history, working, error, noKey, send, reset, job, stop };
 }

@@ -1,6 +1,5 @@
 // The server's JSON API and a job's event stream.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Options } from "./sentence/model";
 
 /** The product's name, in one place on this side. */
 export const APP_NAME = "HarmonicFitness";
@@ -14,7 +13,6 @@ export class ApiError extends Error {
 
 export type Me = { app_name: string; username: string; has_password: boolean; version: string };
 export type AuthInfo = { app_name: string; registration: boolean; version: string };
-export type ContextFile = { path: string; version: number; updated_at: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
   service: string; name: string; key_page: string; set: boolean; updated_at: string | null;
@@ -30,22 +28,12 @@ export type JobView = {
 };
 
 export type ChatLine = { role: "user" | "agent"; text: string };
-export type QuestionOption = { label: string; description?: string | null; recommended?: boolean };
-export type AskedQuestion = {
-  id: string; prompt: string; options: QuestionOption[]; multi: boolean; other: boolean;
-};
-export type OpenQuestion = { questions: AskedQuestion[]; tool_call_id: string };
-export type PlanRow = { block: string; movements: string[]; dose: string; seconds: number };
-export type Plan = {
-  format: string; equipment: string; rows: PlanRow[]; left_out: string; total_seconds: number;
-};
 export type Conversation = {
   id: number; state: "working" | "waiting" | "idle" | "failed"; job_id: number | null;
-  lines: ChatLine[]; question: OpenQuestion | null; plan: Plan | null;
+  lines: ChatLine[];
   /** When it last changed (ISO); null only on a server from before it was sent. */
   updated_at: string | null;
 };
-export type AnswerValues = Record<string, string[] | string>;
 export type When = { today: string; now: string };
 
 async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
@@ -78,8 +66,6 @@ export const api = {
     call<void>("POST", "/api/register", { username, password }),
   setPassword: (current: string | null, next: string) =>
     call<void>("POST", "/api/password", current === null ? { new: next } : { current, new: next }),
-  options: () => call<Options>("GET", "/api/options"),
-  context: () => call<ContextFile[]>("GET", "/api/context"),
   deviceLink: () => call<DeviceLink>("POST", "/api/device-link"),
   keys: () => call<KeyState[]>("GET", "/api/keys"),
   setKey: (service: string, key: string) =>
@@ -92,8 +78,6 @@ export const api = {
   conversation: (id: number) => call<Conversation>("GET", `/api/conversations/${id}`),
   sendMessage: (id: number, line: string, w: When) =>
     call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w }),
-  answer: (id: number, tool_call_id: string, values: AnswerValues, w: When) =>
-    call<{ job_id: number }>("POST", `/api/conversations/${id}/answer`, { tool_call_id, values, ...w }),
   signOut: () => call<void>("POST", "/api/sign-out"),
   job: (id: number) =>
     call<{ id: number; state: JobState; error: string | null }>(

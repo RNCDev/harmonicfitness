@@ -26,7 +26,7 @@ export function Chat({ lines, working, error, noKey, onSend, onOpenKeys }: Props
     <aside className="chat" aria-label="Chat">
       <div className="chat-log" role="log" aria-live="polite">
         {lines.length === 0 && !working && (
-          <p className="m a">Hi. Tap an underlined word to change it, then start. Or just tell me what you want.</p>
+          <p className="m a">Hi. Tell me what workout you'd like: how long, what for, what you have with you. I'll check in, then write it.</p>
         )}
         {lines.map((l, i) => (
           <p key={i} className={`m ${l.role === "user" ? "u" : "a"}`}>{l.text}</p>

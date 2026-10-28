@@ -325,7 +325,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
-                      now=now, stem=conv.stem, plan=conv.plan)
+                      now=now)
     ctx.say("thinking")
     try:
         outcome = agent.run_turn(model, deps, conv.history, line, answer)

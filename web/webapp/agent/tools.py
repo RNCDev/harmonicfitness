@@ -1,21 +1,31 @@
-"""The agent's engine tools: typed functions that run `./harmonicfitness` in one user's temporary
-folder and nothing else. No tool takes a path, every argv is a list, arguments are checked before
-the engine runs, and keys reach the engine only through engine.run's extra_env."""
+"""The agent's tools, as in Claude Code: run a `./harmonicfitness` command, read a file, write a file, list
+files. Paths are written as the skills write them: `me/...` is the user's own folder (this job's temporary
+copy of it), and `knowledge/`, `.claude/skills/` and `coaches/` are the engine's, read-only. Nothing else
+is reachable. Keys reach the engine only through engine.run's extra_env; `me/.env` is never read or written.
+
+The engine's own checks (the brief's menu, the build's gate) keep a workout safe; these tools only keep
+the agent inside the user's folder and away from what this web client can't do yet."""
 import os
-import re
 from dataclasses import dataclass, field
-from typing import Literal
 
 from pydantic import BaseModel
 
-from webapp import engine, worker
+from webapp import engine, folder
 
-LIMIT = 20_000          # what a tool's output or error may hand the model, in characters
-BRIEF_LIMIT = 120_000   # the brief's output: the whole of it (a full-gym brief is about 87,000)
+LIMIT = 120_000         # what a tool's output or a read may hand the model, in characters (a full brief is ~87,000)
+WRITE_LIMIT = 200_000   # the most a write may hold, in characters
+LIST_LIMIT = 500        # files a listing names
 CUT = "[cut]"
-TIMEOUT = 120
-FILES = ("profile.md", "training.md", "health.md", "log.md")
-_TEXT = re.compile(r"^[^\x00-\x1f\x7f-\x9f-][^\x00-\x1f\x7f-\x9f]{0,99}$")
+TIMEOUT = 300           # seconds for one engine command; the engine's cold start can be slow
+
+ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
+READ_ONLY = ("health.md",)   # the check-in can't change limits here yet: tell the listener instead
+
+# The commands the agent may run, and for some, the only subcommands. Everything else (setup, keys init,
+# migrate, backup, models, cache, a coach's audition or make) isn't part of this web client yet.
+COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "keys",
+            "log-session", "movements", "youtube"}
+SUBCOMMANDS = {"coaches": {None, "list", "last", "measured"}, "keys": {None}}
 
 
 @dataclass
@@ -25,8 +35,6 @@ class Deps:
     keys: dict[str, str] = field(repr=False)
     today: str
     now: str
-    stem: str | None = None
-    plan: dict | None = None
 
 
 class ToolResult(BaseModel):
@@ -39,123 +47,142 @@ def _cut(text: str, limit: int = LIMIT) -> str:
     return text if len(text) <= limit else text[:limit] + CUT
 
 
-def _result(code: int, output: str = "", error: str = "", limit: int = LIMIT) -> ToolResult:
-    return ToolResult(code=code, output=_cut(output, limit), error=_cut(error))
+def _result(code: int, output: str = "", error: str = "") -> ToolResult:
+    return ToolResult(code=code, output=_cut(output), error=_cut(error, 20_000))
 
 
 def _refuse(message: str) -> ToolResult:
     return _result(64, error=message)
 
 
-def _run(deps: Deps, argv: list[str], limit: int = LIMIT) -> ToolResult:
+def _inside(base: str, rel: str) -> str | None:
+    """`rel` under `base` as an absolute path, or None when it escapes (.., an absolute path, a symlink out)."""
+    if not rel or rel.startswith("/") or "\\" in rel or "\x00" in rel or ".." in rel.split("/"):
+        return None
+    full = os.path.realpath(os.path.join(base, rel))
+    root = os.path.realpath(base)
+    return full if full == root or full.startswith(root + os.sep) else None
+
+
+def _mine(deps: Deps, path: str) -> tuple[str | None, str]:
+    """A `me/...` path as (absolute path, path inside the folder), or (None, why not)."""
+    if path in ("me", "me/"):
+        return os.path.realpath(deps.home), ""
+    if not path.startswith("me/"):
+        return None, "write paths as the skills do: me/... for the listener's folder"
+    rel = path[3:].rstrip("/")
+    full = _inside(deps.home, rel)
+    if full is None:
+        return None, "that path leaves the listener's folder"
+    if rel == ".env" or rel.endswith("/.env") or rel.startswith(".env"):
+        return None, "me/.env is never read or written: keys are entered in Keys"
+    return full, rel
+
+
+def _arg(deps: Deps, value: str) -> str | None:
+    """One argument for the engine: a `me/...` path becomes the folder's own path; any other path is refused."""
+    if not isinstance(value, str) or "\x00" in value or "\n" in value:
+        return None
+    flag, eq, rest = value.partition("=") if value.startswith("--") and "=" in value else ("", "", value)
+    if rest.startswith("me/") or rest == "me":
+        full, _ = _mine(deps, rest)
+        if full is None:
+            return None
+        rest = full
+    elif rest.startswith("/") or ".." in rest.split("/"):
+        return None
+    return f"{flag}{eq}{rest}" if eq else rest
+
+
+def run(deps: Deps, args: list[str]) -> ToolResult:
+    if not (isinstance(args, list) and args and all(isinstance(a, str) for a in args) and len(args) <= 60):
+        return _refuse("args must be a list of strings, the command first: [\"brief\", \"--goal\", ...]")
+    if args[0] == "./harmonicfitness":
+        args = args[1:]
+    command = args[0] if args else ""
+    if command not in COMMANDS:
+        return _refuse(f"{command or 'nothing'} isn't available here; the commands are {', '.join(sorted(COMMANDS))}")
+    sub = args[1] if len(args) > 1 and not args[1].startswith("-") else None
+    if command in SUBCOMMANDS and sub not in SUBCOMMANDS[command]:
+        return _refuse(f"{command} {sub} isn't available in the web client yet")
+    if command == "build" and "--lint-only" not in args:
+        return _refuse("the web client can't make the audio yet: run build with --lint-only to check the draft, "
+                       "then tell the listener the script is ready and the audio comes in a later version")
+    argv = []
+    for a in args:
+        mapped = _arg(deps, a)
+        if mapped is None:
+            return _refuse(f"{a!r}: paths must be me/... inside the listener's folder")
+        argv.append(mapped)
     r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT)
-    return _result(r.code, r.stdout, r.stderr, limit)
+    home = os.path.realpath(deps.home)
+    # the engine prints the folder's real path; the agent knows it as me/
+    return _result(r.code, r.stdout.replace(home, "me").replace(deps.home, "me"),
+                   r.stderr.replace(home, "me").replace(deps.home, "me"))
 
 
-def _text(value: object) -> bool:
-    """A short single-line string that can't be read as a flag."""
-    return isinstance(value, str) and bool(_TEXT.match(value))
-
-
-def _items(value: object) -> bool:
-    return (isinstance(value, list) and len(value) <= 30
-            and all(_text(v) and "," not in v for v in value))
-
-
-def read_file(deps: Deps, name: Literal["profile.md", "training.md", "health.md", "log.md"]) -> ToolResult:
-    if name not in FILES:
-        return _refuse(f"name must be one of {', '.join(FILES)}")
+def _read(full: str) -> ToolResult:
     try:
-        with open(os.path.join(deps.home, name), encoding="utf-8") as f:
-            return _result(0, f.read())
+        with open(full, encoding="utf-8") as f:
+            return _result(0, f.read(LIMIT + 1))
     except FileNotFoundError:
-        return _result(1, error="no such file yet")
+        return _result(1, error="no such file")
+    except IsADirectoryError:
+        return _result(1, error="that's a folder: use list_files")
     except (OSError, UnicodeDecodeError):
-        return _result(1, error="that file can't be read")
+        return _result(1, error="that file can't be read as text")
 
 
-def check(deps: Deps) -> ToolResult:
-    return _run(deps, ["check"])
+def read_file(deps: Deps, path: str) -> ToolResult:
+    if not isinstance(path, str):
+        return _refuse("path must be a string")
+    if path.startswith("me/"):
+        full, why = _mine(deps, path)
+        return _refuse(why) if full is None else _read(full)
+    if path.startswith(ENGINE_READ):
+        full = _inside(deps.engine_root, path)
+        if full is None or not any(full.startswith(os.path.realpath(os.path.join(deps.engine_root, p)))
+                                   for p in ENGINE_READ):
+            return _refuse("that path leaves the engine's knowledge")
+        return _read(full)
+    return _refuse(f"readable: me/... and the engine's {', '.join(ENGINE_READ)}")
 
 
-def get_coach(deps: Deps) -> ToolResult:
-    return _run(deps, ["get", "coach"])
+def write_file(deps: Deps, path: str, content: str) -> ToolResult:
+    if not (isinstance(path, str) and isinstance(content, str)):
+        return _refuse("path and content must be strings")
+    full, rel = _mine(deps, path)
+    if full is None:
+        return _refuse(rel)
+    if not rel or rel in READ_ONLY:
+        return _refuse("me/health.md can't be changed here yet: tell the listener what you'd change, and use "
+                       "--limit on the brief for today")
+    if folder.skipped(rel):
+        return _refuse("that kind of file isn't kept here")
+    if len(content) > WRITE_LIMIT:
+        return _refuse(f"too long: at most {WRITE_LIMIT} characters")
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    tmp = full + ".tmp-write"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(content)
+    os.replace(tmp, full)
+    return _result(0, f"wrote {path} ({len(content)} characters)")
 
 
-def get_route(deps: Deps, coach: str) -> ToolResult:
-    if not _text(coach):
-        return _refuse("coach must be a coach's name")
-    return _run(deps, ["get", "route", "--coach", coach])
-
-
-def coaches(deps: Deps) -> ToolResult:
-    return _run(deps, ["coaches", "list", "--json"])
-
-
-def content_plan(deps: Deps, minutes: int) -> ToolResult:
-    if type(minutes) is not int or not 10 <= minutes <= 60:
-        return _refuse("minutes must be a whole number from 10 to 60")
-    return _run(deps, ["content", "plan", "--minutes", str(minutes), "--json"])
-
-
-def coverage(deps: Deps) -> ToolResult:
-    return _run(deps, ["coverage", "--json"])
-
-
-def _stem(deps: Deps, goal: str, minutes: int) -> str:
-    base = f"{deps.today}-{goal}-{minutes}"
-    stem, n = base, 1
-    while os.path.exists(os.path.join(deps.home, "workouts", stem, f"{stem}.menu.json")):
-        n += 1
-        stem = f"{base}-{n}"
-    return stem
-
-
-def brief(deps: Deps, goal: str, minutes: int, kit: str | None, preset: str | None,
-          equipment: list[str] | None, coach: str, limits: list[str] = [], avoid: list[str] = [],
-          target: list[str] = [], add: list[str] = []) -> ToolResult:
-    # a new brief replaces the last one, even when it's refused or fails: the refused call may have carried
-    # today's stricter limit, so show_plan never checks against an older menu
-    deps.stem = None
-    deps.plan = None
-    goals, presets = worker.engine_lists(deps.engine_root)
-    if goal not in goals:
-        return _refuse(f"goal must be one of {', '.join(sorted(goals))}")
-    if type(minutes) is not int or not 10 <= minutes <= 60:
-        return _refuse("minutes must be a whole number from 10 to 60")
-    if sum(x is not None for x in (kit, preset, equipment)) != 1:
-        return _refuse("give exactly one of kit, preset or equipment")
-    if preset is not None and preset not in presets:
-        return _refuse(f"preset must be one of {', '.join(sorted(presets))}")
-    if kit is not None and not _text(kit):
-        return _refuse("kit must be a kit's name")
-    if equipment is not None and not (equipment and _items(equipment)):
-        return _refuse("equipment must be a short list of equipment names")
-    if not _text(coach):
-        return _refuse("coach must be a coach's name")
-    for name, value in (("limits", limits), ("avoid", avoid), ("target", target), ("add", add)):
-        if not (_items(value) if name != "limits" else
-                isinstance(value, list) and len(value) <= 30 and all(_text(v) for v in value)):
-            return _refuse(f"{name} must be a short list of plain names")
-    stem = _stem(deps, goal, minutes)
-    draft = os.path.join(deps.home, "workouts", stem, f"{stem}.draft.txt")
-    argv = ["brief", "--goal", goal, "--minutes", str(minutes)]
-    if kit is not None:
-        argv += ["--kit", kit]
-    elif preset is not None:
-        argv += ["--preset", preset]
-    else:
-        argv += ["--equipment", ",".join(equipment)]
-    if add:
-        argv += ["--add", ",".join(add)]
-    if target:
-        argv += ["--target", ",".join(target)]
-    for item in limits:
-        argv += ["--limit", item]
-    if avoid:
-        argv += ["--avoid", ",".join(avoid)]
-    argv += ["--coach", coach, "--today", deps.today, "--save", draft]
-    result = _run(deps, argv, BRIEF_LIMIT)
-    if result.code == 0:
-        deps.stem = stem
-    return result
+def list_files(deps: Deps, path: str = "me/") -> ToolResult:
+    full, why = _mine(deps, path if path.startswith("me") else "")
+    if full is None:
+        return _refuse(why)
+    if not os.path.isdir(full):
+        return _result(1, error="no such folder")
+    home = os.path.realpath(deps.home)
+    names = []
+    for dirpath, dirs, files in os.walk(full):
+        dirs.sort()
+        for name in sorted(files):
+            rel = os.path.relpath(os.path.join(dirpath, name), home).replace(os.sep, "/")
+            if not folder.skipped(rel):
+                names.append("me/" + rel)
+            if len(names) >= LIST_LIMIT:
+                return _result(0, "\n".join(names) + f"\n[more than {LIST_LIMIT}: list a smaller folder]")
+    return _result(0, "\n".join(names) or "(empty)")

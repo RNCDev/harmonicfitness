@@ -629,8 +629,7 @@ class Conversations(ApiCase):
     def test_needs_session_and_origin(self):
         for path in ("/api/conversations/latest", "/api/conversations/1"):
             self.assertEqual(self.client.get(path).status_code, 401, path)
-        for path in ("/api/conversations", "/api/conversations/1/messages",
-                     "/api/conversations/1/answer"):
+        for path in ("/api/conversations", "/api/conversations/1/messages"):
             self.assertEqual(self.client.post(path, json={}, headers=self.origin()).status_code,
                              401, path)
         self.keyed()
@@ -776,73 +775,6 @@ class Conversations(ApiCase):
                          ["a 20-minute strength workout", "That didn't work: interrupted", "try again"])
         self.conn.rollback()
 
-    def test_answer_twice_is_409(self):
-        user_id, uk = self.keyed()
-        body = self.start()
-        self.settle(uk, body["id"])
-        answer = self.turn(tool_call_id="call_1", values=GOOD_ANSWER)
-        path = f"/api/conversations/{body['id']}/answer"
-        r = self.client.post(path, json=answer, headers=self.origin())
-        self.assertEqual(r.status_code, 202, r.text)
-        job = r.json()["job_id"]
-        self.assertEqual(jobs.args(self.conn, uk, job)["answer"],
-                         {"tool_call_id": "call_1", "values": GOOD_ANSWER})
-        self.assertIsNone(jobs.args(self.conn, uk, job)["line"])
-        self.conn.rollback()
-        r = self.client.post(path, json=answer, headers=self.origin())
-        self.assertEqual(r.status_code, 409)
-        self.assertEqual(self.turn_jobs(user_id), [body["job_id"], job])
-        c = conversations.load(self.conn, uk, body["id"])
-        self.assertEqual((c.state, c.question, c.job_id), ("working", None, job))
-        self.assertEqual(c.lines[-1], {"role": "user", "text": "Anything sore or off today: Nothing new · Length: 25 min"})
-        self.conn.rollback()
-
-    def test_answer_to_another_question_is_409(self):
-        user_id, uk = self.keyed()
-        body = self.start()
-        self.settle(uk, body["id"], state="idle", question=None)
-        path = f"/api/conversations/{body['id']}/answer"
-        r = self.client.post(path, json=self.turn(tool_call_id="call_1", values=GOOD_ANSWER),
-                             headers=self.origin())
-        self.assertEqual(r.status_code, 409)
-        self.settle(uk, body["id"])
-        r = self.client.post(path, json=self.turn(tool_call_id="call_2", values=GOOD_ANSWER),
-                             headers=self.origin())
-        self.assertEqual(r.status_code, 409)
-        self.assertEqual(self.turn_jobs(user_id), [body["job_id"]])
-
-    def test_answer_validates_options(self):
-        user_id, uk = self.keyed()
-        body = self.start()
-        self.settle(uk, body["id"])
-        path = f"/api/conversations/{body['id']}/answer"
-        for values in ({"limits": ["Nothing new"], "length": ["45 min"]},          # no such option
-                       {"limits": ["Nothing new"], "length": ["25 min", "30 min"]},  # not multi
-                       {"limits": ["Nothing new"], "length": "other: 40 min"},    # no other
-                       {"limits": ["Nothing new"], "length": "25 min"},           # a bare string
-                       {"limits": [], "length": ["25 min"]},                      # nothing chosen
-                       {"limits": ["Knee", "Knee"], "length": ["25 min"]},        # twice
-                       {"limits": "other:  ", "length": ["25 min"]},              # empty other
-                       {"limits": ["Nothing new"]},                               # one missing
-                       {**GOOD_ANSWER, "coach": ["Andy"]},                        # unknown id
-                       {}):
-            r = self.client.post(path, json=self.turn(tool_call_id="call_1", values=values),
-                                 headers=self.origin())
-            self.assertEqual(r.status_code, 422, values)
-        for bad in (self.turn(tool_call_id="call_1"), self.turn(values=GOOD_ANSWER),
-                    self.turn(tool_call_id="call_1", values={"limits": 5}),
-                    self.turn(tool_call_id="call_1", values=GOOD_ANSWER, now="noon")):
-            self.assertEqual(self.client.post(path, json=bad, headers=self.origin()).status_code, 422, bad)
-        self.assertEqual(self.turn_jobs(user_id), [body["job_id"]])
-        self.assertEqual(conversations.load(self.conn, uk, body["id"]).state, "waiting")
-        self.conn.rollback()
-        r = self.client.post(path, json=self.turn(tool_call_id="call_1", values={
-            "limits": ["Nothing new", "other: my left wrist"], "length": ["30 min"]}), headers=self.origin())
-        self.assertEqual(r.status_code, 422)   # an other: text goes alone, as a string
-        r = self.client.post(path, json=self.turn(tool_call_id="call_1", values={
-            "limits": "other: my left wrist", "length": ["30 min"]}), headers=self.origin())
-        self.assertEqual(r.status_code, 202, r.text)
-
     def test_other_users_conversation_is_404(self):
         _, uk_a = self.make_user()
         cid = conversations.create(self.conn, uk_a, "mine")
@@ -854,8 +786,6 @@ class Conversations(ApiCase):
         self.assertEqual(self.client.get(f"/api/conversations/{cid}").status_code, 404)
         self.assertEqual(self.client.get("/api/conversations/latest").status_code, 204)
         for path, body in ((f"/api/conversations/{cid}/messages", self.turn(line="hi")),
-                           (f"/api/conversations/{cid}/answer",
-                            self.turn(tool_call_id="call_1", values=GOOD_ANSWER)),
                            ("/api/conversations/999999999/messages", self.turn(line="hi"))):
             r = self.client.post(path, json=body, headers=self.origin())
             self.assertEqual(r.status_code, 404, path)

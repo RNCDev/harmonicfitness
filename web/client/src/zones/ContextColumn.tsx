@@ -1,7 +1,7 @@
-// The context column: the user's files by name, signing in another device, the password.
+// The settings drawer: keys, signing in another device, the password, signing out.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { api, NotSignedIn, type ContextFile, type DeviceLink } from "../api";
+import { api, NotSignedIn, type DeviceLink } from "../api";
 import { PasswordForm } from "../SignIn";
 import { KeysBox } from "./KeysBox";
 
@@ -74,7 +74,6 @@ function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut:
 }
 
 type Props = {
-  files: ContextFile[] | null;
   username: string;
   open: boolean;
   onClose: () => void;
@@ -82,25 +81,16 @@ type Props = {
   onSignOut: () => void;
 };
 
-export function ContextColumn({ files, username, open, onClose, onSignedOut, onSignOut }: Props) {
+export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut }: Props) {
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
-      <aside className={`ctx${open ? " open" : ""}`} id="ctx" aria-label="Your files">
+      <aside className={`ctx${open ? " open" : ""}`} id="ctx" aria-label="Keys and settings">
         <div className="ctx-top">
-          <h2>Your files</h2>
+          <h2>Keys and settings</h2>
           <button type="button" className="ctx-close" onClick={onClose}>Close</button>
         </div>
         <div className="cx-list">
-          <div className="cx-box">
-            {files === null ? <p className="cx-s">Loading…</p> : files.length === 0 ? (
-              <p className="cx-s">No files yet.</p>
-            ) : (
-              <ul className="files">
-                {files.map((f) => <li key={f.path}>{f.path}</li>)}
-              </ul>
-            )}
-          </div>
           <KeysBox onSignedOut={onSignedOut} />
           <DeviceLinkBox onSignedOut={onSignedOut} />
           <PasswordBox username={username} onSignedOut={onSignedOut} />
