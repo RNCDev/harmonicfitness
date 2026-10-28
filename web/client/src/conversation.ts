@@ -128,6 +128,25 @@ export function useConversation(onSignedOut: () => void) {
     }));
   }, [conv, history, start, turn]);
 
+  /** The Record button: approve the priced recording. */
+  const record = useCallback(async () => {
+    if (!conv) return false;
+    return turn(() => api.record(conv.id, when()), (c) => ({
+      ...c, state: "working", offer: null, lines: [...c.lines, { role: "user", text: "Yes, record it." }],
+      updated_at: new Date().toISOString(),
+    }));
+  }, [conv, turn]);
+
+  /** The Stop button: the running turn's work ends within a few seconds. */
+  const halt = useCallback(async () => {
+    if (!conv) return;
+    try {
+      await api.stop(conv.id);
+    } catch (e) {
+      fail(e);
+    }
+  }, [conv, fail]);
+
   /** "New chat": clear the page; the next message starts a new conversation. */
   const reset = useCallback(() => {
     if (working) return;
@@ -137,5 +156,5 @@ export function useConversation(onSignedOut: () => void) {
     setNoKey(false);
   }, [working, stop]);
 
-  return { conv, history, working, error, noKey, send, reset, job, stop };
+  return { conv, history, working, error, noKey, send, record, halt, reset, job, stop };
 }

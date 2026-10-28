@@ -29,9 +29,12 @@ export type JobView = {
 
 export type Audio = { id: string; name: string; expires_at: string };
 export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
+export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean };
 export type Conversation = {
   id: number; state: "working" | "waiting" | "idle" | "failed"; job_id: number | null;
   lines: ChatLine[];
+  /** A priced recording waiting for the Record button. */
+  offer?: Offer | null;
   /** When it last changed (ISO); null only on a server from before it was sent. */
   updated_at: string | null;
 };
@@ -79,6 +82,8 @@ export const api = {
   conversation: (id: number) => call<Conversation>("GET", `/api/conversations/${id}`),
   sendMessage: (id: number, line: string, w: When) =>
     call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w }),
+  record: (id: number, w: When) => call<{ job_id: number }>("POST", `/api/conversations/${id}/record`, w),
+  stop: (id: number) => call<{ stopping: boolean }>("POST", `/api/conversations/${id}/stop`),
   signOut: () => call<void>("POST", "/api/sign-out"),
   importFolder: async (zip: Blob): Promise<{ imported: number; left_out: number }> => {
     const r = await fetch("/api/import", {

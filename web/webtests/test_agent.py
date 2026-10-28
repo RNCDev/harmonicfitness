@@ -54,13 +54,70 @@ class Run(AgentCase):
             r = tools.run(self.deps, args)
             self.assertEqual(r.code, 64, args)
 
-    def test_a_full_build_is_allowed_with_more_time(self):
+    def fake_engine(self, speaks=3000, lint=0):
         from unittest import mock
-        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "", "")) as run:
-            tools.run(self.deps, ["build", "me/workouts/a/a.draft.txt", "A", "--coach", "Coach Reed"])
-            self.assertEqual(run.call_args.kwargs["timeout"], tools.BUILD_TIMEOUT)
-            tools.run(self.deps, ["build", "me/workouts/a/a.draft.txt", "A", "--lint-only"])
-            self.assertEqual(run.call_args.kwargs["timeout"], tools.TIMEOUT)
+        calls = []
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            calls.append((argv, timeout))
+            if argv[:2] == ["get", "cost"]:
+                return tools.engine.Result(0, '{"service": "fish", "chars": %d, "usd": 0.045, "pending_design": '
+                                              'true, "design_usd": 0.01}' % speaks, "")
+            if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
+                return tools.engine.Result(64, f"  the script speaks {speaks:,} characters; this build may send at most 1", "")
+            if "--lint-only" in argv:
+                return tools.engine.Result(lint, "lint ok" if lint == 0 else "a line is too long", "")
+            return tools.engine.Result(0, "recorded", "")
+        return mock.patch.object(tools.engine, "run", side_effect=run), calls
+
+    BUILD = ["build", "me/workouts/a/a.draft.txt", "Workout A", "--coach", "Coach Reed"]
+
+    def test_a_full_build_is_priced_and_offered_first(self):
+        patch, calls = self.fake_engine()
+        with patch:
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertIn("Not recorded yet", r.output)
+        self.assertIn("$0.06", r.output)   # the voice design included
+        self.assertEqual(self.deps.offer, {"draft": "me/workouts/a/a.draft.txt", "name": "Workout A",
+                                           "coach": "Coach Reed", "chars": 3000, "usd": 0.055, "service": "fish",
+                                           "design": True})
+        self.assertFalse(any("--lint-only" not in a and a[0] == "build" for a, _ in calls))   # nothing recorded
+
+    def test_a_lint_problem_is_fixed_before_any_price(self):
+        patch, calls = self.fake_engine(lint=1)
+        with patch:
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertEqual(r.code, 1)
+        self.assertIsNone(self.deps.offer)
+        self.assertEqual(len(calls), 1)
+
+    def test_over_todays_allowance_is_refused(self):
+        self.deps.chars_left = 1000
+        patch, _ = self.fake_engine()
+        with patch:
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertEqual(r.code, 64)
+        self.assertIn("today's allowance", r.error)
+        self.assertIsNone(self.deps.offer)
+
+    def test_an_approved_build_records_within_its_price(self):
+        self.deps.approved = {"draft": "me/workouts/a/a.draft.txt", "coach": "Coach Reed", "chars": 3000}
+        patch, calls = self.fake_engine()
+        with patch:
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertEqual(r.output, "recorded")
+        argv, timeout = calls[-1]
+        self.assertEqual((argv[-2:], timeout), (["--max-chars", "3000"], tools.BUILD_TIMEOUT))
+
+    def test_an_approval_is_for_its_own_draft_and_coach(self):
+        self.deps.approved = {"draft": "me/workouts/a/a.draft.txt", "coach": "Coach Ellis", "chars": 3000}
+        patch, calls = self.fake_engine()
+        with patch:
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertIn("Not recorded yet", r.output)
+
+    def test_a_build_needs_its_coach(self):
+        self.assertEqual(tools.run(self.deps, ["build", "me/workouts/a/a.draft.txt", "A"]).code, 64)
 
     def test_paths_stay_in_the_folder(self):
         for bad in ("me/../../etc/passwd", "/etc/passwd", "../tools/paths.py", "--save=/tmp/x",
@@ -97,9 +154,12 @@ class Files(AgentCase):
         self.assertIn("me/profile.md", tools.list_files(self.deps).output)
 
     def test_write_refuses(self):
-        for bad in ("me/health.md", "me/.env", "me/a.mp3", "tools/x.py", "me/../x.md", "knowledge/x.md", "me/"):
+        for bad in ("me/.env", "me/a.mp3", "tools/x.py", "me/../x.md", "knowledge/x.md", "me/"):
             self.assertEqual(tools.write_file(self.deps, bad, "x").code, 64, bad)
         self.assertEqual(tools.write_file(self.deps, "me/big.md", "x" * (tools.WRITE_LIMIT + 1)).code, 64)
+
+    def test_the_check_in_may_change_health(self):
+        self.assertEqual(tools.write_file(self.deps, "me/health.md", "+++\nschema = 6\n+++\n").code, 0)
 
     def test_list_hides_skipped_files(self):
         with open(os.path.join(self.home, ".env"), "w") as f:

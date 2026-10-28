@@ -103,6 +103,18 @@ def heartbeat(conn, job_id: int) -> bool:
         (job_id,)).rowcount == 1)
 
 
+def request_stop(conn, uk: UserKey, job_id: int) -> bool:
+    """The listener's Stop, for their own queued or running job. No commit: the caller does."""
+    return conn.execute("update jobs set stop_requested = true where id = %s and user_id = %s "
+                        "and state in ('queued', 'running')", (job_id, uk.user_id)).rowcount == 1
+
+
+def stop_requested(conn, job_id: int) -> bool:
+    """Whether Stop was pressed for the job. Commits (the heartbeat's own connection)."""
+    return _done(conn, lambda: bool((conn.execute("select stop_requested from jobs where id = %s", (job_id,))
+                                     .fetchone() or (False,))[0]))
+
+
 def finish(conn, uk: UserKey, job_id: int, result: dict) -> bool:
     """A running job done, with its sealed result; False if it was no longer running. Commits."""
     return _done(conn, lambda: conn.execute(

@@ -170,7 +170,7 @@ class Worker(JobsCase):
         self.conn.commit()
         seen = []
 
-        def record(root, home, argv, extra_env={}, timeout=120):
+        def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
             seen.append(dict(extra_env))
             return worker.engine.Result(1, "", "")
         with mock.patch.object(worker.engine, "run", side_effect=record):
@@ -480,37 +480,89 @@ class Turn(JobsCase):
         self.assertEqual(prompts[1], "25 minutes")
         self.assertEqual(started, [today()])
 
-    def test_a_build_puts_its_mp3_in_the_chat(self):
-        from webapp import media
+    def test_a_recording_is_priced_then_approved_then_kept(self):
+        from webapp import clipcache, media
         uk = self.user()
         cid = self.start(uk)
         real = worker.engine.run
+        built = []
 
-        def engine_run(root, home, argv, extra_env={}, timeout=120):
+        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            if argv[:2] == ["get", "cost"]:
+                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
             if argv and argv[0] == "build":
+                if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
+                    return worker.engine.Result(64, "the script speaks 2,000 characters; at most 1", "")
+                if "--lint-only" in argv:
+                    return worker.engine.Result(0, "ok", "")
+                built.append(argv)
+                cache = os.path.join(home, "workouts", ".audio-cache")
+                self.assertTrue(os.path.isfile(os.path.join(cache, "old.wav")) or len(built) == 1)
                 os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
                 with open(os.path.join(home, "workouts", "w", "Workout 5 min.mp3"), "wb") as f:
                     f.write(b"ID3fake-mp3")
+                os.makedirs(cache, exist_ok=True)
+                with open(os.path.join(cache, "old.wav"), "wb") as f:
+                    f.write(b"RIFFclip")
                 return worker.engine.Result(0, "built", "")
             return real(root, home, argv, extra_env=extra_env, timeout=timeout)
 
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Reed"]
+
         def script(messages, info):
-            if not [p for m in messages for p in m.parts if isinstance(p, ToolReturnPart)]:
-                return ModelResponse(parts=[ToolCallPart("run", {"args": ["build", "me/workouts/w/w.draft.txt",
-                                                                          "Workout 5 min"]}, tool_call_id="b1")])
-            return ModelResponse(parts=[TextPart("Your workout is ready.")])
+            if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id=f"b{len(messages)}")])
+            return ModelResponse(parts=[TextPart("Done.")])
         with mock.patch.object(worker.engine, "run", side_effect=engine_run):
             job, conv = self.run_turn(uk, script, cid, line="just go")
+            self.assertEqual(self.state(job), ("done", None))
+            self.assertEqual(built, [])                       # priced, not recorded
+            self.assertEqual(conv.offer["chars"], 2000)
+            self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "Yes, record it.", None))
+            self.conn.commit()
+            job, conv = self.run_turn(uk, script, cid, line="Yes, record it.", record=True)
         self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(conv.lines[-2]["text"], "Your workout is ready.")
+        self.assertEqual(built[0][-2:], ["--max-chars", "2000"])
+        self.assertIsNone(conv.offer)
         audio = conv.lines[-1]["audio"]
         self.assertEqual(audio["name"], "Workout 5 min")
         self.assertEqual(media.get(self.conn, uk, audio["id"])[1], b"ID3fake-mp3")
         self.conn.rollback()
         self.assertNotIn("workouts/w/Workout 5 min.mp3", store.read_all(self.conn, uk))   # never in the store
         self.conn.rollback()
-        self.assertIn("Your audio is ready", [b.get("text") for _, b in jobs.events(self.conn, uk, job)])
+        home = self.homes[-1]
+        os.makedirs(home, exist_ok=True)
+        self.assertEqual(list(clipcache.load(self.conn, uk, home)), ["old.wav"])   # kept for the next recording
         self.conn.rollback()
+
+    def test_stop_kills_the_turn_and_says_so(self):
+        import threading
+        from webapp import agent as agentmod
+        uk = self.user()
+        cid = self.start(uk)
+        started = threading.Event()
+
+        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            started.set()
+            self.assertTrue(cancel.wait(10))   # the Stop arrives through the heartbeat
+            return worker.engine.Result(130, "", "stopped")
+
+        def script(messages, info):
+            if not [p for m in messages for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": ["coverage"]}, tool_call_id="c1")])
+            return ModelResponse(parts=[TextPart("never")])
+        job = self.enqueue_turn(uk, cid, self.turn_args(cid, "go"))
+        jobs.request_stop(self.conn, uk, job)
+        self.conn.commit()
+        with mock.patch.object(worker, "STOP_POLL", 0.05), \
+                mock.patch.object(worker.engine, "run", side_effect=engine_run), \
+                mock.patch.object(providers, "model_for", return_value=FunctionModel(script)), \
+                mock.patch.object(agentmod, "prefetch", return_value=None):
+            self.assertTrue(self.run_one())
+        conv = conversations.load(self.conn, uk, cid)
+        self.conn.rollback()
+        self.assertEqual(conv.state, "failed")
+        self.assertEqual(conv.lines[-1]["text"], "Stopped. Send a message when you want to carry on.")
 
     def test_turn_needs_a_model_key(self):
         uk = self.user(key=False)
@@ -574,7 +626,7 @@ class Turn(JobsCase):
         seen = []
         real = worker.engine.run
 
-        def record(root, home, argv, extra_env={}, timeout=120):
+        def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
             seen.append(dict(extra_env))
             return real(root, home, argv, extra_env=extra_env, timeout=timeout)
 

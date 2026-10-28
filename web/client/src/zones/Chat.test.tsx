@@ -57,6 +57,24 @@ describe("the chat", () => {
     expect(screen.getByText(/has expired/)).toBeInTheDocument();
   });
 
+  it("offers the priced recording with its price, and records on the button", () => {
+    const onRecord = vi.fn();
+    render(<Chat {...base} offer={{ name: "Workout 5 min", coach: "Coach Reed", chars: 3000, usd: 0.045,
+      service: "fish" }} onRecord={onRecord} />);
+    expect(screen.getByText(/3,000 characters on Fish Audio, about \$0.05/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Record it (about $0.05)" }));
+    expect(onRecord).toHaveBeenCalled();
+  });
+
+  it("Stop says it's stopping and asks once", () => {
+    const onStop = vi.fn();
+    render(<Chat {...base} working onStop={onStop} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Stopping…/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+  });
+
   it("never renders the listener's own line as Markdown", () => {
     render(<Chat {...base} lines={[{ role: "user", text: "**not bold**" }]} />);
     expect(screen.getByText("**not bold**")).toBeInTheDocument();

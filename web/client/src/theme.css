@@ -218,3 +218,7 @@ button[disabled] { cursor: not-allowed }
 .m.audio { display: grid; gap: 8px; min-width: min(100%, 22em) }
 .m.audio audio { width: 100% }
 .audio-name { margin: 0; font-family: var(--display); font-weight: 600 }
+.think-head .stop { margin-left: 12px; font-size: 13px }
+.m.offer { display: grid; gap: 6px; border: 1px solid var(--tok) }
+.m.offer p { margin: 0 }
+.m.offer .go { justify-self: start; margin-top: 4px }

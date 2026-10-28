@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Audio, ChatLine } from "../api";
+import type { Audio, ChatLine, Offer } from "../api";
 
 export type Step = { text: string; failed?: boolean };
 
@@ -17,7 +17,30 @@ type Props = {
   /** Resolves false when the line was refused, so the box gets its text back. */
   onSend: (line: string) => Promise<boolean> | void;
   onOpenKeys: () => void;
+  /** A priced recording waiting for approval, and the button that approves it. */
+  offer?: Offer | null;
+  onRecord?: () => Promise<boolean> | void;
+  /** Stops the running turn. */
+  onStop?: () => void;
 };
+
+const SERVICES: Record<string, string> = { fish: "Fish Audio", elevenlabs: "ElevenLabs", gemini: "Gemini", inworld: "Inworld" };
+
+function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promise<boolean> | void }) {
+  const [busy, setBusy] = useState(false);
+  const price = offer.usd < 0.01 ? "under 1¢" : `about $${(Math.ceil(offer.usd * 100 - 1e-9) / 100).toFixed(2)}`;   // rounded up
+  return (
+    <div className="m a offer">
+      <p><strong>{offer.name}</strong> is ready to record with {offer.coach}.</p>
+      <p className="cx-s">{offer.chars.toLocaleString()} characters on {SERVICES[offer.service] ?? offer.service}, {price}
+        {offer.design ? ", including designing the coach's voice" : ""}. It's charged to your own key.</p>
+      <button type="button" className="go" disabled={busy}
+        onClick={async () => { setBusy(true); if ((await onRecord?.()) === false) setBusy(false); }}>
+        {busy ? "Starting…" : `Record it (${price})`}
+      </button>
+    </div>
+  );
+}
 
 const SHOWN_STEPS = 6;
 
@@ -57,7 +80,8 @@ function seconds(since: number): string {
 }
 
 /** "Thinking…" with a running clock and the coach's latest steps. */
-function Working({ steps }: { steps: Step[] }) {
+function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
+  const [stopping, setStopping] = useState(false);
   const [since] = useState(() => Date.now());
   const [, tick] = useState(0);
   useEffect(() => {
@@ -68,7 +92,11 @@ function Working({ steps }: { steps: Step[] }) {
   const shown = steps.slice(-SHOWN_STEPS);
   return (
     <div className="m a thinking" aria-live="polite">
-      <p className="think-head">Working… <span className="clock">{seconds(since)}</span></p>
+      <p className="think-head">{stopping ? "Stopping…" : "Working…"} <span className="clock">{seconds(since)}</span>
+        {onStop && !stopping && (
+          <button type="button" className="quiet stop" onClick={() => { setStopping(true); onStop(); }}>Stop</button>
+        )}
+      </p>
       {shown.length > 0 && (
         <ul className="steps">
           {steps.length > shown.length && <li className="more">{steps.length - shown.length} earlier steps</li>}
@@ -83,7 +111,7 @@ function Working({ steps }: { steps: Step[] }) {
   );
 }
 
-export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys }: Props) {
+export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop }: Props) {
   const [text, setText] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
@@ -111,7 +139,8 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{l.text}</ReactMarkdown>
           </div>
         ))}
-        {working && <Working steps={steps} />}
+        {offer && !working && <RecordOffer offer={offer} onRecord={onRecord} />}
+        {working && <Working steps={steps} onStop={onStop} />}
         <div ref={end} />
       </div>
       {error && (

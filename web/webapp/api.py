@@ -37,7 +37,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
 from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
-    store, \
+    spend, store, \
     worker
 
 COOKIE = "wt_session"
@@ -115,6 +115,15 @@ class BriefJob(BaseModel):
 Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # the worker's check_turn says the rest
 Line = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
+
+class TurnWhen(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    today: Day
+    now: Now
+
+
+RECORD_LINE = "Yes, record it."
+
 
 class TurnLine(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -642,8 +651,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     # ---- conversations ----------------------------------------------------------------------
 
-    def turn_args(cid: int, line: str | None, answer: dict | None, today: str, now: str) -> dict:
+    def turn_args(cid: int, line: str | None, answer: dict | None, today: str, now: str,
+                  record: bool = False) -> dict:
         args = {"conversation_id": cid, "line": line, "answer": answer, "today": today, "now": now}
+        if record:
+            args["record"] = True
         problem = worker.check_turn(args)
         if problem is not None:
             raise HTTPException(422, problem)
@@ -676,6 +688,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         (ISO, so the client can show an earlier day's conversation as history)."""
         return {"id": c.id, "state": c.state, "job_id": c.job_id if c.state == "working" else None,
                 "lines": c.lines, "question": c.question, "plan": c.plan,
+                "offer": {k: c.offer[k] for k in ("name", "coach", "chars", "usd", "service", "design")
+                          if k in c.offer} if c.offer and c.state in ("idle", "failed") else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None}
 
     def healed(conn, uk: store.UserKey, cid: int) -> conversations.Conversation:
@@ -723,6 +737,40 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
                 raise
         return shown(c)
+
+    @app.post("/api/conversations/{cid}/record", status_code=202, **post)
+    def record_offer(uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnWhen, Body()]):
+        """The listener approves the priced recording: its characters are reserved from today's allowance,
+        then a turn records it, within that price."""
+        args = turn_args(cid, RECORD_LINE, None, body.today, body.now, record=True)
+        with turn_transaction(uk) as conn:
+            c = healed(conn, uk, cid)
+            if c.state not in ("idle", "failed") or not c.offer:
+                raise HTTPException(409, "There's no recording waiting for you here.")
+            cap = spend.daily_cap()
+            if not spend.reserve(conn, uk, body.today, int(c.offer.get("chars") or 0), cap):
+                raise HTTPException(409, f"That's over today's allowance of {cap:,} characters of recording. "
+                                         "A shorter workout fits, or try again tomorrow.")
+            if not conversations.begin_turn(conn, uk, cid, RECORD_LINE, None):
+                raise HTTPException(409, STILL_WORKING)
+            job_id = queue_turn(conn, uk, args)
+        return {"job_id": job_id}
+
+    @app.post("/api/conversations/{cid}/stop", status_code=202, **post)
+    def stop_turn(uk: User, cid: Annotated[int, JOB_ID]):
+        """The listener's Stop: the running turn's work is killed within a few seconds."""
+        with connection() as conn:
+            try:
+                try:
+                    c = conversations.load(conn, uk, cid)
+                except LookupError:
+                    raise HTTPException(404, "no such conversation") from None
+                stopped = c.state == "working" and c.job_id is not None and jobs.request_stop(conn, uk, c.job_id)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return {"stopping": stopped}
 
     @app.post("/api/conversations/{cid}/messages", status_code=202, **post)
     def post_message(uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnLine, Body()]):

@@ -7,11 +7,16 @@ import os
 import signal
 import subprocess
 import sys
+import threading
+import time
 from typing import Iterable, Mapping, NamedTuple
 
 ALLOWED = ("PATH", "LANG", "LC_ALL", "TZ", "UV_CACHE_DIR", "HARMONICFITNESS_PYTHON")
 RESERVED = ("HOME", "HARMONICFITNESS_HOME", "HARMONICFITNESS_WEB")
 TIMED_OUT = 124
+STOPPED = 130     # the listener pressed Stop
+POLL = 0.25       # seconds between looks at the cancel event and the clock
+GRACE = 5         # seconds a killed engine gets to exit
 
 
 PR_SET_DUMPABLE = 4
@@ -62,26 +67,50 @@ def _kill(proc: subprocess.Popen, sig: int) -> None:
 
 
 def run(engine_root: str, home: str, argv: list[str],
-        extra_env: Mapping[str, str] = {}, timeout: float = 120) -> Result:
+        extra_env: Mapping[str, str] = {}, timeout: float = 120,
+        cancel: threading.Event | None = None) -> Result:
+    """One engine command, its output read in a thread so `cancel` (the listener's Stop) and the timeout
+    can end it at any time: the engine's whole process group is killed, so nothing it started keeps
+    running or billing."""
     env = _env(home, extra_env)
+    if cancel is not None and cancel.is_set():
+        return Result(STOPPED, "", "stopped\n")
     proc = subprocess.Popen([os.path.join(engine_root, "harmonicfitness"), *argv], cwd=engine_root, env=env,
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             start_new_session=True)
-    timed_out = False
-    try:
-        out, err = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        _kill(proc, signal.SIGTERM)
+    box: dict = {}
+
+    def talk() -> None:
         try:
-            out, err = proc.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
+            box["out"] = proc.communicate()
+        except Exception as e:  # noqa: BLE001 - reported below as no output
+            box["error"] = e
+    reader = threading.Thread(target=talk, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + timeout
+    timed_out = stopped = False
+    while reader.is_alive():
+        reader.join(POLL)
+        if cancel is not None and cancel.is_set():
+            stopped = True
+            break
+        if time.monotonic() > deadline:
+            timed_out = True
+            break
+    if reader.is_alive():
+        _kill(proc, signal.SIGTERM)
+        reader.join(GRACE)
+        if reader.is_alive():
             _kill(proc, signal.SIGKILL)
-            out, err = proc.communicate()
+            reader.join(GRACE)
     _kill(proc, signal.SIGKILL)   # nothing of the engine's may outlive the call
+    out, err = box.get("out") or (b"", b"")
     stdout = out.decode("utf-8", errors="replace")
     stderr = err.decode("utf-8", errors="replace")
     if timed_out:
         stderr = stderr.rstrip("\n") + ("\n" if stderr.strip() else "") + f"timed out after {timeout:g} s\n"
+    if stopped:
+        stderr = stderr.rstrip("\n") + ("\n" if stderr.strip() else "") + "stopped\n"
     secrets = list(extra_env.values())
-    return Result(TIMED_OUT if timed_out else proc.returncode, scrub(stdout, secrets), scrub(stderr, secrets))
+    code = STOPPED if stopped else TIMED_OUT if timed_out else proc.returncode
+    return Result(code, scrub(stdout, secrets), scrub(stderr, secrets))

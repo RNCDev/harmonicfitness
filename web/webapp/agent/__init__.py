@@ -16,7 +16,7 @@ from pydantic_ai.messages import ToolCallPart, ToolReturnPart
 from . import tools
 from .tools import Deps, ToolResult
 
-__all__ = ["AGENT", "Deps", "LIMITS", "prefetch", "start_feeds", "NOT_OPEN", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
+__all__ = ["AGENT", "Deps", "LIMITS", "prefetch", "start_feeds", "NOT_OPEN", "STOPPED", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
            "UNFINISHABLE", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
@@ -162,6 +162,7 @@ def start_feeds(deps: Deps, pool: ThreadPoolExecutor) -> Future:
 NOT_OPEN = "not_open"            # TurnError.reason: an answer to a question (this agent asks in the chat)
 UNFINISHABLE = "unfinishable"    # TurnError.reason: kept for the worker's wording
 TIMED_OUT = "timed_out"          # TurnError.reason: the turn ran past TURN_SECONDS and was cancelled
+STOPPED = "stopped"              # TurnError.reason: the listener pressed Stop
 
 
 class TurnError(Exception):
@@ -211,12 +212,23 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     timer = threading.Timer(TURN_SECONDS, token.cancel)
     timer.daemon = True
     timer.start()
+    done = threading.Event()
+    def watch() -> None:   # Stop cancels the run as the clock would; the watch ends with the turn
+        while not done.is_set():
+            if deps.cancel.wait(0.5):
+                token.cancel()
+                return
+    if deps.cancel is not None:
+        threading.Thread(target=watch, daemon=True).start()
     try:
         result = AGENT.run_sync(prompt, model=model, deps=deps, message_history=history,
                                 usage_limits=LIMITS, cancellation_token=token)
     except RunCancelled:
+        if deps.cancel is not None and deps.cancel.is_set():
+            raise TurnError("stopped", STOPPED) from None
         raise TurnError("the turn ran too long", TIMED_OUT) from None
     finally:
+        done.set()
         timer.cancel()
     u = result.usage
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,

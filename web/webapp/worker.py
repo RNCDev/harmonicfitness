@@ -24,14 +24,15 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import config, conversations, db, engine, folder, jobs, keystore, media, providers, store
+from . import clipcache, config, conversations, db, engine, folder, jobs, keystore, media, providers, spend, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
+STOP_POLL = 2             # seconds between the heartbeat's looks for the listener's Stop
 CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
 JOIN_SLACK = 5            # seconds past CONNECT_TIMEOUT that stopping the heartbeat may wait
 IDLE_WAIT = 5             # seconds to wait for NOTIFY jobs_queued before polling again
 BRIEF_TIMEOUT = 300       # seconds; the engine's cold start can be slow
-NEVER_WRITE_BACK = frozenset({"health.md"})
+NEVER_WRITE_BACK = frozenset()   # the check-in may change health.md, with the listener's permission (the skill's rule)
 
 
 class JobFailed(Exception):
@@ -55,6 +56,7 @@ class Ctx:
     pending: tuple | None = None   # (changes, base) to write back when the job completes
     keys: dict = field(default_factory=dict, repr=False)   # {key_var: value}: the engine's extra_env, set by run_one
     on_done: Callable[[], None] | None = None   # run in the transaction that marks the job done
+    cancel: threading.Event = field(default_factory=threading.Event)   # the listener's Stop
     on_lost: Callable[[str], None] | None = None   # run with the job's error (then committed) when the handler returned but the job wasn't done
 
     def say(self, stage: str, **fields) -> None:
@@ -209,6 +211,7 @@ TOO_LONG = "this turn ran too long; try again with less to do"
 ANSWER_NOT_OPEN = "that answer didn't match the open question; send a message instead"
 CANT_FINISH = "the coach stopped on a step it can't finish here; send a message to carry on"
 UNEXPECTED = "the job stopped unexpectedly"
+STOPPED = "you stopped it"
 
 
 class _Stop(Exception):
@@ -221,7 +224,7 @@ class _Stop(Exception):
 
 def _turn_request(args: dict) -> tuple[str | None, tuple[str, dict] | None, str, str]:
     """(line, answer, today, now), checked; exactly one of line or answer."""
-    if set(args) != TURN_ARGS:
+    if set(args) - {"record"} != TURN_ARGS or args.get("record", False) not in (True, False):
         raise _Stop("invalid request: needs conversation_id, line, answer, today and now")
     line, answer = args["line"], args["answer"]
     if (line is None) == (answer is None):
@@ -270,8 +273,8 @@ def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str)
     if conv is None or conv.state != "working" or conv.job_id != ctx.job_id:
         ctx.conn.rollback()
         return
-    failed = dataclasses.replace(conv, state="failed", question=None,
-                                 lines=_agent_line(conv, f"That didn't work: {message}"))
+    said = "Stopped. Send a message when you want to carry on." if message == STOPPED else f"That didn't work: {message}"
+    failed = dataclasses.replace(conv, state="failed", question=None, lines=_agent_line(conv, said))
     if conversations.save(ctx.conn, ctx.uk, failed, conv.version):
         ctx.conn.commit()
     else:
@@ -357,7 +360,12 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
-                      now=now, say=lambda text, tool, code: _step(ctx, text, tool, code))
+                      now=now, say=lambda text, tool, code: _step(ctx, text, tool, code), cancel=ctx.cancel)
+    record = ctx.args.get("record") is True   # the listener pressed Record: the offer is approved
+    deps.approved = conv.offer if record else None
+    deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)
+    clips = clipcache.load(ctx.conn, ctx.uk, ctx.home) if record else None   # re-recording pays only for changes
+    ctx.conn.commit()
     ctx.say("thinking")
     first = conv.history is None
     background = ThreadPoolExecutor(max_workers=1)
@@ -373,7 +381,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
                 print(f"worker: job {ctx.job_id} prefetch failed: {type(e).__name__}", file=sys.stderr)
         outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
     except agent.TurnError as e:
-        raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG}.get(e.reason, CANT_FINISH)) from None
+        raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG,
+                     agent.STOPPED: STOPPED}.get(e.reason, CANT_FINISH)) from None
     except UsageLimitExceeded:
         raise _Stop(TOO_LONG) from None
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
@@ -382,12 +391,15 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     finally:
         background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed
 
+    if clips is not None:
+        clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
+        ctx.conn.commit()
     lines = conv.lines if outcome.reply is None else _agent_line(conv, outcome.reply)
     for audio in _keep_audio(ctx):
         lines = lines + [{"role": "agent", "text": "", "audio": audio}]
     done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle",
                                history=outcome.history_json, lines=lines, question=outcome.question,
-                               plan=outcome.plan, stem=outcome.stem)   # as returned: None after a failed brief
+                               plan=outcome.plan, stem=outcome.stem, offer=deps.offer)   # as returned: None after a failed brief
 
     def save_turn() -> None:
         if not conversations.save(ctx.conn, ctx.uk, done, conv.version):
@@ -409,19 +421,26 @@ class _Heartbeat(threading.Thread):
     when the job was no longer running or the heartbeat couldn't be written: the job may have been
     reaped, so its files are not written back."""
 
-    def __init__(self, connect: Callable[[], Any], job_id: int):
+    def __init__(self, connect: Callable[[], Any], job_id: int, cancel: threading.Event | None = None):
         super().__init__(daemon=True, name=f"heartbeat-{job_id}")
         self.connect, self.job_id = connect, job_id
         self.halt, self.lost = threading.Event(), threading.Event()
+        self.cancel = cancel if cancel is not None else threading.Event()   # set when the listener presses Stop
 
     def run(self) -> None:
         conn = None
         try:
             conn = self.connect()
-            while not self.halt.wait(HEARTBEAT_EVERY):
-                if not jobs.heartbeat(conn, self.job_id):
-                    self.lost.set()
-                    return
+            waited, step = 0.0, min(STOP_POLL, HEARTBEAT_EVERY)
+            while not self.halt.wait(step):
+                waited += step
+                if not self.cancel.is_set() and jobs.stop_requested(conn, self.job_id):
+                    self.cancel.set()
+                if waited >= HEARTBEAT_EVERY:
+                    waited = 0.0
+                    if not jobs.heartbeat(conn, self.job_id):
+                        self.lost.set()
+                        return
         except Exception as e:  # noqa: BLE001 - the job carries on, but won't write back
             self.lost.set()
             print(f"worker: heartbeat for job {self.job_id} stopped: {type(e).__name__}", file=sys.stderr)
@@ -442,10 +461,12 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
     connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT))
     jobs.reap(conn)
     media.sweep(conn)
+    clipcache.prune(conn)
     job = jobs.claim(conn)
     if job is None:
         return False
-    beat = _Heartbeat(connect, job.id)
+    cancel = threading.Event()
+    beat = _Heartbeat(connect, job.id, cancel)
     beat.start()
     home = None
     uk = None
@@ -459,7 +480,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
         handler = HANDLERS.get(job.kind)
         if handler is None:
             raise JobFailed("unknown job kind")
-        ctx = Ctx(conn=conn, uk=uk, job_id=job.id, args=args, settings=settings, home=home)
+        ctx = Ctx(conn=conn, uk=uk, job_id=job.id, args=args, settings=settings, home=home, cancel=cancel)
         ctx.keys = ctx.key_env()   # every handler passes ctx.keys as the engine's extra_env
         outcome = ("done", handler(ctx))
     except JobFailed as e:

@@ -5,7 +5,10 @@ is reachable. Keys reach the engine only through engine.run's extra_env; `me/.en
 
 The engine's own checks (the brief's menu, the build's gate) keep a workout safe; these tools only keep
 the agent inside the user's folder and away from what this web client can't do yet."""
+import json
 import os
+import re
+import threading
 from collections.abc import Callable
 from concurrent.futures import Future
 from dataclasses import dataclass, field
@@ -22,7 +25,6 @@ TIMEOUT = 300           # seconds for one engine command; the engine's cold star
 BUILD_TIMEOUT = 600     # a full build: a pending coach's voice design, then the web voice renders every line
 
 ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
-READ_ONLY = ("health.md",)   # the check-in can't change limits here yet: tell the listener instead
 
 # The commands the agent may run, and for some, the only subcommands. Everything else (setup, keys init,
 # migrate, backup, models, cache, a coach's audition or make) isn't part of this web client yet.
@@ -42,6 +44,10 @@ class Deps:
     say: Callable[[str, str, int | None], None] | None = field(default=None, repr=False)
     # `feeds`, started in the background as the turn began: `run feeds` waits for it instead of running again
     feeds: Future | None = field(default=None, repr=False)
+    cancel: threading.Event | None = field(default=None, repr=False)   # the listener's Stop
+    approved: dict | None = None     # the recording the listener approved this turn (the offer, as made)
+    chars_left: int | None = None    # what today's allowance has left, in characters
+    offer: dict | None = None        # set when a build was priced and waits for the listener's approval
 
 
 class ToolResult(BaseModel):
@@ -125,8 +131,11 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         if mapped is None:
             return _refuse(f"{a!r}: paths must be me/... inside the listener's folder")
         argv.append(mapped)
-    slow = command == "build" and "--lint-only" not in args
-    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT if slow else TIMEOUT)
+    if command == "build" and "--lint-only" not in args:
+        return _record(deps, args, argv)
+    slow = False
+    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT if slow else TIMEOUT,
+                   cancel=deps.cancel)
     home = os.path.realpath(deps.home)
     # the engine prints the folder's real path; the agent knows it as me/
     return _result(r.code, r.stdout.replace(home, "me").replace(deps.home, "me"),
@@ -166,9 +175,8 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
     full, rel = _mine(deps, path)
     if full is None:
         return _refuse(rel)
-    if not rel or rel in READ_ONLY:
-        return _refuse("me/health.md can't be changed here yet: tell the listener what you'd change, and use "
-                       "--limit on the brief for today")
+    if not rel:
+        return _refuse("give a file's path: me/...")
     if folder.skipped(rel):
         return _refuse("that kind of file isn't kept here")
     if len(content) > WRITE_LIMIT:
@@ -198,3 +206,63 @@ def list_files(deps: Deps, path: str = "me/") -> ToolResult:
             if len(names) >= LIST_LIMIT:
                 return _result(0, "\n".join(names) + f"\n[more than {LIST_LIMIT}: list a smaller folder]")
     return _result(0, "\n".join(names) or "(empty)")
+
+
+SPEAKS = re.compile(r"the script speaks ([\d,]+) characters")
+
+
+def _flag(args: list[str], name: str) -> str | None:
+    for i, a in enumerate(args):
+        if a == name and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith(name + "="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
+    """A full build sends the script to a paid voice service, so it runs only once the listener has
+    approved this draft with this coach, within the price they saw: until then it's priced and offered."""
+    draft, coach = (args[1] if len(args) > 1 else ""), _flag(args, "--coach")
+    if not draft.startswith("me/") or len(args) < 3 or not coach:
+        return _refuse('run it as build "me/workouts/<stem>/<stem>.draft.txt" "<name>" --coach "<coach>"')
+    ok = deps.approved
+    if ok and ok.get("draft") == draft and ok.get("coach") == coach:
+        cap = ok["chars"]
+        if _flag(args, "--max-chars") is None:
+            argv = argv + ["--max-chars", str(cap)]
+        r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT,
+                       cancel=deps.cancel)
+        return _result(r.code, *(_mine_text(deps, t) for t in (r.stdout, r.stderr)))
+    lint = engine.run(deps.engine_root, deps.home, argv + ["--lint-only"], extra_env=deps.keys, timeout=TIMEOUT,
+                      cancel=deps.cancel)
+    if lint.code != 0:   # fix the draft first: nothing is priced, offered or billed
+        return _result(lint.code, *(_mine_text(deps, t) for t in (lint.stdout, lint.stderr)))
+    count = engine.run(deps.engine_root, deps.home, argv + ["--lint-only", "--max-chars", "1"], extra_env=deps.keys,
+                       timeout=TIMEOUT, cancel=deps.cancel)
+    found = SPEAKS.search(count.stdout + count.stderr)
+    if not found:
+        return _refuse("couldn't count the script's characters for its price; this coach may not be a web coach")
+    chars = int(found.group(1).replace(",", ""))
+    priced = engine.run(deps.engine_root, deps.home, ["get", "cost", "--coach", coach, "--chars", str(chars), "--json"],
+                        extra_env=deps.keys, timeout=TIMEOUT, cancel=deps.cancel)
+    try:
+        cost = json.loads(priced.stdout)
+    except ValueError:
+        return _result(priced.code or 1, priced.stdout, priced.stderr)
+    usd = float(cost.get("usd") or 0) + (float(cost.get("design_usd") or 0) if cost.get("pending_design") else 0)
+    if deps.chars_left is not None and chars > deps.chars_left:
+        return _refuse(f"not recorded: the script speaks {chars:,} characters and today's allowance has "
+                       f"{max(deps.chars_left, 0):,} left. Tell the listener; a shorter workout fits, or tomorrow.")
+    deps.offer = {"draft": draft, "name": args[2], "coach": coach, "chars": chars, "usd": round(usd, 3),
+                  "service": cost.get("service"), "design": bool(cost.get("pending_design"))}
+    return _result(0, (f"Not recorded yet: recording sends {chars:,} characters to {cost.get('service')} for about "
+                       f"${usd:.2f}{' (including the coach voice design)' if cost.get('pending_design') else ''}. "
+                       "The page now shows the listener a Record button with that price. End your turn: say in a "
+                       "line that the script is ready and checked, and what recording costs. Don't build again "
+                       "until they approve."))
+
+
+def _mine_text(deps: Deps, text: str) -> str:
+    home = os.path.realpath(deps.home)
+    return text.replace(home, "me").replace(deps.home, "me")

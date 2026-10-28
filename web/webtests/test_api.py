@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from webapp import api, auth, config, conversations, db, folder, jobs, keystore, store, worker  # noqa: E402
+from webapp import api, auth, config, conversations, db, folder, jobs, keystore, spend, store, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
@@ -626,6 +626,54 @@ class Conversations(ApiCase):
         return [r[0] for r in self.conn.execute(
             "select id from jobs where user_id = %s and kind = 'turn' order by id", (user_id,))]
 
+    def offered(self, chars=2000):
+        user_id, uk = self.keyed()
+        cid = self.start()["id"]
+        c = conversations.load(self.conn, uk, cid)
+        self.conn.execute("update jobs set state = 'done', finished_at = now() where id = %s", (c.job_id,))
+        c.state, c.offer = "idle", {"draft": "me/workouts/w/w.draft.txt", "name": "Workout", "coach": "Coach Reed",
+                                    "chars": chars, "usd": 0.03, "service": "fish", "design": False}
+        self.assertTrue(conversations.save(self.conn, uk, c, c.version))
+        self.conn.commit()
+        return user_id, uk, cid
+
+    def test_the_offer_shows_without_its_draft_path(self):
+        _, _, cid = self.offered()
+        offer = self.client.get(f"/api/conversations/{cid}").json()["offer"]
+        self.assertEqual(offer, {"name": "Workout", "coach": "Coach Reed", "chars": 2000, "usd": 0.03,
+                                 "service": "fish", "design": False})
+
+    def test_record_reserves_todays_allowance_and_queues_the_recording(self):
+        user_id, uk, cid = self.offered()
+        r = self.client.post(f"/api/conversations/{cid}/record", json=self.turn(), headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        job = r.json()["job_id"]
+        self.assertEqual(jobs.args(self.conn, uk, job)["record"], True)
+        self.assertEqual(spend.used(self.conn, uk, today()), 2000)
+        self.conn.rollback()
+        c = self.client.get(f"/api/conversations/{cid}").json()
+        self.assertEqual((c["state"], c["lines"][-1]["text"], c["offer"]), ("working", "Yes, record it.", None))
+        again = self.client.post(f"/api/conversations/{cid}/record", json=self.turn(), headers=self.origin())
+        self.assertEqual(again.status_code, 409)
+
+    def test_record_over_the_daily_allowance_is_refused(self):
+        _, uk, cid = self.offered(chars=spend.DEFAULT_DAILY_CHARS + 1)
+        r = self.client.post(f"/api/conversations/{cid}/record", json=self.turn(), headers=self.origin())
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("today's allowance", r.json()["detail"])
+        self.assertEqual(spend.used(self.conn, uk, today()), 0)
+        self.conn.rollback()
+
+    def test_stop_asks_the_running_job_to_stop(self):
+        _, uk = self.keyed()
+        started = self.start()
+        r = self.client.post(f"/api/conversations/{started['id']}/stop", headers=self.origin())
+        self.assertEqual((r.status_code, r.json()), (202, {"stopping": True}))
+        self.assertTrue(jobs.stop_requested(self.conn, started["job_id"]))
+        other = self.other_client()
+        self.signed_in(client=other)
+        self.assertEqual(other.post(f"/api/conversations/{started['id']}/stop", headers=self.origin()).status_code, 404)
+
     def test_needs_session_and_origin(self):
         for path in ("/api/conversations/latest", "/api/conversations/1"):
             self.assertEqual(self.client.get(path).status_code, 401, path)
@@ -702,7 +750,7 @@ class Conversations(ApiCase):
             stamp = got.pop("updated_at")
             self.assertEqual(got, {"id": body["id"], "state": "working", "job_id": body["job_id"],
                                    "lines": [{"role": "user", "text": "a 20-minute strength workout"}],
-                                   "question": None, "plan": {"format": "Straight sets"}})
+                                   "question": None, "plan": {"format": "Straight sets"}, "offer": None})
             when = datetime.datetime.fromisoformat(stamp)
             self.assertIsNotNone(when.tzinfo)
             self.assertLess(abs((datetime.datetime.now(datetime.timezone.utc) - when).total_seconds()), 300)
