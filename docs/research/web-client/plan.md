@@ -70,6 +70,12 @@ Required before renders, which are long and billed:
 - **Per-job write rules:** `NEVER_WRITE_BACK` (`health.md`) applies to every job today; the check-in job must be able to write `health.md`.
 - **Key rotation:** a new `key_version` must re-seal and re-hash every stored path (the path hash is keyed by the data key).
 
+From Milestone 2's reviews (2026-10-28):
+- **Messages that still say `keys init` or `me/.env` in web mode:** `routes.usable` (tools/routes.py, the local route's reason), `cloud.py` (two key messages), `render.py` (a service refusing a key, which builds will hit), `audition.py`, and `keys.clean_value`'s `BadKey` text. Each needs a `paths.WEB` branch pointing at the app's Keys, before builds run on the web.
+- **One damaged key fails every job:** `keystore.open_all` raises on a row that won't open (a damaged row, a re-keyed data key), so every job for that user fails with a generic message. Before any key rotation: skip and report the bad row, and tell the user which key to replace.
+- **Every handler gets the keys:** `run_one` sets `ctx.keys` (voice keys, by the engine's variable names) for every job; a new handler passes `extra_env=ctx.keys` to every `engine.run`.
+- **Smaller items:** a too-short key gets the "space, line break or symbol" 400 wording; the build test in `test_tools.py` names its coach, so the web-mode default coach isn't exercised through a build; CLAUDE.md's `--coach` and `delivery_plan` descriptions don't mention web mode.
+
 ## Review focus
 
 1. **The engine subprocess sees server secrets.** A job's environment holds `HARMONICFITNESS_MASTER_KEY` or `DATABASE_URL` because the runner copied `os.environ`. Expected: only the allowlist reaches it. Pinned by `test_engine_env_is_allowlisted` (Task 5).

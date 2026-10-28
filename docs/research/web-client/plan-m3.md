@@ -6,7 +6,7 @@
 
 **Architecture:** Each user message, or each answer to a question, is a short `turn` job. The worker writes out the user's folder and opens their keys. It builds a Pydantic AI model with the user's own key and no retries, then runs one agent with typed tools: engine commands run through `engine.run` in that folder, plus `ask_user` and `show_plan`. The run stops when the agent asks the user something (a deferred tool call) or finishes. The conversation's history, its chat lines and its open question are stored sealed in Postgres. The next turn resumes from them. The browser shows chat lines in the chat zone and the open question, or the plan, in the panel.
 
-**Tech stack:** as before, plus `pydantic-ai-slim[anthropic,openai,google]==2.56.0` and `anthropic>=1.12,<2` in the `web` extra, used only by the worker. Research behind every API shape here: `docs/research/web-client/m3-pydantic-ai.md` (checked 2026-10-28).
+**Tech stack:** as before, plus `pydantic-ai-slim[anthropic,openai,google]==2.56.0` and `anthropic>=1.12,<2` in the `web` extra, used only by the worker. This set was installed and run locally against fake transports. `anthropic` 2.x breaks pydantic-ai 2.56 on the first Claude request, hence the cap. Research behind every API shape here: `docs/research/web-client/m3-pydantic-ai.md` (checked 2026-10-28).
 
 **Spec:** `docs/research/web-client/design.md` ("The agent"; "Jobs and conversations"; "Workflows: Build a workout"; Anti-goals). Built on Milestone 2 (`plan-m2.md`, through `2155fb6`).
 
@@ -72,9 +72,10 @@ web/README.md, CHANGELOG.md
 - Produces:
   - `PROVIDERS: dict[str, Provider]`, in order, with `Provider(id: str, name: str, model: str, key_page: str)` frozen. Key pages: `https://console.anthropic.com/settings/keys`, `https://platform.openai.com/api-keys`, `https://aistudio.google.com/apikey`.
   - `offered(env: Mapping[str, str]) -> list[str]`: `HARMONICFITNESS_PROVIDERS` split on commas, stripped, kept in `PROVIDERS` order. Default `["anthropic"]`. An unknown id raises `config.ConfigError` naming it.
-  - `model_for(provider: str, key: str) -> pydantic_ai.models.Model`, built as in the research note §2: Anthropic `AsyncAnthropic(api_key=key, max_retries=0, timeout=600)`, OpenAI `OpenAIResponsesModel` with `AsyncOpenAI(api_key=key, max_retries=0, timeout=600)`, Google `GoogleProvider(api_key=key, retry_options=HttpRetryOptions(attempts=1))`. Never a string model id.
+  - `PROVIDERS` and `offered` import no SDK or pydantic_ai: the web process imports this module (through `config`). Only `model_for` imports them, inside the function.
+  - `model_for(provider: str, key: str) -> pydantic_ai.models.Model`, built as in the research note §2: Anthropic `AsyncAnthropic(api_key=key, max_retries=0, timeout=180)`, OpenAI `OpenAIResponsesModel` with `AsyncOpenAI(api_key=key, max_retries=0, timeout=180)`, Google `GoogleProvider(api_key=key, retry_options=HttpRetryOptions(attempts=1))` and a 180-second timeout. Never a string model id.
   - `class ProviderFailed(Exception)` with `.message` (plain, names the provider, never the key) and `.kind` (`"auth" | "quota" | "unavailable" | "other"`).
-  - `explain(provider: str, exc: Exception) -> ProviderFailed`: `ModelHTTPError` 401/403 → auth "{name} refused the key. Replace it in Keys."; 429, or a 400 whose body mentions credit, billing or quota → quota "{name} says the account is out of credit or over its limit."; 5xx, a timeout or a connection error → unavailable "{name} didn't answer. Try again in a minute."; anything else → other "{name} stopped with an error." `UsageLimitExceeded` is not handled here (Task 6 does that).
+  - `explain(provider: str, exc: Exception) -> ProviderFailed`: `ModelHTTPError` 401/403 → auth "{name} refused the key. Replace it in Keys."; 429, or a 400 whose body mentions credit, billing or quota → quota "{name} says the account is out of credit or over its limit."; 5xx, a timeout or a connection error → unavailable "{name} didn't answer. Try again in a minute."; anything else → other "{name} stopped with an error." `UnexpectedModelBehavior` (the model kept making invalid calls) → other "{name} couldn't make a plan from the menu; try again." `UsageLimitExceeded` is not handled here (Task 6 does that).
 
 - [ ] **Step 1: Write the failing tests**
   - `test_offered`: unset → `["anthropic"]`; `" google, anthropic "` → `["anthropic", "google"]`; `"nope"` → `ConfigError`.
@@ -129,7 +130,7 @@ web/README.md, CHANGELOG.md
 
 **Interfaces:**
 - Consumes: `engine.run`, `worker.engine_lists` (goals, presets).
-- Produces: `Deps` (dataclass): `engine_root: str, home: str, keys: dict[str, str]` (`repr=False`), `today: str`, `now: str`, `stem: str | None = None`. `ToolResult` (pydantic model): `code: int, output: str, error: str`, with output and error cut to 20,000 characters each and a "[cut]" mark. These functions each take `deps: Deps` first and return a `ToolResult`, running `./harmonicfitness …` through `engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=120)`:
+- Produces: `Deps` (dataclass): `engine_root: str, home: str, keys: dict[str, str]` (`repr=False`), `today: str`, `now: str`, `stem: str | None = None`, `plan: dict | None = None`. `ToolResult` (pydantic model): `code: int, output: str, error: str`, with output and error cut to 20,000 characters each and a "[cut]" mark. These functions each take `deps: Deps` first and return a `ToolResult`, running `./harmonicfitness …` through `engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=120)`:
   - `read_file(deps, name: Literal["profile.md","training.md","health.md","log.md"])`: reads `<home>/<name>` (code 0; a missing file gives code 1 and "no such file yet"). Not through the engine: it's a read of the user's own file.
   - `check(deps)`: `check`.
   - `get_coach(deps)`: `get coach`. `get_route(deps, coach: str)`: `get route --coach <coach>`.
@@ -156,7 +157,7 @@ web/README.md, CHANGELOG.md
   - `Question`, `Option`, `Plan`, `PlanRow` pydantic models: Question as in Decisions; `Plan(format: str, equipment: str, rows: list[PlanRow], left_out: str, total_seconds: int)`; `PlanRow(block: str, movements: list[str], dose: str, seconds: int)`.
   - `AGENT`: `Agent(deps_type=Deps, output_type=[str, DeferredToolRequests], instructions=<instructions.md>, retries=1)`, with every Task 4 tool registered through `@AGENT.tool` wrappers that call the tools.py functions with `ctx.deps`, plus:
     - `ask_user(questions: list[Question])` (one to four): raises `CallDeferred(metadata={"kind": "questions"})`.
-    - `show_plan(plan: Plan)`: needs `deps.stem` (else `ModelRetry("run brief first")`). Every movement in every row must resolve to a menu movement in `<home>/workouts/<stem>/<stem>.menu.json` (through the engine's own `catalog.resolve` and `menu` reader, imported under `worker._engine_modules`). Rows' seconds must add up to `total_seconds`, and that must equal the brief's minutes × 60. On failure it raises `ModelRetry` naming each problem. On success it stores the plan on `deps.plan` and returns "shown".
+    - `show_plan(plan: Plan)`, registered with its own `retries=2`: needs `deps.stem` (else `ModelRetry("run brief first")`). Every movement in every row must resolve to a menu movement in `<home>/workouts/<stem>/<stem>.menu.json` (through the engine's own `catalog.resolve` and `menu` reader, imported under `worker._engine_modules`). Rows' seconds must add up to `total_seconds`, and that must equal the brief's minutes × 60. On failure it raises `ModelRetry` naming each problem. On success it stores the plan on `deps.plan` and returns "shown".
   - `TurnOutcome` (dataclass): `history_json: str, reply: str | None, question: dict | None, plan: dict | None, stem: str | None, usage: dict`.
   - `run_turn(model, deps: Deps, history_json: str | None, prompt: str | None, answer: tuple[str, dict] | None) -> TurnOutcome`: one `AGENT.run_sync`. `prompt` is the user's line. `answer` is `(tool_call_id, answer dict)` for the open question, passed as `DeferredToolResults(calls={id: answer})`. Limits are the Decisions' `UsageLimits`, and `UsageLimitExceeded` propagates. `question` is the deferred call's args plus its `tool_call_id`. `reply` is the final text, if any.
   - `instructions.md`: steps 1 to 4 of the workout skill, ported. Tool names replace commands (`./harmonicfitness check` → `check`, `get coach` → `get_coach`, AskUserQuestion → `ask_user`, the posted plan → `show_plan`). Kept: the check-in table (Limits, Readiness, Goal, Length, Kit, Coach) and its "just go" rule, the readiness and limit rules, the red-flag stop, the brief's flags and its "would open up" question, and the design rules. Left out, each with one line: research, writing, the build, the log, `health.md` edits ("say a lasting change is used for today only"), backup and delivery. End: after `show_plan`, a two-line reply saying the plan is ready and the script and audio come in a later version. Today is `deps.now`. No other file is read.
@@ -183,7 +184,7 @@ web/README.md, CHANGELOG.md
   1. Validates the args: `today` as the brief job checks it; `now` matching `^\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}$`.
   2. Loads the conversation. It must be `working`; else `JobFailed("the conversation moved on")`.
   3. Picks the provider: the first of `settings.providers` with a key in `ctx.keys`' source, `keystore.open_all` (model keys are not in the engine environment: `key_env` passes only voice keys, by the engine services' names). With none, `JobFailed("add a language-model key in Keys")`.
-  4. Writes out the folder (`store.read_all` + `folder.materialize`).
+  4. Writes out the folder (`store.read_all` + `folder.materialize`), and builds `Deps` with `stem` and `plan` from the conversation, so a turn after `brief` (an answer to its "would open up" question) can still call `show_plan`.
   5. Says `ctx.say("thinking")`.
   6. Runs `run_turn`.
   7. Saves the new history, the lines (adds the agent's reply line), the question, the plan and the stem through `conversations.save`, with state `waiting` if a question is open, else `idle`.
@@ -192,7 +193,7 @@ web/README.md, CHANGELOG.md
   Failure paths:
   - A provider error goes through `providers.explain`.
   - `UsageLimitExceeded` fails with "this turn ran too long; try again with less to do".
-  - Any failure sets the conversation to `failed` with an agent line "That didn't work: <message>", saved in its own transaction. The previous history is kept, so the user can send another message (`begin_turn` accepts `failed`).
+  - Any failure sets the conversation to `failed` with an agent line "That didn't work: <message>". The handler saves this and commits it before raising `JobFailed`, because `run_one` rolls back on `JobFailed`. The previous history is kept, so the user can send another message (`begin_turn` accepts `failed`).
 
   The result is `{"conversation_id": id, "state": <state>}`. The worker logs nothing from the conversation.
 - [ ] **Step 1: Write the failing tests** (FunctionModel through a patched `providers.model_for`):
@@ -201,6 +202,7 @@ web/README.md, CHANGELOG.md
   - `test_turn_needs_a_model_key`: no key → job failed, conversation `failed`, the line says to add a key.
   - `test_turn_maps_provider_errors`: `model_for` returning a model that raises `ModelHTTPError(401)` → the line holds "Claude refused the key".
   - `test_turn_stops_at_usage_limit`: a FunctionModel that calls `get_coach` forever → job failed with the limit message; the stored history is the one from before the turn.
+  - `test_answer_after_brief_keeps_stem`: turn 1 runs `brief` and then `ask_user`; turn 2's answer lets `show_plan` succeed without another brief.
   - `test_model_key_never_in_engine_env`: `engine.run` records `extra_env` → it never holds the model key.
 - [ ] **Step 2: Run them; they fail.**
 - [ ] **Step 3: Implement.**
