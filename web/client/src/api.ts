@@ -16,6 +16,9 @@ export type Me = { app_name: string; username: string; has_password: boolean };
 export type AuthInfo = { app_name: string; registration: boolean };
 export type ContextFile = { path: string; version: number; updated_at: string };
 export type DeviceLink = { url: string; expires_at: string };
+export type KeyState = {
+  service: string; name: string; key_page: string; set: boolean; updated_at: string | null;
+};
 export type Stage = { stage: string; [field: string]: unknown };
 export type BriefResult = { brief_md: string; stem: string };
 export type JobState = "queued" | "running" | "done" | "failed";
@@ -27,7 +30,7 @@ export type JobView = {
   result: BriefResult | null;
 };
 
-async function call<T>(method: "GET" | "POST", url: string, body?: unknown): Promise<T> {
+async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, {
     method,
     credentials: "same-origin",
@@ -60,6 +63,11 @@ export const api = {
   options: () => call<Options>("GET", "/api/options"),
   context: () => call<ContextFile[]>("GET", "/api/context"),
   deviceLink: () => call<DeviceLink>("POST", "/api/device-link"),
+  keys: () => call<KeyState[]>("GET", "/api/keys"),
+  setKey: (service: string, key: string) =>
+    call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
+  deleteKey: (service: string) =>
+    call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
   signOut: () => call<void>("POST", "/api/sign-out"),
   startJob: (args: JobArgs) => call<{ id: number }>("POST", "/api/jobs", args),
   job: (id: number) =>

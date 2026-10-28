@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { api, NotSignedIn, type ContextFile, type DeviceLink } from "../api";
 import { PasswordForm } from "../SignIn";
+import { KeysBox } from "./KeysBox";
 
 function until(iso: string): string {
   const d = new Date(iso);
@@ -100,6 +101,7 @@ export function ContextColumn({ files, username, open, onClose, onSignedOut, onS
               </ul>
             )}
           </div>
+          <KeysBox onSignedOut={onSignedOut} />
           <DeviceLinkBox onSignedOut={onSignedOut} />
           <PasswordBox username={username} onSignedOut={onSignedOut} />
           <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>
