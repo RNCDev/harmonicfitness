@@ -3,14 +3,16 @@ the turn for the user) and show_plan (the plan, shown only when every movement i
 The model is passed per turn; nothing here knows which provider it is."""
 import os
 import re
+import threading
 import tomllib
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 from pydantic_ai.messages import ModelResponse, RetryPromptPart, ToolCallPart, ToolReturnPart
-from pydantic_ai import (Agent, CallDeferred, DeferredToolRequests, DeferredToolResults,
+from pydantic_ai import (Agent, CallDeferred, CancellationToken, DeferredToolRequests, DeferredToolResults,
                          ModelMessagesTypeAdapter, ModelRetry, RunContext, UsageLimits)
+from pydantic_ai.exceptions import RunCancelled
 
 from webapp import worker
 
@@ -18,9 +20,10 @@ from . import tools
 from .tools import Deps, ToolResult
 
 __all__ = ["AGENT", "Deps", "NOT_OPEN", "Option", "Plan", "PlanRow", "Question", "TurnError", "TurnOutcome",
-           "LIMITS", "UNFINISHABLE", "plan_problems", "run_turn"]
+           "LIMITS", "TIMED_OUT", "TURN_SECONDS", "UNFINISHABLE", "plan_problems", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=25, tool_calls_limit=40, total_tokens_limit=800_000)
+TURN_SECONDS = 600   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.md"), encoding="utf-8") as _f:
     INSTRUCTIONS = _f.read()
@@ -257,12 +260,13 @@ def show_plan(ctx: RunContext[Deps], plan: Plan) -> str:
 
 NOT_OPEN = "not_open"            # TurnError.reason: an answer to a call that isn't open (nothing ran)
 UNFINISHABLE = "unfinishable"    # TurnError.reason: the run stopped on a deferred call that isn't a question
+TIMED_OUT = "timed_out"          # TurnError.reason: the turn ran past TURN_SECONDS and was cancelled
 
 
 class TurnError(Exception):
-    """A turn that can't go on as asked: an answer to a call that isn't open, or the agent stopping on a
-    deferred call that isn't a question; `reason` says which (NOT_OPEN or UNFINISHABLE). Nothing a retry
-    fixes; the caller fails the turn."""
+    """A turn that can't go on as asked: an answer to a call that isn't open, the agent stopping on a
+    deferred call that isn't a question, or the turn running past TURN_SECONDS; `reason` says which
+    (NOT_OPEN, UNFINISHABLE or TIMED_OUT). Nothing a retry fixes; the caller fails the turn."""
 
     def __init__(self, message: str, reason: str):
         super().__init__(message)
@@ -308,15 +312,28 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     if answer:
         calls[answer[0]] = answer[1]
     results = DeferredToolResults(calls=calls) if calls else None
-    result = AGENT.run_sync(prompt, model=model, deps=deps, message_history=history,
-                            deferred_tool_results=results, usage_limits=LIMITS)
+    # the wall-clock cap: pydantic-ai's own CancellationToken, cancelled from a timer thread, stops the run
+    # (its model request and tool tasks) and raises RunCancelled after its own teardown
+    token = CancellationToken()
+    timer = threading.Timer(TURN_SECONDS, token.cancel)
+    timer.daemon = True
+    timer.start()
+    try:
+        result = AGENT.run_sync(prompt, model=model, deps=deps, message_history=history,
+                                deferred_tool_results=results, usage_limits=LIMITS, cancellation_token=token)
+    except RunCancelled:
+        raise TurnError("the turn ran too long", TIMED_OUT) from None
+    finally:
+        timer.cancel()
     reply = question = None
     if isinstance(result.output, DeferredToolRequests):
         asks = [c for c in result.output.calls if c.tool_name == "ask_user"]
         if not asks or result.output.approvals:
             names = [c.tool_name for c in result.output.calls + result.output.approvals]
             raise TurnError(f"the agent stopped on a call it can't finish ({', '.join(names)})", UNFINISHABLE)
-        question = dict(asks[0].args_as_dict(), tool_call_id=asks[0].tool_call_id)
+        # the questions as ask_user validated them (every field filled), not the model's raw arguments
+        asked = [Question.model_validate(q).model_dump() for q in asks[0].args_as_dict()["questions"]]
+        question = {"questions": asked, "tool_call_id": asks[0].tool_call_id}
     else:
         reply = result.output
     u = result.usage

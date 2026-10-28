@@ -288,8 +288,8 @@ def turn(ctx: Ctx) -> dict:
     except LookupError:
         conv = None
     ctx.conn.commit()
-    if conv is None or conv.state != "working":
-        raise JobFailed("the conversation moved on")
+    if conv is None or conv.state != "working" or conv.job_id != ctx.job_id:
+        raise JobFailed("the conversation moved on")   # another job's turn, or none
     try:
         return _turn(ctx, conv)
     except _Stop as e:
@@ -330,7 +330,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     try:
         outcome = agent.run_turn(model, deps, conv.history, line, answer)
     except agent.TurnError as e:
-        raise _Stop(ANSWER_NOT_OPEN if e.reason == agent.NOT_OPEN else CANT_FINISH) from None
+        raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG}.get(e.reason, CANT_FINISH)) from None
     except UsageLimitExceeded:
         raise _Stop(TOO_LONG) from None
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere

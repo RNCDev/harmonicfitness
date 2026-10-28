@@ -455,6 +455,10 @@ class Turn(JobsCase):
         self.assertEqual(conv.state, "waiting")
         self.assertEqual(conv.question["tool_call_id"], "a1")
         self.assertEqual(conv.question["questions"][0]["id"], "q1")
+        # the question as validated, every field filled, not the model's raw arguments
+        self.assertEqual(conv.question["questions"][0]["options"][1],
+                         {"label": "Sore somewhere else", "description": "say where", "recommended": False})
+        self.assertEqual(conv.question["questions"][0]["options"][0]["description"], None)
         self.assertEqual(conv.lines, [{"role": "user", "text": "a 20-minute strength workout"}])
         self.assertIsNotNone(conv.history)
         self.model_for.assert_called_once_with("anthropic", MODEL_KEY)
@@ -627,6 +631,42 @@ class Turn(JobsCase):
         job = jobs.enqueue(self.conn, other, "turn", self.turn_args(cid, "mine now"))
         self.run_one()
         self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
+        self.conn.rollback()
+
+    def test_a_turn_that_isnt_the_conversations_job_is_left_alone(self):
+        uk = self.user()
+        cid = self.start(uk)
+        job = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go"))
+        other = jobs.enqueue(self.conn, uk, "brief", {})
+        conversations.set_job(self.conn, uk, cid, other)   # still working, but on another job's turn
+        self.conn.commit()
+        before = conversations.load(self.conn, uk, cid)
+        self.conn.commit()
+        with mock.patch.object(providers, "model_for", side_effect=AssertionError("the model ran")):
+            self.run_one()
+        self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
+        conv = conversations.load(self.conn, uk, cid)
+        self.assertEqual((conv.state, conv.version, conv.lines), ("working", before.version, before.lines))
+        self.conn.rollback()
+
+    def test_turn_stops_past_its_time(self):
+        import asyncio
+        from webapp import agent
+        uk = self.user()
+        cid = self.start(uk)
+        calls = []
+
+        async def slow(messages, info):
+            calls.append(1)
+            await asyncio.sleep(2)
+            return ModelResponse(parts=[TextPart("Hello.")])
+        with mock.patch.object(agent, "TURN_SECONDS", 0.2):
+            job, conv = self.run_turn(uk, FunctionModel(slow), cid, line="go")
+        message = "this turn ran too long; try again with less to do"
+        self.assertEqual(self.state(job), ("failed", message))
+        self.assertEqual(conv.state, "failed")
+        self.assertEqual(conv.lines[-1], {"role": "agent", "text": f"That didn't work: {message}"})
+        self.assertEqual(len(calls), 1)   # nothing retried
         self.conn.rollback()
 
     def test_bad_turn_args_fail_the_conversation(self):

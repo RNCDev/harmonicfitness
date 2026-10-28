@@ -385,6 +385,7 @@ class Instructions(unittest.TestCase):
         self.assertIn("red flag", text.lower())
         self.assertIn("stop", text.lower())
         self.assertNotIn("./harmonicfitness", text)
+        self.assertIn("Never ask the listener for a key or a password", text)
         for later in ("privacy line", "new coach", "too long", "one side only"):
             self.assertIn(later, text)
 
