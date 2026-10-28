@@ -1,0 +1,16 @@
+# Only committed, non-private files belong in the image.
+.git
+.github
+.superpowers
+.codegraph
+.venv
+.cache
+models
+me
+me.*
+!me.example
+docs/eval/out*
+**/__pycache__
+**/.DS_Store
+web/client/node_modules
+web/client/dist

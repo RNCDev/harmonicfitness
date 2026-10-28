@@ -25,6 +25,33 @@ class Migrations(DBCase):
             admin.execute(f"drop schema {name} cascade")
             admin.close()
 
+    def test_wait_for_migrations(self):
+        import uuid
+        from webtests import dbcase
+        name = "t_" + uuid.uuid4().hex[:12]
+        admin = db.connect(dbcase.URL)
+        admin.autocommit = True
+        admin.execute(f"create schema {name}")
+        make = lambda: db.connect(dbcase.URL, schema=name)  # noqa: E731
+        try:
+            # a fresh schema: no schema_migrations table at all, so it times out
+            with self.assertRaises(db.MigrationsPending):
+                db.wait_for_migrations(make, timeout=0.3, interval=0.05)
+            conn = make()
+            db.migrate(conn)
+            conn.close()
+            db.wait_for_migrations(make, timeout=0.3, interval=0.05)   # returns at once
+            # a migration file not yet recorded counts as pending
+            conn = make()
+            conn.execute("delete from schema_migrations where name = '002_sessions_renewed.sql'")
+            conn.commit()
+            conn.close()
+            with self.assertRaises(db.MigrationsPending):
+                db.wait_for_migrations(make, timeout=0.3, interval=0.05)
+        finally:
+            admin.execute(f"drop schema {name} cascade")
+            admin.close()
+
     def test_concurrent_migrate_applies_once(self):
         import threading
         import uuid

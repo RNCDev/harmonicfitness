@@ -41,3 +41,24 @@ The browser client is in `client/` (Vite, React and TypeScript; Node 20 or later
     npm test          # the client's own tests
     npm run build     # writes dist/, which the server above serves
     npm run dev       # a dev server on :5173 that sends /api and /invite to the server on :8000
+
+## Deploy
+
+The root `Dockerfile` builds one image (the client built in a Node stage, then the engine and `web/` on `python:3.11-slim` with ffmpeg and the `web` extra only: no local voices), and `railway.json` points Railway's builder at it. Railway runs it as two services from the same repo, told apart by `WT_ROLE`; `web/entrypoint.sh` starts the right one:
+
+| Service | `WT_ROLE` | Runs |
+|---|---|---|
+| web | `web` | uvicorn on `$PORT` (default 8000): applies the migrations, then serves the API and client. Set its health check to `/healthz` in Railway (not in `railway.json`, which both services share). |
+| worker | `worker` | `python -m webapp.worker`: waits until the migrations are applied (up to two minutes, then exits 3), then runs jobs. |
+
+Variables on both services: `WT_ROLE`, `DATABASE_URL` (`${{Postgres.DATABASE_URL}}`), `WT_BASE_URL` (the web service's public address, `https://...`) and `WT_MASTER_KEY` (32 random bytes, base64; the same on both, and keep a copy: files stored under another key can't be read). Railway supplies `PORT`.
+
+**Deploy from the GitHub repo (`RNCDev/sweatcast`, branch `main`), never with `railway up`**: only committed files reach the server, and `me/` is never one of them (`.dockerignore` leaves it out too).
+
+The repo is `/app` and its environment `/app/.venv`, which `./sweatcast` finds on its own; `SWEATCAST_PYTHON` names it, so a job never runs uv or reaches the network. The container runs as a non-root user.
+
+**Admin in production:** open a shell in the running web service with `railway ssh --service web`, then
+
+    cd /app/web && python -m webapp.admin invite <email>
+
+(`python` is the image's environment, and the service's variables are in the shell's environment. If your shell lacks them, `railway run --service web` runs the command on your computer against the same variables, with `DATABASE_URL` needing Railway's public database address instead of the private one.)

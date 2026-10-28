@@ -248,6 +248,12 @@ def main() -> int:
         return 2
     _uv_cache()
     engine_lists(settings.engine_root)
+    try:
+        db.wait_for_migrations(lambda: psycopg.connect(settings.database_url,
+                                                       connect_timeout=CONNECT_TIMEOUT))
+    except db.MigrationsPending as e:
+        print(f"worker: {e}", file=sys.stderr)
+        return 3
     stopping = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stopping.set())
     conn = db.connect(settings.database_url)

@@ -81,6 +81,10 @@ class ApiCase(DBCase):
 
 
 class SignIn(ApiCase):
+    def test_healthz_needs_nothing(self):
+        r = self.client.get("/healthz")
+        self.assertEqual((r.status_code, r.json()), (200, {"ok": True}))
+
     def test_requires_session(self):
         self.assertEqual(self.client.get("/api/me").status_code, 401)
         for path in ("/api/options", "/api/context", "/api/jobs/1", "/api/jobs/1/events"):

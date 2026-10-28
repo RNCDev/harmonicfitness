@@ -171,6 +171,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     User = Annotated[store.UserKey, Depends(session)]
     post = {"dependencies": [Depends(same_origin)]}
 
+    @app.get("/healthz")
+    def healthz():
+        """For the host's health check: no session, no database."""
+        return {"ok": True}
+
     # ---- sign-in ----------------------------------------------------------------------------
 
     @app.get("/invite/{token}", response_class=HTMLResponse)
