@@ -943,6 +943,19 @@ class InProcessBuild(unittest.TestCase):
         self.assertTrue(rec["kept_local"])
         self.assertIn("no delivery folder", rec["reason"])
 
+    def test_build_in_the_web_client_keeps_the_mp3(self):
+        prof = os.path.join(self.home, "settings.toml")
+        with open(prof, encoding="utf-8") as f:
+            text = f.read()
+        write_file(prof, re.sub(r"^deliver_to = .*$", 'deliver_to = ""', text, flags=re.M))
+        with mock.patch.object(paths, "WEB", True):
+            self.assertEqual(self.build("--coach", "Coach Andy"), 0, self.said())
+        self.assertFalse([f for f in os.listdir(self.folder) if ".web-" in f])
+        self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.mp3")))
+        self.assertNotIn("no delivery folder", self.said())
+        with open(os.path.join(self.folder, "Test build.build.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["reason"], "the web client uploads the MP3")
+
     def test_a_draft_outside_a_workout_folder_builds_in_checks(self):
         loose = os.path.join(self.tmp.name, "loose.draft.txt")
         self.copy_draft(loose)

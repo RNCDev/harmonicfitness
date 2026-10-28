@@ -13,6 +13,7 @@ import cloud  # noqa: E402
 import context  # noqa: E402
 import errors  # noqa: E402
 import keys  # noqa: E402
+import paths  # noqa: E402
 import personas  # noqa: E402
 import routes  # noqa: E402
 import sessionlog  # noqa: E402
@@ -53,7 +54,10 @@ def default(folder=None):
     if own is not None:
         return own
     order = lambda p: (not p.is_web, cloud.SERVICES.index(p.service) if p.service in cloud.SERVICES else 99)
-    return next((p for p in sorted(found, key=order) if _usable_here(p)), found[0])
+    ordered = sorted(found, key=order)
+    if paths.WEB:   # the web client has no local voice: a web stand-in, whose key the app adds
+        return next((p for p in ordered if p.is_web), found[0])
+    return next((p for p in ordered if _usable_here(p)), found[0])
 
 
 def coach(name=None):

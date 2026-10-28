@@ -672,6 +672,13 @@ class DeliveryPlan(unittest.TestCase):
         copy = build.delivery_plan(False, False, ["/a", "/b"])
         self.assertEqual((copy["copy_to"], copy["remove_local"], copy["record"]), (["/a", "/b"], False, None))
 
+    def test_the_web_client_keeps_the_mp3_for_upload(self):
+        import build
+        want = {"copy_to": [], "remove_local": False, "note": None,
+                "record": {"delivered_to": [], "kept_local": True, "reason": "the web client uploads the MP3"}}
+        self.assertEqual(build.delivery_plan(False, False, ["/x"], client=True), want)
+        self.assertEqual(build.delivery_plan(True, True, [], client=True), want)
+
     def test_a_failed_copy_keeps_its_reason(self):
         import build
         d = tempfile.mkdtemp()

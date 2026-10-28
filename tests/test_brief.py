@@ -104,6 +104,16 @@ class Brief(unittest.TestCase):
             self.assertAlmostEqual(fast, slow * 2)
             self.assertIsNone(brief_tool.talk_rate("Nobody At All"))
 
+    def test_talk_rate_web_coach_without_key(self):
+        import brief as brief_tool
+        import personas
+        from unittest import mock
+        web = next(p for p in personas.all() if p.is_web)
+        with mock.patch("coachpick.resolve", side_effect=errors.CoachError("no key")):
+            got = brief_tool.talk_rate(web.name)
+        self.assertIsNotNone(got)
+        self.assertFalse(got[1])
+
     def test_the_menu_is_the_safety_screen(self):
         cat = catalog.load()
         r = brief("--goal", "general", "--minutes", "25", "--preset", "hotel-gym", "--limit", "knee=off-limits")

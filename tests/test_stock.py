@@ -150,6 +150,17 @@ class StockAndOwn(unittest.TestCase):
                 mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
             self.assertEqual(coachpick.default().name, "Coach Owen")   # a keyed web stand-in first
 
+    def test_web_default_is_a_web_stand_in(self):
+        with mock.patch.object(coachpick, "_usable_here", side_effect=lambda p: not p.is_web), \
+                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
+            before = coachpick.default()
+            with mock.patch.object(paths, "WEB", True):
+                web = coachpick.default()
+            self.assertEqual(coachpick.default().name, before.name)   # WEB unset: unchanged
+        self.assertTrue(web.is_web and web.shipped, web.name)
+        first = min((p for p in personas.all() if p.is_web), key=lambda p: coachpick.cloud.SERVICES.index(p.service))
+        self.assertEqual(web.name, first.name)
+
 
 OWN_LOCAL = """+++
 schema = 5

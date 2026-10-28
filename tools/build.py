@@ -146,11 +146,15 @@ def show_log(log):
     print("".join(tail.splitlines(keepends=True)[-20:]), end="", file=sys.stderr)
 
 
-def delivery_plan(remote, web, deliver_to):
+def delivery_plan(remote, web, deliver_to, client=False):
     """Where a finished MP3 goes, decided from where the build runs (`remote`: Claude Code on the web), whether
     a web copy was made and the delivery folders found here. Pure: {"copy_to": folders to copy into,
     "remove_local": whether to remove the MP3 now, "record": the record's delivery fields when no copy is made
-    (None when the copies decide them), "note": what to tell the listener, with {out} for the workout folder}."""
+    (None when the copies decide them), "note": what to tell the listener, with {out} for the workout folder}.
+    `client`: the web client (HARMONICFITNESS_WEB) uploads the MP3 itself, so it is kept, whatever else holds."""
+    if client:
+        return {"copy_to": [], "remove_local": False, "note": None,
+                "record": {"delivered_to": [], "kept_local": True, "reason": "the web client uploads the MP3"}}
     if remote and web:   # no folder syncs to a phone from there: the web copy is the delivery
         return {"copy_to": [], "remove_local": True, "note": None,
                 "record": {"delivered_to": [], "kept_local": False,
@@ -518,14 +522,14 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
         record["web"] = {"page": os.path.basename(page), "parts": [os.path.basename(p) for p in parts]}
     b.stage = "deliver"
     folders = []
-    if not paths.REMOTE:
+    if not (paths.REMOTE or paths.WEB):
         import context
         p = context.profile()
         _, folders = context.delivery_folders(p)
         missing = context.delivery_note(p)
         if missing:
             b.fail(missing)
-    plan = delivery_plan(paths.REMOTE, web, folders)
+    plan = delivery_plan(paths.REMOTE, web, folders, client=paths.WEB)
     if plan["remove_local"]:
         os.remove(mp3)
     if plan["note"]:

@@ -322,7 +322,12 @@ def talk_rate(voice_name: str):
     except errors.PROBLEMS:   # no route works here (yet): the coach's local pace is still the best guess
         coach = _coach(voice_name)
         try:
-            voice = personas.voice_for(coach, "local") if coach else None
+            if coach is None:
+                voice = None
+            elif coach.is_web:   # no key yet: its pace is an estimate from its sample
+                voice = personas.voice_for(coach, coach.service, pending=True)
+            else:
+                voice = personas.voice_for(coach, "local")
         except errors.PROBLEMS:
             voice = None
     if voice is None:

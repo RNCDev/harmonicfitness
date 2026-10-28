@@ -2,6 +2,12 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- **The web client's mode.** With `HARMONICFITNESS_WEB=1` (the web client's worker sets it) the engine has no local voice: a build with no coach named takes the first stock web coach, whose key the listener adds in the app, and a finished MP3 is kept in its workout folder for the app to upload, with no delivery folder asked for (`doctor` reports `web=yes`). Unset, nothing changes. A web coach with no key yet now shows its estimated pace in the brief instead of none.
+- **Voice keys in the web app** are coming in this release: the app's settings take the key for each web service, the engine reading them instead of `me/.env`.
+
 ## [0.20.0] - 2026-10-27
 
 sweatcast is now **HarmonicFitness**: the command, the package, the environment variables, the repositories and the web app all take the new name. Nothing about how a workout is built, heard or logged changes, and no context file changes its schema. The release also carries the first slice of the web client.
