@@ -329,17 +329,42 @@ SENTENCE = re.compile(r"[.!?;\n]")
 
 
 def turn_to(text: str, side: str) -> Optional[str]:
-    """The words in `text` that turn to a side other than `side` ("then the left", "now left leg", "left leg
-    next", "on to the left", "the same on your left"), or None. A bare "left" isn't one: a limit cue names the
-    injured side ("keep the left foot down"). For "healthy", either side is another one."""
+    """The words in `text` that turn to the other side without naming it ("change legs", "the other one",
+    "ten a side") or naming it in a turn ("then the left"), or None. Every word naming another side is caught
+    by opposite_side; this keeps the forms with no side word. For "healthy", either side is another one."""
     padded = f" {catalog.plain(text)} "
-    for opp in sorted({"left", "right"} - {side}):
-        for rx in (rf" (?:then|now|on to|onto) (?:the |your )?{opp} ",
-                   rf" {opp} (?:leg|legs|arm|arms|side|hip|foot|hand|knee|one) (?:next|now) ",
-                   rf" same (?:thing )?on (?:the |your )?{opp} "):
-            m = re.search(rx, padded)
-            if m:
-                return m.group(0).strip()
+    for rx in (r" (?:change|swap|switch) (?:the )?(?:legs|sides|arms|feet|hands) ", r" (?:the )?other one ",
+               r" the other ", r" a side ", r" per side "):
+        m = re.search(rx, padded)
+        if m:
+            return m.group(0).strip()
+    return None
+
+
+def _cue_sentences(cat: catalog.Catalog) -> set:
+    """Every shipped limit cue's sentences, catalog.plain, with {side} filled in as the brief fills it:
+    the sentences a segment may say that name the injured side."""
+    cached = cat.__dict__.get("_cue_sentences")
+    if cached is None:
+        cached = {catalog.plain(sentence) for levels in cat.limit_cues.values() for lines in levels.values()
+                  for line in lines for word in ("left", "right", "injured", "sore")
+                  for sentence in SENTENCE.split(line.replace(catalog.SIDE_SLOT, word)) if sentence.strip()}
+        cat.__dict__["_cue_sentences"] = cached
+    return cached
+
+
+def opposite_side(cat: catalog.Catalog, text: str, side: str) -> Optional[str]:
+    """The first word in `text` naming a side other than `side` ("left" when the right is allowed; either
+    for "healthy"), outside a sentence that is one of the shipped limit cues with its side filled in, or
+    None. Structural, so it fails safe: any turn to the other side says its name ("repeat with the left
+    leg", "next, left"), and only the limit cues may say it."""
+    opp = {"left", "right"} - {side}
+    cues = _cue_sentences(cat)
+    for sentence in SENTENCE.split(text):
+        words = catalog.plain(sentence)
+        hit = next((w for w in words.split() if w in opp), None)
+        if hit and words not in cues:
+            return hit
     return None
 
 
@@ -389,8 +414,9 @@ def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
     """What puts a movement the menu allows on one side only (on_menu: id -> menu entry, its "side" set) on
     another side or both, in one segment's text (or one plan field's), one problem per movement. A sentence
     that names one may hold no other side's word (one_side_problem); the whole text that names one may hold
-    no both-sides phrase (BOTH_SIDES, its SWITCH phrases among them) and no turn to another side (turn_to),
-    in any sentence: "Right single-leg glute bridge. Ten each side." is refused. Fails safe: a negated
+    no both-sides phrase (BOTH_SIDES, its SWITCH phrases among them), no word naming another side outside a
+    shipped limit cue (opposite_side) and no turn without a side word (turn_to: "change legs", "the other
+    one", "ten a side"), in any sentence: "Right single-leg glute bridge. Ten each side." is refused. Fails safe: a negated
     mention is checked too ("no single-leg glute bridge on the left"), and so is a side word or both-sides
     phrase meant for something else in the same segment (the writer splits the segment)."""
     problems, sided, named = [], set(), []
@@ -410,7 +436,8 @@ def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
         if mid in sided:
             continue
         side = on_menu[mid]["side"]
-        how = f'"{phrase}"' if phrase else (f'"{turn_to(text, side)}"' if turn_to(text, side) else None)
+        found = phrase or opposite_side(cat, text, side) or turn_to(text, side)
+        how = f'"{found}"' if found else None
         if how:
             sided.add(mid)
             problems.append(f'{how} in the same segment as {cat.movements[mid].name} puts it on another side or '

@@ -372,11 +372,16 @@ class OneSideOnly(unittest.TestCase):
 
     def test_a_dose_beyond_the_naming_sentence_is_refused(self):
         bridge = "Right single-leg glute bridge"
-        for lines in ([f"{bridge}: ten each side."], [f"{bridge} (ten each side)."], [f"{bridge}. Ten each side."],
+        for lines in [[f"{bridge}: ten each side."], [f"{bridge} (ten each side)."], [f"{bridge}. Ten each side."],
                       [f"{bridge}, ten. Count reps on each side."], [f"{bridge}, ten. Then the left."],
                       [f"{bridge}, ten.", "Now left leg."], [f"{bridge}, ten. Left leg next."],
                       [f"{bridge}, ten. On to the left."], [f"{bridge}, ten. Then do the same on your left."],
-                      [f"{bridge}, ten.", "Then alternate."]):
+                      [f"{bridge}, ten.", "Then alternate."]] + [
+                [f"{bridge}, ten.", later] for later in (
+                    "Repeat with the left leg.", "Then ten on the left.", "Ten more on the left.",
+                    "Same again on the left.", "Do the left leg too.", "Left now.", "Next, left.", "Change legs.",
+                    "Change sides.", "Swap legs.", "Now the other one.", "Twenty total, ten a side.",
+                    "Switch arms.", "Ten per side.", "Then the other.")]:
             with self.subTest(lines=lines):
                 issues = bridge_issues(*lines)
                 self.assertTrue(any("right side only" in i for i in issues), issues)
