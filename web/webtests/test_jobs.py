@@ -409,9 +409,16 @@ class Turn(JobsCase):
         args.update(over)
         return args
 
+    def enqueue_turn(self, uk, cid, args):
+        """A turn job recorded as the conversation's own, as the API queues one."""
+        job = jobs.enqueue(self.conn, uk, "turn", args)
+        conversations.set_job(self.conn, uk, cid, job)
+        self.conn.commit()
+        return job
+
     def run_turn(self, uk, script, cid, line=None, answer=None, **over):
         """Enqueue a turn and run it with `script` as the model; (job id, the conversation after)."""
-        job = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, line, answer, **over))
+        job = self.enqueue_turn(uk, cid, self.turn_args(cid, line, answer, **over))
         model = FunctionModel(script) if callable(script) else script
         with mock.patch.object(providers, "model_for", return_value=model) as model_for:
             self.assertTrue(self.run_one())
@@ -682,7 +689,7 @@ class Turn(JobsCase):
     def test_model_client_failure_goes_through_explain(self):
         uk = self.user()
         cid = self.start(uk)
-        job = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, "go"))
+        job = self.enqueue_turn(uk, cid, self.turn_args(cid, "go"))
         with mock.patch.object(providers, "model_for", side_effect=ConnectionError(f"bad {MODEL_KEY}")), \
                 mock.patch("sys.stderr") as err:
             self.run_one()
@@ -748,4 +755,34 @@ class Turn(JobsCase):
         with mock.patch.object(worker.store, "write_back", side_effect=RuntimeError("disk")):
             job, conv = self.lost_after_handler(uk, cid, lambda ctx: None)
         self.check_lost(uk, job, conv, before, "the job stopped unexpectedly")
+        self.conn.rollback()
+
+    def test_late_loss_of_an_old_job_leaves_a_newer_turn_alone(self):
+        uk = self.user()
+        cid = self.start(uk)
+        newer = []
+
+        def reaped_then_replaced(ctx):
+            self.conn.execute("update jobs set state = 'failed', error = 'interrupted', "
+                              "finished_at = now() where id = %s", (ctx.job_id,))
+            newer.append(jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, "again")))
+            conversations.set_job(self.conn, uk, cid, newer[0])   # healed and begun anew meanwhile
+            self.conn.commit()
+        job, conv = self.lost_after_handler(uk, cid, reaped_then_replaced)
+        self.assertEqual(self.state(job), ("failed", "interrupted"))
+        self.assertEqual((conv.state, conv.job_id), ("working", newer[0]))
+        self.assertEqual(conv.lines, [{"role": "user", "text": "a 20-minute strength workout"}])
+        self.conn.rollback()
+
+    def test_a_stop_of_an_old_job_leaves_a_newer_turn_alone(self):
+        uk = self.user()
+        cid = self.start(uk)
+        old = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go", now="08:00"))
+        conversations.set_job(self.conn, uk, cid, None)   # not this job's turn
+        self.conn.commit()
+        with mock.patch.object(providers, "model_for", side_effect=AssertionError("the model ran")):
+            self.run_one()
+        self.assertEqual(self.state(old)[0], "failed")
+        conv = conversations.load(self.conn, uk, cid)
+        self.assertEqual(conv.state, "working")
         self.conn.rollback()

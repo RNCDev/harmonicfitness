@@ -117,3 +117,61 @@ class Conversations(DBCase):
                          "Limits: Nothing new, Knee · Length: 40 min")
         self.assertEqual(conversations.answer_line(QUESTION, {"length": ["25 min"]}),
                          "Length: 25 min")
+
+    def job(self, uk, state):
+        return self.conn.execute("insert into jobs (user_id, kind, args, state) values "
+                                 "(%s, 'turn', %s, %s) returning id",
+                                 (uk.user_id, b"", state)).fetchone()[0]
+
+    def test_set_job_kept_through_save(self):
+        _, uk = self.make_user()
+        cid = conversations.create(self.conn, uk, "hi")
+        self.assertIsNone(conversations.load(self.conn, uk, cid).job_id)
+        job = self.job(uk, "queued")
+        conversations.set_job(self.conn, uk, cid, job)
+        c = conversations.load(self.conn, uk, cid)
+        self.assertEqual((c.job_id, c.version), (job, 1))
+        c.state = "idle"
+        self.assertTrue(conversations.save(self.conn, uk, c, c.version))
+        self.assertEqual(conversations.latest(self.conn, uk).job_id, job)
+        _, other = self.make_user()
+        conversations.set_job(self.conn, other, cid, None)   # another user's: nothing
+        self.assertEqual(conversations.load(self.conn, uk, cid).job_id, job)
+        self.conn.execute("delete from jobs where id = %s", (job,))
+        self.assertIsNone(conversations.load(self.conn, uk, cid).job_id)
+        self.conn.rollback()
+
+    def test_heal(self):
+        _, uk = self.make_user()
+        for job_state, heals in (("queued", False), ("running", False), ("failed", True),
+                                 ("done", True), (None, True)):
+            with self.subTest(job_state=job_state):
+                cid = conversations.create(self.conn, uk, "hi")
+                if job_state:
+                    conversations.set_job(self.conn, uk, cid, self.job(uk, job_state))
+                c = conversations.load(self.conn, uk, cid)
+                c.question = {"questions": [], "tool_call_id": "x"}
+                conversations.save(self.conn, uk, c, c.version)
+                healed = conversations.heal(self.conn, uk, conversations.load(self.conn, uk, cid))
+                stored = conversations.load(self.conn, uk, cid)
+                self.assertEqual((healed.state, stored.state), ("failed",) * 2 if heals else ("working",) * 2)
+                if heals:
+                    self.assertEqual(stored.lines[-1], {"role": "agent", "text": "That didn't work: interrupted"})
+                    self.assertIsNone(stored.question)
+                    self.assertEqual(healed.version, stored.version)
+                self.conn.rollback()
+        cid = conversations.create(self.conn, uk, "hi")
+        c = conversations.load(self.conn, uk, cid)
+        c.state = "idle"
+        conversations.save(self.conn, uk, c, c.version)
+        self.assertEqual(conversations.heal(self.conn, uk, c).state, "idle")   # only working heals
+        stale = conversations.load(self.conn, uk, cid)
+        stale.state = "working"
+        conversations.save(self.conn, uk, stale, stale.version)
+        old = conversations.load(self.conn, uk, cid)
+        newer = conversations.load(self.conn, uk, cid)
+        conversations.save(self.conn, uk, newer, newer.version)   # moved on meanwhile
+        got = conversations.heal(self.conn, uk, old)              # the version check fails: as stored
+        self.assertEqual((got.state, got.version), ("working", newer.version))
+        self.assertEqual(conversations.load(self.conn, uk, cid).lines, [{"role": "user", "text": "hi"}])
+        self.conn.rollback()

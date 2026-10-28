@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from webapp import api, auth, config, db, folder, jobs, keystore, store, worker  # noqa: E402
+from webapp import api, auth, config, conversations, db, folder, jobs, keystore, store, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
@@ -580,6 +580,277 @@ class Keys(ApiCase):
     def test_api_never_opens_keys(self):
         with open(api.__file__) as f:
             self.assertNotIn("open_all", f.read())
+
+
+QUESTION = {"questions": [
+    {"id": "limits", "prompt": "Anything sore or off today?", "multi": True, "other": True,
+     "options": [{"label": "Nothing new", "recommended": True}, {"label": "Knee"}]},
+    {"id": "length", "prompt": "Length", "multi": False, "other": False,
+     "options": [{"label": "25 min", "recommended": True}, {"label": "30 min"}]}],
+    "tool_call_id": "call_1"}
+GOOD_ANSWER = {"limits": ["Nothing new"], "length": ["25 min"]}
+
+
+class Conversations(ApiCase):
+    def keyed(self, client=None):
+        user_id, uk = self.signed_in(client)
+        keystore.put(self.conn, uk, "anthropic", "sk-ant-abc123def456abcd")
+        self.conn.commit()
+        return user_id, uk
+
+    def turn(self, **body):
+        return {"today": today(), "now": f"{today()} Wednesday 08:00", **body}
+
+    def start(self, client=None, line="a 20-minute strength workout"):
+        r = (client or self.client).post("/api/conversations", json=self.turn(line=line),
+                                         headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        return r.json()
+
+    def settle(self, uk, cid, state="waiting", question=QUESTION, job_state="done"):
+        """The turn's job ended and the conversation moved to `state` (with `question`)."""
+        c = conversations.load(self.conn, uk, cid)
+        self.conn.execute("update jobs set state = %s, finished_at = now() where id = %s",
+                          (job_state, c.job_id))
+        c.state, c.question = state, question
+        self.assertTrue(conversations.save(self.conn, uk, c, c.version))
+        self.conn.commit()
+
+    def turn_jobs(self, user_id):
+        return [r[0] for r in self.conn.execute(
+            "select id from jobs where user_id = %s and kind = 'turn' order by id", (user_id,))]
+
+    def test_needs_session_and_origin(self):
+        for path in ("/api/conversations/latest", "/api/conversations/1"):
+            self.assertEqual(self.client.get(path).status_code, 401, path)
+        for path in ("/api/conversations", "/api/conversations/1/messages",
+                     "/api/conversations/1/answer"):
+            self.assertEqual(self.client.post(path, json={}, headers=self.origin()).status_code,
+                             401, path)
+        self.keyed()
+        self.assertEqual(self.client.post("/api/conversations", json=self.turn(line="hi"))
+                         .status_code, 403)
+
+    def test_start_needs_model_key(self):
+        user_id, uk = self.signed_in()
+        keystore.put(self.conn, uk, "fish", "abc123def456abcd")    # a voice key isn't a model key
+        self.conn.commit()
+        r = self.client.post("/api/conversations", json=self.turn(line="hi"), headers=self.origin())
+        self.assertEqual((r.status_code, r.json()["detail"]),
+                         (409, "Add a key for Claude in Keys first."))
+        self.assertEqual(self.turn_jobs(user_id), [])
+        self.assertIsNone(conversations.latest(self.conn, uk))
+        self.conn.rollback()
+
+    def test_start_queues_turn(self):
+        user_id, uk = self.keyed()
+        body = self.start(line="a 20-minute strength workout")
+        self.assertEqual(set(body), {"id", "job_id"})
+        self.assertEqual(self.turn_jobs(user_id), [body["job_id"]])
+        self.assertEqual(jobs.args(self.conn, uk, body["job_id"]),
+                         {"conversation_id": body["id"], "line": "a 20-minute strength workout",
+                          "answer": None, "today": today(), "now": f"{today()} Wednesday 08:00"})
+        raw = bytes(self.conn.execute("select args from jobs where id = %s",
+                                      (body["job_id"],)).fetchone()[0])
+        self.assertNotIn(b"strength workout", raw)
+        c = conversations.load(self.conn, uk, body["id"])
+        self.assertEqual((c.state, c.job_id), ("working", body["job_id"]))
+        self.conn.rollback()
+
+    def test_start_validates(self):
+        user_id, _ = self.keyed()
+        yesterday_week = (datetime.date.fromisoformat(today()) - datetime.timedelta(days=7)).isoformat()
+        for bad in (self.turn(line=""), self.turn(line="x" * 2001), self.turn(line="   "),
+                    self.turn(line=5), self.turn(line="hi", extra=1), {"line": "hi"},
+                    self.turn(line="hi", now="08:00"), self.turn(line="hi", today=yesterday_week),
+                    self.turn(line="hi", now=f"{today()} Wednesday 08:00\n"),
+                    self.turn(line="hi", now=f"{yesterday_week} Wednesday 08:00")):
+            r = self.client.post("/api/conversations", json=bad, headers=self.origin())
+            self.assertEqual(r.status_code, 422, bad)
+            self.assertNotIn("x" * 50, r.text)
+        self.assertEqual(self.turn_jobs(user_id), [])
+
+    def test_start_queue_cap(self):
+        user_id, uk = self.keyed()
+        for _ in range(3):
+            self.start()
+        r = self.client.post("/api/conversations", json=self.turn(line="hi"), headers=self.origin())
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(len(self.turn_jobs(user_id)), 3)
+        self.assertEqual(self.conn.execute("select count(*) from conversations where user_id = %s",
+                                           (user_id,)).fetchone()[0], 3)
+        self.conn.rollback()
+
+    def test_get_never_returns_history(self):
+        _, uk = self.keyed()
+        self.assertEqual(self.client.get("/api/conversations/latest").status_code, 204)
+        body = self.start()
+        c = conversations.load(self.conn, uk, body["id"])
+        c.history = '[{"secret": "the model\'s history"}]'
+        c.plan = {"format": "Straight sets"}
+        conversations.save(self.conn, uk, c, c.version)
+        self.conn.commit()
+        for path in (f"/api/conversations/{body['id']}", "/api/conversations/latest"):
+            r = self.client.get(path)
+            self.assertEqual(r.status_code, 200, path)
+            self.assertEqual(r.json(), {"id": body["id"], "state": "working", "job_id": body["job_id"],
+                                        "lines": [{"role": "user", "text": "a 20-minute strength workout"}],
+                                        "question": None, "plan": {"format": "Straight sets"}})
+            self.assertNotIn("history", r.text)
+        self.settle(uk, body["id"], state="idle", question=None)
+        self.assertIsNone(self.client.get(f"/api/conversations/{body['id']}").json()["job_id"])
+        self.assertEqual(self.client.get(f"/api/conversations/{2**70}").status_code, 422)
+
+    def test_get_heals_a_conversation_whose_job_died(self):
+        _, uk = self.keyed()
+        for how in ("failed", "done", "gone"):
+            with self.subTest(how=how):
+                body = self.start()
+                if how == "gone":
+                    self.conn.execute("delete from jobs where id = %s", (body["job_id"],))
+                else:
+                    self.conn.execute("update jobs set state = %s where id = %s", (how, body["job_id"]))
+                self.conn.commit()
+                path = f"/api/conversations/{body['id']}" if how != "done" else "/api/conversations/latest"
+                got = self.client.get(path).json()
+                self.assertEqual(got["state"], "failed")
+                self.assertEqual(got["lines"][-1],
+                                 {"role": "agent", "text": "That didn't work: interrupted"})
+                c = conversations.load(self.conn, uk, body["id"])
+                self.assertEqual(c.state, "failed")
+                self.conn.rollback()
+        live = self.start()
+        for state in ("queued", "running"):
+            self.conn.execute("update jobs set state = %s where id = %s", (state, live["job_id"]))
+            self.conn.commit()
+            self.assertEqual(self.client.get(f"/api/conversations/{live['id']}").json()["state"],
+                             "working")
+
+    def test_message_while_working_is_409(self):
+        user_id, uk = self.keyed()
+        body = self.start()
+        r = self.client.post(f"/api/conversations/{body['id']}/messages",
+                             json=self.turn(line="and also"), headers=self.origin())
+        self.assertEqual((r.status_code, r.json()["detail"]), (409, "Still working on the last message."))
+        self.assertEqual(self.turn_jobs(user_id), [body["job_id"]])
+        self.settle(uk, body["id"], state="idle", question=None)
+        for bad in (self.turn(line=""), self.turn(line="  "), self.turn(line="hi", now="noon")):
+            r = self.client.post(f"/api/conversations/{body['id']}/messages", json=bad,
+                                 headers=self.origin())
+            self.assertEqual(r.status_code, 422, bad)
+        r = self.client.post(f"/api/conversations/{body['id']}/messages",
+                             json=self.turn(line="and also"), headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        job = r.json()["job_id"]
+        self.assertEqual(set(r.json()), {"job_id"})
+        self.assertEqual(self.turn_jobs(user_id), [body["job_id"], job])
+        self.assertEqual(jobs.args(self.conn, uk, job)["line"], "and also")
+        c = conversations.load(self.conn, uk, body["id"])
+        self.assertEqual((c.state, c.job_id, c.lines[-1]),
+                         ("working", job, {"role": "user", "text": "and also"}))
+        self.conn.rollback()
+
+    def test_message_heals_before_it_begins(self):
+        user_id, uk = self.keyed()
+        body = self.start()
+        self.conn.execute("update jobs set state = 'failed', error = 'interrupted' where id = %s",
+                          (body["job_id"],))
+        self.conn.commit()
+        r = self.client.post(f"/api/conversations/{body['id']}/messages",
+                             json=self.turn(line="try again"), headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        c = conversations.load(self.conn, uk, body["id"])
+        self.assertEqual(c.state, "working")
+        self.assertEqual([ln["text"] for ln in c.lines],
+                         ["a 20-minute strength workout", "That didn't work: interrupted", "try again"])
+        self.conn.rollback()
+
+    def test_answer_twice_is_409(self):
+        user_id, uk = self.keyed()
+        body = self.start()
+        self.settle(uk, body["id"])
+        answer = self.turn(tool_call_id="call_1", values=GOOD_ANSWER)
+        path = f"/api/conversations/{body['id']}/answer"
+        r = self.client.post(path, json=answer, headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        job = r.json()["job_id"]
+        self.assertEqual(jobs.args(self.conn, uk, job)["answer"],
+                         {"tool_call_id": "call_1", "values": GOOD_ANSWER})
+        self.assertIsNone(jobs.args(self.conn, uk, job)["line"])
+        self.conn.rollback()
+        r = self.client.post(path, json=answer, headers=self.origin())
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(self.turn_jobs(user_id), [body["job_id"], job])
+        c = conversations.load(self.conn, uk, body["id"])
+        self.assertEqual((c.state, c.question, c.job_id), ("working", None, job))
+        self.assertEqual(c.lines[-1], {"role": "user", "text": "Anything sore or off today: Nothing new · Length: 25 min"})
+        self.conn.rollback()
+
+    def test_answer_to_another_question_is_409(self):
+        user_id, uk = self.keyed()
+        body = self.start()
+        self.settle(uk, body["id"], state="idle", question=None)
+        path = f"/api/conversations/{body['id']}/answer"
+        r = self.client.post(path, json=self.turn(tool_call_id="call_1", values=GOOD_ANSWER),
+                             headers=self.origin())
+        self.assertEqual(r.status_code, 409)
+        self.settle(uk, body["id"])
+        r = self.client.post(path, json=self.turn(tool_call_id="call_2", values=GOOD_ANSWER),
+                             headers=self.origin())
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(self.turn_jobs(user_id), [body["job_id"]])
+
+    def test_answer_validates_options(self):
+        user_id, uk = self.keyed()
+        body = self.start()
+        self.settle(uk, body["id"])
+        path = f"/api/conversations/{body['id']}/answer"
+        for values in ({"limits": ["Nothing new"], "length": ["45 min"]},          # no such option
+                       {"limits": ["Nothing new"], "length": ["25 min", "30 min"]},  # not multi
+                       {"limits": ["Nothing new"], "length": "other: 40 min"},    # no other
+                       {"limits": ["Nothing new"], "length": "25 min"},           # a bare string
+                       {"limits": [], "length": ["25 min"]},                      # nothing chosen
+                       {"limits": ["Knee", "Knee"], "length": ["25 min"]},        # twice
+                       {"limits": "other:  ", "length": ["25 min"]},              # empty other
+                       {"limits": ["Nothing new"]},                               # one missing
+                       {**GOOD_ANSWER, "coach": ["Andy"]},                        # unknown id
+                       {}):
+            r = self.client.post(path, json=self.turn(tool_call_id="call_1", values=values),
+                                 headers=self.origin())
+            self.assertEqual(r.status_code, 422, values)
+        for bad in (self.turn(tool_call_id="call_1"), self.turn(values=GOOD_ANSWER),
+                    self.turn(tool_call_id="call_1", values={"limits": 5}),
+                    self.turn(tool_call_id="call_1", values=GOOD_ANSWER, now="noon")):
+            self.assertEqual(self.client.post(path, json=bad, headers=self.origin()).status_code, 422, bad)
+        self.assertEqual(self.turn_jobs(user_id), [body["job_id"]])
+        self.assertEqual(conversations.load(self.conn, uk, body["id"]).state, "waiting")
+        self.conn.rollback()
+        r = self.client.post(path, json=self.turn(tool_call_id="call_1", values={
+            "limits": ["Nothing new", "other: my left wrist"], "length": ["30 min"]}), headers=self.origin())
+        self.assertEqual(r.status_code, 422)   # an other: text goes alone, as a string
+        r = self.client.post(path, json=self.turn(tool_call_id="call_1", values={
+            "limits": "other: my left wrist", "length": ["30 min"]}), headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+
+    def test_other_users_conversation_is_404(self):
+        _, uk_a = self.make_user()
+        cid = conversations.create(self.conn, uk_a, "mine")
+        c = conversations.load(self.conn, uk_a, cid)
+        c.state, c.question = "waiting", QUESTION
+        conversations.save(self.conn, uk_a, c, c.version)
+        self.conn.commit()
+        user_id, _ = self.keyed()
+        self.assertEqual(self.client.get(f"/api/conversations/{cid}").status_code, 404)
+        self.assertEqual(self.client.get("/api/conversations/latest").status_code, 204)
+        for path, body in ((f"/api/conversations/{cid}/messages", self.turn(line="hi")),
+                           (f"/api/conversations/{cid}/answer",
+                            self.turn(tool_call_id="call_1", values=GOOD_ANSWER)),
+                           ("/api/conversations/999999999/messages", self.turn(line="hi"))):
+            r = self.client.post(path, json=body, headers=self.origin())
+            self.assertEqual(r.status_code, 404, path)
+        self.assertEqual(self.turn_jobs(user_id), [])
+        self.assertEqual(conversations.load(self.conn, uk_a, cid).state, "waiting")
+        self.conn.rollback()
 
 
 class Client(ApiCase):

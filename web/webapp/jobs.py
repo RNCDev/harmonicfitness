@@ -6,7 +6,8 @@ The database keeps one running job per user (the partial unique index one_runnin
 A job that dies is failed by `reap`, never requeued: it may already have reached a paid service.
 
 Transactions: every function that writes (enqueue, claim, heartbeat, finish, complete, fail, reap,
-event) commits its own work. The readers (args, result, events, status) run in the caller's transaction
+event) commits its own work, but `add`, which queues a job in the caller's transaction (so a job and
+what it belongs to commit together). The readers (args, result, events, status) run in the caller's transaction
 and don't commit.
 """
 import json
@@ -54,17 +55,21 @@ def _done(conn, fn):
         raise
 
 
+def add(conn, uk: UserKey, kind: str, args: dict) -> int:
+    """Queue a job in the caller's transaction; the workers wake (NOTIFY jobs_queued) when it
+    commits. No commit."""
+    job_id = conn.execute(
+        "insert into jobs (user_id, kind, args, state) values (%s, %s, %s, 'queued') returning id",
+        (uk.user_id, kind, b"")).fetchone()[0]
+    conn.execute("update jobs set args = %s where id = %s",
+                 (_seal(uk, args, _aad(uk, job_id, "args")), job_id))
+    conn.execute("select pg_notify('jobs_queued', '')")
+    return job_id
+
+
 def enqueue(conn, uk: UserKey, kind: str, args: dict) -> int:
     """Queue a job and wake the workers (NOTIFY jobs_queued). Commits."""
-    def work():
-        job_id = conn.execute(
-            "insert into jobs (user_id, kind, args, state) values (%s, %s, %s, 'queued') returning id",
-            (uk.user_id, kind, b"")).fetchone()[0]
-        conn.execute("update jobs set args = %s where id = %s",
-                     (_seal(uk, args, _aad(uk, job_id, "args")), job_id))
-        conn.execute("select pg_notify('jobs_queued', '')")
-        return job_id
-    return _done(conn, work)
+    return _done(conn, lambda: add(conn, uk, kind, args))
 
 
 def claim(conn) -> Job | None:

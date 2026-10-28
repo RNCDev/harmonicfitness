@@ -243,19 +243,30 @@ def _turn_request(args: dict) -> tuple[str | None, tuple[str, dict] | None, str,
     return line, answer, today, now
 
 
+def check_turn(args: dict) -> str | None:
+    """What's wrong with a turn job's args, in the worker's own words, or None: the API checks a turn
+    with this before it queues one."""
+    try:
+        _turn_request(args)
+    except _Stop as e:
+        return e.message
+    return None
+
+
 def _agent_line(conv: conversations.Conversation, text: str) -> list:
     return conv.lines + [{"role": "agent", "text": text}]
 
 
 def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str) -> None:
     """The conversation as stored (as it was before the turn: its history, plan and stem), failed with
-    an agent line. Committed: run_one rolls back on JobFailed. Does nothing once it is no longer working."""
+    an agent line. Committed: run_one rolls back on JobFailed. Does nothing once it is no longer working,
+    or once its turn is another job's (a late loss of an old job never fails a newer turn)."""
     ctx.conn.rollback()
     try:
         conv = conversations.load(ctx.conn, ctx.uk, conv.id)
     except LookupError:
         conv = None
-    if conv is None or conv.state != "working":
+    if conv is None or conv.state != "working" or conv.job_id != ctx.job_id:
         ctx.conn.rollback()
         return
     failed = dataclasses.replace(conv, state="failed", question=None,

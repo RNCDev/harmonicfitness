@@ -33,9 +33,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, \
     RedirectResponse, Response, StreamingResponse
-from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, config, db, engine, jobs, keystore, providers, store, worker
+from . import APP_NAME, auth, config, conversations, db, engine, jobs, keystore, providers, store, \
+    worker
 
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -107,6 +108,53 @@ class BriefJob(BaseModel):
     minutes: StrictInt
     preset: StrictStr
     today: Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+
+
+Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # the worker's check_turn says the rest
+Line = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
+Label = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
+Choice = Annotated[list[Label], Field(min_length=1, max_length=6)] | Label
+
+
+class TurnLine(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    line: Line
+    today: Day
+    now: Now
+
+
+class TurnAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tool_call_id: Annotated[StrictStr, StringConstraints(min_length=1, max_length=200)]
+    values: Annotated[dict[Annotated[StrictStr, StringConstraints(max_length=40)], Choice],
+                      Field(min_length=1, max_length=4)]
+    today: Day
+    now: Now
+
+
+STILL_WORKING = "Still working on the last message."
+NOT_OPEN = "That question isn't open any more."
+
+
+def _bad_answer(question: dict, values: dict) -> str | None:
+    """What's wrong with `values` as the answer to the open `question`, or None. Each question gets
+    its option labels (more than one only when it is multi) or, when it allows other, "other: <text>"."""
+    asked = {q.get("id"): q for q in question.get("questions") or []}
+    if set(values) != set(asked):
+        return "answer every question, and only those"
+    for qid, value in values.items():
+        q = asked[qid]
+        if isinstance(value, str):
+            if not (q.get("other") and value.startswith("other:") and value[len("other:"):].strip()):
+                return "an answer names no option of its question"
+            continue
+        labels = {o.get("label") for o in q.get("options") or []}
+        if len(set(value)) != len(value) or not set(value) <= labels:
+            return "an answer names no option of its question"
+        if len(value) > 1 and not q.get("multi"):
+            return "that question takes one answer"
+    return None
 
 
 class Credentials(BaseModel):
@@ -482,6 +530,115 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         return StreamingResponse(_stream(open_stream, uk, job_id, after),
                                  media_type="text/event-stream",
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+    # ---- conversations ----------------------------------------------------------------------
+
+    def turn_args(cid: int, line: str | None, answer: dict | None, today: str, now: str) -> dict:
+        args = {"conversation_id": cid, "line": line, "answer": answer, "today": today, "now": now}
+        problem = worker.check_turn(args)
+        if problem is not None:
+            raise HTTPException(422, problem)
+        return args
+
+    @contextmanager
+    def turn_transaction(uk: store.UserKey):
+        """One transaction for a POST that queues a turn: the user's row locked (serialising the
+        queued count against the user's other posts), 429 at the cap; commits on success."""
+        with connection() as conn:
+            try:
+                conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
+                queued = conn.execute("select count(*) from jobs where user_id = %s and "
+                                      "state = 'queued'", (uk.user_id,)).fetchone()[0]
+                if queued >= MAX_QUEUED:
+                    raise HTTPException(429, "too many jobs waiting")
+                yield conn
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
+
+    def queue_turn(conn, uk: store.UserKey, args: dict) -> int:
+        job_id = jobs.add(conn, uk, "turn", args)
+        conversations.set_job(conn, uk, args["conversation_id"], job_id)
+        return job_id
+
+    def shown(c: conversations.Conversation) -> dict:
+        """What the client sees: never the history; the job only while it works."""
+        return {"id": c.id, "state": c.state, "job_id": c.job_id if c.state == "working" else None,
+                "lines": c.lines, "question": c.question, "plan": c.plan}
+
+    def healed(conn, uk: store.UserKey, cid: int) -> conversations.Conversation:
+        try:
+            return conversations.heal(conn, uk, conversations.load(conn, uk, cid))
+        except LookupError:
+            raise HTTPException(404, "no such conversation") from None
+
+    @app.post("/api/conversations", status_code=202, **post)
+    def start_conversation(uk: User, body: Annotated[TurnLine, Body()]):
+        turn_args(0, body.line, None, body.today, body.now)
+        with connection() as conn:
+            try:
+                have = keystore.listing(conn, uk)
+            finally:
+                conn.rollback()
+        if not any(p in have for p in settings.providers):
+            name = providers.PROVIDERS[settings.providers[0]].name
+            raise HTTPException(409, f"Add a key for {name} in Keys first.")
+        with turn_transaction(uk) as conn:
+            cid = conversations.create(conn, uk, body.line)
+            job_id = queue_turn(conn, uk, turn_args(cid, body.line, None, body.today, body.now))
+        return {"id": cid, "job_id": job_id}
+
+    @app.get("/api/conversations/latest")
+    def latest_conversation(uk: User):
+        with connection() as conn:
+            try:
+                c = conversations.latest(conn, uk)
+                if c is not None:
+                    c = conversations.heal(conn, uk, c)
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
+        return Response(status_code=204) if c is None else shown(c)
+
+    @app.get("/api/conversations/{cid}")
+    def get_conversation(uk: User, cid: Annotated[int, JOB_ID]):
+        with connection() as conn:
+            try:
+                c = healed(conn, uk, cid)
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
+        return shown(c)
+
+    @app.post("/api/conversations/{cid}/messages", status_code=202, **post)
+    def post_message(uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnLine, Body()]):
+        args = turn_args(cid, body.line, None, body.today, body.now)
+        with turn_transaction(uk) as conn:
+            healed(conn, uk, cid)
+            if not conversations.begin_turn(conn, uk, cid, body.line, None):
+                raise HTTPException(409, STILL_WORKING)
+            job_id = queue_turn(conn, uk, args)
+        return {"job_id": job_id}
+
+    @app.post("/api/conversations/{cid}/answer", status_code=202, **post)
+    def post_answer(uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnAnswer, Body()]):
+        answer = {"tool_call_id": body.tool_call_id, "values": body.values}
+        args = turn_args(cid, None, answer, body.today, body.now)
+        with turn_transaction(uk) as conn:
+            c = healed(conn, uk, cid)
+            if c.state != "waiting" or not c.question \
+                    or c.question.get("tool_call_id") != body.tool_call_id:
+                raise HTTPException(409, NOT_OPEN)
+            problem = _bad_answer(c.question, body.values)
+            if problem is not None:
+                raise HTTPException(422, problem)
+            if not conversations.begin_turn(conn, uk, cid, None, body.values):
+                raise HTTPException(409, NOT_OPEN)
+            job_id = queue_turn(conn, uk, args)
+        return {"job_id": job_id}
 
     # ---- the built client -------------------------------------------------------------------
 
