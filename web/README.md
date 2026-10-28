@@ -26,6 +26,14 @@ For someone who forgot their password, run from `web/` (or with `web/` on `PYTHO
 
 It clears their password, signs out their devices and prints a one-time sign-in link (24 hours) and nothing else; send it to them yourself. Opening it signs them in, and the app asks for a new password. It never migrates: against a database still missing a migration (one the web service hasn't applied yet) it refuses, exits 1, and says to deploy first.
 
+## Keys
+
+Each listener's voice service keys (one per web voice service in the engine's `knowledge/services.toml`) are entered in the app's "Voice keys" box and stored in the `user_keys` table (migration 005), one row per user and service, sealed with that user's data key; only the service name and a timestamp are plain. A key is trimmed, must be printable ASCII with no spaces (the engine's `keys.clean_value`) and at most 1024 characters.
+
+The web process seals a key on entry and never opens one: `GET /api/keys` says only which services have a key, `PUT /api/keys/<service>` sets or replaces one and `DELETE` removes it. Only the worker opens a listener's keys, for a job, and passes them to the engine under the variable names in `services.toml` (such as `FISH_AUDIO_API_KEY`); the engine's output is scrubbed of them.
+
+Every job runs the engine with `HARMONICFITNESS_WEB=1`: no local voices, "add a key" messages point at the app, a stock web coach by default, and the finished MP3 is kept for the app to upload.
+
 ## Serve
 
 Run from `web/`, with `DATABASE_URL`, `HARMONICFITNESS_BASE_URL` and `HARMONICFITNESS_MASTER_KEY` set (the same as the admin commands). It applies any database migrations once at startup, then serves the API and, when `web/client/dist` has been built, the client:
