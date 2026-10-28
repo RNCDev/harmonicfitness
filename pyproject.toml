@@ -41,6 +41,8 @@ web = [
     "psycopg[binary,pool]==3.3.6",
     "cryptography==50.0.2",
     "httpx==0.28.1",
+    "pydantic-ai-slim[anthropic,openai,google]==2.56.0",
+    "anthropic>=1.12,<2",
 ]
 
 [tool.uv]
