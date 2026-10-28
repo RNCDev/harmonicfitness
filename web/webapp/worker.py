@@ -7,9 +7,11 @@ removed whatever happens; this process never reads or writes anyone's context as
 Before importing any engine module (for the session goals and kit presets) the worker points
 HARMONICFITNESS_HOME at a folder that doesn't exist, so the engine's libraries never find a real `me/`.
 """
+import dataclasses
 import datetime
 import importlib
 import os
+import re
 import shutil
 import signal
 import sys
@@ -21,7 +23,7 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import config, db, engine, folder, jobs, keystore, store
+from . import config, conversations, db, engine, folder, jobs, keystore, providers, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
@@ -51,6 +53,8 @@ class Ctx:
     home: str
     pending: tuple | None = None   # (changes, base) to write back when the job completes
     keys: dict = field(default_factory=dict, repr=False)   # {key_var: value}: the engine's extra_env, set by run_one
+    on_done: Callable[[], None] | None = None   # run in the transaction that marks the job done
+    on_lost: Callable[[], None] | None = None   # run (then committed) when the handler returned but the job wasn't done
 
     def say(self, stage: str, **fields) -> None:
         """A job event, committed now so a stream sees it live. It commits the connection's pending
@@ -161,6 +165,11 @@ def _brief_request(args: dict, settings: config.Settings) -> tuple[str, int, str
         raise JobFailed("invalid request: minutes must be 10..60")
     if not isinstance(preset, str) or preset not in presets:
         raise JobFailed("invalid request: unknown preset")
+    return goal, minutes, preset, _today(today)
+
+
+def _today(today: object) -> str:
+    """The request's `today`, checked: a date within a day of the worker's own (UTC)."""
     try:
         day = datetime.date.fromisoformat(today) if isinstance(today, str) and len(today) == 10 else None
     except ValueError:
@@ -168,7 +177,7 @@ def _brief_request(args: dict, settings: config.Settings) -> tuple[str, int, str
     now = datetime.datetime.now(datetime.timezone.utc).date()
     if day is None or abs((day - now).days) > 1:
         raise JobFailed("invalid request: today must be a date within a day of today")
-    return goal, minutes, preset, day.isoformat()
+    return day.isoformat()
 
 
 def brief(ctx: Ctx) -> dict:
@@ -191,7 +200,137 @@ def brief(ctx: Ctx) -> dict:
     return {"brief_md": r.stdout, "stem": stem}
 
 
-HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief}
+TURN_ARGS = {"conversation_id", "line", "answer", "today", "now"}
+TURN_NOW = re.compile(r"\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}", re.ASCII)
+MAX_LINE = 4000
+NO_MODEL_KEY = "add a language-model key in Keys"
+TOO_LONG = "this turn ran too long; try again with less to do"
+NOT_OPEN = "that answer didn't match the open question; send a message instead"
+CANT_FINISH = "the agent stopped on something it can't finish; send another message"
+UNEXPECTED = "the job stopped unexpectedly"
+
+
+class _Stop(Exception):
+    """A turn that fails with `message`: the conversation goes failed with it, then the job."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
+def _turn_request(args: dict) -> tuple[str | None, tuple[str, dict] | None, str, str]:
+    """(line, answer, today, now), checked; exactly one of line or answer."""
+    if set(args) != TURN_ARGS:
+        raise _Stop("invalid request: needs conversation_id, line, answer, today and now")
+    line, answer = args["line"], args["answer"]
+    if (line is None) == (answer is None):
+        raise _Stop("invalid request: give exactly one of line or answer")
+    if line is not None and not (isinstance(line, str) and 0 < len(line.strip()) and len(line) <= MAX_LINE):
+        raise _Stop("invalid request: line must be a message")
+    if answer is not None:
+        if not (isinstance(answer, dict) and set(answer) == {"tool_call_id", "values"}
+                and isinstance(answer["tool_call_id"], str) and answer["tool_call_id"]
+                and isinstance(answer["values"], dict)):
+            raise _Stop("invalid request: answer needs tool_call_id and values")
+        answer = (answer["tool_call_id"], answer["values"])
+    try:
+        today = _today(args["today"])
+    except JobFailed as e:
+        raise _Stop(e.error) from None
+    now = args["now"]
+    if not (isinstance(now, str) and TURN_NOW.fullmatch(now) and now.startswith(today)):
+        raise _Stop("invalid request: now must be like 2026-10-28 Wednesday 08:00, on today")
+    return line, answer, today, now
+
+
+def _agent_line(conv: conversations.Conversation, text: str) -> list:
+    return conv.lines + [{"role": "agent", "text": text}]
+
+
+def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str) -> None:
+    """The conversation as it was before the turn (history, plan, stem), failed with an agent line.
+    Committed: run_one rolls back on JobFailed. Does nothing when it has moved on."""
+    ctx.conn.rollback()
+    failed = dataclasses.replace(conv, state="failed", question=None,
+                                 lines=_agent_line(conv, f"That didn't work: {message}"))
+    if conversations.save(ctx.conn, ctx.uk, failed, conv.version):
+        ctx.conn.commit()
+    else:
+        ctx.conn.rollback()
+
+
+def turn(ctx: Ctx) -> dict:
+    """One agent turn on the user's folder and language-model key, saved to their conversation."""
+    args = ctx.args
+    cid = args.get("conversation_id") if isinstance(args, dict) else None
+    if type(cid) is not int:
+        raise JobFailed("invalid request: needs conversation_id, line, answer, today and now")
+    try:
+        conv = conversations.load(ctx.conn, ctx.uk, cid)
+    except LookupError:
+        conv = None
+    ctx.conn.commit()
+    if conv is None or conv.state != "working":
+        raise JobFailed("the conversation moved on")
+    try:
+        return _turn(ctx, conv)
+    except _Stop as e:
+        _fail_conversation(ctx, conv, e.message)
+        raise JobFailed(e.message) from None
+    except Exception:
+        try:
+            _fail_conversation(ctx, conv, UNEXPECTED)
+        except Exception:  # noqa: BLE001 - the connection may be what broke; the first error is the one to log
+            ctx.conn.rollback()
+        raise   # run_one logs its type only
+
+
+def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
+    from pydantic_ai.exceptions import UsageLimitExceeded   # pydantic-ai only in the jobs that use it
+    from . import agent   # agent imports this module
+    line, answer, today, now = _turn_request(ctx.args)
+    stored = keystore.open_all(ctx.conn, ctx.uk)
+    ctx.conn.commit()
+    provider = next((p for p in ctx.settings.providers if stored.get(p)), None)
+    if provider is None:
+        raise _Stop(NO_MODEL_KEY)
+    model = providers.model_for(provider, stored[provider])
+    del stored   # the model key lives only in the model client from here on
+
+    ctx.say("folder")
+    files = store.read_all(ctx.conn, ctx.uk)
+    ctx.conn.commit()
+    base = {path: version for path, (version, _) in files.items()}
+    written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
+    deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
+                      now=now, stem=conv.stem, plan=conv.plan)
+    ctx.say("thinking")
+    try:
+        outcome = agent.run_turn(model, deps, conv.history, line, answer)
+    except agent.TurnError:
+        raise _Stop(NOT_OPEN if answer is not None else CANT_FINISH) from None
+    except UsageLimitExceeded:
+        raise _Stop(TOO_LONG) from None
+    except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
+        print(f"worker: job {ctx.job_id} turn stopped: {type(e).__name__}", file=sys.stderr)
+        raise _Stop(providers.explain(provider, e).message) from None
+
+    lines = conv.lines if outcome.reply is None else _agent_line(conv, outcome.reply)
+    done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle",
+                               history=outcome.history_json, lines=lines, question=outcome.question,
+                               plan=outcome.plan, stem=outcome.stem)   # as returned: None after a failed brief
+
+    def save_turn() -> None:
+        if not conversations.save(ctx.conn, ctx.uk, done, conv.version):
+            raise RuntimeError("the conversation moved on")   # complete rolls back; the job fails
+
+    ctx.on_done = save_turn
+    ctx.on_lost = lambda: _fail_conversation(ctx, conv, "interrupted")
+    ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)
+    return {"conversation_id": conv.id, "state": done.state}
+
+
+HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn}
 
 
 # ---- the loop ---------------------------------------------------------------------------------
@@ -266,27 +405,48 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
     if outcome[0] == "done" and beat.lost.is_set():
         print(f"worker: job {job.id} lost its heartbeat; nothing written back", file=sys.stderr)
         outcome = ("failed", "interrupted", None)
+        _lost(conn, job.id, ctx)
     if outcome[0] == "done":
-        _complete(conn, uk, job.id, outcome[1], ctx.pending)
+        if not _complete(conn, uk, job.id, outcome[1], ctx):
+            _lost(conn, job.id, ctx)
     elif not jobs.fail(conn, uk, job.id, outcome[1], outcome[2] if uk is not None else None):
         print(f"worker: job {job.id} was no longer running", file=sys.stderr)
     return True
 
 
-def _complete(conn, uk, job_id: int, result: dict, pending: tuple | None) -> None:
-    """Write back the job's files and mark it done, in one transaction, only while it is running."""
+def _complete(conn, uk, job_id: int, result: dict, ctx: Ctx) -> bool:
+    """Run the handler's on_done, write back its files and mark the job done, in one transaction, only
+    while it is running; whether it was."""
     def apply() -> list[dict]:
-        if pending is None:
+        if ctx.on_done is not None:
+            ctx.on_done()
+        if ctx.pending is None:
             return []
-        conflicts = store.write_back(conn, uk, *pending)
+        conflicts = store.write_back(conn, uk, *ctx.pending)
         return [{"stage": "saved", "conflicts": conflicts}]
+    done = False
     try:
         done = jobs.complete(conn, uk, job_id, result, apply)
     except Exception as e:  # noqa: BLE001 - only the type is logged: the message may be personal
         print(f"worker: job {job_id} stopped: {type(e).__name__}", file=sys.stderr)
-        done = jobs.fail(conn, uk, job_id, "the job stopped unexpectedly")
+        jobs.fail(conn, uk, job_id, "the job stopped unexpectedly")
+        return False
     if not done:
         print(f"worker: job {job_id} was no longer running", file=sys.stderr)
+    return done
+
+
+def _lost(conn, job_id: int, ctx: Ctx | None) -> None:
+    """The handler's on_lost, committed, for a job that returned but was never marked done."""
+    conn.rollback()
+    if ctx is None or ctx.on_lost is None:
+        return
+    try:
+        ctx.on_lost()
+        conn.commit()
+    except Exception as e:  # noqa: BLE001 - only the type is logged
+        conn.rollback()
+        print(f"worker: job {job_id} couldn't record the loss: {type(e).__name__}", file=sys.stderr)
 
 
 def main() -> int:

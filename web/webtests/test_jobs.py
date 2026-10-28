@@ -355,3 +355,308 @@ class LostJobs(JobsCase):
             self.assertTrue(worker.run_one(self.conn, self.settings))
         self.assertEqual(connect.call_args.kwargs["connect_timeout"], worker.CONNECT_TIMEOUT)
         self.conn.rollback()
+
+
+# ---- the turn job ---------------------------------------------------------------------------------
+
+os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
+
+from pydantic_ai import ModelHTTPError, UsageLimits  # noqa: E402
+from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart  # noqa: E402
+from pydantic_ai.models.function import FunctionModel  # noqa: E402
+
+from webapp import conversations, providers  # noqa: E402
+
+MODEL_KEY = "sk-ant-test-model-key-0123456789"
+QUESTION = {"id": "q1", "prompt": "Anything sore or off today?", "multi": True, "other": True,
+            "options": [{"label": "Nothing new", "recommended": True},
+                        {"label": "Sore somewhere else", "description": "say where"}]}
+BRIEF_CALL = {"goal": "strength", "minutes": 20, "preset": "bodyweight", "coach": "Coach Andy"}
+
+
+def returned(messages):
+    return [p.tool_name for m in messages for p in m.parts if isinstance(p, ToolReturnPart)]
+
+
+class Turn(JobsCase):
+    def setUp(self):
+        super().setUp()
+        self.homes = []
+        real = worker.folder.materialize
+
+        def record(files, home):
+            self.homes.append(home)
+            return real(files, home)
+        patcher = mock.patch.object(worker.folder, "materialize", side_effect=record)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def user(self, key=True):
+        _, uk = self.seeded_user()
+        if key:
+            keystore.put(self.conn, uk, "anthropic", MODEL_KEY)
+            self.conn.commit()
+        return uk
+
+    def start(self, uk, line="a 20-minute strength workout"):
+        cid = conversations.create(self.conn, uk, line)
+        self.conn.commit()
+        return cid
+
+    def turn_args(self, cid, line=None, answer=None, **over):
+        args = {"conversation_id": cid, "line": line, "answer": answer, "today": today(),
+                "now": f"{today()} Wednesday 08:00"}
+        args.update(over)
+        return args
+
+    def run_turn(self, uk, script, cid, line=None, answer=None, **over):
+        """Enqueue a turn and run it with `script` as the model; (job id, the conversation after)."""
+        job = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, line, answer, **over))
+        model = FunctionModel(script) if callable(script) else script
+        with mock.patch.object(providers, "model_for", return_value=model) as model_for:
+            self.assertTrue(self.run_one())
+        self.model_for = model_for
+        conv = conversations.load(self.conn, uk, cid)
+        self.conn.rollback()
+        return job, conv
+
+    def answer(self, uk, cid, conv, values):
+        self.assertTrue(conversations.begin_turn(self.conn, uk, cid, None, values))
+        self.conn.commit()
+        return {"tool_call_id": conv.question["tool_call_id"], "values": values}
+
+    def menu(self, stem):
+        with open(os.path.join(self.homes[-1], "workouts", stem, f"{stem}.menu.json"), encoding="utf-8") as f:
+            import json
+            return [m["name"] for m in json.load(f)["movements"]]
+
+    def plan(self, names):
+        rows = [{"block": b, "movements": names, "dose": "3 x 10", "seconds": s}
+                for b, s in (("Warm-up", 300), ("Main", 600), ("Cool-down", 300))]
+        return {"plan": {"format": "Straight sets", "equipment": "bodyweight", "rows": rows,
+                         "left_out": "nothing", "total_seconds": 1200}}
+
+    def test_turn_job_saves_question(self):
+        uk = self.user()
+        cid = self.start(uk)
+
+        def script(messages, info):
+            return ModelResponse(parts=[ToolCallPart("ask_user", {"questions": [QUESTION]}, tool_call_id="a1")])
+        job, conv = self.run_turn(uk, script, cid, line="a 20-minute strength workout")
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(jobs.result(self.conn, uk, job), {"conversation_id": cid, "state": "waiting"})
+        self.assertEqual(conv.state, "waiting")
+        self.assertEqual(conv.question["tool_call_id"], "a1")
+        self.assertEqual(conv.question["questions"][0]["id"], "q1")
+        self.assertEqual(conv.lines, [{"role": "user", "text": "a 20-minute strength workout"}])
+        self.assertIsNotNone(conv.history)
+        self.model_for.assert_called_once_with("anthropic", MODEL_KEY)
+        self.assertEqual([b["stage"] for _, b in jobs.events(self.conn, uk, job)][:2], ["folder", "thinking"])
+        self.conn.rollback()
+
+    def test_turn_job_with_answer_finishes_with_plan(self):
+        uk = self.user()
+        cid = self.start(uk)
+        stem = f"{today()}-strength-20"
+
+        def ask(messages, info):
+            return ModelResponse(parts=[ToolCallPart("ask_user", {"questions": [QUESTION]}, tool_call_id="a1")])
+        _, conv = self.run_turn(uk, ask, cid, line="a 20-minute strength workout")
+        answer = self.answer(uk, cid, conv, {"q1": ["Nothing new"]})
+
+        def plan(messages, info):
+            names = returned(messages)
+            if names == ["ask_user"]:
+                return ModelResponse(parts=[ToolCallPart("brief", BRIEF_CALL, tool_call_id="b1")])
+            if names == ["ask_user", "brief"]:
+                return ModelResponse(parts=[ToolCallPart("show_plan", self.plan(self.menu(stem)[:2]),
+                                                         tool_call_id="p1")])
+            return ModelResponse(parts=[TextPart("Here's today's plan.")])
+        job, conv = self.run_turn(uk, plan, cid, answer=answer)
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(conv.state, "idle")
+        self.assertIsNone(conv.question)
+        self.assertEqual(conv.stem, stem)
+        self.assertEqual(conv.plan["total_seconds"], 1200)
+        self.assertEqual(conv.lines[-2:], [{"role": "user", "text": "Anything sore or off today: Nothing new"},
+                                           {"role": "agent", "text": "Here's today's plan."}])
+        files = store.read_all(self.conn, uk)
+        self.assertIn(f"workouts/{stem}/{stem}.menu.json", files)
+        self.assertIn(f"workouts/{stem}/{stem}.brief.md", files)
+        self.conn.rollback()
+
+    def test_answer_after_brief_keeps_stem(self):
+        uk = self.user()
+        cid = self.start(uk)
+        stem = f"{today()}-strength-20"
+
+        def first(messages, info):
+            if returned(messages) == ["brief"]:
+                return ModelResponse(parts=[ToolCallPart("ask_user", {"questions": [QUESTION]}, tool_call_id="a1")])
+            return ModelResponse(parts=[ToolCallPart("brief", BRIEF_CALL, tool_call_id="b1")])
+        _, conv = self.run_turn(uk, first, cid, line="go")
+        self.assertEqual((conv.state, conv.stem), ("waiting", stem))
+        answer = self.answer(uk, cid, conv, {"q1": ["Nothing new"]})
+        shown = []
+
+        def second(messages, info):
+            names = returned(messages)
+            if names == ["brief", "ask_user"]:
+                shown.extend(self.menu(stem)[:1])   # the menu turn 1 wrote back, in turn 2's folder
+                return ModelResponse(parts=[ToolCallPart("show_plan", self.plan(shown), tool_call_id="p1")])
+            return ModelResponse(parts=[TextPart("Planned.")])
+        job, conv = self.run_turn(uk, second, cid, answer=answer)
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual((conv.state, conv.stem), ("idle", stem))
+        self.assertEqual(conv.plan["rows"][0]["movements"], shown)
+        self.assertEqual(len(shown), 1)
+        self.conn.rollback()
+
+    def test_turn_needs_a_model_key(self):
+        uk = self.user(key=False)
+        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")   # a voice key is no model key
+        self.conn.commit()
+        cid = self.start(uk)
+        job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid, line="go")
+        self.assertEqual(self.state(job), ("failed", "add a language-model key in Keys"))
+        self.model_for.assert_not_called()
+        self.assertEqual(conv.state, "failed")
+        self.assertEqual(conv.lines[-1], {"role": "agent", "text": "That didn't work: add a language-model key in Keys"})
+        self.conn.rollback()
+
+    def test_turn_maps_provider_errors(self):
+        uk = self.user()
+        cid = self.start(uk)
+
+        def refuse(messages, info):
+            raise ModelHTTPError(status_code=401, model_name="claude-test",
+                                 body={"error": f"invalid x-api-key {MODEL_KEY}"})
+        with mock.patch("sys.stderr") as err:
+            job, conv = self.run_turn(uk, refuse, cid, line="go")
+        state, error = self.state(job)
+        self.assertEqual(state, "failed")
+        self.assertIn("Claude refused the key", error)
+        self.assertEqual(conv.state, "failed")
+        self.assertIn("Claude refused the key", conv.lines[-1]["text"])
+        stored = repr((error, conv.lines, jobs.result(self.conn, uk, job), err.mock_calls))
+        self.assertNotIn(MODEL_KEY, stored)
+        self.assertNotIn("x-api-key", stored)
+        self.conn.rollback()
+
+    def test_turn_stops_at_usage_limit(self):
+        uk = self.user()
+        cid = self.start(uk)
+        _, before = self.run_turn(uk, lambda m, i: ModelResponse(parts=[TextPart("Hello.")]), cid, line="hi")
+        self.assertEqual(before.state, "idle")
+        self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "and again", None))
+        self.conn.commit()
+        n = iter(range(1000))
+
+        def forever(messages, info):
+            return ModelResponse(parts=[ToolCallPart("get_coach", {}, tool_call_id=f"c{next(n)}")])
+        from webapp import agent
+        with mock.patch.object(agent, "LIMITS", UsageLimits(request_limit=3)), \
+                mock.patch.object(worker.engine, "run", return_value=worker.engine.Result(0, "Coach Andy\n", "")):
+            job, conv = self.run_turn(uk, forever, cid, line="and again")
+        message = "this turn ran too long; try again with less to do"
+        self.assertEqual(self.state(job), ("failed", message))
+        self.assertEqual(conv.state, "failed")
+        self.assertEqual(conv.history, before.history)
+        self.assertEqual(conv.lines[-2:], [{"role": "user", "text": "and again"},
+                                           {"role": "agent", "text": f"That didn't work: {message}"}])
+        self.conn.rollback()
+
+    def test_answer_to_a_closed_question_fails_plainly(self):
+        uk = self.user()
+        cid = self.start(uk)
+        _, before = self.run_turn(uk, lambda m, i: ModelResponse(parts=[TextPart("Hello.")]), cid, line="hi")
+        self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "x", None))
+        self.conn.commit()
+        job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid,
+                                  answer={"tool_call_id": "gone", "values": {"q1": ["Nothing new"]}})
+        state, error = self.state(job)
+        self.assertEqual(state, "failed")
+        self.assertIn("didn't match the open question", error)
+        self.assertEqual(conv.state, "failed")
+        self.assertEqual(conv.history, before.history)
+        self.conn.rollback()
+
+    def test_model_key_never_in_engine_env(self):
+        uk = self.user()
+        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
+        self.conn.commit()
+        cid = self.start(uk)
+        seen = []
+        real = worker.engine.run
+
+        def record(root, home, argv, extra_env={}, timeout=120):
+            seen.append(dict(extra_env))
+            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
+
+        def script(messages, info):
+            names = returned(messages)
+            if not names:
+                return ModelResponse(parts=[ToolCallPart("get_coach", {}, tool_call_id="c1")])
+            if names == ["get_coach"]:
+                return ModelResponse(parts=[ToolCallPart("brief", BRIEF_CALL, tool_call_id="b1")])
+            return ModelResponse(parts=[TextPart("ok")])
+        with mock.patch.object(worker.engine, "run", side_effect=record):
+            job, conv = self.run_turn(uk, script, cid, line="go")
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(len(seen), 2)
+        for env in seen:
+            self.assertEqual(env, {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
+            self.assertNotIn(MODEL_KEY, env.values())
+        self.conn.rollback()
+
+    def test_conversation_not_working_is_left_alone(self):
+        uk = self.user()
+        cid = self.start(uk)
+        _, before = self.run_turn(uk, lambda m, i: ModelResponse(parts=[TextPart("Hello.")]), cid, line="hi")
+        job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid, line="again")
+        self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
+        self.assertEqual((conv.state, conv.version, conv.lines), (before.state, before.version, before.lines))
+        _, other = self.make_user()
+        job = jobs.enqueue(self.conn, other, "turn", self.turn_args(cid, "mine now"))
+        self.run_one()
+        self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
+        self.conn.rollback()
+
+    def test_bad_turn_args_fail_the_conversation(self):
+        uk = self.user()
+        bad = [{"now": "08:00"}, {"now": f"{today()} Wednesday 08:00\n"}, {"today": "2001-01-01"},
+               {"line": None}, {"line": "go", "answer": {"tool_call_id": "a1", "values": {}}},
+               {"answer": {"tool_call_id": "a1"}, "line": None}, {"line": ""}]
+        for over in bad:
+            with self.subTest(over=over):
+                cid = self.start(uk)
+                args = dict({"line": "go"}, **over)
+                job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid, **args)
+                state, error = self.state(job)
+                self.assertEqual(state, "failed")
+                self.assertTrue(error.startswith("invalid request: "), error)
+                self.assertEqual(conv.state, "failed")
+        job = jobs.enqueue(self.conn, uk, "turn", {"conversation_id": "1"})
+        self.run_one()
+        self.assertTrue(self.state(job)[1].startswith("invalid request: "))
+        self.conn.rollback()
+
+    def test_lost_heartbeat_fails_the_conversation(self):
+        import time
+        uk = self.user()
+        cid = self.start(uk)
+        before = store.read_all(self.conn, uk)
+        self.conn.commit()
+
+        def slow(messages, info):
+            time.sleep(0.3)
+            return ModelResponse(parts=[TextPart("Hello.")])
+        with mock.patch.object(worker, "HEARTBEAT_EVERY", 0.05), \
+                mock.patch.object(jobs, "heartbeat", return_value=False), mock.patch("sys.stderr"):
+            job, conv = self.run_turn(uk, slow, cid, line="hi")
+        self.assertEqual(self.state(job), ("failed", "interrupted"))
+        self.assertEqual(conv.state, "failed")
+        self.assertIsNone(conv.history)
+        self.assertEqual(conv.lines[-1], {"role": "agent", "text": "That didn't work: interrupted"})
+        self.assertEqual(store.read_all(self.conn, uk), before)
+        self.conn.rollback()
