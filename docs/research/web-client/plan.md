@@ -44,7 +44,7 @@ Project `harmonicfitness-web` (workspace "rncdev's Projects"), **one environment
 |---|---|---|---|
 | **1** | **Slice 1** (detailed below) | sign-in, the store, a job running the engine on a user's folder, write-back, live progress, deployed to staging | Stack, Railway layout, Per-user isolation, Jobs (no agent) |
 | **2** | **Engine web mode and keys** (built and deployed 2026-10-28, `plan-m2.md`) | `HARMONICFITNESS_WEB=1` as an engine feature; encrypted per-service keys, entered once, never shown | Engine changes, Keys |
-| 3 | The agent, through the plan | a provider-agnostic loop with the engine's commands as typed tools, ask and show tools, the check-in and the plan shown | The agent, Jobs and conversations |
+| **3** | **The agent, through the plan** (built 2026-10-28, `plan-m3.md`) | a provider-agnostic loop with the engine's commands as typed tools, ask and show tools, the check-in and the plan shown | The agent, Jobs and conversations |
 | 4 | Build, render, deliver | the long job: write, lint, build, upload, signed link, 24 h expiry, log; spend guard | Delivery and storage, anti-goal on billing |
 | 5 | Instructions from the skills | a generator beside `harness sync` writes the web agent's instructions; a test fails when stale; the eval gate per provider | The agent |
 | 6 | The doors | setup's quick start, edit my stuff, something hurts, coaches and audition, feedback on older workouts, analytics, tour | Goals 1, Workflows |
@@ -74,6 +74,11 @@ From Milestone 2's reviews (2026-10-28):
 - **Messages that still say `keys init` or `me/.env` in web mode:** `routes.usable` (tools/routes.py, the local route's reason), `cloud.py` (two key messages), `render.py` (a service refusing a key, which builds will hit), `audition.py`, and `keys.clean_value`'s `BadKey` text. Each needs a `paths.WEB` branch pointing at the app's Keys, before builds run on the web.
 - **One damaged key fails every job:** `keystore.open_all` raises on a row that won't open (a damaged row, a re-keyed data key), so every job for that user fails with a generic message. Before any key rotation: skip and report the bad row, and tell the user which key to replace.
 - **Every handler gets the keys:** `run_one` sets `ctx.keys` (voice keys, by the engine's variable names) for every job; a new handler passes `extra_env=ctx.keys` to every `engine.run`.
+From Milestone 3's reviews (2026-10-28):
+- **The build must enforce sides:** `menu.check` (the build's gate on the spoken draft) checks movement ids, not sides. A movement the menu allows on one side only must be spoken for that side only, as `show_plan` now requires of the plan (`BOTH_SIDES`, `_side_problem` in `web/webapp/agent/__init__.py`). Move that rule into the engine's `menu.py` so the CLI and the web share it.
+- **Catalog aliases:** generic "lunges" and "pistol squats" aren't catalog names, so neither the build's text scan nor `show_plan`'s matches them. Add the aliases.
+- **Cost:** the full brief (up to about 87,000 characters) is sent on every later request of a turn. Add prompt caching per provider, or read the brief by section, before writing raises the request count. The per-turn limit is now 800,000 tokens.
+- **Smaller items:** a turn can run up to about 2 minutes past its 10-minute cap (an engine call in flight); `show_plan` uses the engine's private `menu._part_of`; an equipment name that is also a movement ("jump rope") is refused in the plan's equipment line; with [show_plan, brief] in one response the agent can say "shown" and then the brief clears the plan.
 - **Smaller items:** a too-short key gets the "space, line break or symbol" 400 wording; the build test in `test_tools.py` names its coach, so the web-mode default coach isn't exercised through a build; CLAUDE.md's `--coach` and `delivery_plan` descriptions don't mention web mode.
 
 ## Review focus
