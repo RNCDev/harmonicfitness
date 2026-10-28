@@ -36,7 +36,7 @@ describe("the sign-in page", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "not right" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Wrong username or password.");
-    expect(calls.at(-1)).toEqual({ url: "/api/sign-in", body: { username: "ana", password: "not right" } });
+    expect(calls[calls.length - 1]).toEqual({ url: "/api/sign-in", body: { username: "ana", password: "not right" } });
     expect(done).not.toHaveBeenCalled();
   });
 
