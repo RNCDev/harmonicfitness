@@ -36,7 +36,7 @@
 
 ## Railway (created 2026-10-27)
 
-Project `sweatcast-web` (workspace "rncdev's Projects"): environments `production` (empty) and `staging`, holding `Postgres` and the bucket `media` (region iad). The `web` and `worker` services are added in Task 10, from the repo.
+Project `sweatcast-web` (workspace "rncdev's Projects"), **one environment** (the maintainer's decision, 2026-10-27: no separate staging and production; the spec's two environments are dropped). It holds `Postgres`, the bucket `media` (region iad), and the `web` and `worker` services deployed from `main` (Task 10), at https://web-staging-1b5a.up.railway.app. The environment is still named `staging` until it's renamed in the dashboard; the old `production` environment held only a stray service and is to be deleted.
 
 ## Milestones
 
@@ -48,7 +48,7 @@ Project `sweatcast-web` (workspace "rncdev's Projects"): environments `productio
 | 4 | Build, render, deliver | the long job: write, lint, build, upload, signed link, 24 h expiry, log; spend guard | Delivery and storage, anti-goal on billing |
 | 5 | Instructions from the skills | a generator beside `harness sync` writes the web agent's instructions; a test fails when stale; the eval gate per provider | The agent |
 | 6 | The doors | setup's quick start, edit my stuff, something hurts, coaches and audition, feedback on older workouts, analytics, tour | Goals 1, Workflows |
-| 7 | Leaving and arriving | import from the CLI, export, delete account, privacy page, production | Workflows, Data and privacy |
+| 7 | Leaving and arriving | import from the CLI, export, delete account, privacy page | Workflows, Data and privacy |
 
 The ui-6 polish (copy, motion, more separation between the working panel and the context column) runs as its own pass alongside Milestones 3 to 6, against the components Task 9 lays down. Each milestone after 1 gets its own detailed plan when it starts, written against what Slice 1 actually built.
 

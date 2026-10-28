@@ -57,7 +57,7 @@ Variables on both services: `WT_ROLE`, `DATABASE_URL` (`${{Postgres.DATABASE_URL
 
 The repo is `/app` and its environment `/app/.venv`, which `./sweatcast` finds on its own; `SWEATCAST_PYTHON` names it, so a job never runs uv or reaches the network. The container runs as a non-root user.
 
-**Admin in production:** open a shell in the running web service with `railway ssh --service web`, then
+**Admin on Railway:** open a shell in the running web service with `railway ssh --service web`, then
 
     cd /app/web && python -m webapp.admin invite <email>
 
