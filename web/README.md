@@ -22,3 +22,13 @@ Run from `web/` (or with `web/` on `PYTHONPATH`), with `DATABASE_URL`, `WT_BASE_
 
     python -m webapp.admin invite <email>
     python -m webapp.admin login-link <email>    # an existing user only
+
+## Serve
+
+Run from `web/`, with `DATABASE_URL`, `WT_BASE_URL` and `WT_MASTER_KEY` set (the same as the admin commands). It applies any database migrations once at startup, then serves the API and, when `web/client/dist` has been built, the client:
+
+    uvicorn webapp.api:create_app_from_env --factory --no-access-log --host 0.0.0.0 --port 8000
+
+`--no-access-log` matters: an invite's sign-in page is `GET /invite/<token>`, so an access log would write every sign-in token to the logs. The server itself logs no token, job argument, event or result.
+
+The session cookie is `Secure` unless `WT_BASE_URL` starts with `http://localhost` or `http://127.0.0.1`, so local development works over plain http. Every POST must carry an `Origin` (or `Referer`) of `WT_BASE_URL`'s origin, so set it to the address the browser uses.
