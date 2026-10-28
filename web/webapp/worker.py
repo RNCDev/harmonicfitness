@@ -81,9 +81,13 @@ def _engine_modules(engine_root: str, *names: str) -> list:
     if not home or os.path.exists(home):
         os.environ["HARMONICFITNESS_HOME"] = _no_home()
     tools = os.path.abspath(os.path.join(engine_root, "tools"))
-    if os.path.join(engine_root, "tools") not in sys.path and tools not in sys.path:
-        sys.path.append(os.path.join(engine_root, "tools"))   # after everything else, so no engine module shadows another
-    mods = [importlib.import_module(n) for n in names]
+    if tools not in sys.path:
+        sys.path.append(tools)   # after everything else, so no engine module shadows another
+    before = list(sys.path)
+    try:
+        mods = [importlib.import_module(n) for n in names]
+    finally:
+        sys.path[:] = before   # some engine modules (keys) put tools/ first on import: undo that
     for mod in mods:
         where = os.path.abspath(mod.__file__)
         if os.path.dirname(where) != tools and os.path.dirname(os.path.dirname(where)) != tools:
@@ -112,10 +116,19 @@ def engine_services(engine_root: str) -> dict[str, dict]:
     return _services[engine_root]
 
 
-def clean_key(engine_root: str, var: str, value: str) -> str:
-    """The engine's keys.clean_value: stripped, or keys.BadKey when it can't be a key."""
-    keys, = _engine_modules(engine_root, "keys")
-    return keys.clean_value(var, value)
+def engine_keys(engine_root: str):
+    """The engine's keys module (imported under the guard)."""
+    return _engine_modules(engine_root, "keys")[0]
+
+
+def clean_key(engine_root: str, var: str, value: str) -> str | None:
+    """The engine's keys.clean_value (stripped); None when it refuses the value as a key (BadKey).
+    Anything else it raises is a bug and propagates."""
+    keys = engine_keys(engine_root)
+    try:
+        return keys.clean_value(var, value)
+    except keys.BadKey:
+        return None
 
 
 def _uv_cache() -> None:

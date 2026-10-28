@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlsplit
 import anyio
 import psycopg
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, \
     RedirectResponse, Response, StreamingResponse
@@ -176,6 +177,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     goals, presets = worker.engine_lists(settings.engine_root)
     options = {"minutes": list(MINUTES), "goals": sorted(goals), "presets": sorted(presets)}
     services = worker.engine_services(settings.engine_root)
+    worker.engine_keys(settings.engine_root)    # a broken import fails at startup
     dist = Path(client_dist) if client_dist is not None else CLIENT_DIST
     origin = _origin(settings.base_url)
     pool = None
@@ -212,6 +214,12 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app = FastAPI(title=APP_NAME, lifespan=lifespan, docs_url=None, redoc_url=None,
                   openapi_url=None)
     app.add_middleware(_Headers)
+
+    @app.exception_handler(RequestValidationError)
+    def invalid(_request: Request, e: RequestValidationError):
+        """422 without pydantic's `input` (and `ctx`), which would echo a key or a password."""
+        errors = [{k: v for k, v in err.items() if k not in ("input", "ctx")} for err in e.errors()]
+        return JSONResponse({"detail": errors}, 422)
 
     # ---- dependencies ---------------------------------------------------------------------
 
@@ -392,10 +400,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.put("/api/keys/{service}", status_code=204, **post)
     def put_key(uk: User, service: str, body: Annotated[KeyBody, Body()]):
         info = known(service)
-        try:
-            value = worker.clean_key(settings.engine_root, info["key_var"], body.key)
-        except Exception:   # keys.BadKey; its message is never passed on
-            value = ""
+        value = worker.clean_key(settings.engine_root, info["key_var"], body.key)
         if not value:
             raise HTTPException(400, f"That doesn't look like a {info['name']} key: it has a space, "
                                      "a line break or a symbol in it. Paste it again.")

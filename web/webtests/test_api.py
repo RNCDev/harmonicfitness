@@ -499,7 +499,14 @@ class Keys(ApiCase):
         self.assertNotIn("abc 123", r.text)
         self.assertEqual(put("fish", "").status_code, 400)
         self.assertEqual(put("fish", "  \n").status_code, 400)
-        self.assertEqual(put("fish", "a" * 1025).status_code, 422)
+        long = "a" * 1025
+        r = put("fish", long)
+        self.assertEqual(r.status_code, 422)
+        self.assertNotIn(long, r.text)
+        r = self.client.put("/api/keys/fish", json={"key": "abc123def456", "x": 1},
+                            headers=self.origin())
+        self.assertEqual(r.status_code, 422)
+        self.assertNotIn("abc123def456", r.text)
         self.assertEqual(put("nope", "abc123def456").status_code, 404)
 
     def test_keys_are_per_user(self):
@@ -520,6 +527,23 @@ class Keys(ApiCase):
         self.assertEqual(self.client.delete("/api/keys/nope", headers=self.origin()).status_code, 404)
         fish = next(k for k in self.client.get("/api/keys").json() if k["service"] == "fish")
         self.assertFalse(fish["set"])
+
+    def test_guard_leaves_sys_path_alone(self):
+        self.signed_in()
+        worker.clean_key(ROOT, "FISH_AUDIO_API_KEY", " x ")
+        tools = os.path.abspath(os.path.join(ROOT, "tools"))
+        self.assertEqual(sys.path.count(tools), 1)
+        self.assertEqual(sys.path[-1], tools)
+
+    def test_engine_bug_is_a_500_and_stores_nothing(self):
+        _, uk = self.signed_in()
+        keys = worker.engine_keys(ROOT)
+        quiet = TestClient(self.app, base_url=self.base_url, raise_server_exceptions=False)
+        quiet.cookies.update(self.client.cookies)
+        with mock.patch.object(keys, "clean_value", side_effect=RuntimeError("boom")):
+            r = quiet.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+        self.assertEqual(r.status_code, 500)
+        self.assertEqual(keystore.open_all(self.conn, uk), {})
 
     def test_api_never_opens_keys(self):
         with open(api.__file__) as f:
