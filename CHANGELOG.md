@@ -4,6 +4,17 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-10-28
+
+### For forks
+- **Nothing to migrate.**
+
+### Added
+- **`fly.toml`:** the web client runs on Fly.io as two process groups (web and worker) from the same image, beside Railway while it moves. The Dockerfile takes the deployed commit as `GIT_COMMIT_SHA` (`fly deploy --build-arg`) as well as Railway's `RAILWAY_GIT_COMMIT_SHA`.
+
+### Changed
+- **The check-in asks about the coach whenever it has room** (it holds four questions): the coach used last first, the others, then "A new coach of your own". It used to ask only when the request hinted at a change, so a listener never saw the choice.
+
 ## [0.25.0] - 2026-10-28
 
 The web client's Railway project is defined in code: `.railway/railway.ts` replaces `railway.json`, which Railway retires on 2026-12-01.
