@@ -337,5 +337,91 @@ class MenuTampering(unittest.TestCase):
         self.assertIn("movements", str(e.exception))
 
 
+def one_sided_menu(side="right"):
+    """A menu with the single-leg glute bridge allowed on one side only, and the dead bug on both."""
+    rec = menu_for("dead-bug")
+    m = CAT.movements["single-leg-glute-bridge"]
+    rec["movements"].append({"id": m.id, "name": m.name, "aliases": m.aliases, "side": side})
+    return rec
+
+
+def bridge_issues(*lines, declared="single-leg glute bridge"):
+    """The menu check's issues for one segment of spoken lines, the one-sided bridge declared."""
+    text = f"movements: {declared}\n@@ 300 | Work\n" + "\n\n".join(lines) + "\n"
+    return menu.check(CAT, one_sided_menu(), text, draft.parse(text))[0]
+
+
+class OneSideOnly(unittest.TestCase):
+    def test_build_refuses_both_sides_for_a_one_sided_movement(self):
+        issues = bridge_issues("Right single-leg glute bridge, ten each side.")
+        self.assertTrue(any("each side" in i and "right side only" in i for i in issues), issues)
+        self.assertEqual(bridge_issues("Right single-leg glute bridge, ten."), [])
+
+    def test_another_sides_word_in_the_clause_is_refused(self):
+        issues = bridge_issues("Left single-leg glute bridge, ten.")
+        self.assertTrue(any("left side" in i for i in issues), issues)
+        self.assertTrue(bridge_issues("Ten single-leg glute bridges on both legs."))
+        self.assertTrue(bridge_issues("Single-leg glute bridges, alternating."))
+
+    def test_switch_in_the_segment_is_refused(self):
+        issues = bridge_issues("Right single-leg glute bridge, ten.", "Now switch to the other leg.")
+        self.assertTrue(any("switch" in i and "right side only" in i for i in issues), issues)
+        for phrase in ("Then the other side.", "Swap sides.", "Repeat on the other one.", "Other leg now."):
+            with self.subTest(phrase=phrase):
+                self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.", phrase), phrase)
+
+    def test_a_negation_doesnt_excuse_a_side(self):
+        self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.",
+                                      "No single-leg glute bridge on the left side."))
+
+    def test_one_issue_per_movement_and_other_segments_are_free(self):
+        text = ("movements: single-leg glute bridge, dead bug\n@@ 150 | Bridge\n"
+                "Right single-leg glute bridge, ten each side. Then both legs.\n"
+                "@@ 150 | Core\nDead bug, ten each side. Switch sides.\n")
+        issues = menu.check(CAT, one_sided_menu(), text, draft.parse(text))[0]
+        self.assertEqual(len([i for i in issues if "single-leg glute bridge" in i]), 1, issues)
+        self.assertFalse(any("dead bug" in i.lower() for i in issues), issues)
+
+    def test_side_problems_directly(self):
+        on_menu = {e["id"]: e for e in one_sided_menu()["movements"]}
+        self.assertEqual(menu.side_problems(CAT, on_menu, "Right single-leg glute bridge, ten."), [])
+        self.assertEqual(menu.side_problems(CAT, on_menu, "Dead bug, ten each side."), [])
+        self.assertTrue(menu.side_problems(CAT, on_menu, "Right single-leg glute bridge, ten each side."))
+        self.assertIn("switch", menu.BOTH_SIDES)
+        self.assertEqual(menu.SIDES, ("left", "right", "both", "healthy"))
+        self.assertIs(menu._part_of, menu.part_of)
+
+    def test_a_name_must_carry_its_side(self):
+        name = "single-leg glute bridge"
+        self.assertIsNone(menu.name_side_problem(f"right {name}", "right"))
+        self.assertIn("left", menu.name_side_problem(f"left {name}", "right"))
+        self.assertIn("right side only", menu.name_side_problem(name, "right"))
+
+
+class Unlisted(unittest.TestCase):
+    def test_unlisted_names_are_refused(self):
+        issues = issues_for("Ten pistol squats.")
+        self.assertIn('"pistol squats" isn\'t in the catalog, so it can\'t be on today\'s menu; use a movement '
+                      'the brief lists', issues)
+        text = "movements: reverse lunge\n@@ 300 | Work\nReverse lunges, then more lunges.\n"
+        self.assertEqual(menu.check(CAT, menu_for("reverse-lunge"), text, draft.parse(text))[0], [])
+
+    def test_each_unlisted_name_is_its_own_issue(self):
+        issues = issues_for("Ten pistol squats, then walking lunges.")
+        self.assertEqual(len([i for i in issues if "isn't in the catalog" in i]), 2, issues)
+
+    def test_bare_lunges_without_a_declared_lunge_are_refused(self):
+        self.assertTrue(any("isn't in the catalog" in i for i in issues_for("Twenty lunges.")))
+        self.assertEqual(issues_for("No lunges today."), [])
+
+    def test_the_shipped_limit_cues_pass_the_scan(self):
+        for area, levels in CAT.limit_cues.items():
+            for level, lines in levels.items():
+                for line in lines:
+                    with self.subTest(area=area, level=level):
+                        said = line.replace("{side}", "left")
+                        self.assertFalse([i for i in issues_for(said) if "isn't in the catalog" in i], said)
+
+
 if __name__ == "__main__":
     unittest.main()

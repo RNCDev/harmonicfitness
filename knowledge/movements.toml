@@ -49,6 +49,8 @@
 #   `{side}` in a line stands for the limit's side, left or right, or "injured" (off limits) or "sore"
 #   (delicate) when the limit is on both sides; it is the only brace a line may hold.
 #   `./harmonicfitness brief` prints the lines for each limit active today.
+# - `[unlisted]` (before the limit cues): names of real movements the catalog doesn't hold, which the
+#   build refuses in a script; never a name or alias of an entry.
 format = 3   # the catalog's own format; the context schema is separate
 
 patterns = ["squat", "hinge", "lunge", "horizontal-push", "vertical-push", "horizontal-pull", "vertical-pull",
@@ -102,6 +104,13 @@ equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "chair", "towel"
              "bike", "rower", "cable", "machines", "barbell", "rack", "ski-erg", "air-bike", "sled",
              "treadmill", "elliptical", "stair-climber"]
 
+# Unlisted: real movements the catalog doesn't hold (yet: a catalog entry needs sourced research), so
+# they are never on a menu. The build's menu scan refuses each one said in a script ("pistol squats"),
+# except a bare "lunges" after a declared lunge, which is its short form. Never a name or alias of an
+# entry here (the load refuses that). A plural is matched from the singular.
+[unlisted]
+names = ["pistol squat", "forward lunge", "walking lunge", "side lunge", "lateral lunge", "lunges"]
+
 # Limit cues: what a coach says while a limit is active, for each area and level, one to three lines.
 # `./harmonicfitness brief` prints them for each limit today. `{side}` becomes the limit's side (left or
 # right), or "injured" (off limits) or "sore" (delicate) for a limit on both sides or none.
@@ -148,7 +157,7 @@ delicate = ["Stay in a range that feels easy at the front and side of the {side}
             "Keep your stances moderate, never wide or very deep."]
 
 [limit_cues.groin]
-off-limits = ["No wide stances, side lunges or legs spread apart. Keep the knees about hip width.",
+off-limits = ["No side lunges or wide stances, and no legs spread apart. Keep the knees about hip width.",
               "Bring the legs together before you get up or down, and move the {side} leg slowly."]
 delicate = ["Keep the feet about hip width, never wide, and the knees in line with the toes.",
             "No quick side steps, and stop any stretch at the first pull in the inner thigh."]

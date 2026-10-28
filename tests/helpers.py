@@ -49,7 +49,7 @@ def menu_for(draft_path, home, today=None, health_sha256=None):
         text = f.read()
     segments = draft.parse(text)
     ids = {m.id for m in (catalog.resolve(cat, w) for w in draft.declared(text)) if m}
-    ids |= {mid for mid, _, _ in menu.mentions(cat, menu.spoken_text(segments))}
+    ids |= {mid for mid, _, _ in menu.mentions(cat, menu.spoken_text(segments)) if mid in cat.movements}
     rec = {"format": menu.FORMAT, "date": today or datetime.date.today().isoformat(),
            "health_sha256": health_sha256 or menu.health_hash(os.path.join(home, "health.md")),
            # a request the build's re-screen accepts: every piece of equipment, any level (health.md's
@@ -72,7 +72,8 @@ def draft_with_menu(src, dst, home):
         text = f.read()
     if not draft.declared(text):
         cat = catalog.load()
-        names = sorted({cat.movements[mid].name for mid, _, _ in menu.mentions(cat, menu.spoken_text(draft.parse(text)))})
+        names = sorted({cat.movements[mid].name for mid, _, _ in menu.mentions(cat, menu.spoken_text(draft.parse(text)))
+                        if mid in cat.movements})   # not an [unlisted] name
         text = "movements: " + ", ".join(names) + "\n" + text
     os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
     with open(dst, "w", encoding="utf-8") as f:

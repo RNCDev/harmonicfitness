@@ -155,6 +155,22 @@ class CatalogFormat(unittest.TestCase):
 
 
 class RealCatalog(unittest.TestCase):
+    def test_catalog_unlisted_loads(self):
+        cat = catalog.load()
+        self.assertIn("pistol squat", cat.unlisted)
+        self.assertIsInstance(cat.unlisted, tuple)
+        import tempfile
+        with open(catalog.paths.MOVEMENTS, encoding="utf-8") as f:
+            text = f.read()
+        for clash in ("reverse lunge", "back lunges", "Reverse-Lunge"):
+            with self.subTest(clash=clash), tempfile.TemporaryDirectory() as d:
+                path = os.path.join(d, "movements.toml")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text.replace('[unlisted]\nnames = [', f'[unlisted]\nnames = ["{clash}", ', 1))
+                with self.assertRaises(ValueError) as e:
+                    catalog.load(path, extra=[])
+                self.assertIn(clash, str(e.exception))
+
     def test_conditioning_needs_an_effort(self):
         raw = dict(vars(catalog.load(FIXTURE).movements["bike-easy-spin"]))
         bare = {k: v for k, v in raw.items() if k not in ("effort", "private", "has_loads")}

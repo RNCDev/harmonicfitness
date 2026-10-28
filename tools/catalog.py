@@ -11,7 +11,7 @@ import os
 import re
 import tomllib
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple
 
 import paths
 
@@ -89,6 +89,7 @@ class Catalog:
     entries: List[Movement] = field(default_factory=list)   # every entry in order, repeats included
     limit_cues: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)   # area -> level -> spoken lines
     private_faults: List[str] = field(default_factory=list)   # private entries left out, and why
+    unlisted: Tuple[str, ...] = ()   # real movements the catalog doesn't hold ([unlisted]): never on a menu
 
 
 LIST_FIELDS = ("aliases", "needs", "patterns", "muscles", "flags", "cues", "easier", "harder", "faults")
@@ -164,6 +165,7 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
     with open(path or paths.MOVEMENTS, "rb") as f:
         data = tomllib.load(f)
     entries = [_movement(m, False) for m in data.get("movement", [])]
+    unlisted = _unlisted(data.get("unlisted", {}), entries)
     for raw in extra or []:   # one bad private entry is left out and named, never a crash for every command
         faults = _shape_faults(raw)
         if faults:
@@ -179,10 +181,28 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
         equipment=dict(data.get("equipment", {})),
         presets={k: list(v.get("equipment", [])) for k, v in data.get("presets", {}).items()},
         movements=movements, entries=entries,
-        limit_cues=dict(data.get("limit_cues", {})), private_faults=private_faults)
+        limit_cues=dict(data.get("limit_cues", {})), private_faults=private_faults, unlisted=unlisted)
     if auto:   # an explicit `extra` is being checked, so its faults stay visible
         _hold_back_faulty_private(cat)
     return cat
+
+
+def _unlisted(table, shipped: List[Movement]) -> Tuple[str, ...]:
+    """The [unlisted] names: real movements the catalog doesn't hold ("pistol squat"), which the menu scan
+    refuses as never on a menu. ValueError when the table isn't `names = [strings]`, or a name (or its
+    plural or singular) is also a shipped movement's id, name or alias: an alias would point at a different
+    movement, and a name in both would be refused and allowed at once. Only the shipped entries are
+    compared, so a listener's private movement of that name never stops a command (the scan lets it win)."""
+    names = table.get("names", []) if isinstance(table, dict) else None
+    if not isinstance(names, list) or not all(isinstance(n, str) and n.strip() for n in names):
+        raise ValueError("[unlisted] names must be a list of movement names")
+    known = {plain(n) for m in shipped for n in [m.id, m.name] + list(m.aliases)}
+    for name in names:
+        key = plain(name)
+        forms = {key, key[:-1] if key.endswith("s") else key, key[:-2] if key.endswith("es") else key}
+        if forms & known or {f + "s" for f in forms} & known:
+            raise ValueError(f"[unlisted] name \"{name}\" is also a movement in the catalog; take it out of [unlisted]")
+    return tuple(names)
 
 
 _default: Optional[tuple] = None   # (the files' state, the catalog loaded from them)

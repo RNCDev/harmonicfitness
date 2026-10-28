@@ -17,7 +17,14 @@ the dumbbell bench press) counts as that movement. A mention right after "no", "
 "instead of" or "like", with only small words such as "the" or "doing" between, isn't an instruction
 ("no neck rolls today", "we're not doing jumping jacks", "like a brisk walk"); "no rest between
 jumping jacks" is.
-Library only; the brief and the build call it.
+The [unlisted] names (catalog.Catalog.unlisted: "pistol squat", "walking lunge", a bare "lunges") are
+real movements the catalog doesn't hold, so never on a menu: mentions yields each as ("unlisted", ...) and
+check refuses it, unless it's a shortened name of a declared movement ("lunges" after a reverse lunge).
+A movement the menu allows on one side only keeps to that side (side_problems, per segment): a sentence
+that names it may hold no both-sides phrase (BOTH_SIDES: "each side", "alternating"...) and no other
+side's word, and a segment that names it no switch phrase anywhere ("switch", "other leg"...). It fails
+safe: a negation doesn't excuse it, and a side word in the sentence for something else is refused too.
+Library only; the brief and the build call it; the web's show_plan uses side_problems and part_of.
 """
 import datetime
 import hashlib
@@ -31,6 +38,7 @@ import draft
 import paths
 
 FORMAT = 2   # 2 (0.13.0): health_sha256, so the build knows the menu was made from today's health.md
+UNLISTED = "unlisted"   # the id menu.mentions gives an [unlisted] name: a real movement the catalog doesn't hold
 EFFORT_WORDS = {"easy", "steady", "hard", "brisk", "light", "slow", "quick", "fast", "gentle"}
 
 
@@ -229,6 +237,8 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
             if key in EVERYDAY and name != m.name:
                 continue   # an everyday coaching word (squat, swing, curl, plank)
             found.setdefault(key, (m.id, name))
+    for name in cat.unlisted:   # after every movement, so a private movement of that name wins
+        found.setdefault(_norm(name), (UNLISTED, name))
     # "push up" and "step up" are cues as often as names: when a hyphenated name has the same words,
     # only the hyphenated spelling counts
     found = {k: v for k, v in found.items() if not (" " in k and "-" not in k and k.replace(" ", "-") in found)}
@@ -254,7 +264,7 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
 
 def mentions(cat: catalog.Catalog, text: str) -> List[Tuple[str, str, str]]:
     """(movement id, the words used, the few words before them) for every time the spoken text names
-    a catalog movement, in order."""
+    a catalog movement, in order; an [unlisted] name's id is UNLISTED ("unlisted")."""
     text = " ".join(catalog.fold(text).split())
     original, hits = text, []
     for rx, mid, _ in _patterns(cat):
@@ -289,7 +299,7 @@ def negated(before: str) -> bool:
     return False
 
 
-def _part_of(cat: catalog.Catalog, words: str, names: List[str], declared: set) -> bool:
+def part_of(cat: catalog.Catalog, words: str, names: List[str], declared: set) -> bool:
     """True when `words` (say "bench presses") are a shortened form of one of `names` ("dumbbell bench press")
     and name no other movement: "push-ups" after a declared wall push-up is the push-up, not a short form."""
     other = catalog.resolve(cat, words)
@@ -298,6 +308,93 @@ def _part_of(cat: catalog.Catalog, words: str, names: List[str], declared: set) 
     key = _norm(words).replace("-", " ")
     forms = {key, key[:-1] if key.endswith("s") else key, key[:-2] if key.endswith("es") else key}
     return any(f" {form} " in f" {_norm(n).replace('-', ' ')} " for form in forms for n in names)
+
+
+_part_of = part_of   # its name before 0.20.x; kept for this release (the web's show_plan used it)
+
+
+SIDES = ("left", "right", "both", "healthy")   # a menu entry's side, and the side words a name may carry
+# words that put a movement on both sides (compared as catalog.plain words, so "per-side" is "per side")
+# ("left/right", "left-right" and "l/r" become "left right" and "l r"; "switch" covers "switch sides")
+BOTH_SIDES = ("each side", "both sides", "each leg", "both legs", "each arm", "both arms", "per side", "per leg",
+              "per arm", "alternating", "alternate", "left and right", "right and left", "either side",
+              "every side", "every leg", "every arm", "other side", "other leg", "other arm", "opposite side",
+              "opposite leg", "opposite arm", "switch", "swap sides", "repeat on the other", "bilateral",
+              "two sides", "each hip", "per limb", "left right", "right left", "l r", "r l", "r and l", "l and r")
+# the BOTH_SIDES words that move to the other side later on, anywhere in a segment ("Now switch to the other leg.")
+SWITCH = ("switch", "other side", "other leg", "swap sides", "repeat on the other")
+SENTENCE = re.compile(r"[.!?;:()\n]")   # not a comma: "Right single-leg glute bridge, ten each side." is one
+
+
+def _phrase(text: str, phrases) -> Optional[str]:
+    padded = f" {catalog.plain(text)} "
+    return next((w for w in phrases if f" {w} " in padded), None)
+
+
+def both_sides(text: str) -> Optional[str]:
+    """The words in `text` that do a movement on both sides ("each side", "alternating"...), or None."""
+    return _phrase(text, BOTH_SIDES)
+
+
+def _say(side: str) -> str:
+    return "healthy side" if side == "healthy" else f"{side} side"
+
+
+def name_side_problem(name: str, side: str) -> Optional[str]:
+    """Why a name for a movement the menu allows on one side only ("right single-leg glute bridge") doesn't
+    hold that side, or None. The name's words (catalog.plain) must include the menu's side ("left", "right",
+    or "healthy" when the limit named no side) and no other side word. catalog.resolve has already matched
+    the movement with a leading side word dropped; this says whether that side is the one allowed."""
+    words = set(catalog.plain(name).split())
+    named = words & set(SIDES)
+    if side in words and named == {side}:
+        return None
+    if named - {side}:
+        return f'"{name}" names the {", ".join(sorted(named - {side}))} side, but today\'s menu allows it on the {side} side only'
+    say = "healthy side" if side == "healthy" else side
+    return f'"{name}" is allowed on the {side} side only today; name the side (say "{say} {name}")'
+
+
+def one_side_problem(text: str, mname: str, side: str) -> Optional[str]:
+    """Why a sentence naming (or dosing) a movement the menu allows on one side only puts it on another side
+    or both, or None: a both-sides phrase, or a side word ("left", "right", "both") other than the menu's."""
+    say = _say(side)
+    phrase = both_sides(text)
+    named = set(catalog.plain(text).split()) & {"left", "right", "both"}
+    if phrase is None and not (named - {side}):
+        return None
+    how = f'"{phrase}"' if phrase else f'the {", ".join(sorted(named - {side}))} side'
+    return (f'"{text.strip()}" puts {mname} on {how}, but today\'s menu allows it on the {say} only; write its '
+            f'dose for that side alone (say "3 x 10, {say} only")')
+
+
+def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
+    """What puts a movement the menu allows on one side only (on_menu: id -> menu entry, its "side" set) on
+    another side or both, in one segment's text (or one plan field's): one sentence each, one per movement.
+    A sentence that names one may hold no both-sides phrase or other side's word (one_side_problem); the
+    text that names one may hold no SWITCH phrase anywhere. Fails safe: a negated mention is checked too
+    ("no single-leg glute bridge on the left" is refused), and so is a side word meant for something else."""
+    problems, sided, named = [], set(), []
+    for sentence in SENTENCE.split(text):
+        for mid, _, _ in mentions(cat, sentence):
+            side = (on_menu.get(mid) or {}).get("side") if mid in cat.movements else None
+            if not side:
+                continue
+            if mid not in named:
+                named.append(mid)
+            why = None if mid in sided else one_side_problem(sentence, cat.movements[mid].name, side)
+            if why:
+                sided.add(mid)
+                problems.append(why)
+    switch = _phrase(text, SWITCH) if named else None
+    for mid in named:
+        if switch and mid not in sided:
+            sided.add(mid)
+            side = on_menu[mid]["side"]
+            problems.append(f'"{switch}" in the same segment as {cat.movements[mid].name} moves it to another side, '
+                            f'but today\'s menu allows it on the {_say(side)} only; keep that segment to the '
+                            f'{_say(side)}')
+    return problems
 
 
 def spoken_text(segments) -> str:
@@ -325,9 +422,16 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
         else:
             declared.add(m.id)
     names = [n for i in declared for n in [cat.movements[i].name] + cat.movements[i].aliases]
-    flagged = set()
+    flagged, unlisted = set(), set()
     for mid, said, before in mentions(cat, spoken_text(segments)):
-        if mid in declared or mid in flagged or _part_of(cat, said, names, declared):
+        if mid == UNLISTED:   # a real movement the catalog doesn't hold ("pistol squats")
+            if _norm(said) in unlisted or part_of(cat, said, names, declared) or negated(before):
+                continue   # already said, "lunges" after a declared reverse lunge, or "no pistol squats"
+            unlisted.add(_norm(said))
+            issues.append(f'"{said}" isn\'t in the catalog, so it can\'t be on today\'s menu; use a movement '
+                          'the brief lists')
+            continue
+        if mid in declared or mid in flagged or part_of(cat, said, names, declared):
             continue   # declared, already said, or a shortened name of a declared movement
         if negated(before):
             continue   # "no neck rolls today"
@@ -337,6 +441,10 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
                           f"reword it (a \"no {said} today\" is fine)")
         else:
             warnings.append(f"the script names \"{said}\" ({mid}) but the movements: line doesn't; add it")
+    for seg in segments:   # a one-sided movement keeps to its side, segment by segment
+        for why in side_problems(cat, on_menu, " ".join(line for _, line in seg["lines"])):
+            if why not in issues:
+                issues.append(why)
     want = menu.get("seconds")
     total = sum(seg["seconds"] for seg in segments)
     if want and total != want:
