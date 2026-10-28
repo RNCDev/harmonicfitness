@@ -4,7 +4,19 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-28
+
+The web client, stripped back to a chat and Keys: the coach on the site works as Claude Code does on a listener's computer, following the workout skill itself. The engine gains the build checks the web needs (one side only, names the catalog doesn't hold, a character allowance and its price).
+
+### For forks
+- **The build's menu check is stricter.** A draft that speaks a one-sided movement with "each side", "switch", the other side's word or "the injured leg" in its segment is refused (exit 1), as is a movement name the catalog doesn't hold (`[unlisted]` in `knowledge/movements.toml`). An existing draft that passed before may need its wording changed; rerun the build and follow what it names.
+- **A shipped limit cue changed words:** the groin's off-limits cue is now "No side lunges or wide stances, and no legs spread apart." Clips of the old line render once more.
+- **Nothing in `me/` to migrate.**
+
 ### Added
+- **Live steps in the web chat.** While the coach works, the chat shows a running clock and each step as it happens ("Reading me/profile.md", "Working out today's safe menu", "Checking the script"); the worker logs each tool and its exit code, never what it read.
+- **The coach's replies render as Markdown** (tables, lists, bold) in the web chat; the listener's own lines stay plain text.
+- **Bring in your folder.** The Keys drawer takes a ZIP of a listener's `me` folder and keeps its files over the starter ones (`POST /api/import`, at most 10 MB zipped, 2 MB a file); key files, audio, caches, logs, backups and git are left out.
 - **A build's allowance and its cost.** `build --max-chars N` bounds a web build below the profile's `cloud_max_chars`: the lint stops a script over it (nothing is sent), and the render's own check names the flag when it was the lower bound; a local voice ignores it. `get cost --coach <coach> [--chars N] [--json]` prices a web build (`chars`, `usd`, `ceiling`, and the one-time voice design for a coach still to be made); a local coach, or a web coach with no key here, is exit 64.
 - **A one-sided movement keeps to its side in the build.** When today's menu allows a movement on one side only, the build's menu check refuses a sentence that names it with another side's word, and a segment naming it that holds, in any sentence, a both-sides phrase ("each side", "alternating", "both legs", "switch", "other leg"...) any word naming the other side outside a shipped limit cue ("then ten on the left", "next, left", "now the injured leg"), or a turn without one ("change legs", "the other one", "ten a side", "the second leg", "apiece"); a colon or a parenthesis doesn't separate a dose from its name, and a negation doesn't excuse it. The rule moved from the web's plan check into `menu.side_problems`, so the build and the web refuse the same things. `menu.part_of` is public (`_part_of` stays as an alias for this release).
 - **Names the catalog doesn't hold are refused.** The catalog's new `[unlisted]` table names real movements it doesn't hold ("pistol squat", "pistols", "forward lunge", "walking lunge", "side lunge", "lateral lunge", a bare "lunges"), singular or plural; a script that says one is refused, since it can't be on a menu, except a bare "lunges" after a declared lunge. The groin's off-limits cue now reads "No side lunges or wide stances, and no legs spread apart.", so its negation covers the name.

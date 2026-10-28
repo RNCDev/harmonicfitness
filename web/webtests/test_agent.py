@@ -123,6 +123,19 @@ class Turns(AgentCase):
         out2 = agent.run_turn(FunctionModel(second), self.deps, out.history_json, "1a")
         self.assertEqual(out2.reply, "got 1a")
 
+    def test_every_tool_call_is_a_step(self):
+        said = []
+        self.deps.say = lambda text, tool, code: said.append((text, tool, code))
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("read_file", {"path": "me/profile.md"}, tool_call_id="c1"),
+                                            ToolCallPart("run", {"args": ["setup"]}, tool_call_id="c2")])
+            return ModelResponse(parts=[TextPart("done")])
+
+        agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertEqual(said, [("Reading me/profile.md", "read_file", 0), ("Running the engine", "run setup", 64)])
+
     def test_an_answer_is_not_open(self):
         with self.assertRaises(agent.TurnError) as e:
             agent.run_turn(FunctionModel(lambda m, i: ModelResponse(parts=[TextPart("x")])), self.deps, None,

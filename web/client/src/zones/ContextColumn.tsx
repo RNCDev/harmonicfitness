@@ -1,7 +1,7 @@
 // The settings drawer: keys, signing in another device, the password, signing out.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { api, NotSignedIn, type DeviceLink } from "../api";
+import { api, ApiError, NotSignedIn, type DeviceLink } from "../api";
 import { PasswordForm } from "../SignIn";
 import { KeysBox } from "./KeysBox";
 
@@ -54,6 +54,41 @@ function DeviceLinkBox({ onSignedOut }: { onSignedOut: () => void }) {
   );
 }
 
+function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function take(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    setNote(null);
+    setError(null);
+    try {
+      const r = await api.importFolder(file);
+      setNote(`Brought in ${r.imported} files${r.left_out ? ` (left out ${r.left_out}: keys, audio, caches, backups)` : ""}.`);
+    } catch (e) {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      setError(e instanceof ApiError ? e.message : "Couldn't send it. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="cx-box">
+      <p className="cx-s">Bring in your folder: a ZIP of your <code>me</code> folder from HarmonicFitness on your computer. Its files replace the starter ones here. Key files are never kept.</p>
+      <label className="quiet import">
+        {busy ? "Bringing it in…" : "Choose a ZIP"}
+        <input type="file" accept=".zip,application/zip" disabled={busy} className="sr"
+          onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ""; }} />
+      </label>
+      {note && <p className="cx-s" role="status">{note}</p>}
+      {error && <p className="cx-s err" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut: () => void }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
@@ -92,6 +127,7 @@ export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut 
         </div>
         <div className="cx-list">
           <KeysBox onSignedOut={onSignedOut} />
+          <ImportBox onSignedOut={onSignedOut} />
           <DeviceLinkBox onSignedOut={onSignedOut} />
           <PasswordBox username={username} onSignedOut={onSignedOut} />
           <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>

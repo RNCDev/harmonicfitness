@@ -35,7 +35,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
     RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, config, conversations, db, engine, jobs, keystore, providers, store, \
+from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, providers, store, \
     worker
 
 COOKIE = "wt_session"
@@ -199,6 +199,63 @@ def build_version(engine_root: str, env=os.environ) -> str:
     sha = (env.get("HARMONICFITNESS_COMMIT") or env.get("RAILWAY_GIT_COMMIT_SHA") or "").strip()[:7]
     return f"{v} ({sha})" if sha else v
 
+
+
+IMPORT_MAX_ZIP = 10_000_000      # bytes of ZIP
+IMPORT_MAX_FILE = 2_000_000      # bytes of one file, unpacked
+IMPORT_MAX_TOTAL = 30_000_000    # bytes of every file, unpacked
+IMPORT_MAX_FILES = 2_000
+
+
+def folder_from_zip(data: bytes) -> tuple[dict[str, bytes], int]:
+    """(path -> bytes, how many entries were left out) from a ZIP of a me/ folder. The ZIP may hold the
+    folder's files at its top or inside one folder (me/, harmonicfitness-me/...). Raises ValueError with
+    a sentence for a person."""
+    import io
+    import stat
+    import zipfile
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise ValueError("That isn't a ZIP file.") from None
+    entries = [i for i in z.infolist() if not i.is_dir()]
+    if len(entries) > IMPORT_MAX_FILES:
+        raise ValueError(f"That ZIP holds more than {IMPORT_MAX_FILES} files.")
+    names = [i.filename for i in entries]
+    tops = {n.split("/", 1)[0] for n in names if not n.startswith("__MACOSX/")}
+    strip = ""
+    if ("profile.md" not in names and len(tops) == 1 and next(iter(tops)) not in ("", ".", "..")
+            and f"{next(iter(tops))}/profile.md" in names):
+        strip = f"{next(iter(tops))}/"   # the folder itself was zipped
+    files, left_out, total = {}, 0, 0
+    for info in entries:
+        path = info.filename[len(strip):] if info.filename.startswith(strip) else info.filename
+        mode = info.external_attr >> 16
+        parts = path.split("/")
+        if (stat.S_ISLNK(mode) or folder.skipped(path) or parts[0].startswith(".backup") or parts[0] == ".git"
+                or "__MACOSX" in parts or parts[-1].startswith("._")):
+            left_out += 1
+            continue
+        try:
+            store.check_path(path)
+        except ValueError:
+            left_out += 1
+            continue
+        if info.file_size > IMPORT_MAX_FILE:
+            left_out += 1
+            continue
+        total += info.file_size
+        if total > IMPORT_MAX_TOTAL:
+            raise ValueError(f"That folder is over {IMPORT_MAX_TOTAL // 1_000_000} MB unpacked.")
+        with z.open(info) as f:
+            body = f.read(IMPORT_MAX_FILE + 1)
+        if len(body) > IMPORT_MAX_FILE:
+            left_out += 1
+            continue
+        files[path] = body
+    if "profile.md" not in files:
+        raise ValueError("That ZIP has no profile.md: zip the me folder itself.")
+    return files, left_out
 
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
                client_dist: str | os.PathLike | None = None) -> FastAPI:
@@ -411,6 +468,32 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             finally:
                 conn.rollback()
         return [{"path": p, "version": v, "updated_at": u.isoformat()} for p, v, u in rows]
+
+    @app.post("/api/import", **post)
+    async def import_folder(uk: User, request: Request):
+        """A ZIP of the listener's me/ folder, brought in once: every file kept as it is, over the
+        starter files of the same name. Key files, audio, caches, logs and backups are left out."""
+        body = await request.body()
+        if len(body) > IMPORT_MAX_ZIP:
+            raise HTTPException(413, f"That ZIP is over {IMPORT_MAX_ZIP // 1_000_000} MB.")
+        try:
+            files, left_out = folder_from_zip(body)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from None
+        if not files:
+            raise HTTPException(400, "That ZIP holds none of your folder's files.")
+
+        def save() -> None:
+            with connection() as conn:
+                try:
+                    for path in sorted(files):
+                        store.put(conn, uk, path, files[path])
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+        await anyio.to_thread.run_sync(save)
+        return {"imported": len(files), "left_out": left_out}
 
     @app.get("/api/keys")
     def list_keys(uk: User):

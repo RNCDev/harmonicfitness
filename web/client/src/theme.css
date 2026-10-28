@@ -111,7 +111,30 @@ button[disabled] { cursor: not-allowed }
 .m.a { background: var(--sheet); padding: 10px 14px; border-radius: 4px 16px 16px 16px; align-self: flex-start }
 
 .m.u { background: var(--tok); color: var(--base); padding: 10px 14px; border-radius: 16px 4px 16px 16px; align-self: flex-end }
-.m.thinking { color: var(--ink-2) }
+.m.thinking { color: var(--ink-2); min-width: 14em }
+.think-head { margin: 0; font-weight: 600 }
+.think-head .clock { font-weight: 400; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-left: 4px }
+.steps { list-style: none; margin: 6px 0 0; padding: 0; font-size: 14px; display: grid; gap: 3px }
+.steps li { color: var(--ink-3); padding-left: 16px; position: relative }
+.steps li::before { content: "✓"; position: absolute; left: 0; color: var(--ok) }
+.steps li.bad::before { content: "!"; color: var(--stop) }
+.steps li.now { color: var(--ink) }
+.steps li.now::before { content: "•"; color: var(--tok); animation: pulse 1.2s ease-in-out infinite }
+.steps li.more::before { content: "" }
+@keyframes pulse { 50% { opacity: .25 } }
+.m.md > :first-child { margin-top: 0 }
+.m.md > :last-child { margin-bottom: 0 }
+.m.md p, .m.md ul, .m.md ol { margin: 0 0 .6em }
+.m.md ul, .m.md ol { padding-left: 1.3em }
+.m.md h1, .m.md h2, .m.md h3, .m.md h4 { font-family: var(--display); font-size: 17px; margin: .8em 0 .4em; line-height: 1.25 }
+.m.md hr { border: 0; border-top: 1px solid var(--rule); margin: .8em 0 }
+.m.md blockquote { margin: 0 0 .6em; padding: 6px 12px; border-left: 3px solid var(--tok); background: var(--base); border-radius: 0 8px 8px 0 }
+.m.md code { font-size: .9em; background: var(--base); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere }
+.m.md pre { overflow-x: auto; background: var(--base); padding: 10px; border-radius: 8px }
+.m.md pre code { background: none; padding: 0 }
+.m.md table { border-collapse: collapse; margin: 0 0 .6em; font-size: 14px; display: block; overflow-x: auto; max-width: 100% }
+.m.md th, .m.md td { border-bottom: 1px solid var(--rule); padding: 5px 10px 5px 0; text-align: left; vertical-align: top }
+.m.md th { font-weight: 700; color: var(--ink-2) }
 .chat-error { padding: 10px var(--s4); background: var(--stop-tint); border-left: 6px solid var(--stop) }
 .chat-error p { margin: 0 0 8px; font-size: 15px }
 .chat-form { display: flex; gap: var(--s2); align-items: flex-end; padding: var(--s3) var(--s4) var(--s4) }
@@ -191,3 +214,4 @@ button[disabled] { cursor: not-allowed }
 .keys-edit { display: flex; flex-direction: column; gap: var(--s2); flex-basis: 100%; }
 .keys-edit input { background: var(--sheet) }
 .keys-actions { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center }
+.import { display: inline-block; margin-top: 8px; cursor: pointer; font-size: 14px }

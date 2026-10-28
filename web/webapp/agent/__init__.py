@@ -48,30 +48,53 @@ def _now(ctx: RunContext[Deps]) -> str:
     return f"Now: {ctx.deps.now} (today is {ctx.deps.today})."
 
 
+# What the listener sees while a tool runs: plain words, never a file's contents.
+STEPS = {"brief": "Working out today's safe menu", "build": "Checking the script", "check": "Checking your files",
+         "content": "Planning what fills the rests", "coaches": "Looking at the coaches", "coverage":
+         "Looking at your recent sessions", "feeds": "Fetching today's news and weather", "get": "Looking up a setting",
+         "log-session": "Logging the session", "movements": "Looking through the movements", "youtube":
+         "Looking for a video", "keys": "Checking which keys are set", "help": "Reading the engine's help"}
+
+
+def _step(deps: Deps, text: str, tool: str, result: ToolResult) -> ToolResult:
+    if deps.say is not None:
+        try:
+            deps.say(text, tool, result.code)
+        except Exception:  # noqa: BLE001 - a progress line never fails the turn
+            pass
+    return result
+
+
+def _shown(path: object) -> str:
+    return path if isinstance(path, str) and len(path) <= 120 else "a file"
+
+
 @AGENT.tool(sequential=True)
 def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     """Run one ./harmonicfitness command in the listener's folder: args is the argv after
     ./harmonicfitness, e.g. ["brief", "--goal", "strength", "--minutes", "25", "--preset", "hotel-room",
     "--save", "me/workouts/<stem>/<stem>.draft.txt"]. Returns the exit code, stdout and stderr."""
-    return tools.run(ctx.deps, args)
+    first = args[1] if args and args[0] == "./harmonicfitness" and len(args) > 1 else (args[0] if args else "")
+    text = STEPS.get(first, "Running the engine") if isinstance(first, str) else "Running the engine"
+    return _step(ctx.deps, text, f"run {first}"[:40], tools.run(ctx.deps, args))
 
 
 @AGENT.tool(sequential=True)
 def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
     """Read a text file: me/... (the listener's folder) or the engine's knowledge/, .claude/skills/, coaches/."""
-    return tools.read_file(ctx.deps, path)
+    return _step(ctx.deps, f"Reading {_shown(path)}", "read_file", tools.read_file(ctx.deps, path))
 
 
 @AGENT.tool(sequential=True)
 def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
     """Write (create or replace) a text file in the listener's folder, me/... only."""
-    return tools.write_file(ctx.deps, path, content)
+    return _step(ctx.deps, f"Writing {_shown(path)}", "write_file", tools.write_file(ctx.deps, path, content))
 
 
 @AGENT.tool(sequential=True)
 def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
     """List the files under a folder of the listener's, me/ by default."""
-    return tools.list_files(ctx.deps, path)
+    return _step(ctx.deps, f"Looking through {_shown(path)}", "list_files", tools.list_files(ctx.deps, path))
 
 
 NOT_OPEN = "not_open"            # TurnError.reason: an answer to a question (this agent asks in the chat)

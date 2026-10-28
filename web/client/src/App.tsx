@@ -29,7 +29,9 @@ export function App() {
     stopRef.current();
     setAuth("out");
   }, []);
-  const { conv, working, error, noKey, send, reset, stop } = useConversation(signedOut);
+  const { conv, working, error, noKey, send, reset, job, stop } = useConversation(signedOut);
+  const steps = (job?.stages ?? []).filter((s) => s.stage === "step" && typeof s.text === "string")
+    .map((s) => ({ text: s.text as string, failed: s.failed === true }));
   stopRef.current = stop;
 
   const load = useCallback(async () => {
@@ -89,7 +91,7 @@ export function App() {
         </button>
       </header>
       {/* an earlier day's conversation shows as history; the next message starts a new one */}
-      <Chat lines={conv?.lines ?? []} working={working} error={error} noKey={noKey}
+      <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
         onSend={send} onOpenKeys={() => setDrawer(true)} />
       <ContextColumn username={me?.username ?? ""} open={drawer} onClose={closeDrawer}
         onSignedOut={signedOut} onSignOut={signOut} />

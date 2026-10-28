@@ -864,3 +864,55 @@ class Disconnect(ApiCase):
                 time.sleep(0.05)
         self.assertTrue(stream_conn.closed)
         self.assertTrue(all(conn.closed for conn in opened))
+
+
+def zip_of(entries: dict) -> bytes:
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, body in entries.items():
+            z.writestr(name, body)
+    return buf.getvalue()
+
+
+class Import(ApiCase):
+    FOLDER = {"me/profile.md": "+++\nschema = 6\n+++\nmine\n", "me/log.md": "log", "me/.env": "FISH_AUDIO_API_KEY=x",
+              "me/workouts/a/a.mp3": "audio", "me/workouts/.audio-cache/c.wav": "c", "me/.backup-1/profile.md": "old",
+              "me/.git/config": "g", "__MACOSX/me/._profile.md": "junk", "me/coaches/c/persona.md": "coach"}
+
+    def test_reads_the_folder_and_leaves_out_the_rest(self):
+        files, left_out = api.folder_from_zip(zip_of(self.FOLDER))
+        self.assertEqual(sorted(files), ["coaches/c/persona.md", "log.md", "profile.md"])
+        self.assertEqual(left_out, 6)
+        self.assertNotIn(".env", files)
+
+    def test_files_at_the_top_work_too(self):
+        files, _ = api.folder_from_zip(zip_of({"profile.md": "p", "health.md": "h"}))
+        self.assertEqual(sorted(files), ["health.md", "profile.md"])
+
+    def test_refuses_what_isnt_a_folder(self):
+        for data in (b"not a zip", zip_of({"notes.txt": "x"}), zip_of({"../profile.md": "x"})):
+            with self.assertRaises(ValueError):
+                api.folder_from_zip(data)
+
+    def test_import_replaces_the_starter_files(self):
+        user_id, uk = self.signed_in()
+        r = self.client.post("/api/import", content=zip_of(self.FOLDER),
+                             headers={**self.origin(), "Content-Type": "application/zip"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json(), {"imported": 3, "left_out": 6})
+        files = store.read_all(self.conn, uk)
+        self.conn.rollback()
+        self.assertEqual(files["profile.md"][1], b"+++\nschema = 6\n+++\nmine\n")
+        self.assertNotIn(".env", files)
+
+    def test_import_needs_session_and_origin(self):
+        self.assertEqual(self.client.post("/api/import", content=b"x", headers=self.origin()).status_code, 401)
+        self.signed_in()
+        self.assertEqual(self.client.post("/api/import", content=zip_of(self.FOLDER)).status_code, 403)
+
+    def test_a_bad_zip_is_400(self):
+        self.signed_in()
+        r = self.client.post("/api/import", content=b"nope", headers=self.origin())
+        self.assertEqual((r.status_code, r.json()["detail"]), (400, "That isn't a ZIP file."))

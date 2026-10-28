@@ -79,6 +79,23 @@ export const api = {
   sendMessage: (id: number, line: string, w: When) =>
     call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w }),
   signOut: () => call<void>("POST", "/api/sign-out"),
+  importFolder: async (zip: Blob): Promise<{ imported: number; left_out: number }> => {
+    const r = await fetch("/api/import", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/zip" }, body: zip,
+    });
+    if (r.status === 401) throw new NotSignedIn("not signed in");
+    if (!r.ok) {
+      let detail = r.statusText;
+      try {
+        const j = await r.json();
+        if (typeof j?.detail === "string") detail = j.detail;
+      } catch {
+        /* no JSON body */
+      }
+      throw new ApiError(r.status, detail);
+    }
+    return r.json();
+  },
   job: (id: number) =>
     call<{ id: number; state: JobState; error: string | null }>(
       "GET", `/api/jobs/${id}`),

@@ -6,6 +6,7 @@ is reachable. Keys reach the engine only through engine.run's extra_env; `me/.en
 The engine's own checks (the brief's menu, the build's gate) keep a workout safe; these tools only keep
 the agent inside the user's folder and away from what this web client can't do yet."""
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel
@@ -35,6 +36,8 @@ class Deps:
     keys: dict[str, str] = field(repr=False)
     today: str
     now: str
+    # tells the listener what the coach is doing, as it happens: (step text, tool name, exit code or None)
+    say: Callable[[str, str, int | None], None] | None = field(default=None, repr=False)
 
 
 class ToolResult(BaseModel):

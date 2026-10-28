@@ -1,10 +1,17 @@
-// The chat zone: the lines so far, a "Thinking…" line while a turn runs, and the box to write in.
-import { useState } from "react";
+// The chat: the lines so far (the coach's as Markdown), what the coach is doing while a turn runs,
+// and the box to write in.
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { ChatLine } from "../api";
+
+export type Step = { text: string; failed?: boolean };
 
 type Props = {
   lines: ChatLine[];
   working: boolean;
+  /** What the coach has done so far this turn, oldest first. */
+  steps?: Step[];
   error: string | null;
   noKey: boolean;
   /** Resolves false when the line was refused, so the box gets its text back. */
@@ -12,8 +19,46 @@ type Props = {
   onOpenKeys: () => void;
 };
 
-export function Chat({ lines, working, error, noKey, onSend, onOpenKeys }: Props) {
+const SHOWN_STEPS = 6;
+
+function seconds(since: number): string {
+  const s = Math.max(0, Math.round((Date.now() - since) / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+}
+
+/** "Thinking…" with a running clock and the coach's latest steps. */
+function Working({ steps }: { steps: Step[] }) {
+  const [since] = useState(() => Date.now());
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const shown = steps.slice(-SHOWN_STEPS);
+  return (
+    <div className="m a thinking" aria-live="polite">
+      <p className="think-head">Working… <span className="clock">{seconds(since)}</span></p>
+      {shown.length > 0 && (
+        <ul className="steps">
+          {steps.length > shown.length && <li className="more">{steps.length - shown.length} earlier steps</li>}
+          {shown.map((s, i) => (
+            <li key={steps.length - shown.length + i} className={i === shown.length - 1 ? "now" : s.failed ? "bad" : ""}>
+              {s.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys }: Props) {
   const [text, setText] = useState("");
+  const end = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: "end" });
+  }, [lines.length, working, steps.length]);
 
   async function send() {
     const line = text.trim();
@@ -23,15 +68,20 @@ export function Chat({ lines, working, error, noKey, onSend, onOpenKeys }: Props
   }
 
   return (
-    <aside className="chat" aria-label="Chat">
+    <main className="chat" aria-label="Chat">
       <div className="chat-log" role="log" aria-live="polite">
         {lines.length === 0 && !working && (
           <p className="m a">Hi. Tell me what workout you'd like: how long, what for, what you have with you. I'll check in, then write it.</p>
         )}
-        {lines.map((l, i) => (
-          <p key={i} className={`m ${l.role === "user" ? "u" : "a"}`}>{l.text}</p>
+        {lines.map((l, i) => l.role === "user" ? (
+          <p key={i} className="m u">{l.text}</p>
+        ) : (
+          <div key={i} className="m a md">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{l.text}</ReactMarkdown>
+          </div>
         ))}
-        {working && <p className="m a thinking">Thinking…</p>}
+        {working && <Working steps={steps} />}
+        <div ref={end} />
       </div>
       {error && (
         <div className="chat-error" role="alert">
@@ -51,6 +101,6 @@ export function Chat({ lines, working, error, noKey, onSend, onOpenKeys }: Props
           }} />
         <button type="submit" className="go alt" disabled={working || !text.trim()}>Send</button>
       </form>
-    </aside>
+    </main>
   );
 }

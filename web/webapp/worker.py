@@ -277,6 +277,13 @@ def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str)
         ctx.conn.rollback()
 
 
+def _step(ctx: Ctx, text: str, tool: str, code: int | None) -> None:
+    """One step of a turn, live in the chat (a sealed job event) and in the worker's log (the tool and its
+    exit code only, never what it read or wrote)."""
+    print(f"worker: job {ctx.job_id} {tool} exit {code}", file=sys.stderr, flush=True)
+    ctx.say("step", text=text, failed=code not in (0, None))
+
+
 def turn(ctx: Ctx) -> dict:
     """One agent turn on the user's folder and language-model key, saved to their conversation."""
     args = ctx.args
@@ -325,7 +332,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
-                      now=now)
+                      now=now, say=lambda text, tool, code: _step(ctx, text, tool, code))
     ctx.say("thinking")
     try:
         outcome = agent.run_turn(model, deps, conv.history, line, answer)
