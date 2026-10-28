@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import folder  # noqa: E402
+from webapp import folder, store  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -73,6 +73,41 @@ class FolderTests(unittest.TestCase):
         for k, v in s.items():
             with open(os.path.join(ROOT, "me.example", k), "rb") as f:
                 self.assertEqual(f.read(), v)
+
+    def test_check_path_rejects_non_utf8(self):
+        with self.assertRaises(ValueError):
+            store.check_path("a\udcffb")
+
+    def test_harvest_skips_non_utf8_name(self):
+        written = folder.materialize({"a.md": b"a"}, self.root)
+        try:
+            fd = os.open(os.fsencode(self.root) + b"/a\xffb", os.O_WRONLY | os.O_CREAT)
+        except OSError:
+            self.skipTest("this filesystem refuses non-UTF-8 names")
+        os.close(fd)
+        self.assertEqual(folder.harvest(self.root, written), {})
+
+    def test_skips_key_file_variants(self):
+        written = folder.materialize({"a.md": b"a"}, self.root)
+        self.put(".env.bak")
+        self.put("keys.env")
+        self.assertEqual(folder.harvest(self.root, written), {})
+
+    def test_seed_missing_template_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            folder.seed(self.root)
+
+    def test_materialize_never_writes_through_symlink(self):
+        outside = os.path.join(self.root, "outside.txt")
+        with open(outside, "wb") as f:
+            f.write(b"orig")
+        dest = os.path.join(self.root, "home")
+        os.mkdir(dest)
+        os.symlink(outside, os.path.join(dest, "profile.md"))
+        with self.assertRaises(OSError):
+            folder.materialize({"profile.md": b"evil"}, dest)
+        with open(outside, "rb") as f:
+            self.assertEqual(f.read(), b"orig")
 
 
 if __name__ == "__main__":

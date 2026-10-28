@@ -24,6 +24,10 @@ def check_path(path: str) -> str:
             or path.startswith("/") or posixpath.normpath(path) != path
             or ".." in path.split("/")):
         raise ValueError(f"bad path: {path!r}")
+    try:
+        path.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError(f"bad path: {path!r}") from None
     return path
 
 

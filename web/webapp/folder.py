@@ -14,7 +14,7 @@ from .store import check_path
 # "*.mp3") matches the file name at any depth; one with "/" matches the whole
 # path from the root. "*" does not stop at "/" (fnmatch), which is harmless here.
 SKIP = (
-    ".env", "*.lock", "workouts/.audio-cache/", "coaches/.auditions/",
+    ".env", ".env.*", "*.env", "*.lock", "workouts/.audio-cache/", "coaches/.auditions/",
     "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store",
 )
 
@@ -39,7 +39,10 @@ def _sha(data: bytes) -> str:
 
 
 def materialize(files: dict[str, bytes], root: str) -> dict[str, str]:
-    """Write each file under root; return path -> sha256 of what was written."""
+    """Write each file under root; return path -> sha256 of what was written.
+
+    root must be a fresh, empty folder. Files are opened with O_NOFOLLOW, so a
+    symlink already in place is never written through (OSError)."""
     for path in files:
         check_path(path)
     root = os.path.abspath(root)
@@ -49,7 +52,8 @@ def materialize(files: dict[str, bytes], root: str) -> dict[str, str]:
         if os.path.commonpath([root, os.path.abspath(dest)]) != root:
             raise ValueError(f"bad path: {path!r}")
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        with open(dest, "wb") as f:
+        fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "wb") as f:
             f.write(data)
         written[path] = _sha(data)
     return written
@@ -94,6 +98,8 @@ def harvest(root: str, written: dict[str, str],
 def seed(engine_root: str) -> dict[str, bytes]:
     """Every file in <engine_root>/me.example/ as path -> bytes, minus SKIP."""
     base = os.path.join(engine_root, "me.example")
+    if not os.path.isdir(base):
+        raise FileNotFoundError(base)
     out = {}
     for rel, full in _walk(base):
         if skipped(rel):
