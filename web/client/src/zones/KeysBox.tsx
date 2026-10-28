@@ -85,9 +85,10 @@ function KeyRow({ k, onChanged, onSignedOut }: {
         </span>
       )}
       {editing && (
-        <form className="keys-edit" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+        <form className="keys-edit" autoComplete="off" onSubmit={(e) => { e.preventDefault(); void save(); }}>
           <label className="cx-s" htmlFor={`key-${k.service}`}>{k.name} key</label>
           <input id={`key-${k.service}`} ref={input} type="password" autoComplete="off" spellCheck={false}
+            data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
             value={value} onChange={(e) => setValue(e.target.value)} />
           <span className="keys-actions">
             <button type="submit" disabled={busy || value === ""}>Save</button>

@@ -28,7 +28,7 @@ It clears their password, signs out their devices and prints a one-time sign-in 
 
 ## Keys
 
-Each listener's voice service keys (one per web voice service in the engine's `knowledge/services.toml`) are entered in the app's "Voice keys" box and stored in the `user_keys` table (migration 005), one row per user and service, sealed with that user's data key; only the service name and a timestamp are plain. A key is trimmed, must be printable ASCII with no spaces (the engine's `keys.clean_value`) and at most 1024 characters.
+Each listener's voice service keys (one per web voice service in the engine's `knowledge/services.toml`) are entered in the app's "Voice keys" box and stored in the `user_keys` table (migration 005), one row per user and service, sealed with that user's data key; only the service name and a timestamp are plain. A key is trimmed, must be printable ASCII with no spaces (the engine's `keys.clean_value`) and 16 to 1024 characters.
 
 The web process seals a key on entry and never opens one: `GET /api/keys` says only which services have a key, `PUT /api/keys/<service>` sets or replaces one and `DELETE` removes it. Only the worker opens a listener's keys, for a job, and passes them to the engine under the variable names in `services.toml` (such as `FISH_AUDIO_API_KEY`); the engine's output is scrubbed of them.
 

@@ -39,6 +39,7 @@ describe("the Keys box", () => {
     const input = screen.getByLabelText("ElevenLabs key");
     expect(input).toHaveFocus();
     expect(input).toHaveValue("");
+    expect(input).toHaveAttribute("data-1p-ignore");
     fireEvent.change(input, { target: { value: "secret-value-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(m.setKey).toHaveBeenCalledWith("elevenlabs", "secret-value-1");

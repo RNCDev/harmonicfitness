@@ -161,6 +161,14 @@ class StockAndOwn(unittest.TestCase):
         first = min((p for p in personas.all() if p.is_web), key=lambda p: coachpick.cloud.SERVICES.index(p.service))
         self.assertEqual(web.name, first.name)
 
+    def test_web_default_prefers_a_keyed_service(self):
+        keyed = lambda p: p.is_web and p.service == "elevenlabs"
+        with mock.patch.object(paths, "WEB", True), mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
+            with mock.patch.object(coachpick, "_usable_here", side_effect=keyed):
+                self.assertEqual(coachpick.default().name, "Coach Ellis")
+            with mock.patch.object(coachpick, "_usable_here", return_value=False):
+                self.assertEqual(coachpick.default().name, "Coach Reed")   # none keyed: first in service order
+
 
 OWN_LOCAL = """+++
 schema = 5

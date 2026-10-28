@@ -16,7 +16,7 @@ import sys
 import tempfile
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import psycopg
@@ -50,6 +50,7 @@ class Ctx:
     settings: config.Settings
     home: str
     pending: tuple | None = None   # (changes, base) to write back when the job completes
+    keys: dict = field(default_factory=dict, repr=False)   # {key_var: value}: the engine's extra_env, set by run_one
 
     def say(self, stage: str, **fields) -> None:
         """A job event, committed now so a stream sees it live. It commits the connection's pending
@@ -179,12 +180,11 @@ def brief(ctx: Ctx) -> dict:
     ctx.conn.commit()
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
-    keys = ctx.key_env()
     ctx.say("brief")
     draft = os.path.join(ctx.home, "workouts", stem, f"{stem}.draft.txt")
     r = engine.run(ctx.settings.engine_root, ctx.home,
                    ["brief", "--goal", goal, "--minutes", str(minutes), "--preset", preset,
-                    "--today", today, "--save", draft], extra_env=keys, timeout=BRIEF_TIMEOUT)
+                    "--today", today, "--save", draft], extra_env=ctx.keys, timeout=BRIEF_TIMEOUT)
     if r.code != 0:
         raise JobFailed(f"the engine stopped (exit {r.code})", {"stderr": r.stderr})
     ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)
@@ -251,6 +251,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
         if handler is None:
             raise JobFailed("unknown job kind")
         ctx = Ctx(conn=conn, uk=uk, job_id=job.id, args=args, settings=settings, home=home)
+        ctx.keys = ctx.key_env()   # every handler passes ctx.keys as the engine's extra_env
         outcome = ("done", handler(ctx))
     except JobFailed as e:
         conn.rollback()

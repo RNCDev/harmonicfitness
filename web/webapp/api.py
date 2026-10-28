@@ -121,9 +121,13 @@ class NewPassword(BaseModel):
     new: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)]
 
 
+KEY_MIN = 16     # shorter values escape engine.scrub (8+ only) and are never real keys
+KEY_MAX = 1024
+
+
 class KeyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    key: Annotated[StrictStr, StringConstraints(max_length=1024)]
+    key: Annotated[StrictStr, StringConstraints(max_length=KEY_MAX)]
 
 
 class _Headers:
@@ -401,7 +405,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     def put_key(uk: User, service: str, body: Annotated[KeyBody, Body()]):
         info = known(service)
         value = worker.clean_key(settings.engine_root, info["key_var"], body.key)
-        if not value:
+        if not value or len(value) < KEY_MIN:
             raise HTTPException(400, f"That doesn't look like a {info['name']} key: it has a space, "
                                      "a line break or a symbol in it. Paste it again.")
         with connection() as conn:

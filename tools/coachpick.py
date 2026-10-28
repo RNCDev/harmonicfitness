@@ -56,7 +56,8 @@ def default(folder=None):
     order = lambda p: (not p.is_web, cloud.SERVICES.index(p.service) if p.service in cloud.SERVICES else 99)
     ordered = sorted(found, key=order)
     if paths.WEB:   # the web client has no local voice: a web stand-in, whose key the app adds
-        return next((p for p in ordered if p.is_web), found[0])
+        return next((p for p in ordered if p.is_web and _usable_here(p)),
+                    next((p for p in ordered if p.is_web), found[0]))
     return next((p for p in ordered if _usable_here(p)), found[0])
 
 

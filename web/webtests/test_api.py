@@ -464,7 +464,7 @@ class Keys(ApiCase):
             kw = {"json": {"key": "abc"}} if m == "put" else {}
             self.assertEqual(getattr(self.client, m)(p, headers=self.origin(), **kw).status_code, 401)
         self.signed_in()
-        self.assertEqual(self.client.put("/api/keys/fish", json={"key": "abc123def456"}).status_code, 403)
+        self.assertEqual(self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}).status_code, 403)
         self.assertEqual(self.client.delete("/api/keys/fish").status_code, 403)
 
     def test_list_shows_every_service_unset(self):
@@ -478,40 +478,44 @@ class Keys(ApiCase):
 
     def test_put_then_list(self):
         self.signed_in()
-        r = self.client.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+        r = self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
         self.assertEqual(r.status_code, 204)
         r = self.client.get("/api/keys")
         fish = next(k for k in r.json() if k["service"] == "fish")
         self.assertTrue(fish["set"])
         self.assertIsNotNone(fish["updated_at"])
-        self.assertNotIn("abc123def456", r.text)
+        self.assertNotIn("abc123def456abcd", r.text)
 
     def test_put_key_strips_and_refuses(self):
         user_id, uk = self.signed_in()
         put = lambda svc, key: self.client.put(f"/api/keys/{svc}", json={"key": key},  # noqa: E731
                                                headers=self.origin())
-        self.assertEqual(put("fish", "abc123def456\n").status_code, 204)
-        self.assertEqual(keystore.open_all(self.conn, uk)["fish"], "abc123def456")
+        self.assertEqual(put("fish", "abc123def456abcd\n").status_code, 204)
+        self.assertEqual(keystore.open_all(self.conn, uk)["fish"], "abc123def456abcd")
         self.conn.rollback()
         r = put("fish", "abc 123")
         self.assertEqual(r.status_code, 400)
         self.assertIn("Fish Audio", r.json()["detail"])
         self.assertNotIn("abc 123", r.text)
+        self.assertEqual(put("fish", "a" * 15).status_code, 400)
+        self.assertEqual(keystore.open_all(self.conn, uk)["fish"], "abc123def456abcd")   # nothing replaced
+        self.conn.rollback()
+        self.assertEqual(put("fish", "a" * 16).status_code, 204)
         self.assertEqual(put("fish", "").status_code, 400)
         self.assertEqual(put("fish", "  \n").status_code, 400)
         long = "a" * 1025
         r = put("fish", long)
         self.assertEqual(r.status_code, 422)
         self.assertNotIn(long, r.text)
-        r = self.client.put("/api/keys/fish", json={"key": "abc123def456", "x": 1},
+        r = self.client.put("/api/keys/fish", json={"key": "abc123def456abcd", "x": 1},
                             headers=self.origin())
         self.assertEqual(r.status_code, 422)
-        self.assertNotIn("abc123def456", r.text)
-        self.assertEqual(put("nope", "abc123def456").status_code, 404)
+        self.assertNotIn("abc123def456abcd", r.text)
+        self.assertEqual(put("nope", "abc123def456abcd").status_code, 404)
 
     def test_keys_are_per_user(self):
         _, uk_a = self.signed_in()
-        self.client.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+        self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
         b = self.other_client()
         self.signed_in(b)
         fish = next(k for k in b.get("/api/keys").json() if k["service"] == "fish")
@@ -521,7 +525,7 @@ class Keys(ApiCase):
 
     def test_delete_key(self):
         self.signed_in()
-        self.client.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+        self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
         self.assertEqual(self.client.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
         self.assertEqual(self.client.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
         self.assertEqual(self.client.delete("/api/keys/nope", headers=self.origin()).status_code, 404)
@@ -541,7 +545,7 @@ class Keys(ApiCase):
         quiet = TestClient(self.app, base_url=self.base_url, raise_server_exceptions=False)
         quiet.cookies.update(self.client.cookies)
         with mock.patch.object(keys, "clean_value", side_effect=RuntimeError("boom")):
-            r = quiet.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+            r = quiet.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
         self.assertEqual(r.status_code, 500)
         self.assertEqual(keystore.open_all(self.conn, uk), {})
 
