@@ -222,6 +222,17 @@ def _refused_page() -> str:
             f"was already used.</p></body></html>\n")
 
 
+def build_version(engine_root: str, env=os.environ) -> str:
+    """What the page shows, so a deploy is visible: the engine's VERSION and the deployed commit
+    (HARMONICFITNESS_COMMIT, baked in at build from Railway's RAILWAY_GIT_COMMIT_SHA), as "0.20.0 (75da105)"."""
+    try:
+        v = Path(engine_root, "VERSION").read_text().strip() or "unknown"
+    except OSError:
+        v = "unknown"
+    sha = (env.get("HARMONICFITNESS_COMMIT") or env.get("RAILWAY_GIT_COMMIT_SHA") or "").strip()[:7]
+    return f"{v} ({sha})" if sha else v
+
+
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
                client_dist: str | os.PathLike | None = None) -> FastAPI:
     """The app. `connect` (tests) opens a connection; without it requests use a pool of
@@ -229,6 +240,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     goals, presets = worker.engine_lists(settings.engine_root)
     options = {"minutes": list(MINUTES), "goals": sorted(goals), "presets": sorted(presets)}
     services = worker.engine_services(settings.engine_root)
+    version = build_version(settings.engine_root)
     worker.engine_keys(settings.engine_root)    # a broken import fails at startup
     dist = Path(client_dist) if client_dist is not None else CLIENT_DIST
     origin = _origin(settings.base_url)
@@ -310,14 +322,14 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/healthz")
     def healthz():
         """For the host's health check: no session, no database."""
-        return {"ok": True}
+        return {"ok": True, "version": version}
 
     # ---- sign-in ----------------------------------------------------------------------------
 
     @app.get("/api/auth")
     def auth_info():
         """What the sign-in page offers."""
-        return {"app_name": APP_NAME, "registration": settings.registration}
+        return {"app_name": APP_NAME, "registration": settings.registration, "version": version}
 
     @app.post("/api/register", status_code=201, **post)
     def register(request: Request, body: Annotated[Credentials, Body()]):
@@ -418,7 +430,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             name, pw = conn.execute("select username, password_hash is not null from users "
                                     "where id = %s", (uk.user_id,)).fetchone()
             conn.rollback()
-        return {"app_name": APP_NAME, "username": name, "has_password": pw}
+        return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": version}
 
     @app.get("/api/options")
     def get_options(uk: User):

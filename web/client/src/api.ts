@@ -12,8 +12,8 @@ export class ApiError extends Error {
   }
 }
 
-export type Me = { app_name: string; username: string; has_password: boolean };
-export type AuthInfo = { app_name: string; registration: boolean };
+export type Me = { app_name: string; username: string; has_password: boolean; version: string };
+export type AuthInfo = { app_name: string; registration: boolean; version: string };
 export type ContextFile = { path: string; version: number; updated_at: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {

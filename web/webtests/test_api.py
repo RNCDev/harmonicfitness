@@ -16,6 +16,7 @@ from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+VERSION = open(os.path.join(ROOT, "VERSION")).read().strip()
 BASE = "https://wt.test"
 
 
@@ -83,7 +84,12 @@ class ApiCase(DBCase):
 class SignIn(ApiCase):
     def test_healthz_needs_nothing(self):
         r = self.client.get("/healthz")
-        self.assertEqual((r.status_code, r.json()), (200, {"ok": True}))
+        self.assertEqual((r.status_code, r.json()), (200, {"ok": True, "version": VERSION}))
+
+    def test_version_names_the_commit(self):
+        self.assertEqual(api.build_version(ROOT, {"RAILWAY_GIT_COMMIT_SHA": "75da1051234"}), f"{VERSION} (75da105)")
+        self.assertEqual(api.build_version(ROOT, {}), VERSION)
+        self.assertEqual(api.build_version("/no/such/folder", {}), "unknown")
 
     def test_requires_session(self):
         self.assertEqual(self.client.get("/api/me").status_code, 401)
@@ -100,7 +106,7 @@ class SignIn(ApiCase):
 
     def test_auth_info_needs_no_session(self):
         self.assertEqual(self.client.get("/api/auth").json(),
-                         {"app_name": "HarmonicFitness", "registration": True})
+                         {"app_name": "HarmonicFitness", "registration": True, "version": VERSION})
 
     def test_register_signs_in(self):
         r = self.register("Fresh.One")
@@ -111,7 +117,7 @@ class SignIn(ApiCase):
             self.assertIn(flag, cookie)
         self.assertEqual(self.client.get("/api/me").json(),
                          {"app_name": "HarmonicFitness", "username": "fresh.one",
-                          "has_password": True})
+                          "has_password": True, "version": VERSION})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/context").json()])
         r = self.register("FRESH.ONE", client=self.other_client())
         self.assertEqual((r.status_code, r.json()["detail"]), (409, "That username is taken."))

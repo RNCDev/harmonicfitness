@@ -7,7 +7,7 @@ function serve(registration: boolean, signIn: { status: number; body?: unknown }
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (url === "/api/auth") {
-      return new Response(JSON.stringify({ app_name: "HarmonicFitness", registration }), { status: 200 });
+      return new Response(JSON.stringify({ app_name: "HarmonicFitness", registration, version: "0.20.0 (75da105)" }), { status: 200 });
     }
     return new Response(signIn.body ? JSON.stringify(signIn.body) : null, { status: signIn.status });
   }));
@@ -17,6 +17,12 @@ function serve(registration: boolean, signIn: { status: number; body?: unknown }
 afterEach(() => vi.unstubAllGlobals());
 
 describe("the sign-in page", () => {
+  it("shows the deployed version", async () => {
+    serve(false, { status: 204 });
+    render(<SignIn onSignedIn={() => {}} />);
+    expect(await screen.findByText("0.20.0 (75da105)")).toBeInTheDocument();
+  });
+
   it("offers an account only when registration is open", async () => {
     serve(false, { status: 204 });
     const { unmount } = render(<SignIn onSignedIn={() => {}} />);

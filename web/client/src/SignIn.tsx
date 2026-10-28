@@ -12,9 +12,13 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [version, setVersion] = useState("");
 
   useEffect(() => {
-    api.authInfo().then((a) => setOpen(a.registration), () => setOpen(false));
+    api.authInfo().then((a) => {
+      setOpen(a.registration);
+      setVersion(a.version ?? "");
+    }, () => setOpen(false));
   }, []);
 
   async function submit(e: FormEvent) {
@@ -42,7 +46,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
 
   return (
     <main className="solo">
-      <div className="mark">{APP_NAME}</div>
+      <div className="mark">{APP_NAME}{version && <span className="ver">{version}</span>}</div>
       <h1>{mode === "in" ? "Sign in" : "Make an account"}</h1>
       <form className="auth" onSubmit={submit}>
         <label>

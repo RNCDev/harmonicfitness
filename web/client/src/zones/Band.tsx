@@ -10,13 +10,14 @@ type Props = {
   busy: boolean;
   onFiles: () => void;
   filesOpen: boolean;
+  version?: string;
 };
 
-export function Band({ model, onChange, onGo, busy, onFiles, filesOpen }: Props) {
+export function Band({ model, onChange, onGo, busy, onFiles, filesOpen, version }: Props) {
   return (
     <header className="band">
       <div className="band-left">
-        <div className="mark">{APP_NAME}</div>
+        <div className="mark">{APP_NAME}{version && <span className="ver">{version}</span>}</div>
         <button type="button" className="ctx-toggle" aria-expanded={filesOpen} aria-controls="ctx"
           onClick={onFiles}>
           Your files

@@ -78,6 +78,8 @@ button[disabled] { cursor: not-allowed }
 :focus-visible { outline: 3px solid var(--tok); outline-offset: 3px; border-radius: 6px }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
 .mark { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -.02em; line-height: 1 }
+.mark .ver { display: block; margin-top: 4px; font-family: var(--body); font-weight: 400; font-size: 11px;
+  letter-spacing: 0; color: var(--ink-3) }
 .meta { font-size: 14px; color: var(--ink-2) }
 .quiet {
   color: var(--ink-2); font-size: 15px; text-decoration: underline; text-underline-offset: 3px;

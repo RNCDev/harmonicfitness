@@ -29,6 +29,9 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --extra web --no-dev
 
 COPY . .
+# The deployed commit, for the version the page shows (Railway passes it to a build that declares it).
+ARG RAILWAY_GIT_COMMIT_SHA=""
+ENV HARMONICFITNESS_COMMIT=$RAILWAY_GIT_COMMIT_SHA
 COPY --from=client /src/web/client/dist web/client/dist
 
 RUN python -m compileall -q /app/tools /app/web/webapp

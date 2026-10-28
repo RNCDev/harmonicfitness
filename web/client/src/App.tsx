@@ -107,7 +107,7 @@ export function App() {
       <Band model={model} busy={busy}
         onChange={(k, v) => setModel((m) => (m ? setToken(m, k, v) : m))}
         onGo={go} filesOpen={drawer}
-        onFiles={() => setDrawer((d) => !d)} />
+        onFiles={() => setDrawer((d) => !d)} version={me?.version} />
       <Chat lines={conv?.lines ?? []} working={working} error={error} noKey={noKey}
         onSend={send} onOpenKeys={openKeys} />
       <main className="panel">
