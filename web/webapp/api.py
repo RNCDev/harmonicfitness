@@ -16,6 +16,7 @@ on that same connection (each read its own transaction, so it sees every commit)
 when the stream ends or the client goes away.
 """
 import collections
+import datetime
 import html
 import json
 import os
@@ -35,7 +36,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
     RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, providers, store, \
+from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
+    store, \
     worker
 
 COOKIE = "wt_session"
@@ -199,6 +201,26 @@ def build_version(engine_root: str, env=os.environ) -> str:
     sha = (env.get("HARMONICFITNESS_COMMIT") or env.get("RAILWAY_GIT_COMMIT_SHA") or "").strip()[:7]
     return f"{v} ({sha})" if sha else v
 
+
+
+def _byte_range(header: str | None, size: int):
+    """(start, end) inclusive for one "bytes=a-b" range, () when it can't be met, None for the whole body."""
+    if not header or not header.startswith("bytes=") or "," in header:
+        return None
+    a, _, b = header[6:].strip().partition("-")
+    try:
+        if a == "":
+            n = int(b)
+            if n <= 0:
+                return ()
+            start, end = max(0, size - n), size - 1
+        else:
+            start = int(a)
+            end = int(b) if b else size - 1
+    except ValueError:
+        return None
+    end = min(end, size - 1)
+    return () if start > end or start >= size else (start, end)
 
 
 IMPORT_MAX_ZIP = 10_000_000      # bytes of ZIP
@@ -494,6 +516,31 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                     raise
         await anyio.to_thread.run_sync(save)
         return {"imported": len(files), "left_out": left_out}
+
+    @app.get("/api/media/{mid}")
+    def get_media(uk: User, request: Request, mid: Annotated[str, PathParam(max_length=40)], download: bool = False):
+        """A workout's MP3, the user's own, for 24 hours: inline for the player, or as a download. The
+        browser may keep it until it expires (private: never a shared cache)."""
+        with connection() as conn:
+            try:
+                found = media.get(conn, uk, mid)
+            finally:
+                conn.rollback()
+        if found is None:
+            raise HTTPException(404, "That audio has expired or isn't yours.")
+        name, body, expires = found
+        left = max(0, int((expires - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+        safe = "".join(c if c.isalnum() or c in " -_." else "_" for c in name).strip() or "workout"
+        headers = {"Cache-Control": f"private, max-age={left}", "Accept-Ranges": "bytes",
+                   "Content-Disposition": f'{"attachment" if download else "inline"}; filename="{safe}.mp3"'}
+        part = _byte_range(request.headers.get("range"), len(body))
+        if part is None:
+            return Response(body, media_type="audio/mpeg", headers=headers)
+        if part == ():
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{len(body)}"})
+        start, end = part   # Safari's player asks for ranges, and won't play without them
+        return Response(body[start:end + 1], status_code=206, media_type="audio/mpeg",
+                        headers={**headers, "Content-Range": f"bytes {start}-{end}/{len(body)}"})
 
     @app.get("/api/keys")
     def list_keys(uk: User):

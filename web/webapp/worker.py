@@ -24,7 +24,7 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import config, conversations, db, engine, folder, jobs, keystore, providers, store
+from . import config, conversations, db, engine, folder, jobs, keystore, media, providers, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
@@ -278,6 +278,30 @@ def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str)
         ctx.conn.rollback()
 
 
+AUDIO_KEPT = 2   # MP3s a turn keeps, newest first (a turn normally makes one)
+
+
+def _keep_audio(ctx: Ctx) -> list[dict]:
+    """The MP3s this turn's builds made (the folder held none: materialize never writes one), kept 24 hours
+    for the listener, newest first. Committed now, so the chat can link them as soon as the turn is saved."""
+    found = []
+    for dirpath, _, files in os.walk(os.path.join(ctx.home, "workouts")):
+        found += [os.path.join(dirpath, f) for f in files if f.endswith(".mp3") and ".web-" not in f]
+    found.sort(key=os.path.getmtime, reverse=True)
+    kept = []
+    for path in found[:AUDIO_KEPT]:
+        with open(path, "rb") as f:
+            body = f.read(media.MAX_BYTES + 1)
+        try:
+            kept.append(media.put(ctx.conn, ctx.uk, os.path.basename(path)[:-4], body))
+        except ValueError:
+            continue
+    if kept:
+        ctx.conn.commit()
+        ctx.say("step", text="Your audio is ready", failed=False)
+    return kept
+
+
 def _step(ctx: Ctx, text: str, tool: str, code: int | None) -> None:
     """One step of a turn, live in the chat (a sealed job event) and in the worker's log (the tool and its
     exit code only, never what it read or wrote)."""
@@ -359,6 +383,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
         background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed
 
     lines = conv.lines if outcome.reply is None else _agent_line(conv, outcome.reply)
+    for audio in _keep_audio(ctx):
+        lines = lines + [{"role": "agent", "text": "", "audio": audio}]
     done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle",
                                history=outcome.history_json, lines=lines, question=outcome.question,
                                plan=outcome.plan, stem=outcome.stem)   # as returned: None after a failed brief
@@ -415,6 +441,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
     _uv_cache()
     connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT))
     jobs.reap(conn)
+    media.sweep(conn)
     job = jobs.claim(conn)
     if job is None:
         return False

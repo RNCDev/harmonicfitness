@@ -20,7 +20,7 @@ __all__ = ["AGENT", "Deps", "LIMITS", "prefetch", "start_feeds", "NOT_OPEN", "TI
            "UNFINISHABLE", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
-TURN_SECONDS = 600   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
+TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
 SKILL = (".claude/skills/workout/SKILL.md", ".claude/skills/workout/research.md")
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.md"), encoding="utf-8") as _f:
@@ -50,12 +50,36 @@ def _now(ctx: RunContext[Deps]) -> str:
     return f"Now: {ctx.deps.now} (today is {ctx.deps.today})."
 
 
-# What the listener sees while a tool runs: plain words, never a file's contents.
-STEPS = {"brief": "Working out today's safe menu", "build": "Checking the script", "check": "Checking your files",
-         "content": "Planning what fills the rests", "coaches": "Looking at the coaches", "coverage":
-         "Looking at your recent sessions", "feeds": "Fetching today's news and weather", "get": "Looking up a setting",
-         "log-session": "Logging the session", "movements": "Looking through the movements", "youtube":
-         "Looking for a video", "keys": "Checking which keys are set", "help": "Reading the engine's help"}
+# What the listener sees while a tool runs: what it means for them, never a command or a file's name.
+STEPS = {"brief": "Working out today's safe moves", "build": "Recording your workout",
+         "check": "Checking your profile", "content": "Choosing what fills the rests",
+         "coaches": "Checking which coaches can speak", "coverage": "Looking at your recent sessions",
+         "feeds": "Gathering today's news and weather", "get": "Checking your settings",
+         "log-session": "Logging the session", "movements": "Looking through the moves",
+         "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Checking how the coach works"}
+READS = (("me/profile.md", "Getting to know you"), ("me/training.md", "Checking your training and kit"),
+         ("me/health.md", "Checking today's safety limits"), ("me/log.md", "Looking at your recent sessions"),
+         ("me/content.md", "Checking your interests"), ("me/workouts/research/", "Gathering today's stories"),
+         ("me/workouts/", "Looking at your workout"), ("me/coaches/", "Getting to know your coach"),
+         ("coaches/", "Getting to know your coach"), ("knowledge/injury-playbook", "Reviewing the safety rules"),
+         ("knowledge/script", "Reviewing how to write the script"), ("knowledge/tts", "Reviewing how to write for the voice"),
+         ("knowledge/", "Reviewing the coaching guides"), (".claude/skills/", "Reviewing the workout steps"))
+
+
+def _read_step(path: object) -> str:
+    if isinstance(path, str):
+        for prefix, text in READS:
+            if path.startswith(prefix):
+                return text
+    return "Looking through your files"
+
+
+def _write_step(path: object) -> str:
+    if isinstance(path, str) and path.endswith(".draft.txt"):
+        return "Writing your script"
+    if isinstance(path, str) and path.startswith("me/workouts/research/"):
+        return "Saving today's research"
+    return "Saving your notes"
 
 
 def _step(deps: Deps, text: str, tool: str, result: ToolResult) -> ToolResult:
@@ -67,36 +91,34 @@ def _step(deps: Deps, text: str, tool: str, result: ToolResult) -> ToolResult:
     return result
 
 
-def _shown(path: object) -> str:
-    return path if isinstance(path, str) and len(path) <= 120 else "a file"
-
-
 @AGENT.tool(sequential=True)
 def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     """Run one ./harmonicfitness command in the listener's folder: args is the argv after
     ./harmonicfitness, e.g. ["brief", "--goal", "strength", "--minutes", "25", "--preset", "hotel-room",
     "--save", "me/workouts/<stem>/<stem>.draft.txt"]. Returns the exit code, stdout and stderr."""
     first = args[1] if args and args[0] == "./harmonicfitness" and len(args) > 1 else (args[0] if args else "")
-    text = STEPS.get(first, "Running the engine") if isinstance(first, str) else "Running the engine"
+    text = STEPS.get(first, "Working on it") if isinstance(first, str) else "Working on it"
+    if first == "build" and "--lint-only" in args:
+        text = "Checking the script's safety and timing"
     return _step(ctx.deps, text, f"run {first}"[:40], tools.run(ctx.deps, args))
 
 
 @AGENT.tool(sequential=True)
 def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
     """Read a text file: me/... (the listener's folder) or the engine's knowledge/, .claude/skills/, coaches/."""
-    return _step(ctx.deps, f"Reading {_shown(path)}", "read_file", tools.read_file(ctx.deps, path))
+    return _step(ctx.deps, _read_step(path), "read_file", tools.read_file(ctx.deps, path))
 
 
 @AGENT.tool(sequential=True)
 def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
     """Write (create or replace) a text file in the listener's folder, me/... only."""
-    return _step(ctx.deps, f"Writing {_shown(path)}", "write_file", tools.write_file(ctx.deps, path, content))
+    return _step(ctx.deps, _write_step(path), "write_file", tools.write_file(ctx.deps, path, content))
 
 
 @AGENT.tool(sequential=True)
 def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
     """List the files under a folder of the listener's, me/ by default."""
-    return _step(ctx.deps, f"Looking through {_shown(path)}", "list_files", tools.list_files(ctx.deps, path))
+    return _step(ctx.deps, "Looking through your files", "list_files", tools.list_files(ctx.deps, path))
 
 
 # Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the
@@ -125,7 +147,7 @@ def prefetch(deps: Deps) -> str:
                         tools.run(plain, ["get", "route", "--coach", name])))
     if deps.say is not None:
         try:
-            deps.say("Read your files and settings", "prefetch", 0)
+            deps.say("Getting to know you and today's limits", "prefetch", 0)
         except Exception:  # noqa: BLE001 - a progress line never fails the turn
             pass
     return ("Step 1 is done: these are its results, run as this turn began. Don't run or read them again "

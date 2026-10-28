@@ -916,3 +916,50 @@ class Import(ApiCase):
         self.signed_in()
         r = self.client.post("/api/import", content=b"nope", headers=self.origin())
         self.assertEqual((r.status_code, r.json()["detail"]), (400, "That isn't a ZIP file."))
+
+
+class Media(ApiCase):
+    MP3 = bytes(range(256)) * 40
+
+    def kept(self, uk, body=None):
+        from webapp import media
+        audio = media.put(self.conn, uk, "Workout 2026-10-28 Mobility 5 min", body or self.MP3)
+        self.conn.commit()
+        return audio
+
+    def test_plays_downloads_and_ranges(self):
+        _, uk = self.signed_in()
+        audio = self.kept(uk)
+        r = self.client.get(f"/api/media/{audio['id']}")
+        self.assertEqual((r.status_code, r.content, r.headers["content-type"]), (200, self.MP3, "audio/mpeg"))
+        self.assertTrue(r.headers["cache-control"].startswith("private, max-age="))
+        self.assertTrue(r.headers["content-disposition"].startswith("inline"))
+        d = self.client.get(f"/api/media/{audio['id']}?download=1")
+        self.assertEqual(d.headers["content-disposition"], 'attachment; filename="Workout 2026-10-28 Mobility 5 min.mp3"')
+        p = self.client.get(f"/api/media/{audio['id']}", headers={"Range": "bytes=10-19"})
+        self.assertEqual((p.status_code, p.content), (206, self.MP3[10:20]))
+        self.assertEqual(p.headers["content-range"], f"bytes 10-19/{len(self.MP3)}")
+        self.assertEqual(self.client.get(f"/api/media/{audio['id']}", headers={"Range": "bytes=99999-"}).status_code, 416)
+
+    def test_another_users_or_expired_or_unknown_is_404(self):
+        from webapp import media
+        _, uk = self.signed_in()
+        audio = self.kept(uk)
+        other = self.other_client()
+        self.signed_in(client=other)
+        self.assertEqual(other.get(f"/api/media/{audio['id']}").status_code, 404)
+        self.assertEqual(self.client.get("/api/media/not-a-uuid").status_code, 404)
+        self.conn.execute("update media set expires_at = now() - interval '1 minute'")
+        self.conn.commit()
+        self.assertEqual(self.client.get(f"/api/media/{audio['id']}").status_code, 404)
+        self.assertEqual(media.sweep(self.conn), 1)
+
+    def test_needs_a_session(self):
+        self.assertEqual(self.client.get("/api/media/00000000-0000-0000-0000-000000000000").status_code, 401)
+
+    def test_sealed_at_rest(self):
+        _, uk = self.signed_in()
+        self.kept(uk)
+        body = bytes(self.conn.execute("select body from media").fetchone()[0])
+        self.conn.rollback()
+        self.assertNotIn(self.MP3[:64], body)

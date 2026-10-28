@@ -19,6 +19,7 @@ WRITE_LIMIT = 200_000   # the most a write may hold, in characters
 LIST_LIMIT = 500        # files a listing names
 CUT = "[cut]"
 TIMEOUT = 300           # seconds for one engine command; the engine's cold start can be slow
+BUILD_TIMEOUT = 600     # a full build: a pending coach's voice design, then the web voice renders every line
 
 ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 READ_ONLY = ("health.md",)   # the check-in can't change limits here yet: tell the listener instead
@@ -111,9 +112,8 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
     sub = args[1] if len(args) > 1 and not args[1].startswith("-") else None
     if command in SUBCOMMANDS and sub not in SUBCOMMANDS[command]:
         return _refuse(f"{command} {sub} isn't available in the web client yet")
-    if command == "build" and "--lint-only" not in args:
-        return _refuse("the web client can't make the audio yet: run build with --lint-only to check the draft, "
-                       "then tell the listener the script is ready and the audio comes in a later version")
+    if command == "build" and any(a in ("--follow", "--clips-only", "--verbose") for a in args):
+        return _refuse("--follow, --clips-only and --verbose aren't for the web client: run the build itself")
     if command == "feeds" and deps.feeds is not None:
         try:
             return deps.feeds.result(timeout=TIMEOUT)
@@ -125,7 +125,8 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         if mapped is None:
             return _refuse(f"{a!r}: paths must be me/... inside the listener's folder")
         argv.append(mapped)
-    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT)
+    slow = command == "build" and "--lint-only" not in args
+    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT if slow else TIMEOUT)
     home = os.path.realpath(deps.home)
     # the engine prints the folder's real path; the agent knows it as me/
     return _result(r.code, r.stdout.replace(home, "me").replace(deps.home, "me"),

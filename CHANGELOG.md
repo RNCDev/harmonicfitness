@@ -4,6 +4,12 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+### Added
+- **The web coach records the audio.** The build runs in full on the site: the worker keeps each MP3 a turn makes for 24 hours, sealed with the listener's data key, and the chat shows it with a player and a download (`GET /api/media/{id}`, byte ranges for Safari, a private browser cache until it expires). Expired MP3s are deleted. A full build gets 10 minutes, a turn 15.
+
+### Changed
+- **The web chat's steps say what they mean for the listener** ("Checking today's safety limits", "Writing your script", "Recording your workout"), never a command or a file's name; repeated steps show once.
+
 ## [0.22.0] - 2026-10-28
 
 The web coach answers sooner: the worker does the skill's first reads itself, all at once, and fetches the day's feeds in the background.

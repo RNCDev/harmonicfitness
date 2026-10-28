@@ -36,10 +36,10 @@ Every job runs the engine with `HARMONICFITNESS_WEB=1`: no local voices, "add a 
 
 ## Agent
 
-The app is a chat and a Keys drawer. The coach works as Claude Code does on a listener's computer: one agent (Pydantic AI) follows the workout skill itself (`.claude/skills/workout/SKILL.md` and `research.md`, read from the engine at run time) under a short preamble (`webapp/agent/instructions.md`) that says what the web client offers in place of each Claude Code tool, as `AGENTS.md` does for Codex. Questions are asked in the chat, research is done in turn, and the build runs with `--lint-only` only: the audio comes in a later version.
+The app is a chat and a Keys drawer. The coach works as Claude Code does on a listener's computer: one agent (Pydantic AI) follows the workout skill itself (`.claude/skills/workout/SKILL.md` and `research.md`, read from the engine at run time) under a short preamble (`webapp/agent/instructions.md`) that says what the web client offers in place of each Claude Code tool, as `AGENTS.md` does for Codex. Questions are asked in the chat and research is done in turn. The build records the audio with the coach's web voice and the listener's key; the worker keeps each MP3 the turn made for 24 hours (`media`, sealed with the user's data key) and adds it to the chat as a player with a download. `GET /api/media/{id}` serves it to its owner only (byte ranges for Safari; `?download=1` for a download; `Cache-Control: private` until it expires), and the worker deletes expired ones. MP3s never go into the store.
 
 Its four tools (`webapp/agent/tools.py`):
-- `run`: one `./harmonicfitness` command in the listener's folder. Allowed: brief, build (`--lint-only`), check, content, coaches (list), coverage, feeds, get, help, keys, log-session, movements, youtube. `me/...` paths in arguments become the folder's own; any other path is refused.
+- `run`: one `./harmonicfitness` command in the listener's folder (a full build gets 10 minutes, a turn 15). Allowed: brief, build (not `--follow` or `--clips-only`), check, content, coaches (list), coverage, feeds, get, help, keys, log-session, movements, youtube. `me/...` paths in arguments become the folder's own; any other path is refused.
 - `read_file`: `me/...` (never `me/.env`) and the engine's `knowledge/`, `.claude/skills/` and `coaches/`.
 - `write_file`: `me/...` only; never `me/.env`, `me/health.md` (read-only here for now) or the kinds of file the store doesn't keep.
 - `list_files`: under `me/`.
@@ -48,9 +48,11 @@ To save round trips, the worker does two things itself. On a conversation's firs
 
 Safety is the engine's: the brief's safe menu and the build's menu gate (movements off the menu, one side only, names the catalog doesn't hold) refuse what the writer gets wrong.
 
-A conversation is a series of short `turn` jobs. Each runs one turn in the listener's temporary folder with their own language-model key, then saves the conversation (its history and chat lines) sealed with their data key, and writes back the files its folder changed, never `health.md`. A turn stops at 60 model requests, 120 tool calls, 3,000,000 tokens or ten minutes; nothing is retried (`max_retries=0`, 180 seconds per request).
+A conversation is a series of short `turn` jobs. Each runs one turn in the listener's temporary folder with their own language-model key, then saves the conversation (its history and chat lines) sealed with their data key, and writes back the files its folder changed, never `health.md`. A turn stops at 60 model requests, 120 tool calls, 3,000,000 tokens or fifteen minutes; nothing is retried (`max_retries=0`, 180 seconds per request).
 
 The providers are Claude (`claude-sonnet-5-5`), ChatGPT (`gpt-6.1-sol`) and Gemini (`gemini-3.8-flash`); `HARMONICFITNESS_PROVIDERS` names the ones offered, on both services (default `anthropic`). A model key is stored like a voice key, and only that job's model client holds it: the engine's environment never gets it.
+
+While a turn runs, the chat shows each step in plain words ("Checking today's safety limits", "Writing your script", "Recording your workout"), never a command or a file's name.
 
 The model provider sees the files the agent reads (the profile, health and log among them), the engine's output, the skill, the chat, and the local date and time.
 

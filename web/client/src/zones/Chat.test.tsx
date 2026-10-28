@@ -40,6 +40,23 @@ describe("the chat", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
+  it("collapses repeated steps", () => {
+    render(<Chat {...base} working steps={[{ text: "Reading" }, { text: "Reading" }, { text: "Writing" }]} />);
+    expect(screen.getAllByText("Reading")).toHaveLength(1);
+  });
+
+  it("plays and offers a workout's audio until it expires", () => {
+    const later = new Date(Date.now() + 3600_000).toISOString();
+    const { container, rerender } = render(<Chat {...base} lines={[{ role: "agent", text: "",
+      audio: { id: "abc", name: "Workout 5 min", expires_at: later } }]} />);
+    expect(container.querySelector("audio")?.getAttribute("src")).toBe("/api/media/abc");
+    expect(screen.getByRole("link", { name: "Download the MP3" })).toHaveAttribute("href", "/api/media/abc?download=1");
+    rerender(<Chat {...base} lines={[{ role: "agent", text: "",
+      audio: { id: "abc", name: "Workout 5 min", expires_at: "2020-01-01T00:00:00Z" } }]} />);
+    expect(container.querySelector("audio")).toBeNull();
+    expect(screen.getByText(/has expired/)).toBeInTheDocument();
+  });
+
   it("never renders the listener's own line as Markdown", () => {
     render(<Chat {...base} lines={[{ role: "user", text: "**not bold**" }]} />);
     expect(screen.getByText("**not bold**")).toBeInTheDocument();

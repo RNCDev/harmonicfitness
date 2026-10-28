@@ -50,13 +50,17 @@ class Run(AgentCase):
     def test_refuses_what_the_web_cant_do(self):
         for args in (["setup"], ["keys", "init", "fish"], ["keys", "open"], ["migrate"], ["backup"],
                      ["coaches", "audition", "x.md"], ["coaches", "make"], ["cache", "prune"],
-                     ["build", "me/workouts/a/a.draft.txt", "A"], [], ["rm", "-rf"]):
+                     ["build", "me/workouts/a/a.draft.txt", "A", "--follow"], [], ["rm", "-rf"]):
             r = tools.run(self.deps, args)
             self.assertEqual(r.code, 64, args)
 
-    def test_build_lint_only_is_allowed(self):
-        r = tools.run(self.deps, ["build", "me/workouts/none/none.draft.txt", "None", "--lint-only"])
-        self.assertNotIn("can't make the audio", r.error)
+    def test_a_full_build_is_allowed_with_more_time(self):
+        from unittest import mock
+        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "", "")) as run:
+            tools.run(self.deps, ["build", "me/workouts/a/a.draft.txt", "A", "--coach", "Coach Reed"])
+            self.assertEqual(run.call_args.kwargs["timeout"], tools.BUILD_TIMEOUT)
+            tools.run(self.deps, ["build", "me/workouts/a/a.draft.txt", "A", "--lint-only"])
+            self.assertEqual(run.call_args.kwargs["timeout"], tools.TIMEOUT)
 
     def test_paths_stay_in_the_folder(self):
         for bad in ("me/../../etc/passwd", "/etc/passwd", "../tools/paths.py", "--save=/tmp/x",
@@ -134,7 +138,14 @@ class Turns(AgentCase):
             return ModelResponse(parts=[TextPart("done")])
 
         agent.run_turn(FunctionModel(script), self.deps, None, "go")
-        self.assertEqual(said, [("Reading me/profile.md", "read_file", 0), ("Running the engine", "run setup", 64)])
+        self.assertEqual(said, [("Getting to know you", "read_file", 0), ("Working on it", "run setup", 64)])
+
+    def test_steps_never_name_a_file(self):
+        for path in ("me/profile.md", "me/health.md", "me/content.md", "knowledge/script.md", "me/x/y.txt", 42):
+            self.assertNotIn("/", agent._read_step(path))
+            self.assertNotIn(".md", agent._read_step(path))
+        self.assertEqual(agent._read_step("me/health.md"), "Checking today's safety limits")
+        self.assertEqual(agent._write_step("me/workouts/a/a.draft.txt"), "Writing your script")
 
     def test_an_answer_is_not_open(self):
         with self.assertRaises(agent.TurnError) as e:
@@ -166,7 +177,7 @@ class Prefetch(AgentCase):
                       "read me/training.md", "read me/health.md", "read me/log.md"):
             self.assertIn(f"### {title} (exit ", context)
         self.assertNotIn(self.home, context)
-        self.assertEqual(said, ["Read your files and settings"])
+        self.assertEqual(said, ["Getting to know you and today's limits"])
         seen = {}
 
         def script(messages, info):
@@ -211,6 +222,7 @@ class Instructions(AgentCase):
         self.assertIn(".claude/skills/workout/research.md", text)
         self.assertIn("Never ask the listener for a key or a password", text)
         self.assertIn("--lint-only", text)
+        self.assertIn("kept 24 hours", text)
         self.assertIn("one side only", text)
         self.assertIn(f"today is {TODAY}", text)
 

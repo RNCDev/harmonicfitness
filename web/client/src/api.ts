@@ -27,7 +27,8 @@ export type JobView = {
   stages: Stage[];
 };
 
-export type ChatLine = { role: "user" | "agent"; text: string };
+export type Audio = { id: string; name: string; expires_at: string };
+export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
 export type Conversation = {
   id: number; state: "working" | "waiting" | "idle" | "failed"; job_id: number | null;
   lines: ChatLine[];

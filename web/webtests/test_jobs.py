@@ -470,7 +470,7 @@ class Turn(JobsCase):
             self.assertTrue(prompts[0].startswith("Step 1 is done"))
             self.assertIn("### ./harmonicfitness get coach (exit ", prompts[0])
             self.assertEqual(started, [])   # the check-in comes first
-            self.assertIn("Read your files and settings",
+            self.assertIn("Getting to know you and today's limits",
                           [b.get("text") for _, b in jobs.events(self.conn, uk, job)])
             self.conn.rollback()
             self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "25 minutes", None))
@@ -479,6 +479,38 @@ class Turn(JobsCase):
         self.assertEqual(self.state(job), ("done", None))
         self.assertEqual(prompts[1], "25 minutes")
         self.assertEqual(started, [today()])
+
+    def test_a_build_puts_its_mp3_in_the_chat(self):
+        from webapp import media
+        uk = self.user()
+        cid = self.start(uk)
+        real = worker.engine.run
+
+        def engine_run(root, home, argv, extra_env={}, timeout=120):
+            if argv and argv[0] == "build":
+                os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
+                with open(os.path.join(home, "workouts", "w", "Workout 5 min.mp3"), "wb") as f:
+                    f.write(b"ID3fake-mp3")
+                return worker.engine.Result(0, "built", "")
+            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
+
+        def script(messages, info):
+            if not [p for m in messages for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": ["build", "me/workouts/w/w.draft.txt",
+                                                                          "Workout 5 min"]}, tool_call_id="b1")])
+            return ModelResponse(parts=[TextPart("Your workout is ready.")])
+        with mock.patch.object(worker.engine, "run", side_effect=engine_run):
+            job, conv = self.run_turn(uk, script, cid, line="just go")
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(conv.lines[-2]["text"], "Your workout is ready.")
+        audio = conv.lines[-1]["audio"]
+        self.assertEqual(audio["name"], "Workout 5 min")
+        self.assertEqual(media.get(self.conn, uk, audio["id"])[1], b"ID3fake-mp3")
+        self.conn.rollback()
+        self.assertNotIn("workouts/w/Workout 5 min.mp3", store.read_all(self.conn, uk))   # never in the store
+        self.conn.rollback()
+        self.assertIn("Your audio is ready", [b.get("text") for _, b in jobs.events(self.conn, uk, job)])
+        self.conn.rollback()
 
     def test_turn_needs_a_model_key(self):
         uk = self.user(key=False)

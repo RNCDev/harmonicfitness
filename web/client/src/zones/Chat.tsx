@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatLine } from "../api";
+import type { Audio, ChatLine } from "../api";
 
 export type Step = { text: string; failed?: boolean };
 
@@ -21,6 +21,36 @@ type Props = {
 
 const SHOWN_STEPS = 6;
 
+/** Steps in a row that say the same thing are one step. */
+function collapsed(steps: Step[]): Step[] {
+  return steps.filter((s, i) => i === 0 || s.text !== steps[i - 1].text);
+}
+
+function until(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+}
+
+/** A workout's MP3: play it here, or download it, until it expires. */
+function AudioLine({ audio }: { audio: Audio }) {
+  const expired = new Date(audio.expires_at).getTime() <= Date.now();
+  const src = `/api/media/${encodeURIComponent(audio.id)}`;
+  return (
+    <div className="m a audio">
+      <p className="audio-name">{audio.name}</p>
+      {expired ? <p className="cx-s">This audio has expired. Ask for the workout again to record it again.</p> : (
+        <>
+          <audio controls preload="metadata" src={src} />
+          <p className="cx-s">
+            <a href={`${src}?download=1`} download={`${audio.name}.mp3`}>Download the MP3</a>
+            {until(audio.expires_at) && ` · kept until ${until(audio.expires_at)}`}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function seconds(since: number): string {
   const s = Math.max(0, Math.round((Date.now() - since) / 1000));
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
@@ -34,6 +64,7 @@ function Working({ steps }: { steps: Step[] }) {
     const t = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, []);
+  steps = collapsed(steps);
   const shown = steps.slice(-SHOWN_STEPS);
   return (
     <div className="m a thinking" aria-live="polite">
@@ -73,7 +104,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
         {lines.length === 0 && !working && (
           <p className="m a">Hi. Tell me what workout you'd like: how long, what for, what you have with you. I'll check in, then write it.</p>
         )}
-        {lines.map((l, i) => l.role === "user" ? (
+        {lines.map((l, i) => l.audio ? <AudioLine key={i} audio={l.audio} /> : l.role === "user" ? (
           <p key={i} className="m u">{l.text}</p>
         ) : (
           <div key={i} className="m a md">

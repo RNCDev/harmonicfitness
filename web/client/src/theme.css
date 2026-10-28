@@ -215,3 +215,6 @@ button[disabled] { cursor: not-allowed }
 .keys-edit input { background: var(--sheet) }
 .keys-actions { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center }
 .import { display: inline-block; margin-top: 8px; cursor: pointer; font-size: 14px }
+.m.audio { display: grid; gap: 8px; min-width: min(100%, 22em) }
+.m.audio audio { width: 100% }
+.audio-name { margin: 0; font-family: var(--display); font-weight: 600 }
