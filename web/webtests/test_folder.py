@@ -93,6 +93,11 @@ class FolderTests(unittest.TestCase):
         self.put("keys.env")
         self.assertEqual(folder.harvest(self.root, written), {})
 
+    def test_skips_tool_caches(self):
+        written = folder.materialize({"a.md": b"a"}, self.root)
+        self.put(".cache/uv/archive-v0/x.whl")
+        self.assertEqual(folder.harvest(self.root, written), {})
+
     def test_seed_missing_template_raises(self):
         with self.assertRaises(FileNotFoundError):
             folder.seed(self.root)

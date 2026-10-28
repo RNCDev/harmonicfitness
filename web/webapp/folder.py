@@ -15,7 +15,7 @@ from .store import check_path
 # path from the root. "*" does not stop at "/" (fnmatch), which is harmless here.
 SKIP = (
     ".env", ".env.*", "*.env", "*.lock", "workouts/.audio-cache/", "coaches/.auditions/",
-    "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store",
+    "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store", ".cache/",
 )
 
 
