@@ -54,7 +54,7 @@ class Ctx:
     pending: tuple | None = None   # (changes, base) to write back when the job completes
     keys: dict = field(default_factory=dict, repr=False)   # {key_var: value}: the engine's extra_env, set by run_one
     on_done: Callable[[], None] | None = None   # run in the transaction that marks the job done
-    on_lost: Callable[[], None] | None = None   # run (then committed) when the handler returned but the job wasn't done
+    on_lost: Callable[[str], None] | None = None   # run with the job's error (then committed) when the handler returned but the job wasn't done
 
     def say(self, stage: str, **fields) -> None:
         """A job event, committed now so a stream sees it live. It commits the connection's pending
@@ -205,8 +205,8 @@ TURN_NOW = re.compile(r"\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}", re.ASCII)
 MAX_LINE = 4000
 NO_MODEL_KEY = "add a language-model key in Keys"
 TOO_LONG = "this turn ran too long; try again with less to do"
-NOT_OPEN = "that answer didn't match the open question; send a message instead"
-CANT_FINISH = "the agent stopped on something it can't finish; send another message"
+ANSWER_NOT_OPEN = "that answer didn't match the open question; send a message instead"
+CANT_FINISH = "the coach stopped on a step it can't finish here; send a message to carry on"
 UNEXPECTED = "the job stopped unexpectedly"
 
 
@@ -248,9 +248,16 @@ def _agent_line(conv: conversations.Conversation, text: str) -> list:
 
 
 def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str) -> None:
-    """The conversation as it was before the turn (history, plan, stem), failed with an agent line.
-    Committed: run_one rolls back on JobFailed. Does nothing when it has moved on."""
+    """The conversation as stored (as it was before the turn: its history, plan and stem), failed with
+    an agent line. Committed: run_one rolls back on JobFailed. Does nothing once it is no longer working."""
     ctx.conn.rollback()
+    try:
+        conv = conversations.load(ctx.conn, ctx.uk, conv.id)
+    except LookupError:
+        conv = None
+    if conv is None or conv.state != "working":
+        ctx.conn.rollback()
+        return
     failed = dataclasses.replace(conv, state="failed", question=None,
                                  lines=_agent_line(conv, f"That didn't work: {message}"))
     if conversations.save(ctx.conn, ctx.uk, failed, conv.version):
@@ -294,7 +301,11 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     provider = next((p for p in ctx.settings.providers if stored.get(p)), None)
     if provider is None:
         raise _Stop(NO_MODEL_KEY)
-    model = providers.model_for(provider, stored[provider])
+    try:
+        model = providers.model_for(provider, stored[provider])
+    except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
+        print(f"worker: job {ctx.job_id} model client failed: {type(e).__name__}", file=sys.stderr)
+        raise _Stop(providers.explain(provider, e).message) from None
     del stored   # the model key lives only in the model client from here on
 
     ctx.say("folder")
@@ -307,8 +318,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     ctx.say("thinking")
     try:
         outcome = agent.run_turn(model, deps, conv.history, line, answer)
-    except agent.TurnError:
-        raise _Stop(NOT_OPEN if answer is not None else CANT_FINISH) from None
+    except agent.TurnError as e:
+        raise _Stop(ANSWER_NOT_OPEN if e.reason == agent.NOT_OPEN else CANT_FINISH) from None
     except UsageLimitExceeded:
         raise _Stop(TOO_LONG) from None
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
@@ -325,7 +336,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
             raise RuntimeError("the conversation moved on")   # complete rolls back; the job fails
 
     ctx.on_done = save_turn
-    ctx.on_lost = lambda: _fail_conversation(ctx, conv, "interrupted")
+    ctx.on_lost = lambda error: _fail_conversation(ctx, conv, error)
     ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)
     return {"conversation_id": conv.id, "state": done.state}
 
@@ -405,18 +416,19 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
     if outcome[0] == "done" and beat.lost.is_set():
         print(f"worker: job {job.id} lost its heartbeat; nothing written back", file=sys.stderr)
         outcome = ("failed", "interrupted", None)
-        _lost(conn, job.id, ctx)
+        _lost(conn, job.id, ctx, "interrupted")
     if outcome[0] == "done":
-        if not _complete(conn, uk, job.id, outcome[1], ctx):
-            _lost(conn, job.id, ctx)
+        error = _complete(conn, uk, job.id, outcome[1], ctx)
+        if error is not None:
+            _lost(conn, job.id, ctx, error)
     elif not jobs.fail(conn, uk, job.id, outcome[1], outcome[2] if uk is not None else None):
         print(f"worker: job {job.id} was no longer running", file=sys.stderr)
     return True
 
 
-def _complete(conn, uk, job_id: int, result: dict, ctx: Ctx) -> bool:
+def _complete(conn, uk, job_id: int, result: dict, ctx: Ctx) -> str | None:
     """Run the handler's on_done, write back its files and mark the job done, in one transaction, only
-    while it is running; whether it was."""
+    while it is running. None when it was; else the job's error."""
     def apply() -> list[dict]:
         if ctx.on_done is not None:
             ctx.on_done()
@@ -429,20 +441,22 @@ def _complete(conn, uk, job_id: int, result: dict, ctx: Ctx) -> bool:
         done = jobs.complete(conn, uk, job_id, result, apply)
     except Exception as e:  # noqa: BLE001 - only the type is logged: the message may be personal
         print(f"worker: job {job_id} stopped: {type(e).__name__}", file=sys.stderr)
-        jobs.fail(conn, uk, job_id, "the job stopped unexpectedly")
-        return False
+        jobs.fail(conn, uk, job_id, UNEXPECTED)
+        return UNEXPECTED
     if not done:
         print(f"worker: job {job_id} was no longer running", file=sys.stderr)
-    return done
+        return "interrupted"   # reaped: jobs.reap's word
+    return None
 
 
-def _lost(conn, job_id: int, ctx: Ctx | None) -> None:
-    """The handler's on_lost, committed, for a job that returned but was never marked done."""
+def _lost(conn, job_id: int, ctx: Ctx | None, error: str) -> None:
+    """The handler's on_lost with the job's error, committed, for a job that returned but was never
+    marked done."""
     conn.rollback()
     if ctx is None or ctx.on_lost is None:
         return
     try:
-        ctx.on_lost()
+        ctx.on_lost(error)
         conn.commit()
     except Exception as e:  # noqa: BLE001 - only the type is logged
         conn.rollback()

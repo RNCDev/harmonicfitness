@@ -660,3 +660,92 @@ class Turn(JobsCase):
         self.assertEqual(conv.lines[-1], {"role": "agent", "text": "That didn't work: interrupted"})
         self.assertEqual(store.read_all(self.conn, uk), before)
         self.conn.rollback()
+
+    def test_unfinishable_stop_after_an_answer_says_so(self):
+        uk = self.user()
+        cid = self.start(uk)
+
+        def ask(messages, info):
+            return ModelResponse(parts=[ToolCallPart("ask_user", {"questions": [QUESTION]}, tool_call_id="a1")])
+        _, conv = self.run_turn(uk, ask, cid, line="go")
+        answer = self.answer(uk, cid, conv, {"q1": ["Nothing new"]})
+        from webapp import agent
+        stop = agent.TurnError("the agent stopped on a call it can't finish (brief)", agent.UNFINISHABLE)
+        with mock.patch.object(agent, "run_turn", side_effect=stop):
+            job, after = self.run_turn(uk, ask, cid, answer=answer)
+        message = "the coach stopped on a step it can't finish here; send a message to carry on"
+        self.assertEqual(self.state(job), ("failed", message))
+        self.assertEqual(after.lines[-1], {"role": "agent", "text": f"That didn't work: {message}"})
+        self.assertEqual(after.history, conv.history)
+        self.conn.rollback()
+
+    def test_model_client_failure_goes_through_explain(self):
+        uk = self.user()
+        cid = self.start(uk)
+        job = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, "go"))
+        with mock.patch.object(providers, "model_for", side_effect=ConnectionError(f"bad {MODEL_KEY}")), \
+                mock.patch("sys.stderr") as err:
+            self.run_one()
+        conv = conversations.load(self.conn, uk, cid)
+        message = "Claude didn't answer. Try again in a minute."
+        self.assertEqual(self.state(job), ("failed", message))
+        self.assertEqual((conv.state, conv.lines[-1]["text"]), ("failed", f"That didn't work: {message}"))
+        self.assertNotIn(MODEL_KEY, repr((conv.lines, err.mock_calls)))
+        self.conn.rollback()
+
+    def lost_after_handler(self, uk, cid, after, **patches):
+        """Run a turn whose handler finishes, then `after(ctx)`; (job, conversation)."""
+        real = worker.HANDLERS["turn"]
+
+        def handler(ctx):
+            out = real(ctx)
+            after(ctx)
+            return out
+        with mock.patch.dict(worker.HANDLERS, {"turn": handler}), mock.patch("sys.stderr"):
+            return self.run_turn(uk, lambda m, i: ModelResponse(parts=[ToolCallPart(
+                "brief", BRIEF_CALL, tool_call_id="b1")]) if not returned(m) else ModelResponse(
+                parts=[TextPart("ok")]), cid, line="go")
+
+    def check_lost(self, uk, job, conv, before, error):
+        self.assertEqual(self.state(job), ("failed", error))
+        self.assertEqual(conv.state, "failed")
+        self.assertIsNone(conv.history)
+        self.assertEqual(conv.lines[-1], {"role": "agent", "text": f"That didn't work: {error}"})
+        self.assertEqual(store.read_all(self.conn, uk), before)
+
+    def test_conversation_version_moved_before_completion(self):
+        uk = self.user()
+        cid = self.start(uk)
+        before = store.read_all(self.conn, uk)
+        self.conn.commit()
+
+        def bump(ctx):
+            self.conn.execute("update conversations set version = version + 1 where id = %s", (cid,))
+            self.conn.commit()
+        job, conv = self.lost_after_handler(uk, cid, bump)
+        self.check_lost(uk, job, conv, before, "the job stopped unexpectedly")
+        self.conn.rollback()
+
+    def test_job_reaped_before_completion_fails_the_conversation(self):
+        uk = self.user()
+        cid = self.start(uk)
+        before = store.read_all(self.conn, uk)
+        self.conn.commit()
+
+        def reap(ctx):
+            self.conn.execute("update jobs set state = 'failed', error = 'interrupted', "
+                              "finished_at = now() where id = %s", (ctx.job_id,))
+            self.conn.commit()
+        job, conv = self.lost_after_handler(uk, cid, reap)
+        self.check_lost(uk, job, conv, before, "interrupted")
+        self.conn.rollback()
+
+    def test_write_back_failure_fails_the_conversation(self):
+        uk = self.user()
+        cid = self.start(uk)
+        before = store.read_all(self.conn, uk)
+        self.conn.commit()
+        with mock.patch.object(worker.store, "write_back", side_effect=RuntimeError("disk")):
+            job, conv = self.lost_after_handler(uk, cid, lambda ctx: None)
+        self.check_lost(uk, job, conv, before, "the job stopped unexpectedly")
+        self.conn.rollback()

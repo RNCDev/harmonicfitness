@@ -110,8 +110,19 @@ class Turns(AgentCase):
         second = agent.run_turn(model, self.deps, first.history_json, "actually, make it 30", None)
         self.assertEqual(second.reply, "ok")
         self.assertEqual(seen["a1"], agent.NOT_ANSWERED)
-        with self.assertRaises(agent.TurnError):
+        with self.assertRaises(agent.TurnError) as caught:
             agent.run_turn(model, self.deps, second.history_json, None, ("a1", {"q1": ["Nothing new"]}))
+        self.assertEqual(caught.exception.reason, agent.NOT_OPEN)
+
+    def test_a_deferred_call_that_isnt_a_question_is_unfinishable(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        from pydantic_ai import DeferredToolRequests
+        stopped = SimpleNamespace(output=DeferredToolRequests(calls=[ToolCallPart("brief", {}, tool_call_id="x1")]))
+        with mock.patch.object(agent.AGENT, "run_sync", return_value=stopped):
+            with self.assertRaises(agent.TurnError) as caught:
+                agent.run_turn(FunctionModel(lambda m, i: None), self.deps, None, "go", None)
+        self.assertEqual(caught.exception.reason, agent.UNFINISHABLE)
 
     def test_ask_user_refuses_a_bad_question(self):
         retries = []

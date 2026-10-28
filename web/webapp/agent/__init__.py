@@ -17,8 +17,8 @@ from webapp import worker
 from . import tools
 from .tools import Deps, ToolResult
 
-__all__ = ["AGENT", "Deps", "Option", "Plan", "PlanRow", "Question", "TurnError", "TurnOutcome", "LIMITS",
-           "plan_problems", "run_turn"]
+__all__ = ["AGENT", "Deps", "NOT_OPEN", "Option", "Plan", "PlanRow", "Question", "TurnError", "TurnOutcome",
+           "LIMITS", "UNFINISHABLE", "plan_problems", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=25, tool_calls_limit=40, total_tokens_limit=400_000)
 
@@ -222,9 +222,18 @@ def show_plan(ctx: RunContext[Deps], plan: Plan) -> str:
 
 # ---- a turn ------------------------------------------------------------------------------------
 
+NOT_OPEN = "not_open"            # TurnError.reason: an answer to a call that isn't open (nothing ran)
+UNFINISHABLE = "unfinishable"    # TurnError.reason: the run stopped on a deferred call that isn't a question
+
+
 class TurnError(Exception):
     """A turn that can't go on as asked: an answer to a call that isn't open, or the agent stopping on a
-    deferred call that isn't a question. Nothing a retry fixes; the caller fails the turn with the message."""
+    deferred call that isn't a question; `reason` says which (NOT_OPEN or UNFINISHABLE). Nothing a retry
+    fixes; the caller fails the turn."""
+
+    def __init__(self, message: str, reason: str):
+        super().__init__(message)
+        self.reason = reason
 
 
 NOT_SHOWN = "This question wasn't shown: ask one set of questions at a time, in one ask_user call."
@@ -261,7 +270,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     history = ModelMessagesTypeAdapter.validate_json(history_json) if history_json else None
     pending = _pending(history) if history else []
     if answer and answer[0] not in pending:
-        raise TurnError("that question isn't open any more")
+        raise TurnError("that question isn't open any more", NOT_OPEN)
     calls = {cid: NOT_SHOWN if answer else NOT_ANSWERED for cid in pending}
     if answer:
         calls[answer[0]] = answer[1]
@@ -273,7 +282,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
         asks = [c for c in result.output.calls if c.tool_name == "ask_user"]
         if not asks or result.output.approvals:
             names = [c.tool_name for c in result.output.calls + result.output.approvals]
-            raise TurnError(f"the agent stopped on a call it can't finish ({', '.join(names)})")
+            raise TurnError(f"the agent stopped on a call it can't finish ({', '.join(names)})", UNFINISHABLE)
         question = dict(asks[0].args_as_dict(), tool_call_id=asks[0].tool_call_id)
     else:
         reply = result.output
