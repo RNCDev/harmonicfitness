@@ -1,5 +1,5 @@
 // The signed-in app: the band, chat, the working panel and the context column.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, APP_NAME, NotSignedIn, useJob, type ContextFile } from "./api";
 import { buildWorkoutSentence, localDate, setToken, toJobArgs, type SentenceModel } from "./sentence/model";
 import { Band } from "./zones/Band";
@@ -35,8 +35,14 @@ export function App() {
   const [files, setFiles] = useState<ContextFile[] | null>(null);
   const [drawer, setDrawer] = useState(false);
 
-  const signedOut = useCallback(() => setAuth("out"), []);
-  const { job, start } = useJob(signedOut);
+  // useJob reports a 401 through a ref, so its stream can be closed by the same callback.
+  const stopRef = useRef<() => void>(() => {});
+  const signedOut = useCallback(() => {
+    stopRef.current();
+    setAuth("out");
+  }, []);
+  const { job, start, stop } = useJob(signedOut);
+  stopRef.current = stop;
 
   const load = useCallback(async () => {
     setAuth("loading");
@@ -85,8 +91,8 @@ export function App() {
     } catch {
       /* signed out either way, as far as this page goes */
     }
-    setAuth("out");
-  }, []);
+    signedOut();
+  }, [signedOut]);
 
   if (auth === "out") return <SignedOut />;
   if (auth === "error") return <Unreachable onRetry={load} />;

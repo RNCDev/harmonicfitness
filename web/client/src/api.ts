@@ -140,5 +140,5 @@ export function useJob(onSignedOut: () => void) {
     }
   }, [follow, onSignedOut, stop]);
 
-  return { job, start };
+  return { job, start, stop };
 }
