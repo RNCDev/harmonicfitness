@@ -10,7 +10,7 @@ import sys
 from typing import Iterable, Mapping, NamedTuple
 
 ALLOWED = ("PATH", "LANG", "LC_ALL", "TZ", "UV_CACHE_DIR", "HARMONICFITNESS_PYTHON")
-RESERVED = ("HOME", "HARMONICFITNESS_HOME")
+RESERVED = ("HOME", "HARMONICFITNESS_HOME", "HARMONICFITNESS_WEB")
 TIMED_OUT = 124
 
 
@@ -49,7 +49,7 @@ def _env(home: str, extra_env: Mapping[str, str]) -> dict[str, str]:
         if name in extra_env:
             raise ValueError(f"extra_env may not set {name}")
     env = {k: os.environ[k] for k in ALLOWED if k in os.environ}
-    env.update(HOME=home, HARMONICFITNESS_HOME=home)
+    env.update(HOME=home, HARMONICFITNESS_HOME=home, HARMONICFITNESS_WEB="1")
     env.update(extra_env)
     return env
 

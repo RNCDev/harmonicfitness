@@ -21,7 +21,7 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import config, db, engine, folder, jobs, store
+from . import config, db, engine, folder, jobs, keystore, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
@@ -55,6 +55,14 @@ class Ctx:
         """A job event, committed now so a stream sees it live. It commits the connection's pending
         work too, so a handler doesn't call it in the middle of a transaction of its own."""
         jobs.event(self.conn, self.uk, self.job_id, {"stage": stage, **fields})
+
+    def key_env(self) -> dict[str, str]:
+        """{key_var: value} for each of the user's keys whose service the engine knows, for a job's
+        extra_env only. Commits, so no transaction stays open across the engine run."""
+        stored = keystore.open_all(self.conn, self.uk)
+        self.conn.commit()
+        services = engine_services(self.settings.engine_root)
+        return {services[s]["key_var"]: v for s, v in stored.items() if s in services}
 
     def save(self, changes: dict[str, bytes | None], base: dict[str, int]) -> None:
         """Files to write back to the store: run_one writes them in the same transaction that marks the
@@ -171,11 +179,12 @@ def brief(ctx: Ctx) -> dict:
     ctx.conn.commit()
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
+    keys = ctx.key_env()
     ctx.say("brief")
     draft = os.path.join(ctx.home, "workouts", stem, f"{stem}.draft.txt")
     r = engine.run(ctx.settings.engine_root, ctx.home,
                    ["brief", "--goal", goal, "--minutes", str(minutes), "--preset", preset,
-                    "--today", today, "--save", draft], timeout=BRIEF_TIMEOUT)
+                    "--today", today, "--save", draft], extra_env=keys, timeout=BRIEF_TIMEOUT)
     if r.code != 0:
         raise JobFailed(f"the engine stopped (exit {r.code})", {"stderr": r.stderr})
     ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)

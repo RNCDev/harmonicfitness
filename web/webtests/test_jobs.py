@@ -7,7 +7,7 @@ import psycopg
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import config, db, folder, jobs, store, worker  # noqa: E402
+from webapp import config, db, folder, jobs, keystore, store, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
@@ -160,6 +160,43 @@ class Worker(JobsCase):
         self.assertEqual(self.state(job), ("failed", "the engine stopped (exit 1)"))
         self.assertEqual(jobs.result(self.conn, uk, job), {"stderr": "something about the listener\n"})
         self.assertEqual(store.read_all(self.conn, uk), before)
+        self.conn.rollback()
+
+    def test_brief_gets_the_users_keys(self):
+        _, uk = self.seeded_user()
+        _, other = self.seeded_user()
+        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
+        keystore.put(self.conn, uk, "retired-service", "sk-zzzzzzzzzzzz")
+        self.conn.commit()
+        seen = []
+
+        def record(root, home, argv, extra_env={}, timeout=120):
+            seen.append(dict(extra_env))
+            return worker.engine.Result(1, "", "")
+        with mock.patch.object(worker.engine, "run", side_effect=record):
+            jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            self.run_one()
+            jobs.enqueue(self.conn, other, "brief", self.brief_args())
+            self.run_one()
+        self.assertEqual(seen, [{"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"}, {}])
+        self.conn.rollback()
+
+    def test_key_in_engine_output_is_scrubbed(self):
+        # engine_root stays the real engine, so the request validates; only the run is pointed at a fake root
+        from webtests.test_engine import stub
+        fake = stub('echo "$FISH_AUDIO_API_KEY" >&2; exit 1')
+        real_run = worker.engine.run
+        _, uk = self.seeded_user()
+        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
+        self.conn.commit()
+        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        with mock.patch.object(worker.engine, "run",
+                               side_effect=lambda root, *a, **k: real_run(fake, *a, **k)):
+            self.run_one()
+        self.assertEqual(self.state(job)[0], "failed")
+        detail = jobs.result(self.conn, uk, job)
+        self.assertIn("<key>", detail["stderr"])
+        self.assertNotIn("sk-abcdefghijklmnop", detail["stderr"])
         self.conn.rollback()
 
     def test_folder_is_removed(self):

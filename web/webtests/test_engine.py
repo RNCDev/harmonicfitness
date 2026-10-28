@@ -31,7 +31,8 @@ class Engine(unittest.TestCase):
                                           "DATABASE_URL": "postgres://x",
                                           "SESSION_SECRET": "s", "SOMETHING_ELSE": "y",
                                           "TZ": "UTC"}):
-            want = {k for k in engine.ALLOWED if k in os.environ} | {"HOME", "HARMONICFITNESS_HOME"}
+            want = {k for k in engine.ALLOWED if k in os.environ} | {"HOME", "HARMONICFITNESS_HOME",
+                                                                     "HARMONICFITNESS_WEB"}
             r = engine.run(root, home, [])
         self.assertEqual(r.code, 0)
         got = dict(line.split("=", 1) for line in r.stdout.splitlines())
@@ -49,6 +50,12 @@ class Engine(unittest.TestCase):
         self.assertEqual(r.code, 0, r.stderr)
         self.assertTrue(r.stdout.startswith("# Today's brief: strength, 20 minutes"))
         self.assertTrue(os.path.exists(draft.replace(".draft.txt", ".menu.json")))
+
+    def test_web_mode_always_on(self):
+        root, home = stub('echo "$HARMONICFITNESS_WEB"'), tempfile.mkdtemp()
+        self.assertEqual(engine.run(root, home, []).stdout, "1\n")
+        with self.assertRaises(ValueError):
+            engine.run(root, home, [], extra_env={"HARMONICFITNESS_WEB": "0"})
 
     def test_extra_env_values_are_scrubbed(self):
         root, home = stub('echo "$FISH_AUDIO_API_KEY"; echo "$FISH_AUDIO_API_KEY" >&2'), tempfile.mkdtemp()
