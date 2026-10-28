@@ -693,9 +693,14 @@ class Conversations(ApiCase):
         for path in (f"/api/conversations/{body['id']}", "/api/conversations/latest"):
             r = self.client.get(path)
             self.assertEqual(r.status_code, 200, path)
-            self.assertEqual(r.json(), {"id": body["id"], "state": "working", "job_id": body["job_id"],
-                                        "lines": [{"role": "user", "text": "a 20-minute strength workout"}],
-                                        "question": None, "plan": {"format": "Straight sets"}})
+            got = r.json()
+            stamp = got.pop("updated_at")
+            self.assertEqual(got, {"id": body["id"], "state": "working", "job_id": body["job_id"],
+                                   "lines": [{"role": "user", "text": "a 20-minute strength workout"}],
+                                   "question": None, "plan": {"format": "Straight sets"}})
+            when = datetime.datetime.fromisoformat(stamp)
+            self.assertIsNotNone(when.tzinfo)
+            self.assertLess(abs((datetime.datetime.now(datetime.timezone.utc) - when).total_seconds()), 300)
             self.assertNotIn("history", r.text)
         self.settle(uk, body["id"], state="idle", question=None)
         self.assertIsNone(self.client.get(f"/api/conversations/{body['id']}").json()["job_id"])

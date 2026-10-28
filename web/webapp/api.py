@@ -563,9 +563,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         return job_id
 
     def shown(c: conversations.Conversation) -> dict:
-        """What the client sees: never the history; the job only while it works."""
+        """What the client sees: never the history; the job only while it works; when it last changed
+        (ISO, so the client can show an earlier day's conversation as history)."""
         return {"id": c.id, "state": c.state, "job_id": c.job_id if c.state == "working" else None,
-                "lines": c.lines, "question": c.question, "plan": c.plan}
+                "lines": c.lines, "question": c.question, "plan": c.plan,
+                "updated_at": c.updated_at.isoformat() if c.updated_at else None}
 
     def healed(conn, uk: store.UserKey, cid: int) -> conversations.Conversation:
         try:

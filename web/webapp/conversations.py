@@ -5,6 +5,7 @@ state, version, times and the id of the job that last began a turn (`job_id`) st
 conversation is missing. None of these commit: the caller does.
 """
 import dataclasses
+import datetime
 import json
 from dataclasses import dataclass, field
 
@@ -26,6 +27,7 @@ class Conversation:
     plan: dict | None = None
     stem: str | None = None
     job_id: int | None = None   # plain; written only by set_job, never by save
+    updated_at: datetime.datetime | None = None   # plain, as last read; save moves it to now() in the row
 
 
 def _aad(uk: UserKey, cid: int) -> bytes:
@@ -38,11 +40,11 @@ def _seal(uk: UserKey, c: Conversation) -> bytes:
     return crypto.seal(uk.key, json.dumps(body).encode("utf-8"), _aad(uk, c.id))
 
 
-def _open(uk: UserKey, cid: int, state: str, version: int, job_id, sealed) -> Conversation:
+def _open(uk: UserKey, cid: int, state: str, version: int, job_id, sealed, updated_at=None) -> Conversation:
     body = json.loads(crypto.open_(uk.key, bytes(sealed), _aad(uk, cid)).decode("utf-8"))
     return Conversation(id=cid, state=state, version=version, history=body.get("history"),
                         lines=body.get("lines") or [], question=body.get("question"),
-                        plan=body.get("plan"), stem=body.get("stem"), job_id=job_id)
+                        plan=body.get("plan"), stem=body.get("stem"), job_id=job_id, updated_at=updated_at)
 
 
 def create(conn, uk: UserKey, first_line: str) -> int:
@@ -59,7 +61,7 @@ def create(conn, uk: UserKey, first_line: str) -> int:
 
 
 def load(conn, uk: UserKey, cid: int) -> Conversation:
-    row = conn.execute("select state, version, job_id, body from conversations "
+    row = conn.execute("select state, version, job_id, body, updated_at from conversations "
                        "where id = %s and user_id = %s", (cid, uk.user_id)).fetchone()
     if row is None:
         raise LookupError(f"no conversation {cid}")
@@ -67,7 +69,7 @@ def load(conn, uk: UserKey, cid: int) -> Conversation:
 
 
 def latest(conn, uk: UserKey) -> Conversation | None:
-    row = conn.execute("select id, state, version, job_id, body from conversations "
+    row = conn.execute("select id, state, version, job_id, body, updated_at from conversations "
                        "where user_id = %s order by updated_at desc, id desc limit 1",
                        (uk.user_id,)).fetchone()
     return None if row is None else _open(uk, *row)

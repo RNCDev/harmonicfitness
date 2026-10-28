@@ -34,7 +34,7 @@ export function App() {
     stopRef.current();
     setAuth("out");
   }, []);
-  const { conv, working, error, noKey, send, answer, job, stop } = useConversation(signedOut);
+  const { conv, history, working, error, noKey, start, send, answer, job, stop } = useConversation(signedOut);
   stopRef.current = stop;
 
   const load = useCallback(async () => {
@@ -75,9 +75,10 @@ export function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, [drawer, closeDrawer]);
 
+  // Start always begins a new conversation; the chat's text box goes on with the open one.
   const go = useCallback(() => {
-    if (model) void send(sentenceText(model));
-  }, [model, send]);
+    if (model) void start(sentenceText(model));
+  }, [model, start]);
 
   const openKeys = useCallback(() => {
     setDrawer(true);
@@ -110,7 +111,9 @@ export function App() {
       <Chat lines={conv?.lines ?? []} working={working} error={error} noKey={noKey}
         onSend={send} onOpenKeys={openKeys} />
       <main className="panel">
-        <Panel question={conv?.state === "waiting" ? conv.question : null} plan={conv?.plan ?? null}
+        {/* an earlier day's conversation is history: its lines stay in the chat, its plan and question go */}
+        <Panel question={conv?.state === "waiting" && !history ? conv.question : null}
+          plan={history ? null : conv?.plan ?? null}
           working={working} onAnswer={answer} />
       </main>
       <ContextColumn files={files} username={me?.username ?? ""} open={drawer} onClose={closeDrawer}

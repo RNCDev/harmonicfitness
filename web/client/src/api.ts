@@ -30,7 +30,7 @@ export type JobView = {
 };
 
 export type ChatLine = { role: "user" | "agent"; text: string };
-export type QuestionOption = { label: string; description?: string; recommended?: boolean };
+export type QuestionOption = { label: string; description?: string | null; recommended?: boolean };
 export type AskedQuestion = {
   id: string; prompt: string; options: QuestionOption[]; multi: boolean; other: boolean;
 };
@@ -42,6 +42,8 @@ export type Plan = {
 export type Conversation = {
   id: number; state: "working" | "waiting" | "idle" | "failed"; job_id: number | null;
   lines: ChatLine[]; question: OpenQuestion | null; plan: Plan | null;
+  /** When it last changed (ISO); null only on a server from before it was sent. */
+  updated_at: string | null;
 };
 export type AnswerValues = Record<string, string[] | string>;
 export type When = { today: string; now: string };

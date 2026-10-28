@@ -1,4 +1,4 @@
-// The conversation with the agent: load the latest, start or continue it, follow each turn's job.
+// The conversation with the agent: load the latest, start a new one or continue it, follow each turn's job.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api, ApiError, NotSignedIn, plainError, useJob, type AnswerValues, type Conversation,
@@ -12,6 +12,17 @@ const when = () => {
   const d = new Date();
   return { today: localDate(d), now: localNow(d) };
 };
+
+/** True when a conversation last changed on an earlier local day than today: its lines are history,
+ * its plan and question not today's. A working one is always current. */
+export function isHistory(c: Conversation | null, today: Date = new Date()): boolean {
+  if (!c || c.state === "working" || !c.updated_at) return false;
+  const at = new Date(c.updated_at);
+  return !Number.isNaN(at.getTime()) && localDate(at) < localDate(today);
+}
+
+/** A failed turn's or call's message that the Keys box answers ("add a language-model key in Keys"). */
+const NEEDS_KEYS = /\bKeys\b/;
 
 export function useConversation(onSignedOut: () => void) {
   const [conv, setConv] = useState<Conversation | null>(null);
@@ -28,7 +39,7 @@ export function useConversation(onSignedOut: () => void) {
 
   const fail = useCallback((e: unknown) => {
     if (e instanceof NotSignedIn) return onSignedOut();
-    setNoKey(e instanceof ApiError && e.status === 409 && /key/i.test(e.message));
+    setNoKey(e instanceof ApiError && ((e.status === 409 && /key/i.test(e.message)) || NEEDS_KEYS.test(e.message)));
     setError(plainError(e));
   }, [onSignedOut]);
 
@@ -47,7 +58,10 @@ export function useConversation(onSignedOut: () => void) {
   const id = conv?.id;
   useEffect(() => {
     if (!job || id === undefined) return;
-    if (job.state === "failed" && job.error) setError(plainError(new ApiError(0, job.error)));
+    if (job.state === "failed" && job.error) {
+      setError(plainError(new ApiError(0, job.error)));
+      setNoKey(NEEDS_KEYS.test(job.error));
+    }
     if (job.state !== "done" && job.state !== "failed") return;
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -86,18 +100,15 @@ export function useConversation(onSignedOut: () => void) {
 
   const working = posting || conv?.state === "working" || job?.state === "queued" || job?.state === "running";
 
-  const send = useCallback(async (line: string) => {
-    if (conv) {
-      return turn(() => api.sendMessage(conv.id, line, when()), (c) => ({
-        ...c, state: "working", question: null, lines: [...c.lines, { role: "user", text: line }],
-      }));
-    }
+  /** A new conversation, whatever is open: the band's Start. */
+  const start = useCallback(async (line: string) => {
     setError(null);
     setNoKey(false);
     setPosting(true);
     try {
       const { id: cid, job_id } = await api.startConversation(line, when());
-      setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }], question: null, plan: null });
+      setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }], question: null, plan: null,
+        updated_at: new Date().toISOString() });
       follow(job_id);
       return true;
     } catch (e) {
@@ -106,13 +117,23 @@ export function useConversation(onSignedOut: () => void) {
     } finally {
       setPosting(false);
     }
-  }, [conv, fail, follow, turn]);
+  }, [fail, follow]);
+
+  /** The chat's text box: the open conversation goes on; with none, a new one. */
+  const send = useCallback(async (line: string) => {
+    if (!conv) return start(line);
+    return turn(() => api.sendMessage(conv.id, line, when()), (c) => ({
+      ...c, state: "working", question: null, lines: [...c.lines, { role: "user", text: line }],
+      updated_at: new Date().toISOString(),
+    }));
+  }, [conv, start, turn]);
 
   const answer = useCallback(async (toolCallId: string, values: AnswerValues) => {
     if (!conv) return false;
     return turn(() => api.answer(conv.id, toolCallId, values, when()),
-      (c) => ({ ...c, state: "working", question: null }));
+      (c) => ({ ...c, state: "working", question: null, updated_at: new Date().toISOString() }));
   }, [conv, turn]);
 
-  return { conv, working, error, noKey, send, answer, job, stop };
+  const history = isHistory(conv);
+  return { conv, history, working, error, noKey, start, send, answer, job, stop };
 }
