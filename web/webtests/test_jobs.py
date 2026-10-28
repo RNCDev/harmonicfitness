@@ -3,6 +3,8 @@ import os
 import sys
 from unittest import mock
 
+import psycopg
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from webapp import config, db, folder, jobs, store, worker  # noqa: E402
@@ -221,4 +223,98 @@ class Worker(JobsCase):
             self.run_one()
         self.assertEqual(seen, [True])
         self.assertEqual(self.state(job)[0], "done")
+        self.conn.rollback()
+
+
+class LostJobs(JobsCase):
+    def files_and_events(self, uk, job):
+        return set(store.read_all(self.conn, uk)), [b["stage"] for _, b in jobs.events(self.conn, uk, job)]
+
+    def test_job_reaped_before_completion_writes_nothing(self):
+        _, uk = self.seeded_user()
+        before = set(store.read_all(self.conn, uk))
+        real = worker.HANDLERS["brief"]
+
+        def reaped_meanwhile(ctx):
+            out = real(ctx)   # the engine has run and the files are harvested
+            self.conn.execute("update jobs set state = 'failed', error = 'interrupted', "
+                              "finished_at = now() where id = %s", (ctx.job_id,))
+            self.conn.commit()
+            return out
+
+        with mock.patch.dict(worker.HANDLERS, {"brief": reaped_meanwhile}), \
+                mock.patch("sys.stderr") as err:
+            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            self.assertTrue(self.run_one())
+        files, stages = self.files_and_events(uk, job)
+        self.assertEqual(files, before)
+        self.assertNotIn("saved", stages)
+        self.assertEqual(self.state(job), ("failed", "interrupted"))
+        self.assertIn(f"job {job} was no longer running", "".join(str(c) for c in err.mock_calls))
+        self.conn.rollback()
+
+    def test_lost_heartbeat_skips_the_write_back(self):
+        import time
+        _, uk = self.seeded_user()
+        before = set(store.read_all(self.conn, uk))
+        real = worker.HANDLERS["brief"]
+
+        def slow(ctx):
+            time.sleep(0.3)
+            return real(ctx)
+
+        with mock.patch.dict(worker.HANDLERS, {"brief": slow}), \
+                mock.patch.object(worker, "HEARTBEAT_EVERY", 0.05), \
+                mock.patch.object(jobs, "heartbeat", return_value=False), \
+                mock.patch("sys.stderr"):
+            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            self.assertTrue(self.run_one())
+        files, stages = self.files_and_events(uk, job)
+        self.assertEqual(files, before)
+        self.assertNotIn("saved", stages)
+        self.assertEqual(self.state(job), ("failed", "interrupted"))
+        self.conn.rollback()
+
+    def test_heartbeat_connect_failure_skips_the_write_back(self):
+        _, uk = self.seeded_user()
+        before = set(store.read_all(self.conn, uk))
+
+        def broken():
+            raise psycopg.OperationalError("no route")
+
+        with mock.patch("sys.stderr"):
+            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            self.assertTrue(worker.run_one(self.conn, self.settings, connect=broken))
+        self.assertEqual(set(store.read_all(self.conn, uk)), before)
+        self.assertEqual(self.state(job), ("failed", "interrupted"))
+        self.conn.rollback()
+
+    def test_hung_heartbeat_connect_never_blocks(self):
+        import threading
+        import time
+        _, uk = self.make_user()
+        release = threading.Event()
+        self.addCleanup(release.set)
+
+        def hung():
+            release.wait(60)
+            return mock.MagicMock()   # the halt is set by then: it closes and ends quietly
+
+        with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
+                mock.patch.object(worker, "CONNECT_TIMEOUT", 0), \
+                mock.patch.object(worker, "JOIN_SLACK", 0.2), mock.patch("sys.stderr"):
+            job = jobs.enqueue(self.conn, uk, "noop", {})
+            t = time.monotonic()
+            self.assertTrue(worker.run_one(self.conn, self.settings, connect=hung))
+        self.assertLess(time.monotonic() - t, 5)
+        self.assertEqual(self.state(job)[0], "done")   # no heartbeat was missed in that time
+        self.conn.rollback()
+
+    def test_default_heartbeat_connect_has_a_timeout(self):
+        _, uk = self.make_user()
+        with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
+                mock.patch.object(worker.psycopg, "connect") as connect:
+            jobs.enqueue(self.conn, uk, "noop", {})
+            self.assertTrue(worker.run_one(self.conn, self.settings))
+        self.assertEqual(connect.call_args.kwargs["connect_timeout"], worker.CONNECT_TIMEOUT)
         self.conn.rollback()

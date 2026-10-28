@@ -5,12 +5,13 @@ and holds only wording of the web layer's own (never the engine's output or anyt
 The database keeps one running job per user (the partial unique index one_running_job_per_user).
 A job that dies is failed by `reap`, never requeued: it may already have reached a paid service.
 
-Transactions: every function that writes (enqueue, claim, heartbeat, finish, fail, reap, event)
-commits its own work. The readers (args, result, events, status) run in the caller's transaction
+Transactions: every function that writes (enqueue, claim, heartbeat, finish, complete, fail, reap,
+event) commits its own work. The readers (args, result, events, status) run in the caller's transaction
 and don't commit.
 """
 import json
 from dataclasses import dataclass
+from typing import Callable
 from uuid import UUID
 
 import psycopg
@@ -125,15 +126,41 @@ def reap(conn, stale_after: int = 120) -> list[int]:
         (stale_after,)).fetchall()))
 
 
+def _insert_event(conn, uk: UserKey, job_id: int, body: dict) -> int:
+    event_id = conn.execute(
+        "insert into job_events (job_id, body) values (%s, %s) returning id",
+        (job_id, _seal(uk, body, _event_aad(uk, job_id)))).fetchone()[0]
+    conn.execute("select pg_notify('job_events', %s)", (str(job_id),))   # delivered on commit
+    return event_id
+
+
 def event(conn, uk: UserKey, job_id: int, body: dict) -> int:
-    """Record a sealed event and NOTIFY job_events with the job id. Commits, so a stream sees it now."""
-    def work():
-        event_id = conn.execute(
-            "insert into job_events (job_id, body) values (%s, %s) returning id",
-            (job_id, _seal(uk, body, _event_aad(uk, job_id)))).fetchone()[0]
-        conn.execute("select pg_notify('job_events', %s)", (str(job_id),))
-        return event_id
-    return _done(conn, work)
+    """Record a sealed event and NOTIFY job_events with the job id. Commits (with whatever else the
+    connection has pending), so a stream sees it now."""
+    return _done(conn, lambda: _insert_event(conn, uk, job_id, body))
+
+
+def complete(conn, uk: UserKey, job_id: int, result: dict,
+             apply: Callable[[], list[dict]] | None = None) -> bool:
+    """Finish a running job in ONE transaction with its side effects: lock the job's row; if it is no
+    longer running (reaped, say), roll back and return False, so nothing of `apply` happens. Else run
+    `apply()` (such as a write-back of the user's files) in the same transaction, record the events it
+    returns, set the job done with its sealed result and commit. Commits or rolls back."""
+    try:
+        row = conn.execute("select 1 from jobs where id = %s and state = 'running' for update",
+                           (job_id,)).fetchone()
+        if row is None:
+            conn.rollback()
+            return False
+        for body in (apply() if apply else []):
+            _insert_event(conn, uk, job_id, body)
+        conn.execute("update jobs set state = 'done', result = %s, finished_at = now() where id = %s",
+                     (_seal(uk, result, _aad(uk, job_id, "result")), job_id))
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def events(conn, uk: UserKey, job_id: int, after: int = 0) -> list[tuple[int, dict]]:
