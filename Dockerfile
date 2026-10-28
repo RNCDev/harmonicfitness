@@ -1,4 +1,4 @@
-# The web client's image. Railway builds it from the GitHub repo and runs it as two services,
+# The web client's image. Fly (fly.toml) and Railway build it and run it as two processes,
 # HARMONICFITNESS_ROLE=web and HARMONICFITNESS_ROLE=worker (web/entrypoint.sh). The local voice engine is not installed:
 # only the `web` extra, so a job's engine runs the lint, brief and web voices, never PyTorch.
 
@@ -29,9 +29,11 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --extra web --no-dev
 
 COPY . .
-# The deployed commit, for the version the page shows (Railway passes it to a build that declares it).
+# The deployed commit, for the version the page shows: fly deploy --build-arg GIT_COMMIT_SHA=...; Railway
+# passes RAILWAY_GIT_COMMIT_SHA to a build that declares it.
+ARG GIT_COMMIT_SHA=""
 ARG RAILWAY_GIT_COMMIT_SHA=""
-ENV HARMONICFITNESS_COMMIT=$RAILWAY_GIT_COMMIT_SHA
+ENV HARMONICFITNESS_COMMIT=${GIT_COMMIT_SHA:-$RAILWAY_GIT_COMMIT_SHA}
 COPY --from=client /src/web/client/dist web/client/dist
 
 RUN python -m compileall -q /app/tools /app/web/webapp
