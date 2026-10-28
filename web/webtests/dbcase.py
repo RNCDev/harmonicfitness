@@ -26,8 +26,8 @@ class DBCase(unittest.TestCase):
         admin.execute(f"create schema {cls.schema}")
         admin.close()
         cls.conn = db.connect(URL, schema=cls.schema)
-        db.migrate(cls.conn)
         cls.addClassCleanup(cls._drop)
+        db.migrate(cls.conn)
 
     @classmethod
     def _drop(cls):

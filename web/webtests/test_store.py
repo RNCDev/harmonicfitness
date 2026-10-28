@@ -25,6 +25,39 @@ class Migrations(DBCase):
             admin.execute(f"drop schema {name} cascade")
             admin.close()
 
+    def test_concurrent_migrate_applies_once(self):
+        import threading
+        import uuid
+        from webtests import dbcase
+        name = "t_" + uuid.uuid4().hex[:12]
+        admin = db.connect(dbcase.URL)
+        admin.autocommit = True
+        admin.execute(f"create schema {name}")
+        conns = [db.connect(dbcase.URL, schema=name) for _ in range(2)]
+        barrier = threading.Barrier(2)
+        results, errors = [], []
+
+        def run(c):
+            try:
+                barrier.wait()
+                results.append(db.migrate(c))
+            except Exception as e:  # noqa: BLE001
+                errors.append(e)
+
+        threads = [threading.Thread(target=run, args=(c,)) for c in conns]
+        try:
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            self.assertEqual(errors, [])
+            self.assertEqual(sorted(results), [[], ["001_init.sql"]])
+        finally:
+            for c in conns:
+                c.close()
+            admin.execute(f"drop schema {name} cascade")
+            admin.close()
+
     def test_class_schema_is_migrated(self):
         self.assertEqual(db.migrate(self.conn), [])
 
@@ -77,6 +110,15 @@ class Store(DBCase):
                                 (a.user_id,)).fetchone()
         with self.assertRaises(crypto.Tampered):
             crypto.open_(b.key, bytes(row[0]), f"{a.user_id}:context_files:health.md".encode())
+
+    def test_aad_binds_the_row_to_its_path(self):
+        _, uk = self.make_user()
+        store.put(self.conn, uk, "a.md", b"secret")
+        self.conn.execute("insert into context_files (user_id, path, version, body) "
+                          "select user_id, 'b.md', 1, body from context_files "
+                          "where user_id = %s and path = 'a.md'", (uk.user_id,))
+        with self.assertRaises(crypto.Tampered):
+            store.read_all(self.conn, uk)
 
     def test_bad_paths_rejected(self):
         _, uk = self.make_user()

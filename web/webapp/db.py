@@ -15,25 +15,29 @@ def connect(url: str, schema: str | None = None) -> psycopg.Connection:
 
 
 def migrate(conn: psycopg.Connection) -> list[str]:
-    """Apply migrations/*.sql not yet recorded, in name order, each in its own transaction."""
-    conn.commit()
-    conn.execute("create table if not exists schema_migrations ("
-                 "name text primary key, applied_at timestamptz not null default now())")
+    """Apply migrations/*.sql not yet recorded, in name order, each in its own transaction.
+
+    Needs autocommit off (what `connect` gives). Safe when two processes start at once:
+    every step takes the advisory lock first, in the same transaction as its work.
+    """
+    if conn.autocommit:
+        raise ValueError("migrate needs a connection with autocommit off")
     conn.commit()
     applied = []
     for path in sorted(MIGRATIONS.glob("*.sql")):
-        conn.execute("select pg_advisory_xact_lock(%s)", (_LOCK_KEY,))
-        done = conn.execute("select 1 from schema_migrations where name = %s",
-                            (path.name,)).fetchone()
-        if done:
-            conn.commit()
-            continue
         try:
-            conn.execute(path.read_text())
-            conn.execute("insert into schema_migrations (name) values (%s)", (path.name,))
+            conn.execute("select pg_advisory_xact_lock(%s)", (_LOCK_KEY,))
+            conn.execute("create table if not exists schema_migrations ("
+                         "name text primary key, applied_at timestamptz not null default now())")
+            done = conn.execute("select 1 from schema_migrations where name = %s",
+                                (path.name,)).fetchone()
+            if not done:
+                conn.execute(path.read_text(encoding="utf-8"))
+                conn.execute("insert into schema_migrations (name) values (%s)", (path.name,))
             conn.commit()
         except Exception:
             conn.rollback()
             raise
-        applied.append(path.name)
+        if not done:
+            applied.append(path.name)
     return applied

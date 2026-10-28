@@ -16,7 +16,7 @@ def user_key(conn, settings, user_id) -> UserKey:
     row = conn.execute("select wrapped_key from users where id = %s", (user_id,)).fetchone()
     if row is None:
         raise LookupError("no such user")
-    return UserKey(user_id=user_id, key=crypto.unwrap(settings.master_key, bytes(row[0])))
+    return UserKey(user_id=UUID(str(user_id)), key=crypto.unwrap(settings.master_key, bytes(row[0])))
 
 
 def _check(path: str) -> str:
@@ -39,7 +39,10 @@ def read_all(conn, uk: UserKey) -> dict[str, tuple[int, bytes]]:
 
 def write_back(conn, uk: UserKey, changes: dict[str, bytes | None],
                base: dict[str, int]) -> list[str]:
-    """Apply changes in the caller's transaction; return the paths that conflicted."""
+    """Apply changes in the caller's transaction; return the paths that conflicted.
+
+    Deleting a path with no base version counts as a conflict.
+    """
     for path in changes:
         _check(path)
     conflicts = []
