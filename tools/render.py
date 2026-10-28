@@ -38,6 +38,7 @@ from locks import render_lock, stop_file  # noqa: E402
 from draft import TOTAL_TOLERANCE, is_mark, parse, plan, spoken as is_spoken  # noqa: E402
 import counts  # noqa: E402
 from engines import SR  # noqa: E402
+import keys  # noqa: E402
 import paths  # noqa: E402
 import verify  # noqa: E402
 import wav  # noqa: E402
@@ -335,8 +336,10 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent):
                 pass
         if isinstance(e, cloud.ServiceError):
             if e.listener_must_act:
+                where = (f"in {keys.APP_SETTINGS}" if paths.WEB
+                         else f"with ./harmonicfitness keys (it's {service['key_var']} in me/.env)")
                 raise errors.RenderStopped(
-                    f"{e}\nCheck the key with ./harmonicfitness keys (it's {service['key_var']} in me/.env), and the "
+                    f"{e}\nCheck the key {where}, and the "
                     f"account's plan and balance at {service['name']}. The {done} clip(s) rendered are cached.",
                     exit_code=errors.SERVICE) from e
             advice = ("A rerun won't fix that by itself" if e.kind == "bad_request"

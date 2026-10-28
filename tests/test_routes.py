@@ -141,6 +141,47 @@ class Routes(unittest.TestCase):
                 self.assertIn("HarmonicFitness's settings", text)
                 self.assertNotIn("keys init", text)
 
+    def messages(self):
+        """The in-process key messages, with no key for any service: {site: text}."""
+        import audition
+        import cloud
+        texts = {}
+        texts["usable"] = routes.usable("fish", facts=MAC)[1]
+        texts["missing_key"] = routes.missing_key(self.web_coach())
+        with self.assertRaises(cloud.ServiceError) as e:
+            cloud.key_or_stop("fish")
+        texts["cloud no key"] = str(e.exception)
+        with mock.patch.object(cloud, "_open", side_effect=ValueError("Invalid header value")), \
+                self.assertRaises(cloud.ServiceError) as e:
+            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", service="fish")
+        texts["cloud stray"] = str(e.exception)
+        warned = []
+        narrative = os.path.join(self.d, "narrative.md")
+        with open(narrative, "w", encoding="utf-8") as f:
+            f.write(context.persona_text({"name": "Coach Maya", "voice": {"who": "a coach", "sound": "warm"}}, ""))
+        with mock.patch.object(keys, "is_set", lambda s: False), redirect_stderr(io.StringIO()):
+            audition._run_audition(narrative, report=lambda *a: None, warn=warned.append)
+        texts["audition"] = " ".join(warned)
+        with self.assertRaises(keys.BadKey) as e:
+            keys.clean_value("FISH_AUDIO_API_KEY", "a b")
+        texts["keys"] = str(e.exception)
+        return texts
+
+    def test_web_mode_messages_never_say_env(self):
+        with mock.patch.object(routes.paths, "WEB", True):
+            texts = self.messages()
+        for site, text in texts.items():
+            self.assertIn("Keys", text, site)
+            for phrase in ("keys init", "keys open", "me/.env"):
+                self.assertNotIn(phrase, text, site)
+
+    def test_cli_messages_unchanged(self):
+        texts = self.messages()
+        for site in ("usable", "missing_key", "cloud no key", "audition"):
+            self.assertIn("keys init", texts[site], site)
+        for site in ("cloud stray", "keys"):
+            self.assertIn("keys open", texts[site], site)
+
     def test_download_refused_in_the_web_client(self):
         import coaches
         with mock.patch.object(coaches.paths, "WEB", True), \

@@ -977,6 +977,16 @@ class CloudRender(unittest.TestCase):
         self.assertIn("Fish Audio", out.stdout + out.stderr)
         self.assertIn("./harmonicfitness keys", out.stdout + out.stderr)
 
+    def test_401_names_the_apps_keys_in_web_mode(self):
+        with FakeService(lambda r: (401, {}, b'{"message": "Invalid api key"}')) as fake, \
+                mock.patch.dict(os.environ, {"HARMONICFITNESS_WEB": "1"}):
+            out = self.render(fake.url)
+        text = out.stdout + out.stderr
+        self.assertEqual(out.returncode, cli.SERVICE, text)
+        self.assertIn("Keys", text)
+        for phrase in ("./harmonicfitness keys", "me/.env"):
+            self.assertNotIn(phrase, text)
+
     def test_ceiling_stops_before_sending(self):
         self.set_ceiling(10)
         with FakeService(wav_answer) as fake:

@@ -183,8 +183,9 @@ def _run_audition(narrative=None, services=None, coach=None, play=False, report=
         if s not in keyed and services:
             report(f"{cloud.service_name(s)}: no key here, skipped (./harmonicfitness keys).")
     if not keyed:
-        warn("No web service has a key here, so there's nothing to audition on. Add one: ./harmonicfitness keys "
-             "(then ./harmonicfitness keys init <service>).")
+        warn("No web service has a key here, so there's nothing to audition on. Add one: " +
+             (f"in {keys.APP_SETTINGS}." if paths.WEB else
+              "./harmonicfitness keys (then ./harmonicfitness keys init <service>)."))
         return None, [], []
 
     folder = _new_audition()

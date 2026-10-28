@@ -36,6 +36,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import keys  # noqa: E402
+import paths  # noqa: E402
 import voice  # noqa: E402
 from redact import scrub  # noqa: E402,F401  (cloud.scrub, as before: it lives in the leaf module redact.py)
 from services import estimate, rate  # noqa: E402,F401  (they read only services.toml)
@@ -264,6 +265,9 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
                 raise last from None
         except (ValueError, UnicodeEncodeError) as e:   # the request couldn't be built: a header value the
             var = keys.SERVICE_VARS.get(service, "the key")   # client refuses carries the key, so never echo it
+            if "header" in str(e).lower() and paths.WEB:
+                raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray "
+                                   f"character in it?): re-paste it in {keys.APP_SETTINGS}") from None
             if "header" in str(e).lower():
                 raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray character "
                                    f"in it?): re-paste it after {var}= (./harmonicfitness keys open)") from None
@@ -529,6 +533,8 @@ def speaker(voice):
 
 def key_or_stop(service):
     value = keys.get(service)
+    if not value and paths.WEB:
+        raise ServiceError("auth", service, f"no key yet: add your {service_name(service)} key in {keys.APP_SETTINGS}")
     if not value:
         raise ServiceError("auth", service, f"no key on this computer: ./harmonicfitness keys init {service}, then paste "
                                             f"the key into me/.env after {keys.SERVICE_VARS[service]}=")

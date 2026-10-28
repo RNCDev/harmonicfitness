@@ -71,6 +71,9 @@ def clean_value(var, value):
     """`value` stripped of the whitespace around it; BadKey when what's left can't be a key."""
     value = (value or "").strip()
     if any(c.isspace() or not 32 < ord(c) < 127 for c in value):
+        if paths.WEB:
+            raise BadKey(f"{var} holds a character a key can't (a stray line break, space or symbol): re-paste the "
+                         f"key in {APP_SETTINGS}.")
         raise BadKey(f"{var} holds a character a key can't (a stray line break, space or symbol): re-paste the key "
                      f"after {var}= in me/.env (./harmonicfitness keys open), or fix it in the environment.")
     return value

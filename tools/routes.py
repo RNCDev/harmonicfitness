@@ -87,6 +87,8 @@ def usable(route, persona=None, facts=None):
         have = keys.get(route)
     except keys.BadKey as e:
         return False, f"{route}: {e}"
+    if not have and paths.WEB:
+        return False, f"{route}: no key yet: add your {cloud.service_name(route)} key in {keys.APP_SETTINGS}."
     if not have:
         return False, (f"{route}: no key on this computer ({keys.SERVICE_VARS[route]} in me/.env): "
                        f"./harmonicfitness keys init {route}, then paste the key into the file")

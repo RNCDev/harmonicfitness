@@ -956,6 +956,22 @@ class InProcessBuild(unittest.TestCase):
         with open(os.path.join(self.folder, "Test build.build.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["reason"], "the web client uploads the MP3")
 
+    def test_web_build_takes_the_default_web_coach(self):
+        prof = os.path.join(self.home, "settings.toml")
+        with open(prof, encoding="utf-8") as f:
+            text = f.read()
+        write_file(prof, re.sub(r"^deliver_to = .*$", 'deliver_to = ""', text, flags=re.M))
+        self.add_web_coach()
+        env = {"FISH_AUDIO_API_KEY": "test-key", "ELEVENLABS_API_KEY": "", "GEMINI_API_KEY": "",
+               "INWORLD_API_KEY": "", "HARMONICFITNESS_FAKE_LOCAL_ENGINE": "0"}
+        with mock.patch.dict(os.environ, env), mock.patch.object(paths, "WEB", True):
+            self.assertEqual(self.build(estimated_ok=False), 0, self.said())
+        self.assertEqual((self.runs[0]["voice"]["name"], self.runs[0]["voice"]["route"]), ("Coach Reed", "fish"))
+        with open(os.path.join(self.folder, "Test build.build.json"), encoding="utf-8") as f:
+            rec = json.load(f)
+        self.assertTrue(rec["kept_local"])
+        self.assertEqual(rec["reason"], "the web client uploads the MP3")
+
     def test_a_draft_outside_a_workout_folder_builds_in_checks(self):
         loose = os.path.join(self.tmp.name, "loose.draft.txt")
         self.copy_draft(loose)
