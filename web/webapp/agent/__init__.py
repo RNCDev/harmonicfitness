@@ -23,6 +23,7 @@ __all__ = ["AGENT", "Deps", "NOT_OPEN", "Option", "Plan", "PlanRow", "Question",
            "LIMITS", "TIMED_OUT", "TURN_SECONDS", "UNFINISHABLE", "plan_problems", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=25, tool_calls_limit=40, total_tokens_limit=800_000)
+WATCH_EVERY = 0.2    # seconds between the turn's looks at its cancel event
 TURN_SECONDS = 600   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.md"), encoding="utf-8") as _f:
@@ -346,11 +347,13 @@ class TurnOutcome:
 
 
 def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
-             answer: tuple[str, dict] | None) -> TurnOutcome:
+             answer: tuple[str, dict] | None, cancel: threading.Event | None = None) -> TurnOutcome:
     """One run of the agent: the user's line (prompt) or the answer to the open question. Every call left
     open in the history gets a result, so a conversation is never stuck on one: the answer for the question
     shown, NOT_SHOWN for any other question of the same step, NOT_ANSWERED when the user wrote instead.
-    UsageLimitExceeded and provider errors propagate; the caller decides what they mean."""
+    UsageLimitExceeded and provider errors propagate; the caller decides what they mean. `cancel` (default
+    deps.cancel, else a new event) becomes deps.cancel: setting it stops the run and every engine call, as
+    does the turn running past TURN_SECONDS, which sets it."""
     history = ModelMessagesTypeAdapter.validate_json(history_json) if history_json else None
     pending = _pending(history) if history else []
     if answer and answer[0] not in pending:
@@ -359,12 +362,30 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     if answer:
         calls[answer[0]] = answer[1]
     results = DeferredToolResults(calls=calls) if calls else None
-    # the wall-clock cap: pydantic-ai's own CancellationToken, cancelled from a timer thread, stops the run
-    # (its model request and tool tasks) and raises RunCancelled after its own teardown
+    # the wall-clock cap: pydantic-ai's own CancellationToken stops the run (its model request and tool tasks)
+    # and raises RunCancelled after its own teardown. A sync tool's thread can't be interrupted, so the timer
+    # also sets `cancel`, which kills the tool's engine call; a watcher cancels the token when anything else
+    # (the worker's heartbeat) sets `cancel`.
+    cancel = cancel if cancel is not None else deps.cancel if deps.cancel is not None else threading.Event()
+    deps.cancel = cancel
     token = CancellationToken()
-    timer = threading.Timer(TURN_SECONDS, token.cancel)
+    finished = threading.Event()
+
+    def time_up() -> None:
+        cancel.set()
+        token.cancel()
+
+    def watch() -> None:
+        while not finished.is_set():
+            if cancel.wait(WATCH_EVERY):
+                token.cancel()
+                return
+
+    timer = threading.Timer(TURN_SECONDS, time_up)
     timer.daemon = True
+    watcher = threading.Thread(target=watch, daemon=True, name="turn-cancel")
     timer.start()
+    watcher.start()
     try:
         result = AGENT.run_sync(prompt, model=model, deps=deps, message_history=history,
                                 deferred_tool_results=results, usage_limits=LIMITS, cancellation_token=token)
@@ -372,6 +393,8 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
         raise TurnError("the turn ran too long", TIMED_OUT) from None
     finally:
         timer.cancel()
+        finished.set()
+        watcher.join()
     reply = question = None
     if isinstance(result.output, DeferredToolRequests):
         asks = [c for c in result.output.calls if c.tool_name == "ask_user"]

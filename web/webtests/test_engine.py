@@ -72,6 +72,55 @@ class Engine(unittest.TestCase):
         self.assertIn("timed out after 0.5 s", r.stderr.splitlines()[-1])
         self.assertLess(time.time() - t, 8)
 
+    def test_cancel_kills_the_group(self):
+        import threading
+        root, home = stub('sleep 30 & echo $! > "$HOME/child.pid"; wait'), tempfile.mkdtemp()
+        cancel = threading.Event()
+        threading.Timer(0.3, cancel.set).start()
+        t = time.monotonic()
+        r = engine.run(root, home, [], cancel=cancel)
+        self.assertLess(time.monotonic() - t, 1.5)
+        self.assertEqual(r.code, engine.CANCELLED)
+        self.assertEqual(r.code, 125)
+        self.assertEqual(r.stderr.splitlines()[-1], "stopped: the job was cancelled")
+        with open(os.path.join(home, "child.pid")) as f:
+            pid = int(f.read())
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.05)
+        else:
+            self.fail("the engine's child outlived the cancel")
+
+    def test_cancel_set_before_never_starts(self):
+        import threading
+        root, home = stub('touch "$HOME/ran"'), tempfile.mkdtemp()
+        cancel = threading.Event()
+        cancel.set()
+        self.assertEqual(engine.run(root, home, [], cancel=cancel).code, engine.CANCELLED)
+        self.assertFalse(os.path.exists(os.path.join(home, "ran")))
+
+    def test_output_is_capped(self):
+        # 3 MB on stdout: lines "first", then 3,000 lines of 1,000 x, then "last"
+        root, home = stub("echo first; i=0; line=$(printf 'x%.0s' $(seq 1000)); "
+                          "while [ $i -lt 3000 ]; do echo $line; i=$((i+1)); done; echo last"), tempfile.mkdtemp()
+        r = engine.run(root, home, [], timeout=60)
+        self.assertEqual(r.code, 0, r.stderr)
+        self.assertLessEqual(len(r.stdout), engine.MAX_OUTPUT + 20)
+        self.assertIn("[cut]", r.stdout)
+        self.assertTrue(r.stdout.startswith("first\n"))
+        self.assertTrue(r.stdout.endswith("\nlast\n"))
+
+    def test_output_under_the_cap_is_whole(self):
+        root, home = stub("echo one; echo two >&2"), tempfile.mkdtemp()
+        r = engine.run(root, home, [], max_output=10)
+        self.assertEqual((r.stdout, r.stderr), ("one\n", "two\n"))
+        root = stub("printf 'abcdefghijklmnopqrstuvwxyz'")
+        self.assertEqual(engine.run(root, home, [], max_output=10).stdout, "abcde\n[cut]\nvwxyz")
+
     def test_extra_env_cannot_override_home(self):
         root, home = stub("env"), tempfile.mkdtemp()
         for k in ("HOME", "HARMONICFITNESS_HOME"):

@@ -30,7 +30,6 @@ CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
 JOIN_SLACK = 5            # seconds past CONNECT_TIMEOUT that stopping the heartbeat may wait
 IDLE_WAIT = 5             # seconds to wait for NOTIFY jobs_queued before polling again
 BRIEF_TIMEOUT = 300       # seconds; the engine's cold start can be slow
-NEVER_WRITE_BACK = frozenset({"health.md"})
 
 
 class JobFailed(Exception):
@@ -51,6 +50,11 @@ class Ctx:
     args: dict
     settings: config.Settings
     home: str
+    writes: tuple[str, ...] = ()   # what the job may write back: exact paths, or folders ending in "/"
+    cancel: threading.Event = field(default_factory=threading.Event, repr=False)   # set: stop the job's engine and agent
+    base: dict[str, int] = field(default_factory=dict, repr=False)   # path -> store version, as materialize read it
+    written: dict[str, str] = field(default_factory=dict, repr=False)   # path -> sha256, as materialize wrote it
+    left_out: list[str] = field(default_factory=list)   # files harvest left out for their size
     pending: tuple | None = None   # (changes, base) to write back when the job completes
     keys: dict = field(default_factory=dict, repr=False)   # {key_var: value}: the engine's extra_env, set by run_one
     on_done: Callable[[], None] | None = None   # run in the transaction that marks the job done
@@ -69,10 +73,27 @@ class Ctx:
         services = engine_services(self.settings.engine_root)
         return {services[s]["key_var"]: v for s, v in stored.items() if s in services}
 
-    def save(self, changes: dict[str, bytes | None], base: dict[str, int]) -> None:
-        """Files to write back to the store: run_one writes them in the same transaction that marks the
-        job done, and only while it is still running, then says "saved" with the conflicts."""
-        self.pending = (changes, base)
+    def materialize(self) -> None:
+        """The user's files from the store, written into the job's folder; keeps their versions
+        (`base`) and what was written (`written`) for harvest and save. Commits."""
+        files = store.read_all(self.conn, self.uk)
+        self.conn.commit()
+        self.base = {path: version for path, (version, _) in files.items()}
+        self.written = folder.materialize({path: body for path, (_, body) in files.items()}, self.home)
+
+    def harvest(self) -> dict[str, bytes | None]:
+        """What the engine changed in the folder, limited to what this job kind may write back
+        (`writes`) and to files of at most folder.MAX_FILE bytes (the rest go to `left_out`)."""
+        left_out: list[str] = []
+        changes = folder.harvest(self.home, self.written, only=self.writes, left_out=left_out)
+        self.left_out = left_out
+        return changes
+
+    def save(self, changes: dict[str, bytes | None]) -> None:
+        """Files to write back to the store against `base`: run_one writes them in the same transaction
+        that marks the job done, and only while it is still running, then says "saved" with the
+        conflicts and what was left out."""
+        self.pending = (changes, self.base)
 
 
 # ---- the engine's own lists -------------------------------------------------------------------
@@ -185,18 +206,16 @@ def brief(ctx: Ctx) -> dict:
     goal, minutes, preset, today = _brief_request(ctx.args, ctx.settings)
     stem = f"{today}-{goal}-{minutes}"
     ctx.say("folder")
-    files = store.read_all(ctx.conn, ctx.uk)
-    ctx.conn.commit()
-    base = {path: version for path, (version, _) in files.items()}
-    written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
+    ctx.materialize()
     ctx.say("brief")
     draft = os.path.join(ctx.home, "workouts", stem, f"{stem}.draft.txt")
     r = engine.run(ctx.settings.engine_root, ctx.home,
                    ["brief", "--goal", goal, "--minutes", str(minutes), "--preset", preset,
-                    "--today", today, "--save", draft], extra_env=ctx.keys, timeout=BRIEF_TIMEOUT)
+                    "--today", today, "--save", draft], extra_env=ctx.keys, timeout=BRIEF_TIMEOUT,
+                   cancel=ctx.cancel)
     if r.code != 0:
         raise JobFailed(f"the engine stopped (exit {r.code})", {"stderr": r.stderr})
-    ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)
+    ctx.save(ctx.harvest())
     return {"brief_md": r.stdout, "stem": stem}
 
 
@@ -320,15 +339,12 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     del stored   # the model key lives only in the model client from here on
 
     ctx.say("folder")
-    files = store.read_all(ctx.conn, ctx.uk)
-    ctx.conn.commit()
-    base = {path: version for path, (version, _) in files.items()}
-    written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
+    ctx.materialize()
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
-                      now=now, stem=conv.stem, plan=conv.plan)
+                      now=now, stem=conv.stem, plan=conv.plan, cancel=ctx.cancel)
     ctx.say("thinking")
     try:
-        outcome = agent.run_turn(model, deps, conv.history, line, answer)
+        outcome = agent.run_turn(model, deps, conv.history, line, answer, cancel=ctx.cancel)
     except agent.TurnError as e:
         raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG}.get(e.reason, CANT_FINISH)) from None
     except UsageLimitExceeded:
@@ -348,11 +364,19 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
 
     ctx.on_done = save_turn
     ctx.on_lost = lambda error: _fail_conversation(ctx, conv, error)
-    ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)
+    ctx.save(ctx.harvest())
     return {"conversation_id": conv.id, "state": done.state}
 
 
-HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn}
+@dataclass(frozen=True)
+class Handler:
+    """A job kind's handler and what it may write back to the store (`Ctx.writes`): exact paths, or
+    folders ending in "/". health.md is in no list yet."""
+    fn: Callable[[Ctx], dict]
+    writes: tuple[str, ...]
+
+
+HANDLERS: dict[str, Handler] = {"brief": Handler(brief, ("workouts/",)), "turn": Handler(turn, ("workouts/",))}
 
 
 # ---- the loop ---------------------------------------------------------------------------------
@@ -411,9 +435,10 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
         handler = HANDLERS.get(job.kind)
         if handler is None:
             raise JobFailed("unknown job kind")
-        ctx = Ctx(conn=conn, uk=uk, job_id=job.id, args=args, settings=settings, home=home)
+        ctx = Ctx(conn=conn, uk=uk, job_id=job.id, args=args, settings=settings, home=home,
+                  writes=handler.writes)
         ctx.keys = ctx.key_env()   # every handler passes ctx.keys as the engine's extra_env
-        outcome = ("done", handler(ctx))
+        outcome = ("done", handler.fn(ctx))
     except JobFailed as e:
         conn.rollback()
         outcome = ("failed", e.error, e.detail)
@@ -446,7 +471,7 @@ def _complete(conn, uk, job_id: int, result: dict, ctx: Ctx) -> str | None:
         if ctx.pending is None:
             return []
         conflicts = store.write_back(conn, uk, *ctx.pending)
-        return [{"stage": "saved", "conflicts": conflicts}]
+        return [{"stage": "saved", "conflicts": conflicts, "left_out": ctx.left_out}]
     done = False
     try:
         done = jobs.complete(conn, uk, job_id, result, apply)

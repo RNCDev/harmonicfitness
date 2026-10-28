@@ -90,13 +90,14 @@ class Tools(ToolsCase):
         self.deps.keys = {"FISH_AUDIO_API_KEY": "k" * 12}
         seen = {}
 
-        def fake(root, home, argv, extra_env={}, timeout=120):
-            seen.update(argv=argv, env=extra_env, timeout=timeout)
+        def fake(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            seen.update(argv=argv, env=extra_env, timeout=timeout, cancel=cancel)
             return engine.Result(0, "ok", "")
         with mock.patch.object(tools.engine, "run", fake):
             tools.get_route(self.deps, "Coach Andy")
         self.assertEqual(seen["argv"], ["get", "route", "--coach", "Coach Andy"])
         self.assertEqual(seen["env"], self.deps.keys)
+        self.assertIs(seen["cancel"], self.deps.cancel)
         self.assertNotIn("k" * 12, repr(self.deps))
 
     def test_full_gym_brief_reaches_the_model_uncut(self):
