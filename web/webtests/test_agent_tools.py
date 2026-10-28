@@ -99,6 +99,26 @@ class Tools(ToolsCase):
         self.assertEqual(seen["env"], self.deps.keys)
         self.assertNotIn("k" * 12, repr(self.deps))
 
+    def test_full_gym_brief_reaches_the_model_uncut(self):
+        r = self.brief(preset="full-gym", minutes=45)
+        self.assertEqual(r.code, 0, r.error)
+        self.assertGreater(len(r.output), tools.LIMIT)
+        self.assertFalse(r.output.endswith(tools.CUT))
+        for heading in ("## Safe menu", "## Programming guide", "## Equipment notes", "## Writing it"):
+            self.assertIn(heading, r.output)
+        with open(os.path.join(self.home, "workouts", self.deps.stem, f"{self.deps.stem}.brief.md"),
+                  encoding="utf-8") as f:
+            saved = f.read()
+        if "Would open up" in saved:
+            self.assertIn("Would open up", r.output)
+
+    def test_brief_output_cap(self):
+        big = engine.Result(0, "x" * 130000, "")
+        with mock.patch.object(tools.engine, "run", return_value=big):
+            r = self.brief()
+        self.assertEqual(len(r.output), tools.BRIEF_LIMIT + len(tools.CUT))
+        self.assertEqual(tools.BRIEF_LIMIT, 120_000)
+
     def test_output_is_cut(self):
         big = engine.Result(0, "x" * 50000, "y" * 30000)
         with mock.patch.object(tools.engine, "run", return_value=big):

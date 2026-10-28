@@ -254,15 +254,26 @@ class Sides(AgentCase):
 
 
 class Rebrief(AgentCase):
-    def test_failed_brief_drops_the_older_menu(self):
+    def plan(self, movements=("squat",)):
+        rows = [{"block": "Main", "movements": list(movements), "dose": "3 x 10", "seconds": 1200}]
+        return agent.Plan(format="Sets", equipment="none", rows=rows, left_out="", total_seconds=1200)
+
+    def test_refused_brief_keeps_the_good_menu(self):
         self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
         self.deps.plan = {"shown": True}
         self.assertEqual(tools.brief(self.deps, **dict(BRIEF_ARGS, goal="nap")).code, 64)
+        self.assertEqual(self.deps.stem, STEM)
+        self.assertEqual(self.deps.plan, {"shown": True})
+
+    def test_failed_engine_brief_drops_the_older_menu(self):
+        self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
+        self.deps.plan = {"shown": True}
+        r = tools.brief(self.deps, **dict(BRIEF_ARGS, kit="no-such-kit", preset=None))
+        self.assertNotEqual(r.code, 0)
+        self.assertNotEqual(r.code, 64 if not r.error else -1)   # the engine ran and said why
         self.assertIsNone(self.deps.stem)
         self.assertIsNone(self.deps.plan)
-        rows = [{"block": "Main", "movements": ["squat"], "dose": "3 x 10", "seconds": 1200}]
-        plan = agent.Plan(format="Sets", equipment="none", rows=rows, left_out="", total_seconds=1200)
-        self.assertEqual(agent.plan_problems(self.deps, plan), ["run brief first"])
+        self.assertEqual(agent.plan_problems(self.deps, self.plan()), ["run brief first"])
 
     def test_unreadable_menu_is_a_problem_not_a_crash(self):
         self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
@@ -280,6 +291,86 @@ class Rebrief(AgentCase):
             f.write("\nchanged again\n")
         stale = agent.plan_problems(self.deps, plan)
         self.assertIn("health.md changed", stale[0])
+
+
+class TextScan(AgentCase):
+    """Every free-text field of the plan is scanned for movements, as the build scans a draft's text."""
+
+    def setUp(self):
+        super().setUp()
+        r = tools.brief(self.deps, **dict(BRIEF_ARGS, limits=["knee=off-limits"]))
+        self.assertEqual(r.code, 0, r.error)
+        with open(os.path.join(self.home, "workouts", STEM, f"{STEM}.menu.json"), encoding="utf-8") as f:
+            self.menu = json.load(f)["movements"]
+        ids = {e["id"] for e in self.menu}
+        self.assertNotIn("jump-squat", ids)
+        self.assertNotIn("box-jump", ids)
+        self.ok = next(e["name"] for e in self.menu if "side" not in e)
+        self.other = next(e["name"] for e in self.menu if "side" not in e and e["name"] != self.ok)
+
+    def problems(self, block="Main", dose="3 x 10", left_out="", fmt="circuit", equipment="bodyweight"):
+        rows = [{"block": block, "movements": [self.ok], "dose": dose, "seconds": 1200}]
+        return agent.plan_problems(self.deps, agent.Plan(format=fmt, equipment=equipment, rows=rows,
+                                                         left_out=left_out, total_seconds=1200))
+
+    def test_reviewers_case_is_refused(self):
+        p = self.problems(block="Finisher: jump squats", dose="3 x 10, then 20 jump squats and box jumps")
+        self.assertTrue(any("jump squats" in x for x in p), p)
+        self.assertTrue(any("box jumps" in x for x in p), p)
+
+    def test_every_field_is_scanned(self):
+        for field in ("block", "dose", "fmt", "equipment", "left_out"):
+            with self.subTest(field=field):
+                p = self.problems(**{field: "then burpees and box jumps"})
+                self.assertTrue(any("box jumps" in x for x in p), p)
+
+    def test_menu_movements_in_the_dose_are_fine(self):
+        self.assertEqual(self.problems(dose=f"3 x 10, then 10 {self.other}"), [])
+
+    def test_left_out_may_name_movements_negated(self):
+        self.assertEqual(self.problems(left_out="no jumping today"), [])
+        self.assertEqual(self.problems(left_out="no jump squats, no box jumps: your knee"), [])
+        p = self.problems(left_out="jump squats, for your knee")
+        self.assertTrue(any("jump squats" in x for x in p), p)
+
+
+class Race(AgentCase):
+    """brief and show_plan in one model response never run together, and a plan checked against the menu
+    from before today's tighter limit is never kept."""
+
+    def test_show_plan_and_brief_in_one_response(self):
+        self.assertEqual(tools.brief(self.deps, **BRIEF_ARGS).code, 0)
+        old = self.deps.stem
+        with open(os.path.join(self.home, "workouts", old, f"{old}.menu.json"), encoding="utf-8") as f:
+            before = {e["id"]: e["name"] for e in json.load(f)["movements"]}
+        probe = tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY, now=self.deps.now)
+        self.assertEqual(tools.brief(probe, **dict(BRIEF_ARGS, limits=["knee=off-limits"])).code, 0)
+        with open(os.path.join(self.home, "workouts", probe.stem, f"{probe.stem}.menu.json"), encoding="utf-8") as f:
+            after = {e["id"] for e in json.load(f)["movements"]}
+        shutil.rmtree(os.path.join(self.home, "workouts", probe.stem))
+        gone = sorted(set(before) - after)
+        self.assertTrue(gone)
+        bad = before[gone[0]]   # on today's menu until the knee is off-limits
+        plan = {"format": "circuit", "equipment": "bodyweight", "left_out": "", "total_seconds": 1200,
+                "rows": [{"block": "Main", "movements": [bad], "dose": "3x10", "seconds": 1200}]}
+        knee = dict(BRIEF_ARGS, limits=["knee=off-limits"])
+        for order in (("show_plan", "brief"), ("brief", "show_plan")):
+            with self.subTest(order=order):
+                self.deps.stem, self.deps.plan = old, None
+
+                def script(messages, info):
+                    if not parts(messages, (ToolReturnPart, RetryPromptPart)):
+                        calls = {"show_plan": ToolCallPart("show_plan", {"plan": plan}, tool_call_id="a"),
+                                 "brief": ToolCallPart("brief", knee, tool_call_id="b")}
+                        return ModelResponse(parts=[calls[n] for n in order])
+                    return ModelResponse(parts=[TextPart("done")])
+
+                out = agent.run_turn(FunctionModel(script), self.deps, None, "my knee hurts today", None)
+                self.assertNotEqual(out.stem, old)
+                with open(os.path.join(self.home, "workouts", out.stem, f"{out.stem}.menu.json"),
+                          encoding="utf-8") as f:
+                    self.assertNotIn(gone[0], {e["id"] for e in json.load(f)["movements"]})
+                self.assertIsNone(out.plan)
 
 
 class Instructions(unittest.TestCase):

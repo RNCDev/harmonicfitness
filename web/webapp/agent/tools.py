@@ -10,7 +10,8 @@ from pydantic import BaseModel
 
 from webapp import engine, worker
 
-LIMIT = 20_000
+LIMIT = 20_000          # what a tool's output or error may hand the model, in characters
+BRIEF_LIMIT = 120_000   # the brief's output: the whole of it (a full-gym brief is about 87,000)
 CUT = "[cut]"
 TIMEOUT = 120
 FILES = ("profile.md", "training.md", "health.md", "log.md")
@@ -34,21 +35,21 @@ class ToolResult(BaseModel):
     error: str = ""
 
 
-def _cut(text: str) -> str:
-    return text if len(text) <= LIMIT else text[:LIMIT] + CUT
+def _cut(text: str, limit: int = LIMIT) -> str:
+    return text if len(text) <= limit else text[:limit] + CUT
 
 
-def _result(code: int, output: str = "", error: str = "") -> ToolResult:
-    return ToolResult(code=code, output=_cut(output), error=_cut(error))
+def _result(code: int, output: str = "", error: str = "", limit: int = LIMIT) -> ToolResult:
+    return ToolResult(code=code, output=_cut(output, limit), error=_cut(error))
 
 
 def _refuse(message: str) -> ToolResult:
     return _result(64, error=message)
 
 
-def _run(deps: Deps, argv: list[str]) -> ToolResult:
+def _run(deps: Deps, argv: list[str], limit: int = LIMIT) -> ToolResult:
     r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT)
-    return _result(r.code, r.stdout, r.stderr)
+    return _result(r.code, r.stdout, r.stderr, limit)
 
 
 def _text(value: object) -> bool:
@@ -113,9 +114,6 @@ def _stem(deps: Deps, goal: str, minutes: int) -> str:
 def brief(deps: Deps, goal: str, minutes: int, kit: str | None, preset: str | None,
           equipment: list[str] | None, coach: str, limits: list[str] = [], avoid: list[str] = [],
           target: list[str] = [], add: list[str] = []) -> ToolResult:
-    # a new brief replaces the last one, even when it fails: show_plan never checks against an older menu
-    deps.stem = None
-    deps.plan = None
     goals, presets = worker.engine_lists(deps.engine_root)
     if goal not in goals:
         return _refuse(f"goal must be one of {', '.join(sorted(goals))}")
@@ -135,6 +133,10 @@ def brief(deps: Deps, goal: str, minutes: int, kit: str | None, preset: str | No
         if not (_items(value) if name != "limits" else
                 isinstance(value, list) and len(value) <= 30 and all(_text(v) for v in value)):
             return _refuse(f"{name} must be a short list of plain names")
+    # a brief that runs replaces the last one, even when the engine fails: show_plan never checks against
+    # an older menu. A call refused above ran nothing and leaves the last brief standing.
+    deps.stem = None
+    deps.plan = None
     stem = _stem(deps, goal, minutes)
     draft = os.path.join(deps.home, "workouts", stem, f"{stem}.draft.txt")
     argv = ["brief", "--goal", goal, "--minutes", str(minutes)]
@@ -153,7 +155,7 @@ def brief(deps: Deps, goal: str, minutes: int, kit: str | None, preset: str | No
     if avoid:
         argv += ["--avoid", ",".join(avoid)]
     argv += ["--coach", coach, "--today", deps.today, "--save", draft]
-    result = _run(deps, argv)
+    result = _run(deps, argv, BRIEF_LIMIT)
     if result.code == 0:
         deps.stem = stem
     return result

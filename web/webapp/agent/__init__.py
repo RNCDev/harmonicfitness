@@ -20,7 +20,7 @@ from .tools import Deps, ToolResult
 __all__ = ["AGENT", "Deps", "NOT_OPEN", "Option", "Plan", "PlanRow", "Question", "TurnError", "TurnOutcome",
            "LIMITS", "UNFINISHABLE", "plan_problems", "run_turn"]
 
-LIMITS = UsageLimits(request_limit=25, tool_calls_limit=40, total_tokens_limit=400_000)
+LIMITS = UsageLimits(request_limit=25, tool_calls_limit=40, total_tokens_limit=800_000)
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.md"), encoding="utf-8") as _f:
     INSTRUCTIONS = _f.read()
@@ -117,7 +117,7 @@ def coverage(ctx: RunContext[Deps]) -> ToolResult:
     return tools.coverage(ctx.deps)
 
 
-@AGENT.tool
+@AGENT.tool(sequential=True)   # never alongside show_plan: the menu it checks against is the one this sets
 def brief(ctx: RunContext[Deps], goal: str, minutes: int, coach: str, kit: str | None = None,
           preset: str | None = None, equipment: list[str] | None = None, limits: list[str] = [],
           avoid: list[str] = [], target: list[str] = [], add: list[str] = []) -> ToolResult:
@@ -167,15 +167,43 @@ def _side_problem(catalog, name: str, side: str) -> str | None:
     return f'"{name}" is allowed on the {side} side only today; name the side (say "{say} {name}")'
 
 
+def _text_problems(catalog, menu, cat, plan: Plan, on_menu: dict) -> list[str]:
+    """The movements the plan's free text (format, equipment, left_out, each row's block and dose) names
+    that aren't on today's menu, scanned as the build scans a draft's spoken text (menu.mentions, with its
+    EVERYDAY words, shortened names of the plan's own movements and negations: "no box jumps today")."""
+    declared = set()
+    for row in plan.rows:
+        for name in row.movements:
+            m = catalog.resolve(cat, HEALTHY.sub("", name))
+            if m is not None and m.id in on_menu:
+                declared.add(m.id)
+    names = [n for i in declared for n in [cat.movements[i].name] + cat.movements[i].aliases]
+    fields = [("format", plan.format), ("equipment", plan.equipment), ("left_out", plan.left_out)]
+    for row in plan.rows:
+        fields += [(f'the "{row.block}" row\'s block', row.block), (f'the "{row.block}" row\'s dose', row.dose)]
+    problems, flagged = [], set()
+    for where, text in fields:
+        for mid, said, before in menu.mentions(cat, text):
+            if mid in declared or mid in on_menu or mid in flagged or menu._part_of(cat, said, names, declared):
+                continue
+            if menu.negated(before):
+                continue   # "no box jumps today"
+            flagged.add(mid)
+            problems.append(f'the plan names "{said}" ({mid}, in {where}), which isn\'t on today\'s menu; take it out '
+                            f'(a "no {said} today" is fine)')
+    return problems
+
+
 def plan_problems(deps: Deps, plan: Plan) -> list[str]:
     """What keeps this plan from being shown, as sentences (empty when it can be)."""
-    if not deps.stem:
+    stem = deps.stem   # one menu throughout, even if a brief changes deps.stem meanwhile
+    if not stem:
         return ["run brief first"]
     try:
         catalog, menu, errors, cat = _engine(deps)
     except (OSError, ValueError) as e:
         return [f"the movement catalog can't be read ({type(e).__name__}); the plan can't be checked"]
-    path = os.path.join(deps.home, "workouts", deps.stem, f"{deps.stem}.menu.json")
+    path = os.path.join(deps.home, "workouts", stem, f"{stem}.menu.json")
     try:
         found = menu.load(path)
     except (errors.HarmonicFitnessError, OSError):   # a damaged menu is the brief's to remake
@@ -199,6 +227,7 @@ def plan_problems(deps: Deps, plan: Plan) -> list[str]:
             why = _side_problem(catalog, name, side) if side else None
             if why:
                 problems.append(f"{why} ({row.block})")
+    problems += _text_problems(catalog, menu, cat, plan, on_menu)
     rows = sum(r.seconds for r in plan.rows)
     if rows != plan.total_seconds:
         problems.append(f"the rows add up to {rows} s, not total_seconds ({plan.total_seconds} s)")
@@ -209,11 +238,15 @@ def plan_problems(deps: Deps, plan: Plan) -> list[str]:
     return problems
 
 
-@AGENT.tool(retries=2)
+@AGENT.tool(retries=2, sequential=True)   # never alongside brief
 def show_plan(ctx: RunContext[Deps], plan: Plan) -> str:
-    """Show the listener today's plan. Every movement must be on the brief's menu, and the rows' seconds
-    must add up to total_seconds, which must be the request's minutes x 60."""
+    """Show the listener today's plan. Every movement must be on the brief's menu, in the movements lists
+    and in any words (block, dose, format, equipment, left_out), and the rows' seconds must add up to
+    total_seconds, which must be the request's minutes x 60."""
+    stem = ctx.deps.stem
     problems = plan_problems(ctx.deps, plan)
+    if not problems and ctx.deps.stem != stem:
+        problems = ["a new brief ran meanwhile: show the plan again, from its menu"]
     if problems:
         raise ModelRetry("The plan wasn't shown: " + " ".join(p if p.endswith(".") else p + "." for p in problems))
     ctx.deps.plan = plan.model_dump()
