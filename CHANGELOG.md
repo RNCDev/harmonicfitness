@@ -4,6 +4,13 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-28
+
+The web coach makes the whole workout: it records the audio once the listener approves the price, keeps it 24 hours to play or download, and stops on request. New listeners are set up in the chat, and an account can be exported or deleted.
+
+### For forks
+- **Nothing in `me/` to migrate.** The web client's database gains its tables on deploy (migrations 007 to 009).
+
 ### Added
 - **The web coach records the audio.** The build runs in full on the site; each MP3 a turn makes is kept 24 hours, sealed with the listener's data key, and the chat shows it with a player and a download (`GET /api/media/{id}`: byte ranges for Safari, a private browser cache until it expires).
 - **Recording waits for the listener's Record button,** with its price: a full build is first only priced (characters and dollars, the voice design included), and approving it reserves those characters from a daily allowance (`HARMONICFITNESS_DAILY_CHARS`, default 60,000) and records within that count.
