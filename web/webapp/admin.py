@@ -1,7 +1,9 @@
-"""Maintainer commands: python -m webapp.admin invite|login-link <email>.
+"""Maintainer command: python -m webapp.admin reset-password <username>.
 
-Prints the link and nothing else on stdout, so it can be piped. Never migrates: the web service
-applies migrations at start, and these commands refuse a database that lacks any.
+For someone who forgot their password: clears it and prints a one-time sign-in link (24 hours),
+and nothing else on stdout, so it can be piped. Opening the link signs them in, and the app asks
+for a new password. Never migrates: the web service applies migrations at start, and this refuses
+a database that lacks any.
 """
 import os
 import sys
@@ -11,26 +13,23 @@ from . import auth, config, db
 
 def main(argv=None, env=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) != 2 or args[0] not in ("invite", "login-link"):
-        print("usage: python -m webapp.admin invite|login-link <email>", file=sys.stderr)
+    if len(args) != 2 or args[0] != "reset-password":
+        print("usage: python -m webapp.admin reset-password <username>", file=sys.stderr)
         return 64
-    cmd, raw = args
     try:
         settings = config.load(os.environ if env is None else env)
-        email = auth._email(raw)
+        name = auth.username(args[1])
         conn = db.connect(settings.database_url)
         try:
             if db.missing(conn):
                 print("the database needs migrations the web service applies at start; deploy first",
                       file=sys.stderr)
                 return 1
-            if cmd == "login-link":
-                row = conn.execute("select 1 from users where email = %s", (email,)).fetchone()
-                conn.rollback()
-                if row is None:
-                    print("No user with that email.", file=sys.stderr)
-                    return 1
-            print(auth.invite(conn, settings, email))
+            try:
+                print(auth.reset_link(conn, settings, name).url)
+            except LookupError:
+                print("No user with that username.", file=sys.stderr)
+                return 1
         finally:
             conn.close()
     except (config.ConfigError, ValueError) as e:

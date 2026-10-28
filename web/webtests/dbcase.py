@@ -37,13 +37,13 @@ class DBCase(unittest.TestCase):
         admin.execute(f"drop schema {cls.schema} cascade")
         admin.close()
 
-    def make_user(self, email=None):
+    def make_user(self, username=None):
         """Insert a user with a fresh data key; return (user_id, UserKey)."""
-        email = email or f"{uuid.uuid4().hex[:8]}@example.test"
+        username = username or f"u{uuid.uuid4().hex[:8]}"
         user_id = uuid.uuid4()
         plain, wrapped = crypto.new_data_key(MASTER, user_id, 1)
         self.conn.execute(
-            "insert into users (id, email, wrapped_key, key_version) values (%s, %s, %s, 1)",
-            (user_id, email, wrapped))
+            "insert into users (id, username, wrapped_key, key_version) values (%s, %s, %s, 1)",
+            (user_id, username, wrapped))
         self.conn.commit()
         return user_id, store.UserKey(user_id=user_id, key=plain)

@@ -7,6 +7,8 @@ from webapp import crypto, db, store  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
 
+ALL_MIGRATIONS = sorted(p.name for p in db.MIGRATIONS.glob("*.sql"))
+
 class Migrations(DBCase):
     def test_migrate_is_idempotent(self):
         # the class's own connection was migrated in setUpClass; use a new schema
@@ -18,7 +20,7 @@ class Migrations(DBCase):
         admin.execute(f"create schema {name}")
         conn = db.connect(dbcase.URL, schema=name)
         try:
-            self.assertEqual(db.migrate(conn), ["001_init.sql", "002_sessions_renewed.sql", "003_sealed_paths.sql"])
+            self.assertEqual(db.migrate(conn), ALL_MIGRATIONS)
             self.assertEqual(db.migrate(conn), [])
         finally:
             conn.close()
@@ -82,7 +84,8 @@ class Migrations(DBCase):
             for t in threads:
                 t.join()
             self.assertEqual(errors, [])
-            self.assertEqual(sorted(results), [[], ["001_init.sql", "002_sessions_renewed.sql", "003_sealed_paths.sql"]])
+            # each migration applied by exactly one of them (they may share the list)
+            self.assertEqual(sorted(results[0] + results[1]), ALL_MIGRATIONS)
         finally:
             for c in conns:
                 c.close()

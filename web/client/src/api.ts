@@ -12,7 +12,8 @@ export class ApiError extends Error {
   }
 }
 
-export type Me = { app_name: string; email: string };
+export type Me = { app_name: string; username: string; has_password: boolean };
+export type AuthInfo = { app_name: string; registration: boolean };
 export type ContextFile = { path: string; version: number; updated_at: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type Stage = { stage: string; [field: string]: unknown };
@@ -49,6 +50,13 @@ async function call<T>(method: "GET" | "POST", url: string, body?: unknown): Pro
 
 export const api = {
   me: () => call<Me>("GET", "/api/me"),
+  authInfo: () => call<AuthInfo>("GET", "/api/auth"),
+  signIn: (username: string, password: string) =>
+    call<void>("POST", "/api/sign-in", { username, password }),
+  register: (username: string, password: string) =>
+    call<void>("POST", "/api/register", { username, password }),
+  setPassword: (current: string | null, next: string) =>
+    call<void>("POST", "/api/password", current === null ? { new: next } : { current, new: next }),
   options: () => call<Options>("GET", "/api/options"),
   context: () => call<ContextFile[]>("GET", "/api/context"),
   deviceLink: () => call<DeviceLink>("POST", "/api/device-link"),
@@ -59,10 +67,16 @@ export const api = {
       "GET", `/api/jobs/${id}`),
 };
 
-function plainError(e: unknown): string {
-  if (e instanceof ApiError && e.status === 429) return "You already have jobs waiting. Give them a minute.";
+/** A message for a person, from a failed call. */
+export function plainError(e: unknown): string {
+  if (e instanceof ApiError && e.status === 422) return "Check what you typed and try again.";
   if (e instanceof ApiError) return e.message;
   return "Couldn't reach the server.";
+}
+
+function jobError(e: unknown): string {
+  if (e instanceof ApiError && e.status === 429) return "You already have jobs waiting. Give them a minute.";
+  return plainError(e);
 }
 
 /** One job at a time: start it, follow its events, then read its result. */
@@ -83,7 +97,7 @@ export function useJob(onSignedOut: () => void) {
         result: j.state === "done" ? j.result : null } : v));
     } catch (e) {
       if (e instanceof NotSignedIn) return onSignedOut();
-      setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: plainError(e) } : v));
+      setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: jobError(e) } : v));
     }
   }, [onSignedOut]);
 
@@ -136,7 +150,7 @@ export function useJob(onSignedOut: () => void) {
       follow(id);
     } catch (e) {
       if (e instanceof NotSignedIn) return onSignedOut();
-      setJob({ id: 0, state: "failed", error: plainError(e), stages: [], result: null });
+      setJob({ id: 0, state: "failed", error: jobError(e), stages: [], result: null });
     }
   }, [follow, onSignedOut, stop]);
 

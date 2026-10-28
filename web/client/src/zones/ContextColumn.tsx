@@ -1,7 +1,8 @@
-// The context column: the user's files by name, and signing in another device.
+// The context column: the user's files by name, signing in another device, the password.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { api, NotSignedIn, type ContextFile, type DeviceLink } from "../api";
+import { PasswordForm } from "../SignIn";
 
 function until(iso: string): string {
   const d = new Date(iso);
@@ -52,15 +53,35 @@ function DeviceLinkBox({ onSignedOut }: { onSignedOut: () => void }) {
   );
 }
 
+function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(false);
+  return (
+    <div className="cx-box">
+      <p className="cx-s">Signed in as <strong>{username}</strong></p>
+      {open ? (
+        <PasswordForm username={username} needsCurrent onSignedOut={onSignedOut}
+          onDone={() => { setOpen(false); setDone(true); }} />
+      ) : (
+        <button type="button" className="quiet" onClick={() => { setOpen(true); setDone(false); }}>
+          Change password
+        </button>
+      )}
+      {done && <p className="cx-s" role="status">Password changed.</p>}
+    </div>
+  );
+}
+
 type Props = {
   files: ContextFile[] | null;
+  username: string;
   open: boolean;
   onClose: () => void;
   onSignedOut: () => void;
   onSignOut: () => void;
 };
 
-export function ContextColumn({ files, open, onClose, onSignedOut, onSignOut }: Props) {
+export function ContextColumn({ files, username, open, onClose, onSignedOut, onSignOut }: Props) {
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -80,6 +101,7 @@ export function ContextColumn({ files, open, onClose, onSignedOut, onSignOut }: 
             )}
           </div>
           <DeviceLinkBox onSignedOut={onSignedOut} />
+          <PasswordBox username={username} onSignedOut={onSignedOut} />
           <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>
         </div>
       </aside>

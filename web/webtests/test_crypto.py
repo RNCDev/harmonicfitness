@@ -73,9 +73,15 @@ class Crypto(unittest.TestCase):
 class Config(unittest.TestCase):
     def test_load(self):
         s = config.load(env())
-        self.assertEqual((s.role, s.session_days, s.invite_days), ("web", 90, 7))
+        self.assertEqual((s.role, s.session_days, s.registration), ("web", 90, True))
         self.assertEqual(len(s.master_key), 32)
         self.assertTrue(os.path.isdir(os.path.join(s.engine_root, "tools")))
+
+    def test_registration_switch(self):
+        for raw, want in (("closed", False), (" CLOSED ", False), ("open", True), ("", True)):
+            self.assertEqual(config.load(env(WT_REGISTRATION=raw)).registration, want, raw)
+        with self.assertRaises(config.ConfigError):
+            config.load(env(WT_REGISTRATION="maybe"))
 
     def test_engine_root_override(self):
         self.assertEqual(config.load(env(WT_ENGINE_ROOT="/x")).engine_root, "/x")

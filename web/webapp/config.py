@@ -20,7 +20,7 @@ class Settings:
     role: str = "web"
     engine_root: str = ""
     session_days: int = 90
-    invite_days: int = 7
+    registration: bool = True
 
 
 def _required(env: Mapping[str, str], name: str) -> str:
@@ -43,7 +43,10 @@ def load(env: Mapping[str, str]) -> Settings:
     role = env.get("WT_ROLE", "web").strip()
     if role not in ROLES:
         raise ConfigError("WT_ROLE must be 'web' or 'worker'")
+    reg = env.get("WT_REGISTRATION", "open").strip().lower() or "open"
+    if reg not in ("open", "closed"):
+        raise ConfigError("WT_REGISTRATION must be 'open' or 'closed'")
     root = env.get("WT_ENGINE_ROOT", "").strip() or os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return Settings(database_url=database_url, master_key=master, base_url=base_url,
-                    role=role, engine_root=root)
+                    role=role, engine_root=root, registration=reg == "open")

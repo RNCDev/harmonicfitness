@@ -14,7 +14,7 @@ const proxy: ProxyOptions = {
 
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { "/api": proxy, "/invite": proxy } },
+  server: { proxy: { "/api": proxy, "/link": proxy } },
   build: { outDir: "dist", emptyOutDir: true },
   test: {
     environment: "jsdom",

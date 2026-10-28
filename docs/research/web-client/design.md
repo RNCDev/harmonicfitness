@@ -35,7 +35,7 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 - **Week planning.** Filler content is tied to the day; no multi-day plan.
 - **Permanent audio storage.** The MP3 is kept for a limited time for download, and the app says so.
 - **Writing to a folder on the user's computer.** Delivery is a download.
-- **Public sign-up.** The group is small and invited.
+- ~~**Public sign-up.**~~ Changed 2026-10-27 by the maintainer: anyone can make an account with a username and password, while registration is open; a setting (`WT_REGISTRATION=closed`) shuts it. The group is still meant to be small.
 - **Replacing the CLI.** The CLI stays the primary product and keeps working exactly as it does.
 
 ## Anti-goals (a failure even if it technically works)
@@ -113,7 +113,7 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 
 ### Workflows (behaviour, not presentation)
 
-- **New user:** invite, sign-in, setup (the setup skill's quick start, web version): name, experience, kit, injuries, the disclaimer and red flags, a language-model key, a voice key, a stock web coach for that service (made in their account, saying so and the cost first), then a ten-minute workout. "Finish setting me up" stays available.
+- **New user:** make an account (username and password), setup (the setup skill's quick start, web version): name, experience, kit, injuries, the disclaimer and red flags, a language-model key, a voice key, a stock web coach for that service (made in their account, saying so and the cost first), then a ten-minute workout. "Finish setting me up" stays available.
 - **Import from the CLI (one time):** an existing CLI user can upload their `me/` folder (as a ZIP) once, during or instead of setup. The import runs `migrate` on it, then `check`, and shows what came in and what `check` found. It never takes `.env` (keys are entered in the app), the clip cache, render logs, auditions in progress or MP3s. After import, the web store and the CLI's folder are separate: no sync in either direction. Export (below) gives a folder back in the same format.
 - **Build a workout:** the workout skill, in order: the check-in (limits, readiness, goal, length, kit, coach), research, the brief, design, the plan shown, write, lint, build, deliver, log. After the check-in, the user can leave. The privacy line comes before the first web build, and must now also cover the language-model provider, which sees the profile and health details too.
 - **Edit my stuff:** the panel edits the context files through the engine's formats; `./sweatcast check` runs after a change and its findings are shown.
@@ -144,7 +144,7 @@ Success: someone in the group goes from "build me a 25-minute hotel workout" to 
 ## Left to the builder
 
 - Agent framework (Pydantic AI or a thin adapter), job-queue library, ORM and migrations tool.
-- Sign-in method for an invite-only group, and how invites are issued.
+- Sign-in method (decided 2026-10-27: username and password, open registration with a switch, no email).
 - Schema details: how context files map to tables (one row per file is the simplest fit), chat history storage, the job and event tables.
 - Whether the voice-pace file and the clip cache persist between a user's jobs (it would save re-billing a rebuild in a later job; within one job it is already kept).
 - Streaming format between worker, server and browser.

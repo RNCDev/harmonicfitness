@@ -2,7 +2,9 @@
 
     uvicorn webapp.api:create_app_from_env --factory --no-access-log   (run from web/)
 
-Every route under /api but the invite redeem needs the session cookie `wt_session` (else 401).
+Every route under /api but sign-in, registration and a link's redeem needs the session cookie
+`wt_session` (else 401). Failed sign-ins and registrations are throttled in memory (one web
+process), by username and by client address.
 Every POST needs an Origin (or, without one, a Referer) of WT_BASE_URL's origin (else 403).
 A job or file of another user is 404, the same as one that doesn't exist. Nothing here logs a
 token, a job's arguments, its events or its result.
@@ -13,9 +15,11 @@ for its whole life, in autocommit: it LISTENs on job_events and reads the job's 
 on that same connection (each read its own transaction, so it sees every commit), and closes it
 when the stream ends or the client goes away.
 """
+import collections
 import html
 import json
 import os
+import threading
 import time
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
@@ -40,6 +44,50 @@ POLL_EVERY = 5            # seconds between status reads without a NOTIFY (fail 
 WAIT_SLICE = 1.0          # seconds a stream blocks at most, so a client gone away is noticed soon
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 JOB_ID = PathParam(ge=1, le=2**63 - 1)
+# (attempts, seconds): failed sign-ins per username and per address; registrations per address
+# and across everyone
+LOGIN_PER_NAME = (10, 15 * 60)
+LOGIN_PER_ADDRESS = (50, 15 * 60)
+REGISTER_PER_ADDRESS = (10, 60 * 60)   # every attempt counts, taken names too
+REGISTER_ALL = (50, 60 * 60)
+
+
+class Throttle:
+    """At most `limit` hits per key in a sliding window."""
+
+    def __init__(self, limit: int, window: float, clock=time.monotonic):
+        self.limit, self.window, self.clock = limit, window, clock
+        self.hits: dict[str, collections.deque] = {}
+        self.lock = threading.Lock()
+
+    def _live(self, key: str) -> collections.deque:
+        q = self.hits.setdefault(key, collections.deque())
+        cutoff = self.clock() - self.window
+        while q and q[0] <= cutoff:
+            q.popleft()
+        return q
+
+    def full(self, key: str) -> bool:
+        with self.lock:
+            full = len(self._live(key)) >= self.limit
+            if not self.hits[key]:
+                del self.hits[key]
+            return full
+
+    def hit(self, key: str) -> None:
+        with self.lock:
+            if len(self.hits) >= 10_000:      # keep memory bounded: forget keys gone quiet
+                for k in [k for k in self.hits if not self._live(k)]:
+                    del self.hits[k]
+            self._live(key).append(self.clock())
+
+
+def _address(request: Request) -> str:
+    """The client's address: the last X-Forwarded-For entry (the one our host's proxy added),
+    else the socket's peer."""
+    fwd = request.headers.get("x-forwarded-for", "")
+    last = fwd.split(",")[-1].strip()
+    return last or (request.client.host if request.client else "")
 
 
 def _origin(url: str) -> str:
@@ -58,6 +106,18 @@ class BriefJob(BaseModel):
     minutes: StrictInt
     preset: StrictStr
     today: Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+
+
+class Credentials(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: Annotated[StrictStr, StringConstraints(max_length=200)]
+    password: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)]
+
+
+class NewPassword(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)] | None = None
+    new: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)]
 
 
 class _Headers:
@@ -85,14 +145,14 @@ class _Headers:
         await self.app(scope, receive, sending)
 
 
-def _invite_page(token: str) -> str:
+def _link_page(token: str) -> str:
     t = html.escape(token, quote=True)
     title = html.escape(f"Sign in to {APP_NAME}")
     return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="robots" content="noindex">'
             f"<title>{title}</title></head>\n<body>"
-            f'<form method="post" action="/api/invite/redeem">'
+            f'<form method="post" action="/api/link/redeem">'
             f'<input type="hidden" name="token" value="{t}">'
             f'<button type="submit">{title}</button></form></body></html>\n')
 
@@ -101,7 +161,7 @@ def _refused_page() -> str:
     return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
             f'<meta name="robots" content="noindex">'
             f"<title>{html.escape(APP_NAME)}</title></head>\n<body><p>This link has expired or "
-            f"was already used. Ask for a new one.</p></body></html>\n")
+            f"was already used.</p></body></html>\n")
 
 
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
@@ -172,6 +232,14 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     User = Annotated[store.UserKey, Depends(session)]
     post = {"dependencies": [Depends(same_origin)]}
+    login_name, login_addr = Throttle(*LOGIN_PER_NAME), Throttle(*LOGIN_PER_ADDRESS)
+    reg_addr, reg_all = Throttle(*REGISTER_PER_ADDRESS), Throttle(*REGISTER_ALL)
+
+    def signed_in(token: str, status: int = 204) -> Response:
+        r = Response(status_code=status)
+        r.set_cookie(COOKIE, token, max_age=settings.session_days * 86400, path="/",
+                     secure=_secure(settings), httponly=True, samesite="lax")
+        return r
 
     @app.get("/healthz")
     def healthz():
@@ -180,12 +248,61 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     # ---- sign-in ----------------------------------------------------------------------------
 
-    @app.get("/invite/{token}", response_class=HTMLResponse)
-    def invite_page(token: str):
-        """A page whose button signs in; opening it (as a link preview does) uses nothing up."""
-        return HTMLResponse(_invite_page(token), headers={"Cache-Control": "no-store"})
+    @app.get("/api/auth")
+    def auth_info():
+        """What the sign-in page offers."""
+        return {"app_name": APP_NAME, "registration": settings.registration}
 
-    @app.post("/api/invite/redeem", **post)
+    @app.post("/api/register", status_code=201, **post)
+    def register(request: Request, body: Annotated[Credentials, Body()]):
+        if not settings.registration:
+            raise HTTPException(403, "New accounts are closed for now.")
+        addr = _address(request)
+        if reg_addr.full(addr) or reg_all.full("all"):
+            raise HTTPException(429, "Too many new accounts just now. Try again in an hour.")
+        reg_addr.hit(addr)
+        try:
+            with connection() as conn:
+                token = auth.register(conn, settings, body.username, body.password)
+        except auth.Invalid as e:
+            raise HTTPException(400, str(e)) from None
+        except auth.Taken:
+            raise HTTPException(409, "That username is taken.") from None
+        reg_all.hit("all")
+        return signed_in(token, 201)
+
+    @app.post("/api/sign-in", status_code=204, **post)
+    def sign_in(request: Request, body: Annotated[Credentials, Body()]):
+        name, addr = body.username.strip().lower(), _address(request)
+        if login_name.full(name) or login_addr.full(addr):
+            raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
+        try:
+            with connection() as conn:
+                token = auth.sign_in(conn, settings, body.username, body.password)
+        except auth.WrongPassword:
+            login_name.hit(name)
+            login_addr.hit(addr)
+            raise HTTPException(400, "Wrong username or password.") from None
+        return signed_in(token)
+
+    @app.post("/api/password", status_code=204, **post)
+    def password(request: Request, uk: User, body: Annotated[NewPassword, Body()]):
+        try:
+            with connection() as conn:
+                auth.set_password(conn, uk.user_id, body.current, body.new,
+                                  keep_session=request.cookies.get(COOKIE))
+        except auth.Invalid as e:
+            raise HTTPException(400, str(e)) from None
+        except auth.WrongPassword:
+            raise HTTPException(400, "Your current password isn't right.") from None
+        return Response(status_code=204)
+
+    @app.get("/link/{token}", response_class=HTMLResponse)
+    def link_page(token: str):
+        """A page whose button signs in; opening it (as a link preview does) uses nothing up."""
+        return HTMLResponse(_link_page(token), headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/link/redeem", **post)
     async def redeem(request: Request):
         raw = await request.body()
         is_json = request.headers.get("content-type", "").split(";")[0].strip() == "application/json"
@@ -232,10 +349,10 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/api/me")
     def me(uk: User):
         with connection() as conn:
-            email = conn.execute("select email from users where id = %s",
-                                 (uk.user_id,)).fetchone()[0]
+            name, pw = conn.execute("select username, password_hash is not null from users "
+                                    "where id = %s", (uk.user_id,)).fetchone()
             conn.rollback()
-        return {"app_name": APP_NAME, "email": email}
+        return {"app_name": APP_NAME, "username": name, "has_password": pw}
 
     @app.get("/api/options")
     def get_options(uk: User):
@@ -302,7 +419,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     @app.get("/{path:path}", include_in_schema=False)
     def client(path: str):
-        if path == "api" or path.startswith(("api/", "invite/")):
+        if path == "api" or path.startswith(("api/", "link/")):
             raise HTTPException(404, "not found")
         if not dist.is_dir():
             if path == "":

@@ -255,6 +255,18 @@ button[disabled] { cursor: not-allowed }
 .solo { max-width: 32em; margin: 0 auto; padding: 18vh 16px 48px }
 .solo h1 { font-family: var(--display); font-size: 30px; line-height: 1.15; letter-spacing: -.02em; margin: 24px 0 8px }
 .solo p { color: var(--ink-2); margin: 0 0 24px }
+.solo .auth { margin-bottom: 28px }
+.auth { display: flex; flex-direction: column; gap: 10px; margin-top: var(--s3) }
+.auth label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 15px }
+.auth input {
+  font: inherit; font-weight: 400; color: var(--ink); background: var(--base);
+  border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; width: 100%;
+}
+.auth input:focus-visible { outline: 3px solid var(--tok); outline-offset: 1px; border-color: transparent }
+.auth .go { align-self: flex-start; margin-top: 8px }
+.auth .hint, .solo .hint { font-size: 14px; color: var(--ink-2); margin: -4px 0 4px }
+.auth .err { color: var(--stop); margin: 0; font-size: 15px }
+.cx-box .auth input { background: var(--sheet) }
 
 /* ---------- phone ---------- */
 @media (max-width: 820px) {

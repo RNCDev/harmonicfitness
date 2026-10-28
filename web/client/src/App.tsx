@@ -1,6 +1,7 @@
 // The signed-in app: the band, chat, the working panel and the context column.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, APP_NAME, NotSignedIn, useJob, type ContextFile } from "./api";
+import { api, APP_NAME, NotSignedIn, useJob, type ContextFile, type Me } from "./api";
+import { ChoosePassword, SignIn } from "./SignIn";
 import { buildWorkoutSentence, localDate, setToken, toJobArgs, type SentenceModel } from "./sentence/model";
 import { Band } from "./zones/Band";
 import { Chat } from "./zones/Chat";
@@ -8,16 +9,6 @@ import { ContextColumn } from "./zones/ContextColumn";
 import { Panel } from "./zones/Panel";
 
 type Auth = "loading" | "in" | "out" | "error";
-
-function SignedOut() {
-  return (
-    <main className="solo">
-      <div className="mark">{APP_NAME}</div>
-      <h1>Open your invite link to sign in</h1>
-      <p>Lost it? Ask for a new one, or sign in from a device you already use.</p>
-    </main>
-  );
-}
 
 function Unreachable({ onRetry }: { onRetry: () => void }) {
   return (
@@ -33,6 +24,7 @@ export function App() {
   const [auth, setAuth] = useState<Auth>("loading");
   const [model, setModel] = useState<SentenceModel | null>(null);
   const [files, setFiles] = useState<ContextFile[] | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   const [drawer, setDrawer] = useState(false);
 
   // useJob reports a 401 through a ref, so its stream can be closed by the same callback.
@@ -47,7 +39,8 @@ export function App() {
   const load = useCallback(async () => {
     setAuth("loading");
     try {
-      const [, options, context] = await Promise.all([api.me(), api.options(), api.context()]);
+      const [who, options, context] = await Promise.all([api.me(), api.options(), api.context()]);
+      setMe(who);
       setModel((m) => m ?? buildWorkoutSentence(options, {}));
       setFiles(context);
       setAuth("in");
@@ -94,8 +87,12 @@ export function App() {
     signedOut();
   }, [signedOut]);
 
-  if (auth === "out") return <SignedOut />;
+  if (auth === "out") return <SignIn onSignedIn={load} />;
   if (auth === "error") return <Unreachable onRetry={load} />;
+  if (me && !me.has_password) {
+    return <ChoosePassword username={me.username} onSignedOut={signedOut}
+      onDone={() => setMe({ ...me, has_password: true })} />;
+  }
 
   const busy = job?.state === "queued" || job?.state === "running";
   return (
@@ -108,7 +105,7 @@ export function App() {
       <main className="panel">
         <Panel job={job} onRetry={go} />
       </main>
-      <ContextColumn files={files} open={drawer} onClose={closeDrawer}
+      <ContextColumn files={files} username={me?.username ?? ""} open={drawer} onClose={closeDrawer}
         onSignedOut={signedOut} onSignOut={signOut} />
     </div>
   );
