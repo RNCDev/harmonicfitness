@@ -38,6 +38,29 @@ class ModelFor(unittest.TestCase):
         self.assertEqual(providers.model_for("anthropic", "k" * 20).client.max_retries, 0)
         self.assertEqual(providers.model_for("openai", "k" * 20).client.max_retries, 0)
 
+    def test_google_never_retries_and_times_out_at_180s(self):
+        m = providers.model_for("google", "k" * 20)
+        # _api_client._http_options is private to google-genai; it is where the Client keeps them.
+        opts = m.client._api_client._http_options
+        self.assertEqual(opts.retry_options.attempts, 1)
+        self.assertEqual(opts.timeout, 180000)
+
+    def test_google_provider_keeps_the_client_we_passed(self):
+        from unittest import mock
+        import google.genai
+        made = []
+        real = google.genai.Client
+
+        def spy(*a, **kw):
+            made.append(real(*a, **kw))
+            return made[-1]
+
+        with mock.patch("google.genai.Client", spy):
+            m = providers.model_for("google", "k" * 20)
+        self.assertEqual(len(made), 1)
+        self.assertIs(m._provider.client, made[0])
+        self.assertIs(m.client, made[0])
+
 
 def _agent():
     from pydantic_ai import Agent
