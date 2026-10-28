@@ -35,7 +35,8 @@ cuda = [
 ]
 # The web client (web/): its server, database driver, encryption and test client. Never core.
 web = [
-    "fastapi==0.143.0",
+    "fastapi==0.161.0",
+    "starlette==0.52.1",
     "uvicorn[standard]==0.54.0",
     "psycopg[binary,pool]==3.3.6",
     "cryptography==50.0.2",
