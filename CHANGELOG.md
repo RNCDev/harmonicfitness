@@ -7,6 +7,8 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 ### Added
 - **The web client's mode.** With `HARMONICFITNESS_WEB=1` (the web client's worker sets it) the engine has no local voice: a build with no coach named takes the first stock web coach, whose key the listener adds in the app, and a finished MP3 is kept in its workout folder for the app to upload, with no delivery folder asked for (`doctor` reports `web=yes`). Unset, nothing changes. A web coach with no key yet now shows its estimated pace in the brief instead of none.
 - **Voice keys in the web app.** A listener enters each web voice service's key once in the app's Voice keys box; it is stored encrypted per user and never shown again. Only the worker opens the keys, for one job, and hands them to the engine under `services.toml`'s variable names, so the engine reads them instead of `me/.env`.
+- **The web client's agent, through the plan.** A listener starts a conversation in the app: the agent checks in from the profile, training, health and log files (a panel question for each choice), runs the brief and shows a plan table whose every movement is on the brief's safe menu. It runs on the listener's own Claude key; ChatGPT and Gemini are built but not offered until they pass the eval grid (`HARMONICFITNESS_PROVIDERS`).
+- **A language-model key in Keys.** Each listener adds their model key in the app's Keys box, stored like a voice key and used only by that job's model client.
 
 ## [0.20.0] - 2026-10-27
 

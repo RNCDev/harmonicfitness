@@ -34,6 +34,22 @@ The web process seals a key on entry and never opens one: `GET /api/keys` says o
 
 Every job runs the engine with `HARMONICFITNESS_WEB=1`: no local voices, "add a key" messages point at the app, a stock web coach by default, and the finished MP3 is kept for the app to upload.
 
+## Agent
+
+A conversation is a series of short `turn` jobs. Each runs one agent turn (Pydantic AI) in the listener's temporary folder with their own language-model key, then saves the conversation, sealed with their data key: the history, the chat lines, the open question, the plan and the brief's stem. The turn also writes back the files its folder changed (the brief and its menu among them), never `health.md`.
+
+The providers are Claude (`claude-sonnet-5-5`), ChatGPT (`gpt-6.1-sol`) and Gemini (`gemini-3.8-flash`). `HARMONICFITNESS_PROVIDERS` names the ones offered, on both services; it defaults to `anthropic`, and the others stay out until the eval grid passes them. A model key is stored like a voice key, and only that job's model client holds it: the engine's environment never gets it.
+
+Nothing retries a provider request: `max_retries=0` (Gemini gets one attempt), with a 180-second timeout per request. A turn stops at 25 model requests, 40 tool calls or 400,000 tokens. The only retry is the agent asking the model again when `show_plan` refuses a plan.
+
+The agent has no shell and no file access. Its tools run the engine's commands in the listener's folder (`check`, `get coach`, `get route`, `coaches`, `content plan`, `coverage`, `brief`) and read four files (`profile.md`, `training.md`, `health.md`, `log.md`). `ask_user` pauses the turn for the check-in, which the panel shows. `show_plan` refuses any movement that isn't on the brief's menu.
+
+The model provider sees those four files and the engine's output from those commands: the brief, with the safe menu and today's limits, among it.
+
+Scope now runs through the plan. Research, the script, the audio and the log come in Milestone 4, and a turn never writes `health.md`.
+
+Routes: `POST /api/conversations`, `GET /api/conversations/latest` and `GET /api/conversations/{id}`, `POST /api/conversations/{id}/messages` and `POST /api/conversations/{id}/answer`.
+
 ## Serve
 
 Run from `web/`, with `DATABASE_URL`, `HARMONICFITNESS_BASE_URL` and `HARMONICFITNESS_MASTER_KEY` set (the same as the admin commands). It applies any database migrations once at startup, then serves the API and, when `web/client/dist` has been built, the client:
