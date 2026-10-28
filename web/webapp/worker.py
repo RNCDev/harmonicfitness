@@ -281,24 +281,65 @@ def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str)
         ctx.conn.rollback()
 
 
-AUDIO_KEPT = 2   # MP3s a turn keeps, newest first (a turn normally makes one)
+AUDIO_KEPT = 2   # a workout's or a coach sample's MP3s a turn keeps, newest first (a turn normally makes one)
 
 
-def _keep_audio(ctx: Ctx) -> list[dict]:
-    """The MP3s this turn's builds made (the folder held none: materialize never writes one), kept 24 hours
-    for the listener, newest first. Committed now, so the chat can link them as soon as the turn is saved."""
-    found = []
-    for top in ("workouts", "coaches"):   # a workout, or a coach's voice sample made at setup
-        for dirpath, _, files in os.walk(os.path.join(ctx.home, top)):
-            found += [os.path.join(dirpath, f) for f in files if f.endswith(".mp3") and ".web-" not in f]
+def _candidate_names(folder_path: str) -> dict[str, str]:
+    """{mp3 file name: chat name} for an audition's candidates: by letter and cost a workout, never the
+    service (the listener picks by ear). Empty when its candidates list can't be read."""
+    import json
+    try:
+        with open(os.path.join(folder_path, "candidates.json"), encoding="utf-8") as f:
+            cands = json.load(f)
+        names = {}
+        for c in cands:
+            usd = c.get("usd_per_workout")
+            cost = f", about ${usd:.2f} a workout" if isinstance(usd, (int, float)) else ""
+            if isinstance(c.get("mp3"), str) and isinstance(c.get("letter"), str):
+                names[c["mp3"]] = f"Candidate {c['letter']}{cost}"
+        return names
+    except (OSError, ValueError, TypeError, AttributeError):
+        return {}
+
+
+def new_audio(home: str, written: dict[str, str]) -> list[tuple[str, str]]:
+    """(path, chat name) of each MP3 this turn made: the newest AUDIO_KEPT workouts or coach samples, then
+    every candidate of an audition, in letter order. An MP3 the folder already held (`written`: an audition
+    from an earlier turn) isn't one."""
+    found, candidates = [], []
+    for top in ("workouts", "coaches"):   # a workout, or a coach's voice sample made at setup or a keep
+        for dirpath, _, files in os.walk(os.path.join(home, top)):
+            for f in files:
+                path = os.path.join(dirpath, f)
+                rel = os.path.relpath(path, home).replace(os.sep, "/")
+                if not f.endswith(".mp3") or ".web-" in f or rel in written:
+                    continue
+                (candidates if rel.startswith(folder.AUDITIONS) else found).append(path)
     found.sort(key=os.path.getmtime, reverse=True)
-    kept = []
+    out = []
     for path in found[:AUDIO_KEPT]:
+        coach = os.path.basename(path) == "sample.mp3"
+        out.append((path, f"{os.path.basename(os.path.dirname(path))}: voice sample" if coach
+                    else os.path.basename(path)[:-4]))
+    by_audition: dict[str, list[str]] = {}
+    for path in sorted(candidates):
+        by_audition.setdefault(os.path.dirname(path), []).append(os.path.basename(path))
+    named = []
+    for where, mp3s in sorted(by_audition.items()):
+        names = _candidate_names(where)   # in letter order
+        listed = [m for m in names if m in mp3s] + [m for m in mp3s if m not in names]
+        named += [(os.path.join(where, m), names.get(m, "Voice candidate")) for m in listed]
+    return out + named
+
+
+def _keep_audio(ctx: Ctx, written: dict[str, str]) -> list[dict]:
+    """The MP3s this turn made (new_audio), kept 24 hours for the listener. Committed now, so the chat can
+    link them as soon as the turn is saved."""
+    kept = []
+    for path, name in new_audio(ctx.home, written):
         with open(path, "rb") as f:
             body = f.read(media.MAX_BYTES + 1)
         try:
-            coach = os.path.basename(path) == "sample.mp3"
-            name = f"{os.path.basename(os.path.dirname(path))}: voice sample" if coach else os.path.basename(path)[:-4]
             kept.append(media.put(ctx.conn, ctx.uk, name, body))
         except ValueError:
             continue
@@ -365,6 +406,9 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
                       now=now, say=lambda text, tool, code: _step(ctx, text, tool, code), cancel=ctx.cancel)
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
+    # and the coach skill: asked for now, still being made (the quick coach's answer names no coach), or an
+    # audition waiting for their pick
+    deps.coach = conv.coach or agent.wants_coach(line) or agent.audition_open(ctx.home)
     record = ctx.args.get("record") is True   # the listener pressed Record: the offer is approved
     deps.approved = conv.offer if record else None
     deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)
@@ -399,11 +443,12 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
         clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
         ctx.conn.commit()
     lines = conv.lines if outcome.reply is None else _agent_line(conv, outcome.reply)
-    for audio in _keep_audio(ctx):
+    for audio in _keep_audio(ctx, written):
         lines = lines + [{"role": "agent", "text": "", "audio": audio}]
     done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle",
                                history=outcome.history_json, lines=lines, question=outcome.question,
-                               plan=outcome.plan, stem=outcome.stem, offer=deps.offer)   # as returned: None after a failed brief
+                               plan=outcome.plan, stem=outcome.stem, offer=deps.offer,
+                               coach=deps.coach and not deps.coach_done)   # as returned: None after a failed brief
 
     def save_turn() -> None:
         if not conversations.save(ctx.conn, ctx.uk, done, conv.version):

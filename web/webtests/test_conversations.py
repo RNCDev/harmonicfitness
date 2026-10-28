@@ -1,4 +1,5 @@
 import os
+import unittest
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -175,3 +176,18 @@ class Conversations(DBCase):
         self.assertEqual((got.state, got.version), ("working", newer.version))
         self.assertEqual(conversations.load(self.conn, uk, cid).lines, [{"role": "user", "text": "hi"}])
         self.conn.rollback()
+
+
+class Sealed(unittest.TestCase):
+    """The sealed body, without a database."""
+
+    def test_the_coach_flag_round_trips_and_defaults_off(self):
+        import uuid
+        from webapp import crypto, store
+        uk = store.UserKey(user_id=uuid.uuid4(), key=bytes(range(32)))
+        for coach in (True, False):
+            c = conversations.Conversation(id=7, state="idle", version=1, coach=coach)
+            got = conversations._open(uk, 7, "idle", 1, None, conversations._seal(uk, c))
+            self.assertIs(got.coach, coach)
+        old = crypto.seal(uk.key, b'{"history": null, "lines": []}', conversations._aad(uk, 7))   # before 0.24.0
+        self.assertIs(conversations._open(uk, 7, "idle", 1, None, old).coach, False)

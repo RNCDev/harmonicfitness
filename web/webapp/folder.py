@@ -14,12 +14,32 @@ from .store import check_path
 # "*.mp3") matches the file name at any depth; one with "/" matches the whole
 # path from the root. "*" does not stop at "/" (fnmatch), which is harmless here.
 SKIP = (
-    ".env", ".env.*", "*.env", "*.lock", "workouts/.audio-cache/", "coaches/.auditions/",
+    ".env", ".env.*", "*.env", "*.lock", "workouts/.audio-cache/",
     "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store", ".cache/",
 )
 
+# A coach's audition spans turns (the candidates, then the listener's pick), so its files are kept until
+# forget-audition removes them: the narrative beside the auditions, and in each audition's folder its
+# candidates list, narrative and each candidate's WAV (which keep sends to the service) and MP3.
+AUDITIONS = "coaches/.auditions/"
+AUDITION_FILES = (".md", ".json", ".wav", ".mp3")
+
+
+def audition_file(path: str) -> bool:
+    """A file of a coach's audition: `coaches/.auditions/<narrative>.md`, or a candidates list, narrative,
+    WAV or MP3 directly inside `coaches/.auditions/<audition>/`."""
+    if not path.startswith(AUDITIONS):
+        return False
+    rest = path[len(AUDITIONS):].split("/")
+    name = rest[-1]
+    if name.startswith(".") or not name.endswith(AUDITION_FILES) or rest[0].startswith("."):
+        return False
+    return (len(rest) == 1 and name.endswith(".md")) or len(rest) == 2
+
 
 def skipped(path: str) -> bool:
+    if path.startswith(AUDITIONS):
+        return not audition_file(path)
     parts = path.split("/")
     for pat in SKIP:
         if pat.endswith("/"):

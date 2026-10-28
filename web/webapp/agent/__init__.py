@@ -18,25 +18,30 @@ from pydantic_ai.messages import ToolCallPart, ToolReturnPart
 from . import tools
 from .tools import Deps, ToolResult
 
-__all__ = ["AGENT", "Deps", "LIMITS", "prefetch", "start_feeds", "NOT_OPEN", "STOPPED", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
+__all__ = ["AGENT", "Deps", "LIMITS", "audition_open", "prefetch", "wants_coach", "start_feeds", "NOT_OPEN", "STOPPED", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
            "UNFINISHABLE", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
 TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
 SKILL = (".claude/skills/workout/SKILL.md", ".claude/skills/workout/research.md")
 SETUP = (".claude/skills/setup/SKILL.md",)
+COACH = (".claude/skills/coach/SKILL.md",)
 SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard)", re.IGNORECASE)
+# The coach skill's own triggers: a new coach, a different voice, a coach that sounds or talks differently.
+COACH_WORDS = re.compile(r"\b(new|another|different|own|switch|change|design|make|create)\b[^.?!]{0,30}"
+                         r"\b(coach|voice|trainer)|\b(coach|voice)\b[^.?!]{0,20}\b(sounds?|talks?|a (wo)?man)\b",
+                         re.IGNORECASE)
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.md"), encoding="utf-8") as _f:
     PREAMBLE = _f.read()
 
 
 @functools.lru_cache(maxsize=8)
-def skill_text(engine_root: str, setup: bool = False) -> str:
-    """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet), so the
-    web follows the same steps as the CLI."""
+def skill_text(engine_root: str, setup: bool = False, coach: bool = False) -> str:
+    """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet, and the
+    coach skill while a coach is being made), so the web follows the same steps as the CLI."""
     parts = []
-    for rel in (SETUP if setup else ()) + SKILL:
+    for rel in (SETUP if setup else ()) + (COACH if coach else ()) + SKILL:
         with open(os.path.join(engine_root, rel), encoding="utf-8") as f:
             parts.append(f"<file path=\"{rel}\">\n{f.read()}\n</file>")
     return "\n\n".join(parts)
@@ -57,12 +62,25 @@ def wants_setup(line: str | None) -> bool:
     return bool(line and SETUP_WORDS.search(line))
 
 
+def wants_coach(line: str | None) -> bool:
+    return bool(line and COACH_WORDS.search(line))
+
+
+def audition_open(home: str) -> bool:
+    """Whether an audition is waiting for the listener's pick (a candidates list in me/coaches/.auditions/)."""
+    base = os.path.join(home, "coaches", ".auditions")
+    try:
+        return any(os.path.isfile(os.path.join(base, d, "candidates.json")) for d in os.listdir(base))
+    except OSError:
+        return False
+
+
 AGENT = Agent(deps_type=Deps, output_type=str, instructions=PREAMBLE, retries=1)
 
 
 @AGENT.instructions
 def _skill(ctx: RunContext[Deps]) -> str:
-    return skill_text(ctx.deps.engine_root, ctx.deps.setup)
+    return skill_text(ctx.deps.engine_root, ctx.deps.setup, ctx.deps.coach)
 
 
 @AGENT.instructions
@@ -77,6 +95,9 @@ STEPS = {"brief": "Working out today's safe moves", "build": "Recording your wor
          "feeds": "Gathering today's news and weather", "get": "Checking your settings",
          "log-session": "Logging the session", "movements": "Looking through the moves",
          "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Checking how the coach works"}
+COACH_STEPS = {"make": "Making your coach's voice", "audition": "Auditioning voices for your coach",
+               "keep": "Saving your new coach", "forget-audition": "Tidying up the audition",
+               "archive": "Putting that coach away"}
 READS = (("me/profile.md", "Getting to know you"), ("me/training.md", "Checking your training and kit"),
          ("me/health.md", "Checking today's safety limits"), ("me/log.md", "Looking at your recent sessions"),
          ("me/content.md", "Checking your interests"), ("me/workouts/research/", "Gathering today's stories"),
@@ -95,6 +116,8 @@ def _read_step(path: object) -> str:
 
 
 def _write_step(path: object) -> str:
+    if isinstance(path, str) and path.startswith("me/coaches/"):
+        return "Describing your coach"
     if isinstance(path, str) and path.endswith(".draft.txt"):
         return "Writing your script"
     if isinstance(path, str) and path.startswith("me/workouts/research/"):
@@ -120,6 +143,9 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     text = STEPS.get(first, "Working on it") if isinstance(first, str) else "Working on it"
     if first == "build" and "--lint-only" in args:
         text = "Checking the script's safety and timing"
+    rest = args[1:] if args and args[0] == "./harmonicfitness" else args
+    if first == "coaches" and len(rest) > 1 and rest[1] in COACH_STEPS:
+        text = COACH_STEPS[rest[1]]
     return _step(ctx.deps, text, f"run {first}"[:40], tools.run(ctx.deps, args))
 
 

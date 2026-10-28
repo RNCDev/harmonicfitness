@@ -35,7 +35,9 @@ class FolderTests(unittest.TestCase):
         written = folder.materialize({"a.md": b"a"}, self.root)
         self.put(".env", b"k")
         self.put("workouts/.audio-cache/a.wav")
-        self.put("coaches/.auditions/1/c.json")
+        self.put("coaches/.auditions/1/c.lock")
+        self.put("coaches/.auditions/1/c.json.tmp")
+        self.put("coaches/coach-dana-fish/sample.mp3")
         self.put("x.lock")
         self.put("a.mp3")
         self.put("deep/dir/b.mp3")
@@ -46,6 +48,23 @@ class FolderTests(unittest.TestCase):
         os.symlink("/etc/hosts", os.path.join(self.root, "evil"))
         os.symlink("/etc", os.path.join(self.root, "evildir"))
         self.assertEqual(folder.harvest(self.root, written), {})
+
+    def test_an_audition_is_kept_between_turns(self):
+        """A coach's audition spans turns (candidates, then the listener's pick): its narrative, candidates
+        list and each candidate's WAV and MP3 are kept, and closing it deletes them."""
+        written = folder.materialize({"a.md": b"a"}, self.root)
+        kept = ["coaches/.auditions/coach-dana.md", "coaches/.auditions/2026-10-28-1/candidates.json",
+                "coaches/.auditions/2026-10-28-1/narrative.md", "coaches/.auditions/2026-10-28-1/fish-1.wav",
+                "coaches/.auditions/2026-10-28-1/fish-1.mp3"]
+        for rel in kept:
+            self.put(rel)
+        got = folder.harvest(self.root, written)
+        self.assertEqual(sorted(got), sorted(kept))
+        written = folder.materialize(got, os.path.join(self.root, "next"))
+        for rel in kept[1:]:
+            os.remove(os.path.join(self.root, "next", rel))
+        self.assertEqual(folder.harvest(os.path.join(self.root, "next"), written),
+                         {rel: None for rel in kept[1:]})
 
     def test_deleted_file_is_none(self):
         written = folder.materialize({"a.md": b"a", "b.md": b"b"}, self.root)

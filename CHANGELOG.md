@@ -4,6 +4,22 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-28
+
+A listener on the web client can make a coach of their own: an original voice designed from their description, auditioned on every voice service they have a key for (Fish Audio, ElevenLabs, Gemini, Inworld), and kept in their own account there.
+
+### For forks
+- **Nothing to migrate.** Only the web client changed; it needs no new database migration.
+
+### Added
+- **The coach skill on the site.** "I want a new coach", "a different voice" and the like bring the coach skill into the chat, as on a computer: the quick coach's one question, the narrative, an audition across every keyed service, then the listener's pick by letter, kept as their coach and named by them. The agent may now run `coaches audition` (one a turn, never `--play`), `keep`, `forget-audition` and `archive`.
+- **The coach skill stays for the whole making:** a conversation remembers that a coach is being made, so the quick coach's answer ("Coach Dana") still has the skill, and an audition left open is closed before a workout.
+- **Candidates play in the chat,** each as a player labeled "Candidate B, about $0.30 a workout", in letter order, never naming the service.
+
+### Changed
+- **An audition is kept between turns** with the listener's files (its narrative, candidates list and each candidate's WAV and MP3) until `forget-audition` closes it, since keeping a candidate sends its WAV to the service a turn later. The chat posts only audio a turn made, so an open audition's candidates aren't posted again.
+- A voice design or save (`coaches make`, `audition`, `keep`) gets the build's 10-minute timeout.
+
 ## [0.23.0] - 2026-10-28
 
 The web coach makes the whole workout: it records the audio once the listener approves the price, keeps it 24 hours to play or download, and stops on request. New listeners are set up in the chat, and an account can be exported or deleted.

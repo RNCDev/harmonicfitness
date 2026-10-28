@@ -45,12 +45,14 @@ The app is a chat and a Keys drawer. The coach works as Claude Code does on a li
 **Leaving.** `GET /api/export` is every file as a ZIP laid out as `me/` (keys are never files here). `POST /api/account/delete`, with the password, deletes the user row and everything that hangs from it.
 
 Its four tools (`webapp/agent/tools.py`):
-- `run`: one `./harmonicfitness` command in the listener's folder (a full build gets 10 minutes, a turn 15). Allowed: brief, build (not `--follow` or `--clips-only`), check, content, coaches (list), coverage, feeds, get, help, keys, log-session, movements, youtube. `me/...` paths in arguments become the folder's own; any other path is refused.
+- `run`: one `./harmonicfitness` command in the listener's folder (a full build gets 10 minutes, a turn 15). Allowed: brief, build (not `--follow` or `--clips-only`), check, content, coaches (list, last, measured, make, audition (not `--play`; one a turn), keep, forget-audition, archive), coverage, feeds, get, help, keys, log-session, movements, youtube. A voice design or save (`make`, `audition`, `keep`) gets 10 minutes. `me/...` paths in arguments become the folder's own; any other path is refused.
 - `read_file`: `me/...` (never `me/.env`) and the engine's `knowledge/`, `.claude/skills/` and `coaches/`.
-- `write_file`: `me/...` only; never `me/.env`, `me/health.md` (read-only here for now) or the kinds of file the store doesn't keep.
+- `write_file`: `me/...` only; never `me/.env`, the kinds of file the store doesn't keep, or an audition's own files (only its narrative, `me/coaches/.auditions/<slug>.md`).
 - `list_files`: under `me/`.
 
 To save round trips, the worker does two things itself. On a conversation's first turn it runs step 1 of the skill before the first model request, all at once (`check`, `content plan --minutes 25`, `get coach`, the coach's `get route`, `coaches list`, and reads of `profile.md`, `training.md`, `health.md` and `log.md`), and hands the results to the model with the listener's first message. On each later turn it starts `feeds` in the background as the turn begins, unless today's sheet is already there; the model's `run feeds` waits for that run instead of starting another, and the turn ends only once it has finished.
+
+**A coach of their own.** The coach skill comes with the workout skill when the listener asks for a new coach or a different voice, and while an audition waits for their pick. It runs as on a computer, in the chat: the narrative from their answers, `coaches audition` on every keyed service (about a cent a service where the cost is published), each candidate in the chat as a player labeled by letter and cost a workout (never the service), then next turn `coaches keep` for the ones they name and `coaches forget-audition`, which deletes Gemini's unkept voices. The audition's files (its narrative, candidates list and each candidate's WAV and MP3) are kept with the listener's files until it's closed, since `keep` sends the chosen WAV to its service a turn later; MP3s and WAVs elsewhere are still never stored.
 
 Safety is the engine's: the brief's safe menu and the build's menu gate (movements off the menu, one side only, names the catalog doesn't hold) refuse what the writer gets wrong.
 

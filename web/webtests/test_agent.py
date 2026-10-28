@@ -49,7 +49,8 @@ class Run(AgentCase):
 
     def test_refuses_what_the_web_cant_do(self):
         for args in (["setup"], ["keys", "init", "fish"], ["keys", "open"], ["migrate"], ["backup"],
-                     ["coaches", "audition", "x.md"], ["coaches", "make"], ["cache", "prune"],
+                     ["coaches", "audition", "me/coaches/.auditions/d.md", "--play"], ["coaches", "set"],
+                     ["coaches", "download"], ["coaches", "make"], ["cache", "prune"],
                      ["build", "me/workouts/a/a.draft.txt", "A", "--follow"], [], ["rm", "-rf"]):
             r = tools.run(self.deps, args)
             self.assertEqual(r.code, 64, args)
@@ -299,11 +300,50 @@ class Instructions(AgentCase):
         self.assertTrue(agent.wants_setup("Finish setting me up"))
         self.assertFalse(agent.wants_setup("a 20 minute workout"))
 
-    def test_coaches_make_is_allowed_and_audition_isnt(self):
+    def test_a_coach_of_their_own_can_be_made_here(self):
         from unittest import mock
-        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "made", "")):
-            self.assertEqual(tools.run(self.deps, ["coaches", "make", "Coach Reed"]).code, 0)
-        self.assertEqual(tools.run(self.deps, ["coaches", "audition", "x"]).code, 64)
+        calls = []
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            calls.append((argv, timeout))
+            return tools.engine.Result(0, "done", "")
+        with mock.patch.object(tools.engine, "run", side_effect=run):
+            for args in (["coaches", "make", "Coach Reed"], ["coaches", "audition", "me/coaches/.auditions/d.md"],
+                         ["coaches", "keep", "2026-10-28-1/B", "--name", "Coach Dana"],
+                         ["coaches", "forget-audition", "2026-10-28-1"], ["coaches", "archive", "Coach Dana"]):
+                self.assertEqual(tools.run(self.deps, args).code, 0, args)
+            # one audition a turn: each is paid for, and the listener hears the first before another
+            again = tools.run(self.deps, ["coaches", "audition", "me/coaches/.auditions/d.md"])
+        self.assertTrue(self.deps.coach_done)   # kept: the next turn needs no coach skill
+        self.assertEqual(again.code, 64)
+        self.assertIn("one audition a turn", again.error)
+        self.assertEqual(sum(1 for argv, _ in calls if argv[:2] == ["coaches", "audition"]), 1)
+        self.assertEqual(os.path.realpath(calls[1][0][2]),
+                         os.path.realpath(os.path.join(self.home, "coaches", ".auditions", "d.md")))
+        for argv, timeout in calls:   # a service designs or saves a voice: the long timeout
+            if argv[1] in ("make", "audition", "keep"):
+                self.assertEqual(timeout, tools.BUILD_TIMEOUT, argv)
+
+    def test_the_narrative_can_be_written_but_not_the_candidates(self):
+        self.assertEqual(tools.write_file(self.deps, "me/coaches/.auditions/coach-dana.md", "+++\n").code, 0)
+        for path in ("me/coaches/.auditions/2026-10-28-1/candidates.json",
+                     "me/coaches/.auditions/2026-10-28-1/narrative.md", "me/coaches/.auditions/x.json"):
+            self.assertEqual(tools.write_file(self.deps, path, "[]").code, 64, path)
+
+    def test_the_coach_skill_comes_when_a_coach_is_being_made(self):
+        self.assertIn(".claude/skills/coach/SKILL.md", agent.skill_text(ROOT, coach=True))
+        self.assertNotIn(".claude/skills/coach/SKILL.md", agent.skill_text(ROOT))
+        for line in ("I want a new coach", "can I design a coach?", "a different voice please",
+                     "make the coach a woman", "change how my coach sounds", "switch coach"):
+            self.assertTrue(agent.wants_coach(line), line)
+        self.assertFalse(agent.wants_coach("a 20 minute workout with my coach"))
+        self.assertFalse(agent.audition_open(self.home))
+        os.makedirs(os.path.join(self.home, "coaches", ".auditions", "2026-10-28-1"))
+        self.assertFalse(agent.audition_open(self.home))
+        with open(os.path.join(self.home, "coaches", ".auditions", "2026-10-28-1", "candidates.json"), "w") as f:
+            f.write("[]")
+        self.assertTrue(agent.audition_open(self.home))   # the listener picks next turn: the skill stays
+        self.assertEqual(agent._write_step("me/coaches/.auditions/coach-dana.md"), "Describing your coach")
 
     def test_every_tool_is_registered(self):
         self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "list_files"})

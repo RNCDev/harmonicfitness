@@ -27,11 +27,15 @@ BUILD_TIMEOUT = 600     # a full build: a pending coach's voice design, then the
 ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 
 # The commands the agent may run, and for some, the only subcommands. Everything else (setup, keys init,
-# migrate, backup, models, cache, a coach's audition) isn't part of this web client yet. `coaches make`
-# designs a stock web coach's voice in the listener's account (about a cent), as setup's quick start does.
+# migrate, backup, models, cache) isn't part of this web client yet. `coaches make` designs a stock web
+# coach's voice in the listener's account (about a cent), as setup's quick start does; `audition`, `keep`
+# and `forget-audition` make a web coach of their own, as the coach skill says.
 COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "keys",
             "log-session", "movements", "youtube"}
-SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make"}, "keys": {None}}
+SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make", "audition", "keep", "forget-audition",
+                           "archive"},
+               "keys": {None}}
+SLOW = {("coaches", "make"), ("coaches", "audition"), ("coaches", "keep")}   # a service designs or saves a voice
 
 
 @dataclass
@@ -46,10 +50,13 @@ class Deps:
     # `feeds`, started in the background as the turn began: `run feeds` waits for it instead of running again
     feeds: Future | None = field(default=None, repr=False)
     cancel: threading.Event | None = field(default=None, repr=False)   # the listener's Stop
+    auditions: int = 0               # auditions run this turn: one, since each is paid for and heard first
     approved: dict | None = None     # the recording the listener approved this turn (the offer, as made)
     chars_left: int | None = None    # what today's allowance has left, in characters
     offer: dict | None = None        # set when a build was priced and waits for the listener's approval
     setup: bool = False              # the setup skill comes with the workout skill this turn
+    coach: bool = False              # the coach skill comes too: a coach is being made, or an audition is open
+    coach_done: bool = False         # a candidate was kept or the audition closed: the next turn needs no skill
 
 
 class ToolResult(BaseModel):
@@ -122,6 +129,12 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         return _refuse(f"{command} {sub} isn't available in the web client yet")
     if command == "build" and any(a in ("--follow", "--clips-only", "--verbose") for a in args):
         return _refuse("--follow, --clips-only and --verbose aren't for the web client: run the build itself")
+    if (command, sub) == ("coaches", "audition"):
+        if "--play" in args:
+            return _refuse("--play isn't for the web client: the candidates play in the chat by themselves")
+        if deps.auditions:
+            return _refuse("one audition a turn: let the listener hear these candidates first, then audition "
+                           "again next turn if none is right")
     if command == "feeds" and deps.feeds is not None:
         try:
             return deps.feeds.result(timeout=TIMEOUT)
@@ -135,9 +148,13 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         argv.append(mapped)
     if command == "build" and "--lint-only" not in args:
         return _record(deps, args, argv)
-    slow = False
+    slow = (command, sub) in SLOW
+    if (command, sub) == ("coaches", "audition"):
+        deps.auditions += 1   # counted when sent: a failed audition may still have paid for a design
     r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT if slow else TIMEOUT,
                    cancel=deps.cancel)
+    if command == "coaches" and sub in ("keep", "forget-audition") and r.code == 0:
+        deps.coach_done = True
     home = os.path.realpath(deps.home)
     # the engine prints the folder's real path; the agent knows it as me/
     return _result(r.code, r.stdout.replace(home, "me").replace(deps.home, "me"),
@@ -181,6 +198,9 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
         return _refuse("give a file's path: me/...")
     if folder.skipped(rel):
         return _refuse("that kind of file isn't kept here")
+    if rel.startswith(folder.AUDITIONS) and "/" in rel[len(folder.AUDITIONS):]:
+        return _refuse("an audition's own files are the engine's: write only the narrative, "
+                       "me/coaches/.auditions/<slug>.md")
     if len(content) > WRITE_LIMIT:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
     os.makedirs(os.path.dirname(full), exist_ok=True)
