@@ -34,7 +34,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
     RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, config, db, engine, jobs, store, worker
+from . import APP_NAME, auth, config, db, engine, jobs, keystore, store, worker
 
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -120,6 +120,11 @@ class NewPassword(BaseModel):
     new: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)]
 
 
+class KeyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: Annotated[StrictStr, StringConstraints(max_length=1024)]
+
+
 class _Headers:
     """Security headers on every response (pure ASGI, so streams aren't buffered or broken)."""
 
@@ -170,6 +175,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     settings.database_url and an event stream opens its own connection to it."""
     goals, presets = worker.engine_lists(settings.engine_root)
     options = {"minutes": list(MINUTES), "goals": sorted(goals), "presets": sorted(presets)}
+    services = worker.engine_services(settings.engine_root)
     dist = Path(client_dist) if client_dist is not None else CLIENT_DIST
     origin = _origin(settings.base_url)
     pool = None
@@ -366,6 +372,53 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             finally:
                 conn.rollback()
         return [{"path": p, "version": v, "updated_at": u.isoformat()} for p, v, u in rows]
+
+    @app.get("/api/keys")
+    def list_keys(uk: User):
+        with connection() as conn:
+            try:
+                have = keystore.listing(conn, uk)
+            finally:
+                conn.rollback()
+        return [{"service": s, "name": v["name"], "key_page": v["key_page"], "set": s in have,
+                 "updated_at": have[s].isoformat() if s in have else None}
+                for s, v in services.items()]
+
+    def known(service: str) -> dict:
+        if service not in services:
+            raise HTTPException(404, "no such service")
+        return services[service]
+
+    @app.put("/api/keys/{service}", status_code=204, **post)
+    def put_key(uk: User, service: str, body: Annotated[KeyBody, Body()]):
+        info = known(service)
+        try:
+            value = worker.clean_key(settings.engine_root, info["key_var"], body.key)
+        except Exception:   # keys.BadKey; its message is never passed on
+            value = ""
+        if not value:
+            raise HTTPException(400, f"That doesn't look like a {info['name']} key: it has a space, "
+                                     "a line break or a symbol in it. Paste it again.")
+        with connection() as conn:
+            try:
+                keystore.put(conn, uk, service, value)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return Response(status_code=204)
+
+    @app.delete("/api/keys/{service}", status_code=204, **post)
+    def delete_key(uk: User, service: str):
+        known(service)
+        with connection() as conn:
+            try:
+                keystore.delete(conn, uk, service)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return Response(status_code=204)
 
     @app.post("/api/jobs", status_code=202, **post)
     def post_job(uk: User, body: Annotated[BriefJob, Body()]):

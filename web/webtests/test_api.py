@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from webapp import api, auth, config, db, folder, jobs, store, worker  # noqa: E402
+from webapp import api, auth, config, db, folder, jobs, keystore, store, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
@@ -456,6 +456,74 @@ class Api(ApiCase):
                 lines = list(r.iter_lines())
         timer.join()
         self.assertIn(": keep-alive", lines)
+
+
+class Keys(ApiCase):
+    def test_keys_need_session(self):
+        for m, p in (("get", "/api/keys"), ("put", "/api/keys/fish"), ("delete", "/api/keys/fish")):
+            kw = {"json": {"key": "abc"}} if m == "put" else {}
+            self.assertEqual(getattr(self.client, m)(p, headers=self.origin(), **kw).status_code, 401)
+        self.signed_in()
+        self.assertEqual(self.client.put("/api/keys/fish", json={"key": "abc123def456"}).status_code, 403)
+        self.assertEqual(self.client.delete("/api/keys/fish").status_code, 403)
+
+    def test_list_shows_every_service_unset(self):
+        self.signed_in()
+        body = self.client.get("/api/keys").json()
+        self.assertEqual([k["service"] for k in body],
+                         list(worker.engine_services(ROOT)))
+        for k in body:
+            self.assertFalse(k["set"])
+            self.assertIsNone(k["updated_at"])
+
+    def test_put_then_list(self):
+        self.signed_in()
+        r = self.client.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+        self.assertEqual(r.status_code, 204)
+        r = self.client.get("/api/keys")
+        fish = next(k for k in r.json() if k["service"] == "fish")
+        self.assertTrue(fish["set"])
+        self.assertIsNotNone(fish["updated_at"])
+        self.assertNotIn("abc123def456", r.text)
+
+    def test_put_key_strips_and_refuses(self):
+        user_id, uk = self.signed_in()
+        put = lambda svc, key: self.client.put(f"/api/keys/{svc}", json={"key": key},  # noqa: E731
+                                               headers=self.origin())
+        self.assertEqual(put("fish", "abc123def456\n").status_code, 204)
+        self.assertEqual(keystore.open_all(self.conn, uk)["fish"], "abc123def456")
+        self.conn.rollback()
+        r = put("fish", "abc 123")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Fish Audio", r.json()["detail"])
+        self.assertNotIn("abc 123", r.text)
+        self.assertEqual(put("fish", "").status_code, 400)
+        self.assertEqual(put("fish", "  \n").status_code, 400)
+        self.assertEqual(put("fish", "a" * 1025).status_code, 422)
+        self.assertEqual(put("nope", "abc123def456").status_code, 404)
+
+    def test_keys_are_per_user(self):
+        _, uk_a = self.signed_in()
+        self.client.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+        b = self.other_client()
+        self.signed_in(b)
+        fish = next(k for k in b.get("/api/keys").json() if k["service"] == "fish")
+        self.assertFalse(fish["set"])
+        self.assertEqual(b.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
+        self.assertIn("fish", keystore.open_all(self.conn, uk_a))
+
+    def test_delete_key(self):
+        self.signed_in()
+        self.client.put("/api/keys/fish", json={"key": "abc123def456"}, headers=self.origin())
+        self.assertEqual(self.client.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
+        self.assertEqual(self.client.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
+        self.assertEqual(self.client.delete("/api/keys/nope", headers=self.origin()).status_code, 404)
+        fish = next(k for k in self.client.get("/api/keys").json() if k["service"] == "fish")
+        self.assertFalse(fish["set"])
+
+    def test_api_never_opens_keys(self):
+        with open(api.__file__) as f:
+            self.assertNotIn("open_all", f.read())
 
 
 class Client(ApiCase):

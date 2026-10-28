@@ -8,6 +8,7 @@ Before importing any engine module (for the session goals and kit presets) the w
 HARMONICFITNESS_HOME at a folder that doesn't exist, so the engine's libraries never find a real `me/`.
 """
 import datetime
+import importlib
 import os
 import shutil
 import signal
@@ -73,23 +74,48 @@ def _no_home() -> str:
             return path
 
 
+def _engine_modules(engine_root: str, *names: str) -> list:
+    """The named engine modules, imported with HARMONICFITNESS_HOME pointed at a folder that doesn't exist,
+    `tools/` appended last on sys.path, and each module's origin checked to be inside the engine."""
+    home = os.environ.get("HARMONICFITNESS_HOME", "")
+    if not home or os.path.exists(home):
+        os.environ["HARMONICFITNESS_HOME"] = _no_home()
+    tools = os.path.abspath(os.path.join(engine_root, "tools"))
+    if os.path.join(engine_root, "tools") not in sys.path and tools not in sys.path:
+        sys.path.append(os.path.join(engine_root, "tools"))   # after everything else, so no engine module shadows another
+    mods = [importlib.import_module(n) for n in names]
+    for mod in mods:
+        where = os.path.abspath(mod.__file__)
+        if os.path.dirname(where) != tools and os.path.dirname(os.path.dirname(where)) != tools:
+            raise RuntimeError(f"{mod.__name__} was imported from outside the engine")
+    return mods
+
+
 def engine_lists(engine_root: str) -> tuple[frozenset, frozenset]:
     """(session goals, kit presets) from the engine's tools/sessions.py and tools/catalog.py."""
     if engine_root not in _lists:
-        home = os.environ.get("HARMONICFITNESS_HOME", "")
-        if not home or os.path.exists(home):
-            os.environ["HARMONICFITNESS_HOME"] = _no_home()
-        tools = os.path.join(engine_root, "tools")
-        if tools not in sys.path:
-            sys.path.append(tools)   # after everything else, so no engine module shadows another
-        import catalog
-        import sessions
-        for mod in (catalog, sessions):
-            if os.path.dirname(os.path.abspath(mod.__file__)) != os.path.abspath(tools):
-                raise RuntimeError(f"{mod.__name__} was imported from outside the engine")
+        catalog, sessions = _engine_modules(engine_root, "catalog", "sessions")
         _lists[engine_root] = (frozenset(sessions.load().goals),
                                frozenset(catalog.load(extra=[]).presets))
     return _lists[engine_root]
+
+
+_services: dict[str, dict[str, dict]] = {}
+
+
+def engine_services(engine_root: str) -> dict[str, dict]:
+    """{service: {"name", "key_var", "key_page"}} from knowledge/services.toml, in its order."""
+    if engine_root not in _services:
+        services, = _engine_modules(engine_root, "services")
+        _services[engine_root] = {k: {f: v[f] for f in ("name", "key_var", "key_page")}
+                                  for k, v in services.settings().items()}
+    return _services[engine_root]
+
+
+def clean_key(engine_root: str, var: str, value: str) -> str:
+    """The engine's keys.clean_value: stripped, or keys.BadKey when it can't be a key."""
+    keys, = _engine_modules(engine_root, "keys")
+    return keys.clean_value(var, value)
 
 
 def _uv_cache() -> None:
