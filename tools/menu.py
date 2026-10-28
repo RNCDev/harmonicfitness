@@ -237,8 +237,9 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
             if key in EVERYDAY and name != m.name:
                 continue   # an everyday coaching word (squat, swing, curl, plank)
             found.setdefault(key, (m.id, name))
-    for name in cat.unlisted:   # after every movement, so a private movement of that name wins
-        found.setdefault(_norm(name), (UNLISTED, name))
+    for name in cat.unlisted:   # after every movement, so a private movement of that name wins; matched from
+        key = _norm(name)       # the singular, so "lunges" also catches "a lunge" and "pistols" "pistol"
+        found.setdefault(key[:-1] if key.endswith("s") and not key.endswith("ss") else key, (UNLISTED, name))
     # "push up" and "step up" are cues as often as names: when a hyphenated name has the same words,
     # only the hyphenated spelling counts
     found = {k: v for k, v in found.items() if not (" " in k and "-" not in k and k.replace(" ", "-") in found)}
@@ -321,9 +322,25 @@ BOTH_SIDES = ("each side", "both sides", "each leg", "both legs", "each arm", "b
               "every side", "every leg", "every arm", "other side", "other leg", "other arm", "opposite side",
               "opposite leg", "opposite arm", "switch", "swap sides", "repeat on the other", "bilateral",
               "two sides", "each hip", "per limb", "left right", "right left", "l r", "r l", "r and l", "l and r")
-# the BOTH_SIDES words that move to the other side later on, anywhere in a segment ("Now switch to the other leg.")
+# the BOTH_SIDES words that move to the other side later on (every BOTH_SIDES phrase counts segment-wide) ("Now switch to the other leg.")
 SWITCH = ("switch", "other side", "other leg", "swap sides", "repeat on the other")
-SENTENCE = re.compile(r"[.!?;:()\n]")   # not a comma: "Right single-leg glute bridge, ten each side." is one
+# not a comma, a colon or a parenthesis: "Right single-leg glute bridge: ten (each side)." is one sentence
+SENTENCE = re.compile(r"[.!?;\n]")
+
+
+def turn_to(text: str, side: str) -> Optional[str]:
+    """The words in `text` that turn to a side other than `side` ("then the left", "now left leg", "left leg
+    next", "on to the left", "the same on your left"), or None. A bare "left" isn't one: a limit cue names the
+    injured side ("keep the left foot down"). For "healthy", either side is another one."""
+    padded = f" {catalog.plain(text)} "
+    for opp in sorted({"left", "right"} - {side}):
+        for rx in (rf" (?:then|now|on to|onto) (?:the |your )?{opp} ",
+                   rf" {opp} (?:leg|legs|arm|arms|side|hip|foot|hand|knee|one) (?:next|now) ",
+                   rf" same (?:thing )?on (?:the |your )?{opp} "):
+            m = re.search(rx, padded)
+            if m:
+                return m.group(0).strip()
+    return None
 
 
 def _phrase(text: str, phrases) -> Optional[str]:
@@ -370,10 +387,12 @@ def one_side_problem(text: str, mname: str, side: str) -> Optional[str]:
 
 def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
     """What puts a movement the menu allows on one side only (on_menu: id -> menu entry, its "side" set) on
-    another side or both, in one segment's text (or one plan field's): one sentence each, one per movement.
-    A sentence that names one may hold no both-sides phrase or other side's word (one_side_problem); the
-    text that names one may hold no SWITCH phrase anywhere. Fails safe: a negated mention is checked too
-    ("no single-leg glute bridge on the left" is refused), and so is a side word meant for something else."""
+    another side or both, in one segment's text (or one plan field's), one problem per movement. A sentence
+    that names one may hold no other side's word (one_side_problem); the whole text that names one may hold
+    no both-sides phrase (BOTH_SIDES, its SWITCH phrases among them) and no turn to another side (turn_to),
+    in any sentence: "Right single-leg glute bridge. Ten each side." is refused. Fails safe: a negated
+    mention is checked too ("no single-leg glute bridge on the left"), and so is a side word or both-sides
+    phrase meant for something else in the same segment (the writer splits the segment)."""
     problems, sided, named = [], set(), []
     for sentence in SENTENCE.split(text):
         for mid, _, _ in mentions(cat, sentence):
@@ -386,13 +405,16 @@ def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
             if why:
                 sided.add(mid)
                 problems.append(why)
-    switch = _phrase(text, SWITCH) if named else None
+    phrase = both_sides(text) if named else None
     for mid in named:
-        if switch and mid not in sided:
+        if mid in sided:
+            continue
+        side = on_menu[mid]["side"]
+        how = f'"{phrase}"' if phrase else (f'"{turn_to(text, side)}"' if turn_to(text, side) else None)
+        if how:
             sided.add(mid)
-            side = on_menu[mid]["side"]
-            problems.append(f'"{switch}" in the same segment as {cat.movements[mid].name} moves it to another side, '
-                            f'but today\'s menu allows it on the {_say(side)} only; keep that segment to the '
+            problems.append(f'{how} in the same segment as {cat.movements[mid].name} puts it on another side or '
+                            f'both, but today\'s menu allows it on the {_say(side)} only; keep that segment to the '
                             f'{_say(side)}')
     return problems
 

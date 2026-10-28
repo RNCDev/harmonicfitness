@@ -107,9 +107,9 @@ equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "chair", "towel"
 # Unlisted: real movements the catalog doesn't hold (yet: a catalog entry needs sourced research), so
 # they are never on a menu. The build's menu scan refuses each one said in a script ("pistol squats"),
 # except a bare "lunges" after a declared lunge, which is its short form. Never a name or alias of an
-# entry here (the load refuses that). A plural is matched from the singular.
+# entry here (the load refuses that). Singular and plural both match ("lunges" catches "a lunge").
 [unlisted]
-names = ["pistol squat", "forward lunge", "walking lunge", "side lunge", "lateral lunge", "lunges"]
+names = ["pistol squat", "pistols", "forward lunge", "walking lunge", "side lunge", "lateral lunge", "lunges"]
 
 # Limit cues: what a coach says while a limit is active, for each area and level, one to three lines.
 # `./harmonicfitness brief` prints them for each limit today. `{side}` becomes the limit's side (left or

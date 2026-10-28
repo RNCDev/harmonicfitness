@@ -365,10 +365,31 @@ class OneSideOnly(unittest.TestCase):
 
     def test_switch_in_the_segment_is_refused(self):
         issues = bridge_issues("Right single-leg glute bridge, ten.", "Now switch to the other leg.")
-        self.assertTrue(any("switch" in i and "right side only" in i for i in issues), issues)
+        self.assertTrue(any(('"switch"' in i or '"other leg"' in i) and "right side only" in i for i in issues), issues)
         for phrase in ("Then the other side.", "Swap sides.", "Repeat on the other one.", "Other leg now."):
             with self.subTest(phrase=phrase):
                 self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.", phrase), phrase)
+
+    def test_a_dose_beyond_the_naming_sentence_is_refused(self):
+        bridge = "Right single-leg glute bridge"
+        for lines in ([f"{bridge}: ten each side."], [f"{bridge} (ten each side)."], [f"{bridge}. Ten each side."],
+                      [f"{bridge}, ten. Count reps on each side."], [f"{bridge}, ten. Then the left."],
+                      [f"{bridge}, ten.", "Now left leg."], [f"{bridge}, ten. Left leg next."],
+                      [f"{bridge}, ten. On to the left."], [f"{bridge}, ten. Then do the same on your left."],
+                      [f"{bridge}, ten.", "Then alternate."]):
+            with self.subTest(lines=lines):
+                issues = bridge_issues(*lines)
+                self.assertTrue(any("right side only" in i for i in issues), issues)
+
+    def test_the_shipped_limit_cues_pass_beside_a_one_sided_movement(self):
+        # the brief fills {side} with the limit's side: the one the menu doesn't allow, or injured / sore
+        for area, levels in CAT.limit_cues.items():
+            for level, lines in levels.items():
+                for line in lines:
+                    for side in ("left", "injured", "sore"):
+                        said = line.replace("{side}", side)
+                        with self.subTest(area=area, level=level, side=side):
+                            self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.", said), [], said)
 
     def test_a_negation_doesnt_excuse_a_side(self):
         self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.",
@@ -413,6 +434,18 @@ class Unlisted(unittest.TestCase):
     def test_bare_lunges_without_a_declared_lunge_are_refused(self):
         self.assertTrue(any("isn't in the catalog" in i for i in issues_for("Twenty lunges.")))
         self.assertEqual(issues_for("No lunges today."), [])
+
+    def test_singular_and_plural_both_match(self):
+        for line in ("Now a lunge.", "Ten pistols.", "One pistol squat.", "Ten pistol squats.", "Walking lunge, go."):
+            with self.subTest(line=line):
+                self.assertTrue(any("isn't in the catalog" in i for i in issues_for(line)), line)
+
+    def test_a_movements_own_coaching_never_trips_unlisted(self):
+        for m in CAT.movements.values():
+            spoken = [m.setup or ""] + list(m.cues) + [m.rep or "", m.feel or ""] + list(m.faults)
+            text = f"movements: {m.name}\n@@ 300 | Work\n" + "\n\n".join(x for x in spoken if x) + "\n"
+            issues = menu.check(CAT, menu_for(m.id), text, draft.parse(text))[0]
+            self.assertFalse([i for i in issues if "isn't in the catalog" in i], m.id)
 
     def test_the_shipped_limit_cues_pass_the_scan(self):
         for area, levels in CAT.limit_cues.items():
