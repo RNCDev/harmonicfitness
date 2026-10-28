@@ -24,9 +24,9 @@ def stub(body):
 
 class Engine(unittest.TestCase):
     def test_engine_env_is_allowlisted(self):
-        # the engine is `env` itself (no shell, which would add PWD, SHLVL and _ of its own)
-        root, home = tempfile.mkdtemp(), tempfile.mkdtemp()
-        os.symlink(shutil.which("env"), os.path.join(root, "harmonicfitness"))
+        # the engine prints its environment. `env` runs under its own name (a multi-call coreutils, as on
+        # newer Ubuntu, picks its job from that name) and drops what the shell itself adds.
+        root, home = stub(f"exec {shutil.which('env')} -u PWD -u OLDPWD -u SHLVL -u _"), tempfile.mkdtemp()
         with mock.patch.dict(os.environ, {"HARMONICFITNESS_MASTER_KEY": "secret-master",
                                           "DATABASE_URL": "postgres://x",
                                           "SESSION_SECRET": "s", "SOMETHING_ELSE": "y",
