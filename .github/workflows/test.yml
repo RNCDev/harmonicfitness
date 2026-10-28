@@ -53,3 +53,21 @@ jobs:
             RANGE="origin/main..HEAD"   # a new branch
           fi
           tools/hooks/check-private.sh "$RANGE"
+
+  # The web client on Fly.io, once the tests and privacy checks pass on main (fly.toml). The token is a
+  # deploy token for this one app (fly tokens create deploy -a harmonicfitness), the FLY_API_TOKEN secret.
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+        with:
+          version: "0.4.123"
+      - run: flyctl deploy --remote-only --build-arg GIT_COMMIT_SHA="${GITHUB_SHA::7}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
