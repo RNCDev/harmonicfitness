@@ -1,10 +1,18 @@
 // The app: the sign-in page, or once signed in a top bar, the chat, and a drawer for keys and settings.
 import { useCallback, useEffect, useState } from "react";
-import { api, APP_NAME, NotSignedIn, type Me } from "./api";
+import { api, APP_NAME, NotSignedIn, type KeyState, type Me } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
 import { useConversation } from "./conversation";
-import { Chat } from "./zones/Chat";
+import { Chat, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
+import { hasModelKey, keyRows } from "./zones/KeysBox";
+
+/** The key a listener with no language-model key adds first: the first one offered. */
+function keyNeeded(keys: KeyState[] | null): KeyNeeded | null {
+  if (hasModelKey(keys) !== false) return null;
+  const first = keyRows(keys ?? []).find((r) => r.kind === "model");
+  return first ? { name: first.name, service: first.service, voice: first.voice } : null;
+}
 
 type Auth = "loading" | "in" | "out" | "error";
 
@@ -61,6 +69,9 @@ export function App() {
 /** The signed-in page. Mounted only once the server says who is signed in; unmounting it closes the job's stream. */
 function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [drawer, setDrawer] = useState(false);
+  const [keys, setKeys] = useState<KeyState[] | null>(null);
+  const [openRow, setOpenRow] = useState<{ service: string; n: number } | null>(null);
+  const needsKey = keyNeeded(keys);
   const { conv, working, error, noKey, send, record, halt, reset, job } = useConversation(onSignedOut);
   const steps = (job?.stages ?? []).filter((s) => s.stage === "step" && typeof s.text === "string")
     .map((s) => ({ text: s.text as string, failed: s.failed === true }));
@@ -76,7 +87,9 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       if (e.key === "Escape") closeDrawer();
     };
     document.addEventListener("keydown", onKey);
-    document.querySelector<HTMLElement>("#ctx button")?.focus();
+    // focus moves into the drawer, unless a key's box there already has it ("Add your key")
+    const ctx = document.getElementById("ctx");
+    if (!ctx?.contains(document.activeElement)) ctx?.querySelector<HTMLElement>("button")?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [drawer, closeDrawer]);
 
@@ -102,9 +115,13 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       {/* an earlier day's conversation shows as history; the next message starts a new one */}
       <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
         offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
-        onSend={send} onOpenKeys={() => setDrawer(true)} />
+        onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
+        onAddKey={() => {
+          if (needsKey) setOpenRow((r) => ({ service: needsKey.service, n: (r?.n ?? 0) + 1 }));
+          setDrawer(true);
+        }} />
       <ContextColumn username={me.username} open={drawer} onClose={closeDrawer}
-        onSignedOut={onSignedOut} onSignOut={signOut} />
+        onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow} />
     </div>
   );
 }

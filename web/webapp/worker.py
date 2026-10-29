@@ -70,6 +70,9 @@ class Ctx:
         stored = keystore.open_all(self.conn, self.uk)
         self.conn.commit()
         services = engine_services(self.settings.engine_root)
+        for legacy, shared in providers.SHARED_KEY.items():   # a model key stored before 0.25.2 voices too
+            if legacy in stored and shared not in stored:
+                stored[shared] = stored[legacy]
         return {services[s]["key_var"]: v for s, v in stored.items() if s in services}
 
     def save(self, changes: dict[str, bytes | None], base: dict[str, int]) -> None:
@@ -388,11 +391,11 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     line, answer, today, now = _turn_request(ctx.args)
     stored = keystore.open_all(ctx.conn, ctx.uk)
     ctx.conn.commit()
-    provider = next((p for p in ctx.settings.providers if stored.get(p)), None)
+    provider = next((p for p in ctx.settings.providers if providers.stored_key(stored, p)), None)
     if provider is None:
         raise _Stop(NO_MODEL_KEY)
     try:
-        model = providers.model_for(provider, stored[provider])
+        model = providers.model_for(provider, providers.stored_key(stored, provider))
     except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
         print(f"worker: job {ctx.job_id} model client failed: {type(e).__name__}", file=sys.stderr)
         raise _Stop(providers.explain(provider, e).message) from None

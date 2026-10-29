@@ -25,17 +25,47 @@ beforeEach(() => {
 });
 
 describe("the Keys box", () => {
-  it("groups keys by kind", async () => {
+  it("groups the keys as required and optional", async () => {
     m.keys.mockResolvedValue([CLAUDE, FISH, ELEVEN]);
     render(<KeysBox onSignedOut={() => {}} />);
     expect(await screen.findByRole("heading", { name: "Keys" })).toBeInTheDocument();
-    const model = screen.getByRole("heading", { name: "Language model" }).parentElement!;
-    const voice = screen.getByRole("heading", { name: "Voice" }).parentElement!;
-    expect(model).toHaveTextContent("Claude");
-    expect(model).not.toHaveTextContent("Fish Audio");
-    expect(voice).toHaveTextContent("Fish Audio");
-    expect(voice).toHaveTextContent("ElevenLabs");
+    const required = screen.getByRole("region", { name: "Required" });
+    const optional = screen.getByRole("region", { name: "Optional: more voices" });
+    expect(required).toHaveTextContent("Claude");
+    expect(required).toHaveTextContent("Writes your workouts.");
+    expect(required).not.toHaveTextContent("Fish Audio");
+    expect(optional).toHaveTextContent("Fish Audio");
+    expect(optional).toHaveTextContent("ElevenLabs");
     expect(screen.getByText("Stored encrypted, never shown again. Each key goes only to its own service, when you use it.")).toBeInTheDocument();
+  });
+
+  it("shows Gemini, listed as model and voice, as one row, set once", async () => {
+    const model: KeyState = { service: "gemini", name: "Gemini", key_page: "https://g.example/keys",
+      set: false, updated_at: null, kind: "model" };
+    const voice: KeyState = { ...model, kind: "voice" };
+    const seen = vi.fn();
+    m.keys.mockResolvedValue([model, voice, FISH]);
+    render(<KeysBox onSignedOut={() => {}} onKeys={seen} />);
+    expect(await screen.findAllByRole("button", { name: "Add Gemini key" })).toHaveLength(1);
+    const required = screen.getByRole("region", { name: "Required" });
+    expect(required).toHaveTextContent("Writes your workouts, and can voice your coach.");
+    expect(screen.getByRole("region", { name: "Optional: more voices" })).not.toHaveTextContent("Gemini");
+    fireEvent.click(screen.getByRole("button", { name: "Add Gemini key" }));
+    fireEvent.change(screen.getByLabelText("Gemini key"), { target: { value: "AIza-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Replace Gemini key" })).toBeInTheDocument());
+    expect(m.setKey).toHaveBeenCalledTimes(1);
+    expect(m.setKey).toHaveBeenCalledWith("gemini", "AIza-secret");
+    expect(screen.getAllByText(/^Set\b/)).toHaveLength(2);   // Gemini once, Fish Audio
+    const last = seen.mock.calls[seen.mock.calls.length - 1][0] as KeyState[];
+    expect(last.filter((k) => k.service === "gemini").every((k) => k.set)).toBe(true);
+  });
+
+  it("opens a row for its key when asked", async () => {
+    const { rerender } = render(<KeysBox onSignedOut={() => {}} openRow={null} />);
+    await screen.findByRole("button", { name: "Add ElevenLabs key" });
+    rerender(<KeysBox onSignedOut={() => {}} openRow={{ service: "elevenlabs", n: 1 }} />);
+    expect(await screen.findByLabelText("ElevenLabs key")).toHaveFocus();
   });
 
   it("shows every service, set or not", async () => {

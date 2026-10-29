@@ -583,6 +583,55 @@ class Keys(ApiCase):
         self.assertEqual(r.status_code, 500)
         self.assertEqual(keystore.open_all(self.conn, uk), {})
 
+    def gemini_app(self):
+        """An app offering Gemini as the language model, whose key is also the Gemini voice's."""
+        import dataclasses
+        app = api.create_app(dataclasses.replace(self.settings, providers=("google",)), connect=self.connect,
+                             client_dist=self.dist)
+        c = TestClient(app, base_url=self.base_url)
+        c.cookies.update(self.client.cookies)
+        return c
+
+    def test_gemini_is_one_key_for_model_and_voice(self):
+        user_id, uk = self.signed_in()
+        c = self.gemini_app()
+        body = c.get("/api/keys").json()
+        self.assertEqual([(k["service"], k["kind"]) for k in body if k["service"] == "gemini"],
+                         [("gemini", "model"), ("gemini", "voice")])
+        self.assertNotIn("google", [k["service"] for k in body])
+        r = c.post("/api/conversations", json={"line": "hi", "today": today(), "now": f"{today()} Wednesday 08:00"},
+                   headers=self.origin())
+        self.assertEqual((r.status_code, r.json()["detail"]), (409, "Add a key for Gemini in Keys first."))
+        self.assertEqual(c.put("/api/keys/gemini", json={"key": "AIzaabc123def456abcd"},
+                               headers=self.origin()).status_code, 204)
+        body = c.get("/api/keys").json()
+        self.assertTrue(all(k["set"] for k in body if k["service"] == "gemini"))
+        self.assertEqual(list(keystore.open_all(self.conn, uk)), ["gemini"])
+        self.conn.rollback()
+        self.assertEqual(c.put("/api/keys/google", json={"key": "AIzaabc123def456abcd"},
+                               headers=self.origin()).status_code, 404)
+        r = c.post("/api/conversations", json={"line": "hi", "today": today(), "now": f"{today()} Wednesday 08:00"},
+                   headers=self.origin())
+        self.assertEqual(r.status_code, 202)
+
+    def test_removing_gemini_removes_a_key_stored_before_the_merge(self):
+        _, uk = self.signed_in()
+        keystore.put(self.conn, uk, "google", "AIzaold123def456abcd")   # the model key, from before 0.25.2
+        self.conn.commit()
+        c = self.gemini_app()
+        self.assertTrue(all(k["set"] for k in c.get("/api/keys").json() if k["service"] == "gemini"))
+        self.assertEqual(c.delete("/api/keys/gemini", headers=self.origin()).status_code, 204)
+        self.assertEqual(keystore.open_all(self.conn, uk), {})
+        self.conn.rollback()
+        self.assertFalse(any(k["set"] for k in c.get("/api/keys").json()))
+
+    def test_an_old_model_key_voices_gemini(self):
+        _, uk = self.signed_in()
+        keystore.put(self.conn, uk, "google", "AIzaold123def456abcd")
+        self.conn.commit()
+        ctx = worker.Ctx(conn=self.conn, uk=uk, job_id=0, args={}, settings=self.settings, home="")
+        self.assertEqual(ctx.key_env(), {"GEMINI_API_KEY": "AIzaold123def456abcd"})
+
     def test_api_never_opens_keys(self):
         with open(api.__file__) as f:
             self.assertNotIn("open_all", f.read())

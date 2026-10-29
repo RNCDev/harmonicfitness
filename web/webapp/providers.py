@@ -25,6 +25,21 @@ PROVIDERS: dict[str, Provider] = {p.id: p for p in (
 )}
 
 
+# A provider whose key is also a voice service's: one key, stored under the voice service's id (a key
+# stored under the provider's own id, from before 0.25.2, still counts for both).
+SHARED_KEY: dict[str, str] = {"google": "gemini"}
+
+
+def key_service(provider: str) -> str:
+    """The id a provider's key is stored and listed under."""
+    return SHARED_KEY.get(provider, provider)
+
+
+def stored_key(stored: Mapping[str, object], provider: str):
+    """A provider's stored entry (a key, or when it was set), under its shared id or its own, else None."""
+    return stored.get(key_service(provider)) or stored.get(provider)
+
+
 def offered(env: Mapping[str, str]) -> list[str]:
     raw = env.get("HARMONICFITNESS_PROVIDERS", "").strip()
     if not raw:

@@ -87,4 +87,22 @@ describe("the chat", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Keys" }));
     expect(onOpenKeys).toHaveBeenCalled();
   });
+
+  it("with no key, welcomes and asks for one, and the box waits", () => {
+    const onAddKey = vi.fn();
+    render(<Chat {...base} needsKey={{ name: "Gemini", service: "gemini", voice: true }} onAddKey={onAddKey} />);
+    expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
+    expect(screen.getByText(/one Gemini key, free from Google AI Studio/)).toHaveTextContent("and can voice your coach");
+    expect(screen.queryByText(/Tell me what workout you'd like/)).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Add your key" }));
+    expect(onAddKey).toHaveBeenCalled();
+  });
+
+  it("with a key, greets", () => {
+    render(<Chat {...base} needsKey={null} />);
+    expect(screen.getByText(/Tell me what workout you'd like/)).toBeInTheDocument();
+    expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
+  });
 });

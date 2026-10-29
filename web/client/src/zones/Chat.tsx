@@ -22,7 +22,30 @@ type Props = {
   onRecord?: () => Promise<boolean> | void;
   /** Stops the running turn. */
   onStop?: () => void;
+  /** No language-model key yet: the key to ask for, in place of the greeting, and the button that opens it. */
+  needsKey?: KeyNeeded | null;
+  onAddKey?: () => void;
 };
+
+/** The language-model key a new listener adds first. */
+export type KeyNeeded = { name: string; service: string; voice: boolean };
+
+const FREE_FROM: Record<string, string> = { gemini: "Google AI Studio" };
+
+function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: () => void }) {
+  const free = FREE_FROM[need.service];
+  return (
+    <div className="m a welcome">
+      <h2>Welcome to HarmonicFitness</h2>
+      <p>Ask for a workout in your own words. You get an audio workout for your earbuds: a coach who tells you
+        what to do, keeps you company and keeps time, with no screen to watch.</p>
+      <p>First it needs one {need.name} key{free ? `, free from ${free}` : ""}. It writes your
+        workouts{need.voice ? " and can voice your coach" : ""}. It's stored encrypted, and what it's used for is
+        charged to your own account.</p>
+      <button type="button" className="go" onClick={onAddKey}>Add your key</button>
+    </div>
+  );
+}
 
 const SERVICES: Record<string, string> = { fish: "Fish Audio", elevenlabs: "ElevenLabs", gemini: "Gemini", inworld: "Inworld" };
 
@@ -111,7 +134,8 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
   );
 }
 
-export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop }: Props) {
+export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
+  needsKey = null, onAddKey }: Props) {
   const [text, setText] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
@@ -121,7 +145,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
 
   async function send() {
     const line = text.trim();
-    if (!line || working) return;
+    if (!line || working || needsKey) return;
     setText("");
     if ((await onSend(line)) === false) setText((t) => t || line);
   }
@@ -129,7 +153,8 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
   return (
     <main className="chat" aria-label="Chat">
       <div className="chat-log" role="log" aria-live="polite">
-        {lines.length === 0 && !working && (
+        {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? onOpenKeys} />}
+        {lines.length === 0 && !working && !needsKey && (
           <p className="m a">Hi. Tell me what workout you'd like: how long, what for, what you have with you. I'll check in, then write it.</p>
         )}
         {lines.map((l, i) => l.audio ? <AudioLine key={i} audio={l.audio} /> : l.role === "user" ? (
@@ -151,7 +176,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
       )}
       <form className="chat-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <label className="sr" htmlFor="chat-box">Message</label>
-        <textarea id="chat-box" rows={2} value={text} disabled={working}
+        <textarea id="chat-box" rows={2} value={text} disabled={working || !!needsKey}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -159,7 +184,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
               send();
             }
           }} />
-        <button type="submit" className="go alt" disabled={working || !text.trim()}>Send</button>
+        <button type="submit" className="go alt" disabled={working || !!needsKey || !text.trim()}>Send</button>
       </form>
     </main>
   );

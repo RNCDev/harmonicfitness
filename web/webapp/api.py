@@ -601,15 +601,19 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 have = keystore.listing(conn, uk)
             finally:
                 conn.rollback()
-        rows = [(p, providers.PROVIDERS[p].name, providers.PROVIDERS[p].key_page, "model")
-                for p in settings.providers]
-        rows += [(s, v["name"], v["key_page"], "voice") for s, v in services.items()]
-        return [{"service": s, "name": n, "key_page": page, "kind": kind, "set": s in have,
-                 "updated_at": have[s].isoformat() if s in have else None}
-                for s, n, page, kind in rows]
+        # A provider sharing a voice service's key (Gemini) is listed under that service's id, so the
+        # page shows one row for one key.
+        rows = [(providers.key_service(p), providers.PROVIDERS[p].name, providers.PROVIDERS[p].key_page, "model",
+                 providers.stored_key(have, p)) for p in settings.providers]
+        rows += [(s, v["name"], v["key_page"], "voice",
+                  have.get(s) or next((have.get(p) for p, t in providers.SHARED_KEY.items() if t == s), None))
+                 for s, v in services.items()]
+        return [{"service": s, "name": n, "key_page": page, "kind": kind, "set": at is not None,
+                 "updated_at": at.isoformat() if at is not None else None}
+                for s, n, page, kind, at in rows]
 
     def known(service: str) -> dict:
-        if service in settings.providers:
+        if service in settings.providers and service not in providers.SHARED_KEY:
             spec = providers.PROVIDERS[service]
             return {"name": spec.name, "key_var": f"{service.upper()}_API_KEY"}
         if service not in services:
@@ -638,6 +642,9 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         with connection() as conn:
             try:
                 keystore.delete(conn, uk, service)
+                for legacy, shared in providers.SHARED_KEY.items():   # the same key, stored before 0.25.2
+                    if shared == service:
+                        keystore.delete(conn, uk, legacy)
                 conn.commit()
             except Exception:
                 conn.rollback()
@@ -749,7 +756,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 have = keystore.listing(conn, uk)
             finally:
                 conn.rollback()
-        if not any(p in have for p in settings.providers):
+        if not any(providers.stored_key(have, p) for p in settings.providers):
             name = providers.PROVIDERS[settings.providers[0]].name
             raise HTTPException(409, f"Add a key for {name} in Keys first.")
         with turn_transaction(uk) as conn:

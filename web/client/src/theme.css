@@ -225,6 +225,17 @@ button[disabled] { cursor: not-allowed }
 .keys-row .keys-state { font-size: 14px; color: var(--ink-2); flex: 1 }
 .keys-edit { display: flex; flex-direction: column; gap: var(--s2); flex-basis: 100%; }
 .keys-edit input { background: var(--sheet) }
+.cx-h { font-family: var(--display); font-size: 18px; font-weight: 700; margin: 0 }
+.keys-group { margin-top: var(--s4) }
+.keys-group + .keys-group { border-top: 1px solid var(--rule); padding-top: var(--s4) }
+.keys-h { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); margin: 0 }
+.keys-note { flex-basis: 100%; margin: -4px 0 0 }
+.cx-account { display: flex; flex-direction: column; gap: var(--s3); border-top: 1px solid var(--rule); padding-top: var(--s5) }
+.cx-account .cx-box { background: none; padding: 0 }
+.welcome { display: grid; gap: 10px; max-width: 30em; border: 1px solid var(--tok) }
+.welcome h2 { font-family: var(--display); font-size: 20px; line-height: 1.2; margin: 0 }
+.welcome p { margin: 0 }
+.welcome .go { justify-self: start; margin-top: 4px }
 .keys-actions { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center }
 .import { display: inline-block; margin-top: 8px; cursor: pointer; font-size: 14px }
 .m.audio { display: grid; gap: 8px; min-width: min(100%, 22em) }

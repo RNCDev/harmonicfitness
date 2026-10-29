@@ -1,7 +1,8 @@
-// The settings drawer: keys, signing in another device, the password, signing out.
+// The settings drawer: keys first; then the account: bringing in a folder, signing in another device,
+// the password, export and delete, signing out.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { api, ApiError, NotSignedIn, type DeviceLink } from "../api";
+import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState } from "../api";
 import { PasswordForm } from "../SignIn";
 import { KeysBox } from "./KeysBox";
 
@@ -160,9 +161,12 @@ type Props = {
   onClose: () => void;
   onSignedOut: () => void;
   onSignOut: () => void;
+  onKeys?: (keys: KeyState[]) => void;
+  /** A key row to open in edit mode (the welcome card's "Add your key"). */
+  openRow?: { service: string; n: number } | null;
 };
 
-export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut }: Props) {
+export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut, onKeys, openRow }: Props) {
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -172,12 +176,15 @@ export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut 
           <button type="button" className="ctx-close" onClick={onClose}>Close</button>
         </div>
         <div className="cx-list">
-          <KeysBox onSignedOut={onSignedOut} />
-          <ImportBox onSignedOut={onSignedOut} />
-          <DeviceLinkBox onSignedOut={onSignedOut} />
-          <PasswordBox username={username} onSignedOut={onSignedOut} />
-          <AccountBox onSignedOut={onSignedOut} />
-          <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>
+          <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
+          <section className="cx-account" aria-labelledby="cx-account-h">
+            <h3 className="cx-h" id="cx-account-h">Account</h3>
+            <PasswordBox username={username} onSignedOut={onSignedOut} />
+            <DeviceLinkBox onSignedOut={onSignedOut} />
+            <ImportBox onSignedOut={onSignedOut} />
+            <AccountBox onSignedOut={onSignedOut} />
+            <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>
+          </section>
         </div>
       </aside>
     </>
