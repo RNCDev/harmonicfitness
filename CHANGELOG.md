@@ -4,6 +4,19 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.29.1] - 2026-10-29
+
+Time a session has left goes to more of the listener's own content, never to silence.
+
+### For forks
+- **Nothing to migrate.** Guidance and lint messages only; `.agents/skills/` resynced.
+
+### Changed
+- **The content plan's counts are the least a session carries** (`knowledge/script.md`, Filler): time left once the coaching is written goes to a longer deep-dive beat, the research sheet's spare items or more reserve pieces (still one quiz, nothing told in the last month, every extra logged).
+- **Easy, steady work can carry a story** (the warm-up's mobility, a stretch, the cool-down): position first, then the story, with a cue between its paragraphs. Hard sets keep to their cues.
+- **Research brings two spare items** beyond the plan, marked "spare" (`.claude/skills/workout/research.md`), so a session with time to fill has verified content to fill it with.
+- **The lint's fixes name the listener's content:** a draft short on time says to add coaching in the sets or content in the rests; a silence over eight seconds in a rest or easy work, to tell more of their content.
+
 ## [0.29.0] - 2026-10-29
 
 The coach talks the listener through every set: the lint refuses any silence over eight seconds, and spare time no longer goes quiet at the end of a set. And `./harmonicfitness pull` brings a workout made in the web app down to this computer.

@@ -279,7 +279,8 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                 row.clip_issues.append(
                     f"  {secs:.0f}s of silence {where}; a listener with no screen hears more than "
                     f"{MAX_SILENCE:.0f}s as a dropped earbud. Coach through it (a cue, the breath, how many are "
-                    "left, a check-in) in holds of a few seconds, or give the segment fewer seconds")
+                    "left, a check-in) in holds of a few seconds; in a rest or easy work, tell more of the listener's content "
+                    "(knowledge/script.md, Filler); or give the segment fewer seconds")
         has_cues = bool(voice and voice.get("cues"))
         for para in plans[i - 1]:
             for text, _ in para:
@@ -349,7 +350,9 @@ def render_report(report):
         summary += (f"\nPredicted length {report.predicted / 60:.1f} min, {drift:+.1%} of plan "
                     f"(within {report.total_tolerance:.0%} is fine)")
         if report.total_off:
-            summary += ("  <-- too " + ("long: trim words" if drift > 0 else "short: add words")
+            summary += ("  <-- too " + ("long: trim words" if drift > 0 else
+                                       "short: add coaching in the sets, or more of the listener's content in the rests "
+                                       "(a longer deep-dive beat, the sheet's spare items, the reserve)")
                         + " in the segments furthest off")
         summary += (f"\n{voice['name']} speaks this draft at about {report.wpm:.0f} words a minute, pauses "
                     f"included; the guide column uses that rate")
