@@ -4,6 +4,33 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-28
+
+The web client's first five minutes, from a walk of the live site as a new user: sign-up no longer says it failed, a new listener is asked for the one key they need and is set up before their first workout, and the wait shows what's happening.
+
+### For forks
+- **Nothing in `me/` to migrate.** `coaches list --json` gains `speaks_here` on each coach. On the web client, a Gemini model key and the Gemini voice key are now one key, stored under `gemini`; an old `google` row still counts for both and is removed with it. A job's step events carry `id` and `state` (`running`, `done`, `failed`); an event without them reads as a step already done.
+
+### Added
+- **`speaks_here` in `coaches list --json`:** a web coach whose service has a key here, or a local coach that renders here (never on the web client). The text list notes a web coach with no key.
+- **A welcome card** (web): with no language-model key, the chat says what the app makes and which key it needs, and its button opens that key's row in Keys; the message box waits until the key is saved.
+- **`.claude/browser-qat.md`:** how a browser walk serves the web client locally against a throwaway database, signs up and cleans up.
+- **`web/qat_key.py`:** gives a local walk's throwaway account the Gemini key from the repo's root `.env` (now git-ignored) through the app's Keys API, so a walk can record without anyone pasting a key. It never prints the key and refuses any server but localhost.
+
+### Changed
+- **A new listener is set up first** (web): their first turn asks the setup skill's quick start and today's check-in as one numbered list, and writes the answers before the brief.
+- **Only coaches that can speak are offered** (web): the agent is given the coaches with a key here; the others are mentioned only as "add a key in Keys for more voices".
+- **Keys** (web): one row per key (Gemini once: it writes the workouts and can voice the coach), grouped as Required and Optional: more voices; the account settings sit under their own Account heading.
+- **The privacy line on the web** says the key is stored encrypted on this site and removed in Keys, never a file. The price is said once, on the Record card, and the plan's table once, before it; the reply after recording is one line.
+- **Progress** (web): each step shows while its tool runs and is ticked when it ends; a rewrite after a failed check reads "Tightening the script's timing", then "Checking the script again"; an approved recording shows "Designing <coach>'s voice" (when the coach is made then) and "Recording your workout" while it runs.
+- **A coach's sample** is labelled with the coach's name, and left out when the same turn recorded the workout.
+- The sign-in page says what the app is; a typed message survives a reload; buttons look like buttons again.
+
+### Fixed
+- **Sign-up showed "Couldn't reach the server" after it worked:** the client read register's empty 201 as JSON. An empty answer is now no body, whatever its status.
+- **Three 401s on every page load:** the signed-in page now waits until the server says who is signed in.
+- **Opening Keys left focus in the chat:** the drawer was still hidden at the moment it opened.
+
 ## [0.25.1] - 2026-10-28
 
 ### For forks
