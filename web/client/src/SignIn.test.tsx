@@ -56,4 +56,17 @@ describe("the sign-in page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("at least 8 characters");
     expect(calls.map((c) => c.url)).toEqual(["/api/auth"]);
   });
+
+  it("takes register's empty 201 as signed in", async () => {
+    const calls = serve(true, { status: 201 });
+    const done = vi.fn();
+    render(<SignIn onSignedIn={done} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Make an account" }));
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ana" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "long enough" } });
+    fireEvent.click(screen.getByRole("button", { name: "Make my account" }));
+    await waitFor(() => expect(done).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(calls[calls.length - 1].url).toBe("/api/register");
+  });
 });

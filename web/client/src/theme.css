@@ -86,6 +86,18 @@ button[disabled] { cursor: not-allowed }
   text-decoration-color: var(--rule); text-align: left;
 }
 .quiet:hover { color: var(--tok); text-decoration-color: var(--tok) }
+/* buttons: .go filled in the accent, .go.alt outlined */
+.go {
+  display: inline-block; font-family: var(--body); font-weight: 700; font-size: 16px; line-height: 1.25;
+  background: var(--tok); color: var(--tok-on); border: 2px solid var(--tok); border-radius: 999px;
+  padding: 9px 22px; white-space: nowrap; text-decoration: none;
+  transition: transform .15s, box-shadow .15s, background-color .15s;
+}
+.go:hover:not([disabled]) { transform: translateY(-1px); box-shadow: var(--shadow) }
+.go:active:not([disabled]) { transform: none }
+.go[disabled] { opacity: .45; transform: none; box-shadow: none }
+.go.alt { background: transparent; color: var(--tok) }
+.go.alt:hover:not([disabled]) { background: var(--tok-tint) }
 
 /* ---------- frame: a top bar, the chat below ---------- */
 .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh }
@@ -223,4 +235,4 @@ button[disabled] { cursor: not-allowed }
 .m.offer p { margin: 0 }
 .m.offer .go { justify-self: start; margin-top: 4px }
 .quiet.danger { color: var(--stop); text-decoration-color: var(--stop) }
-.go.danger { background: var(--stop); border-color: var(--stop) }
+.go.danger { background: var(--stop); border-color: var(--stop); color: var(--tok-on) }

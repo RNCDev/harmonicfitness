@@ -40,7 +40,8 @@ export type Conversation = {
 };
 export type When = { today: string; now: string };
 
-async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
+/** A call to the server. An empty answer (a 201 from register, a 204) is no body, whatever its status. */
+export async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, {
     method,
     credentials: "same-origin",
@@ -58,7 +59,8 @@ async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, b
     }
     throw new ApiError(r.status, detail);
   }
-  return r.status === 204 ? (undefined as T) : ((await r.json()) as T);
+  const text = await r.text();
+  return (text.trim() === "" ? undefined : JSON.parse(text)) as T;
 }
 
 export const api = {
