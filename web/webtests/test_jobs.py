@@ -467,7 +467,8 @@ class Turn(JobsCase):
         with mock.patch.object(agent, "start_feeds", side_effect=fake_feeds):
             job, conv = self.run_turn(uk, script, cid, line="stretch please")
             self.assertEqual(self.state(job), ("done", None))
-            self.assertTrue(prompts[0].startswith("Step 1 is done"))
+            self.assertTrue(prompts[0].startswith(agent.SETUP_FIRST))   # a new listener: set up first
+            self.assertIn("Step 1 is done", prompts[0])
             self.assertIn("### ./harmonicfitness get coach (exit ", prompts[0])
             self.assertEqual(started, [])   # the check-in comes first
             self.assertIn("Getting to know you and today's limits",

@@ -40,8 +40,10 @@ import coachpick  # noqa: E402
 import errors  # noqa: E402
 import cloud  # noqa: E402
 import context  # noqa: E402
+import keys  # noqa: E402
 import paths  # noqa: E402
 import personas  # noqa: E402
+import routes  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
 from audition import (CANDIDATES, WORKOUT_CHARS, say, stderr, audition, keep_web,  # noqa: E402,F401
@@ -90,22 +92,35 @@ def default_coach():
         return None, str(e.code)
 
 
-def listing(last=None):
+def listing(last=None, facts=None):
     """Every coach as a dict, in the list's order: name, slug, kind, service, service_name, default, placeholder,
-    pending, shipped, description (what --json prints for each), and notes (the list's remarks on it, such as
-    "(a stand-in)"). `last` is the coach a build uses when none is named (default_coach)."""
+    pending, shipped, speaks_here, description (what --json prints for each), and notes (the list's remarks on it,
+    such as "(a stand-in)"). `last` is the coach a build uses when none is named (default_coach). speaks_here: a
+    web coach's service has a key here; a local coach renders here (never in the web client). `facts` stands in
+    for the computer's, as in routes.usable."""
     out = []
+    local = {}   # whether local voices run here, asked once and only when a local coach is listed
+
+    def local_ok(p):
+        if paths.WEB or paths.REMOTE:
+            return False
+        if "facts" not in local:
+            local["facts"] = routes.computer(facts)
+        return routes.usable("local", p, local["facts"])[0]
+
     for p in personas.all():
         web = p.is_web
+        speaks = keys.is_set(p.service) if web else local_ok(p)
         notes = (["(a stand-in)"] if p.placeholder else []) \
             + (["(made the first time it's used)"] if web and p.pending else []) \
+            + ([f"(no {cloud.service_name(p.service)} key here)"] if web and not speaks else []) \
             + ([] if web or p.shipped else ["(a local coach of your own: ./harmonicfitness migrate archives it)"])
         out.append({"name": p.name, "slug": p.slug, "kind": "web" if web else "local",
                     "service": p.service if web else None,
                     "service_name": cloud.service_name(p.service) if web else None,
                     "default": bool(last and p.slug == last.slug), "placeholder": bool(p.placeholder),
-                    "pending": bool(web and p.pending), "shipped": bool(p.shipped), "description": p.description,
-                    "notes": notes})
+                    "pending": bool(web and p.pending), "shipped": bool(p.shipped), "speaks_here": bool(speaks),
+                    "description": p.description, "notes": notes})
     return out
 
 
@@ -131,7 +146,7 @@ def main(argv=None):
     ls = sub.add_parser("list", help="every coach (the default)")
     ls.add_argument("--json", action="store_true",
                     help="the list as one JSON object: coaches [{name, slug, kind, service, service_name, "
-                         "default, placeholder, pending, shipped, description}], default (a name or null), "
+                         "default, placeholder, pending, shipped, speaks_here, description}], default (a name or null), "
                          "note (why there's no default, or null)")
     sub.add_parser("last", help="the coach a build uses when none is named: the one used last (your own over a stand-in)")
     m = sub.add_parser("measured", help="exit 0 if the coach's pace is measured on the route, 1 if estimated, 64 unknown")

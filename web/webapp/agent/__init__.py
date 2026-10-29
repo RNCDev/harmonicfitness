@@ -3,6 +3,7 @@
 tools: run a `./harmonicfitness` command, read, write and list files. The model is passed per turn;
 nothing here knows which provider it is."""
 import functools
+import json
 import os
 import re
 import tomllib
@@ -169,7 +170,32 @@ def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
 
 # Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the
 # same results in the listener's first message, without a round trip for each.
-FIRST_RUNS = (["check"], ["content", "plan", "--minutes", "25"], ["get", "coach"], ["coaches", "list"])
+FIRST_RUNS = (["check"], ["content", "plan", "--minutes", "25"], ["get", "coach"], ["coaches", "list", "--json"])
+SETUP_FIRST = ("This listener isn't set up yet: this turn's questions are the setup skill's quick start (what to call "
+               "them, their experience, any injuries or limits), together with today's check-in, in one numbered "
+               "list. Write their answers before the brief runs.")
+
+
+def _coaches(r: ToolResult) -> ToolResult:
+    """`coaches list --json` as the coaches that can speak here, and those that would with a key: the model is
+    given the fact, not asked to filter. The raw result when it can't be read."""
+    try:
+        found = json.loads(r.output)["coaches"]
+        speak = [c for c in found if c.get("speaks_here")]
+        keyless = [c for c in found if c.get("kind") == "web" and not c.get("speaks_here")]
+    except (ValueError, KeyError, TypeError):
+        return r
+
+    def name(c: dict) -> str:
+        return c["name"] + (" (the default)" if c.get("default") else "") \
+            + (" (made the first time it's used)" if c.get("pending") else "")
+    lines = ["Coaches who can speak here (offer only these): "
+             + ("; ".join(name(c) for c in speak) if speak else "none yet") + "."]
+    if keyless:
+        lines.append("Not here without a key (never offer these by name; say \"add a key in Keys for more "
+                     "voices\" instead): " + ", ".join(f"{c['name']} ({c.get('service_name')})" for c in keyless) + ".")
+    lines.append("Local coaches don't speak on this site.")
+    return ToolResult(code=r.code, output="\n".join(lines))
 FIRST_READS = ("me/profile.md", "me/training.md", "me/health.md", "me/log.md")
 
 
@@ -186,6 +212,7 @@ def prefetch(deps: Deps) -> str:
         reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS]
         results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(FIRST_RUNS, runs)]
         results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS, reads)]
+    results[3] = ("./harmonicfitness coaches list", _coaches(results[3][1]))
     coach = results[2][1]
     if coach.code == 0 and coach.output.strip():
         name = coach.output.strip().splitlines()[0].strip()
@@ -196,8 +223,9 @@ def prefetch(deps: Deps) -> str:
             deps.say("Getting to know you and today's limits", "prefetch", 0)
         except Exception:  # noqa: BLE001 - a progress line never fails the turn
             pass
-    return ("Step 1 is done: these are its results, run as this turn began. Don't run or read them again "
-            "this turn; go on from the check-in.\n\n" + "\n\n".join(_block(t, r) for t, r in results))
+    first = SETUP_FIRST + "\n\n" if deps.setup and needs_setup(deps.home) else ""
+    return (first + "Step 1 is done: these are its results, run as this turn began. Don't run or read them again "
+            "this turn; go on to the questions.\n\n" + "\n\n".join(_block(t, r) for t, r in results))
 
 
 def start_feeds(deps: Deps, pool: ThreadPoolExecutor) -> Future:

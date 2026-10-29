@@ -249,6 +249,31 @@ class Prefetch(AgentCase):
         self.assertTrue(seen["prompt"].startswith("Step 1 is done"))
         self.assertTrue(seen["prompt"].endswith("The listener says:\n\nstretch please"))
 
+    def test_a_new_listener_is_asked_setup_and_check_in_together(self):
+        self.deps.setup = True
+        self.assertTrue(agent.prefetch(self.deps).startswith("This listener isn't set up yet"))
+        self.deps.setup = False
+        self.assertTrue(agent.prefetch(self.deps).startswith("Step 1 is done"))
+        path = os.path.join(self.home, "profile.md")   # set up, and asking to change the profile
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text.replace('experience = ""', 'experience = "novice"', 1))
+        self.deps.setup = True
+        self.assertTrue(agent.prefetch(self.deps).startswith("Step 1 is done"))
+
+    def test_only_coaches_that_can_speak_are_offered(self):
+        self.deps.keys = {"GEMINI_API_KEY": "AIzaabc123def456abcd"}
+        context = agent.prefetch(self.deps)
+        block = context.split("### ./harmonicfitness coaches list (exit 0)", 1)[1].split("###", 1)[0]
+        offered = block.split("Coaches who can speak here (offer only these): ", 1)[1].split("\n", 1)[0]
+        self.assertIn("Coach Nolan", offered)
+        for other in ("Coach Reed", "Coach Ellis", "Coach Owen", "Coach Andy", "Coach Maya"):
+            self.assertNotIn(other, offered)
+        self.assertIn("Coach Reed (Fish Audio)", block)   # named only as needing a key
+        self.assertIn("add a key in Keys for more voices", block)
+        self.assertNotIn('"speaks_here"', context)
+
     def test_feeds_waits_for_the_background_run(self):
         from concurrent.futures import Future
         done = Future()
@@ -286,6 +311,13 @@ class Instructions(AgentCase):
         self.assertIn("kept 24 hours", text)
         self.assertIn("one side only", text)
         self.assertIn(f"today is {TODAY}", text)
+
+    def test_the_web_wording_names_no_key_file(self):
+        with open(os.path.join(ROOT, "web/webapp/agent/instructions.md"), encoding="utf-8") as f:
+            lines = [line for line in f if ".env" in line]
+        self.assertEqual(len(lines), 1)   # only the rule never to read or write it
+        self.assertIn("Never read or write `me/.env`", lines[0])
+        self.assertIn("stored encrypted on this site", agent.PREAMBLE)
 
     def test_a_new_listener_gets_the_setup_skill(self):
         self.assertTrue(agent.needs_setup(self.home))   # the starter profile: no experience yet

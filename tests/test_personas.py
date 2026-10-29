@@ -386,8 +386,8 @@ class SetAndList(unittest.TestCase):
         found = coaches.listing(personas.lookup("Coach Dana"))
         by = {c["name"]: c for c in found}
         self.assertEqual(sorted(by["Coach Dana"]), sorted(["name", "slug", "kind", "service", "service_name", "default",
-                                                           "placeholder", "pending", "shipped", "description",
-                                                           "notes"]))
+                                                           "placeholder", "pending", "shipped", "speaks_here",
+                                                           "description", "notes"]))
         self.assertTrue(by["Coach Dana"]["default"])
         self.assertEqual(by["Coach Dana"]["service_name"], "Fish Audio")
         self.assertIn("(made the first time it's used)", by["Coach Reed"]["notes"])
@@ -396,6 +396,21 @@ class SetAndList(unittest.TestCase):
         self.assertTrue(any(line.startswith("* Coach Dana") and "web · Fish Audio" in line for line in lines))
         self.assertTrue(lines[-1].startswith("* the coach a build uses"))
         self.assertIn("No coaches found", coaches.listing_lines([])[0])
+
+    def test_listing_says_which_coaches_speak_here(self):
+        import coaches
+        env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+        with mock.patch.dict(os.environ, {**env, "GEMINI_API_KEY": "AIzaabc123def456abcd"}, clear=True), \
+                mock.patch.object(coaches.keys.paths, "ENV_FILE", os.path.join(self.d, "absent.env")):
+            by = {c["name"]: c for c in coaches.listing(facts={"local": "no", "local_reason": "test"})}
+            web = [c for c in by.values() if c["kind"] == "web"]
+            self.assertTrue(web)
+            for c in web:
+                self.assertEqual(c["speaks_here"], c["service"] == "gemini", c["name"])
+                self.assertEqual(any("key here" in n for n in c["notes"]), c["service"] != "gemini", c["name"])
+            self.assertFalse(any(c["speaks_here"] for c in by.values() if c["kind"] == "local"))
+            with mock.patch.object(coaches.paths, "WEB", True):
+                self.assertFalse(any(c["speaks_here"] for c in coaches.listing() if c["kind"] == "local"))
 
     def test_measured_takes_route_and_the_old_engine(self):
         import cli
