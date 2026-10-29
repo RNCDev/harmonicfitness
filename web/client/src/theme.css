@@ -81,7 +81,7 @@ a { color: var(--tok) }
   min-height: 0; width: min(680px, 100% - 32px); margin: 0 auto 18px; display: flex; flex-direction: column;
   background: var(--sheet); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
 }
-.coachbar { display: flex; align-items: center; gap: 12px; padding: 13px 24px; border-bottom: 1px solid var(--rule) }
+.coachbar { flex: none; display: flex; align-items: center; gap: 12px; padding: 13px 24px; border-bottom: 1px solid var(--rule) }
 .coachbar b { font-weight: 600 }
 .coachbar small { color: var(--ink-3); font-size: 13px; margin-left: auto }
 .lane-badge, .lane-num {
@@ -93,7 +93,7 @@ a { color: var(--tok) }
 .lane-num.on { box-shadow: none }
 
 /* ---------- chat ---------- */
-.chat-log { flex: 1; overflow-y: auto; padding: 24px 24px 12px; display: flex; flex-direction: column; gap: 14px }
+.chat-log { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 24px 12px; display: flex; flex-direction: column; gap: 14px }
 .m { max-width: 86%; margin: 0 }
 .m.a { align-self: flex-start }
 .m.u { align-self: flex-end; background: var(--tok-tint); color: var(--ink); padding: 9px 15px; border-radius: 12px 12px 3px 12px; white-space: pre-wrap }

@@ -182,13 +182,15 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
   needsKey = null, onAddKey, start = null, onCoach, coachBar = null }: Props) {
   const [text, setText] = useState(readDraft);
-  const end = useRef<HTMLDivElement>(null);
+  const log = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => keepDraft(text), [text]);
 
   useEffect(() => {
-    end.current?.scrollIntoView?.({ block: "end" });
+    // scroll the list only: scrollIntoView would also scroll the sheet around it, hiding the coach bar
+    const el = log.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [lines.length, working, steps.length]);
 
   async function send() {
@@ -204,7 +206,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
         <div className="coachbar"><span className="lane-badge" aria-hidden="true">{coachBar.n}</span>
           <b>{coachBar.name}</b><small>{coachBar.service}</small></div>
       )}
-      <div className="chat-log" role="log" aria-live="polite">
+      <div className="chat-log" ref={log} role="log" aria-live="polite">
         {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? onOpenKeys} />}
         {lines.length === 0 && !working && !needsKey && start && (
           <Starter info={start} onStart={onSend} onCoach={onCoach}
@@ -219,7 +221,6 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
         ))}
         {offer && !working && <RecordOffer offer={offer} onRecord={onRecord} />}
         {working && <Working steps={steps} onStop={onStop} />}
-        <div ref={end} />
       </div>
       {error && (
         <div className="chat-error" role="alert">
