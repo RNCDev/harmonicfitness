@@ -46,8 +46,13 @@ class NewAudio(unittest.TestCase):
         self.put("workouts/a/a.web-1.mp3")
         self.put("workouts/b/b.mp3")
         time.sleep(0.01)
-        self.put("coaches/coach-dana-fish/sample.mp3")
-        self.assertEqual(self.names(), ["coach-dana-fish: voice sample", "b"])
+        self.put("coaches/coach-dana-fish/sample.mp3")   # the coach made during the build: the workout is its voice
+        self.assertEqual(self.names(), ["b"])
+
+    def test_a_sample_is_named_for_its_coach(self):
+        self.put("coaches/coach-nolan-gemini/persona.md", b'+++\nschema = 5\nname = "Coach Nolan"\n+++\nNotes.\n')
+        self.put("coaches/coach-nolan-gemini/sample.mp3")
+        self.assertEqual(self.names(), ["Coach Nolan's voice"])
 
     def test_an_auditions_candidates_by_letter_without_the_service(self):
         self.audition()
@@ -65,8 +70,9 @@ class NewAudio(unittest.TestCase):
         written = folder.materialize(folder.harvest(self.home, {}), os.path.join(self.home, "next"))
         self.home = os.path.join(self.home, "next")
         self.assertEqual(self.names(written), [])
+        self.put("coaches/coach-dana-fish/persona.md", b'+++\nname = "Coach Dana"\n+++\n')
         self.put("coaches/coach-dana-fish/sample.mp3")   # the keep turn: only the kept coach's sample
-        self.assertEqual(self.names(written), ["coach-dana-fish: voice sample"])
+        self.assertEqual(self.names(written), ["Coach Dana's voice"])
 
     def test_a_damaged_candidates_list_still_plays_unlabeled(self):
         self.put(f"{AUD}/fish-1.mp3")

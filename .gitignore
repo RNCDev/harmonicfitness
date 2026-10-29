@@ -24,3 +24,6 @@ docs/eval/out-before-*/
 
 # The plan ledgers and briefs of superpowers' executing-plans (scratch, per plan).
 .superpowers/
+
+# browser walks: screenshots and logs from the Playwright tools
+.playwright-mcp/

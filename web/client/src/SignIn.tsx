@@ -47,6 +47,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <main className="solo">
       <div className="mark">{APP_NAME}{version && <span className="ver">{version}</span>}</div>
+      <p className="tagline">A workout podcast, made fresh each time you ask.</p>
       <h1>{mode === "in" ? "Sign in" : "Make an account"}</h1>
       <form className="auth" onSubmit={submit}>
         <label>

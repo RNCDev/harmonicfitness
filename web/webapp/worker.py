@@ -17,6 +17,7 @@ import signal
 import sys
 import tempfile
 import threading
+import tomllib
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -305,10 +306,23 @@ def _candidate_names(folder_path: str) -> dict[str, str]:
         return {}
 
 
+def _coach_name(folder_path: str) -> str | None:
+    """The coach's name from its persona.md's settings block, else None."""
+    try:
+        with open(os.path.join(folder_path, "persona.md"), encoding="utf-8") as f:
+            text = f.read()
+        block = text.split("+++")[1] if text.startswith("+++") else ""
+        name = tomllib.loads(block).get("name")
+    except (OSError, IndexError, ValueError):
+        return None
+    return name.strip() if isinstance(name, str) and name.strip() else None
+
+
 def new_audio(home: str, written: dict[str, str]) -> list[tuple[str, str]]:
     """(path, chat name) of each MP3 this turn made: the newest AUDIO_KEPT workouts or coach samples, then
     every candidate of an audition, in letter order. An MP3 the folder already held (`written`: an audition
-    from an earlier turn) isn't one."""
+    from an earlier turn) isn't one. A coach's sample is named for the coach ("Coach Nolan's voice"), and left
+    out when the turn also made a workout: the coach was made during that build, and the workout is its voice."""
     found, candidates = [], []
     for top in ("workouts", "coaches"):   # a workout, or a coach's voice sample made at setup or a keep
         for dirpath, _, files in os.walk(os.path.join(home, top)):
@@ -320,10 +334,15 @@ def new_audio(home: str, written: dict[str, str]) -> list[tuple[str, str]]:
                 (candidates if rel.startswith(folder.AUDITIONS) else found).append(path)
     found.sort(key=os.path.getmtime, reverse=True)
     out = []
-    for path in found[:AUDIO_KEPT]:
-        coach = os.path.basename(path) == "sample.mp3"
-        out.append((path, f"{os.path.basename(os.path.dirname(path))}: voice sample" if coach
-                    else os.path.basename(path)[:-4]))
+    kept = found[:AUDIO_KEPT]
+    workout = any(os.path.basename(p) != "sample.mp3" for p in kept)
+    for path in kept:
+        if os.path.basename(path) != "sample.mp3":
+            out.append((path, os.path.basename(path)[:-4]))
+        elif not workout:
+            where = os.path.dirname(path)
+            name = _coach_name(where)
+            out.append((path, f"{name}'s voice" if name else f"{os.path.basename(where)}: voice sample"))
     by_audition: dict[str, list[str]] = {}
     for path in sorted(candidates):
         by_audition.setdefault(os.path.dirname(path), []).append(os.path.basename(path))

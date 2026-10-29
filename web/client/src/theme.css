@@ -192,6 +192,7 @@ button[disabled] { cursor: not-allowed }
 .solo { max-width: 32em; margin: 0 auto; padding: 18vh 16px 48px }
 .solo h1 { font-family: var(--display); font-size: 30px; line-height: 1.15; letter-spacing: -.02em; margin: 24px 0 8px }
 .solo p { color: var(--ink-2); margin: 0 0 24px }
+.solo .tagline { margin: 10px 0 0; font-size: 17px; color: var(--ink-2) }
 .solo .auth { margin-bottom: 28px }
 .auth { display: flex; flex-direction: column; gap: 10px; margin-top: var(--s3) }
 .auth label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 15px }

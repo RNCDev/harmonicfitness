@@ -124,4 +124,18 @@ describe("the chat", () => {
     expect(stepsOf([{ stage: "folder" }, { stage: "step", text: "Old", failed: false }]))
       .toEqual([{ text: "Old", failed: false, running: false }]);
   });
+
+  it("keeps the unsent text across a reload, and clears it on send", () => {
+    sessionStorage.clear();
+    const onSend = vi.fn();
+    const { unmount } = render(<Chat {...base} onSend={onSend} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "20 minutes, legs" } });
+    unmount();
+    render(<Chat {...base} onSend={onSend} />);
+    const box = screen.getByRole("textbox", { name: "Message" });
+    expect(box).toHaveValue("20 minutes, legs");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(onSend).toHaveBeenCalledWith("20 minutes, legs");
+    expect(sessionStorage.getItem("hf-chat-draft")).toBeNull();
+  });
 });

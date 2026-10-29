@@ -86,6 +86,24 @@ function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promi
 
 const SHOWN_STEPS = 6;
 
+/** The box's unsent text, kept for this tab across a reload. Storage may be missing or refuse: then it isn't kept. */
+const DRAFT = "hf-chat-draft";
+function readDraft(): string {
+  try {
+    return sessionStorage.getItem(DRAFT) ?? "";
+  } catch {
+    return "";
+  }
+}
+function keepDraft(text: string): void {
+  try {
+    if (text) sessionStorage.setItem(DRAFT, text);
+    else sessionStorage.removeItem(DRAFT);
+  } catch {
+    /* not kept */
+  }
+}
+
 /** Steps in a row that say the same thing are one step, as the later one stands. */
 function collapsed(steps: Step[]): Step[] {
   return steps.filter((s, i) => i === steps.length - 1 || s.text !== steps[i + 1].text);
@@ -156,8 +174,10 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
 
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
   needsKey = null, onAddKey }: Props) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(readDraft);
   const end = useRef<HTMLDivElement>(null);
+
+  useEffect(() => keepDraft(text), [text]);
 
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: "end" });
