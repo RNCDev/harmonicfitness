@@ -321,7 +321,7 @@ class Prefetch(AgentCase):
         for other in ("Coach Reed", "Coach Ellis", "Coach Owen", "Coach Andy", "Coach Maya"):
             self.assertNotIn(other, offered)
         self.assertIn("Coach Reed (Fish Audio)", block)   # named only as needing a key
-        self.assertIn("add a key in Keys for more voices", block)
+        self.assertIn("add a key in Settings for more voices", block)
         self.assertNotIn('"speaks_here"', context)
 
     def test_feeds_waits_for_the_background_run(self):

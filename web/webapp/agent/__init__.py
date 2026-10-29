@@ -263,7 +263,7 @@ def _coaches(r: ToolResult) -> ToolResult:
     lines = ["Coaches who can speak here (offer only these): "
              + ("; ".join(name(c) for c in speak) if speak else "none yet") + "."]
     if keyless:
-        lines.append("Not here without a key (never offer these by name; say \"add a key in Keys for more "
+        lines.append("Not here without a key (never offer these by name; say \"add a key in Settings for more "
                      "voices\" instead): " + ", ".join(f"{c['name']} ({c.get('service_name')})" for c in keyless) + ".")
     lines.append("Local coaches don't speak on this site.")
     return ToolResult(code=r.code, output="\n".join(lines))

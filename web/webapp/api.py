@@ -37,7 +37,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
 from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
-    spend, store, \
+    spend, start, store, \
     worker
 
 COOKIE = "wt_session"
@@ -496,6 +496,23 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     def get_options(uk: User):
         return options
 
+    @app.get("/api/start")
+    async def start_screen(uk: User):
+        """What the first screen's sentence is filled in with: the web coaches (current first), the kits,
+        the usual length, today's limits, a suggestion from the log, and whether setup is still quick."""
+        def work() -> dict:
+            with connection() as conn:
+                try:
+                    files = {p: body for p, (_, body) in store.read_all(conn, uk).items()}
+                    have = keystore.listing(conn, uk)
+                finally:
+                    conn.rollback()
+            # as in GET /api/keys: a model key stored under a provider's own id voices its shared service too
+            keyed = {s for s in services
+                     if s in have or any(p in have for p, t in providers.SHARED_KEY.items() if t == s)}
+            return start.gather(settings.engine_root, files, keyed)
+        return await anyio.to_thread.run_sync(work)
+
     @app.get("/api/context")
     def context(uk: User):
         with connection() as conn:
@@ -758,7 +775,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
         if not any(providers.stored_key(have, p) for p in settings.providers):
             name = providers.PROVIDERS[settings.providers[0]].name
-            raise HTTPException(409, f"Add a key for {name} in Keys first.")
+            raise HTTPException(409, f"Add a key for {name} in Settings first.")
         with turn_transaction(uk) as conn:
             cid = conversations.create(conn, uk, body.line)
             job_id = queue_turn(conn, uk, turn_args(cid, body.line, None, body.today, body.now))

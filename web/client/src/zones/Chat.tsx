@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Audio, ChatLine, Offer } from "../api";
+import type { Audio, ChatLine, Offer, StartInfo } from "../api";
+import { Starter } from "./Starter";
 
 /** A step of the coach's turn: running while its tool works, then done (or failed). */
 export type Step = { text: string; failed?: boolean; running?: boolean };
@@ -44,6 +45,12 @@ type Props = {
   /** No language-model key yet: the key to ask for, in place of the greeting, and the button that opens it. */
   needsKey?: KeyNeeded | null;
   onAddKey?: () => void;
+  /** What the first screen's sentence is filled in with (null until it arrives). */
+  start?: StartInfo | null;
+  /** The coach picked in the sentence. */
+  onCoach?: (slug: string) => void;
+  /** The coach shown above the conversation, with their lane number. */
+  coachBar?: { n: number; name: string; service: string } | null;
 };
 
 /** The language-model key a new listener adds first. */
@@ -173,9 +180,10 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
 }
 
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
-  needsKey = null, onAddKey }: Props) {
+  needsKey = null, onAddKey, start = null, onCoach, coachBar = null }: Props) {
   const [text, setText] = useState(readDraft);
   const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => keepDraft(text), [text]);
 
@@ -192,10 +200,15 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
 
   return (
     <main className="chat" aria-label="Chat">
+      {coachBar && lines.length > 0 && (
+        <div className="coachbar"><span className="lane-badge" aria-hidden="true">{coachBar.n}</span>
+          <b>{coachBar.name}</b><small>{coachBar.service}</small></div>
+      )}
       <div className="chat-log" role="log" aria-live="polite">
         {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? onOpenKeys} />}
         {lines.length === 0 && !working && !needsKey && (
-          <p className="m a">Hi. Tell me what workout you'd like: how long, what for, what you have with you. I'll check in, then write it.</p>
+          <Starter info={start} onStart={onSend} onCoach={onCoach}
+            onFill={(line) => { setText(line); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(line.length, line.length); }); }} />
         )}
         {lines.map((l, i) => l.audio ? <AudioLine key={i} audio={l.audio} /> : l.role === "user" ? (
           <p key={i} className="m u">{l.text}</p>
@@ -211,12 +224,13 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
       {error && (
         <div className="chat-error" role="alert">
           <p>{error}</p>
-          {noKey && <button type="button" className="go alt" onClick={onOpenKeys}>Open Keys</button>}
+          {noKey && <button type="button" className="go alt" onClick={onOpenKeys}>Open Settings</button>}
         </div>
       )}
       <form className="chat-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <label className="sr" htmlFor="chat-box">Message</label>
-        <textarea id="chat-box" rows={2} value={text} disabled={working || !!needsKey}
+        <textarea id="chat-box" ref={box} rows={1} value={text}
+          placeholder={lines.length === 0 ? "Or write your own" : "Reply to your coach"} disabled={working || !!needsKey}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -224,7 +238,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
               send();
             }
           }} />
-        <button type="submit" className="go alt" disabled={working || !!needsKey || !text.trim()}>Send</button>
+        <button type="submit" className="go" disabled={working || !!needsKey || !text.trim()}>Send</button>
       </form>
     </main>
   );

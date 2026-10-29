@@ -601,7 +601,7 @@ class Keys(ApiCase):
         self.assertNotIn("google", [k["service"] for k in body])
         r = c.post("/api/conversations", json={"line": "hi", "today": today(), "now": f"{today()} Wednesday 08:00"},
                    headers=self.origin())
-        self.assertEqual((r.status_code, r.json()["detail"]), (409, "Add a key for Gemini in Keys first."))
+        self.assertEqual((r.status_code, r.json()["detail"]), (409, "Add a key for Gemini in Settings first."))
         self.assertEqual(c.put("/api/keys/gemini", json={"key": "AIzaabc123def456abcd"},
                                headers=self.origin()).status_code, 204)
         body = c.get("/api/keys").json()
@@ -739,7 +739,7 @@ class Conversations(ApiCase):
         self.conn.commit()
         r = self.client.post("/api/conversations", json=self.turn(line="hi"), headers=self.origin())
         self.assertEqual((r.status_code, r.json()["detail"]),
-                         (409, "Add a key for Claude in Keys first."))
+                         (409, "Add a key for Claude in Settings first."))
         self.assertEqual(self.turn_jobs(user_id), [])
         self.assertIsNone(conversations.latest(self.conn, uk))
         self.conn.rollback()

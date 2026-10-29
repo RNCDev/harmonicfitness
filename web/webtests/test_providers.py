@@ -97,7 +97,7 @@ class Explain(unittest.TestCase):
         self.assertEqual(err.kind, "auth")
         self.assertIn("Claude", err.message)
         self.assertNotIn(KEY, err.message)
-        self.assertEqual(err.message, "Claude refused the key. Replace it in Keys.")
+        self.assertEqual(err.message, "Claude refused the key. Replace it in Settings.")
 
     def test_server_error_is_not_retried(self):
         err, seen = self._run(500, {"error": {"type": "api_error", "message": "boom"}})

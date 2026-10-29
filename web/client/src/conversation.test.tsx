@@ -54,11 +54,11 @@ describe("useConversation", () => {
 
   it("sets noKey when there is no model key", async () => {
     m.latest.mockResolvedValue(undefined);
-    m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Keys first."));
+    m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Settings first."));
     const { result } = renderHook(() => useConversation(out));
     await act(async () => { expect(await result.current.send("a workout")).toBe(false); });
     expect(result.current.noKey).toBe(true);
-    expect(result.current.error).toBe("Add a key for Claude in Keys first.");
+    expect(result.current.error).toBe("Add a key for Claude in Settings first.");
     expect(result.current.working).toBe(false);
   });
 
@@ -88,51 +88,43 @@ describe("useConversation", () => {
     expect(result.current.working).toBe(false);
   });
 
-  it("lets a failed conversation be written to again", async () => {
-    m.latest.mockResolvedValue(conv({ state: "failed",
-      lines: [{ role: "agent", text: "That didn't work: it stopped." }] }));
-    const { result } = renderHook(() => useConversation(out));
-    await waitFor(() => expect(result.current.conv?.state).toBe("failed"));
-    expect(result.current.working).toBe(false);
-    expect(result.current.conv?.lines[0].text).toMatch(/didn't work/);
+  it("opens fresh: a finished, failed or earlier day's conversation isn't shown again", async () => {
+    for (const c of [conv({}), conv({ state: "failed", lines: [{ role: "agent", text: "That didn't work." }] }),
+      conv({ updated_at: yesterday() })]) {
+      m.latest.mockResolvedValue(c);
+      const { result, unmount } = renderHook(() => useConversation(out));
+      await waitFor(() => expect(m.latest).toHaveBeenCalled());
+      await act(async () => { await Promise.resolve(); });
+      expect(result.current.conv).toBeNull();
+      expect(result.current.working).toBe(false);
+      expect(m.watch).not.toHaveBeenCalled();
+      unmount();
+      m.latest.mockReset();
+    }
   });
 
-  it("New chat clears the page and the next message starts a new conversation", async () => {
+  it("the first message starts a conversation, the next continues it, and New chat starts over", async () => {
     m.latest.mockResolvedValue(conv({ id: 7 }));
-    m.start.mockResolvedValue({ id: 8, job_id: 50 });
+    m.start.mockResolvedValueOnce({ id: 8, job_id: 50 }).mockResolvedValueOnce({ id: 9, job_id: 52 });
     m.send.mockResolvedValue({ job_id: 51 });
     const { result } = renderHook(() => useConversation(out));
-    await waitFor(() => expect(result.current.conv?.id).toBe(7));
-    act(() => result.current.reset());
-    expect(result.current.conv).toBeNull();
+    await waitFor(() => expect(m.latest).toHaveBeenCalled());
     await act(async () => { expect(await result.current.send("A 20-minute workout")).toBe(true); });
     expect(m.start).toHaveBeenCalledWith("A 20-minute workout", expect.anything());
-    expect(m.send).not.toHaveBeenCalled();
     expect(result.current.conv?.id).toBe(8);
     m.conversation.mockResolvedValue(conv({ id: 8 }));
     act(() => m.endJob!("done"));
     await waitFor(() => expect(result.current.working).toBe(false));
     await act(async () => { expect(await result.current.send("and shorter")).toBe(true); });
     expect(m.send).toHaveBeenCalledWith(8, "and shorter", expect.anything());
-    expect(m.start).toHaveBeenCalledTimes(1);
-  });
-
-  it("a message after an earlier day's conversation starts a new one", async () => {
-    m.latest.mockResolvedValue(conv({ id: 7, updated_at: yesterday() }));
-    m.start.mockResolvedValue({ id: 9, job_id: 60 });
-    const { result } = renderHook(() => useConversation(out));
-    await waitFor(() => expect(result.current.history).toBe(true));
-    await act(async () => { await result.current.send("today's workout"); });
-    expect(m.start).toHaveBeenCalledTimes(1);
-    expect(m.send).not.toHaveBeenCalled();
-  });
-
-  it("shows an earlier day's conversation as history", async () => {
-    m.latest.mockResolvedValue(conv({ updated_at: yesterday() }));
-    const { result } = renderHook(() => useConversation(out));
-    await waitFor(() => expect(result.current.conv?.state).toBe("idle"));
-    expect(result.current.history).toBe(true);
-    expect(result.current.conv?.lines[0].text).toBe("hi");   // its lines stay
+    m.conversation.mockResolvedValue(conv({ id: 8 }));
+    act(() => m.endJob!("done"));
+    await waitFor(() => expect(result.current.working).toBe(false));
+    act(() => result.current.reset());
+    expect(result.current.conv).toBeNull();
+    await act(async () => { await result.current.send("another"); });
+    expect(m.start).toHaveBeenCalledTimes(2);
+    expect(result.current.conv?.id).toBe(9);
   });
 
   it("history: an earlier local day only, never a working turn", () => {
@@ -143,17 +135,17 @@ describe("useConversation", () => {
     expect(isHistory(null)).toBe(false);
   });
 
-  it("offers Keys when a turn fails for want of a key", async () => {
+  it("offers Settings when a turn fails for want of a key", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.conversation.mockResolvedValue(conv({ state: "failed" }));
     const { result } = renderHook(() => useConversation(out));
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
-    act(() => m.endJob!("failed", "Claude refused the key. Replace it in Keys."));
-    await waitFor(() => expect(result.current.error).toBe("Claude refused the key. Replace it in Keys."));
+    act(() => m.endJob!("failed", "Claude refused the key. Replace it in Settings."));
+    await waitFor(() => expect(result.current.error).toBe("Claude refused the key. Replace it in Settings."));
     expect(result.current.noKey).toBe(true);
   });
 
-  it("no Keys button for a failure that isn't about keys", async () => {
+  it("no Settings button for a failure that isn't about keys", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.conversation.mockResolvedValue(conv({ state: "failed" }));
     const { result } = renderHook(() => useConversation(out));

@@ -41,7 +41,7 @@ the welcome card. A recording costs a few cents on that key.
 ## Writes
 
 `persist: yes`, to `hf_qat` only. Never `DATABASE_URL` from Fly or anywhere else; refuse to walk if
-`DATABASE_URL` isn't a `localhost` URL. Cleanup: delete the walk's account in the app (Keys > Account >
+`DATABASE_URL` isn't a `localhost` URL. Cleanup: delete the walk's account in the app (Settings > Account >
 Delete my account), which removes its files, keys, chats and audio. Dry run: `psql hf_qat -c "select
 username from users"` lists what's there; only the walk's own accounts may go. The whole `hf_qat`
 database is a throwaway and can be dropped (`dropdb hf_qat`).
@@ -67,7 +67,7 @@ account, deleted in the app at the end.
 - **S3** buttons look like buttons (filled or outlined), in light and dark.
 - **S4** with no language-model key, a welcome card says what's needed and its button opens that key's row;
   the message box waits.
-- **S5** the Keys drawer shows one row per key (Gemini once), Required apart from Optional, and the account
+- **S5** the Settings drawer (the gear) shows the coaches, then one row per key (Gemini once), Required apart from Optional, and the account
   settings under their own heading.
 - **S6** nothing shows a key, a file path or `me/.env`.
 

@@ -80,11 +80,11 @@ describe("the chat", () => {
     expect(screen.getByText("**not bold**")).toBeInTheDocument();
   });
 
-  it("shows the no-key message with a Keys button", () => {
+  it("shows the no-key message with a Settings button", () => {
     const onOpenKeys = vi.fn();
-    render(<Chat {...base} noKey error="Add a key for Claude in Keys first." onOpenKeys={onOpenKeys} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Add a key for Claude in Keys first.");
-    fireEvent.click(screen.getByRole("button", { name: "Open Keys" }));
+    render(<Chat {...base} noKey error="Add a key for Claude in Settings first." onOpenKeys={onOpenKeys} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Add a key for Claude in Settings first.");
+    fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
     expect(onOpenKeys).toHaveBeenCalled();
   });
 
@@ -93,15 +93,15 @@ describe("the chat", () => {
     render(<Chat {...base} needsKey={{ name: "Gemini", service: "gemini", voice: true }} onAddKey={onAddKey} />);
     expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
     expect(screen.getByText(/one Gemini key, free from Google AI Studio/)).toHaveTextContent("and can voice your coach");
-    expect(screen.queryByText(/Tell me what workout you'd like/)).toBeNull();
+    expect(screen.queryByRole("region", { name: "Start a workout" })).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Add your key" }));
     expect(onAddKey).toHaveBeenCalled();
   });
 
-  it("with a key, greets", () => {
+  it("with a key, offers the starter sentence", () => {
     render(<Chat {...base} needsKey={null} />);
-    expect(screen.getByText(/Tell me what workout you'd like/)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Start a workout" })).toBeInTheDocument();
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
   });

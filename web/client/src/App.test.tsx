@@ -24,7 +24,7 @@ describe("the app", () => {
     expect(fetched.filter((u) => u.startsWith("/api/keys") || u.startsWith("/api/conversations"))).toEqual([]);
   });
 
-  it("welcomes a listener with no key, and greets once the key is saved", async () => {
+  it("welcomes a listener with no key, and offers the starter once the key is saved", async () => {
     const gemini = { service: "gemini", name: "Gemini", key_page: "https://g.example", set: false, updated_at: null };
     const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
     const put = vi.fn();
@@ -42,7 +42,7 @@ describe("the app", () => {
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
     fireEvent.change(box, { target: { value: "AIza-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByText(/Tell me what workout you'd like/)).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Start a workout" })).toBeInTheDocument();
     expect(put).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();

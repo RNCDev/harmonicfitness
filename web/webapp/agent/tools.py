@@ -100,7 +100,7 @@ def _mine(deps: Deps, path: str) -> tuple[str | None, str]:
     if full is None:
         return None, "that path leaves the listener's folder"
     if rel == ".env" or rel.endswith("/.env") or rel.startswith(".env"):
-        return None, "me/.env is never read or written: keys are entered in Keys"
+        return None, "me/.env is never read or written: keys are entered in Settings"
     return full, rel
 
 

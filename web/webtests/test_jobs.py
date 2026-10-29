@@ -574,10 +574,10 @@ class Turn(JobsCase):
         self.conn.commit()
         cid = self.start(uk)
         job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid, line="go")
-        self.assertEqual(self.state(job), ("failed", "add a language-model key in Keys"))
+        self.assertEqual(self.state(job), ("failed", "add a language-model key in Settings"))
         self.model_for.assert_not_called()
         self.assertEqual(conv.state, "failed")
-        self.assertEqual(conv.lines[-1], {"role": "agent", "text": "That didn't work: add a language-model key in Keys"})
+        self.assertEqual(conv.lines[-1], {"role": "agent", "text": "That didn't work: add a language-model key in Settings"})
         self.conn.rollback()
 
     def test_turn_maps_provider_errors(self):

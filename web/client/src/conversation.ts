@@ -19,8 +19,8 @@ export function isHistory(c: Conversation | null, today: Date = new Date()): boo
   return !Number.isNaN(at.getTime()) && localDate(at) < localDate(today);
 }
 
-/** A failed turn's or call's message that the Keys box answers ("add a language-model key in Keys"). */
-const NEEDS_KEYS = /\bKeys\b/;
+/** A failed turn's or call's message that Settings answers ("add a language-model key in Settings"). */
+const NEEDS_KEYS = /\b(Keys|Settings)\b/;
 
 export function useConversation(onSignedOut: () => void) {
   const [conv, setConv] = useState<Conversation | null>(null);
@@ -46,9 +46,10 @@ export function useConversation(onSignedOut: () => void) {
     if (c?.state === "working" && c.job_id && c.job_id !== watched.current) follow(c.job_id);
   }, [follow]);
 
-  // The page opens on the latest conversation.
+  // The page opens fresh: an earlier conversation isn't shown again, but one still working is followed, so a
+  // reload in the middle of a turn keeps its steps and its Stop button.
   useEffect(() => {
-    api.latestConversation().then(adopt, fail);
+    api.latestConversation().then((c) => adopt(c?.state === "working" ? c : undefined), fail);
   }, [adopt, fail]);
 
   // A turn's job ended: read the conversation again, a few times if it won't load. If it never

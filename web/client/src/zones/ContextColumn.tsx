@@ -1,8 +1,8 @@
-// The settings drawer: keys first; then the account: bringing in a folder, signing in another device,
+// The Settings drawer: the coaches, then the keys; then the account: bringing in a folder, signing in another device,
 // the password, export and delete, signing out.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState } from "../api";
+import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type StartCoach } from "../api";
 import { PasswordForm } from "../SignIn";
 import { KeysBox } from "./KeysBox";
 
@@ -164,18 +164,44 @@ type Props = {
   onKeys?: (keys: KeyState[]) => void;
   /** A key row to open in edit mode (the welcome card's "Add your key"). */
   openRow?: { service: string; n: number } | null;
+  /** The coaches that can speak here, and those waiting on a key. */
+  coaches?: StartCoach[];
 };
 
-export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut, onKeys, openRow }: Props) {
+function an(word: string): string {
+  return /^[aeiou]/i.test(word) ? "an" : "a";
+}
+
+function CoachesBox({ coaches }: { coaches: StartCoach[] }) {
+  if (coaches.length === 0) return null;
+  return (
+    <section className="cx-box" aria-labelledby="cx-coaches-h">
+      <h3 className="cx-h" id="cx-coaches-h">Your coaches</h3>
+      <ul className="coach-list">
+        {coaches.map((c, i) => (
+          <li key={c.slug} className={c.ready ? "" : "off"}>
+            <span className={`lane-num${c.current ? " on" : ""}`} aria-hidden="true">{i + 1}</span>
+            <b>{c.first}</b>
+            <small>{c.ready ? `${c.own ? "Yours, " : ""}${c.service_name}` : `Needs ${an(c.service_name)} ${c.service_name} key`}</small>
+          </li>
+        ))}
+      </ul>
+      <p className="cx-s">Ask in the chat to switch coach or make one of your own.</p>
+    </section>
+  );
+}
+
+export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut, onKeys, openRow, coaches = [] }: Props) {
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
-      <aside className={`ctx${open ? " open" : ""}`} id="ctx" aria-label="Keys and settings">
+      <aside className={`ctx${open ? " open" : ""}`} id="ctx" aria-label="Settings">
         <div className="ctx-top">
-          <h2>Keys and settings</h2>
+          <h2>Settings</h2>
           <button type="button" className="ctx-close" onClick={onClose}>Close</button>
         </div>
         <div className="cx-list">
+          <CoachesBox coaches={coaches} />
           <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
           <section className="cx-account" aria-labelledby="cx-account-h">
             <h3 className="cx-h" id="cx-account-h">Account</h3>

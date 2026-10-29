@@ -1,7 +1,8 @@
 // Signed out: sign in, or make an account when registration is open. Also the screen that asks
 // for a password when an account has none (one from before passwords, or after a reset link).
 import { useEffect, useState, type FormEvent } from "react";
-import { api, APP_NAME, NotSignedIn, plainError } from "./api";
+import { Mark } from "./Mark";
+import { api, NotSignedIn, plainError } from "./api";
 
 const MIN = 8;
 
@@ -46,7 +47,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
 
   return (
     <main className="solo">
-      <div className="mark">{APP_NAME}{version && <span className="ver">{version}</span>}</div>
+      <Mark version={version} />
       <p className="tagline">A workout podcast, made fresh each time you ask.</p>
       <h1>{mode === "in" ? "Sign in" : "Make an account"}</h1>
       <form className="auth" onSubmit={submit}>
@@ -151,7 +152,7 @@ export function ChoosePassword({ username, onDone, onSignedOut }: {
 }) {
   return (
     <main className="solo">
-      <div className="mark">{APP_NAME}</div>
+      <Mark />
       <h1>Choose a password</h1>
       <p>Your username is <strong>{username}</strong>. You'll sign in with it and this password.</p>
       <PasswordForm username={username} needsCurrent={false} onDone={onDone} onSignedOut={onSignedOut} />

@@ -210,7 +210,7 @@ def brief(ctx: Ctx) -> dict:
 TURN_ARGS = {"conversation_id", "line", "answer", "today", "now"}
 TURN_NOW = re.compile(r"\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}", re.ASCII)
 MAX_LINE = 4000
-NO_MODEL_KEY = "add a language-model key in Keys"
+NO_MODEL_KEY = "add a language-model key in Settings"
 TOO_LONG = "this turn ran too long; try again with less to do"
 ANSWER_NOT_OPEN = "that answer didn't match the open question; send a message instead"
 CANT_FINISH = "the coach stopped on a step it can't finish here; send a message to carry on"

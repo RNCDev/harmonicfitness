@@ -4,6 +4,24 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-28
+
+The web client redesigned: a new look, a first screen that is one fill-in sentence, and Settings behind a gear. The page opens fresh instead of on the last conversation.
+
+### For forks
+- **Nothing in `me/` to migrate.** The web client's look and first screen changed, so a fork that styles or tests the client by its old greeting, its "Keys" button or its Zilla Slab and Figtree fonts needs updating: the client now uses Archivo (`@fontsource-variable/archivo`), and the messages that pointed at Keys now say Settings ("Add a key for Gemini in Settings first.").
+
+### Added
+- **The starter** (web): the first screen is a sentence with blanks, "Hey [Reed], I've got [25 minutes] [at home] for [strength work]. Easy on my [left knee] today, and I'm feeling [pick one]." Each blank opens its choices and the new word rolls in like a scoreboard (no motion with reduced motion on). The blanks are filled from the listener's coaches, kits, usual length, `health.md` limits and what their week has left out; a limit from `health.md` can be made stricter for the day, never removed; Start waits until they say how they feel. Below it, "Something else" starts the chat on gear, an injury, what fills the rests, a coach, feedback on the last workout or the week (and "Finish setting me up" while setup is quick). The text box stays for writing it yourself.
+- **`GET /api/start`** (`web/webapp/start.py`): what the starter is filled in with, from the listener's files and `coaches list --json` and `coverage --json` run on a temporary copy; it changes nothing.
+- **The agent takes the starter's sentence as the check-in, answered** (`agent/instructions.md`): it asks only what the sentence leaves open or what its answers raise.
+
+### Changed
+- **The look** (web): a deep blue field, a white sheet for the chat, Archivo upright and a little wide, yellow only for today's coach and for Record. A coach bar above the conversation names today's coach. No left bars or row highlights.
+- **Keys is now Settings** (web): a gear button opens one panel with the listener's coaches, their keys and their account.
+- **New chat** is a filled button with a plus, the clearest thing in the top bar; the logo is a yellow squircle for now.
+- **The page opens fresh** (web): an earlier conversation isn't shown again. A conversation still working is followed, so a reload in the middle of a turn keeps its steps and Stop.
+
 ## [0.26.0] - 2026-10-28
 
 The web client's first five minutes, from a walk of the live site as a new user: sign-up no longer says it failed, a new listener is asked for the one key they need and is set up before their first workout, and the wait shows what's happening.

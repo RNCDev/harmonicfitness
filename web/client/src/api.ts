@@ -39,6 +39,13 @@ export type Conversation = {
   updated_at: string | null;
 };
 export type When = { today: string; now: string };
+/** What the first screen's sentence is filled in with (GET /api/start). */
+export type StartCoach = { slug: string; name: string; first: string; service: string; service_name: string;
+  ready: boolean; own: boolean; current: boolean };
+export type StartKit = { id: string; label: string; preset: boolean };
+export type StartLimit = { area: string; side: string | null; level: "delicate" | "off-limits" };
+export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: number; limits: StartLimit[];
+  suggest: { goal: string; target?: string | null; reason: string } | null; setup_quick: boolean };
 
 /** A call to the server. An empty answer (a 201 from register, a 204) is no body, whatever its status. */
 export async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
@@ -86,6 +93,7 @@ export const api = {
     call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w }),
   record: (id: number, w: When) => call<{ job_id: number }>("POST", `/api/conversations/${id}/record`, w),
   stop: (id: number) => call<{ stopping: boolean }>("POST", `/api/conversations/${id}/stop`),
+  start: () => call<StartInfo>("GET", "/api/start"),
   signOut: () => call<void>("POST", "/api/sign-out"),
   deleteAccount: (password: string) => call<void>("POST", "/api/account/delete", { password }),
   importFolder: async (zip: Blob): Promise<{ imported: number; left_out: number }> => {

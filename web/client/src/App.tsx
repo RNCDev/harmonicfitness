@@ -1,7 +1,8 @@
-// The app: the sign-in page, or once signed in a top bar, the chat, and a drawer for keys and settings.
+// The app: the sign-in page, or once signed in a top bar, the chat, and the Settings drawer.
 import { useCallback, useEffect, useState } from "react";
-import { api, APP_NAME, NotSignedIn, type KeyState, type Me } from "./api";
+import { api, APP_NAME, NotSignedIn, type KeyState, type Me, type StartInfo } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
+import { Mark } from "./Mark";
 import { useConversation } from "./conversation";
 import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
@@ -16,10 +17,18 @@ function keyNeeded(keys: KeyState[] | null): KeyNeeded | null {
 
 type Auth = "loading" | "in" | "out" | "error";
 
+const Gear = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+
 function Unreachable({ onRetry }: { onRetry: () => void }) {
   return (
     <main className="solo">
-      <div className="mark">{APP_NAME}</div>
+      <Mark />
       <h1>Couldn't reach the server</h1>
       <button type="button" className="go" onClick={onRetry}>Try again</button>
     </main>
@@ -30,7 +39,7 @@ function Unreachable({ onRetry }: { onRetry: () => void }) {
 function Loading() {
   return (
     <div className="app" aria-busy="true">
-      <header className="top"><div className="mark">{APP_NAME}</div></header>
+      <header className="top"><Mark /></header>
     </div>
   );
 }
@@ -75,6 +84,20 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const { conv, working, error, noKey, send, record, halt, reset, job } = useConversation(onSignedOut);
   const steps = stepsOf(job?.stages ?? []);
 
+  // What the first screen's sentence is filled in with: asked again whenever which keys are set changes.
+  const [start, setStart] = useState<StartInfo | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const keySig = (keys ?? []).map((k) => `${k.service}:${k.kind}:${k.set}`).join(",");
+  useEffect(() => {
+    if (keys === null) return;
+    let live = true;
+    api.start().then((s) => { if (live) setStart(s); }, (e) => { if (e instanceof NotSignedIn) onSignedOut(); });
+    return () => { live = false; };
+  }, [keySig, onSignedOut]); // eslint-disable-line react-hooks/exhaustive-deps
+  const coaches = start?.coaches ?? [];
+  const shown = coaches.find((c) => c.slug === picked) ?? coaches.find((c) => c.current) ?? null;
+  const coachBar = shown ? { n: coaches.indexOf(shown) + 1, name: shown.name, service: shown.service_name } : null;
+
   // The drawer: Escape closes it and focus goes back to its button.
   const closeDrawer = useCallback(() => {
     setDrawer(false);
@@ -104,23 +127,30 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   return (
     <div className="app">
       <header className="top">
-        <div className="mark">{APP_NAME}{me.version && <span className="ver">{me.version}</span>}</div>
-        <button type="button" className="top-btn" onClick={reset} disabled={working || !conv}>New chat</button>
-        <button type="button" className="top-btn ctx-toggle" aria-expanded={drawer} aria-controls="ctx"
-          onClick={() => setDrawer((d) => !d)}>
-          Keys
+        <Mark version={me.version} />
+        <button type="button" className="top-btn new" onClick={() => { reset(); setPicked(null); }} disabled={working || !conv}>
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          New chat
+        </button>
+        <button type="button" className="top-btn icon ctx-toggle" aria-label="Settings" title="Settings"
+          aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
+          <Gear />
         </button>
       </header>
       {/* an earlier day's conversation shows as history; the next message starts a new one */}
       <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
         offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
         onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
+        start={start} onCoach={setPicked} coachBar={coachBar}
         onAddKey={() => {
           if (needsKey) setOpenRow((r) => ({ service: needsKey.service, n: (r?.n ?? 0) + 1 }));
           setDrawer(true);
         }} />
       <ContextColumn username={me.username} open={drawer} onClose={closeDrawer}
-        onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow} />
+        onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
+        coaches={coaches} />
     </div>
   );
 }

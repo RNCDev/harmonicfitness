@@ -97,7 +97,7 @@ def explain(provider: str, exc: Exception) -> ProviderFailed:
         status = exc.status_code
         body = str(exc.body).lower()
         if status in (401, 403):
-            return ProviderFailed(f"{name} refused the key. Replace it in Keys.", "auth")
+            return ProviderFailed(f"{name} refused the key. Replace it in Settings.", "auth")
         if status == 429 or (status == 400 and any(w in body for w in _QUOTA_WORDS)):
             return ProviderFailed(f"{name} says the account is out of credit or over its limit.", "quota")
         if status >= 500:
