@@ -134,12 +134,12 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
     <div className="app">
       <header className="top">
         <Mark version={me.version} />
-        <button type="button" className="top-btn new" onClick={() => { reset(); setPicked(null); }} disabled={working || !conv}>
+        {conv && <button type="button" className="top-btn new" onClick={() => { reset(); setPicked(null); }} disabled={working}>
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
             <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           New chat
-        </button>
+        </button>}
         <button type="button" className="top-btn icon ctx-toggle" aria-label="Settings" title="Settings"
           aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
           <Gear />

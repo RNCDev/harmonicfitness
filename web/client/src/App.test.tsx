@@ -43,6 +43,7 @@ describe("the app", () => {
     fireEvent.change(box, { target: { value: "AIza-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("region", { name: "Start a workout" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New chat" })).toBeNull();   // nothing to clear yet
     expect(put).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
