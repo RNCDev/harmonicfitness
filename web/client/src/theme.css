@@ -183,7 +183,8 @@ button[disabled] { cursor: not-allowed }
     box-shadow: -20px 0 50px -20px rgba(0, 0, 0, .4); transform: translateX(105%);
     transition: transform .25s ease, visibility .25s; visibility: hidden; padding: var(--s5);
   }
-  .ctx.open { transform: none; visibility: visible }
+  /* visible at once on opening, so focus can move in; hidden only once it has slid out */
+  .ctx.open { transform: none; visibility: visible; transition: transform .25s ease }
   .ctx-scrim.show { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(0, 0, 0, .28) }
   .ctx-close { display: inline-block }
 }
@@ -225,7 +226,12 @@ button[disabled] { cursor: not-allowed }
 .keys-row .keys-name { font-weight: 600 }
 .keys-row .keys-state { font-size: 14px; color: var(--ink-2); flex: 1 }
 .keys-edit { display: flex; flex-direction: column; gap: var(--s2); flex-basis: 100%; }
-.keys-edit input { background: var(--sheet) }
+.keys-edit input {
+  font: inherit; color: var(--ink); background: var(--sheet); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 10px 12px; width: 100%;
+}
+.keys-edit input:focus-visible { outline: 3px solid var(--tok); outline-offset: 1px; border-color: transparent }
+.chat-form textarea:disabled { background: var(--base); color: var(--ink-3); cursor: not-allowed }
 .cx-h { font-family: var(--display); font-size: 18px; font-weight: 700; margin: 0 }
 .keys-group { margin-top: var(--s4) }
 .keys-group + .keys-group { border-top: 1px solid var(--rule); padding-top: var(--s4) }
