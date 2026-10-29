@@ -95,6 +95,7 @@ describe("the chat", () => {
     expect(screen.getByText(/one Gemini key, free from Google AI Studio/)).toHaveTextContent("and can voice your coach");
     expect(screen.queryByRole("region", { name: "Start a workout" })).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute("placeholder", "Add a key first");
     fireEvent.click(screen.getByRole("button", { name: "Add your key" }));
     expect(onAddKey).toHaveBeenCalled();
   });

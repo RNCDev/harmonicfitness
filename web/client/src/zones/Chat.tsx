@@ -230,7 +230,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
       <form className="chat-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <label className="sr" htmlFor="chat-box">Message</label>
         <textarea id="chat-box" ref={box} rows={1} value={text}
-          placeholder={lines.length === 0 ? "Or write your own" : "Reply to your coach"} disabled={working || !!needsKey}
+          placeholder={needsKey ? "Add a key first" : lines.length === 0 ? "Or write your own" : "Reply to your coach"} disabled={working || !!needsKey}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
