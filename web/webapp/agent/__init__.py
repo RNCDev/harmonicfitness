@@ -163,7 +163,9 @@ def _coach_folders(home: str) -> set[str]:
 
 def _recording(deps: Deps, args: list[str], tool: str) -> ToolResult:
     """The approved recording: "Designing <coach>'s voice" first when the coach is made in this build (until its
-    folder appears in me/coaches/), then "Recording your workout"."""
+    folder appears in me/coaches/), then "Recording your workout". The watch thread says the switch while this
+    thread waits on the engine and is joined before this thread says anything again, so the worker's connection
+    (`say` writes a job event on it) is never used by two threads at once; the heartbeat has its own."""
     ok = deps.approved or {}
     if not ok.get("design"):
         return _step(deps, "Recording your workout", tool, lambda: tools.run(deps, args))

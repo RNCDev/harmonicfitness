@@ -27,3 +27,6 @@ docs/eval/out-before-*/
 
 # browser walks: screenshots and logs from the Playwright tools
 .playwright-mcp/
+
+# the maintainer's local keys for a browser walk (web/qat_key.py reads GEMINI_API_KEY); never committed
+/.env

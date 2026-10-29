@@ -27,9 +27,16 @@ answers 200. No auto-reload: after a code change, rebuild the client and restart
 A throwaway account made through the app's own sign-up: username `qat-<yyyymmdd>-<n>`, a password of
 16 random characters. Write the username in the report before the first click.
 
-A walk past the welcome card needs a real language-model key (Gemini, from Google AI Studio), entered in
-the app's Keys drawer. The walker never reads `me/.env` or asks for a key in the chat: the owner pastes it
-into the walk's browser, or the walk stops at the welcome card. A recording costs a few cents on that key.
+A walk past the welcome card needs a real language-model key (Gemini, from Google AI Studio). The
+maintainer keeps one as `GEMINI_API_KEY=` in the repo's root `.env` (git-ignored; never `me/.env`), and
+the walk stores it in its own account, after signing up in the browser, with:
+
+    .venv/bin/python web/qat_key.py --username <the walk's username> --password <its password>
+
+(`--register` makes the account instead, for a walk that starts already signed up.) It reads only that
+line, never prints the key, and refuses any server but localhost. The walker never opens `.env` itself.
+Without the file, the owner adds the key in the walk's account in their own browser, or the walk stops at
+the welcome card. A recording costs a few cents on that key.
 
 ## Writes
 
