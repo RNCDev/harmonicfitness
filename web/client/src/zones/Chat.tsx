@@ -191,7 +191,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
     // scroll the list only: scrollIntoView would also scroll the sheet around it, hiding the coach bar
     const el = log.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length, working, steps.length]);
+  }, [lines.length, working, steps.length, !!coachBar]);
 
   async function send() {
     const line = text.trim();
