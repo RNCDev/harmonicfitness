@@ -45,8 +45,9 @@ class Deps:
     keys: dict[str, str] = field(repr=False)
     today: str
     now: str
-    # tells the listener what the coach is doing, as it happens: (step text, tool name, exit code or None)
-    say: Callable[[str, str, int | None], None] | None = field(default=None, repr=False)
+    # tells the listener what the coach is doing, as it happens: (step text, tool name, exit code, step id).
+    # A step is said twice under one id: with code None when its tool starts, then with the tool's exit code.
+    say: Callable[[str, str, int | None, int | None], None] | None = field(default=None, repr=False)
     # `feeds`, started in the background as the turn began: `run feeds` waits for it instead of running again
     feeds: Future | None = field(default=None, repr=False)
     cancel: threading.Event | None = field(default=None, repr=False)   # the listener's Stop
@@ -57,6 +58,8 @@ class Deps:
     setup: bool = False              # the setup skill comes with the workout skill this turn
     coach: bool = False              # the coach skill comes too: a coach is being made, or an audition is open
     coach_done: bool = False         # a candidate was kept or the audition closed: the next turn needs no skill
+    steps: int = 0                   # the last step id said this turn
+    lint_failed: bool = False        # the last check of the script failed: the next draft is a fix, not a first go
 
 
 class ToolResult(BaseModel):
@@ -281,7 +284,7 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
     return _result(0, (f"Not recorded yet: recording sends {chars:,} characters to {cost.get('service')} for about "
                        f"${usd:.2f}{' (including the coach voice design)' if cost.get('pending_design') else ''}. "
                        "The page now shows the listener a Record button with that price. End your turn: say in a "
-                       "line that the script is ready and checked, and what recording costs. Don't build again "
+                       "line that the script is ready and checked (the button shows the price: don't say it). Don't build again "
                        "until they approve."))
 
 

@@ -190,7 +190,7 @@ class Turns(AgentCase):
 
     def test_every_tool_call_is_a_step(self):
         said = []
-        self.deps.say = lambda text, tool, code: said.append((text, tool, code))
+        self.deps.say = lambda text, tool, code, step: said.append((text, tool, code, step))
 
         def script(messages, info):
             if not parts(messages, ToolReturnPart):
@@ -199,7 +199,57 @@ class Turns(AgentCase):
             return ModelResponse(parts=[TextPart("done")])
 
         agent.run_turn(FunctionModel(script), self.deps, None, "go")
-        self.assertEqual(said, [("Getting to know you", "read_file", 0), ("Working on it", "run setup", 64)])
+        # each step is said as its tool starts (code None), then under the same id as it ends
+        self.assertEqual(said, [("Getting to know you", "read_file", None, 1), ("Getting to know you", "read_file", 0, 1),
+                                ("Working on it", "run setup", None, 2), ("Working on it", "run setup", 64, 2)])
+
+    def test_a_failed_check_makes_the_next_draft_a_fix(self):
+        from unittest import mock
+        said = []
+        self.deps.say = lambda text, tool, code, step: said.append(text) if code is None else None
+        draft = f"me/workouts/{STEM}/{STEM}.draft.txt"
+        codes = iter([1, 0])
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            return tools.engine.Result(next(codes), "", "")
+
+        def script(messages, info):
+            n = len(parts(messages, ToolReturnPart))
+            calls = [ToolCallPart("write_file", {"path": draft, "content": "x"}, tool_call_id="w1"),
+                     ToolCallPart("run", {"args": ["build", draft, "W", "--coach", "Coach Nolan", "--lint-only"]},
+                                  tool_call_id="b1"),
+                     ToolCallPart("write_file", {"path": draft, "content": "y"}, tool_call_id="w2"),
+                     ToolCallPart("run", {"args": ["build", draft, "W", "--coach", "Coach Nolan", "--lint-only"]},
+                                  tool_call_id="b2")]
+            return ModelResponse(parts=[calls[n]] if n < len(calls) else [TextPart("done")])
+        with mock.patch.object(tools.engine, "run", side_effect=run):
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertEqual(said, ["Writing your script", "Checking the script's safety and timing",
+                                "Tightening the script's timing", "Checking the script again"])
+
+    def test_a_recording_says_so_while_it_runs_and_designs_the_coach_first(self):
+        import time
+        from unittest import mock
+        said = []
+        self.deps.say = lambda text, tool, code, step: said.append((text, code, step))
+        draft = f"me/workouts/{STEM}/{STEM}.draft.txt"
+        self.deps.approved = {"draft": draft, "name": "W", "coach": "Coach Nolan", "chars": 2000, "usd": 0.04,
+                              "service": "gemini", "design": True}
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            os.makedirs(os.path.join(home, "coaches", "coach-nolan-gemini"))   # the design is saved
+            time.sleep(1.6)   # the watch sees it, then the recording runs
+            return tools.engine.Result(0, "recorded", "")
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": ["build", draft, "W", "--coach", "Coach Nolan"]},
+                                                         tool_call_id="r1")])
+            return ModelResponse(parts=[TextPart("ready")])
+        with mock.patch.object(tools.engine, "run", side_effect=run):
+            agent.run_turn(FunctionModel(script), self.deps, None, "Yes, record it.")
+        self.assertEqual(said, [("Designing Coach Nolan's voice", None, 1), ("Designing Coach Nolan's voice", 0, 1),
+                                ("Recording your workout", None, 2), ("Recording your workout", 0, 2)])
 
     def test_steps_never_name_a_file(self):
         for path in ("me/profile.md", "me/health.md", "me/content.md", "knowledge/script.md", "me/x/y.txt", 42):
@@ -231,14 +281,14 @@ class Turns(AgentCase):
 class Prefetch(AgentCase):
     def test_step_one_comes_with_the_first_message(self):
         said = []
-        self.deps.say = lambda text, tool, code: said.append(text)
+        self.deps.say = lambda text, tool, code, step: said.append(text)
         context = agent.prefetch(self.deps)
         for title in ("./harmonicfitness check", "./harmonicfitness content plan --minutes 25",
                       "./harmonicfitness get coach", "./harmonicfitness coaches list", "read me/profile.md",
                       "read me/training.md", "read me/health.md", "read me/log.md"):
             self.assertIn(f"### {title} (exit ", context)
         self.assertNotIn(self.home, context)
-        self.assertEqual(said, ["Getting to know you and today's limits"])
+        self.assertEqual(said, ["Getting to know you and today's limits"] * 2)   # started, then done
         seen = {}
 
         def script(messages, info):

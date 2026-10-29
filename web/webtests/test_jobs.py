@@ -473,6 +473,9 @@ class Turn(JobsCase):
             self.assertEqual(started, [])   # the check-in comes first
             self.assertIn("Getting to know you and today's limits",
                           [b.get("text") for _, b in jobs.events(self.conn, uk, job)])
+            prefetch = [(b["id"], b["state"]) for _, b in jobs.events(self.conn, uk, job)
+                        if b.get("text") == "Getting to know you and today's limits"]
+            self.assertEqual(prefetch, [(1, "running"), (1, "done")])   # said as it starts, then as it ends
             self.conn.rollback()
             self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "25 minutes", None))
             self.conn.commit()

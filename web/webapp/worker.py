@@ -352,11 +352,19 @@ def _keep_audio(ctx: Ctx, written: dict[str, str]) -> list[dict]:
     return kept
 
 
-def _step(ctx: Ctx, text: str, tool: str, code: int | None) -> None:
+def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = None) -> None:
     """One step of a turn, live in the chat (a sealed job event) and in the worker's log (the tool and its
-    exit code only, never what it read or wrote)."""
-    print(f"worker: job {ctx.job_id} {tool} exit {code}", file=sys.stderr, flush=True)
-    ctx.say("step", text=text, failed=code not in (0, None))
+    exit code only, never what it read or wrote). With a step id, the step is said as it starts (code None:
+    state "running") and again under the same id as it ends ("done" or "failed"); an event without an id, as
+    before 0.25.2, is a step already done."""
+    failed = code not in (0, None)
+    if step is None:
+        ctx.say("step", text=text, failed=failed)
+        return
+    if code is not None:
+        print(f"worker: job {ctx.job_id} {tool} exit {code}", file=sys.stderr, flush=True)
+    ctx.say("step", text=text, failed=failed, id=step,
+            state="running" if code is None else "failed" if failed else "done")
 
 
 def turn(ctx: Ctx) -> dict:
@@ -407,7 +415,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
-                      now=now, say=lambda text, tool, code: _step(ctx, text, tool, code), cancel=ctx.cancel)
+                      now=now, say=lambda text, tool, code, step=None: _step(ctx, text, tool, code, step), cancel=ctx.cancel)
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     # and the coach skill: asked for now, still being made (the quick coach's answer names no coach), or an
     # audition waiting for their pick

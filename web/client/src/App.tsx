@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, APP_NAME, NotSignedIn, type KeyState, type Me } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
 import { useConversation } from "./conversation";
-import { Chat, type KeyNeeded } from "./zones/Chat";
+import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
 import { hasModelKey, keyRows } from "./zones/KeysBox";
 
@@ -73,8 +73,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [openRow, setOpenRow] = useState<{ service: string; n: number } | null>(null);
   const needsKey = keyNeeded(keys);
   const { conv, working, error, noKey, send, record, halt, reset, job } = useConversation(onSignedOut);
-  const steps = (job?.stages ?? []).filter((s) => s.stage === "step" && typeof s.text === "string")
-    .map((s) => ({ text: s.text as string, failed: s.failed === true }));
+  const steps = stepsOf(job?.stages ?? []);
 
   // The drawer: Escape closes it and focus goes back to its button.
   const closeDrawer = useCallback(() => {

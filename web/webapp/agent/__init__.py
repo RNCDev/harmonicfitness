@@ -11,6 +11,7 @@ import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import replace
 from dataclasses import dataclass
+from typing import Callable
 
 from pydantic_ai import Agent, CancellationToken, ModelMessagesTypeAdapter, RunContext, UsageLimits
 from pydantic_ai.exceptions import RunCancelled
@@ -116,23 +117,80 @@ def _read_step(path: object) -> str:
     return "Looking through your files"
 
 
-def _write_step(path: object) -> str:
+def _write_step(path: object, fixing: bool = False) -> str:
     if isinstance(path, str) and path.startswith("me/coaches/"):
         return "Describing your coach"
     if isinstance(path, str) and path.endswith(".draft.txt"):
-        return "Writing your script"
+        return "Tightening the script's timing" if fixing else "Writing your script"
     if isinstance(path, str) and path.startswith("me/workouts/research/"):
         return "Saving today's research"
     return "Saving your notes"
 
 
-def _step(deps: Deps, text: str, tool: str, result: ToolResult) -> ToolResult:
+def _say(deps: Deps, text: str, tool: str, code: int | None, step: int) -> None:
     if deps.say is not None:
         try:
-            deps.say(text, tool, result.code)
+            deps.say(text, tool, code, step)
         except Exception:  # noqa: BLE001 - a progress line never fails the turn
             pass
+
+
+def _begin(deps: Deps, text: str, tool: str) -> int:
+    """A step shown as running, as its tool starts; its id."""
+    deps.steps += 1
+    _say(deps, text, tool, None, deps.steps)
+    return deps.steps
+
+
+def _step(deps: Deps, text: str, tool: str, work: Callable[[], ToolResult]) -> ToolResult:
+    """Run a tool as one step: running while it works, then done or failed."""
+    n = _begin(deps, text, tool)
+    try:
+        result = work()
+    except BaseException:
+        _say(deps, text, tool, 1, n)
+        raise
+    _say(deps, text, tool, result.code, n)
     return result
+
+
+def _coach_folders(home: str) -> set[str]:
+    try:
+        return {d for d in os.listdir(os.path.join(home, "coaches")) if not d.startswith(".")}
+    except OSError:
+        return set()
+
+
+def _recording(deps: Deps, args: list[str], tool: str) -> ToolResult:
+    """The approved recording: "Designing <coach>'s voice" first when the coach is made in this build (until its
+    folder appears in me/coaches/), then "Recording your workout"."""
+    ok = deps.approved or {}
+    if not ok.get("design"):
+        return _step(deps, "Recording your workout", tool, lambda: tools.run(deps, args))
+    design = f"Designing {ok.get('coach') or 'your coach'}'s voice"
+    before = _coach_folders(deps.home)
+    first = _begin(deps, design, tool)
+    recording: list[int] = []
+    stop = threading.Event()
+
+    def watch() -> None:
+        while not stop.wait(1.0):
+            if _coach_folders(deps.home) - before:
+                _say(deps, design, tool, 0, first)
+                recording.append(_begin(deps, "Recording your workout", tool))
+                return
+    watcher = threading.Thread(target=watch, daemon=True)
+    watcher.start()
+    code = 1
+    try:
+        result = tools.run(deps, args)
+        code = result.code
+        return result
+    finally:
+        stop.set()
+        watcher.join()
+        _say(deps, "Recording your workout" if recording else design, tool, code,
+             recording[0] if recording else first)
 
 
 @AGENT.tool(sequential=True)
@@ -140,32 +198,43 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     """Run one ./harmonicfitness command in the listener's folder: args is the argv after
     ./harmonicfitness, e.g. ["brief", "--goal", "strength", "--minutes", "25", "--preset", "hotel-room",
     "--save", "me/workouts/<stem>/<stem>.draft.txt"]. Returns the exit code, stdout and stderr."""
+    deps = ctx.deps
     first = args[1] if args and args[0] == "./harmonicfitness" and len(args) > 1 else (args[0] if args else "")
     text = STEPS.get(first, "Working on it") if isinstance(first, str) else "Working on it"
-    if first == "build" and "--lint-only" in args:
-        text = "Checking the script's safety and timing"
     rest = args[1:] if args and args[0] == "./harmonicfitness" else args
+    tool = f"run {first}"[:40]
+    if first == "build" and "--lint-only" not in args:
+        draft = rest[1] if len(rest) > 1 else None
+        if deps.approved and deps.approved.get("draft") == draft:
+            return _recording(deps, args, tool)
+        text = "Working out what recording costs"   # an unapproved build checks the script, then prices it
+    if first == "build" and "--lint-only" in args:
+        text = "Checking the script again" if deps.lint_failed else "Checking the script's safety and timing"
     if first == "coaches" and len(rest) > 1 and rest[1] in COACH_STEPS:
         text = COACH_STEPS[rest[1]]
-    return _step(ctx.deps, text, f"run {first}"[:40], tools.run(ctx.deps, args))
+    result = _step(deps, text, tool, lambda: tools.run(deps, args))
+    if first == "build":
+        deps.lint_failed = result.code != 0
+    return result
 
 
 @AGENT.tool(sequential=True)
 def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
     """Read a text file: me/... (the listener's folder) or the engine's knowledge/, .claude/skills/, coaches/."""
-    return _step(ctx.deps, _read_step(path), "read_file", tools.read_file(ctx.deps, path))
+    return _step(ctx.deps, _read_step(path), "read_file", lambda: tools.read_file(ctx.deps, path))
 
 
 @AGENT.tool(sequential=True)
 def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
     """Write (create or replace) a text file in the listener's folder, me/... only."""
-    return _step(ctx.deps, _write_step(path), "write_file", tools.write_file(ctx.deps, path, content))
+    return _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "write_file",
+                 lambda: tools.write_file(ctx.deps, path, content))
 
 
 @AGENT.tool(sequential=True)
 def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
     """List the files under a folder of the listener's, me/ by default."""
-    return _step(ctx.deps, "Looking through your files", "list_files", tools.list_files(ctx.deps, path))
+    return _step(ctx.deps, "Looking through your files", "list_files", lambda: tools.list_files(ctx.deps, path))
 
 
 # Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the
@@ -207,6 +276,7 @@ def _block(title: str, r: ToolResult) -> str:
 def prefetch(deps: Deps) -> str:
     """Step 1's commands and reads, run at once; returned as text for the first message."""
     plain = replace(deps, say=None, feeds=None)
+    step = _begin(deps, "Getting to know you and today's limits", "prefetch")
     with ThreadPoolExecutor(max_workers=len(FIRST_RUNS) + len(FIRST_READS)) as pool:
         runs = [pool.submit(tools.run, plain, list(a)) for a in FIRST_RUNS]
         reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS]
@@ -218,11 +288,7 @@ def prefetch(deps: Deps) -> str:
         name = coach.output.strip().splitlines()[0].strip()
         results.append((f"./harmonicfitness get route --coach \"{name}\"",
                         tools.run(plain, ["get", "route", "--coach", name])))
-    if deps.say is not None:
-        try:
-            deps.say("Getting to know you and today's limits", "prefetch", 0)
-        except Exception:  # noqa: BLE001 - a progress line never fails the turn
-            pass
+    _say(deps, "Getting to know you and today's limits", "prefetch", 0, step)
     first = SETUP_FIRST + "\n\n" if deps.setup and needs_setup(deps.home) else ""
     return (first + "Step 1 is done: these are its results, run as this turn began. Don't run or read them again "
             "this turn; go on to the questions.\n\n" + "\n\n".join(_block(t, r) for t, r in results))

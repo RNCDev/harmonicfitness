@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Chat } from "./Chat";
+import { Chat, stepsOf } from "./Chat";
 
 const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
 
@@ -28,7 +28,7 @@ describe("the chat", () => {
     render(<Chat {...base} working steps={steps} />);
     expect(screen.queryByText("step 1")).toBeNull();
     expect(screen.getByText("2 earlier steps")).toBeInTheDocument();
-    expect(screen.getByText("step 8")).toHaveClass("now");
+    expect(screen.getByText("step 8")).not.toHaveClass("now");   // finished: none is running
   });
 
   it("renders the coach's Markdown: tables, bold, lists", () => {
@@ -104,5 +104,24 @@ describe("the chat", () => {
     expect(screen.getByText(/Tell me what workout you'd like/)).toBeInTheDocument();
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
+  });
+
+  it("shows a running step as current, and a finished one as done", () => {
+    const steps = stepsOf([
+      { stage: "step", text: "Reading", id: 1, state: "running" }, { stage: "step", text: "Reading", id: 1, state: "done" },
+      { stage: "step", text: "Checking", id: 2, state: "running" }, { stage: "step", text: "Checking", id: 2, state: "failed", failed: true },
+      { stage: "step", text: "Recording your workout", id: 3, state: "running" },
+    ]);
+    expect(steps).toEqual([{ text: "Reading", failed: false, running: false },
+      { text: "Checking", failed: true, running: false }, { text: "Recording your workout", failed: false, running: true }]);
+    render(<Chat {...base} working steps={steps} />);
+    expect(screen.getByText("Recording your workout")).toHaveClass("now");
+    expect(screen.getByText("Reading")).not.toHaveClass("now");
+    expect(screen.getByText("Checking")).toHaveClass("bad");
+  });
+
+  it("reads a step from before ids as done", () => {
+    expect(stepsOf([{ stage: "folder" }, { stage: "step", text: "Old", failed: false }]))
+      .toEqual([{ text: "Old", failed: false, running: false }]);
   });
 });

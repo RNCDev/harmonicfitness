@@ -5,7 +5,26 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Audio, ChatLine, Offer } from "../api";
 
-export type Step = { text: string; failed?: boolean };
+/** A step of the coach's turn: running while its tool works, then done (or failed). */
+export type Step = { text: string; failed?: boolean; running?: boolean };
+
+/** A turn's job events as its steps, oldest first: an event with an id updates that step (it's said as it
+ * starts, then as it ends); one without, from a server before 0.25.2, is a step already done. */
+export function stepsOf(events: { stage: string; [field: string]: unknown }[]): Step[] {
+  const out: Step[] = [];
+  const at = new Map<number, number>();
+  for (const e of events) {
+    if (e.stage !== "step" || typeof e.text !== "string") continue;
+    const step: Step = { text: e.text, failed: e.failed === true || e.state === "failed", running: e.state === "running" };
+    if (typeof e.id === "number" && at.has(e.id)) {
+      out[at.get(e.id)!] = step;
+      continue;
+    }
+    if (typeof e.id === "number") at.set(e.id, out.length);
+    out.push(step);
+  }
+  return out;
+}
 
 type Props = {
   lines: ChatLine[];
@@ -67,9 +86,9 @@ function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promi
 
 const SHOWN_STEPS = 6;
 
-/** Steps in a row that say the same thing are one step. */
+/** Steps in a row that say the same thing are one step, as the later one stands. */
 function collapsed(steps: Step[]): Step[] {
-  return steps.filter((s, i) => i === 0 || s.text !== steps[i - 1].text);
+  return steps.filter((s, i) => i === steps.length - 1 || s.text !== steps[i + 1].text);
 }
 
 function until(iso: string): string {
@@ -124,7 +143,8 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
         <ul className="steps">
           {steps.length > shown.length && <li className="more">{steps.length - shown.length} earlier steps</li>}
           {shown.map((s, i) => (
-            <li key={steps.length - shown.length + i} className={i === shown.length - 1 ? "now" : s.failed ? "bad" : ""}>
+            <li key={steps.length - shown.length + i} className={s.running ? "now" : s.failed ? "bad" : ""}
+              aria-current={s.running ? "step" : undefined}>
               {s.text}
             </li>
           ))}
