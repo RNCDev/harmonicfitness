@@ -99,8 +99,10 @@ describe("the chat", () => {
     expect(onAddKey).toHaveBeenCalled();
   });
 
-  it("with a key, offers the starter sentence", () => {
-    render(<Chat {...base} needsKey={null} />);
+  it("with a key, offers the starter sentence once it knows what to fill it with", () => {
+    const { rerender } = render(<Chat {...base} needsKey={null} />);
+    expect(screen.queryByRole("region", { name: "Start a workout" })).toBeNull();
+    rerender(<Chat {...base} needsKey={null} start={{ coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false }} />);
     expect(screen.getByRole("region", { name: "Start a workout" })).toBeInTheDocument();
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();

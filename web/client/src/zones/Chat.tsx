@@ -206,7 +206,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
       )}
       <div className="chat-log" role="log" aria-live="polite">
         {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? onOpenKeys} />}
-        {lines.length === 0 && !working && !needsKey && (
+        {lines.length === 0 && !working && !needsKey && start && (
           <Starter info={start} onStart={onSend} onCoach={onCoach}
             onFill={(line) => { setText(line); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(line.length, line.length); }); }} />
         )}

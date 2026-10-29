@@ -17,6 +17,9 @@ function keyNeeded(keys: KeyState[] | null): KeyNeeded | null {
 
 type Auth = "loading" | "in" | "out" | "error";
 
+/** The sentence's defaults when the server can't say more. */
+const NO_START: StartInfo = { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false };
+
 const Gear = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -84,16 +87,19 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const { conv, working, error, noKey, send, record, halt, reset, job } = useConversation(onSignedOut);
   const steps = stepsOf(job?.stages ?? []);
 
-  // What the first screen's sentence is filled in with: asked again whenever which keys are set changes.
+  // What the first screen's sentence is filled in with: asked at once, beside the keys, and again whenever
+  // which keys are set changes. If it can't be had, the sentence still comes, with plain defaults.
   const [start, setStart] = useState<StartInfo | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const keySig = (keys ?? []).map((k) => `${k.service}:${k.kind}:${k.set}`).join(",");
   useEffect(() => {
-    if (keys === null) return;
     let live = true;
-    api.start().then((s) => { if (live) setStart(s); }, (e) => { if (e instanceof NotSignedIn) onSignedOut(); });
+    api.start().then((s) => { if (live) setStart(s); }, (e) => {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      if (live) setStart((s) => s ?? NO_START);
+    });
     return () => { live = false; };
-  }, [keySig, onSignedOut]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [keySig, onSignedOut]);
   const coaches = start?.coaches ?? [];
   const shown = coaches.find((c) => c.slug === picked) ?? coaches.find((c) => c.current) ?? null;
   const coachBar = shown ? { n: coaches.indexOf(shown) + 1, name: shown.name, service: shown.service_name } : null;
