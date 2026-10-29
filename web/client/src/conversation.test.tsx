@@ -28,7 +28,7 @@ vi.mock("./api", async (orig) => {
   };
 });
 
-import { isHistory, useConversation } from "./conversation";
+import { isHistory, resumable, useConversation } from "./conversation";
 
 const out = () => {};
 
@@ -90,7 +90,7 @@ describe("useConversation", () => {
 
   it("opens fresh: a finished, failed or earlier day's conversation isn't shown again", async () => {
     for (const c of [conv({}), conv({ state: "failed", lines: [{ role: "agent", text: "That didn't work." }] }),
-      conv({ updated_at: yesterday() })]) {
+      conv({ updated_at: yesterday(), lines: [{ role: "agent", text: "Which kit?" }] })]) {
       m.latest.mockResolvedValue(c);
       const { result, unmount } = renderHook(() => useConversation(out));
       await waitFor(() => expect(m.latest).toHaveBeenCalled());
@@ -125,6 +125,25 @@ describe("useConversation", () => {
     await act(async () => { await result.current.send("another"); });
     expect(m.start).toHaveBeenCalledTimes(2);
     expect(result.current.conv?.id).toBe(9);
+  });
+
+  it("opens on today's conversation while the coach waits for an answer", async () => {
+    m.latest.mockResolvedValue(conv({ lines: [{ role: "user", text: "hi" }, { role: "agent", text: "1. How's the knee?" }] }));
+    const { result } = renderHook(() => useConversation(out));
+    await waitFor(() => expect(result.current.conv?.id).toBe(7));
+    expect(result.current.working).toBe(false);
+  });
+
+  it("resumable: working, or today's and waiting on the listener; never failed, recorded or yesterday's", () => {
+    const asked = [{ role: "user" as const, text: "hi" }, { role: "agent" as const, text: "Which kit?" }];
+    expect(resumable(conv({ state: "working", job_id: 1 }))).toBe(true);
+    expect(resumable(conv({ lines: asked }))).toBe(true);
+    expect(resumable(conv({ offer: { name: "Legs", coach: "Coach Reed", chars: 100, usd: 0.1, service: "fish" } }))).toBe(true);
+    expect(resumable(conv({}))).toBe(false);   // the listener spoke last, nothing pending
+    expect(resumable(conv({ state: "failed", lines: asked }))).toBe(false);
+    expect(resumable(conv({ lines: asked, updated_at: yesterday() }))).toBe(false);
+    expect(resumable(conv({ lines: [...asked, { role: "agent", text: "", audio: { id: "a", name: "Legs", expires_at: "2099-01-01T00:00:00Z" } },
+      { role: "agent", text: "Earbuds in." }] }))).toBe(false);
   });
 
   it("history: an earlier local day only, never a working turn", () => {

@@ -19,6 +19,15 @@ export function isHistory(c: Conversation | null, today: Date = new Date()): boo
   return !Number.isNaN(at.getTime()) && localDate(at) < localDate(today);
 }
 
+/** True when the page should open on this conversation rather than fresh: it's still working, or it's from
+ * today, hasn't failed, has no workout recorded yet, and waits on the listener (a Record offer, or the coach
+ * spoke last). */
+export function resumable(c: Conversation, today: Date = new Date()): boolean {
+  if (c.state === "working") return true;
+  if (c.state === "failed" || isHistory(c, today) || c.lines.some((l) => l.audio)) return false;
+  return !!c.offer || c.lines[c.lines.length - 1]?.role === "agent";
+}
+
 /** A failed turn's or call's message that Settings answers ("add a language-model key in Settings"). */
 const NEEDS_KEYS = /\b(Keys|Settings)\b/;
 
@@ -46,10 +55,10 @@ export function useConversation(onSignedOut: () => void) {
     if (c?.state === "working" && c.job_id && c.job_id !== watched.current) follow(c.job_id);
   }, [follow]);
 
-  // The page opens fresh: an earlier conversation isn't shown again, but one still working is followed, so a
-  // reload in the middle of a turn keeps its steps and its Stop button.
+  // The page opens fresh, except on a conversation that isn't done: one still working (a reload keeps its steps
+  // and Stop), or one from today waiting on the listener (the coach's questions, or a Record offer).
   useEffect(() => {
-    api.latestConversation().then((c) => adopt(c?.state === "working" ? c : undefined), fail);
+    api.latestConversation().then((c) => adopt(c && resumable(c) ? c : undefined), fail);
   }, [adopt, fail]);
 
   // A turn's job ended: read the conversation again, a few times if it won't load. If it never
