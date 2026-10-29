@@ -87,6 +87,10 @@ function Flap({ text }: { text: string }) {
 
 type SlotKey = "coach" | "minutes" | "place" | "type" | "body" | "feel";
 
+/** Each blank's list, as a screen reader names it. */
+const LIST_NAMES: Record<SlotKey, string> = { coach: "Coach", minutes: "Length", place: "Where", type: "Workout",
+  body: "Anything to look after today", feel: "How you feel" };
+
 function Slot({ k, label, text, open, onOpen, tone }: { k: SlotKey; label: string; text: string; open: boolean;
   onOpen: (k: SlotKey, el: HTMLButtonElement) => void; tone?: "ask" | "off" }) {
   return (
@@ -258,7 +262,7 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
         </div>
       </div>
       {open && open.k !== "body" && (
-        <div className="pick" ref={pick} role="listbox" aria-label={open.k} style={{ left: open.left, top: open.top }}>
+        <div className="pick" ref={pick} role="listbox" aria-label={LIST_NAMES[open.k]} style={{ left: open.left, top: open.top }}>
           {options.map((o) => (
             <button key={o.label} type="button" role="option" aria-selected={o.on} className={`opt${o.on ? " on" : ""}`}
               onClick={() => choose(o.set, o.value)}>{o.label}</button>

@@ -33,7 +33,7 @@ describe("the starter", () => {
   it("offers only the coaches that can speak", () => {
     render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} />);
     fireEvent.click(slot(/^Coach:/));
-    const opts = within(screen.getByRole("listbox")).getAllByRole("option").map((o) => o.textContent);
+    const opts = within(screen.getByRole("listbox", { name: "Coach" })).getAllByRole("option").map((o) => o.textContent);
     expect(opts).toEqual(["Reed", "Nolan"]);
   });
 
@@ -42,7 +42,7 @@ describe("the starter", () => {
     render(<Starter info={info} onStart={onStart} onFill={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(onStart).not.toHaveBeenCalled();
-    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "a bit tired" }));
+    fireEvent.click(within(screen.getByRole("listbox", { name: "How you feel" })).getByRole("option", { name: "a bit tired" }));
     fireEvent.click(slot(/^Where:/));
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "in a hotel room" }));
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
