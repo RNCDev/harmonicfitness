@@ -4,6 +4,22 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-28
+
+Fixes from a browser walk of 0.27.0's redesign: a reload no longer drops a conversation the coach is waiting on, and the first screen settles once.
+
+### For forks
+- **Nothing in `me/` to migrate.** The page now reopens today's conversation when the coach spoke last or a Record offer is open (`resumable` in `web/client/src/conversation.ts`); a finished, failed, recorded or earlier day's one still gives the starter. New chat is in the top bar only while there is a conversation.
+
+### Changed
+- **A reload keeps a conversation that waits on the listener** (web): the coach's questions or an open Record offer come back, instead of the starter.
+- **The starter's blanks roll in once** (web), with the listener's own words: the sentence waits for `/api/start`, now asked beside the keys rather than after them; plain defaults stand in if it fails.
+- **New chat shows only once there is a conversation to clear** (web), instead of sitting greyed out on the fresh screen.
+- The message box says "Add a key first" while it waits for one; each starter list has a name a screen reader can say ("How you feel", not "feel").
+
+### Fixed
+- **The coach bar was hidden on a reopened conversation:** scrolling to the newest line also scrolled the chat sheet; only the list of lines scrolls now, and it scrolls again when the coach bar arrives.
+
 ## [0.27.0] - 2026-10-28
 
 The web client redesigned: a new look, a first screen that is one fill-in sentence, and Settings behind a gear. The page opens fresh instead of on the last conversation.
