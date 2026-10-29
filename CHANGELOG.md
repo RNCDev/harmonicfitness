@@ -4,6 +4,23 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-29
+
+The coach talks the listener through every set: the lint refuses any silence over eight seconds, and spare time no longer goes quiet at the end of a set. And `./harmonicfitness pull` brings a workout made in the web app down to this computer.
+
+A 25-minute session made in the web app on 0.28.0 (Coach Jess, Gemini) was safe and well chosen but hard to use: 733 of its 1,494 seconds were silence, in 29 gaps of 10 to 34 seconds. Every set was "three, two, one, go", twenty to thirty seconds of nothing, then "and rest", because the guidance said to put `[hold]` "where the listener works in silence" and a held segment spent all its spare time quiet. The set lengths didn't fit their reps either (twelve single-leg bridges at three seconds a rep, in twenty seconds).
+
+### For forks
+- **Nothing in `me/` to migrate, but drafts that built before may not now.** The lint refuses any stretch of silence over eight seconds (`draft.MAX_SILENCE`), counting pauses, fixed holds, a bare hold's share of the spare time and the breaks around them. A draft with `[hold 20s]` in a set, or a bare `[hold]` taking a long rest, stops at the lint; coach through the set in holds of a few seconds instead (`knowledge/script.md`, Timed work, has a worked example).
+- **Only a bare `[hold]` keeps a segment its full length** (`draft.is_held`): a segment with only fixed holds ends early like any other, so a draft short on words now comes up short on the total until coaching fills it, rather than filling with silence.
+
+### Added
+- **`./harmonicfitness pull`** (`tools/webpull.py`): signs in to the web app as the listener, with `HARMONIC_USERNAME` and `HARMONIC_PASSWORD` from the environment or `me/.env` (`HARMONIC_URL`, default `https://harmonicfitness.fly.dev`), as the browser does, so it needs no server access. Saves the app's Export of their files, the latest conversation (or `--conversation N`) and that conversation's MP3s still kept into a new `me/web/<date>-<time>/`, never over `me/` itself, then signs out. A refused sign-in is exit 4, missing credentials 64. The password is read only through `keys.web_account()` and scrubbed from anything printed like a key.
+
+### Changed
+- **The lint refuses silence over eight seconds**, naming the line before it and how long it runs (`tts_build.silences`, laid out as the render lays it).
+- **The writing guidance** (`knowledge/script.md`, `knowledge/tts-rules.md`): the coach stays with the listener through every set, a cue every five to eight seconds (lead the first reps to set the tempo, then form, the breath, how far through, "last few"); size the set from the brief's seconds a rep; every rest opens with the person (a word on the set, a check-in) before the story.
+
 ## [0.28.0] - 2026-10-28
 
 Fixes from a browser walk of 0.27.0's redesign: a reload no longer drops a conversation the coach is waiting on, and the first screen settles once.

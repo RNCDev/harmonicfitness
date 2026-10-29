@@ -13,9 +13,23 @@ What goes into a workout script, from the welcome to the sign-off. How it should
 
 - Inside one segment, mark each change of an interval (work starts, rest starts) with `[chime]`, and say it too: "At the bell, go. [chime] Push."
 - Count into the work with the coach's recorded counts when the brief's Counts line says it has them: "Pick up the dumbbells. [count 3 go] [chime] Push." (`knowledge/tts-rules.md`, Pacing).
-- Put `[hold]` where the listener works in silence: the segment keeps its full length and its spare time goes quiet there, so a short effort needs a few cues, not nonstop talk. Time the work with a fixed hold (`[hold 20s]`) and give the rest one bare `[hold]`. Never use a hold to pad a story or a long strength rest.
+- **The coach stays with them through every set.** A listener with no screen hears a long silence as a dropped earbud, and a set of "go", thirty seconds of nothing, then "rest" as no coach at all. The lint refuses any silence over eight seconds, anywhere. Coach the set as a string of short cues with short holds between: lead the first two or three reps to set the tempo ("Lift. Squeeze at the top. And lower."), then a cue every five to eight seconds (a form check from the notes, the breath, a limit cue, about how far through they are, "last few"), then count them out. A timed hold (a plank, a hollow hold, a stretch) is the same: the breath, what to keep, the seconds left.
+- **Size the set from the brief.** Each movement's line gives its seconds a rep: twelve reps at three seconds is thirty-six seconds of work, per side when it counts per side. The cues and holds between "go" and "rest" add up to that, never fewer seconds than the reps need ("Twelve reps" in twenty seconds leaves them mid-set at "rest").
+- `[hold 5s]` is exactly that much silence; a bare `[hold]` takes the segment's spare time and keeps it its full length. Use a bare hold, if at all, where a few spare seconds do no harm (the end of a rest), and only with nothing else to say: the lint counts its share against the eight seconds. A segment without a bare hold ends early when its words run out, so the total comes up short until the coaching fills it. Never use a hold to pad a story or a long strength rest.
+- **Every rest opens with the person, then the story.** A word on the set they just did, or a check-in by feel ("How was the ankle on that one?", "That last round was honest."), before any filler; the filler is told to them, not read at them (`knowledge/tts-rules.md`, Coaching voice).
 - Say the rest the segment actually holds, not a number it can't contain.
-- The lint's table shows a held segment's spare seconds, which it spends in silence. More than about ten in a strength rest or a stretch sounds like a dropped earbud: fill it with coaching, or move the time to where the work is.
+
+A coached set, for twelve single-leg bridges at three seconds a rep (about thirty-six seconds of work):
+
+    Twelve on the right. You should have two left at the end. [count 3 go]
+    Lift through the heel. Squeeze at the top. And lower slow. [hold 2s]
+    Again. Up, squeeze, and down. [hold 3s]
+    Hips level, like a tray of water. [hold 5s]
+    Left foot stays soft on the mat. [hold 5s]
+    About halfway. Breathe out as you lift. [hold 5s]
+    Keep that squeeze honest at the top. [hold 4s]
+    Last few. Slow on the way down. [hold 4s]
+    Last one, all the way up. And rest.
 
 ## Opening
 

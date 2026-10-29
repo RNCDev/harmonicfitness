@@ -249,7 +249,8 @@ class Assemble(unittest.TestCase):
         self.assertEqual(bytes(pcm[int(21 * SR) * 2:int(21 * SR) * 2 + 2]), b"\x01\x00")   # "stop" at 21 s
         only = self.segs("@@ 30 | A\ngo [hold 10s] stop\n")
         pcm, _, _ = assemble(only, self.fake_clip)
-        self.assertAlmostEqual(secs(pcm), 30, places=3)   # held, no bare hold: the spare goes to the end
+        # no bare hold: the fixed hold is its ten seconds, and the segment ends early like any other
+        self.assertAlmostEqual(secs(pcm), 1 + 10 + 1 + draft.END_TAIL, places=3)
 
     def test_hold_is_a_marker_not_speech(self):
         spans = draft.spans("Push. [hold] [chime] Easy.")
@@ -854,7 +855,7 @@ class InProcessBuild(unittest.TestCase):
 
     def test_the_real_lint_passes_a_clean_draft_to_the_render(self):
         self.real_lint()
-        path = self.small_draft("movements: box breathing\n@@ 60 | A\nBreathe in, and all the way out. [hold]\n")
+        path = self.small_draft("movements: box breathing\n@@ 8 | A\nBreathe in, and all the way out. [hold]\n")
         self.assertEqual(self.build(draft_path=path), 0, self.said())
         self.assertIn("every movement is on today's menu", self.said())
         self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.txt")))
@@ -1081,7 +1082,7 @@ class InProcessBuild(unittest.TestCase):
         fake = fakes.FakeService(fakes.design_answer("fish"))   # a fake service, so "nothing sent" can be counted
         fake.__enter__()
         self.addCleanup(fake.__exit__)
-        path = self.small_draft("movements: box breathing\n@@ 60 | A\n"
+        path = self.small_draft("movements: box breathing\n@@ 10 | A\n"
                                 "Breathe in, and all the way out. Then once more, slow and easy. [hold]\n")
         self.assertEqual(self.web_build("--max-chars", "50", draft_path=path, HARMONICFITNESS_FISH_URL=fake.url),
                          cli.ISSUES, self.said())
@@ -1096,7 +1097,7 @@ class InProcessBuild(unittest.TestCase):
 
     def test_max_chars_ignored_for_local(self):
         self.real_lint()
-        path = self.small_draft("movements: box breathing\n@@ 60 | A\nBreathe in, and all the way out. [hold]\n")
+        path = self.small_draft("movements: box breathing\n@@ 8 | A\nBreathe in, and all the way out. [hold]\n")
         self.assertEqual(self.build("--lint-only", "--max-chars", "1", "--coach", "Coach Andy", draft_path=path),
                          0, self.said())
         self.assertNotIn("--max-chars", self.said())
@@ -1484,7 +1485,26 @@ class LintReport(unittest.TestCase):
             report = tts_build.lint(segs, v)
         self.assertEqual(report.rows[0].flag, "")                # held: never short
         self.assertGreater(report.rows[0].quiet, tts_build.HELD_QUIET)
-        self.assertIn("silent at its holds", "\n".join(tts_build.render_report(report)))
+        said = "\n".join(tts_build.render_report(report))
+        self.assertIn("silent at its bare holds", said)
+        self.assertIn('20s of silence after "At the bell, go...."', said)   # over eight seconds: refused
+        self.assertGreater(report.problems, 0)
+
+    def test_a_coached_set_passes_and_a_long_silence_anywhere_is_refused(self):
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        coached = parse("@@ 30 | A\nTwelve reps. And go. [hold 5s] Hips level. [hold 5s] About halfway now. "
+                        "[hold 5s] Last few, slow down. [hold 4s] And rest now.\n")
+        with mock.patch("voices.pace", return_value=(10.0, True)):
+            self.assertEqual(tts_build.lint(coached, v).rows[0].clip_issues, [])
+        # pauses and holds back to back add up, and so does a bare hold's share of the spare time
+        for text in ("@@ 30 | A\nReady now. [pause 5s] [hold 5s] Keep going.\n",
+                     "@@ 40 | A\nLie back now. [hold] Good, and again.\n"):
+            with mock.patch("voices.pace", return_value=(10.0, True)):
+                issues = tts_build.lint(parse(text), v).rows[0].clip_issues
+            self.assertTrue(any("of silence" in i for i in issues), (text, issues))
+        # without a voice, a fixed hold over eight seconds is still refused
+        self.assertTrue(any("of silence" in i for i in tts_build.lint(parse(
+            "@@ 30 | A\nGo now please. [hold 12s] And rest now.\n")).rows[0].clip_issues))
 
     def test_with_a_voice_the_total_is_held_to_plan(self):
         segs = parse("@@ 10 | A\n" + "word " * 40 + "\n")

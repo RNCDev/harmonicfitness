@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
-from draft import CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, fill_flag, holds, is_mark, layout, plan  # noqa: E402
+from draft import CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, fill_flag, is_held, is_mark, layout, plan  # noqa: E402
 from engines import SR  # noqa: E402
 import verify  # noqa: E402
 
@@ -111,7 +111,7 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
     count's or cue's PCM (the coach's recorded clips on the beat, counts.pcm), and `tail`
     (the end tone) follows the last segment, past the plan's clock. A segment with
     time to spare widens its breaks and ends early instead of padding with silence,
-    unless it has a [hold]: its spare time is then silence at its holds.
+    unless it has a bare [hold]: its spare time is then silence at its bare holds.
     Returns (pcm, rows, drift): rows as (n, planned, spoken, label, flag), drift as
     the whole workout's fraction over (+) or under (-) plan, not counting the tail."""
     bell = chime() if bell is None else bell
@@ -138,7 +138,7 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
         gaps = len(paras) - 1
         spoken = (len(head) + sum(len(x) for p in paras for x in p if x is not None)) / 2 / SR \
             + PARAGRAPH_GAP * gaps
-        held = holds(seg)[1] > 0   # the one rule the lint uses too
+        held = is_held(seg)   # the one rule the lint uses too
         built.append((head, paras, spoken, gaps, sum(x is None for p in paras for x in p), held))
 
     pcm_all, rows = bytearray(), []

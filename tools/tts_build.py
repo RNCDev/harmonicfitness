@@ -7,8 +7,10 @@ render_report() and writes export_text(); with --lint-only it stops there.
 What must hold: every line a voice can read cleanly (no digits, symbols, abbreviations or markup), every
 paragraph short enough to speak in one clip, no clip of a single word, and the whole workout's predicted
 length within three percent of plan. A segment far off its slot (under 80 or over 110 percent) is flagged in the table to help place
-the fix, but only the total is held to plan; with strict=True the flags count as issues. A held segment
-(one with a [hold]) shows the spare seconds it will spend in silence, so a long quiet rest is easy to spot.
+the fix, but only the total is held to plan; with strict=True the flags count as issues. No silence may run
+longer than MAX_SILENCE (eight seconds: a fixed [hold], a bare hold's share of the spare time, pauses and the
+breaks between paragraphs, added up until something sounds), since a listener with no screen hears a long
+silence as a dropped earbud; the coach talks through the work instead.
 How the script should sound (varied openings, the listener's name, friendly handoffs) is guidance in
 knowledge/tts-rules.md, not a check.
 
@@ -22,9 +24,9 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, MARK_RE, MAX_CLIP, MAX_FILL, MIN_FILL, NUMBER_WORDS,  # noqa: E402
-                   PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_mark, layout, mark_issue, mark_words,
-                   paragraphs, plan, spans, spoken)
+from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, MARK_RE, MAX_CLIP, MAX_FILL, MAX_SILENCE,  # noqa: E402
+                   MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_held, is_mark,
+                   layout, mark_issue, mark_words, paragraphs, plan, spans, spoken)
 import counts  # noqa: E402
 
 # Characters a voice may announce or mispronounce.
@@ -135,6 +137,28 @@ def word_count(lines):
 HELD_QUIET = 10.0   # a held segment's spare silence, in seconds, worth pointing out
 
 
+def silences(paras, extra=0.0, share=0.0, tail=0.0):
+    """[(seconds, the words before it)] for each stretch of silence in a segment laid out as the render lays
+    it: pauses, fixed holds, `share` seconds at each bare hold, `extra` added to each paragraph break and
+    `tail` at the end, run together until a clip, a count or the bell sounds."""
+    out, run, before = [], 0.0, ""
+    for j, para in enumerate(paras):
+        if j:
+            run += PARAGRAPH_GAP + extra
+        for text, pause in para:
+            if spoken(text) or is_mark(text) or text == CHIME:
+                if run > 0:
+                    out.append((run, before))
+                run, before = 0.0, text if spoken(text) else before
+            elif text == HOLD and not pause:
+                run += share
+            run += pause
+    run += tail
+    if run > 0:
+        out.append((run, before))
+    return out
+
+
 @dataclass
 class Row:
     """One segment's line in the lint table."""
@@ -202,7 +226,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
     which is read once for the whole lint. `chime` says whether the render opens each segment after the
     first with the bell (--no-chime turns it off), so the prediction matches. `max_chars` is a web build's
     allowance (build --max-chars): a web voice's script over it is an issue; a local voice ignores it."""
-    rate, exact, spokens = None, False, []
+    rate, exact, spokens, timeline = None, False, [], []
     plans = [plan(seg) for seg in segments]   # as the render voices it, computed once
     if voice:
         from voices import clip_seconds, pace
@@ -213,6 +237,8 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         # says how many words each segment wants with this voice.
         guide_wpm = (sum(word_count(seg["lines"]) for seg in segments) / sum(spokens) * 60
                      if sum(spokens) else wpm)
+        timeline = layout([(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], is_held(seg))
+                           for i, seg in enumerate(segments)])
     else:
         guide_wpm = wpm
     rows = []
@@ -221,9 +247,9 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         row = Row(i, seg["label"], seg["seconds"], word_count(seg["lines"]), guide)
         if voice:
             row.spoken = spokens[i - 1]
-            held = holds(seg)[1] > 0
+            held = is_held(seg)
             row.flag = fill_flag(row.spoken, seg["seconds"], min_fill, max_fill, held=held)
-            row.quiet = max(seg["seconds"] - row.spoken, 0.0) if held else 0.0
+            row.quiet = max(timeline[i - 1][1] - row.spoken, 0.0) if held else 0.0
             # Long clips drift and glitch. Keep every clip comfortably short.
             for para in plans[i - 1]:
                 for text, _ in para:
@@ -238,6 +264,22 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                 row.flag = "long" if row.diff > 0 else "short"
         for lineno, line in seg["lines"]:
             row.line_issues += lint_line(lineno, line)
+        if timeline:
+            extra, length = timeline[i - 1]
+            bare = holds(seg)[0]
+            share = max(length - row.spoken, 0.0) / bare if bare else 0.0
+            gaps = max(len(plans[i - 1]) - 1, 0)
+            tail = 0.0 if bare else max(length - row.spoken - extra * gaps, 0.0)
+            quiet = silences(plans[i - 1], extra, share, tail)
+        else:
+            quiet = silences(plans[i - 1])
+        for secs, before in quiet:
+            if secs > MAX_SILENCE + 0.05:
+                where = f"after \"{' '.join(before.split()[:6])}...\"" if before else "at the segment's start"
+                row.clip_issues.append(
+                    f"  {secs:.0f}s of silence {where}; a listener with no screen hears more than "
+                    f"{MAX_SILENCE:.0f}s as a dropped earbud. Coach through it (a cue, the breath, how many are "
+                    "left, a check-in) in holds of a few seconds, or give the segment fewer seconds")
         has_cues = bool(voice and voice.get("cues"))
         for para in plans[i - 1]:
             for text, _ in para:
@@ -272,8 +314,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
             report.notes.append(f"  the script speaks {sent:,} characters; this build may send at most "
                                 f"{max_chars:,} (--max-chars)")
     if voice:
-        report.predicted = sum(length for _, length in layout(
-            [(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], holds(seg)[1]) for i, seg in enumerate(segments)]))
+        report.predicted = sum(length for _, length in timeline)
     return report
 
 
@@ -289,7 +330,7 @@ def render_report(report):
         if voice:
             flag = (f"  <-- runs {r.spoken - r.seconds:.1f}s long; trim it" if r.flag == "long" else
                     f"  <-- ends {r.seconds - r.spoken:.1f}s early; add a little" if r.flag == "short" else
-                    f"  ({r.quiet:.0f}s silent at its holds)" if r.quiet >= HELD_QUIET else "")
+                    f"  ({r.quiet:.0f}s silent at its bare holds)" if r.quiet >= HELD_QUIET else "")
             out.append(f"{r.index:>3} {r.seconds:>5} {r.words:>5} {r.guide:>5} {r.spoken:>6.1f} "
                        f"{r.fill:>5.0%}  {r.label}{flag}")
             out += r.clip_issues

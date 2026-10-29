@@ -79,13 +79,26 @@ def clean_value(var, value):
     return value
 
 
+# The listener's web app account, for ./harmonicfitness pull: their username and password, and optionally the
+# app's address. Read like a key (the environment first, then me/.env); the password is scrubbed like one.
+ACCOUNT_VARS = ("HARMONIC_USERNAME", "HARMONIC_PASSWORD", "HARMONIC_URL")
+SECRET_VARS = tuple(SERVICE_VARS.values()) + ("HARMONIC_PASSWORD",)
+
+
 def raw_values(path=None):
-    """Every key value as set, cleaned or not (for scrubbing them out of messages): the environment's, then
-    the file's."""
-    found = [os.environ.get(var) for var in SERVICE_VARS.values()]
+    """Every key value (and the web app password) as set, cleaned or not (for scrubbing them out of messages):
+    the environment's, then the file's."""
+    found = [os.environ.get(var) for var in SECRET_VARS]
     file_values = _read(path or paths.ENV_FILE)
-    found += [file_values.get(var) for var in SERVICE_VARS.values()]
+    found += [file_values.get(var) for var in SECRET_VARS]
     return [v for v in found if v]
+
+
+def web_account(path=None):
+    """{HARMONIC_USERNAME, HARMONIC_PASSWORD, HARMONIC_URL: value or None}, the environment first, then me/.env.
+    Never printed: the caller sends the password to the app and nowhere else."""
+    file_values = _read(path or paths.ENV_FILE)
+    return {var: (os.environ.get(var) or file_values.get(var) or "").strip() or None for var in ACCOUNT_VARS}
 
 
 def get(service, path=None):

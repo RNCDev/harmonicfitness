@@ -15,7 +15,7 @@ def scrub(text):
     try:
         values = keys.raw_values()
     except (OSError, UnicodeError):   # me/.env unreadable: the environment's keys still come out, never none
-        values = [v for v in (os.environ.get(var) for var in keys.SERVICE_VARS.values()) if v]
+        values = [v for v in (os.environ.get(var) for var in keys.SECRET_VARS) if v]
     for value in sorted(values, key=len, reverse=True):
         for form in (value, value.strip()):
             if len(form) >= 8:

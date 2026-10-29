@@ -5,10 +5,10 @@ Draft format: each segment starts with a marker line
 followed by the spoken text. Inside the text, [pause 3s] inserts that much silence
 (also [pause 500ms]; at most ten seconds), [chime] rings the segment bell at
 that point, for example when work starts in a forty-five-and-fifteen interval, and
-[hold] marks where the listener works in silence: a segment with a hold keeps its
-full planned length, its spare time silent at its bare holds, shared equally ([hold 20s]
-is exactly that much silence, with no ten-second cap, and the rest of the spare time
-goes to the bare holds, or to the end when there are none). For a coach with recorded counts (a
+[hold] marks a stretch of timed work: [hold 6s] is exactly that much silence, and a bare [hold]
+takes an equal share of its segment's spare time, so a segment with a bare hold keeps its full
+planned length. A segment with only fixed holds ends early like any other. The lint refuses any
+silence longer than MAX_SILENCE, so the coach talks through the work rather than going quiet. For a coach with recorded counts (a
 cues/ folder beside its clip), [count 5] plays five, four, three, two, one, a second apart, from where it
 sits; [count 5 go] adds the cue a second after "one" (go, rest, switch, switch sides, stop, hold); and
 [cue rest] plays one cue alone.
@@ -54,11 +54,12 @@ CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segmen
 # Timing. A segment's spare time widens its paragraph breaks (up to MAX_EXTRA_GAP each)
 # and leaves a short tail; past that it ends early rather than going quiet, so the
 # workout runs a little under plan instead of padding with silence. A segment with a
-# [hold] is the exception: timed work needs its full length, so all its spare time
-# becomes silence at its holds. Only the total is held to plan, within
+# A bare [hold] is the exception: timed work needs its full length, so all its spare
+# time becomes silence at its bare holds. Only the total is held to plan, within
 # TOTAL_TOLERANCE; a segment is flagged only when far off (a held one never as short).
 END_TAIL = 1.5          # seconds of spare time kept at a segment's end, at most
 MAX_EXTRA_GAP = 1.5     # most spare time added to any one paragraph break
+MAX_SILENCE = 8.0       # the longest silence a listener hears before it sounds like a dropped earbud
 TOTAL_TOLERANCE = 0.03  # the whole workout may run this fraction over or under plan
 MIN_FILL, MAX_FILL = 0.80, 1.10   # a segment outside these (speech over planned seconds) is flagged
 
@@ -238,10 +239,15 @@ def mark_words(text):
 
 
 def holds(seg):
-    """(bare holds, all holds) in a segment: the bare ones share its spare time; any hold keeps
-    the segment its full length."""
+    """(bare holds, all holds) in a segment: the bare ones share its spare time and keep the segment its
+    full length (is_held); a fixed hold is only its own seconds."""
     marks = [secs for para in plan(seg) for text, secs in para if text == HOLD]
     return sum(secs == 0 for secs in marks), len(marks)
+
+
+def is_held(seg):
+    """Whether the segment keeps its full length: it has a bare [hold] to spend its spare time in."""
+    return holds(seg)[0] > 0
 
 
 def plan(seg):
@@ -255,8 +261,8 @@ def layout(segments):
 
     A segment that runs over makes the next ones late, and their spare time pays it
     back; a segment with time to spare widens its breaks, keeps a short tail and ends
-    early, unless it is held (has a [hold]): then all its spare time is silence, at its bare
-    holds or, with none, at its end. Fixed holds count in its spoken seconds."""
+    early, unless it is held (has a bare [hold], is_held): then all its spare time is silence at its
+    bare holds. Fixed holds count in its spoken seconds."""
     out, late = [], 0.0
     for spoken_secs, gaps, planned, *rest in segments:
         slack = max(planned - late - spoken_secs, 0.0)
@@ -274,6 +280,6 @@ def layout(segments):
 
 def fill_flag(spoken_secs, planned, min_fill=MIN_FILL, max_fill=MAX_FILL, held=False):
     """"long" or "short" when a segment's speech is far off its slot, else ""; a held
-    segment (one with a [hold]) is never short, since its silence is planned."""
+    segment (one with a bare [hold]) is never short, since its silence is planned."""
     fill = spoken_secs / planned if planned else 0.0
     return "long" if fill > max_fill else "short" if fill < min_fill and not held else ""
