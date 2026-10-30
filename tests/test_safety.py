@@ -520,3 +520,22 @@ class Stories(unittest.TestCase):
             with self.subTest(later=later):
                 self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.", later), [])
         self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.", "Then ten on the left."))
+
+
+class ShortNames(unittest.TestCase):
+    """A full name said in a segment makes its tail the same movement there ("split squats" after "Bulgarian split
+    squat"), even when the tail alone names another movement; elsewhere the tail is that other movement."""
+
+    def check(self, declared, *segments):
+        text = f"movements: {CAT.movements[declared].name}\n" + "".join(
+            f"@@ 60 | S{i}\n{body}\n" for i, body in enumerate(segments))
+        return [i for i in menu.check(CAT, menu_for(declared), text, draft.parse(text))[0] if "add up" not in i]
+
+    def test_a_tail_after_the_full_name_in_the_segment_passes(self):
+        for declared, full, short in (("bulgarian-split-squat", "Bulgarian split squat", "split squats"),
+                                      ("romanian-deadlift", "romanian deadlift", "deadlift"),
+                                      ("seated-shadow-boxing", "seated shadow boxing", "shadow boxing")):
+            with self.subTest(short=short):
+                self.assertEqual(self.check(declared, f"Ten of the {full}, slow. Last two {short}, and rest."), [])
+                self.assertTrue(self.check(declared, f"Ten of the {full}.", f"Now the {short}, ten more."))
+                self.assertTrue(self.check(declared, f"The {short} first. Then the {full}."))

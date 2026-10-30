@@ -1,7 +1,9 @@
-"""Lines a draft repeats from the listener's last few workouts: a sentence of SENTENCE_WORDS or more said word for
+"""Two warnings about how a draft sounds over time, never issues. Lines it repeats from the listener's last few workouts: a sentence of SENTENCE_WORDS or more said word for
 word in an earlier draft reads as a template over a run of sessions ("This is the one that counts" every week).
 A warning the build prints after the lint, never an issue: a safety line or a limit cue is meant to repeat, and
-those are left out. Library only; build.py calls it."""
+those are left out. And lines that claim to have seen the listener ("that set looked smoother", "best set yet",
+"not once"): the coach has no eyes on them, so praise like that is made up (seen_claims). Library only; build.py
+calls both."""
 import glob
 import os
 import re
@@ -74,3 +76,29 @@ def repeats(draft_path: str, text: str, cue_sentences=frozenset(), last: int = L
     if len(out) > SHOWN:
         out = out[:SHOWN] + [f"and {len(out) - SHOWN} more repeated sentence(s)"]
     return out
+
+
+# what only eyes would know (knowledge/script.md, The coach can't see them); stories are left out
+SEEN = re.compile(
+    r"\b(?:that|this|the last|your|the) (?:set|rep|round|one|interval|lap|climb|carry)s? (?:looked|look|was looking)\b"
+    r"|\blooked (?:good|great|strong|stronger|smooth|smoother|clean|cleaner|solid|sharp|sharper|easy|easier)\b"
+    r"|\b(?:best|strongest|cleanest|smoothest|fastest) (?:set|rep|round|one|interval|lap) (?:yet|so far|of the day|today)\b"
+    r"|\bnot once\b"
+    r"|\bI (?:can )?(?:see|saw|noticed|watched) (?:you|your|that)\b"
+    r"|\b(?:stayed|kept|held|was|were) [a-z]+ (?:on |through |for )?every (?:single )?(?:set|rep|round|one|interval)\b",
+    re.IGNORECASE)
+
+
+def seen_claims(text: str) -> List[str]:
+    """Warnings for coaching sentences that claim to have seen the listener (SEEN), outside [story] tags."""
+    out = []
+    for seg in draft.parse(text):
+        coaching = draft.story_split(seg)[0]
+        for para in draft.paragraphs([(0, line) for line in coaching.split("\n")]):
+            spoken = " ".join(draft.MARK_RE.sub(" ", para).split())
+            for sentence in SENTENCE.split(spoken):
+                m = SEEN.search(sentence)
+                if m:
+                    out.append(f'"{sentence.strip()}" says the coach saw them ("{m.group(0)}"), but the coach has no '
+                               "eyes on the listener; ask how it felt, or plan from their answer")
+    return out[:SHOWN]

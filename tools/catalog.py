@@ -25,8 +25,11 @@ FORMAT = 3
 # low back keeps out bending and twisting the spine (injury-playbook.md, Low back).
 AREA_FLAGS = {("low-back", "off-limits"): ("spine-flexion", "spine-twist")}
 # Positions a limit rules out by default: an off-limits ankle or foot keeps out anything done
-# standing, which puts weight through both feet whatever the catalog rates the ankle.
-AREA_POSITIONS = {("ankle", "off-limits"): ("standing",), ("foot", "off-limits"): ("standing",)}
+# standing, which puts weight through both feet whatever the catalog rates the ankle, and anything
+# kneeling or on all fours, where the top of the foot rests on the floor with the ankle pointed (the
+# ankle's limit cue keeps it relaxed, never pointed).
+AREA_POSITIONS = {("ankle", "off-limits"): ("standing", "kneeling", "all-fours"),
+                  ("foot", "off-limits"): ("standing", "kneeling", "all-fours")}
 # Equipment that loads a movement; a movement needing none of it is bodyweight (a chair, bench, towel
 # or mat only holds or supports the body).
 LOAD_EQUIPMENT = ("dumbbells", "kettlebell", "band", "cable", "machines", "barbell", "sled")
@@ -520,7 +523,7 @@ def meaning(area: str, level: str, side: str = "both") -> str:
         text = f"light loads only on {where}, no impact work or fast work that loads it"
     extra = AREA_FLAGS.get((area, level))
     text += f", and no {' or '.join(f.replace('spine-', 'spine ') for f in extra)}" if extra else ""
-    return text + (", and nothing done standing" if AREA_POSITIONS.get((area, level)) else "")
+    return text + (", and nothing done standing, kneeling or on all fours" if AREA_POSITIONS.get((area, level)) else "")
 
 
 def threshold(limit: Limit) -> int:

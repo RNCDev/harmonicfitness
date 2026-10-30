@@ -35,6 +35,8 @@ writer takes a few cases.
   list of every place the brief left you to invent something (a movement you wanted that wasn't on
   the menu, a dose the guide didn't settle, how to place the resting foot, a transition, timing), and
   anything that made the brief hard to use. If nothing, write "Nothing invented."
+- Run `HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness content plan --minutes <N> --today 2026-10-21`
+  for the topic count; tell about that many items (spares only when the rests would run thin), one to a rest.
 - The stories come from `docs/eval/research/<listener>.md` only, told as if true (it's invented for the
   grid), each wrapped in `[story]` ... `[/story]`, in the formats and the weaving `knowledge/script.md`
   describes (Keeping them engaged, and its worked examples), with one open thread brought back where it
@@ -52,7 +54,8 @@ writer takes a few cases.
 - On one-sided movements say "per side" (or "each leg"), and do both sides unless the menu lists the
   movement for one side only.
 - Say the rest a segment actually holds, not a number it can't contain.
-- Don't repeat filler lines word for word; vary praise.
+- Don't repeat filler lines word for word; vary praise. Never praise what the coach can't see ("that set
+  looked smoother"): ask, or plan from their answer.
 - Timed work inside one segment: `[chime]` at each work start and stop, said too ("At the bell, go.
   [chime] Push."), and short holds between cues while they work (`[hold 5s]`; one bare `[hold]` takes
   the segment's spare time). No quiet runs past eight seconds, holds, pauses and breaks added up; the

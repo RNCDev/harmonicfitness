@@ -251,6 +251,10 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         ao = sess.all_out
         out.append(f"- All-out sprints (a hard timed effort of {ao.get('most_seconds')} s or less) rest at least "
                    f"{ao.get('rest_ratio')} times their work, and stay few.")
+    if goal == "conditioning":
+        out.append("- On a conditioning day the work intervals run at the effort above, even when the profile says "
+                   "it likes moderate sessions: that preference sets the warm-up, the steady work and the easy spells. "
+                   "Only a low-readiness check-in, or a limit, keeps the intervals easier.")
     last_format = log[-1].format if log else None
     ranked = sessions.ranked(sess, goal, minutes, scr.level, scr.equipment, last_format)
     if ranked:

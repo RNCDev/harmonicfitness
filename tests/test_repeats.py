@@ -50,5 +50,18 @@ class Repeats(unittest.TestCase):
         self.assertTrue(later)
 
 
+class SeenClaims(unittest.TestCase):
+    def test_praise_for_what_the_coach_cant_see_is_named(self):
+        for line in ("That set looked smoother.", "Best set yet, Sam.", "No leaning on the rails, not once.",
+                     "Your back stayed flat every set.", "I can see you working."):
+            with self.subTest(line=line):
+                self.assertEqual(len(repeats.seen_claims(f"@@ 30 | A\nGood. {line}\n")), 1)
+
+    def test_questions_plans_and_stories_pass(self):
+        text = ("@@ 30 | A\nHow did that one feel? If it was a grind, stay at this weight. "
+                "[story] His best lap yet came in the rain, and the crowd saw it. [/story]\n")
+        self.assertEqual(repeats.seen_claims(text), [])
+
+
 if __name__ == "__main__":
     unittest.main()

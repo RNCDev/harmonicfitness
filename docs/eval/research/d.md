@@ -2,6 +2,10 @@
 
 Everything below is made up for the judged grid; it stands in for a day's research. Writers tell it as if true; judges don't fact-check it.
 
+## Weather
+
+Weather, Stonebrook (Sam is away, in a hotel tonight): 63 degrees and humid now; high 71, low 58, a thunderstorm likely after four, sunset 6:31.
+
 ## Mysteries / big_story: A lost Delphine Ash manuscript turns up in a hotel safe
 
 Sam reads mysteries and lives out of hotel rooms; this one has both.
@@ -80,5 +84,4 @@ Source: https://example.org/elevator-riddle (2026-10-20)
 
 ## Open threads (from earlier sessions)
 
-- t1 (2026-10-14, quiz, Mysteries): Where does the phrase "red herring" come from? Asked last session, not yet answered (a smoked fish with a strong smell, said to have been dragged across a trail to throw hounds off the scent).
-- t2 (2026-10-16, promise, Personal finance, explained plainly): The coach promised to explain, plainly, what an index fund actually holds and why its fees are low.
+- none (this is Sam's first session)

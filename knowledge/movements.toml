@@ -221,7 +221,7 @@ level = "novice"
 seconds_per_rep = 3
 transition_seconds = 10
 draft = false
-setup = "Stand with your feet a little wider than your hips, toes turned out slightly."
+setup = "Stand with your feet about hip width apart, toes turned out slightly."
 cues = ["Sit back and down between your heels.", "Knees track over your toes.", "Drive the floor away to stand."]
 rep = "One rep is down until your thighs are about level and back up to standing."
 feel = "Feel it in the fronts of your thighs and your glutes, not pinching in the knees or the low back."
@@ -875,7 +875,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-push"]
 muscles = ["chest", "triceps", "shoulders"]
-loads = { shoulder = 3, elbow = 2, wrist = 1 }
+loads = { shoulder = 3, elbow = 2, wrist = 1, ankle = 1, foot = 1 }
 flags = []
 intensity = "strength"
 level = "experienced"
@@ -900,7 +900,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-push"]
 muscles = ["chest", "shoulders", "triceps"]
-loads = { shoulder = 3, elbow = 2, wrist = 1 }
+loads = { shoulder = 3, elbow = 2, wrist = 1, ankle = 1, foot = 1 }
 flags = []
 intensity = "strength"
 level = "experienced"
@@ -2004,7 +2004,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-push"]
 muscles = ["chest", "triceps", "shoulders"]
-loads = { shoulder = 3, elbow = 2, wrist = 2 }
+loads = { shoulder = 3, elbow = 2, wrist = 2, ankle = 1, foot = 1 }
 flags = []
 intensity = "strength"
 level = "advanced"
@@ -2631,7 +2631,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion", "anti-extension"]
 muscles = ["core", "shoulders", "quads", "glutes"]
-loads = { wrist = 2, shoulder = 2, elbow = 1, hip = 2, knee = 1, low-back = 1, ankle = 1, foot = 2 }
+loads = { wrist = 2, shoulder = 2, elbow = 1, hip = 2, groin = 1, knee = 1, low-back = 1, ankle = 1, foot = 2 }
 flags = ["fast", "floor"]
 intensity = "conditioning"
 effort = "hard"

@@ -4,6 +4,26 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-30
+
+The fixes the 0.39.0 eval asked for: a coach that never claims to have seen the listener, one story to a rest, safer menus under an ankle or foot limit, and short names that follow the full ones.
+
+### For forks
+- **Menus change under some limits:** an off-limits ankle or foot now leaves out kneeling and all-fours movements too (`catalog.AREA_POSITIONS`), the bench presses with leg drive (dumbbell, incline dumbbell and barbell) load the ankle and foot 1, and mountain climbers load the groin 1. A menu saved before this release is still read, but the build's re-screen refuses a movement the new screen leaves out: rerun `./harmonicfitness brief ... --save`.
+- **The menu check runs segment by segment** (`menu.check`), and `menu.short_for` excuses a short name that ends a declared movement's full name said earlier in the same segment.
+- **`repeats.seen_claims`** is a second build warning, never an issue.
+
+### Added
+- **A warning when the coach claims to have seen the listener** ("that set looked smoother", "best set yet", "your back stayed flat every set", "not once"), in coaching outside `[story]`; `knowledge/script.md` says to notice effort as a question or a plan instead, never "you told me".
+- **Short names after the full one:** once a segment has said "Bulgarian split squat", "romanian deadlift" or "seated shadow boxing", "split squats", "deadlift" and "shadow boxing" in that segment mean the same movement, even though each alone names another.
+- **On a conditioning day,** the brief says the work intervals run at the guide's effort even when the profile likes moderate sessions; that preference sets the warm-up, steady work and easy spells.
+
+### Changed
+- **One story to a rest** (`knowledge/script.md`): tell about the plan's topic count, and give a longer rest a bigger story, not two or three stacked; spares are for a session that would run thin.
+- **Nothing standing includes fetching the kit:** under an off-limits ankle or foot, the script plans only with what's within reach, or what someone sets out; never "pause me and get it".
+- **The air squat's setup** says hip width, which no longer clashes with the groin's limit cue.
+- **The eval grid:** listener d's research sheet no longer lists threads from sessions d never had; every sheet has a weather line; the writer runs `content plan` for the topic count.
+
 ## [0.39.0] - 2026-10-30
 
 Scripts with more of the listener's world and less repeated coaching, a build that's safer about timing and quicker to check, and research that fits the session.

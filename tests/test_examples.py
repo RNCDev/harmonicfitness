@@ -9,6 +9,7 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
 import draft  # noqa: E402
+import repeats  # noqa: E402
 import tts_build  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,6 +40,10 @@ class WorkedExamples(unittest.TestCase):
                 for seg in segs:
                     self.assertEqual(draft.story_split(seg)[2], [])
                     self.assertEqual([r.flag for r in report.rows if r.flag == "long"], [])
+
+    def test_no_example_claims_to_have_seen_the_listener(self):
+        for text in examples():
+            self.assertEqual(repeats.seen_claims(text), [], text[:60])
 
 
 if __name__ == "__main__":

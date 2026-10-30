@@ -2,6 +2,10 @@
 
 Everything below is made up for the judged grid; it stands in for a day's research. Writers tell it as if true; judges don't fact-check it.
 
+## Weather
+
+Weather, Maplefield: 52 degrees and clear now; high 61, low 44, sunny, sunset 6:14.
+
 ## Space / big_story: The Lantern probe finds a warm spot on a frozen moon
 
 Maya follows what we're learning out there, and this one landed yesterday.

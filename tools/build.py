@@ -483,6 +483,9 @@ def _run(b, text):
         again = repeats.repeats(opts.draft, text, cues)
         if again:   # a warning, never an issue: the sessions shouldn't sound like a template
             b.say("\nSaid before, in the last workouts:\n" + "\n".join(f"  warning: {w}" for w in again))
+        seen = repeats.seen_claims(text)
+        if seen:   # a warning: praise for what the coach can't have seen
+            b.say("\nThe coach can't see them:\n" + "\n".join(f"  warning: {w}" for w in seen))
     if issues:
         b.fail(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
         b.stopped(f"{len(issues)} menu issue(s)", stage="menu")

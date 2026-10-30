@@ -2,6 +2,10 @@
 
 Everything below is made up for the judged grid; it stands in for a day's research. Writers tell it as if true; judges don't fact-check it.
 
+## Weather
+
+Weather, Ridgecrest: 48 degrees and windy now; high 55, low 39, bright and gusty, sunset 6:09.
+
 ## Formula 1 / serial: Voss Racing hires its rival's engineer
 
 Priya asked for the fuller story when a team changes in a big way; this is the biggest change of the season, in five beats.

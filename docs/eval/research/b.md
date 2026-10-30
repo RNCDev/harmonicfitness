@@ -2,6 +2,10 @@
 
 Everything below is made up for the judged grid; it stands in for a day's research. Writers tell it as if true; judges don't fact-check it.
 
+## Weather
+
+Weather, Harborview: 57 degrees and drizzle now; high 60, low 51, showers easing by noon, sunset 6:20.
+
 ## Deep tech / big_story: Corvane moves the power lines under the chip
 
 Theo likes the technical detail, and this is the biggest chip news of the week.

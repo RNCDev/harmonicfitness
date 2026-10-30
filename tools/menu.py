@@ -311,6 +311,17 @@ def part_of(cat: catalog.Catalog, words: str, names: List[str], declared: set) -
     return any(f" {form} " in f" {_norm(n).replace('-', ' ')} " for form in forms for n in names)
 
 
+def short_for(words: str, said: List[str]) -> bool:
+    """True when `words` ("split squats", "deadlift") end the full name of exactly one declared movement the same
+    segment already said in full (`said`: "Bulgarian split squat", "romanian deadlift"): once the listener has heard
+    the full name, its tail names that movement, even when the tail alone is another one."""
+    key = _norm(words).replace("-", " ")
+    forms = {key, key[:-1] if key.endswith("s") else key, key[:-2] if key.endswith("es") else key}
+    hits = {n for n in said for form in forms if f" {_norm(n).replace('-', ' ')}".endswith(f" {form}")
+            and _norm(n).replace("-", " ") != form}
+    return len(hits) == 1
+
+
 _part_of = part_of   # its name before 0.20.x; kept for this release (the web's show_plan used it)
 
 
@@ -519,24 +530,32 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
             declared.add(m.id)
     names = [n for i in declared for n in [cat.movements[i].name] + cat.movements[i].aliases]
     flagged, unlisted = set(), set()
-    for mid, said, before in mentions(cat, spoken_text(segments)):
-        if mid == UNLISTED:   # a real movement the catalog doesn't hold ("pistol squats")
-            if _norm(said) in unlisted or part_of(cat, said, names, declared) or negated(before):
-                continue   # already said, "lunges" after a declared reverse lunge, or "no pistol squats"
-            unlisted.add(_norm(said))
-            issues.append(f'"{said}" isn\'t in the catalog, so it can\'t be on today\'s menu; use a movement '
-                          'the brief lists')
-            continue
-        if mid in declared or mid in flagged or part_of(cat, said, names, declared):
-            continue   # declared, already said, or a shortened name of a declared movement
-        if negated(before):
-            continue   # "no neck rolls today"
-        flagged.add(mid)
-        if mid not in on_menu:
-            issues.append(f"the script names \"{said}\" ({mid}), which isn't on today's menu; take it out or "
-                          f"reword it (a \"no {said} today\" is fine)")
-        else:
-            warnings.append(f"the script names \"{said}\" ({mid}) but the movements: line doesn't; add it")
+    for seg in segments:   # segment by segment: a full name said there makes its tail the same movement
+        said_full = []
+        for mid, said, before in mentions(cat, draft.story_split(seg)[0]):
+            if mid in declared:
+                said_full.append(said)
+                continue
+            if short_for(said, said_full):
+                continue   # "split squats" after "Bulgarian split squat" in the same segment
+            if mid == UNLISTED:   # a real movement the catalog doesn't hold ("pistol squats")
+                if _norm(said) in unlisted or part_of(cat, said, names, declared) or negated(before):
+                    continue   # already said, "lunges" after a declared reverse lunge, or "no pistol squats"
+                unlisted.add(_norm(said))
+                issues.append(f'"{said}" isn\'t in the catalog, so it can\'t be on today\'s menu; use a movement '
+                              'the brief lists')
+                continue
+            if mid in flagged or part_of(cat, said, names, declared):
+                continue   # already said, or a shortened name of a declared movement
+            if negated(before):
+                continue   # "no neck rolls today"
+            flagged.add(mid)
+            if mid not in on_menu:
+                issues.append(f"the script names \"{said}\" ({mid}), which isn't on today's menu; take it out or "
+                              f"reword it (a \"no {said} today\" is fine, and so is a short name right after the full "
+                              "one in the same segment)")
+            else:
+                warnings.append(f"the script names \"{said}\" ({mid}) but the movements: line doesn't; add it")
     for seg in segments:   # a one-sided movement keeps to its side, segment by segment; stories aside
         coaching, stories, tag_problems = draft.story_split(seg)
         found = [f'segment "{seg["label"]}" (line {seg["start"]}): {p}' for p in tag_problems]
