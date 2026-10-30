@@ -1,4 +1,4 @@
-"""Each user's voice service keys, sealed with the user's data key.
+"""Each user's voice service keys, sealed with the user's data key, and which language model writes their workouts.
 
 The web process seals a key on entry and never opens one; `open_all` is for the worker only.
 None of these commit: the caller does.
@@ -41,3 +41,13 @@ def open_all(conn, uk: UserKey) -> dict[str, str]:
                         (uk.user_id,)).fetchall()
     return {s: crypto.open_(uk.key, bytes(b), _aad(uk, s)).decode("utf-8")
             for s, b in sorted(rows)}
+
+
+def writer(conn, uk: UserKey) -> str | None:
+    """The provider the user chose to write their workouts (a providers.PROVIDERS id), or None."""
+    row = conn.execute("select writer from users where id = %s", (uk.user_id,)).fetchone()
+    return row[0] if row else None
+
+
+def set_writer(conn, uk: UserKey, provider: str) -> None:
+    conn.execute("update users set writer = %s where id = %s", (provider, uk.user_id))

@@ -200,8 +200,26 @@ class Turns(AgentCase):
 
         agent.run_turn(FunctionModel(script), self.deps, None, "go")
         # each step is said as its tool starts (code None), then under the same id as it ends
-        self.assertEqual(said, [("Getting to know you", "read_file", None, 1), ("Getting to know you", "read_file", 0, 1),
-                                ("Working on it", "run setup", None, 2), ("Working on it", "run setup", 64, 2)])
+        # (step 1 is the model reading the message: a thinking step, said only to a say that takes think)
+        self.assertEqual(said, [("Getting to know you", "read_file", None, 2), ("Getting to know you", "read_file", 0, 2),
+                                ("Running a check", "run setup", None, 3), ("Running a check", "run setup", 64, 3)])
+
+    def test_the_model_s_thinking_is_said_while_it_runs(self):
+        said = []
+        self.deps.say = lambda text, tool, code, step, think=False: said.append((text, code, think))
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": ["brief", "--goal", "strength"]},
+                                                         tool_call_id="c1")])
+            return ModelResponse(parts=[TextPart("done")])
+
+        agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        thinking = [(t, c) for t, c, k in said if k]
+        # the first request reads the message; after the brief, the next is the script being written
+        self.assertEqual(thinking, [("Reading your message", None), ("Reading your message", 0),
+                                    ("Writing your script", None), ("Writing your script", 0)])
+        self.assertIn(("Working out today's safe moves", None, False), said)
 
     def test_a_failed_check_makes_the_next_draft_a_fix(self):
         from unittest import mock
@@ -248,8 +266,9 @@ class Turns(AgentCase):
             return ModelResponse(parts=[TextPart("ready")])
         with mock.patch.object(tools.engine, "run", side_effect=run):
             agent.run_turn(FunctionModel(script), self.deps, None, "Yes, record it.")
-        self.assertEqual(said, [("Designing Coach Nolan's voice", None, 1), ("Designing Coach Nolan's voice", 0, 1),
-                                ("Recording your workout", None, 2), ("Recording your workout", 0, 2)])
+        # step 1 is the model reading the message (a thinking step, not said to this 4-argument say)
+        self.assertEqual(said, [("Designing Coach Nolan's voice", None, 2), ("Designing Coach Nolan's voice", 0, 2),
+                                ("Recording your workout", None, 3), ("Recording your workout", 0, 3)])
 
     def test_steps_never_name_a_file(self):
         for path in ("me/profile.md", "me/health.md", "me/content.md", "knowledge/script.md", "me/x/y.txt", 42):
@@ -279,6 +298,19 @@ class Turns(AgentCase):
 
 
 class Prefetch(AgentCase):
+    def test_a_new_listener_asking_for_a_coach_gets_the_coach_first(self):
+        from unittest import mock
+        said = []
+        self.deps.say = lambda text, tool, code, step: said.append(text)
+        self.deps.setup = True
+        with mock.patch.object(agent, "needs_setup", return_value=True):
+            coach = agent.prefetch(self.deps, "I want a new coach.")
+            setup = agent.prefetch(self.deps, "25 minutes of strength")
+        self.assertTrue(coach.startswith(agent.COACH_FIRST))
+        self.assertNotIn(agent.SETUP_FIRST, coach)
+        self.assertTrue(setup.startswith(agent.SETUP_FIRST))
+        self.assertEqual(said, ["Looking at your coaches"] * 2 + ["Getting you set up"] * 2)
+
     def test_step_one_comes_with_the_first_message(self):
         said = []
         self.deps.say = lambda text, tool, code, step: said.append(text)
@@ -288,7 +320,7 @@ class Prefetch(AgentCase):
                       "read me/training.md", "read me/health.md", "read me/log.md"):
             self.assertIn(f"### {title} (exit ", context)
         self.assertNotIn(self.home, context)
-        self.assertEqual(said, ["Getting to know you and today's limits"] * 2)   # started, then done
+        self.assertEqual(said, ["Reading your profile and today's limits"] * 2)   # started, then done
         seen = {}
 
         def script(messages, info):

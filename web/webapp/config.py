@@ -21,7 +21,7 @@ class Settings:
     engine_root: str = ""
     session_days: int = 90
     registration: bool = True
-    providers: tuple[str, ...] = ("anthropic",)
+    providers: tuple[str, ...] = ("anthropic", "openai", "google")
 
 
 def _required(env: Mapping[str, str], name: str) -> str:

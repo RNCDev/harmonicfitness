@@ -1,7 +1,7 @@
 // Signed out: sign in, or make an account when registration is open. Also the screen that asks
 // for a password when an account has none (one from before passwords, or after a reset link).
 import { useEffect, useState, type FormEvent } from "react";
-import { Mark } from "./Mark";
+import { Solo } from "./Poster";
 import { api, NotSignedIn, plainError } from "./api";
 
 const MIN = 8;
@@ -46,9 +46,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   };
 
   return (
-    <main className="solo">
-      <Mark version={version} />
-      <p className="tagline">A workout podcast, made fresh each time you ask.</p>
+    <Solo version={version}>
       <h1>{mode === "in" ? "Sign in" : "Make an account"}</h1>
       <form className="auth" onSubmit={submit}>
         <label>
@@ -57,7 +55,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             required value={username} onChange={(e) => setUsername(e.target.value)} />
         </label>
         {mode === "new" && (
-          <p className="hint">3 to 32 letters, digits, dots, dashes or underscores.</p>
+          <p className="hint">3 to 32 characters: letters, numbers, dots, dashes or underscores.</p>
         )}
         <label>
           Password
@@ -77,13 +75,13 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             <p>New here? <button type="button" className="quiet" onClick={() => switchTo("new")}>
               Make an account</button></p>
           )}
-          <p className="hint">Forgot your password? Ask whoever runs this site for a reset link.</p>
+          <p className="hint">Forgot your password? Ask the person who runs this site to send you a reset link.</p>
         </>
       ) : (
         <p>Have an account? <button type="button" className="quiet" onClick={() => switchTo("in")}>
           Sign in</button></p>
       )}
-    </main>
+    </Solo>
   );
 }
 
@@ -151,11 +149,10 @@ export function ChoosePassword({ username, onDone, onSignedOut }: {
   onSignedOut: () => void;
 }) {
   return (
-    <main className="solo">
-      <Mark />
+    <Solo>
       <h1>Choose a password</h1>
       <p>Your username is <strong>{username}</strong>. You'll sign in with it and this password.</p>
       <PasswordForm username={username} needsCurrent={false} onDone={onDone} onSignedOut={onSignedOut} />
-    </main>
+    </Solo>
   );
 }

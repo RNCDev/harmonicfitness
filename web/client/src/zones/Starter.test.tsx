@@ -22,12 +22,12 @@ describe("the starter", () => {
   it("fills the blanks from what the app knows", () => {
     render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} />);
     expect(slot(/^Coach: Reed$/)).toBeInTheDocument();
-    expect(slot(/^Length: 30 minutes$/)).toBeInTheDocument();
+    expect(slot(/^Length: 30-minute$/)).toBeInTheDocument();
     expect(slot(/^Where: at home$/)).toBeInTheDocument();
-    expect(slot(/^Workout: a leg day$/)).toBeInTheDocument();
+    expect(slot(/^Workout: leg workout$/)).toBeInTheDocument();
     expect(slot(/^Go easy on: left knee$/)).toBeInTheDocument();
-    expect(slot(/^How you feel: pick one$/)).toBeInTheDocument();
-    expect(screen.getByText("legs: last trained 6 days ago")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /How you feel/ })).toBeNull();
+    expect(screen.getByText("Suggested because of your log: legs: last trained 6 days ago.")).toBeInTheDocument();
   });
 
   it("offers only the coaches that can speak", () => {
@@ -37,28 +37,35 @@ describe("the starter", () => {
     expect(opts).toEqual(["Reed", "Nolan"]);
   });
 
-  it("asks how they feel before it starts, then sends the sentence", () => {
+  it("sends the request as it reads", () => {
     const onStart = vi.fn();
     render(<Starter info={info} onStart={onStart} onFill={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(onStart).not.toHaveBeenCalled();
-    fireEvent.click(within(screen.getByRole("listbox", { name: "How you feel" })).getByRole("option", { name: "a bit tired" }));
     fireEvent.click(slot(/^Where:/));
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "in a hotel room" }));
-    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
     expect(onStart).toHaveBeenCalledWith(
-      "Hey Reed, I've got 30 minutes in a hotel room for a leg day. Easy on my left knee today, and I'm feeling a bit tired.");
+      "Hey, coach Reed, I'd like a 30-minute leg workout in a hotel room. Go easy on my left knee today.");
+  });
+
+  it("picks what's sore from the body map: the area, its side, and how careful", () => {
+    render(<Starter info={{ ...info, limits: [] }} onStart={vi.fn()} onFill={vi.fn()} />);
+    fireEvent.click(slot(/^Anything bothering you:/));
+    fireEvent.click(screen.getByRole("button", { name: "shoulder" }));
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Which shoulder" })).getByRole("radio", { name: "Right" }));
+    fireEvent.click(screen.getByRole("button", { name: "neck" }));
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "How careful with your neck" })).getByRole("radio", { name: "Keep off" }));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(slot(/^Go easy on: right shoulder$/)).toBeInTheDocument();
+    expect(slot(/^Keep off: neck$/)).toBeInTheDocument();
   });
 
   it("can tighten a limit from health notes, never loosen it", () => {
     render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} />);
     fireEvent.click(slot(/^Go easy on:/));
-    const knee = screen.getByRole("radiogroup", { name: "left knee" });
-    expect(within(knee).getByRole("radio", { name: "Fine" })).toBeDisabled();
-    fireEvent.click(within(knee).getByRole("radio", { name: "Avoid" }));
-    fireEvent.click(within(screen.getByRole("radiogroup", { name: "right shoulder" })).getByRole("radio", { name: "Go easy" }));
+    expect(screen.getByRole("button", { name: "knee" })).toBeDisabled();   // can't be cleared
+    expect(within(screen.getByRole("radiogroup", { name: "Which knee" })).getByRole("radio", { name: "Right" })).toBeDisabled();
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "How careful with your knee" })).getByRole("radio", { name: "Keep off" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(slot(/^Go easy on: right shoulder$/)).toBeInTheDocument();
     expect(slot(/^Keep off: left knee$/)).toBeInTheDocument();
   });
 
@@ -74,23 +81,25 @@ describe("the starter", () => {
   it("something else: most send at once, feedback goes to the box", () => {
     const onStart = vi.fn(), onFill = vi.fn();
     render(<Starter info={info} onStart={onStart} onFill={onFill} />);
-    fireEvent.click(screen.getByRole("button", { name: "Update an injury" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
     expect(onStart).toHaveBeenCalledWith("I'd like to update an injury.");
-    fireEvent.click(screen.getByRole("button", { name: "Feedback on my last workout" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Give feedback on my last workout/ }));
     expect(onFill).toHaveBeenCalledWith("Feedback on my last workout: ");
-    expect(screen.queryByRole("button", { name: "Finish setting me up" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Finish setting me up/ })).toBeNull();
   });
 
-  it("with no voice key, Start waits and says why", () => {
+  it("with no voice key, it waits and says why", () => {
     render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()} onFill={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();
     expect(screen.getByText("Add a voice key in Settings first.")).toBeInTheDocument();
   });
 
-  it("words for kits and the sentence with nothing sore", () => {
-    expect(kitWords({ id: "bodyweight", label: "the park", preset: true })).toBe("with no gear");
+  it("words for kits and the request with nothing sore", () => {
+    expect(kitWords({ id: "bodyweight", label: "the park", preset: true })).toBe("with no equipment");
     expect(kitWords({ id: "travel", label: "travel", preset: false })).toBe("with my travel kit");
-    expect(sentence({ coach: "Nolan", minutes: 20, place: "at home", type: "cardio", feel: "fresh", body: {} }))
-      .toBe("Hey Nolan, I've got 20 minutes at home for cardio. Nothing's bothering me today, and I'm feeling fresh.");
+    expect(sentence({ coach: "Nolan", minutes: 20, place: "at home", type: "cardio workout", body: {} }))
+      .toBe("Hey, coach Nolan, I'd like a 20-minute cardio workout at home. Nothing's bothering me today.");
+    expect(sentence({ coach: "Nolan", minutes: 18, place: "at home", type: "core workout", body: { "left knee": "easy", "right knee": "easy", neck: "off" } }))
+      .toBe("Hey, coach Nolan, I'd like an 18-minute core workout at home. Go easy on my left knee and right knee, and keep off my neck today.");
   });
 });

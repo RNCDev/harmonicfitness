@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Chat, stepsOf } from "./Chat";
 
 const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
@@ -18,7 +18,7 @@ describe("the chat", () => {
     expect(box).toHaveValue("");
 
     rerender(<Chat {...base} working onSend={onSend} />);
-    expect(screen.getByText(/Working…/)).toBeInTheDocument();
+    expect(screen.getByText(/Your coach is working…/)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
@@ -88,23 +88,26 @@ describe("the chat", () => {
     expect(onOpenKeys).toHaveBeenCalled();
   });
 
-  it("with no key, welcomes and asks for one, and the box waits", () => {
+  it("with no key, welcomes and offers the three writers, and the box waits", () => {
     const onAddKey = vi.fn();
-    render(<Chat {...base} needsKey={{ name: "Gemini", service: "gemini", voice: true }} onAddKey={onAddKey} />);
+    const need = [{ name: "Claude", service: "anthropic", voice: false }, { name: "ChatGPT", service: "openai", voice: false },
+      { name: "Gemini", service: "gemini", voice: true }];
+    render(<Chat {...base} needsKey={need} onAddKey={onAddKey} />);
     expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
-    expect(screen.getByText(/one Gemini key, free from Google AI Studio/)).toHaveTextContent("and can voice your coach");
-    expect(screen.queryByRole("region", { name: "Start a workout" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Gemini/ })).toHaveTextContent("Free key from Google AI Studio. Also voices a coach");
+    expect(screen.getByRole("button", { name: /^Claude/ })).toHaveTextContent("Paid key");
+    expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
-    expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute("placeholder", "Add a key first");
-    fireEvent.click(screen.getByRole("button", { name: "Add your key" }));
-    expect(onAddKey).toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute("placeholder", "Add a key in Settings first");
+    fireEvent.click(screen.getByRole("button", { name: /^ChatGPT/ }));
+    expect(onAddKey).toHaveBeenCalledWith("openai");
   });
 
   it("with a key, offers the starter sentence once it knows what to fill it with", () => {
     const { rerender } = render(<Chat {...base} needsKey={null} />);
-    expect(screen.queryByRole("region", { name: "Start a workout" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
     rerender(<Chat {...base} needsKey={null} start={{ coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false }} />);
-    expect(screen.getByRole("region", { name: "Start a workout" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Plan a workout" })).toBeInTheDocument();
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
   });
@@ -115,8 +118,9 @@ describe("the chat", () => {
       { stage: "step", text: "Checking", id: 2, state: "running" }, { stage: "step", text: "Checking", id: 2, state: "failed", failed: true },
       { stage: "step", text: "Recording your workout", id: 3, state: "running" },
     ]);
-    expect(steps).toEqual([{ text: "Reading", failed: false, running: false },
-      { text: "Checking", failed: true, running: false }, { text: "Recording your workout", failed: false, running: true }]);
+    expect(steps).toEqual([{ text: "Reading", failed: false, running: false, think: false, key: "s1" },
+      { text: "Checking", failed: true, running: false, think: false, key: "s2" },
+      { text: "Recording your workout", failed: false, running: true, think: false, key: "s3" }]);
     render(<Chat {...base} working steps={steps} />);
     expect(screen.getByText("Recording your workout")).toHaveClass("now");
     expect(screen.getByText("Reading")).not.toHaveClass("now");
@@ -125,7 +129,36 @@ describe("the chat", () => {
 
   it("reads a step from before ids as done", () => {
     expect(stepsOf([{ stage: "folder" }, { stage: "step", text: "Old", failed: false }]))
-      .toEqual([{ text: "Old", failed: false, running: false }]);
+      .toEqual([{ text: "Old", failed: false, running: false, think: false, key: "i0" }]);
+  });
+
+  it("shows what the coach is thinking about only while it thinks", () => {
+    const ev = [
+      { stage: "step", text: "Reading your message", id: 1, state: "running", think: true },
+      { stage: "step", text: "Reading your message", id: 1, state: "done", think: true },
+      { stage: "step", text: "Working out today's safe moves", id: 2, state: "running" },
+      { stage: "step", text: "Working out today's safe moves", id: 2, state: "done" },
+      { stage: "step", text: "Writing your script", id: 3, state: "running", think: true },
+    ];
+    const { rerender } = render(<Chat {...base} working steps={stepsOf(ev)} />);
+    expect(screen.queryByText(/Reading your message/)).toBeNull();      // done thinking is dropped
+    expect(screen.getByText("Working out today's safe moves")).not.toHaveClass("now");
+    expect(screen.getByText("Writing your script…")).toHaveClass("now", "think");
+    rerender(<Chat {...base} working steps={stepsOf([...ev, { stage: "step", text: "Writing your script", id: 3, state: "done", think: true }])} />);
+    expect(screen.queryByText(/Writing your script/)).toBeNull();
+  });
+
+  it("a long wait shows its own clock and says it's a long one", () => {
+    vi.useFakeTimers();
+    try {
+      render(<Chat {...base} working steps={stepsOf([{ stage: "step", text: "Recording your workout", id: 1, state: "running" }])} />);
+      expect(screen.queryByText("Recording a full workout takes a few minutes.")).toBeNull();
+      act(() => { vi.advanceTimersByTime(30_000); });
+      expect(screen.getByText("Recording a full workout takes a few minutes.")).toBeInTheDocument();
+      expect(screen.getByText("Recording your workout")).toHaveTextContent(/30s$/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the unsent text across a reload, and clears it on send", () => {

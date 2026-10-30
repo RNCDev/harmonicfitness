@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "@fontsource-variable/archivo/wdth.css";
+import "@fontsource-variable/inter-tight";
 import "./theme.css";
 import { App } from "./App";
 

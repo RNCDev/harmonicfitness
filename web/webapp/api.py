@@ -161,6 +161,11 @@ class KeyBody(BaseModel):
     key: Annotated[StrictStr, StringConstraints(max_length=KEY_MAX)]
 
 
+class WriterBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    service: Annotated[StrictStr, StringConstraints(max_length=64)]
+
+
 class _Headers:
     """Security headers on every response (pure ASGI, so streams aren't buffered or broken)."""
 
@@ -616,8 +621,12 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         with connection() as conn:
             try:
                 have = keystore.listing(conn, uk)
+                chosen = keystore.writer(conn, uk)
             finally:
                 conn.rollback()
+        # the writer shown: the one the listener chose (its key may still be missing), else the one that would write
+        writes = chosen if chosen in settings.providers else providers.pick(settings.providers, have, None)
+        writer_service = providers.key_service(writes) if writes else None
         # A provider sharing a voice service's key (Gemini) is listed under that service's id, so the
         # page shows one row for one key.
         rows = [(providers.key_service(p), providers.PROVIDERS[p].name, providers.PROVIDERS[p].key_page, "model",
@@ -626,8 +635,24 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                   have.get(s) or next((have.get(p) for p, t in providers.SHARED_KEY.items() if t == s), None))
                  for s, v in services.items()]
         return [{"service": s, "name": n, "key_page": page, "kind": kind, "set": at is not None,
-                 "updated_at": at.isoformat() if at is not None else None}
+                 "updated_at": at.isoformat() if at is not None else None,
+                 **({"writer": s == writer_service} if kind == "model" else {})}
                 for s, n, page, kind, at in rows]
+
+    @app.put("/api/writer", status_code=204, **post)
+    def put_writer(uk: User, body: Annotated[WriterBody, Body()]):
+        """Which offered language model writes the listener's workouts, by the id its key is listed under."""
+        provider = providers.provider_of(body.service)
+        if provider not in settings.providers:
+            raise HTTPException(404, "no such provider")
+        with connection() as conn:
+            try:
+                keystore.set_writer(conn, uk, provider)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return Response(status_code=204)
 
     def known(service: str) -> dict:
         if service in settings.providers and service not in providers.SHARED_KEY:
@@ -771,10 +796,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         with connection() as conn:
             try:
                 have = keystore.listing(conn, uk)
+                chosen = keystore.writer(conn, uk)
             finally:
                 conn.rollback()
-        if not any(providers.stored_key(have, p) for p in settings.providers):
-            name = providers.PROVIDERS[settings.providers[0]].name
+        if providers.pick(settings.providers, have, chosen) is None:
+            name = providers.PROVIDERS[chosen if chosen in settings.providers else settings.providers[0]].name
             raise HTTPException(409, f"Add a key for {name} in Settings first.")
         with turn_transaction(uk) as conn:
             cid = conversations.create(conn, uk, body.line)

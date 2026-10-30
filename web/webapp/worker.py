@@ -371,7 +371,7 @@ def _keep_audio(ctx: Ctx, written: dict[str, str]) -> list[dict]:
     return kept
 
 
-def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = None) -> None:
+def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = None, think: bool = False) -> None:
     """One step of a turn, live in the chat (a sealed job event) and in the worker's log (the tool and its
     exit code only, never what it read or wrote). With a step id, the step is said as it starts (code None:
     state "running") and again under the same id as it ends ("done" or "failed"); an event without an id, as
@@ -380,10 +380,10 @@ def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = N
     if step is None:
         ctx.say("step", text=text, failed=failed)
         return
-    if code is not None:
+    if code is not None and not think:
         print(f"worker: job {ctx.job_id} {tool} exit {code}", file=sys.stderr, flush=True)
     ctx.say("step", text=text, failed=failed, id=step,
-            state="running" if code is None else "failed" if failed else "done")
+            state="running" if code is None else "failed" if failed else "done", **({"think": True} if think else {}))
 
 
 def turn(ctx: Ctx) -> dict:
@@ -417,8 +417,9 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     from . import agent   # agent imports this module
     line, answer, today, now = _turn_request(ctx.args)
     stored = keystore.open_all(ctx.conn, ctx.uk)
+    chosen = keystore.writer(ctx.conn, ctx.uk)
     ctx.conn.commit()
-    provider = next((p for p in ctx.settings.providers if providers.stored_key(stored, p)), None)
+    provider = providers.pick(ctx.settings.providers, stored, chosen)
     if provider is None:
         raise _Stop(NO_MODEL_KEY)
     try:
@@ -434,7 +435,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
-                      now=now, say=lambda text, tool, code, step=None: _step(ctx, text, tool, code, step), cancel=ctx.cancel)
+                      now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
+                      cancel=ctx.cancel)
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     # and the coach skill: asked for now, still being made (the quick coach's answer names no coach), or an
     # audition waiting for their pick
@@ -454,7 +456,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
         context = None
         if first and line:
             try:
-                context = agent.prefetch(deps)
+                context = agent.prefetch(deps, line)
             except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
                 print(f"worker: job {ctx.job_id} prefetch failed: {type(e).__name__}", file=sys.stderr)
         outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)

@@ -47,7 +47,8 @@ class Deps:
     now: str
     # tells the listener what the coach is doing, as it happens: (step text, tool name, exit code, step id).
     # A step is said twice under one id: with code None when its tool starts, then with the tool's exit code.
-    say: Callable[[str, str, int | None, int | None], None] | None = field(default=None, repr=False)
+    # A thinking step (the model working between tools) is said with think=True: shown while it runs, then dropped.
+    say: Callable[..., None] | None = field(default=None, repr=False)
     # `feeds`, started in the background as the turn began: `run feeds` waits for it instead of running again
     feeds: Future | None = field(default=None, repr=False)
     cancel: threading.Event | None = field(default=None, repr=False)   # the listener's Stop
@@ -60,6 +61,7 @@ class Deps:
     coach_done: bool = False         # a candidate was kept or the audition closed: the next turn needs no skill
     steps: int = 0                   # the last step id said this turn
     lint_failed: bool = False        # the last check of the script failed: the next draft is a fix, not a first go
+    phase: str = ""                  # what the turn last did (THINK in agent): names what the model is thinking about
 
 
 class ToolResult(BaseModel):

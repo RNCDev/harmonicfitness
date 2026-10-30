@@ -16,6 +16,7 @@ from typing import Callable
 from pydantic_ai import Agent, CancellationToken, ModelMessagesTypeAdapter, RunContext, UsageLimits
 from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.messages import ToolCallPart, ToolReturnPart
+from pydantic_ai.models.wrapper import WrapperModel
 
 from . import tools
 from .tools import Deps, ToolResult
@@ -92,15 +93,31 @@ def _now(ctx: RunContext[Deps]) -> str:
 
 # What the listener sees while a tool runs: what it means for them, never a command or a file's name.
 STEPS = {"brief": "Working out today's safe moves", "build": "Recording your workout",
-         "check": "Checking your profile", "content": "Choosing what fills the rests",
+         "check": "Checking your profile is complete", "content": "Choosing what fills the rests",
          "coaches": "Checking which coaches can speak", "coverage": "Looking at your recent sessions",
          "feeds": "Gathering today's news and weather", "get": "Checking your settings",
          "log-session": "Logging the session", "movements": "Looking through the moves",
-         "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Checking how the coach works"}
+         "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Looking up how a step works"}
+# a command's second word, where it says more than the first
+SUB_STEPS = {("get", "cost"): "Pricing the recording", ("get", "web-builds"): "Checking your past recordings",
+             ("content", "log"): "Noting the stories you heard", ("content", "reserve"): "Checking the story reserve",
+             ("youtube", "transcript"): "Reading a video's transcript", ("youtube", "puzzles"): "Finding a puzzle",
+             ("youtube", "done"): "Noting the video series", ("movements", "--about"): "Reading the coaching notes"}
+OTHER_STEP = "Running a check"
+# What the model is doing between tools, by what the turn did last (Deps.phase): shown while it thinks.
+THINK = {"": "Reading your message", "brief": "Writing your script", "draft": "Checking over the script",
+         "lint_failed": "Fixing the script", "linted": "Getting the recording ready", "priced": "Writing up the plan",
+         "recorded": "Wrapping up", "audition": "Introducing the voices", "coach": "Working on your coach"}
+THINK_OTHER = "Deciding what to do next"
 COACH_STEPS = {"make": "Making your coach's voice", "audition": "Auditioning voices for your coach",
                "keep": "Saving your new coach", "forget-audition": "Tidying up the audition",
                "archive": "Putting that coach away"}
-READS = (("me/profile.md", "Getting to know you"), ("me/training.md", "Checking your training and kit"),
+READS = ((".claude/skills/coach/", "Reviewing how coaches are made"), (".claude/skills/setup/", "Reviewing the setup steps"),
+         ("knowledge/voices", "Reviewing the voice options"), ("knowledge/movements", "Looking through the moves"),
+         ("knowledge/programming", "Reviewing how to set effort and rest"),
+         ("knowledge/sessions", "Choosing the session's shape"), ("knowledge/kits", "Checking what your kit can do"),
+         ("knowledge/content", "Planning what fills the rests"),
+         ("me/profile.md", "Getting to know you"), ("me/training.md", "Checking your training and kit"),
          ("me/health.md", "Checking today's safety limits"), ("me/log.md", "Looking at your recent sessions"),
          ("me/content.md", "Checking your interests"), ("me/workouts/research/", "Gathering today's stories"),
          ("me/workouts/", "Looking at your workout"), ("me/coaches/", "Getting to know your coach"),
@@ -127,19 +144,45 @@ def _write_step(path: object, fixing: bool = False) -> str:
     return "Saving your notes"
 
 
-def _say(deps: Deps, text: str, tool: str, code: int | None, step: int) -> None:
+def _say(deps: Deps, text: str, tool: str, code: int | None, step: int, think: bool = False) -> None:
     if deps.say is not None:
         try:
-            deps.say(text, tool, code, step)
+            if think:
+                deps.say(text, tool, code, step, think=True)
+            else:
+                deps.say(text, tool, code, step)
         except Exception:  # noqa: BLE001 - a progress line never fails the turn
             pass
 
 
-def _begin(deps: Deps, text: str, tool: str) -> int:
-    """A step shown as running, as its tool starts; its id."""
+def _begin(deps: Deps, text: str, tool: str, think: bool = False) -> int:
+    """A step shown as running, as its tool starts (or as the model starts thinking); its id."""
     deps.steps += 1
-    _say(deps, text, tool, None, deps.steps)
+    _say(deps, text, tool, None, deps.steps, think)
     return deps.steps
+
+
+class Narrated(WrapperModel):
+    """The turn's model, saying what it's thinking about while each request runs: the longest waits in a turn
+    (reading the message, writing the script) are the model's, between tools, and were silent."""
+
+    def __init__(self, wrapped, deps: Deps):
+        super().__init__(wrapped)
+        self._deps = deps
+
+    async def request(self, messages, model_settings, model_request_parameters):
+        deps = self._deps
+        text = THINK.get(deps.phase, THINK_OTHER)
+        n = _begin(deps, text, "think", think=True)
+        try:
+            response = await super().request(messages, model_settings, model_request_parameters)
+        except BaseException:
+            _say(deps, text, "think", 1, n, think=True)
+            raise
+        _say(deps, text, "think", 0, n, think=True)
+        if deps.phase == "":
+            deps.phase = "working"
+        return response
 
 
 def _step(deps: Deps, text: str, tool: str, work: Callable[[], ToolResult]) -> ToolResult:
@@ -202,12 +245,15 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     "--save", "me/workouts/<stem>/<stem>.draft.txt"]. Returns the exit code, stdout and stderr."""
     deps = ctx.deps
     first = args[1] if args and args[0] == "./harmonicfitness" and len(args) > 1 else (args[0] if args else "")
-    text = STEPS.get(first, "Working on it") if isinstance(first, str) else "Working on it"
+    text = STEPS.get(first, OTHER_STEP) if isinstance(first, str) else OTHER_STEP
     rest = args[1:] if args and args[0] == "./harmonicfitness" else args
+    if len(rest) > 1 and isinstance(rest[1], str) and (first, rest[1]) in SUB_STEPS:
+        text = SUB_STEPS[(first, rest[1])]
     tool = f"run {first}"[:40]
     if first == "build" and "--lint-only" not in args:
         draft = rest[1] if len(rest) > 1 else None
         if deps.approved and deps.approved.get("draft") == draft:
+            deps.phase = "recorded"
             return _recording(deps, args, tool)
         text = "Working out what recording costs"   # an unapproved build checks the script, then prices it
     if first == "build" and "--lint-only" in args:
@@ -217,6 +263,13 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     result = _step(deps, text, tool, lambda: tools.run(deps, args))
     if first == "build":
         deps.lint_failed = result.code != 0
+        deps.phase = "lint_failed" if result.code != 0 else ("linted" if "--lint-only" in args else "priced")
+    elif first == "brief":
+        deps.phase = "brief"
+    elif first == "coaches" and len(rest) > 1 and rest[1] == "audition":
+        deps.phase = "audition"
+    elif first == "coaches" and len(rest) > 1 and rest[1] in ("make", "keep"):
+        deps.phase = "coach"
     return result
 
 
@@ -229,8 +282,11 @@ def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
 @AGENT.tool(sequential=True)
 def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
     """Write (create or replace) a text file in the listener's folder, me/... only."""
-    return _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "write_file",
-                 lambda: tools.write_file(ctx.deps, path, content))
+    result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "write_file",
+                   lambda: tools.write_file(ctx.deps, path, content))
+    if isinstance(path, str) and path.endswith(".draft.txt"):
+        ctx.deps.phase = "draft"
+    return result
 
 
 @AGENT.tool(sequential=True)
@@ -275,10 +331,20 @@ def _block(title: str, r: ToolResult) -> str:
     return f"### {title} (exit {r.code})\n````\n{body}\n````"
 
 
-def prefetch(deps: Deps) -> str:
-    """Step 1's commands and reads, run at once; returned as text for the first message."""
+COACH_FIRST = ("This listener isn't set up yet, and asked for a new coach. Do what they asked, now: the coach skill, "
+               "with no setup questions and no workout check-in this turn; ask only what the coach needs. Once the "
+               "coach is made, say in a line that a few quick questions will set them up for a first workout.")
+
+
+def prefetch(deps: Deps, line: str | None = None) -> str:
+    """Step 1's commands and reads, run at once; returned as text for the first message. A listener not set up
+    yet who asked for a coach gets the coach first, never the setup questionnaire."""
     plain = replace(deps, say=None, feeds=None)
-    step = _begin(deps, "Getting to know you and today's limits", "prefetch")
+    fresh = deps.setup and needs_setup(deps.home)
+    coach_first = fresh and wants_coach(line) and not wants_setup(line)
+    label = ("Looking at your coaches" if coach_first else "Getting you set up" if fresh
+             else "Reading your profile and today's limits")
+    step = _begin(deps, label, "prefetch")
     with ThreadPoolExecutor(max_workers=len(FIRST_RUNS) + len(FIRST_READS)) as pool:
         runs = [pool.submit(tools.run, plain, list(a)) for a in FIRST_RUNS]
         reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS]
@@ -290,8 +356,8 @@ def prefetch(deps: Deps) -> str:
         name = coach.output.strip().splitlines()[0].strip()
         results.append((f"./harmonicfitness get route --coach \"{name}\"",
                         tools.run(plain, ["get", "route", "--coach", name])))
-    _say(deps, "Getting to know you and today's limits", "prefetch", 0, step)
-    first = SETUP_FIRST + "\n\n" if deps.setup and needs_setup(deps.home) else ""
+    _say(deps, label, "prefetch", 0, step)
+    first = (COACH_FIRST if coach_first else SETUP_FIRST) + "\n\n" if fresh else ""
     return (first + "Step 1 is done: these are its results, run as this turn began. Don't run or read them again "
             "this turn; go on to the questions.\n\n" + "\n\n".join(_block(t, r) for t, r in results))
 
@@ -363,7 +429,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     if deps.cancel is not None:
         threading.Thread(target=watch, daemon=True).start()
     try:
-        result = AGENT.run_sync(prompt, model=model, deps=deps, message_history=history,
+        result = AGENT.run_sync(prompt, model=Narrated(model, deps), deps=deps, message_history=history,
                                 usage_limits=LIMITS, cancellation_token=token)
     except RunCancelled:
         if deps.cancel is not None and deps.cancel.is_set():

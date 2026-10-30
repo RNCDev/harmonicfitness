@@ -485,12 +485,13 @@ class Keys(ApiCase):
     def test_model_keys_listed_first_and_only_offered(self):
         self.signed_in()
         body = self.client.get("/api/keys").json()
-        self.assertEqual([k["service"] for k in body if k["kind"] == "model"], ["anthropic"])
-        self.assertEqual(body[0]["service"], "anthropic")
-        self.assertEqual(body[0]["name"], "Claude")
+        self.assertEqual([k["service"] for k in body if k["kind"] == "model"], ["anthropic", "openai", "gemini"])
+        self.assertEqual([k["name"] for k in body[:3]], ["Claude", "ChatGPT", "Gemini"])
         self.assertIn("anthropic", body[0]["key_page"])
-        self.assertTrue(all(k["kind"] == "voice" for k in body[1:]))
-        self.assertEqual([k["service"] for k in body[1:]], list(worker.engine_services(ROOT)))
+        self.assertTrue(all(k["kind"] == "voice" for k in body[3:]))
+        self.assertEqual([k["service"] for k in body[3:]], list(worker.engine_services(ROOT)))
+        self.assertTrue(all(k["writer"] is False for k in body[:3]))   # none chosen, none keyed
+        self.assertTrue(all("writer" not in k for k in body[3:]))
 
     def test_put_model_key(self):
         self.signed_in()
@@ -505,10 +506,39 @@ class Keys(ApiCase):
         self.assertEqual(self.client.delete("/api/keys/anthropic", headers=self.origin()).status_code, 204)
 
     def test_unoffered_provider_is_404(self):
+        import dataclasses
         self.signed_in()
-        self.assertEqual(self.client.put("/api/keys/openai", json={"key": "abc123def456abcd"},
-                                         headers=self.origin()).status_code, 404)
-        self.assertEqual(self.client.delete("/api/keys/openai", headers=self.origin()).status_code, 404)
+        c = TestClient(api.create_app(dataclasses.replace(self.settings, providers=("anthropic",)),
+                                      connect=self.connect, client_dist=self.dist), base_url=self.base_url)
+        c.cookies.update(self.client.cookies)
+        self.assertEqual(c.put("/api/keys/openai", json={"key": "abc123def456abcd"},
+                               headers=self.origin()).status_code, 404)
+        self.assertEqual(c.delete("/api/keys/openai", headers=self.origin()).status_code, 404)
+        self.assertEqual(c.put("/api/writer", json={"service": "openai"}, headers=self.origin()).status_code, 404)
+
+    def test_the_listener_chooses_who_writes(self):
+        _, uk = self.signed_in()
+        put = lambda s, k: self.client.put(f"/api/keys/{s}", json={"key": k}, headers=self.origin())
+        writes = lambda: [k["service"] for k in self.client.get("/api/keys").json() if k.get("writer")]
+        self.assertEqual(put("anthropic", "sk-ant-abc123def456abcd").status_code, 204)
+        self.assertEqual(writes(), ["anthropic"])   # the only key
+        self.assertEqual(self.client.put("/api/writer", json={"service": "gemini"}, headers=self.origin()).status_code, 204)
+        self.assertEqual(keystore.writer(self.conn, uk), "google")
+        self.conn.rollback()
+        self.assertEqual(writes(), ["gemini"])      # Gemini chosen: shown as the writer, its key still to add
+        self.assertEqual(put("gemini", "AIzaabc123def456abcd").status_code, 204)
+        self.assertEqual(writes(), ["gemini"])      # its key voices Gemini's coach too
+        self.assertTrue(next(k for k in self.client.get("/api/keys").json()
+                             if k["service"] == "gemini" and k["kind"] == "voice")["set"])
+        self.assertEqual(self.client.put("/api/writer", json={"service": "nope"}, headers=self.origin()).status_code, 404)
+        self.assertEqual(self.client.put("/api/writer", json={"service": "openai"}).status_code, 403)   # no Origin
+
+    def test_a_chosen_writer_without_a_key_is_named(self):
+        self.signed_in()
+        self.client.put("/api/writer", json={"service": "openai"}, headers=self.origin())
+        r = self.client.post("/api/conversations", json={"line": "hi", "today": today(), "now": f"{today()} Wednesday 08:00"},
+                             headers=self.origin())
+        self.assertEqual((r.status_code, r.json()["detail"]), (409, "Add a key for ChatGPT in Settings first."))
 
     def test_put_then_list(self):
         self.signed_in()

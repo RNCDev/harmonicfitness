@@ -471,10 +471,10 @@ class Turn(JobsCase):
             self.assertIn("Step 1 is done", prompts[0])
             self.assertIn("### ./harmonicfitness get coach (exit ", prompts[0])
             self.assertEqual(started, [])   # the check-in comes first
-            self.assertIn("Getting to know you and today's limits",
+            self.assertIn("Getting you set up",
                           [b.get("text") for _, b in jobs.events(self.conn, uk, job)])
             prefetch = [(b["id"], b["state"]) for _, b in jobs.events(self.conn, uk, job)
-                        if b.get("text") == "Getting to know you and today's limits"]
+                        if b.get("text") == "Getting you set up"]
             self.assertEqual(prefetch, [(1, "running"), (1, "done")])   # said as it starts, then as it ends
             self.conn.rollback()
             self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "25 minutes", None))

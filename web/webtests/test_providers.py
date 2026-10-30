@@ -13,7 +13,7 @@ KEY = "sk-secret-" + "k" * 20
 
 class Offered(unittest.TestCase):
     def test_offered(self):
-        self.assertEqual(providers.offered({}), ["anthropic"])
+        self.assertEqual(providers.offered({}), ["anthropic", "openai", "google"])
         self.assertEqual(providers.offered({"HARMONICFITNESS_PROVIDERS": " google, anthropic "}),
                          ["anthropic", "google"])
         with self.assertRaises(config.ConfigError) as cm:
@@ -22,6 +22,16 @@ class Offered(unittest.TestCase):
 
     def test_table(self):
         self.assertEqual(list(providers.PROVIDERS), ["anthropic", "openai", "google"])
+        self.assertEqual(providers.provider_of("gemini"), "google")
+        self.assertEqual(providers.provider_of("openai"), "openai")
+
+    def test_pick_the_chosen_writer_when_it_has_a_key(self):
+        offered = ["anthropic", "openai", "google"]
+        self.assertEqual(providers.pick(offered, {"anthropic": 1, "gemini": 1}, "google"), "google")
+        self.assertEqual(providers.pick(offered, {"anthropic": 1}, "google"), "anthropic")
+        self.assertEqual(providers.pick(offered, {"openai": 1}, None), "openai")
+        self.assertEqual(providers.pick(["anthropic"], {"openai": 1}, "openai"), None)
+        self.assertEqual(providers.pick(offered, {}, "openai"), None)
         self.assertEqual([p.name for p in providers.PROVIDERS.values()], ["Claude", "ChatGPT", "Gemini"])
 
 

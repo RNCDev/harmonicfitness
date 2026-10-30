@@ -163,7 +163,7 @@ type Props = {
   onSignOut: () => void;
   onKeys?: (keys: KeyState[]) => void;
   /** A key row to open in edit mode (the welcome card's "Add your key"). */
-  openRow?: { service: string; n: number } | null;
+  openRow?: { service: string; n: number; choose?: boolean } | null;
   /** The coaches that can speak here, and those waiting on a key. */
   coaches?: StartCoach[];
 };

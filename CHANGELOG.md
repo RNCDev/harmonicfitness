@@ -4,6 +4,31 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-29
+
+The web app, redesigned: a cobalt poster of sound-ripple arcs beside a quiet work column, a plainer request sentence, a body map for what's sore, and a choice of which AI writes your workouts. The coach now says what it's thinking about while it works.
+
+### For forks
+- **The web service applies migration `010_writer.sql` on startup** (a `writer` column on `users`); nothing to run by hand.
+- **`HARMONICFITNESS_PROVIDERS` now defaults to all three** (Claude, ChatGPT and Gemini). Set it to keep a narrower list; unset, every listener chooses.
+- **The opening request reads differently:** "Hey, coach Reed, I'd like a 25-minute full-body workout at home. Go easy on my left knee today." `webapp/agent/instructions.md` reads both this and the older form.
+
+### Added
+- **A choice of writer.** Settings opens with "Who writes your workouts": Claude, ChatGPT or Gemini, each with its key; the pick is saved (`PUT /api/writer`), and the keys listing marks it. Gemini's one key also voices its coach. A listener with no key yet picks from three cards on the welcome screen.
+- **The coach's thinking, said live.** While the model works between tools (reading the message, writing the script, fixing it after a failed check), a line says what it's thinking about, and goes once it's done (`agent.Narrated` wraps the turn's model; a step event with `think`). A running step shows its own clock after 8 seconds, and past 25 a line says why it's a long one.
+- **A body map** for the request's second line: areas in three groups, each with its side (left, right, both) and "go easy" or "keep off"; limits from `health.md` come filled in and can be tightened, never loosened.
+- **`web/dev.sh`:** the server and worker (and Vite with `hot`) in one terminal, stopped by one Ctrl-C; `web/dev.sh reset` deletes the local database and key.
+
+### Changed
+- **The web app's look:** a cobalt poster beside every page, with seven concentric arcs after Müller-Brockmann (the logo's bars bent into ripples) that draw in once and sway while the coach works, and the coach's name large below the logo; Inter Tight throughout, as in the wordmark; coral for planning a workout, sun for recording one. On a phone the poster is a band across the top.
+- **Plainer words throughout:** the request sentence, "Plan my workout", "New workout", the other asks listed with a line each on what they do, and rewritten welcome, sign-in and error messages.
+- **No "how are you feeling" question:** neither the request sentence nor the check-in asks about readiness on the web; an injury the listener mentions still gets its questions and red flags.
+- **Step names say what's happening:** the coach guide, setup guide, voices, moves and pricing each named as such, the opening step named for the request, and "Working on it" gone.
+
+### Fixed
+- **"I want a new coach" on a new account** ran the whole setup questionnaire and check-in; the coach now comes first, and setup waits until it's made.
+- **A phone opened the first screen scrolled to the bottom**, and a rolling word dropped its spaces.
+
 ## [0.31.0] - 2026-10-29
 
 A logo: seven sound bars, the tallest in coral, and the wordmark "harmonicfitness". The web app wears it, with a favicon at last.

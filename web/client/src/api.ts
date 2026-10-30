@@ -17,6 +17,8 @@ export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
   service: string; name: string; key_page: string; set: boolean; updated_at: string | null;
   kind: "voice" | "model";
+  /** On a model row: whether it's the one the listener chose to write their workouts. */
+  writer?: boolean;
 };
 export type Stage = { stage: string; [field: string]: unknown };
 export type JobState = "queued" | "running" | "done" | "failed";
@@ -83,6 +85,7 @@ export const api = {
   keys: () => call<KeyState[]>("GET", "/api/keys"),
   setKey: (service: string, key: string) =>
     call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
+  setWriter: (service: string) => call<void>("PUT", "/api/writer", { service }),
   deleteKey: (service: string) =>
     call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
   startConversation: (line: string, w: When) =>

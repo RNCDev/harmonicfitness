@@ -1,18 +1,19 @@
-// The app: the sign-in page, or once signed in a top bar, the chat, and the Settings drawer.
+// The app: the sign-in page, or once signed in the poster, the chat, and the Settings drawer.
 import { useCallback, useEffect, useState } from "react";
 import { api, APP_NAME, NotSignedIn, type KeyState, type Me, type StartInfo } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
-import { Mark } from "./Mark";
+import { Poster, Solo } from "./Poster";
 import { useConversation } from "./conversation";
 import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
 import { hasModelKey, keyRows } from "./zones/KeysBox";
 
-/** The key a listener with no language-model key adds first: the first one offered. */
+/** With no language-model key yet: the ones to choose from, to write the workouts. */
 function keyNeeded(keys: KeyState[] | null): KeyNeeded | null {
   if (hasModelKey(keys) !== false) return null;
-  const first = keyRows(keys ?? []).find((r) => r.kind === "model");
-  return first ? { name: first.name, service: first.service, voice: first.voice } : null;
+  const options = keyRows(keys ?? []).filter((r) => r.kind === "model")
+    .map((r) => ({ name: r.name, service: r.service, voice: r.voice }));
+  return options.length ? options : null;
 }
 
 type Auth = "loading" | "in" | "out" | "error";
@@ -30,11 +31,11 @@ const Gear = () => (
 
 function Unreachable({ onRetry }: { onRetry: () => void }) {
   return (
-    <main className="solo">
-      <Mark />
-      <h1>Couldn't reach the server</h1>
+    <Solo>
+      <h1>Can't reach HarmonicFitness</h1>
+      <p>Check your connection, then try again.</p>
       <button type="button" className="go" onClick={onRetry}>Try again</button>
-    </main>
+    </Solo>
   );
 }
 
@@ -42,7 +43,8 @@ function Unreachable({ onRetry }: { onRetry: () => void }) {
 function Loading() {
   return (
     <div className="app" aria-busy="true">
-      <header className="top"><Mark /></header>
+      <Poster />
+      <div className="work" />
     </div>
   );
 }
@@ -82,7 +84,7 @@ export function App() {
 function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [drawer, setDrawer] = useState(false);
   const [keys, setKeys] = useState<KeyState[] | null>(null);
-  const [openRow, setOpenRow] = useState<{ service: string; n: number } | null>(null);
+  const [openRow, setOpenRow] = useState<{ service: string; n: number; choose?: boolean } | null>(null);
   const needsKey = keyNeeded(keys);
   const { conv, working, error, noKey, send, record, halt, reset, job } = useConversation(onSignedOut);
   const steps = stepsOf(job?.stages ?? []);
@@ -132,28 +134,36 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
 
   return (
     <div className="app">
-      <header className="top">
-        <Mark version={me.version} />
-        {conv && <button type="button" className="top-btn new" onClick={() => { reset(); setPicked(null); }} disabled={working}>
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-            <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          New chat
-        </button>}
-        <button type="button" className="top-btn icon ctx-toggle" aria-label="Settings" title="Settings"
-          aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
-          <Gear />
-        </button>
-      </header>
-      {/* an earlier day's conversation shows as history; the next message starts a new one */}
-      <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
-        offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
-        onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
-        start={start} onCoach={setPicked} coachBar={coachBar}
-        onAddKey={() => {
-          if (needsKey) setOpenRow((r) => ({ service: needsKey.service, n: (r?.n ?? 0) + 1 }));
-          setDrawer(true);
-        }} />
+      <Poster version={me.version} busy={working}>
+        {shown ? (<>
+          <p className="poster-k">Your coach</p>
+          <p className="poster-coach">{shown.first}</p>
+          <p className="poster-sub">Voiced by {shown.service_name}</p>
+        </>) : <p className="poster-tag">Audio workouts for your earbuds, written and voiced fresh each time you ask.</p>}
+      </Poster>
+      <div className="work">
+        <header className="work-top">
+          {conv && <button type="button" className="top-btn new" onClick={() => { reset(); setPicked(null); }} disabled={working}>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            New workout
+          </button>}
+          <button type="button" className="top-btn icon ctx-toggle" aria-label="Settings" title="Settings"
+            aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
+            <Gear />
+          </button>
+        </header>
+        {/* an earlier day's conversation shows as history; the next message starts a new one */}
+        <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
+          offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
+          onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
+          start={start} onCoach={setPicked} coachBar={coachBar}
+          onAddKey={(service) => {
+            setOpenRow((r) => ({ service, n: (r?.n ?? 0) + 1, choose: true }));
+            setDrawer(true);
+          }} />
+      </div>
       <ContextColumn username={me.username} open={drawer} onClose={closeDrawer}
         onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
         coaches={coaches} />

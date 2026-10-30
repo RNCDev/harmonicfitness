@@ -1,5 +1,6 @@
-// The keys: the language model's (required) and the voices' (optional), one row per service: a service that
-// is both (Gemini) is one key and one row. Add, replace or remove. A key is never shown again.
+// The keys: who writes the workouts (Claude, ChatGPT or Gemini: the listener picks one and adds its key) and the
+// voices (optional), one row per service: a service that is both (Gemini) is one key and one row, so picking
+// Gemini to write also voices its coach. Add, replace or remove. A key is never shown again.
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, NotSignedIn, plainError, type KeyState } from "../api";
 
@@ -15,7 +16,7 @@ export function keyRows(keys: KeyState[]): KeyRowState[] {
       rows.push({ ...k, voice: k.kind === "voice" });
       continue;
     }
-    if (k.kind === "model") same.kind = "model";
+    if (k.kind === "model") { same.kind = "model"; same.writer = k.writer; }
     if (k.kind === "voice") same.voice = true;
     same.set = same.set || k.set;
     same.updated_at = same.updated_at ?? k.updated_at;
@@ -35,8 +36,10 @@ function setOn(iso: string | null): string {
   return `Set ${d.toLocaleDateString([], { month: "short", day: "numeric" })}`;
 }
 
-function KeyRow({ k, open, onChanged, onSignedOut }: {
+function KeyRow({ k, open, onChanged, onSignedOut, onChoose }: {
   k: KeyRowState; open: number; onChanged: (s: KeyRowState) => void; onSignedOut: () => void;
+  /** On a model row: makes it the one that writes the workouts. */
+  onChoose?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -89,8 +92,13 @@ function KeyRow({ k, open, onChanged, onSignedOut }: {
   }
 
   return (
-    <div className="keys-row">
-      <span className="keys-name">{k.name}</span>
+    <div className={`keys-row${onChoose ? " writer" : ""}${k.writer ? " on" : ""}`}>
+      {onChoose ? (
+        <label className="keys-pick">
+          <input type="radio" name="writer" checked={!!k.writer} onChange={onChoose} />
+          <span className="keys-name">{k.name}</span>
+        </label>
+      ) : <span className="keys-name">{k.name}</span>}
       <span className="keys-state">{k.set ? setOn(k.updated_at) : "Not set"}</span>
       {!editing && !asking && (
         <span className="keys-actions">
@@ -104,8 +112,11 @@ function KeyRow({ k, open, onChanged, onSignedOut }: {
           )}
         </span>
       )}
-      {k.kind === "model" && (
-        <p className="cx-s keys-note">Writes your workouts{k.voice ? ", and can voice your coach" : ""}.</p>
+      {k.kind === "model" && k.writer && !k.set && !editing && (
+        <p className="cx-s keys-note">Add your {k.name} key to use it.</p>
+      )}
+      {k.kind === "model" && k.voice && (
+        <p className="cx-s keys-note">The same key also voices a coach.</p>
       )}
       {asking && (
         <span className="keys-actions">
@@ -136,8 +147,8 @@ type Props = {
   onSignedOut: () => void;
   /** Every listing and change, for the page (the welcome card goes once a model key is set). */
   onKeys?: (keys: KeyState[]) => void;
-  /** A row to open for a key: its service, and a count that grows with each ask. */
-  openRow?: { service: string; n: number } | null;
+  /** A row to open for a key: its service, and a count that grows with each ask; `choose` also makes it the writer. */
+  openRow?: { service: string; n: number; choose?: boolean } | null;
 };
 
 export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
@@ -161,17 +172,43 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
   const changed = (s: KeyRowState) =>
     setKeys((all) => all && all.map((x) => (x.service === s.service ? { ...x, set: s.set, updated_at: s.updated_at } : x)));
 
+  // the row opened by hand, after choosing a writer with no key yet
+  const [opened, setOpened] = useState<{ service: string; n: number } | null>(null);
+  async function choose(service: string, open: boolean) {
+    setError(null);
+    try {
+      await api.setWriter(service);
+    } catch (e) {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      setError(e instanceof ApiError ? plainError(e) : "Couldn't save that. Try again.");
+      return;
+    }
+    const keyless = !keyRows(keys ?? []).find((r) => r.service === service)?.set;
+    setKeys((all) => all && all.map((x) => (x.kind === "model" ? { ...x, writer: x.service === service } : x)));
+    if (open || keyless) setOpened((o) => ({ service, n: (o?.n ?? 0) + 1 }));
+  }
+  const asked = useRef(0);
+  useEffect(() => {
+    if (!openRow?.choose || !keys || openRow.n === asked.current) return;
+    asked.current = openRow.n;
+    void choose(openRow.service, true);
+  }, [openRow, keys]);
+  const openFor = (service: string) =>
+    (opened?.service === service ? opened.n : 0) + (openRow?.service === service && !openRow.choose ? openRow.n : 0);
+
   const rows = keys ? keyRows(keys) : [];
   const required = rows.filter((r) => r.kind === "model");
   const optional = rows.filter((r) => r.kind !== "model");
-  const group = (title: string, note: string, list: KeyRowState[]) => list.length > 0 && (
+  const group = (title: string, note: string, list: KeyRowState[], writers = false) => list.length > 0 && (
     <section className="keys-group" aria-label={title}>
       <h4 className="keys-h">{title}</h4>
       <p className="cx-s">{note}</p>
-      {list.map((k) => (
-        <KeyRow key={k.service} k={k} open={openRow?.service === k.service ? openRow.n : 0}
-          onSignedOut={onSignedOut} onChanged={changed} />
-      ))}
+      <div role={writers ? "radiogroup" : undefined} aria-label={writers ? title : undefined}>
+        {list.map((k) => (
+          <KeyRow key={k.service} k={k} open={openFor(k.service)} onSignedOut={onSignedOut} onChanged={changed}
+            onChoose={writers ? () => void choose(k.service, false) : undefined} />
+        ))}
+      </div>
     </section>
   );
 
@@ -180,8 +217,10 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
       <h3 className="cx-h">Keys</h3>
       {error && <p className="cx-s err" role="alert">{error}</p>}
       {keys === null && !error && <p className="cx-s">Loading…</p>}
-      {group("Required", required.length > 1 ? "One of these writes your workouts." : "Your workouts are written with this key.", required)}
-      {group("Optional: more voices", "Each adds its own coach. Fish Audio is the cheapest.", optional)}
+      {group("Who writes your workouts", required.length > 1
+        ? "Pick one, and add its key. Gemini's key is free, and also voices a coach."
+        : "Your workouts are written with this key.", required, required.length > 1)}
+      {group("More voices (optional)", "Each key adds its own coach. Fish Audio is the cheapest.", optional)}
       <p className="cx-s">Stored encrypted, never shown again. Each key goes only to its own service, when you use it.</p>
     </div>
   );

@@ -6,8 +6,9 @@ import remarkGfm from "remark-gfm";
 import type { Audio, ChatLine, Offer, StartInfo } from "../api";
 import { Starter } from "./Starter";
 
-/** A step of the coach's turn: running while its tool works, then done (or failed). */
-export type Step = { text: string; failed?: boolean; running?: boolean };
+/** A step of the coach's turn: running while its tool works, then done (or failed). A thinking step (the model
+ * working between tools) shows only while it runs. `key` tells one step from another across updates. */
+export type Step = { text: string; failed?: boolean; running?: boolean; think?: boolean; key?: string };
 
 /** A turn's job events as its steps, oldest first: an event with an id updates that step (it's said as it
  * starts, then as it ends); one without, from a server before 0.25.2, is a step already done. */
@@ -16,7 +17,8 @@ export function stepsOf(events: { stage: string; [field: string]: unknown }[]): 
   const at = new Map<number, number>();
   for (const e of events) {
     if (e.stage !== "step" || typeof e.text !== "string") continue;
-    const step: Step = { text: e.text, failed: e.failed === true || e.state === "failed", running: e.state === "running" };
+    const step: Step = { text: e.text, failed: e.failed === true || e.state === "failed", running: e.state === "running",
+      think: e.think === true, key: typeof e.id === "number" ? `s${e.id}` : `i${out.length}` };
     if (typeof e.id === "number" && at.has(e.id)) {
       out[at.get(e.id)!] = step;
       continue;
@@ -44,7 +46,8 @@ type Props = {
   onStop?: () => void;
   /** No language-model key yet: the key to ask for, in place of the greeting, and the button that opens it. */
   needsKey?: KeyNeeded | null;
-  onAddKey?: () => void;
+  /** Chooses a service to write the workouts, and opens its key. */
+  onAddKey?: (service: string) => void;
   /** What the first screen's sentence is filled in with (null until it arrives). */
   start?: StartInfo | null;
   /** The coach picked in the sentence. */
@@ -54,21 +57,27 @@ type Props = {
 };
 
 /** The language-model key a new listener adds first. */
-export type KeyNeeded = { name: string; service: string; voice: boolean };
+export type KeyNeeded = { name: string; service: string; voice: boolean }[];
 
 const FREE_FROM: Record<string, string> = { gemini: "Google AI Studio" };
 
-function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: () => void }) {
-  const free = FREE_FROM[need.service];
+function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: string) => void }) {
   return (
     <div className="m a welcome">
       <h2>Welcome to HarmonicFitness</h2>
-      <p>Ask for a workout in your own words. You get an audio workout for your earbuds: a coach who tells you
-        what to do, keeps you company and keeps time, with no screen to watch.</p>
-      <p>First it needs one {need.name} key{free ? `, free from ${free}` : ""}. It writes your
-        workouts{need.voice ? " and can voice your coach" : ""}. It's stored encrypted, and what it's used for is
-        charged to your own account.</p>
-      <button type="button" className="go" onClick={onAddKey}>Add your key</button>
+      <p>Tell your coach what workout you want, and you get it as audio for your earbuds. The coach tells you
+        what to do, keeps time and keeps you company, so there's no screen to watch.</p>
+      <p>To start, pick the AI that writes your workouts, and add a key for it. Keys are stored encrypted,
+        and anything they're used for is billed to your own account.</p>
+      <div className="welcome-picks">
+        {need.map((o) => (
+          <button key={o.service} type="button" className="welcome-pick" onClick={() => onAddKey?.(o.service)}>
+            <span className="welcome-pick-name">{o.name}</span>
+            <span className="welcome-pick-note">{FREE_FROM[o.service] ? `Free key from ${FREE_FROM[o.service]}` : "Paid key"}
+              {o.voice ? ". Also voices a coach" : ""}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -116,6 +125,16 @@ function collapsed(steps: Step[]): Step[] {
   return steps.filter((s, i) => i === steps.length - 1 || s.text !== steps[i + 1].text);
 }
 
+/** A note for a wait that has run long, by what it's waiting on. */
+function longWait(s: Step): string {
+  if (/^Recording/.test(s.text)) return "Recording a full workout takes a few minutes.";
+  if (/^Designing|voices/.test(s.text)) return "Making a voice takes a minute or two.";
+  if (s.think) return "Planning carefully takes a minute when there's a lot to fit in.";
+  return "Still on it.";
+}
+const LONG = 25;   // seconds before a running step says it's a long one
+const TIMED = 8;   // seconds before a running step shows its own clock
+
 function until(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
@@ -128,7 +147,7 @@ function AudioLine({ audio }: { audio: Audio }) {
   return (
     <div className="m a audio">
       <p className="audio-name">{audio.name}</p>
-      {expired ? <p className="cx-s">This audio has expired. Ask for the workout again to record it again.</p> : (
+      {expired ? <p className="cx-s">This recording has expired. Ask for the workout again to record a new one.</p> : (
         <>
           <audio controls preload="metadata" src={src} />
           <p className="cx-s">
@@ -146,20 +165,29 @@ function seconds(since: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
 }
 
-/** "Thinking…" with a running clock and the coach's latest steps. */
+/** "Your coach is working…" with a running clock, the coach's latest steps, and what it's thinking about now. */
 function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
   const [stopping, setStopping] = useState(false);
   const [since] = useState(() => Date.now());
   const [, tick] = useState(0);
+  const began = useRef(new Map<string, number>());   // when each running step was first seen
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, []);
-  steps = collapsed(steps);
+  steps = steps.map((s, i) => (s.key ? s : { ...s, key: `n${i}` }));
+  const last = steps[steps.length - 1];
+  const thinking = last?.think && last.running ? last : null;
+  steps = collapsed(steps.filter((s) => !s.think));
+  if (thinking) steps = [...steps, thinking];
+  const now = Date.now();
+  for (const s of steps) if (s.running && !began.current.has(s.key!)) began.current.set(s.key!, now);
+  const age = (s: Step) => (now - (began.current.get(s.key!) ?? now)) / 1000;
+  const current = steps.find((s) => s.running && age(s) >= LONG);
   const shown = steps.slice(-SHOWN_STEPS);
   return (
     <div className="m a thinking" aria-live="polite">
-      <p className="think-head">{stopping ? "Stopping…" : "Working…"} <span className="clock">{seconds(since)}</span>
+      <p className="think-head">{stopping ? "Stopping…" : "Your coach is working…"} <span className="clock">{seconds(since)}</span>
         {onStop && !stopping && (
           <button type="button" className="quiet stop" onClick={() => { setStopping(true); onStop(); }}>Stop</button>
         )}
@@ -167,14 +195,16 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
       {shown.length > 0 && (
         <ul className="steps">
           {steps.length > shown.length && <li className="more">{steps.length - shown.length} earlier steps</li>}
-          {shown.map((s, i) => (
-            <li key={steps.length - shown.length + i} className={s.running ? "now" : s.failed ? "bad" : ""}
+          {shown.map((s) => (
+            <li key={s.key} className={`${s.running ? "now" : s.failed ? "bad" : ""}${s.think ? " think" : ""}`}
               aria-current={s.running ? "step" : undefined}>
-              {s.text}
+              {s.text}{s.think && s.running ? "…" : ""}
+              {s.running && age(s) >= TIMED && <span className="step-t">{seconds(began.current.get(s.key!)!)}</span>}
             </li>
           ))}
         </ul>
       )}
+      {current && <p className="think-hint">{longWait(current)}</p>}
     </div>
   );
 }
@@ -189,8 +219,9 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
 
   useEffect(() => {
     // scroll the list only: scrollIntoView would also scroll the sheet around it, hiding the coach bar
+    // the first screen starts at its top; a conversation follows its newest line
     const el = log.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && (lines.length > 0 || working)) el.scrollTop = el.scrollHeight;
   }, [lines.length, working, steps.length, !!coachBar]);
 
   async function send() {
@@ -207,7 +238,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
           <b>{coachBar.name}</b><small>{coachBar.service}</small></div>
       )}
       <div className="chat-log" ref={log} role="log" aria-live="polite">
-        {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? onOpenKeys} />}
+        {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? (() => onOpenKeys())} />}
         {lines.length === 0 && !working && !needsKey && start && (
           <Starter info={start} onStart={onSend} onCoach={onCoach}
             onFill={(line) => { setText(line); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(line.length, line.length); }); }} />
@@ -231,7 +262,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
       <form className="chat-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <label className="sr" htmlFor="chat-box">Message</label>
         <textarea id="chat-box" ref={box} rows={1} value={text}
-          placeholder={needsKey ? "Add a key first" : lines.length === 0 ? "Or write your own" : "Reply to your coach"} disabled={working || !!needsKey}
+          placeholder={needsKey ? "Add a key in Settings first" : lines.length === 0 ? "Or describe the workout you want in your own words" : "Reply to your coach"} disabled={working || !!needsKey}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

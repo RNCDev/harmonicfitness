@@ -40,15 +40,29 @@ def stored_key(stored: Mapping[str, object], provider: str):
     return stored.get(key_service(provider)) or stored.get(provider)
 
 
+def provider_of(service: str) -> str:
+    """The provider whose key is stored under `service` (Gemini's under "gemini"): the inverse of key_service."""
+    return next((p for p, s in SHARED_KEY.items() if s == service), service)
+
+
+def pick(offered_ids, stored: Mapping[str, object], chosen: str | None) -> str | None:
+    """The provider that writes this listener's workouts: the one they chose, when it's offered and has a key;
+    else the first offered that has one; else None."""
+    if chosen in offered_ids and stored_key(stored, chosen):
+        return chosen
+    return next((p for p in offered_ids if stored_key(stored, p)), None)
+
+
 def offered(env: Mapping[str, str]) -> list[str]:
+    """The providers a listener can choose from: HARMONICFITNESS_PROVIDERS, else all of them."""
     raw = env.get("HARMONICFITNESS_PROVIDERS", "").strip()
     if not raw:
-        return ["anthropic"]
+        return list(PROVIDERS)
     ids = [part.strip() for part in raw.split(",") if part.strip()]
     for pid in ids:
         if pid not in PROVIDERS:
             raise ConfigError(f"HARMONICFITNESS_PROVIDERS names an unknown provider: {pid}")
-    return [pid for pid in PROVIDERS if pid in ids] or ["anthropic"]
+    return [pid for pid in PROVIDERS if pid in ids] or list(PROVIDERS)
 
 
 def model_for(provider: str, key: str):
