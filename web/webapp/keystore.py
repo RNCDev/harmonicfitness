@@ -66,3 +66,15 @@ def set_sky(conn, uk: UserKey, value: str) -> None:
     if value not in SKIES:
         raise ValueError(f"unknown sky: {value!r}")
     conn.execute("update users set sky = %s where id = %s", (value, uk.user_id))
+
+
+def coach(conn, uk: UserKey) -> tuple[str, str] | None:
+    """The coach the user chose on the web app, as (slug, the listener's day it was chosen, YYYY-MM-DD), or None."""
+    row = conn.execute("select coach, coach_day from users where id = %s", (uk.user_id,)).fetchone()
+    if not row or not row[0] or row[1] is None:
+        return None
+    return row[0], row[1].isoformat()
+
+
+def set_coach(conn, uk: UserKey, slug: str, day: str) -> None:
+    conn.execute("update users set coach = %s, coach_day = %s where id = %s", (slug, day, uk.user_id))

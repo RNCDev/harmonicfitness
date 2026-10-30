@@ -95,6 +95,26 @@ class Shape(unittest.TestCase):
                      "## Sessions\n- 2026-10-02 | 25 min | home | Coach Owen | squat | x\n")
         self.assertEqual(shape(files=files, coaches=STOCK + [own], keyed={"fish"})["coaches"][0]["first"], "Dana")
 
+    def test_coach_chosen_on_the_page(self):
+        log = lambda *rows: edit(folder.seed(ROOT), "log.md", "## Sessions\n", "## Sessions\n" + "".join(
+            f"- {d} | 25 min | home | {v} | squat | x\n" for d, v in rows))
+        current = lambda r: next(c["first"] for c in r["coaches"] if c["current"])
+        keyed = {"gemini", "inworld", "fish"}
+        # chosen wins over the coach used last, and comes first
+        files = log(("2026-10-01", "Coach Owen"))
+        r = start.shape(files, keyed, STOCK, None, engine_root=ROOT, presets=PRESETS, goals=GOALS,
+                        services=SERVICES, chosen=("coach-reed-fish", "2026-10-02"))
+        self.assertEqual((r["coaches"][0]["first"], current(r)), ("Reed", "Reed"))
+        pick = lambda files, chosen, keyed=keyed: current(start.shape(
+            files, keyed, STOCK, None, engine_root=ROOT, presets=PRESETS, goals=GOALS, services=SERVICES, chosen=chosen))
+        # a workout with it later, or another the same day, keeps it; another on a later day takes over
+        self.assertEqual(pick(log(("2026-10-05", "Coach Reed")), ("coach-reed-fish", "2026-10-02")), "Reed")
+        self.assertEqual(pick(log(("2026-10-02", "Coach Owen")), ("coach-reed-fish", "2026-10-02")), "Reed")
+        self.assertEqual(pick(log(("2026-10-03", "Coach Owen")), ("coach-reed-fish", "2026-10-02")), "Owen")
+        # one that can't speak here (no key), or isn't a coach any more, is passed over
+        self.assertEqual(pick(log(("2026-10-01", "Coach Owen")), ("coach-reed-fish", "2026-10-02"), {"inworld"}), "Owen")
+        self.assertEqual(pick(log(("2026-10-01", "Coach Owen")), ("coach-gone-fish", "2026-10-02")), "Owen")
+
     def test_minutes(self):
         seed = folder.seed(ROOT)
         for words, want in (("forty-five", 45), ("fifteen", 15), ("30", 30), ("ninety", 60), ("5", 10),

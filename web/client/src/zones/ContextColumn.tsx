@@ -1,6 +1,7 @@
-// The Settings drawer, top to bottom: the coaches; the keys; the account (who is signed in, the password, another
-// device, signing out, deleting it); the listener's files (download, bring in a folder); and last the background
-// behind the page (called the sky in the code).
+// The Settings drawer, in two columns on a wide screen: the coaches and the keys (what's used most); then the
+// background behind the page (called the sky in the code), the listener's files (download, bring in a folder) and
+// last the account (who is signed in, the password, another device, signing out, deleting it). On a phone, one
+// column in the same order.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type StartCoach } from "../api";
@@ -42,7 +43,7 @@ function DeviceLinkBox({ onSignedOut }: { onSignedOut: () => void }) {
 
   return (
     <div className="cx-box">
-      <button type="button" className="quiet" onClick={make} disabled={busy}>
+      <button type="button" className="act" onClick={make} disabled={busy}>
         {link ? "Make a new link" : "Sign in another device"}
       </button>
       {error && <p className="cx-s err" role="alert">{error}</p>}
@@ -80,7 +81,7 @@ function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
 
   return (
     <div className="cx-box">
-      <label className="quiet import">
+      <label className="act">
         {busy ? "Bringing it in…" : "Bring in a folder"}
         <input type="file" accept=".zip,application/zip" disabled={busy} className="sr"
           onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ""; }} />
@@ -95,7 +96,7 @@ function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
 function ExportBox() {
   return (
     <div className="cx-box">
-      <a className="quiet import" href="/api/export" download>Download your files</a>
+      <a className="act" href="/api/export" download>Download your files</a>
       <p className="cx-s">A ZIP of your profile, log and workouts, ready to use as the <code>me</code> folder on your computer. Keys are never in it.</p>
     </div>
   );
@@ -123,7 +124,7 @@ function DeleteBox({ onSignedOut }: { onSignedOut: () => void }) {
   return (
     <div className="cx-box">
       {!open ? (
-        <button type="button" className="quiet danger" onClick={() => setOpen(true)}>Delete my account</button>
+        <button type="button" className="act danger" onClick={() => setOpen(true)}>Delete my account</button>
       ) : (
         <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove(); }}>
           <p className="cx-s err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
@@ -155,7 +156,7 @@ function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut:
         <PasswordForm username={username} needsCurrent onSignedOut={onSignedOut}
           onDone={() => { setOpen(false); setDone(true); }} />
       ) : (
-        <button type="button" className="quiet" onClick={() => { setOpen(true); setDone(false); }}>
+        <button type="button" className="act" onClick={() => { setOpen(true); setDone(false); }}>
           Change password
         </button>
       )}
@@ -175,6 +176,8 @@ type Props = {
   openRow?: { service: string; n: number; choose?: boolean } | null;
   /** The coaches that can speak here, and those waiting on a key. */
   coaches?: StartCoach[];
+  /** Makes a coach that can speak the current one (and the first screen's). */
+  onCoach?: (slug: string) => void;
   /** The background behind the page (the sky), and the choice of it. */
   sky?: SkyKind;
   onSky?: (sky: SkyKind) => void;
@@ -184,21 +187,31 @@ function an(word: string): string {
   return /^[aeiou]/i.test(word) ? "an" : "a";
 }
 
-function CoachesBox({ coaches }: { coaches: StartCoach[] }) {
+function CoachesBox({ coaches, onCoach }: { coaches: StartCoach[]; onCoach?: (slug: string) => void }) {
   if (coaches.length === 0) return null;
   return (
     <section className="cx-box" aria-labelledby="cx-coaches-h">
       <h3 className="cx-h" id="cx-coaches-h">Your coaches</h3>
       <ul className="coach-list">
-        {coaches.map((c, i) => (
-          <li key={c.slug} className={c.ready ? "" : "off"}>
+        {coaches.map((c, i) => {
+          const about = c.ready ? `${c.own ? "Yours, " : ""}${c.service_name}` : `Needs ${an(c.service_name)} ${c.service_name} key`;
+          const row = <>
             <span className={`lane-num${c.current ? " on" : ""}`} aria-hidden="true">{i + 1}</span>
             <b>{c.first}</b>
-            <small>{c.ready ? `${c.own ? "Yours, " : ""}${c.service_name}` : `Needs ${an(c.service_name)} ${c.service_name} key`}</small>
-          </li>
-        ))}
+            <small>{c.current ? `Coaching you · ${about}` : about}</small>
+          </>;
+          return (
+            <li key={c.slug} className={`${c.ready ? "" : "off"}${c.current ? " cur" : ""}`}>
+              {c.ready && onCoach ? (
+                <button type="button" className="coach-pick" aria-pressed={c.current}
+                  aria-label={`Coach ${c.first}, ${about}`} onClick={() => onCoach(c.slug)}>{row}</button>
+              ) : row}
+            </li>
+          );
+        })}
       </ul>
-      <p className="cx-s">To switch coach, or make one of your own, ask in the chat.</p>
+      <p className="cx-s">{onCoach && coaches.some((c) => c.ready) ? "Tap one to switch. To make your own, ask in the chat."
+        : "To switch coach, or make one of your own, ask in the chat."}</p>
     </section>
   );
 }
@@ -210,20 +223,19 @@ function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void })
       <div className="sky-opts" role="group" aria-labelledby="cx-sky-h">
         {SKIES.map((s) => (
           <button key={s.kind} type="button" className={`sky-opt${sky === s.kind ? " on" : ""}`}
-            aria-pressed={sky === s.kind} onClick={() => onSky(s.kind)}>
+            aria-pressed={sky === s.kind} title={s.about} onClick={() => onSky(s.kind)}>
             <SkyPreview kind={s.kind} />
             <span className="sky-opt-name">{s.name}</span>
             <span className="sky-opt-note">{s.about}</span>
           </button>
         ))}
       </div>
-      <p className="cx-s">Each one holds still when your device is set to reduce motion.</p>
     </section>
   );
 }
 
 export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut, onKeys, openRow, coaches = [],
-  sky = "flow", onSky }: Props) {
+  onCoach, sky = "flow", onSky }: Props) {
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -232,22 +244,32 @@ export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut,
           <h2>Settings</h2>
           <button type="button" className="ctx-close" onClick={onClose}>Close</button>
         </div>
+        {/* two columns on a wide screen, one below the other on a phone: what's used most comes first */}
         <div className="cx-list">
-          <CoachesBox coaches={coaches} />
-          <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
-          <section className="cx-account" aria-labelledby="cx-account-h">
-            <h3 className="cx-h" id="cx-account-h">Account</h3>
-            <PasswordBox username={username} onSignedOut={onSignedOut} />
-            <DeviceLinkBox onSignedOut={onSignedOut} />
-            <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>
-            <DeleteBox onSignedOut={onSignedOut} />
-          </section>
-          <section className="cx-account" aria-labelledby="cx-files-h">
-            <h3 className="cx-h" id="cx-files-h">Your files</h3>
-            <ExportBox />
-            <ImportBox onSignedOut={onSignedOut} />
-          </section>
-          {onSky && <SkyBox sky={sky} onSky={onSky} />}
+          <div className="cx-col">
+            <CoachesBox coaches={coaches} onCoach={onCoach} />
+            <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
+          </div>
+          <div className="cx-col">
+            {onSky && <SkyBox sky={sky} onSky={onSky} />}
+            <section className="cx-account" aria-labelledby="cx-files-h">
+              <h3 className="cx-h" id="cx-files-h">Your files</h3>
+              <ExportBox />
+              <ImportBox onSignedOut={onSignedOut} />
+            </section>
+            <section className="cx-account" aria-labelledby="cx-account-h">
+              <h3 className="cx-h" id="cx-account-h">Account</h3>
+              {/* who is signed in; a row to change the account, a row to leave it; what one opens comes below its row */}
+              <div className="act-row">
+                <PasswordBox username={username} onSignedOut={onSignedOut} />
+                <DeviceLinkBox onSignedOut={onSignedOut} />
+              </div>
+              <div className="act-row">
+                <button type="button" className="act" onClick={onSignOut}>Sign out</button>
+                <DeleteBox onSignedOut={onSignedOut} />
+              </div>
+            </section>
+          </div>
         </div>
       </aside>
     </>

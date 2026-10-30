@@ -163,7 +163,8 @@ type Props = {
   onStart: (line: string) => Promise<boolean> | void;
   /** Puts a line in the text box to finish by hand. */
   onFill: (line: string) => void;
-  /** The coach the listener picked, for the coach's name in the header. */
+  /** The coach the listener picked: made the current coach (and saved) by the page, which updates `info`.
+   * Without it, the pick stays in the sentence alone. */
   onCoach?: (slug: string) => void;
 };
 
@@ -241,7 +242,7 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
 
   let options: { label: string; value: unknown; set: (x: never) => void; on: boolean }[] = [];
   if (open?.k === "coach") options = ready.map((c) => ({ label: c.first, value: c, on: c.first === v.coach,
-    set: ((c: typeof ready[number]) => { setCoach(c.first); onCoach?.(c.slug); }) as (x: never) => void }));
+    set: ((c: typeof ready[number]) => { if (onCoach) onCoach(c.slug); else setCoach(c.first); }) as (x: never) => void }));
   if (open?.k === "minutes") options = [...new Set([...MINUTES, v.minutes])].sort((a, b) => a - b)
     .map((m) => ({ label: `${m} minutes`, value: m, on: m === v.minutes, set: setMinutes as (x: never) => void }));
   if (open?.k === "place") options = kits.map((k) => kitWords(k))

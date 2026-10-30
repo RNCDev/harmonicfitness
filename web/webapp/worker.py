@@ -418,6 +418,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     line, answer, today, now = _turn_request(ctx.args)
     stored = keystore.open_all(ctx.conn, ctx.uk)
     chosen = keystore.writer(ctx.conn, ctx.uk)
+    picked = keystore.coach(ctx.conn, ctx.uk)
     ctx.conn.commit()
     provider = providers.pick(ctx.settings.providers, stored, chosen)
     if provider is None:
@@ -436,7 +437,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
-                      cancel=ctx.cancel)
+                      cancel=ctx.cancel, picked=picked)
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     # and the coach skill: asked for now, still being made (the quick coach's answer names no coach), or an
     # audition waiting for their pick

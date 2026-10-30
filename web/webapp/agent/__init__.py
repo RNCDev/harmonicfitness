@@ -325,6 +325,28 @@ def _coaches(r: ToolResult) -> ToolResult:
                      "voices\" instead): " + ", ".join(f"{c['name']} ({c.get('service_name')})" for c in keyless) + ".")
     lines.append("Local coaches don't speak on this site.")
     return ToolResult(code=r.code, output="\n".join(lines))
+def _picked(deps: Deps, listed: ToolResult) -> str | None:
+    """The name of the coach chosen on the page, while it can speak here and no workout logged on a later day
+    used another (as the page's first screen shows it); None otherwise."""
+    if deps.picked is None:
+        return None
+    slug, day = deps.picked
+    try:
+        found = json.loads(listed.output)["coaches"]
+        coach = next((c for c in found if isinstance(c, dict) and c.get("slug") == slug and c.get("speaks_here")
+                      and isinstance(c.get("name"), str)), None)
+        if coach is None:
+            return None
+        with open(os.path.join(deps.home, "log.md"), encoding="utf-8") as f:
+            text = f.read()
+    except FileNotFoundError:
+        text = ""
+    except (ValueError, KeyError, TypeError, OSError):
+        return None
+    from .. import start   # start imports worker, which imports this package
+    return coach["name"] if start.chosen_holds(coach, day, start.logged(deps.engine_root, text)) else None
+
+
 FIRST_READS = ("me/profile.md", "me/training.md", "me/health.md", "me/log.md")
 
 
@@ -352,10 +374,18 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
         reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS]
         results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(FIRST_RUNS, runs)]
         results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS, reads)]
+    picked = _picked(deps, results[3][1])
     results[3] = ("./harmonicfitness coaches list", _coaches(results[3][1]))
     coach = results[2][1]
+    name = None
     if coach.code == 0 and coach.output.strip():
         name = coach.output.strip().splitlines()[0].strip()
+    if picked and picked != name:
+        results.append(("the coach they chose on the page", ToolResult(code=0, output=(
+            f"{picked}: the listener chose this coach in the page's Settings or its sentence. Use {picked} for "
+            f"this workout unless they name another; `get coach` above is only the coach used last."))))
+        name = picked
+    if name:
         results.append((f"./harmonicfitness get route --coach \"{name}\"",
                         tools.run(plain, ["get", "route", "--coach", name])))
     _say(deps, label, "prefetch", 0, step)

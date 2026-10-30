@@ -356,6 +356,18 @@ class Prefetch(AgentCase):
         self.assertIn("add a key in Settings for more voices", block)
         self.assertNotIn('"speaks_here"', context)
 
+    def test_the_coach_chosen_on_the_page_is_named(self):
+        self.deps.keys = {"GEMINI_API_KEY": "AIzaabc123def456abcd", "FISH_AUDIO_API_KEY": "fishabc123def456abcd"}
+        self.assertNotIn("the coach they chose on the page", agent.prefetch(self.deps))   # none chosen
+        self.deps.picked = ("coach-nolan-gemini", "2099-01-01")
+        context = agent.prefetch(self.deps)
+        self.assertIn("### the coach they chose on the page (exit 0)", context)
+        self.assertIn("Use Coach Nolan for this workout unless they name another", context)
+        self.assertIn('get route --coach "Coach Nolan"', context)
+        # one that can't speak here is never named
+        self.deps.picked = ("coach-ellis-elevenlabs", "2099-01-01")
+        self.assertNotIn("the coach they chose on the page", agent.prefetch(self.deps))
+
     def test_feeds_waits_for_the_background_run(self):
         from concurrent.futures import Future
         done = Future()

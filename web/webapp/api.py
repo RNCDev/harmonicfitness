@@ -34,7 +34,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, \
     RedirectResponse, Response, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
 from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
     spend, start, store, \
@@ -169,6 +169,13 @@ class WriterBody(BaseModel):
 class SkyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     sky: Literal["flow", "field", "arcs", "waves"]
+
+
+class CoachBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # a coach's folder name: one from `coaches list`, or a folder brought in from a ZIP; never a path
+    slug: Annotated[StrictStr, StringConstraints(min_length=1, max_length=128, pattern=r"^[^/\\\x00-\x1f]+$")]
+    day: Annotated[Day, AfterValidator(lambda d: datetime.date.fromisoformat(d).isoformat())]   # the listener's own day, as the log's are
 
 
 class _Headers:
@@ -516,12 +523,13 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 try:
                     files = {p: body for p, (_, body) in store.read_all(conn, uk).items()}
                     have = keystore.listing(conn, uk)
+                    chosen = keystore.coach(conn, uk)
                 finally:
                     conn.rollback()
             # as in GET /api/keys: a model key stored under a provider's own id voices its shared service too
             keyed = {s for s in services
                      if s in have or any(p in have for p, t in providers.SHARED_KEY.items() if t == s)}
-            return start.gather(settings.engine_root, files, keyed)
+            return start.gather(settings.engine_root, files, keyed, chosen)
         return await anyio.to_thread.run_sync(work)
 
     @app.get("/api/context")
@@ -654,6 +662,19 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         with connection() as conn:
             try:
                 keystore.set_writer(conn, uk, provider)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return Response(status_code=204)
+
+    @app.put("/api/coach", status_code=204, **post)
+    def put_coach(uk: User, body: Annotated[CoachBody, Body()]):
+        """The coach chosen on the web app (Settings or the first screen's sentence): the first screen's coach
+        from then on, while it can speak and until a workout logged on a later day used another."""
+        with connection() as conn:
+            try:
+                keystore.set_coach(conn, uk, body.slug, body.day)
                 conn.commit()
             except Exception:
                 conn.rollback()

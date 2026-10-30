@@ -104,11 +104,34 @@ def _first(name: str) -> str:
     return name[len("Coach "):].strip() if name.startswith("Coach ") and len(name) > 6 else name
 
 
-def _coaches(listed: list, keyed, voices_used: list[str], services: list[str]) -> list[dict]:
+def names(voice: str, coach: dict) -> bool:
+    """Whether a logged session's coach (its name, folder or first name, any case) is this coach."""
+    v = voice.strip().casefold()
+    return v in (coach["name"].casefold(), coach["slug"].casefold(), _first(coach["name"]).casefold())
+
+
+def chosen_holds(coach: dict, day: str, used: list[tuple[str, str]]) -> bool:
+    """A coach chosen on the web app on `day` stays the listener's coach until a workout logged on a later
+    day used another."""
+    return not any(d > day and not names(v, coach) for d, v in used)
+
+
+def logged(engine_root: str, log_text: str) -> list[tuple[str, str]]:
+    """log.md's sessions as (date, coach), oldest first; none when the engine can't read it."""
+    try:
+        return [(s.date, s.voice) for s in _modules(engine_root)[2].sessions(text=log_text, warn=False)]
+    except Exception:   # noqa: BLE001 - a log the engine can't read: no coach used last
+        return []
+
+
+def _coaches(listed: list, keyed, used: list[tuple[str, str]], services: list[str],
+             chosen: tuple[str, str] | None = None) -> list[dict]:
     """The web coaches, current first, then those whose service has a key, then the rest; within each, the
     listener's own first, then by service in services.toml's order (the order the engine takes stand-ins in).
-    Current: the newest logged session's coach, if it's one of these (passed over, as the engine does, for a
-    coach of their own that can speak when that one was a stand-in); else the first ready; else the first."""
+    `used` is the logged sessions' (date, coach), oldest first; `chosen` the (slug, day) picked on the web app.
+    Current: the chosen coach while it can speak and no session logged on a later day used another; else the
+    newest logged session's coach, if it's one of these (passed over, as the engine does, for a coach of
+    their own that can speak when that one was a stand-in); else the first ready; else the first."""
     web = [c for c in listed if isinstance(c, dict) and c.get("kind") == "web"
            and isinstance(c.get("name"), str) and isinstance(c.get("slug"), str)]
     rank = {s: n for n, s in enumerate(services)}
@@ -121,12 +144,17 @@ def _coaches(listed: list, keyed, voices_used: list[str], services: list[str]) -
         return []
 
     def find(voice: str):
-        v = voice.strip().casefold()
-        return next((c for c in coaches if v in (c["name"].casefold(), c["slug"].casefold(),
-                                                 c["first"].casefold())), None)
-    current = next((c for c in map(find, reversed(voices_used)) if c is not None), None)
-    if current is not None and current["_stand_in"]:
-        current = next((c for c in coaches if c["own"] and not c["_stand_in"] and c["ready"]), current)
+        return next((c for c in coaches if names(voice, c)), None)
+    current = None
+    if chosen is not None:
+        slug, day = chosen
+        pick = next((c for c in coaches if c["slug"] == slug and c["ready"]), None)
+        if pick is not None and chosen_holds(pick, day, used):
+            current = pick
+    if current is None:
+        current = next((c for c in map(find, (v for _, v in reversed(used))) if c is not None), None)
+        if current is not None and current["_stand_in"]:
+            current = next((c for c in coaches if c["own"] and not c["_stand_in"] and c["ready"]), current)
     current = current or next((c for c in coaches if c["ready"]), coaches[0])
     current["current"] = True
     ordered = [current] + [c for c in coaches if c is not current and c["ready"]] \
@@ -167,11 +195,12 @@ def _modules(engine_root: str) -> list:
 
 
 def shape(files: dict[str, bytes], keyed, coaches: list, coverage: dict | None, *, engine_root: str,
-          presets, goals, services: list[str]) -> dict:
+          presets, goals, services: list[str], chosen: tuple[str, str] | None = None) -> dict:
     """The response, from the listener's files (path -> bytes), the services with a stored key, `coaches
     list --json`'s coaches and `coverage --json` (None when it didn't run); `presets`, `goals` and
-    `services` are the engine's lists (worker.engine_lists, worker.engine_services)."""
-    fm, ctx, slog = _modules(engine_root)
+    `services` are the engine's lists (worker.engine_lists, worker.engine_services); `chosen` is the coach
+    picked on the web app, as (slug, day), or None."""
+    fm, ctx, _ = _modules(engine_root)
     profile, _ = _front(fm, _text(files, "profile.md"))
     training, training_prose = _front(fm, _text(files, "training.md"))
     health, _ = _front(fm, _text(files, "health.md"))
@@ -180,14 +209,11 @@ def shape(files: dict[str, bytes], keyed, coaches: list, coverage: dict | None, 
     except tomllib.TOMLDecodeError:
         settings = {}
     setup = settings.get("setup", profile.get("setup", "quick"))
-    try:
-        voices = [s.voice for s in slog.sessions(text=_text(files, "log.md"), warn=False)]
-    except Exception:   # noqa: BLE001 - a log the engine can't read: no coach used last
-        voices = []
+    used = logged(engine_root, _text(files, "log.md"))
     if "default session" not in training_prose.lower():   # a folder from before the profile's split
         training_prose = _front(fm, _text(files, "profile.md"))[1]
     return {
-        "coaches": _coaches(coaches, frozenset(keyed), voices, list(services)),
+        "coaches": _coaches(coaches, frozenset(keyed), used, list(services), chosen),
         "kits": _kits(ctx, profile, training, presets),
         "minutes": _minutes(fm, training_prose),
         "limits": _limits(health),
@@ -206,7 +232,7 @@ def _json(r: engine.Result) -> dict | None:
     return out if isinstance(out, dict) else None
 
 
-def gather(engine_root: str, files: dict[str, bytes], keyed) -> dict:
+def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, str] | None = None) -> dict:
     """Blocking: the listener's files (over the starter template, so the engine always sees a whole folder)
     in a temporary folder, the two engine reads, then `shape`. Neither command's output leaves here."""
     goals, presets = worker.engine_lists(engine_root)
@@ -219,4 +245,4 @@ def gather(engine_root: str, files: dict[str, bytes], keyed) -> dict:
     coaches = listed.get("coaches") if listed else None
     return shape(files, keyed, coaches if isinstance(coaches, list) else [], coverage,
                  engine_root=engine_root, presets=presets, goals=goals,
-                 services=list(worker.engine_services(engine_root)))
+                 services=list(worker.engine_services(engine_root)), chosen=chosen)

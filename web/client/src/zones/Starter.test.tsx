@@ -37,6 +37,17 @@ describe("the starter", () => {
     expect(opts).toEqual(["Reed", "Nolan"]);
   });
 
+  it("hands a picked coach to the page, and follows the page's current coach", () => {
+    const onCoach = vi.fn();
+    const { rerender } = render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} onCoach={onCoach} />);
+    fireEvent.click(slot(/^Coach:/));
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Nolan" }));
+    expect(onCoach).toHaveBeenCalledWith("coach-nolan-gemini");
+    const now = { ...info, coaches: info.coaches.map((c) => ({ ...c, current: c.first === "Nolan" })) };
+    rerender(<Starter info={now} onStart={vi.fn()} onFill={vi.fn()} onCoach={onCoach} />);
+    expect(slot(/^Coach: Nolan$/)).toBeInTheDocument();
+  });
+
   it("sends the request as it reads", () => {
     const onStart = vi.fn();
     render(<Starter info={info} onStart={onStart} onFill={vi.fn()} />);

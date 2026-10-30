@@ -533,6 +533,28 @@ class Keys(ApiCase):
         self.assertEqual(self.client.put("/api/writer", json={"service": "nope"}, headers=self.origin()).status_code, 404)
         self.assertEqual(self.client.put("/api/writer", json={"service": "openai"}).status_code, 403)   # no Origin
 
+    def test_the_listener_chooses_a_coach(self):
+        _, uk = self.signed_in()
+        self.assertIsNone(keystore.coach(self.conn, uk))   # none chosen: the coach used last
+        self.conn.rollback()
+        put = lambda body, **kw: self.client.put("/api/coach", json=body, **kw).status_code
+        self.assertEqual(put({"slug": "coach-reed-fish", "day": "2026-10-30"}, headers=self.origin()), 204)
+        self.assertEqual(keystore.coach(self.conn, uk), ("coach-reed-fish", "2026-10-30"))
+        self.conn.rollback()
+        # a folder brought in from a ZIP may be named anyhow, so long as it's no path
+        self.assertEqual(put({"slug": "Coach_Dana 2", "day": "2026-10-31"}, headers=self.origin()), 204)
+        self.assertEqual(keystore.coach(self.conn, uk), ("Coach_Dana 2", "2026-10-31"))
+        self.conn.rollback()
+        day = "2026-10-30"
+        for bad in ({"slug": "", "day": day}, {"slug": "../x", "day": day}, {"slug": "a\\b", "day": day},
+                    {"slug": "a\nb", "day": day}, {"slug": 1, "day": day}, {"slug": "a" * 129, "day": day},
+                    {"slug": "coach-reed-fish"}, {"slug": "coach-reed-fish", "day": "2026-13-45"},
+                    {"slug": "coach-reed-fish", "day": 20261030}, {"slug": "coach-reed-fish", "day": day, "more": 1}, {}):
+            self.assertEqual(put(bad, headers=self.origin()), 422, bad)
+        self.assertEqual(put({"slug": "coach-ellis-elevenlabs", "day": day}), 403)   # no Origin
+        self.assertEqual(keystore.coach(self.conn, uk)[0], "Coach_Dana 2")
+        self.conn.rollback()
+
     def test_the_listener_chooses_the_sky(self):
         _, uk = self.signed_in()
         self.assertEqual(self.client.get("/api/me").json()["sky"], "flow")   # the default

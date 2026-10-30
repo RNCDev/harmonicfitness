@@ -36,6 +36,17 @@ a:hover { color: #fff }
 }
 .quiet:hover { color: #fff; text-decoration-color: currentColor }
 .quiet.danger { color: var(--stop); text-decoration-color: var(--stop) }
+/* a stand-alone action in Settings: a thin outline, brighter on hover; still quieter than the cream .go */
+.act {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 14.5px; font-weight: 500; line-height: 1.3;
+  color: var(--ink); text-decoration: none; text-align: left; cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .15s, background-color .15s, color .15s;
+}
+.act:hover:not([disabled]) { color: #fff; box-shadow: inset 0 0 0 1px var(--ink-2); background: rgba(237, 234, 224, .05) }
+.act:focus-visible, .act:has(:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px }
+.act[disabled] { opacity: .5; cursor: not-allowed }
+.act.danger { color: var(--stop); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--stop) 50%, transparent) }
+.act.danger:hover:not([disabled]) { color: var(--stop); box-shadow: inset 0 0 0 1px var(--stop); background: color-mix(in srgb, var(--stop) 10%, transparent) }
 .go {
   display: inline-block; font: 700 19px/1 var(--display); letter-spacing: .12em; text-transform: uppercase;
   background: var(--ink); color: var(--paper); border-radius: 0; padding: 14px 26px; white-space: nowrap; text-decoration: none;
@@ -151,7 +162,7 @@ a:hover { color: #fff }
 .welcome-pick-note { font-size: 14px; color: var(--ink-2); line-height: 1.4 }
 .audio-name { margin: 0 0 6px; font: 700 26px/1.05 var(--display); letter-spacing: .05em; text-transform: uppercase }
 .m.audio audio { width: 100%; color-scheme: dark }
-.cx-s { font-size: 15px; color: var(--ink-2); margin: 2px 0 0 }
+.cx-s { font-size: 14px; line-height: 1.45; color: var(--ink-2); margin: 2px 0 0 }
 .cx-s.err { color: var(--stop) }
 .chat-error {
   margin: 0 0 8px; padding: 12px 16px; border-radius: 2px; background: var(--stop-tint); display: flex; flex-wrap: wrap;
@@ -173,14 +184,16 @@ a:hover { color: #fff }
 .chat-form .go { padding: 12px 20px; font-size: 17px }
 .chat-form .go.stop { background: transparent; color: var(--stop); box-shadow: inset 0 0 0 1px var(--stop) }
 .chat-form .go.stop:hover { background: var(--stop); color: var(--paper) }
+/* a quiet line above the request, never a card: the request stays the one thing on the screen */
 .resume {
-  display: grid; grid-template-columns: 1fr auto; column-gap: 16px; align-items: center; width: 100%; max-width: 34rem;
-  margin: 0 0 28px; padding: 14px 18px; text-align: left; background: rgba(26, 27, 32, .9); box-shadow: inset 0 0 0 1px var(--line);
+  display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; align-self: flex-start;
+  margin: 0 0 12px; padding: 0; text-align: left; background: none; box-shadow: none;
+  font-size: 14.5px; color: var(--ink-3);
 }
-.resume:hover { box-shadow: inset 0 0 0 1px var(--ink) }
-.resume-h { font-weight: 600; color: var(--ink) }
-.resume-s { grid-column: 1; font-size: 15px; color: var(--ink-2) }
-.resume-go { grid-column: 2; grid-row: 1 / span 2; font-size: 22px; color: var(--ink) }
+.resume-h { order: 2; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line) }
+.resume-s { order: 1 }
+.resume-go { order: 3; color: var(--ink-2) }
+.resume:hover .resume-h, .resume:hover .resume-go { color: #fff; text-decoration-color: currentColor }
 
 /* ---------- the request ---------- */
 /* the request at the top, the other asks anchored at the bottom, just above the message box */
@@ -300,26 +313,48 @@ a:hover { color: #fff }
 }
 /* visible at once on opening, so focus can move in; hidden only once it has slid out */
 .ctx.open { transform: none; visibility: visible; transition: transform .28s cubic-bezier(.2, .8, .2, 1) }
-.ctx-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px }
+.ctx-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px }
 .ctx-top h2 { margin: 0; font: 700 30px/1 var(--display); letter-spacing: .12em; text-transform: uppercase }
 .ctx-close { font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); padding: 12px 0 12px 12px }
 .ctx-close:hover { color: #fff }
-.cx-list { display: grid; gap: 0 }
-.cx-list > * { padding: 26px 0 }
-.cx-list > * + * { border-top: 1px solid var(--rule) }
-.cx-list > :first-child { padding-top: 0 }
+.cx-list { display: grid; gap: 0; align-items: start }
+.cx-col { display: grid; min-width: 0 }
+.cx-col > * { padding: 22px 0 }
+.cx-col > * + * { border-top: 1px solid var(--rule) }
+.cx-col > :first-child { padding-top: 0 }
+.cx-col + .cx-col { border-top: 1px solid var(--rule); padding-top: 22px }
+/* a wide screen: twice as wide, two columns with a rule between them */
+@media (min-width: 1000px) {
+  .ctx { width: min(880px, 94vw); padding: 26px 40px 36px }
+  .ctx-top { margin-bottom: 26px }
+  /* the keys hold the most per row, so their column is a little wider */
+  .cx-list { grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); column-gap: 0 }
+  .cx-col:first-child { padding-right: 34px }
+  .cx-col + .cx-col { border-top: 0; padding: 0 0 0 34px; box-shadow: inset 1px 0 0 var(--rule); align-self: stretch }
+  /* the backgrounds: the picture says what each one is (the words are its tooltip) */
+  .sky-opt-note { display: none }
+}
 .cx-box { display: grid; gap: 4px }
-.cx-h { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
-.coach-list { list-style: none; margin: 4px 0 6px; padding: 0 }
-.coach-list li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule) }
+.cx-h { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
+.coach-list { list-style: none; margin: 0 0 6px; padding: 0 }
+.coach-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule) }
 .coach-list li small { margin-left: auto; color: var(--ink-3); font-size: 14px }
 .coach-list li.off b, .coach-list li.off .lane-num { color: var(--ink-3) }
 .coach-list li.off small { color: var(--ink-2) }
-.keys-group { margin-top: 10px }
+/* a coach that can speak is a row to tap: the whole row, a faint wash on hover, the current one's number filled */
+.coach-list li:has(.coach-pick) { padding: 0 }
+.coach-pick { display: flex; align-items: center; gap: 12px; width: calc(100% + 12px); padding: 8px 6px; margin: 0 -6px; text-align: left; transition: background-color .15s }
+.coach-pick:hover { background: rgba(237, 234, 224, .05) }
+.coach-pick:hover b { color: #fff }
+.coach-pick[aria-pressed="true"] { cursor: default }
+.coach-pick[aria-pressed="true"]:hover { background: none }
+.coach-pick small { margin-left: auto; color: var(--ink-3); font-size: 14px }
+.coach-list li.cur small { color: var(--ink-2) }
+.keys-group { margin-top: 12px }
 .keys-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink-2) }
-.keys-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 0; border-bottom: 1px solid var(--rule) }
+.keys-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 0; border-bottom: 1px solid var(--rule) }
 .keys-row .keys-name { font-weight: 600 }
-.keys-row .keys-state { flex: 1; font-size: 14.5px; color: var(--ink-3) }
+.keys-row .keys-state { flex: 1; font-size: 14px; color: var(--ink-3) }
 .keys-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center }
 .keys-row.writer { padding-left: 12px; padding-right: 12px; margin: 4px 0 0; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--rule) }
 .keys-row.writer.on { box-shadow: inset 0 0 0 1px var(--ink); background: var(--tok-tint) }
@@ -342,14 +377,17 @@ a:hover { color: #fff }
 .sky-mini { display: block; width: 100%; height: auto; background: var(--paper); color: var(--ink); margin-bottom: 4px }
 .sky-opt-name { font-weight: 600; font-size: 16px }
 .sky-opt-note { font-size: 14px; line-height: 1.35; color: var(--ink-3) }
-.cx-account { display: grid; gap: 14px; justify-items: start }
+.cx-account { display: grid; gap: 10px; justify-items: start }
 .cx-account > .cx-h { margin-bottom: 0 }
-.keys-foot { margin-top: 10px; color: var(--ink-3); font-size: 14px }
-.cx-account .cx-box { gap: 8px }
+.keys-foot { margin-top: 10px; color: var(--ink-3); font-size: 13.5px; line-height: 1.45 }
+.cx-account .cx-box { gap: 6px; justify-items: start }
+.act-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100% }
+.act-row > .cx-box { display: contents }
+.act-row > .cx-box > :not(.act) { order: 1; flex-basis: 100% }
+.act-row > .cx-box:first-child > p.cx-s:first-child { order: -1; margin-bottom: 2px }
 .device { margin-top: 12px }
 .qr { display: block; margin: 12px 0; width: 200px; height: 200px; max-width: 100% }
 .link { margin: 0; font-size: 13px; overflow-wrap: anywhere }
-.import { display: inline-block; cursor: pointer; font-size: 16px }
 .files { list-style: none; margin: 0; padding: 0 }
 .files li { padding: 6px 0; border-top: 1px solid var(--rule); overflow-wrap: anywhere }
 

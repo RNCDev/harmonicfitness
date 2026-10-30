@@ -89,6 +89,8 @@ export const api = {
     call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
   setWriter: (service: string) => call<void>("PUT", "/api/writer", { service }),
   setSky: (sky: "flow" | "field" | "arcs" | "waves") => call<void>("PUT", "/api/sky", { sky }),
+  /** `day` is the listener's own date (YYYY-MM-DD), as the log's are. */
+  setCoach: (slug: string, day: string) => call<void>("PUT", "/api/coach", { slug, day }),
   deleteKey: (service: string) =>
     call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
   startConversation: (line: string, w: When) =>

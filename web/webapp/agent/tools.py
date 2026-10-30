@@ -62,6 +62,7 @@ class Deps:
     steps: int = 0                   # the last step id said this turn
     lint_failed: bool = False        # the last check of the script failed: the next draft is a fix, not a first go
     phase: str = ""                  # what the turn last did (THINK in agent): names what the model is thinking about
+    picked: tuple[str, str] | None = None   # the coach chosen on the page (Settings or the sentence): (slug, day)
 
 
 class ToolResult(BaseModel):

@@ -4,13 +4,27 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-30
+
+Switch coach from Settings, which now opens two columns wide on a desktop, with clearer actions and a quieter "Pick up where you left off".
+
+### For forks
+- **Migration 012 adds `users.coach` and `users.coach_day`** (the coach chosen on the web app, and the listener's own day it was chosen); it runs when the server starts. **`PUT /api/coach`** takes `{"slug", "day"}` (a coach's folder name, never a path; `day` as `YYYY-MM-DD`; anything else is 422).
+- **`GET /api/start`'s current coach** is the chosen one while it can speak and no workout logged on a later day used another; otherwise the coach used last, as before. `start.gather` and `start.shape` take `chosen`; `start.names`, `start.chosen_holds` and `start.logged` are the shared rule.
+- **The chat's first step names the chosen coach** (`Deps.picked`, read by the worker), when it differs from `get coach`'s, and checks its route.
+- **`Starter`'s `onCoach`** now makes the pick the page's current coach (and saves it); without it, the pick stays in the sentence alone. `ContextColumn` takes `onCoach`.
+
+### Added
+- **Switch coach in Settings:** a coach whose service has a key is a row to tap. The current one is marked "Coaching you", and the first screen's sentence follows at once. The choice is saved, so it survives a refresh, and the chat uses that coach even for a request typed in your own words. A coach picked in the sentence is saved the same way. A coach without a key stays a plain row saying which key it needs.
+- **CI runs the browser client's tests** (type check and Vitest), which it didn't before.
+
 ### Changed
+- **Settings is two columns on a wide screen** (one on a phone, in the same order): your coaches and keys on the left; background, your files and account on the right, with deleting the account last. Spacing and type are tighter, so the drawer fits on one screen at a usual desktop size; the background tiles show the picture and name, with the description on hover.
+- **Settings' actions are small outlined buttons** (download, bring in a folder, change password, sign in another device, sign out, delete), not underlined text. The account's are two rows: change password and another device, then sign out and delete. Anything a button opens comes below its row. The key rows' Add, Replace and Remove stay as links.
+- **"Pick up where you left off" is a quiet line** above the request, no longer a boxed card.
 - **CI runs side by side:** a privacy job first, then the engine's tests, the web app's tests and, on main, the Fly deploy at once, so a release goes live in about two minutes (was about four). The deploy no longer waits for the tests; a failure still shows on the run.
 - **The engine's tests are skipped in CI when a push changed only `web/`,** the changelog, `VERSION` or a version line.
 - **`./harmonicfitness test engine` and `test web`** run one half of the tests.
-
-### Added
-- **CI runs the browser client's tests** (type check and Vitest), which it didn't before.
 
 ## [0.37.0] - 2026-10-30
 

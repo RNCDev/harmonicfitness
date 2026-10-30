@@ -5,6 +5,7 @@ import { ChoosePassword, SignIn } from "./SignIn";
 import { Mark } from "./Mark";
 import { Sky, Solo, type SkyKind } from "./Sky";
 import { useConversation } from "./conversation";
+import { localDate } from "./when";
 import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
 import { hasModelKey, keyRows } from "./zones/KeysBox";
@@ -93,7 +94,6 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   // What the first screen's sentence is filled in with: asked at once, beside the keys, and again whenever
   // which keys are set changes. If it can't be had, the sentence still comes, with plain defaults.
   const [start, setStart] = useState<StartInfo | null>(null);
-  const [picked, setPicked] = useState<string | null>(null);
   const keySig = (keys ?? []).map((k) => `${k.service}:${k.kind}:${k.set}`).join(",");
   useEffect(() => {
     let live = true;
@@ -104,8 +104,24 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
     return () => { live = false; };
   }, [keySig, onSignedOut]);
   const coaches = start?.coaches ?? [];
-  const shown = coaches.find((c) => c.slug === picked) ?? coaches.find((c) => c.current) ?? null;
+  const shown = coaches.find((c) => c.current) ?? null;
   const coachBar = shown ? { n: coaches.indexOf(shown) + 1, name: shown.name, service: shown.service_name } : null;
+
+  // The coach, chosen in Settings or the sentence: switched at once in both, then saved (the server keeps it
+  // as the first screen's coach, and tells the chat); put back if the server refuses it.
+  const chooseCoach = useCallback(async (slug: string) => {
+    const mark = (current: string | undefined) => setStart((s) => s && {
+      ...s, coaches: s.coaches.map((c) => ({ ...c, current: c.slug === current })) });
+    const before = start?.coaches.find((c) => c.current)?.slug;
+    if (slug === before || !start?.coaches.some((c) => c.slug === slug && c.ready)) return;
+    mark(slug);
+    try {
+      await api.setCoach(slug, localDate(new Date()));
+    } catch (e) {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      mark(before);
+    }
+  }, [start, onSignedOut]);
 
   // The sky: switched at once, then saved; put back if the server refuses it.
   const [sky, setSky] = useState<SkyKind>(me.sky ?? "flow");
@@ -153,7 +169,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
         <header className="work-top">
           <Mark version={me.version} />
           <span className="top-gap" />
-          {conv && <button type="button" className="top-btn new" onClick={() => { reset(); setPicked(null); }} disabled={working}>
+          {conv && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
               <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
@@ -168,7 +184,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
         <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
           offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
           onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
-          start={start} onCoach={setPicked} coachBar={coachBar}
+          start={start} onCoach={chooseCoach} coachBar={coachBar}
           waiting={waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null} onResume={resume}
           onAddKey={(service) => {
             setOpenRow((r) => ({ service, n: (r?.n ?? 0) + 1, choose: true }));
@@ -177,7 +193,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       </div>
       <ContextColumn username={me.username} open={drawer} onClose={closeDrawer}
         onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
-        coaches={coaches} sky={sky} onSky={chooseSky} />
+        coaches={coaches} onCoach={chooseCoach} sky={sky} onSky={chooseSky} />
     </div>
   );
 }
