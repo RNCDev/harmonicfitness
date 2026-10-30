@@ -94,7 +94,7 @@ class FlagNames(unittest.TestCase):
     and --json is on the commands whose --help documents it. Every command's parsers are walked by running its
     --help with add_argument recorded."""
     TODAY = {"harmonicfitness brief", "harmonicfitness content plan", "harmonicfitness content trending"}
-    DATE = {"harmonicfitness log-session", "harmonicfitness content log"}
+    DATE = {"harmonicfitness log-session", "harmonicfitness content log", "harmonicfitness content thread"}
     JSON = {"harmonicfitness coaches list", "harmonicfitness content plan", "harmonicfitness coverage", "harmonicfitness get"}
 
     def flags(self):

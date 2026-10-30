@@ -8,7 +8,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
-from draft import CHIME, CHIME_SECONDS, HOLD, PARAGRAPH_GAP, fill_flag, is_held, is_mark, layout, plan  # noqa: E402
+from draft import (CHIME, CHIME_SECONDS, HOLD, MAX_SILENCE, PARAGRAPH_GAP, fill_flag, is_held, is_mark,  # noqa: E402
+                   layout, plan, silences)
 from engines import SR  # noqa: E402
 import verify  # noqa: E402
 
@@ -38,6 +39,14 @@ LEVEL_SKIP = 0.5      # a clip within this many dB is left alone
 
 
 LEVEL_PEAK = 0.89     # a raised clip's peak stays under this (-1 dBFS)
+
+
+PULSE_FROM = 2.0      # seconds of silence before the pulse bed starts ticking in it
+PULSE_EVERY = 1.0     # seconds between ticks
+PULSE_CLEAR = 0.5     # seconds a tick keeps clear of the sound that ends the silence
+PULSE_LEVEL = 0.02    # peak, about -34 dBFS: under the voice's -24 dBFS speech level by far, heard in a quiet room
+PULSE_TONE = 0.04     # seconds per tick
+PULSE_HZ = 520
 
 
 def silence(seconds):
@@ -103,7 +112,36 @@ def end_tone():
                                         for f in END_NOTES) + silence(0.5)
 
 
-def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
+def tick():
+    """One soft, low tick of the pulse bed: a short sine with a fast decay."""
+    n = int(PULSE_TONE * SR)
+    return struct.pack(f"<{n}h", *(int(PULSE_LEVEL * 32767 * min(i / 48, 1.0) * math.exp(-60 * i / SR)
+                                       * math.sin(2 * math.pi * PULSE_HZ * i / SR)) for i in range(n)))
+
+
+def add_pulse(pcm):
+    """The pulse bed: a soft tick each PULSE_EVERY seconds in every stretch of digital silence of PULSE_FROM
+    seconds or more (the silence assemble lays: holds, pauses, breaks; a clip's own edges are never exactly zero),
+    starting a second in and keeping PULSE_CLEAR clear of what follows, so a long hold sounds like a clock, not a
+    dropped earbud. Changes `pcm` (a bytearray) in place and returns it."""
+    import re
+    one = tick()
+    need = bytes(2 * int(PULSE_FROM * SR))
+    loud = re.compile(rb"[^\x00]")
+    at = pcm.find(need)
+    while at != -1:
+        at += at % 2
+        m = loud.search(pcm, at + len(need))
+        end = (m.start() // 2 * 2) if m else len(pcm)
+        pos = at + 2 * int(PULSE_EVERY * SR)
+        while pos + len(one) + 2 * int(PULSE_CLEAR * SR) <= end:
+            pcm[pos:pos + len(one)] = one
+            pos += 2 * int(PULSE_EVERY * SR)
+        at = pcm.find(need, end)
+    return pcm
+
+
+def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None, quiet=None, max_silence=MAX_SILENCE):
     """Lay the clips out on the plan's clock, as draft.layout predicts.
 
     clip(text) returns a clip's PCM. `lead` (the chime) opens every segment after
@@ -113,7 +151,9 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
     time to spare widens its breaks and ends early instead of padding with silence,
     unless it has a bare [hold]: its spare time is then silence at its bare holds.
     Returns (pcm, rows, drift): rows as (n, planned, spoken, label, flag), drift as
-    the whole workout's fraction over (+) or under (-) plan, not counting the tail."""
+    the whole workout's fraction over (+) or under (-) plan, not counting the tail. With a `quiet` list, each
+    silence over `max_silence` as laid out from the real clips (the lint checks predicted ones) is added to it
+    as (segment, label, seconds, the words before it)."""
     bell = chime() if bell is None else bell
     built = []
     for i, seg in enumerate(segments, 1):
@@ -147,6 +187,10 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None):
         head, paras, spoken, gaps, n, held = built[i - 1]
         built[i - 1] = None   # this segment's paragraph copies go once it's laid out, not at the end
         hold = max(length - spoken, 0.0) / n if n else 0.0
+        if quiet is not None:
+            tail_secs = 0.0 if n else max(length - spoken - extra * gaps, 0.0)
+            quiet += [(i, seg["label"], round(secs, 1), before)
+                      for secs, before in silences(plan(seg), extra, hold, tail_secs) if secs > max_silence + 0.05]
         seg_pcm = bytearray(head)
         for j, p in enumerate(paras):
             if j:

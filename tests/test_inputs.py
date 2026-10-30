@@ -101,6 +101,11 @@ class Scalars(Home):
         with self.assertRaises(errors.ContextError):
             context.wpm(context.Profile({"words_per_minute": "fast"}, ""))
         self.assertIsNone(context.wpm(context.Profile({}, "")))
+        self.assertFalse(context.bed(context.Profile({}, "")))
+        self.assertFalse(context.bed(context.Profile({"bed": "off"}, "")))
+        self.assertTrue(context.bed(context.Profile({"bed": "Pulse"}, "")))
+        with self.assertRaises(errors.ContextError):
+            context.bed(context.Profile({"bed": "music"}, ""))
 
     def test_get_wpm_exits_1_on_a_bad_value(self):
         self.set_setting("words_per_minute = 900", old="words_per_minute = 165")

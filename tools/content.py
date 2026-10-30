@@ -21,8 +21,14 @@ a story is, which format suits it, how it's woven into the workout.
     ./harmonicfitness content plan --minutes 25
     ./harmonicfitness content log --date 2026-10-23 --item "Seattle Kraken | quick_hit | Kraken beat the Canucks 4-2" \\
         --item "Cities | explainer | Why old cities have crooked streets | https://... | crooked-streets"
+    ./harmonicfitness content thread --date 2026-10-23 --open "Space | quiz | Which planet has the longest day? (Venus)"
+    ./harmonicfitness content thread --date 2026-10-25 --close t1
     ./harmonicfitness content reserve
     ./harmonicfitness content trending
+
+- Threads (me/workouts/research/threads.jsonl): what a session left open for a later one (a serial to carry on,
+  a quiz answered next time, a story to follow up, the coach's take on a this-or-that, a promise), listed in
+  the plan until `content thread --close` closes it.
 """
 import datetime
 import json
@@ -82,6 +88,10 @@ class Piece(NamedTuple):
     source: str
     good_until: Optional[str]   # YYYY-MM-DD, or None for evergreen
     path: str
+    bad_until: str = ""         # a Good until line that's neither a date nor evergreen, as written
+
+
+EVERGREEN = ("", "evergreen", "none", "never")
 
 
 def recipe(path=RECIPE) -> Recipe:
@@ -174,8 +184,17 @@ def sheets(folder=None) -> List[str]:
 
 
 def current(piece: Piece, today: Optional[datetime.date]) -> bool:
-    """True while a piece is still worth telling: evergreen, or its Good until date not passed."""
+    """True while a piece is still worth telling: evergreen, or its Good until date not passed. A Good until
+    that can't be read ("Nov 15") is never current: a dated piece must never pass for evergreen."""
+    if piece.bad_until:
+        return today is None
     return today is None or not piece.good_until or piece.good_until >= today.isoformat()
+
+
+def unreadable(folder=None, items=None) -> List[Piece]:
+    """The stock's unused pieces whose Good until is neither a date (YYYY-MM-DD) nor evergreen: left out of the
+    plan's stock until the line is fixed."""
+    return [p for p in reserve(folder, items) if p.bad_until]
 
 
 def reserve(folder=None, items=None, today=None) -> List[Piece]:
@@ -211,9 +230,16 @@ def read_piece(path) -> Optional[Piece]:
     fmt = fields.get("format") or LEGACY_SLOT_FORMAT.get(fields.get("slot", "").lower(), fields.get("slot", ""))
     if not title or not (topic or fmt):
         return None
-    until = GOOD_UNTIL_RE.search(fields.get("good until", ""))
+    written = fields.get("good until", "").strip()
+    until = GOOD_UNTIL_RE.fullmatch(written.split()[0].rstrip(".,;")) if written else None
+    if until:
+        try:
+            datetime.date.fromisoformat(until.group(0))
+        except ValueError:
+            until = None
+    bad = "" if until or written.casefold().rstrip(".") in EVERGREEN else written
     slug = os.path.splitext(os.path.basename(path))[0]
-    return Piece(slug, title, topic, fmt, fields.get("source", ""), until.group(0) if until else None, path)
+    return Piece(slug, title, topic, fmt, fields.get("source", ""), until.group(0) if until else None, path, bad)
 
 
 def restock(r: Recipe, topics: List[context.Topic], items, pieces) -> List[tuple]:
@@ -241,7 +267,8 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     (whether the session carries one thread); due [{topic, note, last_told (a date or null), spare}]; formats
     [{id, name, group, what, words, research, across}] and skipped [ids]; recent_days and told_recent
     [{date, topic, format, title}]; reserve [{slug, title, topic, format, source, good_until, path}]; restock
-    [{topic, note, more}]."""
+    [{topic, note, more}]; threads [{id, date, topic, kind, what}] (left open by earlier sessions); unreadable
+    [{slug, good_until, path}] (stock left out until its Good until line is a date or evergreen)."""
     r = r or recipe()
     items = told() if items is None else items
     pieces = reserve(items=items, today=today) if pieces is None else [p for p in pieces if current(p, today)]
@@ -262,6 +289,9 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
         "reserve": [{"slug": p.slug, "title": p.title, "topic": p.topic, "format": p.format, "source": p.source,
                      "good_until": p.good_until, "path": paths.show(p.path)} for p in pieces],
         "restock": [{"topic": t.name, "note": t.note or None, "more": k} for t, k in restock(r, tops, items, pieces)],
+        "threads": threads(),
+        "unreadable": [{"slug": p.slug, "good_until": p.bad_until, "path": paths.show(p.path)}
+                       for p in unreadable(items=items)],
     }
 
 
@@ -302,6 +332,13 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
     out += ["", "## Stock (unused pieces, still current, ready to tell)"]
     out += [f"- {p['topic']} / {p['format']}: {p['title']} ({p['path']}, slug {p['slug']}"
             f"{', good until ' + p['good_until'] if p['good_until'] else ''})" for p in f["reserve"]] or ["- empty"]
+    if f["unreadable"]:
+        out += ["", "## Stock to fix (left out: its Good until is neither a date, YYYY-MM-DD, nor evergreen)"]
+        out += [f"- {p['path']}: \"{p['good_until']}\"" for p in f["unreadable"]]
+    out += ["", "## Open threads (left open by earlier sessions: bring one back when it fits, and close it once "
+                "told: content thread --close <id>)"]
+    out += [f"- {t['id']} ({t['date']}, {t['kind']}, {t['topic'] or '-'}): {t['what']}" for t in f["threads"]] \
+        or ["- none"]
     if f["restock"]:
         out += ["", "## Restock (while the audio renders)", "Stock these topics, the emptiest first:"]
         out += [f"- {x['topic']}{': ' + x['note'] if x['note'] else ''}: {x['more']} more" for x in f["restock"]]
@@ -363,6 +400,73 @@ def _log_new(new: List[dict], path) -> List[dict]:
     return new
 
 
+# ---- threads: what a session left open for a later one ----------------------------------------
+
+THREAD_KINDS = ("serial", "quiz", "follow-up", "take", "promise")
+THREAD_RE = re.compile(r"^t\d+$")
+
+
+def threads(path=None) -> List[dict]:
+    """The open threads, oldest first: [{id, date, topic, kind, what}]. Each `content thread --open` adds an
+    "open" line to threads.jsonl and each `--close` a "close" line naming its id; a thread is open until closed."""
+    rows = fileio.read_jsonl(path or paths.THREADS) if os.path.exists(path or paths.THREADS) else []
+    opened, closed = {}, set()
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("id"), str):
+            continue
+        if row.get("event") == "close":
+            closed.add(row["id"])
+        elif row.get("event") == "open" and all(isinstance(row.get(k), str) for k in ("date", "kind", "what")):
+            opened[row["id"]] = {k: row.get(k) for k in ("id", "date", "topic", "kind", "what")}
+    return [t for i, t in opened.items() if i not in closed]
+
+
+def parse_thread(text: str, profile=None) -> tuple:
+    """(topic, kind, what) from "topic | kind | what"; ValueError says what's wrong. The kind is one of
+    THREAD_KINDS: a serial to carry on, a quiz to answer, a story to follow up, the coach's take (so it stays
+    the same next time), or a promise ("next week we add weight")."""
+    parts = [p.strip() for p in text.split("|")]
+    if len(parts) != 3 or not all(parts):
+        raise ValueError(f"'{text}': expected 'topic | kind | what' (topic - for none)")
+    topic, kind, what = parts
+    if kind.casefold() not in THREAD_KINDS:
+        raise ValueError(f"'{text}': unknown kind '{kind}' (one of {', '.join(THREAD_KINDS)})")
+    if topic != NO_TOPIC:
+        known = {t.name.casefold(): t.name for t in (context.topics(profile) if profile is not None else [])}
+        if known and topic.casefold() not in known:
+            raise ValueError(f"'{text}': '{topic}' isn't one of the listener's topics (one of "
+                             f"{', '.join(known.values())}, or {NO_TOPIC} for none)")
+        topic = known.get(topic.casefold(), topic)
+    return topic, kind.casefold(), what
+
+
+def open_threads(date: str, texts: List[str], path=None, profile=None) -> List[dict]:
+    """Record each "topic | kind | what" as an open thread (all checked before any is written)."""
+    datetime.date.fromisoformat(date)
+    parsed = [parse_thread(t, profile) for t in texts]
+    path = path or paths.THREADS
+    with locks.file_lock(path):
+        rows = fileio.read_jsonl(path) if os.path.exists(path) else []
+        n = max([int(r["id"][1:]) for r in rows if isinstance(r, dict) and THREAD_RE.match(str(r.get("id")))]
+                or [0])
+        new = [{"event": "open", "id": f"t{n + k}", "date": date, "topic": topic, "kind": kind, "what": what}
+               for k, (topic, kind, what) in enumerate(parsed, 1)]
+        fileio.append_jsonl(path, new)
+    return new
+
+
+def close_thread(date: str, tid: str, path=None) -> dict:
+    """Mark an open thread closed (told, answered, or no longer worth it); ValueError when it isn't open."""
+    datetime.date.fromisoformat(date)
+    path = path or paths.THREADS
+    with locks.file_lock(path):
+        if tid not in {t["id"] for t in threads(path)}:
+            raise ValueError(f"no open thread '{tid}' (content plan lists the open ones)")
+        row = {"event": "close", "id": tid, "date": date}
+        fileio.append_jsonl(path, [row])
+    return row
+
+
 # ---- trending: ideas for new topics ----------------------------------------------------------
 
 REDDIT = "https://www.reddit.com/r/popular/top.json?t=day&limit=100"
@@ -422,11 +526,19 @@ def main(argv=None):
     p.add_argument("--json", action="store_true",
                    help="the same plan as one JSON object: minutes, topics, spares, serial, due (topic, note, "
                         "last_told, spare), formats (id, name, group, what, words, research, across), skipped, "
-                        "recent_days, told_recent, reserve, restock")
+                        "recent_days, told_recent, reserve, restock, threads (id, date, topic, kind, what), "
+                        "unreadable (slug, good_until, path)")
     lg = sub.add_parser("log", help="record the items a session told")
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
                     help='"topic | format | title [| source [| stock slug]]", once per item; topic - for none')
+    th = sub.add_parser("thread", help="open or close a thread a later session picks up")
+    th.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
+    act = th.add_mutually_exclusive_group(required=True)
+    act.add_argument("--open", action="append", metavar="ITEM",
+                     help='"topic | kind | what", once per thread; kind one of ' + ", ".join(THREAD_KINDS)
+                          + "; topic - for none")
+    act.add_argument("--close", action="append", metavar="ID", help="an open thread's id (t3), once per thread")
     sub.add_parser("reserve", help="list the stock's unused pieces, still current")
     tr = sub.add_parser("trending", help="what's popular today, for suggesting new topics")
     cli.today_arg(tr)
@@ -449,6 +561,18 @@ def main(argv=None):
             print(f"harmonicfitness content: {e}", file=sys.stderr)
             return cli.USAGE
         print(f"Recorded {len(new)} item(s) in {paths.show(paths.TOLD)}.")
+    elif args.cmd == "thread":
+        prof = context.profile() if os.path.exists(paths.PROFILE) else None
+        try:
+            if args.open:
+                done = open_threads(args.date, args.open, profile=prof)
+                print("\n".join(f"Opened {t['id']}: {t['what']}" for t in done))
+            else:
+                done = [close_thread(args.date, t) for t in args.close]
+                print("\n".join(f"Closed {t['id']}." for t in done))
+        except ValueError as e:
+            print(f"harmonicfitness content: {e}", file=sys.stderr)
+            return cli.USAGE
     elif args.cmd == "trending":
         source, lines = trending(args.today or datetime.date.today())
         print("\n".join([f"# Trending: {source}", ""] + lines))

@@ -480,3 +480,43 @@ class Unlisted(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Stories(unittest.TestCase):
+    """[story] ... [/story]: the listener's content, which the menu scan and the one-side check read past."""
+
+    def test_a_story_may_name_a_movement_off_the_menu(self):
+        for story in ("Her deadlift record stood for ten years.", "Mountain climbers reached the summit at dawn.",
+                      "They did lunges at the Olympics trials.", "The Navy trains with burpees and push-ups."):
+            with self.subTest(story=story):
+                self.assertEqual(issues_for(f"[story] {story} [/story] Back to the dead bug."), [])
+                self.assertTrue(issues_for(story), story)   # outside a story, it's coaching
+
+    def test_a_story_speaking_to_the_listener_about_an_off_menu_movement_is_refused(self):
+        issues = issues_for("[story] Now you do ten burpees, like the Navy. [/story]")
+        self.assertTrue(any("inside a [story]" in i for i in issues), issues)
+        self.assertEqual(issues_for("[story] You'd never guess it: the Navy trains with sandbags. [/story]"), [])
+
+    def test_a_story_left_open_or_holding_timing_is_refused_and_read_as_coaching(self):
+        for line, why in (("[story] Twenty burpees.", "never closed"),
+                          ("Twenty burpees. [/story]", "no [story]"),
+                          ("[story] A story. [hold] Burpees. [/story]", "inside a [story]"),
+                          ("[story] A story. [story] Burpees. [/story]", "inside another story")):
+            with self.subTest(line=line):
+                issues = issues_for(line)
+                self.assertTrue(any(why in i for i in issues), issues)
+                self.assertTrue(any("burpee" in i for i in issues), issues)   # every word checked again
+
+    def test_a_pause_inside_a_story_is_fine(self):
+        self.assertEqual(issues_for("[story] And the answer is. [pause 1s] Paris. [/story]"), [])
+
+    def test_a_one_sided_segment_may_hold_a_story_with_side_words(self):
+        self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.",
+                                       "[story] He switched teams, and moved to the other side of the city. [/story]"), [])
+
+    def test_left_meaning_remaining_isnt_a_side(self):
+        for later in ("Aim for two left in the tank.", "Five seconds left.", "Three reps left, and slow.",
+                      "Keep one left in reserve."):
+            with self.subTest(later=later):
+                self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.", later), [])
+        self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.", "Then ten on the left."))

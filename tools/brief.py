@@ -111,9 +111,11 @@ def _limited(m: catalog.Movement, areas: List[str]) -> str:
     return ", ".join(parts)
 
 
-def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids) -> List[str]:
+def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids, compact=False) -> List[str]:
     """The safe menu: every allowed movement under its primary pattern, then the healthy-side-only
-    ones, each with its facts and the catalog's coaching notes."""
+    ones, each with its facts and the catalog's coaching notes. `compact` keeps the facts and the easier and
+    harder versions (what designing needs) and leaves the coaching notes to `./harmonicfitness movements --about`,
+    except for a movement that loads one of today's limited areas or works one side only: its notes stay."""
     areas = list(dict.fromkeys(lim.area for lim in scr.limits))
 
     def entry(m, side=None):
@@ -128,7 +130,10 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
                          if side else f"load on today's limits: {load}")
         tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
-        return [head] + ["  " + line.strip() for line in catalog.about(cat, m)[1:]]
+        notes = ["  " + line.strip() for line in catalog.about(cat, m)[1:]]
+        if compact and not load and not side:
+            notes = [n for n in notes if n.strip().startswith(("Easier:", "Harder:"))]
+        return [head] + notes
 
     out = []
     for p in cat.patterns:
@@ -402,9 +407,11 @@ def _budget_line(voice_name: Optional[str]) -> List[str]:
 
 
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
-          today: datetime.date, feedback: Optional[List[str]] = None, voice: Optional[str] = None):
+          today: datetime.date, feedback: Optional[List[str]] = None, voice: Optional[str] = None,
+          compact: bool = True):
     """(the brief as Markdown lines, the menu record). ValueError names an unknown value; screen.Unfit
-    says a [[limits]] row can't be read."""
+    says a [[limits]] row can't be read. `compact` (the default) prints the menu without each movement's
+    coaching notes, which the writer reads with `movements --about` for the movements chosen (menu_lines)."""
     scr = screen.screen(request, cat, sess.goals, profile, health)
     sides = {m.id: screen.healthy_side(m, scr.limits) for m in scr.sel.healthy_side_only}
     last_ids = screen.ids(cat, log[-1].movements) if log else set()
@@ -439,8 +446,12 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             f"Every movement in the script comes from this list, warm-up and cool-down included: {count} today "
             f"({len(scr.sel.left_out)} left out: {left or 'none'}). Nothing from memory. `./harmonicfitness build` "
             "checks the draft's `movements:` line and its text against it."]
+    if compact:
+        out.append("Coaching notes: after designing, run `./harmonicfitness movements --about <the ids you chose, comma "
+                   "separated>` and coach from them; a movement that loads today's limits or works one side only "
+                   "carries its notes here.")
     if scr.sel.allowed or scr.sel.healthy_side_only:
-        out += menu_lines(cat, scr, sides, scr.likes, last_ids)
+        out += menu_lines(cat, scr, sides, scr.likes, last_ids, compact=compact)
     weights = context.kit_weights(profile).get(request.get("kit") or "")
     loads = screen.loads_line(weights, scr.equipment) if weights else ""
     opens = screen.would_open(cat, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)
@@ -458,8 +469,10 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             f"- First line of the draft: `movements: <every movement the script uses, by its name above, comma "
             f"separated>`. Then the `@@ <seconds> | <label>` segments, adding up to exactly {minutes * 60} s. "
             "You choose the segments: one can be a set, a pair, a whole round or the whole warm-up.",
-            "- Coach each movement from its notes above (setup, cues, what one rep is, where to feel it, the "
-            "faults and their fixes). Safety is the one hard rule (knowledge/script.md); beyond it, get the "
+            "- Coach each movement from its notes" + (" (`movements --about`, or above)" if compact else " above")
+            + " (setup, cues, what one rep is, where to feel it, the faults and their fixes): fully the first time "
+            "it appears, then a short reminder, so the rests and the easy work have room for the listener's world."
+            " Safety is the one hard rule (knowledge/script.md); beyond it, get the "
             "workout done and keep them engaged. What a voice can read: knowledge/tts-rules.md."]
     out += _budget_line(voice) + _counts_line(voice) + _voice_line(voice)
 
@@ -492,6 +505,9 @@ def main(argv=None):
     ap.add_argument("--limit", action="append", default=[], help="area=level[:side], added to health.md's limits")
     ap.add_argument("--avoid", default="", help="comma-separated movements (ids or names) or flags to rule out")
     ap.add_argument("--save", help="the draft's path (or its stem): write <stem>.brief.md and <stem>.menu.json")
+    ap.add_argument("--full", action="store_true",
+                    help="print every movement's coaching notes in the menu (by default only those that touch "
+                         "today's limits or work one side; movements --about prints the rest)")
     ap.add_argument("--log", help="the log to read (default: the context folder's)")
     cli.today_arg(ap)
     ap.add_argument("--coach", dest="voice",
@@ -508,7 +524,7 @@ def main(argv=None):
     request = request_from(args, cat, sess, profile)
     today = args.today or datetime.date.today()
     lines, record = build(request, cat, sess, profile, health.health(), sessionlog.sessions(args.log), today,
-                          context.feedback(args.log), voice=args.voice)
+                          context.feedback(args.log), voice=args.voice, compact=not args.full)
     text = "\n".join(lines) + "\n"
     print(text, end="")
     if save:

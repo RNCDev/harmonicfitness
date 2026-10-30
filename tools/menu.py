@@ -433,6 +433,7 @@ def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
     mention is checked too ("no single-leg glute bridge on the left"), and so is a side word or both-sides
     phrase meant for something else in the same segment (the writer splits the segment)."""
     problems, sided, named = [], set(), []
+    text = remaining_idioms(text)
     for sentence in SENTENCE.split(text):
         for mid, _, _ in mentions(cat, sentence):
             side = (on_menu.get(mid) or {}).get("side") if mid in cat.movements else None
@@ -460,7 +461,40 @@ def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
 
 
 def spoken_text(segments) -> str:
-    return " ".join(line for seg in segments for _, line in seg["lines"])
+    """Every segment's coaching text (what lies outside [story] ... [/story]), as the menu scan reads it."""
+    return " ".join(draft.story_split(seg)[0] for seg in segments)
+
+
+# "two left in the tank", "five seconds left": "left" meaning what remains, never a side, so the one-side check
+# reads past it (a turn to the other side always names it some other way: "then the left", "left leg next")
+REMAINING = re.compile(r"\bleft(?=\s+(?:in\s+the\s+tank|in\s+reserve|to\s+go|in\s+you)\b)"
+                       r"|\b((?:rep|second|minute|round|set|breath)s?)\s+left\b", re.IGNORECASE)
+
+
+def remaining_idioms(text: str) -> str:
+    """`text` with each "left" that means what remains written "remaining", for the one-side check."""
+    return REMAINING.sub(lambda m: f"{m.group(1)} remaining" if m.group(1) else "remaining", text)
+
+
+# a sentence in a story speaking to the listener ("you", "let's") reads as coaching, not as the story
+ADDRESS = re.compile(r"\b(?:you|your|you're|you'll|let's|we'll|we're)\b", re.IGNORECASE)
+
+
+def story_problems(cat: catalog.Catalog, on_menu: dict, stories: List[str]) -> List[str]:
+    """Issues in a segment's stories: a sentence that names a movement off today's menu (or one the catalog
+    doesn't hold) while speaking to the listener reads as an instruction, story or not."""
+    out = []
+    for story in stories:
+        for sentence in SENTENCE.split(story):
+            if not ADDRESS.search(sentence):
+                continue
+            for mid, said, before in mentions(cat, sentence):
+                if mid not in on_menu and not negated(before):
+                    out.append(f'"{" ".join(sentence.split())}" names {said} inside a [story] while speaking to the '
+                               "listener, which reads as an instruction, and it isn't on today's menu; tell it about "
+                               "someone else, or take it out")
+                    break
+    return out
 
 
 def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tuple[List[str], List[str]]:
@@ -503,8 +537,11 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
                           f"reword it (a \"no {said} today\" is fine)")
         else:
             warnings.append(f"the script names \"{said}\" ({mid}) but the movements: line doesn't; add it")
-    for seg in segments:   # a one-sided movement keeps to its side, segment by segment
-        for why in side_problems(cat, on_menu, " ".join(line for _, line in seg["lines"])):
+    for seg in segments:   # a one-sided movement keeps to its side, segment by segment; stories aside
+        coaching, stories, tag_problems = draft.story_split(seg)
+        found = [f'segment "{seg["label"]}" (line {seg["start"]}): {p}' for p in tag_problems]
+        found += side_problems(cat, on_menu, coaching) + story_problems(cat, on_menu, stories)
+        for why in found:
             if why not in issues:
                 issues.append(why)
     want = menu.get("seconds")

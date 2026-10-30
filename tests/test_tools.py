@@ -261,6 +261,37 @@ class Assemble(unittest.TestCase):
         self.assertEqual(draft.fill_flag(2, 30, held=True), "")
         self.assertEqual(draft.fill_flag(2, 30), "short")
 
+    def test_a_late_start_never_shortens_a_held_segment(self):
+        # since 0.39.0: A runs two seconds long, and the held B keeps its full 30 s; C pays the lateness back
+        segs = self.segs("@@ 3 | A\none two three four five\n@@ 30 | B\ngo [hold] easy\n@@ 10 | C\nsix\n")
+        pcm, _, _ = assemble(segs, self.fake_clip)
+        b_start = 5
+        self.assertEqual(bytes(pcm[int((b_start + 29.5) * SR) * 2:int((b_start + 29.5) * SR) * 2 + 2]), b"\x01\x00")
+        self.assertAlmostEqual(secs(pcm), 5 + 30 + 1 + draft.END_TAIL, places=3)
+        self.assertEqual(draft.layout([(5, 0, 3), (2, 0, 30, True), (1, 0, 10)])[1], (0.0, 30))
+
+    def test_a_long_silence_as_laid_out_is_reported(self):
+        segs = self.segs("@@ 40 | Work\ngo [hold] stop\n")
+        quiet = []
+        assemble(segs, self.fake_clip, quiet=quiet)
+        self.assertEqual(len(quiet), 1, quiet)
+        self.assertEqual(quiet[0][:2], (1, "Work"))
+        self.assertAlmostEqual(quiet[0][2], 38, places=0)
+        quiet = []
+        assemble(segs, self.fake_clip, quiet=quiet, max_silence=draft.BED_MAX_SILENCE * 2)
+        self.assertEqual(quiet, [])
+
+    def test_the_pulse_ticks_in_long_quiet_only(self):
+        import audio
+        pcm = bytearray(b"\x01\x00" * SR + bytes(2 * 6 * SR) + b"\x01\x00" * SR + bytes(2 * SR))
+        audio.add_pulse(pcm)
+        quiet = bytes(pcm[2 * SR:2 * 7 * SR])
+        self.assertNotEqual(set(quiet), {0})                                 # ticks in the six seconds
+        self.assertEqual(set(bytes(pcm[2 * int(6.6 * SR):2 * 7 * SR])), {0})  # clear of what follows
+        self.assertEqual(set(bytes(pcm[2 * 8 * SR:])), {0})                    # one second is too short to tick
+        ticks = sum(1 for k in range(1, 6) if any(pcm[2 * (k + 1) * SR:2 * (k + 1) * SR + 200]))
+        self.assertEqual(ticks, 5)   # one a second, from a second in, the last half a second clear of the voice
+
     def test_layout_matches_assemble(self):
         segs = self.segs("@@ 20 | A\none two\n\nthree\n@@ 4 | B\nfour five six\n\nseven\n@@ 30 | C\neight\n")
         pcm, _, _ = assemble(segs, self.fake_clip)
@@ -522,7 +553,7 @@ class FreshFork(unittest.TestCase):
             self.assertTrue(plan["formats"])
             self.assertTrue({"id", "name", "group", "what", "words", "research", "across"} <= set(plan["formats"][0]))
             self.assertEqual(sorted(plan), ["due", "formats", "minutes", "recent_days", "reserve", "restock", "serial",
-                                            "skipped", "spares", "told_recent", "topics"])
+                                            "skipped", "spares", "threads", "told_recent", "topics", "unreadable"])
             coaches_ = got["coaches list"]
             self.assertEqual(sorted(coaches_), ["coaches", "default", "note"])
             self.assertTrue(coaches_["coaches"])
@@ -714,6 +745,20 @@ class Feeds(unittest.TestCase):
             "Charlotte 2, at Devils 2 (Final; Devils drew)",
             "Devils 2, at Capitals 4 (Final; Devils lost)"])
         self.assertEqual([t for _, t in upcoming], ["Ducks at Devils, Arena"])
+        # a final with no score is no result (never a draw); a team name that matches neither side says the score only
+        odd = {"team": {"displayName": "New Jersey Devils"}, "events": [
+            ev("7", "2026-10-19T23:00Z", "Devils", "Blues", hw=True),
+            ev("8", "2026-10-20T23:00Z", "Devils", "Avalanche", "4", "3", hw=True)]}
+        _, results, _ = feeds.parse_espn([odd], self.NOW)
+        self.assertEqual([t for _, t in results], ["Avalanche 3, at Devils 4 (Final)"])
+
+    def test_rss_one_point_oh(self):
+        rdf = b"""<?xml version="1.0"?><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+            xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <item><title>Journal news</title><link>https://j/1</link><dc:date>2026-10-21T08:00:00Z</dc:date>
+              <description>Findings.</description></item></rdf:RDF>"""
+        items = feeds.parse_rss(rdf, self.NOW - dt.timedelta(hours=72))
+        self.assertEqual([(i["title"], i["link"], i["summary"]) for i in items], [("Journal news", "https://j/1", "Findings.")])
 
     def test_weather(self):
         d = {"current": {"temperature_2m": 59.9, "weather_code": 0},
@@ -1031,13 +1076,14 @@ class InProcessBuild(unittest.TestCase):
         self.assertEqual(self.build("--bogus"), cli.USAGE, self.said())
         self.assertEqual((self.lints, self.runs), ([], []))
 
-    def test_a_stale_menu_stops_a_render_but_only_warns_a_lint(self):
+    def test_a_stale_menu_stops_a_render_and_a_lint_alike(self):
+        # since 0.39.0 a lint holds the menu as the build does, so a clean lint means a clean menu check
         self.write_menu(self.draft, today="2026-10-20")
         self.assertEqual(self.build(), cli.ISSUES, self.said())
         self.assertIn("2026-10-20", self.said())
         self.assertEqual(self.runs, [])
-        self.assertEqual(self.build("--lint-only"), 0, self.said())
-        self.assertIn("warning", self.said())
+        self.assertEqual(self.build("--lint-only"), cli.ISSUES, self.said())
+        self.assertIn("2026-10-20", self.said())
 
     def test_a_changed_health_file_stops_the_render(self):
         with open(os.path.join(self.home, "health.md"), "a", encoding="utf-8") as f:
@@ -1515,6 +1561,28 @@ class LintReport(unittest.TestCase):
         self.assertGreater(report.drift, 0.03)
         self.assertTrue(report.total_off)
         self.assertEqual(report.rows[0].flag, "long")
+
+
+    def test_the_pulse_bed_allows_a_longer_quiet(self):
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        text = parse("@@ 30 | A\nGo now please. [hold 12s] And rest now.\n")
+        with mock.patch("voices.pace", return_value=(10.0, True)):
+            self.assertTrue(any("of silence" in i for i in tts_build.lint(text, v).rows[0].clip_issues))
+            self.assertFalse(any("of silence" in i for i in tts_build.lint(text, v, bed=True).rows[0].clip_issues))
+        long = parse("@@ 30 | A\nGo now please. [hold 10s] [hold 10s] [hold 3s] And rest now.\n")
+        with mock.patch("voices.pace", return_value=(10.0, True)):
+            self.assertTrue(any("of silence" in i for i in tts_build.lint(long, v, bed=True).rows[0].clip_issues))
+
+    def test_the_lint_keeps_headroom_inside_the_renders_tolerance(self):
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        segs = parse("@@ 10 | A\n" + "word " * 40 + "\n")
+        for exact, aim in ((True, 0.025), (False, 0.02)):
+            with mock.patch("voices.pace", return_value=(10.0, exact)):
+                report = tts_build.lint(segs, v)
+            self.assertAlmostEqual(report.total_tolerance, aim, places=6)
+            with mock.patch("voices.pace", return_value=(10.0, exact)):
+                self.assertAlmostEqual(tts_build.lint(segs, v, headroom=False).total_tolerance, 0.03, places=6)
+        self.assertEqual(tts_build.lint(segs).total_tolerance, 0.03)   # without a voice there's no prediction
 
 
 class Hooks(unittest.TestCase):

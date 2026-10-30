@@ -303,6 +303,33 @@ class RunLocal(unittest.TestCase):
         self.assertEqual(self.loads, 1)
         self.assertEqual(self.said, [(line, 42), (line, 43)])
 
+    def test_takes_are_heard_while_the_render_runs_and_the_recognizer_loads_once(self):
+        lines = ["Shoulders down, and breathe.", "Hips high, and squeeze."]
+        for k, t in enumerate(lines):
+            self.takes[(t, 42)] = tone(1.0 + k / 10)
+        by_length = {len(self.takes[(t, 42)]): t for t in lines}
+        loads, heard = [], []
+
+        def listener():
+            loads.append(1)
+            return lambda pcm: (heard.append(len(pcm)), by_length[len(pcm)])[1]
+        with mock.patch.object(engines, "listener", side_effect=listener):
+            self.run_draft("@@ 20 | A\n" + "\n\n".join(lines) + "\n", check=True)
+        self.assertEqual(len(loads), 1)    # the hearing thread's load; the check after it had nothing left to hear
+        self.assertEqual(len(heard), 2)    # each take heard once
+        self.assertEqual(self.said, [(t, 42) for t in lines])
+
+    def test_follow_checks_each_take_as_it_lands(self):
+        line = "Shoulders down, and breathe."
+        path = os.path.join(self.d, "x.draft.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"@@ 10 | A\n{line}\n")
+        os.makedirs(os.path.join(self.d, "cache"), exist_ok=True)
+        with mock.patch.object(engines, "listener", return_value=lambda pcm: line), \
+                mock.patch.object(render, "follow_checks", return_value=True):
+            render.follow(dict(self.voice), path, idle=0)
+        self.assertTrue(render.clipcache.verdict(render.check_path(self.cache_path(), line))["ok"])
+
     def test_a_failed_render_releases_the_kept_model(self):
         def speaker(voice):
             def say(text, seed):

@@ -68,6 +68,7 @@ VIDEOS = os.path.join(RESEARCH, "videos")
 PUZZLES = os.path.join(RESEARCH, "puzzles")
 TOLD = os.path.join(RESEARCH, "told.jsonl")       # every filler item a session told
 RESERVE = os.path.join(RESEARCH, "reserve")       # the stock: pieces researched ahead of time, while a build renders
+THREADS = os.path.join(RESEARCH, "threads.jsonl")  # what a session left open for a later one (content thread)
 CACHE = os.path.join(WORKOUTS, ".audio-cache")
 PACE_FILE = os.path.join(CACHE, "voice-pace.json")
 LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log, and builds.jsonl

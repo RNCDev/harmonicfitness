@@ -146,6 +146,18 @@ class Lint(Base):
         self.assertEqual(self.issues("Keep the elbows soft. Two, one, and rest now."), [])
         self.assertEqual(self.issues("Keep the elbows soft. Three, two, one, rest.", dict(self.voice, cues=None)), [])
 
+    def test_a_countdown_inside_a_story_is_the_storys(self):
+        story = "[story] The launch went on time: ten, nine, eight, and liftoff. [/story]"
+        self.assertEqual(self.issues("Shake out the legs. " + story), [])
+        self.assertTrue(any("[count" in i for i in self.issues("Shake out the legs. ten, nine, eight, and go.")))
+
+    def test_story_tags_are_never_spoken_or_counted(self):
+        seg = parse("@@ 30 | A\nGood set.\n[story]\nThe Flyers won last night.\n[/story]\nBack to it.\n")[0]
+        self.assertEqual(draft.plan(seg), [[("Good set. The Flyers won last night. Back to it.", 0.0)]])
+        self.assertEqual(self.issues("[story] The Flyers won last night. [/story] Back to it."), [])
+        text, _ = tts_build.export_text([seg])
+        self.assertNotIn("story", text)
+
     def test_the_one_word_rule_points_to_cue_markers(self):
         got = self.issues("Get ready now. [pause 1s] Rest.")
         self.assertEqual(len(got), 1, got)

@@ -8,3 +8,5 @@ render = ["local"]
 deliver_to = ""
 # A rough speaking rate (./harmonicfitness get wpm prints it); builds use each coach's measured pace.
 words_per_minute = 165
+# "pulse" plays a soft tick each second through any quiet of two seconds or more, so a long hold sounds like a clock rather than a dropped earbud, and the coach may leave up to twenty seconds of quiet (eight without it). "off", or unset, plays none.
+bed = "off"

@@ -61,6 +61,7 @@ SUMMARY = 240           # characters of each item's summary
 RESULT_DAYS, UPCOMING_DAYS, GAMES = 7, 7, 3
 ATOM = "{http://www.w3.org/2005/Atom}"
 DC = "{http://purl.org/dc/elements/1.1/}"
+RSS1 = "{http://purl.org/rss/1.0/}"
 
 WMO = {0: "clear", 1: "mainly clear", 2: "partly cloudy", 3: "overcast", 45: "fog", 48: "freezing fog",
        51: "light drizzle", 53: "drizzle", 55: "heavy drizzle", 56: "freezing drizzle", 57: "freezing drizzle",
@@ -169,6 +170,11 @@ def parse_rss(data, since, keep=PER_FEED):
         raise ValueError("the feed declares a DOCTYPE or ENTITY; refused unparsed")
     root = ET.fromstring(data)
     items = []
+    rdf_items = list(root.iter(RSS1 + "item"))   # RSS 1.0 (RDF): its items sit in the RSS 1.0 namespace
+    for it in rdf_items:
+        items.append({"title": clean(it.findtext(RSS1 + "title"), 200), "link": web_link(it.findtext(RSS1 + "link")),
+                      "date": parse_date(it.findtext(DC + "date")),
+                      "summary": clean(it.findtext(RSS1 + "description"))})
     for it in root.iter("item"):
         items.append({"title": clean(it.findtext("title"), 200), "link": web_link(it.findtext("link")),
                       "date": parse_date(it.findtext("pubDate") or it.findtext(DC + "date")),
@@ -215,10 +221,16 @@ def parse_espn(docs, now):
         if when is None:
             continue
         if status.get("completed") and now - dt.timedelta(days=RESULT_DAYS) <= when <= now:
-            us = home if name(home) == team else away
-            mark = "won" if us.get("winner") else ("drew" if _score(home) == _score(away) else "lost")
+            if _score(home) in (None, "") or _score(away) in (None, ""):
+                continue   # a final with no score is no result to tell (never a draw)
+            us = home if name(home) == team else away if name(away) == team else None
+            if us is None:
+                mark = "result"   # neither side's name matches the team's: say the score, not who won
+            else:
+                mark = "won" if us.get("winner") else ("drew" if _score(home) == _score(away) else "lost")
             results.append((when, f"{name(away)} {_score(away)}, at {name(home)} {_score(home)} "
-                                  f"({status.get('shortDetail') or status.get('description', 'final')}; {team} {mark})"))
+                                  f"({status.get('shortDetail') or status.get('description', 'final')}"
+                                  + (f"; {team} {mark})" if mark != "result" else ")")))
         elif not status.get("completed") and now <= when <= now + dt.timedelta(days=UPCOMING_DAYS):
             upcoming.append((when, f"{name(away)} at {name(home)}" + (f", {venue}" if venue else "")))
     results = sorted(results, reverse=True)[:GAMES]
@@ -346,12 +358,40 @@ def sheet_path(local):
     return os.path.join(paths.DAILY, f"{local:%Y-%m-%d}-feeds.md")
 
 
+REUSE_HOURS = 3   # a sheet this fresh is read, not fetched again
+
+
+def fresh_sheet(path, now):
+    """Whether today's feeds sheet at `path` exists and was written under REUSE_HOURS ago."""
+    try:
+        return now.timestamp() - os.path.getmtime(path) < REUSE_HOURS * 3600
+    except OSError:
+        return False
+
+
+def age_minutes(path, now):
+    return max(0, round((now.timestamp() - os.path.getmtime(path)) / 60))
+
+
+def sections(sheet, labels):
+    """The `## <label>` sections of a feeds sheet whose label is in `labels`, as lines (the weather, on a reuse)."""
+    out, keep = [], False
+    for line in sheet.splitlines():
+        if line.startswith("## "):
+            keep = line[3:].strip() in labels
+        if keep:
+            out.append(line)
+    return out
+
+
 def main():
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--hours", type=cli.positive_float, default=72, help="how far back news items go (default 72)")
     ap.add_argument("--profile", default=None)
     ap.add_argument("--out", help="sheet path (default me/workouts/research/daily/<date>-feeds.md)")
     ap.add_argument("--print", action="store_true", help="print the whole sheet, not just the weather")
+    ap.add_argument("--refresh", action="store_true",
+                    help=f"fetch again even when today's sheet is under {REUSE_HOURS:g} hours old")
     args = ap.parse_args()
 
     sources = config(context.profile(args.profile))
@@ -359,6 +399,14 @@ def main():
         raise errors.HarmonicFitnessError("No feeds filled in yet: add [[feeds]] entries (label, kind, value) to the "
                          "settings at the top of content.md.")
     now = dt.datetime.now(dt.timezone.utc)
+    path = args.out or sheet_path(now.astimezone())
+    if not args.refresh and fresh_sheet(path, now):   # the main session and the research agent both run it
+        with open(path, encoding="utf-8") as f:
+            sheet = f.read()
+        labels = {label for label, kind, _ in sources if kind == "weather"}
+        print(sheet if args.print else "\n".join(sections(sheet, labels)))
+        print(f"Reused {show(path)}, fetched {age_minutes(path, now)} min ago (--refresh fetches again)")
+        return 0
     since = now - dt.timedelta(hours=args.hours)
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         futures = [pool.submit(gather, s, now, since) for s in sources]
@@ -381,7 +429,6 @@ def main():
     if failed:
         out += ["## Couldn't fetch", *failed, ""]
     sheet = "\n".join(out)
-    path = args.out or sheet_path(local)
     fileio.atomic_write(path, sheet)
     if args.print:
         print(sheet)

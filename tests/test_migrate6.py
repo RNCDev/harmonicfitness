@@ -89,6 +89,9 @@ class Split(unittest.TestCase):
         example = context.profile(os.path.join(ROOT, "me.example", "profile.md"))
         example.settings.pop("skip_formats")             # new in 0.35.0, optional: a 0.11 folder never had it
         example.sources.pop("skip_formats")
+        for key in ("bed",):                              # new in 0.39.0, optional: absent means off
+            example.settings.pop(key)
+            example.sources.pop(key)
         self.assertEqual(mine.settings, example.settings)
         self.assertEqual(mine.sources.keys(), example.sources.keys())
         for key in mine.sources:

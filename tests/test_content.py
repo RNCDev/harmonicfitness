@@ -150,6 +150,46 @@ class Record(unittest.TestCase):
         used = [{"date": "2026-10-23", "title": "Why the grid", "reserve": "grid-plan"}]
         self.assertEqual([p.slug for p in content.reserve(self.reserve, items=used, today=TODAY)], ["old-style"])
 
+    def test_a_good_until_that_isnt_a_date_is_never_evergreen(self):
+        for slug, until in (("nov", "Nov 15"), ("typo", "2026-13-40"), ("words", "end of the season")):
+            write(os.path.join(self.reserve, f"{slug}.md"), f"# {slug}\n- Topic: Kraken\n- Format: quick_hit\n"
+                                                            f"- Good until: {until}\n")
+        write(os.path.join(self.reserve, "ever.md"), "# ever\n- Topic: Cities\n- Format: explainer\n- Good until: Evergreen.\n")
+        write(os.path.join(self.reserve, "dated.md"), "# dated\n- Topic: Kraken\n- Format: quick_hit\n"
+                                                      "- Good until: 2026-11-01 (the trade deadline)\n")
+        got = [p.slug for p in content.reserve(self.reserve, items=[], today=TODAY)]
+        self.assertEqual(sorted(got), ["dated", "ever"])
+        self.assertEqual(sorted(p.slug for p in content.unreadable(self.reserve, items=[])), ["nov", "typo", "words"])
+        with mock.patch.object(content.paths, "RESERVE", self.reserve), \
+                mock.patch.object(content.paths, "THREADS", os.path.join(self.tmp.name, "threads.jsonl")):
+            text = "\n".join(content.plan(25, TODAY, content.recipe(), profile("- Kraken\n"), []))
+        self.assertIn("## Stock to fix", text)
+        self.assertIn('"Nov 15"', text)
+
+    def test_threads_open_until_closed_and_show_in_the_plan(self):
+        path = os.path.join(self.tmp.name, "threads.jsonl")
+        p = profile("- Space\n- Kraken\n")
+        with self.assertRaises(ValueError):   # every thread checked before any is written
+            content.open_threads("2026-10-23", ["Space | quiz | Longest day?", "Space | gossip | x"], path=path, profile=p)
+        self.assertFalse(os.path.exists(path))
+        with self.assertRaises(ValueError):
+            content.open_threads("2026-10-23", ["Krakn | follow-up | the trade"], path=path, profile=p)
+        new = content.open_threads("2026-10-23", ["space | Quiz | Which planet has the longest day? (Venus)",
+                                                  "- | take | The coach says pineapple belongs on pizza"],
+                                   path=path, profile=p)
+        self.assertEqual([t["id"] for t in new], ["t1", "t2"])
+        self.assertEqual((new[0]["topic"], new[0]["kind"]), ("Space", "quiz"))
+        content.close_thread("2026-10-25", "t1", path=path)
+        with self.assertRaises(ValueError):
+            content.close_thread("2026-10-25", "t1", path=path)   # already closed
+        self.assertEqual([t["id"] for t in content.threads(path)], ["t2"])
+        self.assertEqual(content.open_threads("2026-10-26", ["Kraken | follow-up | the trade"], path=path,
+                                              profile=p)[0]["id"], "t3")
+        with mock.patch.object(content.paths, "THREADS", path):
+            text = "\n".join(content.plan(25, TODAY, content.recipe(), p, [], []))
+        self.assertIn("t2 (2026-10-23, take, -): The coach says pineapple", text)
+        self.assertNotIn("Venus", text)
+
     def test_the_plan_lists_topics_formats_recent_items_the_stock_and_restock(self):
         r = content.recipe()
         items = [{"date": "2026-10-22", "topic": "Kraken", "format": "quick_hit", "title": "Home team wins the opener"},

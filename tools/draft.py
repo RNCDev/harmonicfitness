@@ -37,6 +37,13 @@ HOLD_RE = re.compile(r"\[\s*hold(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNO
 COUNT_RE = re.compile(r"\[\s*count\b[^\]]*\]", re.IGNORECASE)
 CUE_RE = re.compile(r"\[\s*cue\b[^\]]*\]", re.IGNORECASE)
 MARK_RE = re.compile("|".join(r.pattern for r in (PAUSE_RE, CHIME_RE, HOLD_RE, COUNT_RE, CUE_RE)), re.IGNORECASE)
+# [story] ... [/story] wraps the listener's content (a result, a quiz, a serial beat): never spoken, stripped before
+# the voice and the timing see the text, so it changes nothing in the audio. The menu check and the written-countdown
+# check skip what it holds, since a story may name a movement ("her deadlift record") or count down ("ten, nine,
+# eight, liftoff") without coaching it; so a story may hold no timing marker ([hold], [count], [cue], [chime]),
+# and stays inside one segment (story_problems).
+STORY_TAG_RE = re.compile(r"\[\s*/?\s*story\s*\]", re.IGNORECASE)
+STORY_OPEN, STORY_CLOSE = "[story]", "[/story]"
 CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
 HOLD = "[hold]"     # a span whose text is this takes a share of the segment's spare time as silence
 NUMBER_WORDS = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
@@ -60,6 +67,7 @@ CHIME_SECONDS = 0.6                     # bell plus quiet that opens each segmen
 END_TAIL = 1.5          # seconds of spare time kept at a segment's end, at most
 MAX_EXTRA_GAP = 1.5     # most spare time added to any one paragraph break
 MAX_SILENCE = 8.0       # the longest silence a listener hears before it sounds like a dropped earbud
+BED_MAX_SILENCE = 20.0  # with the pulse bed on (settings.toml `bed = "pulse"`), a quiet stretch ticks, so it may run longer
 TOTAL_TOLERANCE = 0.03  # the whole workout may run this fraction over or under plan
 MIN_FILL, MAX_FILL = 0.80, 1.10   # a segment outside these (speech over planned seconds) is flagged
 
@@ -137,9 +145,53 @@ def brief_path(path):
     return stem(path) + ".brief.md"
 
 
+def unstory(text):
+    """`text` with its [story] and [/story] tags taken out (they're never spoken)."""
+    return " ".join(STORY_TAG_RE.sub(" ", text).split()) if STORY_TAG_RE.search(text) else text
+
+
+def story_split(seg):
+    """(coaching text, [story texts], problems) for a segment: what lies outside [story] ... [/story], each
+    story's text, and what's wrong with the tags (one left open, a close with no open, a story inside a story,
+    a timing marker inside a story). Lines are joined with newlines, so each part keeps its sentences. With any
+    problem, the whole segment comes back as coaching and no story is skipped."""
+    text = "\n".join(line for _, line in seg["lines"])
+    coaching, stories, problems, at, inside = [], [], [], 0, False
+    for m in STORY_TAG_RE.finditer(text):
+        closing = "/" in m.group(0)
+        if inside and not closing:
+            problems.append("a [story] inside another story; close the first with [/story]")
+            continue   # the open story carries on
+        if not inside and closing:
+            problems.append("a [/story] with no [story] before it")
+            continue
+        (stories if inside else coaching).append(text[at:m.start()])
+        inside, at = not closing, m.end()
+    (stories if inside else coaching).append(text[at:])
+    if inside:
+        problems.append("a [story] that's never closed; end it with [/story] in the same segment")
+    for story in stories:
+        for m in MARK_RE.finditer(story):
+            if not PAUSE_RE.fullmatch(m.group(0)):
+                problems.append(f"{m.group(0)} inside a [story]: a story carries the listener's content, never the "
+                                "timing; close the story before the work's markers")
+                break
+    if problems:   # fail safe: with the tags wrong, every word is checked as coaching
+        return unstory_lines(text), [], problems
+    return unstory_lines("\n".join(coaching)), stories, problems
+
+
+def unstory_lines(text):
+    """`text` with its story tags taken out, line by line (so sentences keep their breaks)."""
+    return "\n".join(unstory(line) for line in text.split("\n"))
+
+
 def paragraphs(lines):
     out, buf = [], []
     for _, line in lines + [(0, "")]:
+        if line.strip() and not unstory(line).strip():
+            continue   # a line of only [story] or [/story] is no paragraph break
+        line = unstory(line)
         if line.strip():
             buf.append(line.strip())
         elif buf:
@@ -262,19 +314,50 @@ def layout(segments):
     A segment that runs over makes the next ones late, and their spare time pays it
     back; a segment with time to spare widens its breaks, keeps a short tail and ends
     early, unless it is held (has a bare [hold], is_held): then all its spare time is silence at its
-    bare holds. Fixed holds count in its spoken seconds."""
+    bare holds, and it keeps its planned length however late it starts, so a talk that ran long never
+    shortens a timed set or rest; the lateness passes on to the next unheld segments (and past the last,
+    into the total). Fixed holds count in its spoken seconds."""
     out, late = [], 0.0
     for spoken_secs, gaps, planned, *rest in segments:
-        slack = max(planned - late - spoken_secs, 0.0)
-        if rest and rest[0]:
-            length = spoken_secs + slack
-            late = max(late + length - planned, 0.0)
+        if rest and rest[0]:   # timed work keeps its planned length: lateness passes on to the next segments
+            length = max(spoken_secs, planned)
+            late += length - planned
             out.append((0.0, length))
             continue
+        slack = max(planned - late - spoken_secs, 0.0)
         extra = min(max(slack - END_TAIL, 0.0) / gaps, MAX_EXTRA_GAP) if gaps else 0.0
         length = spoken_secs + extra * gaps + min(END_TAIL, slack - extra * gaps)
         late = max(late + length - planned, 0.0)
         out.append((extra, length))
+    return out
+
+
+def max_silence(bed=False):
+    """The longest quiet stretch the lint and the render allow: MAX_SILENCE, or BED_MAX_SILENCE with the pulse
+    bed, which ticks softly through any long quiet so it never sounds like a dropped earbud."""
+    return BED_MAX_SILENCE if bed else MAX_SILENCE
+
+
+def silences(paras, extra=0.0, share=0.0, tail=0.0):
+    """[(seconds, the words before it)] for each stretch of silence in a segment laid out as the render lays
+    it: pauses, fixed holds, `share` seconds at each bare hold, `extra` added to each paragraph break and
+    `tail` at the end, run together until a clip, a count or the bell sounds. The lint calls it on predicted
+    lengths, the render (audio.assemble) on the clips it laid out."""
+    out, run, before = [], 0.0, ""
+    for j, para in enumerate(paras):
+        if j:
+            run += PARAGRAPH_GAP + extra
+        for text, pause in para:
+            if spoken(text) or is_mark(text) or text == CHIME:
+                if run > 0:
+                    out.append((run, before))
+                run, before = 0.0, text if spoken(text) else before
+            elif text == HOLD and not pause:
+                run += share
+            run += pause
+    run += tail
+    if run > 0:
+        out.append((run, before))
     return out
 
 

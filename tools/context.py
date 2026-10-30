@@ -68,7 +68,7 @@ SETTING_HOMES = {
     "interests": "content.md", "feeds": "content.md", "youtube_favorites": "content.md", "puzzles": "content.md",
     "skip_formats": "content.md",
     "setup": "settings.toml", "render": "settings.toml", "cloud_max_chars": "settings.toml",
-    "deliver_to": "settings.toml", "words_per_minute": "settings.toml",
+    "deliver_to": "settings.toml", "words_per_minute": "settings.toml", "bed": "settings.toml",
 }
 PROSE_HOMES = {"equipment kits": "training.md", "default session": "training.md",
                "content": "content.md", "taste": "content.md", "topics": "content.md",
@@ -219,6 +219,7 @@ SCALARS = {
     "cloud_max_chars": (int, 1, None),
     "words_per_minute": (int, 60, 300),
     "setup": (("quick", "full"),),
+    "bed": (("off", "pulse"),),
     "experience": ("catalog.LEVELS",),   # read when checked: catalog loads the movement catalog
 }
 
@@ -287,6 +288,14 @@ def wpm(p):
     """The profile's rough speaking rate (words_per_minute), or None when unset; a value that isn't a whole
     number from 60 to 300 raises errors.ContextError."""
     return _scalar(p, "words_per_minute")
+
+
+def bed(p):
+    """Whether the workout plays the pulse bed (bed = "pulse" in settings.toml): a soft tick each second through
+    any quiet of two seconds or more, which lets a quiet stretch run to twenty seconds. Unset or "off" is off; any
+    other value raises errors.ContextError."""
+    v = _scalar(p, "bed")
+    return isinstance(v, str) and v.strip().casefold() == "pulse"
 
 
 def delivery_patterns(p):
@@ -477,6 +486,9 @@ def kit_problems(k):
 
 
 SETTINGS_COMMENTS = {
+    "bed": "\"pulse\" plays a soft tick each second through any quiet of two seconds or more, so a long hold sounds "
+           "like a clock rather than a dropped earbud, and the coach may leave up to twenty seconds of quiet (eight "
+           "without it). \"off\", or unset, plays none.",
     "words_per_minute": "A rough speaking rate (./harmonicfitness get wpm prints it); builds use each coach's measured pace.",
     "experience": "Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.",
     "likes": "Movements you enjoy (ids or names from ./harmonicfitness movements); sessions favour them.",

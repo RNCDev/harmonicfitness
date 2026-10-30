@@ -133,8 +133,12 @@ def mark_done(video, folder=None):
     return done, parts
 
 
+SOCKET_TIMEOUT = 20   # seconds: a stalled YouTube connection gives up rather than holding up the research
+
+
 def ydl(**opts):
-    return yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True, **opts})
+    return yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True,
+                             "socket_timeout": SOCKET_TIMEOUT, **opts})
 
 
 def fresh(entries, seen, low, high, recent):

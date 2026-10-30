@@ -24,9 +24,10 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, MARK_RE, MAX_CLIP, MAX_FILL, MAX_SILENCE,  # noqa: E402
+from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
                    MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_held, is_mark,
-                   layout, mark_issue, mark_words, paragraphs, plan, spans, spoken)
+                   layout, mark_issue, mark_words, paragraphs, plan, silences, spans, spoken, story_split,
+                   unstory)
 import counts  # noqa: E402
 
 # Characters a voice may announce or mispronounce.
@@ -44,6 +45,10 @@ DIGIT_RE = re.compile(r"\d")
 MD_LINE_RE = re.compile(r"^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|\|)")
 SSML_RE = re.compile(r"<[^>]+>")
 DEFAULT_WPM = 185
+# The lint aims this much inside the render's tolerance, so a voice that speaks a little off its predicted pace
+# still lands the rendered total (an exit 2 comes after the whole render, and a web one is billed).
+LINT_HEADROOM = 0.005            # a measured pace
+LINT_HEADROOM_ESTIMATED = 0.01   # an estimated one (a web coach before its first render)
 WORD_TOLERANCE = 0.08
 
 
@@ -106,7 +111,7 @@ def lint_line(lineno, line):
     issues = []
     if MD_LINE_RE.match(line):
         issues.append("markdown or list syntax at line start")
-    line = MARK_RE.sub(" ", line)
+    line = MARK_RE.sub(" ", unstory(line))
     if SSML_RE.search(line):
         issues.append("tag markup (the voice may speak it)")
     bad = sorted({c for c in line if c in FORBIDDEN_CHARS})
@@ -131,32 +136,10 @@ MIN_CLIP_WORDS = 2
 
 
 def word_count(lines):
-    return sum(len(WORD_RE.findall(MARK_RE.sub(" ", l))) for _, l in lines)
+    return sum(len(WORD_RE.findall(MARK_RE.sub(" ", unstory(l)))) for _, l in lines)
 
 
 HELD_QUIET = 10.0   # a held segment's spare silence, in seconds, worth pointing out
-
-
-def silences(paras, extra=0.0, share=0.0, tail=0.0):
-    """[(seconds, the words before it)] for each stretch of silence in a segment laid out as the render lays
-    it: pauses, fixed holds, `share` seconds at each bare hold, `extra` added to each paragraph break and
-    `tail` at the end, run together until a clip, a count or the bell sounds."""
-    out, run, before = [], 0.0, ""
-    for j, para in enumerate(paras):
-        if j:
-            run += PARAGRAPH_GAP + extra
-        for text, pause in para:
-            if spoken(text) or is_mark(text) or text == CHIME:
-                if run > 0:
-                    out.append((run, before))
-                run, before = 0.0, text if spoken(text) else before
-            elif text == HOLD and not pause:
-                run += share
-            run += pause
-    run += tail
-    if run > 0:
-        out.append((run, before))
-    return out
 
 
 @dataclass
@@ -221,12 +204,17 @@ class Report:
 
 
 def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_FILL,
-         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, chime=True, max_chars=None):
+         total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, chime=True, max_chars=None,
+         bed=False, headroom=True):
     """Check a parsed draft. With a voice, predicts spoken seconds from its pace,
     which is read once for the whole lint. `chime` says whether the render opens each segment after the
     first with the bell (--no-chime turns it off), so the prediction matches. `max_chars` is a web build's
-    allowance (build --max-chars): a web voice's script over it is an issue; a local voice ignores it."""
+    allowance (build --max-chars): a web voice's script over it is an issue; a local voice ignores it. `bed` is the
+    pulse bed (settings.toml), which lets a quiet stretch run to BED_MAX_SILENCE. With `headroom`, the predicted
+    total must land inside the render's tolerance less LINT_HEADROOM (more when the pace is estimated), so a
+    voice a little off its prediction still lands the rendered total."""
     rate, exact, spokens, timeline = None, False, [], []
+    limit = max_silence(bed)
     plans = [plan(seg) for seg in segments]   # as the render voices it, computed once
     if voice:
         from voices import clip_seconds, pace
@@ -274,11 +262,11 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         else:
             quiet = silences(plans[i - 1])
         for secs, before in quiet:
-            if secs > MAX_SILENCE + 0.05:
+            if secs > limit + 0.05:
                 where = f"after \"{' '.join(before.split()[:6])}...\"" if before else "at the segment's start"
                 row.clip_issues.append(
                     f"  {secs:.0f}s of silence {where}; a listener with no screen hears more than "
-                    f"{MAX_SILENCE:.0f}s as a dropped earbud. Coach through it (a cue, the breath, how many are "
+                    f"{limit:.0f}s as a dropped earbud. Coach through it (a cue, the breath, how many are "
                     "left, a check-in) in holds of a few seconds; in a rest or easy work, tell more of the listener's content "
                     "(knowledge/script.md, Keeping them engaged); or give the segment fewer seconds")
         has_cues = bool(voice and voice.get("cues"))
@@ -299,12 +287,17 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                     row.clip_issues.append(
                         f"  \"{text}\" is one word between markers, and a local voice often garbles a word "
                         f"on its own; give it two or more (\"Hold it there.\", \"And go.\"){hint}")
-                run = written_countdown(text) if has_cues else None
+        if has_cues:   # a countdown in words, outside a [story] ("ten, nine, eight, liftoff" in one is the story's)
+            for piece in MARK_RE.sub("\x00", story_split(seg)[0]).split("\x00"):
+                run = written_countdown(piece)
                 if run:
                     row.clip_issues.append(
                         f"  \"{run}\" counts down in words, which a voice rushes; use [count N] or [count N go], "
                         "which plays the coach's recorded numbers a second apart")
+                    break
         rows.append(row)
+    if voice and headroom:
+        total_tolerance = max(total_tolerance - (LINT_HEADROOM if exact else LINT_HEADROOM_ESTIMATED), 0.0)
     report = Report(rows, strict, guide_wpm, voice, rate, exact,
                     total_tolerance=total_tolerance, word_wpm=wpm)
     if voice and max_chars and voice.get("backend") == "cloud":
@@ -348,7 +341,8 @@ def render_report(report):
                     f"({report.pace:.2f} chars/s{'' if report.exact else ', estimated until its first render'})")
         drift = report.drift or 0.0
         summary += (f"\nPredicted length {report.predicted / 60:.1f} min, {drift:+.1%} of plan "
-                    f"(within {report.total_tolerance:.0%} is fine)")
+                    f"(within {report.total_tolerance:.1%} is fine: the lint aims inside the render's limit, "
+                    "leaving room for the voice)")
         if report.total_off:
             summary += ("  <-- too " + ("long: trim words" if drift > 0 else
                                        "short: add coaching in the sets, or more of the listener's content in the rests "

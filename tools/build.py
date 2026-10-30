@@ -372,17 +372,25 @@ def resolve_voice(opts):
     return coach, coachpick.pick(context.render_preferences(), coach, override=opts.engine)
 
 
+def profile_bed():
+    """Whether the listener's settings turn the pulse bed on (context.bed); off when there's no profile."""
+    import context
+    if not os.path.isfile(paths.PROFILE):
+        return False
+    return context.bed(context.profile())
+
+
 def gate(segments, voice, opts, text, smoke):
     """(issues, warnings, report): the lint's report for `voice`, and the menu check's issues and warnings. The
     smoke test exists to measure a voice: it needs no menu. Every other draft is held to its menu, from today
-    and today's health.md (a lint-only run only warns about the menu's date and health.md)."""
+    and today's health.md, a lint-only run as strictly as the build, so a clean lint means the build's menu
+    check passes too."""
     import catalog
     import menu
     import tts_build
     report = tts_build.lint(segments, voice, total_tolerance=opts.tolerance, chime=not opts.no_chime,
-                             max_chars=opts.max_chars)
-    issues, warnings = ([], []) if smoke else menu.gate(catalog.default(), opts.draft, text, segments,
-                                                         strict=not opts.lint_only)
+                             max_chars=opts.max_chars, bed=profile_bed())
+    issues, warnings = ([], []) if smoke else menu.gate(catalog.default(), opts.draft, text, segments)
     return issues, warnings, report
 
 
@@ -443,7 +451,8 @@ def _run(b, text):
         voice = personas.voice_for(coach, route)
         with log_to(b.log, opts.name, b.build_id, opts.verbose):   # no lint, no MP3
             if opts.follow:
-                render.follow(voice, opts.draft, seed=opts.seed, **({"idle": opts.idle} if opts.idle else {}))
+                render.follow(voice, opts.draft, seed=opts.seed, check=not opts.no_check,
+                              **({"idle": opts.idle} if opts.idle else {}))
             else:
                 render.clips(voice, segments, seed=opts.seed)
         return BuildResult(cli.OK, None, b.lines)
@@ -504,11 +513,16 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
     opts = b.opts
     b.stage = "render"
     mp3 = os.path.join(out_dir, f"{opts.name}.mp3")
+    quiet = []
     with log_to(b.log, opts.name, b.build_id, opts.verbose):   # model loading is chatty: it goes to the log,
         drift = render.run(segments, voice, mp3, seed=opts.seed,  # shown on any failure but drift
                            tolerance=opts.tolerance, no_chime=opts.no_chime, draft_path=opts.draft,
                            draft_sha256=b.draft_sha256, model=opts.model, check=not opts.no_check,
-                           build_id=b.build_id, max_chars=opts.max_chars)
+                           build_id=b.build_id, max_chars=opts.max_chars, bed=profile_bed(), quiet=quiet)
+    for n, label, secs, before in quiet:   # the lint checked predicted silences; these are the real ones
+        b.say(f"warning: segment {n} ({label}) holds {secs:.0f}s of silence as rendered"
+              + (f", after \"{' '.join(before.split()[:6])}...\"" if before else "")
+              + "; the voice ran faster than predicted there, so give it a cue or fewer seconds next time")
     if abs(drift) > opts.tolerance:   # the MP3 is written, not copied
         b.fail(render.drift_message(drift, opts.tolerance))
         b.stopped(f"{drift:+.1%} of plan", stage="drift", drift=round(drift, 4))

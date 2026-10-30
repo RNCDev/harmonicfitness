@@ -35,6 +35,7 @@ import engines  # noqa: E402
 import ffmpeg as ffmpeg_tool  # noqa: E402
 import fileio  # noqa: E402
 from locks import render_lock, stop_file  # noqa: E402
+import draft  # noqa: E402
 from draft import TOTAL_TOLERANCE, is_mark, parse, plan, spoken as is_spoken  # noqa: E402
 import counts  # noqa: E402
 from engines import SR  # noqa: E402
@@ -43,7 +44,7 @@ import paths  # noqa: E402
 import verify  # noqa: E402
 import wav  # noqa: E402
 from voices import EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
-from audio import assemble, chime, end_tone, level  # noqa: E402
+from audio import add_pulse, assemble, chime, end_tone, level  # noqa: E402
 # tools/coachmaker still reaches these two through this module
 from audio import SPEECH_LEVEL, speech_level  # noqa: E402,F401
 from clipcache import cached, check_path, clip_cache, render_clip  # noqa: E402
@@ -179,49 +180,117 @@ def empty_clip(text, path):
                                 "again, or reword the line.")
 
 
-def check_takes(voice, clips, seed, cache_path, say=None):
+class Ears:
+    """The speech recognizer, loaded the first time it's needed and kept until `close`."""
+    def __init__(self):
+        self.hear = None
+
+    def __call__(self, pcm):
+        if self.hear is None:
+            self.hear = engines.listener()
+        return self.hear(pcm)
+
+    def close(self):
+        self.hear = None
+
+
+class Hearing:
+    """Hears each new local take on a worker thread while the engine renders the next, so the take check after
+    the render has only its retakes left. The recognizer runs on the processor (ONNX), Pocket on its own
+    threads; both release the interpreter while they work. A failure here (the recognizer won't load) is kept
+    quiet: the take check then hears those clips itself, and says what went wrong."""
+    def __init__(self, cache_path):
+        import queue
+        import threading
+        self.cache_path, self.heard, self.error = cache_path, {}, None
+        self.q = queue.Queue()
+        self.thread = threading.Thread(target=self._run, name="hearing", daemon=True)
+        self.thread.start()
+
+    def add(self, text):
+        self.q.put(text)
+
+    def _run(self):
+        hear = None
+        while True:
+            text = self.q.get()
+            if text is None:
+                break
+            if self.error is not None:
+                continue
+            try:
+                if hear is None:
+                    hear = engines.listener()
+                with open(self.cache_path(text), "rb") as f:
+                    pcm = f.read()
+                self.heard[text] = (pcm, hear(pcm))
+            except BaseException as e:   # noqa: BLE001 - the take check hears it again and reports
+                self.error = e
+
+    def finish(self):
+        """Wait for the clips queued so far; returns {text: (pcm heard, words heard)}."""
+        self.q.put(None)
+        self.thread.join()
+        return self.heard
+
+
+def check_one(voice, text, seed, cache_path, say, hear, rate, heard=None):
+    """Score one local clip against its line and render it again with the next seeds, up to CHECK_TAKES takes,
+    while it fails; caches the best take and its verdict. `say` is a loaded voice or None (loaded on the first
+    retake: returned for the next clip), `hear` an Ears, `heard` (pcm, words) when the clip was heard already.
+    Returns (verdict, takes, say)."""
+    with open(cache_path(text), "rb") as f:
+        pcm = f.read()
+    predicted = clip_seconds(text, voice, rate)
+    words = heard[1] if heard and heard[0] == pcm else hear(pcm)
+    best, best_seed, best_pcm = verify.judge(text, words, pcm, predicted), seed, pcm
+    takes = 1
+    while not best["ok"] and takes < CHECK_TAKES:
+        if say is None:
+            say = engines.speaker(voice)
+        take = say(text, seed + takes)
+        v = verify.judge(text, hear(take), take, predicted)
+        if verify.rank(v) < verify.rank(best):
+            best, best_seed, best_pcm = v, seed + takes, take
+        takes += 1
+    if best_pcm is not pcm:
+        clipcache.write(cache_path(text), best_pcm)
+    best.update(seed=best_seed, takes=takes, checker=verify.checker_id())
+    fileio.atomic_write(check_path(cache_path, text), json.dumps(best) + "\n")
+    return best, takes, say
+
+
+def check_takes(voice, clips, seed, cache_path, say=None, heard=None):
     """Hear every local clip not checked yet with the speech recognizer and score it against its line
     (tools/verify.py). A take that misses a cue word, sounds broken or gets too many words wrong is
     rendered again with the next seeds, up to CHECK_TAKES takes, and the best one is cached under the
     line's own key, with its verdict beside it. Returns the summary for the build record; stops the
     build (exit 1) when a line's best take still misses a cue word, naming the line to reword. `say` is the
     voice the render just used, still loaded, so a retake doesn't load the model a second time; the caller
-    releases it."""
+    releases it. `heard` holds the first takes a Hearing heard while the render ran ({text: (pcm, words)}):
+    those aren't heard again, and the recognizer loads only when something is left to hear."""
     lines = list(dict.fromkeys(clips))
     verdicts = {t: clipcache.verdict(check_path(cache_path, t)) for t in lines}
     todo = [t for t in lines if verdicts[t] is None]
     retried = 0
+    heard = heard or {}
     if todo:
         started = time.time()
-        hear = engines.listener()
-        print(f"checking {len(todo)} take(s) by ear", flush=True)
+        hear = Ears()
+        print(f"checking {len(todo)} take(s) by ear ({sum(t in heard for t in todo)} heard during the render)",
+              flush=True)
         rate = pace(voice)[0]
         try:
             for n, text in enumerate(todo, 1):
-                with open(cache_path(text), "rb") as f:
-                    pcm = f.read()
-                predicted = clip_seconds(text, voice, rate)
-                best, best_seed, best_pcm = verify.judge(text, hear(pcm), pcm, predicted), seed, pcm
-                takes = 1
-                while not best["ok"] and takes < CHECK_TAKES:
-                    if say is None:
-                        say = engines.speaker(voice)
-                    take = say(text, seed + takes)
-                    v = verify.judge(text, hear(take), take, predicted)
-                    if verify.rank(v) < verify.rank(best):
-                        best, best_seed, best_pcm = v, seed + takes, take
-                    takes += 1
-                if best_pcm is not pcm:
-                    clipcache.write(cache_path(text), best_pcm)
-                best.update(seed=best_seed, takes=takes, checker=verify.checker_id())
-                fileio.atomic_write(check_path(cache_path, text), json.dumps(best) + "\n")
+                best, takes, say = check_one(voice, text, seed, cache_path, say, hear, rate, heard.get(text))
                 verdicts[text] = best
                 if takes > 1:
                     retried += 1
                     kept = "the first that passed" if best["ok"] else "the best of them"
                     print(f"  [{n}/{len(todo)}] {takes} takes, kept {kept}: \"{_short(text)}\"", flush=True)
         finally:
-            say = hear = None   # the caller's own say (if it passed one) stays loaded until it lets go
+            say = None   # the caller's own say (if it passed one) stays loaded until it lets go
+            hear.close()
             engines.release()
         print(f"checked {len(todo)} take(s) in {(time.time() - started) / 60:.1f} min, {retried} rendered again",
               flush=True)
@@ -363,10 +432,11 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent, max_chars=None):
     print(f"rendered {audio_secs / 60:.1f} min of speech in {took / 60:.1f} min", flush=True)
 
 
-def _render_local(voice, todo, seed, cache_path, keep=False):
+def _render_local(voice, todo, seed, cache_path, keep=False, on_clip=None):
     """Voice `todo` on the local engine, one clip at a time, and fold the measurements into the pace file. With
     `keep`, returns say() still loaded (the take check retakes with it; the caller releases it); otherwise, and
-    always on a failure, the model is released here."""
+    always on a failure, the model is released here. `on_clip(text)` is called as each clip is cached (a
+    Hearing, which hears it while the next renders)."""
     started = time.time()
     audio_secs, measured_weight, done, finished = 0.0, 0.0, 0, False
     say = None
@@ -379,6 +449,8 @@ def _render_local(voice, todo, seed, cache_path, keep=False):
             secs = render_clip(say, text, seed, cache_path)
             if not cached(cache_path(text)):   # no audio: it would measure the voice as silent, and play as nothing
                 raise empty_clip(text, cache_path(text))
+            if on_clip is not None:
+                on_clip(text)
             audio_secs += secs
             measured_weight += weight(text)
             done = n
@@ -423,10 +495,12 @@ def drift_message(drift, tolerance):
 
 
 def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False,
-        model=None, check=True, build_id=None, max_chars=None):
+        model=None, check=True, build_id=None, max_chars=None, bed=False, quiet=None):
     """Render parsed `segments` with `voice` to `out` (.mp3, .m4a or .wav): the clips not cached yet (on the
-    voice's service, or the local engine, under the render lock), the layout on the plan's clock, the loudness
-    pass, the encode, and the build record. Returns the drift, the fraction the whole ran over (+) or under (-)
+    voice's service, or the local engine, under the render lock), the layout on the plan's clock, the pulse bed
+    when `bed` (settings.toml), the loudness pass, the encode, and the build record. Each silence the laid-out
+    audio holds over the limit (the lint checked predicted ones) goes into the `quiet` list, when given, and the
+    record's `long_silences`. Returns the drift, the fraction the whole ran over (+) or under (-)
     plan; the caller decides what a drift past `tolerance` means (./harmonicfitness build exits 2). The caller has
     checked the draft against its menu: this renders what it's given."""
     preflight(out)
@@ -449,16 +523,25 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                     save_failed_record(voice, out, draft_path, draft_sha256, sent, started, e, build_id)
                 raise
         say = None   # the local model, kept loaded from the render into the take check, then released once
+        hearing, heard = None, {}
         try:
             if todo and voice.get("backend") != "cloud":
-                say = _render_local(voice, todo, seed, cache_path, keep=check)
+                if check:   # hear each take while the next renders
+                    hearing = Hearing(cache_path)
+                try:
+                    say = _render_local(voice, todo, seed, cache_path, keep=check,
+                                        on_clip=hearing.add if hearing else None)
+                finally:
+                    if hearing is not None:
+                        heard = hearing.finish()
             timings["render_s"], lap = round(time.time() - lap, 1), time.time()
             if voice.get("backend") == "cloud":
                 checked = {"checked": False, "reason": "a web voice (each take is billed)"}
             elif not check:
                 checked = {"checked": False, "reason": "--no-check"}
             else:
-                checked = check_takes(voice, clips, seed, cache_path, say=say)
+                checked = check_takes(voice, clips, seed, cache_path, say=say, heard=heard)
+                heard = None
         finally:
             if say is not None:
                 say = None
@@ -478,11 +561,17 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                 leveled[text] = level(pcm)
             return leveled[text]
 
+        long_quiet = []
         pcm_all, rows, drift = assemble(segments, clip,
                                         lead=b"" if no_chime else chime(), bell=chime(),
                                         tail=b"" if no_chime else end_tone(),
-                                        mark=lambda text: mark_audio(text, voice, clip))
+                                        mark=lambda text: mark_audio(text, voice, clip),
+                                        quiet=long_quiet, max_silence=draft.max_silence(bed))
         leveled.clear()
+        if bed:
+            add_pulse(pcm_all)
+        if quiet is not None:
+            quiet += long_quiet
         timings["assemble_s"], lap = round(time.time() - lap, 1), time.time()
 
     print(f"\n{'#':>3} {'plan':>5} {'spoken':>6} {'fill':>5}  label")
@@ -507,6 +596,9 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
         record["build_id"] = build_id
     record["check"] = checked
     record["timings"] = timings
+    record["bed"] = "pulse" if bed else "off"
+    if long_quiet:
+        record["long_silences"] = [{"segment": n, "label": label, "seconds": secs} for n, label, secs, _ in long_quiet]
     if voice.get("backend") == "cloud":
         record.update(chars_sent=sent["chars"], usd_estimate=round(sent["usd"], 4))
     save_build_record(record, out)
@@ -525,12 +617,29 @@ def clips(voice, segments, seed=42):
     print(f"Clips cached for {len(segments)} segment(s); the full build reuses them.")
 
 
-def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
+FOLLOW_CHECK_GB = 12   # memory a computer needs to keep the recognizer loaded beside Pocket while a draft is written
+
+
+def follow_checks(check=True):
+    """Whether render-ahead also checks each take as it lands: asked for (not --no-check), with the memory to
+    keep both models loaded while the writer works."""
+    if not check:
+        return False
+    import machine
+    try:
+        return float(machine.facts().get("mem_gb") or 0) >= FOLLOW_CHECK_GB
+    except ValueError:
+        return False
+
+
+def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE, check=True):
     """Render ahead of a draft that's still being written (local only). Rereads the draft between clips, so
     each new or edited paragraph renders as it appears, one at a time with the model kept
-    loaded; a draft caught mid-edit is read again a moment later. Stops when another render
-    asks for the lock (the full build, which then renders what's left), or after `idle`
-    seconds with nothing new."""
+    loaded; a draft caught mid-edit is read again a moment later. With `check` (and the memory for it,
+    follow_checks), each take is heard and checked as it lands, retakes included, so the full build finds
+    it checked. Stops when another render asks for the lock (the full build, which then renders what's left),
+    or after `idle` seconds with nothing new."""
+    check = follow_checks(check)
     voice, cache_path = prepare_voice(voice, None, seed)
     stop = stop_file(paths.CACHE)
     with render_lock(paths.CACHE, follow=True):
@@ -539,6 +648,7 @@ def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
         print(f"Rendering ahead of {draft_path} with {voice['name']}; stops when the build starts "
               f"or after {idle:.0f}s with nothing new.", flush=True)
         say, done, audio_secs, measured_weight = None, 0, 0.0, 0.0
+        hear, rate, checked = Ears(), None, 0
         idle_since = time.time()
         while not os.path.exists(stop):
             try:
@@ -558,12 +668,24 @@ def follow(voice, draft_path, seed=42, idle=FOLLOW_IDLE):
             secs = render_clip(say, todo[0], seed, cache_path)
             done, audio_secs, measured_weight = done + 1, audio_secs + secs, measured_weight + weight(todo[0])
             print(f"  [{done}] {secs:4.1f}s audio in {time.time() - t0:4.1f}s", flush=True)
+            if check and clipcache.verdict(check_path(cache_path, todo[0])) is None:
+                rate = rate or pace(voice)[0]
+                try:
+                    best, takes, say = check_one(voice, todo[0], seed, cache_path, say, hear, rate)
+                    checked += 1
+                    if not best["ok"]:
+                        print(f"  unclear after {takes} takes: \"{_short(todo[0])}\" (the build reports it)", flush=True)
+                except (errors.EngineError, OSError) as e:   # the checker won't load: the build checks instead
+                    print(f"  not checking ahead ({e}); the build checks these clips", flush=True)
+                    check = False
             idle_since = time.time()
         if os.path.exists(stop):
             os.remove(stop)
+        hear.close()
         if say is not None:
             del say
             engines.release()
         if done:
             record_rate(voice, measured_weight, audio_secs - EDGE * done)
-    print(f"Rendered {done} clip(s) ahead; the full build reuses them.", flush=True)
+    print(f"Rendered {done} clip(s) ahead" + (f", {checked} checked" if checked else "")
+          + "; the full build reuses them.", flush=True)

@@ -129,14 +129,25 @@ class Brief(unittest.TestCase):
         self.assertIn("Dislikes (left off the menu): push-up", r.stdout)
         self.assertIn("knee off-limits** (today only", r.stdout)
 
-    def test_every_menu_entry_has_its_coaching_notes(self):
-        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
+    def test_every_menu_entry_has_its_coaching_notes_with_full(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--full")
         section = menu_section(r.stdout)
         entries = section.split("\n- **")[1:]
         self.assertTrue(entries)
         for e in entries:
             self.assertIn("Setup:", e, e[:60])
             self.assertIn("Cues:", e, e[:60])
+
+    def test_the_compact_menu_keeps_notes_only_where_a_limit_or_a_side_needs_them(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
+        self.assertIn("movements --about", r.stdout)
+        entries = menu_section(r.stdout).split("\n- **")[1:]
+        self.assertTrue(entries)
+        for e in entries:
+            head = e.split("\n")[0]
+            touches = "load on today's limits" in head or "side only" in head
+            self.assertEqual("Setup:" in e, touches, head[:80])
+        self.assertTrue(any("Setup:" not in e for e in entries))
 
     def test_a_sided_limit_lists_healthy_side_work_and_fills_the_cues(self):
         r = brief("--goal", "strength", "--minutes", "30", "--preset", "hotel-gym", "--limit", "knee=off-limits:right")
