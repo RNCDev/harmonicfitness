@@ -47,26 +47,37 @@ describe("the starter", () => {
       "Hey, coach Reed, I'd like a 30-minute leg workout in a hotel room. Go easy on my left knee today.");
   });
 
-  it("picks what's sore from the body map: the area, its side, and how careful", () => {
+  it("picks what's sore from the body chart: each side toggles OK, go easy, keep off", () => {
     render(<Starter info={{ ...info, limits: [] }} onStart={vi.fn()} onFill={vi.fn()} />);
     fireEvent.click(slot(/^Anything bothering you:/));
-    fireEvent.click(screen.getByRole("button", { name: "shoulder" }));
-    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Which shoulder" })).getByRole("radio", { name: "Right" }));
-    fireEvent.click(screen.getByRole("button", { name: "neck" }));
-    fireEvent.click(within(screen.getByRole("radiogroup", { name: "How careful with your neck" })).getByRole("radio", { name: "Keep off" }));
+    const chart = screen.getByRole("group", { name: "Body, head to feet" });
+    fireEvent.click(within(chart).getByRole("button", { name: "right shoulder: ok" }));
+    fireEvent.click(within(chart).getByRole("button", { name: "neck: ok" }));
+    fireEvent.click(within(chart).getByRole("button", { name: "neck: go easy" }));
+    fireEvent.click(within(chart).getByRole("button", { name: "left knee: ok" }));
+    fireEvent.click(within(chart).getByRole("button", { name: "left knee: go easy" }));
+    fireEvent.click(within(chart).getByRole("button", { name: "left knee: keep off" }));
+    expect(within(chart).getByRole("button", { name: "left knee: ok" })).toBeInTheDocument();   // round again
+    expect(screen.getByText("right shoulder", { selector: "dd" })).toBeInTheDocument();   // the summary, under Go easy
+    expect(screen.getByText("neck", { selector: "dd" })).toBeInTheDocument();   // and under Keep off
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(slot(/^Go easy on: right shoulder$/)).toBeInTheDocument();
     expect(slot(/^Keep off: neck$/)).toBeInTheDocument();
   });
 
   it("can tighten a limit from health notes, never loosen it", () => {
-    render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} />);
+    render(<Starter info={{ ...info, limits: [{ area: "knee", side: "left", level: "delicate" },
+      { area: "wrist", side: null, level: "off-limits" }] }} onStart={vi.fn()} onFill={vi.fn()} />);
     fireEvent.click(slot(/^Go easy on:/));
-    expect(screen.getByRole("button", { name: "knee" })).toBeDisabled();   // can't be cleared
-    expect(within(screen.getByRole("radiogroup", { name: "Which knee" })).getByRole("radio", { name: "Right" })).toBeDisabled();
-    fireEvent.click(within(screen.getByRole("radiogroup", { name: "How careful with your knee" })).getByRole("radio", { name: "Keep off" }));
+    const chart = screen.getByRole("group", { name: "Body, head to feet" });
+    fireEvent.click(within(chart).getByRole("button", { name: "left knee: go easy" }));
+    fireEvent.click(within(chart).getByRole("button", { name: "left knee: keep off" }));
+    expect(within(chart).getByRole("button", { name: "left knee: go easy" })).toBeInTheDocument();   // never OK
+    expect(within(chart).getByRole("button", { name: "left wrist: keep off" })).toBeDisabled();   // a sideless limit holds both sides
+    expect(within(chart).getByRole("button", { name: "right wrist: keep off" })).toBeDisabled();
+    fireEvent.click(within(chart).getByRole("button", { name: "left knee: go easy" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(slot(/^Keep off: left knee$/)).toBeInTheDocument();
+    expect(slot(/^Keep off: left knee and wrist$/)).toBeInTheDocument();
   });
 
   it("Escape closes a list and gives focus back to its blank", () => {

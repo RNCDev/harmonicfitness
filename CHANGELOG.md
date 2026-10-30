@@ -4,6 +4,19 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-30
+
+A clearer first screen: a body chart for what's sore, the request across the full width, and the other asks anchored above the message box.
+
+### For forks
+- **Nothing to migrate.** The web client only.
+
+### Changed
+- **The body chart** replaces the body map: areas from head to feet in three groups (neck and arms, the trunk, the legs), a round L and R button for each side (one for the neck and the low back), each a three-way toggle: tap once for go easy (cream), twice for keep off (grey), again for OK. A two-column panel, centred on the page: the instructions, a key, a plain list of what's marked and Clear all and Done on the left, the chart on the right; on a phone they stack. Limits from `health.md` still can't be loosened, and a limit with no side holds both.
+- **The request spans the full width**, a size smaller, and a long blank (a list of sore spots) wraps between words instead of running off the edge.
+- **"Or ask for something else" sits just above the message box**, with the request alone at the top, and each ask lights up with an arrow on hover.
+- **"Choose what I hear in the rests" is now "Update my interests."**
+
 ## [0.33.0] - 2026-10-29
 
 The web app, redressed as Moonrise: a dark night sky behind every page, after Ansel Adams' "Moonrise, Hernandez", with a faint moving pattern you choose in Settings.

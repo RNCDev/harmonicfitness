@@ -1,16 +1,14 @@
 // The first screen: a request with blanks, filled in from what the app knows about the listener. Tap a blank
 // for its choices; the new words roll in like a scoreboard. The second line says what to go easy on, picked
-// from a body map of plain areas. "Plan my workout" sends the request as the first message; its answers stand
+// from a body chart, head to feet: each side a three-way toggle, tapped from OK to go easy to keep off and back. "Plan my workout" sends the request as the first message; its answers stand
 // in for the check-in.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { StartInfo, StartKit } from "../api";
 
-/** The areas a listener can name, in three groups, top of the body last. */
-const GROUPS: { name: string; areas: string[] }[] = [
-  { name: "Legs and feet", areas: ["foot", "ankle", "calf", "knee", "hamstring", "hip", "groin"] },
-  { name: "Back and middle", areas: ["low back", "rib"] },
-  { name: "Arms and neck", areas: ["shoulder", "elbow", "wrist", "neck"] },
-];
+/** The areas a listener can name, head to feet: the body chart's rows. */
+const ROWS = ["neck", "shoulder", "elbow", "wrist", "rib", "low back", "hip", "groin", "hamstring", "knee", "calf", "ankle", "foot"];
+/** Where a new group starts: the trunk, then the legs. */
+const GROUP_START = new Set(["rib", "hamstring"]);
 const SIDED = new Set(["foot", "ankle", "calf", "knee", "hamstring", "hip", "groin", "rib", "shoulder", "elbow", "wrist"]);
 const MINUTES = [10, 15, 20, 25, 30, 40, 45, 60];
 /** What to do, as it reads after "a 25-minute": the session goals in plain words, and the usual targets. */
@@ -29,6 +27,10 @@ export function kitWords(k: StartKit): string {
 }
 
 type Level = "easy" | "off";
+/** A chip's state: fine, go easy, keep off. Each tap moves it one along. */
+type Mark = "clear" | Level;
+const MARKS: Mark[] = ["clear", "easy", "off"];
+const MARK_WORDS: Record<Mark, string> = { clear: "ok", easy: "go easy", off: "keep off" };
 
 /** "Thursday night": the day and its part, for the line above the request. */
 export function partOfDay(d: Date): string {
@@ -36,7 +38,6 @@ export function partOfDay(d: Date): string {
   const part = h < 5 ? "night" : h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
   return `${d.toLocaleDateString("en-US", { weekday: "long" })} ${part}`;
 }
-type Side = "left" | "right" | "both" | null;
 const areaName = (area: string, side: string | null) => `${side ? side + " " : ""}${area.replace(/-/g, " ")}`;
 const baseArea = (key: string) => key.replace(/^(left|right) /, "");
 
@@ -75,6 +76,14 @@ export function sentence(v: { coach: string; minutes: number; place: string; typ
 const still = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const GLYPHS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
+/** Where each word of a text starts and ends, so a long blank wraps between words, never inside one. */
+function words(text: string): [number, number][] {
+  const out: [number, number][] = [];
+  const re = /\S+/g;
+  for (let m = re.exec(text); m; m = re.exec(text)) out.push([m.index, m.index + m[0].length]);
+  return out;
+}
+
 /** Words that roll in letter by letter when they change, like a split-flap board. */
 function Flap({ text }: { text: string }) {
   const [shown, setShown] = useState<string[]>(() => [...text]);
@@ -101,8 +110,15 @@ function Flap({ text }: { text: string }) {
   }, [text]);
   return (
     <span className="flap" aria-hidden="true">
-      {shown.map((c, i) => (
-        <span key={`${roll}-${i}`} className="fl" style={{ animationDelay: `${i * 22}ms` }}>{c === " " ? "\u00a0" : c}</span>
+      {words(text).map(([from, to], w) => (
+        <span key={`${roll}-w${w}`}>
+          {w > 0 && " "}
+          <span className="flw">
+            {shown.slice(from, to).map((c, j) => (
+              <span key={`${roll}-${from + j}`} className="fl" style={{ animationDelay: `${(from + j) * 22}ms` }}>{c}</span>
+            ))}
+          </span>
+        </span>
       ))}
     </span>
   );
@@ -132,8 +148,8 @@ const OTHER: { label: string; about: string; line: string; fill?: boolean; quick
     line: "I'd like to update an injury." },
   { label: "Change my equipment", about: "Tell your coach what you have at home, at the gym or when you travel.",
     line: "I'd like to change my equipment." },
-  { label: "Choose what I hear in the rests", about: "Pick the news, topics, puzzles and videos your coach talks about between sets.",
-    line: "I'd like to change what fills the rests: my interests, news, puzzles and videos." },
+  { label: "Update my interests.", about: "Pick the news, topics, and media your coach talks about between sets.",
+    line: "I'd like to change what fills out my workout audio." },
   { label: "Pick a different coach", about: "Hear the other coaches, or make a coach of your own.", line: "I want a new coach." },
   { label: "Give feedback on my last workout", about: "Too long, too easy, loved a story: say so and the next one changes.",
     line: "Feedback on my last workout: ", fill: true },
@@ -194,6 +210,7 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
   useLayoutEffect(() => {
     const p = pick.current, host = wrap.current;
     if (!open || !p || !host) return;
+    if (open.k === "body") { p.querySelector<HTMLElement>("button")?.focus(); return; }   // centred, not anchored
     const over = open.left + p.offsetWidth - host.clientWidth;
     if (over > 0) p.style.left = `${Math.max(0, open.left - over)}px`;
     p.querySelector<HTMLElement>("[aria-selected='true'], [role='option'], button")?.focus();
@@ -232,40 +249,38 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
   if (open?.k === "type") options = [...new Set([...TYPES, v.type])]
     .map((t) => ({ label: t, value: t, on: t === v.type, set: setType as (x: never) => void }));
 
-  // ---- the body map: one row per area picked, each with its side and how careful to be ----
-  const rowsOf = (b: Record<string, Level>) => [...new Set(Object.keys(b).map(baseArea))];
-  const keysOf = (b: Record<string, Level>, area: string) => Object.keys(b).filter((k) => baseArea(k) === area);
-  const sideOf = (b: Record<string, Level>, area: string): Side => {
-    const ks = keysOf(b, area);
-    if (ks.includes(`left ${area}`) && ks.includes(`right ${area}`)) return "both";
-    if (ks.includes(`left ${area}`)) return "left";
-    if (ks.includes(`right ${area}`)) return "right";
-    return null;
-  };
-  const levelOf = (b: Record<string, Level>, area: string): Level =>
-    keysOf(b, area).some((k) => b[k] === "off") ? "off" : "easy";
-  const floorKeys = (area: string) => Object.keys(floor).filter((k) => baseArea(k) === area);
-  const sideKeys = (area: string, side: Side) =>
-    side === "both" ? [`left ${area}`, `right ${area}`] : side ? [`${side} ${area}`] : [area];
+  // ---- the body chart: a chip per side (one for the neck and low back), from fine to go easy to keep off ----
+  const rank = (m: Mark) => MARKS.indexOf(m);
+  /** A chip's limit from the health notes; a limit with no side holds both sides. */
+  const floorAt = (key: string): Mark => floor[key] ?? (key !== baseArea(key) ? floor[baseArea(key)] : undefined) ?? "clear";
+  const markAt = (key: string): Mark => v.body[key] ?? (key !== baseArea(key) ? v.body[baseArea(key)] : undefined) ?? "clear";
 
-  function setRow(area: string, side: Side, level: Level) {
+  /** A tap moves a side one along, OK to go easy to keep off and round again; never below its limit. */
+  function tap(key: string) {
+    const can = MARKS.filter((m) => rank(m) >= rank(floorAt(key)));
+    const mark = can[(can.indexOf(markAt(key)) + 1) % can.length];
+    const area = baseArea(key);
     const next = { ...v.body };
-    for (const k of keysOf(next, area)) delete next[k];
-    for (const k of sideKeys(area, side)) next[k] = floor[k] === "off" ? "off" : level;
-    for (const k of floorKeys(area)) if (!(k in next)) next[k] = floor[k];
+    if (key !== area && area in next) {   // a sideless limit splits into its two sides once one side changes
+      const lv = next[area];
+      delete next[area];
+      next[`left ${area}`] ??= lv;
+      next[`right ${area}`] ??= lv;
+    }
+    if (mark === "clear") delete next[key];
+    else next[key] = mark;
     setBody(next);
   }
-  function toggleArea(area: string) {
-    if (rowsOf(v.body).includes(area)) {
-      if (floorKeys(area).length) return;
-      const next = { ...v.body };
-      for (const k of keysOf(next, area)) delete next[k];
-      setBody(next);
-    } else setRow(area, null, "easy");
-  }
-  /** A side that would drop a limit from the health notes can't be picked. */
-  const sideLocked = (area: string, side: Side) => floorKeys(area).some((k) => !sideKeys(area, side).includes(k));
-  const levelLocked = (area: string, level: Level) => level === "easy" && floorKeys(area).some((k) => floor[k] === "off");
+
+  const dot = (k: string, where: "l" | "r" | "both") => {
+    const mark = markAt(k);
+    const fixed = floorAt(k) === "off";
+    return (
+      <button type="button" className={`bdot ${where} ${mark}`} data-mark={mark} disabled={fixed}
+        aria-label={`${k}: ${MARK_WORDS[mark]}`} title={fixed ? "Set in your health notes; change it in the chat" : undefined}
+        onClick={() => tap(k)}>{where === "l" ? "L" : where === "r" ? "R" : ""}</button>
+    );
+  };
 
   const { easy, off } = bodyWords(v.body);
   const slot = (k: SlotKey, label: string, text: string, tone?: "off" | "calm") =>
@@ -278,7 +293,6 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
 
   const hint = !type && info?.suggest?.reason;
   const shownCoach = ready.find((c) => c.first === v.coach);
-  const picked = rowsOf(v.body);
 
   return (
     <section className="starter" ref={wrap} aria-label="Plan a workout" onKeyDown={keys}>
@@ -309,6 +323,7 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
               <button type="button" className="else-a" onClick={() => (o.fill ? onFill(o.line) : void onStart(o.line))}>
                 <span className="else-t">{o.label}</span>
                 <span className="else-d">{o.about}</span>
+                <span className="else-go" aria-hidden="true">→</span>
               </button>
             </li>
           ))}
@@ -323,54 +338,36 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
         </div>
       )}
       {open?.k === "body" && (
-        <div className="pick pick-body" ref={pick} role="dialog" aria-label={LIST_NAMES.body}
-          style={{ left: open.left, top: open.top }}>
-          <p className="pick-h">Anything bothering you today?</p>
-          <p className="pick-s">Tap where it is. Your coach works around it, today only.</p>
-          {GROUPS.map((g) => (
-            <div key={g.name} className="bgroup" role="group" aria-label={g.name}>
-              <span className="bgroup-h">{g.name}</span>
-              <span className="chips">
-                {g.areas.map((a) => (
-                  <button key={a} type="button" className={`chip${picked.includes(a) ? " on" : ""}`} aria-pressed={picked.includes(a)}
-                    disabled={picked.includes(a) && floorKeys(a).length > 0} onClick={() => toggleArea(a)}>{a}</button>
-                ))}
-              </span>
-            </div>
-          ))}
-          {picked.length > 0 && (
-            <ul className="brows">
-              {picked.map((a) => {
-                const side = sideOf(v.body, a), level = levelOf(v.body, a);
-                return (
-                  <li key={a} className="brow">
-                    <span className="brow-name">{a}{floorKeys(a).length > 0 && <small> from your health notes</small>}</span>
-                    {SIDED.has(a) && (
-                      <span className="segs" role="radiogroup" aria-label={`Which ${a}`}>
-                        {(["left", "right", "both"] as const).map((s) => (
-                          <button key={s} type="button" role="radio" aria-checked={side === s} className={`seg${side === s ? " on" : ""}`}
-                            disabled={sideLocked(a, s)} onClick={() => setRow(a, side === s && !sideLocked(a, null) ? null : s, level)}>
-                            {s === "both" ? "Both" : s === "left" ? "Left" : "Right"}
-                          </button>
-                        ))}
-                      </span>
-                    )}
-                    <span className="segs" role="radiogroup" aria-label={`How careful with your ${a}`}>
-                      {(["easy", "off"] as const).map((lv) => (
-                        <button key={lv} type="button" role="radio" aria-checked={level === lv}
-                          className={`seg${level === lv ? " on" : ""}`} data-v={lv} disabled={levelLocked(a, lv)}
-                          title={levelLocked(a, lv) ? "Set in your health notes; change it in the chat" : undefined}
-                          onClick={() => setRow(a, side, lv)}>
-                          {lv === "easy" ? "Go easy" : "Keep off"}
-                        </button>
-                      ))}
-                    </span>
-                  </li>
-                );
-              })}
+        <div className="pick pick-body" ref={pick} role="dialog" aria-label={LIST_NAMES.body}>
+          <div className="bleft">
+            <p className="pick-h">Anything bothering you today?</p>
+            <p className="pick-s">Tap a side to change it: once to go easy, twice to keep off, again for OK.</p>
+            <ul className="bkey" aria-label="Key">
+              <li><i className="bdot easy" aria-hidden="true" />Go easy</li>
+              <li><i className="bdot off" aria-hidden="true" />Keep off</li>
             </ul>
-          )}
-          <button type="button" className="go done" onClick={() => close()}>Done</button>
+            <div className="bsum" aria-live="polite">
+              {easy.length === 0 && off.length === 0 ? <p className="bsum-none">Nothing marked: a full workout.</p> : (
+                <dl>
+                  {easy.length > 0 && <><dt>Go easy</dt><dd>{list(easy)}</dd></>}
+                  {off.length > 0 && <><dt>Keep off</dt><dd>{list(off)}</dd></>}
+                </dl>
+              )}
+            </div>
+            <div className="bfoot">
+              <button type="button" className="quiet" onClick={() => setBody({ ...floor })}>Clear all</button>
+              <button type="button" className="go done" onClick={() => close()}>Done</button>
+            </div>
+          </div>
+          <div className="bchart" role="group" aria-label="Body, head to feet">
+            {ROWS.map((a) => (
+              <div key={a} className="brow2">
+                {GROUP_START.has(a) && <hr className="bsep" />}
+                <span className="barea">{a}</span>
+                {SIDED.has(a) ? <>{dot(`left ${a}`, "l")}{dot(`right ${a}`, "r")}</> : dot(a, "both")}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </section>

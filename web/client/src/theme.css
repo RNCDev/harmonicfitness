@@ -75,7 +75,7 @@ a:hover { color: #fff }
 .top-btn.new { display: inline-flex; align-items: center; gap: 8px; padding-left: 12px }
 .top-btn.icon { width: 42px; height: 40px; padding: 0; display: grid; place-items: center; letter-spacing: 0 }
 
-.chat { flex: 1; min-height: 0; width: min(100%, 1040px + 2 * var(--gut)); display: flex; flex-direction: column; padding: 0 var(--gut) 24px }
+.chat { flex: 1; min-height: 0; width: min(100%, 1480px + 2 * var(--gut)); display: flex; flex-direction: column; padding: 0 var(--gut) 24px }
 .coachbar {
   display: flex; align-items: center; gap: 10px; padding: 14px 0 12px; border-bottom: 1px solid var(--rule);
   font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
@@ -174,35 +174,46 @@ a:hover { color: #fff }
 .chat-form .go { padding: 12px 20px; font-size: 17px }
 
 /* ---------- the request ---------- */
-.starter { position: relative; margin: 0; padding: clamp(8px, 3vh, 32px) 0 8px }
+/* the request at the top, the other asks anchored at the bottom, just above the message box */
+.starter { position: relative; margin: 0; padding: clamp(8px, 3vh, 32px) 0 8px; flex: 1 0 auto; display: flex; flex-direction: column }
 .eyebrow { margin: 0 0 18px; font-size: 14px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3) }
 .mad {
-  margin: 0; font: 500 clamp(40px, 5.3vw, 76px)/1.04 var(--display); letter-spacing: .01em; text-transform: uppercase;
-  color: var(--mad); max-width: 15em;
+  margin: 0; font: 500 clamp(34px, 4.3vw, 62px)/1.08 var(--display); letter-spacing: .01em; text-transform: uppercase;
+  color: var(--mad);
 }
 .mad-2 { margin-top: 0 }
 .slot {
-  display: inline-flex; align-items: baseline; gap: 6px; font: inherit; letter-spacing: inherit; text-transform: inherit;
-  color: #F2F0E8; padding: 0 2px; margin: 0 -1px; line-height: 1.04; border-radius: 0;
+  display: inline; font: inherit; letter-spacing: inherit; text-transform: inherit; line-height: inherit;
+  color: #F2F0E8; padding: 0 2px; margin: 0 -1px; border-radius: 0; -webkit-box-decoration-break: clone; box-decoration-break: clone;
   background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
   background-color: transparent; transition: background-color .15s;
 }
 .slot:hover, .slot[aria-expanded="true"] { background-image: linear-gradient(currentColor, currentColor); background-color: rgba(237, 234, 224, .06) }
-.slot .car { opacity: .5; align-self: center; flex: none }
+.slot .car { opacity: .5; margin-left: 6px; vertical-align: middle }
 .slot.off { background-image: linear-gradient(var(--stop), var(--stop)) }   /* cream words, a brick underline: clear of the coral */
 .slot.off:hover, .slot.off[aria-expanded="true"] { background-image: linear-gradient(var(--stop), var(--stop)); background-color: var(--stop-tint) }
-.flap { white-space: nowrap }
+.flw { white-space: nowrap }
 .fl { display: inline-block; animation: flip .26s cubic-bezier(.3, 1.5, .6, 1) both; transform-origin: 50% 60% }
 @keyframes flip { from { transform: perspective(200px) rotateX(-90deg); opacity: 0 } to { transform: none; opacity: 1 } }
 .hint { margin: 16px 0 0; font-size: 15px; color: var(--ink-3) }
 .start-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 36px 0 0 }
 .go.start { font-size: 22px; padding: 19px 34px }
 .start-note { font-size: 15px; color: var(--ink-3); max-width: 26em }
-.else { margin-top: 64px }
+.else { margin-top: auto; padding-top: 48px }
 .else-h { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
 .else-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); column-gap: 28px }
-.else-a { display: grid; gap: 2px; width: 100%; text-align: left; padding: 12px 0 13px; border-top: 1px solid var(--rule) }
-.else-t { font-weight: 600; font-size: 16px; transition: color .15s }
+.else-a {
+  position: relative; display: grid; gap: 2px; width: 100%; text-align: left; padding: 12px 36px 13px 10px; margin-left: -10px;
+  border-top: 1px solid var(--rule); transition: background-color .18s, border-color .18s;
+}
+.else-a:hover, .else-a:focus-visible { background: rgba(237, 234, 224, .05); border-top-color: var(--ink) }
+.else-go {
+  position: absolute; right: 12px; top: 13px; font-size: 18px; line-height: 1; color: var(--ink);
+  opacity: 0; transform: translateX(-6px); transition: opacity .18s, transform .18s;
+}
+.else-a:hover .else-go, .else-a:focus-visible .else-go { opacity: 1; transform: none }
+.else-a:hover .else-d { color: var(--ink-2) }
+.else-t { font-weight: 600; font-size: 16px; transition: color .18s }
 .else-d { font-size: 14.5px; color: var(--ink-3); line-height: 1.45 }
 .else-a:hover .else-t { color: #fff }
 .pick {
@@ -218,32 +229,56 @@ a:hover { color: #fff }
   content: ""; display: inline-block; width: 11px; height: 6px; margin-left: 10px; vertical-align: 3px;
   border: solid currentColor; border-width: 0 0 2px 2px; transform: rotate(-45deg);
 }
-.pick-body { width: min(480px, calc(100vw - 40px)); padding: 18px; gap: 12px }
+.pick-body {
+  position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%); animation: none;
+  width: min(600px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 30px 32px;
+  grid-template-columns: minmax(0, 1fr) auto; column-gap: 36px; align-items: stretch;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45), var(--lift), inset 0 0 0 1px var(--line);
+}
 .pick-h { margin: 0; font: 700 24px/1.1 var(--display); letter-spacing: .06em; text-transform: uppercase }
 .pick-s { margin: -6px 0 2px; font-size: 15px; color: var(--ink-2) }
-.bgroup { display: grid; gap: 6px }
-.bgroup-h { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3) }
-.chips { display: flex; flex-wrap: wrap; gap: 6px }
-.chip {
-  font-size: 15px; padding: 6px 13px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2);
-  transition: background-color .15s, color .15s, box-shadow .15s;
+/* the body chart: choose how careful, then tap round L and R buttons, head to feet; cream is go easy, dark grey keep off */
+.bleft { display: flex; flex-direction: column; gap: 18px; min-width: 0 }
+.bleft .pick-s { margin: -8px 0 0; line-height: 1.45; font-size: 14.5px }
+.bkey { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px }
+.bkey li { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2) }
+.bkey .bdot { width: 14px; height: 14px; cursor: default }
+.bchart {
+  display: grid; grid-template-columns: max-content 30px 30px; column-gap: 12px; row-gap: 8px; align-items: center; align-content: start;
+  padding-left: 32px; border-left: 1px solid var(--rule);
 }
-.chip:first-letter { text-transform: uppercase }
-.chip:hover:not([disabled]) { box-shadow: inset 0 0 0 1px var(--ink); color: #fff }
-.chip.on { background: var(--ink); color: var(--paper); box-shadow: none }
-.chip.on:hover:not([disabled]) { color: var(--paper); background: #fff }
-.chip.on:disabled { cursor: not-allowed }
-.brows { list-style: none; margin: 4px 0 0; padding: 0; display: grid; max-height: 220px; overflow-y: auto }
-.brow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 0; border-top: 1px solid var(--rule); font-size: 15.5px }
-.brow-name { flex: 1 1 8em; font-weight: 600 }
-.brow-name:first-letter { text-transform: uppercase }
-.brow-name small { display: block; font-weight: 400; font-size: 13px; color: var(--ink-3) }
-.segs { display: inline-flex; flex: none; border-radius: 0; box-shadow: inset 0 0 0 1px var(--line); padding: 2px }
-.seg { font-size: 14px; padding: 5px 10px; border-radius: 0; color: var(--ink-2) }
-.seg.on { background: var(--ink); color: var(--paper) }
-.seg[data-v="off"].on { background: var(--stop); color: var(--paper) }
-.seg:disabled { opacity: .3 }
-.pick-body .done { justify-self: end; padding: 10px 22px; font-size: 17px }
+.brow2 { display: contents }
+.bsep { grid-column: 1 / -1; width: 100%; height: 0; margin: 4px 0; border: 0; border-top: 1px solid var(--rule) }
+.barea { font-size: 14.5px; color: var(--ink-2); text-align: right; padding-right: 2px; line-height: 30px }
+.barea:first-letter { text-transform: uppercase }
+.bdot {
+  width: 30px; height: 30px; border-radius: 50%; justify-self: center; display: grid; place-items: center;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line);
+  transition: background-color .15s, color .15s, box-shadow .15s, transform .1s;
+}
+.bdot:hover:not([disabled]) { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink-2) }
+.bdot:active:not([disabled]) { transform: scale(.9) }
+.bdot.easy { background: var(--ink); color: var(--paper); box-shadow: none }
+.bdot.off { background: #6A6B71; color: #fff; box-shadow: none }
+.bdot[disabled] { cursor: not-allowed; outline: 1px dashed var(--ink-3); outline-offset: 2px }
+.bdot.both { grid-column: 2 / 4 }
+.bsum { border-top: 1px solid var(--rule); padding-top: 16px; font-size: 15px; line-height: 1.45 }
+.bsum-none { margin: 0; color: var(--ink-3) }
+.bsum dl { margin: 0; display: grid; gap: 4px 0 }
+.bsum dt { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px }
+.bsum dt:first-child { margin-top: 0 }
+.bsum dd { margin: 0; color: var(--ink) }
+.bsum dd:first-letter { text-transform: uppercase }
+.bfoot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 10px }
+@media (max-width: 640px) {
+  .pick-body { grid-template-columns: minmax(0, 1fr); row-gap: 16px; padding: 20px }
+  .bchart { padding-left: 0; border-left: 0; justify-content: center }
+  .bleft { display: contents }   /* on a phone: the controls, the chart, then the summary and Done */
+  .bchart { order: 5 }
+  .bsum { order: 6 }
+  .bfoot { order: 7 }
+}
+.pick-body .done { padding: 10px 22px; font-size: 17px }
 
 /* ---------- Settings ---------- */
 .ctx-scrim { display: none }
