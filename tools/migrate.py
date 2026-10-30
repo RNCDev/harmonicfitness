@@ -41,6 +41,11 @@ was research/pantry/ and told.jsonl named a piece under `pantry`; each sheet mov
 (one already there by that name was the one read, so the pantry's copy goes to the backup unless it's
 the same), and each `pantry` key becomes `reserve`.
 
+Topics (HarmonicFitness 0.35.0, a folder step with no schema change, so the web client, which can't migrate, still
+reads a folder from before it): content.md's [[interests]] rows become lines under `## Topics` ("- name: detail"),
+leaving out the rows that named a way of telling (video, news, puzzle, trivia: the formats in
+knowledge/content.toml cover those). The old content.md goes to the backup as content.md.before-topics.
+
 Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own schema, migrated
 beside the context files, even when those are already current:
     4 to 5 (HarmonicFitness 0.10.0): web coaches. Each coach's settings gain `kind = "local"` after the
@@ -496,10 +501,80 @@ def move_strays(home):
     fileio.atomic_write(path, frontmatter.wrap(block, text[m.end():]))
 
 
+TOPICS_INTRO = "I like to stay current on and learn about:"
+
+
+def _content_md(home):
+    return os.path.join(home, "content.md")
+
+
+def topics_due(home):
+    """What turning [[interests]] into ## Topics lines (0.35.0) still has to do, as lines to print."""
+    path = _content_md(home)
+    if not os.path.exists(path):
+        return []
+    try:
+        settings, _ = frontmatter.front(store.read_raw(path))
+    except errors.PROBLEMS:
+        return []   # a block that won't parse is check's to report
+    if "interests" not in settings:
+        return []
+    n = len(context.table_list(settings["interests"]))
+    return [f"content.md: {n} [[interests]] row(s) become lines under ## Topics"]
+
+
+def topic_lines(settings):
+    """The `- name: detail` lines for the old [[interests]] rows, leaving out those that named a way of telling."""
+    out = []
+    for name, _, detail in context.interests(context.Profile(settings, "")):
+        if name.casefold() not in context.FORMAT_WORDS:
+            out.append(f"- {name}: {detail}" if detail else f"- {name}")
+    return out
+
+
+def convert_interests(home, backup):
+    """content.md's [[interests]] rows become lines under `## Topics` (made before the first section when it's
+    missing; a name already there isn't added twice), and the rows leave its settings block. Backed up first."""
+    path = _content_md(home)
+    text = store.read_raw(path)
+    m = frontmatter.TOML_FRONT_RE.match(text)
+    settings, _ = frontmatter.front(text)
+    os.makedirs(backup, exist_ok=True)
+    shutil.copy2(path, os.path.join(backup, "content.md.before-topics"))
+    block = m.group(1)
+    block = re.sub(r"(?ms)^\[\[interests\]\][^\n]*\n.*?(?=^\[|^#|\Z)", "", block)
+    block = re.sub(r"(?ms)^\[interests\][^\n]*\n.*?(?=^\[|^#|\Z)", "", block)
+    block = re.sub(r"(?m)^interests\s*=.*\n", "", block)
+    block = re.sub(r"(?m)^# What the filler between exercises rotates through.*\n", "", block)
+    block = re.sub(r"\n{3,}", "\n\n", block)
+    try:
+        tomllib.loads(block)
+    except tomllib.TOMLDecodeError as e:
+        raise errors.MigrateError(f"{show(path)}: couldn't take [[interests]] out of its settings cleanly ({e}); "
+                                  "move them by hand to lines under ## Topics") from e
+    rest = text[m.end():]
+    have = {t.name.casefold() for t in (context.topic_line(line) for _, line in frontmatter.section(rest, "Topics")) if t}
+    lines = [x for x in topic_lines(settings)
+             if context.topic_line(x).name.casefold() not in have]
+    rest_lines = rest.split("\n")
+    idx = frontmatter.heading_index(rest_lines, "Topics")
+    if idx is not None:
+        end = next((j for j in range(idx + 1, len(rest_lines)) if frontmatter.heading(rest_lines[j]) is not None),
+                   len(rest_lines))
+        while end > idx + 1 and not rest_lines[end - 1].strip():
+            end -= 1
+        rest_lines[end:end] = lines
+    else:
+        at = next((i for i, line in enumerate(rest_lines) if line.startswith("## ")), len(rest_lines))
+        rest_lines[at:at] = ["## Topics", TOPICS_INTRO, *lines, ""]
+    fileio.atomic_write(path, frontmatter.wrap(block.rstrip("\n"), "\n".join(rest_lines)))
+
+
 def folder_steps_due(home):
     """(the stray settings a split would move, the workout moves a relayout would make, what retiring the
-    reserve's old name would do, what the coaches step would do)."""
-    return strays(home), workouts.reorganize(home, dry_run=True), pantry_due(home), coaches_due(home)
+    reserve's old name would do, what the coaches step would do, what the topics step would do)."""
+    return (strays(home), workouts.reorganize(home, dry_run=True), pantry_due(home), coaches_due(home),
+            topics_due(home))
 
 
 def migrate(dry_run=False, stamp=None, moves=None):
@@ -507,9 +582,9 @@ def migrate(dry_run=False, stamp=None, moves=None):
     or None, [changed paths]). `moves`, a list, gets the workout files moved (src, dst)."""
     todo = plan()
     home = paths.HOME
-    stray, due_moves, pantry, coach_steps = folder_steps_due(home)
+    stray, due_moves, pantry, coach_steps, topic_steps = folder_steps_due(home)
     coach_steps = acting(coach_steps)
-    if dry_run or not (todo or stray or due_moves or pantry or coach_steps):
+    if dry_run or not (todo or stray or due_moves or pantry or coach_steps or topic_steps):
         if moves is not None:
             moves.extend(due_moves)
         return None, [p for p, _ in todo]
@@ -556,6 +631,10 @@ def migrate(dry_run=False, stamp=None, moves=None):
         retire_pantry(home, backup)
     if coach_steps:
         settle_coaches(home, backup)
+    if topics_due(home):   # after the split, which may have just written content.md's [[interests]]
+        convert_interests(home, backup)
+        if _content_md(home) not in changed:
+            changed.append(_content_md(home))
     rename_gitignore(home)
     update_gitignore(home, GITIGNORE_ADD_PERSONA_5)
     return backup, changed
@@ -576,11 +655,11 @@ def main(argv=None):
     if not args.dry_run and update_gitignore(paths.HOME, GITIGNORE_ADD_LOCKS):
         print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added *.lock (lock files never go into a backup).")
     todo = plan()
-    stray, due_moves, pantry, coach_steps = folder_steps_due(paths.HOME)
+    stray, due_moves, pantry, coach_steps, topic_steps = folder_steps_due(paths.HOME)
     for line in coaches_lines([s for s in coach_steps if s not in acting(coach_steps)]):
         print(line, file=sys.stderr)   # an unreadable coach: reported, never moved
     coach_steps = acting(coach_steps)
-    if not (todo or stray or due_moves or pantry or coach_steps):
+    if not (todo or stray or due_moves or pantry or coach_steps or topic_steps):
         print(f"{show(paths.HOME)} is already at schema {store.SCHEMA}; nothing to do.")
     else:
         for path, found in todo:
@@ -593,6 +672,8 @@ def main(argv=None):
         for line in pantry:
             print(line)
         for line in coaches_lines(coach_steps):
+            print(line)
+        for line in topic_steps:
             print(line)
         if args.dry_run:
             for src, dst in due_moves:

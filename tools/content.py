@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
-"""The filler between the exercises: what a session should carry, what's been told, and the reserve.
+"""What fills the rests besides the coaching: the topics due, the ways to tell them, what's been told, the stock.
 
-Three things, so the stories rotate instead of repeating and the slow research happens ahead of time:
-- The plan (`./harmonicfitness content plan --minutes N`): how many items of each slot (today, science,
-  deep dive, quiz, delight, learn; knowledge/content.toml) the session carries, and for each the
-  categories due, the one told longest ago (or never) first. Categories come from the profile's
-  [[interests]] (name, slot, detail), or content.toml's defaults.
-- The record of what's been told (me/workouts/research/told.jsonl, one item a line): the plan lists
-  the last few weeks of it, so research doesn't tell a story twice. `./harmonicfitness content log` adds a
-  session's items after it's built.
-- The reserve (me/workouts/research/reserve/<slug>.md): evergreen pieces (quiz, delight, learn)
-  researched ahead of time, a sheet each. A piece is used once the record names its slug. The plan
-  lists the unused ones and says which slots run low. (Before 0.10.2 it was research/pantry/;
-  ./harmonicfitness migrate renames it.)
+The listener owns the topics (lines under `## Topics` in me/content.md: what they like to stay current
+on and learn about); the engine owns the formats (knowledge/content.toml: a quick hit, the big story, an
+explainer, a serial, a quiz, this or that...), each open to any topic. The model does the rest: how big
+a story is, which format suits it, how it's woven into the workout.
+
+- The plan (`./harmonicfitness content plan --minutes N`): the topics due today, never told first, then
+  the one told longest ago (how many by the session's length), the formats (less the profile's
+  `skip_formats`), what's been told lately, the stock and what to restock.
+- The record of what's been told (me/workouts/research/told.jsonl, one item a line), so nothing repeats
+  and the topics rotate. `./harmonicfitness content log` adds a session's items after it's built. A line
+  from before 0.35.0 (slot and category) still reads, its category as the topic.
+- The stock (me/workouts/research/reserve/<slug>.md): pieces researched ahead of time, while a build
+  renders, a sheet each with its topic, format and the date it stops being current. A piece is used once
+  the record names its slug.
+- Trending (`./harmonicfitness content trending`): what's popular today (Reddit's front page, safe for
+  work only, else Wikipedia's most read), for suggesting new topics.
 
     ./harmonicfitness content plan --minutes 25
-    ./harmonicfitness content log --date 2026-10-23 --item "today | sports | The home team wins in overtime" \\
-        --item "learn | history | Why old cities have crooked streets | https://... | crooked-streets"
+    ./harmonicfitness content log --date 2026-10-23 --item "Seattle Kraken | quick_hit | Kraken beat the Canucks 4-2" \\
+        --item "Cities | explainer | Why old cities have crooked streets | https://... | crooked-streets"
     ./harmonicfitness content reserve
+    ./harmonicfitness content trending
 """
 import datetime
 import json
@@ -35,31 +40,47 @@ import fileio  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
 
-RECIPE = paths.CONTENT   # the engine's filler plan; the listener's told.jsonl and reserve are read at call time
+RECIPE = paths.CONTENT   # the engine's formats; the listener's told.jsonl and stock are read at call time
 RECENT_DAYS = 30    # how far back the plan lists what's been told
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+NO_TOPIC = "-"      # a told item tied to no topic (a puzzle, a callback from the log)
+RESEARCH = ("news", "evergreen", "either", "none")
+# A stock sheet from before 0.35.0 names a slot; the format it was written for.
+LEGACY_SLOT_FORMAT = {"quiz": "quiz", "delight": "recommendation", "learn": "explainer", "today": "quick_hit",
+                      "science": "explainer", "deep_dive": "serial"}
 
 
-class Slot(NamedTuple):
+class Format(NamedTuple):
     id: str
+    name: str
+    group: str
     what: str
     words: int
-    fresh: bool
-    reserve: int
+    research: str
+    across: bool
+
+
+class Band(NamedTuple):
+    up_to: int
+    topics: int
+    spares: int
+    serial: bool
 
 
 class Recipe(NamedTuple):
-    slots: Dict[str, Slot]
-    bands: List[dict]
-    defaults: Dict[str, List[str]]
+    formats: Dict[str, Format]
+    bands: List[Band]
+    per_topic: int
+    per_run: int
 
 
 class Piece(NamedTuple):
     slug: str
     title: str
-    slot: str
-    category: str
+    topic: str
+    format: str
     source: str
+    good_until: Optional[str]   # YYYY-MM-DD, or None for evergreen
     path: str
 
 
@@ -69,29 +90,45 @@ def recipe(path=RECIPE) -> Recipe:
             data = tomllib.load(f)
         except tomllib.TOMLDecodeError as e:   # the file's fault (exit 1), never the command's
             raise errors.ContextError(f"{paths.show(path)} isn't valid TOML: {e}") from e
-    slots ={s["id"]: Slot(s["id"], s["what"], int(s["words"]), bool(s.get("fresh")), int(s.get("reserve", 0)))
-             for s in data["slot"]}
-    bands = sorted(data["band"], key=lambda b: b["up_to"])
-    for b in bands:
-        unknown = set(b) - set(slots) - {"up_to"}
-        if unknown:
-            raise errors.HarmonicFitnessError(f"{paths.show(path)}: a band names unknown slots: {', '.join(sorted(unknown))}")
-    return Recipe(slots, bands, {k: list(v) for k, v in data.get("defaults", {}).items()})
+    try:
+        formats = {f["id"]: Format(f["id"], f["name"], f["group"], f["what"], int(f["words"]), f["research"],
+                                   bool(f.get("across"))) for f in data["format"]}
+        bands = sorted((Band(int(b["up_to"]), int(b["topics"]), int(b.get("spares", 0)), bool(b.get("serial")))
+                        for b in data["band"]), key=lambda b: b.up_to)
+        stock = data.get("stock", {})
+        per_topic, per_run = int(stock.get("per_topic", 2)), int(stock.get("per_run", 6))
+    except (KeyError, TypeError, ValueError) as e:
+        raise errors.ContextError(f"{paths.show(path)}: a format or band is missing a field or has the wrong type "
+                                  f"({e})") from e
+    bad = [f.id for f in formats.values() if f.research not in RESEARCH]
+    if bad:
+        raise errors.ContextError(f"{paths.show(path)}: research must be one of {', '.join(RESEARCH)} "
+                                  f"(not for {', '.join(bad)})")
+    if not bands:
+        raise errors.ContextError(f"{paths.show(path)}: no [[band]]")
+    return Recipe(formats, bands, per_topic, per_run)
 
 
-def counts(r: Recipe, minutes: int) -> Dict[str, int]:
-    band = next((b for b in r.bands if minutes <= b["up_to"]), r.bands[-1])
-    return {s: int(band.get(s, 0)) for s in r.slots}
+def band(r: Recipe, minutes: int) -> Band:
+    return next((b for b in r.bands if minutes <= b.up_to), r.bands[-1])
 
 
-def categories(r: Recipe, profile=None) -> Dict[str, List[str]]:
-    """{slot: categories in the listener's order}: the profile's [[interests]] where it lists any for
-    a slot, the defaults otherwise."""
-    mine: Dict[str, List[str]] = {}
-    for name, slot, _ in context.interests(profile) if profile is not None else []:
-        if slot in r.slots:
-            mine.setdefault(slot, []).append(name)
-    return {s: mine.get(s) or r.defaults.get(s, []) for s in r.slots}
+def format_id(r: Recipe, text: str) -> Optional[str]:
+    """A format's id from its id or name as written ("quick hit", "Quick-hit", "The big story"), else None."""
+    key = re.sub(r"[\s-]+", "_", text.strip().casefold())
+    if key in r.formats:
+        return key
+    for f in r.formats.values():
+        if re.sub(r"[\s-]+", "_", f.name.casefold()) in (key, "the_" + key):
+            return f.id
+    return None
+
+
+def skipped(r: Recipe, profile=None) -> List[str]:
+    """The format ids the profile's skip_formats leaves out (unknown names ignored here; check reports them)."""
+    if profile is None:
+        return []
+    return [i for i in (format_id(r, x) for x in context.str_list(profile.settings.get("skip_formats"))) if i]
 
 
 def told(path=None) -> List[dict]:
@@ -100,145 +137,202 @@ def told(path=None) -> List[dict]:
     return [item for item in fileio.read_jsonl(path) if item.get("date") and item.get("title")]
 
 
-def due(cats: List[str], items: List[dict], slot: str, n: int) -> List[tuple]:
-    """The n categories to tell next in a slot, as (category, last date or None): never told first, in
-    the listener's order, then the one told longest ago. Fewer categories than n repeat the first."""
-    last = {}
+def item_topic(item: dict) -> str:
+    """A told item's topic: `topic`, or a line from before 0.35.0's `category`."""
+    return str(item.get("topic") or item.get("category") or "")
+
+
+def item_format(item: dict) -> str:
+    return str(item.get("format") or LEGACY_SLOT_FORMAT.get(str(item.get("slot")), item.get("slot") or ""))
+
+
+def last_told(items: List[dict]) -> Dict[str, str]:
+    """{topic, casefolded: the last date told}."""
+    out = {}
     for item in items:
-        if item.get("slot") == slot:
-            last[str(item.get("category", "")).lower()] = item["date"]
-    ranked = sorted(cats, key=lambda c: (last.get(c.lower()) is not None, last.get(c.lower()) or "",
-                                         cats.index(c)))
-    out = [(c, last.get(c.lower())) for c in ranked[:n]]
-    while ranked and len(out) < n:
-        out.append(out[len(out) % len(ranked)])
+        t = item_topic(item).casefold()
+        if t and t != NO_TOPIC and item["date"] > out.get(t, ""):
+            out[t] = item["date"]
     return out
 
 
+def due(topics: List[context.Topic], items: List[dict], n: int) -> List[tuple]:
+    """The n topics to tell next, as (Topic, last date or None): never told first, in the listener's order,
+    then the one told longest ago. Fewer topics than n are all of them."""
+    last = last_told(items)
+    ranked = sorted(topics, key=lambda t: (t.name.casefold() in last, last.get(t.name.casefold(), ""),
+                                           topics.index(t)))
+    return [(t, last.get(t.name.casefold())) for t in ranked[:n]]
+
+
 def sheets(folder=None) -> List[str]:
-    """Every sheet in the reserve (`folder`, default research/reserve/), oldest first."""
+    """Every sheet in the stock (`folder`, default research/reserve/), oldest first."""
     folder = folder or paths.RESERVE
     if not os.path.isdir(folder):
         return []
     return sorted((os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(".md")), key=os.path.getmtime)
 
 
-def reserve(folder=None, items=None) -> List[Piece]:
-    """The reserve's unused pieces, oldest first: from `folder` (default research/reserve/)."""
+def current(piece: Piece, today: Optional[datetime.date]) -> bool:
+    """True while a piece is still worth telling: evergreen, or its Good until date not passed."""
+    return today is None or not piece.good_until or piece.good_until >= today.isoformat()
+
+
+def reserve(folder=None, items=None, today=None) -> List[Piece]:
+    """The stock's unused pieces, oldest first, from `folder` (default research/reserve/); with `today`,
+    only those still current."""
     used = {i.get("reserve") for i in (told() if items is None else items)} - {None}
     out = []
     for path in sheets(folder):
         if os.path.splitext(os.path.basename(path))[0] in used:
             continue
         p = read_piece(path)
-        if p:
+        if p and current(p, today):
             out.append(p)
     return out
 
 
+GOOD_UNTIL_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
 def read_piece(path) -> Optional[Piece]:
-    """A reserve sheet's header: `# <title>`, then `- Slot:`, `- Category:`, `- Source:` lines."""
+    """A stock sheet's header: `# <title>`, then `- Topic:`, `- Format:`, `- Source:` and `- Good until:`
+    lines (a sheet from before 0.35.0 has `- Slot:` and `- Category:` instead: the category is its topic)."""
     title, fields = None, {}
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line.startswith("# ") and title is None:
                 title = line[2:].strip()
-            m = re.match(r"- (Slot|Category|Source):\s*(.*)", line)
+            m = re.match(r"- (Topic|Format|Slot|Category|Source|Good until):\s*(.*)", line, re.I)
             if m:
-                fields[m.group(1).lower()] = m.group(2).strip()
-    if not title or not fields.get("slot"):
+                fields.setdefault(m.group(1).lower(), m.group(2).strip())
+    topic = fields.get("topic") or fields.get("category") or ""
+    fmt = fields.get("format") or LEGACY_SLOT_FORMAT.get(fields.get("slot", "").lower(), fields.get("slot", ""))
+    if not title or not (topic or fmt):
         return None
+    until = GOOD_UNTIL_RE.search(fields.get("good until", ""))
     slug = os.path.splitext(os.path.basename(path))[0]
-    return Piece(slug, title, fields["slot"], fields.get("category", ""), fields.get("source", ""), path)
+    return Piece(slug, title, topic, fmt, fields.get("source", ""), until.group(0) if until else None, path)
+
+
+def restock(r: Recipe, topics: List[context.Topic], items, pieces) -> List[tuple]:
+    """[(Topic, more)]: the topics holding fewer unused pieces than the stock keeps, the emptiest first (then
+    the one due soonest), at most per_run pieces in all."""
+    have = {}
+    for p in pieces:
+        have[p.topic.casefold()] = have.get(p.topic.casefold(), 0) + 1
+    order = [t for t, _ in due(topics, items, len(topics))]
+    short = sorted((t for t in order if have.get(t.name.casefold(), 0) < r.per_topic),
+                   key=lambda t: (have.get(t.name.casefold(), 0), order.index(t)))
+    out, left = [], r.per_run
+    for t in short:
+        if left <= 0:
+            break
+        more = min(r.per_topic - have.get(t.name.casefold(), 0), left)
+        out.append((t, more))
+        left -= more
+    return out
 
 
 def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=None, items=None,
                pieces=None) -> dict:
-    """The filler plan as data (content plan --json; its keys are kept stable): minutes; slots, one per slot
-    the session carries, in the recipe's order: {slot, count, words, what, fresh, due: [{category, last_told
-    (a date or null), detail (the listener's, or null)}]}; recent_days and told_recent [{date, slot, category,
-    title}]; reserve [{slug, title, slot, category, source, path}]; restock [{slot, more, categories}]."""
+    """The plan as data (content plan --json): minutes; topics (how many the rests touch), spares, serial
+    (whether the session carries one thread); due [{topic, note, last_told (a date or null), spare}]; formats
+    [{id, name, group, what, words, research, across}] and skipped [ids]; recent_days and told_recent
+    [{date, topic, format, title}]; reserve [{slug, title, topic, format, source, good_until, path}]; restock
+    [{topic, note, more}]."""
     r = r or recipe()
     items = told() if items is None else items
-    pieces = reserve(items=items) if pieces is None else pieces
-    cats = categories(r, profile)
-    n = counts(r, minutes)
-    details = {name.lower(): detail for name, _, detail in context.interests(profile)} if profile else {}
+    pieces = reserve(items=items, today=today) if pieces is None else [p for p in pieces if current(p, today)]
+    tops = context.topics(profile) if profile is not None else []
+    b = band(r, minutes)
+    skip = skipped(r, profile)
     since = (today - datetime.timedelta(days=RECENT_DAYS)).isoformat()
+    picked = due(tops, items, b.topics + b.spares)
     return {
-        "minutes": minutes,
-        "slots": [{"slot": sid, "count": n[sid], "words": slot.words, "what": slot.what, "fresh": slot.fresh,
-                   "due": [{"category": c, "last_told": d, "detail": details.get(c.lower()) or None}
-                           for c, d in due(cats[sid], items, sid, n[sid])]}
-                  for sid, slot in r.slots.items() if n[sid]],
+        "minutes": minutes, "topics": b.topics, "spares": b.spares, "serial": b.serial,
+        "due": [{"topic": t.name, "note": t.note or None, "last_told": d, "spare": i >= b.topics}
+                for i, (t, d) in enumerate(picked)],
+        "formats": [f._asdict() for f in r.formats.values() if f.id not in skip],
+        "skipped": skip,
         "recent_days": RECENT_DAYS,
-        "told_recent": [{"date": i["date"], "slot": i.get("slot"), "category": i.get("category"),
+        "told_recent": [{"date": i["date"], "topic": item_topic(i) or None, "format": item_format(i) or None,
                          "title": i["title"]} for i in items if i["date"] >= since],
-        "reserve": [{"slug": p.slug, "title": p.title, "slot": p.slot, "category": p.category,
-                     "source": p.source, "path": paths.show(p.path)} for p in pieces],
-        "restock": [{"slot": sid, "more": k, "categories": [c for c, _ in due(cats[sid], items, sid, k)]}
-                    for sid, k in restock(r, cats, items, pieces).items()],
+        "reserve": [{"slug": p.slug, "title": p.title, "topic": p.topic, "format": p.format, "source": p.source,
+                     "good_until": p.good_until, "path": paths.show(p.path)} for p in pieces],
+        "restock": [{"topic": t.name, "note": t.note or None, "more": k} for t, k in restock(r, tops, items, pieces)],
     }
+
+
+RESEARCH_SAYS = {"news": "found on the day", "evergreen": "from the stock", "either": "the day or the stock",
+                 "none": "no research: from the brief, the log or the session"}
 
 
 def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, items=None,
          pieces=None) -> List[str]:
-    """The filler plan's lines (plan_facts, as text)."""
+    """The plan's lines (plan_facts, as text)."""
     f = plan_facts(minutes, today, r, profile, items, pieces)
-    out = [f"# Filler plan, {minutes} minutes", "",
-           "The items the session's rests carry, by slot, each with its category, when that category was "
-           "last told, and what the listener likes in it. The deep dive is told in beats across several rests.", ""]
-    for slot in f["slots"]:
-        source = "research it today" if slot["fresh"] else "from the reserve, or research it if none fits"
-        out.append(f"- {slot['slot']} x{slot['count']}, about {slot['words']} words each ({slot['what']}; {source}):")
-        for d in slot["due"]:
-            out.append(f"  - {d['category']}, {'last told ' + d['last_told'] if d['last_told'] else 'never told'}"
-                       f"{': ' + d['detail'] if d['detail'] else ''}")
+    out = [f"# Rests plan, {minutes} minutes", "",
+           f"The rests touch about {f['topics']} of the listener's topics"
+           + (f", plus {f['spares']} spare in case there's room" if f["spares"] else "")
+           + (", and carry one serial thread told across the session" if f["serial"] else "")
+           + ". Judge each find by how big it is: a routine result is a quick hit; a big move, a breakthrough or "
+             "a great long read earns the big story, an explainer or the serial. Mix the formats; the brief's "
+             "Talk to time line says how much the rests hold.", "",
+           "## Topics due (never told first, then the one told longest ago)"]
+    out += [f"- {d['topic']}{' (spare)' if d['spare'] else ''}"
+            f"{': ' + d['note'] if d['note'] else ''} ({'last told ' + d['last_told'] if d['last_told'] else 'never told'})"
+            for d in f["due"]] or ["- No topics yet (## Topics in me/content.md is empty): pick broadly from today's "
+                                   "news, science and history, and suggest they add topics (\"update my interests\")."]
+    out += ["", "## Formats (pick to suit the item; ids for content log)"]
+    groups = {}
+    for x in f["formats"]:
+        groups.setdefault(x["group"], []).append(x)
+    for group, xs in groups.items():
+        out.append(f"- {group}:")
+        out += [f"  - {x['id']} ({x['name']}, about {x['words']} words"
+                f"{', told across rests' if x['across'] else ''}; {RESEARCH_SAYS[x['research']]}): {x['what']}"
+                for x in xs]
+    if f["skipped"]:
+        out.append(f"- left out by the listener: {', '.join(f['skipped'])}")
     out += ["", f"## Told in the last {RECENT_DAYS} days (don't tell again; a follow-up needs something new)"]
-    out += [f"- {i['date']} {i['slot'] or '?'} / {i['category'] or '?'}: {i['title']}" for i in f["told_recent"]] \
+    out += [f"- {i['date']} {i['topic'] or '?'} / {i['format'] or '?'}: {i['title']}" for i in f["told_recent"]] \
         or ["- nothing yet"]
-    out += ["", "## Reserve (unused pieces, ready to tell)"]
-    out += [f"- {p['slot']} / {p['category']}: {p['title']} ({p['path']}, slug {p['slug']})" for p in f["reserve"]] \
-        or ["- empty"]
+    out += ["", "## Stock (unused pieces, still current, ready to tell)"]
+    out += [f"- {p['topic']} / {p['format']}: {p['title']} ({p['path']}, slug {p['slug']}"
+            f"{', good until ' + p['good_until'] if p['good_until'] else ''})" for p in f["reserve"]] or ["- empty"]
     if f["restock"]:
-        out += ["", "## Restock", "The reserve is low; stock these (the categories told longest ago first):"]
-        out += [f"- {x['slot']}: {x['more']} more, in {', '.join(x['categories'])}" for x in f["restock"]]
+        out += ["", "## Restock (while the audio renders)", "Stock these topics, the emptiest first:"]
+        out += [f"- {x['topic']}{': ' + x['note'] if x['note'] else ''}: {x['more']} more" for x in f["restock"]]
     return out
 
 
-def restock(r: Recipe, cats, items, pieces) -> Dict[str, int]:
-    """{slot: pieces short} for the slots the reserve keeps, where it holds fewer unused than its target."""
-    have = {}
-    for p in pieces:
-        have[p.slot] = have.get(p.slot, 0) + 1
-    return {sid: s.reserve - have.get(sid, 0) for sid, s in r.slots.items()
-            if s.reserve and have.get(sid, 0) < s.reserve and cats.get(sid)}
-
-
 def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
-    """"slot | category | title [| source [| reserve slug]]" as a record item; ValueError says what's wrong.
-    The category must be one the plan rotates for that slot (the profile's [[interests]], else the
-    defaults), or the rotation would never see it told."""
+    """"topic | format | title [| source [| stock slug]]" as a record item; ValueError says what's wrong.
+    The topic must be one of the listener's (any case), or - for an item tied to none, or the rotation would
+    never see it told; the format, one of knowledge/content.toml's (its id or name)."""
     parts = [p.strip() for p in text.split("|")]
     if len(parts) < 3 or not all(parts[:3]):
-        raise ValueError(f"'{text}': expected 'slot | category | title [| source [| reserve slug]]'")
+        raise ValueError(f"'{text}': expected 'topic | format | title [| source [| stock slug]]'")
     if len(parts) > 5:
         raise ValueError(f"'{text}': too many fields (a title can't hold a |)")
-    slot, category, title = parts[:3]
-    slot = re.sub(r"[\s-]+", "_", slot.strip().lower())   # "deep dive" and "deep-dive" are deep_dive
-    if slot not in r.slots:
-        raise ValueError(f"'{text}': unknown slot '{slot}' (one of {', '.join(r.slots)})")
-    known = categories(r, profile)[slot]
-    if known and category.lower() not in {c.lower() for c in known}:
-        raise ValueError(f"'{text}': category '{category}' isn't one the plan rotates for {slot} "
-                         f"(one of {', '.join(known)})")
-    item = {"date": date, "slot": slot, "category": category.lower(), "title": title}
+    topic, fmt, title = parts[:3]
+    fid = format_id(r, fmt)
+    if not fid:
+        raise ValueError(f"'{text}': unknown format '{fmt}' (one of {', '.join(r.formats)})")
+    if topic != NO_TOPIC:
+        known = {t.name.casefold(): t.name for t in (context.topics(profile) if profile is not None else [])}
+        if known and topic.casefold() not in known:
+            raise ValueError(f"'{text}': '{topic}' isn't one of the listener's topics (one of "
+                             f"{', '.join(known.values())}, or {NO_TOPIC} for none)")
+        topic = known.get(topic.casefold(), topic)
+    item = {"date": date, "topic": topic, "format": fid, "title": title}
     if len(parts) > 3 and parts[3]:
         item["source"] = parts[3]
     if len(parts) > 4 and parts[4]:
         if not SLUG_RE.match(parts[4]):
-            raise ValueError(f"'{text}': reserve slug '{parts[4]}' should be lowercase words and dashes")
+            raise ValueError(f"'{text}': stock slug '{parts[4]}' should be lowercase words and dashes")
         item["reserve"] = parts[4]
     return item
 
@@ -257,10 +351,10 @@ def _log_new(new: List[dict], path) -> List[dict]:
     for item in new:
         slug = item.get("reserve")
         if slug and not os.path.exists(os.path.join(paths.RESERVE, slug + ".md")):
-            raise ValueError(f"no reserve piece '{slug}' in {paths.show(paths.RESERVE)} (a typo here would leave the real "
+            raise ValueError(f"no stock piece '{slug}' in {paths.show(paths.RESERVE)} (a typo here would leave the real "
                              "piece unused, to be told again)")
         if slug in used:
-            raise ValueError(f"reserve piece '{slug}' is already told (in {paths.show(path)} or earlier in this "
+            raise ValueError(f"stock piece '{slug}' is already told (in {paths.show(path)} or earlier in this "
                              "command); a piece is told once")
         if slug:
             used.add(slug)
@@ -269,20 +363,73 @@ def _log_new(new: List[dict], path) -> List[dict]:
     return new
 
 
+# ---- trending: ideas for new topics ----------------------------------------------------------
+
+REDDIT = "https://www.reddit.com/r/popular/top.json?t=day&limit=100"
+
+
+def parse_reddit(d, limit=40) -> List[tuple]:
+    """[(subreddit, title)] from Reddit's listing JSON: safe for work only (the post and its community), one
+    post per community, most upvoted first."""
+    out, seen = [], set()
+    for child in ((d or {}).get("data") or {}).get("children") or []:
+        post = child.get("data") or {}
+        sub = str(post.get("subreddit") or "")
+        if (post.get("over_18") or post.get("subreddit_type") not in (None, "public")
+                or str(post.get("whitelist_status") or "").startswith("promo_adult")
+                or not sub or sub.casefold() in seen or not post.get("title")):
+            continue
+        seen.add(sub.casefold())
+        out.append((sub, " ".join(str(post["title"]).split())[:200]))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def trending(today: datetime.date, fetch=None) -> tuple:
+    """(source, [line]): today's popular posts on Reddit, safe for work only; when Reddit refuses (it often
+    does a client without an account), Wikipedia's most read articles of the last two days."""
+    import feeds
+    fetch = fetch or feeds.fetch
+    try:
+        posts = parse_reddit(json.loads(fetch(REDDIT)))
+        if posts:
+            return "Reddit's front page today (safe for work only)", [f"- r/{s}: {t}" for s, t in posts]
+    except Exception:   # noqa: BLE001 - any failure falls back to Wikipedia
+        pass
+    lines, seen = [], set()
+    for day in (today, today - datetime.timedelta(days=1)):
+        try:
+            parts = feeds.parse_featured(json.loads(fetch(feeds.featured_url(day))), mostread=25)
+        except Exception:   # noqa: BLE001 - a day Wikipedia can't give is skipped
+            continue
+        for title, about, _ in parts["mostread"]:
+            if title.casefold() not in seen:
+                seen.add(title.casefold())
+                lines.append(f"- {title}" + (f": {about}" if about else ""))
+    if not lines:
+        raise errors.HarmonicFitnessError("couldn't reach Reddit or Wikipedia for what's trending; try again later, "
+                                          "or search the web for it")
+    return "Wikipedia's most read articles (Reddit refused)", lines
+
+
 def main(argv=None):
     ap = cli.ArgumentParser(prog="harmonicfitness content", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("plan", help="the filler plan for a session, what's been told, the reserve")
+    p = sub.add_parser("plan", help="the topics due, the formats, what's been told, the stock")
     p.add_argument("--minutes", type=cli.positive_int, default=25, help="the session's length (default 25)")
     cli.today_arg(p)
     p.add_argument("--json", action="store_true",
-                   help="the same plan as one JSON object: minutes, slots (slot, count, words, what, fresh, due: "
-                        "category, last_told, detail), recent_days, told_recent, reserve, restock")
+                   help="the same plan as one JSON object: minutes, topics, spares, serial, due (topic, note, "
+                        "last_told, spare), formats (id, name, group, what, words, research, across), skipped, "
+                        "recent_days, told_recent, reserve, restock")
     lg = sub.add_parser("log", help="record the items a session told")
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
-                    help='"slot | category | title [| source [| reserve slug]]", once per item')
-    sub.add_parser("reserve", help="list the reserve's unused pieces")
+                    help='"topic | format | title [| source [| stock slug]]", once per item; topic - for none')
+    sub.add_parser("reserve", help="list the stock's unused pieces, still current")
+    tr = sub.add_parser("trending", help="what's popular today, for suggesting new topics")
+    cli.today_arg(tr)
     args = ap.parse_args(argv)
     # --minutes is checked by argparse; a damaged knowledge or context file is the file's problem (exit 1, through
     # cli.run), never "the command was wrong"
@@ -294,7 +441,7 @@ def main(argv=None):
         else:
             print("\n".join(plan(args.minutes, today, profile=context.profile())))
     elif args.cmd == "log":
-        # the profile's [[interests]] name the categories; with no profile, the defaults
+        # the topics come from the profile; with no profile, any topic is taken
         prof = context.profile() if os.path.exists(paths.PROFILE) else None
         try:
             new = log(args.date, args.item, profile=prof)   # its ValueError is an --item or --date it can't take
@@ -302,9 +449,14 @@ def main(argv=None):
             print(f"harmonicfitness content: {e}", file=sys.stderr)
             return cli.USAGE
         print(f"Recorded {len(new)} item(s) in {paths.show(paths.TOLD)}.")
+    elif args.cmd == "trending":
+        source, lines = trending(args.today or datetime.date.today())
+        print("\n".join([f"# Trending: {source}", ""] + lines))
     else:
-        pieces = reserve()
-        print("\n".join(f"{p.slot} / {p.category}: {p.title} ({p.slug})" for p in pieces) or "The reserve is empty.")
+        pieces = reserve(today=datetime.date.today())
+        print("\n".join(f"{p.topic} / {p.format}: {p.title} ({p.slug}"
+                        f"{', good until ' + p.good_until if p.good_until else ''})" for p in pieces)
+              or "The stock is empty.")
     return cli.OK
 
 

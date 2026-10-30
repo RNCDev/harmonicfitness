@@ -1,85 +1,184 @@
-# The filler plan: what a session's rests carry besides the coaching. `./harmonicfitness content plan` reads
-# this through tools/content.py; the workout skill's research and script follow what it prints.
+# What fills the rests besides the coaching. `./harmonicfitness content plan` reads this through
+# tools/content.py; the workout skill's research and script follow what it prints.
 #
-# A slot is one kind of filler. `words` is a rough size for one item of it, at about 175 words a
-# minute (a deep dive is told in beats of about fifty-five words across several rests). `fresh` is
-# true for news, which research finds on the day; the others are evergreen, so the reserve stocks them
-# ahead of time (`reserve` is how many unused pieces of the slot to keep on hand).
+# The listener owns the topics: plain lines under `## Topics` in me/content.md ("I like to stay current
+# on and learn about..."). The engine owns the formats below: ways to tell something by ear, open to
+# any topic. The writer picks the format that suits each item and the time the rests have; the finder
+# (research) judges how big a story is, so a routine result is a quick hit and a big trade or a great
+# long read becomes the big story or an explainer. A listener leaves a format out with `skip_formats`.
+#
+# `words` is a rough size for one item at about 175 words a minute. `research` says where an item
+# comes from: "news" is found on the day; "evergreen" comes from the stock (me/workouts/research/
+# reserve/), stocked while the audio renders; "either" can be both; "none" needs no research (the writer
+# makes it from the brief, the log or the session itself). `across` is told in beats across several rests.
 
-[[slot]]
-id = "today"
-what = "a quick item from today: a result, a local story, a headline"
-words = 60
-fresh = true
+[[format]]
+id = "quick_hit"
+name = "Quick hit"
+group = "news"
+what = "a score, a headline, a release, a preview of tonight's game: one fact and why it matters to them"
+words = 50
+research = "news"
 
-[[slot]]
-id = "science"
-what = "a current science or technology breakthrough: what was done, by whom, the key number, why it matters"
-words = 110
-fresh = true
+[[format]]
+id = "big_story"
+name = "The big story"
+group = "news"
+what = "something significant on one of their topics (a big trade, a breakthrough, a turn in a long story) summarized: what happened, the key number, what's next"
+words = 220
+research = "news"
+across = true
 
-[[slot]]
-id = "deep_dive"
-what = "one thread told across the rests: a video retold from its transcript, or a news story, alternating by session"
-words = 450
-fresh = true
+[[format]]
+id = "explainer"
+name = "Explainer"
+group = "news"
+what = "how something works or why something happened, from a good article, paper or video; one idea made clear"
+words = 150
+research = "either"
 
-[[slot]]
-id = "quiz"
-what = "a puzzle or question asked in one rest and answered two or three later"
-words = 120
-fresh = false
-reserve = 3
+[[format]]
+id = "number"
+name = "Number of the day"
+group = "news"
+what = "one figure from a topic and what it means, made concrete"
+words = 70
+research = "either"
 
-[[slot]]
-id = "delight"
-what = "something to enjoy: a show, book, album, comedian, restaurant or drink the listener would like, or an odd fact"
+[[format]]
+id = "myth_or_fact"
+name = "Myth or fact"
+group = "news"
+what = "a common belief about a topic, asked, then checked a rest later"
 words = 90
-fresh = false
-reserve = 3
+research = "evergreen"
+across = true
 
-[[slot]]
-id = "learn"
-what = "something worth knowing that isn't news: a bit of history, how a thing works, a number explained, an idea"
+[[format]]
+id = "on_this_day"
+name = "On this day"
+group = "news"
+what = "one moment from history on today's date, tied to a topic when one fits"
+words = 70
+research = "news"
+
+[[format]]
+id = "serial"
+name = "Serial"
+group = "stories"
+what = "one thread told in beats across the session, or across several sessions: a video retold from its transcript, a long article, a biography, an ongoing saga"
+words = 450
+research = "either"
+across = true
+
+[[format]]
+id = "profile"
+name = "Mini-profile"
+group = "stories"
+what = "a person, team, company or place in three beats: who, the turn, where they are now"
 words = 140
-fresh = false
-reserve = 3
+research = "evergreen"
 
-# How many items of each slot a session carries, by its length: the first band whose `up_to`
-# (minutes) is at least the session's.
+[[format]]
+id = "how_they_trained"
+name = "How they trained"
+group = "stories"
+what = "an athlete, performer or expert from a topic whose training links to today's movement"
+words = 110
+research = "evergreen"
+
+[[format]]
+id = "quiz"
+name = "Quiz"
+group = "play"
+what = "a question asked in one rest and answered two or three later: trivia from a topic, or a puzzle that works by ear"
+words = 120
+research = "evergreen"
+across = true
+
+[[format]]
+id = "this_or_that"
+name = "This or that"
+group = "play"
+what = "a friendly debate to mull over during a set (best captain ever? book or film?), with the coach's own take a rest later"
+words = 80
+research = "either"
+across = true
+
+[[format]]
+id = "memory_game"
+name = "Memory game"
+group = "play"
+what = "a short list (four or five things, from a topic) given early and recalled in the cool-down"
+words = 70
+research = "none"
+across = true
+
+[[format]]
+id = "brain_teaser"
+name = "Brain teaser"
+group = "play"
+what = "mental math, a riddle or word play short enough for one rest, answered in the next"
+words = 60
+research = "evergreen"
+across = true
+
+[[format]]
+id = "language_bite"
+name = "Language bite"
+group = "play"
+what = "a phrase in a language one of their topics names, said, explained and used again later; only when a topic asks for it"
+words = 60
+research = "none"
+across = true
+
+[[format]]
+id = "recommendation"
+name = "Recommendation"
+group = "personal"
+what = "a show, book, album, podcast, place or drink in the spirit of their Taste: why they'd like it and one concrete detail"
+words = 90
+research = "either"
+
+[[format]]
+id = "your_progress"
+name = "Your progress"
+group = "personal"
+what = "a callback from their log: a streak, a heavier weight, a movement that's come along"
+words = 50
+research = "none"
+
+[[format]]
+id = "reflection"
+name = "Reflection"
+group = "personal"
+what = "a calm prompt for the cool-down: something to notice, a breath, a moment of thanks"
+words = 50
+research = "none"
+
+# How many topics a session's rests touch, by its length: the first band whose `up_to` (minutes) is at
+# least the session's. `spares` more are researched in case the rests have room; `serial` is whether the
+# session carries one thread told across it.
 [[band]]
 up_to = 15
-today = 1
-science = 1
-deep_dive = 1
-quiz = 1
-delight = 1
-learn = 0
+topics = 3
+spares = 1
+serial = false
 
 [[band]]
 up_to = 30
-today = 2
-science = 2
-deep_dive = 1
-quiz = 1
-delight = 1
-learn = 1
+topics = 5
+spares = 2
+serial = true
 
 [[band]]
 up_to = 999
-today = 3
-science = 2
-deep_dive = 1
-quiz = 1
-delight = 2
-learn = 2
+topics = 7
+spares = 2
+serial = true
 
-# The categories each slot rotates through when the profile lists no [[interests]] of its own.
-# Within a slot, the category told longest ago (or never) comes first.
-[defaults]
-today = ["sports", "local", "headlines"]
-science = ["deep tech", "science"]
-deep_dive = ["video", "news"]
-quiz = ["puzzle", "trivia"]
-delight = ["film and TV", "books", "music", "food and drink", "comedy", "odd facts"]
-learn = ["history", "how things work", "numbers", "ideas"]
+# The stock: evergreen pieces researched ahead of time, while a build renders, so the next session's
+# research is short. `per_topic` unused pieces kept for each topic; at most `per_run` stocked at once.
+[stock]
+per_topic = 2
+per_run = 6

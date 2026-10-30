@@ -1,13 +1,13 @@
 +++
 schema = 6
-# Channels (@handles) for the deep dives retold from a video's transcript.
+# Channels (@handles) whose videos can be retold, from their transcripts, as a serial across the rests.
 youtube_favorites = ["Asianometry", "BranchEducation", "PracticalEngineeringChannel"]
-# Channels (@handles) whose puzzles can be the session's quiz.
+# Channels (@handles) whose puzzles can be a quiz or brain teaser.
 puzzles = ["MindYourDecisions"]
+# Ways of telling to leave out of the rests, by id from knowledge/content.toml (such as "memory_game").
+skip_formats = []
 
-# What the filler between exercises rotates through: [[interests]] rows, each a name, its slot (today, science, deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within a slot, the one told longest ago comes next. Without any rows, knowledge/content.toml's defaults.
-
-# Fetched by ./harmonicfitness feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
+# Fetched by ./harmonicfitness feeds at the start of each session; name each after the topic it serves. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
 
 [[feeds]]
 label = "Weather"
@@ -61,15 +61,16 @@ value = "featured"
 +++
 # Content
 
-What fills the rests between exercises: interests, feeds, YouTube channels and puzzles (the settings above), and the topics and taste below. Research reads this before each workout.
+What fills the rests between exercises. Write your topics as plain lines, as many as you like, each with a note if you want one ("scores and previews; a big trade is worth hearing about"). Before each workout the coach picks the topics told longest ago, finds what's new or worth knowing, and tells each one the way that suits it: a quick hit, a bigger story, an explainer, a quiz, a recommendation. Say "update my interests" any time to add topics, with ideas from what's trending.
 
-## Content
-- Sports: [teams and leagues to follow]
-- Science and tech breakthroughs: one or two current ones a session, by its length. This is the session's science.
-- Books: [genres]
-- Local: [local politics, transit, events]. Keep politics factual and even-handed.
-- On this day in history.
-- Never bring up: [topics to leave out, or "nothing"]
+## Topics
+I like to stay current on and learn about:
+- [a team you follow: scores and previews; trades and big news welcome]
+- [where you live: local news, transit, what's on]
+- [a subject you love: science, history, a hobby, a language you're learning]
+
+## Never bring up
+- [topics to leave out, or "nothing"]
+
 ## Taste
-Shows, books, music, comedians, restaurants and drinks you've loved or not, out of five, so the filler recommends in their spirit (the setup skill asks).
-- Headlines or deep dives: a mix. Each session gets a few quick headlines, plus one deep-dive thread told across several segments. The deep dive alternates by session: a video from YouTube favorites, then a news story, then a video.
+Shows, books, music, comedians, restaurants and drinks you've loved or not, out of five, so recommendations are in their spirit (the setup skill asks).

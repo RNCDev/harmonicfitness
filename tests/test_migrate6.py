@@ -87,6 +87,8 @@ class Split(unittest.TestCase):
         self.migrate()
         mine = context.profile(os.path.join(self.home, "profile.md"))
         example = context.profile(os.path.join(ROOT, "me.example", "profile.md"))
+        example.settings.pop("skip_formats")             # new in 0.35.0, optional: a 0.11 folder never had it
+        example.sources.pop("skip_formats")
         self.assertEqual(mine.settings, example.settings)
         self.assertEqual(mine.sources.keys(), example.sources.keys())
         for key in mine.sources:

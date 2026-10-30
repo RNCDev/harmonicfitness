@@ -23,7 +23,7 @@ COMMANDS = {
     "coverage":    ("coverage", None, "movement patterns the last sessions left out, last format and loads"),
     "brief":       ("brief", None, "today's ingredients: the listener, limits, safe menu, programming guide (--save writes the menu the build checks)"),
     "movements":   ("movements", None, "the movements a kit allows, by movement pattern, and --about for coaching notes"),
-    "content":     ("content", None, "the filler plan for a session, what's been told, and the reserve"),
+    "content":     ("content", None, "the topics due, the formats, what's been told, the stock, and what's trending"),
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
     "check":       ("check", None, "check every context file in me/ (format, unfilled lines)"),
     "get":         ("context", "get", "print a setting: coach (the one used last), route (what a build uses here), routes, wpm, experience, web-builds"),

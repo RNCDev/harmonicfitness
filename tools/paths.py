@@ -54,7 +54,7 @@ os.environ.setdefault("HARMONICFITNESS_OLD_HF_HUB_CACHE", OLD_HF_HUB_CACHE)   # 
 
 PROFILE = os.path.join(HOME, "profile.md")       # who the listener is (name, experience, basics)
 TRAINING = os.path.join(HOME, "training.md")     # how they train: kits, likes and dislikes, default session
-CONTENT_MD = os.path.join(HOME, "content.md")    # what fills the rests: interests, feeds, channels, taste
+CONTENT_MD = os.path.join(HOME, "content.md")    # what fills the rests: topics, feeds, channels, taste
 SETTINGS = os.path.join(HOME, "settings.toml")   # the tools' settings: setup, audio route, delivery, ceilings
 HEALTH = os.path.join(HOME, "health.md")
 LOG = os.path.join(HOME, "log.md")
@@ -67,7 +67,7 @@ DAILY = os.path.join(RESEARCH, "daily")               # each day's research shee
 VIDEOS = os.path.join(RESEARCH, "videos")
 PUZZLES = os.path.join(RESEARCH, "puzzles")
 TOLD = os.path.join(RESEARCH, "told.jsonl")       # every filler item a session told
-RESERVE = os.path.join(RESEARCH, "reserve")       # evergreen filler researched ahead of time
+RESERVE = os.path.join(RESEARCH, "reserve")       # the stock: pieces researched ahead of time, while a build renders
 CACHE = os.path.join(WORKOUTS, ".audio-cache")
 PACE_FILE = os.path.join(CACHE, "voice-pace.json")
 LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log, and builds.jsonl
@@ -83,7 +83,7 @@ EXAMPLE = os.path.join(ROOT, "me.example")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
 MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the shared movement catalog
 SESSIONS = os.path.join(ROOT, "knowledge", "sessions.toml")             # session methods and dose rules
-CONTENT = os.path.join(ROOT, "knowledge", "content.toml")               # the filler plan
+CONTENT = os.path.join(ROOT, "knowledge", "content.toml")               # the formats, and how many topics a session touches
 
 
 def require(path, what="file"):

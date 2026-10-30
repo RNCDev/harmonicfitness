@@ -1,7 +1,7 @@
 """The listener's context files: the one place that reads and writes them.
 
 The listener's context is Markdown that Claude reads and the tools parse: profile.md (who they
-are), training.md (kits, likes and dislikes, the usual session), content.md (interests, feeds and
+are), training.md (kits, likes and dislikes, the usual session), content.md (topics, feeds and
 taste, for the stories), health.md and log.md, plus settings.toml (the tools' own settings). Every
 tool goes through this module, so a format lives in one place. Each Markdown file opens with TOML
 front matter naming its format's version (settings.toml names it as a plain key):
@@ -23,7 +23,7 @@ older schema stops the tools with the command that brings it up to date, `./harm
     ./harmonicfitness deliver               # existing delivery folders, one per line
     ./harmonicfitness check                 # every file's format, and lines not filled in yet
     ./harmonicfitness log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
-        --coach "Coach Andy" --format straight-sets --topics "deep dive: news, a story" \\
+        --coach "Coach Andy" --format straight-sets --topics "serial: news, a story" \\
         --loads "goblet squat = twenties, three down; seated row = fifteens" --rpe "goblet squat = 7"
                                       # the date, length and kit come from the draft's menu; the draft
                                       # must have been built as it stands, and a session is logged once
@@ -33,6 +33,7 @@ older schema stops the tools with the command that brings it up to date, `./harm
 import argparse
 import glob
 import json
+import re
 import os
 import sys
 import tomllib   # Python 3.11: ./harmonicfitness runs every tool in the project's environment
@@ -65,11 +66,13 @@ SETTING_HOMES = {
     "name": "profile.md", "experience": "profile.md",
     "kits": "training.md", "likes": "training.md", "dislikes": "training.md",
     "interests": "content.md", "feeds": "content.md", "youtube_favorites": "content.md", "puzzles": "content.md",
+    "skip_formats": "content.md",
     "setup": "settings.toml", "render": "settings.toml", "cloud_max_chars": "settings.toml",
     "deliver_to": "settings.toml", "words_per_minute": "settings.toml",
 }
 PROSE_HOMES = {"equipment kits": "training.md", "default session": "training.md",
-               "content": "content.md", "taste": "content.md"}   # every other ## section stays in profile.md
+               "content": "content.md", "taste": "content.md", "topics": "content.md",
+               "never bring up": "content.md"}   # every other ## section stays in profile.md
 
 
 def files():
@@ -138,7 +141,7 @@ CLOUD_MAX_CHARS = 30000   # a cloud build's default ceiling: a 40-minute workout
 # had to forgive (shape_issues). A bare string where a list belongs reads as a one-item list, never as its
 # letters; a single [table] where [[tables]] belong reads as one row.
 
-NAME_LISTS = ("likes", "dislikes", "youtube_favorites", "puzzles")   # a list of text
+NAME_LISTS = ("likes", "dislikes", "youtube_favorites", "puzzles", "skip_formats")   # a list of text
 ONE_OR_LIST = ("render", "deliver_to")                                # a text or a list of them, both meant
 TABLE_LISTS = ("kits", "interests", "feeds")   # [[tables]] ([[limits]] is stricter: limit_rows refuses a bad one)
 SHAPED = (*NAME_LISTS, *ONE_OR_LIST, *TABLE_LISTS)
@@ -350,12 +353,56 @@ def feedback(path=None, text=None):
 
 
 def interests(p):
-    """[(name, slot, detail)]: the profile's [[interests]], the categories the filler plan rotates
-    through for each slot (knowledge/content.toml). Rows not filled in are skipped."""
+    """[(name, slot, detail)]: the old [[interests]] rows (before 0.35.0), rows not filled in skipped.
+    topics() reads them as topics; ./harmonicfitness migrate turns them into lines under ## Topics."""
     out = []
     for row in table_list(p.settings.get("interests")):
         if not unfilled(row.get("name")) and not unfilled(row.get("slot")):
             out.append((str(row["name"]).strip(), str(row["slot"]).strip(), str(row.get("detail") or "").strip()))
+    return out
+
+
+# Old [[interests]] names that were ways of telling, not topics: the formats cover them now.
+FORMAT_WORDS = {"video", "videos", "news", "headlines", "puzzle", "puzzles", "trivia", "quiz", "odd facts",
+                "deep dive", "deep_dive"}
+TOPIC_SPLIT = re.compile(r"\s*(?::|\s\(|\s[-\u2013\u2014]\s)")
+
+
+@dataclass(frozen=True)
+class Topic:
+    name: str   # what the rotation and the told log key on
+    note: str   # the rest of the line, for research and the writer (may be empty)
+
+
+def topic_line(line):
+    """A Topic from one `- ` line under ## Topics ("New Jersey Devils: scores and previews"), or None for a
+    line that isn't one or still shows the template's [hint]."""
+    line = line.strip()
+    if not line.startswith(("- ", "* ")):
+        return None
+    text = line[2:].strip()
+    if not text or placeholder(text) or text.startswith("["):
+        return None
+    m = TOPIC_SPLIT.search(text)
+    name, note = (text[:m.start()], text[m.end():]) if m else (text, "")
+    name, note = name.strip().strip("*_").strip(), note.strip().rstrip(")").strip()
+    return Topic(name, note) if name else None
+
+
+def topics(p):
+    """[Topic]: what the listener likes to stay current on and learn about, in their order: the lines under
+    `## Topics` in content.md, then any old [[interests]] row (name and detail) not already there, leaving
+    out the old rows that named a way of telling (FORMAT_WORDS). Each name once, whatever its case."""
+    out, seen = [], set()
+    for _, line in section(p.body, "Topics"):
+        t = topic_line(line)
+        if t and t.name.casefold() not in seen:
+            seen.add(t.name.casefold())
+            out.append(t)
+    for name, _, detail in interests(p):
+        if name.casefold() not in seen and name.casefold() not in FORMAT_WORDS:
+            seen.add(name.casefold())
+            out.append(Topic(name, detail))
     return out
 
 
@@ -437,11 +484,12 @@ SETTINGS_COMMENTS = {
     "deliver_to": "Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * "
                   "matches anything (any Google account). Once the copy is there the local MP3 is removed; "
                   "empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has.",
-    "youtube_favorites": "Channels (@handles) for the deep dives retold from a video's transcript.",
-    "puzzles": "Channels (@handles) whose puzzles can be the session's quiz.",
-    "interests": "What the filler between exercises rotates through: a name, its slot (today, science, "
-                 "deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within "
-                 "a slot, the one told longest ago comes next. Without any, knowledge/content.toml's defaults.",
+    "youtube_favorites": "Channels (@handles) whose videos can be retold, from their transcripts, as a serial across the rests.",
+    "puzzles": "Channels (@handles) whose puzzles can be a quiz or brain teaser.",
+    "interests": "The old form of the topics (before 0.35.0): ./harmonicfitness migrate turns these rows into "
+                 "lines under ## Topics.",
+    "skip_formats": "Ways of telling to leave out of the rests, by id from knowledge/content.toml (such as "
+                    "\"memory_game\").",
     "feeds": "Fetched by ./harmonicfitness feeds at the start of each session. Kinds: weather (latitude, "
              "longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), "
              "onthisday (selected), wikipedia (featured: the featured article, most read, in the news "

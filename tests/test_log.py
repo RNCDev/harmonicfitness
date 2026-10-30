@@ -251,29 +251,28 @@ class ContentLog(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_the_category_must_be_one_the_slot_rotates(self):
+    def test_the_topic_must_be_one_of_theirs(self):
+        profile = context.Profile({}, "## Topics\n- Hockey: the Devils\n")
         with self.assertRaises(ValueError) as got:
-            content.log("2026-10-23", ["today | sprots | A result"], path=self.told)
-        self.assertIn("sprots", str(got.exception))
-        self.assertIn("sports, local, headlines", str(got.exception))
-        content.log("2026-10-23", ["today | Sports | A result"], path=self.told)
-        # the profile's interests replace the defaults for a slot they name
-        profile = context.Profile({"interests": [{"name": "Hockey", "slot": "today", "detail": ""}]}, "")
-        with self.assertRaises(ValueError):
-            content.log("2026-10-23", ["today | sports | A result"], path=self.told, profile=profile)
-        content.log("2026-10-23", ["today | hockey | A result"], path=self.told, profile=profile)
+            content.log("2026-10-23", ["Hokey | quick hit | A result"], path=self.told, profile=profile)
+        self.assertIn("Hokey", str(got.exception))
+        self.assertIn("Hockey", str(got.exception))
+        content.log("2026-10-23", ["hockey | quick hit | A result"], path=self.told, profile=profile)
+        # an old [[interests]] row is a topic too
+        old = context.Profile({"interests": [{"name": "Sports", "slot": "today", "detail": ""}]}, "")
+        content.log("2026-10-23", ["sports | quick_hit | A result"], path=self.told, profile=old)
 
     def test_a_reserve_piece_is_told_once(self):
         reserve = os.path.join(self.tmp.name, "reserve")
         os.makedirs(reserve)
         with open(os.path.join(reserve, "grid-plan.md"), "w", encoding="utf-8") as f:
-            f.write("# Grid\n- Slot: learn\n- Category: history\n")
+            f.write("# Grid\n- Topic: history\n- Format: explainer\n")
         with mock.patch.object(content.paths, "RESERVE", reserve):
             with self.assertRaises(ValueError) as got:   # twice in one call
-                content.log("2026-10-23", ["learn | history | Grid | | grid-plan"] * 2, path=self.told)
-            content.log("2026-10-23", ["learn | history | Grid | | grid-plan"], path=self.told)
+                content.log("2026-10-23", ["history | explainer | Grid | | grid-plan"] * 2, path=self.told)
+            content.log("2026-10-23", ["history | explainer | Grid | | grid-plan"], path=self.told)
             with self.assertRaises(ValueError) as got:
-                content.log("2026-10-24", ["learn | history | Grid | | grid-plan"], path=self.told)
+                content.log("2026-10-24", ["history | explainer | Grid | | grid-plan"], path=self.told)
         self.assertIn("already told", str(got.exception))
 
 

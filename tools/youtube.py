@@ -1,6 +1,6 @@
-"""YouTube deep dives: find a fresh video on a favorite channel and save its transcript.
+"""YouTube serials: find a fresh video on a favorite channel and save its transcript.
 
-Every other session's deep dive retells a video from one of the channels listed
+A session's serial (one thread told across its rests) can retell a video from one of the channels listed
 by @handle in youtube_favorites, in the settings at the top of me/content.md.
 `transcript` saves the video's English captions as plain paragraphs in
 me/workouts/research/videos/<id>.txt. A video counts as used once its summary sheet,
@@ -252,7 +252,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pick", help="list recent unused videos from each favorite channel")
     p.add_argument("--recent", type=cli.positive_int, default=3, help="videos per channel (default 3)")
-    t = sub.add_parser("transcript", help="save a video's transcript for the deep dive")
+    t = sub.add_parser("transcript", help="save a video's transcript for the serial")
     t.add_argument("video", help="video id or URL")
     d = sub.add_parser("done", help="mark the next part of a series as told")
     d.add_argument("video", help="video id")

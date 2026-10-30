@@ -1,11 +1,9 @@
 +++
 schema = 6
-# Channels (@handles) for the deep dives retold from a video's transcript.
+# Channels (@handles) whose videos can be retold, from their transcripts, as a serial across the rests.
 youtube_favorites = ["Asianometry", "BranchEducation", "PracticalEngineeringChannel"]
-# Channels (@handles) whose puzzles can be the session's quiz.
+# Channels (@handles) whose puzzles can be a quiz or brain teaser.
 puzzles = ["MindYourDecisions"]
-
-# What the filler between exercises rotates through: [[interests]] rows, each a name, its slot (today, science, deep_dive, quiz, delight or learn; knowledge/content.toml) and a detail for research. Within a slot, the one told longest ago comes next. Without any rows, knowledge/content.toml's defaults.
 
 # Fetched by ./harmonicfitness feeds at the start of each session. Kinds: weather (latitude, longitude), espn (sport/league/team, as in ESPN's team URLs), rss and weekly (feed URL), onthisday (selected), wikipedia (featured: the featured article, most read, in the news and did you know).
 
@@ -46,13 +44,14 @@ value = "selected"
 +++
 # Content
 
-What fills the rests between exercises: interests, feeds, YouTube channels and puzzles (the settings above), and the topics and taste below. Research reads this before each workout.
+What fills the rests between exercises. Before each workout the coach picks the topics told longest ago, finds what's new or worth knowing, and tells each one the way that suits it. Say "update my interests" any time to add topics.
 
-## Content
-- Sports: none
-- Science and tech breakthroughs: every session carries two current ones. This is the session's science.
-- Books: thrillers
-- Local: events. Keep politics factual and even-handed.
-- On this day in history.
-- Never bring up: nothing
-- Headlines or deep dives: a mix. Each session gets a few quick headlines, plus one deep-dive thread told across several segments. The deep dive alternates by session: a video from YouTube favorites, then a news story, then a video.
+## Topics
+I like to stay current on and learn about:
+- Thrillers
+- Local events
+- Formula 1: race weekends; a big team change is worth a fuller story
+- Cooking: techniques and the science behind them
+
+## Never bring up
+- nothing

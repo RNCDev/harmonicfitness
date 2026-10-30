@@ -93,7 +93,7 @@ class FlagNames(unittest.TestCase):
     """The flag rule in cli.py: --date is a recorded day, --today only "pretend today is"; no parser takes both,
     and --json is on the commands whose --help documents it. Every command's parsers are walked by running its
     --help with add_argument recorded."""
-    TODAY = {"harmonicfitness brief", "harmonicfitness content plan"}
+    TODAY = {"harmonicfitness brief", "harmonicfitness content plan", "harmonicfitness content trending"}
     DATE = {"harmonicfitness log-session", "harmonicfitness content log"}
     JSON = {"harmonicfitness coaches list", "harmonicfitness content plan", "harmonicfitness coverage", "harmonicfitness get"}
 

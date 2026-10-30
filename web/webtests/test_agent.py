@@ -413,6 +413,9 @@ class Instructions(AgentCase):
         self.assertFalse(agent.needs_setup(self.home))
         self.assertTrue(agent.wants_setup("Finish setting me up"))
         self.assertFalse(agent.wants_setup("a 20 minute workout"))
+        for line in ("I'd like to update my interests.", "add a topic", "Suggest some topics", "new topics please"):
+            self.assertTrue(agent.wants_setup(line), line)
+        self.assertFalse(agent.wants_setup("a workout, any topic is fine"))
 
     def test_a_coach_of_their_own_can_be_made_here(self):
         from unittest import mock

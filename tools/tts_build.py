@@ -352,7 +352,7 @@ def render_report(report):
         if report.total_off:
             summary += ("  <-- too " + ("long: trim words" if drift > 0 else
                                        "short: add coaching in the sets, or more of the listener's content in the rests "
-                                       "(a longer deep-dive beat, the sheet's spare items, the reserve)")
+                                       "(a longer serial beat, the sheet's spare topics, a piece from the stock)")
                         + " in the segments furthest off")
         summary += (f"\n{voice['name']} speaks this draft at about {report.wpm:.0f} words a minute, pauses "
                     f"included; the guide column uses that rate")

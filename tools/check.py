@@ -19,7 +19,7 @@ from paths import show  # noqa: E402
 from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SETTING_HOMES, Issue,  # noqa: E402
                      delivery_patterns, experience, feed_sources, kits, listener_name,
                      part_paths, persona, profile, route_issues,
-                     scalar_problems, shape_problems, SHAPED, str_list, table_list, files as context_files)
+                     scalar_problems, shape_problems, SHAPED, str_list, table_list, topics, files as context_files)
 from context import _names, kit_problems  # noqa: E402
 from frontmatter import body, front, placeholder, section, unfilled  # noqa: E402
 from sessionlog import Session, parse_session  # noqa: E402
@@ -74,7 +74,7 @@ def _check_profile(path):
     if not delivery_patterns(p):
         out.append(Issue(at("deliver_to"), 0, "no deliver_to folder, so finished MP3s stay in me/workouts/",
                          note=True))
-    for key, message, note in shape_problems(settings, [k for k in SHAPED if k != "interests"]):   # interests: below
+    for key, message, note in shape_problems(settings, SHAPED):   # interests: below
         out.append(Issue(at(key), 0, message, note=note))
     for i, f in enumerate(table_list(settings.get("feeds")), 1):
         kind = str(f.get("kind", "")).lower()
@@ -88,6 +88,7 @@ def _check_profile(path):
     if not feed_sources(p):
         out.append(Issue(at("feeds"), 0, "no feeds, so research searches for everything", note=True))
     out += _interest_problems(at("interests"), settings)
+    out += _topic_problems(at("skip_formats"), p, settings)
     for key in HANDLE_KEYS.values():
         for h in str_list(settings.get(key)):
             if placeholder(h):
@@ -146,21 +147,29 @@ def setup_stage(p):
 
 
 def _interest_problems(path, settings):
-    import content   # here, not at the top: content loads the filler plan, which only this check needs
-    slots = content.recipe().slots
-    out = []
+    """The old [[interests]] rows (before 0.35.0) still read as topics; migrate turns them into lines."""
     rows = settings.get("interests")
-    if isinstance(rows, dict):
-        out.append(Issue(path, 0, "write [[interests]] (two brackets) for each row; [interests] is read as one row "
-                                  "for now", note=True))
-    for i, row in enumerate([rows] if isinstance(rows, dict) else rows if isinstance(rows, list) else [], 1):
-        if not isinstance(row, dict):
-            out.append(Issue(path, 0, f"interests: entry {i} isn't a table (name, slot, detail)"))
-        elif unfilled(row.get("name")) or unfilled(row.get("slot")):
-            out.append(Issue(path, 0, f"interests: entry {i} isn't filled in yet (it needs a name and a slot)"))
-        elif str(row["slot"]).strip() not in slots:
-            out.append(Issue(path, 0, f"interests: '{row['name']}' has an unknown slot '{row['slot']}' "
-                                      f"(one of {', '.join(slots)})"))
+    if rows is None:
+        return []
+    return [Issue(path, 0, "[[interests]] is the old form of the topics (still read): ./harmonicfitness migrate "
+                           "turns its rows into lines under ## Topics", note=True)]
+
+
+def _topic_problems(path, p, settings):
+    import content   # here, not at the top: content loads the formats, which only this check needs
+    r = content.recipe()
+    out = []
+    for name in str_list(settings.get("skip_formats")):
+        if not content.format_id(r, name):
+            out.append(Issue(path, 0, f"skip_formats: '{name}' isn't a format (one of {', '.join(r.formats)})"))
+    for _, line in section(p.body, "Topics"):
+        text = line.strip()[2:].strip() if line.strip().startswith(("- ", "* ")) else ""
+        if text.startswith("[") and text.endswith("]"):
+            out.append(Issue(path, 0, f"topic '{text}' isn't filled in yet (still the template's [hint]); "
+                                      "write a topic of your own or delete the line"))
+    if not topics(p):
+        out.append(Issue(path, 0, "no topics under ## Topics, so the stories between sets are picked "
+                                              "broadly (say \"update my interests\" to add some)", note=True))
     return out
 
 

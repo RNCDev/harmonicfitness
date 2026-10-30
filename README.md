@@ -35,7 +35,7 @@ Copy and send:
 - **With ChatGPT,** turn off "Improve the model for everyone" (Settings, Data Controls) if you'd rather your health notes weren't used for training. Codex reminds you before the first workout.
 
 **After setup,** ask for a workout any time, in your own words: "I'd like a workout", "25 minutes at the hotel, just go". Two more things to say when you're ready:
-- **"Finish setting me up"**: your teams, interests and favorite shows, which the workout's stories come from.
+- **"Finish setting me up"**: your topics and favorite shows, which the workout's stories come from.
 - **"I want a new coach"**: a coach of your own, with a name and a voice you pick by ear from an audition of web voices (it needs at least one voice service key).
 
 ## Where it runs
@@ -66,12 +66,12 @@ If someone asks you to use this repository and set them up, and your session isn
 1. **The readiness check** (`./harmonicfitness doctor`): your system, memory, disk and graphics, what's installed, and whether a voice can be made on this computer. Then the one big choice: a voice made on your computer (free and private, a one-time download) or a web coach (no download, fast, pay-as-you-go), which one this computer starts with, and how to add the other later.
 2. **The tools:** uv, which builds the project's Python environment (about half a gigabyte), is installed with Astral's official installer if it's missing, after the assistant asks. ffmpeg comes with that environment. git is optional: without it, setup skips the privacy hook (which keeps your details out of a push), and `./harmonicfitness backup` can't run.
 3. **The quick start:** the four questions, and, where it's a web coach, the key: the assistant gives you the service's links and opens a file in your computer's text editor where you paste the key yourself, never into the chat. Then you choose your coach by ear: on your computer, one of the ten local coaches (pick a style, hear their 45-second samples, choose one); or the web service's stock coach, whose voice is designed and saved in your account before the first workout (about a cent on Fish Audio or Gemini; Inworld doesn't publish the price; on ElevenLabs it takes one of the account's voice slots). Then the ten-minute workout, end to end.
-4. **Later:** "finish setting me up" covers interests, teams and taste, and finds news feeds for them; "switch coach" picks another of the ten, and "I want a new coach" auditions voices of your own from every service you have a key for.
+4. **Later:** "finish setting me up" covers your topics and taste, and finds news feeds for them; "switch coach" picks another of the ten, and "I want a new coach" auditions voices of your own from every service you have a key for.
 
 ## How a session works
 
 1. **Check-in:** the `workout` skill asks only what you didn't say: how each injury feels, how you're coming in today, the goal, length and kit.
-2. **What fills the rests:** `./harmonicfitness content plan` picks the stories: quick items from today, current science, a deep dive (a news story or a video from your favorite YouTube channels; a long video becomes a series), a quiz that works by ear, something to enjoy and something to learn. Each slot rotates through your interests, and nothing told in the last thirty days is told again. Today's items are researched from `./harmonicfitness feeds` (your teams, the weather, local and science headlines, podcasts, puzzles, Wikipedia's day); evergreen pieces come from a reserve researched ahead of time.
+2. **What fills the rests:** your topics, a plain list of what you like to stay current on and learn about, in `me/content.md`. `./harmonicfitness content plan` picks the ones told longest ago, and research finds what's new or worth knowing on each, judging its size: a score is a quick hit, a big trade or a great long read becomes a fuller story or an explainer. The script tells them in many ways (a quiz answered a few rests later, a this-or-that to mull over during a set, a myth checked, a serial told across the session, a recommendation in the spirit of your favorites, a memory game recalled in the cool-down), and nothing told in the last thirty days is told again. Today's news comes from `./harmonicfitness feeds` and a short search; evergreen pieces come from a stock researched while the previous workout's audio rendered. Say "update my interests" to add topics, with ideas from what's trending today.
 3. **The plan:** `./harmonicfitness brief` gathers who you are, how the week has gone, today's limits with your clinician's rules, the safe menu (every movement your kit, level and limits allow, with coaching notes) and the programming guide. The assistant designs the session from it, posts the plan, and writes the script.
 4. **The build:** `./harmonicfitness build` refuses any movement that isn't on today's menu, checks the script reads cleanly aloud, predicts each segment's spoken length for the coach, renders a loudness-normalized MP3, and copies it to your phone's folder. The script's text stays in the workout's folder in `me/workouts/`; the local MP3 is removed once the copy lands.
 
@@ -122,7 +122,7 @@ Your profile is four files, split by how often each part changes:
 |---|---|---|
 | `me/profile.md` | Who you are: name, experience, basics | Rarely |
 | `me/training.md` | Your kits and weights, the movements you like and dislike, your usual session | With new gear, or what you say at check-ins |
-| `me/content.md` | What fills the rests: interests, feeds, YouTube channels, puzzles, taste | Often; only the research reads it |
+| `me/content.md` | What fills the rests: your topics, feeds, YouTube channels, puzzles, taste | Often; only the research reads it |
 | `me/settings.toml` | The tools' settings: setup stage, audio route, delivery folder, web spending ceiling | Rarely; setup writes it |
 
 Next to them, `me/health.md` holds your injuries and your clinician's rules, and `me/log.md` your sessions and feedback. Each Markdown file has its settings in a block at the top, and prose below it for the assistant. Pulling updates never touches `me/`. When a release changes a file's format, `./harmonicfitness migrate` (or rerunning `./harmonicfitness setup`) brings `me/` up to date, backing up the originals first.

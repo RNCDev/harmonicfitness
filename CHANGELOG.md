@@ -4,6 +4,31 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-30
+
+What fills the rests, rebuilt for any listener: a plain list of topics you like to stay current on and learn about, seventeen ways to tell them, research that judges how big each find is, a stock filled while the audio renders, and topic ideas from what's trending.
+
+### For forks
+- **Run `./harmonicfitness migrate`.** It turns `content.md`'s `[[interests]]` rows into lines under a new `## Topics` section ("- name: detail"), leaving out the rows that named a way of telling rather than a subject (video, news, puzzle, trivia), and backs the old file up as `content.md.before-topics`. It's a folder step with no schema change: an unmigrated folder still reads, its rows as topics, because the web client keeps listeners' folders and can't run migrate.
+- **`knowledge/content.toml` is a list of formats** (`[[format]]`: id, name, group, what, words, research, across), `[[band]]` rows give `topics`, `spares` and `serial`, and `[stock]` the stock's targets. The slots (today, science, deep dive, quiz, delight, learn) and their default categories are gone.
+- **`content log --item` is `"topic | format | title [| source [| stock slug]]"`** (was slot and category); the topic is one of the listener's, or `-`. Old `told.jsonl` lines still read, their category as the topic.
+- **`content plan --json` has new keys:** minutes, topics, spares, serial, due, formats, skipped, recent_days, told_recent, reserve, restock (`slots` is gone).
+- **A stock sheet's header** is `- Topic:`, `- Format:`, `- Source:`, `- Added:`, `- Good until:`; an old sheet's `- Slot:` and `- Category:` still read.
+
+### Added
+- **Topics:** `## Topics` in `me/content.md`, one line each, as many as you like, with an optional note in your own words ("Seattle Kraken: scores and previews; a big trade or a great long read is worth a fuller story"). No categories to fit them into. `context.topics()` reads them.
+- **Seventeen formats,** open to any topic: quick hit, the big story, explainer, number of the day, myth or fact, on this day, serial, mini-profile, how they trained, quiz, this or that, memory game, brain teaser, language bite, recommendation, your progress and reflection. `skip_formats` in `content.md` leaves any out.
+- **Research judges each find's size:** a routine result is a quick hit; a big move or a strong long read earns the big story or an explainer. A topic's note steers it only when the listener writes one.
+- **The stock fills while the audio renders:** the workout skill launches the stock agent alongside the build when the plan has a Restock section, so the next session's research is short. Each piece carries a Good until date (or evergreen); stale pieces drop out of the plan.
+- **`./harmonicfitness content trending`:** what's popular today, from Reddit's front page (safe for work only, one post per community) or, when Reddit refuses, Wikipedia's most read. **"Update my interests"** (the setup skill, and the web app's button) offers ten topic ideas from it, minus anything never to bring up or already listed.
+- **The script guide's "Weave, don't insert":** callbacks across rests, a quiz or myth answered later, a memory list recalled in the cool-down, a story tied to the work when it fits.
+- `./harmonicfitness check` notes an old `[[interests]]` block, a topic still showing the template's hint, an unknown `skip_formats` id, and no topics at all.
+
+### Changed
+- **The deep dive is now the serial,** told across the session from a video (when `youtube_favorites` lists channels) or a news story; log lines start `serial:`.
+- **The eval listeners** have their own topics (birdwatching, Italian, Formula 1, gardening, personal finance among them), so the grid exercises more than one kind of listener.
+- **The web app** loads the setup skill for "update my interests", "add a topic" and "suggest some topics", and its button now says what it does.
+
 ## [0.34.0] - 2026-10-30
 
 A clearer first screen: a body chart for what's sore, the request across the full width, and the other asks anchored above the message box.

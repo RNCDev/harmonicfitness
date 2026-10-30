@@ -29,7 +29,8 @@ TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (Tu
 SKILL = (".claude/skills/workout/SKILL.md", ".claude/skills/workout/research.md")
 SETUP = (".claude/skills/setup/SKILL.md",)
 COACH = (".claude/skills/coach/SKILL.md",)
-SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard)", re.IGNORECASE)
+SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard|my interests|"
+                         r"(add|new|suggest)\w*( a| some)? topics?)\b", re.IGNORECASE)
 # The coach skill's own triggers: a new coach, a different voice, a coach that sounds or talks differently.
 COACH_WORDS = re.compile(r"\b(new|another|different|own|switch|change|design|make|create)\b[^.?!]{0,30}"
                          r"\b(coach|voice|trainer)|\b(coach|voice)\b[^.?!]{0,20}\b(sounds?|talks?|a (wo)?man)\b",
@@ -100,7 +101,8 @@ STEPS = {"brief": "Working out today's safe moves", "build": "Recording your wor
          "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Looking up how a step works"}
 # a command's second word, where it says more than the first
 SUB_STEPS = {("get", "cost"): "Pricing the recording", ("get", "web-builds"): "Checking your past recordings",
-             ("content", "log"): "Noting the stories you heard", ("content", "reserve"): "Checking the story reserve",
+             ("content", "log"): "Noting the stories you heard", ("content", "reserve"): "Checking the story stock",
+             ("content", "trending"): "Seeing what's trending today",
              ("youtube", "transcript"): "Reading a video's transcript", ("youtube", "puzzles"): "Finding a puzzle",
              ("youtube", "done"): "Noting the video series", ("movements", "--about"): "Reading the coaching notes"}
 OTHER_STEP = "Running a check"
