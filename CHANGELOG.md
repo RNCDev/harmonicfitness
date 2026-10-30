@@ -4,6 +4,43 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-30
+
+Scripts with more of the listener's world and less repeated coaching, a build that's safer about timing and quicker to check, and research that fits the session.
+
+### For forks
+- **`--lint-only` refuses a stale menu** (from another day, or older than `health.md`) as the full build does; it only warned before. Rerun `./harmonicfitness brief ... --save` when it says so.
+- **The lint aims inside the render's tolerance:** the predicted total must land within 2.5 percent (2 with an estimated pace), not 3, so a draft that linted at 2.8 percent off now fails the lint. `tts_build.lint` takes `headroom=False` for the old behaviour.
+- **A segment with a bare `[hold]` keeps its planned length however late it starts** (`draft.layout`); earlier talk that ran long is paid back by the next unheld segments, or lands in the total. A draft whose overrun used to be soaked up by a held rest may now run long (exit 1 at the lint, as predicted).
+- **`[story]` and `[/story]` are markers:** a draft that spoke the words "[story]" literally would have been refused anyway (brackets); a story left open, or holding a timing marker, is a menu issue.
+- **The brief's menu is compact:** a movement's coaching notes print only when it touches today's limits or works one side; `brief --full` prints them all, and `movements --about <ids>` prints the rest. `brief.build` and `brief.menu_lines` take `compact`.
+- **`tts_build.silences` moved to `draft.silences`** (`tts_build` still imports the name). `audio.assemble` takes `quiet` and `max_silence`; `render.run` takes `bed` and `quiet`; `render.follow` takes `check`; `render.check_takes` takes `heard`.
+- **`content plan --json` adds `threads` and `unreadable`.** `content.Piece` adds `bad_until`.
+- **New settings and files:** `bed` in `settings.toml` (`"off"` or `"pulse"`; absent is off, no schema change) and `me/workouts/research/threads.jsonl`.
+
+### Added
+- **`[story]` ... `[/story]` around the listener's content.** Never spoken; the menu check, the one-side check and the written-countdown check read past it, so a story can mention "her deadlift record", "the other side of the river" or "ten, nine, eight, liftoff" without being refused. A story may hold no `[hold]`, `[count]`, `[cue]` or `[chime]` and closes in its segment; a story sentence that talks to the listener about a movement off today's menu is still refused, and with the tags wrong every word is checked as coaching.
+- **The pulse bed** (`bed = "pulse"` in `settings.toml`, off by default): a soft tick each second through any quiet of two seconds or more, so a long hold sounds like a clock rather than a dropped earbud, and the silence limit rises from eight seconds to twenty.
+- **Open threads** (`./harmonicfitness content thread --open "topic | kind | what"` and `--close <id>`): a quiz answered next session, a story to follow up, the coach's take on a this-or-that, a promise. The content plan lists them until closed, and research looks for follow-ups.
+- **A repeat check:** the build warns about any sentence of six words or more said word for word in the last five workouts (safety lines and limit cues aside).
+- **Worked examples in `knowledge/script.md`**: a welcome, a strength rest with a story, a quiz asked and answered, and a close; a test lints each one.
+- **The eval grid scores the stories:** invented research sheets per listener (`docs/eval/research/`), the writers fill the rests from them, and the judges add a sixth score, Stories.
+
+### Changed
+- **Coach fully once, then briefly** (`knowledge/script.md`): a movement gets its setup, rep, feel and fault the first time, then a short reminder, so the rests and easy work carry the listener's topics. Safety lines never shrink.
+- **Takes are checked while the render runs:** a worker thread hears each take as the next renders, so the check after the render has only retakes left (a one-minute check went from 4.7 seconds to 0.1, render and check together from 12.2 to 8.1). `--follow` now checks each take as it lands too, on a computer with at least 12 GB of memory.
+- **The brief is about half the size** (about 6,600 words against 15,000 for a hotel-gym case): the menu keeps each movement's facts and easier and harder versions, and the skill reads the chosen movements' notes after designing.
+- **The render re-checks silences as laid out** from the real clips and warns (never stops) about any over the limit, in the build output and the record's `long_silences`.
+- **Research plans for the real length:** the workout skill sends the research agent the session's length once the check-in settles it (it planned for twenty-five minutes before). `./harmonicfitness feeds` reuses a sheet from the last three hours (`--refresh` fetches again), so the session and the agent don't fetch twice.
+- **"Two left in the tank" and "five seconds left"** no longer count as a side for a movement allowed on one side only.
+
+### Fixed
+- **A stock piece whose `Good until` wasn't a date** ("Nov 15") was treated as evergreen and never expired; it's now left out, and the plan lists it to fix.
+- **RSS 1.0 (RDF) feeds** came back empty; they read now.
+- **ESPN:** a final with no score read as a draw; it's left out. A team name matching neither side no longer guesses who won.
+- **yt-dlp** had no socket timeout; a stalled connection now gives up after twenty seconds.
+- **The eval writer's brief** still timed work with `[hold 20s]`, which the lint refuses, and named the old topic beats; stale lines in `tts_build`'s docstring and `script.md` ("thirty seconds of quiet") are corrected.
+
 ## [0.38.0] - 2026-10-30
 
 Switch coach from Settings, which now opens two columns wide on a desktop, with clearer actions and a quieter "Pick up where you left off".
