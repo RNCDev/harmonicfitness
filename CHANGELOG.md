@@ -9,7 +9,7 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 Scripts with more of the listener's world and less repeated coaching, a build that's safer about timing and quicker to check, and research that fits the session.
 
 ### For forks
-- **`--lint-only` refuses a stale menu** (from another day, or older than `health.md`) as the full build does; it only warned before. Rerun `./harmonicfitness brief ... --save` when it says so.
+- **`--lint-only` refuses a stale menu** (from another day, or older than `health.md`) as the full build does; it only warned before. Rerun `./harmonicfitness brief ... --save` when it says so. `build --today` pretends today is a date, for the eval grid's fixed briefs (its lint command now passes `--today 2026-10-21`).
 - **The lint aims inside the render's tolerance:** the predicted total must land within 2.5 percent (2 with an estimated pace), not 3, so a draft that linted at 2.8 percent off now fails the lint. `tts_build.lint` takes `headroom=False` for the old behaviour.
 - **A segment with a bare `[hold]` keeps its planned length however late it starts** (`draft.layout`); earlier talk that ran long is paid back by the next unheld segments, or lands in the total. A draft whose overrun used to be soaked up by a held rest may now run long (exit 1 at the lint, as predicted).
 - **`[story]` and `[/story]` are markers:** a draft that spoke the words "[story]" literally would have been refused anyway (brackets); a story left open, or holding a timing marker, is a menu issue.

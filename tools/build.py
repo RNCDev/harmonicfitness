@@ -254,6 +254,7 @@ class BuildOptions:
     verbose: bool = False
     model: Optional[str] = None
     max_chars: Optional[int] = None
+    today: Optional[dt.date] = None
 
     @property
     def full(self):
@@ -390,7 +391,8 @@ def gate(segments, voice, opts, text, smoke):
     import tts_build
     report = tts_build.lint(segments, voice, total_tolerance=opts.tolerance, chime=not opts.no_chime,
                              max_chars=opts.max_chars, bed=profile_bed())
-    issues, warnings = ([], []) if smoke else menu.gate(catalog.default(), opts.draft, text, segments)
+    issues, warnings = ([], []) if smoke else menu.gate(catalog.default(), opts.draft, text, segments,
+                                                         today=opts.today.isoformat() if opts.today else None)
     return issues, warnings, report
 
 
@@ -574,6 +576,8 @@ def main(argv=None):
                     help="the route: local, or a web service (default: the coach's own, or the profile's render "
                          "list); --engine is the older name")
     ap.add_argument("--lint-only", action="store_true", help="stop after the lint and the menu check")
+    ap.add_argument("--today", type=cli._date, help="pretend today is this date, YYYY-MM-DD, for the menu's "
+                                                     "day (the eval grid's fixed briefs); default: today")
     ap.add_argument("--allow-estimated", action="store_true",
                     help="render with a local coach whose pace isn't measured on this route yet")
     ap.add_argument("--follow", action="store_true", help="render ahead while the draft is written (local only)")

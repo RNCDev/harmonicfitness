@@ -42,12 +42,12 @@ knowledge files change.
 Writers follow `writer.md`: design the session from the brief, put the plan and every place they had to
 invent something in `docs/eval/out/<id>.writer-notes.md`, write `docs/eval/out/<id>.draft.txt` (its
 `movements:` line, then the segments), and lint it. Two or three cases a writer keeps each brief in view.
-The build name (`"eval-<id>"`) is required: without it `--lint-only` is taken as the name and a render
+`--today` matches the briefs' fixed date (a menu from another day is refused). The build name (`"eval-<id>"`) is required: without it `--lint-only` is taken as the name and a render
 starts. The lint checks the draft against its menu, and exports a `.txt` into the listener's `workouts/`,
 which is git-ignored.
 
 ```sh
-HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
+HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only --today 2026-10-21
 ```
 
 ## 3. Judge

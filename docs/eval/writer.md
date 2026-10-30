@@ -61,7 +61,7 @@ writer takes a few cases.
 
 ## Lint (must pass for each script)
 ```sh
-HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only
+HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only --today 2026-10-21
 ```
 The build name (`"eval-<id>"`) is required; without it a render starts. The lint checks the draft
 against the brief's menu (`docs/eval/out/<id>.menu.json`): a movement declared or named that isn't on
