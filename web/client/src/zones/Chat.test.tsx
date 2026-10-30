@@ -66,6 +66,22 @@ describe("the chat", () => {
     expect(onRecord).toHaveBeenCalled();
   });
 
+  it("Stop sits beside Send while the coach works, and only then", () => {
+    const { rerender, container } = render(<Chat {...base} working onStop={() => {}} />);
+    const form = container.querySelector(".chat-form")!;
+    expect(form).toContainElement(screen.getByRole("button", { name: "Stop" }));
+    rerender(<Chat {...base} working={false} onStop={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+  });
+
+  it("offers the waiting conversation on the first screen", () => {
+    const onResume = vi.fn();
+    render(<Chat {...base} waiting={{ offer: false, at: null }} onResume={onResume} />);
+    fireEvent.click(screen.getByRole("button", { name: /Pick up where you left off/ }));
+    expect(onResume).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Your coach asked you something.")).toBeInTheDocument();
+  });
+
   it("Stop says it's stopping and asks once", () => {
     const onStop = vi.fn();
     render(<Chat {...base} working onStop={onStop} />);

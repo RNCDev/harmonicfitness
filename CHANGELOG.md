@@ -4,6 +4,20 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-30
+
+The web app opens on its first screen after a refresh, and Stop, now beside Send, ends the chat.
+
+### For forks
+- **`useConversation` no longer reopens a waiting conversation on load.** It returns it as `waiting`, with `resume()` to open it; only a conversation still working reopens on its own. `Chat` takes `waiting` and `onResume` for the card that offers it. `halt()` now also closes the chat once the stop is sent.
+
+### Changed
+- **A refresh opens the first screen,** not the last chat. When today's chat is waiting on you (the coach asked something, or a workout is ready to record), a "Pick up where you left off" card above the sentence says so, with the time, and reopens it in one click; a new request starts a fresh chat instead. While the coach is still working, a refresh keeps that chat open, so you can follow it and stop it.
+- **Stop ends the chat:** a button in the message box, beside Send, while the coach works (it was a small link beside "Your coach is working…"). It stops the coach's turn and goes back to the first screen; the stopped chat isn't offered again. If the stop can't be sent, the chat stays open with the error.
+
+### Fixed
+- **A job counts as working only while its chat is open,** so leaving a chat whose job is still finishing never leaves the page stuck as busy.
+
 ## [0.36.0] - 2026-10-30
 
 The web app's Settings, reorganized: the background chooser moves to the bottom and gains two patterns after Book of Shapes.

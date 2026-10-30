@@ -19,9 +19,9 @@ export function isHistory(c: Conversation | null, today: Date = new Date()): boo
   return !Number.isNaN(at.getTime()) && localDate(at) < localDate(today);
 }
 
-/** True when the page should open on this conversation rather than fresh: it's still working, or it's from
- * today, hasn't failed, has no workout recorded yet, and waits on the listener (a Record offer, or the coach
- * spoke last). */
+/** True when a conversation is worth picking up again: it's still working, or it's from today, hasn't failed, has
+ * no workout recorded yet, and waits on the listener (a Record offer, or the coach spoke last). Only a working one
+ * reopens on its own; the rest are offered on the first screen. */
 export function resumable(c: Conversation, today: Date = new Date()): boolean {
   if (c.state === "working") return true;
   if (c.state === "failed" || isHistory(c, today) || c.lines.some((l) => l.audio)) return false;
@@ -33,6 +33,8 @@ const NEEDS_KEYS = /\b(Keys|Settings)\b/;
 
 export function useConversation(onSignedOut: () => void) {
   const [conv, setConv] = useState<Conversation | null>(null);
+  /** Today's conversation waiting on the listener, offered on the first screen rather than reopened. */
+  const [waiting, setWaiting] = useState<Conversation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [noKey, setNoKey] = useState(false);
   const [posting, setPosting] = useState(false);
@@ -55,11 +57,21 @@ export function useConversation(onSignedOut: () => void) {
     if (c?.state === "working" && c.job_id && c.job_id !== watched.current) follow(c.job_id);
   }, [follow]);
 
-  // The page opens fresh, except on a conversation that isn't done: one still working (a reload keeps its steps
-  // and Stop), or one from today waiting on the listener (the coach's questions, or a Record offer).
+  // The page opens on the first screen, except while a conversation is still working (a reload keeps its steps
+  // and Stop). One from today waiting on the listener (the coach's questions, or a Record offer) is offered there.
   useEffect(() => {
-    api.latestConversation().then((c) => adopt(c && resumable(c) ? c : undefined), fail);
+    api.latestConversation().then((c) => {
+      if (c?.state === "working") adopt(c);
+      else setWaiting(c && resumable(c) ? c : null);
+    }, fail);
   }, [adopt, fail]);
+
+  /** "Pick up where you left off": open the conversation that was waiting. */
+  const resume = useCallback(() => {
+    if (!waiting) return;
+    adopt(waiting);
+    setWaiting(null);
+  }, [waiting, adopt]);
 
   // A turn's job ended: read the conversation again, a few times if it won't load. If it never
   // does, stop showing "working" so the person can write again.
@@ -106,7 +118,8 @@ export function useConversation(onSignedOut: () => void) {
     }
   }, [fail, follow]);
 
-  const working = posting || conv?.state === "working" || job?.state === "queued" || job?.state === "running";
+  // a job counts only while its chat is open: Stop closes the chat before the job's last word arrives
+  const working = posting || conv?.state === "working" || (!!conv && (job?.state === "queued" || job?.state === "running"));
 
   /** A new conversation, whatever is open. */
   const start = useCallback(async (line: string) => {
@@ -115,6 +128,7 @@ export function useConversation(onSignedOut: () => void) {
     setPosting(true);
     try {
       const { id: cid, job_id } = await api.startConversation(line, when());
+      setWaiting(null);
       setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }],
         updated_at: new Date().toISOString() });
       follow(job_id);
@@ -147,15 +161,24 @@ export function useConversation(onSignedOut: () => void) {
     }));
   }, [conv, turn]);
 
-  /** The Stop button: the running turn's work ends within a few seconds. */
+  /** The Stop button: the running turn's work ends within a few seconds, and the chat with it (the server
+   * keeps it as stopped, so it isn't offered again); the page goes back to the first screen. If the stop
+   * can't be sent, the chat stays open with the error. */
   const halt = useCallback(async () => {
     if (!conv) return;
     try {
       await api.stop(conv.id);
     } catch (e) {
       fail(e);
+      return;
     }
-  }, [conv, fail]);
+    stop();
+    setConv(null);
+    setWaiting(null);
+    setPosting(false);
+    setError(null);
+    setNoKey(false);
+  }, [conv, fail, stop]);
 
   /** "New chat": clear the page; the next message starts a new conversation. */
   const reset = useCallback(() => {
@@ -166,5 +189,5 @@ export function useConversation(onSignedOut: () => void) {
     setNoKey(false);
   }, [working, stop]);
 
-  return { conv, history, working, error, noKey, send, record, halt, reset, job, stop };
+  return { conv, history, working, error, noKey, send, record, halt, reset, job, stop, waiting, resume };
 }

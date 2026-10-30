@@ -44,6 +44,9 @@ type Props = {
   onRecord?: () => Promise<boolean> | void;
   /** Stops the running turn. */
   onStop?: () => void;
+  /** Today's conversation waiting on the listener, offered on the first screen; and opening it. */
+  waiting?: { offer: boolean; at: string | null } | null;
+  onResume?: () => void;
   /** No language-model key yet: the key to ask for, in place of the greeting, and the button that opens it. */
   needsKey?: KeyNeeded | null;
   /** Chooses a service to write the workouts, and opens its key. */
@@ -166,8 +169,7 @@ function seconds(since: number): string {
 }
 
 /** "Your coach is working…" with a running clock, the coach's latest steps, and what it's thinking about now. */
-function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
-  const [stopping, setStopping] = useState(false);
+function Working({ steps, stopping }: { steps: Step[]; stopping: boolean }) {
   const [since] = useState(() => Date.now());
   const [, tick] = useState(0);
   const began = useRef(new Map<string, number>());   // when each running step was first seen
@@ -187,11 +189,7 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
   const shown = steps.slice(-SHOWN_STEPS);
   return (
     <div className="m a thinking" aria-live="polite">
-      <p className="think-head">{stopping ? "Stopping…" : "Your coach is working…"} <span className="clock">{seconds(since)}</span>
-        {onStop && !stopping && (
-          <button type="button" className="quiet stop" onClick={() => { setStopping(true); onStop(); }}>Stop</button>
-        )}
-      </p>
+      <p className="think-head">{stopping ? "Stopping…" : "Your coach is working…"} <span className="clock">{seconds(since)}</span></p>
       {shown.length > 0 && (
         <ul className="steps">
           {steps.length > shown.length && <li className="more">{steps.length - shown.length} earlier steps</li>}
@@ -209,9 +207,16 @@ function Working({ steps, onStop }: { steps: Step[]; onStop?: () => void }) {
   );
 }
 
+function atTime(iso: string | null): string {
+  const d = iso ? new Date(iso) : null;
+  return d && !Number.isNaN(d.getTime()) ? ` at ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
+}
+
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
-  needsKey = null, onAddKey, start = null, onCoach, coachBar = null }: Props) {
+  needsKey = null, onAddKey, start = null, onCoach, coachBar = null, waiting = null, onResume }: Props) {
   const [text, setText] = useState(readDraft);
+  const [stopping, setStopping] = useState(false);
+  useEffect(() => { if (!working) setStopping(false); }, [working]);
   const log = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
@@ -239,6 +244,13 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
       )}
       <div className="chat-log" ref={log} role="log" aria-live="polite">
         {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? (() => onOpenKeys())} />}
+        {lines.length === 0 && !working && !needsKey && waiting && onResume && (
+          <button type="button" className="resume" onClick={onResume}>
+            <span className="resume-h">Pick up where you left off</span>
+            <span className="resume-s">{waiting.offer ? "Your workout is ready to record" : "Your coach asked you something"}{atTime(waiting.at)}.</span>
+            <span className="resume-go" aria-hidden="true">→</span>
+          </button>
+        )}
         {lines.length === 0 && !working && !needsKey && start && (
           <Starter info={start} onStart={onSend} onCoach={onCoach}
             onFill={(line) => { setText(line); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(line.length, line.length); }); }} />
@@ -251,7 +263,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
           </div>
         ))}
         {offer && !working && <RecordOffer offer={offer} onRecord={onRecord} />}
-        {working && <Working steps={steps} onStop={onStop} />}
+        {working && <Working steps={steps} stopping={stopping} />}
       </div>
       {error && (
         <div className="chat-error" role="alert">
@@ -270,6 +282,9 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
               send();
             }
           }} />
+        {working && onStop && !stopping && (
+          <button type="button" className="go stop" onClick={() => { setStopping(true); onStop(); }}>Stop</button>
+        )}
         <button type="submit" className="go" disabled={working || !!needsKey || !text.trim()}>Send</button>
       </form>
     </main>

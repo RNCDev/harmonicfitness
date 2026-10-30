@@ -6,7 +6,7 @@ import { ApiError, type Conversation } from "./api";
 const stop = () => {};
 
 const m = vi.hoisted(() => ({
-  latest: vi.fn(), conversation: vi.fn(), start: vi.fn(), send: vi.fn(), watch: vi.fn(),
+  latest: vi.fn(), conversation: vi.fn(), start: vi.fn(), send: vi.fn(), watch: vi.fn(), halt: vi.fn(),
   endJob: null as null | ((state: "done" | "failed", error?: string) => void),
 }));
 
@@ -15,7 +15,7 @@ vi.mock("./api", async (orig) => {
   return {
     ...real,
     api: { ...real.api, latestConversation: m.latest, conversation: m.conversation, startConversation: m.start,
-      sendMessage: m.send },
+      sendMessage: m.send, stop: m.halt },
     useJob: () => {
       const [job, setJob] = useState<{ id: number; state: string; error: string | null; stages: [] } | null>(null);
       m.endJob = (state, error) => setJob((j) => (j ? { ...j, state, error: error ?? null } : j));
@@ -38,7 +38,7 @@ const conv = (over: Partial<Conversation>): Conversation => ({
 });
 
 beforeEach(() => {
-  m.latest.mockReset(); m.conversation.mockReset(); m.start.mockReset(); m.send.mockReset(); m.watch.mockReset();
+  m.halt.mockReset(); m.latest.mockReset(); m.conversation.mockReset(); m.start.mockReset(); m.send.mockReset(); m.watch.mockReset();
 });
 
 const yesterday = () => new Date(Date.now() - 36 * 3600 * 1000).toISOString();
@@ -127,11 +127,26 @@ describe("useConversation", () => {
     expect(result.current.conv?.id).toBe(9);
   });
 
-  it("opens on today's conversation while the coach waits for an answer", async () => {
+  it("opens on the first screen, offering today's conversation while the coach waits for an answer", async () => {
     m.latest.mockResolvedValue(conv({ lines: [{ role: "user", text: "hi" }, { role: "agent", text: "1. How's the knee?" }] }));
     const { result } = renderHook(() => useConversation(out));
-    await waitFor(() => expect(result.current.conv?.id).toBe(7));
+    await waitFor(() => expect(result.current.waiting?.id).toBe(7));
+    expect(result.current.conv).toBeNull();
     expect(result.current.working).toBe(false);
+    act(() => result.current.resume());
+    expect(result.current.conv?.id).toBe(7);
+    expect(result.current.waiting).toBeNull();
+  });
+
+  it("a new message from the first screen drops the waiting conversation", async () => {
+    m.latest.mockResolvedValue(conv({ lines: [{ role: "agent", text: "Which kit?" }] }));
+    m.start.mockResolvedValue({ id: 8, job_id: 50 });
+    const { result } = renderHook(() => useConversation(out));
+    await waitFor(() => expect(result.current.waiting?.id).toBe(7));
+    await act(async () => { await result.current.send("A 20-minute workout"); });
+    expect(m.start).toHaveBeenCalled();
+    expect(result.current.waiting).toBeNull();
+    expect(result.current.conv?.id).toBe(8);
   });
 
   it("resumable: working, or today's and waiting on the listener; never failed, recorded or yesterday's", () => {
@@ -152,6 +167,27 @@ describe("useConversation", () => {
     expect(isHistory(conv({ state: "working", updated_at: yesterday() }))).toBe(false);
     expect(isHistory(conv({ updated_at: null }))).toBe(false);
     expect(isHistory(null)).toBe(false);
+  });
+
+  it("Stop ends the chat: the turn is stopped and the page goes back to the first screen", async () => {
+    m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
+    m.halt.mockResolvedValue({ stopping: true });
+    const { result } = renderHook(() => useConversation(out));
+    await waitFor(() => expect(result.current.conv?.id).toBe(7));
+    await act(async () => { await result.current.halt(); });
+    expect(m.halt).toHaveBeenCalledWith(7);
+    expect(result.current.conv).toBeNull();
+    expect(result.current.working).toBe(false);
+  });
+
+  it("a Stop that can't be sent keeps the chat open, with the error", async () => {
+    m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
+    m.halt.mockRejectedValue(new Error("offline"));
+    const { result } = renderHook(() => useConversation(out));
+    await waitFor(() => expect(result.current.conv?.id).toBe(7));
+    await act(async () => { await result.current.halt(); });
+    expect(result.current.conv?.id).toBe(7);
+    expect(result.current.error).toBeTruthy();
   });
 
   it("offers Settings when a turn fails for want of a key", async () => {

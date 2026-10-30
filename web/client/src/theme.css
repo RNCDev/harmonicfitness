@@ -102,7 +102,6 @@ a:hover { color: #fff }
 .m.thinking { color: var(--ink-2); min-width: 16em }
 .think-head { margin: 0; font-weight: 600; color: var(--ink) }
 .think-head .clock { font-weight: 400; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-left: 6px }
-.think-head .stop { margin-left: 14px; font-weight: 400 }
 .steps { list-style: none; margin: 10px 0 0; padding: 0; font-size: 15px; position: relative }
 .steps::before { content: ""; position: absolute; left: 5px; top: 9px; bottom: 9px; width: 1px; background: var(--rule) }
 .steps li { position: relative; padding: 3px 0 3px 26px; color: var(--ink-3) }
@@ -172,6 +171,16 @@ a:hover { color: #fff }
 .chat-form textarea::placeholder { color: var(--ink-3) }
 .chat-form textarea:disabled { color: var(--ink-3); cursor: not-allowed }
 .chat-form .go { padding: 12px 20px; font-size: 17px }
+.chat-form .go.stop { background: transparent; color: var(--stop); box-shadow: inset 0 0 0 1px var(--stop) }
+.chat-form .go.stop:hover { background: var(--stop); color: var(--paper) }
+.resume {
+  display: grid; grid-template-columns: 1fr auto; column-gap: 16px; align-items: center; width: 100%; max-width: 34rem;
+  margin: 0 0 28px; padding: 14px 18px; text-align: left; background: rgba(26, 27, 32, .9); box-shadow: inset 0 0 0 1px var(--line);
+}
+.resume:hover { box-shadow: inset 0 0 0 1px var(--ink) }
+.resume-h { font-weight: 600; color: var(--ink) }
+.resume-s { grid-column: 1; font-size: 15px; color: var(--ink-2) }
+.resume-go { grid-column: 2; grid-row: 1 / span 2; font-size: 22px; color: var(--ink) }
 
 /* ---------- the request ---------- */
 /* the request at the top, the other asks anchored at the bottom, just above the message box */

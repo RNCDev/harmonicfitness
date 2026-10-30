@@ -87,7 +87,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [keys, setKeys] = useState<KeyState[] | null>(null);
   const [openRow, setOpenRow] = useState<{ service: string; n: number; choose?: boolean } | null>(null);
   const needsKey = keyNeeded(keys);
-  const { conv, working, error, noKey, send, record, halt, reset, job } = useConversation(onSignedOut);
+  const { conv, working, error, noKey, send, record, halt, reset, job, waiting, resume } = useConversation(onSignedOut);
   const steps = stepsOf(job?.stages ?? []);
 
   // What the first screen's sentence is filled in with: asked at once, beside the keys, and again whenever
@@ -169,6 +169,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
           offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
           onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
           start={start} onCoach={setPicked} coachBar={coachBar}
+          waiting={waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null} onResume={resume}
           onAddKey={(service) => {
             setOpenRow((r) => ({ service, n: (r?.n ?? 0) + 1, choose: true }));
             setDrawer(true);
