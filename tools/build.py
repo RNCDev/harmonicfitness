@@ -473,8 +473,14 @@ def _run(b, text):
     issues, warnings, report = gate(segments, voice, opts, text, smoke)
     b.say("\n".join(tts_build.render_report(report)))
     if not smoke:
+        import catalog
         import menu
+        import repeats
         b.say("\n".join(menu.report_lines(opts.draft, issues, warnings, len(draft.declared(text)))))
+        cues = frozenset(repeats._norm(c) for c in menu._cue_sentences(catalog.default()))
+        again = repeats.repeats(opts.draft, text, cues)
+        if again:   # a warning, never an issue: the sessions shouldn't sound like a template
+            b.say("\nSaid before, in the last workouts:\n" + "\n".join(f"  warning: {w}" for w in again))
     if issues:
         b.fail(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
         b.stopped(f"{len(issues)} menu issue(s)", stage="menu")

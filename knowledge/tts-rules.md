@@ -6,7 +6,7 @@ The coach's voice reads the script exactly as written: a local one (Pocket TTS o
 
 - The first line is `movements: <every movement the script uses, by its name in the brief's menu, comma separated>`. It is never spoken.
 - Then come the `@@ <seconds> | <label>` segments, adding up to exactly the session's seconds. You choose them: a segment can be one set, a round, an interval block or the whole warm-up, as long as it holds the time its work, rest and talk need.
-- Draft to roughly the coach's measured words a minute (the brief gives it). The lint predicts each segment's spoken length. A segment with time to spare ends a little early, one that runs long is paid back by the next ones, and only the total must land within three percent of plan.
+- Draft to roughly the coach's measured words a minute (the brief gives it). The lint predicts each segment's spoken length. A segment with time to spare ends a little early, one that runs long is paid back by the next ones (never by a segment with a bare `[hold]`, which keeps its full length), and only the total is held to plan: within three percent once rendered, so the lint asks for two and a half (two with an estimated pace), leaving room for the voice.
 
 ## Characters
 
@@ -41,7 +41,8 @@ Write years as spoken ("twenty twenty-six") and decades in words ("the nineteen 
 - **`[pause 3s]`** is exactly that much silence (also `[pause 500ms]`; at most ten seconds). Use it where the listener needs real time, such as getting into position or a breath. Box breathing, for example: "Breathe in through your nose. [pause 2s] Hold it there. [pause 3s] Out through your mouth. [pause 2s] And hold. [pause 3s]"
 - **`[chime]`** rings the bell. A chime already opens every segment after the first; inside a segment, ring one at each change of an interval, and say the cue too ("At the bell, go. [chime] Push.").
 - **`[hold 5s]`** is that much silence between two cues of timed work. A bare `[hold]` takes the segment's spare time and keeps the segment its full length; without one, a segment ends early when its words run out. Never use a hold to pad a story or a rest.
-- **No silence over eight seconds**, counting holds, pauses and the breaks around them. The lint refuses it.
+- **No silence over eight seconds**, counting holds, pauses and the breaks around them. The lint refuses it. With the pulse bed on (`bed = "pulse"` in the listener's settings: a soft tick each second through any quiet of two seconds or more), the limit is twenty seconds. The render checks the silences again as laid out, and warns about any the voice left longer than predicted.
+- **`[story]` and `[/story]`** wrap the listener's content (a result, a quiz, a serial beat). Never spoken and timed as nothing; they tell the build which words are a story, not coaching (`knowledge/script.md`, Keeping them engaged). Only `[pause]` may sit inside one.
 - **Counts and cues.** Write every countdown as a marker, never in words: `[count 5]` (five down to one, a second apart), `[count 3 go]` (then the cue; the cues are go, rest, switch, switch sides, stop and hold), or `[cue rest]` for one cue alone. A coach with recorded counts plays them on the beat, and a coach without says them in words; the brief's Counts line says which. With recorded counts, the lint refuses a countdown in words.
 - **No one-word clips.** A word alone between markers or paragraph breaks ("Go.", "Hold.") is the line a local voice garbles most, and the lint refuses it. Use two words or more ("And go.", "Hold it there."). A one-word sentence inside a longer line is fine.
 

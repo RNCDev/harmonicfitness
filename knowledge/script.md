@@ -28,8 +28,9 @@ The `movements:` line, segments that add up to the session's seconds, a total wi
 
 The listener has no screen, no mirror and no clock. The coach's voice is all of those.
 
-- **Coach from the brief's notes:** the setup, what one rep is the first time it appears (and whether reps count per side), where they should feel it, and the main fault's fix as a mid-set check ("If the hips sag, squeeze and brace.").
-- **Stay with them through the work.** Lead the first reps to set the tempo, then keep cueing (form, the breath, how far through, the last few). Thirty seconds of quiet sounds like a dropped earbud.
+- **Coach from the movement's notes** (`./harmonicfitness movements --about <ids>`, or the brief for one that touches a limit): the setup, what one rep is the first time it appears (and whether reps count per side), where they should feel it, and the main fault's fix as a mid-set check ("If the hips sag, squeeze and brace.").
+- **Coach fully once, then trust them.** The first time a movement appears, give it everything: setup, the rep, the feel, the fault. After that a set needs its target, the count in, a cue or two and the finish ("Same as before, chest up, ten more."), not the whole lesson again. That leaves the rests and the easy work for the listener's world, which is what makes them press play next time. Safety lines never shrink: the limit cues, the self-check under a limit, and every cue the listener must catch.
+- **Stay with them through the work.** Lead the first reps to set the tempo, then cue what matters (form, the breath, how far through, the last few). No quiet runs past eight seconds (twenty with the pulse bed, `bed = "pulse"` in their settings; the brief's Counts and Voice lines say which), so a long set still gets a word every few seconds, but it can be short.
 - **Fit the set to its time.** Each movement's line gives its seconds a rep: twelve reps at three seconds is thirty-six seconds of work, per side where it counts per side. Say the rest a segment actually holds.
 - **Tell them where they are.** The time, the round, what's next and what to pick up. Timed work gets `[chime]` at each change and a `[count]` into the work.
 - **Give them a target and a way to adjust.** A main set has a target ("Ten reps, two left in the tank"). After the first working set, ask how it felt and give an if-then from the brief's harder and easier options, preferring changes that don't lengthen the set. When they're unsure, lean to the harder option (programming.md, Readiness). Later rounds call back to their choice.
@@ -54,9 +55,65 @@ This is one coach with one person they know, not a fitness app reading a list.
 - **The coach's character** from the brief: how they talk, their humor, what encouragement works for this listener. Use the listener's name a few times, not every paragraph. Bring in their week and their last feedback.
 - **The rests carry their world.** The content plan names the topics due (what they like to stay current on and learn about), the formats to tell them in, and what was told in the last month, which stays untold. Its topic count is the least, not the most: spare time goes to more of their topics (the spares, the stock), never to silence. Each find is told at its size: a routine result is a quick hit; a big move or a great long read earns the big story, an explainer or the serial. Mix the formats so no two rests sound alike: a quick hit, then a this-or-that to chew on through a set, then a myth asked now and checked later. Open each item with why it's theirs (their team, their city, a show they loved), and tell it like a friend would, never like a news reader.
 - **Weave, don't insert.** The best rests reach back and forward: a quiz asked in one rest and answered two later, a memory list given in the warm-up and recalled in the cool-down, a serial that ends each beat on a hook, the coach's own take on the this-or-that. Tie a story to the work when it fits honestly (an athlete's training to today's movement, the physics of a swing), and bring in their progress from the log. Credit a video to its channel. A series part recaps the earlier parts. Log every researched item told (`./harmonicfitness content log`).
+- **Wrap each story in `[story]` and `[/story]`.** The tags are never spoken. Inside them a story may name a movement that isn't on today's menu ("her deadlift record"), say left or right ("the other side of the river"), or count down ("ten, nine, eight, liftoff"), since the build reads past them; so a story never tells the listener to do anything, holds no `[hold]`, `[count]`, `[cue]` or `[chime]`, and closes in the segment it opens in. Coaching stays outside the tags.
+- **Threads across sessions.** The content plan lists open threads from earlier sessions: a quiz to answer, a story to follow up, the coach's take (keep it the same), a promise ("next week we add weight"). Bring one back when it fits and close it. Leave one open for next time when it's worth it: a quiz answered next session is a reason to come back (`./harmonicfitness content thread`, after the build).
 - **Stories wait for the rests and the easy work.** A hard set gets cues only.
 - **A shape:** a welcome that knows them (the day, the weather, how today fits the week), a build, a named peak, an easing off, and a close that says what they did specifically and gives one reason to come back.
-- **No sameness:** segments that all open alike, stock praise on repeat, and lines that sound like a checklist all read as a template.
+- **No sameness:** segments that all open alike, stock praise on repeat, and lines that sound like a checklist all read as a template. The build warns about any sentence said word for word in the last five workouts.
+
+## Worked examples
+
+Each is a segment as it would sit in a draft, for a local coach with recorded counts; a test lints every one, so they keep to the rules. Make them your own: they show the shape, not lines to reuse, and their facts are made up, where a script's come only from the research sheets.
+
+A welcome that knows them, with the rules in the short form:
+
+<!-- example -->
+    @@ 60 | Welcome
+    Morning, Sam. Grey and cool out there, about fifty degrees, so this is a good one to do inside with the window cracked.
+
+    Third session this week, and the first with the new dumbbells, so today is upper body and a little core, about twenty-five minutes. Usual rules. The left knee stays out of deep bends, nothing jumps, and sharp pain means stop that movement.
+
+    And keep this in your back pocket, because I'm asking at the end. Three words: lantern, pepper, harbor.
+
+A strength rest that carries a story, then hands back to the work:
+
+<!-- example -->
+    @@ 75 | Rest after set two
+    Set them down, and shake the arms out. That's two of three.
+
+    [story] Your Flyers won last night, four to two in Boston, and the rookie scored the winner on a backhand in the third. It was his first goal at home this season, and the bench emptied onto the ice to mob him. [/story]
+
+    [story] Here's the part I liked. He told reporters he'd been shooting backhands after practice every day for a month, a hundred a day, because the coaches said it was the one shot goalies don't read. [/story]
+
+    A hundred a day. We're doing twelve. Pick the dumbbells back up when you're ready, same weight, and same tempo, slow on the way down.
+
+A quiz asked in one rest and answered later, the coach's own take in between:
+
+<!-- example -->
+    @@ 45 | Rest after the first round
+    Breathe it down, and here's one to chew on through the next round.
+
+    [story] Which planet has a day longer than its year? It spins so slowly that the sun rises and sets less often than it goes round. Have a guess, and I'll tell you after the planks. [/story]
+
+    Chime's coming, so find the floor and get set for the plank.
+
+<!-- example -->
+    @@ 40 | Rest after the planks
+    Down onto the knees, and rest.
+
+    [story] So, the planet. It's Venus. A day there lasts about two hundred and forty three Earth days, and its year only about two hundred and twenty five. My take, it's the strangest place in the solar system, and nobody can argue me out of it. [/story]
+
+    One more round, then we ease off.
+
+A close that says what they did, recalls the warm-up, and leaves one thread open:
+
+<!-- example -->
+    @@ 60 | Close
+    That's the session, Sam. Three rounds, the first time with the fifteens on the floor press, and that last set was the strongest of the lot.
+
+    Before you go, the three words from the start. Lantern, pepper, harbor. If you got all three while breathing that hard, that's a sharp head.
+
+    Next time we'll add a set to the rows, and I'll have the end of that rookie's story, because he's up against his old team on Saturday. Good work today.
 
 ## Last: read it through and rewrite
 

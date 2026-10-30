@@ -2,8 +2,8 @@
 
 You are reviewing workout scripts HarmonicFitness's writers designed and wrote from `./harmonicfitness brief`'s
 ingredients. Each case is one request from one invented listener: the brief gave the writer the
-listener, the week, today's limits, the safe menu with coaching notes, the programming guide and the
-equipment notes, and the writer chose the format, movements, order, doses and timing. Your job is to
+listener, the week, today's limits, the safe menu, the programming guide and the equipment notes, and a
+day's research sheet to tell stories from, and the writer chose the format, movements, order, doses and timing. Your job is to
 score how well the session serves that listener, and what the scores say about the engine.
 
 ## What to read, for each case in `docs/eval/cases.toml` or `docs/eval/extra-cases.toml`
@@ -21,13 +21,15 @@ score how well the session serves that listener, and what the scores say about t
    to invent something beyond the brief. They are evidence for ease and for whether a fault lies in
    the brief or the script.
 
-The scripts are written without research, so topic beats are one-line placeholders: score adherence on
-the coaching (pace, cues, variety, fit with the listener), not on the topics.
+6. The day's research: `docs/eval/research/<listener>.md`, invented for the grid (don't fact-check it):
+   the stories the writer had to tell from, and the open threads from earlier sessions.
+
+Since 0.39.0 the writers fill the rests from that sheet, so the stories are scored too (Stories, below).
 
 Look up any movement you are unsure of in `knowledge/movements.toml` (its `loads`, `support`, `flags`,
 `patterns` and `level`).
 
-## Score each case from 1 to 5 on five things, with one line of reason each
+## Score each case from 1 to 5 on six things, with one line of reason each
 
 - **Safety.** Does the script respect every limit (health.md's and the case's), the listener's level,
   and the kit? Any excluded load or flag in the script, any movement that loads an off-limits area,
@@ -47,6 +49,12 @@ Look up any movement you are unsure of in `knowledge/movements.toml` (its `loads
   varied segment openings; stories handed off like a friend, not a newsreader; an arc from welcome to a
   specific, personal close. Cues during the work should still be short: warmth that blurs a safety or
   form cue costs points. A 5 sounds like a coach you'd want back; a 1 is a template read aloud.
+- **Stories.** Do the rests carry the listener's world well? Look for: their topics told with why each is
+  theirs, at the size each find deserves; a mix of formats so no two rests sound alike; weaving (a quiz
+  asked and answered later, a callback, an open thread from the sheet brought back, a story tied honestly
+  to the work); a friend's telling, not a newsreader's; coaching that's full the first time and brief after,
+  leaving the rests to the stories; nothing invented beyond the sheet; and no story during a hard set. A 5
+  is a rest you'd want to hear the end of; a 1 is filler, or a session that's nearly all cues.
 - **Ease of construction.** How much did the writer have to invent beyond the brief? A 5 means the
   brief gave everything the design and the script needed (movements, coaching, limit cues, dose
   guidance, equipment notes) and the writer only had to choose and write; a 1 means the writer had to
@@ -58,16 +66,18 @@ Write your part of `docs/eval/results-<YYYY-MM-DD>.md` with:
 
 1. One table row per case, in case order:
 
-   | id | listener | goal | minutes | preset | method | safety | efficacy | adherence | ease | warmth | note |
-   |----|----------|------|---------|--------|--------|--------|----------|-----------|------|--------|------|
+   | id | listener | goal | minutes | preset | method | safety | efficacy | adherence | ease | warmth | stories | note |
+   |----|----------|------|---------|--------|--------|--------|----------|-----------|------|--------|---------|------|
 
-   The method is the format the writer chose. The note holds the five one-line reasons, in the order
-   safety, efficacy, adherence, ease, warmth, separated by semicolons.
+   The method is the format the writer chose. The note holds the six one-line reasons, in the order
+   safety, efficacy, adherence, ease, warmth, stories, separated by semicolons.
 
 2. **The lowest cases**, by the sum of their scores (safety breaks ties), each with what went wrong and
    whether the fault lies in the brief (the menu, the coaching notes, the guide) or in the script.
 
 3. **What the scores say** about:
+   - the stories (what made a rest worth hearing; where coaching crowded them out, or a story crowded a
+     cue);
    - the catalog and the menu (movements missing for a kit, level or limit; loads or flags that look
      wrong; coaching notes that don't fit a limit);
    - the programming guide (doses too heavy or light for the writers' designs, rules the writers

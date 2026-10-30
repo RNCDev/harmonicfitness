@@ -2,7 +2,8 @@
 
 Forty requests over four invented listeners, used to judge sessions before a release: for each case a
 writer designs and writes a session from `./harmonicfitness brief`'s ingredients, the way the workout skill
-does, and reviewers score the scripts for safety, efficacy, adherence, ease of construction and warmth.
+does, and reviewers score the scripts for safety, efficacy, adherence, ease of construction, warmth and (since
+0.39.0) the stories in the rests.
 
 - `cases.toml`: the forty cases. Strength, general and conditioning at the novice, experienced and
   advanced levels make nine cells; each runs at two kit presets and two lengths (ten to twenty minutes
@@ -15,6 +16,8 @@ does, and reviewers score the scripts for safety, efficacy, adherence, ease of c
   a is a novice with a mat and no limits; b is experienced in hotel gyms with a delicate neck; c is advanced
   in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
   no log yet.
+- `research/{a,b,c,d}.md`: a day's research sheet per listener, invented, standing in for the research
+  agent's, with open threads from earlier sessions; the writers tell the rests from it.
 - `briefs.sh`: each case's brief and menu.
 - `writer.md`: the writer's brief (a few cases a writer). `judge.md`: the reviewer's prompt.
 - `out/` (git-ignored): the generated briefs and menus, scripts, writer notes, lints and judges' parts.

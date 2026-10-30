@@ -12,7 +12,8 @@ longer than MAX_SILENCE (eight seconds: a fixed [hold], a bare hold's share of t
 breaks between paragraphs, added up until something sounds), since a listener with no screen hears a long
 silence as a dropped earbud; the coach talks through the work instead.
 How the script should sound (varied openings, the listener's name, friendly handoffs) is guidance in
-knowledge/tts-rules.md, not a check.
+knowledge/script.md, not a check. The predicted total must land inside the render's tolerance less
+LINT_HEADROOM (more with an estimated pace), and the silence limit is BED_MAX_SILENCE with the pulse bed on.
 
 With a voice, each segment's spoken length is predicted from that coach's pace (voices.py) and checked
 against its planned seconds; without one, word count against `wpm` is the rough fallback.

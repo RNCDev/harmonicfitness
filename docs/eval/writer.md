@@ -13,10 +13,14 @@ writer takes a few cases.
 - `knowledge/script.md` (the one hard rule, safety; the two aims, getting the workout done and keeping the
   listener engaged; and the final rewrite) and `knowledge/tts-rules.md` (what a voice can read and the
   draft's format: no digits, no symbols except the markers).
-- For each case: the listener folder `docs/eval/listeners/<listener>/` (profile.md, health.md, log.md)
-  and the brief `docs/eval/out/<id>.brief.md`, which holds everything else: the listener, the week, the
-  limits and their cues, the safe menu with each movement's coaching notes, the programming guide and
-  the equipment notes. Design from it, not from memory.
+- For each case: the listener folder `docs/eval/listeners/<listener>/` (profile.md, health.md, log.md,
+  content.md), the brief `docs/eval/out/<id>.brief.md`, which holds everything else (the listener, the
+  week, the limits and their cues, the safe menu, the programming guide and the equipment notes), and
+  the day's research, `docs/eval/research/<listener>.md` (invented: it stands in for the research agent's
+  sheet, with the open threads earlier sessions left). Design from the brief, not from memory. After
+  designing, read your chosen movements' coaching notes with
+  `HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness movements --about <ids>`, as the
+  skill does (the brief carries only the notes of a movement that touches a limit or works one side).
 
 ## Policy (keeps runs comparable)
 - **Design it yourself.** Pick a format the brief lists (or a mix that keeps to its doses), the
@@ -31,10 +35,12 @@ writer takes a few cases.
   list of every place the brief left you to invent something (a movement you wanted that wasn't on
   the menu, a dose the guide didn't settle, how to place the resting foot, a transition, timing), and
   anything that made the brief hard to use. If nothing, write "Nothing invented."
-- No research, no feeds: where `knowledge/script.md` calls for topic beats (headlines, science, deep
-  dive, quiz), write a single one-line placeholder paragraph such as `Topic beat: a short science story
-  goes here.` Keep placeholders to a small share of the time; fill most of it with coaching. Don't
-  invent scores, quotes or events.
+- The stories come from `docs/eval/research/<listener>.md` only, told as if true (it's invented for the
+  grid), each wrapped in `[story]` ... `[/story]`, in the formats and the weaving `knowledge/script.md`
+  describes (Keeping them engaged, and its worked examples), with one open thread brought back where it
+  fits. Coach each movement fully the first time, then briefly, so the rests carry the stories. Don't
+  invent facts beyond the sheet. In the writer notes, list the items told and any thread you'd open for
+  next time.
 - Health: speak the full safety rules (first-session length) from the brief's limits and clinician
   rules, and its limit cues wherever a movement or a transition touches a limit.
 - Voice: write it the way the brief's coach would talk to this listener (`knowledge/script.md`,
@@ -48,8 +54,9 @@ writer takes a few cases.
 - Say the rest a segment actually holds, not a number it can't contain.
 - Don't repeat filler lines word for word; vary praise.
 - Timed work inside one segment: `[chime]` at each work start and stop, said too ("At the bell, go.
-  [chime] Push."), and `[hold]` where the listener works or recovers in silence (`[hold 20s]` times
-  the work; one bare `[hold]` takes the rest). Never use a hold to pad a story or a strength rest.
+  [chime] Push."), and short holds between cues while they work (`[hold 5s]`; one bare `[hold]` takes
+  the segment's spare time). No quiet runs past eight seconds, holds, pauses and breaks added up; the
+  eval listeners have no pulse bed. Never use a hold to pad a story or a strength rest.
 - Getting up and down costs time and, under a lower-leg limit, risk: group work done in one place.
 
 ## Lint (must pass for each script)
