@@ -40,8 +40,9 @@ button[disabled] { cursor: not-allowed }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
 a { color: var(--tok) }
 
-.mark { display: flex; align-items: center; gap: 10px; font-weight: 700; font-stretch: 118%; font-size: 17px; letter-spacing: -.005em; line-height: 1 }
-.mark svg { flex: none }
+.mark { display: flex; align-items: center; gap: 10px; line-height: 1 }
+.mark svg { flex: none; display: block }
+.mark .mark-name { margin-top: 1px }
 .mark .ver { font-weight: 400; font-stretch: 100%; font-size: 11px; opacity: .55; align-self: flex-end }
 .meta { font-size: 14px; color: var(--ink-2) }
 .quiet {

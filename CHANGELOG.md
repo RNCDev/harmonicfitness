@@ -4,6 +4,20 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-29
+
+A logo: seven sound bars, the tallest in coral, and the wordmark "harmonicfitness". The web app wears it, with a favicon at last.
+
+### For forks
+- **Nothing to migrate.** New files only, and the web client's logo.
+
+### Added
+- **`assets/brand/`:** the mark, wordmark and lockups (light and reversed), app icons (SVG and 1024 px PNG), the favicon (SVG and a 16/32/48 px ICO), and a README with the colours (ink `#15171C`, coral `#FF5A3C`) and the construction. Every file comes from `assets/brand/make.py` (maintainer only), which outlines the wordmark from Inter Tight SemiBold (SIL Open Font License) so nothing needs the font.
+- **The web app's favicon and Apple touch icon** (`web/client/public/`).
+
+### Changed
+- **The web app's logo** (`web/client/src/Mark.tsx`) is the sound-bar mark and the outlined wordmark, drawn in the text colour from `web/client/src/brand.ts` (written by `make.py`), in place of the yellow squircle and the name in type.
+
 ## [0.30.0] - 2026-10-29
 
 Fewer rules for the script writer, a final rewrite pass, and local scripts written to flow.
