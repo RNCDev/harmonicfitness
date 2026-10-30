@@ -4,6 +4,20 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-30
+
+The web app's Settings, reorganized: the background chooser moves to the bottom and gains two patterns after Book of Shapes.
+
+### For forks
+- **`PUT /api/sky` takes `arcs` and `waves`** as well as `flow` and `field`; `GET /api/me`'s `sky` can be any of the four. The column is unchanged (plain text), so there's no migration. The code, API and database still call it the sky; the page calls it Background.
+
+### Added
+- **Two backgrounds in the web app:** Arcs, after Book of Shapes' Brockmann Beethoven Arcs (concentric arcs, thicker outward, their turns stepped to 15 degrees, a few stepping round every couple of seconds), and Waves, after its Interference Mesh (level lines bent by two sources of ripples, moving outward slowly). Both hold still when the device asks for reduced motion, like Flow and Field.
+
+### Changed
+- **The Settings drawer, top to bottom:** your coaches; keys; account (who's signed in, change password, sign in another device, sign out, delete the account); your files (download them, bring in a folder); and last the background, now headed "Background" (was "Sky") with its four choices in a two-by-two grid. A rule separates each section.
+- **Plainer wording** in the drawer: the coaches' note, the keys' notes and their storage line, and each file action now a link with one line under it ("Bring in a folder" replaces "Choose a ZIP").
+
 ## [0.35.0] - 2026-10-30
 
 What fills the rests, rebuilt for any listener: a plain list of topics you like to stay current on and learn about, seventeen ways to tell them, research that judges how big each find is, a stock filled while the audio renders, and topic ideas from what's trending.

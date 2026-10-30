@@ -1,5 +1,5 @@
 /* Moonrise: a night sky behind every page, after Ansel Adams' "Moonrise, Hernandez". A near-black ground and a
-   faint moving pattern after Book of Shapes (Flow or Field, chosen in Settings). Dark only.
+   faint moving pattern after Book of Shapes (Flow, Field, Arcs or Waves, chosen under Background in Settings). Dark only.
    Two families: Big Shoulders Display, tall and narrow, in capitals for headings, the request and buttons; and
    IBM Plex Sans Condensed for everything else. No accent colour: cream is the one action on each screen, greys
    say the rest, and a muted brick is kept for "keep off" and errors. The logo keeps its one coral bar. */
@@ -53,8 +53,8 @@ a:hover { color: #fff }
 
 /* ---------- the sky: fixed behind everything ---------- */
 .sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden }
-.sky .flow, .sky .field { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .85; transition: opacity 1.2s ease }
-.sky.busy .flow, .sky.busy .field { opacity: 1 }
+.sky > svg, .sky > canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .85; transition: opacity 1.2s ease }
+.sky.busy > svg, .sky.busy > canvas { opacity: 1 }
 .flow path { fill: none; stroke: var(--ink); stroke-width: 1 }
 .flow-a { animation: drift 120s linear infinite }
 .flow-b { animation: drift-back 200s linear infinite }
@@ -295,9 +295,12 @@ a:hover { color: #fff }
 .ctx-top h2 { margin: 0; font: 700 30px/1 var(--display); letter-spacing: .12em; text-transform: uppercase }
 .ctx-close { font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); padding: 12px 0 12px 12px }
 .ctx-close:hover { color: #fff }
-.cx-list { display: grid; gap: 32px }
+.cx-list { display: grid; gap: 0 }
+.cx-list > * { padding: 26px 0 }
+.cx-list > * + * { border-top: 1px solid var(--rule) }
+.cx-list > :first-child { padding-top: 0 }
 .cx-box { display: grid; gap: 4px }
-.cx-h { margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
+.cx-h { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
 .coach-list { list-style: none; margin: 4px 0 6px; padding: 0 }
 .coach-list li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule) }
 .coach-list li small { margin-left: auto; color: var(--ink-3); font-size: 14px }
@@ -330,12 +333,14 @@ a:hover { color: #fff }
 .sky-mini { display: block; width: 100%; height: auto; background: var(--paper); color: var(--ink); margin-bottom: 4px }
 .sky-opt-name { font-weight: 600; font-size: 16px }
 .sky-opt-note { font-size: 14px; line-height: 1.35; color: var(--ink-3) }
-.cx-account { display: grid; gap: 16px; justify-items: start; padding-top: 4px }
-.cx-account .cx-box { gap: 4px }
+.cx-account { display: grid; gap: 14px; justify-items: start }
+.cx-account > .cx-h { margin-bottom: 0 }
+.keys-foot { margin-top: 10px; color: var(--ink-3); font-size: 14px }
+.cx-account .cx-box { gap: 8px }
 .device { margin-top: 12px }
 .qr { display: block; margin: 12px 0; width: 200px; height: 200px; max-width: 100% }
 .link { margin: 0; font-size: 13px; overflow-wrap: anywhere }
-.import { display: inline-block; margin-top: 8px; cursor: pointer; font-size: 15px }
+.import { display: inline-block; cursor: pointer; font-size: 16px }
 .files { list-style: none; margin: 0; padding: 0 }
 .files li { padding: 6px 0; border-top: 1px solid var(--rule); overflow-wrap: anywhere }
 

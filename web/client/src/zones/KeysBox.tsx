@@ -213,15 +213,15 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
   );
 
   return (
-    <div className="cx-box">
-      <h3 className="cx-h">Keys</h3>
+    <section className="cx-box" aria-labelledby="cx-keys-h">
+      <h3 className="cx-h" id="cx-keys-h">Keys</h3>
       {error && <p className="cx-s err" role="alert">{error}</p>}
       {keys === null && !error && <p className="cx-s">Loading…</p>}
       {group("Who writes your workouts", required.length > 1
         ? "Pick one, and add its key. Gemini's key is free, and also voices a coach."
-        : "Your workouts are written with this key.", required, required.length > 1)}
-      {group("More voices (optional)", "Each key adds its own coach. Fish Audio is the cheapest.", optional)}
-      <p className="cx-s">Stored encrypted, never shown again. Each key goes only to its own service, when you use it.</p>
-    </div>
+        : "This key writes every workout.", required, required.length > 1)}
+      {group("More voices (optional)", "Each key adds a coach with its own voice. Fish Audio costs the least.", optional)}
+      <p className="cx-s keys-foot">Keys are stored encrypted and never shown again. Each one goes only to its own service, and only when it's used.</p>
+    </section>
   );
 }

@@ -53,11 +53,11 @@ def set_writer(conn, uk: UserKey, provider: str) -> None:
     conn.execute("update users set writer = %s where id = %s", (provider, uk.user_id))
 
 
-SKIES = ("flow", "field")
+SKIES = ("flow", "field", "arcs", "waves")
 
 
 def sky(conn, uk: UserKey) -> str:
-    """The web app's animated background the user chose: "flow" (the default) or "field"."""
+    """The web app's animated background the user chose: "flow" (the default), "field", "arcs" or "waves"."""
     row = conn.execute("select sky from users where id = %s", (uk.user_id,)).fetchone()
     return row[0] if row and row[0] in SKIES else SKIES[0]
 

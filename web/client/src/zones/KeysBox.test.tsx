@@ -33,11 +33,11 @@ describe("the Keys box", () => {
     const required = screen.getByRole("region", { name: "Who writes your workouts" });
     const optional = screen.getByRole("region", { name: "More voices (optional)" });
     expect(required).toHaveTextContent("Claude");
-    expect(required).toHaveTextContent("Your workouts are written with this key.");
+    expect(required).toHaveTextContent("This key writes every workout.");
     expect(required).not.toHaveTextContent("Fish Audio");
     expect(optional).toHaveTextContent("Fish Audio");
     expect(optional).toHaveTextContent("ElevenLabs");
-    expect(screen.getByText("Stored encrypted, never shown again. Each key goes only to its own service, when you use it.")).toBeInTheDocument();
+    expect(screen.getByText("Keys are stored encrypted and never shown again. Each one goes only to its own service, and only when it's used.")).toBeInTheDocument();
   });
 
   it("shows Gemini, listed as model and voice, as one row, set once", async () => {

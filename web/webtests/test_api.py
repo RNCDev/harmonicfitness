@@ -540,6 +540,9 @@ class Keys(ApiCase):
         self.assertEqual(keystore.sky(self.conn, uk), "field")
         self.conn.rollback()
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
+        for kind in ("arcs", "waves", "field"):
+            self.assertEqual(self.client.put("/api/sky", json={"sky": kind}, headers=self.origin()).status_code, 204, kind)
+            self.assertEqual(keystore.sky(self.conn, uk), kind)
         for bad in ({"sky": "clouds"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
             self.assertEqual(self.client.put("/api/sky", json=bad, headers=self.origin()).status_code, 422, bad)
         self.assertEqual(self.client.put("/api/sky", json={"sky": "flow"}).status_code, 403)   # no Origin

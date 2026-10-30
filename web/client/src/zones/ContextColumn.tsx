@@ -1,5 +1,6 @@
-// The Settings drawer: the coaches, then the keys, then the sky behind the page; then the account: bringing in a folder, signing in another device,
-// the password, export and delete, signing out.
+// The Settings drawer, top to bottom: the coaches; the keys; the account (who is signed in, the password, another
+// device, signing out, deleting it); the listener's files (download, bring in a folder); and last the background
+// behind the page (called the sky in the code).
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type StartCoach } from "../api";
@@ -47,7 +48,7 @@ function DeviceLinkBox({ onSignedOut }: { onSignedOut: () => void }) {
       {error && <p className="cx-s err" role="alert">{error}</p>}
       {link && (
         <div className="device">
-          <p className="cx-s">Scan this, or open the link on the other device. It works once, within 10 minutes{until(link.expires_at) && ` (until ${until(link.expires_at)})`}.</p>
+          <p className="cx-s">Scan this code with your phone, or open the link on the other device. It works once, for 10 minutes{until(link.expires_at) && ` (until ${until(link.expires_at)})`}.</p>
           <canvas ref={canvas} className="qr" aria-label="QR code of the sign-in link" role="img" />
           <p className="link"><code>{link.url}</code></p>
         </div>
@@ -79,19 +80,28 @@ function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
 
   return (
     <div className="cx-box">
-      <p className="cx-s">Bring in your folder: a ZIP of your <code>me</code> folder from HarmonicFitness on your computer. Its files replace the starter ones here. Key files are never kept.</p>
       <label className="quiet import">
-        {busy ? "Bringing it in…" : "Choose a ZIP"}
+        {busy ? "Bringing it in…" : "Bring in a folder"}
         <input type="file" accept=".zip,application/zip" disabled={busy} className="sr"
           onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ""; }} />
       </label>
+      <p className="cx-s">Already use HarmonicFitness on your computer? Choose a ZIP of its <code>me</code> folder. Its files replace the starter ones here; key files are left out.</p>
       {note && <p className="cx-s" role="status">{note}</p>}
       {error && <p className="cx-s err" role="alert">{error}</p>}
     </div>
   );
 }
 
-function AccountBox({ onSignedOut }: { onSignedOut: () => void }) {
+function ExportBox() {
+  return (
+    <div className="cx-box">
+      <a className="quiet import" href="/api/export" download>Download your files</a>
+      <p className="cx-s">A ZIP of your profile, log and workouts, ready to use as the <code>me</code> folder on your computer. Keys are never in it.</p>
+    </div>
+  );
+}
+
+function DeleteBox({ onSignedOut }: { onSignedOut: () => void }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -112,10 +122,8 @@ function AccountBox({ onSignedOut }: { onSignedOut: () => void }) {
 
   return (
     <div className="cx-box">
-      <p className="cx-s">Your files, as a ZIP you can open on your computer as HarmonicFitness's <code>me</code> folder. Keys are never in it.</p>
-      <a className="quiet import" href="/api/export" download>Download your files</a>
       {!open ? (
-        <p className="cx-s"><button type="button" className="quiet danger" onClick={() => setOpen(true)}>Delete my account</button></p>
+        <button type="button" className="quiet danger" onClick={() => setOpen(true)}>Delete my account</button>
       ) : (
         <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove(); }}>
           <p className="cx-s err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
@@ -167,7 +175,7 @@ type Props = {
   openRow?: { service: string; n: number; choose?: boolean } | null;
   /** The coaches that can speak here, and those waiting on a key. */
   coaches?: StartCoach[];
-  /** The sky behind the page, and the choice of it. */
+  /** The background behind the page (the sky), and the choice of it. */
   sky?: SkyKind;
   onSky?: (sky: SkyKind) => void;
 };
@@ -190,7 +198,7 @@ function CoachesBox({ coaches }: { coaches: StartCoach[] }) {
           </li>
         ))}
       </ul>
-      <p className="cx-s">Ask in the chat to switch coach or make one of your own.</p>
+      <p className="cx-s">To switch coach, or make one of your own, ask in the chat.</p>
     </section>
   );
 }
@@ -198,7 +206,7 @@ function CoachesBox({ coaches }: { coaches: StartCoach[] }) {
 function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void }) {
   return (
     <section className="cx-box" aria-labelledby="cx-sky-h">
-      <h3 className="cx-h" id="cx-sky-h">Sky</h3>
+      <h3 className="cx-h" id="cx-sky-h">Background</h3>
       <div className="sky-opts" role="group" aria-labelledby="cx-sky-h">
         {SKIES.map((s) => (
           <button key={s.kind} type="button" className={`sky-opt${sky === s.kind ? " on" : ""}`}
@@ -209,7 +217,7 @@ function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void })
           </button>
         ))}
       </div>
-      <p className="cx-s">Either one holds still when your device is set to reduce motion.</p>
+      <p className="cx-s">Each one holds still when your device is set to reduce motion.</p>
     </section>
   );
 }
@@ -227,15 +235,19 @@ export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut,
         <div className="cx-list">
           <CoachesBox coaches={coaches} />
           <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
-          {onSky && <SkyBox sky={sky} onSky={onSky} />}
           <section className="cx-account" aria-labelledby="cx-account-h">
             <h3 className="cx-h" id="cx-account-h">Account</h3>
             <PasswordBox username={username} onSignedOut={onSignedOut} />
             <DeviceLinkBox onSignedOut={onSignedOut} />
-            <ImportBox onSignedOut={onSignedOut} />
-            <AccountBox onSignedOut={onSignedOut} />
             <button type="button" className="quiet signout" onClick={onSignOut}>Sign out</button>
+            <DeleteBox onSignedOut={onSignedOut} />
           </section>
+          <section className="cx-account" aria-labelledby="cx-files-h">
+            <h3 className="cx-h" id="cx-files-h">Your files</h3>
+            <ExportBox />
+            <ImportBox onSignedOut={onSignedOut} />
+          </section>
+          {onSky && <SkyBox sky={sky} onSky={onSky} />}
         </div>
       </aside>
     </>
