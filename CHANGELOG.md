@@ -4,6 +4,24 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-29
+
+The web app, redressed as Moonrise: a dark night sky behind every page, after Ansel Adams' "Moonrise, Hernandez", with a faint moving pattern you choose in Settings.
+
+### For forks
+- **The web service applies migration `011_sky.sql` on startup** (a `sky` column on `users`); nothing to run by hand.
+- **The web app is dark only.** The light theme and the cobalt poster are gone, as is the Inter Tight font package (`@fontsource-variable/big-shoulders-display` and `@fontsource/ibm-plex-sans-condensed` replace it; the logo is outlined paths, so it doesn't need a font).
+
+### Added
+- **A choice of sky, in Settings:** Flow (fine lines drifting slowly sideways) or Field (a grid of dots that a ripple crosses every few seconds, spreading from the top right like sound from a speaker). It switches at once and is saved per account (`PUT /api/sky`; `GET /api/me` returns it), so it follows the listener to another device. Flow is the default. Both hold still when the device asks for reduced motion.
+- **A line above the request** naming the day, its part and the coach: "Thursday night · Coach Reed, voiced by Fish Audio".
+
+### Changed
+- **The web app's look:** near-black ground and cream type; the request in tall, narrow capitals (Big Shoulders Display), all one size, its fixed words in the logo's coral and the parts you can change in cream and underlined (a "keep off" area with a brick underline); IBM Plex Sans Condensed for everything else; square cream buttons, cream marking the one action on each screen. The sky brightens a little while the coach works, where the poster's arcs used to sway.
+
+### Removed
+- **"See how my week is going"** from the first screen's other asks: it didn't start the right thing. Asking in the chat still works.
+
 ## [0.32.0] - 2026-10-29
 
 The web app, redesigned: a cobalt poster of sound-ripple arcs beside a quiet work column, a plainer request sentence, a body map for what's sore, and a choice of which AI writes your workouts. The coach now says what it's thinking about while it works.

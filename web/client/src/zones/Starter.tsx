@@ -29,6 +29,13 @@ export function kitWords(k: StartKit): string {
 }
 
 type Level = "easy" | "off";
+
+/** "Thursday night": the day and its part, for the line above the request. */
+export function partOfDay(d: Date): string {
+  const h = d.getHours();
+  const part = h < 5 ? "night" : h < 12 ? "morning" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
+  return `${d.toLocaleDateString("en-US", { weekday: "long" })} ${part}`;
+}
 type Side = "left" | "right" | "both" | null;
 const areaName = (area: string, side: string | null) => `${side ? side + " " : ""}${area.replace(/-/g, " ")}`;
 const baseArea = (key: string) => key.replace(/^(left|right) /, "");
@@ -130,7 +137,6 @@ const OTHER: { label: string; about: string; line: string; fill?: boolean; quick
   { label: "Pick a different coach", about: "Hear the other coaches, or make a coach of your own.", line: "I want a new coach." },
   { label: "Give feedback on my last workout", about: "Too long, too easy, loved a story: say so and the next one changes.",
     line: "Feedback on my last workout: ", fill: true },
-  { label: "See how my week is going", about: "What you've trained this week, and what's due next.", line: "How's my week going?" },
   { label: "Finish setting me up", about: "Answer the rest of the setup questions, for workouts that fit you better.",
     line: "Finish setting me up.", quick: true },
 ];
@@ -141,7 +147,7 @@ type Props = {
   onStart: (line: string) => Promise<boolean> | void;
   /** Puts a line in the text box to finish by hand. */
   onFill: (line: string) => void;
-  /** The coach the listener picked, for the poster. */
+  /** The coach the listener picked, for the coach's name in the header. */
   onCoach?: (slug: string) => void;
 };
 
@@ -271,10 +277,12 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
   }
 
   const hint = !type && info?.suggest?.reason;
+  const shownCoach = ready.find((c) => c.first === v.coach);
   const picked = rowsOf(v.body);
 
   return (
     <section className="starter" ref={wrap} aria-label="Plan a workout" onKeyDown={keys}>
+      <p className="eyebrow">{partOfDay(new Date())}{shownCoach ? ` · Coach ${shownCoach.first}, voiced by ${shownCoach.service_name}` : ""}</p>
       <p className="mad">
         Hey, coach {slot("coach", "Coach", v.coach)}, I'd like {article(v.minutes)}{" "}
         {slot("minutes", "Length", `${v.minutes}-minute`)} {slot("type", "Workout", v.type)}{" "}

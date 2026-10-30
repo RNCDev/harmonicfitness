@@ -50,4 +50,34 @@ describe("the app", () => {
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
   });
+
+  it("shows the saved sky, and switches it from Settings, putting it back if the save is refused", async () => {
+    const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
+    const saved: string[] = [];
+    let refuse = false;
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/me") return json({ app_name: "HarmonicFitness", username: "ana", has_password: true, version: "", sky: "field" });
+      if (url === "/api/keys") return json([]);
+      if (url === "/api/sky" && init?.method === "PUT") {
+        saved.push(String(init.body));
+        return Promise.resolve(new Response(null, { status: refuse ? 500 : 204 }));
+      }
+      if (url === "/api/conversations/latest") return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.resolve(new Response(null, { status: 404 }));
+    }));
+    const { container } = render(<App />);
+    const sky = () => container.querySelector(".sky")?.getAttribute("data-sky");
+    await waitFor(() => expect(sky()).toBe("field"));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const flow = await screen.findByRole("button", { name: /^Flow/ });
+    expect(screen.getByRole("button", { name: /^Field/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(flow);
+    expect(sky()).toBe("flow");
+    await waitFor(() => expect(saved).toEqual([JSON.stringify({ sky: "flow" })]));
+    expect(flow).toHaveAttribute("aria-pressed", "true");
+    refuse = true;
+    fireEvent.click(screen.getByRole("button", { name: /^Field/ }));
+    await waitFor(() => expect(saved).toHaveLength(2));
+    await waitFor(() => expect(sky()).toBe("flow"));   // refused: back as it was
+  });
 });

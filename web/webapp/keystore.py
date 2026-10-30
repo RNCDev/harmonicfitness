@@ -51,3 +51,18 @@ def writer(conn, uk: UserKey) -> str | None:
 
 def set_writer(conn, uk: UserKey, provider: str) -> None:
     conn.execute("update users set writer = %s where id = %s", (provider, uk.user_id))
+
+
+SKIES = ("flow", "field")
+
+
+def sky(conn, uk: UserKey) -> str:
+    """The web app's animated background the user chose: "flow" (the default) or "field"."""
+    row = conn.execute("select sky from users where id = %s", (uk.user_id,)).fetchone()
+    return row[0] if row and row[0] in SKIES else SKIES[0]
+
+
+def set_sky(conn, uk: UserKey, value: str) -> None:
+    if value not in SKIES:
+        raise ValueError(f"unknown sky: {value!r}")
+    conn.execute("update users set sky = %s where id = %s", (value, uk.user_id))

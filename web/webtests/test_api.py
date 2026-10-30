@@ -117,7 +117,7 @@ class SignIn(ApiCase):
             self.assertIn(flag, cookie)
         self.assertEqual(self.client.get("/api/me").json(),
                          {"app_name": "HarmonicFitness", "username": "fresh.one",
-                          "has_password": True, "version": VERSION})
+                          "has_password": True, "version": VERSION, "sky": "flow"})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/context").json()])
         r = self.register("FRESH.ONE", client=self.other_client())
         self.assertEqual((r.status_code, r.json()["detail"]), (409, "That username is taken."))
@@ -532,6 +532,18 @@ class Keys(ApiCase):
                              if k["service"] == "gemini" and k["kind"] == "voice")["set"])
         self.assertEqual(self.client.put("/api/writer", json={"service": "nope"}, headers=self.origin()).status_code, 404)
         self.assertEqual(self.client.put("/api/writer", json={"service": "openai"}).status_code, 403)   # no Origin
+
+    def test_the_listener_chooses_the_sky(self):
+        _, uk = self.signed_in()
+        self.assertEqual(self.client.get("/api/me").json()["sky"], "flow")   # the default
+        self.assertEqual(self.client.put("/api/sky", json={"sky": "field"}, headers=self.origin()).status_code, 204)
+        self.assertEqual(keystore.sky(self.conn, uk), "field")
+        self.conn.rollback()
+        self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
+        for bad in ({"sky": "clouds"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
+            self.assertEqual(self.client.put("/api/sky", json=bad, headers=self.origin()).status_code, 422, bad)
+        self.assertEqual(self.client.put("/api/sky", json={"sky": "flow"}).status_code, 403)   # no Origin
+        self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
 
     def test_a_chosen_writer_without_a_key_is_named(self):
         self.signed_in()

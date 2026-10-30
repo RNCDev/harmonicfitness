@@ -1,7 +1,7 @@
 // Signed out: sign in, or make an account when registration is open. Also the screen that asks
 // for a password when an account has none (one from before passwords, or after a reset link).
 import { useEffect, useState, type FormEvent } from "react";
-import { Solo } from "./Poster";
+import { Solo } from "./Sky";
 import { api, NotSignedIn, plainError } from "./api";
 
 const MIN = 8;

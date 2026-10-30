@@ -11,7 +11,9 @@ export class ApiError extends Error {
   }
 }
 
-export type Me = { app_name: string; username: string; has_password: boolean; version: string };
+export type Me = { app_name: string; username: string; has_password: boolean; version: string;
+  /** The animated background chosen in Settings; absent from a server older than 0.33.0. */
+  sky?: "flow" | "field" };
 export type AuthInfo = { app_name: string; registration: boolean; version: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
@@ -86,6 +88,7 @@ export const api = {
   setKey: (service: string, key: string) =>
     call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
   setWriter: (service: string) => call<void>("PUT", "/api/writer", { service }),
+  setSky: (sky: "flow" | "field") => call<void>("PUT", "/api/sky", { sky }),
   deleteKey: (service: string) =>
     call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
   startConversation: (line: string, w: When) =>

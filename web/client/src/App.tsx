@@ -1,8 +1,9 @@
-// The app: the sign-in page, or once signed in the poster, the chat, and the Settings drawer.
+// The app: the sign-in page, or once signed in the sky, the chat, and the Settings drawer.
 import { useCallback, useEffect, useState } from "react";
 import { api, APP_NAME, NotSignedIn, type KeyState, type Me, type StartInfo } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
-import { Poster, Solo } from "./Poster";
+import { Mark } from "./Mark";
+import { Sky, Solo, type SkyKind } from "./Sky";
 import { useConversation } from "./conversation";
 import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
@@ -43,7 +44,7 @@ function Unreachable({ onRetry }: { onRetry: () => void }) {
 function Loading() {
   return (
     <div className="app" aria-busy="true">
-      <Poster />
+      <Sky />
       <div className="work" />
     </div>
   );
@@ -106,6 +107,19 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const shown = coaches.find((c) => c.slug === picked) ?? coaches.find((c) => c.current) ?? null;
   const coachBar = shown ? { n: coaches.indexOf(shown) + 1, name: shown.name, service: shown.service_name } : null;
 
+  // The sky: switched at once, then saved; put back if the server refuses it.
+  const [sky, setSky] = useState<SkyKind>(me.sky ?? "flow");
+  const chooseSky = useCallback(async (next: SkyKind) => {
+    const before = sky;
+    setSky(next);
+    try {
+      await api.setSky(next);
+    } catch (e) {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      setSky(before);
+    }
+  }, [sky, onSignedOut]);
+
   // The drawer: Escape closes it and focus goes back to its button.
   const closeDrawer = useCallback(() => {
     setDrawer(false);
@@ -134,15 +148,11 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
 
   return (
     <div className="app">
-      <Poster version={me.version} busy={working}>
-        {shown ? (<>
-          <p className="poster-k">Your coach</p>
-          <p className="poster-coach">{shown.first}</p>
-          <p className="poster-sub">Voiced by {shown.service_name}</p>
-        </>) : <p className="poster-tag">Audio workouts for your earbuds, written and voiced fresh each time you ask.</p>}
-      </Poster>
+      <Sky kind={sky} busy={working} />
       <div className="work">
         <header className="work-top">
+          <Mark version={me.version} />
+          <span className="top-gap" />
           {conv && <button type="button" className="top-btn new" onClick={() => { reset(); setPicked(null); }} disabled={working}>
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
               <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -166,7 +176,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       </div>
       <ContextColumn username={me.username} open={drawer} onClose={closeDrawer}
         onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
-        coaches={coaches} />
+        coaches={coaches} sky={sky} onSky={chooseSky} />
     </div>
   );
 }

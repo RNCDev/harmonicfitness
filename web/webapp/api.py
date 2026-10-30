@@ -166,6 +166,11 @@ class WriterBody(BaseModel):
     service: Annotated[StrictStr, StringConstraints(max_length=64)]
 
 
+class SkyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sky: Literal["flow", "field"]
+
+
 class _Headers:
     """Security headers on every response (pure ASGI, so streams aren't buffered or broken)."""
 
@@ -494,8 +499,9 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         with connection() as conn:
             name, pw = conn.execute("select username, password_hash is not null from users "
                                     "where id = %s", (uk.user_id,)).fetchone()
+            sky = keystore.sky(conn, uk)
             conn.rollback()
-        return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": version}
+        return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": version, "sky": sky}
 
     @app.get("/api/options")
     def get_options(uk: User):
@@ -648,6 +654,18 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         with connection() as conn:
             try:
                 keystore.set_writer(conn, uk, provider)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return Response(status_code=204)
+
+    @app.put("/api/sky", status_code=204, **post)
+    def put_sky(uk: User, body: Annotated[SkyBody, Body()]):
+        """The web app's animated background: "flow" or "field"."""
+        with connection() as conn:
+            try:
+                keystore.set_sky(conn, uk, body.sky)
                 conn.commit()
             except Exception:
                 conn.rollback()

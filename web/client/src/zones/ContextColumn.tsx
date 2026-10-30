@@ -1,9 +1,10 @@
-// The Settings drawer: the coaches, then the keys; then the account: bringing in a folder, signing in another device,
+// The Settings drawer: the coaches, then the keys, then the sky behind the page; then the account: bringing in a folder, signing in another device,
 // the password, export and delete, signing out.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type StartCoach } from "../api";
 import { PasswordForm } from "../SignIn";
+import { SKIES, SkyPreview, type SkyKind } from "../Sky";
 import { KeysBox } from "./KeysBox";
 
 function until(iso: string): string {
@@ -166,6 +167,9 @@ type Props = {
   openRow?: { service: string; n: number; choose?: boolean } | null;
   /** The coaches that can speak here, and those waiting on a key. */
   coaches?: StartCoach[];
+  /** The sky behind the page, and the choice of it. */
+  sky?: SkyKind;
+  onSky?: (sky: SkyKind) => void;
 };
 
 function an(word: string): string {
@@ -191,7 +195,27 @@ function CoachesBox({ coaches }: { coaches: StartCoach[] }) {
   );
 }
 
-export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut, onKeys, openRow, coaches = [] }: Props) {
+function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void }) {
+  return (
+    <section className="cx-box" aria-labelledby="cx-sky-h">
+      <h3 className="cx-h" id="cx-sky-h">Sky</h3>
+      <div className="sky-opts" role="group" aria-labelledby="cx-sky-h">
+        {SKIES.map((s) => (
+          <button key={s.kind} type="button" className={`sky-opt${sky === s.kind ? " on" : ""}`}
+            aria-pressed={sky === s.kind} onClick={() => onSky(s.kind)}>
+            <SkyPreview kind={s.kind} />
+            <span className="sky-opt-name">{s.name}</span>
+            <span className="sky-opt-note">{s.about}</span>
+          </button>
+        ))}
+      </div>
+      <p className="cx-s">Either one holds still when your device is set to reduce motion.</p>
+    </section>
+  );
+}
+
+export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut, onKeys, openRow, coaches = [],
+  sky = "flow", onSky }: Props) {
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -203,6 +227,7 @@ export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut,
         <div className="cx-list">
           <CoachesBox coaches={coaches} />
           <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
+          {onSky && <SkyBox sky={sky} onSky={onSky} />}
           <section className="cx-account" aria-labelledby="cx-account-h">
             <h3 className="cx-h" id="cx-account-h">Account</h3>
             <PasswordBox username={username} onSignedOut={onSignedOut} />
