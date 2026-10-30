@@ -37,7 +37,7 @@ COMMANDS = {
     "models":      ("models", None, "the local voice models in models/, and adopt the ones already downloaded"),
     "cache":       ("cache", None, "the clip cache's size, and prune"),
     "harness":     ("harness", None, "check that ChatGPT's Codex files match the Claude Code ones; sync rewrites them"),
-    "test":        (None, None, "run the engine's tests"),
+    "test":        (None, None, "run the engine's tests, then the web app's (test engine, or test web, runs one)"),
     "setup":       (None, None, "first-run setup (environment, me/, privacy hook, voice model)"),
     "doctor":      (None, None, "what this computer can do: system, prerequisites, audio routes"),
 }
@@ -88,9 +88,19 @@ def main(argv=None):
         return cli.USAGE
     if cmd == "test":
         env = test_env(os.environ)
-        code = subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT, env=env)
+        # "engine" or "web" first runs only that half (CI runs them side by side, and skips the engine's when a
+        # push changed only web/)
+        part = rest.pop(0) if rest and rest[0] in ("engine", "web") else None
+        code = 0
+        if part != "web":
+            code = subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT, env=env)
+        if part == "engine":
+            return code
         # The web client's tests (web/), when its optional extra is installed; their failure fails the command.
         if importlib.util.find_spec("fastapi") is None:
+            if part == "web":
+                print("web tests need the web extra: uv sync --extra web", file=sys.stderr)
+                return cli.USAGE
             print("web tests skipped: install with uv sync --extra web")
             return code
         web = subprocess.call([sys.executable, "-m", "unittest", "discover", "-s", "web/webtests", "-t", "web", *rest],

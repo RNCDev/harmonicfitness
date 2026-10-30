@@ -1,7 +1,76 @@
 name: tests
 on: [push, pull_request]
+# Four jobs. The privacy checks run first and alone gate the rest; then the engine's tests, the web app's tests
+# and (on main) the deploy run side by side, so a release goes live in about two minutes. A deploy can go out
+# before a test fails; the failure still shows here, and the fix is the next push.
 jobs:
-  test:
+  privacy:
+    runs-on: ubuntu-latest
+    outputs:
+      engine: ${{ steps.changed.outputs.engine }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the privacy check reads every pushed commit
+      - name: The commits this push brings
+        id: range
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          # Only the new commits: history already pushed is a separate matter.
+          if [ "$EVENT" = "pull_request" ]; then
+            RANGE="origin/$BASE..HEAD"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            RANGE="$BEFORE..HEAD"
+          else
+            RANGE="origin/main..HEAD"   # a new branch
+          fi
+          echo "range=$RANGE" >> "$GITHUB_OUTPUT"
+      - name: Nothing personal in the files
+        run: |
+          PATTERN="$(grep -v '^#' tools/hooks/private-paths | grep -v '^[[:space:]]*$' | head -1)"
+          if git ls-files | grep -E "$PATTERN" | grep -Ev '^me\.example/'; then
+            echo "Personal context belongs in me/, which is git-ignored."; exit 1
+          fi
+      - name: Nothing personal in the pushed commits
+        run: tools/hooks/check-private.sh "${{ steps.range.outputs.range }}"
+      - name: Whether the engine changed
+        id: changed
+        env:
+          RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          # The engine's tests are skipped only when every changed file is the web app's (web/), the changelog,
+          # VERSION, or a version line in pyproject.toml or uv.lock. Anything unclear runs them.
+          engine=true
+          if files="$(git diff --name-only "$RANGE" 2>/dev/null)" && [ -n "$files" ]; then
+            others="$(echo "$files" | grep -Ev '^(web/|CHANGELOG\.md$|VERSION$|pyproject\.toml$|uv\.lock$)' || true)"
+            lock="$(git diff "$RANGE" -- pyproject.toml uv.lock | grep -E '^[+-][^+-]' | grep -Ev '^[+-]version = ' || true)"
+            if [ -z "$others" ] && [ -z "$lock" ]; then engine=false; fi
+          fi
+          echo "engine=$engine" | tee -a "$GITHUB_OUTPUT"
+
+  engine:
+    needs: privacy
+    if: needs.privacy.outputs.engine == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # The project's own environment, from uv.lock, as ./harmonicfitness setup makes it (no local voice engine):
+      # Python from .python-version, and the ffmpeg that imageio-ffmpeg brings, so the encode tests run.
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.11.16"
+          enable-cache: true
+      - run: uv sync --locked
+      # The tests need no models or network, and no personal context: they run on me.example/ and
+      # tests/fixtures/, with HARMONICFITNESS_HOME pointed at an absent folder.
+      - run: ./harmonicfitness test engine -v
+
+  web:
+    needs: privacy
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -19,45 +88,25 @@ jobs:
       HARMONICFITNESS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0   # the privacy check reads every pushed commit
-      # The project's own environment, from uv.lock, as ./harmonicfitness setup makes it (no local voice engine):
-      # Python from .python-version, and the ffmpeg that imageio-ffmpeg brings, so the encode tests run.
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.11.16"
           enable-cache: true
       - run: uv sync --locked --extra web
-      # The tests need no models or network, and no personal context: they run on me.example/ and
-      # tests/fixtures/, with HARMONICFITNESS_HOME pointed at an absent folder.
-      - run: ./harmonicfitness test -v
-      - name: Nothing personal in the files
-        run: |
-          PATTERN="$(grep -v '^#' tools/hooks/private-paths | grep -v '^[[:space:]]*$' | head -1)"
-          if git ls-files | grep -E "$PATTERN" | grep -Ev '^me\.example/'; then
-            echo "Personal context belongs in me/, which is git-ignored."; exit 1
-          fi
-      - name: Nothing personal in the pushed commits
-        env:
-          EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
-          BASE: ${{ github.base_ref }}
-        run: |
-          # Only the new commits: history already pushed is a separate matter.
-          if [ "$EVENT" = "pull_request" ]; then
-            RANGE="origin/$BASE..HEAD"
-          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
-               && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            RANGE="$BEFORE..HEAD"
-          else
-            RANGE="origin/main..HEAD"   # a new branch
-          fi
-          tools/hooks/check-private.sh "$RANGE"
+      - run: ./harmonicfitness test web -v
+      # The browser client's own tests (web/client).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/client/package-lock.json
+      - run: npm ci && npx tsc --noEmit -p . && npm test
+        working-directory: web/client
 
-  # The web client on Fly.io, once the tests and privacy checks pass on main (fly.toml). The token is a
+  # The web client on Fly.io, once the privacy checks pass on main (fly.toml), alongside the tests. The token is a
   # deploy token for this one app (fly tokens create deploy -a harmonicfitness), the FLY_API_TOKEN secret.
   deploy:
-    needs: test
+    needs: privacy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:

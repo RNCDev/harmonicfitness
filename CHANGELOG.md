@@ -4,6 +4,14 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+### Changed
+- **CI runs side by side:** a privacy job first, then the engine's tests, the web app's tests and, on main, the Fly deploy at once, so a release goes live in about two minutes (was about four). The deploy no longer waits for the tests; a failure still shows on the run.
+- **The engine's tests are skipped in CI when a push changed only `web/`,** the changelog, `VERSION` or a version line.
+- **`./harmonicfitness test engine` and `test web`** run one half of the tests.
+
+### Added
+- **CI runs the browser client's tests** (type check and Vitest), which it didn't before.
+
 ## [0.37.0] - 2026-10-30
 
 The web app opens on its first screen after a refresh, and Stop, now beside Send, ends the chat.
