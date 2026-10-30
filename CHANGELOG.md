@@ -4,6 +4,22 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-29
+
+Fewer rules for the script writer, a final rewrite pass, and local scripts written to flow.
+
+A local build (Pocket) sounded stiffer than a web one. Tested on 2026-10-29 (`knowledge/voices.md`, Local coaches): Pocket speaks a paragraph in short chunks, each started fresh, so a string of two-word cues came out clipped and lost its last words. Every engine setting tried (longer chunks, carried state, a higher temperature, the 24-layer model) did worse. The same content written as fuller sentences came through clean and sounded better.
+
+### For forks
+- **Nothing to migrate.** Guidance, the workout skill, and one new line in the brief; `.agents/skills/` resynced.
+
+### Changed
+- **`knowledge/script.md` is rewritten around one hard rule, safety** (the menu, the opening's rules, clinician rules, limit cues, one side, adjustments, the weights on hand, the calendar's shape only, no invented facts). It adds what the build checks, and two aims: getting the workout done and keeping the listener engaged. The rest is the writer's call, written the way this coach would talk to this person.
+- **`knowledge/tts-rules.md` is now what a voice can read:** the draft's format, characters, numbers, markers, counts, and how local and web voices differ. The style guidance (registers, arc, name counts, locators) is gone.
+- **A final read-through and rewrite** before the lint (workout skill, step 5): rewrite the draft as one piece, with threads that carry through, handoffs that flow and one coach's voice, keeping every safety line. A total off plan is fixed by rewriting around the segments furthest off, not by trimming or padding words.
+- **The brief's Voice line** tells the writer whether the coach is local (write fuller sentences, joining short cues with commas and "and", every cue and limit cue kept whole) or web (short cues are fine).
+- **`knowledge/voices.md` records what was tried for a stiff local voice** (2026-10-29): Pocket's engine settings and its 24-layer model did worse, and Chatterbox Turbo, retried on a full script, read accurately but took about four times longer to render and was not materially better by ear.
+
 ## [0.29.1] - 2026-10-29
 
 Time a session has left goes to more of the listener's own content, never to silence.

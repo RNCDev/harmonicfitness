@@ -280,7 +280,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                     f"  {secs:.0f}s of silence {where}; a listener with no screen hears more than "
                     f"{MAX_SILENCE:.0f}s as a dropped earbud. Coach through it (a cue, the breath, how many are "
                     "left, a check-in) in holds of a few seconds; in a rest or easy work, tell more of the listener's content "
-                    "(knowledge/script.md, Filler); or give the segment fewer seconds")
+                    "(knowledge/script.md, Keeping them engaged); or give the segment fewer seconds")
         has_cues = bool(voice and voice.get("cues"))
         for para in plans[i - 1]:
             for text, _ in para:

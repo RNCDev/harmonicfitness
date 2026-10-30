@@ -10,8 +10,9 @@ writer takes a few cases.
 - `docs/eval/README.md` (what the grid is), and your case rows in `docs/eval/cases.toml` or
   `docs/eval/extra-cases.toml`.
 - `.claude/skills/workout/SKILL.md`, **steps 4 and 5** (design, then write).
-- `knowledge/script.md` (what goes in a script) and `knowledge/tts-rules.md` (how it sounds, and what
-  a voice can read: no digits, no symbols except the `[pause 3s]`, `[chime]` and `[hold]` markers).
+- `knowledge/script.md` (the one hard rule, safety; the two aims, getting the workout done and keeping the
+  listener engaged; and the final rewrite) and `knowledge/tts-rules.md` (what a voice can read and the
+  draft's format: no digits, no symbols except the markers).
 - For each case: the listener folder `docs/eval/listeners/<listener>/` (profile.md, health.md, log.md)
   and the brief `docs/eval/out/<id>.brief.md`, which holds everything else: the listener, the week, the
   limits and their cues, the safe menu with each movement's coaching notes, the programming guide and
@@ -36,10 +37,9 @@ writer takes a few cases.
   invent scores, quotes or events.
 - Health: speak the full safety rules (first-session length) from the brief's limits and clinician
   rules, and its limit cues wherever a movement or a transition touches a limit.
-- Voice: follow `knowledge/tts-rules.md`, Coaching voice, in full: greet the listener by the name in
-  the brief, two to four times in all; talk like a person around the work; use the brief's Today in the
-  week for one or two continuity lines (a first session gets a first-session welcome); vary the segment
-  openings; hand off to topic placeholders the way a person would; close specifically and personally.
+- Voice: write it the way the brief's coach would talk to this listener (`knowledge/script.md`,
+  Keeping them engaged), follow the brief's Voice line for a local or web coach, and finish with the
+  read-through rewrite.
 
 ## Script habits judges have marked down; avoid them
 - Cue during the work; don't spend a short set on set calls. Say "rack it" only when a weight is in hand.

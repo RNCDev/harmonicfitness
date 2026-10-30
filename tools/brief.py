@@ -370,9 +370,22 @@ def _counts_line(voice_name: Optional[str]) -> List[str]:
            "switch sides, stop and hold), and a cue said alone as `[cue rest]`")
     if not coach.is_web and coach.has_clip and counts.folder(coach.clip):
         return [f"- Counts: write a countdown as {how}. {coach.name} plays recorded counts a second apart; a "
-                "countdown in words is refused (knowledge/tts-rules.md, Pacing)."]
+                "countdown in words is refused (knowledge/tts-rules.md, Markers)."]
     return [f"- Counts: write a countdown as {how}. {coach.name} has no recorded counts, so the voice says it "
             "in words (\"Three, two, one, go.\"), quickly: one per segment."]
+
+
+def _voice_line(voice_name: Optional[str]) -> List[str]:
+    """How this coach's voice takes the text: a local one in short pieces (a sentence or a few), a web one a paragraph."""
+    coach = _coach(voice_name)
+    if coach is None:
+        return []
+    if coach.is_web:
+        return [f"- Voice: {coach.name} is a web voice that reads a whole paragraph at once, so short cues sound "
+                "fine."]
+    return [f"- Voice: {coach.name} is a local voice that speaks in short pieces, each started fresh, so a run of "
+            "two-word sentences sounds like a machine and can lose its last words. Write fuller sentences, joining short cues with commas and \"and\" "
+            "(\"Lower slow, and push.\"), keeping each cue word clear (knowledge/tts-rules.md, Local and web voices)."]
 
 
 def _budget_line(voice_name: Optional[str]) -> List[str]:
@@ -446,7 +459,9 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             f"separated>`. Then the `@@ <seconds> | <label>` segments, adding up to exactly {minutes * 60} s. "
             "You choose the segments: one can be a set, a pair, a whole round or the whole warm-up.",
             "- Coach each movement from its notes above (setup, cues, what one rep is, where to feel it, the "
-            "faults and their fixes); voice and format follow knowledge/tts-rules.md."] + _budget_line(voice) + _counts_line(voice)
+            "faults and their fixes). Safety is the one hard rule (knowledge/script.md); beyond it, get the "
+            "workout done and keep them engaged. What a voice can read: knowledge/tts-rules.md."]
+    out += _budget_line(voice) + _counts_line(voice) + _voice_line(voice)
 
     req = {k: v for k, v in (("goal", goal), ("minutes", minutes), ("kit", request.get("kit")),
                              ("preset", request.get("preset")),

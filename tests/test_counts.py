@@ -187,6 +187,15 @@ class Brief(Base):
         with mock.patch("brief._coach", return_value=self.coach(clip=os.path.join(self.tmp.name, "x", "clip.wav"))):
             self.assertIn("in words", brief._counts_line("Coach Test")[0])
 
+    def test_the_brief_says_how_the_voice_takes_sentences(self):
+        import brief
+        with mock.patch("brief._coach", return_value=self.coach()):
+            self.assertIn("short pieces", brief._voice_line("Coach Test")[0])
+        with mock.patch("brief._coach", return_value=self.coach(web=True)):
+            self.assertIn("whole paragraph", brief._voice_line("Coach Test")[0])
+        with mock.patch("brief._coach", return_value=None):
+            self.assertEqual(brief._voice_line("Coach Test"), [])
+
 
 if __name__ == "__main__":
     unittest.main()
