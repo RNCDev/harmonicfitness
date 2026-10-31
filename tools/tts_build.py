@@ -50,6 +50,10 @@ DEFAULT_WPM = 185
 # still lands the rendered total (an exit 2 comes after the whole render, and a web one is billed).
 LINT_HEADROOM = 0.005            # a measured pace
 LINT_HEADROOM_ESTIMATED = 0.01   # an estimated one (a web coach before its first render)
+# With an estimated pace the lint checks the silences as if the voice spoke this much faster: a new web voice spoke
+# 20 percent faster than its sample (HarmonicFitness 0.40, Inworld), and the spare time its held rests gained
+# rendered as 9 to 11 seconds of quiet. Fixed pauses and holds don't change; bare holds, breaks and tails grow.
+ESTIMATED_FAST = 1.2
 WORD_TOLERANCE = 0.08
 
 
@@ -228,6 +232,12 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                      if sum(spokens) else wpm)
         timeline = layout([(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], is_held(seg))
                            for i, seg in enumerate(segments)])
+        quiet_spokens, quiet_timeline = spokens, timeline
+        if not exact and headroom:   # an estimated pace can run fast, and the spare time then grows into quiet
+            quiet_spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i and chime else 0.0, rate * ESTIMATED_FAST,
+                                            plans[i]) for i, seg in enumerate(segments)]
+            quiet_timeline = layout([(quiet_spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], is_held(seg))
+                                     for i, seg in enumerate(segments)])
     else:
         guide_wpm = wpm
     rows = []
@@ -254,11 +264,12 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         for lineno, line in seg["lines"]:
             row.line_issues += lint_line(lineno, line)
         if timeline:
-            extra, length = timeline[i - 1]
+            extra, length = quiet_timeline[i - 1]
+            said = quiet_spokens[i - 1]
             bare = holds(seg)[0]
-            share = max(length - row.spoken, 0.0) / bare if bare else 0.0
+            share = max(length - said, 0.0) / bare if bare else 0.0
             gaps = max(len(plans[i - 1]) - 1, 0)
-            tail = 0.0 if bare else max(length - row.spoken - extra * gaps, 0.0)
+            tail = 0.0 if bare else max(length - said - extra * gaps, 0.0)
             quiet = silences(plans[i - 1], extra, share, tail)
         else:
             quiet = silences(plans[i - 1])

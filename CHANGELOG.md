@@ -4,6 +4,18 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-10-30
+
+A way to delete a workout or leave feedback on one, and two fixes for a web coach's pace.
+
+### Added
+- **`./harmonicfitness workouts`** lists the workouts logged, newest first and numbered. **`workouts feedback 1 "too long; loved the quiz"`** adds a feedback line tied to that workout. **`workouts delete 1`** (or a build id, or `all`) takes a workout back as if it never happened: its log line, its feedback, the stories it told (so they can be told again) and the threads it opened or closed; `--files` also removes its folder and the MP3 copies it delivered. The workout skill deletes a workout that a redo replaces, and the web chat can run it too.
+- **`content log --draft` and `content thread --draft`** tie told items and threads to the workout's build, so deleting it takes them back. A row from before has no build id and goes when no remaining workout shares its date.
+
+### Fixed
+- **The brief's talk rate** now counts each clip's edges and the breaks between paragraphs, as the lint does: it said about 225 words a minute for a web coach whose drafts fill time at about 215, so first drafts came out short.
+- **A web coach's first render left long quiet:** with a pace still estimated from its sample, the lint now checks held rests as if the voice spoke 20 percent faster (a new Inworld voice did), since the spare time a fast voice leaves grows into quiet at the bare holds. Fixed pauses are checked as written.
+
 ## [0.40.0] - 2026-10-30
 
 The fixes the 0.39.0 eval asked for: a coach that never claims to have seen the listener, one story to a rest, safer menus under an ankle or foot limit, and short names that follow the full ones.

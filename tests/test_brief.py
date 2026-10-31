@@ -101,7 +101,8 @@ class Brief(unittest.TestCase):
             with mock.patch("voices.pace", return_value=(20.0, True)):
                 fast, _ = brief_tool.talk_rate("Coach Julius")
             self.assertTrue(exact)
-            self.assertAlmostEqual(fast, slow * 2)
+            self.assertGreater(fast, slow * 1.8)   # twice the pace; each clip's edges and the breaks stay fixed
+            self.assertLess(fast, slow * 2)
             self.assertIsNone(brief_tool.talk_rate("Nobody At All"))
 
     def test_talk_rate_web_coach_without_key(self):

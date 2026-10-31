@@ -29,6 +29,7 @@ COMMANDS = {
     "get":         ("context", "get", "print a setting: coach (the one used last), route (what a build uses here), routes, wpm, experience, web-builds"),
     "deliver":     ("context", "deliver", "print the delivery folders that exist"),
     "log-session": ("context", "log-session", "add a checked session line to me/log.md"),
+    "workouts":    ("workoutlog", None, "the workouts logged: list them, add feedback on one, or delete one (its log line, stories told and threads)"),
     "show":        ("player", None, "open the folder holding a file (a workout's MP3), with it selected"),
     "keys":        ("keys", None, "which web voice services have a key in me/.env (never the key), init and open"),
     "pull":        ("webpull", None, "bring the web app's files, latest conversation and its MP3s into me/web/ (signs in with HARMONIC_USERNAME and HARMONIC_PASSWORD from me/.env)"),

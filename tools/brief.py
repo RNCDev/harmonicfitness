@@ -322,8 +322,9 @@ def _coach(name):
 
 def talk_rate(voice_name: str):
     """(words a minute, measured?) for a coach speaking the smoke test's coaching on the route a build
-    would take here, or None for an unknown coach (or one with no route here). Spoken words only: holds,
-    pauses and chimes take their own seconds."""
+    would take here, or None for an unknown coach (or one with no route here). Each clip's trimmed edges and the
+    breaks between paragraphs count, as the lint lays them, so the rate matches its guide column; holds, pauses
+    and chimes take their own seconds."""
     import coachpick
     import personas
     try:
@@ -343,8 +344,11 @@ def talk_rate(voice_name: str):
         return None
     rate, exact = voices.pace(voice)
     with open(paths.SMOKE_DRAFT, encoding="utf-8") as f:
-        texts = [t for seg in draft.parse(f.read()) for para in draft.plan(seg) for t, _ in para if draft.spoken(t)]
-    seconds = sum(voices.weight(t) for t in texts) / rate
+        plans = [draft.plan(seg) for seg in draft.parse(f.read())]
+    texts = [t for paras in plans for para in paras for t, _ in para if draft.spoken(t)]
+    # as the lint lays it: each clip with its trimmed edges, and the least break between paragraphs
+    seconds = sum(voices.clip_seconds(t, voice, rate) for t in texts) \
+        + draft.PARAGRAPH_GAP * sum(max(len(paras) - 1, 0) for paras in plans)
     return sum(len(t.split()) for t in texts) / seconds * 60, exact
 
 

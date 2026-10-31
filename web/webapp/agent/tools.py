@@ -31,7 +31,7 @@ ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 # coach's voice in the listener's account (about a cent), as setup's quick start does; `audition`, `keep`
 # and `forget-audition` make a web coach of their own, as the coach skill says.
 COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "keys",
-            "log-session", "movements", "youtube"}
+            "log-session", "movements", "workouts", "youtube"}
 SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make", "audition", "keep", "forget-audition",
                            "archive"},
                "keys": {None}}

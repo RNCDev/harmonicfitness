@@ -15,14 +15,14 @@ Rules that always hold:
 
 ## 1. Read just enough to ask (one message, in parallel)
 
-The check-in comes first, so the listener can answer and step away; this step reads only what its questions need.
-- `date "+%Y-%m-%d %A %H:%M"`: morning previews the day, evening recaps it.
+This step reads only what the check-in's questions need.
+- `date "+%Y-%m-%d %A %H:%M"`: morning previews the day, evening recaps.
 - `./harmonicfitness check`: a `me/health.md` issue (a malformed `[[limits]]` row applies no limit; a prose injury with no row gets no rule) is fixed at the check-in, then checked again. Notes are fine; with no experience level the default is novice until set, so offer to set it.
 - `./harmonicfitness content plan`: the rests plan (topics due, a serial or not, the stock).
 - `./harmonicfitness get coach`: who's coaching (the coach used last, else their own web coach, else a stand-in that works here); the check-in's Coach question offers them first. Exit 1 (that coach is archived): ask the Coach question with `./harmonicfitness coaches`' list.
 - Read `me/profile.md`, `me/training.md`, `me/health.md` and `me/log.md` (not `me/content.md`: research reads that). No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./harmonicfitness doctor` says so), only web coaches speak and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./harmonicfitness migrate`, then rerun.
 
-Nothing else before the check-in: the feeds, the knowledge files and the brief come after it.
+Feeds, knowledge files and the brief come after the check-in.
 
 ## 2. Check-in, with research launched first (one message)
 
@@ -38,8 +38,8 @@ Nothing else before the check-in: the feeds, the knowledge files and the brief c
 | Kit | "hotel", a kit's name | training.md's `[[kits]]`, the first Recommended; a preset (bodyweight, hotel-room, hotel-gym, full-gym) through Other |
 | Coach | a coach's name, "another coach", "a new coach" | Asked whenever there's room: the coach used last (`./harmonicfitness get coach`, Recommended) and the others `./harmonicfitness coaches` lists (all when `get coach` stopped on an archived coach). Name each as the listener does, never by service. Last, with a voice key set: "A new coach of your own" (the `coach` skill's quick coach first) |
 
-- "Just go" means ask nothing: profile defaults, normal readiness (unless the log's feedback says otherwise), limits unchanged, assumptions stated in one line.
-- Readiness changes the plan by the brief's Readiness rule (`knowledge/programming.md`). Soreness from training isn't a limit: that muscle group goes lighter today. Pain in a joint is: `--limit <area>=delicate` for today. "Too long" goes under Feedback in `me/log.md`.
+- "Just go" means ask nothing: profile defaults, normal readiness (unless feedback says otherwise), limits unchanged, assumptions in one line.
+- Readiness changes the plan by the brief's Readiness rule (`knowledge/programming.md`). Soreness from training isn't a limit: that muscle group goes lighter today. Pain in a joint is: `--limit <area>=delicate` for today. Feedback on the last workout ("too long"): `./harmonicfitness workouts feedback 1 "<what they said>"`.
 - A change for today only becomes `--limit area=level[:side]` (level `off-limits` or `delicate`). A lasting change, or a new problem, goes into `me/health.md` (a `[[limits]]` row, the prose, the clinician rules); an injury outside the catalog's areas is written "- Unlisted: <what>", with an `Avoid: <movements or flags>` line under `## Clinician rules`. Only the listener's report loosens a limit, by the playbook's signs for that area; "mostly" means not yet.
 - Lasting changes: kits, likes and dislikes in `me/training.md`; topics (lines under `## Topics`) and taste in `me/content.md`.
 
@@ -101,8 +101,9 @@ A web build prints its cost before sending, and makes a stand-in's voice first. 
   ./harmonicfitness log-session --draft "<draft>" --coach "<coach>" --format "<method name>" --topics "<topics>" --loads "<movement> = <load and tempo>; <movement> = <load and tempo>"
   ```
   The draft gives the movements (its `movements:` line) and its menu the date, length and kit; it must be built as it stands, and is logged once. Topics start with the serial, `serial: video, <channel>, <title>` (plus `, part <n> of <total>` for a series) or `serial: news, <story>`. The log line's `format: <method name>` is the method you chose (one of `knowledge/sessions.toml`'s, the closest for a mix), so the next session rotates away from it. Loads give each loaded or timed movement its weight and tempo in words. No `|`, no injury details; if it refuses a field, fix it and rerun.
-- Record every researched item told, one `--item` each, with the stock slug for a stock piece: `./harmonicfitness content log --date <YYYY-MM-DD> --item "<topic> | <format> | <title> | <source> | <stock slug>"` (the last two optional; the topic as the plan names it, or `-` for none; the format's id). A refused `--item` exits 64 naming why; nothing is recorded until every item reads.
-- Threads: `./harmonicfitness content thread --date <YYYY-MM-DD> --close <id>` for each one the script brought back, and `--open "<topic> | <kind> | <what>"` for anything left for next time (kind serial, quiz, follow-up, take or promise).
+- Record every researched item told, one `--item` each: `./harmonicfitness content log --date <YYYY-MM-DD> --draft "<draft>" --item "<topic> | <format> | <title> | <source> | <stock slug>"` (source and slug optional; the topic as the plan names it, or `-`; the format's id). A refused `--item` exits 64 naming why.
+- Threads: `./harmonicfitness content thread --date <YYYY-MM-DD> --draft "<draft>" --close <id>` for each one the script brought back, and `--open "<topic> | <kind> | <what>"` for anything left for next time (kind serial, quiz, follow-up, take or promise).
+- A redo that replaces a workout already logged: first `./harmonicfitness workouts delete <its number> --files`, so its stories and threads come back. "Delete that workout" too.
 - After a video series part, `./harmonicfitness youtube done <id>`.
-- Feedback (too long, a topic they loved) goes under Feedback in `me/log.md`.
+- Feedback (too long, a topic they loved): `./harmonicfitness workouts feedback 1 "<what they said>"`.
 - Last, `./harmonicfitness backup -m "Workout <YYYY-MM-DD> <Focus> <N> min"` (on the web it also carries the web copy's parts to the private repo). If it couldn't confirm the remote is private, ask once (AskUserQuestion) whether it is, and on yes rerun with `--unverified` (remembered on this computer). If `me/` isn't its own repo, or the push fails, say so in one line and don't retry; run it again after any later change to `me/`.

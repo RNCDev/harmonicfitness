@@ -374,11 +374,16 @@ def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
     return item
 
 
-def log(date: str, texts: List[str], path=None, r: Recipe = None, profile=None) -> List[dict]:
+def log(date: str, texts: List[str], path=None, r: Recipe = None, profile=None, build: str = None) -> List[dict]:
+    """Record the items a session told; `build` (the session's build id) ties them to it, so deleting the
+    workout (`./harmonicfitness workouts delete`) takes them back."""
     r = r or recipe()
     datetime.date.fromisoformat(date)
     path = path or paths.TOLD
     new = [parse_item(t, date, r, profile) for t in texts]   # all checked before any is written
+    for item in new:
+        if build:
+            item["build"] = build
     with locks.file_lock(path):   # read, check and append as one step, so a piece is told once
         return _log_new(new, path)
 
@@ -440,8 +445,9 @@ def parse_thread(text: str, profile=None) -> tuple:
     return topic, kind.casefold(), what
 
 
-def open_threads(date: str, texts: List[str], path=None, profile=None) -> List[dict]:
-    """Record each "topic | kind | what" as an open thread (all checked before any is written)."""
+def open_threads(date: str, texts: List[str], path=None, profile=None, build: str = None) -> List[dict]:
+    """Record each "topic | kind | what" as an open thread (all checked before any is written); `build` ties it
+    to the session that opened it."""
     datetime.date.fromisoformat(date)
     parsed = [parse_thread(t, profile) for t in texts]
     path = path or paths.THREADS
@@ -449,20 +455,21 @@ def open_threads(date: str, texts: List[str], path=None, profile=None) -> List[d
         rows = fileio.read_jsonl(path) if os.path.exists(path) else []
         n = max([int(r["id"][1:]) for r in rows if isinstance(r, dict) and THREAD_RE.match(str(r.get("id")))]
                 or [0])
-        new = [{"event": "open", "id": f"t{n + k}", "date": date, "topic": topic, "kind": kind, "what": what}
+        new = [dict({"event": "open", "id": f"t{n + k}", "date": date, "topic": topic, "kind": kind, "what": what},
+                    **({"build": build} if build else {}))
                for k, (topic, kind, what) in enumerate(parsed, 1)]
         fileio.append_jsonl(path, new)
     return new
 
 
-def close_thread(date: str, tid: str, path=None) -> dict:
+def close_thread(date: str, tid: str, path=None, build: str = None) -> dict:
     """Mark an open thread closed (told, answered, or no longer worth it); ValueError when it isn't open."""
     datetime.date.fromisoformat(date)
     path = path or paths.THREADS
     with locks.file_lock(path):
         if tid not in {t["id"] for t in threads(path)}:
             raise ValueError(f"no open thread '{tid}' (content plan lists the open ones)")
-        row = {"event": "close", "id": tid, "date": date}
+        row = dict({"event": "close", "id": tid, "date": date}, **({"build": build} if build else {}))
         fileio.append_jsonl(path, [row])
     return row
 
@@ -517,6 +524,19 @@ def trending(today: datetime.date, fetch=None) -> tuple:
     return "Wikipedia's most read articles (Reddit refused)", lines
 
 
+def draft_build(draft_path: str) -> str:
+    """The build id of the newest MP3 made from the draft as it stands (content log/thread --draft); ValueError when
+    there is none."""
+    import records
+    try:
+        rec = records.latest_build(records.draft_hash(draft_path))
+    except OSError as e:
+        raise ValueError(f"can't read the draft {draft_path} ({e})")
+    if rec is None or not rec.get("build_id"):
+        raise ValueError(f"no build of {draft_path} as it stands; build it first (or leave out --draft)")
+    return rec["build_id"]
+
+
 def main(argv=None):
     ap = cli.ArgumentParser(prog="harmonicfitness content", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -532,6 +552,8 @@ def main(argv=None):
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
                     help='"topic | format | title [| source [| stock slug]]", once per item; topic - for none')
+    lg.add_argument("--draft", help="the session's draft: ties the items to its build, so deleting the workout "
+                                    "takes them back")
     th = sub.add_parser("thread", help="open or close a thread a later session picks up")
     th.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     act = th.add_mutually_exclusive_group(required=True)
@@ -539,6 +561,7 @@ def main(argv=None):
                      help='"topic | kind | what", once per thread; kind one of ' + ", ".join(THREAD_KINDS)
                           + "; topic - for none")
     act.add_argument("--close", action="append", metavar="ID", help="an open thread's id (t3), once per thread")
+    th.add_argument("--draft", help="the session's draft: ties the thread to its build")
     sub.add_parser("reserve", help="list the stock's unused pieces, still current")
     tr = sub.add_parser("trending", help="what's popular today, for suggesting new topics")
     cli.today_arg(tr)
@@ -556,7 +579,8 @@ def main(argv=None):
         # the topics come from the profile; with no profile, any topic is taken
         prof = context.profile() if os.path.exists(paths.PROFILE) else None
         try:
-            new = log(args.date, args.item, profile=prof)   # its ValueError is an --item or --date it can't take
+            build = draft_build(args.draft) if args.draft else None
+            new = log(args.date, args.item, profile=prof, build=build)   # a ValueError: an --item, --date or --draft it can't take
         except ValueError as e:
             print(f"harmonicfitness content: {e}", file=sys.stderr)
             return cli.USAGE
@@ -564,11 +588,12 @@ def main(argv=None):
     elif args.cmd == "thread":
         prof = context.profile() if os.path.exists(paths.PROFILE) else None
         try:
+            build = draft_build(args.draft) if args.draft else None
             if args.open:
-                done = open_threads(args.date, args.open, profile=prof)
+                done = open_threads(args.date, args.open, profile=prof, build=build)
                 print("\n".join(f"Opened {t['id']}: {t['what']}" for t in done))
             else:
-                done = [close_thread(args.date, t) for t in args.close]
+                done = [close_thread(args.date, t, build=build) for t in args.close]
                 print("\n".join(f"Closed {t['id']}." for t in done))
         except ValueError as e:
             print(f"harmonicfitness content: {e}", file=sys.stderr)
