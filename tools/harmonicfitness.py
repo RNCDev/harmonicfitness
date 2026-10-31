@@ -32,6 +32,7 @@ COMMANDS = {
     "workouts":    ("workoutlog", None, "the workouts logged: list them, add feedback on one, or delete one (its log line, stories told and threads)"),
     "show":        ("player", None, "open the folder holding a file (a workout's MP3), with it selected"),
     "keys":        ("keys", None, "which web voice services have a key in me/.env (never the key), init and open"),
+    "balances":    ("balances", None, "what's left on each web voice service's account (Fish Audio and ElevenLabs say; the others link their billing page)"),
     "pull":        ("webpull", None, "bring the web app's files, latest conversation and its MP3s into me/web/ (signs in with HARMONIC_USERNAME and HARMONIC_PASSWORD from me/.env)"),
     "backup":      ("backup", None, "commit me/ and push it to its own private repo, if it is one"),
     "migrate":     ("migrate", None, "bring me/ up to this version's format (backs up first)"),

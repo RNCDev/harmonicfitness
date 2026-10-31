@@ -77,3 +77,19 @@ def save(candidate, name, description="", wav=None):
 def delete(voice_id):
     return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/v1/voices/{cloud.path_part(voice_id)}",
                         {"xi-api-key": cloud.key_or_stop(SERVICE)})
+
+
+def balance():
+    """{"used", "limit", "resets"}: this period's credits used and the plan's limit, and when they reset (a Unix
+    time, or None), from GET /v1/user/subscription. A key without the user-read permission is refused (auth).
+    One GET; nothing is spent."""
+    _, _, data = cloud.request("GET", cloud.base_url(SERVICE) + "/v1/user/subscription",
+                               {"xi-api-key": cloud.key_or_stop(SERVICE)}, None, timeout=20, service=SERVICE,
+                               deadline=30)
+    answer = cloud.json_answer(data, SERVICE, "the subscription")
+    used, limit, resets = (answer.get(k) for k in ("character_count", "character_limit",
+                                                   "next_character_count_reset_unix"))
+    whole = lambda x: isinstance(x, int) and not isinstance(x, bool) and x >= 0   # noqa: E731
+    if not (whole(used) and whole(limit)):
+        raise cloud.ServiceError("bad_request", SERVICE, "the subscription's credits couldn't be read")
+    return {"used": used, "limit": limit, "resets": resets if whole(resets) else None}

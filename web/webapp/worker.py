@@ -10,6 +10,7 @@ HARMONICFITNESS_HOME at a folder that doesn't exist, so the engine's libraries n
 import dataclasses
 import datetime
 import importlib
+import json
 import os
 import re
 import shutil
@@ -128,11 +129,15 @@ _services: dict[str, dict[str, dict]] = {}
 
 
 def engine_services(engine_root: str) -> dict[str, dict]:
-    """{service: {"name", "key_var", "key_page"}} from knowledge/services.toml, in its order."""
+    """{service: {"name", "key_var", "key_page", "billing_page", "reports"}} from knowledge/services.toml, in its
+    order; `reports`: whether the service's module can say what's left on the account (balance())."""
     if engine_root not in _services:
         services, = _engine_modules(engine_root, "services")
-        _services[engine_root] = {k: {f: v[f] for f in ("name", "key_var", "key_page")}
-                                  for k, v in services.settings().items()}
+        table = services.settings()
+        modules = _engine_modules(engine_root, *(f"services.{k}" for k in table))
+        _services[engine_root] = {k: {**{f: v[f] for f in ("name", "key_var", "key_page", "billing_page")},
+                                      "reports": hasattr(m, "balance")}
+                                  for (k, v), m in zip(table.items(), modules)}
     return _services[engine_root]
 
 
@@ -205,6 +210,29 @@ def brief(ctx: Ctx) -> dict:
         raise JobFailed(f"the engine stopped (exit {r.code})", {"stderr": r.stderr})
     ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)
     return {"brief_md": r.stdout, "stem": stem}
+
+
+BALANCES_TIMEOUT = 90     # seconds: the engine's cold start, then one GET a service
+BALANCE_FIELDS = ("ok", "usd", "used", "limit", "resets", "kind")   # never the message: it's the service's words
+
+
+def balances(ctx: Ctx) -> dict:
+    """What's left on each keyed voice service's account (`./harmonicfitness balances --json`): {"balances":
+    {service: row}} with only the fields the page shows. Needs none of the listener's files."""
+    if ctx.args:
+        raise JobFailed("invalid request: a balance check takes nothing")
+    r = engine.run(ctx.settings.engine_root, ctx.home, ["balances", "--json"], extra_env=ctx.keys,
+                   timeout=BALANCES_TIMEOUT, cancel=ctx.cancel)
+    if r.code != 0:
+        raise JobFailed(f"the engine stopped (exit {r.code})", {"stderr": r.stderr})
+    try:
+        rows = json.loads(r.stdout)
+    except ValueError:
+        rows = None
+    if not isinstance(rows, dict):
+        raise JobFailed("the engine's answer couldn't be read")
+    return {"balances": {s: {f: row[f] for f in BALANCE_FIELDS if f in row}
+                         for s, row in rows.items() if isinstance(row, dict) and "ok" in row}}
 
 
 TURN_ARGS = {"conversation_id", "line", "answer", "today", "now"}
@@ -493,7 +521,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     return {"conversation_id": conv.id, "state": done.state}
 
 
-HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn}
+HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn, "balances": balances}
 
 
 # ---- the loop ---------------------------------------------------------------------------------

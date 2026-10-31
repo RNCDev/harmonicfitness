@@ -493,6 +493,29 @@ class Keys(ApiCase):
         self.assertTrue(all(k["writer"] is False for k in body[:3]))   # none chosen, none keyed
         self.assertTrue(all("writer" not in k for k in body[3:]))
 
+    def test_list_names_each_billing_page_and_what_can_say(self):
+        self.signed_in()
+        body = {(k["service"], k["kind"]): k for k in self.client.get("/api/keys").json()}
+        self.assertTrue(all(k["billing_page"].startswith("https://") for k in body.values()))
+        self.assertTrue(body[("fish", "voice")]["reports"])
+        self.assertTrue(body[("elevenlabs", "voice")]["reports"])
+        self.assertFalse(body[("inworld", "voice")]["reports"])
+        self.assertFalse(body[("anthropic", "model")]["reports"])
+        self.assertIn("billing", body[("anthropic", "model")]["billing_page"])
+        # Gemini's one key: its model row names the voice service's billing page
+        self.assertEqual(body[("gemini", "model")]["billing_page"], body[("gemini", "voice")]["billing_page"])
+
+    def test_balances_is_a_job_and_one_at_a_time(self):
+        self.assertEqual(self.client.post("/api/balances", headers=self.origin()).status_code, 401)
+        _, uk = self.signed_in()
+        self.assertEqual(self.client.post("/api/balances").status_code, 403)   # no origin: refused
+        first = self.client.post("/api/balances", headers=self.origin())
+        self.assertEqual(first.status_code, 202)
+        again = self.client.post("/api/balances", headers=self.origin())
+        self.assertEqual(again.json()["id"], first.json()["id"])   # the one waiting, not another
+        self.assertEqual(jobs.status(self.conn, uk, first.json()["id"])["kind"], "balances")
+        self.conn.rollback()
+
     def test_put_model_key(self):
         self.signed_in()
         r = self.client.put("/api/keys/anthropic", json={"key": "sk-ant-abc123def456abcd"}, headers=self.origin())

@@ -76,3 +76,18 @@ def save(candidate, name, description=None, wav=None):
 def delete(voice_id):
     return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/model/{cloud.path_part(voice_id)}",
                         {"Authorization": _auth()})
+
+
+def balance():
+    """{"usd": the account's API credit}: GET /wallet/self/api-credit, whose `credit` is a decimal string. It's
+    the API's own pool (what speech draws on), not the app's plan credits. One GET; nothing is spent."""
+    _, _, data = cloud.request("GET", cloud.base_url(SERVICE) + "/wallet/self/api-credit",
+                               {"Authorization": _auth()}, None, timeout=20, service=SERVICE, deadline=30)
+    answer = cloud.json_answer(data, SERVICE, "the credit balance")
+    try:
+        usd = float(answer.get("credit"))
+    except (TypeError, ValueError):
+        usd = None
+    if usd is None or usd != usd:   # missing, not a number, or NaN
+        raise cloud.ServiceError("bad_request", SERVICE, "the credit balance couldn't be read")
+    return {"usd": round(usd, 4)}

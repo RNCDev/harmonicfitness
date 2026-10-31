@@ -713,15 +713,21 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         writer_service = providers.key_service(writes) if writes else None
         # A provider sharing a voice service's key (Gemini) is listed under that service's id, so the
         # page shows one row for one key.
-        rows = [(providers.key_service(p), providers.PROVIDERS[p].name, providers.PROVIDERS[p].key_page, "model",
+        # billing_page: where the account's balance is seen; reports: whether a balance check can say it (a
+        # shared key's model row says what its voice service says)
+        def billing(service: str, fallback: str) -> tuple[str, bool]:
+            v = services.get(service)
+            return (v["billing_page"], v["reports"]) if v else (fallback, False)
+        rows = [(providers.key_service(p), providers.PROVIDERS[p].name, providers.PROVIDERS[p].key_page,
+                 *billing(providers.key_service(p), providers.PROVIDERS[p].billing_page), "model",
                  providers.stored_key(have, p)) for p in settings.providers]
-        rows += [(s, v["name"], v["key_page"], "voice",
+        rows += [(s, v["name"], v["key_page"], v["billing_page"], v["reports"], "voice",
                   have.get(s) or next((have.get(p) for p, t in providers.SHARED_KEY.items() if t == s), None))
                  for s, v in services.items()]
-        return [{"service": s, "name": n, "key_page": page, "kind": kind, "set": at is not None,
-                 "updated_at": at.isoformat() if at is not None else None,
+        return [{"service": s, "name": n, "key_page": page, "billing_page": bill, "reports": reports, "kind": kind,
+                 "set": at is not None, "updated_at": at.isoformat() if at is not None else None,
                  **({"writer": s == writer_service} if kind == "model" else {})}
-                for s, n, page, kind, at in rows]
+                for s, n, page, bill, reports, kind, at in rows]
 
     @app.put("/api/writer", status_code=204, **post)
     def put_writer(uk: User, body: Annotated[WriterBody, Body()]):
@@ -819,6 +825,30 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
                 raise HTTPException(429, "too many jobs waiting")
             job_id = jobs.enqueue(conn, uk, body.kind, args)   # commits, releasing the lock
+        return {"id": job_id}
+
+    @app.post("/api/balances", status_code=202, **post)
+    def post_balances(uk: User):
+        """Ask what's left on each keyed voice service's account: a worker job (only the worker opens a key),
+        read with GET /api/jobs/{id}. One at a time: a check already waiting or running is returned as it is."""
+        with connection() as conn:
+            try:
+                conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
+                row = conn.execute("select id from jobs where user_id = %s and kind = 'balances' and "
+                                   "state in ('queued', 'running') order by id desc limit 1",
+                                   (uk.user_id,)).fetchone()
+                if row is not None:
+                    conn.rollback()
+                    return {"id": row[0]}
+                queued = conn.execute("select count(*) from jobs where user_id = %s and "
+                                      "state = 'queued'", (uk.user_id,)).fetchone()[0]
+            except Exception:
+                conn.rollback()
+                raise
+            if queued >= MAX_QUEUED:
+                conn.rollback()
+                raise HTTPException(429, "too many jobs waiting")
+            job_id = jobs.enqueue(conn, uk, "balances", {})   # commits, releasing the lock
         return {"id": job_id}
 
     @app.get("/api/jobs/{job_id}")

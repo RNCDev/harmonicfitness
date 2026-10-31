@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import sys
 from unittest import mock
@@ -131,6 +132,43 @@ class Worker(JobsCase):
         self.assertEqual([b["stage"] for _, b in jobs.events(self.conn, uk, job)],
                          ["folder", "brief", "saved"])
         self.assertEqual(jobs.events(self.conn, uk, job)[-1][1]["conflicts"], [])
+        self.conn.rollback()
+
+    def test_balances_job_keeps_only_what_the_page_shows(self):
+        _, uk = self.seeded_user()
+        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
+        self.conn.commit()
+        before = store.read_all(self.conn, uk)
+        seen = []
+        out = json.dumps({"fish": {"name": "Fish Audio", "billing_page": "https://x", "set": True, "reports": True,
+                                   "ok": True, "usd": 12.50},
+                          "elevenlabs": {"name": "ElevenLabs", "set": True, "reports": True, "ok": False,
+                                         "kind": "auth", "message": "the service's own words"},
+                          "inworld": {"name": "Inworld", "set": False, "reports": False}})
+
+        def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            seen.append((argv, dict(extra_env)))
+            return worker.engine.Result(0, out, "")
+        job = jobs.enqueue(self.conn, uk, "balances", {})
+        with mock.patch.object(worker.engine, "run", side_effect=record):
+            self.assertTrue(self.run_one())
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(seen, [(["balances", "--json"], {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})])
+        self.assertEqual(jobs.result(self.conn, uk, job), {"balances": {"fish": {"ok": True, "usd": 12.50},
+                                                                        "elevenlabs": {"ok": False, "kind": "auth"}}})
+        self.assertEqual(store.read_all(self.conn, uk), before)   # no file touched
+        self.conn.rollback()
+
+    def test_balances_job_fails_on_an_unreadable_answer_or_args(self):
+        _, uk = self.seeded_user()
+        with mock.patch.object(worker.engine, "run", return_value=worker.engine.Result(0, "not json", "")):
+            job = jobs.enqueue(self.conn, uk, "balances", {})
+            self.run_one()
+            self.assertEqual(self.state(job), ("failed", "the engine's answer couldn't be read"))
+        with mock.patch.object(worker.engine, "run", side_effect=AssertionError("engine ran")):
+            job = jobs.enqueue(self.conn, uk, "balances", {"x": 1})
+            self.run_one()
+            self.assertTrue(self.state(job)[1].startswith("invalid request: "))
         self.conn.rollback()
 
     def test_bad_args_never_run_the_engine(self):

@@ -1,8 +1,9 @@
 // The keys: who writes the workouts (Claude, ChatGPT or Gemini: the listener picks one and adds its key) and the
 // voices (optional), one row per service: a service that is both (Gemini) is one key and one row, so picking
-// Gemini to write also voices its coach. Add, replace or remove. A key is never shown again.
-import { useEffect, useRef, useState } from "react";
-import { api, ApiError, NotSignedIn, plainError, type KeyState } from "../api";
+// Gemini to write also voices its coach. Add, replace or remove. A key is never shown again. A set key shows what's
+// left on its account where the service says (Fish Audio, ElevenLabs), else a link to its billing page.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api, ApiError, checkBalances, NotSignedIn, plainError, type Balance, type KeyState } from "../api";
 
 /** One row: a service's key, and whether it writes the workouts (model), voices a coach (voice), or both. */
 export type KeyRowState = KeyState & { voice: boolean };
@@ -19,6 +20,8 @@ export function keyRows(keys: KeyState[]): KeyRowState[] {
     if (k.kind === "model") { same.kind = "model"; same.writer = k.writer; }
     if (k.kind === "voice") same.voice = true;
     same.set = same.set || k.set;
+    same.reports = same.reports || k.reports;
+    same.billing_page = same.billing_page ?? k.billing_page;
     same.updated_at = same.updated_at ?? k.updated_at;
   }
   return rows;
@@ -36,8 +39,51 @@ function setOn(iso: string | null): string {
   return `Set ${d.toLocaleDateString([], { month: "short", day: "numeric" })}`;
 }
 
-function KeyRow({ k, open, onChanged, onSignedOut, onChoose }: {
-  k: KeyRowState; open: number; onChanged: (s: KeyRowState) => void; onSignedOut: () => void;
+/** A balance check's state for one row: still asking, its answer, or nothing to say. */
+export type BalanceState = "checking" | Balance | null;
+
+/** What's left, in a few words: dollars of credit, or this period's credits. Null when there's nothing to show. */
+export function balanceText(b: Balance): { text: string; title: string } | null {
+  if (!b.ok) return null;
+  if (typeof b.usd === "number") {
+    return { text: `$${b.usd.toLocaleString([], { minimumFractionDigits: 2, maximumFractionDigits: 2 })} left`,
+      title: "API credit left" };
+  }
+  if (typeof b.used === "number" && typeof b.limit === "number") {
+    const left = Math.max(0, b.limit - b.used);
+    const resets = typeof b.resets === "number"
+      ? `, resets ${new Date(b.resets * 1000).toLocaleDateString([], { month: "short", day: "numeric" })}` : "";
+    return { text: `${left.toLocaleString()} credits left`,
+      title: `${b.used.toLocaleString()} of ${b.limit.toLocaleString()} credits used this period${resets}` };
+  }
+  return null;
+}
+
+function BillingIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 2.5h4.5V7M13.5 2.5 7 9M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" />
+    </svg>
+  );
+}
+
+/** The balance where the service says it, else a link icon to its billing page. */
+function BalanceTag({ k, balance }: { k: KeyRowState; balance: BalanceState }) {
+  if (!k.set || !k.billing_page) return null;
+  const link = { href: k.billing_page, target: "_blank", rel: "noopener noreferrer" };
+  if (k.reports && balance === "checking") return <span className="keys-bal cx-s">Checking balance…</span>;
+  const shown = k.reports && balance && balance !== "checking" ? balanceText(balance) : null;
+  if (shown) return <a className="keys-bal" {...link} title={`${shown.title}. Open ${k.name} billing`}>{shown.text}</a>;
+  return (
+    <a className="keys-bill" {...link} aria-label={`${k.name} billing`} title={`See your balance on ${k.name}`}>
+      <BillingIcon />
+    </a>
+  );
+}
+
+function KeyRow({ k, open, balance, onChanged, onSignedOut, onChoose }: {
+  k: KeyRowState; open: number; balance: BalanceState; onChanged: (s: KeyRowState) => void; onSignedOut: () => void;
   /** On a model row: makes it the one that writes the workouts. */
   onChoose?: () => void;
 }) {
@@ -99,7 +145,10 @@ function KeyRow({ k, open, onChanged, onSignedOut, onChoose }: {
           <span className="keys-name">{k.name}</span>
         </label>
       ) : <span className="keys-name">{k.name}</span>}
-      <span className="keys-state">{k.set ? setOn(k.updated_at) : "Not set"}</span>
+      <span className="keys-state">
+        <span className="keys-when">{k.set ? setOn(k.updated_at) : "Not set"}</span>
+        <BalanceTag k={k} balance={balance} />
+      </span>
       {!editing && !asking && (
         <span className="keys-actions">
           <button type="button" className="quiet" aria-label={`${k.set ? "Replace" : "Add"} ${k.name} key`}
@@ -196,6 +245,24 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
   const openFor = (service: string) =>
     (opened?.service === service ? opened.n : 0) + (openRow?.service === service && !openRow.choose ? openRow.n : 0);
 
+  // what's left on each account that can say: asked again whenever the set of such keys changes
+  const asking = useMemo(() => keyRows(keys ?? []).filter((r) => r.set && r.reports)
+    .map((r) => `${r.service}@${r.updated_at ?? ""}`).join(" "), [keys]);
+  const [balances, setBalances] = useState<Record<string, Balance> | "checking" | null>(null);
+  useEffect(() => {
+    if (!asking) { setBalances(null); return; }
+    let live = true;
+    setBalances("checking");
+    checkBalances({ live: () => live }).then((b) => { if (live) setBalances(b); }, (e) => {
+      if (!live) return;
+      if (e instanceof NotSignedIn) return onSignedOut();
+      setBalances(null);   // the rows fall back to their billing links
+    });
+    return () => { live = false; };
+  }, [asking, onSignedOut]);
+  const balanceOf = (service: string): BalanceState =>
+    balances === "checking" ? "checking" : balances?.[service] ?? null;
+
   const rows = keys ? keyRows(keys) : [];
   const required = rows.filter((r) => r.kind === "model");
   const optional = rows.filter((r) => r.kind !== "model");
@@ -205,7 +272,8 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
       <p className="cx-s">{note}</p>
       <div role={writers ? "radiogroup" : undefined} aria-label={writers ? title : undefined}>
         {list.map((k) => (
-          <KeyRow key={k.service} k={k} open={openFor(k.service)} onSignedOut={onSignedOut} onChanged={changed}
+          <KeyRow key={k.service} k={k} open={openFor(k.service)} balance={balanceOf(k.service)}
+            onSignedOut={onSignedOut} onChanged={changed}
             onChoose={writers ? () => void choose(k.service, false) : undefined} />
         ))}
       </div>

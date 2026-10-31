@@ -16,12 +16,16 @@ class Provider:
     name: str
     model: str
     key_page: str
+    billing_page: str   # where the listener sees what's left (no provider reports it to a plain key)
 
 
 PROVIDERS: dict[str, Provider] = {p.id: p for p in (
-    Provider("anthropic", "Claude", "claude-sonnet-5-5", "https://console.anthropic.com/settings/keys"),
-    Provider("openai", "ChatGPT", "gpt-6.1-sol", "https://platform.openai.com/api-keys"),
-    Provider("google", "Gemini", "gemini-3.8-flash", "https://aistudio.google.com/apikey"),
+    Provider("anthropic", "Claude", "claude-sonnet-5-5", "https://console.anthropic.com/settings/keys",
+             "https://console.anthropic.com/settings/billing"),
+    Provider("openai", "ChatGPT", "gpt-6.1-sol", "https://platform.openai.com/api-keys",
+             "https://platform.openai.com/settings/organization/billing/overview"),
+    Provider("google", "Gemini", "gemini-3.8-flash", "https://aistudio.google.com/apikey",
+             "https://aistudio.google.com/billing"),
 )}
 
 

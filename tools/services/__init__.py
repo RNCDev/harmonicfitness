@@ -3,7 +3,9 @@ n, label) -> candidates, save(candidate, name, description, wav) -> voice ID, de
 speaker(voice) -> say(text, seed, previous_text=None, next_text=None) returning 16-bit mono PCM at 24 kHz,
 spoken by the web coach's saved voice ID, in that argument order (tests/test_cloud.py holds every module to it).
 Optional: STORES_DRAFTS = True where design() saves each candidate at the service, so one not kept is deleted;
-DESIGN_NOTE, what else a design costs there, said with its price. cloud.service_module(name) is the one lookup.
+DESIGN_NOTE, what else a design costs there, said with its price; balance() -> what's left on the account, where
+the service reports it (Fish: {"usd"}; ElevenLabs: {"used", "limit", "resets"}), one GET that spends nothing.
+cloud.service_module(name) is the one lookup.
 The shared core (HTTP, retries, errors, audio, cost) is tools/cloud.py; settings are knowledge/services.toml,
 read by settings() here (each table checked by validate()), which imports nothing of the engine's, so keys.py
 can read it without cloud.py."""
@@ -67,7 +69,7 @@ def _count(x, least):
 
 def validate(tables):
     """What's wrong with {service: settings} as the engine reads it (an empty list when nothing is): each needs
-    a name, an https:// url and key_page, a key_var, a default_model among its models, a unit (characters or
+    a name, an https:// url, key_page and billing_page, a key_var, a default_model among its models, a unit (characters or
     bytes), usd_per_million (a number, or one per model), concurrency and candidates (whole numbers, at least 1),
     max_chars (a whole number, 0 for no limit) and tried_live (true or false); design_usd and note are optional."""
     problems = []
@@ -77,7 +79,7 @@ def validate(tables):
         for field in ("name", "key_var", "default_model"):
             if not isinstance(t.get(field), str) or not t[field].strip():
                 bad(field, "a non-empty string")
-        for field in ("url", "key_page"):
+        for field in ("url", "key_page", "billing_page"):
             if not isinstance(t.get(field), str) or not t[field].startswith("https://"):
                 bad(field, "an https:// address")
         models = t.get("models")

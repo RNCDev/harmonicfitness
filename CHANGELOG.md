@@ -4,6 +4,18 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-10-31
+
+Settings shows what's left on each voice service's account, where the service will say.
+
+### Added
+- **Balances in Settings:** a set Fish Audio key shows its API credit ("$12.50 left") and a set ElevenLabs key this period's credits left, each a link to the service's billing page (hover for used of limit and the reset day). Gemini, Inworld, Claude and ChatGPT don't report a balance to a plain API key, so their rows show a link icon to their billing pages instead. A key that's refused, or a check that takes longer than 90 seconds, falls back to the icon.
+- **`./harmonicfitness balances [--json]`:** the same, on the command line, from `me/.env`. Each service module may have `balance()` (one GET that spends nothing); `knowledge/services.toml` gives every service a `billing_page`.
+- **The web app:** `POST /api/balances` queues a `balances` worker job (the web process still never opens a key), `GET /api/keys` adds each row's `billing_page` and `reports`.
+
+### For forks
+- Nothing to migrate. A fork's own service in `services.toml` needs a `billing_page` (an https address), which `validate()` now checks. The Claude and ChatGPT billing addresses (`web/webapp/providers.py`) are the consoles' usual ones, not checked signed in.
+
 ## [0.43.0] - 2026-10-30
 
 A new logo, for the web app's Moonrise look: one coral line, a burst of sound, and the name in the app's own display face.

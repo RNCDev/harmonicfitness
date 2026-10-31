@@ -21,7 +21,13 @@ export type KeyState = {
   kind: "voice" | "model";
   /** On a model row: whether it's the one the listener chose to write their workouts. */
   writer?: boolean;
+  /** Where the account's balance is seen, and whether a balance check can say it here (absent before 0.43.1). */
+  billing_page?: string;
+  reports?: boolean;
 };
+/** What a balance check says of one service: Fish Audio's credit in dollars, or ElevenLabs's credits this period. */
+export type Balance = { ok: boolean; usd?: number; used?: number; limit?: number; resets?: number | null;
+  kind?: string };
 export type Stage = { stage: string; [field: string]: unknown };
 export type JobState = "queued" | "running" | "done" | "failed";
 export type JobView = {
@@ -136,6 +142,10 @@ export const api = {
     }
     return r.json();
   },
+  /** Starts a balance check (a worker job; one already waiting is returned), read with `jobResult`. */
+  balances: () => call<{ id: number }>("POST", "/api/balances"),
+  jobResult: (id: number) =>
+    call<{ id: number; state: JobState; error: string | null; result: unknown }>("GET", `/api/jobs/${id}`),
   job: (id: number) =>
     call<{ id: number; state: JobState; error: string | null }>(
       "GET", `/api/jobs/${id}`),
@@ -221,4 +231,22 @@ export function useJob(onSignedOut: () => void) {
   }, [follow]);
 
   return { job, watch, stop };
+}
+
+/** Each keyed service's balance, from a check the worker runs: null when it failed or took too long. */
+export async function checkBalances(opts: { every?: number; within?: number; live?: () => boolean } = {}):
+  Promise<Record<string, Balance> | null> {
+  const { every = 1500, within = 90_000, live = () => true } = opts;
+  const { id } = await api.balances();
+  const until = Date.now() + within;
+  while (live()) {
+    const j = await api.jobResult(id);
+    if (j.state === "done") {
+      const found = (j.result as { balances?: unknown } | null)?.balances;
+      return found && typeof found === "object" ? (found as Record<string, Balance>) : null;
+    }
+    if (j.state === "failed" || Date.now() >= until) return null;
+    await new Promise((r) => setTimeout(r, every));
+  }
+  return null;
 }

@@ -8,6 +8,7 @@
 # docs label it "not yet tried live".
 #
 # key_var, key_page: the key's name in me/.env, and where the listener gets one.
+# billing_page: where the listener sees what's left on the account (the web app's Settings links to it).
 # unit: what the service bills by (characters, or UTF-8 bytes for Fish).
 # usd_per_million: dollars per million billed units, by model.
 # design_usd: what one voice design costs (absent: the service doesn't publish it).
@@ -23,6 +24,7 @@ name = "Fish Audio"
 url = "https://api.fish.audio"
 key_var = "FISH_AUDIO_API_KEY"
 key_page = "https://fish.audio/app/api-keys/"
+billing_page = "https://fish.audio/app/billing/"
 default_model = "s2.1-pro"
 models = { "s2.1-pro" = "Fish's current model", "s2-pro" = "the previous model" }
 unit = "bytes"
@@ -38,6 +40,7 @@ name = "ElevenLabs"
 url = "https://api.elevenlabs.io"
 key_var = "ELEVENLABS_API_KEY"
 key_page = "https://elevenlabs.io/app/settings/api-keys"
+billing_page = "https://elevenlabs.io/app/subscription"
 default_model = "eleven_v4"
 models = { "eleven_v4" = "the more natural voice (about $1.60 a 20,000-character workout)", "eleven_v4_turbo" = "faster and cheaper (about $0.80 a workout)" }
 unit = "characters"
@@ -53,6 +56,7 @@ name = "Gemini"
 url = "https://generativelanguage.googleapis.com"
 key_var = "GEMINI_API_KEY"
 key_page = "https://aistudio.google.com/apikey"
+billing_page = "https://aistudio.google.com/billing"
 default_model = "gemini-3.8-flash-tts"
 models = { "gemini-3.8-flash-tts" = "Gemini's current speech model", "gemini-3.8-flash-lite-tts" = "cheaper, a little less natural" }
 unit = "characters"
@@ -69,6 +73,7 @@ name = "Inworld"
 url = "https://api.inworld.ai"
 key_var = "INWORLD_API_KEY"
 key_page = "https://platform.inworld.ai/api-keys"
+billing_page = "https://platform.inworld.ai/billing"
 default_model = "inworld-tts-2"
 models = { "inworld-tts-2" = "Inworld's current speech model", "inworld-tts-2-flash" = "faster and cheaper" }
 unit = "characters"

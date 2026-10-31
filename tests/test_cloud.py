@@ -507,6 +507,44 @@ FISH_WAVS = [tone_wav(1.0, rate=44100), tone_wav(0.8, rate=44100)]
 class Fish(ServiceCase):
     SERVICE = "fish"
 
+    def test_fish_balance_reads_the_api_credit(self):
+        fake = self.serve(lambda r: (200, {}, json.dumps({"_id": "x", "user_id": "u", "credit": "12.5031"}).encode()))
+        self.assertEqual(self.module.balance(), {"usd": 12.5031})
+        req = fake.requests[0]
+        self.assertEqual((req.method, req.path), ("GET", "/wallet/self/api-credit"))
+        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+
+    def test_fish_balance_that_isnt_a_number_is_a_refusal(self):
+        for body in ({"credit": "lots"}, {}, {"credit": "nan"}):
+            self.serve(lambda r, body=body: (200, {}, json.dumps(body).encode()))
+            with self.assertRaises(cloud.ServiceError) as got:
+                self.module.balance()
+            self.assertEqual(got.exception.kind, "bad_request")
+
+    def test_balances_ask_only_what_can_say_and_has_a_key(self):
+        import balances
+        fake = self.serve(lambda r: (200, {}, b'{"credit": "12.5"}'))
+        with mock.patch("keys.is_set", lambda s: s in ("fish", "gemini")):
+            rows = balances.balances()
+        self.assertEqual(list(rows), list(cloud.SERVICES))
+        self.assertEqual(rows["fish"]["usd"], 12.5)
+        self.assertTrue(rows["fish"]["ok"])
+        self.assertEqual(rows["gemini"], {"name": "Gemini", "billing_page": "https://aistudio.google.com/billing",
+                                          "set": True, "reports": False})
+        self.assertNotIn("ok", rows["elevenlabs"])   # no key: never asked
+        self.assertEqual(len(fake.requests), 1)
+        for row in rows.values():
+            self.assertTrue(row["billing_page"].startswith("https://"))
+
+    def test_balances_carry_a_refusal_without_the_key(self):
+        import balances
+        self.serve(lambda r: (401, {}, json.dumps({"message": f"bad key {SECRET}"}).encode()))
+        with mock.patch("keys.is_set", lambda s: s == "fish"):
+            row = balances.balances()["fish"]
+        self.assertEqual((row["ok"], row["kind"]), (False, "auth"))
+        self.assertNotIn(SECRET, json.dumps(row))
+        self.assertIn("billing", balances.line(row))
+
     def test_fish_speaks_by_reference_id(self):
         fake = self.serve(wav_answer)
         pcm = cloud.speaker(self.voice())("Set your feet.", 42, previous_text="Hi.", next_text="Rest.")
@@ -634,6 +672,21 @@ class ElevenLabs(ServiceCase):
 
     def test_elevenlabs_delete(self):
         self.check_delete("/v1/voices/{id}")
+
+
+    def test_elevenlabs_balance_reads_the_subscription(self):
+        fake = self.serve(lambda r: (200, {}, json.dumps({"character_count": 2120, "character_limit": 30000,
+                                                           "next_character_count_reset_unix": 1793000000}).encode()))
+        self.assertEqual(self.module.balance(), {"used": 2120, "limit": 30000, "resets": 1793000000})
+        req = fake.requests[0]
+        self.assertEqual((req.method, req.path), ("GET", "/v1/user/subscription"))
+        self.assertEqual(req.headers["xi-api-key"], SECRET)
+
+    def test_elevenlabs_balance_refused_or_unreadable(self):
+        self.serve(lambda r: (401, {}, b'{"detail": {"message": "missing_permissions"}}'))
+        with self.assertRaises(cloud.ServiceError) as got:
+            self.module.balance()
+        self.assertEqual(got.exception.kind, "auth")
 
 
 class Gemini(ServiceCase):

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { KeysBox } from "./KeysBox";
-import { api, ApiError, NotSignedIn, type KeyState } from "../api";
+import { balanceText, KeysBox } from "./KeysBox";
+import { api, ApiError, checkBalances, NotSignedIn, type KeyState } from "../api";
 
 vi.mock("../api", async (orig) => {
   const real = await orig<typeof import("../api")>();
-  return { ...real, api: { keys: vi.fn(), setKey: vi.fn(), deleteKey: vi.fn(), setWriter: vi.fn() } };
+  return { ...real, checkBalances: vi.fn(),
+    api: { keys: vi.fn(), setKey: vi.fn(), deleteKey: vi.fn(), setWriter: vi.fn() } };
 });
 
 const FISH: KeyState = { service: "fish", name: "Fish Audio", key_page: "https://fish.example/keys",
@@ -23,7 +24,9 @@ beforeEach(() => {
   m.setKey.mockResolvedValue(undefined);
   m.deleteKey.mockResolvedValue(undefined);
   m.setWriter.mockResolvedValue(undefined);
+  check.mockResolvedValue(null);
 });
+const check = checkBalances as unknown as ReturnType<typeof vi.fn>;
 
 describe("the Keys box", () => {
   it("groups the keys as required and optional", async () => {
@@ -152,5 +155,53 @@ describe("the Keys box", () => {
     fireEvent.change(screen.getByLabelText("ElevenLabs key"), { target: { value: "abc" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(out).toHaveBeenCalled());
+  });
+});
+
+describe("balances", () => {
+  const fish: KeyState = { ...FISH, billing_page: "https://fish.example/billing", reports: true };
+  const eleven: KeyState = { ...ELEVEN, set: true, updated_at: "2026-10-20T12:00:00Z",
+    billing_page: "https://el.example/billing", reports: true };
+  const inworld: KeyState = { service: "inworld", name: "Inworld", key_page: "https://i.example/keys", set: true,
+    updated_at: "2026-10-20T12:00:00Z", kind: "voice", billing_page: "https://i.example/billing", reports: false };
+  const unset: KeyState = { ...inworld, service: "gemini", name: "Gemini", set: false, updated_at: null };
+
+  it("shows what's left where the service says, and a billing link where it can't", async () => {
+    m.keys.mockResolvedValue([fish, eleven, inworld, unset]);
+    check.mockResolvedValue({ fish: { ok: true, usd: 12.50 }, elevenlabs: { ok: true, used: 2120, limit: 30000 } });
+    render(<KeysBox onSignedOut={() => {}} />);
+    const left = await screen.findByRole("link", { name: "$12.50 left" });
+    expect(left).toHaveAttribute("href", "https://fish.example/billing");
+    expect(left).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "27,880 credits left" })).toHaveAttribute("href", "https://el.example/billing");
+    expect(screen.getByRole("link", { name: "Inworld billing" })).toHaveAttribute("href", "https://i.example/billing");
+    expect(screen.queryByRole("link", { name: "Gemini billing" })).toBeNull();   // no key, nothing to see
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it("says it's checking, then falls back to the link when a service refused or the check failed", async () => {
+    m.keys.mockResolvedValue([fish, eleven]);
+    let done: (v: unknown) => void = () => {};
+    check.mockReturnValue(new Promise((r) => { done = r; }));
+    render(<KeysBox onSignedOut={() => {}} />);
+    expect(await screen.findAllByText("Checking balance…")).toHaveLength(2);
+    done({ fish: { ok: false, kind: "auth" } });
+    expect(await screen.findByRole("link", { name: "Fish Audio billing" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ElevenLabs billing" })).toBeInTheDocument();
+  });
+
+  it("never asks when no key that can say is set", async () => {
+    m.keys.mockResolvedValue([inworld, { ...fish, set: false, updated_at: null }]);
+    render(<KeysBox onSignedOut={() => {}} />);
+    expect(await screen.findByRole("link", { name: "Inworld billing" })).toBeInTheDocument();
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it("words a balance", () => {
+    expect(balanceText({ ok: true, usd: 1234.5 })?.text).toBe("$1,234.50 left");
+    expect(balanceText({ ok: true, used: 40, limit: 10 })?.text).toBe("0 credits left");
+    expect(balanceText({ ok: true, used: 1, limit: 10, resets: 1793000000 })?.title).toMatch(/1 of 10 credits used this period, resets /);
+    expect(balanceText({ ok: false })).toBeNull();
+    expect(balanceText({ ok: true })).toBeNull();
   });
 });
