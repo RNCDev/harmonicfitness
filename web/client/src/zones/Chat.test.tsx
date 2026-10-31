@@ -164,6 +164,21 @@ describe("the chat", () => {
     expect(screen.queryByText(/Writing your script/)).toBeNull();
   });
 
+  it("shows wrapping up once, not as a step and then a thought", () => {
+    const ev = [
+      { stage: "step", text: "Recording your workout: 18 of 40", id: 2, state: "running" },
+      { stage: "step", text: "Recording your workout (a little off its planned length)", id: 2, state: "done" },
+      { stage: "step", text: "Wrapping up", id: 3, state: "running", think: true },
+      { stage: "step", text: "Wrapping up", id: 3, state: "done", think: true },
+      { stage: "step", text: "Wrapping up", id: 4, state: "done" },
+      { stage: "step", text: "Wrapping up", id: 5, state: "running", think: true },
+    ];
+    render(<Chat {...base} working steps={stepsOf(ev)} />);
+    expect(screen.getByText("Recording your workout (a little off its planned length)")).not.toHaveClass("bad");
+    expect(screen.getAllByText(/Wrapping up/)).toHaveLength(1);
+    expect(screen.getByText("Wrapping up…")).toHaveClass("now", "think");
+  });
+
   it("a long wait shows its own clock and says it's a long one", () => {
     vi.useFakeTimers();
     try {

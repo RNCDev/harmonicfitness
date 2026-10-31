@@ -270,6 +270,71 @@ class Turns(AgentCase):
         self.assertEqual(said, [("Designing Coach Nolan's voice", None, 2), ("Designing Coach Nolan's voice", 0, 2),
                                 ("Recording your workout", None, 3), ("Recording your workout", 0, 3)])
 
+    def test_a_recording_counts_what_it_has_sent_and_a_total_off_plan_is_done(self):
+        import time
+        from unittest import mock
+        said = []
+        self.deps.say = lambda text, tool, code, step: said.append((text, code, step))
+        draft = f"me/workouts/{STEM}/{STEM}.draft.txt"
+        self.deps.approved = {"draft": draft, "name": "W", "coach": "Coach Owen", "chars": 2000, "usd": 0.04,
+                              "service": "inworld"}
+        logs = os.path.join(self.deps.home, "workouts", ".logs")
+        os.makedirs(logs, exist_ok=True)
+        with open(os.path.join(logs, "W.log"), "w", encoding="utf-8") as f:
+            f.write("  [39/40] 4.0s audio\n")   # an earlier build's lines are never counted
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            with open(os.path.join(home, "workouts", ".logs", "W.log"), "a", encoding="utf-8") as f:
+                f.write("--- build W\nSending 2,000 characters\n  [1/40] 3.1s audio\n  [18/40] 4.2s audio\n")
+            time.sleep(1.6)
+            return tools.engine.Result(2, "", "off plan")
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": ["build", draft, "W", "--coach", "Coach Owen"]},
+                                                         tool_call_id="r1")])
+            if len(parts(messages, ToolReturnPart)) == 1:
+                return ModelResponse(parts=[ToolCallPart("read_file", {"path": "me/profile.md"},
+                                                         tool_call_id="r2")])
+            return ModelResponse(parts=[TextPart("ready")])
+        with mock.patch.object(tools.engine, "run", side_effect=run):
+            agent.run_turn(FunctionModel(script), self.deps, None, "Yes, record it.")
+        self.assertEqual(said[:3], [("Recording your workout", None, 2), ("Recording your workout: 18 of 40", None, 2),
+                                    ("Recording your workout (a little off its planned length)", 0, 2)])
+        self.assertIn(("Wrapping up", 0, 4), said)   # reading why, after the recording, is wrapping up
+        self.assertNotIn("Getting to know you", [t for t, _, _ in said])
+
+    def test_a_failed_recording_is_still_a_failure(self):
+        from unittest import mock
+        said = []
+        self.deps.say = lambda text, tool, code, step: said.append((text, code))
+        draft = f"me/workouts/{STEM}/{STEM}.draft.txt"
+        self.deps.approved = {"draft": draft, "name": "W", "coach": "Coach Owen", "chars": 2000, "usd": 0.04, "service": "inworld"}
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": ["build", draft, "W", "--coach", "Coach Owen"]}, tool_call_id="r1")])
+            return ModelResponse(parts=[TextPart("stopped")])
+        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(4, "", "quota")):
+            agent.run_turn(FunctionModel(script), self.deps, None, "Yes, record it.")
+        self.assertEqual(said, [("Recording your workout", None), ("Recording your workout", 4)])
+
+    def test_progress_reads_only_what_the_build_added(self):
+        logs = os.path.join(self.deps.home, "workouts", ".logs")
+        os.makedirs(logs, exist_ok=True)
+        path = os.path.join(logs, "W.log")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("  [40/40] 4.0s audio\n")
+        before = agent._log_sizes(self.deps.home)
+        self.assertIsNone(agent._progress(self.deps.home, before))
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("  [3/12] 2.0s audio\n  [5/12] 2.2s audio\n")
+        self.assertEqual(agent._progress(self.deps.home, before), (5, 12))
+        self.assertEqual(agent._progress(self.deps.home + "-missing", {}), None)
+        with open(path, "w", encoding="utf-8") as f:   # the log started over past its limit
+            f.write("  [2/9] 2.0s audio\n")
+        self.assertEqual(agent._progress(self.deps.home, {"W.log": 10_000}), (2, 9))
+
     def test_steps_never_name_a_file(self):
         for path in ("me/profile.md", "me/health.md", "me/content.md", "knowledge/script.md", "me/x/y.txt", 42):
             self.assertNotIn("/", agent._read_step(path))

@@ -4,6 +4,21 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.43.2] - 2026-10-31
+
+The web app says more truthfully what a recording is doing.
+
+### Changed
+- **A recording counts as it goes:** while a web coach records, the step reads "Recording your workout: 18 of 40", from the pieces the build has sent (its log's `[n/m]` lines, read by the worker as they land, at most every two seconds).
+- **A total off plan is done, not failed:** a build whose total ran more than three percent off plan (exit 2) still made the MP3, so the step ends done, as "Recording your workout (a little off its planned length)", not with the failure's coral dot.
+- **After the recording, it's wrapping up:** files the coach reads once the recording is made (say, to see why its length was off) show as "Wrapping up", one line, not "Looking at your workout" and "Getting to know your coach" again.
+
+### Fixed
+- **The worker reconnects** when the database closes its connection (it did about hourly, "SSL connection has been closed unexpectedly"), rather than exiting and restarting the machine. A job running at that moment fails as any interrupted job does.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.43.1] - 2026-10-31
 
 Settings shows what's left on each voice service's account, where the service will say.

@@ -6,8 +6,9 @@ import functools
 import json
 import os
 import re
-import tomllib
 import threading
+import time
+import tomllib
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import replace
 from dataclasses import dataclass
@@ -106,10 +107,12 @@ SUB_STEPS = {("get", "cost"): "Pricing the recording", ("get", "web-builds"): "C
              ("youtube", "transcript"): "Reading a video's transcript", ("youtube", "puzzles"): "Finding a puzzle",
              ("youtube", "done"): "Noting the video series", ("movements", "--about"): "Reading the coaching notes"}
 OTHER_STEP = "Running a check"
+# After the recording, what the model reads (say, why a total ran off plan) is all one step to the listener.
+WRAPPING_UP = "Wrapping up"
 # What the model is doing between tools, by what the turn did last (Deps.phase): shown while it thinks.
 THINK = {"": "Reading your message", "brief": "Writing your script", "draft": "Checking over the script",
          "lint_failed": "Fixing the script", "linted": "Getting the recording ready", "priced": "Writing up the plan",
-         "recorded": "Wrapping up", "audition": "Introducing the voices", "coach": "Working on your coach"}
+         "recorded": WRAPPING_UP, "audition": "Introducing the voices", "coach": "Working on your coach"}
 THINK_OTHER = "Deciding what to do next"
 COACH_STEPS = {"make": "Making your coach's voice", "audition": "Auditioning voices for your coach",
                "keep": "Saving your new coach", "forget-audition": "Tidying up the audition",
@@ -206,26 +209,77 @@ def _coach_folders(home: str) -> set[str]:
         return set()
 
 
+RECORDING = "Recording your workout"
+OFF_PLAN = 2   # the build's exit when the MP3's total ran more than three percent off plan: an MP3 was still made
+OFF_PLAN_NOTE = f"{RECORDING} (a little off its planned length)"
+PROGRESS = re.compile(r"^\s*\[(\d+)/(\d+)\]", re.MULTILINE)   # render_cloud's "  [18/40] 4.2s audio"
+PROGRESS_EVERY = 2.0   # seconds between progress updates, at most
+
+
+def _log_sizes(home: str) -> dict[str, int]:
+    """Each build log's size now (me/workouts/.logs/*.log), so a recording reads only the lines it adds."""
+    where = os.path.join(home, "workouts", ".logs")
+    try:
+        return {n: os.path.getsize(os.path.join(where, n)) for n in os.listdir(where) if n.endswith(".log")}
+    except OSError:
+        return {}
+
+
+def _progress(home: str, before: dict[str, int]) -> tuple[int, int] | None:
+    """(sent, of) from the newest "[n/m]" line the build has added to its log since `before`, or None."""
+    where = os.path.join(home, "workouts", ".logs")
+    found = None
+    for name, size in _log_sizes(home).items():
+        start = before.get(name, 0)
+        if size < start:   # the log passed its limit and started over (build.log_to)
+            start = 0
+        elif size == start:
+            continue
+        try:
+            with open(os.path.join(where, name), "rb") as f:
+                f.seek(start)
+                text = f.read().decode("utf-8", "replace")
+        except OSError:
+            continue
+        hits = PROGRESS.findall(text)
+        if hits:
+            found = (int(hits[-1][0]), int(hits[-1][1]))
+    return found
+
+
 def _recording(deps: Deps, args: list[str], tool: str) -> ToolResult:
     """The approved recording: "Designing <coach>'s voice" first when the coach is made in this build (until its
-    folder appears in me/coaches/), then "Recording your workout". The watch thread says the switch while this
-    thread waits on the engine and is joined before this thread says anything again, so the worker's connection
-    (`say` writes a job event on it) is never used by two threads at once; the heartbeat has its own."""
+    folder appears in me/coaches/), then "Recording your workout", which counts the pieces sent as the build's
+    log shows them ("Recording your workout: 18 of 40"). A total off plan (exit 2) still made an MP3, so it ends
+    as done, with a note. The watch thread says each change while this thread waits on the engine and is joined
+    before this thread says anything again, so the worker's connection (`say` writes a job event on it) is never
+    used by two threads at once; the heartbeat has its own."""
     ok = deps.approved or {}
-    if not ok.get("design"):
-        return _step(deps, "Recording your workout", tool, lambda: tools.run(deps, args))
-    design = f"Designing {ok.get('coach') or 'your coach'}'s voice"
-    before = _coach_folders(deps.home)
-    first = _begin(deps, design, tool)
-    recording: list[int] = []
+    design = f"Designing {ok.get('coach') or 'your coach'}'s voice" if ok.get("design") else None
+    folders = _coach_folders(deps.home)
+    logs = _log_sizes(deps.home)
+    first = _begin(deps, design or RECORDING, tool)
+    recording: list[int] = [] if design else [first]
+    shown = [RECORDING]
     stop = threading.Event()
 
     def watch() -> None:
+        last = 0.0
         while not stop.wait(1.0):
-            if _coach_folders(deps.home) - before:
-                _say(deps, design, tool, 0, first)
-                recording.append(_begin(deps, "Recording your workout", tool))
-                return
+            if not recording:
+                if _coach_folders(deps.home) - folders:
+                    _say(deps, design, tool, 0, first)
+                    recording.append(_begin(deps, RECORDING, tool))
+                continue
+            now = time.monotonic()
+            if now - last < PROGRESS_EVERY:
+                continue
+            seen = _progress(deps.home, logs)
+            text = f"{RECORDING}: {seen[0]} of {seen[1]}" if seen and seen[1] > 1 else RECORDING
+            if text != shown[0]:
+                shown[0] = text
+                last = now
+                _say(deps, text, tool, None, recording[0])
     watcher = threading.Thread(target=watch, daemon=True)
     watcher.start()
     code = 1
@@ -236,8 +290,12 @@ def _recording(deps: Deps, args: list[str], tool: str) -> ToolResult:
     finally:
         stop.set()
         watcher.join()
-        _say(deps, "Recording your workout" if recording else design, tool, code,
-             recording[0] if recording else first)
+        if not recording:
+            _say(deps, design, tool, code, first)
+        elif code == OFF_PLAN:
+            _say(deps, OFF_PLAN_NOTE, tool, 0, recording[0])
+        else:
+            _say(deps, RECORDING, tool, code, recording[0])
 
 
 @AGENT.tool(sequential=True)
@@ -278,7 +336,8 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
 @AGENT.tool(sequential=True)
 def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
     """Read a text file: me/... (the listener's folder) or the engine's knowledge/, .claude/skills/, coaches/."""
-    return _step(ctx.deps, _read_step(path), "read_file", lambda: tools.read_file(ctx.deps, path))
+    text = WRAPPING_UP if ctx.deps.phase == "recorded" else _read_step(path)
+    return _step(ctx.deps, text, "read_file", lambda: tools.read_file(ctx.deps, path))
 
 
 @AGENT.tool(sequential=True)
@@ -294,7 +353,8 @@ def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
 @AGENT.tool(sequential=True)
 def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
     """List the files under a folder of the listener's, me/ by default."""
-    return _step(ctx.deps, "Looking through your files", "list_files", lambda: tools.list_files(ctx.deps, path))
+    text = WRAPPING_UP if ctx.deps.phase == "recorded" else "Looking through your files"
+    return _step(ctx.deps, text, "list_files", lambda: tools.list_files(ctx.deps, path))
 
 
 # Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the

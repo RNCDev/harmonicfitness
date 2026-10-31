@@ -181,7 +181,11 @@ function Working({ steps, stopping }: { steps: Step[]; stopping: boolean }) {
   const last = steps[steps.length - 1];
   const thinking = last?.think && last.running ? last : null;
   steps = collapsed(steps.filter((s) => !s.think));
-  if (thinking) steps = [...steps, thinking];
+  if (thinking) {
+    // "Wrapping up" read as a step and then thought about is one line, not two
+    if (steps.length && !steps[steps.length - 1].running && steps[steps.length - 1].text === thinking.text) steps = steps.slice(0, -1);
+    steps = [...steps, thinking];
+  }
   const now = Date.now();
   for (const s of steps) if (s.running && !began.current.has(s.key!)) began.current.set(s.key!, now);
   const age = (s: Step) => (now - (began.current.get(s.key!) ?? now)) / 1000;

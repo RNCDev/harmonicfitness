@@ -33,6 +33,7 @@ STOP_POLL = 2             # seconds between the heartbeat's looks for the listen
 CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
 JOIN_SLACK = 5            # seconds past CONNECT_TIMEOUT that stopping the heartbeat may wait
 IDLE_WAIT = 5             # seconds to wait for NOTIFY jobs_queued before polling again
+RECONNECT_WAIT = 2        # seconds before reconnecting after the database closed the worker's connection
 BRIEF_TIMEOUT = 300       # seconds; the engine's cold start can be slow
 NEVER_WRITE_BACK = frozenset()   # the check-in may change health.md, with the listener's permission (the skill's rule)
 
@@ -672,19 +673,55 @@ def main() -> int:
     except db.MigrationsPending as e:
         print(f"worker: {e}", file=sys.stderr)
         return 3
-    conn = db.connect(settings.database_url)
-    listen = psycopg.connect(settings.database_url, autocommit=True)
-    listen.execute("listen jobs_queued")
+    serve(settings, stopping)
+    return 0
+
+
+def serve(settings: config.Settings, stopping: threading.Event, connect: Callable[[config.Settings], tuple] | None = None,
+          run: Callable[..., bool] | None = None) -> None:
+    """Run jobs until `stopping` is set, waiting on NOTIFY between them. When the database closes the
+    connection (it does, about hourly), it reconnects rather than exiting; a job running then fails as
+    any interrupted job does."""
+    connect = connect or _connect
+    run = run or run_one
+    conn = listen = None
     try:
         while not stopping.is_set():
-            if run_one(conn, settings):
-                continue
-            for _ in listen.notifies(timeout=IDLE_WAIT, stop_after=1):
-                pass
+            try:
+                if conn is None:
+                    conn, listen = connect(settings)
+                if run(conn, settings):
+                    continue
+                for _ in listen.notifies(timeout=IDLE_WAIT, stop_after=1):
+                    pass
+            except psycopg.OperationalError as e:   # the database closed the connection (it does, about hourly)
+                print(f"worker: lost the database ({type(e).__name__}); reconnecting", file=sys.stderr, flush=True)
+                _close(conn, listen)
+                conn = listen = None
+                stopping.wait(RECONNECT_WAIT)
     finally:
-        listen.close()
+        _close(conn, listen)
+
+
+def _connect(settings: config.Settings) -> tuple:
+    """The worker's connection and its listening one (autocommit, on jobs_queued)."""
+    conn = db.connect(settings.database_url)
+    try:
+        listen = psycopg.connect(settings.database_url, autocommit=True, connect_timeout=CONNECT_TIMEOUT)
+        listen.execute("listen jobs_queued")
+    except BaseException:
         conn.close()
-    return 0
+        raise
+    return conn, listen
+
+
+def _close(*conns) -> None:
+    for c in conns:
+        if c is not None:
+            try:
+                c.close()
+            except Exception:  # noqa: BLE001 - a dead connection may not close cleanly
+                pass
 
 
 if __name__ == "__main__":

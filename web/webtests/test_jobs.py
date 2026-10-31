@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import sys
+import unittest
 from unittest import mock
 
 import psycopg
@@ -299,6 +300,35 @@ class Worker(JobsCase):
         self.assertEqual(seen, [True])
         self.assertEqual(self.state(job)[0], "done")
         self.conn.rollback()
+
+
+class Reconnect(unittest.TestCase):
+    def test_the_worker_reconnects_when_the_database_closes_its_connection(self):
+        import threading
+        stopping = threading.Event()
+        opened, closed = [], []
+
+        class Conn:
+            def __init__(self, n):
+                self.n = n
+
+            def notifies(self, timeout, stop_after):
+                if self.n == 0:
+                    raise psycopg.OperationalError("SSL connection has been closed unexpectedly")
+                stopping.set()
+                return iter(())
+
+            def close(self):
+                closed.append(self.n)
+
+        def connect(settings):
+            n = len(opened)
+            opened.append(n)
+            return Conn(n), Conn(n)
+        with mock.patch.object(worker, "RECONNECT_WAIT", 0):
+            worker.serve(None, stopping, connect=connect, run=lambda conn, settings: False)
+        self.assertEqual(opened, [0, 1])          # connected again after the drop, rather than exiting
+        self.assertEqual(sorted(closed), [0, 0, 1, 1])
 
 
 class LostJobs(JobsCase):
