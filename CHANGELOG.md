@@ -4,6 +4,20 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-31
+
+`me/` on your computer and your files on the web app, kept in step.
+
+### Added
+- **`./harmonicfitness sync`** keeps `me/` in step with your files on the web app, both ways, signing in with `HARMONIC_USERNAME` and `HARMONIC_PASSWORD` from `me/.env` as `pull` does. A file changed on one side goes to the other (edits, new files and deletes alike); one changed on both is a conflict, where this computer's copy stays, the web app's is saved in `me/web/conflicts/<date>-<time>/`, and the next sync sends this computer's (`--prefer web` or `--prefer local` settles it at once). `--dry-run` says what would change. The first sync deletes nothing. It never sends `.env`, MP3s, WAVs, the clip cache, render logs, lock files, auditions in progress, backups or git, and keeps its record of the last sync in `me/web/sync-state.json`.
+- **The web app's sync routes:** `GET /api/sync` (each file's path, version and sha256), `POST /api/sync/read` (bodies) and `POST /api/sync/write` (each change applied only over the version the computer last saw; a file changed on the site since is a conflict, left as it is). The listener's own session, as the browser has.
+
+### Changed
+- **`me/web/` is this computer's own:** `pull`'s copies, sync conflicts and the sync record. `me.example/.gitignore` leaves it out of a backup, and `migrate` (and the first `sync`) adds `web/` to an existing `me/.gitignore`.
+
+### For forks
+- Nothing to migrate: `./harmonicfitness migrate` (or the first `sync`) adds `web/` to `me/.gitignore`. A fork's web app needs no database change.
+
 ## [0.44.0] - 2026-10-31
 
 A recording is final once it's made, nothing it made is lost after it, and a workout may run five percent off plan.

@@ -218,6 +218,8 @@ GITIGNORE_ADD_PERSONA_5 = ("# Each web coach's approved sample is kept (archived
                            "!coaches/*/sample.mp3", "!coaches/.archive/*/sample.mp3", "coaches/.auditions/",
                            "coaches/*/.made.json", "coaches/*/.made.wav")
 
+GITIGNORE_ADD_WEB = ("# This computer's own: copies pulled from the web app, sync conflicts and the last sync's record.",
+                     "web/")   # 0.45.0: ./harmonicfitness pull and sync keep their files in me/web/
 GITIGNORE_ADD_LOCKS = ("# The lock files the tools hold while they change a record (log.md, told.jsonl, builds.jsonl).",
                        "*.lock")   # in the template since 0.5.4; a folder older than that may lack it
 
@@ -654,6 +656,8 @@ def main(argv=None):
 
     if not args.dry_run and update_gitignore(paths.HOME, GITIGNORE_ADD_LOCKS):
         print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added *.lock (lock files never go into a backup).")
+    if not args.dry_run and update_gitignore(paths.HOME, GITIGNORE_ADD_WEB):
+        print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added web/ (pulls and syncs are this computer's own).")
     todo = plan()
     stray, due_moves, pantry, coach_steps, topic_steps = folder_steps_due(paths.HOME)
     for line in coaches_lines([s for s in coach_steps if s not in acting(coach_steps)]):

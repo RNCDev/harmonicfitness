@@ -171,6 +171,23 @@ class SkyBody(BaseModel):
     sky: Literal["flow", "field", "arcs", "waves"]
 
 
+class SyncRead(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    paths: Annotated[list[Annotated[str, Field(min_length=1, max_length=400)]], Field(max_length=500)]
+
+
+class SyncChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: Annotated[str, Field(min_length=1, max_length=400)]
+    base: int | None = None   # the version the computer last saw; None for a file new to the site
+    body: str | None = None   # base64; None deletes
+
+
+class SyncWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    changes: Annotated[list[SyncChange], Field(max_length=500)]
+
+
 class FeedbackBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: Annotated[str, Field(min_length=1, max_length=1000)]
@@ -550,6 +567,78 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             finally:
                 conn.rollback()
         return [{"path": p, "version": v, "updated_at": u.isoformat()} for p, v, u in rows]
+
+    def _syncable(path: str) -> bool:
+        try:
+            store.check_path(path)
+        except ValueError:
+            return False
+        return not folder.skipped(path) and not path.startswith(folder.AUDITIONS)
+
+    @app.get("/api/sync")
+    def sync_listing(uk: User):
+        """Every file `./harmonicfitness sync` keeps in step: its path, version and sha256 (the bodies come
+        from /api/sync/read, only those the computer lacks)."""
+        import hashlib
+        with connection() as conn:
+            try:
+                files = store.read_all(conn, uk)
+            finally:
+                conn.rollback()
+        return {"files": [{"path": p, "version": v, "sha256": hashlib.sha256(b).hexdigest()}
+                          for p, (v, b) in files.items() if _syncable(p)]}
+
+    @app.post("/api/sync/read", **post)
+    def sync_read(uk: User, body: SyncRead):
+        """The named files' bodies (base64) and versions; a path the site doesn't hold is left out."""
+        import base64
+        with connection() as conn:
+            try:
+                files = store.read_all(conn, uk)
+            finally:
+                conn.rollback()
+        return {"files": [{"path": p, "version": files[p][0], "body": base64.b64encode(files[p][1]).decode("ascii")}
+                          for p in dict.fromkeys(body.paths) if p in files and _syncable(p)]}
+
+    @app.post("/api/sync/write", **post)
+    def sync_write(uk: User, body: SyncWrite):
+        """Each change applied only over the version the computer last saw (`base`): a file changed on the
+        site since is a conflict, left as the site has it. Returns each written path's new version (None:
+        deleted), the conflicts, and the paths refused (one the site doesn't keep, or too large)."""
+        import base64
+        import binascii
+        changes, base, refused, total = {}, {}, [], 0
+        for c in body.changes:
+            if not _syncable(c.path) or c.path in changes:
+                refused.append(c.path)
+                continue
+            if c.body is None:
+                data = None
+            else:
+                try:
+                    data = base64.b64decode(c.body, validate=True)
+                except (binascii.Error, ValueError):
+                    refused.append(c.path)
+                    continue
+                if len(data) > IMPORT_MAX_FILE:
+                    refused.append(c.path)
+                    continue
+                total += len(data)
+            if total > IMPORT_MAX_TOTAL:
+                raise HTTPException(413, f"Over {IMPORT_MAX_TOTAL // 1_000_000} MB in one sync; send it in parts.")
+            changes[c.path] = data
+            if c.base is not None:
+                base[c.path] = c.base
+        with connection() as conn:
+            try:
+                conflicts = store.write_back(conn, uk, changes, base)
+                versions = {p: v for p, v, _ in store.listing(conn, uk)}
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        written = {p: versions.get(p) for p in changes if p not in conflicts}
+        return {"written": written, "conflicts": sorted(conflicts), "refused": sorted(refused)}
 
     @app.post("/api/import", **post)
     async def import_folder(uk: User, request: Request):

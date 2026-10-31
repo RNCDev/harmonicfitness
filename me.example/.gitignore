@@ -24,3 +24,5 @@ coaches/.samples/
 .DS_Store
 # API keys for cloud voices (./harmonicfitness keys): never committed, never pushed.
 .env
+# This computer's own: copies pulled from the web app, sync conflicts and the last sync's record.
+web/

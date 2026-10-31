@@ -34,6 +34,7 @@ COMMANDS = {
     "keys":        ("keys", None, "which web voice services have a key in me/.env (never the key), init and open"),
     "balances":    ("balances", None, "what's left on each web voice service's account (Fish Audio and ElevenLabs say; the others link their billing page)"),
     "pull":        ("webpull", None, "bring the web app's files, latest conversation and its MP3s into me/web/ (signs in with HARMONIC_USERNAME and HARMONIC_PASSWORD from me/.env)"),
+    "sync":        ("websync", None, "keep me/ in step with your files on the web app, both ways (signs in with HARMONIC_USERNAME and HARMONIC_PASSWORD from me/.env)"),
     "backup":      ("backup", None, "commit me/ and push it to its own private repo, if it is one"),
     "migrate":     ("migrate", None, "bring me/ up to this version's format (backs up first)"),
     "models":      ("models", None, "the local voice models in models/, and adopt the ones already downloaded"),
