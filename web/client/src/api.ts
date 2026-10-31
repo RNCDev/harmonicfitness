@@ -51,6 +51,13 @@ export type StartLimit = { area: string; side: string | null; level: "delicate" 
 export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: number; limits: StartLimit[];
   suggest: { goal: string; target?: string | null; reason: string } | null; setup_quick: boolean };
 
+/** A logged workout (GET /api/workouts), newest first. `ref` it by its build id, else its number. */
+export type Rating = "positive" | "neutral" | "negative";
+export type Workout = { n: number; date: string; minutes: number; kit: string; coach: string; format: string | null;
+  movements: string[]; topics: string; build_id: string | null; feedback: string[]; rating: Rating | null;
+  has_script: boolean };
+export const workoutRef = (w: Workout) => w.build_id ?? String(w.n);
+
 /** A call to the server. An empty answer (a 201 from register, a 204) is no body, whatever its status. */
 export async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, {
@@ -102,6 +109,14 @@ export const api = {
   record: (id: number, w: When) => call<{ job_id: number }>("POST", `/api/conversations/${id}/record`, w),
   stop: (id: number) => call<{ stopping: boolean }>("POST", `/api/conversations/${id}/stop`),
   start: () => call<StartInfo>("GET", "/api/start"),
+  workouts: () => call<{ workouts: Workout[] }>("GET", "/api/workouts").then((r) => r.workouts),
+  workoutScript: (ref: string) =>
+    call<{ script: string }>("GET", `/api/workouts/${encodeURIComponent(ref)}/script`).then((r) => r.script),
+  workoutFeedback: (ref: string, text: string) =>
+    call<void>("POST", `/api/workouts/${encodeURIComponent(ref)}/feedback`, { text }),
+  rateWorkout: (ref: string, rating: Rating | "none") =>
+    call<void>("PUT", `/api/workouts/${encodeURIComponent(ref)}/rating`, { rating }),
+  deleteWorkout: (ref: string) => call<void>("DELETE", `/api/workouts/${encodeURIComponent(ref)}`),
   signOut: () => call<void>("POST", "/api/sign-out"),
   deleteAccount: (password: string) => call<void>("POST", "/api/account/delete", { password }),
   importFolder: async (zip: Blob): Promise<{ imported: number; left_out: number }> => {

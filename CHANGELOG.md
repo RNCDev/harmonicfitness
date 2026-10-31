@@ -4,6 +4,18 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.42.2] - 2026-10-30
+
+A Logs page in the web app: every workout you've done, its script, your feedback and a rating.
+
+### Added
+- **The Logs page:** a Logs button beside the settings gear opens your logged workouts, newest first: each one's date, length, format, kit, coach, movements and topics, the script it spoke (on request), your feedback, a rating (positive, neutral or negative; press it again to clear it), a box to add feedback, and delete (after a confirm, taking its log line, stories, feedback and files with it). Search, filter by rating, format and kit, and sort by date, length or rating. The chat stays as it was behind it.
+- **`./harmonicfitness workouts --json`, `workouts show <n|build id>`** (the script a workout spoke) **and `workouts rate <n|build id> positive|neutral|negative|none`.** A rating is a feedback line ("rated positive"), so the coach reads it with the rest; rating again replaces it.
+- **Web routes** for the page: `GET /api/workouts`, `GET /api/workouts/{ref}/script`, `POST /api/workouts/{ref}/feedback`, `PUT /api/workouts/{ref}/rating`, `DELETE /api/workouts/{ref}`.
+
+### Fixed
+- **`workouts delete --files` on the web** found no folder, since the build record's draft path pointed at an earlier run's temporary folder; a workout's folder is now found from its own `<name>.build.json`.
+
 ## [0.42.1] - 2026-10-30
 
 The easy fixes from a thirty-script eval of 0.42.0 (`docs/eval/results-2026-10-30-run2.md`: safety 4.90, efficacy 4.17, adherence 4.43, ease 3.90, warmth 4.33, stories 4.43).

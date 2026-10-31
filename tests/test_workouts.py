@@ -68,6 +68,42 @@ class Workouts(unittest.TestCase):
         self.w.delete(self.w.pick(["3"], self.w.logged()))   # the 2026-10-29 one, the only one that day
         self.assertEqual(self.titles(), ["seven", "fifteen"])
 
+    def _workout_folder(self, stem, build_id, name="Workout"):
+        folder = os.path.join(paths.WORKOUTS, stem)
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, f"{name}.build.json"), "w", encoding="utf-8") as f:
+            json.dump({"build_id": build_id, "draft": "/some/old/temp/me/workouts/x.draft.txt"}, f)
+        with open(os.path.join(folder, f"{name}.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Hello from {build_id}.\n")
+        return folder
+
+    def test_the_script_is_found_from_the_folders_own_build_record(self):
+        folder = self._workout_folder("2026-10-30-conditioning-15", "ccc333")
+        s = self.w.pick(["ccc333"], self.w.logged())[0]
+        self.assertEqual(self.w.script_of(s), os.path.join(folder, "Workout.txt"))
+        self.assertEqual(self.w.folder_of("ccc333"), folder)   # though the record's draft path is elsewhere
+        self.assertIsNone(self.w.script_of(self.w.pick(["bbb222"], self.w.logged())[0]))
+
+    def test_rating_replaces_the_last_and_reads_apart_from_feedback(self):
+        s = self.w.pick(["1"], self.w.logged())[0]
+        self.w.feedback(s, "too long")
+        self.w.rate(s, "negative")
+        self.w.rate(s, "positive")
+        texts, rating = self.w.notes_for(s, __import__("context").feedback())
+        self.assertEqual((texts, rating), (["too long"], "positive"))
+        self.assertIn("Cleared", self.w.rate(s, "none"))
+        self.assertIsNone(self.w.notes_for(s, __import__("context").feedback())[1])
+        with self.assertRaises(errors.UsageError):
+            self.w.rate(s, "great")
+
+    def test_the_json_list(self):
+        self._workout_folder("2026-10-30-conditioning-15", "ccc333")
+        self.w.rate(self.w.pick(["ccc333"], self.w.logged())[0], "neutral")
+        got = self.w.as_json(self.w.logged())["workouts"]
+        self.assertEqual([w["build_id"] for w in got], ["ccc333", "bbb222", "aaa111"])
+        self.assertEqual((got[0]["rating"], got[0]["has_script"], got[0]["feedback"]), ("neutral", True, []))
+        self.assertFalse(got[1]["has_script"])
+
     def test_delete_all_and_files(self):
         folder = os.path.join(paths.WORKOUTS, "2026-10-30-conditioning-15")
         os.makedirs(folder)

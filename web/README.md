@@ -42,6 +42,8 @@ The app is a chat and a Settings drawer (the listener's coaches, their keys and 
 
 **Stop.** `POST /api/conversations/{id}/stop` flags the running job; the heartbeat looks every two seconds and sets the job's cancel event, which cancels the model run and kills the engine's process group (`engine.run(cancel=)`), so nothing keeps billing. The conversation says "Stopped."
 
+**Logs.** The Logs button beside the gear opens a page of the listener's logged workouts (the chat stays as it was, behind it): each one's date, length, format, kit, coach, movements, topics and feedback, its script on request, a rating (positive, neutral or negative; pressing it again clears it), a line of feedback, and delete (after a confirm), with search, filters (rating, format, kit) and sorting in the page. `webapp/workouts.py` runs the engine's `workouts` command on the listener's files in a temporary folder, as `/api/start` does: `GET /api/workouts`, `GET /api/workouts/{ref}/script`, `POST /api/workouts/{ref}/feedback`, `PUT /api/workouts/{ref}/rating` and `DELETE /api/workouts/{ref}` (its folder and files too), where `ref` is the build id, or the workout's number when it has none. A change is written back against the versions read; a turn saving at the same moment makes it a 409, to try again.
+
 **Leaving.** `GET /api/export` is every file as a ZIP laid out as `me/` (keys are never files here). `POST /api/account/delete`, with the password, deletes the user row and everything that hangs from it.
 
 Its four tools (`webapp/agent/tools.py`):

@@ -8,6 +8,7 @@ import { useConversation } from "./conversation";
 import { localDate } from "./when";
 import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
+import { Logs } from "./zones/Logs";
 import { hasModelKey, keyRows } from "./zones/KeysBox";
 
 /** With no language-model key yet: the ones to choose from, to write the workouts. */
@@ -28,6 +29,13 @@ const Gear = () => (
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="12" cy="12" r="3" />
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+
+const LogsIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
   </svg>
 );
 
@@ -85,6 +93,7 @@ export function App() {
 /** The signed-in page. Mounted only once the server says who is signed in; unmounting it closes the job's stream. */
 function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [drawer, setDrawer] = useState(false);
+  const [logs, setLogs] = useState(false);
   const [keys, setKeys] = useState<KeyState[] | null>(null);
   const [openRow, setOpenRow] = useState<{ service: string; n: number; choose?: boolean } | null>(null);
   const needsKey = keyNeeded(keys);
@@ -165,21 +174,27 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   return (
     <div className="app">
       <Sky kind={sky} busy={working} />
-      <div className="work">
+      <div className={logs ? "work show-logs" : "work"}>
         <header className="work-top">
           <Mark version={me.version} />
           <span className="top-gap" />
-          {conv && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
+          {conv && !logs && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
               <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
             New workout
           </button>}
+          <button type="button" className="top-btn new logs-toggle" aria-pressed={logs} title="Your past workouts"
+            onClick={() => setLogs((v) => !v)}>
+            <LogsIcon />
+            Logs
+          </button>
           <button type="button" className="top-btn icon ctx-toggle" aria-label="Settings" title="Settings"
             aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
             <Gear />
           </button>
         </header>
+        {logs && <Logs onClose={() => setLogs(false)} onSignedOut={onSignedOut} />}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
         <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
           offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}

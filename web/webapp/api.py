@@ -38,7 +38,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt, St
 
 from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
     spend, start, store, \
-    worker
+    worker, workouts
 
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -169,6 +169,16 @@ class WriterBody(BaseModel):
 class SkyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     sky: Literal["flow", "field", "arcs", "waves"]
+
+
+class FeedbackBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class RatingBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rating: Literal["positive", "neutral", "negative", "none"]
 
 
 class CoachBody(BaseModel):
@@ -585,6 +595,66 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         day = datetime.date.today().isoformat()
         return Response(buf.getvalue(), media_type="application/zip", headers={
             "Content-Disposition": f'attachment; filename="harmonicfitness-me-{day}.zip"', "Cache-Control": "no-store"})
+
+    def _workout_call(uk: store.UserKey, call, *args, change: bool = False):
+        """Run a Logs-page call on the listener's files; a change is written back against the versions read
+        (a conflict, from a turn saving at the same moment, is a 409 to try again)."""
+        with connection() as conn:
+            try:
+                read = store.read_all(conn, uk)
+            finally:
+                conn.rollback()
+        files = {p: body for p, (_, body) in read.items()}
+        try:
+            out = call(settings.engine_root, files, *args)
+        except workouts.Refused as e:
+            raise HTTPException(404 if "no logged workout" in str(e) or "no script" in str(e) else 400,
+                                str(e)) from None
+        if not change:
+            return out
+        with connection() as conn:
+            try:
+                conflicts = store.write_back(conn, uk, out, {p: v for p, (v, _) in read.items()})
+                if conflicts:
+                    conn.rollback()
+                    raise HTTPException(409, "Your files changed at the same moment. Try again.")
+                conn.commit()
+            except HTTPException:
+                raise
+            except Exception:
+                conn.rollback()
+                raise
+        return None
+
+    @app.get("/api/workouts")
+    async def list_workouts(uk: User):
+        """The logged workouts, newest first: date, length, kit, coach, format, movements, topics, build id,
+        feedback, rating and whether a script is kept."""
+        rows = await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.listing))
+        return {"workouts": rows}
+
+    @app.get("/api/workouts/{ref}/script")
+    async def workout_script(uk: User, ref: Annotated[str, PathParam(max_length=40)]):
+        text = await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.script, ref))
+        return {"script": text}
+
+    @app.post("/api/workouts/{ref}/feedback", status_code=204, **post)
+    async def workout_feedback(uk: User, ref: Annotated[str, PathParam(max_length=40)],
+                               body: Annotated[FeedbackBody, Body()]):
+        await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.add_feedback, ref, body.text,
+                                                             change=True))
+        return Response(status_code=204)
+
+    @app.put("/api/workouts/{ref}/rating", status_code=204, **post)
+    async def workout_rating(uk: User, ref: Annotated[str, PathParam(max_length=40)],
+                             body: Annotated[RatingBody, Body()]):
+        await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.rate, ref, body.rating, change=True))
+        return Response(status_code=204)
+
+    @app.delete("/api/workouts/{ref}", status_code=204, **post)
+    async def workout_delete(uk: User, ref: Annotated[str, PathParam(max_length=40)]):
+        await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.delete, ref, change=True))
+        return Response(status_code=204)
 
     @app.post("/api/account/delete", status_code=204, **post)
     def delete_account(uk: User, body: Annotated[Confirm, Body()]):
