@@ -4,6 +4,27 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-30
+
+A bigger movement library: every unfinished catalog entry finished, 63 new movements, and 13 new pieces of equipment, all researched and cited in `knowledge/research/2026-10-30-movement-library.md`.
+
+### For forks
+- **New shipped movement ids win over private ones:** a movement in your `me/movements.toml` whose id matches a new shipped one (`pull-up`, `chin-up`, `forward-lunge`, `walking-lunge`, `lateral-lunge`, `standing-calf-raise`, `good-morning` and the rest listed below) is now replaced by the shipped entry. Rename yours if you want to keep it.
+- **The 49 drafts are finished,** so menus grow: they now offer movements such as the front squat, the Turkish get-up, the box jump and the cable work that were never planned from before. Some changed on the way: `bench-dip` is now an `arms` movement (out of push slots), `neck-rolls` is coached as half circles ("half neck circles"), `thruster` needs dumbbells only, `box-jump` needs a box, `jump-rope` needs a jump rope, and `towel-hamstring-curl` takes sliders or a towel. A menu saved before this release is still read, but rerun `./harmonicfitness brief ... --save` to see the new movements.
+- **Aliases moved or dropped:** `burpee` gave "squat thrust" to the new `squat-thrust`; one-word aliases a story could say were dropped (pullover, halo, windmill, get-up, sphinx, bicycles, hyperextension, pull-through, shuffles), as were "double unders" from the jump rope. Those entries were drafts, never on a menu, so no log names them by those words; a logged "squat thrust" now reads as the squat thrust, not the burpee.
+- **`[unlisted]` changed:** "forward lunge", "walking lunge", "side lunge" and "lateral lunge" are now real movements. Newly refused: neck circles, sissy squats, dragon flags, muscle-ups, kipping and butterfly pull-ups, power and hang cleans, barbell and kettlebell snatches, clean and jerk, Jefferson curls, behind-the-neck presses, upright rows and double unders.
+- **The `full-gym` preset** now holds the new gym equipment.
+
+### Added
+- **New equipment** in the catalog's `[equipment]` table, each with a section in `knowledge/kits.md`: pull-up bar, dip station, suspension trainer, medicine ball, slam ball, box, sliders, stability ball, ab wheel, battle ropes, landmine, trap bar and jump rope.
+- **New movements:**
+  - Pull-up bar, dip station and suspension trainer: overhand pull-up, underhand chin-up, negative pull-up, scapular pull-up, dead hang, feet-supported hang, hanging knee raise, parallel bar dip, suspension row, chest press, face pull and hamstring curl, and the barbell inverted row.
+  - Landmine, trap bar and ab wheel: landmine press, row, squat and rotation, the trap bar deadlift and the ab wheel rollout.
+  - Box, sliders and stability ball: box step-down, lateral box step-up, slider reverse lunge, lateral lunge, mountain climber and body saw, and the stability ball hamstring curl, wall squat, dead bug, stir the pot, glute bridge and back extension. Step-ups and box squats also take a box.
+  - Conditioning: battle rope alternating waves, double waves and slams, ball slams, wall ball shots, medicine ball chest passes and rotational throws, bear crawls, squat thrusts and plank shoulder taps.
+  - The home kit: standing and single-leg calf raises, forward, walking and lateral lunges, the Cossack squat, single-leg and staggered-stance Romanian deadlifts, the dumbbell good morning, sumo kettlebell deadlift and sumo squat, the short-lever Copenhagen plank and side-lying hip adduction, the glute bridge march, wall slides, tibialis raises, the Arnold press, skull crushers, close-grip push-ups, dumbbell shrugs, bent-over reverse flies and front raises.
+- **A research note** for all of it, with the sources opened, what set each load and level, and what wasn't confirmed (rated up).
+
 ## [0.40.3] - 2026-10-30
 
 ### Fixed

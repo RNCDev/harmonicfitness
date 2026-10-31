@@ -450,7 +450,7 @@ class Unlisted(unittest.TestCase):
         self.assertEqual(menu.check(CAT, menu_for("reverse-lunge"), text, draft.parse(text))[0], [])
 
     def test_each_unlisted_name_is_its_own_issue(self):
-        issues = issues_for("Ten pistol squats, then walking lunges.")
+        issues = issues_for("Ten pistol squats, then muscle-ups.")
         self.assertEqual(len([i for i in issues if "isn't in the catalog" in i]), 2, issues)
 
     def test_bare_lunges_without_a_declared_lunge_are_refused(self):
@@ -458,7 +458,7 @@ class Unlisted(unittest.TestCase):
         self.assertEqual(issues_for("No lunges today."), [])
 
     def test_singular_and_plural_both_match(self):
-        for line in ("Now a lunge.", "Ten pistols.", "One pistol squat.", "Ten pistol squats.", "Walking lunge, go."):
+        for line in ("Now a lunge.", "Ten pistols.", "One pistol squat.", "Ten pistol squats.", "Muscle-up, go."):
             with self.subTest(line=line):
                 self.assertTrue(any("isn't in the catalog" in i for i in issues_for(line)), line)
 

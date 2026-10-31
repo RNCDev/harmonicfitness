@@ -50,6 +50,43 @@ A flat or adjustable bench, for supported rows, presses, step-ups and seated wor
 ## Mat and mobility
 A mat, and perhaps a foam roller and a stretching strap, for floor work, mobility and box breathing.
 
+## Pull-up bar and dip station
+A doorway or mounted pull-up bar, and parallel dip bars (freestanding or on a power tower). Everything on them is body weight hung from the hands, so the catalog flags it `hanging` and rates the shoulder, elbow and wrist; a delicate shoulder or elbow keeps it off the menu.
+- A doorway bar is only as safe as the frame: test it with a bounce before the first set, and never kip or swing on one. The catalog refuses kipping and muscle-ups.
+- Most people can't do many strict pull-ups. A chair or box under the bar turns the set into slow lowerings (negatives), and a dead hang or a shoulder-blade pull builds toward it. Cue a step down, never a drop, at the end of every set.
+- Dips drive the shoulder into deep extension under body weight: script a shallow range ("stop when your upper arms are level with the floor").
+
+## Suspension trainer
+Straps with handles, anchored over a closed door (the door opening away from the listener) or to a beam. The body angle sets the load: walking the feet toward the anchor makes rows and presses harder, stepping away makes them easier, so one script suits every level when it says which way to step.
+- Check the anchor before the first set and keep the straps taut throughout; a slack strap snaps tight under load.
+- Lying work (hamstring curls with the heels in the straps) needs the cradles at mid-shin height, set before the segment starts.
+
+## Medicine ball and slam ball
+A medicine ball bounces and is for throws against a solid wall (a brick or concrete wall, never drywall or a window) and passes; a slam ball is soft and dead and is the only ball for slamming on the floor. Never slam a bouncing medicine ball: it rebounds into the face.
+- Throws and slams are fast and load the shoulder, and slams the low back: a delicate area there keeps them out. Script a light ball, and the catch with soft elbows.
+- Downstairs neighbors and hotel floors don't welcome slams; use them at a gym or on a ground floor.
+
+## Box
+A plyo box or a sturdy aerobic step. Step-ups and step-downs need only a step a little below knee height; jumps need a stable box that won't tip, a landing surface that doesn't slide, and only an advanced listener with no lower-leg limit (the catalog flags them `impact`). Always step down from a jump box, never jump down.
+
+## Sliders
+Gliding discs on a smooth floor, or a towel on a hard floor (the catalog accepts either). Carpet takes the plastic side up and a hard floor the felt side. Sliding work is slow and controlled: the slide loads the moving leg through its whole range, so cue a short slide first.
+
+## Stability ball
+A large inflatable ball, sized so the hips and knees bend to about a right angle when seated on it. Lying and bridging work with the feet on the ball loads the hamstrings without load on the spine; anything balanced on it needs space around the listener and a floor that doesn't slide. A ball that's soft or old can burst: check it's firm.
+
+## Ab wheel
+An ab roller wheel, rolled out from the knees (a mat or folded towel under them). It's hard on the low back if the hips sag: script a short roll toward a wall that stops the wheel, and a delicate low back or shoulder keeps it off the menu.
+
+## Battle ropes
+Heavy ropes anchored around a post or kettlebell, for waves and slams. Hard conditioning in short bursts (twenty to thirty seconds), loading the shoulders, grip and, through the hinge, the low back. Script a soft bend in the knees, a braced trunk and the rope's slack kept out of the anchor.
+
+## Landmine and trap bar
+A landmine holds one end of a barbell, so the other end moves in an arc: presses go up and forward rather than straight overhead, kinder to a shoulder that dislikes overhead work, and rows and squats load the front of the body. A trap bar puts the lifter inside the bar, so the deadlift loads the knee more and the low back less than a straight bar; it is still a heavy pull, with setup and plate loading inside the segment.
+
+## Jump rope
+A skipping rope, its length set so the handles reach the armpits with a foot on the middle. Impact work: the catalog flags it so, and any lower-leg limit keeps it out. Hotel rooms and low ceilings rule it out too.
+
 ## Hotel room (no gym)
 Typically bodyweight, a chair, a bed edge, a towel, maybe a band. No mat: floor work goes on the carpet or a folded towel under the knees. A chair for support goes against a wall so it can't slide, and nothing pushes on a chair with wheels; the bed edge is fine for sitting and incline push-ups, too soft for step-ups. Towel rows go around a door handle only if the door is solid and closed toward the user; towel slides need a hard floor. Keep noise low; no jumping in hotel rooms.
 
@@ -57,4 +94,4 @@ Typically bodyweight, a chair, a bed edge, a towel, maybe a band. No mat: floor 
 Hotel gyms vary, so plan for the common minimum and offer a swap for anything less certain. Usually present: a dumbbell rack (often only up to about fifty pounds), an adjustable bench, a treadmill, an elliptical, an upright or recumbent bike, a mat area, and sometimes a cable machine or a Smith machine. The recumbent bike is the gentler option for a sore (delicate) ankle; an off-limits ankle rules pedaling out. Scripting notes: say "if your hotel has a cable machine, use it; if not, grab a dumbbell and do this instead" for anything beyond dumbbells and a bench. Heavy dumbbells may not exist, so program effort by reps and tempo ("pick a weight that leaves two reps in the tank") rather than specific pounds.
 
 ## Full gym
-Assume a complete commercial gym: squat racks and barbells, plate-loaded and selectorized machines, cable stations, a full dumbbell rack, benches, rowers, bikes, treadmills, sometimes a ski erg, an air bike, a sled, and turf. Machines are often the most injury-friendly options, and cables can be set up seated or half-kneeling to keep weight off a sore lower leg. Scripting notes: a gym is shared, so a station may be taken. For every main movement, name a fallback in the setup cue ("leg curl machine, or if it's busy, a dumbbell held between your feet on the bench"). Moving between areas of a big gym takes time; group movements by zone (cable zone, then machine row, then the bike) and give transitions at least twenty to thirty seconds. Barbell setup and plate loading takes a minute or more, so give barbell work longer segments with the setup inside the segment, or skip barbells in short sessions. Never script anything that requires a spotter.
+Assume a complete commercial gym: squat racks and barbells, plate-loaded and selectorized machines, cable stations, a full dumbbell rack, benches, rowers, bikes, treadmills, sometimes a ski erg, an air bike, a sled, and turf, and in the functional area a pull-up bar and dip station, suspension straps, medicine and slam balls, plyo boxes, sliders, stability balls, an ab wheel, battle ropes, a landmine, a trap bar and jump ropes. Machines are often the most injury-friendly options, and cables can be set up seated or half-kneeling to keep weight off a sore lower leg. Scripting notes: a gym is shared, so a station may be taken. For every main movement, name a fallback in the setup cue ("leg curl machine, or if it's busy, a dumbbell held between your feet on the bench"). Moving between areas of a big gym takes time; group movements by zone (cable zone, then machine row, then the bike) and give transitions at least twenty to thirty seconds. Barbell setup and plate loading takes a minute or more, so give barbell work longer segments with the setup inside the segment, or skip barbells in short sessions. Never script anything that requires a spotter.

@@ -17,7 +17,7 @@ the dumbbell bench press) counts as that movement. A mention right after "no", "
 "instead of" or "like", with only small words such as "the" or "doing" between, isn't an instruction
 ("no neck rolls today", "we're not doing jumping jacks", "like a brisk walk"); "no rest between
 jumping jacks" is.
-The [unlisted] names (catalog.Catalog.unlisted: "pistol squat", "walking lunge", a bare "lunges") are
+The [unlisted] names (catalog.Catalog.unlisted: "pistol squat", "muscle-up", a bare "lunges") are
 real movements the catalog doesn't hold, so never on a menu: mentions yields each as ("unlisted", ...) and
 check refuses it, unless it's a shortened name of a declared movement ("lunges" after a reverse lunge).
 A movement the menu allows on one side only keeps to that side (side_problems, per segment): a sentence
