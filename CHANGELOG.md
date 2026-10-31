@@ -4,6 +4,11 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.42.3] - 2026-10-30
+
+### Changed
+- **The web app's version** moved from the top header to the foot of Settings, under Account. The sign-in page still shows it.
+
 ## [0.42.2] - 2026-10-30
 
 A Logs page in the web app: every workout you've done, its script, your feedback and a rating.

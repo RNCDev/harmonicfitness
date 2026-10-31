@@ -30,3 +30,11 @@ describe("the coaches in Settings", () => {
     expect(screen.getByText("Needs an Inworld key")).toBeInTheDocument();
   });
 });
+
+describe("the version", () => {
+  it("shows at the foot of Settings", () => {
+    render(<ContextColumn username="sam" version="0.42.3 (abc1234)" open onClose={vi.fn()}
+      onSignedOut={vi.fn()} onSignOut={vi.fn()} />);
+    expect(screen.getByText("Version 0.42.3 (abc1234)")).toBeInTheDocument();
+  });
+});

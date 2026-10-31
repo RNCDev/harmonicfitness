@@ -167,6 +167,8 @@ function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut:
 
 type Props = {
   username: string;
+  /** The app's version (and build), shown at the foot of Settings. */
+  version?: string;
   open: boolean;
   onClose: () => void;
   onSignedOut: () => void;
@@ -234,7 +236,7 @@ function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void })
   );
 }
 
-export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut, onKeys, openRow, coaches = [],
+export function ContextColumn({ username, version, open, onClose, onSignedOut, onSignOut, onKeys, openRow, coaches = [],
   onCoach, sky = "flow", onSky }: Props) {
   return (
     <>
@@ -268,6 +270,7 @@ export function ContextColumn({ username, open, onClose, onSignedOut, onSignOut,
                 <button type="button" className="act" onClick={onSignOut}>Sign out</button>
                 <DeleteBox onSignedOut={onSignedOut} />
               </div>
+              {version && <p className="cx-version">Version {version}</p>}
             </section>
           </div>
         </div>

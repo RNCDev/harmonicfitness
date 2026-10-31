@@ -379,6 +379,7 @@ a:hover { color: #fff }
 .sky-opt-note { font-size: 14px; line-height: 1.35; color: var(--ink-3) }
 .cx-account { display: grid; gap: 10px; justify-items: start }
 .cx-account > .cx-h { margin-bottom: 0 }
+.cx-version { margin: 6px 0 0; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums }
 .keys-foot { margin-top: 10px; color: var(--ink-3); font-size: 13.5px; line-height: 1.45 }
 .cx-account .cx-box { gap: 6px; justify-items: start }
 .act-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100% }
