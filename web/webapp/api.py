@@ -251,12 +251,12 @@ def _refused_page() -> str:
 
 def build_version(engine_root: str, env=os.environ) -> str:
     """What the page shows, so a deploy is visible: the engine's VERSION and the deployed commit
-    (HARMONICFITNESS_COMMIT, baked in at build from Railway's RAILWAY_GIT_COMMIT_SHA), as "0.20.0 (75da105)"."""
+    (HARMONICFITNESS_COMMIT, baked in at build from GIT_COMMIT_SHA), as "0.20.0 (75da105)"."""
     try:
         v = Path(engine_root, "VERSION").read_text().strip() or "unknown"
     except OSError:
         v = "unknown"
-    sha = (env.get("HARMONICFITNESS_COMMIT") or env.get("RAILWAY_GIT_COMMIT_SHA") or "").strip()[:7]
+    sha = (env.get("HARMONICFITNESS_COMMIT") or "").strip()[:7]
     return f"{v} ({sha})" if sha else v
 
 

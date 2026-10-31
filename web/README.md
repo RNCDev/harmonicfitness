@@ -107,27 +107,21 @@ The browser client is in `client/` (Vite, React and TypeScript; Node 20 or later
 
 ## Deploy
 
-The root `Dockerfile` builds one image (the client built in a Node stage, then the engine and `web/` on `python:3.11-slim` with ffmpeg and the `web` extra only: no local voices), and `.railway/railway.ts` (Railway's infrastructure as code, which replaced `railway.json` in 0.25.0) points both services' builder at it. Railway runs it as two services from the same repo, told apart by `HARMONICFITNESS_ROLE`; `web/entrypoint.sh` starts the right one:
+The web client runs on Fly.io (`fly.toml`, app `harmonicfitness`, region `iad`). The root `Dockerfile` builds one image (the client built in a Node stage, then the engine and `web/` on `python:3.11-slim` with ffmpeg and the `web` extra only: no local voices), which Fly runs as two process groups, told apart by `HARMONICFITNESS_ROLE`; `web/entrypoint.sh` starts the right one:
 
-| Service | `HARMONICFITNESS_ROLE` | Runs |
+| Process | `HARMONICFITNESS_ROLE` | Runs |
 |---|---|---|
-| web | `web` | uvicorn on `$PORT` (default 8000): applies the migrations, then serves the API and client. Its health check is `/healthz`. |
-| worker | `worker` | `python -m webapp.worker`: waits until the migrations are applied (up to two minutes, then exits 3), then runs jobs. |
+| web | `web` | uvicorn on `$PORT` (8000, set in `fly.toml`): applies the migrations, then serves the API and client, behind Fly's proxy. Its health check is `/healthz`. |
+| worker | `worker` | `python -m webapp.worker`: waits until the migrations are applied (up to two minutes, then exits 3), then runs jobs, reconnecting when the database drops it. |
 
-Variables on both services: `HARMONICFITNESS_ROLE`, `DATABASE_URL` (`${{Postgres.DATABASE_URL}}`), `HARMONICFITNESS_BASE_URL` (the web service's public address, `https://...`) and `HARMONICFITNESS_MASTER_KEY` (32 random bytes, base64; the same on both, and keep a copy: files stored under another key can't be read). Railway supplies `PORT`. On the web service only, optionally `HARMONICFITNESS_REGISTRATION` (`open`, the default, or `closed`).
+Secrets (`fly secrets set`, shared by both groups): `DATABASE_URL` (the managed Postgres cluster's direct address, not PgBouncer: the worker LISTENs), `HARMONICFITNESS_BASE_URL` (the public address, `https://harmonicfitness.fly.dev`), `HARMONICFITNESS_MASTER_KEY` (32 random bytes, base64; keep a copy: files stored under another key can't be read) and `HARMONICFITNESS_PROVIDERS`. Optionally `HARMONICFITNESS_REGISTRATION` (`open`, the default, or `closed`). Values never go in `fly.toml`, since the repo is public.
 
-**The project's settings live in `.railway/railway.ts`:** the services, Postgres and its volume, the `media` bucket, each service's build (the Dockerfile), restart policy and the web's health check, and the names of the variables. Every variable is `preserve()`, so its value stays as set in Railway and never appears in the file; keep it that way (never `railway config pull --include-variables`), since the repo is public. To change a setting, edit the file, then from the repo root:
-
-    (cd .railway && npm ci)   # once: Railway's SDK (railway, pinned), which the file imports
-    railway config plan       # what would change; changes nothing
-    railway config apply      # asks before applying
-
-**Deploy from the GitHub repo (`RNCDev/harmonicfitness`, branch `main`), never with `railway up`**: only committed files reach the server, and `me/` is never one of them (`.dockerignore` leaves it out too).
+**Deploys come from CI:** every push to `main` that passes the privacy job runs `flyctl deploy --remote-only --build-arg GIT_COMMIT_SHA=<commit>` (`.github/workflows/test.yml`, with the `FLY_API_TOKEN` secret), so only committed files reach the server, and `me/` is never one of them (`.dockerignore` leaves it out too). By hand, from the repo root: `fly deploy --build-arg GIT_COMMIT_SHA=$(git rev-parse --short HEAD)`.
 
 The repo is `/app` and its environment `/app/.venv`, which `./harmonicfitness` finds on its own; `HARMONICFITNESS_PYTHON` names it, so a job never runs uv or reaches the network. The container runs as a non-root user.
 
-**Admin on Railway:** open a shell in the running web service with `railway ssh --service web`, then
+**Admin on Fly:** open a shell in a running web machine with `fly ssh console --process-group web`, then
 
     cd /app/web && python -m webapp.admin reset-password <username>
 
-(`python` is the image's environment, and the service's variables are in the shell's environment. If your shell lacks them, `railway run --service web` runs the command on your computer against the same variables, with `DATABASE_URL` needing Railway's public database address instead of the private one.)
+(`python` is the image's environment, and the secrets are in the shell's environment.)

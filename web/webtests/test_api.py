@@ -87,7 +87,7 @@ class SignIn(ApiCase):
         self.assertEqual((r.status_code, r.json()), (200, {"ok": True, "version": VERSION}))
 
     def test_version_names_the_commit(self):
-        self.assertEqual(api.build_version(ROOT, {"RAILWAY_GIT_COMMIT_SHA": "75da1051234"}), f"{VERSION} (75da105)")
+        self.assertEqual(api.build_version(ROOT, {"HARMONICFITNESS_COMMIT": "75da1051234"}), f"{VERSION} (75da105)")
         self.assertEqual(api.build_version(ROOT, {}), VERSION)
         self.assertEqual(api.build_version("/no/such/folder", {}), "unknown")
 

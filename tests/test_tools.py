@@ -2416,10 +2416,10 @@ class KeyLeaks(unittest.TestCase):
         self.assertIn("FISH_AUDIO_API_KEY", str(got.exception))
 
     def test_service_errors_and_audition_reasons_are_scrubbed(self):
-        import coaches
+        import audition
         e = cloud.ServiceError("bad_request", "fish", f"echo: {self.SECRET} (HTTP 400)")
         self.assertNotIn(self.SECRET, str(e))
-        self.assertNotIn(self.SECRET, coaches._reason(ValueError(f"Invalid header value b'Bearer {self.SECRET}\\r'")))
+        self.assertNotIn(self.SECRET, audition._reason(ValueError(f"Invalid header value b'Bearer {self.SECRET}\\r'")))
 
     def test_the_speed_key_names_no_hostname(self):
         import platform

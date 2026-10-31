@@ -27,7 +27,7 @@ Fish, ElevenLabs and Inworld keep nothing until a candidate is kept; Gemini stor
 designs it, so forget-audition deletes the ones not kept.
 """
 # The command line. The work is in tools/audition.py (audition, keep, forget-audition) and tools/coachmake.py
-# (make); the names below re-export theirs for this release, so a caller of coaches.X keeps working.
+# (make); reach their names there.
 import argparse
 import json
 import os
@@ -46,10 +46,8 @@ import personas  # noqa: E402
 import routes  # noqa: E402
 import voices  # noqa: E402
 from paths import show  # noqa: E402
-from audition import (CANDIDATES, WORKOUT_CHARS, say, stderr, audition, keep_web,  # noqa: E402,F401
-                      forget_audition, _run_audition, _failure_lines, _reason, _mp3, _write_sample, _estimate,
-                      _web_ref, _read_candidates, _write_candidates)
-from coachmake import MADE, MADE_WAV, make, _make, _made, _record_made  # noqa: E402,F401
+from audition import CANDIDATES, _failure_lines, _run_audition, _web_ref, forget_audition, keep_web  # noqa: E402
+from coachmake import make  # noqa: E402
 
 
 def _clip_bytes(src):

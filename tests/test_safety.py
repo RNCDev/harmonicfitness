@@ -432,7 +432,6 @@ class OneSideOnly(unittest.TestCase):
         self.assertTrue(menu.side_problems(CAT, on_menu, "Right single-leg glute bridge, ten each side."))
         self.assertIn("switch", menu.BOTH_SIDES)
         self.assertEqual(menu.SIDES, ("left", "right", "both", "healthy"))
-        self.assertIs(menu._part_of, menu.part_of)
 
     def test_a_name_must_carry_its_side(self):
         name = "single-leg glute bridge"

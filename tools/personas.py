@@ -287,23 +287,11 @@ def set_setting(p, dotted, value):
     context.set_persona_setting(p.path, table or None, key, value)
 
 
-def default(folder=None):
-    """The coach a build uses when none is named: coachpick.default, kept here until the next minor release."""
-    import coachpick
-    return coachpick.default(folder)
-
-
 def voice_description(voice):
     """The design description a service gets, from a [voice] table: "{who}. {sound}. {energy}. Pace: {pace}.
     Avoid: {avoid}." (empty parts left out)."""
     parts = [(label, str(voice.get(key) or "").strip().rstrip(".")) for key, label in VOICE_PARTS]
     return " ".join(f"{label}{text}." for label, text in parts if text)
-
-
-def resolve(coach=None, engine=None, pending=False):
-    """The voice dict a build uses: coachpick.resolve, kept here until the next minor release."""
-    import coachpick
-    return coachpick.resolve(coach, engine, pending)
 
 
 _clip_keys = {}   # per process: (path, size, mtime) of each file -> (key, words)

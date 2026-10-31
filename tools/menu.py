@@ -322,9 +322,6 @@ def short_for(words: str, said: List[str]) -> bool:
     return len(hits) == 1
 
 
-_part_of = part_of   # its name before 0.20.x; kept for this release (the web's show_plan used it)
-
-
 SIDES = ("left", "right", "both", "healthy")   # a menu entry's side, and the side words a name may carry
 # words that put a movement on both sides (compared as catalog.plain words, so "per-side" is "per side")
 # ("left/right", "left-right" and "l/r" become "left right" and "l r"; "switch" covers "switch sides")

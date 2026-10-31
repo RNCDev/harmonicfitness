@@ -95,12 +95,6 @@ def usable(route, persona=None, facts=None):
     return True, ""
 
 
-def pick(preferences, persona=None, override=None, facts=None):
-    """The route a build takes: coachpick.pick, kept here until the next minor release."""
-    import coachpick
-    return coachpick.pick(preferences, persona, override, facts)
-
-
 def stand_ins():
     """{service: the stock web coach that ships for it in coaches/}."""
     import personas

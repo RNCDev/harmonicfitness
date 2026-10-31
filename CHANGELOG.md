@@ -4,6 +4,18 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-31
+
+A tidy-up: Railway's leftovers gone now the web app runs on Fly, and the old names kept for one release removed.
+
+### Removed
+- **Railway:** `.railway/` (its infrastructure as code), the `RAILWAY_GIT_COMMIT_SHA` build argument in the `Dockerfile` and its fallback in the page's version, and the Railway notes in `.gitignore` and `.dockerignore`. The web app has run on Fly.io since 2026-10-28; `web/README.md`'s Deploy section now describes Fly (`fly.toml`, the CI deploy, `fly ssh console` for admin).
+- **Old names, as promised for this minor release:** `personas.default`, `personas.resolve` and `routes.pick` (use `coachpick.default`, `coachpick.resolve` and `coachpick.pick`); the `coaches` module's re-exports of `tools/audition.py` and `tools/coachmake.py` (`coaches.keep_web`, `coaches.make`, `coaches.forget_audition`, `coaches.audition` and the rest: reach them in `audition` or `coachmake`); and `menu._part_of` (use `menu.part_of`). The `coaches` command itself is unchanged. Two import cycles went with them.
+
+### For forks
+- Code that called one of the removed names calls it in its own module (above). Nothing to migrate in `me/`; the web app's database is unchanged.
+- A fork deploying on Railway keeps its own copy of `.railway/` and passes the commit as `--build-arg GIT_COMMIT_SHA=...`.
+
 ## [0.45.0] - 2026-10-31
 
 `me/` on your computer and your files on the web app, kept in step.

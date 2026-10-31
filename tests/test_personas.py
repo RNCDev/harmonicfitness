@@ -106,17 +106,17 @@ class KeepWeb(unittest.TestCase):
 
     def test_an_unreadable_save_answer_leaves_a_mark(self):
         import cloud
-        import coaches
+        import audition
         from fakes import FakeService
         with FakeService(lambda r: (201, {}, b"<html>saved, probably</html>")) as fake, \
                 mock.patch.dict(os.environ, {"HARMONICFITNESS_FISH_URL": fake.url}):
             with self.assertRaises(cloud.ServiceError) as got:
-                coaches.keep_web("2026-10-25-1/A", "Coach Maya")
+                audition.keep_web("2026-10-25-1/A", "Coach Maya")
         self.assertIn("harmonicfitness Coach Maya", str(got.exception))
         with open(self.cands, encoding="utf-8") as f:
             self.assertEqual(json.load(f)[0]["saving"], "Coach Maya")   # the paid save is never forgotten
         self.assertFalse(os.path.exists(personas.folder_for("Coach Maya", "fish")))
-        said = "\n".join(coaches.forget_audition("2026-10-25-1"))
+        said = "\n".join(audition.forget_audition("2026-10-25-1"))
         self.assertIn('look for "harmonicfitness Coach Maya"', said)
         self.assertNotIn("nothing was saved", said)
 
@@ -127,28 +127,28 @@ class KeepWeb(unittest.TestCase):
         return stray
 
     def test_a_folder_outside_the_auditions_is_refused_and_left_in_place(self):
-        import coaches
+        import audition
         stray = self.outside()
         for ref in (stray, os.path.relpath(stray, os.path.join(self.d, "coaches", ".auditions")),
                     "../../elsewhere/not-an-audition"):
             with self.subTest(ref=ref):
                 with self.assertRaises(errors.CoachError):
-                    coaches.forget_audition(ref)
+                    audition.forget_audition(ref)
                 with self.assertRaises(errors.CoachError):
-                    coaches.keep_web(ref + "/A", "Coach Maya")
+                    audition.keep_web(ref + "/A", "Coach Maya")
                 self.assertTrue(os.path.isfile(os.path.join(stray, "candidates.json")))
         with self.assertRaises(errors.CoachError):   # never the auditions folder itself
-            coaches.forget_audition(".")
+            audition.forget_audition(".")
         self.assertTrue(os.path.isdir(self.audition))
 
     def test_a_full_path_inside_the_auditions_still_works(self):
-        import coaches
-        said = "\n".join(coaches.forget_audition(self.audition))   # the path audition prints
+        import audition
+        said = "\n".join(audition.forget_audition(self.audition))   # the path audition prints
         self.assertIn("Removed", said)
         self.assertFalse(os.path.exists(self.audition))
 
     def test_a_malformed_candidates_file_is_refused_by_name(self):
-        import coaches
+        import audition
         good = {"letter": "A", "service": "fish", "k": 1, "wav": "fish-1.wav", "mp3": None}
         for bad in ({"letter": "A"}, [good, "B"], [dict(good, letter=1)], [dict(good, service="nope")],
                     [dict(good, k="1")], [dict(good, k=True)], [dict(good, wav="../../x.wav")],
@@ -157,13 +157,13 @@ class KeepWeb(unittest.TestCase):
                 with open(self.cands, "w", encoding="utf-8") as f:
                     json.dump(bad, f)
                 with self.assertRaises(errors.CoachError) as got:
-                    coaches.forget_audition("2026-10-25-1")
+                    audition.forget_audition("2026-10-25-1")
                 self.assertIn("candidates.json", str(got.exception))
                 self.assertTrue(os.path.isdir(self.audition))
         with open(self.cands, "w", encoding="utf-8") as f:
             f.write("[{not json")
         with self.assertRaises(errors.CoachError):
-            coaches.keep_web("2026-10-25-1/A", "Coach Maya")
+            audition.keep_web("2026-10-25-1/A", "Coach Maya")
 
 
 class Make(unittest.TestCase):
@@ -195,11 +195,11 @@ class Make(unittest.TestCase):
             self.addCleanup(patch.stop)
 
     def test_a_second_make_finds_the_coach_made_and_designs_nothing(self):
-        import coaches
+        import coachmake
         stale = personas.lookup("Coach Reed")   # what a second build saw before the first finished
         self.assertTrue(stale.pending)
         said = []
-        self.assertEqual(coaches.make("Coach Reed", report=said.append), "voice-1")
+        self.assertEqual(coachmake.make("Coach Reed", report=said.append), "voice-1")
         real = personas.lookup
         calls = []
 
@@ -208,19 +208,19 @@ class Make(unittest.TestCase):
             return stale if len(calls) == 1 else real(name, *a, **k)
 
         with mock.patch.object(personas, "lookup", lookup):
-            self.assertEqual(coaches.make("Coach Reed", report=said.append), "voice-1")
+            self.assertEqual(coachmake.make("Coach Reed", report=said.append), "voice-1")
         self.assertEqual(len(self.designs), 1)
         self.assertFalse(personas.lookup("Coach Reed").pending)
         with self.assertRaises(errors.CoachError):   # asked plainly, a made coach is still refused
-            coaches.make("Coach Reed")
+            coachmake.make("Coach Reed")
 
     def test_report_takes_what_make_says(self):
         import contextlib
         import io
-        import coaches
+        import coachmake
         said, out = [], io.StringIO()
         with contextlib.redirect_stdout(out):
-            coaches.make("Coach Reed", report=said.append)
+            coachmake.make("Coach Reed", report=said.append)
         self.assertEqual(out.getvalue(), "")
         self.assertTrue(any(line.startswith("Made Coach Reed") for line in said))
         self.assertTrue(any("designing a voice" in line for line in said))
@@ -254,9 +254,10 @@ class AuditionReport(unittest.TestCase):
     def test_failures_are_said_once(self):
         import contextlib
         import io
+        import audition
         import coaches
         said = []
-        folder, cands, failures = coaches._run_audition(self.narrative, ["fish"], report=said.append)
+        folder, cands, failures = audition._run_audition(self.narrative, ["fish"], report=said.append)
         self.assertEqual((folder, cands, [s for s, _ in failures]), (None, [], ["fish"]))
         self.assertFalse(any("down for a moment" in line for line in said))
         out = io.StringIO()
@@ -282,6 +283,7 @@ class AuditionReport(unittest.TestCase):
         """A TypeError while designing is the engine's bug (exit 70), never "no candidates" (exit 1)."""
         import cli
         import cloud
+        import audition
         import coaches
 
         class Broken:
@@ -291,7 +293,7 @@ class AuditionReport(unittest.TestCase):
 
         with mock.patch.object(cloud, "service_module", lambda s: Broken):
             with self.assertRaises(TypeError):
-                coaches._run_audition(self.narrative, ["fish"], report=lambda line: None)
+                audition._run_audition(self.narrative, ["fish"], report=lambda line: None)
             import contextlib
             import io
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -343,15 +345,6 @@ class MakeLeftBehind(unittest.TestCase):
     def test_saved_but_not_recorded(self):
         warned = self.make("_record_made")
         self.assertTrue(any("voice-9" in w and 'Delete "harmonicfitness Coach Reed"' in w for w in warned), warned)
-
-    def test_the_old_names_still_reach_the_new_modules(self):
-        import audition
-        import coachmake
-        import coaches
-        self.assertIs(coaches.make, coachmake.make)
-        self.assertIs(coaches.keep_web, audition.keep_web)
-        self.assertIs(coaches.forget_audition, audition.forget_audition)
-        self.assertIs(coaches.audition, audition.audition)
 
 
 class SetAndList(unittest.TestCase):

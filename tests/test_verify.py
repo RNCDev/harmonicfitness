@@ -502,8 +502,8 @@ class FfmpegStops(unittest.TestCase):
             self.assertIn("exit 1", message)
             self.assertIn("Unknown encoder libmp3lame", message)
             self.assertIn("9.9-fake", message)
-            import coaches   # the audition's sample keeps its yes-or-no answer: no MP3, the WAV plays
-            self.assertFalse(coaches._mp3(src, dst))
+            import audition   # the audition's sample keeps its yes-or-no answer: no MP3, the WAV plays
+            self.assertFalse(audition._mp3(src, dst))
             import webcopy
             with mock.patch.object(webcopy, "duration", return_value=30.0), self.assertRaises(errors.RenderStopped):
                 webcopy.make(src, "X", d)

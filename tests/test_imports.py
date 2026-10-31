@@ -15,8 +15,6 @@ TOOLS = os.path.join(paths.ROOT, "tools")
 
 # Pairs of modules that still import each other, each with why. Shrink it; never grow it.
 CYCLES = {
-    ("coachpick", "personas"): "personas.default and resolve re-export coachpick's until the next minor release",
-    ("coachpick", "routes"): "routes.pick re-exports coachpick's until the next minor release",
     ("coachpick", "context"): "context.main is the get command (get coach, get route); the library doesn't import back",
     ("context", "cost"): "context.main is the get cost command; the library doesn't import back",
     ("context", "logsession"): "context.main is the log-session command; the library doesn't import back",
@@ -129,17 +127,6 @@ class ImportCycles(unittest.TestCase):
         self.assertTrue(issubclass(keys.BadKey, errors.HarmonicFitnessError))
         self.assertEqual(keys.BadKey("x").exit_code, errors.SERVICE)
         self.assertEqual((keys.BadKey.kind, keys.BadKey.listener_must_act), ("auth", True))
-
-
-class Reexports(unittest.TestCase):
-    def test_the_old_names_still_choose_through_coachpick(self):
-        import coachpick
-        import personas
-        import routes
-        with mock.patch.object(coachpick, "default", return_value="d"), \
-                mock.patch.object(coachpick, "resolve", return_value="r"), \
-                mock.patch.object(coachpick, "pick", return_value="p"):
-            self.assertEqual((personas.default(), personas.resolve("x"), routes.pick(["local"])), ("d", "r", "p"))
 
 
 # Names that live in their own modules now: callers reach them there, not through context's re-exports.
