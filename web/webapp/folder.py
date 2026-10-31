@@ -58,6 +58,11 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def digest(data: bytes) -> str:
+    """A file's digest as `written` and harvest() compare them."""
+    return _sha(data)
+
+
 def materialize(files: dict[str, bytes], root: str) -> dict[str, str]:
     """Write each file under root; return path -> sha256 of what was written.
 

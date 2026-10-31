@@ -6,7 +6,7 @@ render_report() and writes export_text(); with --lint-only it stops there.
 
 What must hold: every line a voice can read cleanly (no digits, symbols, abbreviations or markup), every
 paragraph short enough to speak in one clip, no clip of a single word, and the whole workout's predicted
-length within three percent of plan. A segment far off its slot (under 80 or over 110 percent) is flagged in the table to help place
+length within five percent of plan. A segment far off its slot (under 80 or over 110 percent) is flagged in the table to help place
 the fix, but only the total is held to plan; with strict=True the flags count as issues. No silence may run
 longer than MAX_SILENCE (eight seconds: a fixed [hold], a bare hold's share of the spare time, pauses and the
 breaks between paragraphs, added up until something sounds), since a listener with no screen hears a long

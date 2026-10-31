@@ -68,7 +68,7 @@ HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs
 ```
 The build name (`"eval-<id>"`) is required; without it a render starts. The lint checks the draft
 against the brief's menu (`docs/eval/out/<id>.menu.json`): a movement declared or named that isn't on
-it, or segments that don't add up, fail it. Fix every issue until it exits 0 (total within three percent
+it, or segments that don't add up, fail it. Fix every issue until it exits 0 (total within five percent
 of plan); clear the menu warnings too. If a lint failure seems to be the harness's fault, say so in the
 writer notes.
 

@@ -4,6 +4,26 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-31
+
+A recording is final once it's made, nothing it made is lost after it, and a workout may run five percent off plan.
+
+### Changed
+- **Five percent, not three:** the whole workout is held within five percent of plan (`draft.TOTAL_TOLERANCE` 0.05), so the lint asks for four and a half with a measured pace and four with an estimated one. Exit 2 now means the total ran more than five percent off, and the MP3 is delivered as it is (copied to `deliver_to`, the web copy made, an outcome line `delivered` with its `drift`), where before it stayed in the workout folder; the workout skill no longer rewrites the script and builds again. The smoke test off plan still stops, measuring nothing.
+- **One approval, one recording (web):** pressing Record approves one recording. Once it has made an MP3 (exit 0, or 2), the workout is final for the turn: the site refuses another build of it, or a rewrite of its draft, and a new recording needs a new price and Record. A recording that fails spends its approval too, so a retry is priced again.
+- **Your daily recording allowance on the web app** is tripled, to 180,000 characters a day (`HARMONICFITNESS_DAILY_CHARS`).
+- **Quieter steps:** a command the site refused (the coach's own mistake, which it fixes and retries) no longer shows as a failed step.
+
+### Added
+- **Logs plays a workout's MP3** while the site keeps it (24 hours after recording), with a download. Each kept MP3 names the build that made it, and the workout list carries it.
+
+### Fixed
+- **What a recording made is kept at once (web):** the files written back (a coach designed for the recording among them), the clips and the MP3 are saved the moment the recording finishes, so a turn that stops or fails afterwards loses none of it. Before, a turn that went on after recording and was then stopped lost everything, and the next recording designed the coach's voice again at the service.
+
+### For forks
+- The web app's database gains `media.build_id` (migration `013_media_build.sql`, run on start). Nothing to migrate in `me/`.
+- A fork that relied on exit 2 at three percent passes `--tolerance 0.03` to `build`. A script that read exit 2 as "nothing delivered" now finds the MP3 delivered.
+
 ## [0.43.2] - 2026-10-31
 
 The web app says more truthfully what a recording is doing.

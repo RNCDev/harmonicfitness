@@ -52,6 +52,16 @@ describe("the Logs page", () => {
     expect(screen.getByText(/No workouts match/)).toBeInTheDocument();
   });
 
+  it("plays and offers a workout's MP3 while it's kept, and only then", async () => {
+    m.workouts.mockResolvedValue([W({ audio: { id: "m-1", name: "Workout 2026-10-30", expires_at: "2026-10-31T20:00:00Z" } }),
+      W({ n: 2, build_id: "bbb222" })]);
+    render(<Logs onClose={() => {}} onSignedOut={() => {}} />);
+    await waitFor(() => expect(cards()).toHaveLength(2));
+    expect(within(cards()[0]).getByLabelText("Play Workout 2026-10-30")).toHaveAttribute("src", "/api/media/m-1");
+    expect(within(cards()[0]).getByRole("link", { name: "Download the MP3" })).toHaveAttribute("href", "/api/media/m-1?download=1");
+    expect(within(cards()[1]).queryByRole("link", { name: "Download the MP3" })).toBeNull();
+  });
+
   it("rates, and a second press clears the rating", async () => {
     render(<Logs onClose={() => {}} onSignedOut={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));

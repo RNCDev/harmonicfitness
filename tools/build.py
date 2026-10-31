@@ -32,10 +32,10 @@ delivery folder (--no-web turns it off, and the MP3 then stays in the workout fo
 <name>.build.json, says where the MP3 went.
 
 --tolerance <fraction> sets how far the total may run off plan, for the lint and the render alike
-(default three percent).
+(default five percent).
 
 Exit codes (tools/cli.py): 0 done, 1 issues to fix, 2 the rendered total ran more than the tolerance
-off plan (the MP3 is written but not copied), 3 the coach's pace hasn't been measured on this route yet
+off plan (the MP3 is still delivered, as it is; for the smoke test, nothing is measured), 3 the coach's pace hasn't been measured on this route yet
 (render the smoke test with them first, which measures it, or pass --allow-estimated), 4 a cloud voice
 service refused the key, the payment or the quota, 64 the command was wrong (a mistyped option, an
 unknown coach, a missing draft, rendering ahead on a cloud voice): fix the command, not the draft; 70 a
@@ -518,8 +518,9 @@ def _run(b, text):
 
 
 def render_and_deliver(b, segments, voice, out_dir, smoke):
-    """Render the MP3, then: a total off plan stops here (written, not copied), the smoke test is measured and
-    kept, and a workout gets its web copy and goes where delivery_plan says. Returns the BuildResult."""
+    """Render the MP3, then: the smoke test is measured and kept (one off plan stops there), and a workout gets
+    its web copy and goes where delivery_plan says, even when its total ran off plan, which is exit 2 after it's
+    delivered. Returns the BuildResult."""
     import render
     opts = b.opts
     b.stage = "render"
@@ -534,10 +535,13 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
         b.say(f"warning: segment {n} ({label}) holds {secs:.0f}s of silence as rendered"
               + (f", after \"{' '.join(before.split()[:6])}...\"" if before else "")
               + "; the voice ran faster than predicted there, so give it a cue or fewer seconds next time")
-    if abs(drift) > opts.tolerance:   # the MP3 is written, not copied
+    off = abs(drift) > opts.tolerance
+    if off and smoke:   # a voice check off plan: the pace it measured is what's wrong, not the MP3
         b.fail(render.drift_message(drift, opts.tolerance))
         b.stopped(f"{drift:+.1%} of plan", stage="drift", drift=round(drift, 4))
         return BuildResult(cli.DRIFT, None, b.lines)
+    if off:   # a workout off plan is still a workout: delivered as it is, and exit 2 says so
+        b.fail(render.drift_message(drift, opts.tolerance))
     if smoke:   # a voice check, not a workout: no copy
         b.note("measured", voice=voice.get("name"), route=voice.get("route", "local"), drift=round(drift, 4))
         return BuildResult(cli.OK, None, b.lines)
@@ -563,10 +567,11 @@ def render_and_deliver(b, segments, voice, out_dir, smoke):
         b.say(plan["note"].format(out=paths.show(out_dir)))
     record.update(plan["record"] if plan["record"] is not None else deliver(mp3, out_dir, plan["copy_to"], say=b.say))
     rec = note_in_record(mp3, record)
-    b.note("delivered", **{k: record.get(k) for k in ("delivered_to", "kept_local", "reason", "web")})
+    b.note("delivered", **{k: record.get(k) for k in ("delivered_to", "kept_local", "reason", "web")},
+           drift=round(drift, 4) if off else None)
     b.stage = "done"
     cache_note(say=b.say)
-    return BuildResult(cli.OK, rec, b.lines)
+    return BuildResult(cli.DRIFT if off else cli.OK, rec, b.lines)
 
 
 def main(argv=None):

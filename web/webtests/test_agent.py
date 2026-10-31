@@ -106,9 +106,43 @@ class Run(AgentCase):
         patch, calls = self.fake_engine()
         with patch:
             r = tools.run(self.deps, list(self.BUILD))
-        self.assertEqual(r.output, "recorded")
+        self.assertTrue(r.output.startswith("recorded\n"))
+        self.assertIn("This workout is final", r.output)
         argv, timeout = calls[-1]
         self.assertEqual((argv[-2:], timeout), (["--max-chars", "3000"], tools.BUILD_TIMEOUT))
+
+    def test_one_approval_records_once_and_the_workout_is_then_final(self):
+        draft = "me/workouts/a/a.draft.txt"
+        self.deps.approved = {"draft": draft, "coach": "Coach Reed", "chars": 3000}
+        patch, calls = self.fake_engine()
+        with patch:
+            tools.run(self.deps, list(self.BUILD))
+            sent = len(calls)
+            again = tools.run(self.deps, list(self.BUILD))
+            lint = tools.run(self.deps, list(self.BUILD) + ["--lint-only"])
+        self.assertIsNone(self.deps.approved)
+        self.assertEqual(self.deps.recorded, draft)
+        self.assertEqual(len(calls), sent)   # nothing ran again
+        for r in (again, lint):
+            self.assertEqual(r.code, 64)
+            self.assertTrue(r.refused)
+            self.assertIn("already recorded", r.error)
+        self.assertEqual(tools.write_file(self.deps, draft, "rewritten").code, 64)
+        self.assertEqual(tools.write_file(self.deps, "me/workouts/a/notes.md", "fine").code, 0)
+
+    def test_a_failed_recording_spends_its_approval_but_leaves_the_draft_open(self):
+        from unittest import mock
+        self.deps.approved = {"draft": "me/workouts/a/a.draft.txt", "coach": "Coach Reed", "chars": 3000}
+        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(1, "", "lint issue")):
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertEqual(r.code, 1)
+        self.assertIsNone(self.deps.approved)   # a retry is priced and offered again
+        self.assertIsNone(self.deps.recorded)
+
+    def test_a_refusal_is_never_sent_to_the_model_as_a_field(self):
+        r = tools.run(self.deps, ["build", "me/workouts/a/a.draft.txt", "A"])
+        self.assertTrue(r.refused)
+        self.assertNotIn("refused", r.model_dump())
 
     def test_an_approval_is_for_its_own_draft_and_coach(self):
         self.deps.approved = {"draft": "me/workouts/a/a.draft.txt", "coach": "Coach Ellis", "chars": 3000}
@@ -202,7 +236,8 @@ class Turns(AgentCase):
         # each step is said as its tool starts (code None), then under the same id as it ends
         # (step 1 is the model reading the message: a thinking step, said only to a say that takes think)
         self.assertEqual(said, [("Getting to know you", "read_file", None, 2), ("Getting to know you", "read_file", 0, 2),
-                                ("Running a check", "run setup", None, 3), ("Running a check", "run setup", 64, 3)])
+                                ("Running a check", "run setup", None, 3), ("Running a check", "run setup", 0, 3)])
+        # (the site refused `setup`: the model's to fix, so the listener isn't shown a failed step)
 
     def test_the_model_s_thinking_is_said_while_it_runs(self):
         said = []

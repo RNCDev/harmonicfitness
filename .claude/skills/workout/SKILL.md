@@ -85,7 +85,7 @@ Write in this order, so nothing waits:
 
 Run it with `run_in_background: true`, always with the coach. **While it renders:** when the plan has a Restock section, launch the stock agent (`research.md`) in the background. By exit code:
 - 1: a lint or menu issue (fix the draft); a line that lost a cue word in every take (reword it); a menu from another day or from before `me/health.md` changed (rerun the brief with `--save`); or a web script over `cloud_max_chars` (shorten it, or tell the listener). Then rerun.
-- 2: the total ran over three percent off plan: rewrite around the segments furthest off and rerun (only changed clips render again).
+- 2: over five percent off plan, but the MP3 is made: hand it over as it is. Don't rebuild.
 - 3: a local coach from an older HarmonicFitness: run `./harmonicfitness migrate` and choose one of the ten.
 - 4 (a voice service refused the key, payment or quota) or 70 (an engine bug, never the draft's): tell the listener in a line what it said, and stop.
 - 64: the command was wrong; or a web coach can't speak here: offer the coaches that can, as in step 2.

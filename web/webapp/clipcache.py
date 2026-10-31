@@ -37,6 +37,15 @@ def load(conn, uk: UserKey, home: str) -> dict[str, float]:
     return written
 
 
+def current(home: str) -> dict[str, float]:
+    """{name: mtime} of the folder's cache files now: after a save, what counts as already kept."""
+    folder = os.path.join(home, FOLDER)
+    try:
+        return {n: os.path.getmtime(os.path.join(folder, n)) for n in os.listdir(folder) if _ok(n)}
+    except OSError:
+        return {}
+
+
 def save(conn, uk: UserKey, home: str, before: dict[str, float]) -> int:
     """Keep the cache files the build added or changed; how many."""
     folder = os.path.join(home, FOLDER)

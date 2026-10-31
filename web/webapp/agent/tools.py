@@ -13,7 +13,7 @@ from collections.abc import Callable
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from webapp import engine, folder
 
@@ -35,6 +35,12 @@ COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds"
 SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make", "audition", "keep", "forget-audition",
                            "archive"},
                "keys": {None}}
+MADE_MP3 = (0, 2)   # the build's exits that made an MP3 (2: its total ran a little off plan)
+RECORDED_NOTE = ("Recorded: the MP3 is saved and shows in the chat by itself. This workout is final: don't lint, "
+                 "rewrite or build it again. Log the session as the skill says, then end your turn in one line.")
+AFTER_RECORDING = ("this workout is already recorded and final for this turn: don't lint, rewrite or build it "
+                   "again. Log the session, then end your turn; a new recording needs a new price and the "
+                   "listener's Record, next turn.")
 SLOW = {("coaches", "make"), ("coaches", "audition"), ("coaches", "keep")}   # a service designs or saves a voice
 
 
@@ -63,12 +69,18 @@ class Deps:
     lint_failed: bool = False        # the last check of the script failed: the next draft is a fix, not a first go
     phase: str = ""                  # what the turn last did (THINK in agent): names what the model is thinking about
     picked: tuple[str, str] | None = None   # the coach chosen on the page (Settings or the sentence): (slug, day)
+    recorded: str | None = None      # the draft recorded this turn: the approval is spent, and that workout is final
+    # saves what the recording made (the coach, the MP3, the clips) at once, so a later stop can't lose it
+    checkpoint: Callable[[], None] | None = field(default=None, repr=False)
 
 
 class ToolResult(BaseModel):
     code: int
     output: str = ""
     error: str = ""
+    # the site refused the call itself (a command or path it won't run): the model's to fix, not the
+    # listener's to see as a failed step. Never sent to the model.
+    refused: bool = Field(default=False, exclude=True)
 
 
 def _cut(text: str, limit: int = LIMIT) -> str:
@@ -80,7 +92,9 @@ def _result(code: int, output: str = "", error: str = "") -> ToolResult:
 
 
 def _refuse(message: str) -> ToolResult:
-    return _result(64, error=message)
+    r = _result(64, error=message)
+    r.refused = True
+    return r
 
 
 def _inside(base: str, rel: str) -> str | None:
@@ -133,6 +147,8 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
     sub = args[1] if len(args) > 1 and not args[1].startswith("-") else None
     if command in SUBCOMMANDS and sub not in SUBCOMMANDS[command]:
         return _refuse(f"{command} {sub} isn't available in the web client yet")
+    if command == "build" and deps.recorded:
+        return _refuse(AFTER_RECORDING)
     if command == "build" and any(a in ("--follow", "--clips-only", "--verbose") for a in args):
         return _refuse("--follow, --clips-only and --verbose aren't for the web client: run the build itself")
     if (command, sub) == ("coaches", "audition"):
@@ -209,6 +225,8 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
                        "me/coaches/.auditions/<slug>.md")
     if len(content) > WRITE_LIMIT:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
+    if deps.recorded and rel.endswith(".draft.txt"):
+        return _refuse(AFTER_RECORDING)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     tmp = full + ".tmp-write"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -256,12 +274,18 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
         return _refuse('run it as build "me/workouts/<stem>/<stem>.draft.txt" "<name>" --coach "<coach>"')
     ok = deps.approved
     if ok and ok.get("draft") == draft and ok.get("coach") == coach:
+        deps.approved = None   # one approval, one recording: another needs a new price and the listener's Record
         cap = ok["chars"]
         if _flag(args, "--max-chars") is None:
             argv = argv + ["--max-chars", str(cap)]
         r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT,
                        cancel=deps.cancel)
-        return _result(r.code, *(_mine_text(deps, t) for t in (r.stdout, r.stderr)))
+        if r.code in MADE_MP3:
+            deps.recorded = draft   # the agent's run tool saves it (deps.checkpoint) once its steps are said
+        out, err = (_mine_text(deps, t) for t in (r.stdout, r.stderr))
+        if r.code in MADE_MP3:
+            out += "\n" + RECORDED_NOTE
+        return _result(r.code, out, err)
     lint = engine.run(deps.engine_root, deps.home, argv + ["--lint-only"], extra_env=deps.keys, timeout=TIMEOUT,
                       cancel=deps.cancel)
     if lint.code != 0:   # fix the draft first: nothing is priced, offered or billed

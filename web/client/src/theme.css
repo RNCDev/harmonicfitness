@@ -452,6 +452,10 @@ a.keys-bal:hover { text-decoration: underline }
 .logs-meta { margin: 4px 0 0; color: var(--ink-2); font-size: 14px }
 .logs-moves, .logs-topics { margin: 0; font-size: 15px; color: var(--ink-2); overflow-wrap: anywhere }
 .logs-topics { color: var(--ink-3); font-size: 14px }
+.logs-audio { margin: 2px 0 4px }
+.logs-audio audio { width: 100%; max-width: 480px; display: block; color-scheme: dark }
+.logs-audio-note { margin: 4px 0 0; font-size: 13px; color: var(--ink-3) }
+.logs-audio-note a { color: var(--ink-2) }
 .logs-feedback { margin: 0; padding-left: 18px; font-size: 15px }
 .logs-rate { display: flex; flex: none; gap: 6px }
 .logs-rate-btn {

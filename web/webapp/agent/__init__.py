@@ -198,7 +198,7 @@ def _step(deps: Deps, text: str, tool: str, work: Callable[[], ToolResult]) -> T
     except BaseException:
         _say(deps, text, tool, 1, n)
         raise
-    _say(deps, text, tool, result.code, n)
+    _say(deps, text, tool, 0 if result.refused else result.code, n)   # a refusal is the model's to fix
     return result
 
 
@@ -210,7 +210,7 @@ def _coach_folders(home: str) -> set[str]:
 
 
 RECORDING = "Recording your workout"
-OFF_PLAN = 2   # the build's exit when the MP3's total ran more than three percent off plan: an MP3 was still made
+OFF_PLAN = 2   # the build's exit when the MP3's total ran more than five percent off plan: an MP3 was still made
 OFF_PLAN_NOTE = f"{RECORDING} (a little off its planned length)"
 PROGRESS = re.compile(r"^\s*\[(\d+)/(\d+)\]", re.MULTILINE)   # render_cloud's "  [18/40] 4.2s audio"
 PROGRESS_EVERY = 2.0   # seconds between progress updates, at most
@@ -314,13 +314,18 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
         draft = rest[1] if len(rest) > 1 else None
         if deps.approved and deps.approved.get("draft") == draft:
             deps.phase = "recorded"
-            return _recording(deps, args, tool)
+            result = _recording(deps, args, tool)
+            if deps.recorded and deps.checkpoint is not None:
+                deps.checkpoint()   # the coach, the MP3 and the clips, kept now: a later stop can't lose them
+            return result
         text = "Working out what recording costs"   # an unapproved build checks the script, then prices it
     if first == "build" and "--lint-only" in args:
         text = "Checking the script again" if deps.lint_failed else "Checking the script's safety and timing"
     if first == "coaches" and len(rest) > 1 and rest[1] in COACH_STEPS:
         text = COACH_STEPS[rest[1]]
     result = _step(deps, text, tool, lambda: tools.run(deps, args))
+    if result.refused:   # the site's own refusal: the script wasn't checked, so nothing about it changes
+        return result
     if first == "build":
         deps.lint_failed = result.code != 0
         deps.phase = "lint_failed" if result.code != 0 else ("linted" if "--lint-only" in args else "priced")

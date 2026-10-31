@@ -68,7 +68,7 @@ END_TAIL = 1.5          # seconds of spare time kept at a segment's end, at most
 MAX_EXTRA_GAP = 1.5     # most spare time added to any one paragraph break
 MAX_SILENCE = 8.0       # the longest silence a listener hears before it sounds like a dropped earbud
 BED_MAX_SILENCE = 20.0  # with the pulse bed on (settings.toml `bed = "pulse"`), a quiet stretch ticks, so it may run longer
-TOTAL_TOLERANCE = 0.03  # the whole workout may run this fraction over or under plan
+TOTAL_TOLERANCE = 0.05  # the whole workout may run this fraction over or under plan
 MIN_FILL, MAX_FILL = 0.80, 1.10   # a segment outside these (speech over planned seconds) is flagged
 
 
@@ -103,7 +103,7 @@ def tolerance_arg(text):
     except ValueError:
         value = math.nan
     if not math.isfinite(value) or not 0 <= value <= 0.5:
-        raise argparse.ArgumentTypeError(f"{text!r} isn't a fraction from 0 to 0.5 (0.03 is three percent)")
+        raise argparse.ArgumentTypeError(f"{text!r} isn't a fraction from 0 to 0.5 (0.05 is five percent)")
     return value
 
 

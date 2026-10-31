@@ -1,7 +1,7 @@
 // The Logs page: every logged workout, newest first, with its script, feedback, a rating and delete.
 // Sorted and filtered here, in the page; each change goes to the server and the list is read again.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, NotSignedIn, plainError, workoutRef, type Rating, type Workout } from "../api";
+import { api, NotSignedIn, plainError, workoutRef, type Audio, type Rating, type Workout } from "../api";
 
 type Sort = "newest" | "oldest" | "longest" | "shortest" | "best" | "worst";
 type RatingFilter = "all" | Rating | "unrated";
@@ -53,6 +53,22 @@ export function arrange(list: Workout[], q: string, rating: RatingFilter, format
     worst: (a, b) => (score(a) === -1 ? 9 : score(a)) - (score(b) === -1 ? 9 : score(b)) || newer(a, b),
   };
   return [...kept].sort(by[sort]);
+}
+
+/** A logged workout's MP3, while it's kept: play it, or download it. */
+function WorkoutAudio({ audio }: { audio: Audio }) {
+  const src = `/api/media/${encodeURIComponent(audio.id)}`;
+  const until = new Date(audio.expires_at);
+  const when = Number.isNaN(until.getTime()) ? ""
+    : ` · kept until ${until.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
+  return (
+    <div className="logs-audio">
+      <audio controls preload="none" src={src} aria-label={`Play ${audio.name}`} />
+      <p className="logs-audio-note">
+        <a href={`${src}?download=1`} download={`${audio.name}.mp3`}>Download the MP3</a>{when}
+      </p>
+    </div>
+  );
 }
 
 export function Logs({ onClose, onSignedOut }: { onClose: () => void; onSignedOut: () => void }) {
@@ -207,6 +223,7 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
           ))}
         </div>
       </div>
+      {w.audio && <WorkoutAudio audio={w.audio} />}
       <p className="logs-moves">{w.movements.join(", ")}</p>
       {w.topics && <p className="logs-topics">Topics: {w.topics}</p>}
       {w.feedback.length > 0 && (

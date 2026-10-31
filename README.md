@@ -1,6 +1,6 @@
 # HarmonicFitness
 
-Your own workout podcast, made fresh each session. Ask for a workout and HarmonicFitness checks in on how you feel, plans around your equipment and any injuries, writes a narrated script with news, science and stories you care about, and turns it into an MP3 in a coach's voice. The audio is the workout: no screen, no timer, and the whole session lands within three percent of the length you asked for.
+Your own workout podcast, made fresh each session. Ask for a workout and HarmonicFitness checks in on how you feel, plans around your equipment and any injuries, writes a narrated script with news, science and stories you care about, and turns it into an MP3 in a coach's voice. The audio is the workout: no screen, no timer, and the whole session lands within five percent of the length you asked for.
 
 It runs inside an AI assistant that can work with files on your own computer: **Claude Code** (the Code tab of the Claude desktop app) or **ChatGPT's Codex** (Codex in the ChatGPT desktop app).
 

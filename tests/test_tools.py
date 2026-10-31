@@ -1049,11 +1049,13 @@ class InProcessBuild(unittest.TestCase):
         self.assertIn("Couldn't copy", self.said())
         self.assertTrue(os.path.exists(os.path.join(self.folder, "Test build.mp3")))
 
-    def test_drift_exits_2_without_a_copy(self):
-        self.drift = 0.05
+    def test_drift_exits_2_and_still_delivers(self):
+        self.drift = 0.07
         self.assertEqual(self.build(), cli.DRIFT, self.said())
-        self.assertFalse(os.path.exists(os.path.join(self.phone, "Test build.mp3")))
-        self.assertIn("runs long", self.said())
+        self.assertTrue(os.path.exists(os.path.join(self.phone, "Test build.mp3")))   # a workout, as it is
+        self.assertIn("runs long by 7.0%", self.said())
+        outcome = [r for r in records.build_records() if r["kind"] == "outcome"][-1]
+        self.assertEqual((outcome["event"], outcome["drift"]), ("delivered", 0.07))
 
     def test_a_render_failure_shows_the_end_of_its_log(self):
         self.render_fails = "the engine stopped"
@@ -1576,13 +1578,13 @@ class LintReport(unittest.TestCase):
     def test_the_lint_keeps_headroom_inside_the_renders_tolerance(self):
         v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
         segs = parse("@@ 10 | A\n" + "word " * 40 + "\n")
-        for exact, aim in ((True, 0.025), (False, 0.02)):
+        for exact, aim in ((True, 0.045), (False, 0.04)):
             with mock.patch("voices.pace", return_value=(10.0, exact)):
                 report = tts_build.lint(segs, v)
             self.assertAlmostEqual(report.total_tolerance, aim, places=6)
             with mock.patch("voices.pace", return_value=(10.0, exact)):
-                self.assertAlmostEqual(tts_build.lint(segs, v, headroom=False).total_tolerance, 0.03, places=6)
-        self.assertEqual(tts_build.lint(segs).total_tolerance, 0.03)   # without a voice there's no prediction
+                self.assertAlmostEqual(tts_build.lint(segs, v, headroom=False).total_tolerance, 0.05, places=6)
+        self.assertEqual(tts_build.lint(segs).total_tolerance, 0.05)   # without a voice there's no prediction
 
 
 class Hooks(unittest.TestCase):

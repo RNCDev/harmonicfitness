@@ -6,7 +6,7 @@ The coach's voice reads the script exactly as written: a local one (Pocket TTS o
 
 - The first line is `movements: <every movement the script uses, by its name in the brief's menu, comma separated>`. It is never spoken.
 - Then come the `@@ <seconds> | <label>` segments, adding up to exactly the session's seconds. You choose them: a segment can be one set, a round, an interval block or the whole warm-up, as long as it holds the time its work, rest and talk need.
-- Draft to roughly the coach's measured words a minute (the brief gives it). The lint predicts each segment's spoken length. A segment with time to spare ends a little early, one that runs long is paid back by the next ones (never by a segment with a bare `[hold]`, which keeps its full length), and only the total is held to plan: within three percent once rendered, so the lint asks for two and a half (two with an estimated pace), leaving room for the voice.
+- Draft to roughly the coach's measured words a minute (the brief gives it). The lint predicts each segment's spoken length. A segment with time to spare ends a little early, one that runs long is paid back by the next ones (never by a segment with a bare `[hold]`, which keeps its full length), and only the total is held to plan: within five percent once rendered, so the lint asks for four and a half (four with an estimated pace), leaving room for the voice.
 
 ## Characters
 

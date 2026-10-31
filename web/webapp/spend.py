@@ -3,7 +3,7 @@ they approve a recording. Nothing commits here: the caller does."""
 import datetime
 import os
 
-DEFAULT_DAILY_CHARS = 60_000   # a 30-minute workout is about 20,000; HARMONICFITNESS_DAILY_CHARS changes it
+DEFAULT_DAILY_CHARS = 180_000  # a 30-minute workout is about 20,000; HARMONICFITNESS_DAILY_CHARS changes it
 
 
 def used(conn, uk, day: str) -> int:

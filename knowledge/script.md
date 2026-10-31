@@ -22,7 +22,7 @@ The ingredients come from `./harmonicfitness brief`: the listener and their week
 
 ## What the build checks
 
-The `movements:` line, segments that add up to the session's seconds, a total within three percent of plan, no silence over eight seconds, paragraphs a voice can say in one go, and text a voice can read (`knowledge/tts-rules.md`). The draft format is in that file too.
+The `movements:` line, segments that add up to the session's seconds, a total within five percent of plan, no silence over eight seconds, paragraphs a voice can say in one go, and text a voice can read (`knowledge/tts-rules.md`). The draft format is in that file too.
 
 ## Getting the workout done
 

@@ -607,6 +607,67 @@ class Turn(JobsCase):
         self.assertEqual(list(clipcache.load(self.conn, uk, home)), ["old.wav"])   # kept for the next recording
         self.conn.rollback()
 
+    def test_what_a_recording_made_is_kept_when_the_turn_then_fails(self):
+        from webapp import clipcache, media
+        uk = self.user()
+        cid = self.start(uk)
+        real = worker.engine.run
+
+        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            if argv[:2] == ["get", "cost"]:
+                return worker.engine.Result(0, '{"service": "inworld", "usd": 0.03, "pending_design": true}', "")
+            if argv and argv[0] == "build":
+                if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
+                    return worker.engine.Result(64, "the script speaks 2,000 characters; at most 1", "")
+                if "--lint-only" in argv:
+                    return worker.engine.Result(0, "ok", "")
+                coach = os.path.join(home, "coaches", "coach-owen-inworld")   # designed in this build
+                os.makedirs(coach, exist_ok=True)
+                with open(os.path.join(coach, "persona.md"), "w", encoding="utf-8") as f:
+                    f.write('+++\nname = "Coach Owen"\n+++\n')
+                os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
+                with open(os.path.join(home, "workouts", "w", "Workout 5 min.mp3"), "wb") as f:
+                    f.write(b"ID3fake-mp3")
+                with open(os.path.join(home, "workouts", "w", "Workout 5 min.build.json"), "w", encoding="utf-8") as f:
+                    f.write('{"build_id": "b0123"}')
+                cache = os.path.join(home, "workouts", ".audio-cache")
+                os.makedirs(cache, exist_ok=True)
+                with open(os.path.join(cache, "clip.wav"), "wb") as f:
+                    f.write(b"RIFFclip")
+                return worker.engine.Result(2, "built, a little off plan", "")
+            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
+
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Owen"]
+
+        def price(messages, info):
+            if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id=f"b{len(messages)}")])
+            return ModelResponse(parts=[TextPart("Ready.")])
+
+        def record_then_fail(messages, info):
+            if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id="r1")])
+            raise RuntimeError("the provider went away")
+        with mock.patch.object(worker.engine, "run", side_effect=engine_run):
+            job, conv = self.run_turn(uk, price, cid, line="just go")
+            self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "Yes, record it.", None))
+            self.conn.commit()
+            job, conv = self.run_turn(uk, record_then_fail, cid, line="Yes, record it.", record=True)
+        self.assertEqual(self.state(job)[0], "failed")
+        self.assertEqual(conv.state, "failed")
+        self.assertIsNone(conv.offer)                       # the recording is spent: no Record button again
+        audio = [l["audio"] for l in conv.lines if l.get("audio")]
+        self.assertEqual([a["name"] for a in audio], ["Workout 5 min"])
+        self.assertEqual(media.get(self.conn, uk, audio[0]["id"])[1], b"ID3fake-mp3")
+        self.assertEqual(media.by_build(self.conn, uk), {"b0123": audio[0]})   # the Logs page can play it
+        self.conn.rollback()
+        self.assertIn("coaches/coach-owen-inworld/persona.md", store.read_all(self.conn, uk))   # the paid design
+        self.conn.rollback()
+        home = self.homes[-1]
+        os.makedirs(home, exist_ok=True)
+        self.assertEqual(list(clipcache.load(self.conn, uk, home)), ["clip.wav"])
+        self.conn.rollback()
+
     def test_stop_kills_the_turn_and_says_so(self):
         import threading
         from webapp import agent as agentmod

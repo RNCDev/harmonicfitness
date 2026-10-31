@@ -542,7 +542,7 @@ class BuildTrail(unittest.TestCase):
     def test_drift(self):
         self.drift = 0.2
         self.assertEqual(self.build(), 2)
-        self.assertEqual(self.one_event("stopped", "drift")["drift"], 0.2)
+        self.assertEqual(self.one_event("delivered")["drift"], 0.2)   # a workout off plan is still delivered
 
     def test_the_smoke_test_is_measured(self):
         self.assertEqual(self.build(draft_path=paths.SMOKE_DRAFT), 0, self.out.getvalue())

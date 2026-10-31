@@ -7,7 +7,7 @@ coach speaks by its saved voice on its own service (tools/cloud.py). A soft chim
 marker rings it inside a segment, and a three-note tone marks the end of the
 workout. A segment's spare seconds widen its paragraph breaks and then it ends
 early, a slightly long segment is paid back from the next ones' spare time, the
-whole workout is held within three percent of plan, and the result is
+whole workout is held within five percent of plan, and the result is
 loudness-normalized for earbuds.
 
 No app or server needed. Clips are cached in me/workouts/.audio-cache, so rerunning
@@ -489,9 +489,8 @@ def preflight(out):
 
 
 def drift_message(drift, tolerance):
-    return (f"The workout runs {'long' if drift > 0 else 'short'} by more than {tolerance:.0%}. "
-            f"{'Trim' if drift > 0 else 'Add'} words in the segments marked or furthest off and rerun; "
-            "unchanged clips come from cache.")
+    return (f"The workout runs {'long' if drift > 0 else 'short'} by {abs(drift):.1%}, more than {tolerance:.0%}. "
+            "The MP3 is made and delivered as it is; the coach's pace is now measured, so the next script lands closer.")
 
 
 def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL_TOLERANCE, no_chime=False,

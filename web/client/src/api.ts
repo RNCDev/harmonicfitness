@@ -61,7 +61,9 @@ export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: numb
 export type Rating = "positive" | "neutral" | "negative";
 export type Workout = { n: number; date: string; minutes: number; kit: string; coach: string; format: string | null;
   movements: string[]; topics: string; build_id: string | null; feedback: string[]; rating: Rating | null;
-  has_script: boolean };
+  has_script: boolean;
+  /** Its MP3, while the site keeps it (24 hours after recording). */
+  audio?: Audio };
 export const workoutRef = (w: Workout) => w.build_id ?? String(w.n);
 
 /** A call to the server. An empty answer (a 201 from register, a 204) is no body, whatever its status. */

@@ -149,7 +149,7 @@ Chatterbox Turbo was tried again the same evening (`chatterbox-tts` 0.1.7, PyTor
 
 ## Pace
 
-No engine decides a clip's length in advance, so the lint predicts it from the coach's rate (in `pace.json`, recorded by every render) and the render lays segments on the plan's clock, ending a short one early and paying back a long one from the next. The whole workout is held within three percent of plan.
+No engine decides a clip's length in advance, so the lint predicts it from the coach's rate (in `pace.json`, recorded by every render) and the render lays segments on the plan's clock, ending a short one early and paying back a long one from the next. The whole workout is held within five percent of plan.
 
 - **A web coach** starts from a pace estimated from its approved sample (the coaching line's weighted characters over its trimmed seconds), so its first workout needs no smoke test. The first real render replaces the estimate with measured pace, kept per service, model and voice; a new voice starts again from its sample.
 - **A stock local coach** ships measured: its `pace.json` comes from its approved sample, and is read until this computer's first render with that coach, which adds to it in the shared `me/workouts/.audio-cache/voice-pace.json` (so `me/coaches/` holds only the listener's own coaches). A local coach without a measured pace (one from before 0.15.0) won't render a session (exit 3; `--allow-estimated` overrides); the smoke test, `./harmonicfitness build knowledge/smoke-test.draft.txt "smoke-test" --coach "<name>"`, measures one, and checks a computer end to end.

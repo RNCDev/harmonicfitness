@@ -629,8 +629,19 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/api/workouts")
     async def list_workouts(uk: User):
         """The logged workouts, newest first: date, length, kit, coach, format, movements, topics, build id,
-        feedback, rating and whether a script is kept."""
+        feedback, rating, whether a script is kept, and its MP3 while the site keeps it (`audio`)."""
         rows = await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.listing))
+
+        def kept() -> dict[str, dict]:
+            with connection() as conn:
+                try:
+                    return media.by_build(conn, uk)
+                finally:
+                    conn.rollback()
+        audio = await anyio.to_thread.run_sync(kept)
+        for row in rows:   # the MP3 still kept (24 hours) for a workout, to play or download from the Logs page
+            if isinstance(row, dict) and row.get("build_id") in audio:
+                row["audio"] = audio[row["build_id"]]
         return {"workouts": rows}
 
     @app.get("/api/workouts/{ref}/script")

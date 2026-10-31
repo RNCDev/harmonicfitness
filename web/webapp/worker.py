@@ -294,7 +294,7 @@ def _agent_line(conv: conversations.Conversation, text: str) -> list:
     return conv.lines + [{"role": "agent", "text": text}]
 
 
-def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str) -> None:
+def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str, audio: list[dict] | None = None) -> None:
     """The conversation as stored (as it was before the turn: its history, plan and stem), failed with
     an agent line. Committed: run_one rolls back on JobFailed. Does nothing once it is no longer working,
     or once its turn is another job's (a late loss of an old job never fails a newer turn)."""
@@ -307,7 +307,9 @@ def _fail_conversation(ctx: Ctx, conv: conversations.Conversation, message: str)
         ctx.conn.rollback()
         return
     said = "Stopped. Send a message when you want to carry on." if message == STOPPED else f"That didn't work: {message}"
-    failed = dataclasses.replace(conv, state="failed", question=None, lines=_agent_line(conv, said))
+    lines = conv.lines + [{"role": "agent", "text": "", "audio": a} for a in audio or ()]
+    failed = dataclasses.replace(conv, state="failed", question=None, offer=None if audio else conv.offer,
+                                 lines=lines + [{"role": "agent", "text": said}])
     if conversations.save(ctx.conn, ctx.uk, failed, conv.version):
         ctx.conn.commit()
     else:
@@ -383,15 +385,31 @@ def new_audio(home: str, written: dict[str, str]) -> list[tuple[str, str]]:
     return out + named
 
 
-def _keep_audio(ctx: Ctx, written: dict[str, str]) -> list[dict]:
-    """The MP3s this turn made (new_audio), kept 24 hours for the listener. Committed now, so the chat can
-    link them as soon as the turn is saved."""
+def _build_id(mp3: str) -> str | None:
+    """The build_id in the build record beside a workout's MP3 (<name>.build.json), or None."""
+    import json
+    try:
+        with open(mp3[:-4] + ".build.json", encoding="utf-8") as f:
+            found = json.load(f).get("build_id")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return found if isinstance(found, str) and found else None
+
+
+def _keep_audio(ctx: Ctx, written: dict[str, str], done: set[str] | None = None) -> list[dict]:
+    """The MP3s this turn made (new_audio), kept 24 hours for the listener, less those in `done` (kept
+    already this turn; each kept one is added to it). Committed now, so the chat can link them as soon as
+    the turn is saved."""
     kept = []
+    done = set() if done is None else done
     for path, name in new_audio(ctx.home, written):
+        if path in done:
+            continue
+        done.add(path)
         with open(path, "rb") as f:
             body = f.read(media.MAX_BYTES + 1)
         try:
-            kept.append(media.put(ctx.conn, ctx.uk, name, body))
+            kept.append(media.put(ctx.conn, ctx.uk, name, body, _build_id(path)))
         except ValueError:
             continue
     if kept:
@@ -428,20 +446,21 @@ def turn(ctx: Ctx) -> dict:
     ctx.conn.commit()
     if conv is None or conv.state != "working" or conv.job_id != ctx.job_id:
         raise JobFailed("the conversation moved on")   # another job's turn, or none
+    kept: list[dict] = []   # audio the turn has kept so far: a turn that fails after its recording still shows it
     try:
-        return _turn(ctx, conv)
+        return _turn(ctx, conv, kept)
     except _Stop as e:
-        _fail_conversation(ctx, conv, e.message)
+        _fail_conversation(ctx, conv, e.message, kept)
         raise JobFailed(e.message) from None
     except Exception:
         try:
-            _fail_conversation(ctx, conv, UNEXPECTED)
+            _fail_conversation(ctx, conv, UNEXPECTED, kept)
         except Exception:  # noqa: BLE001 - the connection may be what broke; the first error is the one to log
             ctx.conn.rollback()
         raise   # run_one logs its type only
 
 
-def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
+def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = None) -> dict:
     from pydantic_ai.exceptions import UsageLimitExceeded   # pydantic-ai only in the jobs that use it
     from . import agent   # agent imports this module
     line, answer, today, now = _turn_request(ctx.args)
@@ -476,6 +495,35 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
     deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)
     clips = clipcache.load(ctx.conn, ctx.uk, ctx.home) if record else None   # re-recording pays only for changes
     ctx.conn.commit()
+    kept = [] if kept is None else kept
+    kept_paths: set[str] = set()
+
+    def checkpoint() -> None:
+        """What the recording made, kept now (the files written back, the clips, the MP3), so a turn
+        that later stops or fails loses none of it: the coach designed for it, above all, paid for once."""
+        try:
+            changes = folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK)
+            conflicts = set(store.write_back(ctx.conn, ctx.uk, changes, base))
+            if clips is not None:
+                clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
+            ctx.conn.commit()
+        except Exception as e:  # noqa: BLE001 - the turn's own save at the end tries again
+            ctx.conn.rollback()
+            print(f"worker: job {ctx.job_id} checkpoint failed: {type(e).__name__}", file=sys.stderr)
+            return
+        for path, body in changes.items():   # what the end of the turn compares against from here on
+            if path in conflicts:
+                continue
+            if body is None:
+                written.pop(path, None)
+                base.pop(path, None)
+            else:
+                written[path] = folder.digest(body)
+                base[path] = base.get(path, 0) + 1
+        if clips is not None:
+            clips.update(clipcache.current(ctx.home))
+        kept.extend(_keep_audio(ctx, written, kept_paths))
+    deps.checkpoint = checkpoint
     ctx.say("thinking")
     first = conv.history is None
     background = ThreadPoolExecutor(max_workers=1)
@@ -505,7 +553,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
         clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
         ctx.conn.commit()
     lines = conv.lines if outcome.reply is None else _agent_line(conv, outcome.reply)
-    for audio in _keep_audio(ctx, written):
+    kept.extend(_keep_audio(ctx, written, kept_paths))
+    for audio in kept:
         lines = lines + [{"role": "agent", "text": "", "audio": audio}]
     done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle",
                                history=outcome.history_json, lines=lines, question=outcome.question,
@@ -517,7 +566,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation) -> dict:
             raise RuntimeError("the conversation moved on")   # complete rolls back; the job fails
 
     ctx.on_done = save_turn
-    ctx.on_lost = lambda error: _fail_conversation(ctx, conv, error)
+    ctx.on_lost = lambda error: _fail_conversation(ctx, conv, error, kept)
     ctx.save(folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK), base)
     return {"conversation_id": conv.id, "state": done.state}
 

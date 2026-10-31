@@ -85,6 +85,20 @@ class Routes(test_api.ApiCase):
         self.conn.rollback()
         self.assertNotIn(f"{STEM}/Workout.txt", store.read_all(self.conn, uk))
 
+    def test_a_workout_carries_its_mp3_while_it_is_kept(self):
+        from webapp import media
+        _, uk = self.signed_in()
+        store.write_back(self.conn, uk, listener_files(), {})
+        media.put(self.conn, uk, "Workout", b"ID3old", build_id="ccc333")
+        newest = media.put(self.conn, uk, "Workout", b"ID3new", build_id="ccc333")
+        media.put(self.conn, uk, "Coach Reed's voice", b"ID3sample")   # no build: never on a workout
+        self.conn.commit()
+        row = self.client.get("/api/workouts").json()["workouts"][0]
+        self.assertEqual(row["audio"], newest)
+        self.conn.execute("update media set expires_at = now() - interval '1 second'")
+        self.conn.commit()
+        self.assertNotIn("audio", self.client.get("/api/workouts").json()["workouts"][0])
+
     def test_the_logs_routes_need_a_session_and_same_origin(self):
         self.assertEqual(self.client.get("/api/workouts").status_code, 401)
         self.signed_in()
