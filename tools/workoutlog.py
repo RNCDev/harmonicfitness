@@ -64,7 +64,11 @@ def _records_for(build_id):
         if rec["kind"] == "mp3":
             mp3 = rec
         elif rec["kind"] == "outcome" and rec.get("event") == "delivered":
-            delivered += [p for p in (rec.get("delivered_to") or []) if isinstance(p, str)]
+            # delivered_to names the folders the MP3 was copied into; the file is <name>.mp3 there
+            for where in rec.get("delivered_to") or []:
+                if isinstance(where, str) and isinstance(rec.get("name"), str):
+                    delivered.append(where if where.lower().endswith(".mp3") else
+                                     os.path.join(where, rec["name"] + ".mp3"))
     return mp3, delivered
 
 

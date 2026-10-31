@@ -4,6 +4,11 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.40.2] - 2026-10-30
+
+### Fixed
+- **`workouts delete --files` left the delivered MP3 behind:** the build record names the folder it copied into, and the file is `<name>.mp3` there; delete now removes that file.
+
 ## [0.40.1] - 2026-10-30
 
 A way to delete a workout or leave feedback on one, and two fixes for a web coach's pace.

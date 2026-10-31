@@ -75,14 +75,14 @@ class Workouts(unittest.TestCase):
         open(draft, "w").close()
         drive = os.path.join(self.tmp.name, "drive")
         os.makedirs(drive)
-        copy = os.path.join(drive, "w.mp3")
+        copy = os.path.join(drive, "w.mp3")   # delivered_to names the folder; the name gives the file
         open(copy, "w").close()
         os.makedirs(paths.LOGS, exist_ok=True)
         with open(paths.BUILDS, "w", encoding="utf-8") as f:
             f.write(json.dumps({"kind": "mp3", "build_id": "ccc333", "draft": draft, "out": "x.mp3",
                                 "draft_sha256": "0" * 64}) + "\n")
             f.write(json.dumps({"kind": "outcome", "event": "delivered", "build_id": "ccc333", "at": "x",
-                                "name": "w", "delivered_to": [copy]}) + "\n")
+                                "name": "w", "delivered_to": [drive]}) + "\n")
         out = self.w.delete(self.w.pick(["all"], self.w.logged()), files=True)
         self.assertEqual(self.w.logged(), [])
         self.assertEqual(self.titles(), [])
