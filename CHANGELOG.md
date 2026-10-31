@@ -4,6 +4,18 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.41.1] - 2026-10-30
+
+Fourteen more movements for the thinnest spots in the small kits and for listeners working around an injury, researched and cited in `knowledge/research/2026-10-30-movement-library.md`.
+
+### Added
+- **Pulling and shoulders with no equipment:** the prone lat pulldown (the bodyweight kit's first pull-down move), wall angels, and the push-up plus with its easier wall version.
+- **Joint-friendly holds and rehab drills:** the Spanish squat (a band behind the knees), the split squat hold and the knee-to-wall ankle mobilization.
+- **Hamstrings and quads:** the Nordic hamstring curl (gym only: it needs a machine to anchor the heels) and the reverse Nordic.
+- **Twisting and balance:** the side-lying open book and the hip airplane.
+- **Carries:** the overhead carry and the front rack carry.
+- **Cool-down:** 90/90 breathing, feet on a wall, a chair or the bed edge.
+
 ## [0.41.0] - 2026-10-30
 
 A bigger movement library: every unfinished catalog entry finished, 63 new movements, and 13 new pieces of equipment, all researched and cited in `knowledge/research/2026-10-30-movement-library.md`.
