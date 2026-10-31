@@ -139,6 +139,12 @@ class Brief(unittest.TestCase):
             self.assertIn("Setup:", e, e[:60])
             self.assertIn("Cues:", e, e[:60])
 
+    def test_a_brief_for_today_says_when_it_was_written(self):
+        self.assertNotIn("Written at", brief("--goal", "strength", "--minutes", "30", "--kit", "home").stdout)
+        live = run("brief", "--goal", "strength", "--minutes", "30", "--kit", "home", home=LISTENER)
+        self.assertIn("Written at", live.stdout)
+        self.assertIn("never \"in half an hour\"", live.stdout)
+
     def test_the_compact_menu_keeps_notes_only_where_a_limit_or_a_side_needs_them(self):
         r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
         self.assertIn("movements --about", r.stdout)

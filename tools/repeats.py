@@ -85,7 +85,12 @@ SEEN = re.compile(
     r"|\b(?:best|strongest|cleanest|smoothest|fastest) (?:set|rep|round|one|interval|lap) (?:yet|so far|of the day|today)\b"
     r"|\bnot once\b"
     r"|\bI (?:can )?(?:see|saw|noticed|watched) (?:you|your|that)\b"
-    r"|\b(?:stayed|kept|held|was|were) [a-z]+ (?:on |through |for )?every (?:single )?(?:set|rep|round|one|interval)\b",
+    r"|\b(?:stayed|kept|held|was|were) [a-z]+ (?:on |through |for )?every (?:single )?(?:set|rep|round|one|interval)\b"
+    r"|\bthat'?s (?:exactly |just )?(?:where|what) (?:we|I) want(?:ed)? (?:it|you|to see)?\b"
+    r"|\b(?:that was a|that's a|what a|and a) (?:really )?(?:strong|great|solid|excellent|powerful|fantastic) "
+    r"(?:first |last )?(?:ride|session|workout|set|effort|climb|surge|round|sprint|interval|one)\b"
+    r"|\b(?:nailed|crushed|smashed) (?:it|that)\b"
+    r"|\byou(?:'re| are) (?:flying|crushing it|killing it)\b",
     re.IGNORECASE)
 
 

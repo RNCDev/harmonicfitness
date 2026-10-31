@@ -4,6 +4,12 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.40.3] - 2026-10-30
+
+### Fixed
+- **Scripts that went stale before they were played:** the brief now says when it was written, and `knowledge/script.md` says to give an event its day and time ("tonight at seven thirty"), never "in half an hour", and to treat anything starting within about an hour as under way. A script written at 8:19 had previewed a 7:30 tip-off.
+- **The praise warning caught too little:** it now also names "that's where we want it", "and a strong first ride", "what a great climb", "nailed it" and "you're flying". What the plan guarantees ("that's all eight efforts done") still passes.
+
 ## [0.40.2] - 2026-10-30
 
 ### Fixed

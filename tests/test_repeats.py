@@ -53,12 +53,14 @@ class Repeats(unittest.TestCase):
 class SeenClaims(unittest.TestCase):
     def test_praise_for_what_the_coach_cant_see_is_named(self):
         for line in ("That set looked smoother.", "Best set yet, Sam.", "No leaning on the rails, not once.",
-                     "Your back stayed flat every set.", "I can see you working."):
+                     "Your back stayed flat every set.", "I can see you working.", "That's where we want it.",
+                     "Eight efforts and a strong first ride.", "You nailed it.", "What a great climb."):
             with self.subTest(line=line):
                 self.assertEqual(len(repeats.seen_claims(f"@@ 30 | A\nGood. {line}\n")), 1)
 
     def test_questions_plans_and_stories_pass(self):
-        text = ("@@ 30 | A\nHow did that one feel? If it was a grind, stay at this weight. "
+        text = ("@@ 30 | A\nHow did that one feel? If it was a grind, stay at this weight. That's all eight efforts "
+                "done, and a good session to build on next week starts here. "
                 "[story] His best lap yet came in the rain, and the crowd saw it. [/story]\n")
         self.assertEqual(repeats.seen_claims(text), [])
 

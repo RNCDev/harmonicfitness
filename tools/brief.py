@@ -416,7 +416,7 @@ def _budget_line(voice_name: Optional[str]) -> List[str]:
 
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
           today: datetime.date, feedback: Optional[List[str]] = None, voice: Optional[str] = None,
-          compact: bool = True):
+          compact: bool = True, now: Optional[datetime.datetime] = None):
     """(the brief as Markdown lines, the menu record). ValueError names an unknown value; screen.Unfit
     says a [[limits]] row can't be read. `compact` (the default) prints the menu without each movement's
     coaching notes, which the writer reads with `movements --about` for the movements chosen (menu_lines)."""
@@ -435,6 +435,11 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     out = [f"# Today's brief: {goal}, {minutes} minutes, {_kit_words(request, scr.equipment)}",
            f"{today.isoformat()}, {today.strftime('%A')}. Ingredients, not a plan: design the session from "
            "these (method, movements, order, doses, timing), post the plan, then write it.", ""]
+    if now is not None:
+        out += [f"Written at {now.strftime('%H:%M')}. The MP3 may be played later tonight or another day: say an event's "
+                "day and time (\"tonight at seven thirty\"), never \"in half an hour\" or \"right now\", and an event that "
+                "starts before the workout is likely played (a game already under way) is \"tonight's game\", not a "
+                "preview (knowledge/script.md, Time-proof it).", ""]
     out += [f"Warning: {w}" for w in scr.warnings]
     out += ["## The listener", f"- Name: {name} (greet them by it; two to four times a session)." if name
             else "- No name in the profile: no name in the audio.",
@@ -532,7 +537,8 @@ def main(argv=None):
     request = request_from(args, cat, sess, profile)
     today = args.today or datetime.date.today()
     lines, record = build(request, cat, sess, profile, health.health(), sessionlog.sessions(args.log), today,
-                          context.feedback(args.log), voice=args.voice, compact=not args.full)
+                          context.feedback(args.log), voice=args.voice, compact=not args.full,
+                          now=None if args.today else datetime.datetime.now())
     text = "\n".join(lines) + "\n"
     print(text, end="")
     if save:
