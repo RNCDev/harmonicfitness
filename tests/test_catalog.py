@@ -404,6 +404,18 @@ class RealCatalog(unittest.TestCase):
                           and all(any(alt in equipment for alt in need.split("|")) for need in m.needs)]
                     self.assertTrue(ok, f"{preset} has no {pattern} at {level}")
 
+    def test_long_and_loop_bands_and_the_outdoors_are_apart(self):
+        cat = catalog.load()
+        loop_only = {m.id for m in catalog.select(cat, {"mini-band"}, "advanced", []).allowed}
+        self.assertIn("banded-clamshell", loop_only)
+        self.assertNotIn("band-row", loop_only)          # a long band and an anchor
+        self.assertNotIn("pallof-press", loop_only)
+        long_only = {m.id for m in catalog.select(cat, {"band"}, "advanced", []).allowed}
+        self.assertIn("banded-clamshell", long_only)     # a long band ties into a loop
+        indoors = {m.id for m in catalog.select(cat, set(cat.presets["full-gym"]), "advanced", []).allowed}
+        self.assertNotIn("running-sprint", indoors)
+        self.assertIn("running-sprint", {m.id for m in catalog.select(cat, {"outdoors"}, "advanced", []).allowed})
+
     def test_at_least_sixty_entries_are_annotated(self):
         cat = catalog.load()
         self.assertGreaterEqual(sum(not m.draft for m in cat.movements.values()), 60)

@@ -32,7 +32,8 @@ AREA_POSITIONS = {("ankle", "off-limits"): ("standing", "kneeling", "all-fours")
                   ("foot", "off-limits"): ("standing", "kneeling", "all-fours")}
 # Equipment that loads a movement; a movement needing none of it is bodyweight (a chair, bench, towel
 # or mat only holds or supports the body).
-LOAD_EQUIPMENT = ("dumbbells", "kettlebell", "band", "cable", "machines", "barbell", "sled")
+LOAD_EQUIPMENT = ("dumbbells", "kettlebell", "band", "mini-band", "cable", "machines", "barbell", "smith-machine",
+                  "trap-bar", "sled", "medicine-ball", "slam-ball", "ankle-weights", "weight-vest")
 LOAD_MAX = 3
 # Areas that work as one chain: fast work that loads any of them counts as loading each, so a fast
 # pedal stroke rated only on the ankle and foot still stays out under a delicate calf.

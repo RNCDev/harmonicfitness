@@ -70,7 +70,8 @@ flags = ["impact", "single-leg", "kneeling", "floor", "lying-side", "hanging", "
 dumbbells = { aliases = ["dumbbell", "dumbbells", "adjustable dumbbells", "free weights"], about = "fixed or adjustable dumbbells" }
 kettlebell = { aliases = ["kettlebell", "kettlebells", "kettle bell"], about = "one or more kettlebells" }
 bench = { aliases = ["bench", "weight bench", "flat bench", "adjustable bench", "incline bench"], about = "a flat or adjustable bench" }
-band = { aliases = ["band", "bands", "resistance band", "resistance bands", "loop band", "mini band", "tube band"], about = "resistance bands, long or loop" }
+band = { aliases = ["band", "bands", "resistance band", "resistance bands", "long band", "long bands", "tube band", "tube bands", "band with handles", "door anchor"], about = "long resistance bands or tube bands, with a door anchor or a post to tie them to" }
+mini-band = { aliases = ["mini band", "mini bands", "loop band", "loop bands", "booty band", "hip band", "hip circle", "glute band"], about = "small loop bands worn around the legs" }
 mat = { aliases = ["mat", "yoga mat", "exercise mat", "floor mat"], about = "an exercise mat" }
 chair = { aliases = ["chair", "sturdy chair", "dining chair"], about = "a sturdy chair without wheels" }
 towel = { aliases = ["towel", "bath towel", "hand towel"], about = "a towel, for rows around a door handle or slides on a hard floor" }
@@ -102,6 +103,13 @@ battle-ropes = { aliases = ["battle rope", "battle ropes", "battling ropes", "he
 landmine = { aliases = ["landmine", "landmine attachment", "landmine base"], about = "a landmine attachment that holds one end of a barbell" }
 trap-bar = { aliases = ["trap bar", "hex bar", "hexagonal bar"], about = "a trap or hex bar with plates" }
 jump-rope = { aliases = ["jump rope", "skipping rope", "skip rope", "speed rope"], about = "a skipping rope" }
+outdoors = { aliases = ["outdoors", "outside", "open space", "track", "running track", "park", "field", "hill"], about = "open ground outdoors, a track, a park or a hill" }
+stairs = { aliases = ["stairs", "staircase", "flight of stairs", "stairwell", "steps"], about = "a flight of stairs with a handrail" }
+ankle-weights = { aliases = ["ankle weights", "ankle weight", "wrist and ankle weights", "cuff weights"], about = "strap-on ankle weights" }
+balance-pad = { aliases = ["balance pad", "foam pad", "airex", "wobble board", "balance board", "bosu", "bosu ball", "balance trainer"], about = "a foam balance pad, a wobble board or a BOSU, dome up" }
+push-up-handles = { aliases = ["push-up handles", "push-up bars", "pushup handles", "parallettes", "push-up stands"], about = "push-up handles or parallettes that keep the wrists straight" }
+weight-vest = { aliases = ["weight vest", "weighted vest", "vest"], about = "a weighted vest" }
+smith-machine = { aliases = ["smith machine", "smith"], about = "a Smith machine: a barbell on fixed rails with safety stops" }
 
 [presets.bodyweight]
 equipment = []
@@ -112,13 +120,12 @@ equipment = ["chair", "towel"]
 [presets.hotel-gym]
 equipment = ["dumbbells", "bench", "treadmill", "elliptical", "bike", "mat"]
 
-[presets.full-gym]   # everything but the stick and ball
-equipment = ["dumbbells", "kettlebell", "bench", "band", "mat", "chair", "towel", "foam-roller", "strap",
-             "bike", "rower", "cable", "machines", "barbell", "rack", "ski-erg", "air-bike", "sled",
+[presets.full-gym]   # everything but the stick and ball, the stairs and the outdoors
+equipment = ["dumbbells", "kettlebell", "bench", "band", "mini-band", "mat", "chair", "towel", "foam-roller", "strap",
+             "bike", "rower", "cable", "machines", "barbell", "rack", "smith-machine", "ski-erg", "air-bike", "sled",
              "treadmill", "elliptical", "stair-climber", "pull-up-bar", "dip-station", "suspension-trainer",
              "medicine-ball", "slam-ball", "box", "sliders", "stability-ball", "ab-wheel", "battle-ropes",
-             "landmine", "trap-bar", "jump-rope"]
-
+             "landmine", "trap-bar", "jump-rope", "ankle-weights", "balance-pad", "push-up-handles", "weight-vest"]
 # Unlisted: real movements the catalog doesn't hold, so they are never on a menu: some not yet researched (a
 # catalog entry needs sourced research), others left out on purpose for a listener coached by ear alone, with no
 # one watching (Olympic lifts, kipping and swinging on a bar, full head circles, double unders). The build's menu scan refuses each one said in a script ("pistol squats"),
@@ -245,7 +252,7 @@ rep = "One rep is down until your thighs are about level and back up to standing
 feel = "Feel it in the fronts of your thighs and your glutes, not pinching in the knees or the low back."
 faults = ["If your heels lift, sit back more and press your whole foot into the floor.", "If your knees cave in, push them out toward your little toes.", "If your chest drops, lift it and look straight ahead."]
 easier = ["box-squat"]
-harder = ["goblet-squat"]
+harder = ["goblet-squat", "balance-pad-squat"]
 
 [[movement]]
 id = "box-squat"
@@ -379,7 +386,7 @@ harder = []
 id = "step-up"
 name = "step-up"
 aliases = ["step up", "step-ups", "bench step-up", "box step-up", "dumbbell step-up"]
-needs = ["box|bench|chair"]
+needs = ["box|bench|chair|stairs"]
 position = "standing"
 sided = true
 measure = "reps"
@@ -399,7 +406,7 @@ rep = "One rep is stepping up until you stand tall on the bench, then lowering b
 feel = "Feel it in the thigh and glute of the leg on the bench, not in the foot pushing off the floor."
 faults = ["If you push off the bottom foot, think of the top leg doing all the lifting.", "If you drop down fast, lower slowly and touch the floor lightly.", "If your knee falls inward, press it out over your toes."]
 easier = []
-harder = []
+harder = ["weighted-vest-step-up"]
 
 [[movement]]
 id = "wall-sit"
@@ -450,7 +457,7 @@ rep = "One rep is lifting the long leg, knee straight and thigh tight, to the he
 feel = "Feel it along the front of the lifting thigh, not in the low back."
 faults = ["If your low back arches off the floor, press it down gently and lift a little lower.", "If the knee bends as you lift, tighten the thigh harder before the leg leaves the floor.", "If you only feel the front of the hip, squeeze the thigh muscle and keep it squeezed the whole way."]
 easier = []
-harder = []
+harder = ["ankle-weight-straight-leg-raise"]
 
 [[movement]]
 id = "glute-bridge"
@@ -588,7 +595,7 @@ sided = true
 measure = "reps"
 patterns = ["hips", "hinge"]
 muscles = ["glutes", "hamstrings", "core"]
-loads = { hip = 3, wrist = 2, knee = 1, shoulder = 1, low-back = 1 }
+loads = { hip = 3, wrist = 2, knee = 2, shoulder = 1, low-back = 1 }
 support = { knee = 2, wrist = 2, shoulder = 1, hip = 1 }
 flags = ["floor", "kneeling"]
 intensity = "strength"
@@ -602,7 +609,7 @@ rep = "One rep is the bent leg lifting until the thigh is level with your back, 
 feel = "Feel it in the glute of the working leg, not in the low back."
 faults = ["If your low back arches as the leg lifts, stop the thigh at level and brace your belly.", "If your hips tip toward the working side, lift less and keep them square to the floor.", "If you swing the leg up, slow down and pause at the top."]
 easier = []
-harder = []
+harder = ["ankle-weight-donkey-kick"]
 
 [[movement]]
 id = "face-down-hip-extension"
@@ -807,7 +814,7 @@ rep = "One rep is lowering your chest toward the floor and pressing back up to s
 feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, with your core tight and no sag in the low back."
 faults = ["If your hips sag, squeeze the glutes and brace your belly.", "If your elbows flare wide, tuck them to a gentle angle.", "If you only go halfway, lower your chest a little closer to the floor."]
 easier = ["incline-push-up"]
-harder = []
+harder = ["weighted-vest-push-up", "handle-push-up"]
 
 [[movement]]
 id = "incline-push-up"
@@ -2059,7 +2066,7 @@ harder = []
 id = "banded-clamshell"
 name = "banded clamshell"
 aliases = ["clamshell with a band", "band clamshell"]
-needs = ["band"]
+needs = ["mini-band|band"]
 position = "side-lying"
 sided = true
 measure = "reps"
@@ -2085,7 +2092,7 @@ harder = []
 id = "monster-walk"
 name = "monster walk"
 aliases = ["monster walks", "band walk", "lateral band walk", "banded side step"]
-needs = ["band"]
+needs = ["mini-band|band"]
 position = "standing"
 sided = false
 measure = "reps"
@@ -2158,7 +2165,7 @@ rep = "One rep is lifting the top leg only until your hips start to tip, then lo
 feel = "Feel it on the outside of the top hip, in the side of the glute, not in the low back or the side of the waist."
 faults = ["If your top hip rolls back, lift less and keep the hips stacked.", "If your toes turn up to the ceiling, turn them forward and lead with the heel.", "If you feel it in the low back or the waist, lower the leg and lift only a little."]
 easier = ["clamshell"]
-harder = []
+harder = ["ankle-weight-side-lying-leg-raise"]
 
 # Strength: full gym, barbell -------------------------------------------------------------
 
@@ -2792,7 +2799,7 @@ rep = "One rep is rising as high as you can onto the balls of your feet, a pause
 feel = "Feel it in the calves, the backs of the lower legs, not in the toes or the front of the ankle."
 faults = ["If you're on a step and your foot slips, come down onto the flat floor and keep the whole forefoot on the edge next time.", "If the ankles roll outward, press through the big toe and keep the heels pointing straight back.", "If you bounce, pause at the top and take a slow count down."]
 easier = ["seated-calf-raise"]
-harder = ["single-leg-calf-raise"]
+harder = ["single-leg-calf-raise", "step-edge-calf-raise"]
 
 [[movement]]
 id = "single-leg-calf-raise"
@@ -2818,7 +2825,7 @@ rep = "One rep is rising onto the ball of the standing foot as high as it goes a
 feel = "Feel it deep in the calf of the standing leg, not a sharp pull at the back of the heel."
 faults = ["If you feel a sharp pain at the back of the heel, stop and go back to both feet.", "If you push yourself up with the hand, keep just the fingertips on the wall for balance.", "If the standing knee bends to help, keep it straight and rise a little less high."]
 easier = ["standing-calf-raise"]
-harder = []
+harder = ["single-leg-step-edge-calf-raise"]
 
 [[movement]]
 id = "forward-lunge"
@@ -4369,6 +4376,519 @@ faults = ["If your knees hurt, lean back less far and add padding under them.", 
 easier = ["wall-sit"]
 harder = []
 
+# Strength and balance: ankle weights, weight vest, balance pad, push-up handles, Smith machine, stairs
+
+[[movement]]
+id = "ankle-weight-straight-leg-raise"
+name = "ankle weight straight-leg raise"
+aliases = ["ankle weight straight leg raise", "weighted straight-leg raise", "weighted straight leg raise"]
+needs = ["ankle-weights"]
+position = "lying"
+sided = true
+measure = "reps"
+patterns = ["hips"]
+muscles = ["quads", "core"]
+loads = { hip = 3, knee = 2, low-back = 2 }
+support = { foot = 1, hip = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Strap a light ankle weight just above one ankle. Lie on your back, the other knee bent with that foot flat, the weighted leg long."
+cues = ["Tighten the front of the long thigh first.", "Lift to the height of the bent knee.", "Lower slowly, no bounce."]
+rep = "One rep is lifting the weighted leg, knee straight and thigh tight, to the height of the bent knee, then lowering it slowly to the floor. Count reps on each side."
+feel = "Feel it along the front of the lifting thigh and the front of the hip, not in the low back. Choose a weight light enough to lift slowly with a straight knee."
+faults = ["If your low back arches off the floor, press it down gently, lift a little lower, or take a lighter weight.", "If the knee bends as you lift, the weight is too heavy, so go lighter and tighten the thigh before the leg leaves the floor.", "If you swing the leg up, slow down and pause at the top."]
+easier = ["straight-leg-raise"]
+harder = []
+
+[[movement]]
+id = "ankle-weight-side-lying-leg-raise"
+name = "ankle weight side-lying leg raise"
+aliases = ["ankle weight side lying leg raise", "weighted side-lying leg raise", "weighted side lying leg raise"]
+needs = ["ankle-weights"]
+position = "side-lying"
+sided = true
+measure = "reps"
+patterns = ["hips"]
+muscles = ["glutes", "abductors"]
+loads = { hip = 3, knee = 1, low-back = 1 }
+support = { hip = 1, shoulder = 1 }
+flags = ["floor", "lying-side"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Strap a light ankle weight just above one ankle. Lie on your other side, bottom knee bent for balance, weighted leg long on top, hips stacked."
+cues = ["Lift the top leg, heel leading.", "Toes point forward, not up.", "Lower slowly, a little at a time."]
+rep = "One rep is lifting the weighted top leg only until your hips start to tip, then lowering it slowly. Count reps on each side."
+feel = "Feel it on the outside of the top hip, in the side of the glute, not in the low back, the side of the waist or the knee."
+faults = ["If your top hip rolls back to lift higher, lift less and keep the hips stacked.", "If your toes turn up to the ceiling, turn them forward and lead with the heel.", "If you can't lower slowly, the weight is too heavy, so go lighter or take it off."]
+easier = ["side-lying-leg-raise"]
+harder = []
+
+[[movement]]
+id = "ankle-weight-donkey-kick"
+name = "ankle weight donkey kick"
+aliases = ["ankle weight donkey kicks", "weighted donkey kick", "weighted donkey kicks"]
+needs = ["ankle-weights"]
+position = "all-fours"
+sided = true
+measure = "reps"
+patterns = ["hips", "hinge"]
+muscles = ["glutes", "hamstrings", "core"]
+loads = { hip = 3, wrist = 2, low-back = 2, knee = 2, hamstring = 1, shoulder = 1 }
+support = { knee = 2, wrist = 2, shoulder = 1, hip = 1 }
+flags = ["floor", "kneeling"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Strap a light ankle weight just above one ankle. Come onto your hands and knees, hands under shoulders, knees under hips."
+cues = ["Keep the knee bent, press the heel to the ceiling.", "Belly braced, back flat.", "Slow up, slower down."]
+rep = "One rep is the weighted leg, knee bent, lifting until the thigh is level with your back, then lowering until the knee nearly touches the floor. Count reps on each side."
+feel = "Feel it in the glute of the working leg, not in the low back or a cramp in the back of the thigh."
+faults = ["If your low back arches as the leg lifts, stop the thigh at level, brace your belly, or take a lighter weight.", "If your hips tip toward the working side, lift less and keep them square to the floor.", "If the back of your thigh cramps, relax the knee bend a little and rest before the next rep."]
+easier = ["donkey-kick"]
+harder = []
+
+[[movement]]
+id = "standing-hip-abduction"
+name = "standing hip abduction"
+aliases = ["ankle weight hip abduction", "standing side leg lift", "ankle weight side leg lift"]
+needs = ["ankle-weights"]
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["hips", "balance"]
+muscles = ["abductors", "glutes"]
+loads = { hip = 3, knee = 1, low-back = 1 }
+support = { hip = 2, knee = 1, ankle = 1, foot = 1 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Strap a light ankle weight just above one ankle. Stand side on to a wall, the hand nearest it on the wall, the weighted leg on the outside."
+cues = ["Lift the leg out to the side, toes forward.", "Stay tall, don't lean away.", "Lower slowly."]
+rep = "One rep is lifting the straight weighted leg out to the side a short way, without leaning, then lowering it slowly until the feet nearly meet. Count reps on each side."
+feel = "Feel it on the outside of both hips, the lifting one and the one you stand on, not in the low back or the side of the waist."
+faults = ["If your body leans away from the leg, lift lower and keep the shoulders level.", "If your toes turn up to the ceiling, turn them forward and lead with the heel.", "If you wobble, press the hand into the wall and soften the standing knee."]
+easier = []
+harder = []
+
+[[movement]]
+id = "seated-knee-extension"
+name = "seated knee extension"
+aliases = ["ankle weight knee extension", "chair knee extension", "long arc quad"]
+needs = ["ankle-weights", "chair|bench"]
+position = "seated"
+sided = true
+measure = "reps"
+patterns = ["hips"]
+muscles = ["quads"]
+loads = { knee = 3, hip = 1 }
+support = { }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Strap a light ankle weight just above one ankle. Sit tall at the front half of a sturdy chair, both feet flat, hands on the seat."
+cues = ["Tighten the thigh and straighten the leg.", "Pause with the knee straight.", "Lower slowly to the floor."]
+rep = "One rep is straightening the weighted leg until the knee is straight, pausing, then lowering the foot slowly back to the floor. Count reps on each side."
+feel = "Feel it in the front of the thigh, most of all near the top, and never as a pinch or ache in the knee."
+faults = ["If the knee aches or pinches, stop, take a lighter weight or straighten only partway where it feels fine.", "If you kick the leg up, slow down and pause at the top, since swinging throws the weight on the knee.", "If you lean back to lift it, sit tall and hold the seat."]
+easier = []
+harder = []
+
+[[movement]]
+id = "standing-hamstring-curl"
+name = "standing hamstring curl"
+aliases = ["ankle weight hamstring curl", "standing leg curl", "ankle weight leg curl"]
+needs = ["ankle-weights"]
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["hips", "balance"]
+muscles = ["hamstrings"]
+loads = { hamstring = 3, knee = 2, hip = 1 }
+support = { hip = 1, knee = 1, ankle = 1, foot = 1 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Strap a light ankle weight just above one ankle. Face a wall with both hands on it, feet hip width apart."
+cues = ["Curl the heel up toward your seat.", "Knees stay side by side.", "Lower slowly."]
+rep = "One rep is bending the weighted knee to lift the heel toward your seat, as far as is comfortable, then lowering it slowly until the feet are side by side. Count reps on each side."
+feel = "Feel it in the back of the working thigh, not as a cramp, and not in the low back or the knee."
+faults = ["If the back of your thigh cramps, lift the heel a little less and rest a moment before you go on.", "If the working knee drifts forward, keep the thighs side by side and lift the heel less.", "If your low back arches, tuck the tailbone and keep the belly braced."]
+easier = []
+harder = []
+
+[[movement]]
+id = "weighted-vest-step-up"
+name = "weighted vest step-up"
+aliases = ["weighted vest step up", "weight vest step-up", "vest step-up"]
+needs = ["weight-vest", "box|bench|stairs"]
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["lunge"]
+muscles = ["quads", "glutes", "calves"]
+loads = { knee = 3, hip = 3, ankle = 2, calf = 2, low-back = 2, groin = 1, foot = 1 }
+support = { ankle = 2, knee = 1, calf = 1, groin = 1, foot = 1 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "advanced"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Put on a light weighted vest, snug so it doesn't bounce. Face a sturdy box, bench or the bottom stair, and plant one whole foot on top of it."
+cues = ["Drive through the top heel.", "Stand all the way up.", "Lower yourself slowly."]
+rep = "One rep is pressing through the top foot until you stand tall on the box, then lowering slowly until the other foot touches the floor. Count reps on each side."
+feel = "Feel it in the thigh and glute of the top leg, not in the low back, the shoulders or the knee. Choose a light vest, since the extra weight rides on your spine and every joint."
+faults = ["If your knee aches or falls inward, take the vest off or go lighter, and press the knee out over your toes.", "If you push off the bottom foot, think of the top leg doing all the lifting.", "If you drop down fast, lower slowly and land the bottom foot lightly."]
+easier = ["step-up"]
+harder = []
+
+[[movement]]
+id = "weighted-vest-push-up"
+name = "weighted vest push-up"
+aliases = ["weighted vest push up", "weight vest push-up", "vest push-up"]
+needs = ["weight-vest"]
+position = "all-fours"
+sided = false
+measure = "reps"
+patterns = ["horizontal-push"]
+muscles = ["chest", "triceps", "shoulders", "core"]
+loads = { wrist = 3, shoulder = 3, elbow = 3, low-back = 2, foot = 2, ankle = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "advanced"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
+setup = "Put on a light weighted vest, snug so it doesn't slide. Hands under your shoulders, body in one long line from head to heels."
+cues = ["Push the floor away.", "Ribs down, glutes tight.", "Elbows at a gentle angle, not flared."]
+rep = "One rep is lowering your chest toward the floor with the body in one line, and pressing back up to straight arms."
+feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, with no sag in the low back and no ache in the wrists. Choose a light vest, since it adds weight to every rep."
+faults = ["If your hips sag under the vest, take a lighter vest, squeeze the glutes and brace your belly.", "If your wrists ache, take the vest off, since the extra weight lands on them.", "If you only go halfway, lower your chest closer to the floor or take a lighter vest."]
+easier = ["push-up"]
+harder = []
+
+[[movement]]
+id = "step-edge-calf-raise"
+name = "step-edge calf raise"
+aliases = ["step edge calf raise", "step-edge heel raise", "deficit calf raise"]
+needs = ["stairs"]
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["hips"]
+muscles = ["calves"]
+loads = { calf = 3, ankle = 3, foot = 2, knee = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
+setup = "Stand on the bottom step facing up the stairs, one hand on the rail, the balls of both feet on the edge and your heels hanging off."
+cues = ["Rise as high as you can.", "Pause at the top.", "Lower the heels slowly below the step."]
+rep = "One rep is rising onto the balls of your feet, a pause, and lowering slowly until the heels sink a little below the edge of the step."
+feel = "Feel a stretch and then the work along the calves, the backs of the lower legs, not a sharp pain at the back of the heel."
+faults = ["If a foot starts to slip off the edge, step down to the floor and set the whole forefoot back on the step.", "If you feel a sharp pain at the back of the heel, stop sinking below the step and keep the heels level with it.", "If you bounce at the bottom, pause there for a moment before you rise."]
+easier = ["standing-calf-raise"]
+harder = ["single-leg-step-edge-calf-raise"]
+
+[[movement]]
+id = "single-leg-step-edge-calf-raise"
+name = "single-leg heel drop"
+aliases = ["single leg heel drop", "eccentric heel drop", "alfredson heel drop", "single-leg step calf raise"]
+needs = ["stairs"]
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["hips", "balance"]
+muscles = ["calves"]
+loads = { calf = 3, ankle = 3, foot = 2, knee = 1 }
+support = { calf = 2, ankle = 2, foot = 2 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 4
+transition_seconds = 10
+draft = false
+setup = "Stand on the bottom step facing up the stairs, one hand on the rail, the balls of both feet on the edge and your heels hanging off."
+cues = ["Rise up on both feet.", "Lift one foot and lower slowly on the working foot.", "Both feet back on to rise again."]
+rep = "One rep is rising onto your toes with both feet, taking all your weight onto the working foot, and lowering that heel slowly below the step. Count reps on each side."
+feel = "Feel a slow, heavy stretch and work in the calf of the working leg. Mild discomfort is fine, sharp pain is not."
+faults = ["If the discomfort goes past mild, or the calf or heel is worse the next morning, stop and go back to both feet.", "If the heel drops fast, slow it down and take a full slow count to lower.", "If you push up on the working foot alone, use both feet to rise every time."]
+easier = ["step-edge-calf-raise"]
+harder = []
+
+[[movement]]
+id = "balance-pad-single-leg-stance"
+name = "balance pad single-leg stance"
+aliases = ["single-leg stance on a pad", "single-leg wobble board stance", "single-leg bosu stance"]
+needs = ["balance-pad"]
+position = "standing"
+sided = true
+measure = "time"
+patterns = ["balance"]
+muscles = ["calves", "abductors", "core"]
+loads = { ankle = 3, foot = 2, knee = 2, hip = 1 }
+support = {}
+flags = ["single-leg"]
+intensity = "strength"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Set the pad right beside a wall or a sturdy counter. Step onto it with one foot, fingertips on the wall, and lift the free foot just clear of the pad."
+cues = ["Soft knee, tall chest, eyes on a spot ahead.", "Let the ankle make small corrections.", "Fingertips off the wall when you feel steady."]
+rep = "Stand on one foot on the pad, the free foot just clear of it. The hold ends when time is up, and you touch down whenever you need to. Hold for the time on each side."
+feel = "Feel the small muscles around the standing ankle and foot working hard, and the side of the hip, not pain in the ankle."
+faults = ["If you start to fall, step off the pad onto the floor, and keep the wall within reach the whole time.", "If the standing knee locks or caves inward, soften it and keep it over the middle toes.", "If you can't hold it for more than a few seconds, go back to standing on one foot on the flat floor."]
+easier = ["single-leg-balance", "balance-pad-tandem-stance"]
+harder = []
+
+[[movement]]
+id = "balance-pad-tandem-stance"
+name = "balance pad tandem stance"
+aliases = ["tandem stance on a pad", "heel-to-toe stance on a pad", "foam pad tandem stance"]
+needs = ["balance-pad"]
+position = "standing"
+sided = true
+measure = "time"
+patterns = ["balance"]
+muscles = ["calves", "abductors", "core"]
+loads = { ankle = 2, foot = 2, knee = 1, hip = 1 }
+support = { ankle = 2, foot = 2, knee = 1, hip = 1 }
+flags = []
+intensity = "strength"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Set the pad right beside a wall or a sturdy counter. Step onto it and place one foot directly in front of the other, heel touching toes, fingertips on the wall."
+cues = ["Weight even on both feet.", "Tall chest, eyes on a spot ahead.", "Fingertips off the wall when you feel steady."]
+rep = "Hold the heel to toe stance on the pad until the time is up, touching the wall whenever you need to. Hold for the time with each foot in front."
+feel = "Feel the ankles, the feet and the sides of the hips making small corrections, not pain in either ankle."
+faults = ["If you start to tip, put a hand on the wall or step off the pad onto the floor.", "If you can't line the feet up, start with the front foot a little to the side and close the gap over time.", "If the knees lock, soften them a little."]
+easier = []
+harder = ["balance-pad-single-leg-stance"]
+
+[[movement]]
+id = "balance-pad-squat"
+name = "balance pad squat"
+aliases = ["bosu squat", "wobble board squat", "foam pad squat"]
+needs = ["balance-pad"]
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["squat", "balance"]
+muscles = ["quads", "glutes", "calves", "core"]
+loads = { knee = 3, ankle = 3, hip = 2, foot = 2, low-back = 1 }
+flags = []
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
+setup = "Set the pad, or the BOSU dome up, a short step from a wall. Step on with both feet hip width apart and reach the arms out in front for balance."
+cues = ["Sit the hips back and down.", "Knees over the middle toes.", "Stand tall and steady before the next one."]
+rep = "One rep is sitting down as low as you can while staying steady, and standing back up tall."
+feel = "Feel it in the thighs and glutes, with the ankles and feet working to keep you steady, not pain in the knees."
+faults = ["If the pad tips and you lose your balance, step off onto the floor rather than fighting it.", "If the knees cave inward, press them out over the middle toes and squat less deep.", "If you rush and wobble, slow down and pause at the bottom."]
+easier = ["air-squat"]
+harder = []
+
+[[movement]]
+id = "handle-push-up"
+name = "handle push-up"
+aliases = ["parallette push-up", "push-up on handles"]
+needs = ["push-up-handles"]
+position = "all-fours"
+sided = false
+measure = "reps"
+patterns = ["horizontal-push"]
+muscles = ["chest", "triceps", "shoulders", "core"]
+loads = { wrist = 2, shoulder = 3, elbow = 2, low-back = 1, ankle = 1, foot = 2 }
+flags = ["floor", "grip"]
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
+setup = "Set the handles on the floor under your shoulders, grip them with your wrists straight, and walk your feet back until your body makes one long line from head to heels."
+cues = ["Wrists straight, knuckles forward.", "Lower your chest between your hands.", "Push the handles into the floor."]
+rep = "One rep is lowering your chest down between the handles and pressing back up to straight arms."
+feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, with your wrists straight and quiet, and no pinch at the front of the shoulder."
+faults = ["If the handles rock or slide, stop and set them on a mat or a floor that grips.", "If the front of your shoulder pinches at the bottom, stop with your chest level with your hands.", "If your hips sag, squeeze the glutes and brace your belly."]
+easier = ["handle-knee-push-up", "incline-push-up"]
+harder = []
+
+[[movement]]
+id = "handle-knee-push-up"
+name = "handle knee push-up"
+aliases = ["knee push-up with handles", "parallette knee push-up"]
+needs = ["push-up-handles"]
+position = "kneeling"
+sided = false
+measure = "reps"
+patterns = ["horizontal-push"]
+muscles = ["chest", "triceps", "shoulders", "core"]
+loads = { wrist = 2, shoulder = 2, elbow = 2, knee = 2, low-back = 1 }
+flags = ["floor", "kneeling", "grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 10
+draft = false
+setup = "Kneel on a mat with the handles on the floor under your shoulders. Grip them with your wrists straight, then walk your knees back until your body makes one line from head to knees."
+cues = ["Wrists straight, knuckles forward.", "Hips stay in line with your shoulders.", "Push the handles into the floor."]
+rep = "One rep is lowering your chest down between the handles and pressing back up to straight arms, knees staying down."
+feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, with your wrists straight and no sharp pressure on the kneecaps."
+faults = ["If your knees ache on the floor, fold a towel under them.", "If the handles rock or slide, stop and set them on a mat or a floor that grips.", "If your hips stick up behind you, walk the knees back and keep one line from head to knees."]
+easier = ["wall-push-up"]
+harder = ["handle-push-up"]
+
+[[movement]]
+id = "handle-high-plank"
+name = "handle plank"
+aliases = ["parallette plank", "plank on handles"]
+needs = ["push-up-handles"]
+position = "all-fours"
+sided = false
+measure = "time"
+patterns = ["anti-extension"]
+muscles = ["core", "shoulders", "glutes"]
+loads = { wrist = 2, shoulder = 2, elbow = 2, low-back = 1, ankle = 1, foot = 2 }
+flags = ["floor", "grip"]
+intensity = "strength"
+level = "novice"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Set the handles on the floor under your shoulders, grip them with your wrists straight, and step your feet back onto your toes, arms long, or knees down for an easier version."
+cues = ["Wrists straight, arms long.", "Squeeze the glutes, ribs down.", "Breathe steadily."]
+rep = "Hold one straight line from head to heels, or head to knees, on straight arms. The hold ends when your hips sag or your low back starts to ache."
+feel = "Feel it in the belly, the glutes and the fronts of the shoulders, with your wrists straight, not as a pinch in the low back."
+faults = ["If the handles rock or slide, stop and set them on a mat or a floor that grips.", "If your hips sag, squeeze the glutes and pull your ribs down toward your hips.", "If your shoulders sink between your arms, push the handles down and spread your upper back."]
+easier = ["forearm-plank"]
+harder = []
+
+[[movement]]
+id = "smith-machine-squat"
+name = "smith machine squat"
+aliases = ["smith squat", "smith machine back squat"]
+needs = ["smith-machine"]
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["squat"]
+muscles = ["quads", "glutes", "adductors", "core"]
+loads = { knee = 3, hip = 3, low-back = 3, ankle = 2, shoulder = 2, wrist = 1 }
+flags = []
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
+setup = "Set the safety stops just below the lowest point of your squat, and test them with the empty bar. Step under the bar so it rests across your upper back, feet about shoulder width and a little in front of the bar, then turn it off the hooks."
+cues = ["The rails set the path, your feet set the squat.", "Sit straight down, knees over your toes.", "Drive up through the whole foot."]
+rep = "One rep is lowering until your thighs are about level with the floor, or as deep as you can control, and standing all the way back up. Turn the bar back onto the hooks when the set ends."
+feel = "Feel it in the thighs and the glutes, with the belly braced, not as a pinch in the low back or the front of the knees."
+faults = ["If a rep sticks, sit the bar down onto the safety stops and step out from under it.", "If your heels lift or your knees drive far past your toes, rack the bar and set your feet a little farther forward.", "If your hips drift back and your low back rounds, set your feet a little closer to the bar and stop a little higher."]
+easier = ["goblet-squat"]
+harder = ["back-squat"]
+
+[[movement]]
+id = "smith-machine-bench-press"
+name = "smith machine bench press"
+aliases = ["smith bench press", "smith machine chest press"]
+needs = ["smith-machine", "bench"]
+position = "lying"
+sided = false
+measure = "reps"
+patterns = ["horizontal-push"]
+muscles = ["chest", "triceps", "shoulders"]
+loads = { shoulder = 3, elbow = 2, wrist = 2, ankle = 1, foot = 1 }
+flags = []
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
+setup = "Slide a flat bench under the bar so it comes down over the middle of your chest. Set the safety stops at chest height, so a stuck bar rests on them, and test them with the empty bar. Lie back, feet flat, hands a little wider than your shoulders, and turn the bar off the hooks. Even with the stops, end each set with two reps still in you."
+cues = ["The rails set the path, the bench sets where it lands.", "Shoulder blades pinned back.", "Lower slowly, press up hard."]
+rep = "One rep is lowering the bar to the middle of your chest, or to the stops, and pressing it back up to straight arms. Turn the bar back onto the hooks when the set ends."
+feel = "Feel it in the chest, the fronts of the shoulders and the backs of the arms, not a pinch at the front of the shoulder."
+faults = ["If a rep sticks, lower the bar onto the safety stops and slide out from under it.", "If the bar comes down toward your neck or your belly, rack it and move the bench until it lands on the middle of your chest.", "If your elbows flare wide, tuck them to about forty-five degrees from your body."]
+easier = ["machine-chest-press"]
+harder = ["bench-press"]
+
+[[movement]]
+id = "smith-machine-inverted-row"
+name = "smith machine inverted row"
+aliases = ["smith inverted row", "smith machine body row"]
+needs = ["smith-machine"]
+position = "lying"
+sided = false
+measure = "reps"
+patterns = ["horizontal-pull"]
+muscles = ["back", "lats", "biceps", "forearms", "core"]
+loads = { shoulder = 3, elbow = 2, wrist = 2, low-back = 1 }
+flags = ["grip", "floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
+setup = "Set the empty bar at about waist height, turn it until it locks on the hooks, and give it a tug before you hang from it. Lie under it, grip it a little wider than your shoulders, and hang with your heels on the floor. The higher the bar, the easier it is."
+cues = ["Body in one straight line.", "Pull your chest to the bar.", "Lower slowly to long arms."]
+rep = "One rep is pulling your chest up to the bar and lowering until your arms are long."
+feel = "Feel it in the middle of your back and the backs of the shoulders, not in the low back."
+faults = ["If the bar moves on the hooks, stand up and lock it before you go again.", "If your hips sag, squeeze your glutes and keep your body in one line.", "If you cannot reach the bar with your chest, bend your knees or raise the bar a notch."]
+easier = ["suspension-row"]
+harder = []
+
+[[movement]]
+id = "smith-machine-split-squat"
+name = "smith machine split squat"
+aliases = ["smith split squat", "smith machine static lunge"]
+needs = ["smith-machine"]
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["lunge"]
+muscles = ["quads", "glutes", "adductors"]
+loads = { knee = 3, hip = 3, low-back = 2, ankle = 2, groin = 2, calf = 2, shoulder = 2, wrist = 1 }
+support = { knee = 2, ankle = 1, hip = 2, groin = 2, calf = 2 }
+flags = ["single-leg"]
+intensity = "strength"
+level = "experienced"
+seconds_per_rep = 3
+transition_seconds = 25
+draft = false
+setup = "Set the safety stops just below where the bar sits when your back knee is near the floor. Step under the bar so it rests across your upper back, set one foot forward and one back in a long stride with the bar over the middle, then turn it off the hooks."
+cues = ["The rails go straight down, your front foot sets the rep.", "Drop the back knee toward the floor.", "Push through the front heel."]
+rep = "One rep is lowering the back knee toward the floor and standing back up, feet staying put. Count reps on each side."
+feel = "Feel it in the front thigh and glute, with a stretch in the back hip, and no pinch in the front knee."
+faults = ["If a rep sticks, lower the bar onto the safety stops and step out from under it.", "If your front heel lifts or the knee drives far past your toes, rack the bar and set the front foot farther forward.", "If you lean forward, stand tall and let the bar drop straight down."]
+easier = ["split-squat"]
+harder = []
+
 # Cardio and warm-up: no equipment ------------------------------------------------------------
 
 [[movement]]
@@ -4788,7 +5308,7 @@ harder = []
 id = "running-sprint"
 name = "running sprints"
 aliases = ["running sprint", "hill sprints", "hill sprint", "wind sprints", "shuttle runs", "shuttle run", "suicide runs"]
-needs = []
+needs = ["outdoors"]
 position = "standing"
 sided = false
 measure = "time"
@@ -5408,7 +5928,7 @@ rep = "Step up on each stair in turn at a steady pace. The effort ends when the 
 feel = "Feel it in the glutes and thighs, with breath harder but a few sentences possible, and not in the wrists or the low back."
 faults = ["If you lean on the rails or bear your weight on the arms, stand tall and use a light touch only.", "If you step only on the toes, put the whole foot down and push through the heel.", "If you take tiny steps and hunch over, lift the chest and step a little deeper."]
 easier = []
-harder = []
+harder = ["stair-intervals"]
 
 [[movement]]
 id = "ski-erg"
@@ -5747,6 +6267,164 @@ feel = "Feel the sides of the waist and the hips do the turning, with the arms a
 faults = ["If your low back twinges, turn less and let the back foot pivot so the hips turn with you.", "If you throw with just the arms, start the turn from the hips and let the arms follow.", "If the ball comes back past your waist, throw softer and start slow for the first few."]
 easier = ["woodchop"]
 harder = []
+
+# Cardio: stairs, outdoors and the weight vest ----------------------------------------------
+
+[[movement]]
+id = "weighted-vest-walk"
+name = "weighted vest walk"
+aliases = ["weight vest walk", "weighted vest walking", "walking in a weighted vest"]
+needs = ["weight-vest", "outdoors|treadmill"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion", "carry"]
+muscles = ["quads", "glutes", "calves", "core"]
+loads = { knee = 2, hip = 2, ankle = 2, foot = 2, low-back = 2, calf = 1, shoulder = 1 }
+flags = []
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
+setup = "Put on a light weighted vest, snug so it doesn't bounce, and walk at a steady pace outdoors or on a treadmill."
+cues = ["Tall posture, eyes ahead.", "Let the arms swing.", "Steady steps, not long strides."]
+rep = "Walk at a steady pace that makes you breathe a little harder, so you can still talk in short sentences. The effort ends when the time is up."
+feel = "Feel a steady effort in the legs, with the vest sitting snug and your back tall, not an ache in the low back, the shoulders or the knees. Choose a light vest, a small part of your body weight, and add time before weight."
+faults = ["If your low back or shoulders ache, take the vest off and walk without it, then go lighter next time.", "If you lean forward under the vest, stand tall and shorten your steps.", "If you're on a treadmill and holding the rails, let go and slow the belt down."]
+easier = ["treadmill-walk"]
+harder = []
+
+[[movement]]
+id = "stair-climb"
+name = "stair climb"
+aliases = ["stair climbing", "stairwell climb", "steady stair climb"]
+needs = ["stairs"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["quads", "glutes", "calves"]
+loads = { knee = 3, hip = 2, ankle = 2, calf = 2, foot = 1 }
+flags = []
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
+setup = "Stand at the bottom of a flight of stairs with a handrail, in shoes with good grip, and the steps clear of anything you could trip on."
+cues = ["Whole foot on each step.", "Light hand on the rail.", "Walk down slowly, holding the rail."]
+rep = "Walk up the flight at a steady pace, turn at the top, and walk back down slowly with a hand on the rail, then go again until the time is up. The effort is moderate, so you can talk but not sing."
+feel = "Feel it in the thighs and glutes on the way up, with your breath harder, and no sharp pain in the knees on the way down."
+faults = ["If a knee hurts on the way down, slow right down, hold the rail firmly and take each step one at a time.", "If you feel dizzy or unsteady, stop on a step, hold the rail and rest until it passes.", "If you climb on your toes, put the whole foot on the step and push through the heel."]
+easier = []
+harder = ["stair-intervals"]
+
+[[movement]]
+id = "stair-intervals"
+name = "stair intervals"
+aliases = ["stair interval", "stair repeats", "stair climb intervals"]
+needs = ["stairs"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["quads", "glutes", "calves", "hamstrings"]
+loads = { knee = 3, hip = 2, ankle = 2, calf = 3, foot = 2, hamstring = 1 }
+flags = ["fast"]
+intensity = "conditioning"
+effort = "hard"
+level = "experienced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Stand at the bottom of a flight of stairs with a handrail, in shoes with good grip, the steps dry and clear."
+cues = ["Quick feet, every foot fully on the step.", "Drive the arms.", "Walk down, never run."]
+rep = "Climb briskly, as fast as you can while still placing every foot fully on each step, until the time is up. Then turn and walk down slowly, holding the rail, as your rest. The effort is hard, so you can say a few words, not a sentence."
+feel = "Feel the thighs, glutes and calves burning and the lungs working hard, with no sharp pain in a knee or the front of the ankle."
+faults = ["Never run down the stairs. Walk down slowly with a hand on the rail, however the clock looks.", "If you catch a toe or miss a step, slow down until every foot lands fully on the step.", "If you feel dizzy, sick or a tight chest, stop, hold the rail and sit down on a step."]
+easier = ["stair-climb"]
+harder = []
+
+[[movement]]
+id = "outdoor-run"
+name = "outdoor run"
+aliases = ["outdoor running", "road run", "steady outdoor run"]
+needs = ["outdoors"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["quads", "calves", "glutes", "hamstrings"]
+loads = { knee = 2, ankle = 2, calf = 2, foot = 2, hip = 1, hamstring = 1, low-back = 1 }
+flags = ["impact"]
+intensity = "conditioning"
+effort = "moderate"
+level = "experienced"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
+setup = "Outdoors on a path, a track or a quiet road with even ground, in running shoes. Start slowly for the first minute."
+cues = ["Short, light steps.", "Land under your hips.", "Relax the shoulders and hands."]
+rep = "Run at an easy, steady pace you could keep up until the time is up. The effort is moderate, so you can talk in short sentences but not sing. If you can't, slow down or walk for a bit."
+feel = "Feel the legs and lungs working steadily, with no sharp pain in the knees, shins or feet."
+faults = ["If you feel a sharp pain in a shin, knee or foot, slow to a walk, and stop running for today if it stays.", "If the ground is uneven, shorten your steps and look at the path a few strides ahead.", "If you are gasping, ease off until you can talk again."]
+easier = ["brisk-outdoor-walk"]
+harder = ["hill-repeats"]
+
+[[movement]]
+id = "hill-repeats"
+name = "hill repeats"
+aliases = ["hill repeat", "hill intervals", "uphill repeats"]
+needs = ["outdoors"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["glutes", "calves", "hamstrings", "quads"]
+loads = { calf = 3, ankle = 3, hip = 2, hamstring = 2, knee = 2, foot = 2, groin = 1, low-back = 1 }
+flags = ["impact", "fast"]
+intensity = "conditioning"
+effort = "hard"
+level = "advanced"
+hold_seconds = 30
+transition_seconds = 10
+draft = false
+setup = "Find a steady hill, not too steep, with a clear path and room to turn at the top. Warm up first with easy running on the flat."
+cues = ["Lean slightly from the ankles.", "Short, quick steps, drive the arms.", "Walk back down slowly."]
+rep = "Run hard up the hill until the time is up, then turn and walk all the way down, which is your rest. Never run down. The effort is hard, so you can say a few words, not a sentence."
+feel = "Feel the glutes, calves and the backs of the thighs driving you uphill, the lungs working hard, and no sharp grab in a calf or the back of a thigh."
+faults = ["If you feel a sharp pull in a calf or the back of a thigh, stop, walk down, and don't run again today.", "If you bend at the waist, stand tall and lean from the ankles instead.", "If you are fading badly, take the next one a little easier rather than going flat out."]
+easier = ["outdoor-run"]
+harder = []
+
+[[movement]]
+id = "brisk-outdoor-walk"
+name = "outdoor power walk"
+aliases = ["outdoor power walking", "brisk outdoor walk", "power walking outside"]
+needs = ["outdoors"]
+position = "standing"
+sided = false
+measure = "time"
+patterns = ["locomotion"]
+muscles = ["glutes", "calves", "quads", "hamstrings"]
+loads = { knee = 1, hip = 1, ankle = 1, calf = 1, foot = 1 }
+flags = []
+intensity = "conditioning"
+effort = "moderate"
+level = "novice"
+hold_seconds = 60
+transition_seconds = 10
+draft = false
+setup = "Outdoors on a pavement, a path or a track, in comfortable shoes. Start at an easy stroll for the first minute."
+cues = ["Quick, purposeful steps.", "Bend the elbows and swing the arms.", "Stand tall, eyes ahead."]
+rep = "Walk briskly with purpose until the time is up, faster than a stroll but never breaking into a run. The effort is moderate, so you can talk but not sing."
+feel = "Feel the legs, glutes and calves working and your breath a little quicker, with no pain in the shins or feet."
+faults = ["If your shins burn, shorten your steps and ease the pace a little.", "If you take long, reaching strides, take quicker, shorter ones and land under your hips.", "If the path is uneven or busy, slow down and watch the ground ahead."]
+easier = []
+harder = ["outdoor-run"]
 
 # Mobility: mat work and stretches ------------------------------------------------------------
 
@@ -6951,7 +7629,7 @@ rep = "Stand on one foot with the other just off the floor, the hold ends when y
 feel = "Feel the small muscles of the standing ankle and foot working, and the side of the hip, not pain in the ankle."
 faults = ["If the standing knee locks, soften it a little.", "If the hip drops or you lean, stand tall and level the hips.", "If you wobble a lot, keep the fingertips on the wall, safety first."]
 easier = []
-harder = []
+harder = ["balance-pad-single-leg-stance"]
 
 # Finishers: seated punching and arm drills ---------------------------------------------------
 

@@ -42,7 +42,7 @@ Full-body cardio. Strokes per minute in words. Cue "legs, then body, then arms; 
 - Hands off the rails while walking or running; holding them cuts the work and twists the body. The safety clip goes on the clothing at the hip.
 
 ## Resistance bands
-Long bands or loop bands. A long band needs a solid anchor: a closed door with a door anchor, or a heavy post. Banded ankle rehab (eversion, inversion, dorsiflexion) is used only when the ankle's limit allows it or names it under `rehab`.
+Two kinds, listed apart: long bands or tube bands (`band`), which need a solid anchor (a closed door with a door anchor, or a heavy post) for rows, presses, chops and the ankle drills; and small loop bands (`mini-band`) worn around the legs for clamshells and side steps. A long band tied into a loop does a loop band's work, so those movements take either. Banded ankle rehab (eversion, inversion, dorsiflexion) is used only when the ankle's limit allows it or names it under `rehab`.
 
 ## Bench
 A flat or adjustable bench, for supported rows, presses, step-ups and seated work.
@@ -86,6 +86,24 @@ A landmine holds one end of a barbell, so the other end moves in an arc: presses
 
 ## Jump rope
 A skipping rope, its length set so the handles reach the armpits with a foot on the middle. Impact work: the catalog flags it so, and any lower-leg limit keeps it out. Hotel rooms and low ceilings rule it out too.
+
+## Outdoors
+Open ground, a track, a park or a hill. Sprints and hill repeats happen only here, never indoors. Say where to turn around, to watch for traffic and uneven ground, and to keep one earbud's volume low enough to hear the street. A hill repeat's way down is the rest, walked, never run.
+
+## Stairs
+A flight of stairs with a handrail, at home or a hotel's stairwell (check the door doesn't lock behind you). Climb briskly, come down slowly with a hand on the rail, never run down. A step edge also gives calf raises with the heels dropping below the step, and the bottom step serves for step-ups.
+
+## Ankle weights and weight vest
+Ankle weights turn the lying and standing leg lifts into rehab work that can grow: one or two pounds is plenty to start, strapped just above the ankle bone, never swung. A weight vest adds load to walking, step-ups and push-ups with the hands free; choose a light one (about a tenth of body weight at most to start) and treat every movement in it as a step harder, for the knees, ankles and low back.
+
+## Balance pad
+A foam pad, a wobble board, or a BOSU dome up: the step after standing on one leg on the floor, for ankle rehab and balance. Set it beside a wall or a counter to touch, on a floor that doesn't slide, and step off rather than fall.
+
+## Push-up handles
+Handles or parallettes keep the wrist straight rather than bent back at the end of its range, which many people with sore wrists find easier. No study has shown they lower the wrist's load, so the catalog still rates the wrist as it does on the floor, and a delicate wrist keeps them off the menu unless a clinician's plan names them. Set them on a floor that doesn't slide, under the shoulders.
+
+## Smith machine
+A barbell on fixed rails, common in hotel gyms: squats, presses and rows without a rack or a spotter, as long as the safety stops are set just below the lowest point before the first rep. The rails decide the bar's path, so the feet find the body's place under it: say where they go.
 
 ## Hotel room (no gym)
 Typically bodyweight, a chair, a bed edge, a towel, maybe a band. No mat: floor work goes on the carpet or a folded towel under the knees. A chair for support goes against a wall so it can't slide, and nothing pushes on a chair with wheels; the bed edge is fine for sitting and incline push-ups, too soft for step-ups. Towel rows go around a door handle only if the door is solid and closed toward the user; towel slides need a hard floor. Keep noise low; no jumping in hotel rooms.

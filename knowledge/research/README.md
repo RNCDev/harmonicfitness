@@ -19,7 +19,7 @@ a note here.
 | Note | Topic | Feeds |
 |---|---|---|
 | [2026-10-21-session-structure.md](2026-10-21-session-structure.md) | Training: block order, methods, pattern balance, joint-load ladders, exercise count | `sessions.toml` (block order, push and pull balance) |
-| [2026-10-30-movement-library.md](2026-10-30-movement-library.md) | Exercises, biomechanics, equipment: the 49 drafts finished and 77 new movements of 0.41.0 and 0.41.1, the new equipment, the refused names | `movements.toml` (loads, levels, coaching, `[unlisted]`), `kits.md` |
+| [2026-10-30-movement-library.md](2026-10-30-movement-library.md) | Exercises, biomechanics, equipment: the 49 drafts finished and 103 new movements of 0.41.0 to 0.42.0, the new equipment, the refused names | `movements.toml` (loads, levels, coaching, `[unlisted]`), `kits.md` |
 
 ## Writing a note
 

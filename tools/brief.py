@@ -48,10 +48,19 @@ KIT_SECTIONS = {"dumbbells": "Dumbbells", "kettlebell": "Kettlebell", "bike": "S
                 "air-bike": "Stationary bike", "stick-and-ball": "Stick and dryland ball",
                 "rower": "Rowing machine", "treadmill": "Treadmill", "band": "Resistance bands",
                 "bench": "Bench", "mat": "Mat and mobility", "foam-roller": "Mat and mobility",
-                "strap": "Mat and mobility"}
+                "strap": "Mat and mobility", "mini-band": "Resistance bands",
+                "pull-up-bar": "Pull-up bar and dip station", "dip-station": "Pull-up bar and dip station",
+                "suspension-trainer": "Suspension trainer", "medicine-ball": "Medicine ball and slam ball",
+                "slam-ball": "Medicine ball and slam ball", "box": "Box", "sliders": "Sliders",
+                "stability-ball": "Stability ball", "ab-wheel": "Ab wheel", "battle-ropes": "Battle ropes",
+                "landmine": "Landmine and trap bar", "trap-bar": "Landmine and trap bar", "jump-rope": "Jump rope",
+                "outdoors": "Outdoors", "stairs": "Stairs", "ankle-weights": "Ankle weights and weight vest",
+                "weight-vest": "Ankle weights and weight vest", "balance-pad": "Balance pad",
+                "push-up-handles": "Push-up handles", "smith-machine": "Smith machine"}
 PRESET_SECTIONS = {"hotel-room": "Hotel room (no gym)", "hotel-gym": "Hotel gym (assume basic)",
                    "full-gym": "Full gym", "bodyweight": "No equipment"}
-BODY_ONLY = {"chair", "towel", "mat", "foam-roller", "strap"}   # a kit of these alone is "no equipment"
+BODY_ONLY = {"chair", "towel", "mat", "foam-roller", "strap", "sliders", "balance-pad", "push-up-handles", "stairs",
+             "outdoors"}   # a kit of these alone is "no equipment"
 PROFILE_SECTIONS = ("Default session",)   # the profile prose the brief quotes
 DOSE_WORDS = {"sets": "sets", "reps": "reps", "bodyweight_reps": "reps with no load",
               "rest_seconds": "rest (s)", "hard_sets_per_session": "hard sets a session",

@@ -4,6 +4,29 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-30
+
+Eight more kinds of equipment and 26 movements, and two equipment gaps closed that could put the wrong movement on a menu. Sources are in `knowledge/research/2026-10-30-movement-library.md`.
+
+### For forks
+- **`band` now means a long band** (or tube band) with a door anchor or a post, and the new **`mini-band`** a small loop band. Fifteen of the eighteen band movements need a long band and an anchor; clamshells and side steps take either. A kit that lists `band` keeps every band movement; a listener who has only a loop band should change their kit's `band` to `mini-band`. The aliases "mini band" and "loop band" now name `mini-band`.
+- **The sprint needs `outdoors`.** It was coached as outdoors only but needed nothing, so it could land on an indoor menu.
+- **The donkey kick rates the knee 2** (a knee on the floor bears weight), so a delicate knee now leaves it out.
+- **The brief now prints the kit notes for the equipment added in 0.41.0** (`brief.KIT_SECTIONS` had missed them) and for this release's.
+- **New shipped ids win over private ones** of the same id, as in 0.41.0: see the list below.
+- `catalog.LOAD_EQUIPMENT` and `brief.BODY_ONLY` take the new keys.
+
+### Added
+- **New equipment**, each with a section in `knowledge/kits.md`: `mini-band`, `outdoors`, `stairs`, `ankle-weights`, `balance-pad` (a foam pad, wobble board or BOSU), `push-up-handles`, `weight-vest` and `smith-machine`. The full-gym preset takes all but the stairs and the outdoors.
+- **New movements:**
+  - Ankle weights: weighted straight-leg raises, side-lying leg raises and donkey kicks, standing hip abduction, seated knee extension and standing hamstring curls.
+  - Weight vest: the vest walk, step-up and push-up.
+  - Stairs: the stair climb, stair intervals, step-edge calf raises and the single-leg heel drop. Step-ups also take the stairs.
+  - Outdoors: the outdoor run, hill repeats and the outdoor power walk.
+  - Balance pad: single-leg stance, tandem stance and squat.
+  - Push-up handles: the handle push-up, knee push-up and plank. They keep the floor version's wrist rating: no study shows handles lower the wrist's load.
+  - Smith machine: squat, bench press, inverted row and split squat.
+
 ## [0.41.1] - 2026-10-30
 
 Fourteen more movements for the thinnest spots in the small kits and for listeners working around an injury, researched and cited in `knowledge/research/2026-10-30-movement-library.md`.
