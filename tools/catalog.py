@@ -94,6 +94,7 @@ class Catalog:
     limit_cues: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)   # area -> level -> spoken lines
     private_faults: List[str] = field(default_factory=list)   # private entries left out, and why
     unlisted: Tuple[str, ...] = ()   # real movements the catalog doesn't hold ([unlisted]): never on a menu
+    preset_avoid: Dict[str, List[str]] = field(default_factory=dict)   # preset -> flags or ids it rules out
 
 
 LIST_FIELDS = ("aliases", "needs", "patterns", "muscles", "flags", "cues", "easier", "harder", "faults")
@@ -185,7 +186,8 @@ def load(path: Optional[str] = None, extra: Optional[List[dict]] = None) -> Cata
         equipment=dict(data.get("equipment", {})),
         presets={k: list(v.get("equipment", [])) for k, v in data.get("presets", {}).items()},
         movements=movements, entries=entries,
-        limit_cues=dict(data.get("limit_cues", {})), private_faults=private_faults, unlisted=unlisted)
+        limit_cues=dict(data.get("limit_cues", {})), private_faults=private_faults, unlisted=unlisted,
+        preset_avoid={k: list(v.get("avoid", [])) for k, v in data.get("presets", {}).items() if v.get("avoid")})
     if auto:   # an explicit `extra` is being checked, so its faults stay visible
         _hold_back_faulty_private(cat)
     return cat
@@ -340,6 +342,11 @@ def problems(cat: Catalog) -> List[str]:
         for item in equipment:
             if item not in cat.equipment:
                 out.append(f"The preset {name} lists the unknown equipment \"{item}\".")
+    for name, words in cat.preset_avoid.items():
+        try:
+            avoid_set(cat, words)
+        except ValueError as e:
+            out.append(f"The preset {name}'s avoid list has {e}.")
     return out
 
 

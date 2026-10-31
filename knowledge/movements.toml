@@ -114,8 +114,9 @@ smith-machine = { aliases = ["smith machine", "smith"], about = "a Smith machine
 [presets.bodyweight]
 equipment = []
 
-[presets.hotel-room]
+[presets.hotel-room]   # no jumping: neighbors below, and a carpet over a hard floor
 equipment = ["chair", "towel"]
+avoid = ["impact"]
 
 [presets.hotel-gym]
 equipment = ["dumbbells", "bench", "treadmill", "elliptical", "bike", "mat"]
@@ -189,8 +190,8 @@ delicate = ["Keep the feet about hip width, never wide, and the knees in line wi
 
 [limit_cues.low-back]
 off-limits = ["Brace gently before every rep and keep the spine long and still. No rounding and no twisting.",
-              "To get up from lying down, bend the knees, roll onto your side and push up with your hands.",
-              "Lift nothing from the floor. Set the weights up where you'll use them."]
+              "To get down, kneel one knee at a time, hands on the floor, then roll onto your side. To get up, bend the knees, roll onto your side and push up with your hands.",
+              "Lift nothing from the floor. Set the weights within reach of where you'll use them, and take them up only once you're settled in place."]
 delicate = ["Brace before each rep and keep a neutral spine, the ribs stacked over the hips.",
             "Roll to your side to get up from the floor, and stop any rep that pinches the back."]
 
@@ -1432,7 +1433,7 @@ sided = false
 measure = "reps"
 patterns = ["arms"]
 muscles = ["triceps", "core"]
-loads = { elbow = 3, shoulder = 3, low-back = 2, wrist = 1, neck = 1 }
+loads = { elbow = 3, shoulder = 3, low-back = 2, wrist = 1, neck = 2 }
 flags = ["overhead"]
 intensity = "strength"
 level = "experienced"
@@ -1459,11 +1460,11 @@ sided = false
 measure = "reps"
 patterns = ["anti-extension"]
 muscles = ["core"]
-loads = { low-back = 1, hip = 1, shoulder = 1 }
+loads = { low-back = 0, hip = 1, shoulder = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
-seconds_per_rep = 3
+seconds_per_rep = 5
 transition_seconds = 10
 draft = false
 setup = "Lie on your back, arms straight up, knees bent over your hips."
@@ -1484,11 +1485,11 @@ sided = false
 measure = "reps"
 patterns = ["anti-extension"]
 muscles = ["core"]
-loads = { low-back = 1, hip = 1, shoulder = 1 }
+loads = { low-back = 0, hip = 1, shoulder = 1 }
 flags = []
 intensity = "strength"
 level = "novice"
-seconds_per_rep = 3
+seconds_per_rep = 5
 transition_seconds = 10
 draft = false
 setup = "Lie on your back along the bench, arms straight up, knees bent over your hips."
@@ -1509,7 +1510,7 @@ sided = false
 measure = "reps"
 patterns = ["anti-extension", "anti-rotation"]
 muscles = ["core", "glutes", "back"]
-loads = { wrist = 2, shoulder = 1, knee = 2, low-back = 1, hip = 1 }
+loads = { wrist = 2, shoulder = 1, knee = 2, low-back = 0, hip = 1 }
 flags = ["floor", "kneeling"]
 intensity = "strength"
 level = "novice"
@@ -1686,7 +1687,7 @@ sided = true
 measure = "reps"
 patterns = ["anti-rotation"]
 muscles = ["core", "shoulders"]
-loads = { shoulder = 1, low-back = 1 }
+loads = { shoulder = 1, low-back = 0 }
 support = {}
 flags = []
 intensity = "strength"
@@ -1791,7 +1792,7 @@ sided = false
 measure = "reps"
 patterns = ["squat", "vertical-push"]
 muscles = ["quads", "glutes", "shoulders", "triceps", "core"]
-loads = { knee = 3, shoulder = 3, hip = 2, ankle = 2, low-back = 2, elbow = 2, wrist = 1, neck = 1 }
+loads = { knee = 3, shoulder = 3, hip = 2, ankle = 2, low-back = 2, elbow = 2, wrist = 1, neck = 2 }
 flags = ["overhead"]
 intensity = "strength"
 level = "experienced"
@@ -1816,7 +1817,7 @@ sided = false
 measure = "reps"
 patterns = ["squat", "horizontal-pull", "horizontal-push", "vertical-push"]
 muscles = ["quads", "glutes", "back", "lats", "chest", "shoulders", "triceps", "core"]
-loads = { shoulder = 3, wrist = 3, knee = 3, hip = 2, elbow = 2, low-back = 2, ankle = 2, foot = 2, neck = 1 }
+loads = { shoulder = 3, wrist = 3, knee = 3, hip = 2, elbow = 2, low-back = 2, ankle = 2, foot = 2, neck = 2 }
 flags = ["floor", "grip", "overhead"]
 intensity = "strength"
 level = "advanced"
@@ -1893,7 +1894,7 @@ sided = true
 measure = "reps"
 patterns = ["anti-rotation", "skill"]
 muscles = ["shoulders", "core", "glutes", "quads", "triceps"]
-loads = { shoulder = 3, knee = 2, low-back = 2, hip = 2, elbow = 2, wrist = 2, ankle = 1, foot = 1, neck = 1 }
+loads = { shoulder = 3, knee = 2, low-back = 2, hip = 2, elbow = 2, wrist = 2, ankle = 1, foot = 1, neck = 2 }
 support = { wrist = 2, shoulder = 2, elbow = 2, knee = 2, hip = 1 }
 flags = ["floor", "kneeling", "overhead", "grip"]
 intensity = "strength"
@@ -3671,7 +3672,7 @@ sided = true
 measure = "reps"
 patterns = ["vertical-push", "anti-rotation"]
 muscles = ["shoulders", "chest", "triceps", "core", "glutes"]
-loads = { shoulder = 3, elbow = 2, wrist = 1, knee = 2, low-back = 1 }
+loads = { shoulder = 3, elbow = 2, wrist = 1, knee = 2, low-back = 1, neck = 2 }
 support = { knee = 1, ankle = 1, foot = 1 }
 flags = ["floor", "kneeling", "overhead"]
 intensity = "strength"
@@ -3978,11 +3979,11 @@ sided = false
 measure = "reps"
 patterns = ["anti-extension"]
 muscles = ["core"]
-loads = { low-back = 1, hip = 1, shoulder = 1 }
+loads = { low-back = 0, hip = 1, shoulder = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
-seconds_per_rep = 3
+seconds_per_rep = 5
 transition_seconds = 10
 draft = false
 setup = "Lie on your back, knees bent over your hips, and hold the ball between your hands and your knees."
@@ -4207,7 +4208,7 @@ sided = true
 measure = "time"
 patterns = ["carry", "anti-rotation"]
 muscles = ["shoulders", "core", "triceps", "back"]
-loads = { shoulder = 3, elbow = 2, wrist = 2, low-back = 2, neck = 1, hip = 1, knee = 1 }
+loads = { shoulder = 3, elbow = 2, wrist = 2, low-back = 2, neck = 2, hip = 1, knee = 1 }
 support = { low-back = 1 }
 flags = ["overhead", "grip"]
 intensity = "strength"
@@ -4901,7 +4902,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "calves"]
-loads = { hip = 1, knee = 1, ankle = 1 }
+loads = { hip = 1, knee = 1, ankle = 1, calf = 1 }
 flags = []
 intensity = "conditioning"
 effort = "easy"
@@ -5365,7 +5366,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["shoulders", "core", "calves"]
-loads = { shoulder = 2, elbow = 2, ankle = 1, low-back = 1 }
+loads = { shoulder = 2, elbow = 2, ankle = 1, low-back = 1, calf = 1 }
 flags = ["fast", "spine-twist"]
 intensity = "conditioning"
 effort = "moderate"
@@ -5470,7 +5471,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1, calf = 1 }
 flags = []
 intensity = "conditioning"
 effort = "easy"
@@ -5496,7 +5497,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1, calf = 1 }
 flags = []
 intensity = "conditioning"
 effort = "moderate"
@@ -5522,7 +5523,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1, calf = 1 }
 flags = ["fast"]
 intensity = "conditioning"
 effort = "hard"
@@ -5548,7 +5549,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 2, hip = 2, ankle = 1, foot = 1 }
+loads = { knee = 2, hip = 2, ankle = 1, foot = 1, calf = 1 }
 flags = []
 intensity = "conditioning"
 effort = "hard"
@@ -5574,7 +5575,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 2, hip = 2, ankle = 1, foot = 1 }
+loads = { knee = 2, hip = 2, ankle = 1, foot = 1, calf = 1 }
 flags = ["fast"]
 intensity = "conditioning"
 effort = "hard"
@@ -5652,7 +5653,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "shoulders", "back"]
-loads = { knee = 1, hip = 1, shoulder = 1, elbow = 1, wrist = 1, low-back = 1, ankle = 1, foot = 1 }
+loads = { knee = 1, hip = 1, shoulder = 1, elbow = 1, wrist = 1, low-back = 1, ankle = 1, foot = 1, calf = 1 }
 flags = ["grip"]
 intensity = "conditioning"
 effort = "moderate"
@@ -5678,7 +5679,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "shoulders", "back"]
-loads = { knee = 2, hip = 2, shoulder = 2, elbow = 1, wrist = 1, low-back = 1, ankle = 1, foot = 1 }
+loads = { knee = 2, hip = 2, shoulder = 2, elbow = 1, wrist = 1, low-back = 1, ankle = 1, foot = 1, calf = 1 }
 flags = ["fast", "grip"]
 intensity = "conditioning"
 effort = "hard"
@@ -5758,7 +5759,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1, calf = 1 }
 flags = []
 intensity = "conditioning"
 effort = "easy"
@@ -5836,7 +5837,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, calf = 1 }
 flags = []
 intensity = "conditioning"
 effort = "moderate"
@@ -5862,7 +5863,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1, foot = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1, calf = 1 }
 flags = ["fast"]
 intensity = "conditioning"
 effort = "hard"
@@ -6201,7 +6202,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion", "squat", "vertical-push"]
 muscles = ["quads", "glutes", "shoulders", "triceps", "core"]
-loads = { knee = 3, hip = 2, shoulder = 3, elbow = 2, wrist = 2, low-back = 2, ankle = 1 }
+loads = { knee = 3, hip = 2, shoulder = 3, elbow = 2, wrist = 2, low-back = 2, ankle = 1, neck = 2 }
 flags = ["overhead", "fast"]
 intensity = "conditioning"
 effort = "hard"

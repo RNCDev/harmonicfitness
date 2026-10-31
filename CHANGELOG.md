@@ -4,6 +4,24 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-10-30
+
+The easy fixes from a thirty-script eval of 0.42.0 (`docs/eval/results-2026-10-30-run2.md`: safety 4.90, efficacy 4.17, adherence 4.43, ease 3.90, warmth 4.33, stories 4.43).
+
+### Fixed
+- **First drafts came up short:** the lint's guide column counted holds, counts and chimes into its words-a-minute, so a talk-only rest's guide ran a fifth to a third short; it now counts speech alone, around each segment's fixed time. The brief and `programming.md` now say a paired set takes about a minute and a half with its rest, not one. Writers had filled the gap with spare stories; the lint's "too short" advice now asks for fuller coaching and stories first.
+- **An off-limits low back stripped all core work:** the dead bug (and its bench and ball versions), bird dog and Pallof press rate the low back 0, as the injury playbook's "neutral-spine core work continues" says.
+- **An off-limits calf kept the bike, treadmill walk, elliptical and marching:** they rate the calf 1 now (a delicate calf keeps them).
+- **Loaded overhead work rated the neck 1,** though the playbook says every overhead press rates 2: the overhead triceps extension, thruster, man-maker, Turkish get-up, overhead carry, landmine press and wall ball now do.
+- **Hotel-room menus offered jumping** that the kit note rules out: a preset can carry an `avoid` list (`catalog.Catalog.preset_avoid`), and `hotel-room` avoids impact.
+- **The dead bug's timing** is five seconds a rep, as its coaching says.
+
+### Changed
+- The low-back limit cues say how to get down to the floor as well as up, and to take weights up only once settled.
+- `programming.md`: a movement touching a delicate area is light (twelve to fifteen reps, three or more left, only lighter or steady offered).
+- The hotel-room kit note names the prone pulls for when a door can't be trusted for towel rows.
+- The eval's listener a has no open threads, matching its empty log.
+
 ## [0.42.0] - 2026-10-30
 
 Eight more kinds of equipment and 26 movements, and two equipment gaps closed that could put the wrong movement on a menu. Sources are in `knowledge/research/2026-10-30-movement-library.md`.

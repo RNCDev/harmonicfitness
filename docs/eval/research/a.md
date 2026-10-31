@@ -90,7 +90,11 @@ Answer: Day 29. It doubles every day, so the day before it covers the whole pond
 
 Source: https://example.org/lily-pad-teaser (2026-10-20)
 
+## Space / quiz: The planet that spins on its side
+
+- Format: quiz
+- Which planet spins on its side, rolling around the sun like a ball? Uranus: its axis tips about ninety-eight degrees, likely from a huge collision long ago.
+
 ## Open threads (from earlier sessions)
 
-- t1 (2026-10-14, quiz, Space): Which planet spins on its side, rolling around the sun like a ball? Asked last session, not yet answered (Uranus).
-- t2 (2026-10-16, promise, Birdwatching): The coach promised to teach one owl call next time; the snowy owl at Heron Pond is the chance (it barely calls; a great horned owl's deep "who-who-whooo" is the one to learn).
+- none (this is Maya's first session)

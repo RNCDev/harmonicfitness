@@ -290,6 +290,17 @@ def fake_menu(*ids, seconds=300, side=None):
             "movements": movements}
 
 
+class PresetAvoid(unittest.TestCase):
+    def test_a_hotel_room_leaves_out_jumping(self):
+        r = brief("--goal", "conditioning", "--minutes", "20", "--preset", "hotel-room", "--level", "advanced")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ids = ids_in(menu_section(r.stdout))
+        self.assertTrue(ids, r.stdout[:500])
+        cat = catalog.load(extra=[])
+        self.assertFalse([i for i in ids if "impact" in cat.movements[i].flags], ids)
+        self.assertIn("impact", r.stdout.split("Left out today by Avoid", 1)[1].splitlines()[0])
+
+
 class Menu(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

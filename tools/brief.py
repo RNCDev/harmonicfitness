@@ -286,7 +286,8 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
                 "rest of the body ticking over."]
     out += ["", "Timing: one set takes its reps times the seconds a rep (both sides for one-sided work, plus "
             "about five seconds to switch), plus its setup the first time. A set with its rest takes about two "
-            "minutes, about one when paired."]
+            "minutes, about a minute and a half when paired (a minute between the halves). Plan from the lint's "
+            "spoken column, not from the word guess."]
     out += ["", "What a good session looks like (the rules in knowledge/programming.md):"]
     for heading, body in _sections(_read(PROGRAMMING)).items():
         for para in body.split("\n\n"):
@@ -591,6 +592,8 @@ def request_from(args, cat, sess, profile):
         elif args.preset:
             catalog.kit_equipment(cat, {"preset": args.preset})   # an unknown preset names the choices
             request["preset"] = args.preset
+            # a preset's own avoid list (a hotel room: no jumping) joins the request's
+            request["avoid"] = request["avoid"] | catalog.avoid_set(cat, cat.preset_avoid.get(args.preset, []))
         else:
             request["equipment"] = catalog.equipment_keys(cat, screen.words(args.equipment))
     except ValueError as e:   # only the flags' own values are read here

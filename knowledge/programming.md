@@ -9,7 +9,7 @@ How hard, how much, how fast and how to progress with a home or hotel kit. Each 
 - **The same pattern, continuous.** Robinson and colleagues (2024, meta-regressions) found strength gains were similar across a wide range of reps in reserve, while muscle size grew more as sets ended closer to failure. Source: https://pubmed.ncbi.nlm.nih.gov/38970765/ The reps in reserve were estimated from study descriptions, and the authors call it exploratory.
 - **Saying it by ear.** Zourdos and colleagues (2016, 29 squatters) tested a scale where effort ten means no reps left, nine means one left, and so on, and called it a practical way to set daily load. Source: https://pubmed.ncbi.nlm.nih.gov/26049792/ It was tested on barbell squats; it doesn't show how well people judge reps left on light loads at home, and Refalo notes people tend to underestimate how close they are at lower loads.
 
-Rule: end working sets with about one to three reps left ("effort eight or nine out of ten"), and take only the last set of a simple movement close to failure. Never cue failure on a movement an injury rule limits.
+Rule: end working sets with about one to three reps left ("effort eight or nine out of ten"), and take only the last set of a simple movement close to failure. Never cue failure on a movement an injury rule limits. A movement that touches a delicate area is light (house default): twelve to fifteen reps with three or more left, its self-check offering only lighter or steady, and the day's harder work goes to movements that don't touch the area.
 
 ## Load range
 
@@ -25,7 +25,7 @@ Rule: with light dumbbells, use higher reps (15 to 30) and take sets closer to f
 - **A floor for busy weeks.** Iversen and colleagues advise at least four hard sets per muscle a week, say weekly volume matters more than how often, and note three multi-joint exercises can cover the major muscles. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 Four sets is a floor for progress, not the most growth.
 - **Frequency by experience.** The American College of Sports Medicine (2009 position stand) recommends two to three days a week for novices and three to four for intermediates. Source: https://pubmed.ncbi.nlm.nih.gov/19204579/ It dates from 2009, for healthy adults.
 
-What a session holds (house arithmetic, not a study): a set takes about two minutes with its rest, about half that when paired. Fifteen minutes holds about six hard sets; twenty-five about ten to twelve; forty-five about twenty.
+What a session holds (house arithmetic, not a study): a set takes about two minutes with its rest, about a minute and a half when paired (a minute between the halves). Fifteen minutes holds about six hard sets; twenty-five about ten to twelve; forty-five about twenty. A first draft that comes up short gets longer coaching in the sets and fuller rests, not more stories crammed in.
 
 Rule: aim for at least four hard sets per major muscle group a week, spread over two or more sessions, and more when the week allows. The coverage check spreads groups across sessions.
 

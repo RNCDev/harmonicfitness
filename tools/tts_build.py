@@ -226,10 +226,15 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         rate, exact = pace(voice)
         spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i and chime else 0.0, rate, plans[i])
                    for i, seg in enumerate(segments)]
-        # The rate this voice actually speaks this draft at, so the guide column
-        # says how many words each segment wants with this voice.
-        guide_wpm = (sum(word_count(seg["lines"]) for seg in segments) / sum(spokens) * 60
-                     if sum(spokens) else wpm)
+        # The rate this voice speaks this draft's words at, speech alone, and each segment's fixed time
+        # (holds, counts, chimes and paragraph breaks), so the guide column says how many words fill the
+        # rest of the segment with this voice. Counting the fixed time in the rate made a talk-only rest's
+        # guide a fifth to a third short.
+        speech = [sum(clip_seconds(text, voice, rate) for para in plans[i] for text, _ in para if spoken(text))
+                  for i in range(len(segments))]
+        fixed = [max(spokens[i] - speech[i], 0.0) for i in range(len(segments))]
+        guide_wpm = (sum(word_count(seg["lines"]) for seg in segments) / sum(speech) * 60
+                     if sum(speech) else wpm)
         timeline = layout([(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], is_held(seg))
                            for i, seg in enumerate(segments)])
         quiet_spokens, quiet_timeline = spokens, timeline
@@ -242,7 +247,7 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         guide_wpm = wpm
     rows = []
     for i, seg in enumerate(segments, 1):
-        guide = round(guide_wpm * seg["seconds"] / 60)
+        guide = round(guide_wpm * max(seg["seconds"] - (fixed[i - 1] if voice else 0.0), 0.0) / 60)
         row = Row(i, seg["label"], seg["seconds"], word_count(seg["lines"]), guide)
         if voice:
             row.spoken = spokens[i - 1]
@@ -357,11 +362,11 @@ def render_report(report):
                     "leaving room for the voice)")
         if report.total_off:
             summary += ("  <-- too " + ("long: trim words" if drift > 0 else
-                                       "short: add coaching in the sets, or more of the listener's content in the rests "
-                                       "(a longer serial beat, the sheet's spare topics, a piece from the stock)")
+                                       "short: add coaching in the sets and let the rests' stories run fuller "
+                                       "(a longer serial beat, a question back to the listener); a spare topic only when a rest has none")
                         + " in the segments furthest off")
-        summary += (f"\n{voice['name']} speaks this draft at about {report.wpm:.0f} words a minute, pauses "
-                    f"included; the guide column uses that rate")
+        summary += (f"\n{voice['name']} speaks this draft's words at about {report.wpm:.0f} a minute; the guide "
+                    f"column is the words that fill each segment at that rate, around its holds, counts and chimes")
     else:
         summary += f" | estimated {report.total_words / report.word_wpm:.1f} min at {report.word_wpm:g} wpm"
     out.append(summary)
