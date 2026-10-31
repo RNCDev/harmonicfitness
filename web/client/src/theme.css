@@ -2,7 +2,7 @@
    faint moving pattern after Book of Shapes (Flow, Field, Arcs or Waves, chosen under Background in Settings). Dark only.
    Two families: Big Shoulders Display, tall and narrow, in capitals for headings, the request and buttons; and
    IBM Plex Sans Condensed for everything else. No accent colour: cream is the one action on each screen, greys
-   say the rest, and a muted brick is kept for "keep off" and errors. The logo keeps its one coral bar. */
+   say the rest, and a muted brick is kept for "keep off" and errors. The logo's line is the one other coral. */
 :root {
   --paper: #111215; --sheet: #1A1B20; --sheet-2: #22232A; --ink: #EDEAE0; --ink-2: #C2C1BA; --ink-3: #9A9993;
   --rule: #34353B; --line: #4A4A47; --dim: #6E6E69;
@@ -28,7 +28,6 @@ a:hover { color: #fff }
 
 .mark { display: flex; align-items: center; gap: 10px; line-height: 1; color: var(--ink) }
 .mark svg { flex: none; display: block }
-.mark .mark-name { margin-top: 1px }
 .mark .ver { font-size: 11px; color: var(--ink-3); align-self: flex-end; font-variant-numeric: tabular-nums }
 .quiet {
   color: var(--ink-2); font-size: 15px; text-decoration: underline; text-underline-offset: 3px;

@@ -4,6 +4,19 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-30
+
+A new logo, for the web app's Moonrise look: one coral line, a burst of sound, and the name in the app's own display face.
+
+### Changed
+- **The mark** is one line in coral: a burst of sound that fades both ways, the loudest crest in the middle (a cosine under a Gaussian; `assets/brand/make.py` has the numbers). Five lobes below about 60 px, three below 40. The seven rounded sound bars are gone.
+- **The wordmark** is HARMONICFITNESS in Big Shoulders Display Bold (SIL Open Font License), the face the web app's headings and request use, outlined so nothing needs the font; FITNESS at 62 %, as before. Inter Tight goes.
+- **The web app's header** draws the new lockup (`web/client/src/Mark.tsx`, from `brand.ts`), its caps 19 px and the line 25 px tall; the favicon, the ICO and the Apple touch icon are remade.
+- **`assets/brand/`:** the lockups, wordmarks, app icons and favicon are remade; `mark-reversed.svg` is gone, since the coral mark is the same on light and dark; the README has the new construction and colours (coral `#FF5A3C`, ink `#111215`, cream `#EDEAE0`).
+
+### For forks
+- Nothing to migrate: the brand is the engine's. A fork that copied `web/client/src/brand.ts`, `Mark.tsx` or the icons takes the new ones.
+
 ## [0.42.3] - 2026-10-30
 
 ### Changed
