@@ -293,7 +293,8 @@ def _clause(text: str) -> str:
 BEFORE = 6   # words kept before a mention, within its clause
 # a mention right after one of these isn't an instruction: "no neck rolls today", "like a brisk walk"
 NOT_DOING = {"no", "not", "never", "skip", "skipping", "without", "instead", "avoid", "nothing", "like",
-             "unlike", "rather", "isn't", "aren't", "won't", "don't"}
+             "unlike", "rather", "isn't", "aren't", "won't", "don't", "doesn't", "didn't", "can't", "wasn't",
+             "weren't", "shouldn't", "couldn't", "wouldn't"}   # the web contracts "does not" and the rest
 # small words allowed between the negation and the mention: "not doing the jumping jacks", "instead of
 # burpees", "rather than burpees" ("no more than ten push-ups" still counts: "ten" isn't one)
 FILLER = {"a", "an", "the", "any", "more", "your", "doing", "do", "of", "than"}

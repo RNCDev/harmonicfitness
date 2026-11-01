@@ -80,7 +80,8 @@ class Negation(unittest.TestCase):
     def test_true_negations_still_pass(self):
         for line in ("No burpees today.", "We're not doing jumping jacks.", "No more high knees.",
                      "Skip the jump squats.", "Instead of burpees, a slow march.", "Rather than burpees, rest.",
-                     "Without any jumping jacks today.", "It should feel like a brisk walk."):
+                     "Without any jumping jacks today.", "It should feel like a brisk walk.",
+                     "Today doesn't do burpees.", "We can't do jumping jacks in here."):   # as "does not", "cannot"
             self.assertEqual(issues_for(line), [], line)
 
 

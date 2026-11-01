@@ -288,6 +288,7 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
     note = ""
     if rel.endswith(".draft.txt"):
         content, split = split_long(content)
+        content, _ = contract(content)
         if is_skeleton(content):
             content, note = settle_clock(content, _request_seconds(full))
             note += long_rests(content)
@@ -445,6 +446,49 @@ def _adds_up(text: str) -> str:
             + ("no words yet (a skeleton)" if not words else f"about {words} words"))
 
 
+# A coach talks in contractions, and a web voice reads exactly what's written: "Let us go, that is one" sounds
+# like a letter read aloud. Gemini wrote two or three dozen of these a script with a rule against them (0.50.2's
+# loop, every judge quoting them), so the site contracts the forms that read one way only, as it splits long
+# paragraphs. A form before a pause ("that is, the hips"; "where you are.") is left alone.
+CONTRACT = [(re.compile(rf"\b{a}\b{after}", re.IGNORECASE), b) for a, after, b in (
+    (r"let us", r"(?!\s+know\b)", "let's"),
+    (r"do not", "", "don't"), (r"does not", "", "doesn't"), (r"did not", "", "didn't"),
+    (r"is not", "", "isn't"), (r"are not", "", "aren't"), (r"was not", "", "wasn't"), (r"were not", "", "weren't"),
+    (r"cannot", "", "can't"), (r"can not", "", "can't"), (r"will not", "", "won't"),
+    (r"should not", "", "shouldn't"), (r"could not", "", "couldn't"), (r"would not", "", "wouldn't"),
+    (r"(that|it|there|here|what|who|where|she|he) is", r"(?=\s+[a-z])", r"\1's"),
+    (r"(we|you|they) are", r"(?=\s+[a-z])", r"\1're"),
+    (r"i am", r"(?=\s+[a-z])", "I'm"),
+    (r"(i|you|we|they|it|that|she|he) will", r"(?=\s+[a-z])", r"\1'll"))]
+
+
+def _contract_words(text: str) -> tuple[str, int]:
+    n = 0
+    for pattern, short in CONTRACT:
+        def swap(m, short=short):
+            out = m.expand(short)
+            return out[0].upper() + out[1:] if m.group(0)[0].isupper() else out
+        text, k = pattern.subn(swap, text)
+        n += k
+    return text, n
+
+
+def contract(text: str) -> tuple[str, int]:
+    """A draft with its stiff forms contracted ("let us" to "let's", "that is one" to "that's one") in its spoken
+    lines, never the movements: or @@ lines nor inside a marker; and how many."""
+    out, n = [], 0
+    for line in text.split("\n"):
+        if line.startswith(("@@", "movements:")):
+            out.append(line)
+            continue
+        pieces = re.split(r"(\[[^\]]*\])", line)
+        for i in range(0, len(pieces), 2):
+            pieces[i], k = _contract_words(pieces[i])
+            n += k
+        out.append("".join(pieces))
+    return "\n".join(out), n
+
+
 # A clip (a paragraph's text between markers) the lint finds over draft.MAX_CLIP (22 s) costs a whole round trip to
 # split by hand, and first drafts hold one or two nearly every time: the site splits them at a sentence break as
 # the draft is written. Characters, not seconds: the slowest web coach speaks about 11.2 a second, so 225 is
@@ -568,6 +612,7 @@ def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
         else:
             out += old[begin:end]
     new, split = split_long("\n".join(out))
+    new, _ = contract(new)
     if len(new) > WRITE_LIMIT:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
     if is_skeleton(new):

@@ -679,6 +679,21 @@ class Faster(AgentCase):
         self.assertIn("the skeleton's (120 s, the request) are restored", r.output)
         self.assertIn("@@ 60 | Squats", self.draft_text())
 
+    def test_a_draft_is_written_with_its_stiff_forms_contracted(self):
+        """"Let us go, that is one" reads like a letter aloud: the site contracts the forms that read one way only,
+        in the spoken lines, and leaves one before a pause, the markers and the labels as they are."""
+        text = ("movements: air-squat\n\n@@ 120 | Let us begin\nLet us go. That is one, and do not rush. We are "
+                "done, that is, nearly. Here you are. Let us know. [count 3 go]\n[story] Who is first? They cannot "
+                "lose. [/story]\n")
+        tools.write_file(self.deps, self.DRAFT, text)
+        got = self.draft_text()
+        self.assertIn("@@ 120 | Let us begin", got)
+        self.assertIn("Let's go. That's one, and don't rush. We're done, that is, nearly. Here you are. Let us know. "
+                      "[count 3 go]", got)
+        self.assertIn("[story] Who's first? They can't lose. [/story]", got)
+        tools.edit_segments(self.deps, self.DRAFT, [{"number": 1, "text": "@@ 120 | Let us begin\nIt is not far."}])
+        self.assertIn("It isn't far.", self.draft_text())
+
     def test_a_write_off_the_clock_runs_no_build_in_the_turn(self):
         self.menu(120)
         patch, calls = self.fake()
