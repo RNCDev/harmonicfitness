@@ -154,6 +154,7 @@ OTHER_STEP = "Running a check"
 WRAPPING_UP = "Wrapping up"
 # What the model is doing between tools, by what the turn did last (Deps.phase): shown while it thinks.
 THINK = {"": "Reading your message", "brief": "Planning your script", "skeleton": "Writing your script",
+         "rests": "Writing your script",
          "draft": "Checking over the script", "lint_failed": "Fixing the script",
          "linted": "Getting the recording ready", "priced": "Writing up the plan",
          "recorded": WRAPPING_UP, "audition": "Introducing the voices", "coach": "Working on your coach"}
@@ -214,15 +215,17 @@ def _begin(deps: Deps, text: str, tool: str, think: bool = False) -> int:
 
 # How hard Gemini thinks, by what the turn is doing. Its default thought for 3,000 to 9,500 tokens a request
 # (a 96-second write in 0.49.4's loop, two thirds of it thinking): designing, writing and fixing the script get
-# medium, and the steps between them (running the brief, the reply that ends the turn) get low.
+# medium, and the steps between them (running the brief, the reply that ends the turn) get low. The rests, written
+# first after the skeleton and where every story is told, get high: the judges heard headlines read out at medium.
 THINK_HARD = ("brief", "skeleton", "draft", "lint_failed")
+THINK_HARDEST = ("rests",)
 
 
 def thinking_level(model, phase: str) -> str | None:
-    """MEDIUM or LOW for a Gemini model, by the turn's phase; None for any other provider (its default)."""
+    """HIGH, MEDIUM or LOW for a Gemini model, by the turn's phase; None for any other provider (its default)."""
     if type(model).__name__ != "GoogleModel":
         return None
-    return "MEDIUM" if phase in THINK_HARD else "LOW"
+    return "HIGH" if phase in THINK_HARDEST else "MEDIUM" if phase in THINK_HARD else "LOW"
 
 
 class Narrated(WrapperModel):
@@ -395,9 +398,10 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     if result.refused:   # the site's own refusal: the script wasn't checked, so nothing about it changes
         return result
     if first == "build" and deps.skeleton:   # the lint gave the budgets: the words come next
+        # after the whole skeleton's budgets come the rests, the stories: the request that writes them thinks hardest
+        deps.phase = "rests" if deps.skeleton == "skeleton" else "skeleton"
         deps.skeleton = ""
         deps.lint_failed = False
-        deps.phase = "skeleton"
     elif first == "build":
         deps.lint_failed = result.code != 0
         deps.phase = "lint_failed" if result.code != 0 else ("linted" if "--lint-only" in args else "priced")

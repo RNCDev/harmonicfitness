@@ -571,7 +571,7 @@ class Faster(AgentCase):
         self.assertEqual([a[0] for a in calls], ["build"])
         self.assertIn("--lint-only", calls[0])   # never priced, nothing recorded
         self.assertIsNone(self.deps.offer)
-        self.assertEqual(self.deps.phase, "skeleton")
+        self.assertEqual(self.deps.phase, "rests")   # the next request writes the rests, thinking hardest
         self.assertFalse(self.deps.lint_failed)
         self.assertFalse(self.deps.skeleton)
         self.assertEqual(said[:2], ["Planning the script's timing", "Planning the script's timing"])
@@ -611,7 +611,7 @@ class Faster(AgentCase):
         # two lints for the budgets, then the last pass's own lint and its price (an unapproved build)
         self.assertEqual([a[0] for a in calls], ["build", "build", "build", "get"])
         self.assertEqual(self.deps.offer["name"], "Workout A")
-        self.assertEqual(phases[1:3], ["skeleton", "skeleton"])
+        self.assertEqual(phases[1:3], ["rests", "skeleton"])   # the rests after the whole skeleton, then the rest
         self.assertIn("Checking the script so far", said)
         self.assertEqual(self.deps.skeleton, "")
 
@@ -908,6 +908,7 @@ class ThirtyMinuteLoop1(Faster):
     def test_gemini_thinks_medium_while_writing_and_low_between(self):
         class GoogleModel:   # named as pydantic-ai's
             pass
+        self.assertEqual(agent.thinking_level(GoogleModel(), "rests"), "HIGH")
         self.assertEqual(agent.thinking_level(GoogleModel(), "draft"), "MEDIUM")
         self.assertEqual(agent.thinking_level(GoogleModel(), "brief"), "MEDIUM")
         self.assertEqual(agent.thinking_level(GoogleModel(), ""), "LOW")
