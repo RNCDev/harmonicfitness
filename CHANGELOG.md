@@ -2,6 +2,18 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.49.1] - 2026-11-01
+
+Fewer round trips to a finished script on the web app.
+
+A 20-minute script on 0.49.0 (job 65) took 256 seconds and 36 model requests: the first draft came in 12 percent short with its segments adding up to 19 minutes rather than 20, and Gemini then fixed the lint's complaints one segment a request, 27 requests at about four seconds each.
+
+### Changed
+- **Web app, `edit_segments` in place of `edit_segment`:** every fix one lint names goes in one call (each edit a segment's place and its whole new text), all or nothing. The coach is told never to fix one segment a call, and to write the whole draft again in one go when most segments are off.
+- **Web app, a draft says what it adds up to:** `write_file` and `edit_segments` reply with the draft's segment count and total seconds, so a length that misses the request is fixed before the first lint.
+- **Drafts are written to length:** the web coach's instructions and the brief's Talk to time line say first drafts come in 10 to 15 percent short and to write each segment to its full time (about 2.4 words a second at 144 a minute, less holds and counts).
+- **Web app, step 1 names today's workout folders,** so the coach doesn't list them to pick the day's stem.
+
 ## [0.49.0] - 2026-11-01
 
 The coach learns what you like. Feedback, ratings and the things you tell it you enjoyed become evidence that builds with each signal and fades without one, so a one-off mention drifts away in a few months while what keeps coming back rises: a year of comedy nights and the sessions lean that way.

@@ -445,7 +445,9 @@ def _budget_line(voice_name: Optional[str]) -> List[str]:
     return [f"- Talk to time: {voice_name} speaks about {wpm:.0f} words a minute"
             f"{'' if exact else ' (estimated; not measured on this computer yet)'}, so twenty seconds of talk "
             f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds; "
-            "`./harmonicfitness build <draft> <name> --lint-only` gives each segment's exact guide."]
+            "`./harmonicfitness build <draft> <name> --lint-only` gives each segment's exact guide. First drafts "
+            "come in short (10 to 15 percent, every time measured): write each segment to its full time, so the "
+            "first lint passes."]
 
 
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,

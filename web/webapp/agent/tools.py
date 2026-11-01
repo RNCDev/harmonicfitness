@@ -248,46 +248,80 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(content)
     os.replace(tmp, full)
+    if rel.endswith(".draft.txt"):   # the request's length is the brief's: check them against it before linting
+        return _result(0, f"wrote {path} ({len(content)} characters): {_adds_up(content)}")
     return _result(0, f"wrote {path} ({len(content)} characters)")
 
 
 SEGMENT = re.compile(r"^@@\s*\d+\s*\|")   # a draft's segment marker, as tools/draft.py reads it
 
 
-def edit_segment(deps: Deps, path: str, number: int, text: str) -> ToolResult:
-    """Replace one segment of a draft (its `@@` line and everything to the next), numbered from 1 in file
-    order as the lint's rows are: a lint fix sends one segment, not the whole script again."""
-    if not (isinstance(path, str) and isinstance(text, str) and type(number) is int):
-        return _refuse("path and text must be strings, number a whole number")
-    if not path.endswith(".draft.txt"):
-        return _refuse("edit_segment edits a draft (me/workouts/<stem>/<stem>.draft.txt); use write_file otherwise")
+class SegmentEdit(BaseModel):
+    number: int = Field(description="the segment's place in the draft, from 1: the lint's # column")
+    text: str = Field(description="the whole new segment, its own @@ <seconds> | <label> line first")
+
+
+SECONDS = re.compile(r"^@@\s*(\d+)\s*\|", re.MULTILINE)
+EDIT_MAX = 40   # segments one edit may carry
+
+
+def _adds_up(text: str) -> str:
+    """What a draft's segments add up to, said for the writer to check against the request."""
+    total = sum(int(m) for m in SECONDS.findall(text))
+    return f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min)"
+
+
+def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
+    """Replace segments of a draft in one go, each by its place from 1 (the lint's # column) with the whole new
+    segment, `@@` line first: every fix one lint names, in one call. All or nothing: nothing is written when any
+    edit can't apply."""
+    if not isinstance(path, str) or not path.endswith(".draft.txt"):
+        return _refuse("edit_segments edits a draft (me/workouts/<stem>/<stem>.draft.txt); use write_file otherwise")
+    if not isinstance(edits, list) or not edits or len(edits) > EDIT_MAX:
+        return _refuse(f"edits must be a list of 1 to {EDIT_MAX} {{number, text}}")
     full, rel = _mine(deps, path)
     if full is None:
         return _refuse(rel)
     if deps.recorded:
         return _refuse(AFTER_RECORDING)
-    lines = text.strip("\n").split("\n")
-    if not lines or not SEGMENT.match(lines[0]) or any(SEGMENT.match(x) for x in lines[1:]):
-        return _refuse("text must be exactly one segment: its own @@ <seconds> | <label> line first, then its lines")
     try:
         with open(full, encoding="utf-8") as f:
             old = f.read().split("\n")
     except FileNotFoundError:
         return _result(1, error="no such draft yet: write it with write_file first")
     starts = [i for i, x in enumerate(old) if SEGMENT.match(x)]
-    if not 1 <= number <= len(starts):
-        return _refuse(f"the draft has {len(starts)} segments: number must be 1 to {len(starts)}")
-    begin = starts[number - 1]
-    end = starts[number] if number < len(starts) else len(old)
-    tail = [""] if number < len(starts) else ([""] if old and old[-1] == "" else [])
-    new = "\n".join(old[:begin] + lines + tail + old[end:])
+    wanted = {}
+    for e in edits:
+        number = e.get("number") if isinstance(e, dict) else getattr(e, "number", None)
+        text = e.get("text") if isinstance(e, dict) else getattr(e, "text", None)
+        if type(number) is not int or not isinstance(text, str):
+            return _refuse("each edit is {number: a whole number, text: the segment}")
+        if not 1 <= number <= len(starts):
+            return _refuse(f"the draft has {len(starts)} segments: number must be 1 to {len(starts)} (not {number})")
+        if number in wanted:
+            return _refuse(f"segment {number} is edited twice: one edit a segment")
+        lines = text.strip("\n").split("\n")
+        if not SEGMENT.match(lines[0]) or any(SEGMENT.match(x) for x in lines[1:]):
+            return _refuse(f"edit {number}: text must be exactly one segment, its own @@ <seconds> | <label> line "
+                           "first, then its lines")
+        wanted[number] = lines
+    out = old[:starts[0]] if starts else list(old)
+    for n, begin in enumerate(starts, 1):
+        end = starts[n] if n < len(starts) else len(old)
+        if n in wanted:
+            last = n == len(starts)
+            out += wanted[n] + ([""] if not last or (old and old[-1] == "") else [])
+        else:
+            out += old[begin:end]
+    new = "\n".join(out)
     if len(new) > WRITE_LIMIT:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
     tmp = full + ".tmp-write"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(new)
     os.replace(tmp, full)
-    return _result(0, f"replaced segment {number} of {len(starts)} in {path}")
+    return _result(0, f"replaced segment{'s' if len(wanted) > 1 else ''} {', '.join(map(str, sorted(wanted)))} in "
+                      f"{path}: now {_adds_up(new)}")
 
 
 def list_files(deps: Deps, path: str = "me/") -> ToolResult:

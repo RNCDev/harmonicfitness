@@ -403,12 +403,12 @@ def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
 
 
 @AGENT.tool(sequential=True)
-def edit_segment(ctx: RunContext[Deps], path: str, number: int, text: str) -> ToolResult:
-    """Replace one segment of a draft: `number` is the segment's place, from 1 (the lint's # column), and `text`
-    the whole new segment, its `@@ <seconds> | <label>` line first. For a lint fix, instead of writing the draft
-    again."""
-    result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "edit_segment",
-                   lambda: tools.edit_segment(ctx.deps, path, number, text))
+def edit_segments(ctx: RunContext[Deps], path: str, edits: list[tools.SegmentEdit]) -> ToolResult:
+    """Replace segments of a draft, all in one call: each edit is a segment's place from 1 (the lint's # column)
+    and the whole new segment, its `@@ <seconds> | <label>` line first. Every fix one lint names goes in one call,
+    instead of writing the draft again."""
+    result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "edit_segments",
+                   lambda: tools.edit_segments(ctx.deps, path, list(edits)))
     ctx.deps.phase = "draft"
     return result
 
@@ -527,10 +527,22 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
     if name:
         results.append((f"./harmonicfitness get route --coach \"{name}\"",
                         tools.run(plain, ["get", "route", "--coach", name])))
+    results.append(("today's workout folders (a new workout's stem takes -2, -3 when one is taken)",
+                    ToolResult(code=0, output=_todays_folders(deps))))
     _say(deps, label, "prefetch", 0, step)
     first = first_text + "\n\n" if first_text else ""
     return (first + "Step 1 is done: these are its results, run as this turn began. Don't run or read them again "
             "this turn.\n\n" + "\n\n".join(_block(t, r) for t, r in results))
+
+
+def _todays_folders(deps: Deps) -> str:
+    """The workout folders already made today (me/workouts/<today>-...), so the model needn't list them."""
+    try:
+        names = sorted(n for n in os.listdir(os.path.join(deps.home, "workouts"))
+                       if n.startswith(f"{deps.today}-") and os.path.isdir(os.path.join(deps.home, "workouts", n)))
+    except OSError:
+        names = []
+    return "\n".join(f"me/workouts/{n}/" for n in names) or "none yet today"
 
 
 def start_feeds(deps: Deps, pool: ThreadPoolExecutor) -> Future:

@@ -525,26 +525,59 @@ class Faster(AgentCase):
         with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
             return f.read()
 
-    def test_a_segment_is_replaced_by_its_place(self):
-        self.draft()
-        r = tools.edit_segment(self.deps, self.DRAFT, 2, "@@ 70 | Squats\nSquat now, slow and low.\n[hold]")
-        self.assertEqual(r.code, 0, r.error)
+    def draft_text(self):
         with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
-            self.assertEqual(f.read(), self.TEXT.replace("@@ 60 | Squats\nSquat now.",
-                                                         "@@ 70 | Squats\nSquat now, slow and low."))
-        r = tools.edit_segment(self.deps, self.DRAFT, 3, "@@ 20 | Close\nGood work.")
-        self.assertEqual(r.code, 0, r.error)
-        with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
-            self.assertTrue(f.read().endswith("[hold]\n\n@@ 20 | Close\nGood work.\n"))
+            return f.read()
 
-    def test_a_segment_edit_is_refused_when_it_cant_apply(self):
+    def test_a_turn_fixes_several_segments_in_one_call(self):
         self.draft()
-        for path, n, text in ((self.DRAFT, 4, "@@ 30 | X\nHi there."), (self.DRAFT, 0, "@@ 30 | X\nHi there."),
-                              (self.DRAFT, 1, "Hi there."), (self.DRAFT, 1, "@@ 30 | X\nHi.\n@@ 30 | Y\nHo."),
-                              ("me/profile.md", 1, "@@ 30 | X\nHi there.")):
-            self.assertTrue(tools.edit_segment(self.deps, path, n, text).refused, (path, n, text))
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("edit_segments", {"path": self.DRAFT, "edits": [
+                    {"number": 1, "text": "@@ 30 | Welcome\nHello again."},
+                    {"number": 3, "text": "@@ 30 | Close\nGood work today."}]}, tool_call_id="e1")])
+            return ModelResponse(parts=[TextPart("fixed")])
+        agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertIn("Hello again.", self.draft_text())
+        self.assertIn("Good work today.", self.draft_text())
+
+    def test_step_one_names_todays_workout_folders(self):
+        os.makedirs(os.path.join(self.home, "workouts", f"{TODAY}-strength-20"))
+        os.makedirs(os.path.join(self.home, "workouts", "2026-01-01-strength-20"))
+        text = agent.prefetch(self.deps, "a 20-minute strength workout")
+        self.assertIn(f"me/workouts/{TODAY}-strength-20/", text)
+        self.assertNotIn("2026-01-01-strength-20", text)
+
+    def test_a_draft_says_what_its_segments_add_up_to(self):
+        r = tools.write_file(self.deps, self.DRAFT, self.TEXT)
+        self.assertIn("3 segments adding up to 120 s (2 min)", r.output)
+        self.assertNotIn("adding up", tools.write_file(self.deps, "me/notes.md", "hi").output)
+
+    def test_segments_are_replaced_by_their_places_in_one_call(self):
+        self.draft()
+        r = tools.edit_segments(self.deps, self.DRAFT, [
+            {"number": 3, "text": "@@ 20 | Close\nGood work."},
+            tools.SegmentEdit(number=2, text="@@ 70 | Squats\nSquat now, slow and low.\n[hold]")])
+        self.assertEqual(r.code, 0, r.error)
+        self.assertIn("replaced segments 2, 3", r.output)
+        self.assertIn("adding up to 120 s", r.output)
+        self.assertEqual(self.draft_text(), self.TEXT.replace("@@ 60 | Squats\nSquat now.", "@@ 70 | Squats\nSquat now, slow and low.")
+                         .replace("@@ 30 | Close\nDone.", "@@ 20 | Close\nGood work."))
+
+    def test_a_segment_edit_is_refused_when_it_cant_apply_and_nothing_is_written(self):
+        self.draft()
+        ok = {"number": 1, "text": "@@ 30 | Welcome\nHi again."}
+        for path, edits in ((self.DRAFT, [ok, {"number": 4, "text": "@@ 30 | X\nHi there."}]),
+                            (self.DRAFT, [{"number": 0, "text": "@@ 30 | X\nHi there."}]),
+                            (self.DRAFT, [ok, {"number": 2, "text": "Hi there."}]),
+                            (self.DRAFT, [{"number": 1, "text": "@@ 30 | X\nHi.\n@@ 30 | Y\nHo."}]),
+                            (self.DRAFT, [ok, dict(ok)]), (self.DRAFT, []), (self.DRAFT, "not a list"),
+                            ("me/profile.md", [ok])):
+            self.assertTrue(tools.edit_segments(self.deps, path, edits).refused, (path, edits))
+            self.assertEqual(self.draft_text(), self.TEXT)   # all or nothing
         self.deps.recorded = self.DRAFT
-        self.assertTrue(tools.edit_segment(self.deps, self.DRAFT, 1, "@@ 30 | X\nHi there.").refused)
+        self.assertTrue(tools.edit_segments(self.deps, self.DRAFT, [ok]).refused)
 
     def test_step_one_plans_the_rests_for_the_length_asked(self):
         line = "Hey, coach Ruby, I'd like a 35-minute full-body workout at home. Nothing's bothering me today."
@@ -771,7 +804,7 @@ class Instructions(AgentCase):
         self.assertEqual(agent._write_step("me/coaches/.auditions/coach-dana.md"), "Describing your coach")
 
     def test_every_tool_is_registered(self):
-        self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "edit_segment", "list_files"})
+        self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "edit_segments", "list_files"})
 
 
 if __name__ == "__main__":
