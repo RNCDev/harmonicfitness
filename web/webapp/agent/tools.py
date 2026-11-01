@@ -249,7 +249,7 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
         f.write(content)
     os.replace(tmp, full)
     if rel.endswith(".draft.txt"):   # the request's length is the brief's: check them against it before linting
-        return _result(0, f"wrote {path} ({len(content)} characters): {_adds_up(content)}")
+        return _result(0, f"wrote {path} ({len(content)} characters): {_adds_up(content, full)}")
     return _result(0, f"wrote {path} ({len(content)} characters)")
 
 
@@ -269,14 +269,37 @@ MARK = re.compile(r"\[[^\]]*\]")
 WORD = re.compile(r"[A-Za-z0-9']+")
 
 
-def _adds_up(text: str) -> str:
+TARGET = re.compile(r"write about ([\d,]+) words in all")   # the brief's Talk to time line
+OFF_BY = 0.08   # a draft further than this from the brief's word count is told so before its first lint
+
+
+def _adds_up(text: str, full: str | None = None) -> str:
     """What a draft's segments add up to, and its spoken words, said for the writer to check against the request
-    and the brief's word count before the first lint."""
+    and, when the brief beside the draft (`full`) gives one, its word count: a draft far off it is told how far."""
     total = sum(int(m) for m in SECONDS.findall(text))
     spoken = [MARK.sub(" ", ln) for ln in text.split("\n")
               if not ln.startswith(("@@", "movements:"))]
     words = sum(len(WORD.findall(ln)) for ln in spoken)
-    return f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min), about {words} words"
+    out = f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min), about {words} words"
+    target = _target(full)
+    if target and abs(words - target) > OFF_BY * target:
+        off = (words - target) / target
+        out += (f". That's {abs(off):.0%} {'over' if off > 0 else 'under'} the brief's {target:,} words: "
+                + ("trim it before the first lint (a set that holds for its reps gets its cues, not stories)"
+                   if off > 0 else "lengthen it before the first lint (fuller coaching, fuller stories in the rests)"))
+    return out
+
+
+def _target(full: str | None) -> int | None:
+    """The brief's word count for the draft at `full` (its <stem>.brief.md), or None."""
+    if not full or not full.endswith(".draft.txt"):
+        return None
+    try:
+        with open(full[:-len(".draft.txt")] + ".brief.md", encoding="utf-8") as f:
+            found = TARGET.search(f.read())
+    except OSError:
+        return None
+    return int(found.group(1).replace(",", "")) if found else None
 
 
 def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
@@ -329,7 +352,7 @@ def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
         f.write(new)
     os.replace(tmp, full)
     return _result(0, f"replaced segment{'s' if len(wanted) > 1 else ''} {', '.join(map(str, sorted(wanted)))} in "
-                      f"{path}: now {_adds_up(new)}")
+                      f"{path}: now {_adds_up(new, full)}")
 
 
 def list_files(deps: Deps, path: str = "me/") -> ToolResult:

@@ -486,6 +486,9 @@ def _run(b, text):
         seen = repeats.seen_claims(text)
         if seen:   # a warning: praise for what the coach can't have seen
             b.say("\nThe coach can't see them:\n" + "\n".join(f"  warning: {w}" for w in seen))
+        piled = repeats.stacked_stories(text)
+        if piled:   # a warning: stories piled into one rest
+            b.say("\nStories stacked:\n" + "\n".join(f"  warning: {w}" for w in piled))
     if issues:
         b.fail(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
         b.stopped(f"{len(issues)} menu issue(s)", stage="menu")

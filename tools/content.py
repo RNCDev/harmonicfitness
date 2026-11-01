@@ -376,6 +376,10 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
                 for x in xs]
     if f["skipped"]:
         out.append(f"- left out by the listener: {', '.join(f['skipped'])}")
+    today_told = [i for i in f["told_recent"] if i["date"] == today.isoformat()]
+    if today_told:
+        out += ["", "## Already told today, in an earlier session (never again today, not even reworded)"]
+        out += [f"- {i['topic'] or '?'} / {i['format'] or '?'}: {i['title']}" for i in today_told]
     out += ["", f"## Told in the last {RECENT_DAYS} days (don't tell again; a follow-up needs something new)"]
     out += [f"- {i['date']} {i['topic'] or '?'} / {i['format'] or '?'}: {i['title']}" for i in f["told_recent"]] \
         or ["- nothing yet"]

@@ -92,9 +92,24 @@ SEEN = re.compile(
     r"|\b(?:nailed|crushed|smashed) (?:it|that)\b"
     r"|\byou(?:'re| are) (?:flying|crushing it|killing it)\b"
     r"|\b(?:executed|done|performed) with (?:clean|perfect|great|good|solid) (?:form|technique)\b"
+    r"|\b(?:solid|great|real|good) (?:discipline|work stepping|control)\b|\bsolid work\b"
     r"|\b(?:completely|totally|perfectly) (?:safe|protected|stable)\b"
-    r"|\b(?:clean|crisp|smooth|solid) (?:dumbbell |kettlebell |barbell )?(?:pressing|presses|deadlifts|squats|rows|reps|form)\b",
+    r"|\b(?:clean|crisp|smooth|solid) (?:dumbbell |kettlebell |barbell )?(?:pressing|presses|deadlifts|squats|rows|reps|form|technique)\b",
     re.IGNORECASE)
+
+
+STACKED = 3   # stories in one segment past which it's a pile, not a rest: "one story to a rest" (script.md)
+
+
+def stacked_stories(text: str) -> List[str]:
+    """Warnings for a segment holding STACKED or more [story] blocks: unrelated items told back to back."""
+    out = []
+    for seg in draft.parse(text):
+        stories = draft.story_split(seg)[1]
+        if len(stories) >= STACKED:
+            out.append(f'segment "{seg["label"]}" tells {len(stories)} stories in a row; one story to a rest (a longer '
+                       "rest gets a bigger story, not two or three), the others to other rests or left untold")
+    return out[:SHOWN]
 
 
 def seen_claims(text: str) -> List[str]:

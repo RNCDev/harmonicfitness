@@ -183,8 +183,10 @@ def _week_lines(cat: catalog.Catalog, log, today: datetime.date, feedback: List[
            f"- Sessions in the last seven days: {seven}."]
     if since == 0:
         out.append("- **A second session today.** Say so in the welcome (\"second one today\"), and program around "
-                   "the first: leave out the patterns it trained (" + (", ".join(trained) or "see above")
-                   + ") or keep them light, and favour what it didn't train. Never call a same-day repeat progress.")
+                   "the first: favour what it didn't train, and keep what it trained (" + (", ".join(trained) or "see above")
+                   + ") light and short. A whole-body request still covers every pattern, the trained ones lightly. "
+                   "Never call a same-day repeat progress, and tell nothing the first session told (the content plan "
+                   "lists it).")
     week = coverage.week(log, today, cat=cat)
     none = [p for p in cat.patterns if not week.get(p) and p != "skill"]
     once = [p for p in cat.patterns if week.get(p) == 1]

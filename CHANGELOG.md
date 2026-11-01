@@ -2,6 +2,22 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.49.3] - 2026-11-01
+
+Eval loop 2: the same two 25-minute requests on 0.49.2, judged blind on safety, efficacy and engagement: full-body at home 4/3/2, gym strength easy on the left knee 1/3/3. The 1 was a "heavy dumbbell" for a suitcase carry under the knee limit, which 0.49.2's new check missed; it's caught now, and so is a wider gap it exposed.
+
+### Fixed
+- **A movement named in the plural of a "-y" word is recognised** ("suitcase carries", "farmer carries"). The menu's text scan matched "-s" and "-es" plurals only, so every check built on it (a movement off the menu, one side only, light under a limit) missed these. This was a safety gap in the build's menu check.
+- **"Heavy" with a limited movement, wherever it's said:** the check now reads a segment's label too, and when a segment names no movement (a rest setting up the next set, "pick up one heavy dumbbell"; a second set that only says "that heavy bell"), the movement of the set it sets up or follows.
+
+### Changed
+- **A second session in a day keeps a whole-body session whole:** what the morning trained stays in, light and short, rather than left out (loop 2's full-body script had no pull and no hinge), and nothing the morning told is told again: the content plan lists it under "Already told today" (a hockey item was retold four hours later).
+- **The weights by name:** each loaded movement's first set names its load from the kit ("the fifteens", "set the bell to thirty-five"), never "your dumbbells" alone.
+- **Stories:** the build warns when a segment tells three or more stories (one story to a rest); a story keeps at least one of its source's numbers, adds no colour, quote or play-by-play the source didn't give, and comes only from the plan's topics. On the web, a topic whose search found nothing current gets no news (loop 2 told Yankees news the research had marked unconfirmed), and the feeds sheet wins over a search that disagrees.
+- **Web app, a limit from the first screen's sentence is for today:** the coach passes it as `--limit` and never asks whether it should last (loop 2 stopped to ask), and doesn't recite the red flags unless the listener describes pain.
+- **Web app, a draft far from the brief's word count is told so:** `write_file` and `edit_segments` compare the draft's words with the brief's count and say how far over or under, before the first lint (loop 2's first draft was 24 percent over).
+- More claims the coach can't make are warned on: "solid discipline", "solid work", "crisp technique".
+
 ## [0.49.2] - 2026-11-01
 
 Eval loop 1: two 25-minute web scripts (full-body at home; gym strength going easy on the left knee), judged blind on safety, efficacy and engagement: 4/3/3 and 3/3/3. What the engine now holds because of them, and quicker turns (231 and 242 seconds, 11 model requests each: a 60-second full rewrite after each first lint, and half a minute on a research sheet nothing reads).

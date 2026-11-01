@@ -253,14 +253,22 @@ def _patterns(cat: catalog.Catalog) -> List[Tuple[re.Pattern, str, str]]:
     for key in sorted(found, key=len, reverse=True):
         words = key.split(" ")
         if len(words) > 1:   # "single-leg glute bridge" also matches "single leg glute bridge"
-            body = r"[\s-]+".join(re.escape(w).replace(r"\-", r"[\s-]?") for w in words) + r"(?:e?s)?"
+            body = r"[\s-]+".join(re.escape(w).replace(r"\-", r"[\s-]?") for w in words[:-1])
+            body += r"[\s-]+" + _plural(re.escape(words[-1]).replace(r"\-", r"[\s-]?"))
         elif "-" in key:     # push-up keeps its hyphen ("push up through the heels" is a cue), but the spaced
-            body = re.escape(key) + r"(?:e?s)?|" + re.escape(key).replace(r"\-", r"\s+") + r"e?s"   # plural is a name
+            body = _plural(re.escape(key)) + "|" + re.escape(key).replace(r"\-", r"\s+") + r"e?s"   # plural is a name
         else:                # a one-word name of its own (deadlift, thruster)
-            body = re.escape(key) + r"(?:e?s)?"
+            body = _plural(re.escape(key))
         out.append((re.compile(r"(?<![a-z'-])(?:" + body + r")(?![a-z'-])"), *found[key]))
     cat.__dict__["_menu_patterns"] = out
     return out
+
+
+def _plural(word: str) -> str:
+    """A name's last word (escaped) with its plural: "carry" also "carries", "lunge" "lunges", "press" "presses"."""
+    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
+        return word[:-1] + r"(?:y|ies)"
+    return word + r"(?:e?s)?"
 
 
 def mentions(cat: catalog.Catalog, text: str) -> List[Tuple[str, str, str]]:
@@ -530,12 +538,15 @@ def load_problems(cat: catalog.Catalog, menu: dict, segments) -> List[str]:
     if not areas:
         return []
     out = []
-    for seg in segments:
+    named = [[mid for mid, _, _ in mentions(cat, draft.story_split(seg)[0] + " . " + seg["label"])] for seg in segments]
+    for i, seg in enumerate(segments):
         coaching = draft.story_split(seg)[0]
         heavy = next((m for m in HEAVY.finditer(coaching) if not _negated_heavy(coaching[:m.start()])), None)
         if heavy is None:
             continue
-        for mid, _, _ in mentions(cat, coaching):
+        # the movement it's for: named here (or in the label); else the set it sets up next, or the one it follows
+        near = named[i] or (named[i + 1] if i + 1 < len(segments) else []) + (named[i - 1] if i else [])
+        for mid in near:
             mv = cat.movements.get(mid)
             hit = sorted(a for a in areas if mv is not None and mv.loads.get(a, 0) >= 1)
             if hit:

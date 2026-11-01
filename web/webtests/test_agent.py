@@ -549,6 +549,17 @@ class Faster(AgentCase):
         self.assertIn(f"me/workouts/{TODAY}-strength-20/", text)
         self.assertNotIn("2026-01-01-strength-20", text)
 
+    def test_a_draft_far_from_the_brief_s_word_count_is_told(self):
+        os.makedirs(os.path.join(self.home, "workouts", "a"), exist_ok=True)
+        with open(os.path.join(self.home, "workouts", "a", "a.brief.md"), "w", encoding="utf-8") as f:
+            f.write("- Talk to time: ... For this 2-minute session, write about 100 words in all (between 90 and 110).\n")
+        r = tools.write_file(self.deps, self.DRAFT, self.TEXT)
+        self.assertIn("about 5 words. That's 95% under the brief's 100 words: lengthen it", r.output)
+        long = self.TEXT.replace("Hello there.", "Hello there. " + "And again, " * 60)
+        self.assertIn("over the brief's 100 words: trim it", tools.write_file(self.deps, self.DRAFT, long).output)
+        near = self.TEXT.replace("Hello there.", "word " * 97)
+        self.assertNotIn("brief's", tools.write_file(self.deps, self.DRAFT, near).output)
+
     def test_a_draft_says_what_its_segments_add_up_to(self):
         r = tools.write_file(self.deps, self.DRAFT, self.TEXT)
         self.assertIn("3 segments adding up to 120 s (2 min), about 5 words", r.output)
