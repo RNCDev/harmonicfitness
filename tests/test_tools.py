@@ -1539,6 +1539,8 @@ class LintReport(unittest.TestCase):
         said = "\n".join(tts_build.render_report(report))
         self.assertIn("silent at its bare holds", said)
         self.assertIn('20s of silence after "At the bell, go...."', said)   # over eight seconds: refused
+        self.assertIn("#1 ", said.split("20s of silence")[0][-40:])         # by the segment's number, for its edit
+        self.assertIn("Its bare [hold] takes the segment's spare time", said)
         self.assertGreater(report.problems, 0)
 
     def test_a_coached_set_passes_and_a_long_silence_anywhere_is_refused(self):

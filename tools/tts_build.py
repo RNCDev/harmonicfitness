@@ -284,11 +284,15 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         for secs, before in quiet:
             if secs > limit + 0.05:
                 where = f"after \"{' '.join(before.split()[:6])}...\"" if before else "at the segment's start"
+                # the segment named, since a fix is an edit by its number, and the bare [hold] named when it's the
+                # cause: a writer told only the words before it missed it twice and rewrote the draft (0.50.2's loop)
                 row.clip_issues.append(
-                    f"  {secs:.0f}s of silence {where}; a listener with no screen hears more than "
-                    f"{limit:.0f}s as a dropped earbud. Coach through it (a cue, the breath, how many are "
-                    "left, a check-in) in holds of a few seconds; in a rest or easy work, tell more of the listener's content "
-                    "(knowledge/script.md, Keeping them engaged); or give the segment fewer seconds")
+                    f"  #{i} {seg['label']}: {secs:.0f}s of silence {where}; a listener with no screen hears more than "
+                    f"{limit:.0f}s as a dropped earbud. "
+                    + ("Its bare [hold] takes the segment's spare time: coach through it (a cue, the breath, how many "
+                       "are left) or give the segment fewer seconds" if holds(seg)[0] else
+                       "Coach through it (a cue, the breath, how many are left) in holds of a few seconds, or give "
+                       "the segment fewer seconds"))
         has_cues = bool(voice and voice.get("cues"))
         for para in plans[i - 1]:
             for text, _ in para:
