@@ -575,7 +575,7 @@ def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
         note += long_rests(new)
         deps.skeletons[rel] = segments_of(new)
     else:
-        new, note = hold_clock(new, None, _request_seconds(full))
+        new, note = hold_clock(new, deps.skeletons.get(rel), _request_seconds(full))
     tmp = full + ".tmp-write"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(new)
