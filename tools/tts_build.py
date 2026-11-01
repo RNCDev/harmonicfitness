@@ -427,9 +427,7 @@ def render_report(report):
                     f"(within {report.total_tolerance:.1%} is fine: the lint aims inside the render's limit, "
                     "leaving room for the voice)")
         if report.total_off:
-            summary += ("  <-- too " + ("long: trim words" if drift > 0 else
-                                       "short: add coaching in the sets and let the rests' stories run fuller "
-                                       "(a longer serial beat, a question back to the listener); a spare topic only when a rest has none")
+            summary += ("  <-- too " + ("long: trim words" if drift > 0 else "short: add words")
                         + " in the segments furthest off")
             summary += "\n" + words_to_plan(report)
         summary += (f"\n{voice['name']} speaks this draft's words at about {report.wpm:.0f} a minute; the guide "

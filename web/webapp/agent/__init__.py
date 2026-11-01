@@ -443,8 +443,16 @@ def _then_build(ctx: RunContext[Deps], path: object, written: ToolResult, name: 
     unfinished = written.unfinished > 0
     ctx.deps.skeleton = ("skeleton" if written.unfinished == written.segments else "partial") if unfinished else ""
     built = run(ctx, ["build", path, name, "--coach", coach] + (["--lint-only"] if unfinished else []))
+    output = built.output
+    if not unfinished:   # a full draft's "add about N words", scaled to what this writer delivers
+        full, _ = tools._mine(ctx.deps, path)
+        try:
+            with open(full, encoding="utf-8") as f:
+                output = tools.scale_ask(ctx.deps, path, output, tools._words(f.read()))
+        except (OSError, TypeError):
+            pass
     return built.model_copy(update={"output": written.output + "\n\n### build (exit " + str(built.code) + ")\n"
-                                    + built.output})
+                                    + output})
 
 
 @AGENT.tool(sequential=True)

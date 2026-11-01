@@ -694,6 +694,19 @@ class Faster(AgentCase):
         tools.edit_segments(self.deps, self.DRAFT, [{"number": 1, "text": "@@ 120 | Let us begin\nIt is not far."}])
         self.assertIn("It isn't far.", self.draft_text())
 
+    def test_the_build_s_ask_for_words_is_scaled_to_what_the_writer_delivers(self):
+        """A writer asked for 600 words added a third of that: the first ask is doubled, the next scaled by what the
+        last one brought (at most three times), and a build that asks nothing forgets it."""
+        out = "Predicted length 25 min\nTo land on plan, add about 300 words in one edit: #7 +120, #9 +100, #2 +80\nok"
+        got = tools.scale_ask(self.deps, "d", out, 2000)
+        self.assertIn("add about 600 words in one edit: #7 +240, #9 +200, #2 +160\nok", got)
+        got = tools.scale_ask(self.deps, "d", out.replace("300", "200"), 2200)   # 200 of the 600 shown: times three
+        self.assertIn("add about 600 words", got)
+        got = tools.scale_ask(self.deps, "d", out, 2800)                          # all 600: as asked
+        self.assertIn("add about 300 words", got)
+        self.assertEqual(tools.scale_ask(self.deps, "d", "Predicted length 30 min", 3100), "Predicted length 30 min")
+        self.assertNotIn("d", self.deps.asks)
+
     def test_a_write_off_the_clock_runs_no_build_in_the_turn(self):
         self.menu(120)
         patch, calls = self.fake()

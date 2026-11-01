@@ -86,6 +86,9 @@ class Deps:
     checkpoint: Callable[[], None] | None = field(default=None, repr=False)
     # the coach the turn's `brief` was run for: a draft written without its build's coach builds with this one
     brief_coach: str | None = None
+    # each draft's last "add about N words" as shown to the writer, and its words then: (shown, words), so the
+    # next ask is scaled by how much of that one the writer delivered
+    asks: dict[str, tuple[int, int]] = field(default_factory=dict)
 
 
 class ToolResult(BaseModel):
@@ -444,6 +447,32 @@ def _adds_up(text: str) -> str:
     words = _words(text)
     return (f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min), "
             + ("no words yet (a skeleton)" if not words else f"about {words} words"))
+
+
+# A writer asked to "add about 600 words" re-emits the segments with a third of that (16 to 47 percent in 0.50.2's
+# loop), so a draft fifteen percent short took three to five fixes. The site scales the build's ask by what this
+# writer delivered on its last one (twice, the first time), so one fix lands.
+ASK = re.compile(r"To land on plan, add about (\d+) words in one edit:[^\n]*")
+FIRST_ASK = 2.0
+MOST_ASK = 3.0
+NUMBER = re.compile(r"(about |\+)(\d+)")
+
+
+def scale_ask(deps: Deps, path: str, output: str, words: int) -> str:
+    """The build's output with its "To land on plan, add about N words" ask scaled to this writer, and the ask as
+    shown remembered for the next build of `path`; a build that asks nothing forgets it."""
+    found = ASK.search(output)
+    if not found:
+        deps.asks.pop(path, None)
+        return output
+    factor = FIRST_ASK
+    if path in deps.asks:   # the last ask as shown, and what the writer added for it
+        shown, before = deps.asks[path]
+        delivered = words - before
+        factor = min(MOST_ASK, max(1.0, shown / delivered)) if delivered > 0 else MOST_ASK
+    line = NUMBER.sub(lambda m: (m.group(1) or "") + str(round(int(m.group(2)) * factor)), found.group(0))
+    deps.asks[path] = (round(int(found.group(1)) * factor), words)
+    return output[:found.start()] + line + output[found.end():]
 
 
 # A coach talks in contractions, and a web voice reads exactly what's written: "Let us go, that is one" sounds
