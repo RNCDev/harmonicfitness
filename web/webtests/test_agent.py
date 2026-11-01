@@ -707,6 +707,13 @@ class Faster(AgentCase):
         self.assertEqual(tools.scale_ask(self.deps, "d", "Predicted length 30 min", 3100), "Predicted length 30 min")
         self.assertNotIn("d", self.deps.asks)
 
+    def test_a_long_paragraph_is_never_split_after_initials(self):
+        """"U.S. / Soccer" was heard as a pause mid-name (0.50.2's loop): a split comes at a sentence's end only."""
+        line = ("He came up through the U.S. Soccer academy and the Union's second team, and last month he played "
+                "every minute of three straight games for a club in Spain. That is the part worth knowing. The "
+                "squad meets in Florida next week for two qualifiers against Haiti, and the coach has said he starts.")
+        self.assertTrue(all(not p.rstrip().endswith("U.S.") for p in tools._split_line(line)))
+
     def test_a_write_off_the_clock_runs_no_build_in_the_turn(self):
         self.menu(120)
         patch, calls = self.fake()

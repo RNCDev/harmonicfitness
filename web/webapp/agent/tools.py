@@ -524,7 +524,8 @@ def contract(text: str) -> tuple[str, int]:
 # about 20 seconds, and a split clip is inside the limit whoever speaks it.
 SPLIT_OVER = 225
 SPLIT_TO = 200
-SENTENCE_END = re.compile(r"(?<=[.!?])(?:[\"\u201d'])?\s+(?=[A-Z\"\u201c\[])")
+# never after an initial or an abbreviation of initials ("U.S. Soccer", "D.C."): a break there is a pause mid-name
+SENTENCE_END = re.compile(r"(?<![A-Z]\.[A-Z]\.)(?<!\b[A-Z]\.)(?<=[.!?])(?:[\"\u201d'])?\s+(?=[A-Z\"\u201c\[])")
 
 
 def _clips(line: str) -> list[str]:
