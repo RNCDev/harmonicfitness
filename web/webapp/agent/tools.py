@@ -78,6 +78,8 @@ class Deps:
     linted: tuple | None = None
     # saves what the recording made (the coach, the MP3, the clips) at once, so a later stop can't lose it
     checkpoint: Callable[[], None] | None = field(default=None, repr=False)
+    # the coach the turn's `brief` was run for: a draft written without its build's coach builds with this one
+    brief_coach: str | None = None
 
 
 class ToolResult(BaseModel):
@@ -183,6 +185,8 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         if mapped is None:
             return _refuse(f"{a!r}: paths must be me/... inside the listener's folder")
         argv.append(mapped)
+    if command == "brief" and _flag(args, "--coach"):
+        deps.brief_coach = _flag(args, "--coach")
     if command == "build" and "--lint-only" not in args:
         return _record(deps, args, argv)
     if command == "build":   # a lint: remembered when clean, for the price that follows
@@ -386,6 +390,15 @@ def split_long(text: str) -> tuple[str, int]:
 def _split_note(n: int) -> str:
     return (f" The site split {n} long paragraph{'s' if n > 1 else ''} at a sentence break (a clip over about 20 "
             "seconds); nothing to do.") if n else ""
+
+
+STEM = re.compile(r"(\d{4}-\d{2}-\d{2})-([a-z]+)-(\d+)(?:-\d+)?\.draft\.txt$")
+
+
+def build_name(path: str) -> str | None:
+    """A draft's build name from its stem, as the skill names one: "Workout 2026-11-01 Strength 30 min"."""
+    found = STEM.search(path)
+    return f"Workout {found.group(1)} {found.group(2).capitalize()} {found.group(3)} min" if found else None
 
 
 def _target(full: str | None) -> int | None:

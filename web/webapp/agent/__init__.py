@@ -412,7 +412,12 @@ def _then_build(ctx: RunContext[Deps], path: object, written: ToolResult, name: 
                 coach: str | None) -> ToolResult:
     """A draft written with its build's name and coach is built at once, as `run build` would (its lint, then its
     price when clean): one round trip a fix, not two. The write's own line first, then the build's."""
-    if written.code != 0 or not (isinstance(path, str) and path.endswith(".draft.txt") and name and coach):
+    if written.code != 0 or not (isinstance(path, str) and path.endswith(".draft.txt")):
+        return written
+    # a draft written without them builds anyway, under its stem's name and the brief's coach: a write left
+    # unbuilt is a round trip spent on `run build`
+    name, coach = name or tools.build_name(path), coach or ctx.deps.brief_coach
+    if not (name and coach):
         return written
     built = run(ctx, ["build", path, name, "--coach", coach])
     return built.model_copy(update={"output": written.output + "\n\n### build (exit " + str(built.code) + ")\n"

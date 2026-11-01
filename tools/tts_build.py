@@ -330,6 +330,25 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
     return report
 
 
+def words_to_plan(report):
+    """How many words would land the draft on plan, and where: the segments furthest off their guide, each with
+    its share, so one edit gets there (drafts lengthened "a little" at a time took four passes)."""
+    drift = report.drift or 0.0
+    need = round(abs(drift) * report.total_seconds * report.wpm / 60)
+    short = drift < 0
+    gaps = sorted(((r.guide - r.words) if short else (r.words - r.guide), r.index) for r in report.rows)
+    shares, left = [], need
+    for gap, index in reversed(gaps):
+        if left <= 0 or gap < 5:
+            break
+        take = min(gap, left)
+        shares.append(f"#{index} {'+' if short else '-'}{take}")
+        left -= take
+    where = ", ".join(shares) if shares else "spread across the segments"
+    return (f"To land on plan, {'add' if short else 'cut'} about {need} words in one edit: {where}"
+            + (f" (and about {left} more wherever a segment has room)" if left > 10 and shares else ""))
+
+
 def render_report(report):
     """The lint's printed table and summary, as lines."""
     out = []
@@ -370,6 +389,7 @@ def render_report(report):
                                        "short: add coaching in the sets and let the rests' stories run fuller "
                                        "(a longer serial beat, a question back to the listener); a spare topic only when a rest has none")
                         + " in the segments furthest off")
+            summary += "\n" + words_to_plan(report)
         summary += (f"\n{voice['name']} speaks this draft's words at about {report.wpm:.0f} a minute; the guide "
                     f"column is the words that fill each segment at that rate, around its holds, counts and chimes")
         if report.sent is not None:

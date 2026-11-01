@@ -102,6 +102,7 @@ class Loop30(unittest.TestCase):
                      "You are moving through this circuit with fantastic control.", "Outstanding carry."):
             self.assertTrue(repeats.seen_claims(f"movements: x\n@@ 30 | A\n{line}\n"), line)
         for line in ("Target is eight to ten clean reps, with two in reserve.", "Keep your back straight.",
+                     "Two more crisp reps, lock out at the top.", "Halfway there, five more smooth reps.",
                      "Great work, rest now."):
             self.assertEqual(repeats.seen_claims(f"movements: x\n@@ 30 | A\n{line}\n"), [], line)
 
@@ -134,3 +135,34 @@ class Loop30(unittest.TestCase):
             off = tts_build.lint(balanced, v)
         self.assertTrue(off.total_off)
         self.assertIn("trim it", "\n".join(tts_build.render_report(off)))
+
+
+class Loop30b(unittest.TestCase):
+    """0.49.6: a list of figures, a full-body session's patterns, and the words that land a short draft."""
+
+    def test_a_list_of_figures_is_warned_and_a_point_isnt_one(self):
+        many = ("movements: x\n@@ 60 | Rest\n[story] Revenue was sixteen point three billion, up from one point one "
+                "six billion; cash flow three point nine billion on eleven point six billion booked, and eighty "
+                "billion valued. [/story]\n")
+        self.assertTrue(repeats.crowded_figures(many))
+        few = "movements: x\n@@ 60 | Rest\n[story] That's the point: two goals in the third, sixteen billion. [/story]\n"
+        self.assertEqual(repeats.crowded_figures(few), [])
+
+    def test_a_full_body_session_names_the_pattern_it_left_out(self):
+        text = "movements: goblet squat, dumbbell floor press, dumbbell romanian deadlift\n@@ 60 | A\nGo.\n"
+        ids = [{"id": i} for i in ("goblet-squat", "dumbbell-floor-press", "dumbbell-romanian-deadlift",
+                                   "dumbbell-row")]
+        menu_ = {"request": {"goal": "general"}, "movements": ids}
+        self.assertIn("no pull", " ".join(repeats.missing_patterns(CAT, text, menu_)))
+        self.assertEqual(repeats.missing_patterns(CAT, text, dict(menu_, movements=ids[:3])), [])   # none allowed
+        self.assertEqual(repeats.missing_patterns(CAT, text, dict(menu_, request={"goal": "strength"})), [])
+
+    def test_a_short_draft_is_told_how_many_words_and_where(self):
+        from unittest import mock
+        import tts_build
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        w = " ".join(["Keep breathing slowly and steadily."] * 6)
+        segs = draft.parse(f"@@ 60 | A\n{w}\n\n@@ 60 | B\n{w} {w}\n\n@@ 90 | C\n{w}\n")
+        with mock.patch("voices.pace", return_value=(14.0, True)):
+            said = "\n".join(tts_build.render_report(tts_build.lint(segs, v)))
+        self.assertRegex(said, r"To land on plan, add about \d+ words in one edit: #3 \+\d+")

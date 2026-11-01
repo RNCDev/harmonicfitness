@@ -11,6 +11,7 @@ import sys
 from typing import List
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import catalog
 import draft  # noqa: E402
 import errors  # noqa: E402
 import paths  # noqa: E402
@@ -103,7 +104,7 @@ SEEN = re.compile(
     re.IGNORECASE)
 # "eight to ten clean reps" sets a target; it's a claim only when it praises what was done
 TARGET_BEFORE = re.compile(r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|\d+)"
-                           r"\s+$", re.IGNORECASE)
+                           r"\s+(?:more\s+)?$", re.IGNORECASE)
 
 
 STACKED = 3   # stories in one segment past which it's a pile, not a rest: "one story to a rest" (script.md)
@@ -118,6 +119,54 @@ def stacked_stories(text: str) -> List[str]:
             out.append(f'segment "{seg["label"]}" tells {len(stories)} stories in a row; one story to a rest (a longer '
                        "rest gets a bigger story, not two or three), the others to other rests or left untold")
     return out[:SHOWN]
+
+
+# a figure said aloud: digits, or a run of number words holding a magnitude ("sixteen point three billion")
+_NUMBER = (r"(?:\d[\d,.]*|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|"
+           r"fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|"
+           r"hundred|thousand|million|billion|trillion|point|percent|and|a)")
+FIGURE_RUN = re.compile(rf"\b{_NUMBER}(?:[\s-]+{_NUMBER})*\b", re.IGNORECASE)
+MAGNITUDE = re.compile(r"\d|hundred|thousand|million|billion|trillion|percent", re.IGNORECASE)
+FIGURES = 4   # figures in one segment's stories past which the ear can't hold them (judges marked down five to nine)
+
+
+def crowded_figures(text: str) -> List[str]:
+    """Warnings for a segment whose stories say more than FIGURES figures: a list of numbers read out, which a
+    listener mid-workout can't follow (loop 2 of the 30-minute evals read nine from one filing)."""
+    out = []
+    for seg in draft.parse(text):
+        stories = " ".join(draft.story_split(seg)[1])
+        figures = [m.group(0) for m in FIGURE_RUN.finditer(stories) if MAGNITUDE.search(m.group(0))]
+        if len(figures) > FIGURES:
+            out.append(f'segment "{seg["label"]}" reads out {len(figures)} figures ({", ".join(f.strip() for f in figures[:4])}'
+                       f"...); keep the one or two that make the point and say what they mean for the listener")
+    return out[:SHOWN]
+
+
+WHOLE_BODY = (("push", ("horizontal-push", "vertical-push")), ("pull", ("horizontal-pull", "vertical-pull")),
+              ("squat or lunge", ("squat", "lunge")), ("hinge", ("hinge",)))
+
+
+def missing_patterns(cat, text: str, menu: dict) -> List[str]:
+    """For a full-body session (goal general, no target), a warning naming each of push, pull, squat or lunge, and
+    hinge that no declared movement trains while today's menu allows one: every 30-minute full-body script in
+    the evals left out the pull. A pattern today's limits leave off the menu isn't asked for."""
+    request = (menu or {}).get("request") or {}
+    if request.get("goal") != "general" or request.get("target"):
+        return []
+
+    def patterns(names):
+        found = set()
+        for name in names:
+            m = catalog.resolve(cat, name)
+            if m:
+                found.update(m.patterns)
+        return found
+    trained = patterns(draft.declared(text))
+    allowed = patterns(m.get("id", "") for m in menu.get("movements") or [] if isinstance(m, dict))
+    gone = [label for label, pats in WHOLE_BODY if not trained.intersection(pats) and allowed.intersection(pats)]
+    return [f"a whole-body session with no {', no '.join(gone)}: add {'it' if len(gone) == 1 else 'them'} from "
+            "the menu (a light set or two is enough when the morning trained it)"] if gone else []
 
 
 def seen_claims(text: str) -> List[str]:

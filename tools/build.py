@@ -489,6 +489,13 @@ def _run(b, text):
         piled = repeats.stacked_stories(text)
         if piled:   # a warning: stories piled into one rest
             b.say("\nStories stacked:\n" + "\n".join(f"  warning: {w}" for w in piled))
+        figures = repeats.crowded_figures(text)
+        if figures:   # an issue: a list of numbers read out isn't something an ear can follow mid-set
+            b.say("\nToo many figures for the ear:\n" + "\n".join(f"  {w}" for w in figures))
+            issues = list(issues) + figures
+        gaps = repeats.missing_patterns(catalog.default(), text, menu.load(draft.menu_path(opts.draft)) or {})
+        if gaps:   # a warning: a whole-body session missing a main pattern
+            b.say("\nWhole body:\n" + "\n".join(f"  warning: {w}" for w in gaps))
     if issues:
         b.fail(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
         b.stopped(f"{len(issues)} menu issue(s)", stage="menu")

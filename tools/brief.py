@@ -432,6 +432,11 @@ def _coach_lines(name) -> List[str]:
         if text and not frontmatter.placeholder(text):
             label = key.replace("_", " ").strip()
             out.append(f"- {label[:1].upper() + label[1:]}: {text}")
+            if key == "encouragement":   # most coaches' examples praise what was seen; the coach sees nothing
+                out.append("  In this coach's own words, but never as if they watched: praise turns on what the "
+                           "listener can feel or the plan guarantees (\"if the last two felt clean, that's the "
+                           "standard\", \"three sets in the bank\"). This voice is what makes the session theirs: "
+                           "every coaching line should sound like this coach, not any trainer.")
     for line in coach.prose.splitlines():
         item = line.strip()
         key, _, value = item[2:].partition(":") if item.startswith("- ") else ("", "", "")

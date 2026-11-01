@@ -2,6 +2,22 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.49.6] - 2026-11-01
+
+Eval loops 3 to 5 on 30-minute scripts, judged with the calibrated three-score rubric (two judges a script, averaged). Loop 3, on 0.49.5 live: full-body at home 4.5/4.0/4.0 in 182 seconds, gym strength easy on the left knee 5.0/4.0/3.0 in 172 (both 50 seconds quicker than loop 2). Loop 4 ran the changes below on this computer, on the web app's own turn code, without a deploy: 5.0/4.0/3.0 in 137 seconds (one write, clean at the first build) and 4.5/4.0/3.5 in 163. A last local loop with everything below: 4.0/4.0/3.0 in 257 seconds (the writer read engine files and fought a figure limit set too tight, both fixed since) and 4.5/4.0/4.0 in 150. Every judge in every loop marked engagement down for the same two things, now held in code: a filing read out as a list of figures, and the coach's own voice missing.
+
+### Changed
+- **A short draft is told how many words to add, and where:** "To land on plan, add about 520 words in one edit: #2 +90, #9 +60...", the segments furthest under their guide first (loop 3's drafts came in 9 to 20 percent short and were lengthened "a little" at a time, four full rewrites in one turn).
+- **A rest that reads out more than four figures is refused:** a list of numbers isn't something an ear can follow mid-set (every loop told one company's filing as five to nine figures a rest). Keep the one or two that make the point.
+- **A full-body session that leaves out a push, a pull, a squat or lunge, or a hinge is warned,** for any of them today's menu allows (no 30-minute full-body script in the evals had a pull until loop 4).
+- **The coach's encouragement, without eyes:** the brief follows each coach's encouragement line with how to say it as this coach without claiming to have watched ("if the last two felt clean, that's the standard"); about half the stock coaches' examples ("that was steady", "now that's a strong set") praise what was seen, so drafts dropped the coach's voice for stock praise.
+- "Two more crisp reps" and "five more smooth reps" are targets, not claims to have seen the set.
+- **Web app, straight to the script:** the coach reads no knowledge files or engine code before writing (the brief and the guides hold what it needs); one loop read three, half a minute.
+- **Web app, a draft always builds as it's written:** without `build_name` and `coach`, `write_file` and `edit_segments` take the name from the draft's folder and the coach from the turn's brief (both of loop 3's first writes forgot them, a round trip each).
+
+### Added
+- `web/local_turn.py` (maintainer only): one web-app workout turn on this computer, on a copy of a context folder, with the worker's own agent, tools and step 1 and a Gemini key from the repo's `.env`, saving the turn's files and a history `pull`'s shape. Loops 4 and 5 ran on it, minutes apart, with no deploy between.
+
 ## [0.49.5] - 2026-11-01
 
 Eval loop 2 on 30-minute scripts, on 0.49.4: 233 and 223 seconds to a priced script. Judged now with a calibrated three-score rubric (`docs/eval/judge-three.md`: anchors for each score, two independent judges a script, averaged), which also re-scored loop 1 as a baseline: the earlier one-judge "find eight problems" prompt marked the same scripts a point or two lower. Full-body at home 5.0/3.5/3.0 (loop 1: 5.0/4.0/3.5); gym strength easy on the left knee 4.5/4.0/3.0 (loop 1: 4.0/3.0/3.0): 0.49.4's hard-set line gave the gym session three sets of four lifts. This release is a simplification: fewer, plainer rules, and less to read before the first word.
