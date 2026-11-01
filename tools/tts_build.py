@@ -340,8 +340,12 @@ def render_report(report):
         out.append(f"{'#':>3} {'secs':>5} {'target':>6} {'words':>5} {'diff':>6}  label")
     for r in report.rows:
         if voice:
-            flag = (f"  <-- runs {r.spoken - r.seconds:.1f}s long; trim it" if r.flag == "long" else
-                    f"  <-- ends {r.seconds - r.spoken:.1f}s early; add a little" if r.flag == "short" else
+            # with the total in range a segment off its slot is only a note: only the total is held to plan, and a
+            # writer told to "trim it" spends a full pass on segments that needed nothing
+            fix = report.strict or report.total_off
+            flag = (f"  <-- runs {r.spoken - r.seconds:.1f}s long{'; trim it' if fix else ''}" if r.flag == "long" else
+                    f"  <-- ends {r.seconds - r.spoken:.1f}s early{'; add a little' if fix else ''}"
+                    if r.flag == "short" else
                     f"  ({r.quiet:.0f}s silent at its bare holds)" if r.quiet >= HELD_QUIET else "")
             out.append(f"{r.index:>3} {r.seconds:>5} {r.words:>5} {r.guide:>5} {r.spoken:>6.1f} "
                        f"{r.fill:>5.0%}  {r.label}{flag}")
@@ -378,7 +382,8 @@ def render_report(report):
     if flagged:
         out.append(f"{flagged} segment(s) far off their slots"
                    + (" (counted as issues: strict)" if report.strict else
-                      "; not blocking, since only the total is held to plan, but the fix goes there first"))
+                      "; the total is off, so the fix goes there first" if report.total_off else
+                      "; not blocking: the total is within its limit, so leave them as they are"))
     return out
 
 

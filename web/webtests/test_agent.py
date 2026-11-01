@@ -680,6 +680,76 @@ class Faster(AgentCase):
         self.assertFalse(any(a[0] == "build" and "--lint-only" not in a for a in calls))
 
 
+class ThirtyMinuteLoop1(Faster):
+    """0.49.4: a write that builds, long paragraphs split by the site, the feeds sheet with `run feeds`."""
+
+    def test_a_draft_written_with_its_build_is_built_in_the_same_call(self):
+        patch, calls = self.fake()
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("write_file", {
+                    "path": self.DRAFT, "content": self.TEXT, "build_name": "Workout A", "coach": "Coach Reed"},
+                    tool_call_id="w1")])
+            return ModelResponse(parts=[TextPart("ready")])
+        with patch:
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertEqual([a[0] for a in calls], ["build", "get"])   # linted and priced, no `run build` turn
+        self.assertEqual(self.deps.offer["name"], "Workout A")
+
+    def test_a_write_without_its_build_only_writes(self):
+        patch, calls = self.fake()
+        with patch:
+            def script(messages, info):
+                if not parts(messages, ToolReturnPart):
+                    return ModelResponse(parts=[ToolCallPart("write_file", {"path": self.DRAFT, "content": self.TEXT},
+                                                             tool_call_id="w1")])
+                return ModelResponse(parts=[TextPart("ok")])
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertEqual(calls, [])
+
+    def test_a_long_paragraph_is_split_at_a_sentence(self):
+        long = ("The Flyers won four to two last night in a game that went back and forth all evening long. "
+                "Their goalie made thirty saves. The crowd stayed loud all night. The next game is Tuesday at home "
+                "against the Rangers, who have won five straight and lead the division.")
+        text = self.TEXT.replace("Hello there.", "[story]\n" + long + "\n[/story]")
+        r = tools.write_file(self.deps, self.DRAFT, text)
+        self.assertIn("split 1 long paragraph", r.output)
+        body = self.draft_text()
+        self.assertIn("all night.\n\nThe next game", body)
+        self.assertTrue(all(len(c) <= tools.SPLIT_OVER for ln in body.split("\n") for c in tools._clips(ln)))
+        self.assertEqual(tools.split_long(body), (body, 0))   # nothing left to split
+        short = self.TEXT
+        self.assertEqual(tools.split_long(short), (short, 0))
+
+    def test_markers_are_never_split(self):
+        line = ("Lower slowly for three, then drive up. [hold 4s] " + "Keep the ribs down and breathe out as you rise. " * 6)
+        out, n = tools.split_long("@@ 60 | Set\n" + line + "\n")
+        self.assertGreater(n, 0)
+        self.assertIn("[hold 4s]", out)
+        self.assertEqual(out.count("["), line.count("["))
+
+    def test_run_feeds_hands_over_the_sheet(self):
+        daily = os.path.join(self.home, "workouts", "research", "daily")
+        os.makedirs(daily, exist_ok=True)
+        with open(os.path.join(daily, f"{TODAY}-feeds.md"), "w", encoding="utf-8") as f:
+            f.write("# Feeds\n## Weather\n- sunny\n## Local\n- a headline\n")
+        from concurrent.futures import Future
+        done = Future()
+        done.set_result(tools.ToolResult(code=0, output="## Weather\n- sunny"))
+        self.deps.feeds = done
+        r = tools.run(self.deps, ["feeds"])
+        self.assertIn("a headline", r.output)
+        self.assertEqual(r.output.count("a headline"), 1)
+
+    def test_step_one_brings_todays_research_sheet(self):
+        daily = os.path.join(self.home, "workouts", "research", "daily")
+        os.makedirs(daily, exist_ok=True)
+        with open(os.path.join(daily, f"{TODAY}.md"), "w", encoding="utf-8") as f:
+            f.write("# Research\n- the big story: 16.3 billion\n")
+        self.assertIn("16.3 billion", agent.prefetch(self.deps, "a 30-minute strength workout"))
+
+
 class Search(AgentCase):
     def test_every_writer_can_search_the_web(self):
         from webapp import providers

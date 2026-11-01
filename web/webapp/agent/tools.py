@@ -167,11 +167,16 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         if deps.auditions:
             return _refuse("one audition a turn: let the listener hear these candidates first, then audition "
                            "again next turn if none is right")
-    if command == "feeds" and deps.feeds is not None:
-        try:
-            return deps.feeds.result(timeout=TIMEOUT)
-        except Exception:  # noqa: BLE001 - the background run failed or hung: run it here instead
-            pass
+    if command == "feeds":
+        got = None
+        if deps.feeds is not None:
+            try:
+                got = deps.feeds.result(timeout=TIMEOUT)
+            except Exception:  # noqa: BLE001 - the background run failed or hung: run it here instead
+                got = None
+        if got is None:
+            got = _plain_run(deps, ["feeds"] + [a for a in args[1:] if a == "--refresh"])
+        return _with_sheet(deps, got)
     argv = []
     for a in args:
         mapped = _arg(deps, a)
@@ -197,6 +202,25 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
     # the engine prints the folder's real path; the agent knows it as me/
     return _result(r.code, r.stdout.replace(home, "me").replace(deps.home, "me"),
                    r.stderr.replace(home, "me").replace(deps.home, "me"))
+
+
+def _plain_run(deps: Deps, argv: list[str]) -> ToolResult:
+    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT, cancel=deps.cancel)
+    return _result(r.code, _mine_text(deps, r.stdout), _mine_text(deps, r.stderr))
+
+
+def _with_sheet(deps: Deps, got: ToolResult) -> ToolResult:
+    """`feeds` prints only the weather; here its sheet comes with it, so reading it isn't another round trip."""
+    if got.code != 0 or not deps.today:
+        return got
+    sheet = os.path.join(deps.home, "workouts", "research", "daily", f"{deps.today}-feeds.md")
+    try:
+        with open(sheet, encoding="utf-8") as f:
+            text = f.read(LIMIT)
+    except OSError:
+        return got
+    return got.model_copy(update={"output": got.output + f"\n\n### the feeds sheet (me/workouts/research/daily/"
+                                  f"{deps.today}-feeds.md; already read: don't read it again)\n" + text})
 
 
 def _read(full: str) -> ToolResult:
@@ -243,13 +267,16 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
     if deps.recorded and rel.endswith(".draft.txt"):
         return _refuse(AFTER_RECORDING)
+    split = 0
+    if rel.endswith(".draft.txt"):
+        content, split = split_long(content)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     tmp = full + ".tmp-write"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(content)
     os.replace(tmp, full)
     if rel.endswith(".draft.txt"):   # the request's length is the brief's: check them against it before linting
-        return _result(0, f"wrote {path} ({len(content)} characters): {_adds_up(content, full)}")
+        return _result(0, f"wrote {path} ({len(content)} characters): {_adds_up(content, full)}.{_split_note(split)}")
     return _result(0, f"wrote {path} ({len(content)} characters)")
 
 
@@ -288,6 +315,77 @@ def _adds_up(text: str, full: str | None = None) -> str:
                 + ("trim it before the first lint (a set that holds for its reps gets its cues, not stories)"
                    if off > 0 else "lengthen it before the first lint (fuller coaching, fuller stories in the rests)"))
     return out
+
+
+# A clip (a paragraph's text between markers) the lint finds over draft.MAX_CLIP (22 s) costs a whole round trip to
+# split by hand, and first drafts hold one or two nearly every time: the site splits them at a sentence break as
+# the draft is written. Characters, not seconds: the slowest web coach speaks about 11.2 a second, so 225 is
+# about 20 seconds, and a split clip is inside the limit whoever speaks it.
+SPLIT_OVER = 225
+SPLIT_TO = 200
+SENTENCE_END = re.compile(r"(?<=[.!?])(?:[\"\u201d'])?\s+(?=[A-Z\"\u201c\[])")
+
+
+def _clips(line: str) -> list[str]:
+    return [c.strip() for c in MARK.split(line) if c.strip()]
+
+
+def _split_line(line: str) -> list[str]:
+    """`line` as one or more paragraphs, each clip at most SPLIT_TO characters where its sentences allow."""
+    if all(len(c) <= SPLIT_OVER for c in _clips(line)):
+        return [line]
+    ends = [m.end() for m in SENTENCE_END.finditer(line) if line.count("[", 0, m.end()) == line.count("]", 0, m.end())]
+    pieces, start = [], 0
+    for end in ends + [len(line)]:
+        pieces.append(line[start:end].strip())
+        start = end
+    out = []
+    for piece in (p for p in pieces if p):
+        if out and len((_clips(out[-1] + " " + piece) or [""])[-1]) <= SPLIT_TO:
+            out[-1] += " " + piece
+        else:
+            out.append(piece)
+    return out
+
+
+def split_long(text: str) -> tuple[str, int]:
+    """The draft with each clip over SPLIT_OVER characters split into paragraphs at its sentence breaks, and how
+    many paragraphs were added. Lines of a paragraph that runs on over several lines are parted first."""
+    lines = text.split("\n")
+    out: list[str] = []
+    added = 0
+    group: list[str] = []
+
+    def flush():
+        nonlocal added
+        spoken = [ln for ln in group if MARK.sub("", ln).strip()]
+        joined = " ".join(group)
+        apart = len(spoken) > 1 and any(len(c) > SPLIT_OVER for c in _clips(joined))
+        for i, ln in enumerate(group):
+            parts = _split_line(ln)
+            added += len(parts) - 1
+            for j, part in enumerate(parts):
+                if j:
+                    out.append("")
+                out.append(part)
+            if apart and i < len(group) - 1 and MARK.sub("", ln).strip() and MARK.sub("", group[i + 1]).strip():
+                out.append("")
+                added += 1
+        group.clear()
+
+    for ln in lines:
+        if not ln.strip() or ln.startswith(("@@", "movements:")):
+            flush()
+            out.append(ln)
+        else:
+            group.append(ln)
+    flush()
+    return "\n".join(out), added
+
+
+def _split_note(n: int) -> str:
+    return (f" The site split {n} long paragraph{'s' if n > 1 else ''} at a sentence break (a clip over about 20 "
+            "seconds); nothing to do.") if n else ""
 
 
 def _target(full: str | None) -> int | None:
@@ -344,7 +442,7 @@ def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
             out += wanted[n] + ([""] if not last or (old and old[-1] == "") else [])
         else:
             out += old[begin:end]
-    new = "\n".join(out)
+    new, split = split_long("\n".join(out))
     if len(new) > WRITE_LIMIT:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
     tmp = full + ".tmp-write"
@@ -352,7 +450,7 @@ def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
         f.write(new)
     os.replace(tmp, full)
     return _result(0, f"replaced segment{'s' if len(wanted) > 1 else ''} {', '.join(map(str, sorted(wanted)))} in "
-                      f"{path}: now {_adds_up(new, full)}")
+                      f"{path}: now {_adds_up(new, full)}.{_split_note(split)}")
 
 
 def list_files(deps: Deps, path: str = "me/") -> ToolResult:

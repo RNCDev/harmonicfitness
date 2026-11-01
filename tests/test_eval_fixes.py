@@ -91,3 +91,46 @@ class ToldToday(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Loop30(unittest.TestCase):
+    """0.49.4: eval loop on 30-minute scripts."""
+
+    def test_seen_claims_widen_and_a_rep_target_isnt_one(self):
+        import repeats
+        for line in ("Great execution on the pull block.", "You held your posture clean throughout.",
+                     "You are moving through this circuit with fantastic control.", "Outstanding carry."):
+            self.assertTrue(repeats.seen_claims(f"movements: x\n@@ 30 | A\n{line}\n"), line)
+        for line in ("Target is eight to ten clean reps, with two in reserve.", "Keep your back straight.",
+                     "Great work, rest now."):
+            self.assertEqual(repeats.seen_claims(f"movements: x\n@@ 30 | A\n{line}\n"), [], line)
+
+    def test_a_feeds_sheet_is_as_fresh_as_its_header(self):
+        import datetime as dt
+        import tempfile
+        import feeds
+        now = dt.datetime.now().astimezone()
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "s.md")
+            for hours, fresh in ((-1, True), (-4, False), (2, False)):   # an hour ago; four; dated ahead (UTC)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(f"# Feeds, {now + dt.timedelta(hours=hours):%A %B %d, %Y %H:%M}\n")
+                self.assertEqual(feeds.fresh_sheet(path, now), fresh, hours)   # the file's own time is now
+
+    def test_off_slot_segments_say_fix_only_when_the_total_is_off(self):
+        from unittest import mock
+        import tts_build
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        words = " ".join(["Keep breathing slowly and steadily."] * 9)
+        balanced = draft.parse(f"@@ 20 | A\n{words} {words}\n\n@@ 40 | B\n{words}\n")   # long, then short
+        with mock.patch("voices.pace", return_value=(14.0, True)):
+            report = tts_build.lint(balanced, v)
+        said = "\n".join(tts_build.render_report(report))
+        self.assertFalse(report.total_off)
+        self.assertEqual([r.flag for r in report.rows], ["long", "short"])
+        self.assertNotIn("trim it", said)
+        self.assertIn("leave them as they are", said)
+        with mock.patch("voices.pace", return_value=(4.0, True)):   # far too slow: the total is off
+            off = tts_build.lint(balanced, v)
+        self.assertTrue(off.total_off)
+        self.assertIn("trim it", "\n".join(tts_build.render_report(off)))

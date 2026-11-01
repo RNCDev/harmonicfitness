@@ -361,16 +361,34 @@ def sheet_path(local):
 REUSE_HOURS = 3   # a sheet this fresh is read, not fetched again
 
 
+HEADER = re.compile(r"^# Feeds, (\w+ \w+ \d{2}, \d{4} \d{2}:\d{2})")
+
+
+def fetched_at(path):
+    """When the sheet at `path` was fetched, as a timestamp: the local time its header names (the web client
+    writes every file afresh at each job, so the file's own time says nothing there), else the file's time."""
+    with open(path, encoding="utf-8") as f:
+        found = HEADER.match(f.readline())
+    if found:
+        try:
+            return dt.datetime.strptime(found.group(1), "%A %B %d, %Y %H:%M").timestamp()
+        except ValueError:
+            pass
+    return os.path.getmtime(path)
+
+
 def fresh_sheet(path, now):
-    """Whether today's feeds sheet at `path` exists and was written under REUSE_HOURS ago."""
+    """Whether today's feeds sheet at `path` exists and was fetched under REUSE_HOURS ago. A sheet dated ahead of
+    now (written on another clock, such as a server's UTC) is stale."""
     try:
-        return now.timestamp() - os.path.getmtime(path) < REUSE_HOURS * 3600
+        age = now.timestamp() - fetched_at(path)
     except OSError:
         return False
+    return -300 <= age < REUSE_HOURS * 3600
 
 
 def age_minutes(path, now):
-    return max(0, round((now.timestamp() - os.path.getmtime(path)) / 60))
+    return max(0, round((now.timestamp() - fetched_at(path)) / 60))
 
 
 def sections(sheet, labels):

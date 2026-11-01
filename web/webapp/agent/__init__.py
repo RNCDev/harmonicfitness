@@ -392,25 +392,41 @@ def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
     return _step(ctx.deps, text, "read_file", lambda: tools.read_file(ctx.deps, path))
 
 
+def _then_build(ctx: RunContext[Deps], path: object, written: ToolResult, name: str | None,
+                coach: str | None) -> ToolResult:
+    """A draft written with its build's name and coach is built at once, as `run build` would (its lint, then its
+    price when clean): one round trip a fix, not two. The write's own line first, then the build's."""
+    if written.code != 0 or not (isinstance(path, str) and path.endswith(".draft.txt") and name and coach):
+        return written
+    built = run(ctx, ["build", path, name, "--coach", coach])
+    return built.model_copy(update={"output": written.output + "\n\n### build (exit " + str(built.code) + ")\n"
+                                    + built.output})
+
+
 @AGENT.tool(sequential=True)
-def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
-    """Write (create or replace) a text file in the listener's folder, me/... only."""
+def write_file(ctx: RunContext[Deps], path: str, content: str, build_name: str | None = None,
+               coach: str | None = None) -> ToolResult:
+    """Write (create or replace) a text file in the listener's folder, me/... only. For a draft, pass its build's
+    name and coach too, and the build runs right after the write (its lint, then its price when clean), its
+    result in this reply: no separate `run build`."""
     result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "write_file",
                    lambda: tools.write_file(ctx.deps, path, content))
     if isinstance(path, str) and path.endswith(".draft.txt"):
         ctx.deps.phase = "draft"
-    return result
+    return _then_build(ctx, path, result, build_name, coach)
 
 
 @AGENT.tool(sequential=True)
-def edit_segments(ctx: RunContext[Deps], path: str, edits: list[tools.SegmentEdit]) -> ToolResult:
+def edit_segments(ctx: RunContext[Deps], path: str, edits: list[tools.SegmentEdit], build_name: str | None = None,
+                  coach: str | None = None) -> ToolResult:
     """Replace segments of a draft, all in one call: each edit is a segment's place from 1 (the lint's # column)
     and the whole new segment, its `@@ <seconds> | <label>` line first. Every fix one lint names goes in one call,
-    instead of writing the draft again."""
+    instead of writing the draft again. Pass the build's name and coach, and the build runs right after (its lint,
+    then its price when clean), its result in this reply."""
     result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "edit_segments",
                    lambda: tools.edit_segments(ctx.deps, path, list(edits)))
     ctx.deps.phase = "draft"
-    return result
+    return _then_build(ctx, path, result, build_name, coach)
 
 
 @AGENT.tool(sequential=True)
@@ -510,9 +526,12 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
     commands = first_runs(line)
     with ThreadPoolExecutor(max_workers=len(commands) + len(FIRST_READS)) as pool:
         runs = [pool.submit(tools.run, plain, a) for a in commands]
-        reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS]
+        sheet = f"me/workouts/research/daily/{deps.today}.md"   # a research sheet a computer wrote today
+        extra = (sheet,) if deps.today and os.path.isfile(os.path.join(deps.home, "workouts", "research", "daily",
+                                                                       f"{deps.today}.md")) else ()
+        reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS + extra]
         results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(commands, runs)]
-        results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS, reads)]
+        results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS + extra, reads)]
     picked = _picked(deps, results[3][1])
     results[3] = ("./harmonicfitness coaches list", _coaches(results[3][1]))
     coach = results[2][1]
@@ -547,7 +566,7 @@ def _todays_folders(deps: Deps) -> str:
 
 def start_feeds(deps: Deps, pool: ThreadPoolExecutor) -> Future:
     """`feeds` in the background, so today's research is ready when the script needs it."""
-    return pool.submit(tools.run, replace(deps, say=None, feeds=None), ["feeds"])
+    return pool.submit(tools._plain_run, replace(deps, say=None, feeds=None), ["feeds"])
 
 
 NOT_OPEN = "not_open"            # TurnError.reason: an answer to a question (this agent asks in the chat)

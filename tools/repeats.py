@@ -94,8 +94,16 @@ SEEN = re.compile(
     r"|\b(?:executed|done|performed) with (?:clean|perfect|great|good|solid) (?:form|technique)\b"
     r"|\b(?:solid|great|real|good) (?:discipline|work stepping|control)\b|\bsolid work\b"
     r"|\b(?:completely|totally|perfectly) (?:safe|protected|stable)\b"
-    r"|\b(?:clean|crisp|smooth|solid) (?:dumbbell |kettlebell |barbell )?(?:pressing|presses|deadlifts|squats|rows|reps|form|technique)\b",
+    r"|\b(?:clean|crisp|smooth|solid) (?:dumbbell |kettlebell |barbell )?(?:pressing|presses|deadlifts|squats|rows|reps|form|technique)\b"
+    r"|\b(?:great|excellent|perfect|beautiful|fantastic|outstanding) (?:execution|control|posture|form|technique)\b"
+    r"|\b(?:outstanding|beautiful|perfect|excellent|fantastic) (?:set|rep|round|carry|press|pull|lift|squat|lunge)s?\b"
+    r"|\bwith (?:fantastic|great|excellent|perfect|beautiful|total|real) control\b"
+    r"|\b(?:held|kept) your (?:posture|form|back|spine|core|hips|chest) (?:clean|perfect|tight|steady|straight|neutral"
+    r"|solid|tall)\b",
     re.IGNORECASE)
+# "eight to ten clean reps" sets a target; it's a claim only when it praises what was done
+TARGET_BEFORE = re.compile(r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|\d+)"
+                           r"\s+$", re.IGNORECASE)
 
 
 STACKED = 3   # stories in one segment past which it's a pile, not a rest: "one story to a rest" (script.md)
@@ -121,6 +129,9 @@ def seen_claims(text: str) -> List[str]:
             spoken = " ".join(draft.MARK_RE.sub(" ", para).split())
             for sentence in SENTENCE.split(spoken):
                 m = SEEN.search(sentence)
+                if m and m.group(0).lower().startswith(("clean ", "crisp ", "smooth ", "solid ")) \
+                        and TARGET_BEFORE.search(sentence[:m.start()]):
+                    m = None
                 if m:
                     out.append(f'"{sentence.strip()}" says the coach saw them ("{m.group(0)}"), but the coach has no '
                                "eyes on the listener; ask how it felt, or plan from their answer")

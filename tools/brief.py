@@ -306,6 +306,13 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         if m.finisher and minutes >= m.finisher.get("from_minutes", 0):
             shares.append(f"a finisher of about {screen.clamp(m.finisher, total)} s, if you want one")
         out += ["", f"Time ({total} s in all, house defaults): " + ", ".join(shares) + "; the work gets the rest."]
+        if goal in ("general", "strength"):
+            work = total - screen.clamp(m.warmup, total) - screen.clamp(m.cooldown, total)
+            sets = max(round(work / 120), 1)
+            out.append(f"- This session's work: about {sets} hard sets in its {work} s (a set with its rest is about "
+                       "two minutes): three sets of each main movement when the time holds them, never two, and "
+                       "no more movements than leaves room for that. Rests are the dose's rests, never longer to fit "
+                       "a story, and the welcome stays under a minute: a story fits its rest, not the rest the story.")
         out += ["", f"Formats that suit a {minutes} minute {goal} session at this level with this kit "
                 "(any of them, or a mix, as long as the doses fit):"]
         out += [f"- {x.name}: {x.about} ({_method_shape(x)})" for x in ranked]
@@ -449,7 +456,7 @@ def _voice_line(voice_name: Optional[str]) -> List[str]:
 # The share of a session's minutes a web coach's finished script spends talking (the rest: holds, counts, chimes,
 # breaks), measured on three Gemini drafts that passed the lint on 2026-11-01 (0.71, 0.79, 0.81): the brief turns it
 # into a word count to write to, since a draft written by feel came in nine to twelve percent short every time.
-SPEECH_SHARE = 0.76
+SPEECH_SHARE = 0.72
 
 
 def _budget_line(voice_name: Optional[str], minutes: Optional[int] = None) -> List[str]:
@@ -466,7 +473,7 @@ def _budget_line(voice_name: Optional[str], minutes: Optional[int] = None) -> Li
             "come in short (10 to 15 percent, every time measured): write each segment to its full time, so the "
             "first lint passes."
             + (f" For this {minutes}-minute session, write about {round(wpm * SPEECH_SHARE * minutes, -1):.0f} words "
-               f"in all (between {round(wpm * 0.7 * minutes, -1):.0f} and {round(wpm * 0.82 * minutes, -1):.0f}, "
+               f"in all (between {round(wpm * 0.66 * minutes, -1):.0f} and {round(wpm * 0.78 * minutes, -1):.0f}, "
                "fewer with long holds), and count them before the first lint." if minutes else "")]
 
 
@@ -526,7 +533,13 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     opens = screen.would_open(cat, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)
     extra = []
     if loads:
-        extra.append(f"- {loads}. Prescribe only these weights, by name.")
+        extra.append(f"- {loads}. Prescribe only these weights, by name"
+                     + ("; start each main movement at the heaviest of them that fits its reps with one to three "
+                        "left, keeping the light ones for warm-up sets, small muscles and a limited area."
+                        if scr.level in ("experienced", "advanced") else "."))
+    elif scr.equipment & {"dumbbells", "kettlebell", "barbell", "cable", "machines", "trap-bar"}:
+        extra.append("- No weights are listed for this kit: name each load by effort (\"a weight you could lift "
+                     "about twelve times\", \"one that leaves two in the tank\"), never by pounds from another kit.")
     if opens:
         extra.append("- Would open up more movements: " + ", ".join(f"{e} (+{n})" for e, n in opens)
                      + ". Ask once at the check-in if one is on hand; otherwise plan without it.")

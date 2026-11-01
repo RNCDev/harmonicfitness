@@ -2,6 +2,23 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.49.4] - 2026-11-01
+
+Eval loop 1 on 30-minute scripts: full-body at home and gym strength easy on the left knee, on 0.49.3, timed to a priced script and judged blind on safety, efficacy and engagement: 213 seconds, 4/3/2; 284 seconds, 4/2/2. The time went to round trips (72 seconds before the first word, a full rewrite after a word-count nag, up to five fix rounds), and the scores to too little work and loose stories.
+
+### Fixed
+- **The feeds sheet on the web was never fetched again after the day's first:** a sheet's freshness came from its file's time, and the web app writes every file afresh at each job, so a morning sheet (fetched before 0.49.2's time-zone fix, in the server's UTC) was read all day, shifting game nights by one and calling the morning's weather "right now". Freshness now comes from the time in the sheet's own header, and a sheet dated ahead of now is stale.
+- **"Eight to ten clean reps" isn't a claim to have seen the set:** the check skips a rep target, and now catches more claims that are ("great execution", "with fantastic control", "outstanding carry", "you held your posture clean").
+
+### Changed
+- **The lint's segments off their slots say "trim it" only when the total is off.** With the total in range they're a note ("leave them as they are"): loop 1's first script spent 35 seconds fixing 14 segments that needed nothing.
+- **The brief says how much work fits:** "about 11 hard sets in its 1350 s: three sets of each main movement, never two", rests at the dose's length (never longer to fit a story), and a welcome under a minute (loop 1's gym session had two sets a lift and 90-second rests filled with three stories each). Experienced and advanced listeners start each main movement at the heaviest weight that fits its reps; a kit with no weights listed (a gym preset) names loads by effort, never by pounds from another kit.
+- **The brief's word count is what a clean lint holds:** 72 percent of the coach's words a minute times the minutes, from 76 (drafts that linted clean at 30 minutes held 3,000 to 3,250 words; the brief asked for 3,350, and the nag sent a draft that was fine to a full rewrite).
+- **Web app, a draft builds as it's written:** `write_file` and `edit_segments` take the build's name and coach and run the build (its lint, then its price when clean) in the same call: one round trip a fix, not two.
+- **Web app, long paragraphs are split by the site:** a clip over 225 characters (about 20 seconds at the slowest web coach's pace) is split at a sentence break as the draft is written, rather than refused by the lint a round trip later (one in every lint of loop 1's second script).
+- **Web app, quicker to the first word:** `run feeds` hands over the whole sheet, so it isn't read again; a research sheet a computer wrote today comes with step 1; the coach doesn't run `brief --help`, list folders step 1 named, or read earlier drafts (38 seconds in loop 1).
+- **Web app, stories:** one to a rest; an edit never changes a story's names, numbers or dates (loop 1's comedy listing changed between drafts); no analysis the source didn't give, and no age, date or tally worked out from memory; nothing under "Already told today" again (a Devils result from the morning was retold); fix only the build's issues, and of its warnings only claims to see them, repeats and stacked stories.
+
 ## [0.49.3] - 2026-11-01
 
 Eval loop 2: the same two 25-minute requests on 0.49.2, judged blind on safety, efficacy and engagement: full-body at home 4/3/2, gym strength easy on the left knee 1/3/3. The 1 was a "heavy dumbbell" for a suitcase carry under the knee limit, which 0.49.2's new check missed; it's caught now, and so is a wider gap it exposed.
