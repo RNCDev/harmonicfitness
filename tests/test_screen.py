@@ -144,6 +144,17 @@ class Screen(unittest.TestCase):
         issues = check._check_health("health.md", open(self.health_with("- Avoid: wobbly-thing").path).read())
         self.assertTrue(any("wobbly-thing" in i.message for i in issues))
 
+    def test_a_side_lying_movement_is_never_offered_one_side_only(self):
+        """Lying on one side, the working leg may be the top one: "right side only" read as "lie on your right
+        side, right knee on the bench", and the side check forbade "left" (0.50.2's loop: a Copenhagen plank)."""
+        import catalog as real
+        cat = real.load()
+        lim = [real.Limit("knee", "left", "delicate", [], [], "")]
+        sel = real.select(cat, real.kit_equipment(cat, {"preset": "full-gym"}), "experienced", lim)
+        self.assertNotIn("copenhagen-plank", {m.id for m in sel.allowed + sel.healthy_side_only})
+        self.assertIn("lying on one side", sel.left_out["copenhagen-plank"])
+        self.assertFalse([m.id for m in sel.healthy_side_only if "lying-side" in m.flags])
+
     def test_healthy_side_is_opposite_the_limit(self):
         scr = screen_for()   # the fixture's left wrist is delicate
         plank = FIXTURE_CAT.movements["one-arm-plank"]

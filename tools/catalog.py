@@ -603,6 +603,11 @@ def select(cat: Catalog, equipment: Set[str], level: str, limits: List[Limit],
                 reasons.append(why)
         if {side for side, _ in one_side} >= {"left", "right"}:
             reasons += [why for _, why in one_side]   # no healthy side is left to work
+        if one_side and not reasons and "lying-side" in m.flags:
+            # lying on one side, the working leg or arm may be the top one (a Copenhagen plank) or the bottom one
+            # (a side plank), and the one-side check forbids the other side's name: a set-up that can't be said
+            # (lie on the right side, right knee on the bench), so it isn't offered one side only (0.50.2's loop)
+            reasons.append("lying on one side")
         if reasons:
             left_out[m.id] = list(dict.fromkeys(reasons))
         elif one_side:
