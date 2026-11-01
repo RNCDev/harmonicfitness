@@ -208,6 +208,25 @@ class Record(unittest.TestCase):
         self.assertEqual([d["topic"] for d in f["due"]], ["Cities", "Jazz", "Kraken"])
         self.assertEqual(f["restock"][0]["topic"], "Jazz")
 
+    def test_venues_and_quick_hits_in_the_plan(self):
+        r = content.recipe()
+        self.assertLess(content.band(r, 10).quick, content.band(r, 25).quick)
+        self.assertLessEqual(content.band(r, 25).quick, content.band(r, 60).quick)
+        self.assertIn("whats_on", r.formats)
+        body = ("## Topics\n- Singer-songwriter music\n\n## Venues\nPlaces:\n- The Bell House: comedy and music\n"
+                "- Museum of the Moving Image\n- [a venue you go to]\n")
+        p = context.Profile({}, body, None)
+        self.assertEqual(context.venues(p), [T("The Bell House", "comedy and music"), T("Museum of the Moving Image", "")])
+        f = content.plan_facts(25, TODAY, r, p, [], [])
+        self.assertEqual(f["quick"], content.band(r, 25).quick)
+        self.assertEqual(f["venues"], [{"name": "The Bell House", "note": "comedy and music"},
+                                       {"name": "Museum of the Moving Image", "note": None}])
+        text = "\n".join(content.plan(25, TODAY, r, p, [], []))
+        self.assertIn("- The Bell House: comedy and music", text)
+        self.assertIn(f"Quick hits in the work: about {f['quick']}", text)
+        none = "\n".join(content.plan(25, TODAY, r, profile("- Jazz\n"), [], []))
+        self.assertIn("No venues yet", none)
+
     def test_no_topics_still_plans(self):
         text = "\n".join(content.plan(25, TODAY, content.recipe(), profile(), [], []))
         self.assertIn("No topics yet", text)

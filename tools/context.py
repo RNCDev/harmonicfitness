@@ -415,6 +415,18 @@ def topics(p):
     return out
 
 
+def venues(p):
+    """[Topic]: the venues whose upcoming shows the listener wants to hear about, the lines under `## Venues` in
+    content.md in their order ("The Bell House: comedy and music"), each name once."""
+    out, seen = [], set()
+    for _, line in section(p.body, "Venues"):
+        t = topic_line(line)
+        if t and t.name.casefold() not in seen:
+            seen.add(t.name.casefold())
+            out.append(t)
+    return out
+
+
 def _names(p, key):
     return [x.strip() for x in str_list(p.settings.get(key)) if x.strip()]
 

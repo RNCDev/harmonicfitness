@@ -69,6 +69,10 @@ I like to stay current on and learn about:
 - [where you live: local news, transit, what's on]
 - [a subject you love: science, history, a hobby, a language you're learning]
 
+## Venues
+Places whose upcoming shows, talks and exhibitions you'd like to hear about (the coach also looks at the big venues near you for the kinds of shows your topics name):
+- [a venue you go to, and what's on there for you, for example: The Bell House: comedy and singer-songwriters]
+
 ## Never bring up
 - [topics to leave out, or "nothing"]
 

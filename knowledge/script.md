@@ -31,21 +31,18 @@ The listener has no screen, no mirror and no clock. The coach's voice is all of 
 - **Coach from the movement's notes** (`./harmonicfitness movements --about <ids>`, or the brief for one that touches a limit): the setup, what one rep is the first time it appears (and whether reps count per side), where they should feel it, and the main fault's fix as a mid-set check ("If the hips sag, squeeze and brace.").
 - **Coach fully once, then trust them.** The first time a movement appears, give it everything: setup, the rep, the feel, the fault. After that a set needs its target, the count in, a cue or two and the finish ("Same as before, chest up, ten more."), not the whole lesson again. That leaves the rests and the easy work for the listener's world, which is what makes them press play next time. Safety lines never shrink: the limit cues, the self-check under a limit, and every cue the listener must catch.
 - **Stay with them through the work.** Lead the first reps to set the tempo, then cue what matters (form, the breath, how far through, the last few). No quiet runs past eight seconds (twenty with the pulse bed, `bed = "pulse"` in their settings; the brief's Counts and Voice lines say which), so a long set still gets a word every few seconds, but it can be short.
-- **Fit the set to its time.** Each movement's line gives its seconds a rep: twelve reps at three seconds is thirty-six seconds of work, per side where it counts per side. Say the rest a segment actually holds.
+- **Fit the set to its time.** Each movement's line gives its seconds a rep, already at the pace listeners really move: twelve reps at two and a quarter seconds is twenty-seven seconds of work, per side where it counts per side. Don't stretch a set past it; a listener who finishes first and waits in silence hears a coach behind them. Say the rest a segment actually holds.
 - **Tell them where they are.** The time, the round, what's next and what to pick up. Timed work gets `[chime]` at each change and a `[count]` into the work.
 - **Give them a target and a way to adjust.** A main set has a target ("Ten reps, two left in the tank"). After the first working set, ask how it felt and give an if-then from the brief's harder and easier options, preferring changes that don't lengthen the set. When they're unsure, lean to the harder option (programming.md, Readiness). Later rounds call back to their choice.
 - **Mind the floor.** Getting down, up and between places takes time and, under a lower-leg limit, care. Group work done in one place, and give each move its seconds out loud.
 
-For example, twelve single-leg bridges at three seconds a rep, about thirty-six seconds of work, for a local coach:
+For example, twelve single-leg bridges at two and a quarter seconds a rep, about half a minute of work with the count in, for a local coach:
 
     Twelve on the right, and you should have two left at the end. [count 3 go]
-    Lift through the heel, squeeze at the top, and lower slow. [hold 2s]
-    Again, up, squeeze, and down. [hold 3s]
-    Keep the hips level, like a tray of water. [hold 5s]
-    Left foot stays soft on the mat. [hold 5s]
-    About halfway now, breathe out as you lift. [hold 5s]
-    Keep that squeeze honest at the top. [hold 4s]
-    Last few, and slow on the way down. [hold 4s]
+    Lift through the heel, squeeze at the top, and lower. [hold 2s]
+    Keep the hips level, like a tray of water. [hold 3s]
+    About halfway now, breathe out as you lift. [hold 3s]
+    Last few, and slow on the way down. [hold 3s]
     Last one, all the way up, and rest.
 
 ## Keeping them engaged
@@ -60,7 +57,10 @@ This is one coach with one person they know, not a fitness app reading a list.
 - **Wrap each story in `[story]` and `[/story]`.** The tags are never spoken. Inside them a story may name a movement that isn't on today's menu ("her deadlift record"), say left or right ("the other side of the river"), or count down ("ten, nine, eight, liftoff"), since the build reads past them; so a story never tells the listener to do anything, holds no `[hold]`, `[count]`, `[cue]` or `[chime]`, and closes in the segment it opens in. Coaching stays outside the tags.
 - **Threads across sessions.** The content plan lists open threads from earlier sessions: a quiz to answer, a story to follow up, the coach's take (keep it the same), a promise ("next week we add weight"). Bring one back when it fits and close it. Leave one open for next time when it's worth it: a quiz answered next session is a reason to come back (`./harmonicfitness content thread`, after the build).
 - **Stories wait for the rests and the easy work.** A hard set gets cues only.
+- **Quick hits in the work.** Once a movement has had its full coaching, a later set that isn't hard can trade a repeated cue for a quick hit of one or two sentences: on this day, a number, what's on near them, a quick fact on a topic due (the content plan says about how many). Wrap it in `[story]` like any story, keep the set's count, target and finish around it, and never put one in a hard set, its last reps, or in place of a safety line, a limit cue or a cue they must catch. It makes the work feel like theirs rather than a drill.
+- **What's on.** When the plan lists venues, or a topic names a kind of show (music, comedy, talks, the arts), tell one or two upcoming shows near them as `whats_on`: who, where, which night, and why it's theirs. Only what research found on a listing page; never a price or "sold out" you didn't see.
 - **A shape:** a welcome that knows them (the day, the weather, how today fits the week), a build, a named peak, an easing off, and a close that says what they did specifically and gives one reason to come back.
+- **Ask for their word at the close.** The close ends with a short, friendly ask: tell me how hard that felt, and tell me more about what you're into, so next time's stories are better. On the web app it's the Logs page (rate it, add a line of feedback) and a message in the chat; on a computer, just tell the coach. Say it in a new way each time, in a sentence or two, after the reason to come back.
 - **No sameness:** segments that all open alike, stock praise on repeat, and lines that sound like a checklist all read as a template. The build warns about any sentence said word for word in the last five workouts.
 
 ## Worked examples

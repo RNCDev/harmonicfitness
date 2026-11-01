@@ -552,8 +552,9 @@ class FreshFork(unittest.TestCase):
             self.assertEqual(plan["minutes"], 25)
             self.assertTrue(plan["formats"])
             self.assertTrue({"id", "name", "group", "what", "words", "research", "across"} <= set(plan["formats"][0]))
-            self.assertEqual(sorted(plan), ["due", "formats", "minutes", "recent_days", "reserve", "restock", "serial",
-                                            "skipped", "spares", "threads", "told_recent", "topics", "unreadable"])
+            self.assertEqual(sorted(plan), ["due", "formats", "minutes", "quick", "recent_days", "reserve", "restock",
+                                            "serial", "skipped", "spares", "threads", "told_recent", "topics",
+                                            "unreadable", "venues"])
             coaches_ = got["coaches list"]
             self.assertEqual(sorted(coaches_), ["coaches", "default", "note"])
             self.assertTrue(coaches_["coaches"])

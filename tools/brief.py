@@ -101,8 +101,14 @@ def _needs(m: catalog.Movement) -> str:
     return ", ".join(" or ".join(n.split("|")) for n in m.needs) or "bodyweight"
 
 
-def _timing(m: catalog.Movement) -> str:
-    each = (f"{m.seconds_per_rep} s a rep" if m.measure == "reps" else f"timed, {m.hold_seconds} s a hold")
+def rep_seconds(m: catalog.Movement, pace: float = 1.0) -> float:
+    """A rep's seconds as the writer plans them: the catalog's controlled count times sessions.toml's
+    rep_pace, to the nearest quarter second (never under one)."""
+    return max(round(m.seconds_per_rep * pace * 4) / 4, 1.0)
+
+
+def _timing(m: catalog.Movement, pace: float = 1.0) -> str:
+    each = (f"{rep_seconds(m, pace):g} s a rep" if m.measure == "reps" else f"timed, {m.hold_seconds} s a hold")
     return f"{each}, {m.transition_seconds} s to set up"
 
 
@@ -120,7 +126,8 @@ def _limited(m: catalog.Movement, areas: List[str]) -> str:
     return ", ".join(parts)
 
 
-def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids, compact=False) -> List[str]:
+def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids, compact=False,
+               pace: float = 1.0) -> List[str]:
     """The safe menu: every allowed movement under its primary pattern, then the healthy-side-only
     ones, each with its facts and the catalog's coaching notes. `compact` keeps the facts and the easier and
     harder versions (what designing needs) and leaves the coaching notes to `./harmonicfitness movements --about`,
@@ -129,7 +136,7 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
 
     def entry(m, side=None):
         where = f"{side} side only" if side else ("one side at a time" if m.sided else "")
-        facts = [m.position + (f", {where}" if where else ""), _needs(m), _timing(m),
+        facts = [m.position + (f", {where}" if where else ""), _needs(m), _timing(m, pace),
                  f"{_kind(m)}, {m.level}", ", ".join(m.muscles)]
         if m.flags:
             facts.append("flags: " + ", ".join(m.flags))
@@ -284,7 +291,8 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
     if request.get("target"):
         out += ["", f"Focus today: {', '.join(request['target'])}. Give it at least half the work, and keep the "
                 "rest of the body ticking over."]
-    out += ["", "Timing: one set takes its reps times the seconds a rep (both sides for one-sided work, plus "
+    out += ["", "Timing: one set takes its reps times the seconds a rep (the menu's, already at the pace listeners "
+            "really move: ten reps at two and a quarter seconds is under half a minute; both sides for one-sided work, plus "
             "about five seconds to switch), plus its setup the first time. A set with its rest takes about two "
             "minutes, about a minute and a half when paired (a minute between the halves). Plan from the lint's "
             "spoken column, not from the word guess."]
@@ -474,7 +482,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
                    "separated>` and coach from them; a movement that loads today's limits or works one side only "
                    "carries its notes here.")
     if scr.sel.allowed or scr.sel.healthy_side_only:
-        out += menu_lines(cat, scr, sides, scr.likes, last_ids, compact=compact)
+        out += menu_lines(cat, scr, sides, scr.likes, last_ids, compact=compact, pace=sess.rep_pace)
     weights = context.kit_weights(profile).get(request.get("kit") or "")
     loads = screen.loads_line(weights, scr.equipment) if weights else ""
     opens = screen.would_open(cat, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)

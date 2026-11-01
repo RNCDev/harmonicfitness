@@ -566,7 +566,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
         u = outcome.usage
         print(f"worker: job {ctx.job_id} turn {time.monotonic() - began:.1f}s, {u.get('requests')} model requests, "
-              f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out", file=sys.stderr, flush=True)
+              f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out, {u.get('searches', 0)} web searches",
+              file=sys.stderr, flush=True)
     except agent.TurnError as e:
         raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG,
                      agent.STOPPED: STOPPED}.get(e.reason, CANT_FINISH)) from None

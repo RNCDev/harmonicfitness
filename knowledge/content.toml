@@ -55,6 +55,14 @@ research = "evergreen"
 across = true
 
 [[format]]
+id = "whats_on"
+name = "What's on"
+group = "news"
+what = "an upcoming show, talk, screening or exhibition near them: who, where, which night, and why it's theirs (a venue they named, or a kind of show their topics say they like, at a major venue nearby); never a ticket price or a sold-out claim not on the page found"
+words = 60
+research = "news"
+
+[[format]]
 id = "on_this_day"
 name = "On this day"
 group = "news"
@@ -158,24 +166,29 @@ research = "none"
 
 # How many topics a session's rests touch, by its length: the first band whose `up_to` (minutes) is at
 # least the session's. `spares` more are researched in case the rests have room; `serial` is whether the
-# session carries one thread told across it.
+# session carries one thread told across it; `quick` is how many one-or-two-sentence quick hits (on this day,
+# a number, what's on) go into the work itself, in place of a repeated cue (house default: listener
+# feedback, 2026-11-01, that quick facts in the sets would make sessions feel more personal).
 [[band]]
 up_to = 15
 topics = 3
 spares = 1
 serial = false
+quick = 2
 
 [[band]]
 up_to = 30
 topics = 5
 spares = 2
 serial = true
+quick = 4
 
 [[band]]
 up_to = 999
 topics = 7
 spares = 2
 serial = true
+quick = 6
 
 # The stock: evergreen pieces researched ahead of time, while a build renders, so the next session's
 # research is short. `per_topic` unused pieces kept for each topic; at most `per_run` stocked at once.

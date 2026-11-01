@@ -14,9 +14,10 @@ from dataclasses import replace
 from dataclasses import dataclass
 from typing import Callable
 
-from pydantic_ai import Agent, CancellationToken, ModelMessagesTypeAdapter, RunContext, UsageLimits
+from pydantic_ai import Agent, CancellationToken, ModelMessagesTypeAdapter, RunContext, UsageLimits, WebSearchTool
 from pydantic_ai.exceptions import RunCancelled
-from pydantic_ai.messages import ToolCallPart, ToolReturnPart
+from pydantic_ai.capabilities import NativeTool
+from pydantic_ai.messages import NativeToolCallPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.wrapper import WrapperModel
 
 from . import tools
@@ -26,6 +27,10 @@ __all__ = ["AGENT", "Deps", "LIMITS", "audition_open", "prefetch", "wants_coach"
            "UNFINISHABLE", "run_turn"]
 
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
+# The writer's own web search (Gemini's Google Search, Claude's, ChatGPT's, OpenRouter's), billed by its provider
+# on the listener's key: research for the topics due and what's on near them. Low context keeps each search
+# quick; Claude stops at max_uses a turn, and the instructions ask every writer for about six.
+SEARCH = WebSearchTool(search_context_size="low", max_uses=8)
 TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
 SKILL = (".claude/skills/workout/SKILL.md", ".claude/skills/workout/research.md")
 # what the skill says to read before writing, given with it: two round trips fewer before every script
@@ -562,6 +567,15 @@ def _usable(history):
     return history if called <= returned else None
 
 
+def native_tools(model) -> list:
+    """The writer's web search, where its model supports it; none for a model that doesn't (a test's own)."""
+    try:
+        supported = model.supported_native_tools()
+    except (AttributeError, NotImplementedError):
+        return []
+    return [SEARCH] if WebSearchTool in supported else []
+
+
 def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
              answer: tuple[str, dict] | None = None, context: str | None = None) -> TurnOutcome:
     """One run of the agent on the user's line, after `context` (prefetch's text) when given.
@@ -590,7 +604,8 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
         threading.Thread(target=watch, daemon=True).start()
     try:
         result = AGENT.run_sync(prompt, model=Narrated(model, deps), deps=deps, message_history=history,
-                                usage_limits=LIMITS, cancellation_token=token)
+                                usage_limits=LIMITS, cancellation_token=token,
+                                capabilities=[NativeTool(t) for t in native_tools(model)])
     except RunCancelled:
         if deps.cancel is not None and deps.cancel.is_set():
             raise TurnError("stopped", STOPPED) from None
@@ -599,6 +614,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
         done.set()
         timer.cancel()
     u = result.usage
+    searches = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts)
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,
-             "output_tokens": u.output_tokens}
+             "output_tokens": u.output_tokens, "searches": searches}
     return TurnOutcome(history_json=result.all_messages_json().decode("utf-8"), reply=result.output, usage=usage)

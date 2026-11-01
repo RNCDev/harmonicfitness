@@ -49,6 +49,7 @@ class Sessions:
     methods: Dict[str, Method]
     dose: Dict[str, Dict[str, dict]]
     all_out: Dict[str, int] = field(default_factory=dict)   # most_seconds, rest_ratio: how sprints rest
+    rep_pace: float = 1.0   # [timing]: what the brief multiplies each catalog seconds_per_rep by
 
 
 def _method(name: str, raw: dict) -> Method:
@@ -74,7 +75,8 @@ def load(path: Optional[str] = None) -> Sessions:
         format=data.get("format", 0), goals=list(data.get("goals", [])),
         methods={name: _method(name, raw) for name, raw in data.get("methods", {}).items()},
         dose={k: {lv: dict(t) for lv, t in v.items()} for k, v in data.get("dose", {}).items()},
-        all_out=dict(data.get("all_out", {})))
+        all_out=dict(data.get("all_out", {})),
+        rep_pace=data.get("timing", {}).get("rep_pace", 1.0))
 
 
 def _range_fault(value) -> Optional[str]:
@@ -127,6 +129,9 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
                 out.append(f"The rest_seconds of method {name} {fault}: {m.rest_seconds}.")
             elif m.work != "rounds":
                 out.append(f"Method {name} has rest_seconds, which only a rounds method uses.")
+    pace = s.rep_pace
+    if not isinstance(pace, (int, float)) or isinstance(pace, bool) or not 0.3 <= pace <= 2:
+        out.append(f"The timing rep_pace is {pace}; it needs a number from 0.3 to 2.")
     for key in ALL_OUT_KEYS:
         value = s.all_out.get(key)
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:

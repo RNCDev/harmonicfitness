@@ -2,6 +2,21 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.48.1] - 2026-11-01
+
+Sets timed to how fast people really move, shows at your venues, quick hits in the work, a coach on the web that can search, and a close that asks for your word.
+
+### Added
+- **Web app, the coach can search the web:** the writer's own provider search (Gemini's Google Search, Claude's, ChatGPT's or OpenRouter's), billed by that provider on the listener's key, about six searches a workout after the check-in: the topics due the feeds don't cover, what's on near them, and quick hits for the work. Before, research on the web had only the feeds and the stock, and skipped a topic they didn't cover. The turn's log line counts the searches.
+- **Venues** (`## Venues` in `me/content.md`, `context.venues()`): places whose upcoming shows, talks and exhibitions the listener wants to hear about, one `- name: note` line each. A kind of show they like (singer-songwriters, stand-up, talks, the arts) is a topic as before, and research also looks at the major venues near their neighborhood for it. The setup skill asks for venues with interests and taste, and "add the Bell House" puts one there.
+- **A What's on format** (`whats_on` in `knowledge/content.toml`): an upcoming show near them, who, where, which night and why it's theirs, from a listing page; never a price or "sold out" not seen there. `content plan` lists the venues under What's on (`--json`: `venues`).
+- **Quick hits in the work** (`quick` in each `[[band]]`: 2, 4 or 6 by length): once a movement has had its full coaching, a later set that isn't hard trades a repeated cue for one or two sentences (on this day, a number, what's on, a quick fact), in `[story]`; never in a hard set, its last reps, or in place of a safety line, limit cue or count. `content plan` says how many (`--json`: `quick`).
+- **The close asks for their word:** how hard it felt and what else they're into, so the next stories fit better; on the web app, the Logs page and the chat. Said a new way each time.
+
+### Changed
+- **Reps are planned a quarter quicker** (`[timing] rep_pace = 0.75` in `knowledge/sessions.toml`): the brief multiplies each catalog `seconds_per_rep` by it, so ten reps of a three-second movement are planned at about 22 seconds, not 30 (listener feedback: sets often finished at twice the audio's pace). `knowledge/script.md`'s example set is shorter to match, and says not to stretch a set past its time.
+- Today's research may search a little more (ten searches and six page fetches, from eight and five) for what's on and the quick hits.
+
 ## [0.48.0] - 2026-11-01
 
 A faster script on the web app, recording without the Record button when you want it, and a look at what the coach did.

@@ -110,6 +110,14 @@ work = "rounds"
 most_seconds = 20   # house default: a hard timed entry this short or shorter is an all-out sprint, as the catalog's sprint holds are
 rest_ratio = 4      # source: programming.md, Rest between intervals: all-out efforts of ten to thirty seconds get at least four times their length in easy movement; Gillen rested six times https://pubmed.ncbi.nlm.nih.gov/27115137/ and Bogdanis found the fuel half back after about a minute https://pmc.ncbi.nlm.nih.gov/articles/PMC1157744
 
+# Rep pace ----------------------------------------------------------------------------------------
+# Each catalog movement's seconds_per_rep is a slow, controlled count (3 s for most strength reps). The
+# brief multiplies it by `rep_pace` before the writer sees it, so a set's work is planned at the speed
+# listeners actually move.
+
+[timing]
+rep_pace = 0.75   # house default: listener feedback, 2026-11-01: ten reps finished well before the audio's estimate, often at twice the speed; a quarter quicker keeps a controlled tempo while matching how fast people really move
+
 # Dose ---------------------------------------------------------------------------------------------
 # Each value is [least, most]. Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772 and the
 # American College of Sports Medicine https://pubmed.ncbi.nlm.nih.gov/19204579/ as programming.md cites them.

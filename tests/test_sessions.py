@@ -99,6 +99,19 @@ class Methods(unittest.TestCase):
         self.assertNamed(lambda s: s.all_out.update(rest_ratio=0), "all_out", "rest_ratio")
         self.assertNamed(lambda s: s.all_out.pop("most_seconds"), "all_out", "most_seconds")
 
+    def test_reps_are_planned_a_quarter_quicker_than_the_catalog_s_count(self):
+        import brief
+        self.assertEqual(self.s.rep_pace, 0.75)
+        self.assertNamed(lambda s: setattr(s, "rep_pace", 0), "timing", "rep_pace")
+        self.assertNamed(lambda s: setattr(s, "rep_pace", "fast"), "timing", "rep_pace")
+        cat = catalog.load()
+        squat = cat.movements["air-squat"]
+        self.assertEqual(squat.seconds_per_rep, 3)
+        self.assertEqual(brief.rep_seconds(squat, self.s.rep_pace), 2.25)   # ten reps: 22.5 s, not 30
+        self.assertIn("2.25 s a rep", brief._timing(squat, self.s.rep_pace))
+        slowest = max((m for m in cat.movements.values() if m.measure == "reps"), key=lambda m: m.seconds_per_rep)
+        self.assertLess(brief.rep_seconds(slowest, self.s.rep_pace), slowest.seconds_per_rep)
+
 
 
 def choose(s, goal, minutes, level, last, equipment):

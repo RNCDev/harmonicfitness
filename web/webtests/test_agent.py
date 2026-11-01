@@ -636,6 +636,35 @@ class Faster(AgentCase):
         self.assertFalse(any(a[0] == "build" and "--lint-only" not in a for a in calls))
 
 
+class Search(AgentCase):
+    def test_every_writer_can_search_the_web(self):
+        from webapp import providers
+        for p in providers.PROVIDERS:
+            self.assertEqual(agent.native_tools(providers.model_for(p, "sk-test-0000000000000000")), [agent.SEARCH], p)
+
+    def test_a_model_without_search_gets_none(self):
+        class Plain:
+            def supported_native_tools(self):
+                return frozenset()
+        self.assertEqual(agent.native_tools(Plain()), [])
+        self.assertEqual(agent.native_tools(object()), [])
+
+    def test_each_request_offers_the_search_and_the_turn_counts_them(self):
+        sent = []
+
+        class Spy(FunctionModel):
+            async def request(self, messages, model_settings, params):
+                sent.append(list(params.native_tools))
+                return await super().request(messages, model_settings, params)
+        out = agent.run_turn(Spy(lambda m, i: ModelResponse(parts=[TextPart("hi")])), self.deps, None, "go")
+        self.assertEqual(sent, [[agent.SEARCH]])
+        self.assertEqual(out.usage["searches"], 0)
+
+    def test_the_web_coach_is_told_it_can_search(self):
+        self.assertIn("You have web search", agent.PREAMBLE)
+        self.assertNotIn("no web search", agent.PREAMBLE)
+
+
 class Instructions(AgentCase):
     def test_instructions_hold_the_skill_and_the_web_rules(self):
         seen = {}
