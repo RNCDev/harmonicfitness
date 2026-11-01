@@ -1,103 +1,43 @@
-# Judge: the grid's scripts
+<!-- The judge for the script-writing loop (docs/eval/README.md): fill {REQUEST}, {SCRIPT} and {HOME} and the feeds sheet's date, and give it to two independent judges a script. -->
 
-You are reviewing workout scripts HarmonicFitness's writers designed and wrote from `./harmonicfitness brief`'s
-ingredients. Each case is one request from one invented listener: the brief gave the writer the
-listener, the week, today's limits, the safe menu, the programming guide and the equipment notes, and a
-day's research sheet to tell stories from, and the writer chose the format, movements, order, doses and timing. Your job is to
-score how well the session serves that listener, and what the scores say about the engine.
+You are scoring one narrated workout script from HarmonicFitness: a request becomes an audio workout for earbuds, with no screen. The coach's voice is the whole experience: it says what to do, keeps time, and fills the rests with things worth hearing about the listener's own world. Read only; change nothing.
 
-## What to read, for each case in `docs/eval/cases.toml` or `docs/eval/extra-cases.toml`
+Judge it the way the listener would hear it: would this be a good 30 minutes in their ears? Be fair and calibrated, not a fault-finder. Small imperfections that a listener wouldn't notice or mind don't cost points.
 
-1. The case row: `id`, `listener`, `goal`, `minutes`, `preset`, and any `level`, `target` and `limit`.
-   The level is the listener's (`experience` in their `profile.md`) unless the case names one.
-2. The listener's limits: the `[[limits]]` rows and the clinician rules in
-   `docs/eval/listeners/<listener>/health.md`, plus the case's `limit`, which adds one more for this
-   session (`area=level[:side]`; off-limits means nothing that loads the area, delicate only light loads).
-   `knowledge/injury-playbook.md` says what each area and level rules out.
-3. The brief: `docs/eval/out/<id>.brief.md` (what the writer had to work with; its safe menu is every
-   movement today's kit, level and limits allow).
-4. The script: `docs/eval/out/<id>.draft.txt` (its `movements:` line declares what it uses).
-5. The writer's notes: `docs/eval/out/<id>.writer-notes.md`: the plan, then every place the writer had
-   to invent something beyond the brief. They are evidence for ease and for whether a fault lies in
-   the brief or the script.
+The request: "{REQUEST}"
 
-6. The day's research: `docs/eval/research/<listener>.md`, invented for the grid (don't fact-check it):
-   the stories the writer had to tell from, and the open threads from earlier sessions.
+Files (absolute paths):
+- The script: {SCRIPT}. Format: a `movements:` line, then `@@ <seconds> | <label>` segments; `[story]...[/story]` wraps the non-workout content; `[hold]`, `[pause Ns]`, `[count N]`, `[cue]`, `[chime]` are timing markers, not spoken.
+- The brief the writer worked from (the listener, today's context and limits, the menu of allowed movements, the programming guide): the `.brief.md` beside the script.
+- The listener's files: {HOME} — profile.md, training.md (kits and weights), content.md (topics, venues, taste, never bring up), health.md, log.md (recent sessions, including any earlier today).
+- Today's feeds sheet: {HOME}workouts/research/daily/<date>-feeds.md. The writer also used live web search, whose results aren't saved: a fact absent from the sheets is unverifiable, not invented. Call a fact wrong only when it contradicts a sheet or is clearly false.
 
-Since 0.39.0 the writers fill the rests from that sheet, so the stories are scored too (Stories, below).
+Read the script, the brief, and the listener's profile, training and content files. Don't go digging through other files; spend your attention on the script.
 
-Look up any movement you are unsure of in `knowledge/movements.toml` (its `loads`, `support`, `flags`,
-`patterns` and `level`).
+Score three things, 1 to 5, using these anchors:
 
-## Score each case from 1 to 5 on six things, with one line of reason each
+Safety (the listener's body today)
+- 5: every movement suits the listener, kit and limits; cues prevent the likely faults; nothing a careful coach would object to.
+- 4: safe; one or two small slips (a vague cue, an awkward transition) with no real risk.
+- 3: one real concern a careful coach would fix before use (a load or position that touches a limit; an unclear set-up that invites poor form).
+- 2: several real concerns, or one that could plausibly hurt.
+- 1: something that breaks a stated limit or is unsafe.
 
-- **Safety.** Does the script respect every limit (health.md's and the case's), the listener's level,
-  and the kit? Any excluded load or flag in the script, any movement that loads an off-limits area,
-  more than a light load on a delicate one, or a movement not on the brief's menu, is a 1, whatever
-  else is good. Movements the kit can't support, transitions that put weight on a limited area, or
-  cues that invite poor form, cost points.
-- **Efficacy for the goal.** Would this session do what the goal asks (strength, general fitness,
-  conditioning, mobility, or the named target) at this level and length? Judge the design: the format,
-  the dose (sets, reps, rest, work and rest seconds, rounds) against the brief's guide, the balance of
-  patterns and muscle groups, the order, and the progression across the session.
-- **Likely adherence.** Would this listener finish it and want the next one? Pace, variety, clarity of
-  instructions with no screen, fit with the listener's likes and dislikes, and whether the time feels used.
-- **Warmth.** Does it sound like one coach beside one person they know, rather than a machine or an
-  announcer? Look for: a greeting by the listener's `name` and the name used two to four times; a
-  person's register around the work (contractions, "let's", a line of why, the effort noticed plainly,
-  not stock praise); continuity from the listener's log (the week so far, last feedback, last loads);
-  varied segment openings; stories handed off like a friend, not a newsreader; an arc from welcome to a
-  specific, personal close. Cues during the work should still be short: warmth that blurs a safety or
-  form cue costs points. A 5 sounds like a coach you'd want back; a 1 is a template read aloud.
-- **Stories.** Do the rests carry the listener's world well? Look for: their topics told with why each is
-  theirs, at the size each find deserves; a mix of formats so no two rests sound alike; weaving (a quiz
-  asked and answered later, a callback, an open thread from the sheet brought back, a story tied honestly
-  to the work); a friend's telling, not a newsreader's; coaching that's full the first time and brief after,
-  leaving the rests to the stories; nothing invented beyond the sheet; and no story during a hard set. A 5
-  is a rest you'd want to hear the end of; a 1 is filler, or a session that's nearly all cues.
-- **Ease of construction.** How much did the writer have to invent beyond the brief? A 5 means the
-  brief gave everything the design and the script needed (movements, coaching, limit cues, dose
-  guidance, equipment notes) and the writer only had to choose and write; a 1 means the writer had to
-  work around missing movements, missing coaching or guidance that didn't fit.
+Efficacy (does it do what was asked, for this person, today)
+- 5: a session a good coach would be proud of for this goal, length, level and day: sensible choice and order, enough real work at a fitting load, rests that fit the dose, proportionate warm-up and cool-down.
+- 4: solid and worthwhile; a coach would tweak a thing or two (a bit light, one pattern thin).
+- 3: does the job but clearly under- or over-doses, or leaves out something the request implies.
+- 2: misses the goal in an important way (far too little work, wrong focus).
+- 1: wouldn't train what was asked.
 
-## Output
+Engagement (the content between and around the work)
+- 5: a good podcast host who knows this person: stories from their own topics, places and taste; fresh, specific, accurate; well told by ear; the coaching voice warm and natural; you'd want to hear the next one.
+- 4: enjoyable and personal; a few flat or generic moments.
+- 3: fine but forgettable, or personal but padded; some filler or a slip of fact.
+- 2: mostly generic or long-winded, or several claims that are wrong or embellished.
+- 1: annoying, wrong, or ignores the listener.
 
-Write your part of `docs/eval/results-<YYYY-MM-DD>.md` with:
-
-1. One table row per case, in case order:
-
-   | id | listener | goal | minutes | preset | method | safety | efficacy | adherence | ease | warmth | stories | note |
-   |----|----------|------|---------|--------|--------|--------|----------|-----------|------|--------|---------|------|
-
-   The method is the format the writer chose. The note holds the six one-line reasons, in the order
-   safety, efficacy, adherence, ease, warmth, stories, separated by semicolons.
-
-2. **The lowest cases**, by the sum of their scores (safety breaks ties), each with what went wrong and
-   whether the fault lies in the brief (the menu, the coaching notes, the guide) or in the script.
-
-3. **What the scores say** about:
-   - the stories (what made a rest worth hearing; where coaching crowded them out, or a story crowded a
-     cue);
-   - the catalog and the menu (movements missing for a kit, level or limit; loads or flags that look
-     wrong; coaching notes that don't fit a limit);
-   - the programming guide (doses too heavy or light for the writers' designs, rules the writers
-     missed or misread);
-   - the design (formats chosen where another would serve better; what the writers did well or badly
-     with the freedom to design).
-
-Judge only what is in the files. Don't rewrite the scripts.
-
-## Comparing with an earlier run
-
-When the run is compared with an earlier one, score blind first, as above. Then:
-
-1. **Warmth of the earlier scripts.** When the earlier run has no warmth score (runs before 0.6.2),
-   read each of your cases' earlier scripts (the folder you're given, such as
-   `docs/eval/out-before-7.0.0/<id>.draft.txt`) and score its warmth alone, on the scale above, with
-   one line of reason. Add these as a `## Warmth of the earlier scripts` table (id, warmth, reason).
-2. **Changes.** Read the earlier results file's rows for your cases, and add a `## Changes` section:
-   one line per case where a score moved, naming each moved score (old to new) and its cause:
-   **design** (the writer designed it differently with the brief), **brief** (the ingredients helped
-   or were missing), **script** (the writing itself) or **calibration** (judged differently). Ease
-   meant something else before 0.7.0 (how much the writer invented beyond a skeleton), so say what a
-   moved ease score reflects. Don't change the blind scores.
+Report, in under 450 words, plain text, no preamble:
+SCORES: safety N, efficacy N, engagement N
+Then two to four sentences per score saying why, quoting the script.
+Then WHAT WOULD MOST IMPROVE IT: at most three changes that would raise a score, most valuable first, each one sentence. Only things that matter to the listener's experience.

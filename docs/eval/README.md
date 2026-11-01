@@ -1,63 +1,53 @@
-# The judged grid
+# The script-writing loop
 
-Forty requests over four invented listeners, used to judge sessions before a release: for each case a
-writer designs and writes a session from `./harmonicfitness brief`'s ingredients, the way the workout skill
-does, and reviewers score the scripts for safety, efficacy, adherence, ease of construction, warmth and (since
-0.39.0) the stories in the rests.
+How a change to script writing is tried before a release (maintainer only): write real sessions with the web
+coach, time them, and have independent judges score them. Each loop is a change, a run, the scores, and the next
+change. It replaced the forty-case grid of invented listeners (until 0.49.6), which judged against a six-part
+rubric that marked scripts down a point or two for faults a listener wouldn't notice.
 
-- `cases.toml`: the forty cases. Strength, general and conditioning at the novice, experienced and
-  advanced levels make nine cells; each runs at two kit presets and two lengths (ten to twenty minutes
-  and thirty to forty five), which is thirty six, plus two mobility and two targeted cases. Every third
-  case adds a `--limit`. `tests/test_screen.py` (class `Eval`) checks the grid and that every case screens.
-- `extra-cases.toml`: cases beyond the forty, in the same fields (a `limit` may be a list), such as c41,
-  an off-limits ankle with a delicate foot on the same side.
-- `listeners/{a,b,c,d}/`: the listeners, each a complete context folder (`HARMONICFITNESS_HOME`), all invented,
-  with invented first names (Maya, Theo, Priya and Sam) for the coach to use.
-  a is a novice with a mat and no limits; b is experienced in hotel gyms with a delicate neck; c is advanced
-  in a full gym with the low back off limits; d is experienced in hotel rooms, with likes and dislikes and
-  no log yet.
-- `research/{a,b,c,d}.md`: a day's research sheet per listener, invented, standing in for the research
-  agent's, with open threads from earlier sessions; the writers tell the rests from it.
-- `briefs.sh`: each case's brief and menu.
-- `writer.md`: the writer's brief (a few cases a writer). `judge.md`: the reviewer's prompt.
-- `out/` (git-ignored): the generated briefs and menus, scripts, writer notes, lints and judges' parts.
+## 1. Run
 
-Run each command from the repo root.
-
-## 1. Generate the briefs
+`web/local_turn.py` runs one web-app workout turn on this computer, with the worker's own agent, instructions,
+tools and step 1, on Gemini, against a copy of a context folder: no deploy, and nothing sent to the live site. The
+key comes from the repo root's `.env` (`GEMINI_API_KEY`), never printed.
 
 ```sh
-docs/eval/briefs.sh            # every case
-docs/eval/briefs.sh c06 c41    # just these
+.venv/bin/python web/local_turn.py <context folder> <out dir> "<request>"
 ```
 
-For each case it runs `HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness brief --goal ... --minutes
-... --preset ... [--level ...] [--target ...] [--limit ...] --today 2026-10-21 --save docs/eval/out/<id>.draft.txt`,
-which writes `docs/eval/out/<id>.brief.md` and `<id>.menu.json` (its stderr into `<id>.brief.stderr.txt`).
-The date is fixed, so the briefs are the same on every run until the catalog, the dose rules or the
-knowledge files change.
+- **The context folder** is a snapshot, the same for every loop of a set so runs compare: a `pull`'s `me/` (from
+  `./harmonicfitness pull`) is the listener as the site has them. Copy it aside once and point every run at the copy.
+- **The requests:** the page's sentence, the same each loop, such as "Hey, coach Freya, I'd like a 30-minute
+  full-body workout at home. Nothing's bothering me today." and "Hey, coach Freya, I'd like a 30-minute strength
+  workout at the gym. Go easy on my left knee today." (a limit keeps safety in the test). Two runs can go side by
+  side; each has its own copy.
+- **Out:** `<out>/me/` holds the turn's files (the draft, brief and menu in `me/workouts/<stem>/`), and
+  `<out>/history.json` every model request. The printed line gives the turn's seconds, requests and tokens.
 
-## 2. Write and lint the scripts
+A live run, once a release is deployed, is the same request sent to the site and the conversation pulled with
+`./harmonicfitness pull --conversation <id>`; its folder holds the same `history.json`.
 
-Writers follow `writer.md`: design the session from the brief, put the plan and every place they had to
-invent something in `docs/eval/out/<id>.writer-notes.md`, write `docs/eval/out/<id>.draft.txt` (its
-`movements:` line, then the segments), and lint it. Two or three cases a writer keeps each brief in view.
-`--today` matches the briefs' fixed date (a menu from another day is refused). The build name (`"eval-<id>"`) is required: without it `--lint-only` is taken as the name and a render
-starts. The lint checks the draft against its menu, and exports a `.txt` into the listener's `workouts/`,
-which is git-ignored.
+## 2. Time
 
 ```sh
-HARMONICFITNESS_HOME=docs/eval/listeners/<listener> ./harmonicfitness build docs/eval/out/<id>.draft.txt "eval-<id>" --lint-only --today 2026-10-21
+.venv/bin/python docs/eval/timing.py <out dir>
 ```
+
+Each model request's seconds, output and input tokens and tool calls; what each draft write added up to; and each
+build's spread of segment fills and its distance from plan. The usual costs: thinking (a write's output tokens far
+above the script's own), round trips before the first word, and passes that lengthen or trim a draft a little at a
+time.
 
 ## 3. Judge
 
-Give reviewers `docs/eval/judge.md` as their prompt, a few cases each in case order, with the case files,
-the listeners and `docs/eval/out/` to read; each writes its part to `docs/eval/out/judge-<n>.md`. Their rows
-make `docs/eval/results-<YYYY-MM-DD>.md` (a row per case, the lowest cases, and what the scores say about the
-catalog and menu, the programming guide and the design); a second run on the same day adds `-run2`, and so
-on. Keep the table's columns (id, listener, goal, minutes, preset, method, safety, efficacy, adherence,
-ease, warmth, note) so runs can be compared row by row; warmth was added in release 0.6.2, so earlier runs
-have none, and 0.7.0's ease measures what the writer invented beyond the brief, not beyond a skeleton.
-Copy `out/`'s drafts aside (as `out-before-<version>/`, git-ignored) before the next run if it will be
-compared with this one. The results file is committed; `out/` is not.
+`judge.md` is the judge's prompt: safety, efficacy and engagement, 1 to 5, each against written anchors, judged as
+the listener would hear it, with at most three improvements. Fill `{REQUEST}`, `{SCRIPT}` (the draft's path),
+`{HOME}` (the turn's `me/`, with its trailing slash) and the feeds sheet's date, and give it to **two independent
+judges a script**; average their scores. When comparing with an earlier run, judge that run again with the same
+prompt rather than trusting old scores.
+
+## 4. Change
+
+Prefer a check in code to a sentence of guidance, and fewer rules to more: each rule the writer weighs costs
+attention, and rules collide (a story that keeps its source's numbers became a list of figures). Make a fix for
+safety or fact when both judges name it. The changelog records what each loop found and changed.

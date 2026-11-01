@@ -264,7 +264,7 @@ class Brief(unittest.TestCase):
             home = os.path.join(d, "me")
             shutil.copytree(LISTENER, home)
             r = brief("--goal", "mobility", "--minutes", "20", "--kit", "home", "--log",
-                      os.path.join(ROOT, "docs", "eval", "listeners", "d", "log.md"), home=home)
+                      os.path.join(ROOT, "me.example", "log.md"), home=home)   # the template: no sessions yet
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("No sessions logged yet", r.stdout)
         self.assertIn("Mobility:", r.stdout)   # the mobility dose for the level
@@ -406,7 +406,6 @@ class Header(unittest.TestCase):
     def test_menu_and_brief_sit_beside_the_draft(self):
         self.assertEqual(draft.menu_path("a/b/2026-10-21-x.draft.txt"), "a/b/2026-10-21-x.menu.json")
         self.assertEqual(draft.brief_path("a/b/2026-10-21-x"), "a/b/2026-10-21-x.brief.md")
-        self.assertEqual(draft.menu_path("docs/eval/out/c06.draft.txt"), "docs/eval/out/c06.menu.json")
 
 
 class Lint(unittest.TestCase):

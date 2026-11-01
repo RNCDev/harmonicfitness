@@ -595,7 +595,7 @@ def main(argv=None):
                          "list); --engine is the older name")
     ap.add_argument("--lint-only", action="store_true", help="stop after the lint and the menu check")
     ap.add_argument("--today", type=cli._date, help="pretend today is this date, YYYY-MM-DD, for the menu's "
-                                                     "day (the eval grid's fixed briefs); default: today")
+                                                     "day (a brief written with the same --today); default: today")
     ap.add_argument("--allow-estimated", action="store_true",
                     help="render with a local coach whose pace isn't measured on this route yet")
     ap.add_argument("--follow", action="store_true", help="render ahead while the draft is written (local only)")

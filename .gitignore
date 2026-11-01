@@ -14,17 +14,11 @@ models
 __pycache__/
 .DS_Store
 
-# The judged grid's generated briefs, menus, scripts and lints (docs/eval/README.md).
-docs/eval/out/
-# Lint-only exports from the eval scripts, written into each invented listener's workouts/.
-docs/eval/listeners/*/workouts/
-docs/eval/out-before-*/
-
 # The plan ledgers and briefs of superpowers' executing-plans (scratch, per plan).
 .superpowers/
 
 # browser walks: screenshots and logs from the Playwright tools
 .playwright-mcp/
 
-# the maintainer's local keys for a browser walk (web/qat_key.py reads GEMINI_API_KEY); never committed
+# the maintainer's local Gemini key (web/qat_key.py and web/local_turn.py read GEMINI_API_KEY); never committed
 /.env

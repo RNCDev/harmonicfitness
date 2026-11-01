@@ -2,6 +2,24 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.50.0] - 2026-11-01
+
+The script-writing loop replaces the judged grid. Five loops on 30-minute scripts (0.49.4 to 0.49.6) found a better way to try a change to the writing: real sessions written by the web coach on this computer, timed, and scored by two independent judges against written anchors. The forty-case grid of invented listeners, and the six-part rubric that marked scripts down for faults a listener wouldn't notice, are gone.
+
+### Added
+- **`docs/eval/README.md`, the loop:** run a turn with `web/local_turn.py` on a copy of a context folder, time it, judge it, change one thing; prefer a check in code to a sentence of guidance, and fewer rules to more.
+- **`docs/eval/timing.py`:** where one turn's time went, from its `history.json` (`web/local_turn.py`'s or a `pull`'s): each model request's seconds, tokens and tool calls, what each draft write added up to, and each build's spread of segment fills and distance from plan.
+
+### Changed
+- **`docs/eval/judge.md` is the calibrated three-score judge** (safety, efficacy, engagement, each with anchors; two judges a script, averaged), from 0.49.5's `judge-three.md`.
+
+### Removed
+- **The judged grid:** `docs/eval/cases.toml` and `extra-cases.toml`, the four invented listeners (`docs/eval/listeners/`) and their research sheets, `briefs.sh`, the writer's brief, the six-part judge and the last results file. The test that checked the grid went with it.
+- **`brief --save` into `docs/eval/out/`:** a brief and its menu are written only beside a draft in the workouts folder.
+
+### For forks
+- Anything that ran `docs/eval/briefs.sh`, or saved a brief into `docs/eval/out/`, now gets exit 64 from `brief --save`: run the loop in `docs/eval/README.md` instead. No `me/` migration.
+
 ## [0.49.6] - 2026-11-01
 
 Eval loops 3 to 5 on 30-minute scripts, judged with the calibrated three-score rubric (two judges a script, averaged). Loop 3, on 0.49.5 live: full-body at home 4.5/4.0/4.0 in 182 seconds, gym strength easy on the left knee 5.0/4.0/3.0 in 172 (both 50 seconds quicker than loop 2). Loop 4 ran the changes below on this computer, on the web app's own turn code, without a deploy: 5.0/4.0/3.0 in 137 seconds (one write, clean at the first build) and 4.5/4.0/3.5 in 163. A last local loop with everything below: 4.0/4.0/3.0 in 257 seconds (the writer read engine files and fought a figure limit set too tight, both fixed since) and 4.5/4.0/4.0 in 150. Every judge in every loop marked engagement down for the same two things, now held in code: a filing read out as a list of figures, and the coach's own voice missing.

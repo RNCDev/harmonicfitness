@@ -111,10 +111,10 @@ Three layers keep your details apart from the code:
 |---|---|
 | `.claude/skills/` | The `workout` (request to MP3), `setup` (onboarding and profile changes) and `coach` (a new trainer) skills |
 | `AGENTS.md`, `.agents/skills/`, `.codex/` | The same for ChatGPT's Codex: `AGENTS.md` points to `CLAUDE.md`, the skills are copies of `.claude/skills/` (`./harmonicfitness harness sync` writes both), and `.codex/` turns on the network and lets `./harmonicfitness` run outside Codex's sandbox |
-| `knowledge/` | The movement catalog, session methods and doses, programming and injury references, equipment kits, what goes in a script, text-to-speech rules, coaches and voices, the web voice services |
+| `knowledge/` | The movement catalog, session methods and doses, programming and injury references, equipment kits, what goes in a script, text-to-speech rules, coaches and voices, the web voice services, and the research notes behind the sourced numbers (`knowledge/research/`) |
 | `tools/` | One file per job, all run through `./harmonicfitness`; `CLAUDE.md` says what each does |
 | `tests/` | Fast checks with no models, network or personal files (`./harmonicfitness test`), run by CI on every push |
-| `docs/` | The judged eval grid behind each release's quality, and the research the session rules cite |
+| `docs/` | The script-writing loop: how a change to the writing is run, timed and judged before a release |
 
 Your profile is four files, split by how often each part changes:
 

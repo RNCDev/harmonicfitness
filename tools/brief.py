@@ -679,19 +679,15 @@ def request_from(args, cat, sess, profile):
     return request
 
 
-EVAL_OUT = os.path.join(paths.ROOT, "docs", "eval", "out")   # the maintainer's eval grid (git-ignored; briefs.sh)
-
-
 def _save_target(save):
-    """--save's path, which must sit in the workouts folder (a workout's own folder, or checks/), or in the eval
-    grid's output folder: the brief and menu are written nowhere else. Anything else is cli.Usage (exit 64)."""
+    """--save's path, which must sit in the workouts folder (a workout's own folder, or checks/): the brief and
+    menu are written nowhere else. Anything else is cli.Usage (exit 64)."""
     if not save:
         return None
     where = os.path.normcase(os.path.realpath(os.path.dirname(os.path.abspath(save))))
-    for root in (paths.WORKOUTS, EVAL_OUT):
-        root = os.path.normcase(os.path.realpath(root))
-        if where == root or where.startswith(root.rstrip(os.sep) + os.sep):
-            return save
+    root = os.path.normcase(os.path.realpath(paths.WORKOUTS))
+    if where == root or where.startswith(root.rstrip(os.sep) + os.sep):
+        return save
     raise _usage(f"--save must name a draft in {paths.show(paths.WORKOUTS)} (in its own folder, "
                  f"<stem>/<stem>.draft.txt), not {save}")
 

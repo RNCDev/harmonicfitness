@@ -4,7 +4,7 @@
 .github
 .superpowers
 .codegraph
-docs/eval/out*
+docs
 tests
 web/webtests
 **/.env
