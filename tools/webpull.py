@@ -7,6 +7,8 @@ me/web/<date>-<time>/:
 
   - me/...             every file the app keeps for them (its Export: drafts, briefs, menus, the log, coaches)
   - conversation.json  the conversation (the latest, or --conversation N): its chat lines, plan and question
+  - history.json       the model's side of it: each request and response, every tool call with its arguments
+                       and result, and when each happened (what the coach did, step by step; since 0.48.0)
   - <name>.mp3         each MP3 that conversation made, while the app still keeps it (24 hours)
 
 and signs out. Nothing in me/ itself is overwritten. The password goes to the app and nowhere else, and is
@@ -179,6 +181,9 @@ def pull(account, conversation=None, dest_root=None, app=None, now=None):
         mp3s, expired = [], 0
         if conv is not None:
             fileio.atomic_write(os.path.join(dest, "conversation.json"), json.dumps(conv, indent=2) + "\n")
+            status, body = app.get(f"/api/conversations/{int(conv['id'])}/history", ok=(200, 404))
+            if status == 200:   # an app older than 0.48.0 doesn't serve it
+                fileio.atomic_write(os.path.join(dest, "history.json"), json.dumps(json.loads(body), indent=1) + "\n")
             taken = set()
             for line in conv.get("lines") or []:
                 audio = line.get("audio") if isinstance(line, dict) else None
@@ -216,7 +221,8 @@ def main(argv=None):
     if got["conversation"] is None:
         print("  no conversation yet")
     else:
-        print(f"  conversation {got['conversation']} (last changed {got['updated_at']}): conversation.json")
+        print(f"  conversation {got['conversation']} (last changed {got['updated_at']}): conversation.json"
+              + (", history.json" if os.path.isfile(os.path.join(got["folder"], "history.json")) else ""))
     for mp3 in got["mp3s"]:
         print(f"  {os.path.basename(mp3)}")
     if got["expired"]:

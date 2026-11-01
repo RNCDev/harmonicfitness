@@ -179,6 +179,7 @@ class Report:
     total_tolerance: float = TOTAL_TOLERANCE
     word_wpm: float = DEFAULT_WPM       # --wpm, for the estimate without a voice
     notes: List[str] = field(default_factory=list)   # issues of the whole draft (a web build over its allowance)
+    sent: Optional[int] = None          # a web voice's characters sent to its service (the build's price)
 
     @property
     def total_seconds(self):
@@ -317,11 +318,11 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         total_tolerance = max(total_tolerance - (LINT_HEADROOM if exact else LINT_HEADROOM_ESTIMATED), 0.0)
     report = Report(rows, strict, guide_wpm, voice, rate, exact,
                     total_tolerance=total_tolerance, word_wpm=wpm)
-    if voice and max_chars and voice.get("backend") == "cloud":
+    if voice and voice.get("backend") == "cloud":
         said = {t if not is_mark(t) else counts.in_words(t, voice)
                 for plan_ in plans for para in plan_ for t, _ in para if (spoken(t) or is_mark(t))}
-        sent = sum(len(t) for t in said if t)
-        if sent > max_chars:
+        sent = report.sent = sum(len(t) for t in said if t)
+        if max_chars and sent > max_chars:
             report.notes.append(f"  the script speaks {sent:,} characters; this build may send at most "
                                 f"{max_chars:,} (--max-chars)")
     if voice:
@@ -367,6 +368,8 @@ def render_report(report):
                         + " in the segments furthest off")
         summary += (f"\n{voice['name']} speaks this draft's words at about {report.wpm:.0f} a minute; the guide "
                     f"column is the words that fill each segment at that rate, around its holds, counts and chimes")
+        if report.sent is not None:
+            summary += f"\nSends {report.sent:,} characters to the voice service"
     else:
         summary += f" | estimated {report.total_words / report.word_wpm:.1f} min at {report.word_wpm:g} wpm"
     out.append(summary)

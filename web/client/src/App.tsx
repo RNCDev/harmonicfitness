@@ -155,6 +155,18 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
     }
   }, [sky, onSignedOut]);
 
+  // Record without asking: switched at once, then saved; put back if the server refuses it.
+  const [autoRecord, setAutoRecord] = useState(me.auto_record ?? false);
+  const chooseAutoRecord = useCallback(async (on: boolean) => {
+    setAutoRecord(on);
+    try {
+      await api.setAutoRecord(on);
+    } catch (e) {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      setAutoRecord(!on);
+    }
+  }, [onSignedOut]);
+
   // The drawer: Escape closes it and focus goes back to its button.
   const closeDrawer = useCallback(() => {
     setDrawer(false);
@@ -231,7 +243,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       </div>
       <ContextColumn username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
         onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
-        sky={sky} onSky={chooseSky} />
+        sky={sky} onSky={chooseSky} autoRecord={autoRecord} onAutoRecord={chooseAutoRecord} />
     </div>
   );
 }

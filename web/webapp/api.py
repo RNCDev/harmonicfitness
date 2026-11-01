@@ -35,7 +35,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, \
     RedirectResponse, Response, StreamingResponse
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints
 
 from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
     spend, start, store, \
@@ -170,6 +170,11 @@ class WriterBody(BaseModel):
 class SkyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     sky: Literal["flow", "field", "waves", "bloom", "lissajous"]
+
+
+class AutoRecordBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    on: StrictBool
 
 
 class SyncRead(BaseModel):
@@ -535,8 +540,10 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             name, pw = conn.execute("select username, password_hash is not null from users "
                                     "where id = %s", (uk.user_id,)).fetchone()
             sky = keystore.sky(conn, uk)
+            auto = keystore.auto_record(conn, uk)
             conn.rollback()
-        return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": version, "sky": sky}
+        return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": version, "sky": sky,
+                "auto_record": auto}
 
     @app.get("/api/options")
     def get_options(uk: User):
@@ -878,6 +885,18 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 raise
         return Response(status_code=204)
 
+    @app.put("/api/auto-record", status_code=204, **post)
+    def put_auto_record(uk: User, body: Annotated[AutoRecordBody, Body()]):
+        """Record without asking: a checked, priced script records at once, within today's allowance."""
+        with connection() as conn:
+            try:
+                keystore.set_auto_record(conn, uk, body.on)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return Response(status_code=204)
+
     @app.put("/api/sky", status_code=204, **post)
     def put_sky(uk: User, body: Annotated[SkyBody, Body()]):
         """The web app's animated background: "flow" or "field"."""
@@ -1090,6 +1109,24 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
                 raise
         return shown(c)
+
+    @app.get("/api/conversations/{cid}/history")
+    def conversation_history(uk: User, cid: Annotated[int, JOB_ID]):
+        """The model's side of a conversation, for its owner only (`./harmonicfitness pull` saves it as
+        history.json): every request and response, each tool call with its arguments and result, and their
+        times. The page never shows it."""
+        with connection() as conn:
+            try:
+                c = conversations.load(conn, uk, cid)
+            except LookupError:
+                raise HTTPException(404, "no such conversation") from None
+            finally:
+                conn.rollback()
+        try:
+            history = json.loads(c.history) if c.history else []
+        except ValueError:
+            history = []
+        return {"id": c.id, "history": history}
 
     @app.post("/api/conversations/{cid}/record", status_code=202, **post)
     def record_offer(uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnWhen, Body()]):

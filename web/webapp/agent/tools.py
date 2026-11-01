@@ -5,6 +5,7 @@ is reachable. Keys reach the engine only through engine.run's extra_env; `me/.en
 
 The engine's own checks (the brief's menu, the build's gate) keep a workout safe; these tools only keep
 the agent inside the user's folder and away from what this web client can't do yet."""
+import hashlib
 import json
 import os
 import re
@@ -69,6 +70,12 @@ class Deps:
     phase: str = ""                  # what the turn last did (THINK in agent): names what the model is thinking about
     picked: tuple[str, str] | None = None   # the coach chosen on the page (Settings or the sentence): (slug, day)
     recorded: str | None = None      # the draft recorded this turn: the approval is spent, and that workout is final
+    auto_record: bool = False        # Settings' Record without asking: a clean price records at once
+    # reserves characters from today's allowance (and commits), as the Record button does; whether it fit
+    reserve: Callable[[int], bool] | None = field(default=None, repr=False)
+    # the last clean lint: (draft, coach, the draft's sha256, characters it sends), so pricing the same text
+    # with the same coach needn't lint it again
+    linted: tuple | None = None
     # saves what the recording made (the coach, the MP3, the clips) at once, so a later stop can't lose it
     checkpoint: Callable[[], None] | None = field(default=None, repr=False)
 
@@ -173,6 +180,12 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         argv.append(mapped)
     if command == "build" and "--lint-only" not in args:
         return _record(deps, args, argv)
+    if command == "build":   # a lint: remembered when clean, for the price that follows
+        deps.linted = None
+        r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT, cancel=deps.cancel)
+        if r.code == 0 and len(argv) > 1:
+            deps.linted = (args[1], _flag(args, "--coach"), _digest(argv[1]), _sends(r.stdout + r.stderr))
+        return _result(r.code, *(_mine_text(deps, t) for t in (r.stdout, r.stderr)))
     slow = (command, sub) in SLOW
     if (command, sub) == ("coaches", "audition"):
         deps.auditions += 1   # counted when sent: a failed audition may still have paid for a design
@@ -238,6 +251,45 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
     return _result(0, f"wrote {path} ({len(content)} characters)")
 
 
+SEGMENT = re.compile(r"^@@\s*\d+\s*\|")   # a draft's segment marker, as tools/draft.py reads it
+
+
+def edit_segment(deps: Deps, path: str, number: int, text: str) -> ToolResult:
+    """Replace one segment of a draft (its `@@` line and everything to the next), numbered from 1 in file
+    order as the lint's rows are: a lint fix sends one segment, not the whole script again."""
+    if not (isinstance(path, str) and isinstance(text, str) and type(number) is int):
+        return _refuse("path and text must be strings, number a whole number")
+    if not path.endswith(".draft.txt"):
+        return _refuse("edit_segment edits a draft (me/workouts/<stem>/<stem>.draft.txt); use write_file otherwise")
+    full, rel = _mine(deps, path)
+    if full is None:
+        return _refuse(rel)
+    if deps.recorded:
+        return _refuse(AFTER_RECORDING)
+    lines = text.strip("\n").split("\n")
+    if not lines or not SEGMENT.match(lines[0]) or any(SEGMENT.match(x) for x in lines[1:]):
+        return _refuse("text must be exactly one segment: its own @@ <seconds> | <label> line first, then its lines")
+    try:
+        with open(full, encoding="utf-8") as f:
+            old = f.read().split("\n")
+    except FileNotFoundError:
+        return _result(1, error="no such draft yet: write it with write_file first")
+    starts = [i for i, x in enumerate(old) if SEGMENT.match(x)]
+    if not 1 <= number <= len(starts):
+        return _refuse(f"the draft has {len(starts)} segments: number must be 1 to {len(starts)}")
+    begin = starts[number - 1]
+    end = starts[number] if number < len(starts) else len(old)
+    tail = [""] if number < len(starts) else ([""] if old and old[-1] == "" else [])
+    new = "\n".join(old[:begin] + lines + tail + old[end:])
+    if len(new) > WRITE_LIMIT:
+        return _refuse(f"too long: at most {WRITE_LIMIT} characters")
+    tmp = full + ".tmp-write"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(new)
+    os.replace(tmp, full)
+    return _result(0, f"replaced segment {number} of {len(starts)} in {path}")
+
+
 def list_files(deps: Deps, path: str = "me/") -> ToolResult:
     full, why = _mine(deps, path if path.startswith("me") else "")
     if full is None:
@@ -258,6 +310,20 @@ def list_files(deps: Deps, path: str = "me/") -> ToolResult:
 
 
 SPEAKS = re.compile(r"the script speaks ([\d,]+) characters")
+SENDS = re.compile(r"Sends ([\d,]+) characters to the voice service")   # a web voice's lint, since 0.48.0
+
+
+def _sends(text: str) -> int | None:
+    found = SENDS.search(text) or SPEAKS.search(text)
+    return int(found.group(1).replace(",", "")) if found else None
+
+
+def _digest(path: str) -> str | None:
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return None
 
 
 def _flag(args: list[str], name: str) -> str | None:
@@ -289,16 +355,21 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
         if r.code in MADE_MP3:
             out += "\n" + RECORDED_NOTE
         return _result(r.code, out, err)
-    lint = engine.run(deps.engine_root, deps.home, argv + ["--lint-only"], extra_env=deps.keys, timeout=TIMEOUT,
-                      cancel=deps.cancel)
-    if lint.code != 0:   # fix the draft first: nothing is priced, offered or billed
-        return _result(lint.code, *(_mine_text(deps, t) for t in (lint.stdout, lint.stderr)))
-    count = engine.run(deps.engine_root, deps.home, argv + ["--lint-only", "--max-chars", "1"], extra_env=deps.keys,
-                       timeout=TIMEOUT, cancel=deps.cancel)
-    found = SPEAKS.search(count.stdout + count.stderr)
-    if not found:
+    seen = deps.linted
+    if seen and seen[3] is not None and seen[:3] == (draft, coach, _digest(argv[1])):
+        chars = seen[3]   # linted clean just now, as it stands: no second lint
+    else:
+        lint = engine.run(deps.engine_root, deps.home, argv + ["--lint-only"], extra_env=deps.keys, timeout=TIMEOUT,
+                          cancel=deps.cancel)
+        if lint.code != 0:   # fix the draft first: nothing is priced, offered or billed
+            return _result(lint.code, *(_mine_text(deps, t) for t in (lint.stdout, lint.stderr)))
+        chars = _sends(lint.stdout + lint.stderr)
+    if chars is None:   # an engine from before 0.48.0 prints no count: ask it the old way
+        count = engine.run(deps.engine_root, deps.home, argv + ["--lint-only", "--max-chars", "1"], extra_env=deps.keys,
+                           timeout=TIMEOUT, cancel=deps.cancel)
+        chars = _sends(count.stdout + count.stderr)
+    if chars is None:
         return _refuse("couldn't count the script's characters for its price; this coach may not be a web coach")
-    chars = int(found.group(1).replace(",", ""))
     priced = engine.run(deps.engine_root, deps.home, ["get", "cost", "--coach", coach, "--chars", str(chars), "--json"],
                         extra_env=deps.keys, timeout=TIMEOUT, cancel=deps.cancel)
     try:

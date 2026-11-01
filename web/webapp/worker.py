@@ -18,6 +18,7 @@ import signal
 import sys
 import tempfile
 import threading
+import time
 import tomllib
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -61,6 +62,7 @@ class Ctx:
     on_done: Callable[[], None] | None = None   # run in the transaction that marks the job done
     cancel: threading.Event = field(default_factory=threading.Event)   # the listener's Stop
     on_lost: Callable[[str], None] | None = None   # run with the job's error (then committed) when the handler returned but the job wasn't done
+    started: dict = field(default_factory=dict, repr=False)   # {step id: when it started}: the log says how long each took
 
     def say(self, stage: str, **fields) -> None:
         """A job event, committed now so a stream sees it live. It commits the connection's pending
@@ -427,8 +429,14 @@ def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = N
     if step is None:
         ctx.say("step", text=text, failed=failed)
         return
-    if code is not None and not think:
-        print(f"worker: job {ctx.job_id} {tool} exit {code}", file=sys.stderr, flush=True)
+    if code is None:
+        ctx.started[step] = time.monotonic()
+    else:
+        began = ctx.started.pop(step, None)
+        took = f" {time.monotonic() - began:.1f}s" if began is not None else ""
+        # how long the model thought, and each tool's exit: the turn's timeline, never what it read or wrote
+        line = f"think{' failed' if failed else ''}{took}" if think else f"{tool} exit {code}{took}"
+        print(f"worker: job {ctx.job_id} {line}", file=sys.stderr, flush=True)
     ctx.say("step", text=text, failed=failed, id=step,
             state="running" if code is None else "failed" if failed else "done", **({"think": True} if think else {}))
 
@@ -467,6 +475,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     stored = keystore.open_all(ctx.conn, ctx.uk)
     chosen = keystore.writer(ctx.conn, ctx.uk)
     picked = keystore.coach(ctx.conn, ctx.uk)
+    auto = keystore.auto_record(ctx.conn, ctx.uk)
     ctx.conn.commit()
     provider = providers.pick(ctx.settings.providers, stored, chosen)
     if provider is None:
@@ -493,7 +502,20 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     record = ctx.args.get("record") is True   # the listener pressed Record: the offer is approved
     deps.approved = conv.offer if record else None
     deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)
-    clips = clipcache.load(ctx.conn, ctx.uk, ctx.home) if record else None   # re-recording pays only for changes
+    deps.auto_record = auto and not record
+
+    def reserve(chars: int) -> bool:
+        """Today's allowance, reserved for a recording made without the Record button (as its endpoint does)."""
+        try:
+            fits = spend.reserve(ctx.conn, ctx.uk, today, chars, spend.daily_cap())
+            ctx.conn.commit()
+            return fits
+        except Exception:  # noqa: BLE001 - then the Record button is offered, as without the setting
+            ctx.conn.rollback()
+            return False
+    deps.reserve = reserve
+    # re-recording pays only for changes; a turn that may record on its own needs them too
+    clips = clipcache.load(ctx.conn, ctx.uk, ctx.home) if record or deps.auto_record else None
     ctx.conn.commit()
     kept = [] if kept is None else kept
     kept_paths: set[str] = set()
@@ -528,8 +550,11 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     first = conv.history is None
     background = ThreadPoolExecutor(max_workers=1)
     sheet = os.path.join(ctx.home, "workouts", "research", "daily", f"{today}-feeds.md")
-    if not first and not os.path.exists(sheet):
-        deps.feeds = agent.start_feeds(deps, background)   # the check-in is answered: research begins now
+    # the check-in is answered (or, a set-up listener's workout request from the page's sentence, needs none):
+    # research begins now, while the model reads
+    begin = not first or (agent.intent(line) == "workout" and not agent.needs_setup(ctx.home))
+    if begin and not os.path.exists(sheet):
+        deps.feeds = agent.start_feeds(deps, background)
     try:
         context = None
         if first and line:
@@ -537,7 +562,11 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                 context = agent.prefetch(deps, line)
             except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
                 print(f"worker: job {ctx.job_id} prefetch failed: {type(e).__name__}", file=sys.stderr)
+        began = time.monotonic()
         outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
+        u = outcome.usage
+        print(f"worker: job {ctx.job_id} turn {time.monotonic() - began:.1f}s, {u.get('requests')} model requests, "
+              f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out", file=sys.stderr, flush=True)
     except agent.TurnError as e:
         raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG,
                      agent.STOPPED: STOPPED}.get(e.reason, CANT_FINISH)) from None

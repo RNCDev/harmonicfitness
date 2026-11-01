@@ -177,5 +177,22 @@ class EstimatedPaceSilence(unittest.TestCase):
         self.assertTrue(any("of silence" in i for i in estimated), estimated)
 
 
+class WebLintCount(unittest.TestCase):
+    def test_a_web_voice_s_lint_says_what_it_sends_and_a_local_one_doesn_t(self):
+        import tts_build
+        from draft import parse
+        segs = parse("@@ 20 | A\nHello there, and welcome in.\n")
+        web = {"name": "x", "key": "x", "engine": "gemini", "model": "m", "backend": "cloud"}
+        local = {"name": "x", "key": "x", "engine": "pocket", "model": "m"}
+        with mock.patch("voices.pace", return_value=(14.5, False)):
+            sent = tts_build.lint(segs, web)
+            kept = tts_build.lint(segs, local)
+        self.assertEqual(sent.sent, len("Hello there, and welcome in."))
+        self.assertIn(f"Sends {sent.sent:,} characters to the voice service", "\n".join(tts_build.render_report(sent)))
+        self.assertIsNone(kept.sent)
+        self.assertFalse(any("Sends" in line for line in tts_build.render_report(kept)))
+        self.assertEqual(sent.notes, [])   # not an issue: only --max-chars makes one
+
+
 if __name__ == "__main__":
     unittest.main()

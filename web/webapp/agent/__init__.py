@@ -28,6 +28,8 @@ __all__ = ["AGENT", "Deps", "LIMITS", "audition_open", "prefetch", "wants_coach"
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
 TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
 SKILL = (".claude/skills/workout/SKILL.md", ".claude/skills/workout/research.md")
+# what the skill says to read before writing, given with it: two round trips fewer before every script
+WRITING = ("knowledge/script.md", "knowledge/tts-rules.md")
 SETUP = (".claude/skills/setup/SKILL.md",)
 COACH = (".claude/skills/coach/SKILL.md",)
 SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard|my interests|"
@@ -51,7 +53,7 @@ def skill_text(engine_root: str, setup: bool = False, coach: bool = False) -> st
     """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet, and the
     coach skill while a coach is being made), so the web follows the same steps as the CLI."""
     parts = []
-    for rel in (SETUP if setup else ()) + (COACH if coach else ()) + SKILL:
+    for rel in (SETUP if setup else ()) + (COACH if coach else ()) + SKILL + WRITING:
         with open(os.path.join(engine_root, rel), encoding="utf-8") as f:
             parts.append(f"<file path=\"{rel}\">\n{f.read()}\n</file>")
     return "\n\n".join(parts)
@@ -229,6 +231,9 @@ def _coach_folders(home: str) -> set[str]:
 
 
 RECORDING = "Recording your workout"
+AUTO_RECORDED = ("Recorded straight away: the listener chose Record without asking in Settings, so there was no "
+                 "Record button. Log the session, then end your turn with the plan in one small table, the coach, "
+                 "and a line saying it's ready (in place of the one-line reply).")
 OFF_PLAN = 2   # the build's exit when the MP3's total ran more than five percent off plan: an MP3 was still made
 OFF_PLAN_NOTE = f"{RECORDING} (a little off its planned length)"
 PROGRESS = re.compile(r"^\s*\[(\d+)/(\d+)\]", re.MULTILINE)   # render_cloud's "  [18/40] 4.2s audio"
@@ -328,7 +333,9 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     rest = args[1:] if args and args[0] == "./harmonicfitness" else args
     if len(rest) > 1 and isinstance(rest[1], str) and (first, rest[1]) in SUB_STEPS:
         text = SUB_STEPS[(first, rest[1])]
-    tool = f"run {first}"[:40]
+    # the worker's log names the command and its subcommand ("run get web-builds"), never a value
+    sub = rest[1] if len(rest) > 1 and isinstance(rest[1], str) and re.fullmatch(r"[a-z][a-z-]*", rest[1]) else ""
+    tool = (f"run {first} {sub}".strip() + (" --lint-only" if first == "build" and "--lint-only" in args else ""))[:40]
     if first == "build" and "--lint-only" not in args:
         draft = rest[1] if len(rest) > 1 else None
         if deps.approved and deps.approved.get("draft") == draft:
@@ -337,7 +344,7 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
             if deps.recorded and deps.checkpoint is not None:
                 deps.checkpoint()   # the coach, the MP3 and the clips, kept now: a later stop can't lose them
             return result
-        text = "Working out what recording costs"   # an unapproved build checks the script, then prices it
+        text = "Checking and pricing the script"   # an unapproved build checks the script, then prices it
     if first == "build" and "--lint-only" in args:
         text = "Checking the script again" if deps.lint_failed else "Checking the script's safety and timing"
     if first == "coaches" and len(rest) > 1 and rest[1] in COACH_STEPS:
@@ -348,6 +355,16 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     if first == "build":
         deps.lint_failed = result.code != 0
         deps.phase = "lint_failed" if result.code != 0 else ("linted" if "--lint-only" in args else "priced")
+        offer = deps.offer
+        if (deps.phase == "priced" and deps.auto_record and offer and offer.get("draft") == rest[1]
+                and not deps.recorded and deps.reserve is not None and deps.reserve(int(offer.get("chars") or 0))):
+            # Record without asking (Settings): approved as the Record button would, today's allowance reserved
+            # first; past the allowance the offer stays, and the button says why
+            deps.approved, deps.offer = offer, None
+            recorded = run(ctx, args)
+            if not deps.recorded:
+                return recorded
+            return recorded.model_copy(update={"output": AUTO_RECORDED + "\n" + recorded.output})
     elif first == "brief":
         deps.phase = "brief"
     elif first == "coaches" and len(rest) > 1 and rest[1] == "audition":
@@ -375,6 +392,17 @@ def write_file(ctx: RunContext[Deps], path: str, content: str) -> ToolResult:
 
 
 @AGENT.tool(sequential=True)
+def edit_segment(ctx: RunContext[Deps], path: str, number: int, text: str) -> ToolResult:
+    """Replace one segment of a draft: `number` is the segment's place, from 1 (the lint's # column), and `text`
+    the whole new segment, its `@@ <seconds> | <label>` line first. For a lint fix, instead of writing the draft
+    again."""
+    result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "edit_segment",
+                   lambda: tools.edit_segment(ctx.deps, path, number, text))
+    ctx.deps.phase = "draft"
+    return result
+
+
+@AGENT.tool(sequential=True)
 def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
     """List the files under a folder of the listener's, me/ by default."""
     text = WRAPPING_UP if ctx.deps.phase == "recorded" else "Looking through your files"
@@ -383,7 +411,16 @@ def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
 
 # Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the
 # same results in the listener's first message, without a round trip for each.
-FIRST_RUNS = (["check"], ["content", "plan", "--minutes", "25"], ["get", "coach"], ["coaches", "list", "--json"])
+FIRST_RUNS = (["check"], ["content", "plan", "--minutes", "25"], ["get", "coach"], ["coaches", "list", "--json"],
+              ["get", "web-builds"])
+MINUTES = re.compile(r"\b(\d{1,3})[- ]?(?:minutes?|mins?)\b", re.IGNORECASE)
+
+
+def first_runs(line: str | None) -> list[list[str]]:
+    """Step 1's commands, the rests' plan sized to the length the request names (25 when it names none)."""
+    found = MINUTES.search(line or "")
+    minutes = found.group(1) if found and 0 < int(found.group(1)) <= 180 else "25"
+    return [["content", "plan", "--minutes", minutes] if a[:2] == ["content", "plan"] else list(a) for a in FIRST_RUNS]
 SETUP_FIRST = ("This listener isn't set up yet: before the workout, the setup skill's quick start asks what to call "
                "them, their experience, and any injuries or limits, then today's check-in. One question a reply, "
                "as the instructions say: ask the first now, and write each answer as it comes, before the brief runs.")
@@ -459,10 +496,11 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
     label = ("Looking at your coaches" if fresh and want == "coach" else "Getting you set up"
              if fresh and want in ("setup", "workout") else "Reading your profile and today's limits")
     step = _begin(deps, label, "prefetch")
-    with ThreadPoolExecutor(max_workers=len(FIRST_RUNS) + len(FIRST_READS)) as pool:
-        runs = [pool.submit(tools.run, plain, list(a)) for a in FIRST_RUNS]
+    commands = first_runs(line)
+    with ThreadPoolExecutor(max_workers=len(commands) + len(FIRST_READS)) as pool:
+        runs = [pool.submit(tools.run, plain, a) for a in commands]
         reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS]
-        results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(FIRST_RUNS, runs)]
+        results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(commands, runs)]
         results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS, reads)]
     picked = _picked(deps, results[3][1])
     results[3] = ("./harmonicfitness coaches list", _coaches(results[3][1]))

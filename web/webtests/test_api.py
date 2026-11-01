@@ -117,7 +117,7 @@ class SignIn(ApiCase):
             self.assertIn(flag, cookie)
         self.assertEqual(self.client.get("/api/me").json(),
                          {"app_name": "HarmonicFitness", "username": "fresh.one",
-                          "has_password": True, "version": VERSION, "sky": "flow"})
+                          "has_password": True, "version": VERSION, "sky": "flow", "auto_record": False})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/context").json()])
         r = self.register("FRESH.ONE", client=self.other_client())
         self.assertEqual((r.status_code, r.json()["detail"]), (409, "That username is taken."))
@@ -598,6 +598,20 @@ class Keys(ApiCase):
         self.assertEqual(self.client.put("/api/sky", json={"sky": "flow"}).status_code, 403)   # no Origin
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
 
+    def test_record_without_asking_is_off_until_turned_on(self):
+        _, uk = self.signed_in()
+        self.assertIs(self.client.get("/api/me").json()["auto_record"], False)
+        self.assertEqual(self.client.put("/api/auto-record", json={"on": True}, headers=self.origin()).status_code, 204)
+        self.assertTrue(keystore.auto_record(self.conn, uk))
+        self.conn.rollback()
+        self.assertIs(self.client.get("/api/me").json()["auto_record"], True)
+        for bad in ({"on": "yes"}, {"on": 1}, {}, {"on": True, "more": 1}):
+            self.assertEqual(self.client.put("/api/auto-record", json=bad, headers=self.origin()).status_code, 422, bad)
+        self.assertEqual(self.client.put("/api/auto-record", json={"on": False}).status_code, 403)   # no Origin
+        self.assertEqual(self.client.put("/api/auto-record", json={"on": False}, headers=self.origin()).status_code, 204)
+        self.assertFalse(keystore.auto_record(self.conn, uk))
+        self.conn.rollback()
+
     def test_a_retired_sky_reads_as_the_default(self):
         _, uk = self.signed_in()
         self.conn.execute("update users set sky = 'arcs' where id = %s", (uk.user_id,))   # Arcs, retired in 0.46.2
@@ -972,6 +986,22 @@ class Conversations(ApiCase):
         self.assertEqual([ln["text"] for ln in c.lines],
                          ["a 20-minute strength workout", "That didn't work: interrupted", "try again"])
         self.conn.rollback()
+
+    def test_the_model_history_is_its_owner_s_alone(self):
+        _, uk = self.keyed()
+        cid = self.start()["id"]
+        self.assertEqual(self.client.get(f"/api/conversations/{cid}/history").json(), {"id": cid, "history": []})
+        c = conversations.load(self.conn, uk, cid)
+        c.history = '[{"kind": "request", "parts": []}]'
+        self.assertTrue(conversations.save(self.conn, uk, c, c.version))
+        self.conn.commit()
+        self.assertEqual(self.client.get(f"/api/conversations/{cid}/history").json(),
+                         {"id": cid, "history": [{"kind": "request", "parts": []}]})
+        self.assertNotIn("history", self.client.get(f"/api/conversations/{cid}").json())   # the page never sees it
+        other = self.other_client()
+        self.signed_in(other)
+        self.assertEqual(other.get(f"/api/conversations/{cid}/history").status_code, 404)
+        self.assertEqual(self.client.get("/api/conversations/999999999/history").status_code, 404)
 
     def test_other_users_conversation_is_404(self):
         _, uk_a = self.make_user()

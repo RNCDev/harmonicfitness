@@ -607,6 +607,85 @@ class Turn(JobsCase):
         self.assertEqual(list(clipcache.load(self.conn, uk, home)), ["old.wav"])   # kept for the next recording
         self.conn.rollback()
 
+    def test_record_without_asking_records_in_the_same_turn_within_the_allowance(self):
+        from webapp import keystore, media, spend
+        uk = self.user()
+        keystore.set_auto_record(self.conn, uk, True)
+        self.conn.commit()
+        cid = self.start(uk)
+        real = worker.engine.run
+        built = []
+
+        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            if argv[:2] == ["get", "cost"]:
+                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
+            if argv and argv[0] == "build":
+                if "--lint-only" in argv:
+                    return worker.engine.Result(0, "ok\nSends 2,000 characters to the voice service", "")
+                built.append(argv)
+                os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
+                with open(os.path.join(home, "workouts", "w", "Workout 5 min.mp3"), "wb") as f:
+                    f.write(b"ID3fake-mp3")
+                return worker.engine.Result(0, "built", "")
+            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
+
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Reed"]
+
+        def script(messages, info):
+            if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id=f"b{len(messages)}")])
+            return ModelResponse(parts=[TextPart("Done.")])
+        with mock.patch.object(worker.engine, "run", side_effect=engine_run):
+            job, conv = self.run_turn(uk, script, cid, line="just go")
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(built[0][-2:], ["--max-chars", "2000"])   # recorded at once, within its price
+        self.assertIsNone(conv.offer)                                # no Record button
+        self.assertEqual(conv.state, "idle")
+        self.assertEqual(spend.used(self.conn, uk, today()), 2000)   # reserved, as the Record button does
+        audio = conv.lines[-1]["audio"]
+        self.assertEqual(media.get(self.conn, uk, audio["id"])[1], b"ID3fake-mp3")
+        self.conn.rollback()
+
+    def test_record_without_asking_past_the_allowance_offers_record(self):
+        from webapp import keystore, spend
+        uk = self.user()
+        keystore.set_auto_record(self.conn, uk, True)
+        self.assertTrue(spend.reserve(self.conn, uk, today(), spend.daily_cap() - 1000, spend.daily_cap()))
+        self.conn.commit()
+        cid = self.start(uk)
+        real = worker.engine.run
+        built = []
+
+        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            if argv[:2] == ["get", "cost"]:
+                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
+            if argv and argv[0] == "build":
+                if "--lint-only" in argv:
+                    return worker.engine.Result(0, "ok\nSends 900 characters to the voice service", "")
+                built.append(argv)
+                return worker.engine.Result(0, "built", "")
+            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
+
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Reed"]
+
+        def script(messages, info):
+            if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id=f"b{len(messages)}")])
+            return ModelResponse(parts=[TextPart("Done.")])
+        # another tab reserves the rest of today's allowance while this turn prices the script
+        orig = spend.reserve
+
+        def crowded(conn, uk_, day, chars, cap):
+            orig(conn, uk_, day, 1000, cap)
+            return orig(conn, uk_, day, chars, cap)
+        with mock.patch.object(worker.engine, "run", side_effect=engine_run), \
+                mock.patch.object(spend, "reserve", side_effect=crowded):
+            job, conv = self.run_turn(uk, script, cid, line="just go")
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(built, [])                       # nothing sent
+        self.assertEqual(conv.offer["chars"], 900)        # the Record button, which says why
+        self.conn.rollback()
+
     def test_what_a_recording_made_is_kept_when_the_turn_then_fails(self):
         from webapp import clipcache, media
         uk = self.user()
@@ -773,7 +852,7 @@ class Turn(JobsCase):
         with mock.patch.object(worker.engine, "run", side_effect=record):
             job, conv = self.run_turn(uk, script, cid, line="go")
         self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(len(seen), 2 + 5)   # step 1 up front (4 runs and the route), then the model's two
+        self.assertEqual(len(seen), 2 + 6)   # step 1 up front (5 runs and the route), then the model's two
         for env in seen:
             self.assertEqual(env, {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
             self.assertNotIn(MODEL_KEY, env.values())

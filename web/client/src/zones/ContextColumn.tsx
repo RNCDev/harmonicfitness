@@ -179,7 +179,27 @@ type Props = {
   /** The background behind the page (the sky), and the choice of it. */
   sky?: SkyKind;
   onSky?: (sky: SkyKind) => void;
+  /** Record without asking: a checked script records at once, with no Record button. */
+  autoRecord?: boolean;
+  onAutoRecord?: (on: boolean) => void;
 };
+
+function RecordBox({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <section className="cx-box" aria-labelledby="cx-rec-h">
+      <h3 className="cx-h" id="cx-rec-h">Recording</h3>
+      <label className="switch">
+        <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
+        <span className="switch-name">Record without asking</span>
+      </label>
+      <p className="cx-s">
+        {on
+          ? "Once your script is checked, your coach records it straight away, without showing the price first: the script goes to your coach's voice service at once, injuries and all. Today's allowance still applies."
+          : "Your coach shows the price and waits for you to press Record."}
+      </p>
+    </section>
+  );
+}
 
 function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void }) {
   return (
@@ -204,7 +224,7 @@ function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void })
 }
 
 export function ContextColumn({ username, version, open, onClose, onSignedOut, onSignOut, onKeys, openRow,
-  sky = "flow", onSky }: Props) {
+  sky = "flow", onSky, autoRecord = false, onAutoRecord }: Props) {
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -219,6 +239,7 @@ export function ContextColumn({ username, version, open, onClose, onSignedOut, o
             <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
           </div>
           <div className="cx-col">
+            {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} />}
             {onSky && <SkyBox sky={sky} onSky={onSky} />}
             <section className="cx-account" aria-labelledby="cx-files-h">
               <h3 className="cx-h" id="cx-files-h">Your files</h3>

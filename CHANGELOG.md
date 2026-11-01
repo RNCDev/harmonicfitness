@@ -2,6 +2,26 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.48.0] - 2026-11-01
+
+A faster script on the web app, recording without the Record button when you want it, and a look at what the coach did.
+
+A web workout's script took about four and a half minutes (job 60, 2026-11-01: 65 seconds of one-at-a-time reads and checks, a 76-second first draft, then two failed lints, each answered by writing the whole script again, 44 and 33 seconds, then about 27 seconds to check and price it). The changes below take out the reads, the second and third full writes and two of the checks; the new log lines will say how much the next one saves.
+
+### Added
+- **Web app, Record without asking** (Settings, Recording; off unless turned on): once the script is checked and priced, the coach records it in the same turn, with no Record button and no wait. Today's allowance still applies: the characters are reserved first, as the Record button does, and past the allowance the Record button comes back and says why (`users.auto_record`, migration 014; `PUT /api/auto-record`; `GET /api/me`'s `auto_record`).
+- **Web app, `edit_segment`:** the coach fixes a lint's complaint by replacing the segments it names (by the lint's # column), not by writing the whole script again.
+- **`./harmonicfitness pull` saves `history.json`:** the model's side of the conversation, every request, tool call and result with their times, from `GET /api/conversations/{id}/history` (its owner only; the page never shows it).
+- **The worker's log times each step:** every tool's line says how long it took, each model request has its own (`think 76.1s`), a command's subcommand is named (`run get web-builds`, `run build --lint-only`), and each turn ends with its seconds, model requests and tokens in and out. Never what was read, written or said.
+- **A web voice's lint says what it sends** ("Sends 4,812 characters to the voice service"), so a build's price needs no second lint to count it.
+
+### Changed
+- **Web app, fewer round trips before the script:** step 1 also runs `get web-builds` and plans the rests for the length the request names (it used `25` and the model ran it again); `knowledge/script.md` and `knowledge/tts-rules.md` come with the skill in the instructions instead of being read one by one; and today's feeds start in the background on the first turn when a set-up listener's first message asks for a workout (the page's sentence is the check-in), rather than a turn later.
+- **Web app, one check to a price:** the coach runs the build straight away (it lints first) rather than a `--lint-only` step and then the build, and a draft that just linted clean with the same coach isn't linted again to be priced. The draft is written once, read through as it's written, then fixed by segment.
+
+### For forks
+- The web app's database gains `users.auto_record` (migration 014, applied on start). The engine's commands and `me/` work as before; a web app older than 0.48.0 ignores the new lint line, and `pull` against one saves no `history.json`.
+
 ## [0.47.0] - 2026-11-01
 
 A tidier first screen on the web app.

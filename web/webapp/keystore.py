@@ -80,3 +80,14 @@ def coach(conn, uk: UserKey) -> tuple[str, str] | None:
 
 def set_coach(conn, uk: UserKey, slug: str, day: str) -> None:
     conn.execute("update users set coach = %s, coach_day = %s where id = %s", (slug, day, uk.user_id))
+
+
+def auto_record(conn, uk: UserKey) -> bool:
+    """Whether a checked, priced script records at once (Settings' Record without asking), within today's
+    allowance, rather than waiting for the Record button."""
+    row = conn.execute("select auto_record from users where id = %s", (uk.user_id,)).fetchone()
+    return bool(row and row[0])
+
+
+def set_auto_record(conn, uk: UserKey, on: bool) -> None:
+    conn.execute("update users set auto_record = %s where id = %s", (bool(on), uk.user_id))

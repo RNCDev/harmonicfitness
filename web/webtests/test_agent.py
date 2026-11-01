@@ -515,6 +515,127 @@ class Prefetch(AgentCase):
         self.assertEqual(run.call_args.args[2], ["feeds"])
 
 
+class Faster(AgentCase):
+    """0.48.0: fewer round trips and smaller fixes on the way to a priced script."""
+    DRAFT = "me/workouts/a/a.draft.txt"
+    TEXT = "movements: air-squat\n\n@@ 30 | Welcome\nHello there.\n\n@@ 60 | Squats\nSquat now.\n[hold]\n\n@@ 30 | Close\nDone.\n"
+
+    def draft(self, text=None):
+        tools.write_file(self.deps, self.DRAFT, text or self.TEXT)
+        with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_a_segment_is_replaced_by_its_place(self):
+        self.draft()
+        r = tools.edit_segment(self.deps, self.DRAFT, 2, "@@ 70 | Squats\nSquat now, slow and low.\n[hold]")
+        self.assertEqual(r.code, 0, r.error)
+        with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), self.TEXT.replace("@@ 60 | Squats\nSquat now.",
+                                                         "@@ 70 | Squats\nSquat now, slow and low."))
+        r = tools.edit_segment(self.deps, self.DRAFT, 3, "@@ 20 | Close\nGood work.")
+        self.assertEqual(r.code, 0, r.error)
+        with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
+            self.assertTrue(f.read().endswith("[hold]\n\n@@ 20 | Close\nGood work.\n"))
+
+    def test_a_segment_edit_is_refused_when_it_cant_apply(self):
+        self.draft()
+        for path, n, text in ((self.DRAFT, 4, "@@ 30 | X\nHi there."), (self.DRAFT, 0, "@@ 30 | X\nHi there."),
+                              (self.DRAFT, 1, "Hi there."), (self.DRAFT, 1, "@@ 30 | X\nHi.\n@@ 30 | Y\nHo."),
+                              ("me/profile.md", 1, "@@ 30 | X\nHi there.")):
+            self.assertTrue(tools.edit_segment(self.deps, path, n, text).refused, (path, n, text))
+        self.deps.recorded = self.DRAFT
+        self.assertTrue(tools.edit_segment(self.deps, self.DRAFT, 1, "@@ 30 | X\nHi there.").refused)
+
+    def test_step_one_plans_the_rests_for_the_length_asked(self):
+        line = "Hey, coach Ruby, I'd like a 35-minute full-body workout at home. Nothing's bothering me today."
+        self.assertIn(["content", "plan", "--minutes", "35"], agent.first_runs(line))
+        self.assertIn(["content", "plan", "--minutes", "25"], agent.first_runs("a workout please"))
+        self.assertIn(["get", "web-builds"], agent.first_runs(line))
+
+    def test_the_writing_guides_come_with_the_skill(self):
+        text = agent.skill_text(ROOT)
+        self.assertIn('<file path="knowledge/script.md">', text)
+        self.assertIn('<file path="knowledge/tts-rules.md">', text)
+
+    def fake(self, sends=True):
+        from unittest import mock
+        calls = []
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            calls.append(argv)
+            if argv[:2] == ["get", "cost"]:
+                return tools.engine.Result(0, '{"service": "gemini", "chars": 3000, "usd": 0.05}', "")
+            if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
+                return tools.engine.Result(1, "  the script speaks 3,000 characters; this build may send at most 1", "")
+            if "--lint-only" in argv:
+                return tools.engine.Result(0, "lint ok\nSends 3,000 characters to the voice service" if sends else "lint ok", "")
+            return tools.engine.Result(0, "recorded", "")
+        return mock.patch.object(tools.engine, "run", side_effect=run), calls
+
+    BUILD = ["build", "me/workouts/a/a.draft.txt", "Workout A", "--coach", "Coach Ruby"]
+
+    def test_the_lint_s_own_count_prices_the_script(self):
+        self.draft()
+        patch, calls = self.fake()
+        with patch:
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertIn("Not recorded yet", r.output)
+        self.assertEqual(self.deps.offer["chars"], 3000)
+        self.assertFalse(any("--max-chars" in a for a in calls))   # one lint, then the price, nothing more
+        self.assertEqual(len(calls), 2)
+
+    def test_a_script_just_linted_clean_is_priced_without_linting_again(self):
+        self.draft()
+        patch, calls = self.fake()
+        with patch:
+            self.assertEqual(tools.run(self.deps, self.BUILD + ["--lint-only"]).code, 0)
+            tools.run(self.deps, list(self.BUILD))
+            self.assertEqual([a[0] for a in calls], ["build", "get"])
+            self.draft(self.TEXT.replace("Hello there.", "Hello again."))   # changed since: linted again
+            tools.run(self.deps, list(self.BUILD))
+        self.assertEqual([a[0] for a in calls], ["build", "get", "build", "get"])
+
+    def test_an_older_engine_is_counted_the_old_way(self):
+        self.draft()
+        patch, calls = self.fake(sends=False)
+        with patch:
+            r = tools.run(self.deps, list(self.BUILD))
+        self.assertIn("Not recorded yet", r.output)
+        self.assertTrue(any("--max-chars" in a for a in calls))
+
+    def turn_that_builds(self):
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": list(self.BUILD)}, tool_call_id="b1")])
+            return ModelResponse(parts=[TextPart("ready")])
+        return script
+
+    def test_record_without_asking_records_once_priced(self):
+        self.draft()
+        reserved = []
+        self.deps.auto_record = True
+        self.deps.reserve = lambda chars: reserved.append(chars) or True
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn_that_builds()), self.deps, None, "go")
+        self.assertEqual(reserved, [3000])
+        self.assertEqual(self.deps.recorded, self.DRAFT)
+        self.assertIsNone(self.deps.offer)   # no Record button
+        self.assertEqual(calls[-1][-2:], ["--max-chars", "3000"])   # within the price
+        self.assertIn(agent.AUTO_RECORDED, out.history_json.replace("\\n", "\n"))
+
+    def test_record_without_asking_past_the_allowance_waits_for_record(self):
+        self.draft()
+        self.deps.auto_record = True
+        self.deps.reserve = lambda chars: False
+        patch, calls = self.fake()
+        with patch:
+            agent.run_turn(FunctionModel(self.turn_that_builds()), self.deps, None, "go")
+        self.assertIsNone(self.deps.recorded)
+        self.assertEqual(self.deps.offer["chars"], 3000)   # the Record button, which says why
+        self.assertFalse(any(a[0] == "build" and "--lint-only" not in a for a in calls))
+
+
 class Instructions(AgentCase):
     def test_instructions_hold_the_skill_and_the_web_rules(self):
         seen = {}
@@ -600,7 +721,7 @@ class Instructions(AgentCase):
         self.assertEqual(agent._write_step("me/coaches/.auditions/coach-dana.md"), "Describing your coach")
 
     def test_every_tool_is_registered(self):
-        self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "list_files"})
+        self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "edit_segment", "list_files"})
 
 
 if __name__ == "__main__":
