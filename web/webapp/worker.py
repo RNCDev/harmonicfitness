@@ -238,6 +238,93 @@ def balances(ctx: Ctx) -> dict:
                          for s, row in rows.items() if isinstance(row, dict) and "ok" in row}}
 
 
+ENRICH_TIMEOUT = 120   # seconds for one enrichment's engine command or model call
+ENRICH_REF = re.compile(r"[A-Za-z0-9-]{1,40}")
+INTERESTS_FILE = "workouts/research/interests.jsonl"
+
+
+def enrich(ctx: Ctx) -> dict:
+    """What a listener's feedback on one workout teaches (agent.enrich), recorded through `interests add` and
+    saved at once, in enrichment's own lane. A write that conflicts with a turn saving the same moment is
+    applied again on the files as they now stand (the same signals, no second model call), so no evidence is
+    lost. {"summary": what was noted, "signals": how many}; nothing to note without a writer key."""
+    from . import agent
+    from .agent import enrich as enricher
+    args = ctx.args if isinstance(ctx.args, dict) else {}
+    ref, text, today = args.get("ref"), args.get("text"), args.get("today")
+    if not (isinstance(ref, str) and ENRICH_REF.fullmatch(ref) and isinstance(text, str) and text.strip()
+            and isinstance(today, str) and _date_ok(today)):
+        raise JobFailed("invalid request: needs ref, text and today")
+    stored = keystore.open_all(ctx.conn, ctx.uk)
+    chosen = keystore.writer(ctx.conn, ctx.uk)
+    ctx.conn.commit()
+    provider = providers.pick(ctx.settings.providers, stored, chosen)
+    if provider is None:
+        return {"summary": "", "signals": 0}
+    try:
+        model = providers.model_for(provider, providers.stored_key(stored, provider))
+    except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
+        raise JobFailed(providers.explain(provider, e).message) from None
+    del stored
+    files, base, written = _materialize(ctx)
+    r = engine.run(ctx.settings.engine_root, ctx.home, ["workouts", "context", ref], extra_env=ctx.keys,
+                   timeout=ENRICH_TIMEOUT, cancel=ctx.cancel)
+    if r.code != 0:
+        raise JobFailed(f"the engine stopped (exit {r.code})")
+    try:
+        facts = json.loads(r.stdout)
+    except ValueError:
+        raise JobFailed("the engine's answer couldn't be read") from None
+    try:
+        found = enricher.enrich(model, facts, text.strip()[:1000], agent.native_tools(model))
+    except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
+        print(f"worker: job {ctx.job_id} enrich stopped: {type(e).__name__}", file=sys.stderr, flush=True)
+        raise JobFailed(providers.explain(provider, e).message) from None
+    argv = enricher.signal_args(found.signals)
+    if not argv:
+        return {"summary": found.summary if found.signals else "", "signals": 0}
+    build = (facts.get("workout") or {}).get("build_id")
+    add = ["interests", "add", "--source", "feedback", "--date", today, *(["--build", build] if build else []), *argv]
+    for attempt in range(2):
+        r = engine.run(ctx.settings.engine_root, ctx.home, add, extra_env=ctx.keys, timeout=ENRICH_TIMEOUT,
+                       cancel=ctx.cancel)
+        if r.code != 0:
+            raise JobFailed(f"the engine stopped (exit {r.code})")
+        changes = folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK)
+        try:
+            conflicts = store.write_back(ctx.conn, ctx.uk, changes, base)
+            ctx.conn.commit()
+        except Exception:
+            ctx.conn.rollback()
+            raise
+        if INTERESTS_FILE not in conflicts:
+            break
+        if attempt == 0:   # a turn saved the evidence at the same moment: again, on the files as they now stand
+            shutil.rmtree(ctx.home, ignore_errors=True)
+            os.makedirs(ctx.home, exist_ok=True)
+            files, base, written = _materialize(ctx)
+        else:
+            raise JobFailed("your files were changing too fast; try the feedback again")
+    return {"summary": found.summary, "signals": len(argv) // 2}
+
+
+def _materialize(ctx: Ctx) -> tuple:
+    """The user's files in ctx.home: (files, base versions, written digests)."""
+    files = store.read_all(ctx.conn, ctx.uk)
+    ctx.conn.commit()
+    base = {path: version for path, (version, _) in files.items()}
+    written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
+    return files, base, written
+
+
+def _date_ok(day: str) -> bool:
+    try:
+        datetime.date.fromisoformat(day)
+        return True
+    except ValueError:
+        return False
+
+
 TURN_ARGS = {"conversation_id", "line", "answer", "today", "now"}
 TURN_NOW = re.compile(r"\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}", re.ASCII)
 MAX_LINE = 4000
@@ -601,7 +688,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     return {"conversation_id": conv.id, "state": done.state}
 
 
-HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn, "balances": balances}
+HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn, "balances": balances, "enrich": enrich}
 
 
 # ---- the loop ---------------------------------------------------------------------------------
@@ -644,15 +731,16 @@ class _Heartbeat(threading.Thread):
         self.join(timeout=CONNECT_TIMEOUT + JOIN_SLACK)
 
 
-def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None = None) -> bool:
-    """Reap stale jobs, claim one and run it; whether a job ran. `connect` opens the heartbeat's
-    own connection (default: settings.database_url)."""
+def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None = None, lane: str = "main") -> bool:
+    """Reap stale jobs, claim one in `lane` and run it; whether a job ran. `connect` opens the heartbeat's
+    own connection (default: settings.database_url). Only the main lane reaps and sweeps."""
     _uv_cache()
     connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT))
-    jobs.reap(conn)
-    media.sweep(conn)
-    clipcache.prune(conn)
-    job = jobs.claim(conn)
+    if lane == "main":
+        jobs.reap(conn)
+        media.sweep(conn)
+        clipcache.prune(conn)
+    job = jobs.claim(conn, lane)
     if job is None:
         return False
     cancel = threading.Event()
@@ -752,12 +840,28 @@ def main() -> int:
     except db.MigrationsPending as e:
         print(f"worker: {e}", file=sys.stderr)
         return 3
+    # enrichment's own lane: a second loop, so working out what feedback teaches never waits behind a workout
+    side = threading.Thread(target=_side_lane, args=(settings, stopping, "enrich"), daemon=True, name="enrich-lane")
+    side.start()
     serve(settings, stopping)
+    side.join(timeout=ENRICH_TIMEOUT)
     return 0
 
 
+def _side_lane(settings: config.Settings, stopping: threading.Event, lane: str) -> None:
+    """A lane's loop, run again after anything that stops it (logged, by type), until `stopping`: the main loop's
+    stop ends the process and Fly restarts it, but a side lane that died alone would leave its jobs queued."""
+    while not stopping.is_set():
+        try:
+            serve(settings, stopping, lane=lane)
+        except Exception as e:  # noqa: BLE001 - only the type: the message may be personal
+            print(f"worker: the {lane} lane stopped ({type(e).__name__}); starting it again", file=sys.stderr,
+                  flush=True)
+            stopping.wait(RECONNECT_WAIT)
+
+
 def serve(settings: config.Settings, stopping: threading.Event, connect: Callable[[config.Settings], tuple] | None = None,
-          run: Callable[..., bool] | None = None) -> None:
+          run: Callable[..., bool] | None = None, lane: str = "main") -> None:
     """Run jobs until `stopping` is set, waiting on NOTIFY between them. When the database closes the
     connection (it does, about hourly), it reconnects rather than exiting; a job running then fails as
     any interrupted job does."""
@@ -769,7 +873,7 @@ def serve(settings: config.Settings, stopping: threading.Event, connect: Callabl
             try:
                 if conn is None:
                     conn, listen = connect(settings)
-                if run(conn, settings):
+                if run(conn, settings, **({"lane": lane} if lane != "main" else {})):
                     continue
                 for _ in listen.notifies(timeout=IDLE_WAIT, stop_after=1):
                     pass

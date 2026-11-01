@@ -253,6 +253,15 @@ def _method_shape(m) -> str:
     return "; ".join(parts)
 
 
+def _lean() -> Optional[str]:
+    """"harder" or "easier" when the listener's recent feedback leans that way (interests.py), else None."""
+    import interests
+    try:
+        return interests.lean(interests.learned(context.profile()))
+    except (OSError, ValueError, errors.HarmonicFitnessError):
+        return None
+
+
 def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List[str]:
     goal, minutes = request["goal"], request["minutes"]
     total = minutes * 60
@@ -271,6 +280,13 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         out.append("- On a conditioning day the work intervals run at the effort above, even when the profile says "
                    "it likes moderate sessions: that preference sets the warm-up, the steady work and the easy spells. "
                    "Only a low-readiness check-in, or a limit, keeps the intervals easier.")
+    way = _lean()
+    if way:
+        out.append(f"- Recent feedback says sessions have felt too {'easy' if way == 'harder' else 'hard'} (learned, "
+                   "fading unless they say it again): land "
+                   + ("at the top of these ranges and offer the harder option first." if way == "harder" else
+                      "in the lower half of these ranges and offer the easier option first.")
+                   + " A check-in today wins over it.")
     last_format = log[-1].format if log else None
     ranked = sessions.ranked(sess, goal, minutes, scr.level, scr.equipment, last_format)
     if ranked:

@@ -2,6 +2,26 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.49.0] - 2026-11-01
+
+The coach learns what you like. Feedback, ratings and the things you tell it you enjoyed become evidence that builds with each signal and fades without one, so a one-off mention drifts away in a few months while what keeps coming back rises: a year of comedy nights and the sessions lean that way.
+
+### Added
+- **Interests as evidence** (`tools/interests.py`, `./harmonicfitness interests`; `me/workouts/research/interests.jsonl`): each signal is a topic, venue, taste, movement or effort, weighted -2 to 2, from a mention, a feedback line or a rating, with its day and, for a person or narrow subject, its broader topic (a comedian's: stand-up comedy). Strength halves every 90 days and a parent gets half its children's, so related interests build each other up. `add` (at most twelve at once), `forget`, `apply`, `--json`. Tuning is in `knowledge/content.toml`'s `[interests]`, every number a house default.
+- **What's learned is used:** learned topics join the content plan's rotation (never told first, then strength times the days since each was told, so a strong interest comes round sooner); learned venues join What's on and learned taste its recommendations; learned likes join the menu's, and a firm dislike leaves a movement off it; "too easy" or "too hard" leans the brief's doses that way for a while. Your own lines in content.md and training.md are pinned: they never fade or drop, and nothing under Never bring up is ever learned.
+- **A "Learned from you" section** in content.md and training.md, rewritten after each change, strongest first, with where each came from. It's the coach's own section: your lines are never moved or rewritten.
+- **Ratings teach a little:** a positive or negative rating is a small signal on each topic that workout told, replaced if you rate again; deleting a workout takes its evidence back.
+- **Web app, feedback is worked out in the background:** a feedback line on the Logs page starts an `enrich` job on your writer key (one request, with web search to pin down a name), which records what it teaches and shows a short note under the workout ("Noted: more stand-up, and a little harder next time"). It runs in a lane of its own (a second worker loop, started again if it ever stops), so it never waits behind a workout or holds one up. Each feedback line costs one model request, and up to a couple of searches, on your writer key; without a writer key nothing is queued.
+- **Web app, "Tell me what you enjoyed"** on the first screen fills in "Lately I enjoyed " for you to finish: a show, a meal, a game. The coach works out who and what it was (the comedian and the venue, the chef and the cuisine), records it, and says what it picked up.
+- `./harmonicfitness workouts context <n>`: a workout and what's known about the listener, as JSON (the enrich job reads it).
+
+### Changed
+- Pain or soreness in feedback is raised at the next check-in, as if just said; feedback never changes health.md by itself (the enrich job's output has no field for it).
+
+### For forks
+- The web app's database gains migration 015 (the enrichment lane's unique indexes), applied on start; the worker runs a second loop for the `enrich` lane. `POST /api/workouts/{ref}/feedback` now answers 202 with `{"job_id"}` instead of 204.
+- No `me/` migration: the evidence file and the Learned sections are new and optional, and a folder without them reads as before.
+
 ## [0.48.1] - 2026-11-01
 
 Sets timed to how fast people really move, shows at your venues, quick hits in the work, a coach on the web that can search, and a close that asks for your word.

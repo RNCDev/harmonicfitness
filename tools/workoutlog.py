@@ -6,6 +6,7 @@
     ./harmonicfitness workouts show 1                   # the script it spoke
     ./harmonicfitness workouts feedback 1 "too long; loved the quiz"
     ./harmonicfitness workouts rate 1 positive          # or neutral, negative, none (clears it)
+    ./harmonicfitness workouts context 1                # it and what's known about the listener, as JSON
     ./harmonicfitness workouts delete 1 [--files]       # or a build id, or all
 
 Delete takes a workout back as if it never happened: its line under ## Sessions in me/log.md, the stories it
@@ -190,6 +191,9 @@ def delete(targets, files=False, log_path=None) -> List[str]:
     if fb:
         out.append(f"Removed {fb} feedback line(s).")
     told = _rewrite_jsonl(paths.TOLD, lambda r: not _belongs(r, build_ids, lone_dates))
+    import interests
+    if interests.forget_builds(build_ids):   # the ratings and feedback it left as evidence go with it
+        interests.apply()
     out.append(f"Took back {told} told item(s) (they can be told again).")
     threads = _rewrite_jsonl(paths.THREADS, lambda r: not _belongs(r, build_ids, lone_dates))
     if threads:
@@ -248,9 +252,21 @@ def rate(target, rating: str, log_path=None) -> str:
     log_path = log_path or paths.LOG
     prefix = f"- {_tag(target)}: {RATED}"
     cleared = _remove_lines(log_path, "Feedback", lambda line: line.startswith(prefix))
+    _rating_signals(target, rating)
     if rating == "none":
         return "Cleared the rating." if cleared else "There was no rating to clear."
     return f"Added: {feedback(target, RATED + rating, log_path)}"
+
+
+def _rating_signals(target, rating: str) -> None:
+    """A rating as a small signal on each topic the workout told (interests.rating), replacing its last."""
+    if not target.build_id:
+        return
+    import content
+    import interests
+    told = [content.item_topic(i) for i in content.told() if i.get("build") == target.build_id]
+    interests.rating(target.build_id, rating, told)
+    interests.apply()
 
 
 def notes_for(target, lines) -> tuple:
@@ -266,6 +282,25 @@ def notes_for(target, lines) -> tuple:
         else:
             texts.append(text)
     return texts, rating
+
+
+def context_of(target) -> dict:
+    """A logged workout and what's known, for the web's enrichment of its feedback: workout {date, minutes, kit,
+    format, movements, build_id, feedback, rating}; told [{topic, format, title}] in it; topics and venues (the
+    listener's own), never, likes and dislikes (theirs), learned (interests.facts)."""
+    import content
+    import context
+    import interests
+    p = context.profile()
+    texts, rating = notes_for(target, sessionlog_feedback())
+    told = [{"topic": content.item_topic(i) or None, "format": content.item_format(i) or None, "title": i["title"]}
+            for i in content.told() if target.build_id and i.get("build") == target.build_id]
+    return {"workout": {"date": target.date, "minutes": target.minutes, "kit": target.kit, "format": target.format,
+                        "movements": list(target.movements), "build_id": target.build_id,
+                        "feedback": texts, "rating": rating},
+            "told": told, "topics": [t.name for t in context.topics(p)],
+            "venues": [v.name for v in context.venues(p)], "never": interests.never(p),
+            "likes": context.likes(p), "dislikes": context.dislikes(p), "learned": interests.facts(p)}
 
 
 def as_json(sessions) -> dict:
@@ -307,6 +342,9 @@ def main(argv=None):
     ra = sub.add_parser("rate", help="rate a workout positive, neutral or negative (none clears it)")
     ra.add_argument("workout", help="its number in the list (1 the newest) or its build id")
     ra.add_argument("rating", choices=RATINGS + ("none",))
+    cx = sub.add_parser("context", help="a workout and what's known about the listener, as JSON (for the web's "
+                        "feedback enrichment): workout, told, topics, venues, never, likes, dislikes, learned")
+    cx.add_argument("workout", help="its number in the list (1 the newest) or its build id")
     de = sub.add_parser("delete", help="take a workout back: its log line, told stories, threads and feedback")
     de.add_argument("workouts", nargs="+", help="numbers from the list, build ids, or all")
     de.add_argument("--files", action="store_true",
@@ -321,6 +359,8 @@ def main(argv=None):
             raise errors.HarmonicFitnessError("no script is kept for that workout")
         with open(script, encoding="utf-8") as f:
             print(f.read(), end="")
+    elif args.cmd == "context":
+        print(json.dumps(context_of(pick([args.workout], sessions)[0]), indent=1, ensure_ascii=False))
     elif args.cmd == "rate":
         print(rate(pick([args.workout], sessions)[0], args.rating))
     elif args.cmd is None and args.json:

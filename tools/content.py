@@ -168,13 +168,36 @@ def last_told(items: List[dict]) -> Dict[str, str]:
     return out
 
 
-def due(topics: List[context.Topic], items: List[dict], n: int) -> List[tuple]:
-    """The n topics to tell next, as (Topic, last date or None): never told first, in the listener's order,
-    then the one told longest ago. Fewer topics than n are all of them."""
+def due(topics: List[context.Topic], items: List[dict], n: int, strength: Optional[Dict[str, float]] = None,
+        today: Optional[datetime.date] = None) -> List[tuple]:
+    """The n topics to tell next, as (Topic, last date or None): never told first (the strongest first, then in
+    the listener's order), then by strength times the days since each was told, so a strong interest comes round
+    sooner and a faint one later. With no strengths (or all equal) that's the one told longest ago. Fewer topics
+    than n are all of them."""
     last = last_told(items)
-    ranked = sorted(topics, key=lambda t: (t.name.casefold() in last, last.get(t.name.casefold(), ""),
-                                           topics.index(t)))
+    strength = strength or {}
+    today = today or datetime.date.today()
+
+    def key(t):
+        name = t.name.casefold()
+        s = strength.get(name, 1.0)
+        if name not in last:
+            return (0, -s, topics.index(t))
+        days = max((today - datetime.date.fromisoformat(last[name])).days, 0) + 1
+        return (1, -s * days, last[name], topics.index(t))
+    ranked = sorted(topics, key=key)
     return [(t, last.get(t.name.casefold())) for t in ranked[:n]]
+
+
+def all_topics(profile, today: Optional[datetime.date] = None, lr=None) -> List[context.Topic]:
+    """The listener's own topics, then the learned ones (interests.py) strong enough to tell, strongest first."""
+    import interests
+    own = context.topics(profile) if profile is not None else []
+    if profile is None:
+        return own
+    lr = lr or interests.learned(profile, today)
+    return own + [context.Topic(x.name, "learned" + (f", part of {x.parent}" if x.parent else "")
+                                + (f": {x.note}" if x.note else "")) for x in lr.topics]
 
 
 def sheets(folder=None) -> List[str]:
@@ -275,14 +298,19 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     r = r or recipe()
     items = told() if items is None else items
     pieces = reserve(items=items, today=today) if pieces is None else [p for p in pieces if current(p, today)]
-    tops = context.topics(profile) if profile is not None else []
+    import interests
+    lr = interests.learned(profile, today) if profile is not None else interests.Learned()
+    tops = all_topics(profile, today, lr)
     b = band(r, minutes)
     skip = skipped(r, profile)
     since = (today - datetime.timedelta(days=RECENT_DAYS)).isoformat()
-    picked = due(tops, items, b.topics + b.spares)
+    picked = due(tops, items, b.topics + b.spares, lr.strength, today)
     return {
         "minutes": minutes, "topics": b.topics, "spares": b.spares, "serial": b.serial, "quick": b.quick,
-        "venues": [{"name": v.name, "note": v.note or None} for v in (context.venues(profile) if profile is not None else [])],
+        "venues": [{"name": v.name, "note": v.note or None, "learned": False}
+                   for v in (context.venues(profile) if profile is not None else [])]
+        + [{"name": x.name, "note": x.note or None, "learned": True} for x in lr.venues],
+        "taste": [{"name": x.name, "note": x.note or None, "parent": x.parent} for x in lr.taste],
         "due": [{"topic": t.name, "note": t.note or None, "last_told": d, "spare": i >= b.topics}
                 for i, (t, d) in enumerate(picked)],
         "formats": [f._asdict() for f in r.formats.values() if f.id not in skip],
@@ -328,10 +356,15 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
     if f["venues"]:
         out += ["Look up what's on in the next two weeks at their venues (and, for a kind of show their topics name, "
                 "at the major venues near their neighborhood); tell one or two that fit, with the night:"]
-        out += [f"- {v['name']}{': ' + v['note'] if v['note'] else ''}" for v in f["venues"]]
+        out += [f"- {v['name']}{': ' + v['note'] if v['note'] else ''}{' (learned)' if v['learned'] else ''}"
+                for v in f["venues"]]
     else:
         out.append("- No venues yet (## Venues in me/content.md): when a topic names a kind of show (music, comedy, "
                    "talks, the arts), what's on at the major venues near their neighborhood still counts.")
+    if f["taste"]:
+        out += ["", "## Taste they've shown lately (learned; for recommendations, alongside ## Taste)"]
+        out += [f"- {x['name']}{' (' + x['parent'] + ')' if x['parent'] else ''}{': ' + x['note'] if x['note'] else ''}"
+                for x in f["taste"]]
     out += ["", "## Formats (pick to suit the item; ids for content log)"]
     groups = {}
     for x in f["formats"]:
@@ -376,7 +409,7 @@ def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
     if not fid:
         raise ValueError(f"'{text}': unknown format '{fmt}' (one of {', '.join(r.formats)})")
     if topic != NO_TOPIC:
-        known = {t.name.casefold(): t.name for t in (context.topics(profile) if profile is not None else [])}
+        known = {t.name.casefold(): t.name for t in all_topics(profile)}
         if known and topic.casefold() not in known:
             raise ValueError(f"'{text}': '{topic}' isn't one of the listener's topics (one of "
                              f"{', '.join(known.values())}, or {NO_TOPIC} for none)")
@@ -454,7 +487,7 @@ def parse_thread(text: str, profile=None) -> tuple:
     if kind.casefold() not in THREAD_KINDS:
         raise ValueError(f"'{text}': unknown kind '{kind}' (one of {', '.join(THREAD_KINDS)})")
     if topic != NO_TOPIC:
-        known = {t.name.casefold(): t.name for t in (context.topics(profile) if profile is not None else [])}
+        known = {t.name.casefold(): t.name for t in all_topics(profile)}
         if known and topic.casefold() not in known:
             raise ValueError(f"'{text}': '{topic}' isn't one of the listener's topics (one of "
                              f"{', '.join(known.values())}, or {NO_TOPIC} for none)")
@@ -561,7 +594,7 @@ def main(argv=None):
     p.add_argument("--minutes", type=cli.positive_int, default=25, help="the session's length (default 25)")
     cli.today_arg(p)
     p.add_argument("--json", action="store_true",
-                   help="the same plan as one JSON object: minutes, topics, spares, serial, quick, venues (name, note), due (topic, note, "
+                   help="the same plan as one JSON object: minutes, topics, spares, serial, quick, venues (name, note, learned), taste (name, note, parent), due (topic, note, "
                         "last_told, spare), formats (id, name, group, what, words, research, across), skipped, "
                         "recent_days, told_recent, reserve, restock, threads (id, date, topic, kind, what), "
                         "unreadable (slug, good_until, path)")

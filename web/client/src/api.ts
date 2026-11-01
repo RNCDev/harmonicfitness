@@ -128,8 +128,10 @@ export const api = {
   workouts: () => call<{ workouts: Workout[] }>("GET", "/api/workouts").then((r) => r.workouts),
   workoutScript: (ref: string) =>
     call<{ script: string }>("GET", `/api/workouts/${encodeURIComponent(ref)}/script`).then((r) => r.script),
+  /** Saves the feedback; the server then works out what it teaches in the background (`job_id`, read with
+   * `jobResult`: its result's `summary`). A server older than 0.49.0 answers with nothing. */
   workoutFeedback: (ref: string, text: string) =>
-    call<void>("POST", `/api/workouts/${encodeURIComponent(ref)}/feedback`, { text }),
+    call<{ job_id?: number } | undefined>("POST", `/api/workouts/${encodeURIComponent(ref)}/feedback`, { text }),
   rateWorkout: (ref: string, rating: Rating | "none") =>
     call<void>("PUT", `/api/workouts/${encodeURIComponent(ref)}/rating`, { rating }),
   deleteWorkout: (ref: string) => call<void>("DELETE", `/api/workouts/${encodeURIComponent(ref)}`),

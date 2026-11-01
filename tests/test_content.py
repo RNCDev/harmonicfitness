@@ -219,8 +219,8 @@ class Record(unittest.TestCase):
         self.assertEqual(context.venues(p), [T("The Bell House", "comedy and music"), T("Museum of the Moving Image", "")])
         f = content.plan_facts(25, TODAY, r, p, [], [])
         self.assertEqual(f["quick"], content.band(r, 25).quick)
-        self.assertEqual(f["venues"], [{"name": "The Bell House", "note": "comedy and music"},
-                                       {"name": "Museum of the Moving Image", "note": None}])
+        self.assertEqual(f["venues"], [{"name": "The Bell House", "note": "comedy and music", "learned": False},
+                                       {"name": "Museum of the Moving Image", "note": None, "learned": False}])
         text = "\n".join(content.plan(25, TODAY, r, p, [], []))
         self.assertIn("- The Bell House: comedy and music", text)
         self.assertIn(f"Quick hits in the work: about {f['quick']}", text)

@@ -467,6 +467,7 @@ a.keys-bal:hover { text-decoration: underline }
 .logs-audio-note { margin: 4px 0 0; font-size: 13px; color: var(--ink-3) }
 .logs-audio-note a { color: var(--ink-2) }
 .logs-feedback { margin: 0; padding-left: 18px; font-size: 15px }
+.logs-noted { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); font-style: italic }
 .logs-rate { display: flex; flex: none; gap: 6px }
 .logs-rate-btn {
   width: 38px; height: 36px; display: grid; place-items: center; font: 600 18px/1 var(--font); color: var(--ink-3);

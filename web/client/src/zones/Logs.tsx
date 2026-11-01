@@ -1,6 +1,6 @@
 // The Logs page: every logged workout, newest first, with its script, feedback, a rating and delete.
 // Sorted and filtered here, in the page; each change goes to the server and the list is read again.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Meter } from "../Mark";
 import { api, NotSignedIn, plainError, workoutRef, type Audio, type Rating, type Workout } from "../api";
 
@@ -175,7 +175,30 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
   const [busy, setBusy] = useState(false);
   const [rated, setRated] = useState<Rating | null>(w.rating);
   const [confirm, setConfirm] = useState(false);
+  /** What the coach noted from the last feedback (worked out in the background): null until it says. */
+  const [noted, setNoted] = useState<string | null>(null);
+  const live = useRef(true);
+  useEffect(() => () => { live.current = false; }, []);
   useEffect(() => setRated(w.rating), [w.rating]);
+
+  /** Follow the enrichment job until it ends (two minutes at most), then show its summary, if any. */
+  const follow = async (id: number) => {
+    setNoted("Noting what that tells me…");
+    for (let i = 0; i < 60 && live.current; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const j = await api.jobResult(id);
+        if (j.state === "done") {
+          const summary = (j.result as { summary?: unknown } | null)?.summary;
+          return setNoted(typeof summary === "string" && summary.trim() ? summary : null);
+        }
+        if (j.state === "failed") return setNoted(null);
+      } catch {
+        return setNoted(null);
+      }
+    }
+    if (live.current) setNoted(null);
+  };
 
   /** Run a change, then read the list again; false when it was refused. */
   const act = async (work: () => Promise<void>): Promise<boolean> => {
@@ -237,6 +260,7 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
           {w.feedback.map((f, i) => <li key={i}>{f}</li>)}
         </ul>
       )}
+      {noted && <p className="logs-noted" role="status">{noted}</p>}
       <div className="logs-actions">
         <button type="button" className="act" aria-expanded={open} disabled={!w.has_script}
           title={w.has_script ? undefined : "No script was kept for this workout"} onClick={() => void toggleScript()}>
@@ -260,7 +284,11 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
         e.preventDefault();
         const text = note.trim();
         if (!text) return;
-        void act(async () => { await api.workoutFeedback(ref, text); setNote(""); });
+        void act(async () => {
+          const r = await api.workoutFeedback(ref, text);
+          setNote("");
+          if (r?.job_id) void follow(r.job_id);
+        });
       }}>
         <label>
           <span className="sr">Feedback on this workout</span>

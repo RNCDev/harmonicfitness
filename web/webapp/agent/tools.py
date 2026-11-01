@@ -31,7 +31,7 @@ ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 # migrate, backup, models, cache) isn't part of this web client yet. `coaches make` designs a stock web
 # coach's voice in the listener's account (about a cent), as setup's quick start does. Coaches are chosen here,
 # never made (since 0.46.2): no `audition` or `keep`; `forget-audition` stays, to close one opened before.
-COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "keys",
+COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "interests", "keys",
             "log-session", "movements", "workouts", "youtube"}
 SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make", "forget-audition", "archive"},
                "keys": {None}}

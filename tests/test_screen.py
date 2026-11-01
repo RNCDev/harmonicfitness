@@ -56,6 +56,18 @@ class Screen(unittest.TestCase):
             f.write(text.replace("- No pushing through wrist pain.", "- No pushing through wrist pain.\n" + extra_rules))
         return health_md.health(path)
 
+    def test_learned_likes_add_and_a_firm_learned_dislike_leaves_a_movement_off(self):
+        from unittest import mock
+        import interests
+        before = offered(screen_for())
+        gone, liked = sorted(before)[:2]
+        lr = interests.Learned(likes=[FIXTURE_CAT.movements[liked].name], dislikes=[FIXTURE_CAT.movements[gone].name])
+        with mock.patch.object(interests, "learned", return_value=lr):
+            scr = screen_for()
+        self.assertIn(liked, scr.likes)
+        self.assertIn(gone, scr.dislikes)
+        self.assertNotIn(gone, offered(scr))
+
     def test_wrist_limit_shapes_the_selection(self):
         scr = screen_for()
         self.assertEqual([(lim.area, lim.side, lim.level) for lim in scr.limits], [("wrist", "left", "delicate")])

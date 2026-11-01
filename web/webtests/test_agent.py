@@ -665,6 +665,27 @@ class Search(AgentCase):
         self.assertNotIn("no web search", agent.PREAMBLE)
 
 
+class Enjoyed(AgentCase):
+    def test_what_they_enjoyed_is_never_a_workout_request(self):
+        for line in ("Lately I enjoyed a 5k run with friends", "We saw Atsuko Okatsuka at the Bell House",
+                     "last weekend I tried a new yoga studio", "I loved dinner at Lilia"):
+            self.assertEqual(agent.intent(line), "task", line)
+        self.assertEqual(agent.intent("a 25-minute run workout please"), "workout")
+
+    def test_the_web_coach_knows_how_to_record_what_they_enjoyed(self):
+        for words in ("interests add --source mention", "at most twelve", "broader topic as parent", "as `taste`",
+                      "as `venue`", "interests forget"):
+            self.assertIn(words, agent.PREAMBLE, words)
+
+    def test_signals_become_engine_arguments(self):
+        from webapp.agent import enrich
+        sig = enrich.Signal
+        args = enrich.signal_args([sig(kind="topic", name="AC | DC", weight=1, parent="rock"),
+                                   sig(kind="effort", name="effort", weight=-1, note="too  hard\ntoday")])
+        self.assertEqual(args, ["--signal", "topic | AC / DC | 1 | rock | ", "--signal", "effort | effort | -1 |  | too hard today"])
+        self.assertNotIn("health", enrich.Enrichment.model_fields)   # pain stays in the feedback line
+
+
 class Instructions(AgentCase):
     def test_instructions_hold_the_skill_and_the_web_rules(self):
         seen = {}

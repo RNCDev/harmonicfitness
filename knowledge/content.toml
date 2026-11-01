@@ -190,6 +190,23 @@ spares = 2
 serial = true
 quick = 6
 
+# What the listener has shown they like (tools/interests.py): evidence from feedback, ratings and what they
+# say they enjoyed, each signal fading by half every `half_life_days`. A learned topic, venue or taste counts
+# from `keep`; a liked movement from `like`, a disliked one (left off the menu) from minus `dislike`; recent
+# feedback leans sessions harder or easier from `lean`. All house defaults (listener's choice, 2026-11-01:
+# applied automatically, a three-month half-life, so a one-off mention is mostly gone in five months and
+# what keeps coming back grows).
+[interests]
+half_life_days = 90
+keep = 0.3            # a weight-1 mention: kept about five months
+like = 0.5            # a liked movement (+1): about three months
+dislike = 0.75        # a disliked one: -1 about five weeks, -2 ("never again") about six months
+lean = 0.75           # "too easy" once leans harder for about five weeks; twice, for months
+parent_share = 0.5    # a comedian's strength counts half toward stand-up comedy
+learned_max = 10      # learned topics in the plan's pool
+per_event_max = 12    # signals one feedback or mention may add
+rating_weight = 0.5   # a rating, on each topic its workout told
+
 # The stock: evergreen pieces researched ahead of time, while a build renders, so the next session's
 # research is short. `per_topic` unused pieces kept for each topic; at most `per_run` stocked at once.
 [stock]

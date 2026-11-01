@@ -44,6 +44,9 @@ ONBOARD_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my p
 # Asking for a workout: the one request a new listener's setup questions come with.
 WORKOUT_WORDS = re.compile(r"\b(workouts?|sessions?|minutes?|mins?|train(ing)?|exercises?|routine|sweat|hiit|"
                            r"cardio|strength|stretch(ing)?|mobility|yoga|run)\b", re.IGNORECASE)
+# Telling the coach what they enjoyed (the first screen's "Tell me what you enjoyed" fills in "Lately I enjoyed ").
+ENJOYED = re.compile(r"^\W*(lately|recently|last (week|weekend|night)|this (week|weekend))?\W*(i|we)\s+(really\s+)?"
+                     r"(enjoyed|loved|liked|saw|went to|tried)\b", re.IGNORECASE)
 # The coach skill's own triggers: a new coach, a different voice, a coach that sounds or talks differently.
 COACH_WORDS = re.compile(r"\b(new|another|different|own|switch|change|design|make|create)\b[^.?!]{0,30}"
                          r"\b(coach|voice|trainer)|\b(coach|voice)\b[^.?!]{0,20}\b(sounds?|talks?|a (wo)?man)\b",
@@ -92,6 +95,8 @@ def intent(line: str | None) -> str:
         return "setup"
     if COACH_WORDS.search(line):
         return "coach"
+    if ENJOYED.search(line):   # "Lately I enjoyed a 5k run" is something they enjoyed, not a workout request
+        return "task"
     if WORKOUT_WORDS.search(line) and not re.search(r"\b(equipment|kit|injur\w*|pain|hurts?|sore|interests?|topics?)\b", line, re.I):
         return "workout"
     return "task"
@@ -125,7 +130,8 @@ STEPS = {"brief": "Working out today's safe moves", "build": "Recording your wor
          "coaches": "Checking which coaches can speak", "coverage": "Looking at your recent sessions",
          "feeds": "Gathering today's news and weather", "get": "Checking your settings",
          "log-session": "Logging the session", "movements": "Looking through the moves",
-         "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Looking up how a step works"}
+         "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Looking up how a step works",
+         "interests": "Noting what you enjoy", "workouts": "Looking at your past workouts"}
 # a command's second word, where it says more than the first
 SUB_STEPS = {("get", "cost"): "Pricing the recording", ("get", "web-builds"): "Checking your past recordings",
              ("content", "log"): "Noting the stories you heard", ("content", "reserve"): "Checking the story stock",

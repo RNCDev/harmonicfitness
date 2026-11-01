@@ -67,6 +67,15 @@ def ids(cat: catalog.Catalog, names: List[str]) -> Set[str]:
     return {m.id for m in found if m}
 
 
+def _learned(profile):
+    """interests.learned for the profile; nothing learned when its record can't be read."""
+    import interests
+    try:
+        return interests.learned(profile)
+    except (OSError, ValueError, errors.HarmonicFitnessError):
+        return interests.Learned()
+
+
 def screen(request: dict, cat: catalog.Catalog, goals, profile, h) -> Screen:
     """Check `request` (goal, minutes, and one of kit, preset or equipment; optionally level, target,
     limits, avoid) and select the movements its kit, level and limits allow, with health.md's (`h`)
@@ -102,6 +111,9 @@ def screen(request: dict, cat: catalog.Catalog, goals, profile, h) -> Screen:
         warnings.append(f"health.md: {gap}")
     limits = own + list(request.get("limits") or [])
     likes, dislikes = ids(cat, context.likes(profile)), ids(cat, context.dislikes(profile))
+    lr = _learned(profile)   # what feedback has taught: a like adds, a firm dislike leaves a movement off
+    likes |= ids(cat, lr.likes) - dislikes
+    dislikes |= ids(cat, lr.dislikes) - ids(cat, context.likes(profile))
     avoid = set(request.get("avoid") or ())
     try:   # the clinician's Avoid: lines apply on every run; one that rules nothing out protects nothing
         avoid |= catalog.avoid_set(cat, health.clinician_avoids(h))

@@ -766,12 +766,22 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         text = await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.script, ref))
         return {"script": text}
 
-    @app.post("/api/workouts/{ref}/feedback", status_code=204, **post)
+    @app.post("/api/workouts/{ref}/feedback", status_code=202, **post)
     async def workout_feedback(uk: User, ref: Annotated[str, PathParam(max_length=40)],
                                body: Annotated[FeedbackBody, Body()]):
+        """The feedback line, saved; then an enrich job, in its own lane, works out what it teaches (interests the
+        next workouts lean on) on the listener's writer key. {"job_id"}: poll /api/jobs/{id} for its summary."""
         await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.add_feedback, ref, body.text,
                                                              change=True))
-        return Response(status_code=204)
+
+        def queue() -> int | None:
+            with connection() as conn:   # without a writer key there's no one to work it out: nothing queued
+                if providers.pick(settings.providers, keystore.listing(conn, uk), keystore.writer(conn, uk)) is None:
+                    conn.rollback()
+                    return None
+                return jobs.enqueue(conn, uk, "enrich", {"ref": workouts.check_ref(ref), "text": body.text,
+                                                         "today": datetime.date.today().isoformat()})
+        return {"job_id": await anyio.to_thread.run_sync(queue)}
 
     @app.put("/api/workouts/{ref}/rating", status_code=204, **post)
     async def workout_rating(uk: User, ref: Annotated[str, PathParam(max_length=40)],

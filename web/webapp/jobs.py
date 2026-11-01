@@ -2,7 +2,8 @@
 
 A job's args, result and events are JSON sealed with its user's data key; `error` is plain text
 and holds only wording of the web layer's own (never the engine's output or anything personal).
-The database keeps one running job per user (the partial unique index one_running_job_per_user).
+The database keeps one running job per user in each lane (the partial unique indexes one_running_job_per_user
+and, for enrichment's own lane, one_running_enrich_per_user: migration 015).
 A job that dies is failed by `reap`, never requeued: it may already have reached a paid service.
 
 Transactions: every function that writes (enqueue, claim, heartbeat, finish, complete, fail, reap,
@@ -72,14 +73,24 @@ def enqueue(conn, uk: UserKey, kind: str, args: dict) -> int:
     return _done(conn, lambda: add(conn, uk, kind, args))
 
 
-def claim(conn) -> Job | None:
-    """The oldest queued job whose user has none running, now running; None if there is none. Commits.
+LANES = ("main", "enrich")   # enrich: enrichment's own lane, beside a turn; main: every other kind
+
+
+def _in_lane(lane: str, alias: str) -> str:
+    return f"{alias}.kind = 'enrich'" if lane == "enrich" else f"{alias}.kind <> 'enrich'"
+
+
+def claim(conn, lane: str = "main") -> Job | None:
+    """The oldest queued job in `lane` whose user has none running in that lane, now running; None if there is
+    none. Commits.
 
     Two workers claiming jobs of one user at once: the loser hits the unique index and gets None."""
+    if lane not in LANES:
+        raise ValueError(f"unknown lane: {lane}")
     try:
         row = conn.execute(
-            "select id, user_id, kind from jobs j where state = 'queued' and not exists "
-            "(select 1 from jobs r where r.user_id = j.user_id and r.state = 'running') "
+            f"select id, user_id, kind from jobs j where state = 'queued' and {_in_lane(lane, 'j')} and not exists "
+            f"(select 1 from jobs r where r.user_id = j.user_id and r.state = 'running' and {_in_lane(lane, 'r')}) "
             "order by id for update of j skip locked limit 1").fetchone()
         if row is None:
             conn.commit()

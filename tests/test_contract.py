@@ -95,9 +95,10 @@ class FlagNames(unittest.TestCase):
     --help with add_argument recorded."""
     TODAY = {"harmonicfitness brief", "harmonicfitness content plan", "harmonicfitness content trending",
              "harmonicfitness build"}
-    DATE = {"harmonicfitness log-session", "harmonicfitness content log", "harmonicfitness content thread"}
+    DATE = {"harmonicfitness log-session", "harmonicfitness content log", "harmonicfitness content thread",
+            "harmonicfitness interests add"}
     JSON = {"harmonicfitness balances", "harmonicfitness coaches list", "harmonicfitness content plan", "harmonicfitness coverage", "harmonicfitness get",
-            "harmonicfitness workouts"}
+            "harmonicfitness interests", "harmonicfitness workouts"}
 
     def flags(self):
         import argparse

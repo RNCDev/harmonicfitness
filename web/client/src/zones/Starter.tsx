@@ -150,6 +150,8 @@ const OTHER: { label: string; about: string; line: string; fill?: boolean; quick
     line: "I'd like to change my equipment." },
   { label: "Update my interests", about: "Add topics your coach talks about between sets, with ideas from what's trending.",
     line: "I'd like to update my interests." },
+  { label: "Tell me what you enjoyed", about: "A show, a meal, a game, a book: your coach finds more like it for your workouts.",
+    line: "Lately I enjoyed ", fill: true },
   { label: "Finish setting me up", about: "Answer the rest of the setup questions, for workouts that fit you better.",
     line: "Finish setting me up.", quick: true },
 ];

@@ -1061,3 +1061,98 @@ class Turn(JobsCase):
         self.assertEqual(conv.state, "failed")
         self.assertEqual(conv.history, before.history)
         self.conn.rollback()
+
+
+class Lanes(JobsCase):
+    def test_enrichment_runs_beside_a_turn_and_one_at_a_time(self):
+        _, uk = self.make_user()
+        turn = jobs.enqueue(self.conn, uk, "turn", {})
+        first = jobs.enqueue(self.conn, uk, "enrich", {})
+        second = jobs.enqueue(self.conn, uk, "enrich", {})
+        self.assertEqual(jobs.claim(self.conn).id, turn)                # the main lane never takes an enrich job
+        self.assertEqual(jobs.claim(self.conn, "enrich").id, first)     # beside the running turn
+        self.assertIsNone(jobs.claim(self.conn, "enrich"))              # but one enrichment at a time
+        self.assertIsNone(jobs.claim(self.conn))
+        with self.assertRaises(ValueError):
+            jobs.claim(self.conn, "side")
+        self.conn.execute("update jobs set state = 'done' where id = %s", (first,))
+        self.conn.commit()
+        self.assertEqual(jobs.claim(self.conn, "enrich").id, second)
+
+    def test_the_unique_indexes_hold_one_running_job_a_lane(self):
+        _, uk = self.make_user()
+        a, b = jobs.enqueue(self.conn, uk, "enrich", {}), jobs.enqueue(self.conn, uk, "enrich", {})
+        self.conn.execute("update jobs set state = 'running' where id = %s", (a,))
+        self.conn.commit()
+        with self.assertRaises(psycopg.errors.UniqueViolation):
+            self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
+        self.conn.rollback()
+
+
+class Enrich(JobsCase):
+    TEXT = "Loved the bike story, and that felt too easy"
+
+    def user(self, key=True):
+        from webtests.test_workouts import listener_files
+        _, uk = self.make_user()
+        self.assertEqual(store.write_back(self.conn, uk, listener_files(), {}), [])
+        if key:
+            keystore.put(self.conn, uk, "anthropic", MODEL_KEY)
+        self.conn.commit()
+        return uk
+
+    def run_enrich(self, uk, output, text=TEXT):
+        job = jobs.enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": text, "today": today()})
+        seen = []
+
+        def model(messages, info):
+            seen.append([p.content for m in messages for p in m.parts if hasattr(p, "content")])
+            return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, output)])
+        with mock.patch.object(providers, "model_for", return_value=FunctionModel(model)):
+            self.assertTrue(worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich"))
+        return job, seen
+
+    def test_feedback_becomes_evidence_and_a_summary(self):
+        uk = self.user()
+        out = {"signals": [{"kind": "topic", "name": "Tour de France | history", "weight": 2, "parent": "cycling"},
+                           {"kind": "effort", "name": "effort", "weight": 1}],
+               "summary": "Noted: more cycling stories, and a little harder next time."}
+        job, seen = self.run_enrich(uk, out)
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(jobs.result(self.conn, uk, job), {"summary": out["summary"], "signals": 2})
+        self.assertIn(self.TEXT, "\n".join(map(str, seen[0])))           # the model read the feedback
+        self.assertIn('"build_id": "ccc333"', "\n".join(map(str, seen[0])))   # and the workout's context
+        files = store.read_all(self.conn, uk)
+        rows = [json.loads(x) for x in files["workouts/research/interests.jsonl"][1].decode().splitlines()]
+        self.assertEqual([(r["kind"], r["name"], r["weight"], r["source"], r["build"]) for r in rows],
+                         [("topic", "Tour de France / history", 2.0, "feedback", "ccc333"),
+                          ("effort", "effort", 1.0, "feedback", "ccc333")])
+        self.assertIn("## Learned from you", files["content.md"][1].decode())
+        self.assertIn("aiming a little harder", files["training.md"][1].decode())
+        self.conn.rollback()
+
+    def test_nothing_to_learn_writes_nothing(self):
+        uk = self.user()
+        before = store.read_all(self.conn, uk)
+        job, _ = self.run_enrich(uk, {"signals": [], "summary": ""}, text="ok")
+        self.assertEqual((self.state(job), jobs.result(self.conn, uk, job)), (("done", None), {"summary": "", "signals": 0}))
+        self.assertEqual(store.read_all(self.conn, uk), before)
+        self.conn.rollback()
+
+    def test_without_a_writer_key_there_is_nothing_to_note(self):
+        uk = self.user(key=False)
+        job = jobs.enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": self.TEXT, "today": today()})
+        with mock.patch.object(providers, "model_for") as model_for:
+            self.assertTrue(worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich"))
+        model_for.assert_not_called()
+        self.assertEqual(jobs.result(self.conn, uk, job), {"summary": "", "signals": 0})
+        self.conn.rollback()
+
+    def test_bad_args_fail(self):
+        uk = self.user()
+        for args in ({"ref": "../x", "text": "hi", "today": today()}, {"ref": "ccc333", "text": " ", "today": today()},
+                     {"ref": "ccc333", "text": "hi", "today": "soon"}):
+            job = jobs.enqueue(self.conn, uk, "enrich", args)
+            worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich")
+            self.assertEqual(self.state(job)[0], "failed", args)
+        self.conn.rollback()

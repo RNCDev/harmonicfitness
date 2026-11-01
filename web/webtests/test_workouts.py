@@ -64,7 +64,9 @@ class Calls(unittest.TestCase):
 
 class Routes(test_api.ApiCase):
     def test_the_logs_routes(self):
+        from webapp import keystore
         _, uk = self.signed_in()
+        keystore.put(self.conn, uk, "anthropic", "sk-ant-test-model-key-0123456789")   # a writer: feedback is enriched
         store.write_back(self.conn, uk, listener_files(), {})
         self.conn.commit()
         rows = self.client.get("/api/workouts").json()["workouts"]
@@ -73,7 +75,11 @@ class Routes(test_api.ApiCase):
         r = self.client.put("/api/workouts/ccc333/rating", json={"rating": "negative"}, headers=self.origin())
         self.assertEqual(r.status_code, 204, r.text)
         r = self.client.post("/api/workouts/ccc333/feedback", json={"text": "too long"}, headers=self.origin())
-        self.assertEqual(r.status_code, 204, r.text)
+        self.assertEqual(r.status_code, 202, r.text)
+        job = r.json()["job_id"]   # what it teaches is worked out in enrichment's own lane
+        self.assertEqual(self.conn.execute("select kind, state from jobs where id = %s", (job,)).fetchone(),
+                         ("enrich", "queued"))
+        self.conn.rollback()
         row = self.client.get("/api/workouts").json()["workouts"][0]
         self.assertEqual((row["rating"], row["feedback"]), ("negative", ["too long"]))
         self.assertEqual(self.client.put("/api/workouts/ccc333/rating", json={"rating": "great"},
@@ -84,6 +90,18 @@ class Routes(test_api.ApiCase):
         self.assertEqual(self.client.get("/api/workouts").json()["workouts"], [])
         self.conn.rollback()
         self.assertNotIn(f"{STEM}/Workout.txt", store.read_all(self.conn, uk))
+
+    def test_feedback_without_a_writer_key_queues_nothing(self):
+        _, uk = self.signed_in()
+        from webapp import keystore
+        for service in list(keystore.listing(self.conn, uk)):
+            keystore.delete(self.conn, uk, service)
+        store.write_back(self.conn, uk, listener_files(), {})
+        self.conn.commit()
+        r = self.client.post("/api/workouts/ccc333/feedback", json={"text": "too long"}, headers=self.origin())
+        self.assertEqual((r.status_code, r.json()), (202, {"job_id": None}))
+        self.assertEqual(self.conn.execute("select count(*) from jobs where kind = 'enrich'").fetchone()[0], 0)
+        self.conn.rollback()
 
     def test_a_workout_carries_its_mp3_while_it_is_kept(self):
         from webapp import media
