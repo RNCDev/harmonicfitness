@@ -380,7 +380,8 @@ class SetAndList(unittest.TestCase):
         by = {c["name"]: c for c in found}
         self.assertEqual(sorted(by["Coach Dana"]), sorted(["name", "slug", "kind", "service", "service_name", "default",
                                                            "placeholder", "pending", "shipped", "speaks_here",
-                                                           "description", "notes"]))
+                                                           "description", "tone", "sample", "usd_per_workout", "powered_by",
+                                                           "notes"]))
         self.assertTrue(by["Coach Dana"]["default"])
         self.assertEqual(by["Coach Dana"]["service_name"], "Fish Audio")
         self.assertIn("(made the first time it's used)", by["Coach Reed"]["notes"])
@@ -389,6 +390,13 @@ class SetAndList(unittest.TestCase):
         self.assertTrue(any(line.startswith("* Coach Dana") and "web · Fish Audio" in line for line in lines))
         self.assertTrue(lines[-1].startswith("* the coach a build uses"))
         self.assertIn("No coaches found", coaches.listing_lines([])[0])
+
+    def test_the_web_client_never_makes_a_coach(self):
+        import cli
+        import coaches
+        with mock.patch.object(coaches.paths, "WEB", True):
+            for argv in (["audition", "narrative.md"], ["keep", "2026-10-31-1/A", "--name", "Coach Dana"]):
+                self.assertEqual(cli.run(coaches.main, argv), errors.USAGE, argv)
 
     def test_listing_says_which_coaches_speak_here(self):
         import coaches

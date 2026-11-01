@@ -20,6 +20,7 @@ import datetime
 import html
 import json
 import os
+import re
 import threading
 import time
 from contextlib import asynccontextmanager, contextmanager
@@ -168,7 +169,7 @@ class WriterBody(BaseModel):
 
 class SkyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    sky: Literal["flow", "field", "arcs", "waves"]
+    sky: Literal["flow", "field", "waves", "bloom", "lissajous"]
 
 
 class SyncRead(BaseModel):
@@ -540,6 +541,26 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/api/options")
     def get_options(uk: User):
         return options
+
+    coach_slug = re.compile(r"coach-[a-z0-9-]{1,60}")
+
+    @app.get("/api/coaches/{slug}/sample.mp3")
+    def coach_sample(uk: User, slug: str, request: Request):
+        """A stock coach's sample, as the engine ships it (coaches/<slug>/sample.mp3): the gallery plays it
+        before the listener has a key. A listener's own coach's sample isn't kept here (MP3s aren't)."""
+        if not coach_slug.fullmatch(slug):
+            raise HTTPException(404, "no such coach")
+        path = Path(settings.engine_root, "coaches", slug, "sample.mp3")
+        if not path.is_file():
+            raise HTTPException(404, "no sample for this coach")
+        # no-cache: the browser asks again each time (a 304 by its ETag when unchanged), so a re-recorded sample
+        # is heard at once, never a day-old copy
+        st = path.stat()
+        tag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
+        headers = {"Cache-Control": "private, no-cache", "ETag": tag}
+        if tag in (request.headers.get("if-none-match") or ""):
+            return Response(status_code=304, headers=headers)
+        return FileResponse(path, media_type="audio/mpeg", headers=headers)
 
     @app.get("/api/start")
     async def start_screen(uk: User):

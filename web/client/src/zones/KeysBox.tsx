@@ -1,7 +1,8 @@
-// The keys: who writes the workouts (Claude, ChatGPT or Gemini: the listener picks one and adds its key) and the
-// voices (optional), one row per service: a service that is both (Gemini) is one key and one row, so picking
-// Gemini to write also voices its coach. Add, replace or remove. A key is never shown again. A set key shows what's
-// left on its account where the service says (Fish Audio, ElevenLabs), else a link to its billing page.
+// The keys: who writes the workouts (OpenRouter, Gemini, Claude or ChatGPT: the listener picks one and adds its key)
+// and the voices (optional), one row per service. A service that is both (OpenRouter, Gemini) is one key and one row,
+// listed first since it's all a listener needs; picking it to write also voices its coaches, and the other voice
+// keys wait behind a link. Add, replace or remove. A key is never shown again. A set key shows what's left on its
+// account where the service says, else a link to its billing page.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, checkBalances, NotSignedIn, plainError, type Balance, type KeyState } from "../api";
 
@@ -139,16 +140,21 @@ function KeyRow({ k, open, balance, onChanged, onSignedOut, onChoose }: {
 
   return (
     <div className={`keys-row${onChoose ? " writer" : ""}${k.writer ? " on" : ""}`}>
-      {onChoose ? (
-        <label className="keys-pick">
-          <input type="radio" name="writer" checked={!!k.writer} onChange={onChoose} />
-          <span className="keys-name">{k.name}</span>
-        </label>
-      ) : <span className="keys-name">{k.name}</span>}
-      <span className="keys-state">
-        <span className="keys-when">{k.set ? setOn(k.updated_at) : "Not set"}</span>
-        <BalanceTag k={k} balance={balance} />
+      {/* a grid: the name (and its tag) on the left, its buttons on the right; when set, the date and balance below */}
+      <span className="keys-id">
+        {onChoose && <input type="radio" name="writer" id={`writer-${k.service}`} checked={!!k.writer} onChange={onChoose} />}
+        <span className="keys-label">
+          {onChoose ? <label className="keys-name" htmlFor={`writer-${k.service}`}>{k.name}</label>
+            : <span className="keys-name">{k.name}</span>}
+          {k.kind === "model" && k.voice && <span className="keys-tag" title="This key also voices your coaches">+ voices</span>}
+        </span>
       </span>
+      {k.set && (
+        <span className="keys-state">
+          <span className="keys-when">{setOn(k.updated_at)}</span>
+          <BalanceTag k={k} balance={balance} />
+        </span>
+      )}
       {!editing && !asking && (
         <span className="keys-actions">
           <button type="button" className="quiet" aria-label={`${k.set ? "Replace" : "Add"} ${k.name} key`}
@@ -164,11 +170,8 @@ function KeyRow({ k, open, balance, onChanged, onSignedOut, onChoose }: {
       {k.kind === "model" && k.writer && !k.set && !editing && (
         <p className="cx-s keys-note">Add your {k.name} key to use it.</p>
       )}
-      {k.kind === "model" && k.voice && (
-        <p className="cx-s keys-note">The same key also voices a coach.</p>
-      )}
       {asking && (
-        <span className="keys-actions">
+        <span className="keys-actions keys-ask">
           <span className="cx-s">Remove your {k.name} key?</span>
           <button type="button" className="quiet" onClick={remove} disabled={busy}>Remove</button>
           <button type="button" className="quiet" onClick={() => setAsking(false)} disabled={busy}>Keep</button>
@@ -187,10 +190,13 @@ function KeyRow({ k, open, balance, onChanged, onSignedOut, onChoose }: {
           </span>
         </form>
       )}
-      {error && <p className="cx-s err" role="alert" style={{ flexBasis: "100%" }}>{error}</p>}
+      {error && <p className="cx-s err" role="alert">{error}</p>}
     </div>
   );
 }
+
+/** The writers that also voice coaches, in the order they're offered: first, ahead of the rest. */
+export const FIRST = ["openrouter", "gemini"];
 
 type Props = {
   onSignedOut: () => void;
@@ -264,8 +270,17 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
     balances === "checking" ? "checking" : balances?.[service] ?? null;
 
   const rows = keys ? keyRows(keys) : [];
-  const required = rows.filter((r) => r.kind === "model");
+  // the keys that write and voice come first: one of them is all a listener needs
+  const first = (r: KeyRowState) => { const i = FIRST.indexOf(r.service); return i < 0 ? FIRST.length : i; };
+  const required = rows.filter((r) => r.kind === "model").sort((a, b) => first(a) - first(b));
   const optional = rows.filter((r) => r.kind !== "model");
+  // One key that writes and voices (Gemini, OpenRouter) needs nothing more: the voice keys wait behind a link,
+  // unless one is set already or a row was asked for.
+  const [moreVoices, setMoreVoices] = useState(false);
+  const writer = required.find((r) => r.writer);
+  const oneKey = !!writer?.set && writer.voice;
+  const voicesShown = !oneKey || moreVoices || optional.some((r) => r.set)
+    || optional.some((r) => r.service === openRow?.service || r.service === opened?.service);
   const group = (title: string, note: string, list: KeyRowState[], writers = false) => list.length > 0 && (
     <section className="keys-group" aria-label={title}>
       <h4 className="keys-h">{title}</h4>
@@ -286,10 +301,17 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
       {error && <p className="cx-s err" role="alert">{error}</p>}
       {keys === null && !error && <p className="cx-s">Loading…</p>}
       {group("Who writes your workouts", required.length > 1
-        ? "Pick one, and add its key. Gemini's key is free, and also voices a coach."
+        ? "Pick one. A key marked + voices also voices your coaches, so it's the only one you need."
         : "This key writes every workout.", required, required.length > 1)}
-      {group("More voices (optional)", "Each key adds a coach with its own voice. Fish Audio costs the least.", optional)}
-      <p className="cx-s keys-foot">Keys are stored encrypted and never shown again. Each one goes only to its own service, and only when it's used.</p>
+      {voicesShown
+        ? group("More voices (optional)", "Each adds coaches with voices of their own.", optional)
+        : optional.length > 0 && (
+          <section className="keys-group" aria-label="More voices (optional)">
+            <p className="cx-s">Your {writer?.name} key voices your coaches too. Nothing else to add.</p>
+            <button type="button" className="quiet" onClick={() => setMoreVoices(true)}>Add another voice (optional)</button>
+          </section>
+        )}
+      <p className="cx-s keys-foot">Keys are encrypted, never shown again, and sent only to their own service.</p>
     </section>
   );
 }

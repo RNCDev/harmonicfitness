@@ -411,6 +411,34 @@ class Prefetch(AgentCase):
         self.assertTrue(setup.startswith(agent.SETUP_FIRST))
         self.assertEqual(said, ["Looking at your coaches"] * 2 + ["Getting you set up"] * 2)
 
+    def test_a_new_listener_asking_for_one_job_gets_that_job_alone(self):
+        """"I'd like to change my equipment." from the first screen is that job, never the setup interview."""
+        from unittest import mock
+        self.deps.setup = True
+        with mock.patch.object(agent, "needs_setup", return_value=True):
+            for line in ("I'd like to change my equipment.", "I'd like to update an injury.",
+                         "I'd like to update my interests.", "what does the brief do?"):
+                with self.subTest(line=line):
+                    text = agent.prefetch(self.deps, line)
+                    self.assertTrue(text.startswith(agent.TASK_FIRST), line)
+                    self.assertNotIn(agent.SETUP_FIRST, text)
+            for line in ("Set me up.", "Hey, coach Graham, I'd like a 25-minute full-body workout at home. "
+                         "Nothing's bothering me today.", "", None):
+                self.assertTrue(agent.prefetch(self.deps, line).startswith(agent.SETUP_FIRST), line)
+        # a listener already set up gets none of these openings
+        with mock.patch.object(agent, "needs_setup", return_value=False):
+            text = agent.prefetch(self.deps, "I'd like to change my equipment.")
+            self.assertFalse(text.startswith((agent.TASK_FIRST, agent.SETUP_FIRST, agent.COACH_FIRST)))
+
+    def test_what_a_first_message_asks_for(self):
+        cases = {"Set me up": "setup", "finish setting me up": "setup", "I want a new coach": "coach",
+                 "switch coach": "coach", "20 minutes of strength": "workout", "a quick HIIT session": "workout",
+                 "I'd like to change my equipment.": "task", "I'd like to update an injury.": "task",
+                 "I'd like to update my interests.": "task", "add a kettlebell to my home kit": "task",
+                 "my knee hurts after running, can I still train?": "task", None: "workout"}
+        for line, want in cases.items():
+            self.assertEqual(agent.intent(line), want, line)
+
     def test_step_one_comes_with_the_first_message(self):
         said = []
         self.deps.say = lambda text, tool, code, step: said.append(text)
@@ -449,7 +477,8 @@ class Prefetch(AgentCase):
         context = agent.prefetch(self.deps)
         block = context.split("### ./harmonicfitness coaches list (exit 0)", 1)[1].split("###", 1)[0]
         offered = block.split("Coaches who can speak here (offer only these): ", 1)[1].split("\n", 1)[0]
-        self.assertIn("Coach Nolan", offered)
+        for six in ("Coach Miles", "Coach Fraser", "Coach Wade", "Coach Ruby", "Coach June", "Coach Freya"):
+            self.assertIn(six, offered)
         for other in ("Coach Reed", "Coach Ellis", "Coach Owen", "Coach Andy", "Coach Maya"):
             self.assertNotIn(other, offered)
         self.assertIn("Coach Reed (Fish Audio)", block)   # named only as needing a key
@@ -459,11 +488,11 @@ class Prefetch(AgentCase):
     def test_the_coach_chosen_on_the_page_is_named(self):
         self.deps.keys = {"GEMINI_API_KEY": "AIzaabc123def456abcd", "FISH_AUDIO_API_KEY": "fishabc123def456abcd"}
         self.assertNotIn("the coach they chose on the page", agent.prefetch(self.deps))   # none chosen
-        self.deps.picked = ("coach-nolan-gemini", "2099-01-01")
+        self.deps.picked = ("coach-june-gemini", "2099-01-01")
         context = agent.prefetch(self.deps)
         self.assertIn("### the coach they chose on the page (exit 0)", context)
-        self.assertIn("Use Coach Nolan for this workout unless they name another", context)
-        self.assertIn('get route --coach "Coach Nolan"', context)
+        self.assertIn("Use Coach June for this workout unless they name another", context)
+        self.assertIn('get route --coach "Coach June"', context)
         # one that can't speak here is never named
         self.deps.picked = ("coach-ellis-elevenlabs", "2099-01-01")
         self.assertNotIn("the coach they chose on the page", agent.prefetch(self.deps))
@@ -529,7 +558,7 @@ class Instructions(AgentCase):
             self.assertTrue(agent.wants_setup(line), line)
         self.assertFalse(agent.wants_setup("a workout, any topic is fine"))
 
-    def test_a_coach_of_their_own_can_be_made_here(self):
+    def test_coaches_are_chosen_here_not_made(self):
         from unittest import mock
         calls = []
 
@@ -537,21 +566,17 @@ class Instructions(AgentCase):
             calls.append((argv, timeout))
             return tools.engine.Result(0, "done", "")
         with mock.patch.object(tools.engine, "run", side_effect=run):
-            for args in (["coaches", "make", "Coach Reed"], ["coaches", "audition", "me/coaches/.auditions/d.md"],
-                         ["coaches", "keep", "2026-10-28-1/B", "--name", "Coach Dana"],
-                         ["coaches", "forget-audition", "2026-10-28-1"], ["coaches", "archive", "Coach Dana"]):
+            for args in (["coaches", "make", "Coach Reed"], ["coaches", "forget-audition", "2026-10-28-1"],
+                         ["coaches", "archive", "Coach Dana"]):
                 self.assertEqual(tools.run(self.deps, args).code, 0, args)
-            # one audition a turn: each is paid for, and the listener hears the first before another
-            again = tools.run(self.deps, ["coaches", "audition", "me/coaches/.auditions/d.md"])
-        self.assertTrue(self.deps.coach_done)   # kept: the next turn needs no coach skill
-        self.assertEqual(again.code, 64)
-        self.assertIn("one audition a turn", again.error)
-        self.assertEqual(sum(1 for argv, _ in calls if argv[:2] == ["coaches", "audition"]), 1)
-        self.assertEqual(os.path.realpath(calls[1][0][2]),
-                         os.path.realpath(os.path.join(self.home, "coaches", ".auditions", "d.md")))
-        for argv, timeout in calls:   # a service designs or saves a voice: the long timeout
-            if argv[1] in ("make", "audition", "keep"):
-                self.assertEqual(timeout, tools.BUILD_TIMEOUT, argv)
+            for args in (["coaches", "audition", "me/coaches/.auditions/d.md"],
+                         ["coaches", "keep", "2026-10-28-1/B", "--name", "Coach Dana"]):
+                r = tools.run(self.deps, args)
+                self.assertEqual(r.code, 64, args)
+                self.assertIn("Coaches page", r.error)
+        self.assertTrue(self.deps.coach_done)   # an old audition closed: the next turn needs no coach skill
+        self.assertEqual([argv[1] for argv, _ in calls], ["make", "forget-audition", "archive"])
+        self.assertEqual(calls[0][1], tools.BUILD_TIMEOUT)   # make designs a voice: the long timeout
 
     def test_the_narrative_can_be_written_but_not_the_candidates(self):
         self.assertEqual(tools.write_file(self.deps, "me/coaches/.auditions/coach-dana.md", "+++\n").code, 0)

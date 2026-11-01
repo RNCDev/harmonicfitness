@@ -32,6 +32,11 @@ SETUP = (".claude/skills/setup/SKILL.md",)
 COACH = (".claude/skills/coach/SKILL.md",)
 SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard|my interests|"
                          r"(add|new|suggest)\w*( a| some)? topics?)\b", re.IGNORECASE)
+# Asking to be set up (the quick start's interview), as against a task the setup skill also covers (interests).
+ONBOARD_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard)\b", re.IGNORECASE)
+# Asking for a workout: the one request a new listener's setup questions come with.
+WORKOUT_WORDS = re.compile(r"\b(workouts?|sessions?|minutes?|mins?|train(ing)?|exercises?|routine|sweat|hiit|"
+                           r"cardio|strength|stretch(ing)?|mobility|yoga|run)\b", re.IGNORECASE)
 # The coach skill's own triggers: a new coach, a different voice, a coach that sounds or talks differently.
 COACH_WORDS = re.compile(r"\b(new|another|different|own|switch|change|design|make|create)\b[^.?!]{0,30}"
                          r"\b(coach|voice|trainer)|\b(coach|voice)\b[^.?!]{0,20}\b(sounds?|talks?|a (wo)?man)\b",
@@ -69,6 +74,20 @@ def wants_setup(line: str | None) -> bool:
 
 def wants_coach(line: str | None) -> bool:
     return bool(line and COACH_WORDS.search(line))
+
+
+def intent(line: str | None) -> str:
+    """What a first message asks for: "setup" (to be set up), "workout", "coach", or "task" (one job: change
+    the equipment, update an injury or interests, a question). No message reads as a workout request."""
+    if not line or not line.strip():
+        return "workout"
+    if ONBOARD_WORDS.search(line):
+        return "setup"
+    if COACH_WORDS.search(line):
+        return "coach"
+    if WORKOUT_WORDS.search(line) and not re.search(r"\b(equipment|kit|injur\w*|pain|hurts?|sore|interests?|topics?)\b", line, re.I):
+        return "workout"
+    return "task"
 
 
 def audition_open(home: str) -> bool:
@@ -365,9 +384,9 @@ def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
 # Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the
 # same results in the listener's first message, without a round trip for each.
 FIRST_RUNS = (["check"], ["content", "plan", "--minutes", "25"], ["get", "coach"], ["coaches", "list", "--json"])
-SETUP_FIRST = ("This listener isn't set up yet: this turn's questions are the setup skill's quick start (what to call "
-               "them, their experience, any injuries or limits), together with today's check-in, in one numbered "
-               "list. Write their answers before the brief runs.")
+SETUP_FIRST = ("This listener isn't set up yet: before the workout, the setup skill's quick start asks what to call "
+               "them, their experience, and any injuries or limits, then today's check-in. One question a reply, "
+               "as the instructions say: ask the first now, and write each answer as it comes, before the brief runs.")
 
 
 def _coaches(r: ToolResult) -> ToolResult:
@@ -420,19 +439,25 @@ def _block(title: str, r: ToolResult) -> str:
     return f"### {title} (exit {r.code})\n````\n{body}\n````"
 
 
-COACH_FIRST = ("This listener isn't set up yet, and asked for a new coach. Do what they asked, now: the coach skill, "
-               "with no setup questions and no workout check-in this turn; ask only what the coach needs. Once the "
-               "coach is made, say in a line that a few quick questions will set them up for a first workout.")
+COACH_FIRST = ("This listener isn't set up yet, and asked about their coach. Do only that, now: coaches are chosen on "
+               "the Coaches page, so point them there in a line (or, if they named one that can speak here, use it). "
+               "No setup questions and no workout check-in this turn.")
+TASK_FIRST = ("This listener isn't set up yet, and asked for one thing. Do only that, now, as the instructions' One "
+              "request, one job says: no setup questions and no workout check-in this turn, and only the questions "
+              "that one job needs, one a reply. When it's done, say in a line that a few quick questions will set "
+              "them up when they want a first workout.")
 
 
 def prefetch(deps: Deps, line: str | None = None) -> str:
     """Step 1's commands and reads, run at once; returned as text for the first message. A listener not set up
-    yet who asked for a coach gets the coach first, never the setup questionnaire."""
+    yet gets the setup questions only with a workout (or when they ask to be set up): a coach, or any one job
+    (their equipment, an injury, their interests), is done on its own first."""
     plain = replace(deps, say=None, feeds=None)
     fresh = deps.setup and needs_setup(deps.home)
-    coach_first = fresh and wants_coach(line) and not wants_setup(line)
-    label = ("Looking at your coaches" if coach_first else "Getting you set up" if fresh
-             else "Reading your profile and today's limits")
+    want = intent(line)
+    first_text = (COACH_FIRST if want == "coach" else TASK_FIRST if want == "task" else SETUP_FIRST) if fresh else ""
+    label = ("Looking at your coaches" if fresh and want == "coach" else "Getting you set up"
+             if fresh and want in ("setup", "workout") else "Reading your profile and today's limits")
     step = _begin(deps, label, "prefetch")
     with ThreadPoolExecutor(max_workers=len(FIRST_RUNS) + len(FIRST_READS)) as pool:
         runs = [pool.submit(tools.run, plain, list(a)) for a in FIRST_RUNS]
@@ -454,9 +479,9 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
         results.append((f"./harmonicfitness get route --coach \"{name}\"",
                         tools.run(plain, ["get", "route", "--coach", name])))
     _say(deps, label, "prefetch", 0, step)
-    first = (COACH_FIRST if coach_first else SETUP_FIRST) + "\n\n" if fresh else ""
+    first = first_text + "\n\n" if first_text else ""
     return (first + "Step 1 is done: these are its results, run as this turn began. Don't run or read them again "
-            "this turn; go on to the questions.\n\n" + "\n\n".join(_block(t, r) for t, r in results))
+            "this turn.\n\n" + "\n\n".join(_block(t, r) for t, r in results))
 
 
 def start_feeds(deps: Deps, pool: ThreadPoolExecutor) -> Future:

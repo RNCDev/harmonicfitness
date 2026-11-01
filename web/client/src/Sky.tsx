@@ -1,18 +1,21 @@
-// The sky: a quiet, moving pattern behind every page, after Book of Shapes (bookofshapes.com). Four to choose from
-// under Background in Settings: Flow (fine lines drifting sideways), Field (a grid of dots that a ripple crosses
-// every few seconds, spreading from the top right like sound from a speaker), Arcs (its Brockmann Beethoven Arcs:
-// concentric arcs, thicker outward, their turns stepped to a grid of angles, a few stepping round at a time) and
-// Waves (its Interference Mesh: level lines bent by two sources of ripples). All hold still when the system asks
-// for reduced motion, and brighten a little while the coach works. The code says "sky"; the page says Background.
+// The sky: a quiet, moving pattern behind every page, after Book of Shapes (bookofshapes.com, by Nikolaj
+// Sokolowski). Five to choose from under Background in Settings: Flow (fine lines drifting sideways), Field (a grid
+// of dots that a ripple crosses every few seconds, spreading from the top right like sound from a speaker), Waves
+// (its Interference Mesh: level lines bent by two sources of ripples), Bloom (its Phyllotaxis Bloom: strokes set out like a
+// sunflower's seeds, turning slowly, a pulse passing outward) and Lissajous (its Lissajous Field: a 2:3 Lissajous figure drawn as short
+// horizontal dashes, turning slowly like a trace on an oscilloscope). All hold still when the system asks for
+// reduced motion, and brighten a little while the coach works. The code says "sky"; the page says Background.
+// (Arcs, after its Brockmann Beethoven Arcs, went in 0.46.2: Book of Shapes' licence asks that one not be published.)
 import { memo, useEffect, useRef, type ReactNode } from "react";
 import { Mark } from "./Mark";
 
-export type SkyKind = "flow" | "field" | "arcs" | "waves";
+export type SkyKind = "flow" | "field" | "waves" | "bloom" | "lissajous";
 export const SKIES: { kind: SkyKind; name: string; about: string }[] = [
   { kind: "flow", name: "Flow", about: "Lines drift slowly across." },
   { kind: "field", name: "Field", about: "A ripple crosses it every few seconds." },
-  { kind: "arcs", name: "Arcs", about: "Rings of arcs turn, a few at a time." },
   { kind: "waves", name: "Waves", about: "Two ripples bend the lines as they meet." },
+  { kind: "bloom", name: "Bloom", about: "A spiral of strokes turns slowly." },
+  { kind: "lissajous", name: "Lissajous", about: "A looping trace turns slowly." },
 ];
 
 const still = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -86,16 +89,6 @@ function useCanvas(paint: Painter) {
 
 const INK = "#EDEAE0";
 
-/** A small seeded random, so a pattern comes out the same on every visit. */
-function seeded(seed: number) {
-  return () => {
-    seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 // ---- Field: dots on a canvas, so a few thousand of them cost one draw per frame ----
 const GAP = 28;          // px between dots
 const PERIOD = 7;        // seconds between ripples
@@ -138,74 +131,6 @@ const paintField: Painter = (ctx, w, h) => {
 
 function Field() {
   return <canvas ref={useCanvas(paintField)} className="field" />;
-}
-
-// ---- Arcs: after Book of Shapes' Brockmann Beethoven Arcs (Josef Müller-Brockmann's 1955 Beethoven poster) ----
-// Concentric arcs about one centre, thicker toward the outside on an ease curve. Each arc's sweep and turn are
-// whole steps of a base angle; each turn is pulled toward one direction, then snapped back to the steps, which
-// gathers the arcs into C shapes. Every couple of seconds a few arcs step to a new turn, easing there.
-const STEP = Math.PI / 12;              // the base angle: 15 degrees
-const snap = (a: number) => Math.round(a / STEP) * STEP;
-const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
-const ease = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
-
-type Arc = { r: number; width: number; sweep: number; from: number; to: number; at: number };
-
-/** The arcs: radii, widths and sweeps fixed by a seed; the turn toward `toward` (radians) with this much pull. */
-function arcSet(n: number, inner: number, outer: number, thin: number, thick: number, toward: number, pull: number, seed = 7) {
-  const rnd = seeded(seed);
-  const turn = () => snap(lerp(rnd() * Math.PI * 2, toward, pull));
-  const arcs: Arc[] = [];
-  let r = inner;
-  for (let i = 0; i < n; i++) {
-    const k = i / (n - 1);
-    const width = lerp(thin, thick, k * k);
-    const a = turn();
-    arcs.push({ r: r + width / 2, width, sweep: snap(lerp(Math.PI * 0.45, Math.PI * 1.6, rnd())), from: a, to: a, at: -99 });
-    r += width + lerp(thin * 3, thick * 0.6, k);
-    if (r > outer) break;
-  }
-  return { arcs, turn, rnd };
-}
-
-const MOVE = 1.8;     // seconds an arc takes to step round
-const EVERY = 2.4;    // seconds between steps
-
-const paintArcs: Painter = (ctx, w, h) => {
-  const cx = w * 0.72, cy = h * 0.46;
-  const outer = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
-  const toward = Math.PI;   // the openings face right, so the arcs curl round the words on the left
-  const { arcs, turn, rnd } = arcSet(16, Math.min(w, h) * 0.06, outer, 4, 72, toward, 0.55);
-  let next = 0;
-  return (t) => {
-    if (t >= 0 && t >= next) {
-      next = t + EVERY;
-      for (let j = 0; j < 3; j++) {
-        const a = arcs[Math.floor(rnd() * arcs.length)];
-        a.from = a.to;
-        a.to = turn();
-        if (Math.abs(a.to - a.from) < STEP / 2) a.to = a.from + (rnd() < 0.5 ? -2 : 2) * STEP;
-        a.at = t;
-      }
-    }
-    ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = INK;
-    ctx.lineCap = "butt";
-    arcs.forEach((a, i) => {
-      const k = t < 0 ? 1 : Math.min(1, (t - a.at) / MOVE);
-      const rot = lerp(a.from, a.to, ease(k));
-      ctx.globalAlpha = 0.05 + 0.04 * (i / arcs.length);
-      ctx.lineWidth = a.width;
-      ctx.beginPath();
-      ctx.arc(cx, cy, a.r, rot - a.sweep / 2, rot + a.sweep / 2);
-      ctx.stroke();
-    });
-    ctx.globalAlpha = 1;
-  };
-};
-
-function Arcs() {
-  return <canvas ref={useCanvas(paintArcs)} className="arcs" />;
 }
 
 // ---- Waves: after Book of Shapes' Interference Mesh ----
@@ -253,11 +178,105 @@ function Waves() {
   return <canvas ref={useCanvas(paintWaves)} className="waves" />;
 }
 
+// ---- Bloom: after Book of Shapes' Phyllotaxis Bloom ----
+// Short strokes set out as a sunflower's seeds: each one a golden angle round from the last and a little further out
+// (radius by the square root of its number, so they fill the disc evenly), each pointing out from the centre and
+// longer toward the edge. The whole turns slowly, and a soft pulse travels outward through it every few seconds.
+const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+const SEEDS = 1100;   // more seeds as it grew, so they keep their spacing
+const BLOOM_SPIN = 0.012;    // radians a second
+const BLOOM_PERIOD = 6;      // seconds between pulses
+
+/** The seeds: each one's angle and its distance out, as a share (0..1) of the bloom's radius. */
+function seeds(n: number): { a: number; r: number }[] {
+  return Array.from({ length: n }, (_, i) => ({ a: i * GOLDEN, r: Math.sqrt((i + 0.5) / n) }));
+}
+
+const paintBloom: Painter = (ctx, w, h) => {
+  const cx = w * 0.72, cy = h * 0.5, R = Math.min(h * 0.69, w * 0.6);   // large: its edge runs off the page
+  const all = seeds(SEEDS);
+  return (t) => {
+    const tt = t < 0 ? 0 : t;
+    const spin = tt * BLOOM_SPIN;
+    const wave = t < 0 ? -1 : (tt % BLOOM_PERIOD) / BLOOM_PERIOD * 1.4 - 0.2;   // the pulse's place, centre to edge
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = "round";
+    for (const s of all) {
+      const lift = Math.max(0, 1 - Math.abs(s.r - wave) / 0.12);              // 1 where the pulse is passing
+      const len = (4 + 18 * s.r) * (1 + 0.5 * lift);
+      const a = s.a + spin, d = s.r * R;
+      const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+      ctx.globalAlpha = (0.08 + 0.16 * s.r) * (1 + 0.8 * lift);
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(a) * len / 2, y - Math.sin(a) * len / 2);
+      ctx.lineTo(x + Math.cos(a) * len / 2, y + Math.sin(a) * len / 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  };
+};
+
+function Bloom() {
+  return <canvas ref={useCanvas(paintBloom)} className="bloom" />;
+}
+
+// ---- Lissajous: after Book of Shapes' Lissajous Field ----
+// The figure x = sin(2s + phase), y = sin(3s), drawn not as a line but as short horizontal dashes on rows a few
+// pixels apart: at every row, a dash wherever the curve crosses it, longer where the curve runs flatter. The phase
+// turns slowly, so the figure seems to rotate, as on an oscilloscope.
+const DASH_GAP = 7;       // px between rows of dashes
+const TURN = 0.05;        // radians of phase a second
+
+/** Where the curve crosses height v (-1..1): the x of each crossing (-1..1) and how flat it runs there. */
+function crossings(v: number, phase: number): { x: number; flat: number }[] {
+  const a = Math.asin(Math.max(-1, Math.min(1, v)));
+  const out: { x: number; flat: number }[] = [];
+  for (let n = 0; n < 3; n++) {                       // sin(3s) = v: 3s is a or pi - a, each turn round
+    for (const three of [a + n * Math.PI * 2, Math.PI - a + n * Math.PI * 2]) {
+      const s = three / 3;
+      const dx = 2 * Math.cos(2 * s + phase), dy = 3 * Math.cos(3 * s);
+      out.push({ x: Math.sin(2 * s + phase), flat: Math.min(4, Math.abs(dx) / Math.max(0.35, Math.abs(dy))) });
+    }
+  }
+  return out;
+}
+
+const paintLissajous: Painter = (ctx, w, h) => {
+  // large, running off the page's edges: only part of the figure shows at once
+  const cx = w * 0.72, cy = h * 0.5, ry = h * 0.68, rx = Math.min(w * 0.5, ry * 1.1);
+  const rows: number[] = [];
+  for (let y = -ry; y <= ry; y += DASH_GAP) rows.push(y);
+  return (t) => {
+    const phase = Math.PI / 4 + (t < 0 ? 0 : t) * TURN;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.24;
+    ctx.beginPath();
+    for (const y of rows) {
+      for (const c of crossings(y / ry, phase)) {
+        const len = 14 + 14 * c.flat;
+        ctx.moveTo(cx + c.x * rx - len / 2, cy + y);
+        ctx.lineTo(cx + c.x * rx + len / 2, cy + y);
+      }
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  };
+};
+
+function Lissajous() {
+  return <canvas ref={useCanvas(paintLissajous)} className="lissajous" />;
+}
+
 /** The background of every page. Fixed behind the content; never takes a click or a screen reader's attention. */
 export const Sky = memo(function Sky({ kind = "flow", busy = false }: { kind?: SkyKind; busy?: boolean }) {
   return (
     <div className={`sky sky-${kind}${busy ? " busy" : ""}`} data-sky={kind} aria-hidden="true">
-      {kind === "field" ? <Field /> : kind === "arcs" ? <Arcs /> : kind === "waves" ? <Waves /> : <Flow />}
+      {kind === "field" ? <Field /> : kind === "waves" ? <Waves /> : kind === "bloom" ? <Bloom />
+        : kind === "lissajous" ? <Lissajous /> : <Flow />}
     </div>
   );
 });
@@ -275,18 +294,28 @@ export function SkyPreview({ kind }: { kind: SkyKind }) {
       </svg>
     );
   }
-  if (kind === "arcs") {
-    const { arcs } = arcSet(10, 4, 130, 1.2, 14, Math.PI, 0.55);
+  if (kind === "bloom") {
     return (
       <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">
-        {arcs.map((a, i) => {
-          const s0 = a.to - a.sweep / 2, s1 = a.to + a.sweep / 2;
-          const [x0, y0, x1, y1] = [112 + a.r * Math.cos(s0), 45 + a.r * Math.sin(s0), 112 + a.r * Math.cos(s1), 45 + a.r * Math.sin(s1)];
-          return <path key={i} d={`M${x0.toFixed(1)},${y0.toFixed(1)} A${a.r.toFixed(1)},${a.r.toFixed(1)} 0 ${a.sweep > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`}
-            fill="none" stroke="currentColor" strokeWidth={a.width.toFixed(1)} opacity={0.3} />;
+        {seeds(260).map((p, i) => {
+          const d = p.r * 40, len = 1 + 3.5 * p.r;
+          const x = 108 + Math.cos(p.a) * d, y = 45 + Math.sin(p.a) * d, ux = Math.cos(p.a) * len / 2, uy = Math.sin(p.a) * len / 2;
+          return <line key={i} x1={(x - ux).toFixed(1)} y1={(y - uy).toFixed(1)} x2={(x + ux).toFixed(1)} y2={(y + uy).toFixed(1)}
+            stroke="currentColor" strokeWidth={0.7} opacity={0.6} />;
         })}
       </svg>
     );
+  }
+  if (kind === "lissajous") {
+    const dashes = [];
+    for (let y = -76; y <= 76; y += 3) {
+      for (const [n, c] of crossings(y / 76, Math.PI / 4).entries()) {
+        const len = 4 + 4 * c.flat;
+        dashes.push(<line key={`${y}-${n}`} x1={110 + c.x * 80 - len / 2} x2={110 + c.x * 80 + len / 2} y1={45 + y} y2={45 + y}
+          stroke="currentColor" strokeWidth={0.8} opacity={0.55} />);
+      }
+    }
+    return <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">{dashes}</svg>;
   }
   if (kind === "waves") {
     const k = (Math.PI * 2) / 26;

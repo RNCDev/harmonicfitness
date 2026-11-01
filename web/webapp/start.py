@@ -124,6 +124,10 @@ def logged(engine_root: str, log_text: str) -> list[tuple[str, str]]:
         return []
 
 
+def _words(v) -> str | None:
+    return v.strip() if isinstance(v, str) and v.strip() else None
+
+
 def _coaches(listed: list, keyed, used: list[tuple[str, str]], services: list[str],
              chosen: tuple[str, str] | None = None) -> list[dict]:
     """The web coaches, current first, then those whose service has a key, then the rest; within each, the
@@ -138,7 +142,13 @@ def _coaches(listed: list, keyed, used: list[tuple[str, str]], services: list[st
     web.sort(key=lambda c: (bool(c.get("shipped", True)), rank.get(c.get("service"), len(rank))))
     coaches = [{"slug": c["slug"], "name": c["name"], "first": _first(c["name"]), "service": c.get("service"),
                 "service_name": c.get("service_name"), "ready": c.get("service") in keyed,
-                "own": not c.get("shipped", True), "current": False, "_stand_in": bool(c.get("placeholder"))}
+                "own": not c.get("shipped", True), "current": False, "_stand_in": bool(c.get("placeholder")),
+                # for the gallery: how the coach sounds and talks, a sample to play, the cost, made on first use
+                "description": _words(c.get("description")), "tone": _words(c.get("tone")),
+                "sample": bool(c.get("sample")) and c.get("shipped", True),
+                "usd_per_workout": c.get("usd_per_workout") if isinstance(c.get("usd_per_workout"), (int, float))
+                and not isinstance(c.get("usd_per_workout"), bool) else None,
+                "pending": bool(c.get("pending")), "powered_by": _words(c.get("powered_by"))}
                for c in web]
     if not coaches:
         return []

@@ -2,7 +2,45 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.46.2] - 2026-11-01
+
+One key does it all: OpenRouter writes the workouts and voices six ready-made coaches, and Gemini gets six ready-made coaches of its own in place of Coach Nolan. On the web app, a Coaches page beside Logs where coaches are chosen by ear, never made; a simpler Settings; a coach who asks one question at a time and does one job per request; two new backgrounds; and a little more room around the logo's H.
+
+### Added
+- **OpenRouter as a voice service** (`openrouter` in `knowledge/services.toml`, `tools/services/openrouter.py`, `OPENROUTER_API_KEY`). OpenRouter can't design or save a voice, so its coaches are stock voices: ElevenLabs' 21 (on `elevenlabs/eleven-v4-turbo` by default, about $0.80 a workout, or `eleven-v4`, $1.60) and Microsoft's 12 English MAI-Voice voices (`microsoft/mai-voice-2.1`, about $0.44). An audition offers the three closest to the coach's description (gender, accent, age and a few sound words), and keeping one saves nothing at the service. Speech is asked for as MP3 and read through ffmpeg. `balances` reads its credit left.
+- **OpenRouter as a writer on the web app** (`web/webapp/providers.py`, model `anthropic/claude-sonnet-5.5`, no retries). Its key is stored under the same id as the voice service's, so one key and one row on the Keys page do both.
+- **Six ready-made Gemini coaches** (Fraser, Freya, June, Miles, Ruby, Wade; `coaches/coach-<name>-gemini/`), each one of Gemini's own voices by id (its prebuilt voices and its voice library's, which `GET /v1beta/voices` lists with gender, accent and pitch): three American voices, a Glasgow, a Southern US and a Midwest one. Like OpenRouter's, they belong to no account, so they ship made with a sample and a pace estimate; `[[web_coach]]` rows take a `service` (openrouter unless named), and `tools/coachmaker/web_coaches.py gemini` makes one service's. `gemini.delete` never sends a delete for one of Gemini's own voices.
+- A service module may name the model that speaks each of its voices (`voice_model`): an MAI voice is billed, keyed and spoken as MAI's even though the service's default model is ElevenLabs'.
+- **Six ready-made OpenRouter coaches** (Rowan, Graham, Jonah, Leah, Nora, Tess; `coaches/coach-<name>-openrouter/`, from `coaches/roster.toml`'s `[[web_coach]]` tables by `tools/coachmaker/web_coaches.py`, maintainer only). A stock voice belongs to no account, so unlike every other web coach they ship made: each with its 45-second `sample.mp3` and a pace estimate (`pace.json`), which `voices.pace` reads until a render here measures it. They replace the stand-in Coach Rowan.
+- **`./harmonicfitness keys upload`** (`tools/webkeys.py`): sends the keys in `me/.env` to the listener's key store on the web app, signing in as `pull` and `sync` do. A key the app already holds stays unless `--replace`; `--only` and `--dry-run`; no value is ever printed. It also sends `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` when `me/.env` holds them (the web app's writers; the engine never uses them, and they're scrubbed like the rest).
+- **`coaches list --json`** says each coach's `tone`, whether a `sample` ships, and `usd_per_workout`.
+- **Web app, the Coaches page** beside Logs: every coach as a card, with how they talk, a workout's cost, a sample where one ships (`GET /api/coaches/<slug>/sample.mp3`, the engine's own files only), and Choose, or the key it needs (which opens that key's row in Settings without changing who writes).
+- **Web app, the first key decides the rest.** The welcome offers the four keys, OpenRouter and Gemini first (they also voice). With Gemini's or OpenRouter's key the first screen is ready, and the other voice keys wait behind "Add another voice". With Claude's or ChatGPT's, the first screen says "One more step: choose your coach" and opens the Coaches page.
+
+### Changed
+- **The logo's H meter stands a little apart from ARMONIC:** 12% of the cap height more room before the A (`H_GAP` in `assets/brand/make.py`), since the meter is heavier than a letter. The wordmark with the meter H (`assets/brand/wordmark-h*`, and the web app's header through `brand.ts`) was made again; the icons and lockups are unchanged.
+- **Web app, the coach asks one question at a time:** each reply asks a single question (lettered options, its pick first, any answer in their own words) and waits, for setup and the check-in alike, in place of one numbered list of questions. A question whose answer is already known is skipped.
+- **Web app, one request, one job:** "change my equipment", "update an injury" or "update my interests" (the first screen's shortcuts) does that job alone: its questions, the file written, `check`, a line on what changed; no check-in, plan or setup questions. A listener not set up yet gets the setup questions only with a workout request or when they ask to be set up (`agent.intent`), so a shortcut never starts the whole interview.
+- **OpenRouter's coaches speak on ElevenLabs' Turbo model** (`elevenlabs/eleven-v4-turbo`), the same voices at half the price: about $0.80 a workout instead of $1.60. Their samples were recorded again on it. The web app says "OpenRouter, powered by ElevenLabs" above them (`coaches list --json`'s new `powered_by`, from the service module's optional `powered_by(model)`).
+- **Coach Nolan is gone:** Gemini's stock coach, designed in the listener's account on first use, gives way to the six ready-made ones. A Nolan a listener already made stays theirs in `me/coaches/` and keeps working. Where a service ships several coaches, its stand-in is the first by name (`routes.stand_ins` now agrees with `coachpick.default`: Fraser on Gemini, Graham on OpenRouter).
+- **Web app, the Coaches page shows only the coaches your keys can voice,** with one line naming the services whose key would add more. With no voice key yet (a Claude or ChatGPT key alone), it shows every coach grouped by service, samples playable, with one Add key button a service.
+- **Web app, the first screen** puts "Finish setting me up" first while setup isn't finished, a little brighter than the rest (a cream rule, its arrow showing); it no longer offers "Pick a different coach" (the Coaches page does) or "Give feedback on my last workout" (the Logs page does).
+- **Web app: coaches are chosen, never made.** The Coaches page replaces the coach list in Settings (keys only now). The assistant no longer auditions: `coaches audition` and `coaches keep` are refused in web mode (by the agent's tools and by the engine), and the coach skill loads only to close an audition left open. A coach someone made before stays theirs; a coach of their own is made on their own computer.
+- On a phone, the header's Coaches and Logs show as icons.
+- **Web app, Settings simplified:** OpenRouter and Gemini head the writers, each marked "+ voices"; each key row keeps its name left and its buttons right, with the date and balance beneath; an unset key shows just Add; shorter notes under Keys and Your files; the right column no longer stretches.
+- **Web app, the Coaches page** uses the whole width, with compact cards (a description of three lines at most) and a small player of its own in each (one sample plays at a time). A tap anywhere on a card chooses that coach (it lifts under the pointer; the play button never chooses), and the cards stay in alphabetical order, so choosing one only rings it. Its one colour is a soft blue (`--blue`): the coaches' names, the samples, and the coach coaching you, ringed in blue with Active on its top edge.
+- **Web app, backgrounds:** Arcs is gone (Book of Shapes' licence asks that its Brockmann Beethoven Arcs not be published); an account set to it shows Flow, with no migration. Two new ones, after Book of Shapes: **Bloom** (its Phyllotaxis Bloom: short strokes set out like a sunflower's seeds, large enough to run off the page, turning slowly, a soft pulse passing outward) and **Lissajous** (its Lissajous Field: a 2:3 figure in short dashes, large enough to run off the page, turning slowly). `PUT /api/sky` takes `flow`, `field`, `waves`, `bloom` or `lissajous`. Background now credits Book of Shapes and Nikolaj Sokolowski.
+
+### Fixed
+- **Web app:** a coach's sample is no longer cached for a day (`Cache-Control: private, no-cache`, answered with 304 when unchanged), so a re-recorded sample is heard at once.
+- A refusal whose reason sits under `error.message` (OpenRouter's shape) is now said in words, not as raw JSON.
+
+### Not yet tried
+- A full workout on an OpenRouter coach, and a web app session written by OpenRouter. Speech on both voice families, the writer, `coaches make` and the balance were tried live on 2026-10-31.
+
+### For forks
+- Nothing to migrate. Coach Nolan is gone from `coaches/`: a listener who made him keeps their copy in `me/coaches/`, and one who never did gets the first of Gemini's six (Coach Fraser) as a stand-in, or names another.
+- The web app offers OpenRouter as a writer only where `HARMONICFITNESS_PROVIDERS` is unset or names `openrouter`.
 
 ## [0.46.1] - 2026-10-31
 

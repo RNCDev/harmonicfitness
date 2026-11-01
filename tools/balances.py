@@ -1,11 +1,11 @@
 """What's left on each web voice service's account: `./harmonicfitness balances [--json]`.
 
 Fish Audio reports its API credit in US dollars and ElevenLabs this period's credits used against the plan's
-limit; Gemini and Inworld report nothing through their APIs, so their rows name the billing page instead. Only a
+limit, and OpenRouter its credit left in dollars; Gemini and Inworld report nothing through their APIs, so their rows name the billing page instead. Only a
 service with a key here is asked, with one GET that spends nothing; a refusal is that row's answer, never a stop.
 
 --json prints one object, {service: row}, each row with: name, billing_page, set (a key here), reports (the
-service can say), and once asked: ok, then usd (Fish), or used, limit and resets (ElevenLabs; resets a Unix
+service can say), and once asked: ok, then usd (Fish, OpenRouter), or used, limit and resets (ElevenLabs; resets a Unix
 time or null), or, when it refused, kind (auth, billing, quota, bad_request, unavailable) and message."""
 import json
 import os

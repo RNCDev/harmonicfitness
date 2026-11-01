@@ -1,0 +1,8 @@
+{
+ "b64a668e4d00|gemini|gemini-3.8-flash-tts": {
+  "name": "Coach Fraser",
+  "weight": 403.5000000000001,
+  "seconds": 32.845,
+  "estimate": true
+ }
+}

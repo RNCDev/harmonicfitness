@@ -104,18 +104,21 @@ describe("the chat", () => {
     expect(onOpenKeys).toHaveBeenCalled();
   });
 
-  it("with no key, welcomes and offers the three writers, and the box waits", () => {
+  it("with no key, offers the four keys, the ones that also voice first, and the box waits", () => {
     const onAddKey = vi.fn();
     const need = [{ name: "Claude", service: "anthropic", voice: false }, { name: "ChatGPT", service: "openai", voice: false },
-      { name: "Gemini", service: "gemini", voice: true }];
+      { name: "Gemini", service: "gemini", voice: true }, { name: "OpenRouter", service: "openrouter", voice: true }];
     render(<Chat {...base} needsKey={need} onAddKey={onAddKey} />);
     expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Gemini/ })).toHaveTextContent("Free key from Google AI Studio. Also voices a coach");
-    expect(screen.getByRole("button", { name: /^Claude/ })).toHaveTextContent("Paid key");
+    const picks = screen.getAllByRole("button").filter((b) => b.className === "welcome-pick");
+    expect(picks.map((b) => b.querySelector(".welcome-pick-name")?.textContent)).toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"]);
+    expect(picks[1]).toHaveTextContent("six coaches to choose from. Free key");
+    expect(picks[0]).toHaveTextContent("six coaches with ElevenLabs voices");
+    expect(picks[2]).toHaveTextContent("then choose a coach");
     expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute("placeholder", "Add a key in Settings first");
-    fireEvent.click(screen.getByRole("button", { name: /^ChatGPT/ }));
+    fireEvent.click(picks[3]);
     expect(onAddKey).toHaveBeenCalledWith("openai");
   });
 

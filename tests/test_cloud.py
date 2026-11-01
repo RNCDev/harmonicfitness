@@ -293,9 +293,9 @@ class Core(unittest.TestCase):
 
     def test_services_settings(self):
         s = cloud.services()
-        self.assertEqual(set(s), {"fish", "elevenlabs", "gemini", "inworld"})
+        self.assertEqual(set(s), {"fish", "elevenlabs", "gemini", "inworld", "openrouter"})
         for name in s:
-            self.assertTrue(s[name]["tried_live"], name)
+            self.assertEqual(s[name]["tried_live"], name != "openrouter", name)
             self.assertEqual(s[name]["rates_checked"], "2026-10-25")
             for gone in ("copies_clip", "designs", "stock_voices"):
                 self.assertNotIn(gone, s[name])
@@ -308,7 +308,8 @@ class Core(unittest.TestCase):
         self.assertEqual((s["inworld"]["default_model"], s["inworld"]["url"]),
                          ("inworld-tts-2", "https://api.inworld.ai"))
         self.assertEqual({n: (s[n]["concurrency"], s[n]["max_chars"]) for n in s},
-                         {"fish": (5, 0), "elevenlabs": (2, 10000), "gemini": (2, 0), "inworld": (5, 2000)})
+                         {"fish": (5, 0), "elevenlabs": (2, 10000), "gemini": (2, 0), "inworld": (5, 2000),
+                          "openrouter": (3, 10000)})
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-lite-tts"), 9)
         self.assertEqual(cloud.rate("inworld", "inworld-tts-2-flash"), 15)
@@ -320,8 +321,9 @@ class Core(unittest.TestCase):
 
 
 VOICE_IDS = {"fish": "fish-model-1", "elevenlabs": "el-voice-1", "gemini": "gemini-voice-1",
-             "inworld": "workspace__design-voice-1"}
-COACHES = {"fish": "Coach Reed", "elevenlabs": "Coach Ellis", "gemini": "Coach Nolan", "inworld": "Coach Owen"}
+             "inworld": "workspace__design-voice-1", "openrouter": "brian"}
+COACHES = {"fish": "Coach Reed", "elevenlabs": "Coach Ellis", "gemini": "Coach Nolan", "inworld": "Coach Owen",
+           "openrouter": "Coach Rowan"}
 
 
 def web_coach(folder, service, name=None, **extra):
@@ -788,6 +790,17 @@ class Gemini(ServiceCase):
     def test_gemini_delete(self):
         self.check_delete("/v1beta/voices/{id}")
 
+    def test_gemini_never_deletes_one_of_its_own_voices(self):
+        """The ready-made coaches speak with Gemini's own voices (prebuilt, or the voice library's by id): they
+        belong to no account, so a delete sends nothing."""
+        for own in ("achird", "Kore", "en-gb-tutor-16", "en-us-assistant-1"):
+            self.assertTrue(self.module.own_voice(own), own)
+        for stored in ("voice_abc123", "voice-abc", "gemini-voice-1", "", None):
+            self.assertFalse(self.module.own_voice(stored), stored)
+        fake = self.serve(lambda req: (500, {}, b"no"))
+        self.assertTrue(self.module.delete("en-gb-tutor-16"))
+        self.assertEqual(fake.requests, [])
+
 
 INWORLD_WAVS = [tone_wav(0.9), tone_wav(0.7)]
 
@@ -898,6 +911,90 @@ class Inworld(ServiceCase):
 
     def test_inworld_delete(self):
         self.check_delete("/voices/v1/voices/{id}")
+
+
+def openrouter_answer(req):
+    if req.path == "/api/v1/audio/speech":
+        return 200, {"Content-Type": "audio/wav"}, tone_wav(0.6)
+    if req.path == "/api/v1/credits":
+        return 200, {"Content-Type": "application/json"}, json.dumps(
+            {"data": {"total_credits": 25, "total_usage": 7.5}}).encode()
+    return 404, {}, b'{"error": {"code": 404, "message": "not found"}}'
+
+
+class OpenRouter(ServiceCase):
+    SERVICE = "openrouter"
+
+    def test_openrouter_speaks_a_stock_voice_as_mp3(self):
+        fake = self.serve(openrouter_answer)
+        v = self.voice()
+        self.assertEqual((v["voice_id"], v["model"]), ("brian", "elevenlabs/eleven-v4-turbo"))   # turbo first, 0.46.2
+        self.assertEqual(cloud.powered_by("openrouter", v["model"]), "ElevenLabs")
+        self.assertEqual(cloud.powered_by("openrouter", "microsoft/mai-voice-2.1"), "Microsoft MAI")
+        self.assertIsNone(cloud.powered_by("fish", "s2"))   # a service that speaks its own voices
+        pcm = cloud.speaker(v)("Two more.", 1)
+        self.assertGreater(len(pcm), 0)
+        req = fake.requests[-1]
+        self.assertEqual((req.method, req.path), ("POST", "/api/v1/audio/speech"))
+        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+        self.assertEqual(json.loads(req.body), {"model": "elevenlabs/eleven-v4-turbo", "input": "Two more.",
+                                                "voice": "brian", "response_format": "mp3"})
+
+    def test_an_mai_voice_speaks_and_is_billed_as_mai(self):
+        fake = self.serve(openrouter_answer)
+        web_coach(self.folder, "openrouter", name="Coach Iris", voice_id="en-US-Iris:MAI-Voice-2.1")
+        v = personas.voice_for(personas.lookup("Coach Iris"), "openrouter")
+        self.assertEqual(v["model"], "microsoft/mai-voice-2.1")
+        cloud.speaker(v)("Rest.", 1)
+        self.assertEqual(json.loads(fake.requests[-1].body)["model"], "microsoft/mai-voice-2.1")
+        # a coach naming a model that can't speak its voice is refused, never quietly swapped
+        with self.assertRaises(cloud.ServiceError) as got:
+            self.module._model({"voice_id": "en-US-Iris:MAI-Voice-2.1", "model": "elevenlabs/eleven-v4-turbo"})
+        self.assertIn("microsoft/mai-voice-2.1", str(got.exception))
+        self.assertEqual(self.module._model({"voice_id": "brian", "model": "elevenlabs/eleven-v4-turbo"}),
+                         "elevenlabs/eleven-v4-turbo")
+
+    def test_an_unknown_voice_is_refused_before_sending(self):
+        fake = self.serve(openrouter_answer)
+        with self.assertRaises(cloud.ServiceError):
+            self.module.speaker({"voice_id": "nobody", "model": "elevenlabs/eleven-v4"})
+        self.assertEqual(fake.requests, [])
+
+    def test_design_matches_the_description_and_saves_nothing(self):
+        fake = self.serve(openrouter_answer)
+        m = self.module
+        self.assertEqual(m.match("A man in his forties, warm baritone, American accent", 1), ["brian"])
+        self.assertIn(m.match("A British woman, warm and smooth", 1)[0], ("lily", "alice"))
+        three = m.match("A young Australian man, natural and confident", 3)
+        self.assertEqual(three[0], "charlie")
+        self.assertEqual(len(three), 3)
+        self.assertTrue(three[2].endswith(":MAI-Voice-2.1"))
+        self.assertEqual(m.VOICES["mai"][three[2]][0], "m")
+        cands = m.design("A man in his forties, warm baritone, American accent", "Set your feet.", 3, "label")
+        self.assertEqual([c["draft_id"] for c in cands][:1], ["brian"])
+        for c in cands:
+            self.check_candidate(c, "Set your feet.")
+        self.assertEqual({r.path for r in fake.requests}, {"/api/v1/audio/speech"})
+        self.assertEqual(len(fake.requests), 3)
+        self.assertEqual(m.save(cands[0], "Coach Rowan"), "brian")
+        self.assertTrue(m.delete("brian"))
+        self.assertEqual(len(fake.requests), 3)
+
+    def test_balance_is_credits_less_usage(self):
+        fake = self.serve(openrouter_answer)
+        self.assertEqual(self.module.balance(), {"usd": 17.5})
+        self.assertEqual(fake.requests[-1].method, "GET")
+        self.serve(lambda r: (200, {}, b'{"data": {"total_credits": "x"}}'))
+        with self.assertRaises(cloud.ServiceError):
+            self.module.balance()
+
+    def test_a_refusal_reads_openrouters_error_message(self):
+        self.serve(lambda r: (402, {}, b'{"error": {"code": 402, "message": "Insufficient credits"}}'))
+        with self.assertRaises(cloud.ServiceError) as got:
+            cloud.speaker(self.voice())("Go.", 1)
+        self.assertEqual(got.exception.kind, "billing")
+        self.assertIn("Insufficient credits", str(got.exception))
+        self.assertNotIn(SECRET, str(got.exception))
 
 
 class UnreadableAnswers(unittest.TestCase):

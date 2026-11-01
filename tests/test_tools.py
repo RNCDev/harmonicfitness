@@ -559,7 +559,8 @@ class FreshFork(unittest.TestCase):
             self.assertTrue(coaches_["coaches"])
             self.assertEqual(sorted(coaches_["coaches"][0]), sorted(["name", "slug", "kind", "service", "service_name",
                                                                      "default", "placeholder", "pending", "shipped",
-                                                                     "speaks_here", "description"]))
+                                                                     "speaks_here", "description", "tone", "sample",
+                                                                     "usd_per_workout", "powered_by"]))
             self.assertEqual(got["get web-builds"], {"web_builds": 0})
             self.assertEqual(got["get routes"], {"routes": ["local"]})
 

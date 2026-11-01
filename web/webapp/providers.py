@@ -26,6 +26,9 @@ PROVIDERS: dict[str, Provider] = {p.id: p for p in (
              "https://platform.openai.com/settings/organization/billing/overview"),
     Provider("google", "Gemini", "gemini-3.8-flash", "https://aistudio.google.com/apikey",
              "https://aistudio.google.com/billing"),
+    # OpenRouter: one key for any model; the same key voices its stock-voice coaches (one id, one row)
+    Provider("openrouter", "OpenRouter", "anthropic/claude-sonnet-5.5", "https://openrouter.ai/settings/keys",
+             "https://openrouter.ai/settings/credits"),
 )}
 
 
@@ -93,6 +96,12 @@ def model_for(provider: str, key: str):
         from google.genai import Client
         client = Client(api_key=key, http_options=client_opts)
         return GoogleModel(spec.model, provider=GoogleProvider(client=client))
+    if provider == "openrouter":
+        from openai import AsyncOpenAI
+        from pydantic_ai.models.openrouter import OpenRouterModel
+        from pydantic_ai.providers.openrouter import OpenRouterProvider
+        client = AsyncOpenAI(api_key=key, base_url="https://openrouter.ai/api/v1", max_retries=0, timeout=TIMEOUT)
+        return OpenRouterModel(spec.model, provider=OpenRouterProvider(openai_client=client))
     raise KeyError(provider)
 
 

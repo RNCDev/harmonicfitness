@@ -143,16 +143,13 @@ function Slot({ k, label, text, open, onOpen, tone }: { k: SlotKey; label: strin
   );
 }
 
-const OTHER: { label: string; about: string; line: string; fill?: boolean; quick?: boolean }[] = [
+const OTHER: { label: string; about: string; line: string; fill?: boolean; quick?: boolean; coaches?: boolean }[] = [
   { label: "Update an injury or pain", about: "Add, change or clear something that hurts, so every workout works around it.",
     line: "I'd like to update an injury." },
   { label: "Change my equipment", about: "Tell your coach what you have at home, at the gym or when you travel.",
     line: "I'd like to change my equipment." },
-  { label: "Update my interests.", about: "Add topics your coach talks about between sets, with ideas from what's trending.",
+  { label: "Update my interests", about: "Add topics your coach talks about between sets, with ideas from what's trending.",
     line: "I'd like to update my interests." },
-  { label: "Pick a different coach", about: "Hear the other coaches, or make a coach of your own.", line: "I want a new coach." },
-  { label: "Give feedback on my last workout", about: "Too long, too easy, loved a story: say so and the next one changes.",
-    line: "Feedback on my last workout: ", fill: true },
   { label: "Finish setting me up", about: "Answer the rest of the setup questions, for workouts that fit you better.",
     line: "Finish setting me up.", quick: true },
 ];
@@ -166,9 +163,11 @@ type Props = {
   /** The coach the listener picked: made the current coach (and saved) by the page, which updates `info`.
    * Without it, the pick stays in the sentence alone. */
   onCoach?: (slug: string) => void;
+  /** Opens the Coaches page: to switch coach, or, with no coach that can speak yet, to choose one. */
+  onOpenCoaches?: () => void;
 };
 
-export function Starter({ info, onStart, onFill, onCoach }: Props) {
+export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props) {
   const ready = (info?.coaches ?? []).filter((c) => c.ready);
   const kits = info?.kits ?? [];
   const floor: Record<string, Level> = {};
@@ -295,6 +294,20 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
   const hint = !type && info?.suggest?.reason;
   const shownCoach = ready.find((c) => c.first === v.coach);
 
+  if (ready.length === 0 && info && onOpenCoaches) {
+    return (
+      <section className="starter" aria-label="Plan a workout">
+        <p className="eyebrow">One more step</p>
+        <p className="mad">Choose your coach.</p>
+        <p className="start-note step-note">Your key writes the workouts; a coach needs a voice. Hear the coaches, then
+          add the key the one you like needs.</p>
+        <div className="start-row">
+          <button type="button" className="go start" onClick={onOpenCoaches}>Choose a coach</button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="starter" ref={wrap} aria-label="Plan a workout" onKeyDown={keys}>
       <p className="eyebrow">{partOfDay(new Date())}{shownCoach ? ` · Coach ${shownCoach.first}, voiced by ${shownCoach.service_name}` : ""}</p>
@@ -319,9 +332,15 @@ export function Starter({ info, onStart, onFill, onCoach }: Props) {
       <nav className="else" aria-label="Other things you can do">
         <p className="else-h">Or ask for something else</p>
         <ul className="else-list">
-          {OTHER.filter((o) => !o.quick || info?.setup_quick).map((o) => (
+          {/* setup not finished: "Finish setting me up" leads, a little brighter than the rest */}
+          {OTHER.filter((o) => (!o.quick || info?.setup_quick) && (!o.coaches || onOpenCoaches))
+            .sort((a, b) => Number(!!b.quick) - Number(!!a.quick)).map((o) => (
             <li key={o.label}>
-              <button type="button" className="else-a" onClick={() => (o.fill ? onFill(o.line) : void onStart(o.line))}>
+              <button type="button" className={`else-a${o.quick ? " lead" : ""}`} onClick={() => {
+                if (o.coaches) onOpenCoaches?.();
+                else if (o.fill) onFill(o.line);
+                else void onStart(o.line);
+              }}>
                 <span className="else-t">{o.label}</span>
                 <span className="else-d">{o.about}</span>
                 <span className="else-go" aria-hidden="true">→</span>

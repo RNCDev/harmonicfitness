@@ -112,11 +112,24 @@ def _write_rates(path, data):
     fileio.write_json(path, data)
 
 
+def _seed_file(v):
+    """A stock coach's shipped pace.json: a local coach's v["pace_seed"], or beside a ready-made stock web coach
+    (OpenRouter's, which ship made); None for any other coach."""
+    if v.get("pace_seed"):
+        return v["pace_seed"]
+    folder = v.get("persona_dir")
+    if v.get("backend") == "cloud" and folder and \
+            os.path.dirname(os.path.abspath(folder)) == os.path.abspath(paths.SHIPPED):
+        return os.path.join(folder, "pace.json")
+    return None
+
+
 def _with_seed(v, path, data):
     """A stock coach's pace before this computer's first render: its entry from the shipped pace.json
-    (v["pace_seed"]), added to what `path` (the shared voice-pace.json) holds for the other voices."""
-    if v.get("pace_seed") and path == v.get("pace_file") and _rate_key(v) not in data:
-        rec = _recorded(v["pace_seed"]).get(_rate_key(v))
+    (_seed_file), added to what `path` (where its renders record) holds for the other voices."""
+    seed = _seed_file(v)
+    if seed and seed != path and path == v.get("pace_file") and _rate_key(v) not in data:
+        rec = _recorded(seed).get(_rate_key(v))
         if rec:
             data = dict(data, **{_rate_key(v): dict(rec)})
     return data

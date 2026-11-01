@@ -139,7 +139,7 @@ cd me && git init && git add -A && git commit -m "My harmonicfitness" && gh repo
 
 ## Coaches and voices
 
-A coach is a person's name, how they talk and how they sound. Fourteen stock coaches ship in `coaches/`, so you can start at once: **ten local coaches** for a voice on your computer (Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate, each with a 45-second sample to choose by ear), and **one stock web coach per service** (Coach Reed on Fish Audio, Ellis on ElevenLabs, Nolan on Gemini, Owen on Inworld), each designed in your account the first time it's used. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
+A coach is a person's name, how they talk and how they sound. Twenty-five stock coaches ship in `coaches/`, so you can start at once: **ten local coaches** for a voice on your computer (Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate, each with a 45-second sample to choose by ear), **twelve ready-made web coaches**, six on OpenRouter (Graham, Jonah, Leah, Nora, Rowan, Tess) and six on Gemini (Fraser, Freya, June, Miles, Ruby, Wade), each with a sample to hear, and **one stock web coach each** for Fish Audio, ElevenLabs and Inworld (Reed, Ellis and Owen), designed in your account the first time it's used. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
 - **A web coach** is an original voice a service designs from your description and saves in your account. You hear candidates from every service you have a key for, pick by ear, and name the ones you keep.
 - **A local coach** is one of the ten: a voice designed once for HarmonicFitness, with its counts and cues recorded and checked by ear, spoken on your computer by Pocket TTS. It sounds the same in every workout.
 
@@ -151,6 +151,7 @@ A coach is a person's name, how they talk and how they sound. Fourteen stock coa
 | Fish Audio | A designed voice, saved as a private model | About $0.30 a workout | Prepaid credit, no minimum; about $0.01 a design |
 | Gemini | A designed voice | About $0.27 a workout through 2026, about $0.54 from 2027 | A Google AI Studio key; its free tier uses requests for training |
 | Inworld | A designed voice, in your workspace | About $0.50 a workout | On-Demand plan, prepaid credit |
+| OpenRouter | A stock voice (ElevenLabs' or Microsoft's), picked by ear | About $0.80 a workout (ElevenLabs' voices; $0.44 on Microsoft's) | One key for many models; on the web app it also writes the workouts |
 | ElevenLabs | A designed voice, in your account | About $1.60 a workout ($0.80 on the faster model) | Free keeps 3 voices and a small monthly allowance (not yet tried on Free); the key needs Text to Speech and Voices: write |
 
 Prices are approximate, for a 30-minute workout, and change. A web build says what it will send and cost before sending, stops above a ceiling you set, and sends only the final script; that script can mention your injuries, so setup says so first. More in [knowledge/voices.md](knowledge/voices.md).

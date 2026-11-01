@@ -18,7 +18,7 @@ def web(name, slug, service, shipped=True, placeholder=True):
             "shipped": shipped, "placeholder": placeholder}
 
 
-STOCK = [web("Coach Ellis", "coach-ellis-elevenlabs", "elevenlabs"), web("Coach Nolan", "coach-nolan-gemini", "gemini"),
+STOCK = [web("Coach Ellis", "coach-ellis-elevenlabs", "elevenlabs"), web("Coach Miles", "coach-miles-gemini", "gemini", placeholder=False),
          web("Coach Owen", "coach-owen-inworld", "inworld"), web("Coach Reed", "coach-reed-fish", "fish"),
          {"name": "Coach Andy", "slug": "coach-andy-local", "kind": "local", "service": None, "shipped": True}]
 COVERAGE_EMPTY = {"sessions": 0, "covered": {}, "week": {}, "days_since": None}
@@ -54,7 +54,8 @@ class Shape(unittest.TestCase):
         self.assertEqual(coaches[0]["slug"], "coach-reed-fish")
         self.assertEqual(coaches[0], {"slug": "coach-reed-fish", "name": "Coach Reed", "first": "Reed",
                                       "service": "fish", "service_name": "Fish", "ready": False, "own": False,
-                                      "current": True})
+                                      "current": True, "description": None, "tone": None, "sample": False,
+                                      "usd_per_workout": None, "pending": False, "powered_by": None})
 
     def test_no_files_at_all(self):
         r = shape(files={}, coaches=[], coverage=None)
@@ -73,7 +74,7 @@ class Shape(unittest.TestCase):
 
     def test_ready_coach_is_current_then_ready_first(self):
         r = shape(keyed={"gemini", "inworld"})
-        self.assertEqual([c["first"] for c in r["coaches"]], ["Nolan", "Owen", "Reed", "Ellis"])
+        self.assertEqual([c["first"] for c in r["coaches"]], ["Miles", "Owen", "Reed", "Ellis"])
         self.assertEqual([c["ready"] for c in r["coaches"]], [True, True, False, False])
         self.assertTrue(r["coaches"][0]["current"])
 
@@ -82,7 +83,7 @@ class Shape(unittest.TestCase):
                      "## Sessions\n- 2026-10-01 | 25 min | home | Coach Reed | squat | x\n"
                      "- 2026-10-02 | 25 min | home | Coach Owen | squat | x\n")
         r = shape(files=files, keyed={"gemini"})
-        self.assertEqual([(c["first"], c["current"]) for c in r["coaches"]][:2], [("Owen", True), ("Nolan", False)])
+        self.assertEqual([(c["first"], c["current"]) for c in r["coaches"]][:2], [("Owen", True), ("Miles", False)])
 
     def test_own_coach(self):
         own = web("Coach Dana", "coach-dana-fish", "fish", shipped=False, placeholder=False)
@@ -169,7 +170,9 @@ class Gather(unittest.TestCase):
     def test_starter_template(self):
         r = start.gather(ROOT, folder.seed(ROOT), {"elevenlabs"})
         self.assertEqual({c["slug"] for c in r["coaches"]},
-                         {"coach-reed-fish", "coach-ellis-elevenlabs", "coach-nolan-gemini", "coach-owen-inworld"})
+                         {"coach-reed-fish", "coach-ellis-elevenlabs", "coach-owen-inworld",
+                          *(f"coach-{s}-openrouter" for s in ("rowan", "graham", "jonah", "leah", "nora", "tess")),
+                          *(f"coach-{s}-gemini" for s in ("miles", "fraser", "wade", "ruby", "june", "freya"))})
         self.assertEqual(r["coaches"][0]["slug"], "coach-ellis-elevenlabs")
         self.assertIsNone(r["suggest"])
 
@@ -201,7 +204,7 @@ class Route(test_api.ApiCase):
         self.assertEqual(r.status_code, 200)
         body = r.json()
         self.assertEqual(set(body), {"coaches", "kits", "minutes", "limits", "suggest", "setup_quick"})
-        self.assertEqual(body["coaches"][0]["slug"], "coach-nolan-gemini")
+        self.assertEqual(body["coaches"][0]["slug"], "coach-fraser-gemini")   # the first of Gemini's six by name
         self.assertTrue(body["coaches"][0]["ready"] and body["coaches"][0]["current"])
         self.assertEqual(body["minutes"], 25)
         self.assertTrue(body["setup_quick"])
@@ -212,7 +215,7 @@ class Route(test_api.ApiCase):
         keystore.put(self.conn, uk, "google", "abc123def456abcd")   # a model key stored before 0.25.2
         self.conn.commit()
         body = self.client.get("/api/start").json()
-        self.assertEqual(body["coaches"][0]["slug"], "coach-nolan-gemini")
+        self.assertEqual(body["coaches"][0]["slug"], "coach-fraser-gemini")   # the first of Gemini's six by name
 
 
 if __name__ == "__main__":

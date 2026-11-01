@@ -29,7 +29,7 @@ import voices  # noqa: E402
 
 REAL = os.path.join(ROOT, "coaches")
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "stock")
-WEB = ("coach-reed-fish", "coach-ellis-elevenlabs", "coach-nolan-gemini", "coach-owen-inworld")
+WEB = ("coach-reed-fish", "coach-ellis-elevenlabs", "coach-owen-inworld")
 
 
 def roster():
@@ -79,6 +79,46 @@ class ShippedCoaches(unittest.TestCase):
             p = personas.load(os.path.join(REAL, slug))
             self.assertTrue(p.is_web and p.placeholder and p.pending == "design", slug)
             self.assertFalse(p.voice_id, slug)
+
+    def test_the_ready_made_coaches_ship_made(self):
+        """A service's own voices belong to no account, so OpenRouter's six and Gemini's six ship ready: sample,
+        pace estimate, the roster's persona."""
+        spec = importlib.util.spec_from_file_location("web_coaches", os.path.join(ROOT, "tools", "coachmaker",
+                                                                                 "web_coaches.py"))
+        maker = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(maker)
+        from services import gemini, openrouter
+        made = roster()["web_coach"]
+        self.assertEqual(sorted(maker.service(c) for c in made), ["gemini"] * 6 + ["openrouter"] * 6)
+        for c in made:
+            slug = maker.folder_name(c)
+            folder = os.path.join(REAL, slug)
+            with self.subTest(coach=slug):
+                p = personas.load(folder)
+                self.assertTrue(p.is_web and not p.pending and not p.placeholder)
+                if p.service == "openrouter":
+                    self.assertIn(p.voice_id, openrouter.VOICES["elevenlabs"])
+                else:
+                    self.assertTrue(gemini.own_voice(p.voice_id), p.voice_id)
+                with open(os.path.join(folder, "persona.md"), encoding="utf-8") as f:
+                    self.assertEqual(f.read(), maker.persona_text(c))
+                self.assertGreater(os.path.getsize(os.path.join(folder, "sample.mp3")), 100_000)
+                for name in ("persona.md", "pace.json"):
+                    with open(os.path.join(folder, name), encoding="utf-8") as a, \
+                            open(os.path.join(FIXTURE, slug, name), encoding="utf-8") as b:
+                        self.assertEqual(a.read(), b.read(), f"{slug}/{name}: the fixture copy")
+
+    def test_a_ready_web_coach_reads_its_shipped_pace(self):
+        import cloud
+        p = personas.lookup("Coach Nora")
+        self.assertTrue(p.shipped)
+        self.assertEqual(p.pace_file, paths.PACE_FILE)   # its renders record here, never into the engine
+        v = cloud.voice_for(p, "openrouter")
+        with open(os.path.join(p.folder, "pace.json"), encoding="utf-8") as f:
+            rec = next(iter(json.load(f).values()))
+        rate, measured = voices.pace(v)
+        self.assertAlmostEqual(rate, rec["weight"] / rec["seconds"])
+        self.assertFalse(measured)   # an estimate until a render here measures it
 
     def test_the_fixture_copies_are_in_step(self):
         for slug in WEB + ("coach-andy-local",):

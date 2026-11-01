@@ -230,7 +230,7 @@ class CloudSession(unittest.TestCase):
                 lines = "\n".join(doctor.web_lines(home))
             self.assertIn("No web coach yet", lines)
             self.assertIn("I want a new coach", lines)
-            for name in ("Coach Reed", "Coach Ellis", "Coach Nolan", "Coach Owen"):
+            for name in ("Coach Reed", "Coach Ellis", "Coach Fraser", "Coach Owen", "Coach Graham"):
                 self.assertIn(name, lines)
 
 STUB_UV = """#!/bin/sh

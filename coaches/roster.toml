@@ -287,3 +287,134 @@ seconds = 24.54
 device = "Apple GPU (MLX)"
 runtime = "mlx-audio 0.5.0"
 description = "A woman in her late twenties, a distance runner and coach. A warm, full voice in the lower mid-range, with a general American accent and a little breath in it. Bright and encouraging but unhurried, speaking at an easy, steady pace. An adult woman's voice, low to medium in pitch, never girlish or childlike. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
+
+# The ready-made web coaches (0.46.2): six on OpenRouter and six on Gemini, each one of that service's own voices,
+# which belong to no account, so unlike every other web coach they ship made, with their sample and a pace estimate
+# (tools/coachmaker/web_coaches.py, maintainer only; it speaks through the service with the maintainer's key).
+# service: openrouter unless named. voice: OpenRouter's voice name (tools/services/openrouter.py), or a Gemini voice
+# library id (GET /v1beta/voices; its prebuilt studio voices and the library's, by id).
+[[web_coach]]
+slug = "rowan"
+name = "Coach Rowan"
+voice = "brian"
+who = "A man in his forties, a seasoned personal trainer talking to one client"
+sound = "Low, warm baritone, American accent, clear diction"
+energy = "Steady and grounded, calm authority"
+tone = "Calm and focused, a seasoned trainer talking to one client. Light humor now and then, no hype."
+encouragement = "Notices the effort plainly (\"that was steady\"), and says why a movement is there."
+
+[[web_coach]]
+slug = "graham"
+name = "Coach Graham"
+voice = "george"
+who = "A British man in his fifties, a former rugby coach who now trains everyday people"
+sound = "Warm, rounded British voice, unhurried"
+energy = "Kind and steady, quietly firm"
+tone = "Warm and steady, a former rugby coach with a dry sense of humor; plain words, never fussy."
+encouragement = "Quiet, specific praise (\"that's the one\"); values showing up over heroics."
+
+[[web_coach]]
+slug = "jonah"
+name = "Coach Jonah"
+voice = "charlie"
+who = "A young Australian man, an outdoor bootcamp coach"
+sound = "Natural, relaxed Australian voice"
+energy = "Easygoing and confident, fresh-air energy"
+tone = "Easygoing and sociable, like training with a mate who knows his stuff; conversational."
+encouragement = "Upbeat and genuine; makes hard work sound like a good time."
+
+[[web_coach]]
+slug = "leah"
+name = "Coach Leah"
+voice = "matilda"
+who = "An American woman in her thirties, a personal trainer"
+sound = "Friendly, warm and clear"
+energy = "Encouraging and calm, never rushed"
+tone = "Friendly and reassuring, a trainer who explains why; patient with a new listener."
+encouragement = "Notices progress and good form plainly; warm without gushing."
+
+[[web_coach]]
+slug = "nora"
+name = "Coach Nora"
+voice = "alice"
+who = "A British woman in her forties, a physio and strength coach"
+sound = "Clear, confident British voice, precise diction"
+energy = "Direct and composed"
+tone = "Direct and precise, a physio who thinks about joints and control; dry wit, no fluff."
+encouragement = "Short and earned (\"good, that's the standard\"); praises control over speed."
+
+[[web_coach]]
+slug = "tess"
+name = "Coach Tess"
+voice = "laura"
+who = "A young American woman, a HIIT and spin instructor"
+sound = "Bright, upbeat American voice"
+energy = "Energetic and driving, never frantic"
+tone = "Bright and energetic, a class instructor with one listener; keeps things moving."
+encouragement = "Calls out effort in the moment and names the next small target."
+
+[[web_coach]]
+slug = "miles"
+name = "Coach Miles"
+service = "gemini"
+voice = "achird"
+who = "An American man in his forties, a seasoned personal trainer"
+sound = "Friendly, warm voice, a little low, general American accent"
+energy = "Steady and approachable, calm authority"
+tone = "Calm and approachable, a seasoned trainer who keeps it simple; easy humor, no hype."
+encouragement = "Plain and warm (\"that's it, nice and steady\"); says what a movement is for."
+
+[[web_coach]]
+slug = "fraser"
+name = "Coach Fraser"
+service = "gemini"
+voice = "en-gb-tutor-16"
+who = "A Scottish man in his fifties from Glasgow, a fitness trainer for thirty years"
+sound = "Glasgow accent, mid-pitched, professional yet approachable"
+energy = "Unflappable and dry, firm when it counts"
+tone = "No-nonsense and dry, a Glasgow trainer who's seen it all; short words, a wry joke now and then."
+encouragement = "Understated (\"aye, that'll do nicely\"); respects graft over flash."
+
+[[web_coach]]
+slug = "wade"
+name = "Coach Wade"
+service = "gemini"
+voice = "en-us-advisor-7"
+who = "A young man from the American South, a strength and conditioning coach"
+sound = "Southern accent, low, quick and articulate"
+energy = "Upbeat and easygoing, keeps the pace up"
+tone = "Upbeat and friendly, a Southern coach who makes hard work feel like a good afternoon; tells a good story."
+encouragement = "Generous and specific (\"now that's a strong set\"); cheers the effort, never the ego."
+
+[[web_coach]]
+slug = "ruby"
+name = "Coach Ruby"
+service = "gemini"
+voice = "autonoe"
+who = "An American woman in her late twenties, a bootcamp and HIIT coach"
+sound = "Bright, positive and enthusiastic, general American accent"
+energy = "Bright and driving, never frantic"
+tone = "Bright and quick, a bootcamp coach; keeps things moving and makes it fun."
+encouragement = "Quick and lively (\"good one, keep that going\"); names the next small target."
+
+[[web_coach]]
+slug = "june"
+name = "Coach June"
+service = "gemini"
+voice = "en-us-assistant-1"
+who = "An American woman from the Midwest, a mentor and mobility coach"
+sound = "Midwest accent, low, textured and soothing"
+energy = "Gentle and patient, unhurried"
+tone = "Gentle and patient, a mobility coach who's good with beginners and sore days; never rushes you."
+encouragement = "Reassuring and kind; notices what went well and makes the next step feel small."
+
+[[web_coach]]
+slug = "freya"
+name = "Coach Freya"
+service = "gemini"
+voice = "kore"
+who = "An American woman in her thirties, a fitness trainer and former rower"
+sound = "Firm, clear and direct, mid-pitched, general American accent"
+energy = "Focused and direct, a competitor's edge"
+tone = "Direct and focused, a former rower who loves good technique; plain talk and a competitive streak."
+encouragement = "Earned and exact (\"good, that's clean\"); praises the rep done right over the rep done fast."

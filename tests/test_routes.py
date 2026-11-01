@@ -69,7 +69,7 @@ class Routes(unittest.TestCase):
         self.assertIn("Intel Mac", message)
         self.assertNotIn("render list", message)   # 10.0: the render list orders local engines only
         self.assertIn("I want a new coach", message)
-        for name in ("Coach Reed", "Coach Ellis", "Coach Nolan", "Coach Owen"):
+        for name in ("Coach Reed", "Coach Ellis", "Coach Fraser", "Coach Owen", "Coach Graham"):
             self.assertIn(name, message)
         self.assertIn("./harmonicfitness keys init", message)
         with mock.patch.object(routes, "local_installed", return_value=False):
@@ -88,7 +88,7 @@ class Routes(unittest.TestCase):
         message = str(e.exception.code)
         self.assertIn("Coach Reed", message)
         self.assertIn('--coach "Coach Reed"', message)
-        for other in ("Coach Ellis", "Coach Nolan", "Coach Owen"):   # no key for those
+        for other in ("Coach Ellis", "Coach Fraser", "Coach Owen"):   # no key for those
             self.assertNotIn(other, message)
         self.assertIn("I want a new coach", message)
         self.assertNotIn("No audio route works on this computer:\n  fish", message)
@@ -244,7 +244,8 @@ class Routes(unittest.TestCase):
         with mock.patch.object(routes, "local_installed", return_value=True):
             lines = "\n".join(coachpick.report_lines(self.coach, ["local"], MAC))
         self.assertRegex(lines, r"inworld .*key")
-        self.assertNotRegex(lines, r"not yet tried live")
+        tried = [ln for ln in lines.splitlines() if "not yet tried live" in ln]
+        self.assertEqual([ln.split()[0] for ln in tried], ["openrouter"])
         self.assertIn("A build here would use: local", lines)
 
     def test_profile_defaults(self):
@@ -260,8 +261,9 @@ class Hosts(unittest.TestCase):
         self.assertEqual(routes.hosts("elevenlabs"), ["api.elevenlabs.io"])
         self.assertEqual(routes.hosts("gemini"), ["generativelanguage.googleapis.com"])
         self.assertEqual(routes.hosts("inworld"), ["api.inworld.ai"])
+        self.assertEqual(routes.hosts("openrouter"), ["openrouter.ai"])
         self.assertEqual(routes.hosts("local"), [])
-        self.assertEqual(routes.ROUTES, ("local", "fish", "elevenlabs", "gemini", "inworld"))
+        self.assertEqual(routes.ROUTES, ("local", "fish", "elevenlabs", "gemini", "inworld", "openrouter"))
 
     def test_feed_hosts_add_each_rss_host(self):
         p = context.Profile({"feeds": [{"label": "Local, Paper", "kind": "rss", "value": "https://news.example.org/rss"},

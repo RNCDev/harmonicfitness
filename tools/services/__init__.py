@@ -1,10 +1,11 @@
-"""One module per web voice service (fish, elevenlabs, gemini, inworld), each with design(description, line,
+"""One module per web voice service (fish, elevenlabs, gemini, inworld, openrouter), each with design(description, line,
 n, label) -> candidates, save(candidate, name, description, wav) -> voice ID, delete(voice_id) -> bool, and
 speaker(voice) -> say(text, seed, previous_text=None, next_text=None) returning 16-bit mono PCM at 24 kHz,
 spoken by the web coach's saved voice ID, in that argument order (tests/test_cloud.py holds every module to it).
 Optional: STORES_DRAFTS = True where design() saves each candidate at the service, so one not kept is deleted;
 DESIGN_NOTE, what else a design costs there, said with its price; balance() -> what's left on the account, where
-the service reports it (Fish: {"usd"}; ElevenLabs: {"used", "limit", "resets"}), one GET that spends nothing.
+the service reports it (Fish, OpenRouter: {"usd"}; ElevenLabs: {"used", "limit", "resets"}), one GET that spends nothing;
+voice_model(voice_id) -> the model that speaks a voice, where each voice belongs to one (OpenRouter's stock voices).
 cloud.service_module(name) is the one lookup.
 The shared core (HTTP, retries, errors, audio, cost) is tools/cloud.py; settings are knowledge/services.toml,
 read by settings() here (each table checked by validate()), which imports nothing of the engine's, so keys.py

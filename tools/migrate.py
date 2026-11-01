@@ -120,7 +120,7 @@ PART_COMMENTS = {
     "feeds": context.SETTINGS_COMMENTS["feeds"],
     "setup": "\"quick\" until the second half of setup is done (interests, feeds, delivery, your own coach): until "
              "then ./harmonicfitness check lists what's left as notes. Say \"finish setting me up\" to do it.",
-    "render": "The audio routes to try, in order (local, fish, elevenlabs, gemini or inworld), when the coach doesn't settle it: a local coach always renders on this computer, and a web coach always speaks through its own service, with its key in me/.env.",
+    "render": "The audio routes to try, in order (local, fish, elevenlabs, gemini, inworld or openrouter), when the coach doesn't settle it: a local coach always renders on this computer, and a web coach always speaks through its own service, with its key in me/.env.",
     "cloud_max_chars": "The most characters one web build may send to a voice service; a build over it stops "
                        "before sending (30000, the default, is a 40-minute workout with room for retakes).",
     "deliver_to": context.SETTINGS_COMMENTS["deliver_to"],

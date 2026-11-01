@@ -92,7 +92,9 @@ def default_coach():
 
 def listing(last=None, facts=None):
     """Every coach as a dict, in the list's order: name, slug, kind, service, service_name, default, placeholder,
-    pending, shipped, speaks_here, description (what --json prints for each), and notes (the list's remarks on it,
+    pending, shipped, speaks_here, description, tone (how the coach talks), sample (a stock web coach's
+    sample.mp3 ships beside it), usd_per_workout (a web coach's, about), powered_by (who makes the voices of a
+    go-between service: OpenRouter's "ElevenLabs") (what --json prints for each), and notes (the list's remarks on it,
     such as "(a stand-in)"). `last` is the coach a build uses when none is named (default_coach). speaks_here: a
     web coach's service has a key here; a local coach renders here (never in the web client). `facts` stands in
     for the computer's, as in routes.usable."""
@@ -118,8 +120,26 @@ def listing(last=None, facts=None):
                     "service_name": cloud.service_name(p.service) if web else None,
                     "default": bool(last and p.slug == last.slug), "placeholder": bool(p.placeholder),
                     "pending": bool(web and p.pending), "shipped": bool(p.shipped), "speaks_here": bool(speaks),
-                    "description": p.description, "notes": notes})
+                    "description": p.description, "tone": p.table("character").get("tone") or None,
+                    "sample": bool(web and p.shipped and os.path.isfile(os.path.join(p.folder, "sample.mp3"))),
+                    "usd_per_workout": _workout_usd(p) if web else None,
+                    "powered_by": cloud.powered_by(p.service, _model(p)) if web and p.service in cloud.SERVICES else None,
+                    "notes": notes})
     return out
+
+
+def _model(p):
+    """The model web coach `p` speaks with: its own, else its voice's, else its service's default."""
+    return p.model or cloud.voice_model(p.service, p.voice_id) or cloud.services()[p.service]["default_model"]
+
+
+def _workout_usd(p):
+    """About what a 30-minute workout costs on web coach `p`'s service and model, or None for an unknown one."""
+    import audition
+    if p.service not in cloud.services():
+        return None
+    model = _model(p)
+    return round(cloud.estimate(p.service, model, ["x" * audition.WORKOUT_CHARS])[1], 2)
 
 
 def listing_lines(coaches, note=None):
@@ -144,7 +164,9 @@ def main(argv=None):
     ls = sub.add_parser("list", help="every coach (the default)")
     ls.add_argument("--json", action="store_true",
                     help="the list as one JSON object: coaches [{name, slug, kind, service, service_name, "
-                         "default, placeholder, pending, shipped, speaks_here, description}], default (a name or null), "
+                         "default, placeholder, pending, shipped, speaks_here, description, tone, sample, usd_per_workout, "
+                         "powered_by}], "
+                         "default (a name or null), "
                          "note (why there's no default, or null)")
     sub.add_parser("last", help="the coach a build uses when none is named: the one used last (your own over a stand-in)")
     m = sub.add_parser("measured", help="exit 0 if the coach's pace is measured on the route, 1 if estimated, 64 unknown")
@@ -175,6 +197,9 @@ def main(argv=None):
     sub.add_parser("download", help="fetch the local voice (Pocket TTS) and the take checker (setup does it)")
     args = ap.parse_args(argv)
 
+    if paths.WEB and args.cmd in ("audition", "keep"):   # the web client chooses coaches; it never makes one
+        raise errors.UsageError("On the web app, coaches are chosen from the gallery, not made: a coach of your own "
+                                "is made with HarmonicFitness on your own computer.")
     if args.cmd == "last":
         try:
             p = coachpick.default()

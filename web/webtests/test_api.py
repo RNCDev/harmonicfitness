@@ -485,13 +485,18 @@ class Keys(ApiCase):
     def test_model_keys_listed_first_and_only_offered(self):
         self.signed_in()
         body = self.client.get("/api/keys").json()
-        self.assertEqual([k["service"] for k in body if k["kind"] == "model"], ["anthropic", "openai", "gemini"])
-        self.assertEqual([k["name"] for k in body[:3]], ["Claude", "ChatGPT", "Gemini"])
+        self.assertEqual([k["service"] for k in body if k["kind"] == "model"],
+                         ["anthropic", "openai", "gemini", "openrouter"])
+        self.assertEqual([k["name"] for k in body[:4]], ["Claude", "ChatGPT", "Gemini", "OpenRouter"])
         self.assertIn("anthropic", body[0]["key_page"])
-        self.assertTrue(all(k["kind"] == "voice" for k in body[3:]))
-        self.assertEqual([k["service"] for k in body[3:]], list(worker.engine_services(ROOT)))
-        self.assertTrue(all(k["writer"] is False for k in body[:3]))   # none chosen, none keyed
-        self.assertTrue(all("writer" not in k for k in body[3:]))
+        self.assertTrue(all(k["kind"] == "voice" for k in body[4:]))
+        self.assertEqual([k["service"] for k in body[4:]], list(worker.engine_services(ROOT)))
+        self.assertTrue(all(k["writer"] is False for k in body[:4]))   # none chosen, none keyed
+        self.assertTrue(all("writer" not in k for k in body[4:]))
+        # OpenRouter's one key: its model row names the voice service's billing page, and can say its balance
+        rows = {(k["service"], k["kind"]): k for k in body}
+        self.assertEqual(rows[("openrouter", "model")]["billing_page"], rows[("openrouter", "voice")]["billing_page"])
+        self.assertTrue(rows[("openrouter", "model")]["reports"])
 
     def test_list_names_each_billing_page_and_what_can_say(self):
         self.signed_in()
@@ -585,13 +590,19 @@ class Keys(ApiCase):
         self.assertEqual(keystore.sky(self.conn, uk), "field")
         self.conn.rollback()
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
-        for kind in ("arcs", "waves", "field"):
+        for kind in ("waves", "bloom", "lissajous", "field"):
             self.assertEqual(self.client.put("/api/sky", json={"sky": kind}, headers=self.origin()).status_code, 204, kind)
             self.assertEqual(keystore.sky(self.conn, uk), kind)
-        for bad in ({"sky": "clouds"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
+        for bad in ({"sky": "clouds"}, {"sky": "arcs"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
             self.assertEqual(self.client.put("/api/sky", json=bad, headers=self.origin()).status_code, 422, bad)
         self.assertEqual(self.client.put("/api/sky", json={"sky": "flow"}).status_code, 403)   # no Origin
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
+
+    def test_a_retired_sky_reads_as_the_default(self):
+        _, uk = self.signed_in()
+        self.conn.execute("update users set sky = 'arcs' where id = %s", (uk.user_id,))   # Arcs, retired in 0.46.2
+        self.conn.commit()
+        self.assertEqual(self.client.get("/api/me").json()["sky"], "flow")
 
     def test_a_chosen_writer_without_a_key_is_named(self):
         self.signed_in()
@@ -1191,3 +1202,17 @@ class Account(ApiCase):
     def test_delete_needs_the_origin(self):
         self.registered()
         self.assertEqual(self.client.post("/api/account/delete", json={"password": "long enough"}).status_code, 403)
+
+
+class CoachSamples(ApiCase):
+    def test_a_stock_coachs_sample_plays_for_a_signed_in_listener(self):
+        self.assertEqual(self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3").status_code, 401)
+        self.signed_in()
+        r = self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3")
+        self.assertEqual((r.status_code, r.headers["content-type"]), (200, "audio/mpeg"))
+        self.assertGreater(len(r.content), 100_000)
+        self.assertEqual(r.headers["cache-control"], "private, no-cache")   # a re-recorded sample is heard at once
+        again = self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3", headers={"If-None-Match": r.headers["etag"]})
+        self.assertEqual(again.status_code, 304)   # unchanged: nothing sent again
+        for slug in ("coach-reed-fish", "coach-nobody", "..%2Fsecrets", "coach-../x"):
+            self.assertEqual(self.client.get(f"/api/coaches/{slug}/sample.mp3").status_code, 404, slug)

@@ -40,7 +40,27 @@ describe("the Keys box", () => {
     expect(required).not.toHaveTextContent("Fish Audio");
     expect(optional).toHaveTextContent("Fish Audio");
     expect(optional).toHaveTextContent("ElevenLabs");
-    expect(screen.getByText("Keys are stored encrypted and never shown again. Each one goes only to its own service, and only when it's used.")).toBeInTheDocument();
+    expect(screen.getByText("Keys are encrypted, never shown again, and sent only to their own service.")).toBeInTheDocument();
+  });
+
+  it("hides the voice keys behind a link when the writer's key voices too", async () => {
+    const model: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example/keys",
+      set: true, updated_at: "2026-10-31T12:00:00Z", kind: "model", writer: true };
+    m.keys.mockResolvedValue([model, { ...model, kind: "voice" }, { ...FISH, set: false }, ELEVEN]);
+    render(<KeysBox onSignedOut={() => {}} />);
+    expect(await screen.findByText(/Your OpenRouter key voices your coaches too/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add Fish Audio key" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add another voice (optional)" }));
+    expect(screen.getByRole("button", { name: "Add Fish Audio key" })).toBeInTheDocument();
+  });
+
+  it("keeps the voice keys showing once one is set", async () => {
+    const model: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example/keys",
+      set: true, updated_at: null, kind: "model", writer: true };
+    m.keys.mockResolvedValue([model, { ...model, kind: "voice" }, FISH, ELEVEN]);
+    render(<KeysBox onSignedOut={() => {}} />);
+    expect(await screen.findByRole("region", { name: "More voices (optional)" })).toHaveTextContent("ElevenLabs");
+    expect(screen.queryByRole("button", { name: "Add another voice (optional)" })).toBeNull();
   });
 
   it("shows Gemini, listed as model and voice, as one row, set once", async () => {
@@ -52,7 +72,7 @@ describe("the Keys box", () => {
     render(<KeysBox onSignedOut={() => {}} onKeys={seen} />);
     expect(await screen.findAllByRole("button", { name: "Add Gemini key" })).toHaveLength(1);
     const required = screen.getByRole("region", { name: "Who writes your workouts" });
-    expect(required).toHaveTextContent("The same key also voices a coach.");
+    expect(required).toHaveTextContent("+ voices");
     expect(screen.getByRole("region", { name: "More voices (optional)" })).not.toHaveTextContent("Gemini");
     fireEvent.click(screen.getByRole("button", { name: "Add Gemini key" }));
     fireEvent.change(screen.getByLabelText("Gemini key"), { target: { value: "AIza-secret" } });
@@ -65,6 +85,18 @@ describe("the Keys box", () => {
     expect(last.filter((k) => k.service === "gemini").every((k) => k.set)).toBe(true);
   });
 
+  it("lists OpenRouter and Gemini first, as they also voice coaches", async () => {
+    const or: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example", set: false, updated_at: null, kind: "model" };
+    const gem: KeyState = { service: "gemini", name: "Gemini", key_page: "https://g.example", set: false, updated_at: null, kind: "model" };
+    const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
+    m.keys.mockResolvedValue([CLAUDE, gpt, gem, { ...gem, kind: "voice" }, or, { ...or, kind: "voice" }, FISH]);
+    render(<KeysBox onSignedOut={() => {}} />);
+    await screen.findByRole("radiogroup", { name: "Who writes your workouts" });
+    expect(screen.getAllByRole("radio").map((r) => r.getAttribute("id"))).toEqual(["writer-openrouter", "writer-gemini", "writer-anthropic", "writer-openai"]);
+    expect(screen.getByRole("radio", { name: "OpenRouter" })).toBeInTheDocument();   // the tag isn't part of its name
+    expect(screen.getAllByText("+ voices")).toHaveLength(2);
+  });
+
   it("the listener picks who writes, and a pick with no key opens its key", async () => {
     const claude = { ...CLAUDE, set: true, writer: true };
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model", writer: false };
@@ -72,7 +104,7 @@ describe("the Keys box", () => {
     render(<KeysBox onSignedOut={() => {}} />);
     const group = await screen.findByRole("radiogroup", { name: "Who writes your workouts" });
     expect(screen.getByRole("radio", { name: "Claude" })).toBeChecked();
-    expect(group.closest("section")).toHaveTextContent("Pick one, and add its key.");
+    expect(group.closest("section")).toHaveTextContent("Pick one.");
     fireEvent.click(screen.getByRole("radio", { name: "ChatGPT" }));
     await waitFor(() => expect(screen.getByRole("radio", { name: "ChatGPT" })).toBeChecked());
     expect(m.setWriter).toHaveBeenCalledWith("openai");
@@ -99,7 +131,7 @@ describe("the Keys box", () => {
     render(<KeysBox onSignedOut={() => {}} />);
     expect(await screen.findByText(/^Set\b/)).toBeInTheDocument();
     expect(screen.getAllByText(/^Set\b/)).toHaveLength(1);
-    expect(screen.getAllByText("Not set")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Add / })).toHaveLength(1);   // an unset key just offers Add
     expect(screen.getByRole("button", { name: "Replace Fish Audio key" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add ElevenLabs key" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /^Remove/ })).toHaveLength(1);
@@ -140,7 +172,8 @@ describe("the Keys box", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove Fish Audio key" }));
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(m.deleteKey).toHaveBeenCalledWith("fish");
-    await waitFor(() => expect(screen.getAllByText("Not set")).toHaveLength(2));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add Fish Audio key" })).toBeInTheDocument());
+    expect(screen.queryByText(/^Set\b/)).toBeNull();
   });
 
   it("signs out on NotSignedIn and links to the key page safely", async () => {

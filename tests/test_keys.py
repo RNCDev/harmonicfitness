@@ -105,15 +105,16 @@ class Keys(unittest.TestCase):
         self.assertIn("GEMINI_API_KEY=", text)
         self.assertIn("INWORLD_API_KEY=", text)
 
-    def test_keys_lists_four_services(self):
-        self.assertEqual(list(keys.SERVICE_VARS), ["fish", "elevenlabs", "gemini", "inworld"])
+    def test_keys_lists_every_service(self):
+        self.assertEqual(list(keys.SERVICE_VARS), ["fish", "elevenlabs", "gemini", "inworld", "openrouter"])
+        self.assertEqual(keys.SERVICE_VARS["openrouter"], "OPENROUTER_API_KEY")
         self.assertEqual(keys.SERVICE_VARS["gemini"], "GEMINI_API_KEY")
         self.assertEqual(keys.SERVICE_VARS["inworld"], "INWORLD_API_KEY")
         out = io.StringIO()
         with redirect_stdout(out), mock.patch.object(keys.paths, "ENV_FILE", self.env):
             keys.main([])
         self.assertEqual([ln.split(":")[0].strip() for ln in out.getvalue().splitlines()],
-                         ["fish", "elevenlabs", "gemini", "inworld"])
+                         ["fish", "elevenlabs", "gemini", "inworld", "openrouter"])
 
     def test_keys_open_uses_the_system_editor(self):
         calls = []

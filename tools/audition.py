@@ -217,8 +217,9 @@ def _run_audition(narrative=None, services=None, coach=None, play=False, report=
         except Exception as e:   # a bug in the engine: raised once the other services' paid designs are kept
             bugs.append(e)
             continue
-        usd = round(cloud.estimate(s, table[s]["default_model"], ["x" * WORKOUT_CHARS])[1], 4)
         for k, c in enumerate(made, 1):
+            model = cloud.voice_model(s, c.get("draft_id")) or table[s]["default_model"]
+            usd = round(cloud.estimate(s, model, ["x" * WORKOUT_CHARS])[1], 4)
             stem = f"{s}-{k}"
             fileio.atomic_write(os.path.join(folder, stem + ".wav"), c["wav"])   # as sent: Fish's save sends it back
             entry = {"letter": chr(ord("A") + len(cands)), "service": s, "k": k, "draft_id": c.get("draft_id"),

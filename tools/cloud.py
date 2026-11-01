@@ -120,9 +120,10 @@ def _message(body):
     except ValueError:
         return text.strip()[:300] or "no reason given"
     if isinstance(data, dict):
-        detail = data.get("detail")
+        detail, error = data.get("detail"), data.get("error")
         for value in (data.get("message"), detail.get("message") if isinstance(detail, dict) else detail,
-                      data.get("err_msg"), data.get("title"), data.get("error")):
+                      data.get("err_msg"), data.get("title"),
+                      error.get("message") if isinstance(error, dict) else error):   # OpenRouter: error.message
             if isinstance(value, str) and value.strip():
                 return value.strip()[:300]
             if isinstance(value, list) and value:
@@ -500,12 +501,26 @@ def voice_for(p, route=None, pending=False):
         raise errors.CoachError(f"{p.name}'s voice_id in {p.folder}/persona.md isn't a voice ID a service gives "
                                 "(letters, digits and _ . : - only): copy it again from the service.")
     s = services()[service]
-    model = p.model or s["default_model"]
+    model = p.model or voice_model(service, p.voice_id) or s["default_model"]
     return voice.WebVoice(
         name=p.name, persona=p.slug, persona_dir=p.folder, engine=service, backend="cloud", route=service,
         service=service, model=model, voice_id=p.voice_id, style=p.style, revision=None, generate={},
         pace_file=p.pace_file, concurrency=int(s.get("concurrency") or 1), max_chars=int(s.get("max_chars") or 0),
         key=web_key(p, model)).as_dict()
+
+
+def voice_model(service, voice_id):
+    """The model a service says speaks `voice_id` (its optional voice_model(): OpenRouter's stock voices each
+    belong to one model), else None: the coach's own model, then the service's default, decide."""
+    hook = getattr(service_module(service), "voice_model", None) if voice_id else None
+    return hook(voice_id) if hook else None
+
+
+def powered_by(service, model):
+    """Who makes the voices a service speaks with `model`, where the service is a go-between (its optional
+    powered_by(): OpenRouter's ElevenLabs or Microsoft MAI voices), else None."""
+    hook = getattr(service_module(service), "powered_by", None)
+    return hook(model) if hook else None
 
 
 def service_module(name):

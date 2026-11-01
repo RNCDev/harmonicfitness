@@ -1,0 +1,8 @@
+{
+ "20a54ca8cf7a|gemini|gemini-3.8-flash-tts": {
+  "name": "Coach Ruby",
+  "weight": 401.5000000000001,
+  "seconds": 33.311,
+  "estimate": true
+ }
+}

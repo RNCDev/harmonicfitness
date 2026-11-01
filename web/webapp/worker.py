@@ -352,7 +352,7 @@ def _coach_name(folder_path: str) -> str | None:
 def new_audio(home: str, written: dict[str, str]) -> list[tuple[str, str]]:
     """(path, chat name) of each MP3 this turn made: the newest AUDIO_KEPT workouts or coach samples, then
     every candidate of an audition, in letter order. An MP3 the folder already held (`written`: an audition
-    from an earlier turn) isn't one. A coach's sample is named for the coach ("Coach Nolan's voice"), and left
+    from an earlier turn) isn't one. A coach's sample is named for the coach ("Coach Miles's voice"), and left
     out when the turn also made a workout: the coach was made during that build, and the workout is its voice."""
     found, candidates = [], []
     for top in ("workouts", "coaches"):   # a workout, or a coach's voice sample made at setup or a keep
@@ -487,9 +487,9 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
                       cancel=ctx.cancel, picked=picked)
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
-    # and the coach skill: asked for now, still being made (the quick coach's answer names no coach), or an
-    # audition waiting for their pick
-    deps.coach = conv.coach or agent.wants_coach(line) or agent.audition_open(ctx.home)
+    # and the coach skill only while an old audition waits to be closed: coaches are chosen in the gallery
+    # here, never made (since 0.46.2), and the skill's text would steer the agent to an audition
+    deps.coach = agent.audition_open(ctx.home)
     record = ctx.args.get("record") is True   # the listener pressed Record: the offer is approved
     deps.approved = conv.offer if record else None
     deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)

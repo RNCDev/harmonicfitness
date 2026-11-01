@@ -101,7 +101,7 @@ def web_lines(home, profile=None):
              "  Voice key: " + (f"set for {', '.join(have)}." if have else
                                 "none yet. Set it in the cloud environment's settings, under Environment variables, "
                                 "as FISH_AUDIO_API_KEY=<key> (or ELEVENLABS_API_KEY, GEMINI_API_KEY, "
-                                "INWORLD_API_KEY); never in the chat."),
+                                "INWORLD_API_KEY, OPENROUTER_API_KEY); never in the chat."),
              "  Network: the environment's network access needs " + ", ".join(
                  h for r in routes.SERVICES for h in routes.hosts(r)) + " (Custom, with the default list kept; "
              "only the service your coach speaks through is needed).",

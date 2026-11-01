@@ -11,6 +11,7 @@ file themselves: `./harmonicfitness keys init <service>` makes the line for them
     ./harmonicfitness keys                 # which services have a key set (never the key)
     ./harmonicfitness keys init fish       # add an empty FISH_AUDIO_API_KEY= line to me/.env
     ./harmonicfitness keys open            # open me/.env in the system's editor, to paste a key
+    ./harmonicfitness keys upload          # send them to your key store on the web app (tools/webkeys.py)
 """
 import os
 import re
@@ -82,7 +83,10 @@ def clean_value(var, value):
 # The listener's web app account, for ./harmonicfitness pull: their username and password, and optionally the
 # app's address. Read like a key (the environment first, then me/.env); the password is scrubbed like one.
 ACCOUNT_VARS = ("HARMONIC_USERNAME", "HARMONIC_PASSWORD", "HARMONIC_URL")
-SECRET_VARS = tuple(SERVICE_VARS.values()) + ("HARMONIC_PASSWORD",)
+# Keys only the web app uses, to write workouts there (keys upload sends them; the engine never does). Gemini's
+# and OpenRouter's keys write there too, under their voice service's name.
+WRITER_VARS = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
+SECRET_VARS = tuple(SERVICE_VARS.values()) + tuple(WRITER_VARS.values()) + ("HARMONIC_PASSWORD",)
 
 
 def raw_values(path=None):
@@ -106,6 +110,12 @@ def get(service, path=None):
     var = _var(service)
     value = clean_value(var, os.environ.get(var) or _read(path or paths.ENV_FILE).get(var))
     return value or None
+
+
+def writer_key(provider, path=None):
+    """A web app writer's key (WRITER_VARS), as get() reads a voice key. None when unset or empty."""
+    var = WRITER_VARS[provider]
+    return clean_value(var, os.environ.get(var) or _read(path or paths.ENV_FILE).get(var)) or None
 
 
 def is_set(service, path=None):
@@ -189,6 +199,7 @@ def main(argv=None):
     i = sub.add_parser("init", help="add the service's key line to me/.env (making the file if needed)")
     i.add_argument("service", choices=list(SERVICE_VARS))
     sub.add_parser("open", help="open me/.env in the system's editor, to paste a key")
+    # `keys upload` is tools/webkeys.py's (the dispatcher sends it there), above this module and webpull
     args = ap.parse_args(argv)
     if args.cmd == "init" and paths.WEB:
         print(f"Add your {args.service} key in {APP_SETTINGS}. Never paste it into the chat.")

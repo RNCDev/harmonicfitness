@@ -13,7 +13,7 @@ KEY = "sk-secret-" + "k" * 20
 
 class Offered(unittest.TestCase):
     def test_offered(self):
-        self.assertEqual(providers.offered({}), ["anthropic", "openai", "google"])
+        self.assertEqual(providers.offered({}), ["anthropic", "openai", "google", "openrouter"])
         self.assertEqual(providers.offered({"HARMONICFITNESS_PROVIDERS": " google, anthropic "}),
                          ["anthropic", "google"])
         with self.assertRaises(config.ConfigError) as cm:
@@ -21,7 +21,8 @@ class Offered(unittest.TestCase):
         self.assertIn("nope", str(cm.exception))
 
     def test_table(self):
-        self.assertEqual(list(providers.PROVIDERS), ["anthropic", "openai", "google"])
+        self.assertEqual(list(providers.PROVIDERS), ["anthropic", "openai", "google", "openrouter"])
+        self.assertEqual(providers.key_service("openrouter"), "openrouter")   # one key: writer and voice
         self.assertEqual(providers.provider_of("gemini"), "google")
         self.assertEqual(providers.provider_of("openai"), "openai")
 
@@ -32,7 +33,7 @@ class Offered(unittest.TestCase):
         self.assertEqual(providers.pick(offered, {"openai": 1}, None), "openai")
         self.assertEqual(providers.pick(["anthropic"], {"openai": 1}, "openai"), None)
         self.assertEqual(providers.pick(offered, {}, "openai"), None)
-        self.assertEqual([p.name for p in providers.PROVIDERS.values()], ["Claude", "ChatGPT", "Gemini"])
+        self.assertEqual([p.name for p in providers.PROVIDERS.values()], ["Claude", "ChatGPT", "Gemini", "OpenRouter"])
 
 
 class ModelFor(unittest.TestCase):
@@ -47,6 +48,11 @@ class ModelFor(unittest.TestCase):
             self.assertEqual(m.model_name, providers.PROVIDERS[pid].model)
         self.assertEqual(providers.model_for("anthropic", "k" * 20).client.max_retries, 0)
         self.assertEqual(providers.model_for("openai", "k" * 20).client.max_retries, 0)
+        from pydantic_ai.models.openrouter import OpenRouterModel
+        m = providers.model_for("openrouter", "k" * 20)
+        self.assertIsInstance(m, OpenRouterModel)
+        self.assertEqual(m.model_name, "anthropic/claude-sonnet-5.5")
+        self.assertEqual((m.client.max_retries, str(m.client.base_url).rstrip("/")), (0, "https://openrouter.ai/api/v1"))
 
     def test_google_never_retries_and_times_out_at_180s(self):
         m = providers.model_for("google", "k" * 20)

@@ -100,19 +100,27 @@ describe("the starter", () => {
     expect(b).toHaveFocus();
   });
 
-  it("something else: most send at once, feedback goes to the box", () => {
-    const onStart = vi.fn(), onFill = vi.fn();
-    render(<Starter info={info} onStart={onStart} onFill={onFill} />);
+  it("something else: each sends at once; coaches and feedback have their own pages", () => {
+    const onStart = vi.fn();
+    render(<Starter info={info} onStart={onStart} onFill={vi.fn()} onOpenCoaches={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
     expect(onStart).toHaveBeenCalledWith("I'd like to update an injury.");
-    fireEvent.click(screen.getByRole("button", { name: /^Give feedback on my last workout/ }));
-    expect(onFill).toHaveBeenCalledWith("Feedback on my last workout: ");
+    expect(screen.queryByRole("button", { name: /^Give feedback on my last workout/ })).toBeNull();   // on Logs
+    expect(screen.queryByRole("button", { name: /^Pick a different coach/ })).toBeNull();   // the Coaches page
     expect(screen.queryByRole("button", { name: /^Finish setting me up/ })).toBeNull();
+  });
+
+  it("setup not finished: Finish setting me up comes first, marked as the one to do", () => {
+    render(<Starter info={{ ...info, setup_quick: true }} onStart={vi.fn()} onFill={vi.fn()} />);
+    const items = within(screen.getByRole("navigation", { name: "Other things you can do" })).getAllByRole("button");
+    expect(items[0]).toHaveAccessibleName(/^Finish setting me up/);
+    expect(items[0]).toHaveClass("lead");
+    expect(items.slice(1).some((b) => b.classList.contains("lead"))).toBe(false);
   });
 
   it("with no voice key, it waits and says why", () => {
     render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()} onFill={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();   // no Coaches page to send to
     expect(screen.getByText("Add a voice key in Settings first.")).toBeInTheDocument();
   });
 
@@ -123,5 +131,19 @@ describe("the starter", () => {
       .toBe("Hey, coach Nolan, I'd like a 20-minute cardio workout at home. Nothing's bothering me today.");
     expect(sentence({ coach: "Nolan", minutes: 18, place: "at home", type: "core workout", body: { "left knee": "easy", "right knee": "easy", neck: "off" } }))
       .toBe("Hey, coach Nolan, I'd like an 18-minute core workout at home. Go easy on my left knee and right knee, and keep off my neck today.");
+  });
+});
+
+describe("choosing a coach", () => {
+  it("with a key that only writes, asks for a coach first", () => {
+    const onOpenCoaches = vi.fn();
+    render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()}
+      onFill={vi.fn()} onOpenCoaches={onOpenCoaches} />);
+    expect(screen.queryByRole("button", { name: "Plan my workout" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Coach:/ })).toBeNull();   // no sentence to a coach with no voice
+    expect(screen.getByText("One more step")).toBeInTheDocument();
+    expect(screen.getByText("Choose your coach.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Choose a coach" }));
+    expect(onOpenCoaches).toHaveBeenCalled();
   });
 });

@@ -9,6 +9,7 @@ import { localDate } from "./when";
 import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
 import { Logs } from "./zones/Logs";
+import { CoachesPage } from "./zones/Coaches";
 import { hasModelKey, keyRows } from "./zones/KeysBox";
 
 /** With no language-model key yet: the ones to choose from, to write the workouts. */
@@ -29,6 +30,13 @@ const Gear = () => (
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="12" cy="12" r="3" />
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+
+const CoachesIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3v18M8 8v8M4 11v2M16 6v12M20 10v4" />
   </svg>
 );
 
@@ -93,7 +101,9 @@ export function App() {
 /** The signed-in page. Mounted only once the server says who is signed in; unmounting it closes the job's stream. */
 function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [drawer, setDrawer] = useState(false);
-  const [logs, setLogs] = useState(false);
+  const [page, setPage] = useState<"chat" | "logs" | "coaches">("chat");
+  const logs = page === "logs";
+  const toggle = (p: "logs" | "coaches") => setPage((cur) => (cur === p ? "chat" : p));
   const [keys, setKeys] = useState<KeyState[] | null>(null);
   const [openRow, setOpenRow] = useState<{ service: string; n: number; choose?: boolean } | null>(null);
   const needsKey = keyNeeded(keys);
@@ -162,6 +172,15 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [drawer, closeDrawer]);
 
+  // A key's row in Settings. From the welcome card the key is also chosen to write; from a coach that needs it,
+  // the row only opens, so a voice key never changes who writes (OpenRouter's and Gemini's can do both).
+  const openKey = useCallback((service: string, choose: boolean) => {
+    setOpenRow((r) => ({ service, n: (r?.n ?? 0) + 1, choose }));
+    setDrawer(true);
+  }, []);
+  const addKey = useCallback((service: string) => openKey(service, true), [openKey]);
+  const addVoiceKey = useCallback((service: string) => openKey(service, false), [openKey]);
+
   const signOut = useCallback(async () => {
     try {
       await api.signOut();
@@ -174,41 +193,45 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   return (
     <div className="app">
       <Sky kind={sky} busy={working} />
-      <div className={logs ? "work show-logs" : "work"}>
+      <div className={page !== "chat" ? "work show-logs" : "work"}>
         <header className="work-top">
           <Mark live={working} />
           <span className="top-gap" />
-          {conv && !logs && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
+          {conv && page === "chat" && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
               <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
             New workout
           </button>}
+          <button type="button" className="top-btn new logs-toggle" aria-pressed={page === "coaches"} title="Hear and choose your coach"
+            aria-label="Coaches" onClick={() => toggle("coaches")}>
+            <CoachesIcon />
+            <span className="top-label">Coaches</span>
+          </button>
           <button type="button" className="top-btn new logs-toggle" aria-pressed={logs} title="Your past workouts"
-            onClick={() => setLogs((v) => !v)}>
+            aria-label="Logs" onClick={() => toggle("logs")}>
             <LogsIcon />
-            Logs
+            <span className="top-label">Logs</span>
           </button>
           <button type="button" className="top-btn icon ctx-toggle" aria-label="Settings" title="Settings"
             aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
             <Gear />
           </button>
         </header>
-        {logs && <Logs onClose={() => setLogs(false)} onSignedOut={onSignedOut} />}
+        {logs && <Logs onClose={() => setPage("chat")} onSignedOut={onSignedOut} />}
+        {page === "coaches" && <CoachesPage coaches={start ? coaches : null} onCoach={(slug) => void chooseCoach(slug)}
+          onAddKey={addVoiceKey} onClose={() => setPage("chat")} />}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
         <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
           offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
           onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
           start={start} onCoach={chooseCoach} coachBar={coachBar}
           waiting={waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null} onResume={resume}
-          onAddKey={(service) => {
-            setOpenRow((r) => ({ service, n: (r?.n ?? 0) + 1, choose: true }));
-            setDrawer(true);
-          }} />
+          onAddKey={addKey} onOpenCoaches={() => setPage("coaches")} />
       </div>
       <ContextColumn username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
         onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
-        coaches={coaches} onCoach={chooseCoach} sky={sky} onSky={chooseSky} />
+        sky={sky} onSky={chooseSky} />
     </div>
   );
 }

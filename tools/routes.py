@@ -96,9 +96,14 @@ def usable(route, persona=None, facts=None):
 
 
 def stand_ins():
-    """{service: the stock web coach that ships for it in coaches/}."""
+    """{service: the stock web coach that ships for it in coaches/}: where several do (OpenRouter's and Gemini's
+    six ready-made coaches), the first by name, as coachpick.default takes it."""
     import personas
-    return {p.service: p for p in personas.all() if p.is_web and p.shipped and p.service in SERVICES}
+    out = {}
+    for p in personas.all():
+        if p.is_web and p.shipped and p.service in SERVICES:
+            out.setdefault(p.service, p)
+    return out
 
 
 def way_out(folder=None):

@@ -75,8 +75,8 @@ class App:
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
-        if method == "POST":
-            headers["Origin"] = self.url   # the app refuses a POST from another origin
+        if method != "GET":
+            headers["Origin"] = self.url   # the app refuses a change (POST, PUT, DELETE) from another origin
         if self.session:
             headers["Cookie"] = f"{COOKIE}={self.session}"
         req = urllib.request.Request(self.url + path, data=data, method=method, headers=headers)

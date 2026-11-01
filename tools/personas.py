@@ -116,7 +116,7 @@ class Persona:
         beside the clip cache, so a build never writes into the engine and me/coaches/ holds only the
         listener's own coaches (the shipped pace.json is read until this computer's first render:
         voices._with_seed)."""
-        if self.shipped and not self.is_web:
+        if self.shipped and not self.pending:   # a stock local coach, or a stock web coach that ships made
             return paths.PACE_FILE
         return os.path.join(self.home_folder, "pace.json")
 

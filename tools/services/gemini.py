@@ -11,7 +11,10 @@ generation_config: {speech_config: [{voice: id}]}}; the base64 audio sits deep i
 steps[].content[] when tried live), so it's found by searching for a `data` string.
 No style is sent: speech_metadata was refused in every placement when tried live (2026-10-25), and style
 words are never added to the text. Key in `x-goog-api-key`.
-Delete: DELETE /v1beta/voices/{id}.
+Delete: DELETE /v1beta/voices/{id}, never for one of Gemini's own voices.
+Gemini's own voices (its 30 prebuilt studio voices and its voice library's, listed by GET /v1beta/voices) speak by
+their id the same way and belong to no account, so the ready-made Gemini coaches (coaches/roster.toml) use them
+and ship made; nothing designs, stores or deletes them.
 """
 import json
 import sys
@@ -20,6 +23,19 @@ import cloud
 
 SERVICE = "gemini"
 STORES_DRAFTS = True   # design() saves each candidate; one not kept is deleted (coaches forget-audition)
+
+# Gemini's 30 prebuilt studio voices (ai.google.dev/gemini-api/docs/speech-generation, 2026-10-31), by id
+PREBUILT = ("zephyr", "puck", "charon", "kore", "fenrir", "leda", "orus", "aoede", "callirrhoe", "autonoe",
+            "enceladus", "iapetus", "umbriel", "algieba", "despina", "erinome", "algenib", "rasalgethi", "laomedeia",
+            "achernar", "alnilam", "schedar", "gacrux", "pulcherrima", "achird", "zubenelgenubi", "vindemiatrix",
+            "sadachbia", "sadaltager", "sulafat")
+
+
+def own_voice(voice_id):
+    """Whether `voice_id` is one of Gemini's own voices (a prebuilt one, or the voice library's, whose ids hold a
+    language code: en-gb-tutor-16), not one designed and stored in an account (voice_...)."""
+    v = str(voice_id or "").lower()
+    return v in PREBUILT or (len(v) > 6 and v[2] == "-" and v[5] == "-" and v[:2].isalpha() and v[3:5].isalpha())
 
 
 def _headers():
@@ -77,5 +93,7 @@ def save(candidate, name=None, description=None, wav=None):
 
 
 def delete(voice_id):
+    if own_voice(voice_id):   # Gemini's own voice: nothing of the listener's to delete
+        return True
     return cloud.delete(SERVICE, f"{cloud.base_url(SERVICE)}/v1beta/voices/{cloud.path_part(voice_id)}",
                         {"x-goog-api-key": cloud.key_or_stop(SERVICE)})

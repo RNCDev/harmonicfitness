@@ -9,6 +9,7 @@
   --mad: #FF5A3C;   /* the request's fixed words, in the logo's coral; the blanks stay cream */
   --tok: #EDEAE0; --tok-tint: #26272D; --tok-on: #111215;
   --stop: #E3907D; --stop-tint: #3A201B; --ok: #8E8D87;
+  --blue: #9DBEDD; --blue-tint: #1C2530;   /* a soft dusk blue: the Coaches page's samples and current coach */
   --lift: 0 24px 48px -20px rgba(0, 0, 0, .7), 0 2px 6px rgba(0, 0, 0, .3);
   --font: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --display: "Big Shoulders Display Variable", "Big Shoulders Display", "Arial Narrow", sans-serif;
@@ -151,7 +152,8 @@ a:hover { color: #fff }
 .m.offer { box-shadow: inset 0 0 0 1px var(--line), var(--lift) }
 .welcome h2 { margin: 0 0 8px; font: 700 clamp(32px, 3.6vw, 44px)/1 var(--display); letter-spacing: .04em; text-transform: uppercase }
 .welcome { margin: auto 0 0 }
-.welcome-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px; margin-top: 16px }
+.welcome-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; margin-top: 16px }
+.step-note { display: block; max-width: 46ch; margin: 4px 0 18px; font-size: 16px }
 .welcome-pick {
   display: grid; gap: 4px; text-align: left; padding: 16px 18px; border-radius: 0; box-shadow: inset 0 0 0 1px var(--line);
   transition: box-shadow .15s, background-color .15s;
@@ -234,6 +236,10 @@ a:hover { color: #fff }
   opacity: 0; transform: translateX(-6px); transition: opacity .18s, transform .18s;
 }
 .else-a:hover .else-go, .else-a:focus-visible .else-go { opacity: 1; transform: none }
+/* the one to do first (setup not finished): a cream rule, a faint tint, its arrow showing */
+.else-a.lead { border-top: 2px solid var(--ink); background: rgba(237, 234, 224, .04); padding-top: 11px }
+.else-a.lead .else-go { opacity: .8; transform: none }
+.else-a.lead .else-d { color: var(--ink-2) }
 .else-a:hover .else-d { color: var(--ink-2) }
 .else-t { font-weight: 600; font-size: 16px; transition: color .18s }
 .else-d { font-size: 14.5px; color: var(--ink-3); line-height: 1.45 }
@@ -318,7 +324,7 @@ a:hover { color: #fff }
 .ctx-close { font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); padding: 12px 0 12px 12px }
 .ctx-close:hover { color: #fff }
 .cx-list { display: grid; gap: 0; align-items: start }
-.cx-col { display: grid; min-width: 0 }
+.cx-col { display: grid; min-width: 0; align-content: start }
 .cx-col > * { padding: 22px 0 }
 .cx-col > * + * { border-top: 1px solid var(--rule) }
 .cx-col > :first-child { padding-top: 0 }
@@ -336,43 +342,40 @@ a:hover { color: #fff }
 }
 .cx-box { display: grid; gap: 4px }
 .cx-h { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
-.coach-list { list-style: none; margin: 0 0 6px; padding: 0 }
-.coach-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule) }
-.coach-list li small { margin-left: auto; color: var(--ink-3); font-size: 14px }
-.coach-list li.off b, .coach-list li.off .lane-num { color: var(--ink-3) }
-.coach-list li.off small { color: var(--ink-2) }
-/* a coach that can speak is a row to tap: the whole row, a faint wash on hover, the current one's number filled */
-.coach-list li:has(.coach-pick) { padding: 0 }
-.coach-pick { display: flex; align-items: center; gap: 12px; width: calc(100% + 12px); padding: 8px 6px; margin: 0 -6px; text-align: left; transition: background-color .15s }
-.coach-pick:hover { background: rgba(237, 234, 224, .05) }
-.coach-pick:hover b { color: #fff }
-.coach-pick[aria-pressed="true"] { cursor: default }
-.coach-pick[aria-pressed="true"]:hover { background: none }
-.coach-pick small { margin-left: auto; color: var(--ink-3); font-size: 14px }
-.coach-list li.cur small { color: var(--ink-2) }
-.keys-group { margin-top: 12px }
-.keys-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink-2) }
-.keys-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 0; border-bottom: 1px solid var(--rule) }
+.keys-group { margin-top: 18px }
+.keys-group:first-of-type { margin-top: 4px }
+.keys-h { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink) }
+/* a key row: the name and its tag left, its buttons right on the same line; the date and balance under the name;
+   anything opened (the key's field, the question before removing, an error) across the whole row */
+.keys-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 11px 0; border-bottom: 1px solid var(--rule) }
+.keys-row > * { grid-column: 1 / -1 }
+.keys-row > .keys-id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 28px }
+.keys-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0 }
+.keys-row.writer .keys-name { cursor: pointer }
+.keys-row > .keys-actions:not(.keys-ask) { grid-column: 2; grid-row: 1; justify-self: end }
+.keys-row > .keys-ask { margin-top: 4px }
 .keys-row .keys-name { font-weight: 600 }
-.keys-row .keys-state { display: inline-flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 0 10px; font-size: 14px; color: var(--ink-3) }
+.keys-row .keys-state { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 12px; font-size: 14px; color: var(--ink-3) }
+.keys-row.writer .keys-state, .keys-row.writer > .keys-note { padding-left: 28px }
 .keys-when { white-space: nowrap }
 .keys-bal { font-size: 14px; color: var(--ink-2); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums }
 a.keys-bal:hover { text-decoration: underline }
 .keys-bill { display: inline-flex; align-items: center; padding: 4px; margin: -4px 0; color: var(--ink-3) }
 .keys-bill:hover, .keys-bill:focus-visible { color: var(--ink) }
-.keys-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center }
-.keys-row.writer { padding-left: 12px; padding-right: 12px; margin: 4px 0 0; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--rule) }
+.keys-actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center }
+.keys-row.writer { padding-left: 14px; padding-right: 14px; margin: 6px 0 0; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--rule) }
 .keys-row.writer.on { box-shadow: inset 0 0 0 1px var(--ink); background: var(--tok-tint) }
-.keys-pick { display: inline-flex; align-items: center; gap: 10px; cursor: pointer }
-.keys-pick input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); cursor: pointer }
-.keys-note { flex-basis: 100%; margin: -2px 0 0 }
-.keys-edit { display: flex; flex-direction: column; gap: 8px; flex-basis: 100% }
+.keys-id input[type=radio] { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--ink); cursor: pointer }
+.keys-note { margin: 0 }
+.keys-tag { font-size: 12px; font-weight: 600; letter-spacing: .04em; padding: 1px 7px; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap }
+.keys-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 6px }
 .keys-edit input, .auth input {
   font: inherit; color: var(--ink); background: var(--paper); border: 0; box-shadow: inset 0 0 0 1px var(--line); border-radius: 0;
   padding: 12px 13px; width: 100%;
 }
 .keys-edit input:focus-visible, .auth input:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--ink) }
 .sky-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 2px 0 6px }
+@media (min-width: 900px) { .sky-opts { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
 .sky-opt {
   display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 10px 10px 12px; min-width: 0;
   box-shadow: inset 0 0 0 1px var(--rule); transition: box-shadow .15s;
@@ -382,6 +385,8 @@ a.keys-bal:hover { text-decoration: underline }
 .sky-mini { display: block; width: 100%; height: auto; background: var(--paper); color: var(--ink); margin-bottom: 4px }
 .sky-opt-name { font-weight: 600; font-size: 16px }
 .sky-opt-note { font-size: 14px; line-height: 1.35; color: var(--ink-3) }
+.sky-credit { margin-top: 4px; font-size: 13.5px }
+.sky-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px }
 .cx-account { display: grid; gap: 10px; justify-items: start }
 .cx-account > .cx-h { margin-bottom: 0 }
 .cx-version { margin: 6px 0 0; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums }
@@ -484,3 +489,64 @@ a.keys-bal:hover { text-decoration: underline }
   .logs-controls label:not(.logs-search) { flex: 1 1 40% }
   .logs-controls select { width: 100% }
 }
+
+/* ---------- the Coaches page (beside Logs): the whole width, compact cards, the soft blue its one colour ---------- */
+.logs.wide { width: 100% }
+.cg { display: grid; gap: 8px }
+.cg-h { margin: 10px 0 0; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3) }
+.cg-list { list-style: none; margin: 0; padding: 10px 0 0; display: grid; gap: 18px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)) }
+.cg-card {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: 6px;
+  padding: 12px 14px; border-radius: 3px; background: rgba(34, 35, 42, .92); box-shadow: inset 0 0 0 1px var(--rule);
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.cg-card > * { min-width: 0 }
+.cg-card.off { opacity: .8 }
+/* a coach you can choose: the whole card is the button, and it lifts a little under the pointer */
+.cg-card.pick { cursor: pointer }
+.cg-card.pick:hover { transform: translateY(-3px); box-shadow: inset 0 0 0 1px var(--line), var(--lift) }
+.cg-choose { position: absolute; inset: 0; z-index: 0; width: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer }
+.cg-choose:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+.cg-card.pick > :not(.cg-choose):not(.cg-on) { position: relative; z-index: 1; pointer-events: none }
+.cg-card.pick .cg-play { pointer-events: auto }
+/* the coach coaching you: a blue ring, and Active on the card's top edge */
+.cg-card.cur { box-shadow: inset 0 0 0 2px var(--blue); background: color-mix(in srgb, var(--blue) 7%, var(--sheet-2)); cursor: default }
+.cg-card.cur:hover { transform: none; box-shadow: inset 0 0 0 2px var(--blue) }
+.cg-card.cur .cg-choose { cursor: default }
+.cg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px }
+.cg-head b { font-size: 16.5px; color: var(--blue) }
+.cg-head small { color: var(--ink-3); font-size: 13.5px }
+.cg-tone { margin: 0; font-size: 14.5px; line-height: 1.4; color: var(--ink-2);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden }
+.cg-note { margin: 0; font-size: 13px; color: var(--ink-3); line-height: 1.35 }
+.cg-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; margin-top: 2px }
+.cg-card > .cg-on { position: absolute; z-index: 2; top: -9px; right: 12px; font-size: 11.5px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; line-height: 1; padding: 4px 8px; color: var(--paper); background: var(--blue); border-radius: 2px }
+.cg-need { font-size: 14px; color: var(--ink-3) }
+.cg-more { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin: 14px 0 0; font-size: 14.5px; color: var(--ink-3) }
+.cg-group { display: grid; gap: 8px; margin-top: 8px }
+.cg-group-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px }
+.cg-group-h .cg-h { margin: 0 }
+/* the sample player: a round blue button, a thin line to seek along, the time */
+.cg-play { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0 }
+.cg-play audio { display: none }
+.cg-btn {
+  flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  color: var(--blue); background: var(--blue-tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 45%, transparent);
+  transition: background-color .15s, color .15s;
+}
+.cg-btn:hover, .cg-play.on .cg-btn { background: var(--blue); color: var(--paper) }
+.cg-seek {
+  flex: 1; min-width: 24px; max-width: 220px; height: 3px; margin: 0; appearance: none; -webkit-appearance: none; cursor: pointer;
+  background: linear-gradient(var(--blue), var(--blue)) 0 0 / var(--done, 0%) 100% no-repeat, var(--line); border-radius: 2px;
+}
+.cg-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%; background: var(--blue); border: 0 }
+.cg-seek::-moz-range-thumb { width: 11px; height: 11px; border-radius: 50%; background: var(--blue); border: 0 }
+.cg-seek:disabled { cursor: default; opacity: .6 }
+.cg-seek:disabled::-webkit-slider-thumb { background: transparent }
+.cg-time { font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap }
+.cg-play.on .cg-time { color: var(--blue) }
+
+/* a phone: Coaches and Logs as icons, so the header keeps Settings in view */
+@media (max-width: 480px) { .top-label { display: none } .top-btn.logs-toggle { padding-inline: 10px } }

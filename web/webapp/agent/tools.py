@@ -28,12 +28,11 @@ ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 
 # The commands the agent may run, and for some, the only subcommands. Everything else (setup, keys init,
 # migrate, backup, models, cache) isn't part of this web client yet. `coaches make` designs a stock web
-# coach's voice in the listener's account (about a cent), as setup's quick start does; `audition`, `keep`
-# and `forget-audition` make a web coach of their own, as the coach skill says.
+# coach's voice in the listener's account (about a cent), as setup's quick start does. Coaches are chosen here,
+# never made (since 0.46.2): no `audition` or `keep`; `forget-audition` stays, to close one opened before.
 COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "keys",
             "log-session", "movements", "workouts", "youtube"}
-SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make", "audition", "keep", "forget-audition",
-                           "archive"},
+SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make", "forget-audition", "archive"},
                "keys": {None}}
 MADE_MP3 = (0, 2)   # the build's exits that made an MP3 (2: its total ran a little off plan)
 RECORDED_NOTE = ("Recorded: the MP3 is saved and shows in the chat by itself. This workout is final: don't lint, "
@@ -145,6 +144,10 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
     if command not in COMMANDS:
         return _refuse(f"{command or 'nothing'} isn't available here; the commands are {', '.join(sorted(COMMANDS))}")
     sub = args[1] if len(args) > 1 and not args[1].startswith("-") else None
+    if command == "coaches" and sub in ("audition", "keep"):
+        return _refuse("coaches are chosen on this site, not made: point the listener to the Coaches page "
+                       "(beside Logs, at the top); a coach of their own is made with HarmonicFitness on their own "
+                       "computer")
     if command in SUBCOMMANDS and sub not in SUBCOMMANDS[command]:
         return _refuse(f"{command} {sub} isn't available in the web client yet")
     if command == "build" and deps.recorded:

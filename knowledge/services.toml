@@ -82,3 +82,21 @@ concurrency = 5
 max_chars = 2000
 candidates = 2
 tried_live = true
+
+[openrouter]
+name = "OpenRouter"
+url = "https://openrouter.ai"
+key_var = "OPENROUTER_API_KEY"
+key_page = "https://openrouter.ai/settings/keys"
+billing_page = "https://openrouter.ai/settings/credits"
+default_model = "elevenlabs/eleven-v4-turbo"
+models = { "elevenlabs/eleven-v4-turbo" = "ElevenLabs' stock voices, the default (about $0.80 a 20,000-character workout)", "elevenlabs/eleven-v4" = "the same voices, a little more natural, twice the price (about $1.60)", "microsoft/mai-voice-2.1" = "Microsoft's MAI-Voice (about $0.44)" }
+unit = "characters"
+# from OpenRouter's model list, checked 2026-10-31; credit bought there carries OpenRouter's own fee
+usd_per_million = { "elevenlabs/eleven-v4" = 80, "elevenlabs/eleven-v4-turbo" = 40, "microsoft/mai-voice-2.1" = 22 }
+design_usd = 0.01            # no design: about a cent to speak the coaching line on each stock voice offered
+concurrency = 3
+max_chars = 10000
+candidates = 3
+note = "stock voices only (no voice designed for you); one key also writes workouts on the web app"
+tried_live = false

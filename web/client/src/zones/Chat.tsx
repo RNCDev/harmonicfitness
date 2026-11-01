@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Audio, ChatLine, Offer, StartInfo } from "../api";
 import { Starter } from "./Starter";
+import { FIRST } from "./KeysBox";
 import { Meter } from "../Mark";
 
 /** A step of the coach's turn: running while its tool works, then done (or failed). A thinking step (the model
@@ -56,6 +57,8 @@ type Props = {
   start?: StartInfo | null;
   /** The coach picked in the sentence. */
   onCoach?: (slug: string) => void;
+  /** Opens the Coaches page. */
+  onOpenCoaches?: () => void;
   /** The coach shown above the conversation, with their lane number. */
   coachBar?: { n: number; name: string; service: string } | null;
 };
@@ -63,7 +66,16 @@ type Props = {
 /** The language-model key a new listener adds first. */
 export type KeyNeeded = { name: string; service: string; voice: boolean }[];
 
-const FREE_FROM: Record<string, string> = { gemini: "Google AI Studio" };
+/** What each first key gives, in a line. */
+const PICK_NOTES: Record<string, string> = {
+  gemini: "Writes your workouts and voices your coach, with six coaches to choose from. Free key; the cheapest",
+  openrouter: "Writes your workouts and voices your coach: six coaches with ElevenLabs voices. One bill",
+  anthropic: "Writes your workouts; then choose a coach, who needs a voice key",
+  openai: "Writes your workouts; then choose a coach, who needs a voice key",
+};
+
+// OpenRouter, then Gemini (one key writes and voices), then any other key that voices, then the writers alone
+const rank = (o: KeyNeeded[number]) => { const i = FIRST.indexOf(o.service); return i >= 0 ? i : o.voice ? FIRST.length : FIRST.length + 1; };
 
 function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: string) => void }) {
   return (
@@ -71,14 +83,14 @@ function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: str
       <h2>Welcome to HarmonicFitness</h2>
       <p>Tell your coach what workout you want, and you get it as audio for your earbuds. The coach tells you
         what to do, keeps time and keeps you company, so there's no screen to watch.</p>
-      <p>To start, pick the AI that writes your workouts, and add a key for it. Keys are stored encrypted,
-        and anything they're used for is billed to your own account.</p>
+      <p>To start, add one key. Keys are stored encrypted, and anything they're used for is billed to your own
+        account.</p>
       <div className="welcome-picks">
-        {need.map((o) => (
+        {[...need].sort((a, b) => rank(a) - rank(b)).map((o) => (
           <button key={o.service} type="button" className="welcome-pick" onClick={() => onAddKey?.(o.service)}>
             <span className="welcome-pick-name">{o.name}</span>
-            <span className="welcome-pick-note">{FREE_FROM[o.service] ? `Free key from ${FREE_FROM[o.service]}` : "Paid key"}
-              {o.voice ? ". Also voices a coach" : ""}</span>
+            <span className="welcome-pick-note">{PICK_NOTES[o.service]
+              ?? (o.voice ? "Writes your workouts and voices your coach" : "Writes your workouts; then choose a coach")}</span>
           </button>
         ))}
       </div>
@@ -86,7 +98,7 @@ function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: str
   );
 }
 
-const SERVICES: Record<string, string> = { fish: "Fish Audio", elevenlabs: "ElevenLabs", gemini: "Gemini", inworld: "Inworld" };
+const SERVICES: Record<string, string> = { fish: "Fish Audio", elevenlabs: "ElevenLabs", gemini: "Gemini", inworld: "Inworld", openrouter: "OpenRouter" };
 
 function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promise<boolean> | void }) {
   const [busy, setBusy] = useState(false);
@@ -220,7 +232,7 @@ function atTime(iso: string | null): string {
 }
 
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
-  needsKey = null, onAddKey, start = null, onCoach, coachBar = null, waiting = null, onResume }: Props) {
+  needsKey = null, onAddKey, start = null, onCoach, onOpenCoaches, coachBar = null, waiting = null, onResume }: Props) {
   const [text, setText] = useState(readDraft);
   const [stopping, setStopping] = useState(false);
   useEffect(() => { if (!working) setStopping(false); }, [working]);
@@ -259,7 +271,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
           </button>
         )}
         {lines.length === 0 && !working && !needsKey && start && (
-          <Starter info={start} onStart={onSend} onCoach={onCoach}
+          <Starter info={start} onStart={onSend} onCoach={onCoach} onOpenCoaches={onOpenCoaches}
             onFill={(line) => { setText(line); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(line.length, line.length); }); }} />
         )}
         {lines.map((l, i) => l.audio ? <AudioLine key={i} audio={l.audio} /> : l.role === "user" ? (

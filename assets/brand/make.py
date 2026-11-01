@@ -51,6 +51,7 @@ LETTER = dict(n=6, gap_ratio=0.06, inner_ratio=0.55, L=6, R=4, peak=6)
 # dropping below the baseline alike) or "baseline" (standing on it, rising above the caps).
 LETTER_SCALE = 1.5
 LETTER_ALIGN = "centre"
+H_GAP = 0.12  # extra room between the meter H and the A, over the cap height: the meter is heavier than a letter
 
 WEIGHT = 700
 TRACKING = 0.01  # em
@@ -237,7 +238,8 @@ def word_h_layout(word: Word, scale: float = LETTER_SCALE, align: str = LETTER_A
     """The wordmark with the meter for its H, `scale` cap heights tall:
     (letter segments, letter width, dx for the rest, total width, letter top, top, bottom), y from the baseline."""
     segs, lw = letter(word.cap * scale)
-    gap = (word.a_left - word.h_right) * (1 + (scale - 1) / 2)  # the font's own space before the A, a little more for a bigger H
+    # the font's own space before the A, a little more for a bigger H, and H_GAP more for the meter's weight
+    gap = (word.a_left - word.h_right) * (1 + (scale - 1) / 2) + word.cap * H_GAP
     dx = lw + gap - word.a_left
     lh = word.cap * scale
     ltop = -word.cap / 2 - lh / 2 if align == "centre" else -lh

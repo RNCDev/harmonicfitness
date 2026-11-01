@@ -13,7 +13,7 @@ export class ApiError extends Error {
 
 export type Me = { app_name: string; username: string; has_password: boolean; version: string;
   /** The animated background chosen in Settings; absent from a server older than 0.33.0. */
-  sky?: "flow" | "field" | "arcs" | "waves" };
+  sky?: "flow" | "field" | "waves" | "bloom" | "lissajous" };
 export type AuthInfo = { app_name: string; registration: boolean; version: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
@@ -51,7 +51,12 @@ export type Conversation = {
 export type When = { today: string; now: string };
 /** What the first screen's sentence is filled in with (GET /api/start). */
 export type StartCoach = { slug: string; name: string; first: string; service: string; service_name: string;
-  ready: boolean; own: boolean; current: boolean };
+  ready: boolean; own: boolean; current: boolean;
+  /** For the gallery: how the coach sounds and talks, whether a sample ships, about what a workout costs, and
+   * whether its voice is made the first time it's used. */
+  description?: string | null; tone?: string | null; sample?: boolean; usd_per_workout?: number | null; pending?: boolean;
+  /** Who makes the voices, where the service is a go-between: OpenRouter's "ElevenLabs". */
+  powered_by?: string | null };
 export type StartKit = { id: string; label: string; preset: boolean };
 export type StartLimit = { area: string; side: string | null; level: "delicate" | "off-limits" };
 export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: number; limits: StartLimit[];
@@ -103,7 +108,7 @@ export const api = {
   setKey: (service: string, key: string) =>
     call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
   setWriter: (service: string) => call<void>("PUT", "/api/writer", { service }),
-  setSky: (sky: "flow" | "field" | "arcs" | "waves") => call<void>("PUT", "/api/sky", { sky }),
+  setSky: (sky: "flow" | "field" | "waves" | "bloom" | "lissajous") => call<void>("PUT", "/api/sky", { sky }),
   /** `day` is the listener's own date (YYYY-MM-DD), as the log's are. */
   setCoach: (slug: string, day: string) => call<void>("PUT", "/api/coach", { slug, day }),
   deleteKey: (service: string) =>

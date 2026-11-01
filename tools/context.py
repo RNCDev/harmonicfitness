@@ -523,6 +523,7 @@ PERSONA_COMMENTS = {
     "fish": "Fish Audio: the model (a web voice; ./harmonicfitness keys).",
     "gemini": "Gemini: the model (a web voice; ./harmonicfitness keys).",
     "inworld": "Inworld: the model (a web voice; ./harmonicfitness keys).",
+    "openrouter": "OpenRouter: the model (leave unset: each stock voice has its own; ./harmonicfitness keys).",
     "elevenlabs": "ElevenLabs: eleven_v4 (more natural) or eleven_v4_turbo (cheaper).",
     "voice": "How this coach sounds: what a web service designs the voice from (an edit means a new audition).",
     "character": "How this coach talks: what the script writer follows (the brief quotes it); edit freely.",
