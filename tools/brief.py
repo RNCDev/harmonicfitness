@@ -144,6 +144,8 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
         if load:
             facts.append(f"load on today's limits ({'the working side' if side else 'as rated'}): {load}"
                          if side else f"load on today's limits: {load}")
+            facts.append("LIGHT ONLY today: twelve to fifteen reps with three or more in reserve, and never \"heavy\" "
+                         "(the build refuses it)")
         tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
         notes = ["  " + line.strip() for line in catalog.about(cat, m)[1:]]
@@ -179,6 +181,10 @@ def _week_lines(cat: catalog.Catalog, log, today: datetime.date, feedback: List[
            + f", {last.minutes} min, {last.kit}, format {last.format or 'not logged'}: "
            + ", ".join(last.movements) + (f" (patterns: {', '.join(trained)})" if trained else "") + ".",
            f"- Sessions in the last seven days: {seven}."]
+    if since == 0:
+        out.append("- **A second session today.** Say so in the welcome (\"second one today\"), and program around "
+                   "the first: leave out the patterns it trained (" + (", ".join(trained) or "see above")
+                   + ") or keep them light, and favour what it didn't train. Never call a same-day repeat progress.")
     week = coverage.week(log, today, cat=cat)
     none = [p for p in cat.patterns if not week.get(p) and p != "skill"]
     once = [p for p in cat.patterns if week.get(p) == 1]
@@ -280,6 +286,9 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         out.append("- On a conditioning day the work intervals run at the effort above, even when the profile says "
                    "it likes moderate sessions: that preference sets the warm-up, the steady work and the easy spells. "
                    "Only a low-readiness check-in, or a limit, keeps the intervals easier.")
+    if goal in ("general", "strength") and not request.get("target"):
+        out.append("- A whole-body session (general, or strength with no target) covers a push, a pull, a squat or "
+                   "lunge, and a hinge, plus core when there's room; the patterns the week hasn't trained come first.")
     way = _lean()
     if way:
         out.append(f"- Recent feedback says sessions have felt too {'easy' if way == 'harder' else 'hard'} (learned, "
@@ -435,7 +444,13 @@ def _voice_line(voice_name: Optional[str]) -> List[str]:
             "(\"Lower slow, and push.\"), keeping each cue word clear (knowledge/tts-rules.md, Local and web voices)."]
 
 
-def _budget_line(voice_name: Optional[str]) -> List[str]:
+# The share of a session's minutes a web coach's finished script spends talking (the rest: holds, counts, chimes,
+# breaks), measured on three Gemini drafts that passed the lint on 2026-11-01 (0.71, 0.79, 0.81): the brief turns it
+# into a word count to write to, since a draft written by feel came in nine to twelve percent short every time.
+SPEECH_SHARE = 0.76
+
+
+def _budget_line(voice_name: Optional[str], minutes: Optional[int] = None) -> List[str]:
     coach = _coach(voice_name)
     found = talk_rate(coach.name) if coach else None
     if not found:
@@ -447,7 +462,10 @@ def _budget_line(voice_name: Optional[str]) -> List[str]:
             f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds; "
             "`./harmonicfitness build <draft> <name> --lint-only` gives each segment's exact guide. First drafts "
             "come in short (10 to 15 percent, every time measured): write each segment to its full time, so the "
-            "first lint passes."]
+            "first lint passes."
+            + (f" For this {minutes}-minute session, write about {round(wpm * SPEECH_SHARE * minutes, -1):.0f} words "
+               f"in all (between {round(wpm * 0.7 * minutes, -1):.0f} and {round(wpm * 0.82 * minutes, -1):.0f}, "
+               "fewer with long holds), and count them before the first lint." if minutes else "")]
 
 
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
@@ -523,7 +541,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             "it appears, then a short reminder, so the rests and the easy work have room for the listener's world."
             " Safety is the one hard rule (knowledge/script.md); beyond it, get the "
             "workout done and keep them engaged. What a voice can read: knowledge/tts-rules.md."]
-    out += _budget_line(voice) + _counts_line(voice) + _voice_line(voice)
+    out += _budget_line(voice, request.get("minutes")) + _counts_line(voice) + _voice_line(voice)
 
     req = {k: v for k, v in (("goal", goal), ("minutes", minutes), ("kit", request.get("kit")),
                              ("preset", request.get("preset")),

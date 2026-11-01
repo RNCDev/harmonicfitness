@@ -551,7 +551,7 @@ class Faster(AgentCase):
 
     def test_a_draft_says_what_its_segments_add_up_to(self):
         r = tools.write_file(self.deps, self.DRAFT, self.TEXT)
-        self.assertIn("3 segments adding up to 120 s (2 min)", r.output)
+        self.assertIn("3 segments adding up to 120 s (2 min), about 5 words", r.output)
         self.assertNotIn("adding up", tools.write_file(self.deps, "me/notes.md", "hi").output)
 
     def test_segments_are_replaced_by_their_places_in_one_call(self):

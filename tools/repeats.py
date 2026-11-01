@@ -90,7 +90,10 @@ SEEN = re.compile(
     r"|\b(?:that was a|that's a|what a|and a) (?:really )?(?:strong|great|solid|excellent|powerful|fantastic) "
     r"(?:first |last )?(?:ride|session|workout|set|effort|climb|surge|round|sprint|interval|one)\b"
     r"|\b(?:nailed|crushed|smashed) (?:it|that)\b"
-    r"|\byou(?:'re| are) (?:flying|crushing it|killing it)\b",
+    r"|\byou(?:'re| are) (?:flying|crushing it|killing it)\b"
+    r"|\b(?:executed|done|performed) with (?:clean|perfect|great|good|solid) (?:form|technique)\b"
+    r"|\b(?:completely|totally|perfectly) (?:safe|protected|stable)\b"
+    r"|\b(?:clean|crisp|smooth|solid) (?:dumbbell |kettlebell |barbell )?(?:pressing|presses|deadlifts|squats|rows|reps|form)\b",
     re.IGNORECASE)
 
 

@@ -2,6 +2,19 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.49.2] - 2026-11-01
+
+Eval loop 1: two 25-minute web scripts (full-body at home; gym strength going easy on the left knee), judged blind on safety, efficacy and engagement: 4/3/3 and 3/3/3. What the engine now holds because of them, and quicker turns (231 and 242 seconds, 11 model requests each: a 60-second full rewrite after each first lint, and half a minute on a research sheet nothing reads).
+
+### Changed
+- **Light loads under a limit, checked:** the build refuses "heavy" (or "max load", "go big") in a segment's coaching that names a movement loading one of today's limited areas ("Pick up a heavy pair" for a farmer carry with a delicate knee); "nothing too heavy" passes. The brief marks each such movement on the menu "LIGHT ONLY today: twelve to fifteen reps with three or more in reserve".
+- **A second session in a day:** when the last session was today, the brief says so, names the patterns it trained, and says to leave them out or keep them light and never call a same-day repeat progress (both scripts ignored a session from that morning; one repeated its hinge).
+- **A whole-body session covers a push, a pull, a squat or lunge and a hinge** (the brief's programming guide; a "full-body" script had no pull, with pulling untrained all week).
+- **No padding stories:** a short segment gets more coaching or a question, never a story detail the source didn't give (a relative, a degree); paced breathing gets a hold as long as its count.
+- **More claims the coach can't make** are warned on: "executed with clean form", "completely protected", "crisp deadlifts".
+- **Web app, the listener's clock:** every engine command in a turn runs in the listener's time zone (from the time their page sent), so the brief's "written at" and the day the brief and the build check are theirs, not the server's UTC.
+- **Web app, quicker to a draft:** the brief gives the session's word count to write to (about three quarters of the coach's words a minute times the minutes: drafts written by feel came in nine to twelve percent short); `write_file` and `edit_segments` report the draft's words with its seconds; a lint's fixes always go in one batch (a full rewrite only when the plan changes); `content.md` and `settings.toml` come with step 1; and no research sheet is written on the web.
+
 ## [0.49.1] - 2026-11-01
 
 Fewer round trips to a finished script on the web app.

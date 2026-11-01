@@ -505,6 +505,47 @@ def story_problems(cat: catalog.Catalog, on_menu: dict, stories: List[str]) -> L
     return out
 
 
+HEAVY = re.compile(r"\b(?:heavy|heavier|heaviest|max(?:imal)? (?:load|weight)s?|load (?:it|that|them) up|go big)\b",
+                   re.IGNORECASE)
+
+
+def _negated_heavy(before: str) -> bool:
+    """"nothing heavy", "nothing too heavy", "not so heavy": a negation, past an intensifier or two."""
+    words = before.lower().split()
+    while words and words[-1].strip(",.") in ("too", "so", "very", "overly", "really", "that"):
+        words.pop()
+    return negated(" ".join(words))
+
+
+def load_problems(cat: catalog.Catalog, menu: dict, segments) -> List[str]:
+    """A segment's coaching that asks for a heavy load ("pick up a heavy pair") while naming a movement that loads
+    one of today's limited areas: under a limit those stay light. One issue a segment; "nothing heavy" passes."""
+    import screen
+    areas = set()
+    for s in (menu.get("request") or {}).get("limits") or []:
+        try:
+            areas.add(screen.parse_limit(s, cat).area)
+        except (ValueError, TypeError):
+            continue
+    if not areas:
+        return []
+    out = []
+    for seg in segments:
+        coaching = draft.story_split(seg)[0]
+        heavy = next((m for m in HEAVY.finditer(coaching) if not _negated_heavy(coaching[:m.start()])), None)
+        if heavy is None:
+            continue
+        for mid, _, _ in mentions(cat, coaching):
+            mv = cat.movements.get(mid)
+            hit = sorted(a for a in areas if mv is not None and mv.loads.get(a, 0) >= 1)
+            if hit:
+                out.append(f'segment "{seg["label"]}" (line {seg["start"]}): "{heavy.group(0)}" with {mv.name}, which '
+                           f"loads today's limited {', '.join(hit)}: keep it light (twelve to fifteen reps with three or "
+                           "more in reserve) and say so")
+                break
+    return out
+
+
 def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tuple[List[str], List[str]]:
     """(issues, warnings) for a draft's text and parsed segments against today's menu."""
     if menu is None:
@@ -560,6 +601,9 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
         for why in found:
             if why not in issues:
                 issues.append(why)
+    for why in load_problems(cat, menu, segments):
+        if why not in issues:
+            issues.append(why)
     want = menu.get("seconds")
     total = sum(seg["seconds"] for seg in segments)
     if want and total != want:

@@ -853,8 +853,9 @@ class Turn(JobsCase):
             job, conv = self.run_turn(uk, script, cid, line="go")
         self.assertEqual(self.state(job), ("done", None))
         self.assertEqual(len(seen), 2 + 6)   # step 1 up front (5 runs and the route), then the model's two
-        for env in seen:
-            self.assertEqual(env, {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
+        for env in seen:   # the voice key, and the listener's clock (TZ): never the model's key
+            self.assertEqual({k: v for k, v in env.items() if k != "TZ"}, {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
+            self.assertRegex(env.get("TZ", ""), r"^LCL[+-]\d+(:\d\d)?$")
             self.assertNotIn(MODEL_KEY, env.values())
         self.conn.rollback()
 
@@ -1156,3 +1157,13 @@ class Enrich(JobsCase):
             worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich")
             self.assertEqual(self.state(job)[0], "failed", args)
         self.conn.rollback()
+
+
+class Clock(unittest.TestCase):
+    def test_the_engine_runs_on_the_listener_s_clock(self):
+        utc = datetime.datetime(2026, 11, 1, 18, 16)
+        self.assertEqual(worker.listener_zone("2026-11-01 Sunday 13:16", utc), "LCL+5")      # Philadelphia
+        self.assertEqual(worker.listener_zone("2026-11-01 Sunday 23:47", utc), "LCL-5:30")   # Mumbai
+        self.assertEqual(worker.listener_zone("2026-11-02 Monday 03:16", utc), "LCL-9")      # Tokyo, the next day
+        for bad in ("soon", "2026-11-01 13:16", "2026-11-05 Thursday 13:16", None):
+            self.assertIsNone(worker.listener_zone(bad, utc), bad)

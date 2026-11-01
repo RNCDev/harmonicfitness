@@ -164,6 +164,13 @@ class Brief(unittest.TestCase):
         self.assertIn("the right knee", r.stdout)           # the limit cues name the side
         self.assertNotIn("{side}", r.stdout)
 
+    def test_a_movement_that_loads_a_limit_is_marked_light_only(self):
+        r = brief("--goal", "strength", "--minutes", "25", "--preset", "full-gym", "--limit", "knee=delicate:left")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        loaded = [ln for ln in menu_section(r.stdout).splitlines() if "load on today's limits" in ln]
+        self.assertTrue(loaded)
+        self.assertTrue(all("LIGHT ONLY today" in ln for ln in loaded))
+
     def test_limits_show_each_movements_load_on_them(self):
         r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
         self.assertIn("load on today's limits: wrist 1", r.stdout)   # delicate wrist: loads of one stay in

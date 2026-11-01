@@ -238,6 +238,24 @@ def balances(ctx: Ctx) -> dict:
                          for s, row in rows.items() if isinstance(row, dict) and "ok" in row}}
 
 
+def listener_zone(now: str, utc: datetime.datetime | None = None) -> str | None:
+    """A POSIX TZ for the listener's clock, from the "YYYY-MM-DD Weekday HH:MM" their page sent and the server's
+    UTC (to the quarter hour), so every engine command in the turn (the brief's time, the menu's day, the build's)
+    reads their local time, not the server's. None when `now` can't be read or is more than 14 hours off."""
+    try:
+        day, _, clock = now.split(" ")
+        local = datetime.datetime.fromisoformat(f"{day} {clock}")
+    except (ValueError, AttributeError):
+        return None
+    utc = (utc or datetime.datetime.now(datetime.timezone.utc)).replace(tzinfo=None)
+    minutes = round((local - utc).total_seconds() / 60 / 15) * 15
+    if abs(minutes) > 14 * 60:
+        return None
+    sign = "-" if minutes >= 0 else "+"   # POSIX: the offset to add to local time to reach UTC
+    h, m = divmod(abs(minutes), 60)
+    return f"LCL{sign}{h}" + (f":{m:02d}" if m else "")
+
+
 ENRICH_TIMEOUT = 120   # seconds for one enrichment's engine command or model call
 ENRICH_REF = re.compile(r"[A-Za-z0-9-]{1,40}")
 INTERESTS_FILE = "workouts/research/interests.jsonl"
@@ -579,7 +597,9 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     ctx.conn.commit()
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
-    deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, keys=ctx.keys, today=today,
+    zone = listener_zone(now)   # the engine's clock is the listener's: the brief's time, today's date for the menu
+    deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home,
+                      keys=dict(ctx.keys, **({"TZ": zone} if zone else {})), today=today,
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
                       cancel=ctx.cancel, picked=picked)
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too

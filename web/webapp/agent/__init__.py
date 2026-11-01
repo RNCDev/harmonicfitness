@@ -479,7 +479,7 @@ def _picked(deps: Deps, listed: ToolResult) -> str | None:
     return coach["name"] if start.chosen_holds(coach, day, start.logged(deps.engine_root, text)) else None
 
 
-FIRST_READS = ("me/profile.md", "me/training.md", "me/health.md", "me/log.md")
+FIRST_READS = ("me/profile.md", "me/training.md", "me/health.md", "me/log.md", "me/content.md", "me/settings.toml")
 
 
 def _block(title: str, r: ToolResult) -> str:

@@ -265,10 +265,18 @@ SECONDS = re.compile(r"^@@\s*(\d+)\s*\|", re.MULTILINE)
 EDIT_MAX = 40   # segments one edit may carry
 
 
+MARK = re.compile(r"\[[^\]]*\]")
+WORD = re.compile(r"[A-Za-z0-9']+")
+
+
 def _adds_up(text: str) -> str:
-    """What a draft's segments add up to, said for the writer to check against the request."""
+    """What a draft's segments add up to, and its spoken words, said for the writer to check against the request
+    and the brief's word count before the first lint."""
     total = sum(int(m) for m in SECONDS.findall(text))
-    return f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min)"
+    spoken = [MARK.sub(" ", ln) for ln in text.split("\n")
+              if not ln.startswith(("@@", "movements:"))]
+    words = sum(len(WORD.findall(ln)) for ln in spoken)
+    return f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min), about {words} words"
 
 
 def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
