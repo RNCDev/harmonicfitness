@@ -17,7 +17,9 @@ The ingredients come from `./harmonicfitness brief`: the listener and their week
 - **One side only, when the menu says so.** Otherwise both sides do the same work. When a movement is listed for one side only, say why the other side rests (training the healthy side still helps the injured one a little). The build checks the side words.
 - **Adjustments never add load to a limited area.** A harder option stays off it, and under a limit the self-check asks about the area too ("Ankle quiet? Stay there. Anything above a three, switch to the easier version."). On low readiness, offer only holding steady or the easier option, and say that's the plan for today.
 - **Only the weights on hand, and say which.** Name the load at each loaded movement's first set from the brief's Loads on hand ("the fifteens", "set the bell to thirty-five"), never one the kit doesn't have, and never "your dumbbells" alone: a listener with no screen needs the number.
+<!-- web: skip -->
 - **Their calendar, only its shape.** With a calendar connector, say only the shape of the day ("two meetings this morning and a free afternoon"), never names, attendees or details: a web coach's script goes to its voice service.
+<!-- web: end -->
 - **Never invent facts.** Scores, prices, quotes and events come only from the research sheets, the stock, the weather and pages a search returned. A topic with nothing verified gives its time to another topic or to coaching. When a segment runs short, lengthen its coaching or ask the listener a question; never pad a story with details (a relative, a degree, a moment, a quote, play-by-play, someone's praise) the source didn't give. A story whose source has a number keeps at least one, and a rest tells only the plan's topics (or a format that needs none), never a story from outside them.
 
 ## Getting the workout done
@@ -108,6 +110,7 @@ A close that says what they did, recalls the warm-up, and leaves one thread open
 
     Next time we'll add a set to the rows, and I'll have the end of that rookie's story, because he's up against his old team on Saturday. Good work today.
 
+<!-- web: skip -->
 ## Last: read it through and rewrite
 
 Once every segment and story is in, read the whole draft top to bottom as the listener will hear it, then rewrite it as one piece:
@@ -117,3 +120,4 @@ Once every segment and story is in, read the whole draft top to bottom as the li
 - Fewer stiff short commands where a sentence would do (`knowledge/tts-rules.md`, Local and web voices).
 
 Keep every safety line intact. When a build runs off plan, rewrite around the segments that are furthest off rather than trimming or padding words.
+<!-- web: end -->

@@ -667,6 +667,18 @@ class Faster(AgentCase):
         self.assertIn("@@ 60 | Squats", self.draft_text())
         self.assertIn("adding up to 120 s", r.output)
 
+    def test_an_edit_keeping_the_skeleton_s_segments_gets_their_seconds_back_too(self):
+        """An edit_segments that changes a segment's seconds off the clock gets the skeleton's back, as a write does:
+        a writer told "add 30 s" ran check, read the draft and rebuilt twice (0.50.2's loop)."""
+        self.menu(120)
+        skeleton = "movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[hold]\n\n@@ 30 | Close\n"
+        tools.write_file(self.deps, self.DRAFT, skeleton)
+        tools.write_file(self.deps, self.DRAFT, self.TEXT)
+        r = tools.edit_segments(self.deps, self.DRAFT, [{"number": 2, "text": "@@ 45 | Squats\nSquat now, slowly.\n[hold]"}])
+        self.assertTrue(r.build, r.output)
+        self.assertIn("the skeleton's (120 s, the request) are restored", r.output)
+        self.assertIn("@@ 60 | Squats", self.draft_text())
+
     def test_a_write_off_the_clock_runs_no_build_in_the_turn(self):
         self.menu(120)
         patch, calls = self.fake()
@@ -943,7 +955,10 @@ class Instructions(AgentCase):
         agent.run_turn(FunctionModel(script), self.deps, None, "hi")
         text = seen["text"]
         with open(os.path.join(ROOT, ".claude/skills/workout/SKILL.md"), encoding="utf-8") as f:
-            self.assertIn(f.read()[-300:].strip(), text)   # the whole skill, to its last line
+            self.assertIn(agent.web_copy(f.read())[-300:].strip(), text)   # the whole skill, to its last line
+        self.assertNotIn("web: skip", text)          # less what's marked for a computer only
+        self.assertNotIn("SendUserFile", text)
+        self.assertNotIn("./harmonicfitness backup", text)
         self.assertIn(".claude/skills/workout/SKILL.md", text)
         self.assertNotIn(".claude/skills/workout/research.md", text)   # a computer's research agents only
         self.assertIn("Never ask the listener for a key or a password", text)

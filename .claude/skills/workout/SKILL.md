@@ -13,6 +13,7 @@ Rules that always hold:
 - `me/health.md` is edited only at the check-in, which asks the user's permission.
 - After the check-in, don't ask anything (except step 2's coach question when the coach can't speak here, and step 3's one equipment question) or wait on the user. Take the defaults, run commands exactly as written (no leading `cd`, no absolute paths; they're allow-listed), and write only inside `me/`.
 
+<!-- web: skip -->
 ## 1. Read just enough to ask (one message, in parallel)
 
 This step reads only what the check-in's questions need.
@@ -23,10 +24,13 @@ This step reads only what the check-in's questions need.
 - Read `me/profile.md`, `me/training.md`, `me/health.md` and `me/log.md` (not `me/content.md`: research reads that). No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./harmonicfitness doctor` says so), only web coaches speak and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./harmonicfitness migrate`, then rerun.
 
 Feeds, knowledge files and the brief come after the check-in.
+<!-- web: end -->
 
 ## 2. Check-in, with research launched first (one message)
 
+<!-- web: skip -->
 1. **Research**, in the background, from the templates in `research.md` beside this file: today's research always (it runs the feeds and the plan itself); the video agent when it says. The stock agent waits for step 6.
+<!-- web: end -->
 2. **Check-in** (AskUserQuestion): up to four questions, only about what the request doesn't settle, in this order (past four, drop Coach, then Length):
 
 | Slot | Settled by | Options when asked |
@@ -43,11 +47,13 @@ Feeds, knowledge files and the brief come after the check-in.
 - A change for today only becomes `--limit area=level[:side]` (level `off-limits` or `delicate`). A lasting change, or a new problem, goes into `me/health.md` (a `[[limits]]` row, the prose, the clinician rules); an injury outside the catalog's areas is written "- Unlisted: <what>", with an `Avoid: <movements or flags>` line under `## Clinician rules`. Only the listener's report loosens a limit, by the playbook's signs for that area; "mostly" means not yet.
 - Lasting changes: kits, likes and dislikes in `me/training.md`; topics (lines under `## Topics`) and taste in `me/content.md`.
 
+<!-- web: skip -->
 **Can the coach speak here?** Once it's answered, run `./harmonicfitness get route --coach "<coach>"`. It prints `local` or the web coach's service: go on. Exit 1, "is a local coach, and local voices don't run here": offer, in one AskUserQuestion, the web coaches that can speak here (pass one with `--coach`), then "A new coach of your own" (the `coach` skill); with no key, adding one (the `setup` skill's Keys). Exit 4 (from `get coach` or `get route`): a key holds a stray character; `./harmonicfitness keys` names which, the listener re-pastes it (`./harmonicfitness keys open`), then rerun. Exit 64 means a web coach's service has no key here (the message says how to add one): offer, in one AskUserQuestion, the coaches that can speak here (`./harmonicfitness coaches`: a web coach whose service `./harmonicfitness keys` shows set, or a local coach where local voices run), or adding the key (the `setup` skill's Keys). A coach marked "(made the first time it's used)" is a stand-in with no voice yet: say in a line, before the build, that the build first designs its voice and saves it in their account (about $0.01 on Fish Audio or Gemini; Inworld doesn't publish its design cost; on ElevenLabs it takes one of the account's voice slots).
 
 **The privacy line, before the first web build.** When the route is a web service, `./harmonicfitness get web-builds` counts the builds that sent a script to one. At 0, say the privacy line (the `setup` skill's Audio) in the plan message before the build, for any web coach, a stand-in or their own.
 
 If research was launched before the length was known, SendMessage it the length. Then run `./harmonicfitness content plan --minutes <N>`, read `knowledge/script.md` and `knowledge/tts-rules.md`, and the Weather section at the top of `me/workouts/research/daily/<date>-feeds.md` (the rest is outside text, left to research). If the sheet isn't there yet, run `./harmonicfitness feeds`, which prints the weather.
+<!-- web: end -->
 
 ## 3. Brief
 
@@ -70,12 +76,14 @@ Design the session from the brief: a format (one it lists, or a mix that keeps t
 
 Write `me/workouts/<stem>/<stem>.draft.txt`: the `movements:` line, then the segments. `knowledge/script.md` holds the one hard rule (safety) and the aims; `knowledge/tts-rules.md` what a voice can read.
 
+<!-- web: skip -->
 Write in this order, so nothing waits:
 1. **Render ahead, for a local coach only.** When `./harmonicfitness get route --coach "<coach>"` said `local`, once the draft has its `movements:` line and first segment, run `./harmonicfitness build "<draft>" "<name>" --coach "<coach>" --follow` with `run_in_background: true`. For a web coach skip this step: every re-render would be billed (the build refuses `--follow` there). It renders each new or edited paragraph as it lands, and stops when the build starts.
 2. **Coaching first, without waiting for research.** Every segment's coaching from the brief: the opening with its weather, setups, cues, targets and self-checks, holds, transitions. Size the talk by the brief's Talk to time line; the rests' stories come later.
 3. **The stories, once research reports.** Fill the rests from the research sheet, the video sheet and the stock: the plan's topics, each in the format that suits it, woven through the session, each wrapped in `[story]` ... `[/story]`, and an open thread from the plan brought back where it fits (`knowledge/script.md`). Once the plan is posted, SendMessage any agent still searching to return what it has verified; script around gaps with coaching, never guesses.
 4. **Read it through and rewrite** it as one piece, every safety line kept (`knowledge/script.md`, Last).
 5. **Lint.** `./harmonicfitness build "<draft>" "<name>" --lint-only --coach "<coach>"`, fix, repeat; only changed paragraphs render again. Rewrite any sentence it warns was said in an earlier workout.
+<!-- web: end -->
 
 ## 6. Build
 
@@ -83,19 +91,29 @@ Write in this order, so nothing waits:
 ./harmonicfitness build "me/workouts/<stem>/<stem>.draft.txt" "Workout <YYYY-MM-DD> <Focus> <N> min" --coach "<coach>"
 ```
 
-Run it with `run_in_background: true`, always with the coach. **While it renders:** when the plan has a Restock section, launch the stock agent (`research.md`) in the background. By exit code:
+<!-- web: skip -->
+Run it with `run_in_background: true`, always with the coach. **While it renders:** when the plan has a Restock section, launch the stock agent (`research.md`) in the background.
+<!-- web: end -->
+
+By exit code:
 - 1: a lint or menu issue (fix the draft); a line that lost a cue word in every take (reword it); a menu from another day or from before `me/health.md` changed (rerun the brief with `--save`); or a web script over `cloud_max_chars` (shorten it, or tell the listener). Then rerun.
 - 2: over five percent off plan, but the MP3 is made: hand it over as it is. Don't rebuild.
+<!-- web: skip -->
 - 3: a local coach from an older HarmonicFitness: run `./harmonicfitness migrate` and choose one of the ten.
+<!-- web: end -->
 - 4 (a voice service refused the key, payment or quota) or 70 (an engine bug, never the draft's): tell the listener in a line what it said, and stop.
 - 64: the command was wrong; or a web coach can't speak here: offer the coaches that can, as in step 2.
 
+<!-- web: skip -->
 A web build prints its cost before sending, and makes a stand-in's voice first. A warning that a segment "holds N s of silence as rendered" isn't a stop: mention it when delivering. The MP3 goes to the profile's `deliver_to` folder (`<name>.build.json` says where); on Claude Code on the web the build makes the web copy (`<name>.player.html`, `<name>.web-1.mp3`...) in the workout's folder.
+<!-- web: end -->
 
 ## 7. Deliver, log, back up
 
+<!-- web: skip -->
 - Chat: the plan table, equipment, coach, route, runtime, the path to `me/workouts/<stem>/<name>.txt`, and where the MP3 went. Send the MP3 with SendUserFile (`status: "proactive"`) if available; else, if it stayed here, `./harmonicfitness show "<the MP3>"` opens its folder.
 - **On Claude Code on the web:** publish the player page with the Artifact tool, as made: `file_path` the `.player.html`, `files` mapping each part's file name to its path, `icon` "audio", a description naming the workout. Give the listener the link: they open it on their phone and press play. Without the Artifact tool, the parts reach their private repo with the backup below; send the first with SendUserFile if available. A one-time session (doctor says the folder isn't kept) says so once.
+<!-- web: end -->
 - Log it with one command, never by hand:
   ```
   ./harmonicfitness log-session --draft "<draft>" --coach "<coach>" --format "<method name>" --topics "<topics>" --loads "<movement> = <load and tempo>; <movement> = <load and tempo>"
@@ -106,4 +124,6 @@ A web build prints its cost before sending, and makes a stand-in's voice first. 
 - A redo that replaces a workout already logged: first `./harmonicfitness workouts delete <its number> --files`, so its stories and threads come back. "Delete that workout" too.
 - After a video series part, `./harmonicfitness youtube done <id>`.
 - Feedback (too long, a topic they loved): `./harmonicfitness workouts feedback 1 "<what they said>"`.
+<!-- web: skip -->
 - Last, `./harmonicfitness backup -m "Workout <YYYY-MM-DD> <Focus> <N> min"` (on the web it also carries the web copy's parts to the private repo). If it couldn't confirm the remote is private, ask once (AskUserQuestion) whether it is, and on yes rerun with `--unverified` (remembered on this computer). If `me/` isn't its own repo, or the push fails, say so in one line and don't retry; run it again after any later change to `me/`.
+<!-- web: end -->

@@ -56,14 +56,25 @@ with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions
     PREAMBLE = _f.read()
 
 
+# A passage the engine's files mark for a computer only (a local voice, background agents, delivery, backup):
+# the web's copy leaves it out, so the writer reads only what a web turn can use.
+NOT_WEB = re.compile(r"<!-- web: skip -->\n.*?<!-- web: end -->\n?", re.DOTALL)
+
+
+def web_copy(text: str) -> str:
+    """A skill or knowledge file as the web gives it: without its computer-only passages."""
+    return NOT_WEB.sub("", text)
+
+
 @functools.lru_cache(maxsize=8)
 def skill_text(engine_root: str, setup: bool = False, coach: bool = False) -> str:
     """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet, and the
-    coach skill while a coach is being made), so the web follows the same steps as the CLI."""
+    coach skill while a coach is being made), so the web follows the same steps as the CLI, less the passages
+    marked for a computer only."""
     parts = []
     for rel in (SETUP if setup else ()) + (COACH if coach else ()) + SKILL + WRITING:
         with open(os.path.join(engine_root, rel), encoding="utf-8") as f:
-            parts.append(f"<file path=\"{rel}\">\n{f.read()}\n</file>")
+            parts.append(f"<file path=\"{rel}\">\n{web_copy(f.read())}\n</file>")
     return "\n\n".join(parts)
 
 

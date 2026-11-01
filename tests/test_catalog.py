@@ -656,7 +656,7 @@ class KnowledgeFiles(unittest.TestCase):
         self.assertEqual(workout.count(EVERY_MOVEMENT_RULE), 1)
         self.assertNotIn("./harmonicfitness session", workout)   # the composer is an optional reference now
         self.assertIn("default is novice", workout)
-        self.assertLess(len(workout.split()), 2600)        # procedure, not knowledge
+        self.assertLess(len(re.sub(r"<!--.*?-->", "", workout).split()), 2600)   # procedure, not knowledge
         for name, text in (("workout", workout), ("setup", setup)):
             low = text.lower()
             for gone in ("injury-rules", "advance_when", "--group"):

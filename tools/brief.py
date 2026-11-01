@@ -71,6 +71,11 @@ GOAL_DOSES = {"strength": ("strength", "conditioning"), "general": ("strength", 
               "mobility": ("mobility",), "skill": ("skill", "strength")}
 
 
+# said once above the menu, for every movement marked LIGHT ONLY (one that loads a limited area)
+LIGHT_ONLY = ("LIGHT ONLY today marks a movement that loads a limited area: twelve to fifteen reps with three or "
+              "more in reserve, and never \"heavy\" (the build refuses it).")
+
+
 def _read(path: str) -> str:
     with open(path, encoding="utf-8") as f:
         return f.read()
@@ -144,8 +149,7 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
         if load:
             facts.append(f"load on today's limits ({'the working side' if side else 'as rated'}): {load}"
                          if side else f"load on today's limits: {load}")
-            facts.append("LIGHT ONLY today: twelve to fifteen reps with three or more in reserve, and never \"heavy\" "
-                         "(the build refuses it)")
+            facts.append("LIGHT ONLY today")
         tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
         notes = ["  " + line.strip() for line in catalog.about(cat, m)[1:]]
@@ -356,14 +360,16 @@ RULES_FOR = {
 }
 
 
-def _equipment_lines(request: dict, equipment) -> List[str]:
+def _equipment_lines(request: dict, equipment, used=None) -> List[str]:
+    """kits.md's notes for the preset and each piece of the kit; with `used` (the equipment today's menu can put
+    to work), only for those: a full gym's notes on a jump rope a knee limit rules out are words to skip."""
     kits = _sections(_read(KITS))
     wanted = []
     if request.get("preset"):
         wanted.append(PRESET_SECTIONS.get(request["preset"]))
     if not set(equipment) - BODY_ONLY:
         wanted.append("No equipment")
-    wanted += [KIT_SECTIONS[e] for e in sorted(equipment) if e in KIT_SECTIONS]
+    wanted += [KIT_SECTIONS[e] for e in sorted(equipment) if e in KIT_SECTIONS and (used is None or e in used or e in BODY_ONLY)]
     out = []
     for heading in dict.fromkeys(w for w in wanted if w):
         if heading in kits:
@@ -529,6 +535,9 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             f"Every movement in the script comes from this list, warm-up and cool-down included: {count} today "
             f"({len(scr.sel.left_out)} left out: {left or 'none'}). Nothing from memory. `./harmonicfitness build` "
             "checks the draft's `movements:` line and its text against it."]
+    if any(_limited(m, list(dict.fromkeys(lim.area for lim in scr.limits)))
+           for m in list(scr.sel.allowed) + list(scr.sel.healthy_side_only)):
+        out.append(LIGHT_ONLY)
     if compact:
         out.append("Coaching notes: after designing, run `./harmonicfitness movements --about <the ids you chose, comma "
                    "separated>` and coach from them.")
@@ -552,7 +561,9 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     if extra:
         out += [""] + extra
     out += ["", "## Programming guide"] + _programming_lines(sess, request, scr, log)
-    out += ["", "## Equipment notes"] + _equipment_lines(request, scr.equipment)
+    used = {e for m in list(scr.sel.allowed) + list(scr.sel.healthy_side_only)
+            for need in m.needs for e in need.split("|")}
+    out += ["", "## Equipment notes"] + _equipment_lines(request, scr.equipment, used)
     out += ["", "## Writing it",
             f"- First line of the draft: `movements: <every movement the script uses, by its name above, comma "
             f"separated>`. Then the `@@ <seconds> | <label>` segments, adding up to exactly {minutes * 60} s. "

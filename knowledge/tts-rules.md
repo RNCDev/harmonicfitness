@@ -48,8 +48,10 @@ Write years as spoken ("twenty twenty-six") and decades in words ("the nineteen 
 
 ## Local and web voices
 
+<!-- web: skip -->
 - **A local coach (Pocket) speaks in short pieces.** Pocket was trained on single sentences. It speaks a paragraph in chunks of a sentence or a few (about fifty tokens), and each chunk starts fresh from the coach's voice. So a run of two-word sentences ("Brace. Lower slow. Push.") comes out clipped, like a machine, and can lose its last words. Fuller sentences come out like a person. Join short cues with commas and "and" ("Hands under the shoulders, and brace. Lower slow, and push."). Keep a cue the listener must catch (go, rest, switch, left, right) and every limit cue clear and whole, never buried mid-sentence. (Tested on 2026-10-29: "Last few. Keep the shape." lost its last sentence, and longer chunks looped or dropped words, so this has to be fixed in the writing; `knowledge/voices.md`, Local coaches.)
 - **A local take is checked by a speech recognizer** as it renders. One that drops a cue word is rendered again. If four takes all drop it, the build stops and names the line, so reword it.
+<!-- web: end -->
 - **A web coach** reads a whole paragraph at once (ElevenLabs and Inworld with its neighbors for context too), so short cues sound fine. The brief says which kind of coach you're writing for.
 
 ## Words that trip a voice
