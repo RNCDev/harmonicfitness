@@ -501,6 +501,14 @@ def _run(b, text):
         b.stopped(f"{len(issues)} menu issue(s)", stage="menu")
         return BuildResult(cli.ISSUES, None, b.lines)
     problems = report.problems
+    empty = [r.index for r in report.rows if r.words == 0]
+    if empty and not smoke:   # a skeleton, or a draft still being written: its budgets are the report
+        b.fail("\nA skeleton, no words yet: write every segment to its budget, then build again."
+               if len(empty) == len(report.rows) else
+               f"\n{len(empty)} segment(s) with no words yet (#{', #'.join(map(str, empty))}): write every segment to "
+               "its budget, then build again.")
+        b.stopped(f"{len(empty)} segment(s) with no words yet", stage="lint")
+        return BuildResult(cli.ISSUES, None, b.lines)
     if problems and not smoke:
         b.fail(f"\n{problems} issue(s). Fix and rerun. Nothing exported.")
         b.stopped(f"{problems} lint issue(s)", stage="lint")

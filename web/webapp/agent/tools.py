@@ -67,6 +67,12 @@ class Deps:
     coach_done: bool = False         # a candidate was kept or the audition closed: the next turn needs no skill
     steps: int = 0                   # the last step id said this turn
     lint_failed: bool = False        # the last check of the script failed: the next draft is a fix, not a first go
+    # the draft just written is a "skeleton" (no words yet) or "partial" (segments still empty): its build is a
+    # lint, whose report is the word budgets; "" otherwise
+    skeleton: str = ""
+    # each skeleton written this turn, by its draft's path: its segments as (seconds, label), the clock the full
+    # draft is held to
+    skeletons: dict[str, list] = field(default_factory=dict)
     phase: str = ""                  # what the turn last did (THINK in agent): names what the model is thinking about
     picked: tuple[str, str] | None = None   # the coach chosen on the page (Settings or the sentence): (slug, day)
     recorded: str | None = None      # the draft recorded this turn: the approval is spent, and that workout is final
@@ -89,6 +95,13 @@ class ToolResult(BaseModel):
     # the site refused the call itself (a command or path it won't run): the model's to fix, not the
     # listener's to see as a failed step. Never sent to the model.
     refused: bool = Field(default=False, exclude=True)
+    # a draft just written is built right after, unless its seconds don't add up to the request (the write says
+    # what to fix first). Never sent to the model.
+    build: bool = Field(default=True, exclude=True)
+    # a draft just written: its segments, and how many hold no words yet (all of them: a skeleton). Until every
+    # segment has words the build is a lint, whose report is the budgets. Never sent to the model.
+    segments: int = Field(default=0, exclude=True)
+    unfinished: int = Field(default=0, exclude=True)
 
 
 def _cut(text: str, limit: int = LIMIT) -> str:
@@ -272,15 +285,25 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
     if deps.recorded and rel.endswith(".draft.txt"):
         return _refuse(AFTER_RECORDING)
     split = 0
+    note = ""
     if rel.endswith(".draft.txt"):
         content, split = split_long(content)
+        if is_skeleton(content):
+            content, note = settle_clock(content, _request_seconds(full))
+            note += long_rests(content)
+            deps.skeletons[rel] = segments_of(content)
+        else:
+            content, note = hold_clock(content, deps.skeletons.get(rel), _request_seconds(full))
     os.makedirs(os.path.dirname(full), exist_ok=True)
     tmp = full + ".tmp-write"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(content)
     os.replace(tmp, full)
     if rel.endswith(".draft.txt"):   # the request's length is the brief's: check them against it before linting
-        return _result(0, f"wrote {path} ({len(content)} characters): {_adds_up(content, full)}.{_split_note(split)}")
+        out = _result(0, f"wrote {path} ({len(content)} characters): {_adds_up(content)}.{_split_note(split)}{note}")
+        out.build = not note.startswith(NOT_BUILT)
+        out.segments, out.unfinished = empty_segments(content)
+        return out
     return _result(0, f"wrote {path} ({len(content)} characters)")
 
 
@@ -300,25 +323,126 @@ MARK = re.compile(r"\[[^\]]*\]")
 WORD = re.compile(r"[A-Za-z0-9']+")
 
 
-TARGET = re.compile(r"write about ([\d,]+) words in all")   # the brief's Talk to time line
-OFF_BY = 0.08   # a draft further than this from the brief's word count is told so before its first lint
+def _words(text: str) -> int:
+    """A draft's spoken words: every line but the header and the @@ lines, markers taken out."""
+    spoken = [MARK.sub(" ", ln) for ln in text.split("\n") if not ln.startswith(("@@", "movements:"))]
+    return sum(len(WORD.findall(ln)) for ln in spoken)
 
 
-def _adds_up(text: str, full: str | None = None) -> str:
-    """What a draft's segments add up to, and its spoken words, said for the writer to check against the request
-    and, when the brief beside the draft (`full`) gives one, its word count: a draft far off it is told how far."""
+BODIES = re.compile(r"^@@[^\n]*$", re.MULTILINE)
+
+
+def empty_segments(text: str) -> tuple[int, int]:
+    """(segments, those with no spoken words yet) in a draft."""
+    bodies = BODIES.split(text)[1:]
+    return len(bodies), sum(_words(b) == 0 for b in bodies)
+
+
+def is_skeleton(text: str) -> bool:
+    """A draft with its @@ segments (and their markers) but no words yet: written first, so its build gives each
+    segment's word budget before the words are written."""
+    n, empty = empty_segments(text)
+    return n > 0 and empty == n
+
+
+LABEL = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*?)\s*$", re.MULTILINE)
+NOT_BUILT = " Not built:"
+
+
+def segments_of(text: str) -> list:
+    """A draft's segments as (seconds, label)."""
+    return [(int(m.group(1)), m.group(2)) for m in LABEL.finditer(text)]
+
+
+def _request_seconds(full: str) -> int | None:
+    """The request's seconds from the menu beside the draft at `full` (brief --save wrote both), or None."""
+    try:
+        with open(full[:-len(".draft.txt")] + ".menu.json", encoding="utf-8") as f:
+            seconds = json.load(f).get("seconds")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return seconds if isinstance(seconds, int) and seconds > 0 else None
+
+
+SETTLE = 0.03   # a skeleton this close to the request is settled here: the difference spread over its rests
+LONGEST_REST = 120   # no dose in sessions.toml rests longer than two minutes: a rest past it is padding
+REST_LABEL = re.compile(r"rest|transition|breath|recover|walk|set-?up|shake", re.IGNORECASE)
+
+
+def _retime(text: str, seconds: list[int]) -> str:
+    """`text` with its @@ lines' seconds replaced, in order."""
+    fixed = iter(seconds)
+    return LABEL.sub(lambda m: f"@@ {next(fixed)} | {m.group(2)}", text)
+
+
+def settle_clock(text: str, want: int | None) -> tuple[str, str]:
+    """A skeleton within SETTLE of the request, settled to it: the difference spread over its rests (every segment
+    when none is labelled as one), in steps of five seconds, since a writer told "add 15 s" re-planned the whole
+    skeleton five or six times (0.50.0's loops); (the text, a note). Further off, or with a rest too short to give,
+    it's left to the writer."""
+    segs = segments_of(text)
+    total = sum(s for s, _ in segs)
+    if not want or total == want or abs(total - want) > SETTLE * want:
+        return text, ""
+    diff = want - total
+    idx = [i for i, (_, label) in enumerate(segs) if REST_LABEL.search(label)] or list(range(len(segs)))
+    weight = sum(segs[i][0] for i in idx)
+    shares = [round(diff * segs[i][0] / weight / 5) * 5 for i in idx]
+    shares[-1] += diff - sum(shares)
+    seconds = [s for s, _ in segs]
+    for i, share in zip(idx, shares):
+        seconds[i] += share
+    if any(seconds[i] < 10 for i in idx):
+        return text, ""
+    changed = [f"{segs[i][1]} {segs[i][0]} to {seconds[i]}" for i, share in zip(idx, shares) if share]
+    return _retime(text, seconds), (f" The segments added up to {total} s: {abs(diff)} s {'given to' if diff > 0 else 'taken from'} "
+                                    f"the rests ({'; '.join(changed)}), so they add up to the request's {want} s.")
+
+
+def long_rests(text: str) -> str:
+    """A note naming a skeleton's rests over LONGEST_REST seconds, or ""."""
+    long = [f"{label} ({secs} s)" for secs, label in segments_of(text) if REST_LABEL.search(label) and secs > LONGEST_REST]
+    return (f" Rests over two minutes: {', '.join(long)}. No dose rests longer than that: give the time to work "
+            "(another set, or a movement the week hasn't trained).") if long else ""
+
+
+def hold_clock(text: str, skeleton: list | None, want: int | None) -> tuple[str, str]:
+    """The draft held to the request's clock: (the text, a note). A draft whose segments add up to the request
+    passes as written. One that keeps its skeleton's segments but not their seconds gets the skeleton's back
+    (it was written to those budgets). Any other draft off the clock isn't built: the note says how far off and
+    which of the skeleton's segments it dropped or added, for one edit, since a writer told only the total
+    rewrote the whole draft two or three times (0.50.0's loops)."""
+    segs = segments_of(text)
+    total = sum(s for s, _ in segs)
+    if not want or total == want:
+        return text, ""
+    if skeleton and len(skeleton) == len(segs):
+        fixed = iter(skeleton)
+        text = LABEL.sub(lambda m: f"@@ {next(fixed)[0]} | {m.group(2)}", text)
+        return text, (f" The @@ seconds came to {total} s; the skeleton's ({want} s, the request) are restored, since "
+                      "the words were written to its budgets.")
+    off = want - total
+    note = (f"{NOT_BUILT} the segments add up to {total} s, but the request is {want} s: "
+            f"{'add' if off > 0 else 'take'} {abs(off)} s.")
+    if skeleton:
+        have = {label for _, label in segs}
+        had = {label for _, label in skeleton}
+        dropped = [f"{label} ({secs} s)" for secs, label in skeleton if label not in have]
+        added = [f"{label} ({secs} s)" for secs, label in segs if label not in had]
+        if dropped:
+            note += f" The skeleton had {len(skeleton)} segments; this draft dropped " + ", ".join(dropped) + "."
+        if added:
+            note += " New since the skeleton: " + ", ".join(added) + "."
+    return text, note + (" Give those seconds, and the words that fill them, to the segments where they belong in "
+                         "one edit_segments (each edit the whole segment, its @@ seconds first); the build runs with it.")
+
+
+def _adds_up(text: str) -> str:
+    """What a draft's segments add up to, and its spoken words, said for the writer to check against the request."""
     total = sum(int(m) for m in SECONDS.findall(text))
-    spoken = [MARK.sub(" ", ln) for ln in text.split("\n")
-              if not ln.startswith(("@@", "movements:"))]
-    words = sum(len(WORD.findall(ln)) for ln in spoken)
-    out = f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min), about {words} words"
-    target = _target(full)
-    if target and abs(words - target) > OFF_BY * target:
-        off = (words - target) / target
-        out += (f". That's {abs(off):.0%} {'over' if off > 0 else 'under'} the brief's {target:,} words: "
-                + ("trim it before the first lint (a set that holds for its reps gets its cues, not stories)"
-                   if off > 0 else "lengthen it before the first lint (fuller coaching, fuller stories in the rests)"))
-    return out
+    words = _words(text)
+    return (f"{len(SECONDS.findall(text))} segments adding up to {total} s ({total / 60:g} min), "
+            + ("no words yet (a skeleton)" if not words else f"about {words} words"))
 
 
 # A clip (a paragraph's text between markers) the lint finds over draft.MAX_CLIP (22 s) costs a whole round trip to
@@ -401,18 +525,6 @@ def build_name(path: str) -> str | None:
     return f"Workout {found.group(1)} {found.group(2).capitalize()} {found.group(3)} min" if found else None
 
 
-def _target(full: str | None) -> int | None:
-    """The brief's word count for the draft at `full` (its <stem>.brief.md), or None."""
-    if not full or not full.endswith(".draft.txt"):
-        return None
-    try:
-        with open(full[:-len(".draft.txt")] + ".brief.md", encoding="utf-8") as f:
-            found = TARGET.search(f.read())
-    except OSError:
-        return None
-    return int(found.group(1).replace(",", "")) if found else None
-
-
 def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
     """Replace segments of a draft in one go, each by its place from 1 (the lint's # column) with the whole new
     segment, `@@` line first: every fix one lint names, in one call. All or nothing: nothing is written when any
@@ -458,12 +570,21 @@ def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
     new, split = split_long("\n".join(out))
     if len(new) > WRITE_LIMIT:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
+    if is_skeleton(new):
+        new, note = settle_clock(new, _request_seconds(full))
+        note += long_rests(new)
+        deps.skeletons[rel] = segments_of(new)
+    else:
+        new, note = hold_clock(new, None, _request_seconds(full))
     tmp = full + ".tmp-write"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(new)
     os.replace(tmp, full)
-    return _result(0, f"replaced segment{'s' if len(wanted) > 1 else ''} {', '.join(map(str, sorted(wanted)))} in "
-                      f"{path}: now {_adds_up(new, full)}.{_split_note(split)}")
+    result = _result(0, f"replaced segment{'s' if len(wanted) > 1 else ''} {', '.join(map(str, sorted(wanted)))} in "
+                        f"{path}: now {_adds_up(new)}.{_split_note(split)}{note}")
+    result.build = not note.startswith(NOT_BUILT)
+    result.segments, result.unfinished = empty_segments(new)
+    return result
 
 
 def list_files(deps: Deps, path: str = "me/") -> ToolResult:

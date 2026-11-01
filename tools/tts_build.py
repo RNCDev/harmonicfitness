@@ -234,8 +234,10 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         speech = [sum(clip_seconds(text, voice, rate) for para in plans[i] for text, _ in para if spoken(text))
                   for i in range(len(segments))]
         fixed = [max(spokens[i] - speech[i], 0.0) for i in range(len(segments))]
-        guide_wpm = (sum(word_count(seg["lines"]) for seg in segments) / sum(speech) * 60
-                     if sum(speech) else wpm)
+        # The rate this draft's words are spoken at; until every segment has words, the voice's rate on a sample,
+        # so the budgets stay the same from the skeleton through each pass that fills it.
+        per_seg = [word_count(seg["lines"]) for seg in segments]
+        guide_wpm = (sum(per_seg) / sum(speech) * 60 if sum(speech) and all(per_seg) else sample_wpm(voice, rate))
         timeline = layout([(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], is_held(seg))
                            for i, seg in enumerate(segments)])
         quiet_spokens, quiet_timeline = spokens, timeline
@@ -330,6 +332,44 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
     return report
 
 
+def sample_wpm(voice, rate=None):
+    """Words a minute `voice` speaks the smoke test's coaching at, as the lint lays it: each clip with its trimmed
+    edges, and the least break between paragraphs; holds, pauses and chimes take their own seconds. The brief's
+    Talk to time rate, and a skeleton's guide rate (a draft with no words yet gives nothing to measure)."""
+    import draft
+    import paths
+    from voices import clip_seconds, pace
+    if rate is None:
+        rate = pace(voice)[0]
+    with open(paths.SMOKE_DRAFT, encoding="utf-8") as f:
+        plans = [draft.plan(seg) for seg in draft.parse(f.read())]
+    texts = [t for paras in plans for para in paras for t, _ in para if spoken(t)]
+    seconds = sum(clip_seconds(t, voice, rate) for t in texts) \
+        + PARAGRAPH_GAP * sum(max(len(paras) - 1, 0) for paras in plans)
+    return sum(len(t.split()) for t in texts) / seconds * 60
+
+
+def unfinished_report(report):
+    """The report for a draft not written through yet: a skeleton (its segments and markers, no words), or one with
+    segments still empty. Each segment's word budget at the voice's rate, around its counts, holds, pauses and
+    chimes, the words it holds so far and what's left to write, so the words are written to the clock rather
+    than fitted to it after."""
+    empty = [r for r in report.rows if r.words == 0]
+    who = f" with {report.voice['name']}" if report.voice else ""
+    head = (f"Skeleton: {len(report.rows)} segments, {report.total_seconds:.0f} s." if len(empty) == len(report.rows)
+            else f"Unfinished: {len(empty)} of {len(report.rows)} segments have no words yet, {report.total_seconds:.0f} s.")
+    out = [head + f" Word budgets{who} (about {report.wpm:.0f} words a minute, around each segment's counts, holds, "
+           "pauses and chimes):", f"{'#':>3} {'secs':>5} {'budget':>6} {'words':>5} {'to write':>8}  label"]
+    for r in report.rows:
+        out.append(f"{r.index:>3} {r.seconds:>5} {r.guide:>6} {r.words:>5} {max(r.guide - r.words, 0):>8}  {r.label}")
+        if r.words:
+            out += r.clip_issues + r.line_issues
+    left = sum(max(r.guide - r.words, 0) for r in report.rows)
+    out.append(f"About {left:,} words still to write. Every segment to its budget; the draft builds once every "
+               "segment has words.")
+    return out
+
+
 def words_to_plan(report):
     """How many words would land the draft on plan, and where: the segments furthest off their guide, each with
     its share, so one edit gets there (drafts lengthened "a little" at a time took four passes)."""
@@ -350,7 +390,9 @@ def words_to_plan(report):
 
 
 def render_report(report):
-    """The lint's printed table and summary, as lines."""
+    """The lint's printed table and summary, as lines; the budgets while any segment has no words yet."""
+    if any(r.words == 0 for r in report.rows):
+        return unfinished_report(report)
     out = []
     voice = report.voice
     if voice:

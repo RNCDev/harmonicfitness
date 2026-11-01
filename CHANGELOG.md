@@ -2,6 +2,26 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.50.1] - 2026-11-01
+
+The clock before the words. A five-iteration script-writing loop (docs/eval/README.md) on the web coach, two 30-minute requests an iteration against one snapshot, two judges a script: a 30-minute script now reaches a priced, checked draft in 104 to 138 seconds (from 135 and 156; the median run of the last two iterations 114 s), with whole rewrites down from two or three a run to one or none, safety 4 throughout, efficacy 3.5 to 4 (from 3 and 4) and engagement 3 unchanged. The last iteration also tried a one-sentence "shape of a story" in the skeleton's report and dropped it (the judges heard editorializing); the two requests' last runs carried that sentence. A holdout (a 20-minute hotel-room conditioning session) ran at 71 seconds with it in (4 / 3.5 / 3) and at 143 on the released state (4 / 3 / 3: a first draft a quarter short, then seven edits each adding about half the words the lint asked for; the writer's under-delivery on an edit is the next thing to hold in code). The loop found the time went to arithmetic the writer can't do (thirty segment lengths summed to the request, a first draft 15 to 20 percent off its length) and to the whole rewrites that followed; every fix below is a check or a budget in code, and the writer reads 86 fewer words of guidance than in 0.50.0.
+
+### Added
+- **The skeleton:** a draft written as its `movements:` line and `@@` lines alone (with the counts and holds each will have) lints to each segment's word budget at the coach's rate (`tts_build.unfinished_report`, the rate from the coach on the smoke test's coaching, `sample_wpm`, which the brief's Talk to time line now shares), so the words are written to the clock rather than fitted to it after. Segments still empty get the same report with the words so far; the draft builds once every segment has words.
+- **Web app, the draft in passes:** the skeleton, then the rests (each to its budget, one story), then the coaching, then one fix; each pass with segments still empty is a lint whose report is the budgets, labelled "Planning the script's timing" and "Checking the script so far".
+- **Web app, the clock is held in code:** a full draft whose seconds don't add up to the request isn't built; the write says how far off, and which of the skeleton's segments it dropped or added, for one edit (a writer told only the total rewrote the whole draft two or three times). A draft that keeps the skeleton's segments but not their seconds gets the skeleton's back. A skeleton within three percent of the request is settled over its rests, in steps of five seconds (the writer re-planned the skeleton five to seven times to land "add 15 s"); rests over two minutes are named.
+- `brief --goal full-body` and `cardio` are `general` and `conditioning` (the page's words; a round trip each).
+
+### Changed
+- **Less to read:** the brief's word target ("write about 3,170 words… count them before the first lint": drafts missed it by fifteen percent either way) is the skeleton's budgets; script.md's "What the build checks" paragraph (the build says so), its figures and stacking sentences (both checks in code since 0.49.6) and the close's ask for "what else they're into" (every judge heard app-speak; content.md already says) are gone, as is the web instructions' Logs-page line for the close. The write result's "lengthen it before the first lint" (which read as "rewrite") is gone with the target.
+- **Web app, the write tool's labels:** "Planning your script" while the skeleton is designed, "Writing your script" while the draft is.
+
+### Fixed
+- A `--lint-only` build of a draft with no words no longer counts every segment as a timing issue.
+
+### For forks
+- No migration. A draft is built as before; the skeleton is a new way to start one.
+
 ## [0.50.0] - 2026-11-01
 
 The script-writing loop replaces the judged grid. Five loops on 30-minute scripts (0.49.4 to 0.49.6) found a better way to try a change to the writing: real sessions written by the web coach on this computer, timed, and scored by two independent judges against written anchors. The forty-case grid of invented listeners, and the six-part rubric that marked scripts down for faults a listener wouldn't notice, are gone.

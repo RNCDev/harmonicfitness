@@ -142,8 +142,9 @@ OTHER_STEP = "Running a check"
 # After the recording, what the model reads (say, why a total ran off plan) is all one step to the listener.
 WRAPPING_UP = "Wrapping up"
 # What the model is doing between tools, by what the turn did last (Deps.phase): shown while it thinks.
-THINK = {"": "Reading your message", "brief": "Writing your script", "draft": "Checking over the script",
-         "lint_failed": "Fixing the script", "linted": "Getting the recording ready", "priced": "Writing up the plan",
+THINK = {"": "Reading your message", "brief": "Planning your script", "skeleton": "Writing your script",
+         "draft": "Checking over the script", "lint_failed": "Fixing the script",
+         "linted": "Getting the recording ready", "priced": "Writing up the plan",
          "recorded": WRAPPING_UP, "audition": "Introducing the voices", "coach": "Working on your coach"}
 THINK_OTHER = "Deciding what to do next"
 COACH_STEPS = {"make": "Making your coach's voice", "audition": "Auditioning voices for your coach",
@@ -171,11 +172,12 @@ def _read_step(path: object) -> str:
     return "Looking through your files"
 
 
-def _write_step(path: object, fixing: bool = False) -> str:
+def _write_step(path: object, fixing: bool = False, skeleton: bool = False) -> str:
     if isinstance(path, str) and path.startswith("me/coaches/"):
         return "Describing your coach"
     if isinstance(path, str) and path.endswith(".draft.txt"):
-        return "Tightening the script's timing" if fixing else "Writing your script"
+        return "Planning the script's timing" if skeleton else \
+            "Tightening the script's timing" if fixing else "Writing your script"
     if isinstance(path, str) and path.startswith("me/workouts/research/"):
         return "Saving today's research"
     return "Saving your notes"
@@ -202,7 +204,7 @@ def _begin(deps: Deps, text: str, tool: str, think: bool = False) -> int:
 # How hard Gemini thinks, by what the turn is doing. Its default thought for 3,000 to 9,500 tokens a request
 # (a 96-second write in 0.49.4's loop, two thirds of it thinking): designing, writing and fixing the script get
 # medium, and the steps between them (running the brief, the reply that ends the turn) get low.
-THINK_HARD = ("brief", "draft", "lint_failed")
+THINK_HARD = ("brief", "skeleton", "draft", "lint_failed")
 
 
 def thinking_level(model, phase: str) -> str | None:
@@ -373,13 +375,19 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
             return result
         text = "Checking and pricing the script"   # an unapproved build checks the script, then prices it
     if first == "build" and "--lint-only" in args:
-        text = "Checking the script again" if deps.lint_failed else "Checking the script's safety and timing"
+        text = ("Planning the script's timing" if deps.skeleton == "skeleton" else
+                "Checking the script so far" if deps.skeleton else
+                "Checking the script again" if deps.lint_failed else "Checking the script's safety and timing")
     if first == "coaches" and len(rest) > 1 and rest[1] in COACH_STEPS:
         text = COACH_STEPS[rest[1]]
     result = _step(deps, text, tool, lambda: tools.run(deps, args))
     if result.refused:   # the site's own refusal: the script wasn't checked, so nothing about it changes
         return result
-    if first == "build":
+    if first == "build" and deps.skeleton:   # the lint gave the budgets: the words come next
+        deps.skeleton = ""
+        deps.lint_failed = False
+        deps.phase = "skeleton"
+    elif first == "build":
         deps.lint_failed = result.code != 0
         deps.phase = "lint_failed" if result.code != 0 else ("linted" if "--lint-only" in args else "priced")
         offer = deps.offer
@@ -411,15 +419,19 @@ def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
 def _then_build(ctx: RunContext[Deps], path: object, written: ToolResult, name: str | None,
                 coach: str | None) -> ToolResult:
     """A draft written with its build's name and coach is built at once, as `run build` would (its lint, then its
-    price when clean): one round trip a fix, not two. The write's own line first, then the build's."""
-    if written.code != 0 or not (isinstance(path, str) and path.endswith(".draft.txt")):
+    price when clean): one round trip a fix, not two. The write's own line first, then the build's. A draft with
+    segments still empty (a skeleton, or one written in passes) is linted only: its report is each segment's word
+    budget and what's left to write."""
+    if written.code != 0 or not written.build or not (isinstance(path, str) and path.endswith(".draft.txt")):
         return written
     # a draft written without them builds anyway, under its stem's name and the brief's coach: a write left
     # unbuilt is a round trip spent on `run build`
     name, coach = name or tools.build_name(path), coach or ctx.deps.brief_coach
     if not (name and coach):
         return written
-    built = run(ctx, ["build", path, name, "--coach", coach])
+    unfinished = written.unfinished > 0
+    ctx.deps.skeleton = ("skeleton" if written.unfinished == written.segments else "partial") if unfinished else ""
+    built = run(ctx, ["build", path, name, "--coach", coach] + (["--lint-only"] if unfinished else []))
     return built.model_copy(update={"output": written.output + "\n\n### build (exit " + str(built.code) + ")\n"
                                     + built.output})
 
@@ -429,8 +441,11 @@ def write_file(ctx: RunContext[Deps], path: str, content: str, build_name: str |
                coach: str | None = None) -> ToolResult:
     """Write (create or replace) a text file in the listener's folder, me/... only. For a draft, pass its build's
     name and coach too, and the build runs right after the write (its lint, then its price when clean), its
-    result in this reply: no separate `run build`."""
-    result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "write_file",
+    result in this reply: no separate `run build`. A draft with no words yet is the skeleton: its result gives each
+    segment's word budget."""
+    skeleton = isinstance(path, str) and path.endswith(".draft.txt") and isinstance(content, str) \
+        and tools.is_skeleton(content)
+    result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed, skeleton), "write_file",
                    lambda: tools.write_file(ctx.deps, path, content))
     if isinstance(path, str) and path.endswith(".draft.txt"):
         ctx.deps.phase = "draft"

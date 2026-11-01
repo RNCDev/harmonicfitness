@@ -1577,6 +1577,35 @@ class LintReport(unittest.TestCase):
         with mock.patch("voices.pace", return_value=(10.0, True)):
             self.assertTrue(any("of silence" in i for i in tts_build.lint(long, v, bed=True).rows[0].clip_issues))
 
+    def test_a_skeleton_reports_each_segments_word_budget(self):
+        """A draft with segments and markers but no words yet (written first, so the words are written to the
+        clock) gets its budgets at the voice's rate on a sample, never the words-a-minute default."""
+        v = {"name": "Coach Fake", "key": "x", "engine": "chatterbox", "model": "m"}
+        segs = parse("@@ 60 | Welcome\n\n@@ 45 | Squats\n[count 3 go]\n[hold 4s]\n\n@@ 75 | Rest\n")
+        with mock.patch("voices.pace", return_value=(12.0, False)):
+            report = tts_build.lint(segs, v)
+            lines = tts_build.render_report(report)
+        self.assertTrue(lines[0].startswith("Skeleton: 3 segments, 180 s. Word budgets with Coach Fake"), lines[0])
+        self.assertNotAlmostEqual(report.wpm, tts_build.DEFAULT_WPM)
+        self.assertEqual(report.total_words, 0)
+        budgets = [r.guide for r in report.rows]
+        self.assertTrue(all(b > 0 for b in budgets), budgets)
+        self.assertLess(budgets[1], budgets[0])        # the count and hold take their seconds from the set
+        self.assertIn(f"About {sum(budgets):,} words still to write", lines[-1])
+        self.assertFalse(any("ends" in ln or "To land" in ln for ln in lines))   # not a fix list: a plan
+        # a draft written in passes: the rest holds its story, the sets are still empty
+        partial = parse("@@ 60 | Welcome\n\n@@ 45 | Squats\n[count 3 go]\n[hold 4s]\n\n@@ 75 | Rest\n"
+                        "Set it down. [story] The Flyers won four to two last night. [/story] Pick it back up.\n")
+        with mock.patch("voices.pace", return_value=(12.0, False)):
+            report = tts_build.lint(partial, v)
+            lines = tts_build.render_report(report)
+        self.assertTrue(lines[0].startswith("Unfinished: 2 of 3 segments have no words yet, 180 s."), lines[0])
+        row = next(ln for ln in lines if ln.strip().endswith("Rest"))
+        self.assertIn(f"{report.rows[2].words:>5} {max(report.rows[2].guide - report.rows[2].words, 0):>8}", row)
+        with mock.patch("voices.pace", return_value=(12.0, False)):
+            worded = tts_build.render_report(tts_build.lint(parse("@@ 60 | Welcome\nHello there friend.\n"), v))
+        self.assertFalse(worded[0].startswith(("Skeleton", "Unfinished")))
+
     def test_the_lint_keeps_headroom_inside_the_renders_tolerance(self):
         v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
         segs = parse("@@ 10 | A\n" + "word " * 40 + "\n")

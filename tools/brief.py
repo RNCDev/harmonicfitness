@@ -409,14 +409,9 @@ def talk_rate(voice_name: str):
             voice = None
     if voice is None:
         return None
+    import tts_build
     rate, exact = voices.pace(voice)
-    with open(paths.SMOKE_DRAFT, encoding="utf-8") as f:
-        plans = [draft.plan(seg) for seg in draft.parse(f.read())]
-    texts = [t for paras in plans for para in paras for t, _ in para if draft.spoken(t)]
-    # as the lint lays it: each clip with its trimmed edges, and the least break between paragraphs
-    seconds = sum(voices.clip_seconds(t, voice, rate) for t in texts) \
-        + draft.PARAGRAPH_GAP * sum(max(len(paras) - 1, 0) for paras in plans)
-    return sum(len(t.split()) for t in texts) / seconds * 60, exact
+    return tts_build.sample_wpm(voice, rate), exact
 
 
 def _coach_lines(name) -> List[str]:
@@ -473,12 +468,6 @@ def _voice_line(voice_name: Optional[str]) -> List[str]:
             "(\"Lower slow, and push.\"), keeping each cue word clear (knowledge/tts-rules.md, Local and web voices)."]
 
 
-# The share of a session's minutes a web coach's finished script spends talking (the rest: holds, counts, chimes,
-# breaks), measured on three Gemini drafts that passed the lint on 2026-11-01 (0.71, 0.79, 0.81): the brief turns it
-# into a word count to write to, since a draft written by feel came in nine to twelve percent short every time.
-SPEECH_SHARE = 0.72
-
-
 def _budget_line(voice_name: Optional[str], minutes: Optional[int] = None) -> List[str]:
     coach = _coach(voice_name)
     found = talk_rate(coach.name) if coach else None
@@ -486,15 +475,13 @@ def _budget_line(voice_name: Optional[str], minutes: Optional[int] = None) -> Li
         return []
     wpm, exact = found
     voice_name = coach.name
+    # A draft written by feel came in nine to twelve percent short every time (0.49.x), and one written to a total
+    # word count still missed by fifteen percent either way: the budgets come from the skeleton, segment by segment.
     return [f"- Talk to time: {voice_name} speaks about {wpm:.0f} words a minute"
             f"{'' if exact else ' (estimated; not measured on this computer yet)'}, so twenty seconds of talk "
-            f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds; "
-            "`./harmonicfitness build <draft> <name> --lint-only` gives each segment's exact guide. First drafts "
-            "come in short (10 to 15 percent, every time measured): write each segment to its full time, so the "
-            "first lint passes."
-            + (f" For this {minutes}-minute session, write about {round(wpm * SPEECH_SHARE * minutes, -1):.0f} words "
-               f"in all (between {round(wpm * 0.66 * minutes, -1):.0f} and {round(wpm * 0.78 * minutes, -1):.0f}, "
-               "fewer with long holds), and count them before the first lint." if minutes else "")]
+            f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds. Write the skeleton "
+            "first (the `movements:` line and the `@@` lines with their counts and holds, no words yet): its build "
+            "gives each segment's word budget, and every segment is written to its budget."]
 
 
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,
@@ -643,10 +630,16 @@ def _usage(e):
     return cli.Usage(f"harmonicfitness brief: {e}")
 
 
+# How a request names a goal (the web page's sentence says "full-body workout", "cardio workout"), as
+# sessions.toml names it: a round trip saved each time a writer guesses the page's word.
+GOAL_ALIASES = {"full-body": "general", "full_body": "general", "fullbody": "general", "cardio": "conditioning"}
+
+
 def request_from(args, cat, sess, profile):
     """The request build() takes, from the command line, every value checked against the catalog, the session
     rules and the profile's kits first: an unknown goal, kit, preset, equipment, level, target, limit or avoid
     word raises cli.Usage (exit 64) naming the choices."""
+    args.goal = GOAL_ALIASES.get(args.goal, args.goal)
     if args.goal not in sess.goals:
         raise _usage(f"unknown goal \"{args.goal}\" (choose from: {', '.join(sess.goals)})")
     if args.level is not None and args.level not in catalog.LEVELS:

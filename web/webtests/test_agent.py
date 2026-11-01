@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import sys
@@ -251,9 +252,9 @@ class Turns(AgentCase):
 
         agent.run_turn(FunctionModel(script), self.deps, None, "go")
         thinking = [(t, c) for t, c, k in said if k]
-        # the first request reads the message; after the brief, the next is the script being written
+        # the first request reads the message; after the brief, the next plans the script (its skeleton)
         self.assertEqual(thinking, [("Reading your message", None), ("Reading your message", 0),
-                                    ("Writing your script", None), ("Writing your script", 0)])
+                                    ("Planning your script", None), ("Planning your script", 0)])
         self.assertIn(("Working out today's safe moves", None, False), said)
 
     def test_a_failed_check_makes_the_next_draft_a_fix(self):
@@ -549,16 +550,138 @@ class Faster(AgentCase):
         self.assertIn(f"me/workouts/{TODAY}-strength-20/", text)
         self.assertNotIn("2026-01-01-strength-20", text)
 
-    def test_a_draft_far_from_the_brief_s_word_count_is_told(self):
+    def test_a_skeleton_is_linted_for_its_budgets_not_built(self):
+        """A draft with its segments but no words yet is the skeleton: its write runs a lint-only build, whose
+        report is each segment's word budget, and the turn goes on to the draft, not to a fix."""
+        patch, calls = self.fake()
+        skeleton = "movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[count 3 go]\n[hold 4s]\n\n@@ 30 | Close\n"
+        self.assertTrue(tools.is_skeleton(skeleton))
+        self.assertFalse(tools.is_skeleton(self.TEXT))
+        said = []
+        self.deps.say = lambda text, tool, code, step, think=False: said.append(text) if not think else None
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("write_file", {
+                    "path": self.DRAFT, "content": skeleton, "build_name": "Workout A", "coach": "Coach Reed"},
+                    tool_call_id="w1")])
+            return ModelResponse(parts=[TextPart("budgets read")])
+        with patch:
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertEqual([a[0] for a in calls], ["build"])
+        self.assertIn("--lint-only", calls[0])   # never priced, nothing recorded
+        self.assertIsNone(self.deps.offer)
+        self.assertEqual(self.deps.phase, "skeleton")
+        self.assertFalse(self.deps.lint_failed)
+        self.assertFalse(self.deps.skeleton)
+        self.assertEqual(said[:2], ["Planning the script's timing", "Planning the script's timing"])
+        self.assertIn("no words yet (a skeleton)", self.draft_text() and tools.write_file(self.deps, self.DRAFT, skeleton).output)
+
+    def menu(self, seconds=120):
         os.makedirs(os.path.join(self.home, "workouts", "a"), exist_ok=True)
-        with open(os.path.join(self.home, "workouts", "a", "a.brief.md"), "w", encoding="utf-8") as f:
-            f.write("- Talk to time: ... For this 2-minute session, write about 100 words in all (between 90 and 110).\n")
-        r = tools.write_file(self.deps, self.DRAFT, self.TEXT)
-        self.assertIn("about 5 words. That's 95% under the brief's 100 words: lengthen it", r.output)
-        long = self.TEXT.replace("Hello there.", "Hello there. " + "And again, " * 60)
-        self.assertIn("over the brief's 100 words: trim it", tools.write_file(self.deps, self.DRAFT, long).output)
-        near = self.TEXT.replace("Hello there.", "word " * 97)
-        self.assertNotIn("brief's", tools.write_file(self.deps, self.DRAFT, near).output)
+        with open(os.path.join(self.home, "workouts", "a", "a.menu.json"), "w", encoding="utf-8") as f:
+            json.dump({"seconds": seconds}, f)
+
+    def test_a_draft_written_in_passes_is_linted_until_every_segment_has_words(self):
+        """After the skeleton, the rests are written to their budgets in one edit and the coaching in another: each
+        pass with segments still empty runs a lint-only build (the budgets and what's left), and the pass that
+        fills the last segment builds for real."""
+        self.menu(120)
+        patch, calls = self.fake()
+        skeleton = "movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[hold]\n\n@@ 30 | Close\n"
+        said = []
+        self.deps.say = lambda text, tool, code, step, think=False: said.append(text) if not think else None
+        plan = [ToolCallPart("write_file", {"path": self.DRAFT, "content": skeleton, "build_name": "Workout A",
+                                            "coach": "Coach Reed"}, tool_call_id="w1"),
+                ToolCallPart("edit_segments", {"path": self.DRAFT, "edits": [
+                    {"number": 3, "text": "@@ 30 | Close\n[story] The Flyers won. [/story] Good work today."}],
+                    "build_name": "Workout A", "coach": "Coach Reed"}, tool_call_id="e1"),
+                ToolCallPart("edit_segments", {"path": self.DRAFT, "edits": [
+                    {"number": 1, "text": "@@ 30 | Welcome\nHello there."},
+                    {"number": 2, "text": "@@ 60 | Squats\nSquat now.\n[hold]"}],
+                    "build_name": "Workout A", "coach": "Coach Reed"}, tool_call_id="e2")]
+        phases = []
+
+        def script(messages, info):
+            n = len(parts(messages, ToolReturnPart))
+            phases.append(self.deps.phase)
+            return ModelResponse(parts=[plan[n]] if n < len(plan) else [TextPart("ready")])
+        with patch:
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        # two lints for the budgets, then the last pass's own lint and its price (an unapproved build)
+        self.assertEqual([a[0] for a in calls], ["build", "build", "build", "get"])
+        self.assertEqual(self.deps.offer["name"], "Workout A")
+        self.assertEqual(phases[1:3], ["skeleton", "skeleton"])
+        self.assertIn("Checking the script so far", said)
+        self.assertEqual(self.deps.skeleton, "")
+
+    def test_a_skeleton_close_to_the_request_is_settled_over_its_rests(self):
+        """Within three percent, the tool spreads the difference over the rests and says so; further off, the
+        writer is told how far, as before."""
+        self.menu(600)
+        close = ("movements: air-squat\n\n@@ 60 | Welcome\n\n@@ 100 | Squats\n[hold]\n\n@@ 120 | Rest after squats\n\n"
+                 "@@ 100 | Lunges\n[hold]\n\n@@ 80 | Rest after lunges\n\n@@ 125 | Close\n")   # 585 s
+        r = tools.write_file(self.deps, self.DRAFT, close)
+        self.assertIn("adding up to 600 s", r.output)
+        self.assertIn("The segments added up to 585 s: 15 s given to the rests (Rest after squats 120 to 130; "
+                      "Rest after lunges 80 to 85), so they add up to the request's 600 s", r.output)
+        self.assertEqual([s for s, _ in tools.segments_of(self.draft_text())], [60, 100, 130, 100, 85, 125])
+        self.assertEqual(self.deps.skeletons[f"workouts/a/a.draft.txt"][2], (130, "Rest after squats"))
+        far = close.replace("@@ 125 | Close", "@@ 95 | Close")   # 555 s: 7.5 percent short
+        r = tools.write_file(self.deps, self.DRAFT, far)
+        self.assertIn("adding up to 555 s", r.output)
+        self.assertNotIn("given to the rests", r.output)
+        padded = close.replace("@@ 120 | Rest after squats", "@@ 135 | Rest after squats")   # 600 s, a rest too long
+        r = tools.write_file(self.deps, self.DRAFT, padded)
+        self.assertIn("Rests over two minutes: Rest after squats (135 s)", r.output)
+
+    def test_a_draft_off_the_clock_is_not_built_until_one_edit_lands_it(self):
+        """A full draft whose @@ seconds don't add up to the request isn't built: the write says how far off it is
+        and which of the skeleton's segments it dropped, for one edit; the edit that lands the clock builds."""
+        self.menu(120)
+        patch, calls = self.fake()
+        skeleton = "movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[hold]\n\n@@ 30 | Close\n"
+        short = "movements: air-squat\n\n@@ 30 | Welcome\nHello there.\n\n@@ 30 | Close\nDone now.\n"
+        with patch:
+            tools.write_file(self.deps, self.DRAFT, skeleton)
+            r = tools.write_file(self.deps, self.DRAFT, short)
+            self.assertFalse(r.build)
+            self.assertIn("Not built: the segments add up to 60 s, but the request is 120 s: add 60 s", r.output)
+            self.assertIn("dropped Squats (60 s)", r.output)
+            self.assertIn("one edit_segments", r.output)
+            r = tools.edit_segments(self.deps, self.DRAFT, [{"number": 2, "text": "@@ 90 | Close\nDone now, slowly."}])
+            self.assertTrue(r.build, r.output)
+            self.assertNotIn("Not built", r.output)
+            r = tools.edit_segments(self.deps, self.DRAFT, [{"number": 2, "text": "@@ 80 | Close\nDone now."}])
+            self.assertFalse(r.build)
+            self.assertIn("Not built: the segments add up to 110 s, but the request is 120 s: add 10 s", r.output)
+
+    def test_a_draft_keeping_its_skeleton_s_segments_gets_their_seconds_back(self):
+        self.menu(120)
+        skeleton = "movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[hold]\n\n@@ 30 | Close\n"
+        drifted = self.TEXT.replace("@@ 60 | Squats", "@@ 45 | Squats")   # 105 s: the words were written to 60
+        tools.write_file(self.deps, self.DRAFT, skeleton)
+        r = tools.write_file(self.deps, self.DRAFT, drifted)
+        self.assertTrue(r.build)
+        self.assertIn("The @@ seconds came to 105 s; the skeleton's (120 s, the request) are restored", r.output)
+        self.assertIn("@@ 60 | Squats", self.draft_text())
+        self.assertIn("adding up to 120 s", r.output)
+
+    def test_a_write_off_the_clock_runs_no_build_in_the_turn(self):
+        self.menu(120)
+        patch, calls = self.fake()
+        short = "movements: air-squat\n\n@@ 30 | Welcome\nHello there.\n\n@@ 30 | Close\nDone now.\n"
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("write_file", {
+                    "path": self.DRAFT, "content": short, "build_name": "Workout A", "coach": "Coach Reed"},
+                    tool_call_id="w1")])
+            return ModelResponse(parts=[TextPart("fixing")])
+        with patch:
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertEqual(calls, [])
+        self.assertIsNone(self.deps.offer)
 
     def test_a_draft_says_what_its_segments_add_up_to(self):
         r = tools.write_file(self.deps, self.DRAFT, self.TEXT)

@@ -621,3 +621,16 @@ class PatternCache(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GoalAliases(unittest.TestCase):
+    """The page's words for a goal ("full-body workout", "cardio workout") are the brief's goals too."""
+
+    def test_full_body_is_general_and_cardio_is_conditioning(self):
+        r = brief("--goal", "full-body", "--minutes", "30", "--kit", "home")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Today's brief: general, 30 minutes", r.stdout)
+        r = brief("--goal", "cardio", "--minutes", "20", "--kit", "home")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Today's brief: conditioning, 20 minutes", r.stdout)
+        self.assertEqual(brief("--goal", "fullish", "--minutes", "30", "--kit", "home").returncode, 64)
