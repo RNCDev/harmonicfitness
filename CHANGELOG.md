@@ -4,6 +4,17 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [Unreleased]
 
+## [0.46.1] - 2026-10-31
+
+A new logo: the H as a level meter.
+
+### Changed
+- **The logo** is now the wordmark with its H drawn as a stereo level meter: two channels of segments and a middle bar, half again as tall as the other capitals and centred on them, coloured Ember (deep coral at the foot, the brand's coral above, a pale flare at the peak). It replaces the coral trace from 0.43.0 in every file `assets/brand/make.py` writes: the lockups, the new `wordmark-h` files (the main logo), the mark alone in three sizes (`mark.svg`, the new `mark-mid.svg`, `mark-small.svg`), both app icons, the favicons and the web client's `brand.ts`. `make.py` now also needs `coloraide` (its README has the command).
+- **The web app's logo moves where there's sound:** the header's H reads like a live meter while your coach is working or recording, and a small meter beside each workout's player, in the chat and on Logs, moves while it plays. It holds still otherwise, and for anyone whose system asks for reduced motion.
+
+### For forks
+- Nothing to migrate. A fork with its own brand keeps its `assets/brand/` and `brand.ts`; `Mark.tsx` now reads segments from `brand.ts` (`MARK`, `WORDMARK_H`) where it read one line.
+
 ## [0.46.0] - 2026-10-31
 
 A tidy-up: Railway's leftovers gone now the web app runs on Fly, and the old names kept for one release removed.

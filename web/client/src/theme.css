@@ -161,6 +161,7 @@ a:hover { color: #fff }
 .welcome-pick-note { font-size: 14px; color: var(--ink-2); line-height: 1.4 }
 .audio-name { margin: 0 0 6px; font: 700 26px/1.05 var(--display); letter-spacing: .05em; text-transform: uppercase }
 .m.audio audio { width: 100%; color-scheme: dark }
+.audio-name .audio-meter { display: inline-block; vertical-align: -2px; margin-right: 10px }
 .cx-s { font-size: 14px; line-height: 1.45; color: var(--ink-2); margin: 2px 0 0 }
 .cx-s.err { color: var(--stop) }
 .chat-error {
@@ -453,7 +454,9 @@ a.keys-bal:hover { text-decoration: underline }
 .logs-moves, .logs-topics { margin: 0; font-size: 15px; color: var(--ink-2); overflow-wrap: anywhere }
 .logs-topics { color: var(--ink-3); font-size: 14px }
 .logs-audio { margin: 2px 0 4px }
-.logs-audio audio { width: 100%; max-width: 480px; display: block; color-scheme: dark }
+.logs-audio-row { display: flex; align-items: center; gap: 12px }
+.logs-audio-row .audio-meter { flex: none }
+.logs-audio audio { width: 100%; max-width: 480px; display: block; color-scheme: dark; min-width: 0 }
 .logs-audio-note { margin: 4px 0 0; font-size: 13px; color: var(--ink-3) }
 .logs-audio-note a { color: var(--ink-2) }
 .logs-feedback { margin: 0; padding-left: 18px; font-size: 15px }

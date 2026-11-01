@@ -1,6 +1,7 @@
 // The Logs page: every logged workout, newest first, with its script, feedback, a rating and delete.
 // Sorted and filtered here, in the page; each change goes to the server and the list is read again.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Meter } from "../Mark";
 import { api, NotSignedIn, plainError, workoutRef, type Audio, type Rating, type Workout } from "../api";
 
 type Sort = "newest" | "oldest" | "longest" | "shortest" | "best" | "worst";
@@ -61,9 +62,14 @@ function WorkoutAudio({ audio }: { audio: Audio }) {
   const until = new Date(audio.expires_at);
   const when = Number.isNaN(until.getTime()) ? ""
     : ` · kept until ${until.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
+  const [playing, setPlaying] = useState(false);
   return (
     <div className="logs-audio">
-      <audio controls preload="none" src={src} aria-label={`Play ${audio.name}`} />
+      <div className="logs-audio-row">
+        <Meter className="audio-meter" height={22} live={playing} />
+        <audio controls preload="none" src={src} aria-label={`Play ${audio.name}`} onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+      </div>
       <p className="logs-audio-note">
         <a href={`${src}?download=1`} download={`${audio.name}.mp3`}>Download the MP3</a>{when}
       </p>

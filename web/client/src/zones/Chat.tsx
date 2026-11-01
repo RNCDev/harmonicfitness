@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Audio, ChatLine, Offer, StartInfo } from "../api";
 import { Starter } from "./Starter";
+import { Meter } from "../Mark";
 
 /** A step of the coach's turn: running while its tool works, then done (or failed). A thinking step (the model
  * working between tools) shows only while it runs. `key` tells one step from another across updates. */
@@ -147,12 +148,14 @@ function until(iso: string): string {
 function AudioLine({ audio }: { audio: Audio }) {
   const expired = new Date(audio.expires_at).getTime() <= Date.now();
   const src = `/api/media/${encodeURIComponent(audio.id)}`;
+  const [playing, setPlaying] = useState(false);
   return (
     <div className="m a audio">
-      <p className="audio-name">{audio.name}</p>
+      <p className="audio-name">{!expired && <Meter className="audio-meter" height={22} live={playing} />}{audio.name}</p>
       {expired ? <p className="cx-s">This recording has expired. Ask for the workout again to record a new one.</p> : (
         <>
-          <audio controls preload="metadata" src={src} />
+          <audio controls preload="metadata" src={src} onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
           <p className="cx-s">
             <a href={`${src}?download=1`} download={`${audio.name}.mp3`}>Download the MP3</a>
             {until(audio.expires_at) && ` · kept until ${until(audio.expires_at)}`}
