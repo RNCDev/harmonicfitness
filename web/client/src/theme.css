@@ -202,10 +202,10 @@ a:hover { color: #fff }
 .starter { position: relative; margin: 0; padding: clamp(8px, 3vh, 32px) 0 8px; flex: 1 0 auto; display: flex; flex-direction: column }
 .eyebrow { margin: 0 0 18px; font-size: 14px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3) }
 .mad {
-  margin: 0; font: 500 clamp(34px, 4.3vw, 62px)/1.08 var(--display); letter-spacing: .01em; text-transform: uppercase;
+  margin: 0; font: 500 clamp(38px, 4.8vw, 70px)/1.2 var(--display); letter-spacing: .01em; text-transform: uppercase;
   color: var(--mad);
 }
-.mad-2 { margin-top: 0 }
+.mad-2 { margin-top: 10px }
 .slot {
   display: inline; font: inherit; letter-spacing: inherit; text-transform: inherit; line-height: inherit;
   color: #F2F0E8; padding: 0 2px; margin: 0 -1px; border-radius: 0; -webkit-box-decoration-break: clone; box-decoration-break: clone;

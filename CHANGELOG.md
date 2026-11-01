@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.47.0] - 2026-11-01
+
+A tidier first screen on the web app.
+
+### Changed
+- **Web app, the request sentence is larger and airier:** the "Hey, coach ..., I'd like a ..." sentence scales up to about 70px (from 62px) with more line height and a little space between its two lines.
+- **Web app, the note after Plan my workout is gone** ("Your coach plans it with you, then records it once you say go."). "Add a voice key in Settings first." still shows when no voice is set up.
+
 ## [0.46.2] - 2026-11-01
 
 One key does it all: OpenRouter writes the workouts and voices six ready-made coaches, and Gemini gets six ready-made coaches of its own in place of Coach Nolan. On the web app, a Coaches page beside Logs where coaches are chosen by ear, never made; a simpler Settings; a coach who asks one question at a time and does one job per request; two new backgrounds; and a little more room around the logo's H.

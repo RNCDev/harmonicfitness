@@ -325,9 +325,7 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
       {hint && <p className="hint">Suggested because of your log: {hint}.</p>}
       <div className="start-row">
         <button type="button" className="go start" onClick={start} disabled={busy || ready.length === 0}>Plan my workout</button>
-        <span className="start-note">{ready.length === 0 && info
-          ? "Add a voice key in Settings first."
-          : "Your coach plans it with you, then records it once you say go."}</span>
+        {ready.length === 0 && info && <span className="start-note">Add a voice key in Settings first.</span>}
       </div>
       <nav className="else" aria-label="Other things you can do">
         <p className="else-h">Or ask for something else</p>
