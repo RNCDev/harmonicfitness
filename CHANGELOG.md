@@ -2,6 +2,15 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.49.5] - 2026-11-01
+
+Eval loop 2 on 30-minute scripts, on 0.49.4: 233 and 223 seconds to a priced script. Judged now with a calibrated three-score rubric (`docs/eval/judge-three.md`: anchors for each score, two independent judges a script, averaged), which also re-scored loop 1 as a baseline: the earlier one-judge "find eight problems" prompt marked the same scripts a point or two lower. Full-body at home 5.0/3.5/3.0 (loop 1: 5.0/4.0/3.5); gym strength easy on the left knee 4.5/4.0/3.0 (loop 1: 4.0/3.0/3.0): 0.49.4's hard-set line gave the gym session three sets of four lifts. This release is a simplification: fewer, plainer rules, and less to read before the first word.
+
+### Changed
+- **Engagement as a recipe, not a list of rules** (`knowledge/script.md`): one coach being a good podcast host. A rest holds one story, told the way a friend would: why it's theirs, what happened, the one detail or number that lands, what it means for them; never a list of figures (loop 2 read nine numbers from one filing across three rests), never a stock tag line to end it; their taste counts as much as the news; the coach's own voice, with contractions; a self-check offers the harder option too where no limit touches the movement. Fourteen bullets became seven, keeping the listener's quick hits in the work.
+- **The brief is shorter:** the menu leaves every movement's coaching notes to `movements --about` (a limited movement's too; its load on the limit and LIGHT ONLY stay on its line), and the programming guide prints only the rules that bear on the session's goal. A 30-minute gym brief with a knee limit went from 12,071 words to 7,301.
+- **Web app, less to read and less thinking:** the research templates (for a computer's research agents and sheets) no longer come with the skill; the research and writing instructions are a third as long; Gemini thinks at medium while designing, writing and fixing the script and low between (its default thought for 3,000 to 9,500 tokens a request: a 96-second write, two thirds of it thinking).
+
 ## [0.49.4] - 2026-11-01
 
 Eval loop 1 on 30-minute scripts: full-body at home and gym strength easy on the left knee, on 0.49.3, timed to a priced script and judged blind on safety, efficacy and engagement: 213 seconds, 4/3/2; 284 seconds, 4/2/2. The time went to round trips (72 seconds before the first word, a full rewrite after a word-count nag, up to five fix rounds), and the scores to too little work and loose stories.

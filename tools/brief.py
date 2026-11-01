@@ -149,7 +149,7 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
         tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
         notes = ["  " + line.strip() for line in catalog.about(cat, m)[1:]]
-        if compact and not load and not side:
+        if compact:   # the coaching notes come with `movements --about` for the movements chosen
             notes = [n for n in notes if n.strip().startswith(("Easier:", "Harder:"))]
         return [head] + notes
 
@@ -330,8 +330,11 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
             "about five seconds to switch), plus its setup the first time. A set with its rest takes about two "
             "minutes, about a minute and a half when paired (a minute between the halves). Plan from the lint's "
             "spoken column, not from the word guess."]
-    out += ["", "What a good session looks like (the rules in knowledge/programming.md):"]
+    out += ["", "What a good session looks like (the rules in knowledge/programming.md that bear on today):"]
+    wanted = RULES_FOR.get(goal, RULES_FOR["strength"]) | ({"One-sided training"} if scr.sel.healthy_side_only else set())
     for heading, body in _sections(_read(PROGRAMMING)).items():
+        if heading not in wanted:
+            continue
         for para in body.split("\n\n"):
             para = " ".join(para.split())
             if para.startswith("Rule:"):
@@ -339,6 +342,18 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
             elif para.startswith(("What a session holds", "The order of steps")):
                 out.append(f"- {para}")
     return out
+
+
+# The programming rules a session of each goal needs: the rest are true but don't bear on today, and every rule
+# the writer reads that doesn't apply is one more it has to weigh.
+_COMMON = {"Effort", "Readiness and adjusting on the day", "Warm-up, finisher and cool-down"}
+RULES_FOR = {
+    "strength": _COMMON | {"Load range", "Rest and pairing", "Exercise order", "Tempo", "Progression"},
+    "general": _COMMON | {"Load range", "Rest and pairing", "Exercise order", "Tempo", "Progression",
+                          "Rest between intervals", "Effort by ear"},
+    "conditioning": _COMMON | {"Rest between intervals", "Effort by ear"},
+    "mobility": _COMMON | {"Stretching dose"},
+}
 
 
 def _equipment_lines(request: dict, equipment) -> List[str]:
@@ -524,8 +539,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             "checks the draft's `movements:` line and its text against it."]
     if compact:
         out.append("Coaching notes: after designing, run `./harmonicfitness movements --about <the ids you chose, comma "
-                   "separated>` and coach from them; a movement that loads today's limits or works one side only "
-                   "carries its notes here.")
+                   "separated>` and coach from them.")
     if scr.sel.allowed or scr.sel.healthy_side_only:
         out += menu_lines(cat, scr, sides, scr.likes, last_ids, compact=compact, pace=sess.rep_pace)
     weights = context.kit_weights(profile).get(request.get("kit") or "")
@@ -551,7 +565,7 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
             f"- First line of the draft: `movements: <every movement the script uses, by its name above, comma "
             f"separated>`. Then the `@@ <seconds> | <label>` segments, adding up to exactly {minutes * 60} s. "
             "You choose the segments: one can be a set, a pair, a whole round or the whole warm-up.",
-            "- Coach each movement from its notes" + (" (`movements --about`, or above)" if compact else " above")
+            "- Coach each movement from its notes" + (" (`movements --about`)" if compact else " above")
             + " (setup, cues, what one rep is, where to feel it, the faults and their fixes): fully the first time "
             "it appears, then a short reminder, so the rests and the easy work have room for the listener's world."
             " Safety is the one hard rule (knowledge/script.md); beyond it, get the "

@@ -32,7 +32,7 @@ LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=
 # quick; Claude stops at max_uses a turn, and the instructions ask every writer for about six.
 SEARCH = WebSearchTool(search_context_size="low", max_uses=8)
 TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
-SKILL = (".claude/skills/workout/SKILL.md", ".claude/skills/workout/research.md")
+SKILL = (".claude/skills/workout/SKILL.md",)   # research.md is for a computer's research agents and sheets: none here
 # what the skill says to read before writing, given with it: two round trips fewer before every script
 WRITING = ("knowledge/script.md", "knowledge/tts-rules.md")
 SETUP = (".claude/skills/setup/SKILL.md",)
@@ -199,6 +199,19 @@ def _begin(deps: Deps, text: str, tool: str, think: bool = False) -> int:
     return deps.steps
 
 
+# How hard Gemini thinks, by what the turn is doing. Its default thought for 3,000 to 9,500 tokens a request
+# (a 96-second write in 0.49.4's loop, two thirds of it thinking): designing, writing and fixing the script get
+# medium, and the steps between them (running the brief, the reply that ends the turn) get low.
+THINK_HARD = ("brief", "draft", "lint_failed")
+
+
+def thinking_level(model, phase: str) -> str | None:
+    """MEDIUM or LOW for a Gemini model, by the turn's phase; None for any other provider (its default)."""
+    if type(model).__name__ != "GoogleModel":
+        return None
+    return "MEDIUM" if phase in THINK_HARD else "LOW"
+
+
 class Narrated(WrapperModel):
     """The turn's model, saying what it's thinking about while each request runs: the longest waits in a turn
     (reading the message, writing the script) are the model's, between tools, and were silent."""
@@ -211,6 +224,9 @@ class Narrated(WrapperModel):
         deps = self._deps
         text = THINK.get(deps.phase, THINK_OTHER)
         n = _begin(deps, text, "think", think=True)
+        level = thinking_level(self.wrapped, deps.phase)
+        if level:
+            model_settings = dict(model_settings or {}, google_thinking_config={"thinking_level": level})
         try:
             response = await super().request(messages, model_settings, model_request_parameters)
         except BaseException:

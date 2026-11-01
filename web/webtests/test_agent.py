@@ -742,6 +742,15 @@ class ThirtyMinuteLoop1(Faster):
         self.assertIn("a headline", r.output)
         self.assertEqual(r.output.count("a headline"), 1)
 
+    def test_gemini_thinks_medium_while_writing_and_low_between(self):
+        class GoogleModel:   # named as pydantic-ai's
+            pass
+        self.assertEqual(agent.thinking_level(GoogleModel(), "draft"), "MEDIUM")
+        self.assertEqual(agent.thinking_level(GoogleModel(), "brief"), "MEDIUM")
+        self.assertEqual(agent.thinking_level(GoogleModel(), ""), "LOW")
+        self.assertEqual(agent.thinking_level(GoogleModel(), "priced"), "LOW")
+        self.assertIsNone(agent.thinking_level(object(), "draft"))   # other providers keep their default
+
     def test_step_one_brings_todays_research_sheet(self):
         daily = os.path.join(self.home, "workouts", "research", "daily")
         os.makedirs(daily, exist_ok=True)
@@ -813,7 +822,7 @@ class Instructions(AgentCase):
         with open(os.path.join(ROOT, ".claude/skills/workout/SKILL.md"), encoding="utf-8") as f:
             self.assertIn(f.read()[-300:].strip(), text)   # the whole skill, to its last line
         self.assertIn(".claude/skills/workout/SKILL.md", text)
-        self.assertIn(".claude/skills/workout/research.md", text)
+        self.assertNotIn(".claude/skills/workout/research.md", text)   # a computer's research agents only
         self.assertIn("Never ask the listener for a key or a password", text)
         self.assertIn("--lint-only", text)
         self.assertIn("kept 24 hours", text)

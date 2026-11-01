@@ -145,16 +145,13 @@ class Brief(unittest.TestCase):
         self.assertIn("Written at", live.stdout)
         self.assertIn("never \"in half an hour\"", live.stdout)
 
-    def test_the_compact_menu_keeps_notes_only_where_a_limit_or_a_side_needs_them(self):
-        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home")
+    def test_the_compact_menu_leaves_every_movement_s_notes_to_about(self):
+        r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--limit", "knee=delicate:left")
         self.assertIn("movements --about", r.stdout)
         entries = menu_section(r.stdout).split("\n- **")[1:]
         self.assertTrue(entries)
-        for e in entries:
-            head = e.split("\n")[0]
-            touches = "load on today's limits" in head or "side only" in head
-            self.assertEqual("Setup:" in e, touches, head[:80])
-        self.assertTrue(any("Setup:" not in e for e in entries))
+        self.assertFalse(any("Setup:" in e for e in entries))   # 0.49.5: a limited movement's too (12k words to 7k)
+        self.assertTrue(any("LIGHT ONLY today" in e for e in entries))   # its safety facts stay on its line
 
     def test_a_sided_limit_lists_healthy_side_work_and_fills_the_cues(self):
         r = brief("--goal", "strength", "--minutes", "30", "--preset", "hotel-gym", "--limit", "knee=off-limits:right")
