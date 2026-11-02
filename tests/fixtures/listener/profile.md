@@ -1,5 +1,7 @@
 +++
 schema = 6
+# What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
+name = "Sam"
 # Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.
 experience = "experienced"
 +++
@@ -10,7 +12,7 @@ Your details are in four files, by how often each changes: this one (who you are
 I listen to narrated workouts through earbuds, with no screen and no timer. The audio is the workout: it tells me what to do, keeps me company, and moves me along on time. Priorities, in order: safe for my body today, clean to the ear, worth listening to.
 
 ## Basics
-- Name or nickname (optional): Sam (invented)
+- Name or nickname: in the settings above (`name`), so the coach greets you by it. (Sam is invented.)
 - Neighborhood: Testville (an invented town)
 - Training background and current fitness:
 - Goals right now:

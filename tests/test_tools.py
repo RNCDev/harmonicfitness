@@ -1969,8 +1969,18 @@ note = "Therapist: no weight through the hand."
         self.assertTrue(any("no-such-move" in m for m in msgs))
         self.assertFalse(any("box-squat" in m for m in msgs))
         self.assertTrue(any("jetpack" in m for m in msgs))
-        self.assertFalse(any("dumbbells" in m for m in msgs))
-        self.assertTrue(any("no name" in m for m in msgs))
+        self.assertFalse(any("'dumbbells' isn't equipment" in m for m in msgs))
+        self.assertTrue(any("has dumbbells but no weights" in m for m in msgs))
+        self.assertTrue(any(m.startswith("no name: ") for m in msgs))
+        # a name left in the prose is pointed at the setting; the template's own line isn't a name
+        write_file(os.path.join(self.dir, "profile.md"), profile_text('experience = "novice"\n')
+                   + "\n## Basics\n- Name or nickname (optional): Robin (from setup)\n")
+        msgs = [i.message for i in check.check([os.path.join(self.dir, "profile.md")]) if i.note]
+        self.assertTrue(any("the prose says 'Robin'" in m and 'name = "Robin"' in m for m in msgs), msgs)
+        write_file(os.path.join(self.dir, "profile.md"), profile_text('experience = "novice"\n')
+                   + "\n## Basics\n- Name or nickname: in the settings above (`name`), so the coach greets you by it.\n")
+        msgs = [i.message for i in check.check([os.path.join(self.dir, "profile.md")]) if i.note]
+        self.assertTrue(any(m.startswith("no name: ") for m in msgs), msgs)
 
     def test_listener_name_and_feedback(self):
         p = context.Profile({"name": "  Sam  "}, "", None)

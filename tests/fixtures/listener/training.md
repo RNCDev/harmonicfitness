@@ -10,6 +10,8 @@ dislikes = ["push-up"]
 [[kits]]
 name = "home"
 equipment = ["dumbbells", "band", "mat"]
+weights = { dumbbells = [15] }
+unit = "lb"
 +++
 # Training
 

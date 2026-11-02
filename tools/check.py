@@ -20,7 +20,7 @@ from context import (FEED_KINDS, HANDLE_KEYS, PROFILE_PARTS, SETTING_HOMES, Issu
                      delivery_patterns, experience, feed_sources, kits, listener_name,
                      part_paths, persona, profile, route_issues,
                      scalar_problems, shape_problems, SHAPED, str_list, table_list, topics, files as context_files)
-from context import _names, kit_problems  # noqa: E402
+from context import _names, kit_problems, kit_weight_table  # noqa: E402
 from frontmatter import body, front, placeholder, section, unfilled  # noqa: E402
 from sessionlog import Session, parse_session  # noqa: E402
 from store import SCHEMA, read_raw, schema_of, schema_problem, split  # noqa: E402
@@ -37,6 +37,21 @@ def _catalog():
 
 
 BODY_HINT_RE = re.compile(r"^\s*- ([^:\[\]]+):\s*(\[|$)")   # "- Neighborhood: [neighborhood, city]", or nothing after the colon
+
+
+FREE_WEIGHTS = ("dumbbells", "kettlebell")   # what a home kit lists weights for (a gym's are too many to list)
+PROSE_NAME = re.compile(r"^\s*[-*]\s*name(?: or nickname)?[^:\n]*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def _prose_name(path):
+    """A name written in the profile's prose ("- Name or nickname: Sam") rather than in its settings, or ""."""
+    if not os.path.exists(path):
+        return ""
+    m = PROSE_NAME.search(body(read_raw(path)))
+    said = re.sub(r"\s*\([^)]*\)", "", m.group(1)).strip() if m else ""   # "Sam (invented)": the aside isn't the name
+    if not said or placeholder(said) or said.lower().startswith(("in the settings", "[")) or len(said.split()) > 3:
+        return ""
+    return said
 
 
 def _check_profile(path):
@@ -97,7 +112,10 @@ def _check_profile(path):
     if experience(p) is None and "experience" not in refused:
         out.append(Issue(at("experience"), 0, "no experience level: novice, experienced or advanced", note=True))
     if listener_name(p) is None:
-        out.append(Issue(at("name"), 0, "no name: the coach can't greet the listener by name", note=True))
+        said = _prose_name(parts["profile.md"])
+        out.append(Issue(at("name"), 0, f"no name, though the prose says '{said}': write name = \"{said}\" in the "
+                                        "settings, which is what the coach reads" if said else
+                                        "no name: the coach can't greet the listener by name", note=True))
     if cat:
         for key in ("likes", "dislikes"):
             for name in _names(p, key):
@@ -109,6 +127,11 @@ def _check_profile(path):
                     out.append(Issue(at("kits"), 0, f"kit '{kit}': '{e}' isn't equipment in the catalog",
                                      note=True))
     for k in table_list(settings.get("kits")):
+        free = [e for e in str_list(k.get("equipment")) if e in FREE_WEIGHTS]
+        if free and not kit_weight_table(k)[1]:
+            out.append(Issue(at("kits"), 0, f"kit '{k.get('name', '?')}' has {' and '.join(free)} but no weights, so "
+                                            "scripts name each load by effort; add the weights you have, such as "
+                                            f"weights = {{ {free[0]} = [10, 15] }} and unit = \"lb\"", note=True))
         for problem in kit_problems(k):
             out.append(Issue(at("kits"), 0, f"kit '{k.get('name', '?')}': {problem}"))
     for name, part in parts.items():
