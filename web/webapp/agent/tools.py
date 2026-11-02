@@ -89,17 +89,19 @@ class Deps:
     # each draft's last "add about N words" as shown to the writer, and its words then: (shown, words), so the
     # next ask is scaled by how much of that one the writer delivered
     asks: dict[str, tuple[int, int]] = field(default_factory=dict)
-    # who writes the script's words: "three" (a story writer, a coach writer and an editor, `write_script`; the
+    # who writes the script's words: "three" (a personal content writer, a coach writer and a final script writer, `write_script`; the
     # site's way since 0.51.0, which run_turn sets) or "one" (this agent, in passes; HARMONICFITNESS_WRITERS=one)
     writers: str = "one"
     # each skeleton's last lint report, by its draft's path: the word budgets the writers write to
     reports: dict[str, str] = field(default_factory=dict)
     # each writer's call this turn (who, which round, seconds, tokens, what it returned), for the eval loops
     tracks: list = field(default_factory=list)
-    # the story writer, started as the brief runs (three writers): its future, and the draft it writes for
-    story_job: object = field(default=None, repr=False)
-    story_for: str | None = None
-    loop: object = field(default=None, repr=False)   # the turn's event loop, which the story writer runs on
+    # the personal content writer, started as the brief runs (three writers): its future, and the draft it writes for
+    content_job: object = field(default=None, repr=False)
+    content_for: str | None = None
+    # each writer's instructions in place of guides(): the eval loop's challengers (docs/eval/)
+    guides: dict | None = None
+    loop: object = field(default=None, repr=False)   # the turn's event loop, which the personal content writer runs on
 
 
 class ToolResult(BaseModel):

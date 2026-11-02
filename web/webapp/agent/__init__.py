@@ -254,7 +254,7 @@ class Narrated(WrapperModel):
     async def request(self, messages, model_settings, model_request_parameters):
         deps = self._deps
         text = THINK.get(deps.phase, THINK_OTHER)
-        deps.loop = asyncio.get_running_loop()   # where a tool's thread starts the story writer
+        deps.loop = asyncio.get_running_loop()   # where a tool's thread starts the personal content writer
         n = _begin(deps, text, "think", think=True)
         level = thinking_level(self.wrapped, deps.phase)
         if level:
@@ -450,15 +450,15 @@ def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
 
 
 def _start_stories(ctx: RunContext[Deps], args: list[str]) -> None:
-    """Two writers: the story writer starts as the brief is saved, on the turn's loop, and writes while the
+    """Two writers: the personal content writer starts as the brief is saved, on the turn's loop, and writes while the
     agent designs the skeleton; write_script waits for it."""
     deps = ctx.deps
     draft, minutes = tools._flag(args, "--save"), tools._flag(args, "--minutes")
-    if not (draft and minutes and minutes.isdigit() and deps.loop is not None) or deps.story_for == draft:
+    if not (draft and minutes and minutes.isdigit() and deps.loop is not None) or deps.content_for == draft:
         return
     model = getattr(ctx.model, "wrapped", ctx.model)
-    deps.story_for = draft
-    deps.story_job = asyncio.run_coroutine_threadsafe(
+    deps.content_for = draft
+    deps.content_job = asyncio.run_coroutine_threadsafe(
         writers.stories(deps, model, ctx.usage, draft, int(minutes), [NativeTool(t) for t in native_tools(model)]),
         deps.loop)
 
@@ -534,7 +534,7 @@ async def _three_writers(ctx: RunContext[Deps], tool):
 @AGENT.tool(sequential=True, prepare=_three_writers)
 async def write_script(ctx: RunContext[Deps], path: str, build_name: str | None = None,
                        coach: str | None = None) -> ToolResult:
-    """Fill a skeleton with the script's words: a coach writer and a story writer write side by side, each segment
+    """Fill a skeleton with the script's words: a coach writer and a personal content writer write side by side, each segment
     to its budget, and the draft builds right after (its lint, then its price when clean), its result and the draft
     in this reply. Only when the instructions name it."""
     deps = ctx.deps
@@ -788,8 +788,8 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     finally:
         done.set()
         timer.cancel()
-        if deps.story_job is not None:   # a story writer the turn never waited for stops with it
-            deps.story_job.cancel()
+        if deps.content_job is not None:   # a personal content writer the turn never waited for stops with it
+            deps.content_job.cancel()
     u = result.usage
     searches = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts)
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,

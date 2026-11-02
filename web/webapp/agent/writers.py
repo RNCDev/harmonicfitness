@@ -1,8 +1,8 @@
 """Three writers for one script, the site's way since 0.51.0 (HARMONICFITNESS_WRITERS=one has the agent write it).
-The agent plans the session (the skeleton: every segment's seconds, counts and holds). Then a story writer writes
+The agent plans the session (the skeleton: every segment's seconds, counts and holds). Then a personal content writer writes
 what the rests carry, from the listener's topics, the day's sheets and its own searches (started as the brief is
 saved); a coach writer writes the coaching from the brief and the movements' notes, each rest's around a story of
-known length; and an editor reads the assembled script with the build's check and makes it one coach talking to one
+known length; and a final script writer reads the assembled script with the build's check and makes it one coach talking to one
 person. Each reads only its own material; code holds what must hold (the clock, the silences, what was told)."""
 import asyncio
 import functools
@@ -39,8 +39,8 @@ COMMAND = re.compile(r"\s*\([^()]*`\./harmonicfitness[^`]*`[^()]*\)")
 NOT_WEB = re.compile(r"<!-- web: skip -->\n.*?<!-- web: end -->\n?", re.DOTALL)
 LEVELS = ("HIGH", "MEDIUM", "LOW")
 # The longest each writer's call is waited for before it's asked again thinking less: Gemini's own deadline (504) is
-# about 180 s, and a call that thinks that long is rare but whole (an editor's 179 s against its usual 26 to 37).
-PATIENCE = {"story": 160, "coach": 110, "editor": 80}
+# about 180 s, and a call that thinks that long is rare but whole (a final script writer's 179 s against its usual 26 to 37).
+PATIENCE = {"content": 160, "coach": 110, "final": 80}
 
 
 def web_copy(text: str) -> str:
@@ -82,9 +82,9 @@ class Edits(BaseModel):
     segments: list[Edited]
 
 
-STORY = Agent(output_type=Stories, retries=2)
+CONTENT = Agent(output_type=Stories, retries=2)
 COACH = Agent(output_type=Coaching, retries=2)
-EDITOR = Agent(output_type=Edits, retries=2)
+FINAL = Agent(output_type=Edits, retries=2)
 
 
 class NotReady(Exception):
@@ -130,13 +130,13 @@ def guides(engine_root: str) -> dict[str, str]:
         return _read(os.path.join(HERE, name)).strip()
     said = ("Characters", "Numbers and abbreviations", "Words that trip a voice")
     out = {
-        "story": task("story-writer.md") + "\n\n## Telling it\n" + bullets(
+        "content": task("personal-content-writer.md") + "\n\n## Telling it\n" + bullets(
             engaged, "The coach's voice", "A rest holds one story", "Their taste counts", "Time-proof it",
             "Weave threads") + "\n" + bullets(safety, "Never invent facts") + voice(*said),
         "coach": task("coach-writer.md") + f"\n\n## Safety: the rules\n{safety}\n\n## Getting the workout done\n{done}"
                  "\n\n## The voice and the shape\n" + bullets(engaged, "The coach's voice", "Time-proof it", "A shape")
                  + voice(*(h for h in tts if h != "The draft")),
-        "editor": task("editor.md") + "\n\n## What it should sound like\n" + bullets(
+        "final": task("final-script-writer.md") + "\n\n## What it should sound like\n" + bullets(
             engaged, "The coach's voice", "A rest holds one story", "Weave threads", "A shape")
                   + voice(*said, "Markers"),
     }
@@ -308,7 +308,7 @@ def pieces_for(minutes: int) -> int:
 
 
 def story_words(budget: dict, rests) -> dict[int, int]:
-    """About how long each rest's story runs, for the coach writing beside the story writer: what it's asked for,
+    """About how long each rest's story runs, for the coach writing beside the personal content writer: what it's asked for,
     or less in a short rest."""
     return {n: min(STORY_WORDS, round(budget.get(n, 0) * STORY_SHARE)) for n in rests}
 
@@ -361,7 +361,7 @@ async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: s
     lower = LEVELS[LEVELS.index(level) + 1:] if level in LEVELS else ()
     try:
         result = await asyncio.wait_for(
-            agent.run(prompt, model=model, instructions=guides(deps.engine_root)[who],
+            agent.run(prompt, model=model, instructions=(deps.guides or guides(deps.engine_root))[who],
                       model_settings=_thinking(model, level), usage=usage, capabilities=list(capabilities),
                       message_history=history),
             timeout=PATIENCE.get(who) if lower else None)
@@ -406,12 +406,12 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
               f"# What to write\n\nThe session runs {minutes} minutes, with about {count} rests: {count} stories, "
               f"about {STORY_WORDS} words each (anywhere from {STORY_WORDS // 2} to {STORY_WORDS * 4 // 3}). The last "
               "two are spares, told only if there's room: nothing earlier depends on them.")
-    told = await _ask(deps, "story", STORY, model, prompt, usage, "MEDIUM", capabilities=search)
+    told = await _ask(deps, "content", CONTENT, model, prompt, usage, "MEDIUM", capabilities=search)
     found = {s.number: s for s in told.output.stories}
     titles = told_titles(plan.output)
     repeats = {n: t for n, s in found.items() if (t := retold(s, titles))}
     if repeats:
-        again = await _ask(deps, "story", STORY, model, (
+        again = await _ask(deps, "content", CONTENT, model, (
             "Write these again, whole, each about another item, and return only these: "
             + "; ".join(f"story {n} retells \"{t}\", told before" for n, t in repeats.items()) + "."),
             usage, "MEDIUM", capabilities=search, history=told.all_messages())
@@ -420,7 +420,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
 
 
 def numbered(text: str) -> str:
-    """A draft with each @@ line numbered, as the lint numbers segments, for the editor."""
+    """A draft with each @@ line numbered, as the lint numbers segments, for the final script writer."""
     n = 0
     out = []
     for line in text.split("\n"):
@@ -478,7 +478,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
         f"second from them.\n\n{head[0] if head else ''}\n{_plan_table(segs, budget, story_words(budget, rests))}")
 
     async def the_stories() -> list[Told]:   # started as the brief was saved, or written now
-        job = deps.story_job if deps.story_job is not None and deps.story_for == path else None
+        job = deps.content_job if deps.content_job is not None and deps.content_for == path else None
         if job is not None:
             try:
                 return await asyncio.wrap_future(job)
@@ -506,14 +506,14 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
         prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n# The script\n\n"
                   f"{numbered(draft)}\n\n# The build's check\n\n{check}") if not attempt else (
                   f"The build's check after your edit:\n\n{check}\n\nFix what it names; return only those segments.")
-        edited = await _ask(deps, "editor", EDITOR, model, prompt, usage, "MEDIUM", history=history)
+        edited = await _ask(deps, "final", FINAL, model, prompt, usage, "MEDIUM", history=history)
         history = edited.all_messages()
         draft = apply_edits(draft, edited.output.segments)
         changed |= {e.number for e in edited.output.segments}
 
     logged = [f'--item "{s.topic} | {s.format} | {s.title} | {s.source}"' for _, s in sorted(placed.items())]
     note = (f"Three writers wrote the words: {len(placed)} stories in {len(rests)} rests, the coaching for "
-            f"{len(coaching)} of {len(segs)} segments, and the editor changed {len(changed)}. "
+            f"{len(coaching)} of {len(segs)} segments, and the final script writer changed {len(changed)}. "
             + ("After recording, log what was told: `content log --draft <draft> " + " ".join(logged) + "`."
                if logged else ""))
     return draft, note
@@ -530,7 +530,7 @@ async def _lint(deps, plain, path: str, full: str, name: str | None, coach: str 
 
 
 def apply_edits(draft: str, edits: list[Edited]) -> str:
-    """The draft with the editor's segments in place of its own, each under its own @@ line (the clock is the
+    """The draft with the final script writer's segments in place of its own, each under its own @@ line (the clock is the
     skeleton's: an edit can't change it)."""
     head, segs = split(draft)
     bodies = {e.number: e.text.strip("\n") for e in edits if 1 <= e.number <= len(segs)}

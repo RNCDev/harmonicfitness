@@ -1,59 +1,82 @@
 # The script-writing loop
 
-How a change to script writing is tried before a release (maintainer only): write real sessions with the web
-coach, time them, and have independent judges score them. Each loop is a change, a run, the scores, and the next
-change. It replaced the forty-case grid of invented listeners (until 0.49.6), which judged against a six-part
-rubric that marked scripts down a point or two for faults a listener wouldn't notice.
+How a change to the web app's three writers is tried (maintainer only). Content first: safety, clarity, and
+personal content woven into the workout; speed only once those score well.
 
-## 1. Run
+The three writers (`web/webapp/agent/writers.py`), each a short task beside it followed by its part of
+`knowledge/script.md` and `knowledge/tts-rules.md`:
+- **Coach Writer** (`coach`, `coach-writer.md`): the coaching.
+- **Personal Content Writer** (`content`, `personal-content-writer.md`): the stories in the rests, with its searches.
+- **Final Script Writer** (`final`, `final-script-writer.md`): joins the two into one coach and fixes the build's issues.
 
-`web/local_turn.py` runs one web-app workout turn on this computer, with the worker's own agent, instructions,
-tools and step 1, on Gemini, against a copy of a context folder: no deploy, and nothing sent to the live site. The
-key comes from the repo root's `.env` (`GEMINI_API_KEY`), never printed.
+Everything runs on this computer, on Gemini, with the key in `me/.env` (never printed), and lands in `me/.eval/`:
+the listener's, never the engine's.
 
-```sh
-.venv/bin/python web/local_turn.py <context folder> <out dir> "<request>"
-```
-
-- **The context folder** is a snapshot, the same for every loop of a set so runs compare: a `pull`'s `me/` (from
-  `./harmonicfitness pull`) is the listener as the site has them. Copy it aside once and point every run at the copy.
-- **The requests:** the page's sentence, the same each loop, such as "Hey, coach Freya, I'd like a 30-minute
-  full-body workout at home. Nothing's bothering me today." and "Hey, coach Freya, I'd like a 30-minute strength
-  workout at the gym. Go easy on my left knee today." (a limit keeps safety in the test). Two runs can go side by
-  side; each has its own copy.
-- **Out:** `<out>/me/` holds the turn's files (the draft, brief and menu in `me/workouts/<stem>/`),
-  `<out>/history.json` every request of the agent, and `<out>/writers.json` each of the three writers' calls (the
-  story writer, the coach writer, the editor: its level, seconds, tokens, output and what its searches found, for the
-  judges). The printed line gives the turn's seconds, requests and tokens. `HARMONICFITNESS_WRITERS=one` runs the
-  agent writing the script itself, in passes, as before 0.51.0.
-- **One writer at a time:** each writer's task is a paragraph beside `web/webapp/agent/writers.py`
-  (`story-writer.md`, `coach-writer.md`, `editor.md`), followed by its part of `knowledge/script.md` and
-  `knowledge/tts-rules.md`; a loop can change one writer and judge the coaching and the stories apart.
-
-A live run, once a release is deployed, is the same request sent to the site and the conversation pulled with
-`./harmonicfitness pull --conversation <id>`; its folder holds the same `history.json`.
-
-## 2. Time
+## 1. Freeze, once
 
 ```sh
-.venv/bin/python docs/eval/timing.py <out dir>
+.venv/bin/python docs/eval/loop.py freeze
 ```
 
-Each model request's seconds, output and input tokens and tool calls; what each draft write added up to; and each
-build's spread of segment fills and its distance from plan. The usual costs: thinking (a write's output tokens far
-above the script's own), round trips before the first word, and passes that lengthen or trim a draft a little at a
-time.
+Copies `me/`, fetches the feeds sheet once, then runs one whole web-app workout turn for each of eight 30-minute
+requests (`loop.REQUESTS`: home, gym with a knee, dumbbell conditioning, a beginner with bands, kettlebells with a low
+back, rower sprints, hotel dumbbells, barbell with a shoulder), side by side. Each workout keeps its skeleton, brief,
+menu, stories, coaching and what the content writer's searches found. It also records each writer's prompt size:
+the cap no challenger may pass. `--only 3,5` re-freezes those workouts alone. Last it writes the research notes
+(`loop.py research`, also run alone): Gemini's search hands the code only its suggestion chips, never the pages, so
+one searching call writes about twenty items as plain notes with sources, `me/.eval/frozen/research.md`. They are a
+content round's material and what the judges check story facts against. Research happens here and never again.
 
-## 3. Judge
+## 2. A round tries one writer, in two stages
 
-`judge.md` is the judge's prompt: safety, efficacy and engagement, 1 to 5, each against written anchors, judged as
-the listener would hear it, with at most three improvements. Fill `{REQUEST}`, `{SCRIPT}` (the draft's path),
-`{HOME}` (the turn's `me/`, with its trailing slash) and the feeds sheet's date, and give it to **two independent
-judges a script**; average their scores. When comparing with an earlier run, judge that run again with the same
-prompt rather than trusting old scores.
+The eight workouts have roles (`loop.SCREEN`, `CONFIRM`, `HOLDOUT`): three screen, three confirm, two are held out
+until the end, so the writers can't get good at only these.
 
-## 4. Change
+```sh
+.venv/bin/python docs/eval/loop.py prompts coach      # me/.eval/prompts/coach/champion.md
+# copy it to B.md ... F.md beside it, one change each: a small one from the judges' notes, a bold rewrite, a wild card
+.venv/bin/python docs/eval/loop.py round coach        # the screen: A and every challenger on the screen's three
+.venv/bin/python docs/eval/loop.py judge <round>; ...; loop.py tally <round>
+.venv/bin/python docs/eval/loop.py confirm <round>    # A and the screen's best two on the confirm's three
+.venv/bin/python docs/eval/loop.py judge <round>; ...; loop.py tally <round>   # merged with the screen's verdicts
+```
 
-Prefer a check in code to a sentence of guidance, and fewer rules to more: each rule the writer weighs costs
-attention, and rules collide (a story that keeps its source's numbers became a list of figures). Make a fix for
-safety or fact when both judges name it. The changelog records what each loop found and changed.
+The champion (A, the prompt as the source files make it) runs against the challengers (`--versions A,B` to choose,
+`--workouts` to pick others). Only that writer runs again: the others' saved output stands, on the freeze's date. In
+a content round the writer searches nothing and gets the research notes instead, so research stays the same. With no
+challengers it's a noise round (A, A, A): the same prompt three times, to see how much verdicts move by chance. A
+coach challenger can't change the safety rules, and none may pass its cap. A script that isn't lint clean counts as
+a failure. Two winners on different criteria can be combined (crossover) as the next round's challenger.
+
+## 3. Judge, with three Claude personas
+
+`loop.py judge <round>` writes one prompt per persona and group of workouts (`judge.md`, filled), the scripts
+lettered in a shuffled order of each job's own. Give every job to a fresh Claude subagent with no other context; it
+writes `verdict.json` beside its prompt.
+- **The trainer:** a strength coach and physio who has coached through earbuds: right, enough, not too much.
+- **The listener:** reads as the listener, from their profile, topics and log feedback: is this my world?
+- **The producer:** a podcast producer: pace, a story's shape, one voice, the seams.
+
+Each marks safety pass or fail (the line quoted), ranks clarity, content and flow, scores them 1 to 5, and gives
+each writer at most one note.
+
+## 4. Tally, then change
+
+```sh
+.venv/bin/python docs/eval/loop.py tally <round>      # me/.eval/rounds/<n>/tally.md
+```
+
+A challenger wins a workout when at least two of the three judges rank it above the champion there (and more prefer
+it than not). Round 0, three copies of one prompt, showed how much is chance: copies won 5 of 6 workouts against
+an identical champion, while averages moved only 0.3. So a challenger is kept only when its average on its
+writer's own criterion beats the champion's by at least 0.5 (`loop.MARGIN`, `tally --margin`) and it wins at least
+two more workouts than it loses (`NET_WINS`). The screen's best two by their writer's own criterion (coach: clarity; content: content; final: flow)
+go on to the confirm; a confirmed challenger is kept when, over all six workouts, it clears that bar, fails no
+safety or lint check, and loses no ground elsewhere. A safety fail is the judge's claim: read the quoted line
+before acting on it. A kept change goes into the source file (the task
+`.md`, or `script.md` when it's shared guidance, then `./harmonicfitness test`) and is the next champion. A writer
+scoring 4+ on its criterion, winning or tying its round, is locked and the loop moves to the next. Before the speed
+phase each locked writer gets one more round against the others' final versions, and `loop.py holdout` writes the
+held-out workouts with every champion against the app's script as frozen (O).
+
+`loop.py status` lists the freeze and the rounds.

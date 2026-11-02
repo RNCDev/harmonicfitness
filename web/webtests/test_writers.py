@@ -132,7 +132,7 @@ class Brief(unittest.TestCase):
 
     def test_each_writer_reads_its_part_of_the_guides_without_commands(self):
         g = writers.guides(ROOT)
-        coach, story, editor = g["coach"], g["story"], g["editor"]
+        coach, story, editor = g["coach"], g["content"], g["final"]
         self.assertIn("## Safety: the rules", coach)
         self.assertIn("Coach fully once", coach)
         self.assertNotIn("Coach fully once", story)
@@ -160,9 +160,9 @@ class Patience(unittest.TestCase):
             return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"segments": []})])
         deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00")
         old = dict(writers.PATIENCE)
-        writers.PATIENCE["editor"] = 0.2
+        writers.PATIENCE["final"] = 0.2
         self.addCleanup(writers.PATIENCE.update, old)
-        out = asyncio.run(writers._ask(deps, "editor", writers.EDITOR, FunctionModel(reply), "edit", RunUsage(), "HIGH"))
+        out = asyncio.run(writers._ask(deps, "final", writers.FINAL, FunctionModel(reply), "edit", RunUsage(), "HIGH"))
         self.assertEqual(out.output.segments, [])
         self.assertEqual([c.get("level") for c in deps.tracks], ["HIGH", "MEDIUM"])
         self.assertTrue(deps.tracks[0]["deadline"])
