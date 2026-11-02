@@ -852,7 +852,9 @@ class Turn(JobsCase):
         with mock.patch.object(worker.engine, "run", side_effect=record):
             job, conv = self.run_turn(uk, script, cid, line="go")
         self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(len(seen), 2 + 6)   # step 1 up front (5 runs and the route), then the model's two
+        # step 1 up front (5 runs and the route), then the model's two; and the story writer, which starts as the brief
+        # is saved (its content plan and feeds), when it gets that far before the turn ends
+        self.assertGreaterEqual(len(seen), 2 + 6)
         for env in seen:   # the voice key, and the listener's clock (TZ): never the model's key
             self.assertEqual({k: v for k, v in env.items() if k != "TZ"}, {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
             self.assertRegex(env.get("TZ", ""), r"^LCL[+-]\d+(:\d\d)?$")
