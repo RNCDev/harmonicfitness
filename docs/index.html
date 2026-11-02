@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How HarmonicFitness Fits</title>
+<meta name="description" content="How HarmonicFitness's four parts (knowledge, coaches, tools and the listener's me folder) connect to turn a request into a narrated workout.">
+<link rel="icon" href="../assets/brand/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap">
+<link rel="stylesheet" href="docs.css">
+<style>
+  /* the map: three sources, the engine, the results */
+  .map { margin-top: 28px; display: grid; gap: 0 }
+  .sources { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .src .gives { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 15px; color: var(--ink) }
+  .src .gives span { color: var(--c); font-weight: 600 }
+  .join { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; height: 54px }
+  .join div { position: relative }
+  .join div::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 10px; border-left: 2px solid var(--c) }
+  .join div::after { content: ""; position: absolute; left: calc(50% - 6px); bottom: 2px; border: 6px solid transparent; border-top: 8px solid var(--c); border-bottom: 0 }
+  .engine { background: var(--sheet); border: 1px solid var(--rule); border-top: 4px solid var(--tools); border-radius: 2px; padding: 20px }
+  .engine-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 16px }
+  .engine-head p { margin: 0; color: var(--ink-2); font-size: 15px }
+  .flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 22px }
+  .flow li { position: relative; background: var(--sheet-2); border: 1px solid var(--rule); border-radius: 2px; padding: 12px 12px 10px }
+  .flow li:not(:last-child)::after { content: ""; position: absolute; right: -17px; top: 50%; margin-top: -6px; border: 6px solid transparent; border-left: 9px solid var(--coral); border-right: 0 }
+  .flow .n { font: 700 13px/1 var(--display); letter-spacing: .16em; color: var(--coral) }
+  .flow h3 { font-size: 21px; margin: 6px 0 4px }
+  .flow p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--ink-2) }
+  .back { display: flex; align-items: center; gap: 12px; margin: 16px 0 0; padding: 12px 16px; border: 1px dashed var(--me); border-radius: 2px; color: var(--ink-2); font-size: 15px }
+  .back b { color: var(--me) }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 18px 0 0; color: var(--ink-3); font-size: 14px }
+  .legend span { display: inline-flex; align-items: center; gap: 7px }
+
+  .two { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .two h3 { margin-bottom: 14px }
+  .two .steps > li { background: var(--sheet-2) }
+  .rules { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)) }
+  .rule-card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 2px; padding: 16px 18px }
+  .rule-card b { display: block; font: 700 20px/1.1 var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--ink); margin-bottom: 4px }
+  .rule-card span { color: var(--ink-2); font-size: 15px }
+
+  @media (max-width: 900px) {
+    .flow { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+    .flow li:nth-child(3)::after { display: none }
+    .two { grid-template-columns: 1fr }
+  }
+  @media (max-width: 640px) {
+    .sources, .join { grid-template-columns: 1fr }
+    .join { height: 40px }
+    .join div:not(:nth-child(2)) { display: none }
+    .join div:nth-child(2) { --c: var(--ink-3) }
+    .flow { grid-template-columns: 1fr; gap: 18px }
+    .flow li:not(:last-child)::after { display: block; right: auto; left: 50%; top: auto; bottom: -15px; margin: 0 0 0 -6px;
+      border: 6px solid transparent; border-top: 9px solid var(--coral); border-bottom: 0 }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="top">
+  <a href="index.html" aria-label="HarmonicFitness docs"><img src="../assets/brand/wordmark-h-reversed.svg" alt="HarmonicFitness"></a>
+  <nav><a href="index.html" aria-current="page">How it fits</a><a href="style-guide.html">Style guide</a></nav>
+</header>
+
+<p class="kicker" style="margin-top:48px">The big picture</p>
+<h1 style="margin-top:10px">How it fits together</h1>
+<p class="lede">A request for a workout becomes a narrated MP3 for earbuds. Four folders make that happen. Three hold
+what the app knows, and one, <code>tools/</code>, does the work.</p>
+
+<!-- 1. the map -->
+<h2>The map</h2>
+<p class="sub">Shared rules, a coach and one person's details all feed the engine. It turns them into a checked script
+and then audio, and saves what happened back to that person's folder.</p>
+
+<div class="map">
+  <div class="sources">
+    <section class="card layer src l-knowledge">
+      <div class="path">knowledge/</div>
+      <h3>What's true for everyone</h3>
+      <p>The movement catalog, the session methods and doses, the rules for safe scripts and for what a voice can
+        read, the story formats and the voice services.</p>
+      <div class="gives"><span>Gives:</span> the safe menu, the doses and the rules every draft is checked against.</div>
+    </section>
+    <section class="card layer src l-coaches">
+      <div class="path">coaches/</div>
+      <h3>Who speaks</h3>
+      <p>Each coach is a persona (a name and how they talk) with a voice. Local coaches speak on this computer; web
+        coaches speak through a voice service. A listener's own coaches live in <code>me/coaches/</code>.</p>
+      <div class="gives"><span>Gives:</span> the character the script is written in, its pace, and the voice that
+        reads it.</div>
+    </section>
+    <section class="card layer src l-me">
+      <div class="path">me/</div>
+      <h3>One listener</h3>
+      <p>Private, and never in the engine's git. Who they are, their kit and weights, their injuries, their topics,
+        their log and their keys.</p>
+      <div class="gives"><span>Gives:</span> today's limits, the kit, the week so far and what to talk about in the
+        rests.</div>
+    </section>
+  </div>
+
+  <div class="join" aria-hidden="true">
+    <div class="l-knowledge"></div><div class="l-coaches"></div><div class="l-me"></div>
+  </div>
+
+  <section class="engine">
+    <div class="engine-head">
+      <div><div class="path" style="font:600 15px var(--mono);color:var(--tools)">tools/ &nbsp;·&nbsp; ./harmonicfitness</div>
+        <h3 style="margin-top:4px">The engine</h3></div>
+      <p>Every step runs through one command, so one permission covers it.</p>
+    </div>
+    <ol class="flow">
+      <li><div class="n">01</div><h3>Ask</h3><p>A short check-in: anything sore, the goal, the length, the kit, the
+        coach.</p></li>
+      <li><div class="n">02</div><h3>Brief</h3><p>The ingredients: who they are, today's limits and the safe menu of
+        movements.</p></li>
+      <li><div class="n">03</div><h3>Write</h3><p>The AI writer plans the session and writes the coaching and the
+        stories.</p></li>
+      <li><div class="n">04</div><h3>Check</h3><p>The build lints the draft: menu, timing, silences and what a voice can
+        say.</p></li>
+      <li><div class="n">05</div><h3>Speak</h3><p>The coach's voice reads every line, and the render lays it on the
+        clock.</p></li>
+      <li><div class="n">06</div><h3>Deliver</h3><p>The MP3 goes to their phone's folder (or the web app), and the
+        session is logged.</p></li>
+    </ol>
+    <div class="back"><span class="dot l-me"></span><span><b>Back into me/:</b> the draft, the MP3's record, the log
+      line, the stories told and the threads left open. The next workout reads them.</span></div>
+  </section>
+
+  <div class="legend">
+    <span><i class="dot l-knowledge"></i>knowledge: shared, public</span>
+    <span><i class="dot l-coaches"></i>coaches: who speaks</span>
+    <span><i class="dot l-me"></i>me: private to one listener</span>
+    <span><i class="dot l-tools"></i>tools: the engine</span>
+  </div>
+</div>
+
+<!-- 2. what each step reads -->
+<h2>What each step reads and writes</h2>
+<p class="sub">A solid chip is read and a dashed one is written.</p>
+<ol class="steps">
+  <li><b>Check-in.</b><p>A few quick questions, and only the ones the request didn't already answer. A lasting change
+    to an injury goes into the health file, with permission.</p>
+    <div class="chips"><span class="chip l-me"><i class="dot"></i>profile, training, health, log</span>
+      <span class="chip out l-me"><i class="dot"></i>health (only if it changed)</span></div></li>
+  <li><b>Brief.</b><p>Applies today's limits to the movement catalog and keeps only what is safe for this kit and level.
+    It saves a brief and a <em>menu</em> beside the draft. The build later refuses anything the menu doesn't hold.</p>
+    <div class="chips"><span class="chip l-knowledge"><i class="dot"></i>catalog, sessions, programming</span>
+      <span class="chip l-coaches"><i class="dot"></i>character, pace</span>
+      <span class="chip l-me"><i class="dot"></i>profile, health, log</span>
+      <span class="chip out l-me"><i class="dot"></i>workouts/&lt;day&gt;/ brief + menu</span></div></li>
+  <li><b>Write.</b><p>First a skeleton (the clock: every segment's seconds), then the words, written to each segment's
+    word budget. Stories for the rests come from that day's research.</p>
+    <div class="chips"><span class="chip l-knowledge"><i class="dot"></i>script + voice rules, content formats</span>
+      <span class="chip l-me"><i class="dot"></i>topics, research</span>
+      <span class="chip out l-me"><i class="dot"></i>the draft</span></div></li>
+  <li><b>Build: check.</b><p>One command checks the draft: only menu movements, no silence over eight seconds, the
+    total within five percent of plan, and only words a voice can read.</p>
+    <div class="chips"><span class="chip l-knowledge"><i class="dot"></i>catalog</span>
+      <span class="chip l-coaches"><i class="dot"></i>pace</span>
+      <span class="chip l-me"><i class="dot"></i>menu</span></div></li>
+  <li><b>Build: speak.</b><p>A local coach renders on this computer, and a speech recognizer checks each take. A web
+    coach sends the script to its service, using the listener's key.</p>
+    <div class="chips"><span class="chip l-coaches"><i class="dot"></i>voice</span>
+      <span class="chip l-me"><i class="dot"></i>keys (engine only)</span>
+      <span class="chip out l-me"><i class="dot"></i>MP3, build record</span></div></li>
+  <li><b>Deliver and log.</b><p>The MP3 is copied to the delivery folder. Then the session, the stories told and any
+    open threads are logged, and <code>me/</code> is backed up to its own private repo.</p>
+    <div class="chips"><span class="chip out l-me"><i class="dot"></i>log, told, threads, backup</span></div></li>
+</ol>
+
+<!-- 3. how a script is built -->
+<h2>How a script gets written</h2>
+<p class="sub">Both routes share the brief, the menu and the build's checks. Only the writing differs.</p>
+<div class="two">
+  <section class="card">
+    <h3>On a computer · Claude Code or Codex</h3>
+    <ol class="steps">
+      <li><b>Research starts in the background</b><p>while the check-in is answered.</p></li>
+      <li><b>Brief, then a plan.</b><p>A small table of blocks, movements, doses and seconds.</p></li>
+      <li><b>Coaching first.</b><p>Every segment's setup, cues and holds. A local coach can render ahead as the
+        writing lands.</p></li>
+      <li><b>Stories once research reports,</b><p>each wrapped in <code>[story]</code> tags in a rest.</p></li>
+      <li><b>Read it through and rewrite it as one piece.</b></li>
+      <li><b>Lint, fix, repeat, then build.</b></li>
+    </ol>
+  </section>
+  <section class="card">
+    <h3>On the website · three writers</h3>
+    <ol class="steps">
+      <li><b>The agent writes the skeleton.</b><p>Its lint returns each segment's word budget.</p></li>
+      <li><b>Personal content writer</b><p>starts as soon as the brief is saved. It researches, then writes the rests'
+        stories.</p></li>
+      <li><b>Coach writer,</b><p>at the same time, writes the coaching around each story's length.</p></li>
+      <li><b>The code assembles the two.</b></li>
+      <li><b>Final script writer</b><p>reads it with the build's check and makes it one voice (up to twice).</p></li>
+      <li><b>The build prices it.</b><p>The listener presses Record, and the same build records.</p></li>
+    </ol>
+  </section>
+</div>
+
+<!-- 4. the rules that always hold -->
+<h2>Rules that always hold</h2>
+<div class="rules" style="margin-top:16px">
+  <div class="rule-card"><b>Only the menu</b><span>Every movement comes from today's safe menu. The build refuses
+    anything else.</span></div>
+  <div class="rule-card"><b>No long silence</b><span>No quiet over eight seconds (twenty with the pulse bed). With no
+    screen, a silent gap sounds like a dropped earbud.</span></div>
+  <div class="rule-card"><b>On time</b><span>The total stays within five percent of plan. A natural voice matters
+    more than exact segments.</span></div>
+  <div class="rule-card"><b>Keys stay put</b><span>Only the engine reads <code>me/.env</code>, when it calls a voice
+    service. No assistant reads it.</span></div>
+  <div class="rule-card"><b>Private stays private</b><span><code>me/</code> never enters the engine's git. A hook and
+    CI both check.</span></div>
+</div>
+
+<footer>
+  The detail lives in <code>CLAUDE.md</code>, <code>knowledge/script.md</code> and
+  <code>.claude/skills/workout/SKILL.md</code>. How these pages look and sound: <a href="style-guide.html">the style
+  guide</a>.
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HarmonicFitness Style Guide</title>
+<meta name="description" content="How HarmonicFitness looks and sounds: words, terms, colour, type, the mark and the parts of a docs page.">
+<link rel="icon" href="../assets/brand/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap">
+<link rel="stylesheet" href="docs.css">
+<style>
+  .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 0 }
+  .toc a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 2px; text-decoration: none; font-size: 15px; color: var(--ink-2) }
+  .toc a:hover { border-color: var(--coral); color: var(--ink) }
+
+  .dodont { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px }
+  .dodont .card h3 { font-size: 18px; letter-spacing: .14em }
+  .do h3 { color: var(--blue) } .dont h3 { color: var(--stop) }
+  .dodont ul { padding-left: 0; list-style: none }
+  .dodont li { padding: 8px 0; border-top: 1px solid var(--rule); color: var(--ink) }
+  .dodont li:first-child { border-top: 0 }
+  .dodont li small { display: block; color: var(--ink-3); font-size: 14px }
+
+  .swatches { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); margin-top: 16px }
+  .sw { border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; background: var(--sheet) }
+  .sw i { display: block; height: 72px; background: var(--s) }
+  .sw div { padding: 10px 12px }
+  .sw b { display: block; font-weight: 600 }
+  .sw code { background: none; padding: 0; color: var(--ink-3) }
+  .sw span { display: block; font-size: 13.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.35 }
+  .ember { height: 28px; border-radius: 2px; margin-top: 16px;
+    background: linear-gradient(in oklch to right, #8C2F22 0%, #FF5A3C 65%, #FFC2AE 100%) }
+  @supports not (background: linear-gradient(in oklch to right, red, blue)) {
+    .ember { background: linear-gradient(to right, #8C2F22 0%, #FF5A3C 65%, #FFC2AE 100%) }
+  }
+  .ember-labels { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--ink-3); margin-top: 6px }
+
+  .type-row { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-top: 1px solid var(--rule); align-items: baseline }
+  .type-row:first-of-type { border-top: 0 }
+  .type-row .meta { color: var(--ink-3); font-size: 14px; line-height: 1.4 }
+  .type-row .meta b { display: block; color: var(--ink-2); font-weight: 600 }
+
+  .marks { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); margin-top: 16px }
+  .marks .card { display: flex; flex-direction: column; gap: 14px }
+  .marks .stage { display: flex; align-items: center; justify-content: center; min-height: 120px; background: var(--paper); border: 1px solid var(--rule); border-radius: 2px }
+  .marks .stage.light { background: #EDEAE0 }
+
+  .demo { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); margin-top: 16px }
+
+  @media (max-width: 640px) {
+    .dodont { grid-template-columns: 1fr }
+    .type-row { grid-template-columns: 1fr; gap: 6px }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="top">
+  <a href="index.html" aria-label="HarmonicFitness docs"><img src="../assets/brand/wordmark-h-reversed.svg" alt="HarmonicFitness"></a>
+  <nav><a href="index.html">How it fits</a><a href="style-guide.html" aria-current="page">Style guide</a></nav>
+</header>
+
+<p class="kicker" style="margin-top:48px">Style guide</p>
+<h1 style="margin-top:10px">How it looks and sounds</h1>
+<p class="lede">The rules for anything written for HarmonicFitness: these docs, the web app, the README, error
+messages and the coach's lines. It's mostly about words, because the product is a voice in someone's ear.</p>
+
+<nav class="toc" aria-label="On this page">
+  <a href="#words">Words</a><a href="#terms">Terms</a><a href="#colour">Colour</a><a href="#type">Type</a>
+  <a href="#mark">The mark</a><a href="#pages">Docs pages</a>
+</nav>
+
+<!-- WORDS -->
+<h2 id="words">Words</h2>
+<p class="sub">Plain, short and specific. Write for someone who has just tabbed back in and wants to catch up.</p>
+
+<div class="grid">
+  <div class="card"><h3>Outcome first</h3><p>Lead with what happened or what to do. The reason comes second, and
+    the detail last.</p></div>
+  <div class="card"><h3>Plain words</h3><p>“Sends the script to the voice service”, not “dispatches the payload”.
+    If a word needs a glossary, use a simpler one or add it to the terms below.</p></div>
+  <div class="card"><h3>Say the number</h3><p>“Eight seconds”, “five percent”, “twenty-five minutes”. Never
+    “a while”, “a bit” or “most”.</p></div>
+  <div class="card"><h3>One name per thing</h3><p>Once a thing has a name, use only that name. A brief is never also
+    a “plan sheet”. The terms table is the list.</p></div>
+  <div class="card"><h3>Cut the filler</h3><p>Drop “real”, “actual”, “genuine”, “honest”, “simply” and “just”, and
+    don't announce what you're about to say.</p></div>
+  <div class="card"><h3>Say why, once</h3><p>Every rule says what it protects, in one clause, with the test that
+    proved it where there was one.</p></div>
+</div>
+
+<div class="dodont">
+  <div class="card do"><h3>Write</h3><ul>
+    <li>The build stops on a movement that isn't on today's menu.</li>
+    <li>Only the engine reads <code>me/.env</code>.<small>Who does what, stated flatly.</small></li>
+    <li>A web coach sends the script to its service, using the listener's key.</li>
+    <li>That's three sets in the bank.<small>The coach praises what the plan guarantees.</small></li>
+  </ul></div>
+  <div class="card dont"><h3>Avoid</h3><ul>
+    <li>The validation layer may reject non-compliant movement tokens.</li>
+    <li>Credentials are securely handled.<small>Vague: who handles them, and how?</small></li>
+    <li>Leverages cloud TTS for a seamless experience.</li>
+    <li>That set looked smoother!<small>The coach can't see them.</small></li>
+  </ul></div>
+</div>
+
+<div class="note"><b>The coach's lines have their own rules.</b> <code>knowledge/script.md</code> covers how a script
+should sound and <code>knowledge/tts-rules.md</code> what a voice can read: digits, symbols and ellipses become
+words or go. Each coach's own voice is in its <code>persona.md</code>.</div>
+
+<!-- TERMS -->
+<h2 id="terms">Terms</h2>
+<p class="sub">The words the app, the docs and the code share. Use these and no synonyms.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Term</th><th>Means</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>listener</td><td>The person the workout is for. They hear it; they don't watch it.</td><td>user, client, athlete</td></tr>
+    <tr><td>coach</td><td>A persona with a name, a way of talking and a voice.</td><td>voice, bot, avatar</td></tr>
+    <tr><td>local coach</td><td>One of the ten stock coaches, spoken on this computer by Pocket TTS.</td><td>offline voice</td></tr>
+    <tr><td>web coach</td><td>A coach that speaks through a voice service, with the listener's key.</td><td>cloud voice, API voice</td></tr>
+    <tr><td>check-in</td><td>The few questions asked before a workout.</td><td>survey, intake</td></tr>
+    <tr><td>brief</td><td>The day's ingredients: who they are, today's limits, the safe menu, the doses.</td><td>plan, spec</td></tr>
+    <tr><td>menu</td><td>Every movement allowed today. The build checks the draft against it.</td><td>whitelist, allow list</td></tr>
+    <tr><td>limit</td><td>An injury rule for one area: <em>off-limits</em> or <em>delicate</em>.</td><td>restriction, flag</td></tr>
+    <tr><td>draft</td><td>The script being written, with its <code>@@</code> segments and markers.</td><td>template, source</td></tr>
+    <tr><td>skeleton</td><td>A draft with the clock and no words yet: segments, seconds, counts and holds.</td><td>outline</td></tr>
+    <tr><td>segment</td><td>One timed stretch of the script: <code>@@ 45 | Rest after set two</code>.</td><td>block, chunk</td></tr>
+    <tr><td>rest</td><td>A segment between sets. It usually carries a story.</td><td>break</td></tr>
+    <tr><td>story</td><td>The listener's content in a rest, wrapped in <code>[story]</code> tags.</td><td>filler, fluff</td></tr>
+    <tr><td>lint</td><td>The build's check of a draft, before anything is spoken.</td><td>validate</td></tr>
+    <tr><td>build</td><td>The one command that checks, renders and delivers a draft.</td><td>compile</td></tr>
+    <tr><td>render</td><td>Turning the draft into audio in the coach's voice.</td><td>synthesize, generate</td></tr>
+    <tr><td>deliver</td><td>Copying the MP3 to the listener's delivery folder.</td><td>export, publish</td></tr>
+    <tr><td>stock</td><td>Stories researched ahead of time, kept in <code>research/reserve/</code>.</td><td>pantry, cache</td></tr>
+    <tr><td>thread</td><td>Something a session leaves open for a later one: a serial, a quiz, a promise.</td><td>cliffhanger</td></tr>
+    <tr><td>engine</td><td>The public repo: <code>tools/</code>, <code>knowledge/</code>, the skills and tests.</td><td>backend, core</td></tr>
+  </tbody>
+</table></div>
+
+<!-- COLOUR -->
+<h2 id="colour">Colour</h2>
+<p class="sub">Five brand colours, from <code>assets/brand/README.md</code>. Ember is the meter's gradient. Change
+them there and in <code>make.py</code>, never by hand.</p>
+<div class="swatches">
+  <div class="sw" style="--s:#FF5A3C"><i></i><div><b>Coral</b><code>#FF5A3C</code><span>The brand colour. Accents, the active item, the request's fixed words.</span></div></div>
+  <div class="sw" style="--s:#8C2F22"><i></i><div><b>Ember low</b><code>#8C2F22</code><span>The foot of the meter.</span></div></div>
+  <div class="sw" style="--s:#FFC2AE"><i></i><div><b>Ember high</b><code>#FFC2AE</code><span>The top of the meter.</span></div></div>
+  <div class="sw" style="--s:#111215"><i></i><div><b>Ink</b><code>#111215</code><span>Dark backgrounds; words on light.</span></div></div>
+  <div class="sw" style="--s:#EDEAE0"><i></i><div><b>Cream</b><code>#EDEAE0</code><span>Words on dark.</span></div></div>
+</div>
+<div class="ember" role="img" aria-label="Ember gradient from Ember low through Coral to Ember high"></div>
+<div class="ember-labels"><span>Ember low · 0</span><span>Coral · 0.65</span><span>Ember high · 1</span></div>
+
+<h3 style="margin-top:36px">The app's surfaces</h3>
+<p class="sub">From <code>web/client/src/theme.css</code>. The app is dark: paper underneath, sheets on top, and
+three tones of cream for text.</p>
+<div class="swatches">
+  <div class="sw" style="--s:#111215"><i></i><div><b>--paper</b><code>#111215</code><span>The page.</span></div></div>
+  <div class="sw" style="--s:#1A1B20"><i></i><div><b>--sheet</b><code>#1A1B20</code><span>Cards and panels.</span></div></div>
+  <div class="sw" style="--s:#22232A"><i></i><div><b>--sheet-2</b><code>#22232A</code><span>A card inside a card; code.</span></div></div>
+  <div class="sw" style="--s:#34353B"><i></i><div><b>--rule</b><code>#34353B</code><span>Borders and dividers.</span></div></div>
+  <div class="sw" style="--s:#EDEAE0"><i></i><div><b>--ink</b><code>#EDEAE0</code><span>Headings and main text.</span></div></div>
+  <div class="sw" style="--s:#C2C1BA"><i></i><div><b>--ink-2</b><code>#C2C1BA</code><span>Body text in cards.</span></div></div>
+  <div class="sw" style="--s:#9A9993"><i></i><div><b>--ink-3</b><code>#9A9993</code><span>Labels and captions.</span></div></div>
+  <div class="sw" style="--s:#9DBEDD"><i></i><div><b>--blue</b><code>#9DBEDD</code><span>Dusk blue: coach samples, the current coach.</span></div></div>
+  <div class="sw" style="--s:#E3907D"><i></i><div><b>--stop</b><code>#E3907D</code><span>Something stopped or refused.</span></div></div>
+</div>
+
+<h3 style="margin-top:36px">Layer colours, in diagrams</h3>
+<p class="sub">Each folder has one colour, the same on every docs page. Always put the folder's name beside its
+colour, so the colour is never the only cue.</p>
+<div class="chips" style="margin-top:0">
+  <span class="chip l-knowledge"><i class="dot"></i>knowledge/ · dusk blue</span>
+  <span class="chip l-coaches"><i class="dot"></i>coaches/ · coral</span>
+  <span class="chip l-me"><i class="dot"></i>me/ · ember high</span>
+  <span class="chip l-tools"><i class="dot"></i>tools/ · cream</span>
+</div>
+
+<!-- TYPE -->
+<h2 id="type">Type</h2>
+<p class="sub">Two faces, both free on Google Fonts. Headings are tall and loud; body text is narrow and calm.</p>
+<div class="card" style="padding-top:4px;padding-bottom:4px">
+  <div class="type-row"><div class="meta"><b>Display</b>Big Shoulders Display, 700, uppercase, +0.02 to 0.06 em</div>
+    <div style="font:700 clamp(36px,5vw,56px)/1 var(--display);text-transform:uppercase;letter-spacing:.03em">Twenty-five minutes</div></div>
+  <div class="type-row"><div class="meta"><b>Heading</b>Display, 700, 22 to 36 px, +0.05 em</div>
+    <div style="font:700 26px/1.1 var(--display);text-transform:uppercase;letter-spacing:.06em">Today's limits</div></div>
+  <div class="type-row"><div class="meta"><b>Label</b>Display, 700, 13 to 15 px, +0.12 to 0.2 em</div>
+    <div style="font:700 14px/1 var(--display);text-transform:uppercase;letter-spacing:.16em;color:var(--coral)">Rest after set two</div></div>
+  <div class="type-row"><div class="meta"><b>Body</b>IBM Plex Sans Condensed, 400, 17 px, line height 1.55</div>
+    <div style="color:var(--ink-2)">Set them down and shake the arms out. That's two of three, and the next set is the same weight.</div></div>
+  <div class="type-row"><div class="meta"><b>Code</b>The system's monospace, 0.88 em, on sheet-2</div>
+    <div><code>./harmonicfitness build "&lt;draft&gt;" "&lt;name&gt;" --lint-only</code></div></div>
+</div>
+<div class="note">Headings are always uppercase, set in the display face. Body text is never uppercase. Keep lines of
+body text under about 64 characters wide.</div>
+
+<!-- MARK -->
+<h2 id="mark">The mark</h2>
+<p class="sub">An H drawn as a stereo level meter: two channels and a middle bar, in Ember. Use the form that fits the
+size. The files and their rules are in <code>assets/brand/</code>.</p>
+<div class="marks">
+  <div class="card"><div class="stage"><img src="../assets/brand/mark.svg" alt="The full mark" style="height:88px;width:auto"></div>
+    <div><h3>mark.svg</h3><p>About 60 px and up. Ten segments a channel.</p></div></div>
+  <div class="card"><div class="stage"><img src="../assets/brand/mark-mid.svg" alt="The mid mark" style="height:44px;width:auto"></div>
+    <div><h3>mark-mid.svg</h3><p>24 to 60 px. Six segments.</p></div></div>
+  <div class="card"><div class="stage"><img src="../assets/brand/mark-small.svg" alt="The small mark" style="height:20px;width:auto"></div>
+    <div><h3>mark-small.svg</h3><p>Under 24 px. Four segments.</p></div></div>
+  <div class="card"><div class="stage light"><img src="../assets/brand/wordmark-h.svg" alt="The wordmark on light" style="width:86%;height:auto"></div>
+    <div><h3>wordmark-h</h3><p>The main logo. Use <code>-reversed</code> on dark.</p></div></div>
+</div>
+<div class="grid" style="margin-top:14px">
+  <div class="card"><h3>Do</h3><ul><li>Use the files as made.</li><li>Leave clear space of at least one segment's
+    width around it.</li><li>Let it move only while there's sound, and never when the system asks for reduced motion.</li></ul></div>
+  <div class="card"><h3>Don't</h3><ul><li>Recolour, stretch or redraw it. Change <code>make.py</code> instead.</li>
+    <li>Put it on a busy photo.</li><li>Set “HarmonicFitness” in two words or with a space.</li></ul></div>
+</div>
+
+<!-- PAGES -->
+<h2 id="pages">Docs pages</h2>
+<p class="sub">Every page in <code>docs/</code> links <code>docs.css</code> and the two Google Fonts, and starts from
+the same top bar. Keep each page self-contained: no scripts and no build step.</p>
+
+<div class="grid">
+  <div class="card"><h3>Layout</h3><ul>
+    <li>Content at most 1120 px wide, with a side gutter of 16 to 56 px.</li>
+    <li>It must work at phone width with no sideways scrolling. Wide tables scroll inside <code>.table-wrap</code>.</li>
+    <li>Square corners (2 px) and thin rules. No shadows on docs pages.</li></ul></div>
+  <div class="card"><h3>Parts in docs.css</h3><ul>
+    <li><code>.card</code>, <code>.grid</code>: panels that wrap.</li>
+    <li><code>.steps</code>: a numbered list in coral.</li>
+    <li><code>.chip</code> + <code>.l-me</code> (and so on): a folder, in its colour. Dashed means written.</li>
+    <li><code>.note</code>: a callout with a coral edge.</li></ul></div>
+  <div class="card"><h3>Diagrams</h3><ul>
+    <li>Built in HTML and CSS, so they reflow. Use an image only when the shape matters more than the words.</li>
+    <li>Arrows in coral for the flow of work, and in a layer's colour for what that folder feeds.</li>
+    <li>Broad strokes. Link to the file that holds the detail rather than copying it.</li></ul></div>
+</div>
+
+<h3 style="margin-top:36px">The parts, as they render</h3>
+<div class="demo">
+  <ol class="steps">
+    <li><b>Brief.</b><p>The day's ingredients and the safe menu.</p>
+      <div class="chips"><span class="chip l-knowledge"><i class="dot"></i>catalog</span><span class="chip out l-me"><i class="dot"></i>menu</span></div></li>
+  </ol>
+  <div>
+    <div class="card layer l-coaches"><div class="path">coaches/</div><h3>A layer card</h3><p>A top edge in the
+      folder's colour, its path in monospace, then one heading and a line or two.</p></div>
+    <div class="note" style="margin-top:14px"><b>A note.</b> One idea, in a sentence or two.</div>
+  </div>
+</div>
+
+<div class="note" style="margin-top:28px"><b>Keep docs free of personal details.</b> <code>docs/</code> is part of the
+public engine. No listener's name, health, location, log lines or drafts, even as examples: the pre-push hook and CI
+refuse them. Make up example names and facts, and keep them obviously generic.</div>
+
+<footer>Sources: <code>assets/brand/README.md</code> (the mark and colours), <code>web/client/src/theme.css</code>
+(the app's tokens), <code>knowledge/script.md</code> and <code>knowledge/tts-rules.md</code> (the coach's lines).
+<a href="index.html">How it fits together</a>.</footer>
+
+</div>
+</body>
+</html>
