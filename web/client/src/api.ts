@@ -16,6 +16,9 @@ export type Me = { app_name: string; username: string; has_password: boolean; ve
   sky?: "flow" | "field" | "waves" | "bloom" | "woven" | "garden";
   /** Record without asking (Settings); absent from a server older than 0.48.0. */
   auto_record?: boolean };
+/** The listener's level (novice when none is set), and the three to choose from as a listener would say each. */
+export type LevelState = { level: Level; set: boolean; choices: { level: Level; said: string }[] };
+export type Level = "novice" | "experienced" | "advanced";
 export type AuthInfo = { app_name: string; registration: boolean; version: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
@@ -112,6 +115,8 @@ export const api = {
   setWriter: (service: string) => call<void>("PUT", "/api/writer", { service }),
   setSky: (sky: "flow" | "field" | "waves" | "bloom" | "woven" | "garden") => call<void>("PUT", "/api/sky", { sky }),
   setAutoRecord: (on: boolean) => call<void>("PUT", "/api/auto-record", { on }),
+  level: () => call<LevelState>("GET", "/api/level"),
+  setLevel: (level: Level) => call<void>("PUT", "/api/level", { level }),
   /** `day` is the listener's own date (YYYY-MM-DD), as the log's are. */
   setCoach: (slug: string, day: string) => call<void>("PUT", "/api/coach", { slug, day }),
   deleteKey: (service: string) =>

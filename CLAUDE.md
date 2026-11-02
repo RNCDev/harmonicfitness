@@ -102,7 +102,7 @@ Each file is read only through its tool, never parsed elsewhere:
 
 - **Computer:** `doctor` (readiness; `--facts` feeds `tools/machine.py`), `setup` (environment, `me/`, privacy hook, local engine as a uv extra remembered in `.venv/.harmonicfitness-extra`), `models`, `tools/voices.py` (model pins), `tools/ffmpeg.py`, `harness`.
 - **Coaches:** `coaches` (list, last, measured, audition, keep, make, archive, set, download), `tools/personas.py` (lookup, merge), `tools/audition.py`, `tools/coachmake.py`, `tools/cloud.py` and `tools/services/`, `keys` (names set, never values), `balances`.
-- **Context:** `check`, `get`, `log-session` (`tools/logsession.py`), `migrate`, `workouts` (list, show, feedback, rate, delete), `backup` (refuses a key file and a public remote), `cache prune`, `pull` and `sync` (the web app's copy of `me/`).
+- **Context:** `check`, `get`, `set` (the listener's level, every other line kept), `log-session` (`tools/logsession.py`), `migrate`, `workouts` (list, show, feedback, rate, delete), `backup` (refuses a key file and a public remote), `cache prune`, `pull` and `sync` (the web app's copy of `me/`).
 - **Planning and research:** `brief`, `movements` (`--about` for coaching notes), `coverage`, `feeds`, `content` (plan, log, thread, reserve, trending), `interests` (learned likes, fading by half-life), `youtube`.
 - **Privacy:** `tools/hooks/` (the pre-push hook, `check-private.sh` shared with CI, and `private-paths`, the one list of paths never pushed).
 

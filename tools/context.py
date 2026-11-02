@@ -347,6 +347,29 @@ def experience(p):
     return v if v in catalog.LEVELS else None
 
 
+def set_experience(level, path=None):
+    """Write `experience = "<level>"` into profile.md's settings (its home), every other line kept: the line it has is
+    replaced, else one is added with its comment. `level` is one of catalog.LEVELS (UsageError otherwise)."""
+    import catalog
+    if level not in catalog.LEVELS:
+        raise errors.UsageError(f"unknown level \"{level}\" (choose from: {', '.join(catalog.LEVELS)})")
+    path = path or paths.PROFILE
+    try:
+        text = read_raw(path, "profile").lstrip("\ufeff")
+    except FileNotFoundError:
+        raise errors.ContextError(f"No profile at {show(path)} yet: set up first.") from None
+    m = frontmatter.TOML_FRONT_RE.match(text)
+    if not m:
+        raise errors.ContextError(f"{show(path)} has no settings block (+++ ... +++) to hold the level: run "
+                                  "./harmonicfitness migrate.")
+    block, line = m.group(1), f"experience = {toml_value(level)}"
+    if re.search(r"(?m)^experience\s*=.*$", block):
+        block = re.sub(r"(?m)^experience\s*=.*$", line, block, count=1)
+    else:
+        block = block.rstrip("\n") + f"\n# {SETTINGS_COMMENTS['experience']}\n{line}"
+    fileio.atomic_write(path, frontmatter.wrap(block, text[m.end():]))
+
+
 def listener_name(p):
     """What the coach calls the listener (the profile's `name`), or None when unset."""
     v = p.settings.get("name")
@@ -650,6 +673,9 @@ def main(argv=None):
     g.add_argument("--json", action="store_true",
                    help='the value as one JSON object keyed by its name, "-" as "_": {"web_builds": 3}, '
                         '{"routes": ["local"]}, {"coach": null} when there is none')
+    st = sub.add_parser("set", help="change one setting in the profile, every other line kept")
+    st.add_argument("what", choices=("experience",))
+    st.add_argument("value", help="experience: novice, experienced or advanced")
     sub.add_parser("deliver", help="print the existing delivery folders, one per line")
     s = sub.add_parser("log-session", help="add a session to log.md, checked")
     s.add_argument("--draft", help="the built draft: its movements: line gives the movements, and its menu the "
@@ -678,6 +704,10 @@ def main(argv=None):
             print("\n".join(value))
         elif value is not None:
             print(value)
+        return cli.OK
+    if args.cmd == "set":
+        set_experience(args.value)
+        print(f"experience = {args.value}")
         return cli.OK
     if args.cmd == "deliver":
         p = profile()

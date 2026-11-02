@@ -2004,6 +2004,27 @@ note = "Therapist: no weight through the hand."
             out = run([sys.executable, "tools/context.py", "get", "experience"], home=home)
             self.assertEqual(out.stdout, "advanced\n")
 
+    def test_set_experience_keeps_every_other_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = fresh_home(d)
+            path = os.path.join(home, "profile.md")
+            with open(path, encoding="utf-8") as f:
+                before = f.read()
+            out = run([sys.executable, "tools/context.py", "set", "experience", "novice"], home=home)
+            self.assertEqual((out.returncode, out.stdout), (0, "experience = novice\n"), out.stderr)
+            with open(path, encoding="utf-8") as f:
+                after = f.read()
+            self.assertEqual(after, before.replace('experience = ""', 'experience = "novice"'))
+            out = run([sys.executable, "tools/context.py", "set", "experience", "expert"], home=home)
+            self.assertEqual(out.returncode, 64)
+            # a profile with no experience line gets one, with its comment, inside the settings block
+            write_file(path, '+++\nschema = 6\nname = "Sam"\n+++\n# My Profile\n')
+            run([sys.executable, "tools/context.py", "set", "experience", "advanced"], home=home)
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+            self.assertTrue(text.startswith('+++\nschema = 6\nname = "Sam"\n# Your training level'), text)
+            self.assertIn('experience = "advanced"\n+++\n# My Profile\n', text)
+
 
 class MigrateFrom4(unittest.TestCase):
     """Schema 4 (HarmonicFitness 0.9.x) folders migrate to the current schema in one run; the example is current."""

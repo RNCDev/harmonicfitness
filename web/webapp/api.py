@@ -38,7 +38,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints
 
 from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
-    spend, start, store, \
+    level, spend, start, store, \
     worker, workouts
 
 COOKIE = "wt_session"
@@ -202,6 +202,11 @@ class FeedbackBody(BaseModel):
 class RatingBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     rating: Literal["positive", "neutral", "negative", "none"]
+
+
+class LevelBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    level: Literal["novice", "experienced", "advanced"]
 
 
 class CoachBody(BaseModel):
@@ -792,6 +797,17 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.delete("/api/workouts/{ref}", status_code=204, **post)
     async def workout_delete(uk: User, ref: Annotated[str, PathParam(max_length=40)]):
         await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.delete, ref, change=True))
+        return Response(status_code=204)
+
+    @app.get("/api/level")
+    async def get_level(uk: User):
+        """The listener's level (novice when none is set) and the three to choose from, each as they'd say it."""
+        return await anyio.to_thread.run_sync(lambda: _workout_call(uk, level.current))
+
+    @app.put("/api/level", status_code=204, **post)
+    async def put_level(uk: User, body: Annotated[LevelBody, Body()]):
+        """Set the level in the listener's profile, every other line kept."""
+        await anyio.to_thread.run_sync(lambda: _workout_call(uk, level.choose, body.level, change=True))
         return Response(status_code=204)
 
     @app.post("/api/account/delete", status_code=204, **post)

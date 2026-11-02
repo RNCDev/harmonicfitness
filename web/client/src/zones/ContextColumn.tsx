@@ -1,10 +1,10 @@
-// The Settings drawer, in two columns on a wide screen: the keys (what's used most); then the background behind the
-// page (called the sky in the code, with its credit), the listener's files (download, bring in a folder) and last
-// the account (who is signed in, the password, another device, signing out, deleting it). On a phone, one
+// The Settings drawer, in two columns on a wide screen: the keys (what's used most); then the listener's level,
+// recording, the background behind the page (called the sky in the code, with its credit), the listener's files
+// (download, bring in a folder) and last the account (who is signed in, the password, another device, signing out, deleting it). On a phone, one
 // column in the same order.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState } from "../api";
+import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type Level, type LevelState } from "../api";
 import { PasswordForm } from "../SignIn";
 import { SKIES, SkyPreview, type SkyKind } from "../Sky";
 import { KeysBox } from "./KeysBox";
@@ -201,6 +201,58 @@ function RecordBox({ on, onChange }: { on: boolean; onChange: (on: boolean) => v
   );
 }
 
+/** The listener's level, picked by the sentence that fits them: it sets the movements, the doses and how much the
+ *  coach explains. Novice until one is chosen, as the planning assumes. Chosen at once, then saved; put back if refused. */
+function LevelBox({ onSignedOut }: { onSignedOut: () => void }) {
+  const [state, setState] = useState<LevelState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.level().then((s) => { if (live) setState(s); }).catch((e) => {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      if (live) setError("Your level couldn't be loaded.");
+    });
+    return () => { live = false; };
+  }, [onSignedOut]);
+
+  async function choose(level: Level) {
+    if (!state || level === state.level) return;
+    const before = state;
+    setState({ ...state, level, set: true });
+    setError(null);
+    try {
+      await api.setLevel(level);
+    } catch (e) {
+      if (e instanceof NotSignedIn) return onSignedOut();
+      setState(before);
+      setError(e instanceof ApiError && e.status === 409 ? e.message : "Your level couldn't be saved. Try again.");
+    }
+  }
+
+  return (
+    <section className="cx-box" aria-labelledby="cx-level-h">
+      <h3 className="cx-h" id="cx-level-h">Your level</h3>
+      {state && (
+        <div className="level-opts" role="radiogroup" aria-labelledby="cx-level-h">
+          {state.choices.map((c) => (
+            <button key={c.level} type="button" role="radio" aria-checked={state.level === c.level}
+              className={`level-opt${state.level === c.level ? " on" : ""}`} onClick={() => void choose(c.level)}>
+              {c.said}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="cx-s">
+        {state && !state.set
+          ? "Not chosen yet, so your workouts are planned for someone new. Pick the one that fits you."
+          : "It sets the movements, how much you do, and how much your coach explains."}
+      </p>
+      {error && <p className="cx-s err" role="alert">{error}</p>}
+    </section>
+  );
+}
+
 function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void }) {
   return (
     <section className="cx-box" aria-labelledby="cx-sky-h">
@@ -239,6 +291,7 @@ export function ContextColumn({ username, version, open, onClose, onSignedOut, o
             <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
           </div>
           <div className="cx-col">
+            <LevelBox onSignedOut={onSignedOut} />
             {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} />}
             {onSky && <SkyBox sky={sky} onSky={onSky} />}
             <section className="cx-account" aria-labelledby="cx-files-h">

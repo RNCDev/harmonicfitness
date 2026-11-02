@@ -28,6 +28,7 @@ COMMANDS = {
     "youtube":     ("youtube", None, "deep-dive videos, transcripts, series and puzzles"),
     "check":       ("check", None, "check every context file in me/ (format, unfilled lines)"),
     "get":         ("context", "get", "print a setting: coach (the one used last), route (what a build uses here), routes, wpm, experience, web-builds"),
+    "set":         ("context", "set", "change a setting: experience (novice, experienced or advanced), every other line kept"),
     "deliver":     ("context", "deliver", "print the delivery folders that exist"),
     "log-session": ("context", "log-session", "add a checked session line to me/log.md"),
     "workouts":    ("workoutlog", None, "the workouts logged: list them, add feedback on one, or delete one (its log line, stories told and threads)"),

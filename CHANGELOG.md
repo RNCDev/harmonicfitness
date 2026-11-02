@@ -2,6 +2,15 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.55.1] - 2026-11-02
+
+The level can be changed on the website at any time. Settings has a **Your level** box with the three sentences from setup, and the one that fits is chosen with a tap. Until one is chosen it shows novice, which is how workouts are planned without a level.
+
+### Added
+- **Your level, in Settings** (web): the three sentences, the current one checked. It says the level sets the movements, how much you do and how much your coach explains, and a level not yet chosen says so. A save the server refuses puts the old choice back, with the reason.
+- **`GET /api/level` and `PUT /api/level`** (`web/webapp/level.py`): the level the engine reads (novice with `"set": false` when there's none) and the three choices; a change runs the engine's `set experience` and is written back against the versions read (409 when the files changed at the same moment).
+- **`./harmonicfitness set experience <level>`**: writes the level into `me/profile.md`'s settings, every other line kept. A profile with no `experience` line gets one, with its comment. An unknown level exits 64.
+
 ## [0.55.0] - 2026-11-02
 
 On the website, scripts are now written the way a show's team works. A trainer plans and hands over notes. A researcher brings the stories. A host, the coach's voice, writes every word. Then the trainer reviews it for safety. Two full test workouts led to the rest of this release. One script told the listener to go easy on the wrong side, so the build now checks the side the opening names. Others left weights unnamed, retold old news as new, or filled rests with breathing lines while the stories got a few sentences. The listener's level now also sets how much the coach explains, so someone who knows the moves isn't given a lesson on every push-up.
