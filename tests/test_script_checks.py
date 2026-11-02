@@ -1,4 +1,4 @@
-"""What the 2026-11-01 script evals found and the engine now holds: light loads under a limit, a second session in
+"""Checks the engine holds on a written script: light loads under a limit, a second session in
 a day, a whole-body session's patterns, and claims the coach can't make."""
 import datetime
 import os
@@ -93,8 +93,8 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class Loop30(unittest.TestCase):
-    """0.49.4: eval loop on 30-minute scripts."""
+class ThirtyMinutes(unittest.TestCase):
+    """0.49.4: thirty-minute scripts."""
 
     def test_seen_claims_widen_and_a_rep_target_isnt_one(self):
         import repeats
@@ -137,7 +137,7 @@ class Loop30(unittest.TestCase):
         self.assertIn("trim it", "\n".join(tts_build.render_report(off)))
 
 
-class Loop30b(unittest.TestCase):
+class ThirtyMinutesMore(unittest.TestCase):
     """0.49.6: a list of figures, a full-body session's patterns, and the words that land a short draft."""
 
     def test_a_list_of_figures_is_warned_and_a_point_isnt_one(self):

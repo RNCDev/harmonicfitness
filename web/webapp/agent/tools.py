@@ -94,13 +94,9 @@ class Deps:
     writers: str = "one"
     # each skeleton's last lint report, by its draft's path: the word budgets the writers write to
     reports: dict[str, str] = field(default_factory=dict)
-    # each writer's call this turn (who, which round, seconds, tokens, what it returned), for the eval loops
-    tracks: list = field(default_factory=list)
     # the personal content writer, started as the brief runs (three writers): its future, and the draft it writes for
     content_job: object = field(default=None, repr=False)
     content_for: str | None = None
-    # each writer's instructions in place of guides(): the eval loop's challengers (docs/eval/)
-    guides: dict | None = None
     loop: object = field(default=None, repr=False)   # the turn's event loop, which the personal content writer runs on
 
 

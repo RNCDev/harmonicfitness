@@ -2472,7 +2472,7 @@ class PrivatePaths(unittest.TestCase):
                   "profile.md", "health.md", "training.md", "content.md", "settings.toml", "log.md", "movements.toml",
                   ".env", "personas/coach-x/persona.md", "voices/x.wav", "knowledge/health.md"):
             self.assertTrue(re.search(pattern, p), p)
-        for p in ("knowledge/movements.toml", "docs/eval/judge.md", "docs/x/log.md",
+        for p in ("knowledge/movements.toml", "docs/notes.md", "docs/x/log.md",
                   "tools/context.py", "README.md", "tests/fixtures/listener/profile.md", "tests/fixtures/profile-5.md"):
             self.assertFalse(re.search(pattern, p), p)
 

@@ -8,13 +8,11 @@ import asyncio
 import functools
 import os
 import re
-import time
 from dataclasses import replace
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelResponse, NativeToolCallPart, NativeToolReturnPart
 
 from . import tools
 
@@ -355,33 +353,19 @@ def _thinking(model, level: str) -> dict | None:
 
 
 async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: str, capabilities=(), history=None):
-    """One writer's call, recorded in deps.tracks; cut off by Gemini's own deadline (504, thinking too long), it's
+    """One writer's call; cut off by Gemini's own deadline (504, thinking too long), it's
     asked again a level lower, as it is when it runs past its PATIENCE."""
-    start = time.monotonic()
     lower = LEVELS[LEVELS.index(level) + 1:] if level in LEVELS else ()
     try:
         result = await asyncio.wait_for(
-            agent.run(prompt, model=model, instructions=(deps.guides or guides(deps.engine_root))[who],
+            agent.run(prompt, model=model, instructions=guides(deps.engine_root)[who],
                       model_settings=_thinking(model, level), usage=usage, capabilities=list(capabilities),
                       message_history=history),
             timeout=PATIENCE.get(who) if lower else None)
     except (ModelHTTPError, asyncio.TimeoutError) as e:
         if isinstance(e, ModelHTTPError) and e.status_code != 504 or not lower:
             raise
-        deps.tracks.append({"writer": who, "level": level, "seconds": round(time.monotonic() - start, 1),
-                            "deadline": True})
         return await _ask(deps, who, agent, model, prompt, usage, lower[0], capabilities, history)
-    new = result.new_messages()
-    responses = [m for m in new if isinstance(m, ModelResponse)]
-    deps.tracks.append({"writer": who, "level": level, "seconds": round(time.monotonic() - start, 1),
-                        "requests": len(responses),
-                        "input_tokens": sum(m.usage.input_tokens or 0 for m in responses),
-                        "output_tokens": sum(m.usage.output_tokens or 0 for m in responses),
-                        "searches": sum(isinstance(p, NativeToolCallPart) for m in new for p in m.parts),
-                        # what the searches returned, so a judge can check a story's facts against them
-                        "found": [str(p.content)[:6000] for m in new for p in m.parts
-                                  if isinstance(p, NativeToolReturnPart)],
-                        "output": result.output.model_dump()})
     return result
 
 

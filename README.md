@@ -103,7 +103,7 @@ Three layers keep your details apart from the code:
 
 | Layer | Where | In git? |
 |---|---|---|
-| **Engine**: the command, tools, skills, tests, shared knowledge and the template for `me/` | `harmonicfitness`, `tools/`, `.claude/`, `.agents/`, `.codex/`, `AGENTS.md`, `tests/`, `knowledge/`, `me.example/`, `docs/` | Yes, public |
+| **Engine**: the command, tools, skills, tests, shared knowledge and the template for `me/` | `harmonicfitness`, `tools/`, `.claude/`, `.agents/`, `.codex/`, `AGENTS.md`, `tests/`, `knowledge/`, `me.example/` | Yes, public |
 | **Models**: the local voice models, pinned to exact revisions | `models/` | No: downloaded by setup |
 | **You**: profile, health, log and feedback, coaches, drafts, research, MP3s, and voice service keys (`me/.env`, never backed up) | `me/` (or wherever `HARMONICFITNESS_HOME` points) | No: ignored, and a pre-push hook and CI refuse it |
 
@@ -114,7 +114,6 @@ Three layers keep your details apart from the code:
 | `knowledge/` | The movement catalog, session methods and doses, programming and injury references, equipment kits, what goes in a script, text-to-speech rules, coaches and voices, the web voice services, and the research notes behind the sourced numbers (`knowledge/research/`) |
 | `tools/` | One file per job, all run through `./harmonicfitness`; `CLAUDE.md` says what each does |
 | `tests/` | Fast checks with no models, network or personal files (`./harmonicfitness test`), run by CI on every push |
-| `docs/` | The script-writing loop: how a change to the writing is run, timed and judged before a release |
 
 Your profile is four files, split by how often each part changes:
 

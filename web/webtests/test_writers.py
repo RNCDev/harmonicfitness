@@ -164,8 +164,7 @@ class Patience(unittest.TestCase):
         self.addCleanup(writers.PATIENCE.update, old)
         out = asyncio.run(writers._ask(deps, "final", writers.FINAL, FunctionModel(reply), "edit", RunUsage(), "HIGH"))
         self.assertEqual(out.output.segments, [])
-        self.assertEqual([c.get("level") for c in deps.tracks], ["HIGH", "MEDIUM"])
-        self.assertTrue(deps.tracks[0]["deadline"])
+        self.assertEqual(len(calls), 2)   # asked once more, a level lower
 
 
 class Switch(unittest.TestCase):

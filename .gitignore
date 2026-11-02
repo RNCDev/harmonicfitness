@@ -20,5 +20,5 @@ __pycache__/
 # browser walks: screenshots and logs from the Playwright tools
 .playwright-mcp/
 
-# the maintainer's local Gemini key (web/qat_key.py and web/local_turn.py read GEMINI_API_KEY); never committed
+# a local key file at the root (nothing reads it now); never committed
 /.env
