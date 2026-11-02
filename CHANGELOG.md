@@ -2,6 +2,28 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.56.0] - 2026-11-02
+
+Settings on the website is easier to read. On a wide screen it now fits in two balanced rows: the keys beside your own choices (your level, recording and the background), then your files beside the account. Each key is one line, the backgrounds are small pictures, and the notes are shorter.
+
+### Changed
+- **The Settings layout** (web): two rows of two on a wide screen, one column on a phone. Your keys and your choices sit side by side, and your files and account side by side below them.
+- **Keys:** each service is one line: its name, the "+ voices" tag, what's left on the account (or a link to its billing page), then Replace and Remove. The date a key was added is now the name's tooltip. The chosen writer is tinted, with a bar on its left edge.
+- **Your level:** three compact radio rows.
+- **Background:** six small pictures, three across, with their names; each description is its tooltip.
+- **Shorter notes:**
+  - recording, in two lines either way;
+  - one note for your files;
+  - "Signed in as" once;
+  - shorter notes on the two kinds of key.
+
+  A note never ends on a single word.
+- **Account:** "Change password" and "Sign in another device" share a row. "Sign out" and "Delete my account" are quiet links below them, with the version at the far end. Delete stays in brick, and the question before deleting opens on its own line.
+
+### For forks
+- **Web client CSS:** the Settings drawer's cells are `.cx-cell` (`.cx-keys`, `.cx-prefs`, `.cx-files`, `.cx-account`) in place of the two `.cx-col` columns. `.keys-state` and `.keys-when` are gone, and the balance sits in `.keys-label`.
+- **Nothing else changes:** no engine, draft, command or `me/` change, and no migration.
+
 ## [0.55.1] - 2026-11-02
 
 The level can be changed on the website at any time. Settings has a **Your level** box with the three sentences from setup, and the one that fits is chosen with a tap. Until one is chosen it shows novice, which is how workouts are planned without a level.

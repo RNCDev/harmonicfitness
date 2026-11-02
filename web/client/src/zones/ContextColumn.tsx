@@ -1,6 +1,6 @@
-// The Settings drawer, in two columns on a wide screen: the keys (what's used most); then the listener's level,
-// recording, the background behind the page (called the sky in the code, with its credit), the listener's files
-// (download, bring in a folder) and last the account (who is signed in, the password, another device, signing out, deleting it). On a phone, one
+// The Settings drawer. On a wide screen, two rows of two: the keys (what's used most) beside the listener's own
+// choices (their level, recording, the background behind the page, called the sky in the code, with its credit); then
+// their files (download, bring in a folder) beside the account (who is signed in, the password, another device, signing out, deleting it). On a phone, one
 // column in the same order.
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
@@ -86,7 +86,6 @@ function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
         <input type="file" accept=".zip,application/zip" disabled={busy} className="sr"
           onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ""; }} />
       </label>
-      <p className="cx-s">From HarmonicFitness on your computer: a ZIP of its <code>me</code> folder. Keys are left out.</p>
       {note && <p className="cx-s" role="status">{note}</p>}
       {error && <p className="cx-s err" role="alert">{error}</p>}
     </div>
@@ -94,12 +93,7 @@ function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
 }
 
 function ExportBox() {
-  return (
-    <div className="cx-box">
-      <a className="act" href="/api/export" download>Download your files</a>
-      <p className="cx-s">Your profile, log and workouts as a ZIP. Keys are never in it.</p>
-    </div>
-  );
+  return <a className="act" href="/api/export" download>Download your files</a>;
 }
 
 function DeleteBox({ onSignedOut }: { onSignedOut: () => void }) {
@@ -124,7 +118,7 @@ function DeleteBox({ onSignedOut }: { onSignedOut: () => void }) {
   return (
     <div className="cx-box">
       {!open ? (
-        <button type="button" className="act danger" onClick={() => setOpen(true)}>Delete my account</button>
+        <button type="button" className="quiet danger" onClick={() => setOpen(true)}>Delete my account</button>
       ) : (
         <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove(); }}>
           <p className="cx-s err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
@@ -151,7 +145,6 @@ function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut:
   const [done, setDone] = useState(false);
   return (
     <div className="cx-box">
-      <p className="cx-s">Signed in as <strong>{username}</strong></p>
       {open ? (
         <PasswordForm username={username} needsCurrent onSignedOut={onSignedOut}
           onDone={() => { setOpen(false); setDone(true); }} />
@@ -192,10 +185,10 @@ function RecordBox({ on, onChange }: { on: boolean; onChange: (on: boolean) => v
         <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
         <span className="switch-name">Record without asking</span>
       </label>
-      <p className="cx-s">
+      <p className="cx-s switch-note">
         {on
-          ? "Once your script is checked, your coach records it straight away, without showing the price first: the script goes to your coach's voice service at once, injuries and all. Today's allowance still applies."
-          : "Your coach shows the price and waits for you to press Record."}
+          ? "A checked script records without showing you the price first (usually less than 1 USD)."
+          : "Preview the pricing (usually less than 1 USD) and waits for you to initiate recording."}
       </p>
     </section>
   );
@@ -238,15 +231,16 @@ function LevelBox({ onSignedOut }: { onSignedOut: () => void }) {
           {state.choices.map((c) => (
             <button key={c.level} type="button" role="radio" aria-checked={state.level === c.level}
               className={`level-opt${state.level === c.level ? " on" : ""}`} onClick={() => void choose(c.level)}>
-              {c.said}
+              <span className="level-dot" aria-hidden="true" />
+              <span>{c.said}</span>
             </button>
           ))}
         </div>
       )}
       <p className="cx-s">
         {state && !state.set
-          ? "Not chosen yet, so your workouts are planned for someone new. Pick the one that fits you."
-          : "It sets the movements, how much you do, and how much your coach explains."}
+          ? "Not chosen yet, so workouts are planned for someone new. Pick the one that fits."
+          : "Setting your level adjusts your trainer's guidance."}
       </p>
       {error && <p className="cx-s err" role="alert">{error}</p>}
     </section>
@@ -263,7 +257,6 @@ function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void })
             aria-pressed={sky === s.kind} title={s.about} onClick={() => onSky(s.kind)}>
             <SkyPreview kind={s.kind} />
             <span className="sky-opt-name">{s.name}</span>
-            <span className="sky-opt-note">{s.about}</span>
           </button>
         ))}
       </div>
@@ -285,34 +278,39 @@ export function ContextColumn({ username, version, open, onClose, onSignedOut, o
           <h2>Settings</h2>
           <button type="button" className="ctx-close" onClick={onClose}>Close</button>
         </div>
-        {/* two columns on a wide screen, one below the other on a phone: what's used most comes first */}
+        {/* a wide screen: the keys beside your choices, then your files beside the account; a phone: one column */}
         <div className="cx-list">
-          <div className="cx-col">
+          <div className="cx-cell cx-keys">
             <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
           </div>
-          <div className="cx-col">
+          <div className="cx-cell cx-prefs">
             <LevelBox onSignedOut={onSignedOut} />
             {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} />}
             {onSky && <SkyBox sky={sky} onSky={onSky} />}
-            <section className="cx-account" aria-labelledby="cx-files-h">
-              <h3 className="cx-h" id="cx-files-h">Your files</h3>
+          </div>
+          <section className="cx-cell cx-files" aria-labelledby="cx-files-h">
+            <h3 className="cx-h" id="cx-files-h">Your files</h3>
+            <div className="act-row">
               <ExportBox />
               <ImportBox onSignedOut={onSignedOut} />
-            </section>
-            <section className="cx-account" aria-labelledby="cx-account-h">
-              <h3 className="cx-h" id="cx-account-h">Account</h3>
-              {/* who is signed in; a row to change the account, a row to leave it; what one opens comes below its row */}
-              <div className="act-row">
-                <PasswordBox username={username} onSignedOut={onSignedOut} />
-                <DeviceLinkBox onSignedOut={onSignedOut} />
-              </div>
-              <div className="act-row">
-                <button type="button" className="act" onClick={onSignOut}>Sign out</button>
-                <DeleteBox onSignedOut={onSignedOut} />
-              </div>
+            </div>
+            <p className="cx-s">Your profile, log and workouts as a ZIP, or a <code>me</code> folder from
+              HarmonicFitness on your computer. Keys are never included.</p>
+          </section>
+          <section className="cx-cell cx-account" aria-labelledby="cx-account-h">
+            <h3 className="cx-h" id="cx-account-h">Account</h3>
+            <p className="cx-s">Signed in as <strong>{username}</strong></p>
+            {/* what a button opens (the password form, the sign-in code) comes below its row */}
+            <div className="act-row">
+              <PasswordBox username={username} onSignedOut={onSignedOut} />
+              <DeviceLinkBox onSignedOut={onSignedOut} />
+            </div>
+            <div className="cx-foot">
+              <button type="button" className="quiet" onClick={onSignOut}>Sign out</button>
+              <DeleteBox onSignedOut={onSignedOut} />
               {version && <p className="cx-version">Version {version}</p>}
-            </section>
-          </div>
+            </div>
+          </section>
         </div>
       </aside>
     </>

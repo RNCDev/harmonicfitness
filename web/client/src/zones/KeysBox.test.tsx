@@ -80,7 +80,7 @@ describe("the Keys box", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Replace Gemini key" })).toBeInTheDocument());
     expect(m.setKey).toHaveBeenCalledTimes(1);
     expect(m.setKey).toHaveBeenCalledWith("gemini", "AIza-secret");
-    expect(screen.getAllByText(/^Set\b/)).toHaveLength(2);   // Gemini once, Fish Audio
+    expect(screen.getAllByTitle(/^Key added/)).toHaveLength(2);   // Gemini once, Fish Audio
     const last = seen.mock.calls[seen.mock.calls.length - 1][0] as KeyState[];
     expect(last.filter((k) => k.service === "gemini").every((k) => k.set)).toBe(true);
   });
@@ -129,8 +129,8 @@ describe("the Keys box", () => {
 
   it("shows every service, set or not", async () => {
     render(<KeysBox onSignedOut={() => {}} />);
-    expect(await screen.findByText(/^Set\b/)).toBeInTheDocument();
-    expect(screen.getAllByText(/^Set\b/)).toHaveLength(1);
+    expect(await screen.findByTitle(/^Key added/)).toBeInTheDocument();
+    expect(screen.getAllByTitle(/^Key added/)).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /^Add / })).toHaveLength(1);   // an unset key just offers Add
     expect(screen.getByRole("button", { name: "Replace Fish Audio key" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add ElevenLabs key" })).toBeInTheDocument();
@@ -150,7 +150,7 @@ describe("the Keys box", () => {
     await waitFor(() => expect(screen.queryByLabelText("ElevenLabs key")).not.toBeInTheDocument());
     expect(container.textContent).not.toContain("secret-value-1");
     for (const el of container.querySelectorAll("input")) expect((el as HTMLInputElement).value).not.toContain("secret-value-1");
-    expect(screen.getAllByText(/^Set\b/)).toHaveLength(2);
+    expect(screen.getAllByTitle(/^Key added/)).toHaveLength(2);
   });
 
   it("shows the server's refusal", async () => {

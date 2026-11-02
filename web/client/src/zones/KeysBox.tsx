@@ -2,7 +2,7 @@
 // and the voices (optional), one row per service. A service that is both (OpenRouter, Gemini) is one key and one row,
 // listed first since it's all a listener needs; picking it to write also voices its coaches, and the other voice
 // keys wait behind a link. Add, replace or remove. A key is never shown again. A set key shows what's left on its
-// account where the service says, else a link to its billing page.
+// account where the service says, else a link to its billing page, beside its name.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, checkBalances, NotSignedIn, plainError, type Balance, type KeyState } from "../api";
 
@@ -34,10 +34,10 @@ export function hasModelKey(keys: KeyState[] | null): boolean | null {
 }
 
 function setOn(iso: string | null): string {
-  if (!iso) return "Set";
+  if (!iso) return "Key added";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "Set";
-  return `Set ${d.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+  if (Number.isNaN(d.getTime())) return "Key added";
+  return `Key added ${d.toLocaleDateString([], { month: "short", day: "numeric" })}`;
 }
 
 /** A balance check's state for one row: still asking, its answer, or nothing to say. */
@@ -140,21 +140,17 @@ function KeyRow({ k, open, balance, onChanged, onSignedOut, onChoose }: {
 
   return (
     <div className={`keys-row${onChoose ? " writer" : ""}${k.writer ? " on" : ""}`}>
-      {/* a grid: the name (and its tag) on the left, its buttons on the right; when set, the date and balance below */}
+      {/* one line: the name, its tag and what's left on the left, its buttons on the right (when it was set is the
+          name's tooltip); anything opened goes below, across the row */}
       <span className="keys-id">
         {onChoose && <input type="radio" name="writer" id={`writer-${k.service}`} checked={!!k.writer} onChange={onChoose} />}
-        <span className="keys-label">
+        <span className="keys-label" title={k.set ? setOn(k.updated_at) : undefined}>
           {onChoose ? <label className="keys-name" htmlFor={`writer-${k.service}`}>{k.name}</label>
             : <span className="keys-name">{k.name}</span>}
           {k.kind === "model" && k.voice && <span className="keys-tag" title="This key also voices your coaches">+ voices</span>}
+          {k.set && <BalanceTag k={k} balance={balance} />}
         </span>
       </span>
-      {k.set && (
-        <span className="keys-state">
-          <span className="keys-when">{setOn(k.updated_at)}</span>
-          <BalanceTag k={k} balance={balance} />
-        </span>
-      )}
       {!editing && !asking && (
         <span className="keys-actions">
           <button type="button" className="quiet" aria-label={`${k.set ? "Replace" : "Add"} ${k.name} key`}
@@ -301,10 +297,10 @@ export function KeysBox({ onSignedOut, onKeys, openRow }: Props) {
       {error && <p className="cx-s err" role="alert">{error}</p>}
       {keys === null && !error && <p className="cx-s">Loading…</p>}
       {group("Who writes your workouts", required.length > 1
-        ? "Pick one. A key marked + voices also voices your coaches, so it's the only one you need."
+        ? "Pick one. A key marked + voices also voices your coaches, so it's all you need."
         : "This key writes every workout.", required, required.length > 1)}
       {voicesShown
-        ? group("More voices (optional)", "Each adds coaches with voices of their own.", optional)
+        ? group("More voices (optional)", "Each adds coaches of its own.", optional)
         : optional.length > 0 && (
           <section className="keys-group" aria-label="More voices (optional)">
             <p className="cx-s">Your {writer?.name} key voices your coaches too. Nothing else to add.</p>

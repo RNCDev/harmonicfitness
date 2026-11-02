@@ -164,7 +164,7 @@ a:hover { color: #fff }
 .audio-name { margin: 0 0 6px; font: 700 26px/1.05 var(--display); letter-spacing: .05em; text-transform: uppercase }
 .m.audio audio { width: 100%; color-scheme: dark }
 .audio-name .audio-meter { display: inline-block; vertical-align: -2px; margin-right: 10px }
-.cx-s { font-size: 14px; line-height: 1.45; color: var(--ink-2); margin: 2px 0 0 }
+.cx-s { font-size: 14px; line-height: 1.45; color: var(--ink-2); margin: 2px 0 0; text-wrap: pretty }
 .cx-s.err { color: var(--stop) }
 .switch { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; color: var(--ink) }
 .switch input { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--ink); cursor: pointer }
@@ -311,100 +311,116 @@ a:hover { color: #fff }
 .pick-body .done { padding: 10px 22px; font-size: 17px }
 
 /* ---------- Settings ---------- */
+/* One column on a phone; on a wide screen two rows of two, each pair split by a rule: the keys beside your
+   choices (level, recording, background), then your files beside the account. Each section opens with a small
+   label; a section's own items sit 22px apart, sections 30px. */
 .ctx-scrim { display: none }
 .ctx-scrim.show { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(0, 0, 0, .5); backdrop-filter: blur(2px) }
 .ctx {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); z-index: 70; background: #17181C; color: var(--ink);
-  padding: 24px 30px 32px; overflow-y: auto; transform: translateX(105%); visibility: hidden;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 94vw); z-index: 70; background: #17181C; color: var(--ink);
+  padding: 22px 26px 32px; overflow-y: auto; transform: translateX(105%); visibility: hidden;
   box-shadow: inset 1px 0 0 var(--rule), var(--lift);
   transition: transform .28s cubic-bezier(.2, .8, .2, 1), visibility .28s;
 }
 /* visible at once on opening, so focus can move in; hidden only once it has slid out */
 .ctx.open { transform: none; visibility: visible; transition: transform .28s cubic-bezier(.2, .8, .2, 1) }
-.ctx-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px }
+.ctx-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px }
 .ctx-top h2 { margin: 0; font: 700 30px/1 var(--display); letter-spacing: .12em; text-transform: uppercase }
 .ctx-close { font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); padding: 12px 0 12px 12px }
 .ctx-close:hover { color: #fff }
-.cx-list { display: grid; gap: 0; align-items: start }
-.cx-col { display: grid; min-width: 0; align-content: start }
-.cx-col > * { padding: 22px 0 }
-.cx-col > * + * { border-top: 1px solid var(--rule) }
-.cx-col > :first-child { padding-top: 0 }
-.cx-col + .cx-col { border-top: 1px solid var(--rule); padding-top: 22px }
-/* a wide screen: twice as wide, two columns with a rule between them */
+.cx-list { display: grid; grid-template-columns: minmax(0, 1fr) }
+.cx-cell { display: grid; gap: 22px; align-content: start; min-width: 0; padding: 26px 0 }
+.cx-cell:first-child { padding-top: 4px }
+.cx-cell + .cx-cell { border-top: 1px solid var(--rule) }
+.cx-files, .cx-account { gap: 10px; justify-items: start }
 @media (min-width: 1000px) {
-  .ctx { width: min(880px, 94vw); padding: 26px 40px 36px }
-  .ctx-top { margin-bottom: 26px }
-  /* the keys hold the most per row, so their column is a little wider */
-  .cx-list { grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); column-gap: 0 }
-  .cx-col:first-child { padding-right: 34px }
-  .cx-col + .cx-col { border-top: 0; padding: 0 0 0 34px; box-shadow: inset 1px 0 0 var(--rule); align-self: stretch }
-  /* the backgrounds: the picture says what each one is (the words are its tooltip) */
-  .sky-opt-note { display: none }
+  .ctx { width: min(900px, 94vw); padding: 24px 38px 34px }
+  .ctx-top { margin-bottom: 22px }
+  .cx-list { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) }
+  .cx-cell { padding: 0 0 28px }
+  .cx-cell:nth-child(odd) { padding-right: 32px }
+  .cx-cell:nth-child(even) { padding-left: 32px; box-shadow: inset 1px 0 0 var(--rule) }
+  .cx-cell + .cx-cell { border-top: 0 }
+  .cx-files, .cx-account { border-top: 1px solid var(--rule) !important; padding-top: 24px; padding-bottom: 0 }
 }
-.cx-box { display: grid; gap: 4px }
-.cx-h { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
-.keys-group { margin-top: 18px }
-.keys-group:first-of-type { margin-top: 4px }
+.cx-box { display: grid; gap: 4px; min-width: 0 }
+.cx-h { margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
+.cx-files > .cx-h, .cx-account > .cx-h { margin-bottom: 0 }
+.cx-files code { font-size: .95em }
+
+/* the keys: two lists of one-line rows, the writer's chosen row tinted */
+.keys-group { margin-top: 16px }
+.keys-group:first-of-type { margin-top: 2px }
+.keys-group > [role=radiogroup], .keys-group > div { margin-top: 8px; border-top: 1px solid var(--rule) }
 .keys-h { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink) }
-/* a key row: the name and its tag left, its buttons right on the same line; the date and balance under the name;
-   anything opened (the key's field, the question before removing, an error) across the whole row */
-.keys-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 11px 0; border-bottom: 1px solid var(--rule) }
+.keys-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
+  padding: 9px 10px; border-bottom: 1px solid var(--rule);
+}
 .keys-row > * { grid-column: 1 / -1 }
-.keys-row > .keys-id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 28px }
-.keys-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0 }
+.keys-row > .keys-id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 26px }
+.keys-label { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0 }
 .keys-row.writer .keys-name { cursor: pointer }
+.keys-row.writer.on { background: var(--tok-tint); box-shadow: inset 2px 0 0 var(--ink) }
 .keys-row > .keys-actions:not(.keys-ask) { grid-column: 2; grid-row: 1; justify-self: end }
-.keys-row > .keys-ask { margin-top: 4px }
+.keys-row > .keys-ask { margin-top: 2px }
 .keys-row .keys-name { font-weight: 600 }
-.keys-row .keys-state { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 12px; font-size: 14px; color: var(--ink-3) }
-.keys-row.writer .keys-state, .keys-row.writer > .keys-note { padding-left: 28px }
-.keys-when { white-space: nowrap }
-.keys-bal { font-size: 14px; color: var(--ink-2); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums }
-a.keys-bal:hover { text-decoration: underline }
+.keys-row.writer > .keys-note { padding-left: 28px }
+.keys-bal { font-size: 14px; color: var(--ink-3); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums }
+a.keys-bal:hover { color: var(--ink); text-decoration: underline }
 .keys-bill { display: inline-flex; align-items: center; padding: 4px; margin: -4px 0; color: var(--ink-3) }
 .keys-bill:hover, .keys-bill:focus-visible { color: var(--ink) }
 .keys-actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center }
-.keys-row.writer { padding-left: 14px; padding-right: 14px; margin: 6px 0 0; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--rule) }
-.keys-row.writer.on { box-shadow: inset 0 0 0 1px var(--ink); background: var(--tok-tint) }
+.keys-actions .quiet { font-size: 14px }
 .keys-id input[type=radio] { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--ink); cursor: pointer }
 .keys-note { margin: 0 }
-.keys-tag { font-size: 12px; font-weight: 600; letter-spacing: .04em; padding: 1px 7px; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap }
+.keys-tag { font-size: 12px; font-weight: 600; letter-spacing: .04em; padding: 0 6px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap }
 .keys-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 6px }
 .keys-edit input, .auth input {
   font: inherit; color: var(--ink); background: var(--paper); border: 0; box-shadow: inset 0 0 0 1px var(--line); border-radius: 0;
   padding: 12px 13px; width: 100%;
 }
 .keys-edit input:focus-visible, .auth input:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--ink) }
-.sky-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 2px 0 6px }
-@media (min-width: 900px) { .sky-opts { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+.keys-foot { margin-top: 12px; color: var(--ink-3); font-size: 13.5px; line-height: 1.45 }
+
+/* your level: three sentences as radio rows */
+.level-opts { display: grid; margin: 0 0 4px; border-top: 1px solid var(--rule) }
+.level-opt {
+  display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 9px 10px; font-size: 15px; line-height: 1.4;
+  color: var(--ink-2); border-bottom: 1px solid var(--rule); transition: background-color .15s, color .15s;
+}
+.level-opt:hover { color: var(--ink); background: rgba(237, 234, 224, .03) }
+.level-opt.on { color: var(--ink); background: var(--tok-tint); box-shadow: inset 2px 0 0 var(--ink) }
+.level-dot { flex: none; width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-3) }
+.level-opt.on .level-dot { box-shadow: inset 0 0 0 1.5px var(--ink), inset 0 0 0 5px #17181C; background: var(--ink) }
+
+/* recording: the switch's note sits under its words */
+.switch-note { padding-left: 28px; text-wrap: pretty }
+
+/* the background: six small pictures, three across; the words are each one's tooltip */
+.sky-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 4px }
 .sky-opt {
-  display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 10px 10px 12px; min-width: 0;
+  display: grid; gap: 6px; text-align: left; padding: 6px 6px 8px; min-width: 0;
   box-shadow: inset 0 0 0 1px var(--rule); transition: box-shadow .15s;
 }
 .sky-opt:hover { box-shadow: inset 0 0 0 1px var(--ink-3) }
 .sky-opt.on { box-shadow: inset 0 0 0 2px var(--ink) }
-.sky-mini { display: block; width: 100%; height: auto; background: var(--paper); color: var(--ink); margin-bottom: 4px }
-.sky-opt-name { font-weight: 600; font-size: 16px }
-.sky-opt-note { font-size: 14px; line-height: 1.35; color: var(--ink-3) }
-.sky-credit { margin-top: 4px; font-size: 13.5px }
-.level-opts { display: grid; gap: 8px; margin: 2px 0 6px }
-.level-opt {
-  text-align: left; padding: 10px 12px; font-size: 15px; line-height: 1.4; color: var(--ink-2);
-  box-shadow: inset 0 0 0 1px var(--rule); transition: box-shadow .15s;
-}
-.level-opt:hover { box-shadow: inset 0 0 0 1px var(--ink-3) }
-.level-opt.on { box-shadow: inset 0 0 0 2px var(--ink); color: var(--ink) }
+.sky-mini { display: block; width: 100%; height: auto; background: var(--paper); color: var(--ink) }
+.sky-opt-name { font-weight: 500; font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.sky-credit { margin-top: 2px; font-size: 13px; color: var(--ink-3) }
 .sky-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px }
-.cx-account { display: grid; gap: 10px; justify-items: start }
-.cx-account > .cx-h { margin-bottom: 0 }
-.cx-version { margin: 6px 0 0; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums }
-.keys-foot { margin-top: 10px; color: var(--ink-3); font-size: 13.5px; line-height: 1.45 }
-.cx-account .cx-box { gap: 6px; justify-items: start }
+
+/* files and account: a row of outlined actions; what one opens comes below the row */
 .act-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100% }
 .act-row > .cx-box { display: contents }
 .act-row > .cx-box > :not(.act) { order: 1; flex-basis: 100% }
-.act-row > .cx-box:first-child > p.cx-s:first-child { order: -1; margin-bottom: 2px }
+/* the account's foot: sign out, then delete (the one in brick), and the version at the far end */
+.cx-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 22px; width: 100%; margin-top: 8px }
+.cx-foot .cx-box { justify-items: start }
+.cx-foot .quiet { font-size: 14px }
+.cx-foot .cx-version { margin-left: auto }
+.cx-foot .cx-box:has(form) { flex-basis: 100%; order: 2 }   /* the question before deleting: a line of its own */
+.cx-version { margin: 0; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums }
 .device { margin-top: 12px }
 .qr { display: block; margin: 12px 0; width: 200px; height: 200px; max-width: 100% }
 .link { margin: 0; font-size: 13px; overflow-wrap: anywhere }
