@@ -491,10 +491,17 @@ CONTRACT = [(re.compile(rf"\b{a}\b{after}", re.IGNORECASE), b) for a, after, b i
     (r"(i|you|we|they|it|that|she|he) will", r"(?=\s+[a-z])", r"\1'll"))]
 
 
+# "stay where you are or drop a plate": after one of these the verb ends its clause, and "where you're or" can't
+CLAUSE_FINAL = re.compile(r"\b(where|wherever|how|however|what|whatever|who|as|than)\s+$", re.IGNORECASE)
+NEGATIVE = re.compile(r"not$|^cannot$|^can not$", re.IGNORECASE)
+
+
 def _contract_words(text: str) -> tuple[str, int]:
     n = 0
     for pattern, short in CONTRACT:
         def swap(m, short=short):
+            if not NEGATIVE.search(m.group(0)) and CLAUSE_FINAL.search(m.string[max(0, m.start() - 12):m.start()]):
+                return m.group(0)
             out = m.expand(short)
             return out[0].upper() + out[1:] if m.group(0)[0].isupper() else out
         text, k = pattern.subn(swap, text)

@@ -697,6 +697,14 @@ class Faster(AgentCase):
         tools.edit_segments(self.deps, self.DRAFT, [{"number": 1, "text": "@@ 120 | Let us begin\nIt is not far."}])
         self.assertIn("It isn't far.", self.draft_text())
 
+    def test_a_verb_that_ends_its_clause_stays_whole(self):
+        """"Stay where you're or drop a plate" can't be said: after where, how, what, who, as or than the verb ends
+        its clause, so it isn't contracted (a negative still is)."""
+        self.assertEqual(tools.contract("Stay right where you are or drop a plate.")[0],
+                         "Stay right where you are or drop a plate.")
+        self.assertEqual(tools.contract("You are close, and that is it. Where you do not rush.")[0],
+                         "You're close, and that's it. Where you don't rush.")
+
     def test_the_build_s_ask_for_words_is_scaled_to_what_the_writer_delivers(self):
         """A writer asked for 600 words added a third of that: the first ask is doubled, the next scaled by what the
         last one brought (at most three times), and a build that asks nothing forgets it."""
