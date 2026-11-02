@@ -24,19 +24,20 @@ Copy and send:
 
 **In a terminal or an editor** (VS Code, Cursor, JetBrains): `git clone https://github.com/RNCDev/harmonicfitness.git ~/harmonicfitness` (or GitHub's **Code > Download ZIP**), open the folder in Claude Code or Codex, and say "set up harmonicfitness". Keep the folder out of iCloud Drive, Dropbox and other synced folders: it grows to several gigabytes.
 
-**Setup** asks four questions (your name, experience, equipment, injuries), lets you choose a coach by ear from short samples, and makes a ten-minute first workout. Once you've answered the questions you can step away: the assistant researches, writes and renders the workout on its own, then shows you where the MP3 is and asks which folder syncs to your phone (iCloud Drive, Google Drive or Dropbox), so later workouts land there.
+Setup asks four questions (your name, experience, equipment, injuries), lets you choose a coach by ear from short samples, and makes a ten-minute first workout. Once you've answered the questions you can step away: the assistant researches, writes and renders the workout on its own, then shows you where the MP3 is and asks which folder syncs to your phone (iCloud Drive, Google Drive or Dropbox), so later workouts land there.
 
-**What you need:**
+**After setup,** ask for a workout any time, in your own words: "I'd like a workout", "25 minutes at the hotel, just go". Two more things to say when you're ready:
+- **"Finish setting me up"**: your topics and favorite shows, which the workout's stories come from.
+- **"I want a new coach"**: a coach of your own, with a name and a voice you pick by ear from an audition of web voices (it needs at least one voice service key).
+
+## What you need
+
 - **A Mac or a Windows PC.** Linux runs with Claude Code (the tests run there), though local voices there are not yet tried by hand. On Windows, `./harmonicfitness` runs in Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win); Claude Code needs it anyway. Codex has been tried end to end on a Mac, not yet on Windows.
 - **A voice**, one of two kinds:
   - **On your own computer** (an Apple Silicon Mac, or a Windows or Linux PC, with or without an NVIDIA card): free and private, after a one-time download of about 4 GB (the voice engine, Pocket TTS, and the speech recognizer that checks every line). A 30-minute workout renders in about five minutes on a Mac, ten to fifteen on a PC's processor. The readiness check wants at least 6 GB free. You choose from ten coaches that ship with harmonicfitness.
   - **A web coach**, on any computer: a voice service with a pay-as-you-go key of your own, no subscription. The assistant suggests Fish Audio (about $0.30 a workout, no minimum) and walks you through getting the key.
 - **No programming, and no GitHub account** (that's only for a private backup of your profile).
 - **With ChatGPT,** turn off "Improve the model for everyone" (Settings, Data Controls) if you'd rather your health notes weren't used for training. Codex reminds you before the first workout.
-
-**After setup,** ask for a workout any time, in your own words: "I'd like a workout", "25 minutes at the hotel, just go". Two more things to say when you're ready:
-- **"Finish setting me up"**: your topics and favorite shows, which the workout's stories come from.
-- **"I want a new coach"**: a coach of your own, with a name and a voice you pick by ear from an audition of web voices (it needs at least one voice service key).
 
 ## Where it runs
 
@@ -45,6 +46,7 @@ Copy and send:
 | Claude Code on your own computer: the Code tab of the Claude desktop app, a terminal or an editor | Yes |
 | ChatGPT's Codex on your own computer: Codex in the ChatGPT desktop app, the Codex CLI or an editor | Yes (tried end to end with the Codex the ChatGPT app ships, on the Free plan's model; the app's own prompts not yet tried by hand) |
 | Claude Code on the web (claude.ai/code) | Not for setting up. A listener already set up, with their private profile repo attached, can keep using web coaches there |
+| The HarmonicFitness web app, in a browser | Yes, with web coaches only: it's its own app ([web/README.md](web/README.md)) |
 | A plain Claude or ChatGPT chat, or Codex cloud tasks | No: they can't run HarmonicFitness's commands on your computer |
 
 ## For Claude (or ChatGPT's Codex): setting someone up from this link
@@ -61,84 +63,43 @@ If someone asks you to use this repository and set them up, and your session isn
 
 # How it works
 
-## Setup, step by step
+## A session
 
-1. **The readiness check** (`./harmonicfitness doctor`): your system, memory, disk and graphics, what's installed, and whether a voice can be made on this computer. Then the one big choice: a voice made on your computer (free and private, a one-time download) or a web coach (no download, fast, pay-as-you-go), which one this computer starts with, and how to add the other later.
-2. **The tools:** uv, which builds the project's Python environment (about half a gigabyte), is installed with Astral's official installer if it's missing, after the assistant asks. ffmpeg comes with that environment. git is optional: without it, setup skips the privacy hook (which keeps your details out of a push), and `./harmonicfitness backup` can't run.
-3. **The quick start:** the four questions, and, where it's a web coach, the key: the assistant gives you the service's links and opens a file in your computer's text editor where you paste the key yourself, never into the chat. Then you choose your coach by ear: on your computer, one of the ten local coaches (pick a style, hear their 45-second samples, choose one); or the web service's stock coach, whose voice is designed and saved in your account before the first workout (about a cent on Fish Audio or Gemini; Inworld doesn't publish the price; on ElevenLabs it takes one of the account's voice slots). Then the ten-minute workout, end to end.
-4. **Later:** "finish setting me up" covers your topics and taste, and finds news feeds for them; "switch coach" picks another of the ten, and "I want a new coach" auditions voices of your own from every service you have a key for.
+1. **Check-in.** The assistant asks only what you didn't say: how each injury feels, the goal, the length, the kit.
+2. **Research.** Your topics (in `me/content.md`) fill the rests: today's news from your feeds and a short search, and evergreen pieces researched ahead of time. Nothing told in the last thirty days is told again, and each story is told in its own way: a quick hit, a quiz answered a few rests later, a serial across the session, a recommendation in the spirit of your favorites. Say "update my interests" to add topics.
+3. **The plan.** `./harmonicfitness brief` gathers who you are, how the week has gone, today's limits with your clinician's rules, and the safe menu: every movement your kit, level and limits allow. The assistant designs the session from it and writes the script.
+4. **The build.** `./harmonicfitness build` refuses any movement that isn't on today's menu, checks the script reads cleanly aloud and fits the time, renders the MP3 in your coach's voice, and copies it to your phone's folder.
 
-## How a session works
+A soft chime opens each segment and a rising tone ends the workout. No silence runs past eight seconds, so the coach talks you through every set. How the parts connect, in one page: [docs/index.html](docs/index.html).
 
-1. **Check-in:** the `workout` skill asks only what you didn't say: how each injury feels, how you're coming in today, the goal, length and kit.
-2. **What fills the rests:** your topics, a plain list of what you like to stay current on and learn about, in `me/content.md`. `./harmonicfitness content plan` picks the ones told longest ago, and research finds what's new or worth knowing on each, judging its size: a score is a quick hit, a big trade or a great long read becomes a fuller story or an explainer. The script tells them in many ways (a quiz answered a few rests later, a this-or-that to mull over during a set, a myth checked, a serial told across the session, a recommendation in the spirit of your favorites, a memory game recalled in the cool-down), and nothing told in the last thirty days is told again. Today's news comes from `./harmonicfitness feeds` and a short search; evergreen pieces come from a stock researched while the previous workout's audio rendered. Say "update my interests" to add topics, with ideas from what's trending today.
-3. **The plan:** `./harmonicfitness brief` gathers who you are, how the week has gone, today's limits with your clinician's rules, the safe menu (every movement your kit, level and limits allow, with coaching notes) and the programming guide. The assistant designs the session from it, posts the plan, and writes the script.
-4. **The build:** `./harmonicfitness build` refuses any movement that isn't on today's menu, checks the script reads cleanly aloud, predicts each segment's spoken length for the coach, renders a loudness-normalized MP3, and copies it to your phone's folder. The script's text stays in the workout's folder in `me/workouts/`; the local MP3 is removed once the copy lands.
+## Your files
 
-A soft chime opens each segment after the first, and a rising three-note tone ends the workout. A segment with time to spare widens its pauses and then ends early rather than going quiet, unless a bare `[hold]` keeps it its full length; and no silence runs past eight seconds, so the coach talks you through every set. Only the total is held to plan. With a voice on your computer, Pocket TTS renders a 30-minute workout in about five minutes on an Apple Silicon Mac, ten to fifteen on a PC, starting while the script is still being written; a web coach renders in a minute or two, once the script is done.
+Everything about you lives in `me/` (or wherever `HARMONICFITNESS_HOME` points). It's ignored by git, and a pre-push hook and CI refuse it, so pulling updates never touches it.
 
-## Commands
-
-The assistant runs these for you, but they work on their own too; `./harmonicfitness help` lists them all.
-
-| Command | What it does |
+| File | Holds |
 |---|---|
-| `./harmonicfitness doctor` | What this computer can do: system, prerequisites, whether local voices work, models, delivery folders (works before setup) |
-| `./harmonicfitness setup` | First-run setup; safe to rerun (it also brings `me/` up to date after an upgrade) |
-| `./harmonicfitness check` | Checks `me/`: anything still to fill in, or that the tools can't read |
-| `./harmonicfitness build <draft> "<name>"` | Checks a draft, renders the MP3 and copies it to your phone's folder (`--lint-only` to just check) |
-| `./harmonicfitness coaches` | Your coaches and where each speaks; `audition` and `keep` make a web coach, `archive` retires one; `design` and `keep` make a local coach's clip |
-| `./harmonicfitness show <file>` | Opens the folder holding a file, such as a workout's MP3 (selecting it on a Mac or Windows) |
-| `./harmonicfitness keys`, `models` | Which voice services have a key set (never the key), with `init` and `open` to add one; the local models, with `adopt` for ones already downloaded |
-| `./harmonicfitness brief --goal strength --minutes 30 --preset hotel-room` | Today's ingredients: you, the week, your limits, the safe menu and the programming guide; `--save <draft>` writes the menu the build checks |
-| `./harmonicfitness movements --preset hotel-room` | Browses the movements a kit allows (no health limits applied; plans come from `brief`); `--about <ids>` prints coaching notes |
-| `./harmonicfitness feeds`, `content`, `youtube`, `log-session` | What the workout skill uses to research, plan the stories and log |
-| `./harmonicfitness backup` | Commits `me/` and pushes it to its own private repo (the workout skill runs it after each session) |
-| `./harmonicfitness harness` | Checks that ChatGPT's Codex files match the Claude Code ones; `sync` rewrites them |
-| `./harmonicfitness migrate`, `cache prune`, `test` | Upkeep (`migrate` brings a `me/` from harmonicfitness 0.9 or later up to date; an older one goes through v0.12.0 first) |
+| `me/profile.md` | Who you are: name, experience, basics |
+| `me/training.md` | Your kits and weights, the movements you like and dislike, your usual session |
+| `me/content.md` | What fills the rests: your topics, feeds, YouTube channels, puzzles, taste |
+| `me/health.md` | Your injuries and your clinician's rules, followed literally |
+| `me/log.md` | Your sessions and feedback |
+| `me/settings.toml` | The tools' settings: audio route, delivery folder, web spending ceiling |
+| `me/workouts/` | Each workout's script, research and records |
+| `me/.env` | Your voice service keys: you paste them in; only the engine reads them, and they're never backed up |
 
-## How it's organized
+`./harmonicfitness check` says what's still to fill in. When a release changes a file's format, `./harmonicfitness migrate` (or rerunning `./harmonicfitness setup`) brings `me/` up to date, backing up the originals first.
 
-Three layers keep your details apart from the code:
-
-| Layer | Where | In git? |
-|---|---|---|
-| **Engine**: the command, tools, skills, tests, shared knowledge and the template for `me/` | `harmonicfitness`, `tools/`, `.claude/`, `.agents/`, `.codex/`, `AGENTS.md`, `tests/`, `knowledge/`, `me.example/` | Yes, public |
-| **Models**: the local voice models, pinned to exact revisions | `models/` | No: downloaded by setup |
-| **You**: profile, health, log and feedback, coaches, drafts, research, MP3s, and voice service keys (`me/.env`, never backed up) | `me/` (or wherever `HARMONICFITNESS_HOME` points) | No: ignored, and a pre-push hook and CI refuse it |
-
-| Folder | What |
-|---|---|
-| `.claude/skills/` | The `workout` (request to MP3), `setup` (onboarding and profile changes) and `coach` (a new trainer) skills |
-| `AGENTS.md`, `.agents/skills/`, `.codex/` | The same for ChatGPT's Codex: `AGENTS.md` points to `CLAUDE.md`, the skills are copies of `.claude/skills/` (`./harmonicfitness harness sync` writes both), and `.codex/` turns on the network and lets `./harmonicfitness` run outside Codex's sandbox |
-| `knowledge/` | The movement catalog, session methods and doses, programming and injury references, equipment kits, what goes in a script, text-to-speech rules, coaches and voices, the web voice services, and the research notes behind the sourced numbers (`knowledge/research/`) |
-| `tools/` | One file per job, all run through `./harmonicfitness`; `CLAUDE.md` says what each does |
-| `tests/` | Fast checks with no models, network or personal files (`./harmonicfitness test`), run by CI on every push |
-
-Your profile is four files, split by how often each part changes:
-
-| File | Holds | Changes |
-|---|---|---|
-| `me/profile.md` | Who you are: name, experience, basics | Rarely |
-| `me/training.md` | Your kits and weights, the movements you like and dislike, your usual session | With new gear, or what you say at check-ins |
-| `me/content.md` | What fills the rests: your topics, feeds, YouTube channels, puzzles, taste | Often; only the research reads it |
-| `me/settings.toml` | The tools' settings: setup stage, audio route, delivery folder, web spending ceiling | Rarely; setup writes it |
-
-Next to them, `me/health.md` holds your injuries and your clinician's rules, and `me/log.md` your sessions and feedback. Each Markdown file has its settings in a block at the top, and prose below it for the assistant. Pulling updates never touches `me/`. When a release changes a file's format, `./harmonicfitness migrate` (or rerunning `./harmonicfitness setup`) brings `me/` up to date, backing up the originals first.
-
-### Back up `me/`
-
-Without a GitHub account, `me/` stays on your computer and everything works; copy the folder somewhere private now and then (it holds your health notes). With one, keep `me/` as its own private repo, inside the engine's folder but separate from it (never a submodule), and the workout skill's last step, `./harmonicfitness backup`, pushes each session. With the [GitHub CLI](https://cli.github.com) installed and logged in:
+**Back it up.** Without a GitHub account, `me/` stays on your computer and everything works; copy the folder somewhere private now and then (it holds your health notes). With one, keep `me/` as its own private repo and the workout's last step, `./harmonicfitness backup`, pushes each session. With the [GitHub CLI](https://cli.github.com) logged in:
 
 ```
 cd me && git init && git add -A && git commit -m "My harmonicfitness" && gh repo create harmonicfitness-me --private --source . --push
 ```
 
-`me/.gitignore` leaves out the key file, rendered clips, MP3s and render logs. `./harmonicfitness backup` does nothing when `me/` isn't its own repo, and refuses a repo GitHub reports as public. Another computer gets your profile by cloning that repo into `me/`.
+`./harmonicfitness backup` refuses a repo GitHub reports as public. Another computer gets your profile by cloning that repo into `me/`.
 
 ## Coaches and voices
 
-A coach is a person's name, how they talk and how they sound. Twenty-five stock coaches ship in `coaches/`, so you can start at once: **ten local coaches** for a voice on your computer (Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate, each with a 45-second sample to choose by ear), **twelve ready-made web coaches**, six on OpenRouter (Graham, Jonah, Leah, Nora, Rowan, Tess) and six on Gemini (Fraser, Freya, June, Miles, Ruby, Wade), each with a sample to hear, and **one stock web coach each** for Fish Audio, ElevenLabs and Inworld (Reed, Ellis and Owen), designed in your account the first time it's used. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
+A coach is a person's name, how they talk and how they sound. Twenty-five stock coaches ship with it, so you can start at once: **ten local coaches** for a voice on your computer (Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate, each with a 45-second sample to choose by ear), **twelve ready-made web coaches**, six on OpenRouter (Graham, Jonah, Leah, Nora, Rowan, Tess) and six on Gemini (Fraser, Freya, June, Miles, Ruby, Wade), each with a sample to hear, and **one stock web coach each** for Fish Audio, ElevenLabs and Inworld (Reed, Ellis and Owen), designed in your account the first time it's used. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
 - **A web coach** is an original voice a service designs from your description and saves in your account. You hear candidates from every service you have a key for, pick by ear, and name the ones you keep.
 - **A local coach** is one of the ten: a voice designed once for HarmonicFitness, with its counts and cues recorded and checked by ear, spoken on your computer by Pocket TTS. It sounds the same in every workout.
 
@@ -162,6 +123,13 @@ HarmonicFitness is not medical advice. It programs conservatively around the inj
 ## Coaches and consent
 
 A web coach's voice is designed from a written description, never copied from a recording, and HarmonicFitness never offers voices that imitate real people or characters. The ten local coaches are original voices too, designed from descriptions (`coaches/roster.toml`); you can't bring a recording to clone.
+
+## For developers
+
+- [docs/index.html](docs/index.html): how the parts connect; [docs/style-guide.html](docs/style-guide.html): the house style.
+- [CLAUDE.md](CLAUDE.md): the rules and the code map the assistants work from.
+- [web/README.md](web/README.md): the web app.
+- `./harmonicfitness help` lists every command (each takes `--help`); `./harmonicfitness test` runs the tests CI runs.
 
 ## Support
 
