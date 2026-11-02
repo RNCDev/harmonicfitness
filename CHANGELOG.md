@@ -2,6 +2,21 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.51.0] - 2026-11-01
+
+Three writers write the web app's scripts. The agent still plans the session (the skeleton: every segment's seconds, counts and holds); then a story writer, started as soon as the brief is saved, writes the rests' stories from the listener's topics, the day's sheets and its own searches, while a coach writer writes the coaching from the brief and the movements' notes; code lays them on the skeleton, the build checks the result, and an editor reads the whole script with that check and makes it one coach talking to one person. Each writer reads only its own material: its task is a paragraph, and its craft the part of `knowledge/script.md` and `knowledge/tts-rules.md` it writes by. A day of tuning the single writer had left engagement at about 3 (docs/eval/README.md; 0.50.2). Judged the same way, the stories went from 3 to 3.5 to about 4 in every run, and the last round scored 5 / 4 / 4 and 4 / 4 / 4 (safety / efficacy / engagement) against 4 / 4 / 3 and 4.5 / 4 / 3.5 for the single writer. The cost is time and tokens: about four minutes to a priced, checked draft (230 to 268 seconds in the last three runs, the 45-minute holdout included, each priced on its first build), against one and a half to two and a half, and more of the listener's Gemini tokens a workout. While the writers work, the page says it takes a few minutes and the listener can step away. Still open, for the next loop: praise that implies the coach watched, one story spread over four rests, light bodyweight doses, and stories that start cold.
+
+### Changed
+- **Web app, three writers** (`web/webapp/agent/writers.py`, and its `story-writer.md`, `coach-writer.md` and `editor.md`): the agent writes the skeleton and calls `write_script`, and its result is the draft and the build's. With three writers the agent reads `knowledge/script.md` only to its safety rules (about 1,700 words fewer a turn), and the story writer does the searching. `HARMONICFITNESS_WRITERS=one` has the agent write the script itself, in passes, as in 0.50.x.
+- **What code holds around them:** a fixed hold or pause over eight seconds in the skeleton becomes words to talk through (the lint refuses that silence, and the coach kept such holds as given); the coach is asked for 85 percent of each segment's words (it wrote 9 to 23 percent over), all of them where a bare `[hold]` keeps the segment its length; a story that retells an item the content plan lists as told is written again; the editor's segments keep the skeleton's `@@` lines, and if the build still finds something after its edit, it gets one more pass; and a writer's call that runs past its patience (story 160, coach 110, editor 80 seconds) or hits Gemini's own deadline is asked again thinking less.
+- **`web/local_turn.py`** saves each writer's call (its level, seconds, tokens, output, and what its searches found) to `<out>/writers.json`, and `docs/eval/timing.py` prints them.
+
+### Fixed
+- **Web app, contractions:** a verb that ends its clause is no longer contracted ("stay right where you are or drop a plate" had become "where you're or").
+
+### For forks
+- No migration: drafts, coaches, commands and `me/` are unchanged. The web app's turns write differently and take longer (about four minutes to a priced draft) and use more of the listener's model tokens; set `HARMONICFITNESS_WRITERS=one` in the worker's environment for the 0.50 behaviour.
+
 ## [0.50.6] - 2026-11-01
 
 ### Fixed

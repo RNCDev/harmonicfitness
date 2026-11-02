@@ -1,6 +1,6 @@
 """Where one web turn's time went: each model request's seconds, tokens and tool calls, what each draft write
 added up to, and each build's guide spread, from a turn's history.json (web/local_turn.py's, or a `pull`'s), with
-the two writers' calls from writers.json beside it when there is one.
+the writers' calls from writers.json beside it when there is one.
 
     .venv/bin/python docs/eval/timing.py <folder holding history.json>
 """
@@ -55,7 +55,7 @@ def main():
         print(f"{(at - start).total_seconds():6.0f}s  +{(at - last).total_seconds():5.1f}s  "
               f"out={used.get('output_tokens', 0):6}  in={used.get('input_tokens', 0):6}  {', '.join(calls(message))}")
         last = at
-    tracks = os.path.join(sys.argv[1], "writers.json")   # the two writers' calls (HARMONICFITNESS_WRITERS=two)
+    tracks = os.path.join(sys.argv[1], "writers.json")   # the three writers' calls
     for call in json.load(open(tracks, encoding="utf-8")) if os.path.exists(tracks) else []:
         if call.get("deadline"):
             print(f"WRITER {call['writer']} at {call.get('level')}: hit the deadline after {call['seconds']}s")

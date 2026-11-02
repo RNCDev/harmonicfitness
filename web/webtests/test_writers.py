@@ -1,4 +1,4 @@
-"""The two writers' version (HARMONICFITNESS_WRITERS=two): what code does around the two models, without them."""
+"""The three writers (the site's way since 0.51.0): what code does around the models, without them."""
 import os
 import sys
 import unittest
@@ -170,7 +170,7 @@ class Patience(unittest.TestCase):
 
 class Switch(unittest.TestCase):
     def test_the_instructions_name_one_way_of_writing(self):
-        one, two = agent.preamble("one"), agent.preamble("two")
+        one, two = agent.preamble("one"), agent.preamble("three")
         for text in (one, two):
             self.assertNotIn("<!-- writers", text)
         self.assertIn("You have web search", one)
@@ -178,13 +178,13 @@ class Switch(unittest.TestCase):
         self.assertIn("write_script", two)
         self.assertNotIn("Then the rests, in one `edit_segments`", two)
         self.assertEqual(agent.PREAMBLE, one)
-        # with two writers the agent reads script.md's safety, not the craft the writers write by
+        # with three writers the agent reads script.md's safety, not the craft the writers write by
         self.assertIn("Coach fully once", agent.skill_text(ROOT))
-        self.assertNotIn("Coach fully once", agent.skill_text(ROOT, writers="two"))
-        self.assertIn("Only the menu.", agent.skill_text(ROOT, writers="two"))
+        self.assertNotIn("Coach fully once", agent.skill_text(ROOT, writers="three"))
+        self.assertIn("Only the menu.", agent.skill_text(ROOT, writers="three"))
 
-    def test_write_script_is_offered_only_to_a_two_writer_turn(self):
-        for writers_, offered in (("one", False), ("two", True)):
+    def test_write_script_is_offered_only_to_a_three_writer_turn(self):
+        for writers_, offered in (("one", False), ("three", True)):
             seen = []
 
             def reply(messages, info):
@@ -195,6 +195,22 @@ class Switch(unittest.TestCase):
             agent.AGENT.run_sync("hi", model=FunctionModel(reply), deps=deps)
             self.assertEqual("write_script" in seen[0], offered, writers_)
             self.assertIn("edit_segments", seen[0])
+
+    def test_a_turn_has_three_writers_unless_the_setting_says_one(self):
+        def reply(messages, info):
+            return ModelResponse(parts=[TextPart("ok")])
+        for setting, want in ((None, "three"), ("one", "one"), ("nonsense", "three")):
+            deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00")
+            old = os.environ.pop("HARMONICFITNESS_WRITERS", None)
+            if setting:
+                os.environ["HARMONICFITNESS_WRITERS"] = setting
+            try:
+                agent.run_turn(FunctionModel(reply), deps, None, "hi")
+            finally:
+                os.environ.pop("HARMONICFITNESS_WRITERS", None)
+                if old is not None:
+                    os.environ["HARMONICFITNESS_WRITERS"] = old
+            self.assertEqual(deps.writers, want, setting)
 
     def test_contractions_leave_a_clause_ending_verb_alone(self):
         self.assertEqual(tools.contract("Stay where you are or drop a plate.")[0], "Stay where you are or drop a plate.")

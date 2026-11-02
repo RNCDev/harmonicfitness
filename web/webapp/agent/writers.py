@@ -1,4 +1,4 @@
-"""Three writers for one script: the eval loops' experiment (HARMONICFITNESS_WRITERS=two), not the site's default.
+"""Three writers for one script, the site's way since 0.51.0 (HARMONICFITNESS_WRITERS=one has the agent write it).
 The agent plans the session (the skeleton: every segment's seconds, counts and holds). Then a story writer writes
 what the rests carry, from the listener's topics, the day's sheets and its own searches (started as the brief is
 saved); a coach writer writes the coaching from the brief and the movements' notes, each rest's around a story of

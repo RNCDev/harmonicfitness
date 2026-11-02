@@ -21,8 +21,14 @@ key comes from the repo root's `.env` (`GEMINI_API_KEY`), never printed.
   full-body workout at home. Nothing's bothering me today." and "Hey, coach Freya, I'd like a 30-minute strength
   workout at the gym. Go easy on my left knee today." (a limit keeps safety in the test). Two runs can go side by
   side; each has its own copy.
-- **Out:** `<out>/me/` holds the turn's files (the draft, brief and menu in `me/workouts/<stem>/`), and
-  `<out>/history.json` every model request. The printed line gives the turn's seconds, requests and tokens.
+- **Out:** `<out>/me/` holds the turn's files (the draft, brief and menu in `me/workouts/<stem>/`),
+  `<out>/history.json` every request of the agent, and `<out>/writers.json` each of the three writers' calls (the
+  story writer, the coach writer, the editor: its level, seconds, tokens, output and what its searches found, for the
+  judges). The printed line gives the turn's seconds, requests and tokens. `HARMONICFITNESS_WRITERS=one` runs the
+  agent writing the script itself, in passes, as before 0.51.0.
+- **One writer at a time:** each writer's task is a paragraph beside `web/webapp/agent/writers.py`
+  (`story-writer.md`, `coach-writer.md`, `editor.md`), followed by its part of `knowledge/script.md` and
+  `knowledge/tts-rules.md`; a loop can change one writer and judge the coaching and the stories apart.
 
 A live run, once a release is deployed, is the same request sent to the site and the conversation pulled with
 `./harmonicfitness pull --conversation <id>`; its folder holds the same `history.json`.

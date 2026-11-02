@@ -57,19 +57,19 @@ COACH_WORDS = re.compile(r"\b(new|another|different|own|switch|change|design|mak
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions.md"), encoding="utf-8") as _f:
     INSTRUCTIONS = _f.read()
 # who writes the words: the instructions mark what differs (<!-- writers: one --> ... <!-- writers: end -->)
-WRITERS_BLOCK = re.compile(r"<!-- writers: (one|two) -->(.*?)<!-- writers: end -->", re.DOTALL)
-WRITERS = ("one", "two")
+WRITERS_BLOCK = re.compile(r"<!-- writers: (one|three) -->(.*?)<!-- writers: end -->", re.DOTALL)
+WRITERS = ("one", "three")
 
 
 def preamble(writers: str = "one") -> str:
-    """The instructions for a turn whose words this agent writes ("one") or two writers write ("two")."""
+    """The instructions for a turn whose words this agent writes ("one") or three writers write ("three")."""
     return WRITERS_BLOCK.sub(lambda m: m.group(2) if m.group(1) == writers else "", INSTRUCTIONS)
 
 
 PREAMBLE = preamble("one")
 
 
-# With two writers this agent designs and fixes the script but writes none of it: script.md's craft is theirs
+# With three writers this agent designs and fixes the script but writes none of it: script.md's craft is theirs
 CRAFT = "\n## Getting the workout done"
 
 
@@ -77,12 +77,12 @@ CRAFT = "\n## Getting the workout done"
 def skill_text(engine_root: str, setup: bool = False, coach: bool = False, writers: str = "one") -> str:
     """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet, and the
     coach skill while a coach is being made), so the web follows the same steps as the CLI, less the passages
-    marked for a computer only; with two writers, script.md only up to its craft, which the writers read."""
+    marked for a computer only; with three writers, script.md only up to its craft, which the writers read."""
     parts = []
     for rel in (SETUP if setup else ()) + (COACH if coach else ()) + SKILL + WRITING:
         with open(os.path.join(engine_root, rel), encoding="utf-8") as f:
             text = web_copy(f.read())
-        if writers == "two" and rel == "knowledge/script.md" and CRAFT in text:
+        if writers == "three" and rel == "knowledge/script.md" and CRAFT in text:
             text = text[:text.index(CRAFT)]
         parts.append(f"<file path=\"{rel}\">\n{text}\n</file>")
     return "\n\n".join(parts)
@@ -433,7 +433,7 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
             return recorded.model_copy(update={"output": AUTO_RECORDED + "\n" + recorded.output})
     elif first == "brief":
         deps.phase = "brief"
-        if deps.writers == "two" and result.code == 0:
+        if deps.writers == "three" and result.code == 0:
             _start_stories(ctx, args)
     elif first == "coaches" and len(rest) > 1 and rest[1] == "audition":
         deps.phase = "audition"
@@ -480,7 +480,7 @@ def _then_build(ctx: RunContext[Deps], path: object, written: ToolResult, name: 
     ctx.deps.skeleton = ("skeleton" if written.unfinished == written.segments else "partial") if unfinished else ""
     built = run(ctx, ["build", path, name, "--coach", coach] + (["--lint-only"] if unfinished else []))
     output = built.output
-    if written.unfinished == written.segments:   # a skeleton's budgets: what the two writers write to
+    if written.unfinished == written.segments:   # a skeleton's budgets: what the writers write to
         ctx.deps.reports[path] = output
     if not unfinished:   # a full draft's "add about N words", scaled to what this writer delivers
         full, _ = tools._mine(ctx.deps, path)
@@ -522,31 +522,35 @@ def edit_segments(ctx: RunContext[Deps], path: str, edits: list[tools.SegmentEdi
     return _then_build(ctx, path, result, build_name, coach)
 
 
-async def _two_writers(ctx: RunContext[Deps], tool):
-    """write_script is offered only to a turn whose words two writers write."""
-    return tool if ctx.deps.writers == "two" else None
+# what the listener sees while the writers work: the longest step in a turn, so they know they can step away
+WRITING_STEP = "Writing your script: a few minutes, so feel free to step away"
 
 
-@AGENT.tool(sequential=True, prepare=_two_writers)
+async def _three_writers(ctx: RunContext[Deps], tool):
+    """write_script is offered only to a turn whose words three writers write."""
+    return tool if ctx.deps.writers == "three" else None
+
+
+@AGENT.tool(sequential=True, prepare=_three_writers)
 async def write_script(ctx: RunContext[Deps], path: str, build_name: str | None = None,
                        coach: str | None = None) -> ToolResult:
     """Fill a skeleton with the script's words: a coach writer and a story writer write side by side, each segment
     to its budget, and the draft builds right after (its lint, then its price when clean), its result and the draft
     in this reply. Only when the instructions name it."""
     deps = ctx.deps
-    if deps.writers != "two":
+    if deps.writers != "three":
         return tools._refuse("write the script's words yourself, with edit_segments, as the instructions say")
-    n = _begin(deps, "Writing your script", "write_script")
+    n = _begin(deps, WRITING_STEP, "write_script")
     model = getattr(ctx.model, "wrapped", ctx.model)   # the turn's model, without the narration
     try:
         draft, note = await writers.write(deps, model, ctx.usage, path, [NativeTool(t) for t in native_tools(model)])
     except writers.NotReady as e:
-        _say(deps, "Writing your script", "write_script", 0, n)
+        _say(deps, WRITING_STEP, "write_script", 0, n)
         return tools._refuse(str(e))
     except BaseException:
-        _say(deps, "Writing your script", "write_script", 1, n)
+        _say(deps, WRITING_STEP, "write_script", 1, n)
         raise
-    _say(deps, "Writing your script", "write_script", 0, n)
+    _say(deps, WRITING_STEP, "write_script", 0, n)
     written = await asyncio.to_thread(tools.write_file, deps, path, draft)
     deps.phase = "draft"
     built = await asyncio.to_thread(_then_build, ctx, path, written, build_name, coach)
@@ -750,9 +754,9 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     UsageLimitExceeded and provider errors propagate; the caller decides what they mean."""
     if answer is not None or not prompt:
         raise TurnError("this coach asks its questions in the chat; send a message", NOT_OPEN)
-    wanted = os.environ.get("HARMONICFITNESS_WRITERS", "")
-    if wanted in WRITERS:
-        deps.writers = wanted
+    # three writers write the script (0.51.0); HARMONICFITNESS_WRITERS=one has this agent write it, in passes
+    wanted = os.environ.get("HARMONICFITNESS_WRITERS", "three")
+    deps.writers = wanted if wanted in WRITERS else "three"
     history = None
     if history_json:
         try:
