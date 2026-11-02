@@ -1482,9 +1482,9 @@ class PaceFile(unittest.TestCase):
     def test_estimate_is_used_until_the_first_render(self):
         voices.record_rate(self.V2, 700.0, 50.0)   # another voice's measured rate must not seed this one
         voices.record_estimate(self.V1, 150.0, 10.0)
-        self.assertEqual(voices.pace(self.V1), (15.0, False))
+        self.assertEqual(voices.pace(self.V1), (15.0 * voices.SAMPLE_FAST, False))   # a script reads faster
         voices.record_estimate(self.V1, 300.0, 40.0)   # even past MIN_MEASURED seconds, still an estimate
-        self.assertEqual(voices.pace(self.V1), (7.5, False))
+        self.assertEqual(voices.pace(self.V1), (7.5 * voices.SAMPLE_FAST, False))
         voices.record_rate(self.V1, 600.0, 40.0)
         with open(self.path) as f:
             rec = json.load(f)[voices._rate_key(self.V1)]
@@ -1494,6 +1494,16 @@ class PaceFile(unittest.TestCase):
         voices.record_rate(self.V1, 600.0, 40.0)   # a second render adds to the first as usual
         with open(self.path) as f:
             self.assertEqual(json.load(f)[voices._rate_key(self.V1)]["seconds"], 80.0)
+
+    def test_the_rate_follows_the_latest_renders(self):
+        # the past counts for at most PACE_MEMORY seconds of speech, so a voice's rate moves with today's scripts
+        voices.record_rate(self.V1, 13.0 * 3000, 3000.0)   # a long slow history
+        voices.record_rate(self.V1, 15.0 * 600, 600.0)     # today's render, faster
+        rate, measured = voices.pace(self.V1)
+        self.assertTrue(measured)
+        self.assertAlmostEqual(rate, (13.0 * voices.PACE_MEMORY + 15.0 * 600) / (voices.PACE_MEMORY + 600))
+        with open(self.path) as f:
+            self.assertEqual(json.load(f)[voices._rate_key(self.V1)]["seconds"], voices.PACE_MEMORY + 600)
 
     def test_a_damaged_file_is_set_aside_not_overwritten(self):
         voices.record_rate(self.V1, 600.0, 40.0)

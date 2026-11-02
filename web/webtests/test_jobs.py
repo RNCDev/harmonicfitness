@@ -607,6 +607,28 @@ class Turn(JobsCase):
         self.assertEqual(list(clipcache.load(self.conn, uk, home)), ["old.wav"])   # kept for the next recording
         self.conn.rollback()
 
+    def test_a_writing_turn_loads_only_the_measured_pace(self):
+        import tempfile
+        from webapp import clipcache
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        uk = self.user()
+        made = os.path.join(tmp.name, "made")
+        os.makedirs(os.path.join(made, clipcache.FOLDER))
+        for name, body in ((clipcache.PACE, b'{"pace": 1}'), ("clip.pcm", b"pcm")):
+            with open(os.path.join(made, clipcache.FOLDER, name), "wb") as f:
+                f.write(body)
+        clipcache.save(self.conn, uk, made, {})
+        self.conn.commit()
+        home = os.path.join(tmp.name, "writing")
+        self.assertTrue(clipcache.load_pace(self.conn, uk, home))
+        self.assertEqual(os.listdir(os.path.join(home, clipcache.FOLDER)), [clipcache.PACE])   # no clips
+        with open(os.path.join(home, clipcache.FOLDER, clipcache.PACE), "rb") as f:
+            self.assertEqual(f.read(), b'{"pace": 1}')
+        self.conn.rollback()
+        self.assertFalse(clipcache.load_pace(self.conn, self.user(), os.path.join(tmp.name, "none")))
+        self.conn.rollback()
+
     def test_record_without_asking_records_in_the_same_turn_within_the_allowance(self):
         from webapp import keystore, media, spend
         uk = self.user()

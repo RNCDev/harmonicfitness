@@ -97,6 +97,17 @@ class Plan(unittest.TestCase):
                          "- #4, word for word: Keep the left knee over the toes.")
         self.assertEqual(writers.must_say({1: "No lines to say."}), "")
 
+    def test_a_hyphenated_stem_has_a_build_name_so_the_room_checks_its_script(self):
+        # without one the review read a full-body script with no build's check, twice (2026-11-02)
+        self.assertEqual(tools.build_name("me/workouts/2026-11-02-full-body-10/2026-11-02-full-body-10.draft.txt"),
+                         "Workout 2026-11-02 Full-body 10 min")
+        self.assertEqual(tools.build_name("me/workouts/2026-11-02-strength-30-2/2026-11-02-strength-30-2.draft.txt"),
+                         "Workout 2026-11-02 Strength 30 min")
+
+    def test_the_review_is_a_checklist_and_thinks_least(self):
+        self.assertEqual(writers.LEVEL["review"], "LOW")
+        self.assertEqual(writers.LEVEL["trainer"], "MEDIUM")   # the safety notes keep their thinking
+
     def test_a_hold_longer_than_the_silence_limit_becomes_words_to_talk_through(self):
         skeleton = ("movements: plank\n@@ 60 | Plank\n[count 3 go]\n[hold 40s]\n[cue rest]\n"
                     "@@ 30 | Breathing\n[pause 4s] [pause 6s]\n")

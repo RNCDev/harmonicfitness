@@ -623,6 +623,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     deps.reserve = reserve
     # re-recording pays only for changes; a turn that may record on its own needs them too
     clips = clipcache.load(ctx.conn, ctx.uk, ctx.home) if record or deps.auto_record else None
+    if clips is None:   # a writing turn still plans by the coach's measured pace
+        clipcache.load_pace(ctx.conn, ctx.uk, ctx.home)
     ctx.conn.commit()
     kept = [] if kept is None else kept
     kept_paths: set[str] = set()

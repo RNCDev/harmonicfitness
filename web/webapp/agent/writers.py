@@ -45,6 +45,10 @@ LEVELS = ("HIGH", "MEDIUM", "LOW")
 # The longest each writer's call is waited for before it's asked again thinking less: Gemini's own deadline (504) is
 # about 180 s, and a call that thinks that long is rare but whole (a final writer's 179 s against its usual 26 to 37, before 0.55.0's review).
 PATIENCE = {"research": 160, "trainer": 110, "host": 150, "review": 80}
+# How hard each writer thinks. The review is a checklist, and at MEDIUM its first pass ran past its patience in four
+# of six timed 10-minute runs (2026-11-02), each time asked again at LOW, which answered in about ten seconds: the
+# turn waited 80 s for nothing. The trainer stays at MEDIUM: at LOW it dropped the self-check a limit adds.
+LEVEL = {"research": "MEDIUM", "trainer": "MEDIUM", "host": "MEDIUM", "review": "LOW"}
 
 
 def web_copy(text: str) -> str:
@@ -424,7 +428,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
               f"about {STORY_WORDS} words once told (anywhere from {STORY_WORDS // 2} to {STORY_WORDS * 4 // 3}), each "
               "marked steady or rest by where it suits (the plan's formats say where each kind lands). The last two are spares, told only if "
               "there's room: nothing else depends on them.")
-    told = await _ask(deps, "research", RESEARCHER, model, prompt, usage, "MEDIUM", capabilities=search)
+    told = await _ask(deps, "research", RESEARCHER, model, prompt, usage, LEVEL["research"], capabilities=search)
     found = {s.number: s for s in told.output.stories}
     titles = told_titles(plan.output)
     repeats = {n: t for n, s in found.items() if (t := retold(s, titles))}
@@ -432,7 +436,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
         again = await _ask(deps, "research", RESEARCHER, model, (
             "Write these again, whole, each about another item, and return only these: "
             + "; ".join(f"story {n} retells \"{t}\", told before" for n, t in repeats.items()) + "."),
-            usage, "MEDIUM", capabilities=search, history=told.all_messages())
+            usage, LEVEL["research"], capabilities=search, history=told.all_messages())
         found.update({s.number: s for s in again.output.stories if s.number in repeats})
     return [found[n] for n in sorted(found)]
 
@@ -460,9 +464,11 @@ def numbered(text: str) -> str:
     return "\n".join(out)
 
 
-async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
+async def write(deps, model, usage, path: str, search=(), name: str | None = None,
+                coach: str | None = None) -> tuple[str, str]:
     """The script's words for the skeleton at `path`: the researcher's notes (started with the brief, or now) and the
-    trainer's beside them, the host's script from both, then the trainer's review. (the draft, a note for the agent)."""
+    trainer's beside them, the host's script from both, then the trainer's review, checked by the build `name` and
+    `coach` write_script was given (else the stem's name and the brief's coach). (the draft, a note for the agent)."""
     full, rel = tools._mine(deps, path)
     if full is None:
         raise NotReady(rel)
@@ -474,7 +480,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
         raise NotReady("write_script fills a skeleton (the @@ lines with their counts and holds, no words yet); this "
                        "draft has words: fix it with edit_segments")
     plain = replace(deps, say=None)
-    name, coach = tools.build_name(path), deps.brief_coach
+    name, coach = name or tools.build_name(path), coach or deps.brief_coach
     report = deps.reports.get(path)
     if report is None:
         if not (name and coach):
@@ -516,7 +522,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
 
     # the researcher's notes and the trainer's side by side, each from its own material
     told, noted = await asyncio.gather(the_stories(),
-                                       _ask(deps, "trainer", TRAINER, model, trainer_prompt, usage, "MEDIUM"))
+                                       _ask(deps, "trainer", TRAINER, model, trainer_prompt, usage, LEVEL["trainer"]))
     placed = place(told, rests, marked)   # in order, each to a slot it suits: the spares, last, go when there are fewer
     notes = {x.number: x.notes for x in noted.output.segments}
 
@@ -527,7 +533,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
         f"# The plan\n\nThis coach says about {rate:.1f} words a second, so each segment's words fill its seconds: a "
         f"hold or pause you add takes {rate:.1f} words a second from them.\n\n"
         f"{host_plan(segs, budget, notes, placed, frozenset(marked), rests)}")
-    hosted = await _ask(deps, "host", HOST, model, host_prompt, usage, "MEDIUM")
+    hosted = await _ask(deps, "host", HOST, model, host_prompt, usage, LEVEL["host"])
     draft = apply_edits(skeleton, hosted.output.segments)
     spoken = {e.number for e in hosted.output.segments}
 
@@ -547,7 +553,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
                   + f"# Your notes\n\n{said}\n\n"
                   f"# The script\n\n{numbered(draft)}\n\n# The build's check\n\n{check}") if not attempt else (
                   f"The build's check after your edit:\n\n{check}\n\nFix what it names; return only those segments.")
-        edited = await _ask(deps, "review", REVIEW, model, prompt, usage, "MEDIUM", history=history)
+        edited = await _ask(deps, "review", REVIEW, model, prompt, usage, LEVEL["review"], history=history)
         history = edited.all_messages()
         draft = apply_edits(draft, edited.output.segments)
         changed |= {e.number for e in edited.output.segments}

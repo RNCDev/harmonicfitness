@@ -608,7 +608,7 @@ def _split_note(n: int) -> str:
             "seconds); nothing to do.") if n else ""
 
 
-STEM = re.compile(r"(\d{4}-\d{2}-\d{2})-([a-z]+)-(\d+)(?:-\d+)?\.draft\.txt$")
+STEM = re.compile(r"(\d{4}-\d{2}-\d{2})-([a-z]+(?:-[a-z]+)*)-(\d+)(?:-\d+)?\.draft\.txt$")   # "full-body" too
 
 
 def build_name(path: str) -> str | None:

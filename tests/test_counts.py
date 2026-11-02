@@ -132,7 +132,10 @@ class Lint(Base):
         self.assertEqual(self.issues("Get ready now. [count 3 go]", voice), [])
         seg = parse("@@ 30 | A\n[count 3 go]\n")[0]
         import voices
-        self.assertAlmostEqual(tts_build.spoken_seconds(seg, voice), voices.clip_seconds("Three, two, one, go.", voice))
+        # said on the beat, a second a number, however fast the coach talks (2026-11-02: 4.1 s for four numbers)
+        self.assertAlmostEqual(tts_build.spoken_seconds(seg, voice),
+                               max(voices.clip_seconds("Three, two, one, go.", voice), 4.0))
+        self.assertGreater(tts_build.spoken_seconds(seg, voice), voices.clip_seconds("Three, two, one, go.", voice))
         import render
         self.assertEqual(render.spoken_clips([seg], voice), ["Three, two, one, go."])
         self.assertEqual(render.spoken_clips([seg], self.voice), [])   # recorded: nothing to speak

@@ -2,6 +2,31 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.57.0] - 2026-11-02
+
+Scripts are written faster, and workouts come in at the length you asked for. A 10-minute script now reaches a checked, priced draft in a median of 168 seconds, down from 251, in three timed runs each way. And every workout on record had come in short of plan (ten of ten, mean 3.4 percent, three of them past the five percent limit): the lint now predicts a voice's length the way it really speaks. Nine test recordings on 2026-11-02 showed why. A voice reads a script faster than its sample, a stock web coach on the website never had its measured pace while the script was written, and a count said in words takes a second a number, not the speed of talk.
+
+### Changed
+- **The writers' room is quicker** (web, `web/webapp/agent/writers.py`):
+  - the trainer's review thinks at LOW (`writers.LEVEL`). At MEDIUM its first pass ran past its 80-second patience in four of six timed runs, and was asked again at LOW, which answered in about ten seconds: every turn waited 80 seconds for nothing. Its edits are the same kind as before, since production was already using the LOW answer;
+  - after the skeleton, the agent thinks at MEDIUM rather than HIGH with the writers' room on: that request only hands the skeleton to `write_script` (one took 32 seconds);
+  - the researcher, trainer and host stay at MEDIUM. At LOW the trainer was four times quicker but left out the knee check that follows a first set under a limit; the researcher at LOW took 12 seconds rather than 70, with stories a little thinner, and stays a choice for later.
+- **Length, predicted as voices really speak** (`tools/voices.py`, `tools/tts_build.py`):
+  - a pace estimated from a coach's sample is read 8 percent faster (`voices.SAMPLE_FAST`): Coach Freya's renders spoke 8 to 16 percent faster than her sample. With it, those renders' predicted length came within 1.5 points of the real one, from 3.7 to 6.4 points too long;
+  - a measured pace remembers about ten minutes of speech (`voices.PACE_MEMORY`, 600 seconds): older renders count for no more than that, so the pace follows how the voice reads today's scripts. A designed web coach's all-time pace was 13.45 weighted characters a second; its six renders ran 4 to 13 percent faster, and five of six came in shorter than predicted;
+  - a count a web coach says in words ("Four, three, two, one.") is timed at a second a number, as the voice says it: a box-breathing close of sixteen counts ran 50 seconds past its prediction, and its MP3 5.8 percent over plan;
+  - with the estimate read faster, the silence check for an estimated pace adds 11 percent more (`ESTIMATED_FAST`), keeping the same margin as before.
+- **The website plans by the coach's measured pace** (web, `web/webapp/clipcache.py`): a turn that writes a script loads `voice-pace.json` from the clip cache, as a recording turn does, so a stock web coach's words are planned by how it really speaks rather than by its sample.
+
+### Fixed
+- **A full-body script is checked by the writers' room** (web): a hyphenated workout name ("full-body") had no build name, so the trainer's review read the script without the build's check, twice, and the agent fixed it afterwards. `write_script` now passes on the build name and coach it was given, and the name pattern takes hyphens.
+
+### For forks
+- **Drafts are timed differently:** with an estimated pace, a draft is predicted 8 percent faster than before. A web coach's counts in words take longer, so the same draft may need a different number of words to land on plan. A draft that linted clean on 0.56.0 may now ask for words added or cut. Lint it again before recording.
+- **`pace.json` and `voice-pace.json`:** a measured record over 600 seconds of speech is scaled down to 600 (its rate kept) when the next render is folded in. Nothing to migrate.
+- **`writers.write()`** takes optional `name` and `coach`; `writers.LEVEL` sets each writer's thinking. `agent.thinking_level()` takes the turn's writers.
+- **`me/` needs no migration.**
+
 ## [0.56.0] - 2026-11-02
 
 Settings on the website is easier to read. On a wide screen it now fits in two balanced rows: the keys beside your own choices (your level, recording and the background), then your files beside the account. Each key is one line, the backgrounds are small pictures, and the notes are shorter.

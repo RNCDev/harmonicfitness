@@ -54,6 +54,15 @@ SIZES_GB = {POCKET_REPO: 0.4, CHECK_MODEL[0]: 2.5}   # download sizes, for the m
 EDGE = 0.08              # render.py trims engine silence to 40 ms at each end
 MIN_MEASURED = 30.0      # seconds of rendered speech before a voice's rate counts as measured
 DEFAULT_PACE = 14.5      # weighted chars/s for a new voice when no voice has been measured yet
+# A web voice reads its 35-second sample slower than it reads a script: Coach Freya's three renders on 2026-11-02
+# spoke 8 to 16 percent faster than her sample, and every MP3 on record had come in short of plan. An estimate is
+# read this much faster, which brought those renders' predicted length to within 1.5 points of the real one.
+SAMPLE_FAST = 1.08
+# The seconds of speech a voice's measured rate remembers before a new render is folded in: older renders count
+# for no more than this, so the rate follows how the voice reads today's scripts. A designed web coach's all-time rate was
+# 13.45 weighted chars/s while its six renders on 2026-11-02 each ran 4 to 13 percent faster, so the lint planned
+# their speech too slow and five of six came in shorter than predicted.
+PACE_MEMORY = 600.0
 
 
 def _stderr(line):
@@ -147,6 +156,9 @@ def record_rate(v, weight, seconds, path=None, render_seconds=None):
         rec = data.get(_rate_key(v))
         if not rec or rec.get("estimate"):
             rec = {"weight": 0.0, "seconds": 0.0}
+        elif rec.get("seconds", 0.0) > PACE_MEMORY:   # the past keeps its rate, at PACE_MEMORY seconds' weight
+            share = PACE_MEMORY / rec["seconds"]
+            rec["weight"], rec["seconds"] = rec["weight"] * share, PACE_MEMORY
         rec["name"] = v["name"]
         rec["weight"] += weight
         rec["seconds"] += seconds
@@ -211,7 +223,7 @@ def pace(v, path=None):
     data = _with_seed(v, path, _recorded(path))
     rec = data.get(_rate_key(v))
     if rec and rec.get("estimate") and rec.get("seconds"):
-        return rec["weight"] / rec["seconds"], False
+        return rec["weight"] / rec["seconds"] * SAMPLE_FAST, False
     if rec and (rec.get("seconds", 0) > MIN_MEASURED or rec.get("shipped")):   # a shipped coach comes measured
         return rec["weight"] / rec["seconds"], True
     return seed_pace(_every_coach_measured() if v.get("pace_file") else data), False

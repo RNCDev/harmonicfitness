@@ -25,9 +25,9 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, HOLD_RE, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
+from draft import (BEAT, CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, HOLD_RE, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
                    PAUSE_DEFAULT, PAUSE_MAX, PAUSE_RE, MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_held, is_mark,
-                   layout, mark_issue, mark_words, paragraphs, plan, rep_stretches, REPS_TALK, silences, spans,
+                   layout, mark_issue, mark_pieces, mark_words, paragraphs, plan, rep_stretches, REPS_TALK, silences, spans,
                    spoken, story_split, unstory)
 import counts  # noqa: E402
 
@@ -50,10 +50,11 @@ DEFAULT_WPM = 185
 # still lands the rendered total (an exit 2 comes after the whole render, and a web one is billed).
 LINT_HEADROOM = 0.005            # a measured pace
 LINT_HEADROOM_ESTIMATED = 0.01   # an estimated one (a web coach before its first render)
-# With an estimated pace the lint checks the silences as if the voice spoke this much faster: a new web voice spoke
-# 20 percent faster than its sample (HarmonicFitness 0.40, Inworld), and the spare time its held rests gained
-# rendered as 9 to 11 seconds of quiet. Fixed pauses and holds don't change; bare holds, breaks and tails grow.
-ESTIMATED_FAST = 1.2
+# With an estimated pace the lint checks the silences as if the voice spoke this much faster again: a new web voice
+# spoke 20 percent faster than its sample (HarmonicFitness 0.40, Inworld), and the spare time its held rests gained
+# rendered as 9 to 11 seconds of quiet. The estimate is already read voices.SAMPLE_FAST faster, so this is the rest
+# of that 20 percent. Fixed pauses and holds don't change; bare holds, breaks and tails grow.
+ESTIMATED_FAST = 1.11
 WORD_TOLERANCE = 0.08
 
 
@@ -77,8 +78,8 @@ def mark_seconds(text, voice, rate=None):
     if not is_mark(text) or mark_issue(text):
         return 0.0
     words = counts.in_words(text, voice)
-    if words:
-        return clip_seconds(words, voice, rate)
+    if words:   # a voice counts on the beat, not at its talking pace: "Four, three, two, one." took 4.1 s, not 1.4
+        return max(clip_seconds(words, voice, rate), len(mark_pieces(text)) * BEAT)
     return 0.0 if counts.missing(text, voice) else counts.seconds(text, voice)
 
 

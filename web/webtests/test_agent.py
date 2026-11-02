@@ -927,6 +927,7 @@ class ThirtyMinuteLoop1(Faster):
         class GoogleModel:   # named as pydantic-ai's
             pass
         self.assertEqual(agent.thinking_level(GoogleModel(), "rests"), "HIGH")
+        self.assertEqual(agent.thinking_level(GoogleModel(), "rests", "three"), "MEDIUM")   # the room writes them
         self.assertEqual(agent.thinking_level(GoogleModel(), "draft"), "MEDIUM")
         self.assertEqual(agent.thinking_level(GoogleModel(), "brief"), "MEDIUM")
         self.assertEqual(agent.thinking_level(GoogleModel(), ""), "LOW")

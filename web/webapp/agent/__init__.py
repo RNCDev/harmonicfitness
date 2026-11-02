@@ -236,10 +236,14 @@ THINK_HARD = ("brief", "skeleton", "draft", "lint_failed")
 THINK_HARDEST = ("rests",)
 
 
-def thinking_level(model, phase: str) -> str | None:
-    """HIGH, MEDIUM or LOW for a Gemini model, by the turn's phase; None for any other provider (its default)."""
+def thinking_level(model, phase: str, writers: str = "one") -> str | None:
+    """HIGH, MEDIUM or LOW for a Gemini model, by the turn's phase; None for any other provider (its default). With
+    the writers' room the request after the skeleton only hands it to write_script (or fixes its clock): no stories
+    to write, so no HIGH (one thought for 32 s, 2026-11-02)."""
     if type(model).__name__ != "GoogleModel":
         return None
+    if phase in THINK_HARDEST and writers == "three":
+        return "MEDIUM"
     return "HIGH" if phase in THINK_HARDEST else "MEDIUM" if phase in THINK_HARD else "LOW"
 
 
@@ -256,7 +260,7 @@ class Narrated(WrapperModel):
         text = THINK.get(deps.phase, THINK_OTHER)
         deps.loop = asyncio.get_running_loop()   # where a tool's thread starts the personal content writer
         n = _begin(deps, text, "think", think=True)
-        level = thinking_level(self.wrapped, deps.phase)
+        level = thinking_level(self.wrapped, deps.phase, deps.writers)
         if level:
             model_settings = dict(model_settings or {}, google_thinking_config={"thinking_level": level})
         try:
@@ -543,7 +547,8 @@ async def write_script(ctx: RunContext[Deps], path: str, build_name: str | None 
     n = _begin(deps, WRITING_STEP, "write_script")
     model = getattr(ctx.model, "wrapped", ctx.model)   # the turn's model, without the narration
     try:
-        draft, note = await writers.write(deps, model, ctx.usage, path, [NativeTool(t) for t in native_tools(model)])
+        draft, note = await writers.write(deps, model, ctx.usage, path, [NativeTool(t) for t in native_tools(model)],
+                                          build_name, coach)
     except writers.NotReady as e:
         _say(deps, WRITING_STEP, "write_script", 0, n)
         return tools._refuse(str(e))

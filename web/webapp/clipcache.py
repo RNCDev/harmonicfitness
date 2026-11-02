@@ -37,6 +37,24 @@ def load(conn, uk: UserKey, home: str) -> dict[str, float]:
     return written
 
 
+PACE = "voice-pace.json"   # the stock coaches' measured pace (the engine's paths.PACE_FILE), kept with the clips
+
+
+def load_pace(conn, uk: UserKey, home: str) -> bool:
+    """Only the measured pace, into the folder's cache, for a turn that writes a script but doesn't record: the
+    lint plans a stock web coach's words by it, where without it the coach's sample pace stands in (a 30-minute
+    script planned that way came in 5.4 percent short, 2026-11-01). Whether there was one."""
+    row = conn.execute("update clip_cache set used_at = now() where user_id = %s and path = %s returning body",
+                       (uk.user_id, PACE)).fetchone()
+    if row is None:
+        return False
+    folder = os.path.join(home, FOLDER)
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, PACE), "wb") as f:
+        f.write(crypto.open_(uk.key, bytes(row[0]), _aad(uk, PACE)))
+    return True
+
+
 def current(home: str) -> dict[str, float]:
     """{name: mtime} of the folder's cache files now: after a save, what counts as already kept."""
     folder = os.path.join(home, FOLDER)

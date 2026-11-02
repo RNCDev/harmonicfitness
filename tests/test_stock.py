@@ -117,7 +117,7 @@ class ShippedCoaches(unittest.TestCase):
         with open(os.path.join(p.folder, "pace.json"), encoding="utf-8") as f:
             rec = next(iter(json.load(f).values()))
         rate, measured = voices.pace(v)
-        self.assertAlmostEqual(rate, rec["weight"] / rec["seconds"])
+        self.assertAlmostEqual(rate, rec["weight"] / rec["seconds"] * voices.SAMPLE_FAST)   # a script reads faster
         self.assertFalse(measured)   # an estimate until a render here measures it
 
     def test_the_fixture_copies_are_in_step(self):
