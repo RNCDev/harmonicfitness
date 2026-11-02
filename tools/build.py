@@ -54,6 +54,7 @@ import filecmp
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import traceback
@@ -381,6 +382,40 @@ def profile_bed():
     return context.bed(context.profile())
 
 
+USUAL_REP_SECONDS = 3   # the catalog's most common seconds_per_rep: a set whose movement can't be told apart
+
+
+def rep_timer(cat, declared=()):
+    """For the lint: a [reps N] marker's (seconds a rep, what to call the movement), at the seconds a rep the
+    brief shows, from the movement named last before it in its segment, else in its label, else the one declared
+    movement whose main word (press, squat, row) the segment says; else the usual rep's seconds, said as a guess.
+    (None, why) for a timed movement, whose work is holds, not reps."""
+    import brief
+    import catalog
+    import menu
+    import sessions
+    pace = sessions.load().rep_pace
+    usual = round(USUAL_REP_SECONDS * pace * 4) / 4
+    mine = [m for m in (catalog.resolve(cat, name) for name in declared) if m]
+
+    def timer(label, before):
+        for text in (before, label):
+            hits = [mid for mid, _, _ in menu.mentions(cat, text) if mid in cat.movements]
+            if hits:
+                return per_rep(cat.movements[hits[-1]])
+        said = catalog.fold(f"{label} {before}")
+        found = [m for m in mine if re.search(rf"\b{re.escape(m.name.split()[-1].lower())}(?:e?s)?\b", said)]
+        if len(found) == 1:
+            return per_rep(found[0])
+        return usual, "a movement the segment doesn't name (timed at the usual rep; name it for its own)"
+
+    def per_rep(m):
+        if m.measure != "reps" or not m.seconds_per_rep:
+            return None, f"{m.name} is timed, not counted: give its work as [hold Ns], not reps"
+        return brief.rep_seconds(m, pace), m.name
+    return timer
+
+
 def gate(segments, voice, opts, text, smoke):
     """(issues, warnings, report): the lint's report for `voice`, and the menu check's issues and warnings. The
     smoke test exists to measure a voice: it needs no menu. Every other draft is held to its menu, from today
@@ -390,7 +425,7 @@ def gate(segments, voice, opts, text, smoke):
     import menu
     import tts_build
     report = tts_build.lint(segments, voice, total_tolerance=opts.tolerance, chime=not opts.no_chime,
-                             max_chars=opts.max_chars, bed=profile_bed())
+                             max_chars=opts.max_chars, bed=profile_bed(), rep_timer=rep_timer(catalog.default(), draft.declared(text)))
     issues, warnings = ([], []) if smoke else menu.gate(catalog.default(), opts.draft, text, segments,
                                                          today=opts.today.isoformat() if opts.today else None)
     return issues, warnings, report

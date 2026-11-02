@@ -493,8 +493,9 @@ def _budget_line(voice_name: Optional[str], minutes: Optional[int] = None) -> Li
     return [f"- Talk to time: {voice_name} speaks about {wpm:.0f} words a minute"
             f"{'' if exact else ' (estimated; not measured on this computer yet)'}, so twenty seconds of talk "
             f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds. Write the skeleton "
-            "first (the `movements:` line and the `@@` lines with their counts and holds, no words yet): its build "
-            "gives each segment's word budget, and every segment is written to its budget."]
+            "first (the `movements:` line and the `@@` lines with their counts, holds and `[reps N]` after each set's go, "
+            "no words yet): its build gives each segment's word budget, the reps' quiet left out, and every segment "
+            "is written to its budget."]
 
 
 def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile, health, log,

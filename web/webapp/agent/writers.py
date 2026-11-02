@@ -1,5 +1,5 @@
 """Three writers for one script, the site's way since 0.51.0 (HARMONICFITNESS_WRITERS=one has the agent write it).
-The agent plans the session (the skeleton: every segment's seconds, counts and holds). Then a personal content writer writes
+The agent plans the session (the skeleton: every segment's seconds, counts, holds and reps). Then a personal content writer writes
 what the rests carry, from the listener's topics, the day's sheets and its own searches (started as the brief is
 saved); a coach writer writes the coaching from the brief and the movements' notes, each rest's around a story of
 known length; and a final script writer reads the assembled script with the build's check and makes it one coach talking to one

@@ -182,3 +182,64 @@ class PaceSample(unittest.TestCase):
         self.assertTrue(any("[count" in line for seg in segments for _, line in seg["lines"]))
         self.assertIn("[story]", text)
         self.assertGreater(sum(tts_build.word_count(seg["lines"]) for seg in segments), 200)
+
+
+class Reps(unittest.TestCase):
+    """[reps N]: a set's reps timed against the movement, so its words fit its seconds."""
+    V = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+
+    def lint(self, text, timer="catalog"):
+        from unittest import mock
+        import build
+        import tts_build
+        timer = build.rep_timer(CAT) if timer == "catalog" else timer
+        with mock.patch("voices.pace", return_value=(14.0, True)):
+            return tts_build.lint(draft.parse("movements: goblet squat\n" + text), self.V, rep_timer=timer)
+
+    def issues(self, report):
+        return [i for r in report.rows for i in r.clip_issues]
+
+    def test_the_marker_is_never_spoken_and_never_a_digit(self):
+        import tts_build
+        seg = draft.parse("@@ 40 | Goblet squat\nTen reps. [count 3 go] [reps 10] Sit down slow.\n")[0]
+        self.assertEqual([t for para in draft.plan(seg) for t, _ in para if "reps 10" in t], [])
+        self.assertEqual(tts_build.lint_line(1, "[count 3 go] [reps 10] Sit down slow."), [])
+        self.assertEqual(tts_build.word_count(seg["lines"]), 5)
+        story = draft.parse("@@ 40 | Rest\n[story] A tale. [reps 10] [/story]\n")[0]
+        self.assertTrue(draft.story_split(story)[2])
+
+    def test_a_set_short_or_long_of_its_reps_is_told_by_how_much(self):
+        cues = ("Sit down slow between your heels. [hold 3s] Drive up through the whole foot. [hold 3s] Keep the chest "
+                "proud and the elbows in. [hold 3s] Breathe out as you stand. [hold 3s] Last two, smooth, and set it down.")
+        on = self.lint(f"@@ 45 | Goblet squat\nGoblet squat, ten reps. [count 3 go] [reps 10] {cues}\n")
+        self.assertEqual(self.issues(on), [])
+        short = self.lint("@@ 45 | Goblet squat\nGoblet squat, ten reps. [count 3 go] [reps 10] Down slow, and up.\n")
+        self.assertRegex(" ".join(self.issues(short)), r"10 reps of goblet squat take about \d+ s .* add about \d+ s")
+        long_ = self.lint("@@ 90 | Goblet squat\nGoblet squat. [count 3 go] [reps 4] " + cues + " " + cues + "\n")
+        self.assertRegex(" ".join(self.issues(long_)), r"cut about \d+ s")
+
+    def test_what_cant_be_timed_is_named(self):
+        bad = self.lint("@@ 40 | Goblet squat\n[count 3 go] [reps ten] Down slow. [hold 3s] Up.\n")
+        self.assertIn("write [reps N]", " ".join(self.issues(bad)))
+        timed = self.lint("@@ 40 | Forearm plank\nForearm plank. [count 3 go] [reps 10] Brace. [hold 3s] Breathe.\n")
+        self.assertIn("timed, not counted", " ".join(self.issues(timed)))
+        nameless = self.lint("@@ 40 | Round one\n[count 3 go] [reps 10] Down slow. [hold 3s] Up.\n")
+        self.assertNotIn("[reps 10]:", " ".join(self.issues(nameless)))   # timed at the usual rep, said as a guess
+        self.assertIn("a movement the segment doesn't name", " ".join(nameless.rows[0].reps))
+        bare = self.lint("@@ 40 | Goblet squat\n[count 3 go] [reps 10] Down slow. [hold] Up.\n")
+        self.assertIn("a bare [hold] after [reps 10]", " ".join(self.issues(bare)))
+
+    def test_a_set_said_by_its_main_word_is_timed_as_the_declared_movement(self):
+        import build
+        timer = build.rep_timer(CAT, ["half-kneeling kettlebell press", "goblet squat"])
+        self.assertEqual(timer("Round two, left-arm press", "Same again, dumbbell in the left hand. ")[1],
+                         "half-kneeling kettlebell press")
+        self.assertIn("doesn't name", timer("Round two", "Same again. ")[1])
+
+    def test_the_budget_leaves_out_the_quiet_and_holds_steady_as_holds_are_written(self):
+        plain = self.lint("@@ 45 | Goblet squat\n[count 3 go]\n").rows[0].guide
+        skeleton = self.lint("@@ 45 | Goblet squat\n[count 3 go] [reps 10]\n").rows[0].guide
+        held = self.lint("@@ 45 | Goblet squat\n[count 3 go] [reps 10] [hold 3s] [hold 3s] [hold 3s]\n").rows[0].guide
+        self.assertLess(skeleton, plain - 20)   # ten reps' quiet isn't talk
+        self.assertLessEqual(abs(held - skeleton), 2)
+        self.assertEqual(self.lint("@@ 45 | Goblet squat\n[count 3 go] [reps 10]\n", timer=None).rows[0].guide, plain)

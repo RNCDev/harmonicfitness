@@ -27,8 +27,8 @@ from typing import List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
                    MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_held, is_mark,
-                   layout, mark_issue, mark_words, paragraphs, plan, silences, spans, spoken, story_split,
-                   unstory)
+                   layout, mark_issue, mark_words, paragraphs, plan, rep_stretches, REPS_TALK, silences, spans,
+                   spoken, story_split, unstory)
 import counts  # noqa: E402
 
 # Characters a voice may announce or mispronounce.
@@ -161,6 +161,8 @@ class Row:
     quiet: float = 0.0               # a held segment's spare seconds, spent silent at its holds
     clip_issues: List[str] = field(default_factory=list)
     line_issues: List[str] = field(default_factory=list)
+    reps: List[str] = field(default_factory=list)   # each [reps N]'s timing, for the skeleton's table
+    rep_issues: List[str] = field(default_factory=list)   # also in clip_issues; a skeleton shows these alone
 
     @property
     def fill(self):
@@ -211,14 +213,16 @@ class Report:
 
 def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_FILL,
          total_tolerance=TOTAL_TOLERANCE, word_tolerance=WORD_TOLERANCE, strict=False, chime=True, max_chars=None,
-         bed=False, headroom=True):
+         bed=False, headroom=True, rep_timer=None):
     """Check a parsed draft. With a voice, predicts spoken seconds from its pace,
     which is read once for the whole lint. `chime` says whether the render opens each segment after the
     first with the bell (--no-chime turns it off), so the prediction matches. `max_chars` is a web build's
     allowance (build --max-chars): a web voice's script over it is an issue; a local voice ignores it. `bed` is the
     pulse bed (settings.toml), which lets a quiet stretch run to BED_MAX_SILENCE. With `headroom`, the predicted
     total must land inside the render's tolerance less LINT_HEADROOM (more when the pace is estimated), so a
-    voice a little off its prediction still lands the rendered total."""
+    voice a little off its prediction still lands the rendered total. `rep_timer(label, text before)` gives a
+    [reps N] marker its (seconds a rep, movement name), or (None, why it can't be timed); without it, [reps N]
+    is only stripped."""
     rate, exact, spokens, timeline = None, False, [], []
     limit = max_silence(bed)
     plans = [plan(seg) for seg in segments]   # as the render voices it, computed once
@@ -250,8 +254,11 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         guide_wpm = wpm
     rows = []
     for i, seg in enumerate(segments, 1):
-        guide = round(guide_wpm * max(seg["seconds"] - (fixed[i - 1] if voice else 0.0), 0.0) / 60)
-        row = Row(i, seg["label"], seg["seconds"], word_count(seg["lines"]), guide)
+        reserved, rep_issues, rep_notes = _reps(i, seg, voice, rate, rep_timer, limit)
+        guide = round(guide_wpm * max(seg["seconds"] - (fixed[i - 1] if voice else 0.0) - reserved, 0.0) / 60)
+        row = Row(i, seg["label"], seg["seconds"], word_count(seg["lines"]), guide, reps=rep_notes,
+                  rep_issues=rep_issues)
+        row.clip_issues += rep_issues
         if voice:
             row.spoken = spokens[i - 1]
             held = is_held(seg)
@@ -336,6 +343,53 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
     return report
 
 
+REPS_SLACK = (4.0, 0.25)   # a set's lines may miss its reps' time by this many seconds, or this share of it
+
+
+def _reps(i, seg, voice, rate, rep_timer, limit):
+    """(seconds of quiet its sets still owe, [issue], [note]) for a segment's [reps N] markers: each stretch's
+    time is N times the movement's seconds a rep. Its cues fill about REPS_TALK of it, so the rest leaves the
+    word budget, less any holds, pauses and counts already written inside it (so the budget holds steady as
+    the skeleton fills). Once the stretch has words, its predicted length must land near the reps' time."""
+    owed, issues, notes = 0.0, [], []
+    where = f"#{i} {seg['label']}"
+    for n, raw, before, after in rep_stretches(seg):
+        if n is None or n < 1:
+            issues.append(f"  {where}: {raw}: write [reps N], N a numeral, the reps that follow it (both sides "
+                          "counted, [reps twenty] as [reps 20])")
+            continue
+        if rep_timer is None:
+            continue
+        per, name = rep_timer(seg["label"], before)
+        if per is None:
+            issues.append(f"  {where}: {raw}: {name}")
+            continue
+        need = n * per
+        inside = sum(pause for _, pause in after)
+        if voice:
+            inside += sum(mark_seconds(t, voice, rate) for t, _ in after if is_mark(t))
+        owed += max(need * (1 - REPS_TALK) - inside, 0.0)
+        notes.append(f"      {raw}: {n} reps of {name} take about {need:.0f} s, cues about "
+                     f"{need * REPS_TALK:.0f} s of it, quiet between them the rest")
+        if any(t == HOLD and not pause for t, pause in after):
+            issues.append(f"  {where}: a bare [hold] after {raw}: the reps set that stretch's time, so give its "
+                          "quiet in holds of a few seconds ([hold 3s]) between the cues")
+            continue
+        if not (voice and any(spoken(t) for t, _ in after)):
+            continue   # a skeleton's set: its time is in the budget
+        said = spoken_seconds(seg, voice, 0.0, rate, [after])
+        slack = max(REPS_SLACK[0], REPS_SLACK[1] * need)
+        if said < need - slack:
+            issues.append(f"  {where}: {n} reps of {name} take about {need:.0f} s ({n} at {per:g} s), and the "
+                          f"lines after {raw} fill {said:.0f} s: add about {need - said:.0f} s, as holds of at most "
+                          f"{limit:.0f} s between short cues ([hold 3s]) or a cue more")
+        elif said > need + slack:
+            issues.append(f"  {where}: {n} reps of {name} take about {need:.0f} s ({n} at {per:g} s), and the "
+                          f"lines after {raw} fill {said:.0f} s: cut about {said - need:.0f} s of cues or holds, "
+                          f"or move the setup before {raw}")
+    return owed, issues, notes
+
+
 def sample_wpm(voice, rate=None):
     """Words a minute `voice` speaks a sample of coaching at (knowledge/pace-sample.draft.txt: a welcome, a set's
     cues, a rest and a story, as drafts mix them), as the lint lays it: each clip with its trimmed edges, and the
@@ -366,11 +420,11 @@ def unfinished_report(report):
     head = (f"Skeleton: {len(report.rows)} segments, {report.total_seconds:.0f} s." if len(empty) == len(report.rows)
             else f"Unfinished: {len(empty)} of {len(report.rows)} segments have no words yet, {report.total_seconds:.0f} s.")
     out = [head + f" Word budgets{who} (about {report.wpm:.0f} words a minute, around each segment's counts, holds, "
-           "pauses and chimes):", f"{'#':>3} {'secs':>5} {'budget':>6} {'words':>5} {'to write':>8}  label"]
+           "pauses, chimes and reps):", f"{'#':>3} {'secs':>5} {'budget':>6} {'words':>5} {'to write':>8}  label"]
     for r in report.rows:
         out.append(f"{r.index:>3} {r.seconds:>5} {r.guide:>6} {r.words:>5} {max(r.guide - r.words, 0):>8}  {r.label}")
-        if r.words:
-            out += r.clip_issues + r.line_issues
+        out += r.reps
+        out += r.clip_issues + r.line_issues if r.words else r.rep_issues
     left = sum(max(r.guide - r.words, 0) for r in report.rows)
     out.append(f"About {left:,} words still to write. Every segment to its budget; the draft builds once every "
                "segment has words.")

@@ -11,7 +11,8 @@ planned length. A segment with only fixed holds ends early like any other. The l
 silence longer than MAX_SILENCE, so the coach talks through the work rather than going quiet. For a coach with recorded counts (a
 cues/ folder beside its clip), [count 5] plays five, four, three, two, one, a second apart, from where it
 sits; [count 5 go] adds the cue a second after "one" (go, rest, switch, switch sides, stop, hold); and
-[cue rest] plays one cue alone.
+[cue rest] plays one cue alone. [reps 10] marks where a set's reps start: silent, for the lint, which times
+the rest of its paragraph against ten of the movement's reps (rep_stretches).
 
 Before the first marker, a draft declares the movements it scripts, once, on one or more
 header lines that are never spoken:
@@ -36,7 +37,13 @@ HOLD_RE = re.compile(r"\[\s*hold(?:\s+(\d+(?:\.\d+)?)\s*(ms|s)?)?\s*\]", re.IGNO
 # misspelled one ("[count five]") is still a marker the lint names, not text a voice would read.
 COUNT_RE = re.compile(r"\[\s*count\b[^\]]*\]", re.IGNORECASE)
 CUE_RE = re.compile(r"\[\s*cue\b[^\]]*\]", re.IGNORECASE)
-MARK_RE = re.compile("|".join(r.pattern for r in (PAUSE_RE, CHIME_RE, HOLD_RE, COUNT_RE, CUE_RE)), re.IGNORECASE)
+# [reps 10] says where a set's reps start: the lint times the rest of its paragraph against ten reps of the
+# movement the segment names, and takes their quiet out of the segment's word budget. Never spoken, no sound.
+REPS_RE = re.compile(r"\[\s*reps\b[^\]]*\]", re.IGNORECASE)
+REPS_PARTS = re.compile(r"\[reps (\d+)\]")
+REPS_TALK = 0.5   # house default: the share of a set's rep time its cues fill; the rest is quiet between them
+MARK_RE = re.compile("|".join(r.pattern for r in (PAUSE_RE, CHIME_RE, HOLD_RE, COUNT_RE, CUE_RE, REPS_RE)),
+                     re.IGNORECASE)
 # [story] ... [/story] wraps the listener's content (a result, a quiz, a serial beat): never spoken, stripped before
 # the voice and the timing see the text, so it changes nothing in the audio. The menu check and the written-countdown
 # check skip what it holds, since a story may name a movement ("her deadlift record") or count down ("ten, nine,
@@ -207,6 +214,10 @@ def spans(paragraph):
     for m in MARK_RE.finditer(paragraph):
         text = paragraph[last:m.start()].strip()
         last = m.end()
+        if REPS_RE.fullmatch(m.group(0)):   # timing for the lint only: the render hears nothing here
+            if text:
+                out.append((text, 0.0))
+            continue
         if COUNT_RE.fullmatch(m.group(0)) or CUE_RE.fullmatch(m.group(0)):
             if text:
                 out.append((text, 0.0))
@@ -235,6 +246,22 @@ def spans(paragraph):
     tail = paragraph[last:].strip()
     if tail or not out:
         out.append((tail, 0.0))
+    return out
+
+
+def rep_stretches(seg):
+    """[(reps or None, the marker as written, the segment's text before it, the spans after it)] for each
+    [reps N] in a segment, in order. A stretch runs from its marker to the end of its paragraph (or to the next
+    [reps]); reps is None for a marker that isn't [reps N] with N a numeral."""
+    out, before = [], []
+    for para in paragraphs(seg["lines"]):
+        marks = list(REPS_RE.finditer(para))
+        for k, m in enumerate(marks):
+            end = marks[k + 1].start() if k + 1 < len(marks) else len(para)
+            got = REPS_PARTS.fullmatch(" ".join(m.group(0)[1:-1].lower().split()).join("[]"))
+            out.append((int(got.group(1)) if got else None, m.group(0),
+                        " ".join(before + [para[:m.start()]]), spans(para[m.end():end])))
+        before.append(para)
     return out
 
 
