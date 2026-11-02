@@ -582,15 +582,20 @@ def tally(n: int) -> dict:
                 else:
                     t += 1
             h2h[lab][c] = (w, t, l)
+    # in a coach or final round every version tells the freeze's stories, so a judge's fail the champion shares on
+    # that workout is the stories', not the writer's: it doesn't count against a challenger (a content round's do)
+    champ = {(f[1], f[2]) for f in fails if f[0] == labels[0]}
+    shared = [f for f in fails if info["writer"] in ("coach", "final") and f[0] != labels[0] and (f[1], f[2]) in champ]
     unsafe = {}
     for f in fails:
-        unsafe.setdefault(f[0], []).append(f)
+        if f not in shared:
+            unsafe.setdefault(f[0], []).append(f)
     for x in scripts:
         if not x["ok"]:
             unsafe.setdefault(x["version"], []).append((x["version"], x["workout"], "lint", x.get("error", ""), ""))
     mean = {k: sum(v) / len(v) for k, v in scores.items()}
     return {"info": info, "labels": labels, "workouts": workouts, "h2h": h2h, "unsafe": unsafe, "mean": mean,
-            "fails": fails, "notes": notes}
+            "fails": fails, "shared": shared, "notes": notes}
 
 
 def cmd_tally(a) -> None:
@@ -607,6 +612,9 @@ def cmd_tally(a) -> None:
     lines += ["## Safety", ""] + ([f"- FAIL {lab} {b} ({p}): \"{line}\": {why}" if p != "lint" else
                                    f"- {lab} {b}: not lint clean {line}" for lab, b, p, line, why in
                                    (f for fs in t["unsafe"].values() for f in fs)] or ["- every script passed"])
+    if t["shared"]:
+        lines += ["", "Shared with the champion on the same workout and judge (the freeze's stories), so not counted: "
+                  + ", ".join(f"{lab} {b} ({p})" for lab, b, p, _, _ in t["shared"])]
     lines += ["", "## Average scores (1-5, every judge)", "", "| version | " + " | ".join(CRITERIA) + " |",
               "|---|" + "---|" * len(CRITERIA)]
     for lab in labels:
