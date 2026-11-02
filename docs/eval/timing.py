@@ -58,9 +58,9 @@ def main():
     tracks = os.path.join(sys.argv[1], "writers.json")   # the two writers' calls (HARMONICFITNESS_WRITERS=two)
     for call in json.load(open(tracks, encoding="utf-8")) if os.path.exists(tracks) else []:
         if call.get("deadline"):
-            print(f"WRITER {call['writer']} round {call['round']}: hit the deadline after {call['seconds']}s")
+            print(f"WRITER {call['writer']} at {call.get('level')}: hit the deadline after {call['seconds']}s")
             continue
-        print(f"WRITER {call['writer']} round {call['round']}: {call['seconds']}s, {call['requests']} requests, "
+        print(f"WRITER {call['writer']} at {call.get('level')}: {call['seconds']}s, {call['requests']} requests, "
               f"out={call['output_tokens']} in={call['input_tokens']}, {call['searches']} searches")
     for out in returns(history, ("write_file", "edit_segments", "run", "write_script")):
         if out.startswith(("wrote ", "replaced ", "Two writers")):
