@@ -2,6 +2,19 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.50.5] - 2026-11-01
+
+One way in for interests, and the backgrounds tuned.
+
+### Changed
+- **Web app, interests:** "Update my interests" and "Tell me what you enjoyed" are one shortcut, "Update my interests": tell your coach what you're into and what you've been up to, for things to talk about between sets. "Lately I enjoyed ..." typed in the chat still works as before.
+- **Web app:** a one-off job (interests, equipment, an injury, a question) starts with "Reading your profile"; only a workout says "and today's limits".
+- **Web app, Woven Grid** is zoomed out by a third (80 px cells, from 120).
+- **Web app, Bloom** fades toward the left, behind the page's words, as the other backgrounds do.
+
+### For forks
+- No migration.
+
 ## [0.50.4] - 2026-11-01
 
 Woven Grid in place of Hex Strands, and a larger Bloom.

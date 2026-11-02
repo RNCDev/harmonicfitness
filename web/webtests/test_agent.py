@@ -450,6 +450,9 @@ class Prefetch(AgentCase):
             self.assertIn(f"### {title} (exit ", context)
         self.assertNotIn(self.home, context)
         self.assertEqual(said, ["Reading your profile and today's limits"] * 2)   # started, then done
+        said.clear()
+        agent.prefetch(self.deps, "I'd like to update my interests.")   # one job: no limits to read
+        self.assertEqual(said, ["Reading your profile"] * 2)
         seen = {}
 
         def script(messages, info):

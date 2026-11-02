@@ -580,7 +580,8 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
     want = intent(line)
     first_text = (COACH_FIRST if want == "coach" else TASK_FIRST if want == "task" else SETUP_FIRST) if fresh else ""
     label = ("Looking at your coaches" if fresh and want == "coach" else "Getting you set up"
-             if fresh and want in ("setup", "workout") else "Reading your profile and today's limits")
+             if fresh and want in ("setup", "workout") else "Reading your profile"
+             if want == "task" else "Reading your profile and today's limits")   # limits only matter to a workout
     step = _begin(deps, label, "prefetch")
     commands = first_runs(line)
     with ThreadPoolExecutor(max_workers=len(commands) + len(FIRST_READS)) as pool:

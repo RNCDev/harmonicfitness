@@ -212,7 +212,7 @@ const paintBloom: Painter = (ctx, w, h) => {
       const a = s.a + spin, d = s.r * R;
       const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
       if (x < -len || x > w + len || y < -len || y > h + len) continue;     // off the page: much of it is
-      ctx.globalAlpha = (0.08 + 0.16 * s.r) * (1 + 0.8 * lift);
+      ctx.globalAlpha = (0.08 + 0.16 * s.r) * (1 + 0.8 * lift) * fade(x, w);   // fainter behind the words
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(a) * len / 2, y - Math.sin(a) * len / 2);
       ctx.lineTo(x + Math.cos(a) * len / 2, y + Math.sin(a) * len / 2);
@@ -268,7 +268,7 @@ const fade = (x: number, w: number) => 0.35 + 0.65 * Math.max(0, Math.min(1, x /
 // fine threads both ways. A thread runs straight inside a cell and bends only where it crosses into the next, so the
 // grid reads as stretched fabric; the threads go over and under in a checkerboard, the upper ones brighter. The
 // field drifts, and the cloth shifts with it.
-const WEAVE = 120;        // px across a coarse cell
+const WEAVE = 80;         // px across a coarse cell
 const THREADS = 6;        // threads each way in a cell
 
 /** Where the grid's corner (i, j) is at time t (in seconds; 0 when still): moved by two swells whose stretch adds

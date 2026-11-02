@@ -105,6 +105,9 @@ describe("the starter", () => {
     render(<Starter info={info} onStart={onStart} onFill={vi.fn()} onOpenCoaches={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
     expect(onStart).toHaveBeenCalledWith("I'd like to update an injury.");
+    fireEvent.click(screen.getByRole("button", { name: /^Update my interests/ }));   // also what they've enjoyed
+    expect(onStart).toHaveBeenCalledWith("I'd like to update my interests.");
+    expect(screen.queryByRole("button", { name: /^Tell me what you enjoyed/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Give feedback on my last workout/ })).toBeNull();   // on Logs
     expect(screen.queryByRole("button", { name: /^Pick a different coach/ })).toBeNull();   // the Coaches page
     expect(screen.queryByRole("button", { name: /^Finish setting me up/ })).toBeNull();
