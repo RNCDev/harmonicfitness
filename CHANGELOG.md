@@ -2,6 +2,11 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.50.6] - 2026-11-01
+
+### Fixed
+- **Web app:** the "Or ask for something else" cards keep their words inset from the shading. The card was pulled out to the left to make room, and on the first screen that strip was cut off, leaving the shading flush with the words; it now sits inside the column, in line with the heading.
+
 ## [0.50.5] - 2026-11-01
 
 One way in for interests, and the backgrounds tuned.
