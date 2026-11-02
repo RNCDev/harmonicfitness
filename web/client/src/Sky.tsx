@@ -187,8 +187,8 @@ function Waves() {
 // longer toward the edge. The whole turns slowly, and a soft pulse travels outward through it every few seconds.
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const SEEDS = 3870;   // more seeds as it grew, so they keep their spacing
-const BLOOM_SPIN = 0.012;    // radians a second
-const BLOOM_PERIOD = 6;      // seconds between pulses
+const BLOOM_SPIN = 0.03;     // radians a second
+const BLOOM_PERIOD = 4;      // seconds between pulses
 
 /** The seeds: each one's angle and its distance out, as a share (0..1) of the bloom's radius. */
 function seeds(n: number): { a: number; r: number }[] {
@@ -204,15 +204,15 @@ const paintBloom: Painter = (ctx, w, h) => {
     const wave = t < 0 ? -1 : (tt % BLOOM_PERIOD) / BLOOM_PERIOD * 1.4 - 0.2;   // the pulse's place, centre to edge
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = INK;
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.5;
     ctx.lineCap = "round";
     for (const s of all) {
       const lift = Math.max(0, 1 - Math.abs(s.r - wave) / 0.12);              // 1 where the pulse is passing
-      const len = (4 + 18 * s.r) * (1 + 0.5 * lift);
+      const len = (5 + 20 * s.r) * (1 + 0.8 * lift);
       const a = s.a + spin, d = s.r * R;
       const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
       if (x < -len || x > w + len || y < -len || y > h + len) continue;     // off the page: much of it is
-      ctx.globalAlpha = (0.08 + 0.16 * s.r) * (1 + 0.8 * lift) * fade(x, w);   // fainter behind the words
+      ctx.globalAlpha = Math.min(1, (0.13 + 0.24 * s.r) * (1 + 1.2 * lift) * fade(x, w));   // fainter behind the words
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(a) * len / 2, y - Math.sin(a) * len / 2);
       ctx.lineTo(x + Math.cos(a) * len / 2, y + Math.sin(a) * len / 2);
@@ -274,8 +274,8 @@ const THREADS = 6;        // threads each way in a cell
 /** Where the grid's corner (i, j) is at time t (in seconds; 0 when still): moved by two swells whose stretch adds
  *  to under 1, so no cell ever folds over. */
 function weaveCorner(i: number, j: number, size: number, t: number): [number, number] {
-  const [ax, ay] = swell(i, j, 1.2, 0.35, 0.09 * t, 0.06 * t, 0);
-  const [bx, by] = swell(i, j, 2.1, 0.07, 1 - 0.07 * t, 2 + 0.05 * t, 0.7);
+  const [ax, ay] = swell(i, j, 1.2, 0.45, 0.2 * t, 0.14 * t, 0);
+  const [bx, by] = swell(i, j, 2.1, 0.07, 1 - 0.15 * t, 2 + 0.11 * t, 0.7);
   return [(i + ax + bx) * size, (j + ay + by) * size];
 }
 
@@ -309,7 +309,7 @@ const paintWoven: Painter = (ctx, w, h) => (t) => {
   ctx.strokeStyle = INK;
   ctx.lineWidth = 1;
   weave(w, h, WEAVE, THREADS, t < 0 ? 0 : t, (_, over, x, run) => {
-    ctx.globalAlpha = (over ? 0.22 : 0.07) * fade(x, w);
+    ctx.globalAlpha = (over ? 0.15 : 0.045) * fade(x, w);
     ctx.beginPath();
     run(ctx);
     ctx.stroke();
