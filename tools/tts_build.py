@@ -337,15 +337,18 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
 
 
 def sample_wpm(voice, rate=None):
-    """Words a minute `voice` speaks the smoke test's coaching at, as the lint lays it: each clip with its trimmed
-    edges, and the least break between paragraphs; holds, pauses and chimes take their own seconds. The brief's
-    Talk to time rate, and a skeleton's guide rate (a draft with no words yet gives nothing to measure)."""
+    """Words a minute `voice` speaks a sample of coaching at (knowledge/pace-sample.draft.txt: a welcome, a set's
+    cues, a rest and a story, as drafts mix them), as the lint lays it: each clip with its trimmed edges, and the
+    least break between paragraphs; holds, pauses and chimes take their own seconds. The brief's Talk to time
+    rate, and a skeleton's guide rate (a draft with no words yet gives nothing to measure). The smoke test's
+    seated coaching, which measures a coach's pace from real takes, read about four percent slower than the
+    drafts writers write (2026-11-02, fifteen drafts, three coaches)."""
     import draft
     import paths
     from voices import clip_seconds, pace
     if rate is None:
         rate = pace(voice)[0]
-    with open(paths.SMOKE_DRAFT, encoding="utf-8") as f:
+    with open(paths.PACE_SAMPLE, encoding="utf-8") as f:
         plans = [draft.plan(seg) for seg in draft.parse(f.read())]
     texts = [t for paras in plans for para in paras for t, _ in para if spoken(t)]
     seconds = sum(clip_seconds(t, voice, rate) for t in texts) \

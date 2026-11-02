@@ -60,6 +60,7 @@ Each file is read only through its tool, never parsed elsewhere:
 - `services.toml` (`tools/cloud.py`): the one list of web services. A new service is a section here and a module in `tools/services/` keeping the contract in `tools/services/__init__.py`.
 - `script.md` (safety, the build's checks, the aims, the read-through) and `tts-rules.md` (what a voice can read, the draft's format and markers): the writer's two guides, also split into the web writers' prompts.
 - `limits.toml` (`tools/playbook.py`): what each limit means, by area and level: the session and stop signs the brief quotes for today's level, the check-in's loosening signs (`./harmonicfitness get limits`), what carries on after a limit clears, and the red flags. `injury-playbook.md` is its evidence: which lines are sourced, which house judgment, and how the screen applies limits.
+- `pace-sample.draft.txt` (`tts_build.sample_wpm`): coaching as drafts mix it, read for the brief's Talk to time and a skeleton's word budgets (the smoke test measures a coach's pace from real takes; its seated lines read slower).
 - `kits.md`, `programming.md`, `voices.md`: references; where any knowledge file and `me/health.md` disagree, the strictest wins.
 - `research/`: dated evidence notes behind the numbers. No tool reads it.
 

@@ -11,8 +11,10 @@ import brief  # noqa: E402
 import catalog  # noqa: E402
 import draft  # noqa: E402
 import menu  # noqa: E402
+import paths  # noqa: E402
 import repeats  # noqa: E402
 import sessionlog  # noqa: E402
+import tts_build  # noqa: E402
 
 CAT = catalog.load()
 KNEE = {"request": {"limits": ["knee=delicate:left"]}}
@@ -166,3 +168,17 @@ class ThirtyMinutesMore(unittest.TestCase):
         with mock.patch("voices.pace", return_value=(14.0, True)):
             said = "\n".join(tts_build.render_report(tts_build.lint(segs, v)))
         self.assertRegex(said, r"To land on plan, add about \d+ words in one edit: #3 \+\d+")
+
+
+class PaceSample(unittest.TestCase):
+    def test_the_pace_sample_is_speakable_coaching(self):
+        """The sample a skeleton's budgets are read from: a voice could read every line of it, and it mixes
+        a set's cues, a rest and a story, as drafts do."""
+        with open(paths.PACE_SAMPLE, encoding="utf-8") as f:
+            text = f.read()
+        segments = draft.parse(text)
+        issues = [i for seg in segments for n, line in seg["lines"] for i in tts_build.lint_line(n, line)]
+        self.assertEqual(issues, [])
+        self.assertTrue(any("[count" in line for seg in segments for _, line in seg["lines"]))
+        self.assertIn("[story]", text)
+        self.assertGreater(sum(tts_build.word_count(seg["lines"]) for seg in segments), 200)

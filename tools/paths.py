@@ -81,6 +81,7 @@ SHIPPED = os.path.abspath(os.environ.get("HARMONICFITNESS_SHIPPED") or os.path.j
 PERSONAS = os.path.join(HOME, "coaches")   # the listener's own coaches, coaches/<slug>/ (personas/ before 0.15.0; migrate renames it)
 
 SMOKE_DRAFT = os.path.join(ROOT, "knowledge", "smoke-test.draft.txt")   # one minute, which measures a coach's pace
+PACE_SAMPLE = os.path.join(ROOT, "knowledge", "pace-sample.draft.txt")   # coaching as drafts read, for budgets
 EXAMPLE = os.path.join(ROOT, "me.example")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
 MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the shared movement catalog
