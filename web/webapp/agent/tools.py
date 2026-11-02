@@ -89,7 +89,7 @@ class Deps:
     # each draft's last "add about N words" as shown to the writer, and its words then: (shown, words), so the
     # next ask is scaled by how much of that one the writer delivered
     asks: dict[str, tuple[int, int]] = field(default_factory=dict)
-    # who writes the script's words: "three" (a personal content writer, a coach writer and a final script writer, `write_script`; the
+    # who writes the script's words: "three" (the writers' room: a trainer, a researcher, a host and the trainer's review, `write_script`; the
     # site's way since 0.51.0, which run_turn sets) or "one" (this agent, in passes; HARMONICFITNESS_WRITERS=one)
     writers: str = "one"
     # each skeleton's last lint report, by its draft's path: the word budgets the writers write to
@@ -98,6 +98,8 @@ class Deps:
     content_job: object = field(default=None, repr=False)
     content_for: str | None = None
     loop: object = field(default=None, repr=False)   # the turn's event loop, which the personal content writer runs on
+    # the web searches the writers' room ran this turn (the researcher's): the turn's usage counts them with its own
+    room_searches: int = 0
 
 
 class ToolResult(BaseModel):

@@ -502,7 +502,7 @@ SETTINGS_COMMENTS = {
            "like a clock rather than a dropped earbud, and the coach may leave up to twenty seconds of quiet (eight "
            "without it). \"off\", or unset, plays none.",
     "words_per_minute": "A rough speaking rate (./harmonicfitness get wpm prints it); builds use each coach's measured pace.",
-    "experience": "Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.",
+    "experience": "Your training level: novice (new to this, or it's been a long while), experienced (trained before, knows the basic moves) or advanced (knows their way around, wants to be pushed). The brief's movements and doses match it, and how much the coach explains; until set, it assumes novice.",
     "likes": "Movements you enjoy (ids or names from ./harmonicfitness movements); sessions favour them.",
     "dislikes": "Movements to leave out (ids or names); the brief's menu never lists them.",
     "deliver_to": "Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * "

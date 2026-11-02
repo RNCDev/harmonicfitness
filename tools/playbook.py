@@ -40,6 +40,7 @@ class Area:
     after_say: str = ""
     red_flags: List[str] = field(default_factory=list)
     emergency: List[str] = field(default_factory=list)
+    heart_rule: str = ""   # emergency signs that can start mid-session: spoken with the heart rule
 
 
 @dataclass
@@ -68,7 +69,7 @@ def _area(raw: dict) -> Area:
                 after_weeks=weeks if isinstance(weeks, int) and not isinstance(weeks, bool) else 0,
                 after_plan=str(after.get("plan", "")), after_say=str(after.get("say", "")),
                 red_flags=_strings(raw.get("red_flags")),
-                emergency=_strings(raw.get("emergency")))
+                emergency=_strings(raw.get("emergency")), heart_rule=str(raw.get("heart_rule", "")))
 
 
 def load(path: Optional[str] = None) -> Playbook:
@@ -119,7 +120,8 @@ def problems(pb: Playbook, areas: List[str]) -> List[str]:
             out.append(f"[{name}] is missing")
             continue
         for key in raw:
-            if key not in (*catalog.LIMIT_LEVELS, "check_in", "after_clearing", "red_flags", "emergency"):
+            if key not in (*catalog.LIMIT_LEVELS, "check_in", "after_clearing", "red_flags", "emergency",
+                           "heart_rule"):
                 out.append(f"[{name}] has a key nothing reads: {key}")
         for level in catalog.LIMIT_LEVELS:
             table = raw.get(level)
@@ -185,6 +187,9 @@ def session_lines(pb: Playbook, area: str, level: str, side: str = "both") -> Li
     if lv.say:
         when = f", when {lv.say_when}" if lv.say_when else ""
         out.append(f"  - Say{when}: \"{_sided(lv.say, level, side)}\"")
+    if a.heart_rule:
+        out.append(f"  - Heart rule, add (said with it in the full rules and the short ones alike: stop the whole "
+                   f"session and get help now): {a.heart_rule}.")
     return out
 
 

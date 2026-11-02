@@ -23,8 +23,9 @@
 #                   quotes it until that many weeks after the row's `cleared` date in me/health.md
 #   red_flags       signs particular to this area that stop the session and send them to a clinician (optional)
 #   emergency       signs particular to this area that mean calling emergency services now (optional)
+#   heart_rule      the emergency signs that can start mid-session, added to the spoken heart rule (optional)
 # Red flags and emergencies are for the check-in, said in chat: the audio carries the opening's stop rule and heart
-# rule instead.
+# rule instead, with an area's heart_rule added to the heart rule.
 
 format = 1
 
@@ -307,6 +308,7 @@ emergency = [
   "dizziness, unsteadiness, slurred speech, trouble swallowing or changes in vision",
   "numbness in the face, or a drooping face or eyelid",
 ]
+heart_rule = "a sudden headache or neck pain unlike any before, or dizziness, slurred speech or a change in vision"
 
 [neck.off-limits]
 opening = "Your neck sits this one out, head neutral and still with no quick turns. Neck pain that builds as you move means stop that move, and pain spreading into your arm means we stop for today."

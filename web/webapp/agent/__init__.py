@@ -450,8 +450,8 @@ def read_file(ctx: RunContext[Deps], path: str) -> ToolResult:
 
 
 def _start_stories(ctx: RunContext[Deps], args: list[str]) -> None:
-    """Two writers: the personal content writer starts as the brief is saved, on the turn's loop, and writes while the
-    agent designs the skeleton; write_script waits for it."""
+    """The researcher starts as the brief is saved, on the turn's loop, and works while the agent designs the
+    skeleton; write_script waits for it."""
     deps = ctx.deps
     draft, minutes = tools._flag(args, "--save"), tools._flag(args, "--minutes")
     if not (draft and minutes and minutes.isdigit() and deps.loop is not None) or deps.content_for == draft:
@@ -534,9 +534,9 @@ async def _three_writers(ctx: RunContext[Deps], tool):
 @AGENT.tool(sequential=True, prepare=_three_writers)
 async def write_script(ctx: RunContext[Deps], path: str, build_name: str | None = None,
                        coach: str | None = None) -> ToolResult:
-    """Fill a skeleton with the script's words: a coach writer and a personal content writer write side by side, each segment
-    to its budget, and the draft builds right after (its lint, then its price when clean), its result and the draft
-    in this reply. Only when the instructions name it."""
+    """Fill a skeleton with the script's words: a trainer's notes and a researcher's, side by side, then a host who writes
+    every segment to its budget in the coach's voice, then the trainer's review; the draft builds right after (its
+    lint, then its price when clean), its result and the draft in this reply. Only when the instructions name it."""
     deps = ctx.deps
     if deps.writers != "three":
         return tools._refuse("write the script's words yourself, with edit_segments, as the instructions say")
@@ -791,7 +791,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
         if deps.content_job is not None:   # a personal content writer the turn never waited for stops with it
             deps.content_job.cancel()
     u = result.usage
-    searches = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts)
+    searches = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts) + deps.room_searches
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,
              "output_tokens": u.output_tokens, "searches": searches}
     return TurnOutcome(history_json=result.all_messages_json().decode("utf-8"), reply=result.output, usage=usage)

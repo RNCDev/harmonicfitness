@@ -943,6 +943,31 @@ easier = []
 harder = ["dumbbell-bench-press"]
 
 [[movement]]
+id = "single-arm-floor-press"
+name = "single-arm floor press"
+aliases = ["one-arm floor press", "single-arm dumbbell floor press"]
+needs = ["dumbbells|kettlebell"]
+position = "lying"
+sided = true
+measure = "reps"
+patterns = ["horizontal-push"]
+muscles = ["chest", "triceps", "shoulders", "core"]
+loads = { shoulder = 3, elbow = 2, wrist = 1, rib = 1 }
+flags = ["floor"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Lie on your back, knees bent, one weight in one hand with that upper arm resting on the floor. The other arm lies long by your side."
+cues = ["Press straight up over your chest.", "Keep both shoulders flat on the floor.", "Lower until the elbow kisses the floor."]
+rep = "One rep is pressing the weight straight up over your chest and lowering until your elbow touches the floor. Count reps on each side."
+feel = "Feel it in the chest and the back of the arm, with no pinch at the front of the shoulder."
+faults = ["If your body rolls toward the weight, brace your belly and keep both shoulders down.", "If your elbow flares wide, tuck it to a gentle angle.", "If you bounce off the floor, pause lightly, then press."]
+easier = []
+harder = ["floor-press"]
+
+[[movement]]
 id = "dumbbell-bench-press"
 name = "dumbbell bench press"
 aliases = ["dumbbell chest press", "flat dumbbell press"]
@@ -2010,6 +2035,31 @@ cues = ["Pull the elbows back past your ribs.", "Shoulders down, chest tall.", "
 rep = "One rep is pulling the hands back to your ribs and letting the band draw your arms long again."
 feel = "Feel it in the middle of your back and behind the shoulders, not in the neck or the front of the shoulders."
 faults = ["If you lean back to pull, stand tall and step closer to ease the band.", "If the shoulders shrug toward your ears, set them down before you pull.", "If the band snaps your arms forward, slow the return and fight it all the way out."]
+easier = []
+harder = []
+
+[[movement]]
+id = "single-arm-band-row"
+name = "single-arm band row"
+aliases = ["one-arm band row", "single-arm banded row"]
+needs = ["band"]
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["horizontal-pull"]
+muscles = ["back", "lats", "biceps"]
+loads = { shoulder = 3, elbow = 2, wrist = 1, rib = 1 }
+flags = ["grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Anchor a band at chest height in a shut door that opens away from you, hold it in one hand, and step back until it pulls. The free hand rests on your hip."
+cues = ["Pull the elbow back past your ribs.", "Keep your chest square to the door.", "Let it out slowly."]
+rep = "One rep is pulling the hand back to your ribs and letting the band draw the arm long again. Count reps on each side."
+feel = "Feel it in the middle of your back and behind the shoulder, not in the neck or the front of the shoulder."
+faults = ["If you twist toward the band, keep your chest square and step closer to ease it.", "If the shoulder shrugs toward your ear, set it down before you pull.", "If the band snaps your arm forward, slow the return."]
 easier = []
 harder = []
 

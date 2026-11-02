@@ -2,6 +2,58 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.55.0] - 2026-11-02
+
+On the website, scripts are now written the way a show's team works. A trainer plans and hands over notes. A researcher brings the stories. A host, the coach's voice, writes every word. Then the trainer reviews it for safety. Two full test workouts led to the rest of this release. One script told the listener to go easy on the wrong side, so the build now checks the side the opening names. Others left weights unnamed, retold old news as new, or filled rests with breathing lines while the stories got a few sentences. The listener's level now also sets how much the coach explains, so someone who knows the moves isn't given a lesson on every push-up.
+
+### Added
+- **The writers' room** (`web/webapp/agent/writers.py`), replacing the coach writer, the content writer and the final writer:
+  - a **researcher** (`researcher.md`) and a **trainer** (`trainer.md`) work side by side, each returning notes rather than prose. The trainer marks the lines to say word for word (`SAY EXACTLY:`) and those to keep whole (`SAY, EVERY PART KEPT:`);
+  - a **host** (`host.md`) writes every segment from both, as one person talking;
+  - the **trainer's review** (`review.md`) works through the must-say lines as a checklist, fixes what the build's check names and leaves the voice alone (up to twice).
+- **The opening names the sore side.** Under a one-sided limit, the build refuses a draft whose first segment never names the side with its body part ("left knee"). It also refuses one that ties the limit's care to the other side ("the right side stays light today"). The refusal quotes the brief's opening line to put back.
+- **The level, in the listener's words.** Setup asks "How would you describe yourself?":
+  - "I'm new to this, or it's been a long while." (novice);
+  - "I've trained before and know the basic moves, but I'm no expert." (experienced);
+  - "I know my way around and want to be pushed." (advanced).
+
+  The brief's Level line now says how much to explain: a full walk-through, the whole setup once, or one cue. The safety lines, the limit cues and the self-check under a limit stay in full at every level.
+- **A heart rule per area** (`heart_rule` in `knowledge/limits.toml`): emergency signs said with the heart rule. The neck has one: a sudden headache or neck pain unlike any before, dizziness, slurred speech or a change in vision.
+- **Two movements:** `single-arm-band-row` and `single-arm-floor-press`, so a one-arm day has a pull and a push.
+- **The turn's log line counts the writers' room's web searches** with the agent's own.
+
+### Changed
+- **Loads by name.** The brief asks for every weight to be named in the plan and at each loaded movement's first set, never "moderate" or "your dumbbells" alone. For an experienced or advanced listener, a lunge, split squat or step-up is loaded too, unless a limit keeps that leg light.
+- **Web skeletons:**
+  - each set's label carries its dose and weight (`Reverse lunge set 1, 8 a side, 20 lb pair`), so the writers coach the plan's numbers;
+  - each rest is a segment of its own, where the stories go.
+- **Stories get the rests.** The host is told how many of a rest's words are the story, so it's told whole. The trainer keeps a story rest's coaching to a breath, the self-check and what's next.
+- **News must be current.** The researcher calls something new only when a source from the past two weeks says so. A show in the listener's taste is a touchstone, never news, and no date, number or tally comes from memory.
+- **`knowledge/script.md`:**
+  - a movement's first lesson is as long as the brief's Level line says;
+  - a rest's word budget is its time, not a quota of talk;
+  - the heart rule mentions a limit's additions.
+- **The brief:**
+  - a whole-body day says which patterns today's limits and kit leave off the menu;
+  - the work line gives the timed-set count;
+  - a movement's Easier and Harder options list only what's on today's menu.
+- **The menu gate:**
+  - "push-ups into the floor" and the like are no longer read as a movement named off the menu;
+  - the heavy-load check knows a healthy-side-only movement puts no load on the other side.
+- **The build:**
+  - `--lint-only` no longer needs the web coach's key: a lint needs only the coach's pace;
+  - a menu stop also counts the lint's issues.
+
+### For forks
+- **Drafts:** a draft under a one-sided limit whose opening doesn't name the side with its body part, which 0.54.0 built, is now refused. Put the brief's opening line back in the first segment.
+- **limits.toml:** each area may have an optional `heart_rule` string.
+- **catalog.py:** each level has a line in `LEVEL_SAID` and one in `LEVEL_EXPLAINING`; a fork that adds a level adds both.
+- **Web writers:**
+  - `coach-writer.md`, `personal-content-writer.md` and `final-script-writer.md` became `trainer.md`, `researcher.md` and `review.md`, and `host.md` is new;
+  - `writers.guides()` is keyed `research`, `trainer`, `host` and `review`;
+  - `Deps.room_searches` counts the room's searches.
+- **`me/` needs no migration.** Only `me.example/profile.md`'s comment on `experience` changed.
+
 ## [0.54.0] - 2026-11-02
 
 Scripts now set an exercise up and then keep the listener company, instead of coaching through every second. The instructions come before "go": the movement, its one or two form points, the target. One cue follows in the first seconds. Steady timed work then carries the conversation, broken by time checks and one form reminder where tiredness bites. Hard efforts and counted sets keep to short cues, because a listener can't follow a story while working flat out or counting reps. Rests are for recovering first, with room for something short. The content formats now say how each kind is told, so stories sound like a friend talking rather than a news ticker.

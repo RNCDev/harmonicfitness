@@ -55,6 +55,10 @@ class Brief(unittest.TestCase):
         for heading in SECTIONS:
             self.assertIn(heading, r.stdout, heading)
         self.assertIn("Level: experienced", r.stdout)
+        self.assertIn("How much to explain: the whole setup the first time a movement appears", r.stdout)
+        novice = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--level", "novice")
+        self.assertIn("I'm new to this, or it's been a long while.", novice.stdout)
+        self.assertIn("say what any gym term means", novice.stdout)
         self.assertIn("No pushing through wrist pain.", r.stdout)   # the clinician rule, as written
         self.assertIn("Rest and pairing:", r.stdout)                 # programming.md's rules
         self.assertIn("**Dumbbells.**", r.stdout)                    # kits.md's notes for the kit
@@ -160,6 +164,17 @@ class Brief(unittest.TestCase):
         self.assertIn("left side only", r.stdout)
         self.assertIn("the right knee", r.stdout)           # the limit cues name the side
         self.assertNotIn("{side}", r.stdout)
+
+    def test_a_sore_shoulder_keeps_a_one_arm_push_and_pull_for_the_other_side(self):
+        r = brief("--goal", "general", "--minutes", "25", "--preset", "bodyweight", "--add", "dumbbells,band",
+                  "--limit", "shoulder=delicate:right")
+        healthy = r.stdout.split("### Healthy side only", 1)[1]
+        self.assertIn("**single-arm band row** (`single-arm-band-row`): standing, left side only", healthy)
+        self.assertIn("**single-arm floor press** (`single-arm-floor-press`): lying, left side only", healthy)
+        self.assertNotIn("leave no push", r.stdout)
+        both = brief("--goal", "general", "--minutes", "25", "--preset", "bodyweight", "--add", "dumbbells,band",
+                     "--limit", "shoulder=off-limits")
+        self.assertIn("Today's limits and kit leave no push and no pull on the menu", both.stdout)
 
     def test_a_movement_that_loads_a_limit_is_marked_light_only(self):
         r = brief("--goal", "strength", "--minutes", "25", "--preset", "full-gym", "--limit", "knee=delicate:left")
@@ -437,7 +452,8 @@ class Lint(unittest.TestCase):
         r = self.lint(DRAFT, fake_menu("goblet-squat", "box-breathing"))
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("isn't on today's menu", r.stdout)
-        self.assertIn("menu issue(s). Fix and rerun", r.stderr)   # the failure summary: stderr, as every command's
+        self.assertIn("2 menu issue(s) and 1 lint issue(s). Fix and rerun", r.stderr)   # stderr, as every command's;
+        # the lint's own issue counts too, so the work left isn't hidden behind the menu's
         self.assertNotIn("menu issue(s)", r.stdout)
 
     def test_a_draft_on_its_menu_passes_the_menu_check(self):

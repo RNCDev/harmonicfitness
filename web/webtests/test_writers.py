@@ -1,4 +1,5 @@
-"""The three writers (the site's way since 0.51.0): what code does around the models, without them."""
+"""The writers' room (the site's way since 0.51.0; trainer, researcher, host and review since 0.55.0): what code does
+around the models, without them."""
 import os
 import sys
 import unittest
@@ -11,7 +12,7 @@ from pydantic_ai.models.function import FunctionModel  # noqa: E402
 
 from webapp import agent  # noqa: E402
 from webapp.agent import tools, writers  # noqa: E402
-from webapp.agent.writers import Edited, Told, Written  # noqa: E402
+from webapp.agent.writers import Edited, Told  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
@@ -52,16 +53,49 @@ class Plan(unittest.TestCase):
         # the welcome, the sets, a twenty-second rest and the breathing close carry none
         self.assertEqual(rests, {3: (219 - 153, 153)})
 
-    def test_the_coach_writes_each_rests_ends_to_the_length_of_its_story(self):
+    def test_the_trainer_sees_the_clock_and_where_each_story_goes_not_word_counts(self):
         _, segs = writers.split(SKELETON)
         budget = writers.budgets(REPORT)
         rests = writers.slots(segs, budget)
         self.assertEqual(writers.story_words(budget, rests), {3: writers.STORY_WORDS})
         table = writers._plan_table(segs, budget, {3: 140})
         row = next(r for r in table.split("\n") if r.startswith("#3 "))
-        self.assertIn(f"about {round(219 * writers.COACH_AIM) - 140} words together (a 140-word story goes between)",
-                      row)
+        self.assertIn("A story is told here, in the rest.", row)
         self.assertIn("Markers: [count 3 go]", table)
+        self.assertNotIn("words", table)
+
+    def test_the_host_gets_each_segments_words_markers_notes_and_story(self):
+        _, segs = writers.split(SKELETON)
+        budget = writers.budgets(REPORT)
+        plan = writers.host_plan(segs, budget, {2: "SAY EXACTLY: Knees over the toes.\nTen reps, two in the tank."},
+                                 {3: told(3, "Why it's theirs: their team.\nThe Flyers won four to two.")})
+        two = plan.split("## #2 ", 1)[1].split("## #3 ", 1)[0]
+        self.assertIn(f"Write about {round(118 * writers.COACH_AIM)} words. Markers, in order: [count 3 go].", two)
+        self.assertIn("SAY EXACTLY: Knees over the toes.", two)
+        three = plan.split("## #3 ", 1)[1].split("## #4 ", 1)[0]
+        self.assertIn("Tell this story here (in the rest; quick_hit, -):\nWhy it's theirs: their team.", three)
+        self.assertIn("Trainer's notes:\nnone", three)
+
+    def test_a_story_rest_tells_the_host_the_storys_share_of_its_words(self):
+        _, segs = writers.split(SKELETON)
+        budget = writers.budgets(REPORT)
+        rests = writers.slots(segs, budget)
+        plan = writers.host_plan(segs, budget, {}, {3: told(3, "The Flyers won four to two.")}, frozenset(), rests)
+        three = plan.split("## #3 ", 1)[1].split("## #4 ", 1)[0]
+        words = round(budget[3] * writers.COACH_AIM)
+        self.assertIn(f"Write about {words} words. About {round(words * rests[3][1] / budget[3])} of them are the "
+                      "story, told whole", three)
+        two = plan.split("## #2 ", 1)[1].split("## #3 ", 1)[0]
+        self.assertNotIn("of them are the story", two)
+
+    def test_the_review_gets_the_must_say_lines_as_a_checklist(self):
+        notes = {1: "Warm welcome.\nSAY, EVERY PART KEPT: Your left knee stays light today.\nSAY EXACTLY: Stop on a pinch.",
+                 4: "- SAY EXACTLY: Keep the left knee over the toes.", 2: "Ten reps."}
+        self.assertEqual(writers.must_say(notes),
+                         "- #1, every part kept: Your left knee stays light today.\n"
+                         "- #1, word for word: Stop on a pinch.\n"
+                         "- #4, word for word: Keep the left knee over the toes.")
+        self.assertEqual(writers.must_say({1: "No lines to say."}), "")
 
     def test_a_hold_longer_than_the_silence_limit_becomes_words_to_talk_through(self):
         skeleton = ("movements: plank\n@@ 60 | Plank\n[count 3 go]\n[hold 40s]\n[cue rest]\n"
@@ -83,7 +117,7 @@ class Plan(unittest.TestCase):
         self.assertEqual(rests[4], (118 - round(118 * writers.WORK_STORY_SHARE), round(118 * writers.WORK_STORY_SHARE)))
         table = writers._plan_table(segs, budget, writers.story_words(budget, rests), frozenset({4}))
         row = next(r for r in table.split("\n") if r.startswith("#4 "))
-        self.assertIn("a steady timed set: in text the setup, the go and a first cue", row)
+        self.assertIn("A story is told here, during the set, after its first cue.", row)
         self.assertIn("Markers: [count 3 go] [hold] [cue rest]", row)   # the mark itself isn't the coach's to write
 
     def test_each_story_goes_to_a_slot_it_suits_in_the_order_told(self):
@@ -104,29 +138,15 @@ class Plan(unittest.TestCase):
 
 
 class Assemble(unittest.TestCase):
-    def test_each_rest_is_opener_story_handback_and_the_clock_is_the_skeletons(self):
-        _, segs = writers.split(SKELETON)
-        rests = writers.slots(segs, writers.budgets(REPORT))
-        coaching = {1: Written(number=1, text="Evening. Second one today."),
-                    2: Written(number=2, text="Ten goblet squats. [count 3 go] Sit down between the heels."),
-                    3: Written(number=3, text="Set it down.", handback="Pick the bell back up."),
-                    6: Written(number=6, text="Breathe in for four. [pause 4s] Good work today.")}
-        draft = writers.assemble(SKELETON, coaching, {3: told(3, "First part.\n\nSecond [hold] part.")}, rests)
-        work = writers.assemble(SKELETON.replace("@@ 50 | Goblet squat set two\n[count 3 go]\n",
-                                                 "@@ 50 | Goblet squat set two\n[count 3 go] [story] [/story]\n"),
-                                {4: Written(number=4, text="Sixty seconds. [count 3 go] [story] [/story] Smooth.",
-                                            handback="Halfway. [hold] Last ten. [cue rest]")},
-                                {4: told(4, "The Flyers won.")}, {4: (40, 60)})
-        self.assertIn("@@ 50 | Goblet squat set two\nSixty seconds. [count 3 go] Smooth.\n\n[story] The Flyers won. "
-                      "[/story]\n\nHalfway. [hold] Last ten. [cue rest]", work)
+    def test_the_hosts_script_keeps_the_skeletons_clock_and_a_segment_left_out_keeps_its_markers(self):
+        draft = writers.apply_edits(SKELETON, [
+            Edited(number=1, text="Evening. Second one today."),
+            Edited(number=3, text="Set it down.\n\n[story] The Flyers won. [/story]\n\nPick the bell back up.")])
         self.assertEqual([ln for ln in draft.split("\n") if ln.startswith("@@")],
                          [ln for ln in SKELETON.split("\n") if ln.startswith("@@")])
-        rest = draft.split("@@ 90 | Rest after goblet squat set one\n")[1].split("@@")[0]
-        self.assertEqual(rest.strip(), "Set it down.\n\n[story] First part.\n\nSecond part. [/story]\n\n"
-                                       "Pick the bell back up.")
         self.assertIn("@@ 60 | Welcome\nEvening. Second one today.\n", draft)
-        # a segment the coach didn't return keeps its markers, so the lint says what's left
-        self.assertIn("@@ 50 | Goblet squat set two\n[count 3 go]", draft)
+        self.assertIn("Set it down.\n\n[story] The Flyers won. [/story]\n\nPick the bell back up.", draft)
+        self.assertIn("@@ 50 | Goblet squat set two\n[count 3 go]", draft)   # the lint says what's left
 
     def test_the_editor_changes_only_the_words_of_the_segments_it_returns(self):
         draft = "movements: plank\n@@ 30 | Welcome\nHello.\n\n@@ 40 | Plank\n[count 3 go] Brace.\n"
@@ -165,18 +185,21 @@ class Brief(unittest.TestCase):
 
     def test_each_writer_reads_its_part_of_the_guides_without_commands(self):
         g = writers.guides(ROOT)
-        coach, story, editor = g["coach"], g["content"], g["final"]
-        self.assertIn("## Safety: the rules", coach)
-        self.assertIn("Set it up, then keep them company", coach)
-        self.assertNotIn("Set it up, then keep them company", story)
-        self.assertIn("Tell it the way a friend would", story)
-        for text in (coach, story, editor):
-            self.assertIn("Where stories go", text)
-        self.assertIn("Never invent facts", story)
-        self.assertIn("Weave threads.** A quiz", story)
-        self.assertIn("Never change a movement", editor)
-        self.assertNotIn("## Safety: the rules", editor)
-        for text in (coach, story, editor):
+        trainer, research, host, review = g["trainer"], g["research"], g["host"], g["review"]
+        self.assertIn("## Safety: the rules", trainer)
+        self.assertIn("SAY EXACTLY:", trainer)
+        self.assertIn("Set it up, then keep them company", trainer)
+        self.assertNotIn("Set it up, then keep them company", research)
+        self.assertIn("Tell it the way a friend would", research)
+        self.assertIn("Never invent facts", research)
+        self.assertIn("Weave threads.** A quiz", research)
+        # the host writes every word: the voice, the craft and what a voice can read, the safety lines from the notes
+        self.assertIn("The coach's voice", host)
+        self.assertIn("## Markers", host)
+        self.assertNotIn("## Safety: the rules", host)
+        self.assertIn("Leave the host's voice alone", review)
+        self.assertIn("## Safety: the rules", review)
+        for text in (trainer, research, host, review):
             self.assertNotIn("./harmonicfitness", text)
             self.assertNotIn("<!-- web", text)
 
@@ -195,9 +218,9 @@ class Patience(unittest.TestCase):
             return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"segments": []})])
         deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00")
         old = dict(writers.PATIENCE)
-        writers.PATIENCE["final"] = 0.2
+        writers.PATIENCE["review"] = 0.2
         self.addCleanup(writers.PATIENCE.update, old)
-        out = asyncio.run(writers._ask(deps, "final", writers.FINAL, FunctionModel(reply), "edit", RunUsage(), "HIGH"))
+        out = asyncio.run(writers._ask(deps, "review", writers.REVIEW, FunctionModel(reply), "edit", RunUsage(), "HIGH"))
         self.assertEqual(out.output.segments, [])
         self.assertEqual(len(calls), 2)   # asked once more, a level lower
 

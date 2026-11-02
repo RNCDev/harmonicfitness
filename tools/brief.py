@@ -35,6 +35,7 @@ import menu  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
 import playbook  # noqa: E402
+import repeats  # noqa: E402
 import screen  # noqa: E402
 import sessions  # noqa: E402
 import voices  # noqa: E402
@@ -148,12 +149,13 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
             facts.append("LIGHT ONLY today")
         tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
-        notes = ["  " + line.strip() for line in catalog.about(cat, m)[1:]]
+        notes = ["  " + line.strip() for line in catalog.about(cat, m, allowed=on_menu)[1:]]
         if compact:   # the coaching notes come with `movements --about` for the movements chosen
             notes = [n for n in notes if n.strip().startswith(("Easier:", "Harder:"))]
         return [head] + notes
 
     out = []
+    on_menu = {m.id for m in scr.sel.allowed + scr.sel.healthy_side_only}
     for p in cat.patterns:
         group = [m for m in scr.sel.allowed if m.patterns and m.patterns[0] == p]
         if group:
@@ -301,8 +303,12 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
                    "it likes moderate sessions: that preference sets the warm-up, the steady work and the easy spells. "
                    "Only a low-readiness check-in, or a limit, keeps the intervals easier.")
     if goal in ("general", "strength") and not request.get("target"):
+        on_menu = scr.sel.allowed + scr.sel.healthy_side_only
+        gone = [name for name, pats in repeats.WHOLE_BODY if not any(p in m.patterns for m in on_menu for p in pats)]
         out.append("- A whole-body session (general, or strength with no target) covers a push, a pull, a squat or "
-                   "lunge, and a hinge, plus core when there's room; the patterns the week hasn't trained come first.")
+                   "lunge, and a hinge, plus core when there's room; the patterns the week hasn't trained come first."
+                   + (f" Today's limits and kit leave no {' and no '.join(gone)} on the menu: the session goes "
+                      "without, and the plan's line on what's left out says why." if gone else ""))
     way = _lean()
     if way:
         out.append(f"- Recent feedback says sessions have felt too {'easy' if way == 'harder' else 'hard'} (learned, "
@@ -321,9 +327,10 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         if goal in ("general", "strength"):
             work = total - screen.clamp(m.warmup, total) - screen.clamp(m.cooldown, total)
             sets = max(round(work / 120), 1)
-            out.append(f"- This session's work: about {sets} hard sets in its {work} s (a set with its rest is about "
-                       "two minutes): three sets of each main movement when the time holds them, never two, and "
-                       "no more movements than leaves room for that. Rests and timed sets are the dose's, never longer to "
+            out.append(f"- This session's work: about {sets} hard sets in its {work} s (a counted set with its rest is "
+                       f"about two minutes; a timed set of forty-five seconds with its rest about a minute and a half, "
+                       f"so about {max(round(work / 90), 1)} of those): three sets of each main movement when the time "
+                       "holds them, never two, and no more movements than leaves room for that. Rests and timed sets are the dose's, never longer to "
                        "fit a story, and the welcome stays under a minute: a story fits its moment, not the moment the "
                        "story.")
         out += ["", f"Formats that suit a {minutes} minute {goal} session at this level with this kit "
@@ -530,7 +537,9 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     out += [f"Warning: {w}" for w in scr.warnings]
     out += ["## The listener", f"- Name: {name} (greet them by it; two to four times a session)." if name
             else "- No name in the profile: no name in the audio.",
-            f"- Level: {scr.level}."]
+            f"- Level: {scr.level}, in their words \"{catalog.LEVEL_SAID.get(scr.level, '')}\" How much to explain: "
+            f"{catalog.LEVEL_EXPLAINING.get(scr.level, catalog.LEVEL_EXPLAINING['novice'])}; the safety lines, the limit "
+            "cues and the self-check under a limit are said in full whatever the level."]
     liked = [cat.movements[i].name for i in sorted(scr.likes) if i in cat.movements]
     if liked:
         on = {m.id for m in scr.sel.allowed + scr.sel.healthy_side_only}
@@ -559,9 +568,12 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
     opens = screen.would_open(cat, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)
     extra = []
     if loads:
-        extra.append(f"- {loads}. Prescribe only these weights, by name"
+        extra.append(f"- {loads}. Prescribe only these weights, by name, in the plan and at each loaded movement's "
+                     "first set, never \"moderate\" or \"your dumbbells\" alone"
                      + ("; start each main movement at the heaviest of them that fits its reps with one to three "
-                        "left, keeping the light ones for warm-up sets, small muscles and a limited area."
+                        "left (a lunge, split squat or step-up too, a pair at the sides or a bell at the chest, "
+                        "unless a limit keeps that leg light), keeping the light ones for warm-up sets, small "
+                        "muscles and a limited area."
                         if scr.level in ("experienced", "advanced") else "."))
     elif scr.equipment & {"dumbbells", "kettlebell", "barbell", "cable", "machines", "trap-bar"}:
         extra.append("- No weights are listed for this kit: name each load by effort (\"a weight you could lift "

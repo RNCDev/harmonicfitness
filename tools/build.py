@@ -371,7 +371,10 @@ def resolve_voice(opts):
     if coach is None:
         raise errors.CoachError("No coach found: the ten local coaches ship in coaches/ (git pull), and a web coach "
                                 "comes from the coach skill.")
-    return coach, coachpick.pick(context.render_preferences(), coach, override=opts.engine)
+    # a lint sends nothing, so a web coach's lint runs at its pace without the service's key (a writer checking a
+    # draft on a computer without the key was refused, 2026-11-02)
+    return coach, coachpick.pick(context.render_preferences(), coach, override=opts.engine,
+                                 need_key=not opts.lint_only)
 
 
 def profile_bed():
@@ -531,9 +534,10 @@ def _run(b, text):
         gaps = repeats.missing_patterns(catalog.default(), text, menu.load(draft.menu_path(opts.draft)) or {})
         if gaps:   # a warning: a whole-body session missing a main pattern
             b.say("\nWhole body:\n" + "\n".join(f"  warning: {w}" for w in gaps))
-    if issues:
-        b.fail(f"\n{len(issues)} menu issue(s). Fix and rerun. Nothing exported.")
-        b.stopped(f"{len(issues)} menu issue(s)", stage="menu")
+    if issues:   # the lint's own issues listed above count too, so the work left isn't hidden behind one menu issue
+        lint_left = f" and {report.problems} lint issue(s)" if report.problems and not smoke else ""
+        b.fail(f"\n{len(issues)} menu issue(s){lint_left}. Fix and rerun. Nothing exported.")
+        b.stopped(f"{len(issues)} menu issue(s){lint_left}", stage="menu")
         return BuildResult(cli.ISSUES, None, b.lines)
     problems = report.problems
     empty = [r.index for r in report.rows if r.words == 0]

@@ -174,6 +174,18 @@ class GetLimits(unittest.TestCase):
         self.assertIn(pb.check_in, r.stdout)
         self.assertIn(pb.red_flags[0], r.stdout)
 
+    def test_a_necks_artery_signs_are_spoken_with_the_heart_rule(self):
+        pb = playbook.shipped()
+        for level in ("delicate", "off-limits"):
+            said = "\n".join(playbook.session_lines(pb, "neck", level))
+            self.assertIn("Heart rule, add", said)
+            self.assertIn("a sudden headache or neck pain unlike any before", said)
+        self.assertNotIn("Heart rule", "\n".join(playbook.session_lines(pb, "knee", "delicate")))
+        bad = dict(pb.raw, neck=dict(pb.raw["neck"], heart_rule_typo="x"))
+        self.assertIn("[neck] has a key nothing reads: heart_rule_typo", playbook.problems(
+            playbook.Playbook(pb.format, pb.check_in, pb.red_flags, pb.unlisted, pb.areas, bad, pb.emergency,
+                              pb.unlisted_session), list(pb.areas)))
+
     def test_red_flags_add_each_areas_own_once(self):
         pb = playbook.Playbook(1, "x", ["a"], "u", {"calf": playbook.Area({}, {}, red_flags=["b", "a"],
                                                                            emergency=["d"])}, emergency=["c"])

@@ -18,7 +18,9 @@ Rule: end working sets with about one to three reps left ("effort eight or nine 
 
 Rule: with light dumbbells, use higher reps (15 to 30) and take sets closer to failure than with a heavy weight. Don't promise one-rep strength from light kit; promise muscle and working strength.
 
-Rule: a timed set (house default, the listener's design, 2026-11-02) runs forty to sixty seconds at a steady pace, with a load that leaves two or three reps in reserve at the end: about the ten to twenty reps of the range above. The effort rule holds as for counted sets. Timed sets suit steady whole-body work, where the coach talks with the listener through the set; heavy sets near the top of the load range stay counted.
+- **Timed sets (house default, the listener's design, 2026-11-02).** No source sets a timed set's length; forty to sixty seconds at the brief's rep pace is about the ten to twenty reps of the range above, and timed work leaves the coach room to talk through the set.
+
+Rule: a timed set runs forty to sixty seconds at a steady pace, with a load that leaves two or three reps in reserve at the end. The effort rule holds as for counted sets. Timed sets suit steady whole-body work, where the coach talks with the listener through the set; heavy sets near the top of the load range stay counted.
 
 ## Weekly dose
 

@@ -209,7 +209,7 @@ class MenuTampering(unittest.TestCase):
     """The build's gate re-runs the safety screen from the menu's request against the current health.md and
     profile, so a movement added to menu.json by hand is refused; a malformed menu is an issue, never a
     traceback; and a missing health.md is named as such."""
-    TEXT = "movements: dead bug\n@@ 300 | Work\nThe dead bug now.\n"
+    TEXT = "movements: dead bug\n@@ 300 | Work\nYour left wrist stays light today. The dead bug now.\n"
     TODAY = "2026-10-21"
 
     @classmethod

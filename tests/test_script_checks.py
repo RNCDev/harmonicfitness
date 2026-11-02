@@ -52,6 +52,54 @@ class HeavyUnderALimit(unittest.TestCase):
             self.assertEqual(menu.load_problems(CAT, KNEE, segs(text)), [], text)
         self.assertEqual(menu.load_problems(CAT, {"request": {}}, segs("@@ 60 | C\nA heavy farmer carry.\n")), [])
 
+    def test_heavy_for_the_healthy_side_is_fine_but_not_for_both_sides(self):
+        text = "@@ 60 | Press\nA heavy bell for the half-kneeling kettlebell press.\n"
+        right = {"request": {"limits": ["shoulder=delicate:right"]},
+                 "movements": [{"id": "half-kneeling-kettlebell-press", "side": "left"}]}
+        self.assertEqual(menu.load_problems(CAT, right, segs(text)), [])   # the left arm works; the right rests
+        both = {"request": {"limits": ["shoulder=delicate:both"]},
+                "movements": [{"id": "half-kneeling-kettlebell-press"}]}
+        self.assertTrue(menu.load_problems(CAT, both, segs(text)))
+
+
+class TheOpeningNamesTheSide(unittest.TestCase):
+    """Under a one-sided limit, the opening names the sore side with its body part, never the other side's care."""
+    def test_the_other_side_told_to_go_light_is_refused(self):
+        found = menu.opening_problems(KNEE, segs("@@ 60 | Welcome\nThe right side stays light today, and no jumping.\n"))
+        self.assertEqual(len(found), 1)
+        self.assertIn("ties today's care to the right side, but the limit is the left knee", found[0])
+        self.assertIn('"Your left knee stays light today', found[0])   # the brief's own line, to put back
+
+    def test_an_opening_with_no_side_is_refused(self):
+        found = menu.opening_problems(KNEE, segs("@@ 60 | Welcome\nYour knee stays light today.\n"))
+        self.assertIn("never names the left knee", found[0])
+
+    def test_the_named_side_passes_with_the_other_side_working(self):
+        for text in ("Your left knee stays light today, and the right leg does the lunges, two left in the tank.",
+                     "Easy on the knee on the left today. Right side lateral lunges only.",
+                     "Your left-side knee stays light. [story] The right back was sore all season. [/story]"):
+            self.assertEqual(menu.opening_problems(KNEE, segs(f"@@ 60 | Welcome\n{text}\n")), [], text)
+
+    def test_no_one_sided_limit_needs_nothing(self):
+        for m in ({"request": {}}, {"request": {"limits": ["knee=delicate:both"]}}):
+            self.assertEqual(menu.opening_problems(m, segs("@@ 60 | Welcome\nTwenty minutes, let's go.\n")), [])
+
+
+
+class OrdinarySpeech(unittest.TestCase):
+    """The menu check reads a name, not every phrase that shares its words (eval round 3, 2026-11-02)."""
+
+    def said(self, text):
+        return [(mid, menu.negated(before)) for mid, _, before in menu.mentions(CAT, text)]
+
+    def test_a_plural_name_used_as_a_verb_on_the_body_is_no_movement(self):
+        self.assertEqual(self.said("Holding the weight at your chest presses on the ribs, so keep it high."), [])
+        self.assertEqual(self.said("Ten chest presses on the bench."), [("machine-chest-press", False)])
+        self.assertEqual(self.said("Do ten chest presses."), [("machine-chest-press", False)])
+
+    def test_not_using_a_movement_is_a_negation(self):
+        self.assertEqual(self.said("We are not using the goblet squat today."), [("goblet-squat", True)])
+        self.assertEqual(self.said("Do not stop your goblet squats."), [("goblet-squat", False)])
 
 
 class SecondSession(unittest.TestCase):

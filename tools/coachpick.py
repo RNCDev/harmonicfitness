@@ -76,9 +76,10 @@ def resolve(coach=None, engine=None, pending=False):
     return personas.voice_for(p, pick(context.render_preferences(), p, override=engine), pending)
 
 
-def pick(preferences, persona=None, override=None, facts=None):
-    """The route a build takes: a web coach's own service (whatever the render list, and only if keyed here);
-    else `override` (--engine) if it works here; else the first usable preference."""
+def pick(preferences, persona=None, override=None, facts=None, need_key=True):
+    """The route a build takes: a web coach's own service (whatever the render list, and only if keyed here, unless
+    `need_key` is off: a lint needs only the coach's pace); else `override` (--engine) if it works here; else the
+    first usable preference."""
     ROUTES, SERVICES = routes.ROUTES, routes.SERVICES
     if persona is not None and persona.is_web:
         if not persona.service or persona.service not in SERVICES:
@@ -88,7 +89,7 @@ def pick(preferences, persona=None, override=None, facts=None):
             raise routes.WebCoachUnavailable(
                 f"{persona.name} speaks through {cloud.service_name(persona.service)} only, so --engine {override} "
                 f"can't render them here.")
-        if not keys.get(persona.service):   # a key that can't be read raises BadKey here: this coach needs it
+        if need_key and not keys.get(persona.service):   # a key that can't be read raises BadKey: this coach needs it
             raise routes.WebCoachUnavailable(routes.missing_key(persona))
         return persona.service
     if override:

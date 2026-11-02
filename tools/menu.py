@@ -24,6 +24,8 @@ A movement the menu allows on one side only keeps to that side (side_problems, p
 that names it may hold no both-sides phrase (BOTH_SIDES: "each side", "alternating"...) and no other
 side's word, and a segment that names it no switch phrase anywhere ("switch", "other leg"...). It fails
 safe: a negation doesn't excuse it, and a side word in the sentence for something else is refused too.
+Under a one-sided limit, the opening names the side with its body part, and never ties the limit's care to
+the other side (opening_problems).
 Library only; the brief and the build call it; the web's show_plan uses side_problems and part_of.
 """
 import datetime
@@ -278,6 +280,8 @@ def mentions(cat: catalog.Catalog, text: str) -> List[Tuple[str, str, str]]:
     original, hits = text, []
     for rx, mid, _ in _patterns(cat):
         for m in rx.finditer(text):
+            if VERB_USE.match(original, m.end()) and m.group(0).endswith("s"):
+                continue   # "the weight at your chest presses on the ribs": a verb, not a set of chest presses
             hits.append((m.start(), mid, m.group(0)))
         text = rx.sub(lambda m: " " * len(m.group(0)), text)   # a longer name keeps its words
     return [(mid, words, " ".join(re.findall(r"[a-z']+", _clause(original[max(0, at - 60):at]))[-BEFORE:]))
@@ -291,13 +295,18 @@ def _clause(text: str) -> str:
 
 
 BEFORE = 6   # words kept before a mention, within its clause
+# a name's plural used as a verb on a body part ("the bell presses on the ribs", "the strap pulls against your
+# neck"): never an instruction to do the movement, whatever a set of it might be called
+VERB_USE = re.compile(r"\s+(?:on|into|onto|against|through|down on|in on)\s+(?:the|your|my|that|this|his|her|their)?\s*"
+                      r"(?:ribs?|rib cage|ribcage|chest|sternum|breastbone|collarbone|knees?|shoulders?|hips?|back|"
+                      r"spine|belly|stomach|neck|wrists?|elbows?|arms?|legs?|feet|foot|hands?|it|them)\b")
 # a mention right after one of these isn't an instruction: "no neck rolls today", "like a brisk walk"
 NOT_DOING = {"no", "not", "never", "skip", "skipping", "without", "instead", "avoid", "nothing", "like",
              "unlike", "rather", "isn't", "aren't", "won't", "don't", "doesn't", "didn't", "can't", "wasn't",
              "weren't", "shouldn't", "couldn't", "wouldn't"}   # the web contracts "does not" and the rest
 # small words allowed between the negation and the mention: "not doing the jumping jacks", "instead of
 # burpees", "rather than burpees" ("no more than ten push-ups" still counts: "ten" isn't one)
-FILLER = {"a", "an", "the", "any", "more", "your", "doing", "do", "of", "than"}
+FILLER = {"a", "an", "the", "any", "more", "your", "doing", "do", "of", "than", "using", "use"}   # "not using the"
 
 
 def negated(before: str) -> bool:
@@ -530,14 +539,24 @@ def load_problems(cat: catalog.Catalog, menu: dict, segments) -> List[str]:
     """A segment's coaching that asks for a heavy load ("pick up a heavy pair") while naming a movement that loads
     one of today's limited areas: under a limit those stay light. One issue a segment; "nothing heavy" passes."""
     import screen
-    areas = set()
+    limits = []
     for s in (menu.get("request") or {}).get("limits") or []:
         try:
-            areas.add(screen.parse_limit(s, cat).area)
+            limits.append(screen.parse_limit(s, cat))
         except (ValueError, TypeError):
             continue
-    if not areas:
+    if not limits:
         return []
+    areas = {lim.area for lim in limits}
+    sides = {e["id"]: e.get("side") for e in menu.get("movements", [])}
+
+    def loaded(mid, mv, area):
+        """Its load on `area`, as the brief marks it: a movement offered on the healthy side only, under limits on
+        that area all on the other side, puts no load there (a heavy press for the healthy arm is fine)."""
+        side = sides.get(mid)
+        if side and all(lim.side == screen.OTHER_SIDE.get(side) for lim in limits if lim.area == area):
+            return 0
+        return mv.loads.get(area, 0)
     out = []
     named = [[mid for mid, _, _ in mentions(cat, draft.story_split(seg)[0] + " . " + seg["label"])] for seg in segments]
     for i, seg in enumerate(segments):
@@ -549,12 +568,54 @@ def load_problems(cat: catalog.Catalog, menu: dict, segments) -> List[str]:
         near = named[i] or (named[i + 1] if i + 1 < len(segments) else []) + (named[i - 1] if i else [])
         for mid in near:
             mv = cat.movements.get(mid)
-            hit = sorted(a for a in areas if mv is not None and mv.loads.get(a, 0) >= 1)
+            hit = sorted(a for a in areas if mv is not None and loaded(mid, mv, a) >= 1)
             if hit:
                 out.append(f'segment "{seg["label"]}" (line {seg["start"]}): "{heavy.group(0)}" with {mv.name}, which '
                            f"loads today's limited {', '.join(hit)}: keep it light (twelve to fifteen reps with three or "
                            "more in reserve) and say so")
                 break
+    return out
+
+
+# words that tie a sentence to the sore side's care: "the right side stays light today"
+CARE = re.compile(r"\b(?:light|easy|gentle|careful|sore|delicate|tender|injured|hurt\w*|protect\w*|off limits|"
+                  r"sits? (?:this one|it) out)\b", re.IGNORECASE)
+
+
+def opening_problems(menu: dict, segments) -> List[str]:
+    """Under a one-sided limit, the opening (the first segment, stories aside) names the side with its body part
+    ("left knee"), as the brief's opening line does, and no sentence there ties the limit's care to the other side
+    ("the right side stays light"): told the wrong side, or none, a listener can load the sore one. One issue a
+    limit."""
+    import playbook
+    import screen
+    if not segments:
+        return []
+    pb = playbook.shipped()
+    seg = segments[0]
+    text = remaining_idioms(draft.story_split(seg)[0])
+    out = []
+    for s in (menu.get("request") or {}).get("limits") or []:
+        area, _, rest = s.partition("=")
+        level, _, side = rest.partition(":")
+        if side not in screen.OTHER_SIDE:
+            continue
+        lv = pb.areas[area].levels.get(level) if area in pb.areas else None
+        found = re.search(r"\{side\}\s+([a-z]+)", lv.opening) if lv else None
+        part = found.group(1) if found else area.replace("-", " ")
+        said = (f'say the brief\'s opening line for it, every part kept: "{playbook._sided(lv.opening, level, side)}"'
+                if lv and lv.opening else f"say which side, as the brief does: your {side} {part}")
+        where = f'segment "{seg["label"]}" (line {seg["start"]})'
+        named = re.compile(rf"\b{side}(?:[\s-]+\w+)?[\s-]+{part}s?\b|\b{part}s?\b[^.!?\n]{{0,20}}\b{side}\b",
+                           re.IGNORECASE)
+        other = screen.OTHER_SIDE[side]
+        wrong = next((x.strip() for x in SENTENCE.split(text)
+                      if re.search(rf"\b{other}\b", x, re.IGNORECASE) and CARE.search(x) and not named.search(x)), None)
+        if wrong:
+            out.append(f'{where}: "{wrong}" ties today\'s care to the {other} side, but the limit is the {side} {part}: '
+                       + said)
+        elif not named.search(text):
+            out.append(f"{where}: the opening never names the {side} {part}, the side today's limit is on: " + said)
     return out
 
 
@@ -614,7 +675,7 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
         for why in found:
             if why not in issues:
                 issues.append(why)
-    for why in load_problems(cat, menu, segments):
+    for why in load_problems(cat, menu, segments) + opening_problems(menu, segments):
         if why not in issues:
             issues.append(why)
     want = menu.get("seconds")

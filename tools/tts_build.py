@@ -326,8 +326,8 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                     hint = (f", or play the coach's recorded cue: [cue {cue}]" if cue and has_cues else
                             ", or a recorded cue ([cue rest])" if has_cues else "")
                     row.clip_issues.append(
-                        f"  \"{text}\" is one word between markers, and a local voice often garbles a word "
-                        f"on its own; give it two or more (\"Hold it there.\", \"And go.\"){hint}")
+                        f"  \"{text}\" is one word between markers, and a voice (a local one most) can garble "
+                        f"a word on its own; give it two or more (\"Hold it there.\", \"And go.\"){hint}")
         if has_cues:   # a countdown in words, outside a [story] ("ten, nine, eight, liftoff" in one is the story's)
             for piece in MARK_RE.sub("\x00", story_split(seg)[0]).split("\x00"):
                 run = written_countdown(piece)

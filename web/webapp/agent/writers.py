@@ -1,10 +1,12 @@
-"""Three writers for one script, the site's way since 0.51.0 (HARMONICFITNESS_WRITERS=one has the agent write it).
-The agent plans the session (the skeleton: every segment's seconds, counts, holds and reps, and an empty
-[story] [/story] in each steady timed set that carries a piece). Then a personal content writer writes what the rests
-and the steady work carry, from the listener's topics, the day's sheets and its own searches (started as the brief is
-saved); a coach writer writes the coaching from the brief and the movements' notes, each story's segment around a
-story of known length; and a final script writer reads the assembled script with the build's check and makes it one coach talking to one
-person. Each reads only its own material; code holds what must hold (the clock, the silences, what was told)."""
+"""The writers' room for one script, the site's way since 0.51.0 (HARMONICFITNESS_WRITERS=one has the agent write it),
+divided as a show's team divides it since 0.55.0. The agent plans the session (the skeleton: every segment's seconds,
+counts, holds and reps, and an empty [story] [/story] in each steady timed set that carries a piece). Then, side by
+side, a researcher finds what the steady work and the rests carry, from the listener's topics, the day's sheets and
+its own searches (started as the brief is saved), and returns notes, not the telling; and a trainer turns the brief
+and the movements' notes into each segment's notes for the host, the must-say lines marked. The host, the coach's
+voice, writes every word from both, so the script is one person talking; the trainer's review then checks it with
+the build's check, safety first and the host's voice left alone. Each reads only its own material; code holds what
+must hold (the clock, the silences, what was told, where each story goes)."""
 import asyncio
 import functools
 import os
@@ -14,6 +16,7 @@ from dataclasses import replace
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.messages import NativeToolCallPart
 
 from . import tools
 
@@ -40,8 +43,8 @@ COMMAND = re.compile(r"\s*\([^()]*`\./harmonicfitness[^`]*`[^()]*\)")
 NOT_WEB = re.compile(r"<!-- web: skip -->\n.*?<!-- web: end -->\n?", re.DOTALL)
 LEVELS = ("HIGH", "MEDIUM", "LOW")
 # The longest each writer's call is waited for before it's asked again thinking less: Gemini's own deadline (504) is
-# about 180 s, and a call that thinks that long is rare but whole (a final script writer's 179 s against its usual 26 to 37).
-PATIENCE = {"content": 160, "coach": 110, "final": 80}
+# about 180 s, and a call that thinks that long is rare but whole (a final writer's 179 s against its usual 26 to 37, before 0.55.0's review).
+PATIENCE = {"research": 160, "trainer": 110, "host": 150, "review": 80}
 
 
 def web_copy(text: str) -> str:
@@ -49,18 +52,15 @@ def web_copy(text: str) -> str:
     return NOT_WEB.sub("", text)
 
 
-class Written(BaseModel):
+class Note(BaseModel):
     number: int = Field(description="the segment's number in the plan")
-    text: str = Field(description="the segment's words with its markers in place; for a segment that carries a "
-                                  "story, what comes before it: a rest's opener, or a steady timed set's setup, go "
-                                  "and first cue")
-    handback: str = Field(default="", description="for a segment that carries a story, what comes after it: a rest's "
-                                                  "way back to the work, or a steady timed set's time checks, bare "
-                                                  "[hold] and finish; else empty")
+    notes: str = Field(description="the trainer's notes for the host, short plain lines, never the lines themselves; "
+                                   "each line the listener must hear word for word starting SAY EXACTLY:, and each "
+                                   "to keep every part of starting SAY, EVERY PART KEPT:")
 
 
-class Coaching(BaseModel):
-    segments: list[Written]
+class Notes(BaseModel):
+    segments: list[Note]
 
 
 class Told(BaseModel):
@@ -69,7 +69,9 @@ class Told(BaseModel):
     format: str = Field(description="its format's id in the plan")
     title: str = Field(description="a short title, for the log")
     source: str = Field(description="a link, or the sheet it came from")
-    text: str = Field(description="the story as the coach says it, in paragraphs of under fifty words, no markers")
+    text: str = Field(description="the notes the host tells it from, as short lines: why it's theirs, the facts "
+                                  "(names, numbers, dates and quotes exactly as the source gives them), and the "
+                                  "point it lands on; never the telling")
     lands: str = Field(default="rest", description="steady if it's easy to follow while moving (a story's beat, a "
                                                    "profile, an explainer), rest if it needs a moment (a quiz asked or "
                                                    "answered, a myth checked, a quick hit)")
@@ -89,9 +91,10 @@ class Edits(BaseModel):
     segments: list[Edited]
 
 
-CONTENT = Agent(output_type=Stories, retries=2)
-COACH = Agent(output_type=Coaching, retries=2)
-FINAL = Agent(output_type=Edits, retries=2)
+RESEARCHER = Agent(output_type=Stories, retries=2)
+TRAINER = Agent(output_type=Notes, retries=2)
+HOST = Agent(output_type=Edits, retries=2)
+REVIEW = Agent(output_type=Edits, retries=2)
 
 
 class NotReady(Exception):
@@ -138,17 +141,14 @@ def guides(engine_root: str) -> dict[str, str]:
         return _read(os.path.join(HERE, name)).strip()
     said = ("Characters", "Numbers and abbreviations", "Words that trip a voice")
     out = {
-        "content": task("personal-content-writer.md") + "\n\n## Telling it\n" + bullets(
-            engaged, "The coach's voice", "Tell it the way a friend would", "Where stories go", "Their taste counts",
-            "Time-proof it", "Weave threads") + "\n" + bullets(safety, "Never invent facts") + voice(*said),
-        "coach": task("coach-writer.md") + f"\n\n## Safety: the rules\n{safety}\n\n## Getting the workout done\n{done}"
-                 "\n\n## The voice and the shape\n" + bullets(engaged, "The coach's voice", "Where stories go",
-                                                            "Time-proof it", "A shape")
-                 + voice(*(h for h in tts if h != "The draft")),
-        "final": task("final-script-writer.md") + "\n\n## What it should sound like\n" + bullets(
-            engaged, "The coach's voice", "Tell it the way a friend would", "Where stories go", "Weave threads",
-            "A shape")
-                  + voice(*said, "Markers"),
+        "research": task("researcher.md") + "\n\n## What makes a good piece\n" + bullets(
+            engaged, "Tell it the way a friend would", "Where stories go", "Their taste counts", "Time-proof it",
+            "Weave threads") + "\n" + bullets(safety, "Never invent facts"),
+        "trainer": task("trainer.md") + f"\n\n## Safety: the rules\n{safety}\n\n## Getting the workout done\n{done}"
+                   "\n\n## The shape\n" + bullets(engaged, "Where stories go", "A shape"),
+        "host": task("host.md") + f"\n\n## Getting the workout done\n{done}\n\n## Keeping them engaged\n{engaged}"
+                + "\n" + bullets(safety, "Never invent facts") + voice(*(h for h in tts if h != "The draft")),
+        "review": task("review.md") + f"\n\n## Safety: the rules\n{safety}" + voice(*said, "Markers"),
     }
     return {k: COMMAND.sub("", v) for k, v in out.items()}
 
@@ -192,7 +192,7 @@ def slots(segs: list, budget: dict[int, int]) -> dict[int, tuple[int, int]]:
 
 
 def coach_brief(brief: str, ids: list[str]) -> str:
-    """The brief as the coach writer needs it: all but the safe menu, whose entries it keeps only for the plan's
+    """The brief as the trainer needs it: all but the safe menu, whose entries it keeps only for the plan's
     movements, and only the Counts and Voice lines of Writing it."""
     parts, menu = [], ""
     for head, body in sections(brief).items():
@@ -262,33 +262,6 @@ def retold(story: Told, titles: list[str]) -> str | None:
     return None
 
 
-def _clean(text: str) -> list[str]:
-    """A story's paragraphs, with any marker taken out (the build refuses one inside a story)."""
-    text = tools.MARK.sub("", text)
-    return [" ".join(p.split()) for p in re.split(r"\n\s*\n", text) if p.strip()]
-
-
-def story_block(text: str) -> str:
-    paras = _clean(text)
-    return "[story] " + "\n\n".join(paras) + " [/story]" if paras else ""
-
-
-def assemble(skeleton: str, coaching: dict[int, Written], stories: dict[int, Told], rests) -> str:
-    """The skeleton with every segment's words: the coach's, and in each rest that carries one, the story between the
-    coach's opener and handback."""
-    head, segs = split(skeleton)
-    out = list(head)
-    for n, (at, _, _, body) in enumerate(segs, 1):
-        w = coaching.get(n)
-        parts = [PLACE.sub("", w.text if w and w.text.strip() else "\n".join(body)).strip()]
-        if n in rests and n in stories:
-            parts.append(story_block(stories[n].text))
-            if w and w.handback.strip():
-                parts.append(PLACE.sub("", w.handback).strip())
-        out += [at, "\n\n".join(p for p in parts if p), ""]
-    return "\n".join(out).rstrip("\n") + "\n"
-
-
 def open_holds(skeleton: str, limit: float = SILENCE) -> tuple[str, dict[int, float]]:
     """The skeleton with each fixed hold or pause over `limit` seconds taken out, and those seconds by segment: the
     coach talks through them instead (a skeleton's set of "go", forty seconds of hold, "rest" was kept as written
@@ -324,7 +297,7 @@ def pieces_for(minutes: int) -> int:
 
 
 def story_words(budget: dict, rests: dict) -> dict[int, int]:
-    """About how long each slot's story runs, for the coach writing beside the personal content writer: what it's
+    """About how long each slot's story runs, in the plan the trainer reads: what it's
     asked for, or less in a short rest or set."""
     return {n: min(STORY_WORDS, story) for n, (_, story) in rests.items()}
 
@@ -344,23 +317,44 @@ def place(told: list, rests: dict, marked: set) -> dict:
 
 
 def _plan_table(segs: list, budget: dict, stories: dict[int, int], marked: frozenset = frozenset()) -> str:
+    """The plan as the trainer reads it: each segment's time, label and markers, and where a story goes."""
     rows, at = [], 0
     for n, (_, label, secs, body) in enumerate(segs, 1):
         marks = " ".join(m for m in tools.MARK.findall("\n".join(body))
                          if m.lower() not in ("[story]", "[/story]")) or "none"
-        whole = round(budget.get(n, 0) * (1 if "[hold]" in "\n".join(body) else COACH_AIM))
-        if n in stories and n in marked:
-            words = stories[n]
-            say = (f"a steady timed set: in text the setup, the go and a first cue; in handback the time checks and "
-                   f"the finish; about {max(whole - words, 20)} words together (a {words}-word story goes between)")
-        elif n in stories:
-            words = stories[n]
-            say = f"opener and handback, about {max(whole - words, 20)} words together (a {words}-word story goes between)"
-        else:
-            say = f"about {whole} words"
-        rows.append(f"#{n} at {at // 60}:{at % 60:02d}, {secs} s, {label}. Markers: {marks}. Write: {say}.")
+        where = ""
+        if n in stories:
+            where = (" A story is told here, during the set, after its first cue." if n in marked else
+                     " A story is told here, in the rest.")
+        rows.append(f"#{n} at {at // 60}:{at % 60:02d}, {secs} s, {label}. Markers: {marks}.{where}")
         at += secs
     return "\n".join(rows)
+
+
+def host_plan(segs: list, budget: dict, notes: dict[int, str], placed: dict, marked: frozenset = frozenset(),
+              rests: dict | None = None) -> str:
+    """The plan as the host reads it: each segment's time, label, words and markers, the trainer's notes, and the
+    story told there, as the researcher's notes, with its share of the words (`rests`: slots' (coach, story) words),
+    so a story is told whole rather than summed up and the rest padded with breathing lines."""
+    out, at = [], 0
+    for n, (_, label, secs, body) in enumerate(segs, 1):
+        marks = " ".join(m for m in tools.MARK.findall("\n".join(body))
+                         if m.lower() not in ("[story]", "[/story]")) or "none"
+        words = round(budget.get(n, 0) * (1 if "[hold]" in "\n".join(body) else COACH_AIM))
+        story = placed.get(n)
+        share = ""
+        if story is not None and rests and n in rests and budget.get(n):
+            share = (f" About {round(words * rests[n][1] / budget[n])} of them are the story, told whole with its "
+                     "detail; the coaching around it takes the rest, nothing more.")
+        part = [f"## #{n} at {at // 60}:{at % 60:02d}, {secs} s, {label}",
+                f"Write about {words} words.{share} Markers, in order: {marks}.",
+                "Trainer's notes:\n" + (notes.get(n, "").strip() or "none")]
+        if story is not None:
+            part.append(f"Tell this story here ({'during the set, after the first cue' if n in marked else 'in the rest'}"
+                        f"; {story.format}, {story.topic}):\n{story.text.strip()}")
+        out.append("\n".join(part))
+        at += secs
+    return "\n\n".join(out)
 
 
 def _home_text(deps, rel: str) -> str:
@@ -403,6 +397,7 @@ async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: s
         if isinstance(e, ModelHTTPError) and e.status_code != 504 or not lower:
             raise
         return await _ask(deps, who, agent, model, prompt, usage, lower[0], capabilities, history)
+    deps.room_searches += sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts)
     return result
 
 
@@ -425,16 +420,16 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
               + (f"# Today's research sheet\n\n{research.strip()}\n\n" if research else "")
               + f"# Today's feeds sheet\n\n{(feeds.output if feeds.code == 0 else '').strip() or 'none today'}\n\n"
               f"# What to write\n\nThe session runs {minutes} minutes, with about {count} places for a piece: some during "
-              f"steady timed work, while they move, and some in the rests. {count} stories, about {STORY_WORDS} words "
-              f"each (anywhere from {STORY_WORDS // 2} to {STORY_WORDS * 4 // 3}), each marked steady or rest by where "
-              "it suits (the plan's formats say where each kind lands). The last two are spares, told only if "
+              f"steady timed work, while they move, and some in the rests. {count} pieces, each with notes enough for "
+              f"about {STORY_WORDS} words once told (anywhere from {STORY_WORDS // 2} to {STORY_WORDS * 4 // 3}), each "
+              "marked steady or rest by where it suits (the plan's formats say where each kind lands). The last two are spares, told only if "
               "there's room: nothing else depends on them.")
-    told = await _ask(deps, "content", CONTENT, model, prompt, usage, "MEDIUM", capabilities=search)
+    told = await _ask(deps, "research", RESEARCHER, model, prompt, usage, "MEDIUM", capabilities=search)
     found = {s.number: s for s in told.output.stories}
     titles = told_titles(plan.output)
     repeats = {n: t for n, s in found.items() if (t := retold(s, titles))}
     if repeats:
-        again = await _ask(deps, "content", CONTENT, model, (
+        again = await _ask(deps, "research", RESEARCHER, model, (
             "Write these again, whole, each about another item, and return only these: "
             + "; ".join(f"story {n} retells \"{t}\", told before" for n, t in repeats.items()) + "."),
             usage, "MEDIUM", capabilities=search, history=told.all_messages())
@@ -442,8 +437,19 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
     return [found[n] for n in sorted(found)]
 
 
+SAY = re.compile(r"^\s*(?:[-*]\s*)?(SAY EXACTLY:|SAY, EVERY PART KEPT:)\s*(.+?)\s*$", re.MULTILINE)
+
+
+def must_say(notes: dict[int, str]) -> str:
+    """The trainer's must-say lines as the review's checklist, by segment: a line buried in its notes is the one a
+    review passes over (a left knee became "the right side" through two reviews, 2026-11-02)."""
+    how = {"SAY EXACTLY:": "word for word", "SAY, EVERY PART KEPT:": "every part kept"}
+    return "\n".join(f"- #{n}, {how[kind]}: {line}"
+                     for n, text in sorted(notes.items()) for kind, line in SAY.findall(text))
+
+
 def numbered(text: str) -> str:
-    """A draft with each @@ line numbered, as the lint numbers segments, for the final script writer."""
+    """A draft with each @@ line numbered, as the lint numbers segments, for the trainer's review."""
     n = 0
     out = []
     for line in text.split("\n"):
@@ -455,8 +461,8 @@ def numbered(text: str) -> str:
 
 
 async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
-    """The script's words for the skeleton at `path`: the stories (started with the brief, or now), the coaching
-    around them, then the edit. (the draft, a note for the agent)."""
+    """The script's words for the skeleton at `path`: the researcher's notes (started with the brief, or now) and the
+    trainer's beside them, the host's script from both, then the trainer's review. (the draft, a note for the agent)."""
     full, rel = tools._mine(deps, path)
     if full is None:
         raise NotReady(rel)
@@ -494,11 +500,10 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
     about, feeds = await asyncio.gather(asyncio.to_thread(tools.run, plain, ["movements", "--about", ",".join(ids)]),
                                         asyncio.to_thread(tools.run, plain, ["feeds"]))
     weather = _section(feeds.output if feeds.code == 0 else "", "Weather") or "not known"
-    coach_prompt = (
+    trainer_prompt = (
         f"Now: {deps.now}.\n\n# The brief\n\n{coach_brief(brief, ids)}\n\n# The coaching notes\n\n"
-        f"{about.output.strip()}\n\n# The weather\n\n{weather}\n\n# The plan\n\nThis coach says about {rate:.1f} "
-        f"words a second, so each segment's words fill its seconds: a hold or pause you add takes {rate:.1f} words a "
-        f"second from them.\n\n{head[0] if head else ''}\n{_plan_table(segs, budget, story_words(budget, rests), frozenset(marked))}")
+        f"{about.output.strip()}\n\n# The plan\n\n{head[0] if head else ''}\n"
+        f"{_plan_table(segs, budget, story_words(budget, rests), frozenset(marked))}")
 
     async def the_stories() -> list[Told]:   # started as the brief was saved, or written now
         job = deps.content_job if deps.content_job is not None and deps.content_for == path else None
@@ -509,16 +514,27 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
                 pass
         return await stories(deps, model, usage, path, max(1, round(sum(s for _, _, s, _ in segs) / 60)), search)
 
-    # the stories and the coaching side by side, each from its own material
-    told, coached = await asyncio.gather(the_stories(),
-                                         _ask(deps, "coach", COACH, model, coach_prompt, usage, "MEDIUM"))
+    # the researcher's notes and the trainer's side by side, each from its own material
+    told, noted = await asyncio.gather(the_stories(),
+                                       _ask(deps, "trainer", TRAINER, model, trainer_prompt, usage, "MEDIUM"))
     placed = place(told, rests, marked)   # in order, each to a slot it suits: the spares, last, go when there are fewer
-    coaching = {w.number: w for w in coached.output.segments}
-    draft = assemble(skeleton, coaching, placed, rests)
+    notes = {x.number: x.notes for x in noted.output.segments}
 
-    # the edit: the assembled script as the listener hears it, with the build's check; once more if the check
-    # still finds something after it
+    # the host: every word, from both, as one person talking
     limits = _section(brief, "Today's limits")
+    host_prompt = (
+        f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n# The weather\n\n{weather}\n\n"
+        f"# The plan\n\nThis coach says about {rate:.1f} words a second, so each segment's words fill its seconds: a "
+        f"hold or pause you add takes {rate:.1f} words a second from them.\n\n"
+        f"{host_plan(segs, budget, notes, placed, frozenset(marked), rests)}")
+    hosted = await _ask(deps, "host", HOST, model, host_prompt, usage, "MEDIUM")
+    draft = apply_edits(skeleton, hosted.output.segments)
+    spoken = {e.number for e in hosted.output.segments}
+
+    # the trainer's review: the script as the listener hears it, with the build's check and the trainer's notes;
+    # once more if the check still finds something after it
+    said = "\n\n".join(f"#{n}\n{t.strip()}" for n, t in sorted(notes.items()) if t.strip())
+    must = must_say(notes)
     changed: set[int] = set()
     history = None
     for attempt in range(2):
@@ -526,17 +542,20 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
         if attempt and check.startswith("clean"):
             break
         draft = _read(full) if name and coach else draft
-        prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n# The script\n\n"
-                  f"{numbered(draft)}\n\n# The build's check\n\n{check}") if not attempt else (
+        prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n"
+                  + (f"# The lines to check, one by one\n\n{must}\n\n" if must else "")
+                  + f"# Your notes\n\n{said}\n\n"
+                  f"# The script\n\n{numbered(draft)}\n\n# The build's check\n\n{check}") if not attempt else (
                   f"The build's check after your edit:\n\n{check}\n\nFix what it names; return only those segments.")
-        edited = await _ask(deps, "final", FINAL, model, prompt, usage, "MEDIUM", history=history)
+        edited = await _ask(deps, "review", REVIEW, model, prompt, usage, "MEDIUM", history=history)
         history = edited.all_messages()
         draft = apply_edits(draft, edited.output.segments)
         changed |= {e.number for e in edited.output.segments}
 
     logged = [f'--item "{s.topic} | {s.format} | {s.title} | {s.source}"' for _, s in sorted(placed.items())]
-    note = (f"Three writers wrote the words: {len(placed)} stories in {len(rests)} places, the coaching for "
-            f"{len(coaching)} of {len(segs)} segments, and the final script writer changed {len(changed)}. "
+    note = (f"The writers' room wrote the words: the host told {len(placed)} stories in {len(rests)} places and wrote "
+            f"{len(spoken)} of {len(segs)} segments from the trainer's notes, and the trainer's review changed "
+            f"{len(changed)}. "
             + ("After recording, log what was told: `content log --draft <draft> " + " ".join(logged) + "`."
                if logged else ""))
     return draft, note
@@ -553,7 +572,7 @@ async def _lint(deps, plain, path: str, full: str, name: str | None, coach: str 
 
 
 def apply_edits(draft: str, edits: list[Edited]) -> str:
-    """The draft with the final script writer's segments in place of its own, each under its own @@ line (the clock is the
+    """The draft with the host's or the review's segments in place of its own, each under its own @@ line (the clock is the
     skeleton's: an edit can't change it)."""
     head, segs = split(draft)
     bodies = {e.number: e.text.strip("\n") for e in edits if 1 <= e.number <= len(segs)}

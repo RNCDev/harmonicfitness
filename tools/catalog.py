@@ -18,6 +18,17 @@ import paths
 POSITIONS = ("standing", "seated", "lying", "side-lying", "kneeling", "all-fours")
 MEASURES = ("reps", "time")
 LEVELS = ("novice", "experienced", "advanced")
+# each level as the listener picks it at setup, and how much the coach explains to them (the brief's Level line)
+LEVEL_SAID = {
+    "novice": "I'm new to this, or it's been a long while.",
+    "experienced": "I've trained before and know the basic moves, but I'm no expert.",
+    "advanced": "I know my way around and want to be pushed.",
+}
+LEVEL_EXPLAINING = {
+    "novice": "walk them through every setup, step by step in plain words, and say what any gym term means",
+    "experienced": "the whole setup the first time a movement appears, then the target and one point a set",
+    "advanced": "name the movement and give the one cue that matters; no lesson, even the first time",
+}
 INTENSITIES = ("strength", "conditioning", "mobility", "skill", "breathing")
 EFFORTS = ("easy", "moderate", "hard")   # how hard a conditioning entry is; every one carries it
 FORMAT = 3
@@ -458,9 +469,10 @@ def equipment_keys(cat: Catalog, words: List[str]) -> Set[str]:
     return out
 
 
-def about(cat: Catalog, m: Movement, side: str = "") -> List[str]:
+def about(cat: Catalog, m: Movement, side: str = "", allowed: Optional[Set[str]] = None) -> List[str]:
     """A movement's spoken coaching from the catalog, as indented lines: setup, cues, what one rep is,
-    where to feel it, the common faults with their fixes, and the easier and harder versions. `side`
+    where to feel it, the common faults with their fixes, and the easier and harder versions (with `allowed`,
+    today's menu ids, only those on it: a version the menu check would refuse is no option to offer). `side`
     names the one side to work when only the healthy side is allowed."""
     where = m.position + (f", {side} side only" if side else ", one side at a time" if m.sided else "")
     out = [f"  {m.name} ({where}):", f"    Setup: {m.setup}", f"    Cues: {' '.join(m.cues)}"]
@@ -471,6 +483,7 @@ def about(cat: Catalog, m: Movement, side: str = "") -> List[str]:
     if m.faults:
         out.append(f"    Faults: {' '.join(m.faults)}")
     for label, ids in (("Easier", m.easier), ("Harder", m.harder)):
+        ids = [i for i in ids if allowed is None or i in allowed]
         if ids:
             out.append(f"    {label}: {', '.join(cat.movements[i].name if i in cat.movements else i for i in ids)}")
     return out

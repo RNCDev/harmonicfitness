@@ -2,7 +2,7 @@
 schema = 6
 # What the coach calls you: a first name or nickname, said in the welcome, at the hardest set and at the sign-off. Empty means no name.
 name = ""
-# Your training level: novice, experienced or advanced. The brief's menu of movements matches it; until set, it assumes novice.
+# Your training level: novice (new to this, or it's been a long while), experienced (trained before, knows the basic moves) or advanced (knows their way around, wants to be pushed). The brief's movements and doses match it, and how much the coach explains; until set, it assumes novice.
 experience = ""
 +++
 # My Profile
