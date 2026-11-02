@@ -37,7 +37,8 @@ describe("the app", () => {
       return Promise.resolve(new Response(null, { status: 404 }));
     }));
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: /^Gemini/ }));
+    // the first render in a cold CI runner took 1.3 s, past findBy's 1 s default
+    fireEvent.click(await screen.findByRole("button", { name: /^Gemini/ }, { timeout: 5000 }));
     const box = await screen.findByLabelText("Gemini key");
     await waitFor(() => expect(box).toHaveFocus());
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
