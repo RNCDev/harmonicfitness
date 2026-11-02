@@ -3,7 +3,8 @@ loops' way to try a change to the web coach without a deploy (maintainer only).
 
     .venv/bin/python web/local_turn.py <a context folder, such as a pull's me/> <out dir> "<request line>"
 
-The same agent, instructions, tools and step 1 as the worker, on Gemini. The key comes from the repo root's .env
+The same agent, instructions, tools and step 1 as the worker, on Gemini (with HARMONICFITNESS_WRITERS=two, the
+two writers' version, whose calls go to <out>/writers.json). The key comes from the repo root's .env
 (as web/qat_key.py reads it) and is never printed; it writes the script and prices a Gemini coach. Saves
 <out>/me/ (the turn's files) and <out>/history.json (as `pull` saves one), and prints the time, the requests and
 tokens, the offer and the reply. Nothing is sent to the live site, and the context folder itself isn't changed.
@@ -55,6 +56,9 @@ pool.shutdown(wait=True)
 u = outcome.usage
 with open(os.path.join(out, "history.json"), "w", encoding="utf-8") as f:
     f.write(json.dumps({"id": 0, "history": json.loads(outcome.history_json)}))
+if deps.tracks:   # HARMONICFITNESS_WRITERS=two: each writer's call, for docs/eval/timing.py
+    with open(os.path.join(out, "writers.json"), "w", encoding="utf-8") as f:
+        json.dump(deps.tracks, f, indent=1)
 print(f"[{total:.0f}s] (step 1 {pre:.1f}s) {u.get('requests')} requests, {u.get('input_tokens')} in, "
       f"{u.get('output_tokens')} out, {u.get('searches', 0)} searches; offer={json.dumps(deps.offer)}")
 print(outcome.reply or "")

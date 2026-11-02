@@ -1,5 +1,6 @@
 """Where one web turn's time went: each model request's seconds, tokens and tool calls, what each draft write
-added up to, and each build's guide spread, from a turn's history.json (web/local_turn.py's, or a `pull`'s).
+added up to, and each build's guide spread, from a turn's history.json (web/local_turn.py's, or a `pull`'s), with
+the two writers' calls from writers.json beside it when there is one.
 
     .venv/bin/python docs/eval/timing.py <folder holding history.json>
 """
@@ -54,8 +55,15 @@ def main():
         print(f"{(at - start).total_seconds():6.0f}s  +{(at - last).total_seconds():5.1f}s  "
               f"out={used.get('output_tokens', 0):6}  in={used.get('input_tokens', 0):6}  {', '.join(calls(message))}")
         last = at
-    for out in returns(history, ("write_file", "edit_segments", "run")):
-        if out.startswith(("wrote ", "replaced ")):
+    tracks = os.path.join(sys.argv[1], "writers.json")   # the two writers' calls (HARMONICFITNESS_WRITERS=two)
+    for call in json.load(open(tracks, encoding="utf-8")) if os.path.exists(tracks) else []:
+        if call.get("deadline"):
+            print(f"WRITER {call['writer']} round {call['round']}: hit the deadline after {call['seconds']}s")
+            continue
+        print(f"WRITER {call['writer']} round {call['round']}: {call['seconds']}s, {call['requests']} requests, "
+              f"out={call['output_tokens']} in={call['input_tokens']}, {call['searches']} searches")
+    for out in returns(history, ("write_file", "edit_segments", "run", "write_script")):
+        if out.startswith(("wrote ", "replaced ", "Two writers")):
             print("WRITE", out.splitlines()[0][:220])
         if "secs words guide" not in out:
             continue

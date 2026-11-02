@@ -1079,7 +1079,8 @@ class Instructions(AgentCase):
         self.assertEqual(agent._write_step("me/coaches/.auditions/coach-dana.md"), "Describing your coach")
 
     def test_every_tool_is_registered(self):
-        self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "edit_segments", "list_files"})
+        self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "edit_segments", "list_files",
+                                                                   "write_script"})
 
 
 if __name__ == "__main__":

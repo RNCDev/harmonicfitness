@@ -89,6 +89,17 @@ class Deps:
     # each draft's last "add about N words" as shown to the writer, and its words then: (shown, words), so the
     # next ask is scaled by how much of that one the writer delivered
     asks: dict[str, tuple[int, int]] = field(default_factory=dict)
+    # who writes the script's words: "one" (this agent, in passes) or "two" (a coach writer and a story writer side
+    # by side, `write_script`; HARMONICFITNESS_WRITERS, the eval loops' experiment)
+    writers: str = "one"
+    # each skeleton's last lint report, by its draft's path: the word budgets the writers write to
+    reports: dict[str, str] = field(default_factory=dict)
+    # each writer's call this turn (who, which round, seconds, tokens, what it returned), for the eval loops
+    tracks: list = field(default_factory=list)
+    # the story writer, started as the brief runs (two writers): its future, and the draft it writes for
+    story_job: object = field(default=None, repr=False)
+    story_for: str | None = None
+    loop: object = field(default=None, repr=False)   # the turn's event loop, which the story writer runs on
 
 
 class ToolResult(BaseModel):
