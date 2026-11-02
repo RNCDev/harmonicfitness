@@ -2,6 +2,55 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.54.0] - 2026-11-02
+
+Scripts now set an exercise up and then keep the listener company, instead of coaching through every second. The instructions come before "go": the movement, its one or two form points, the target. One cue follows in the first seconds. Steady timed work then carries the conversation, broken by time checks and one form reminder where tiredness bites. Hard efforts and counted sets keep to short cues, because a listener can't follow a story while working flat out or counting reps. Rests are for recovering first, with room for something short. The content formats now say how each kind is told, so stories sound like a friend talking rather than a news ticker.
+
+### Added
+- **`timed-sets`, a session method** (`knowledge/sessions.toml`). It is a short loop of movements, each for a set time at a steady pace. It comes first for a whole-body day; strength days still start from counted sets. The strength dose gains `timed_seconds` (40 to 60), and `programming.md` has its rule. Both are house defaults: timed work leaves room for talk and stays in step with a listener who moves faster or slower than planned.
+- **Every content format says how it's told** (`knowledge/content.toml`):
+  - `fits`: where it lands (in steady work, in a rest, at the close);
+  - `tell`: its shape in beats;
+  - `ends`: what it lands on;
+  - `avoid`: the way it goes flat.
+
+  The content plan prints all four.
+- **A `[mix]` section** in content.toml, printed as the plan's "How they sit together":
+  - never say a format's name or announce a segment;
+  - never two news items in a row;
+  - steady work carries the easy listening, and the rests what needs a moment;
+  - a shape across the session;
+  - every piece ends on its point and links to the one before when it's true.
+- **Two formats:** `roundup` (two or three small results told as one catch-up, with a reaction) and `inside_the_move` (what today's movement does in the body).
+- **A skeleton marks a story's place in the work** with an empty `[story] [/story]` after a steady timed set's go. The brief, the web agent's instructions and the web writers use it.
+- **The web writers fill those places,** a marked warm-up included. The content writer marks each story as suited to steady work or a rest, and each place takes the next story that suits it, in the order told. The coach writer sets up a timed set before its story and puts the time checks and finish after it. The research brief can stock `inside_the_move`.
+- **A worked example** in `knowledge/script.md`: a timed set that carries a story between its time checks.
+
+### Changed
+- **`knowledge/script.md`:**
+  - "Coach fully once" became **Set it up, then keep them company**.
+  - New: **Hard work and counted sets keep the coach's whole attention**.
+  - "A rest holds one story" became **Tell it the way a friend would**.
+  - The quick-hit exception became **Where stories go**.
+  - A timed set keeps its full time with a bare `[hold]` before its last cue.
+- **Content plan:**
+  - It is titled "Content plan".
+  - "Quick hits in the work" became **In the work**. Its band field `quick` became `in_work`: 3, 6 and 8 pieces by length, up from 2, 4 and 6.
+- **Research suggests a format; the writer chooses it**, to suit where the piece lands.
+- **The workout skill, CLAUDE.md, the README, the docs page and the template:** stories now go in the steady work as well as the rests.
+- **The web writers' guide sections** now stop with an error when a bullet title they quote is renamed away, instead of leaving a silent gap in a prompt.
+- **A front-end test** waits five seconds for the app's first screen, after a cold CI runner took 1.3.
+
+### For forks
+- **content.toml:**
+  - Every `[[format]]` needs `fits` (one or more of steady, rest, close), or the content tools stop. `tell`, `ends` and `avoid` are optional.
+  - The band field `quick` is now `in_work`; an old one reads as zero.
+  - `content plan --json` has `in_work` and `mix` in place of `quick`.
+- **sessions.toml:** a new work kind, `timed`, with `rest_seconds` allowed on it, and an optional strength dose key, `timed_seconds`.
+- **Drafts:** an empty `[story] [/story]` was always valid. A web skeleton now uses it to mark where a story goes.
+- **Web writers:** a story's `lands` field defaults to rest.
+- **`me/` needs no migration.**
+
 ## [0.53.0] - 2026-11-02
 
 Scripts written to their budgets land closer to plan. Writers had been coming in about 8 percent off on a first draft, for two reasons. The pace the budgets came from was slower than real coaching. And a set's word budget assumed the coach talked through the whole set. The budgets now use a pace sample that reads like real coaching, and a new `[reps N]` marker reserves each set's rep time. Separately, `check` now catches a name or weights written only in the prose, where the coach never sees them.

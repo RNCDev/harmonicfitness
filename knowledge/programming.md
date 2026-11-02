@@ -18,6 +18,8 @@ Rule: end working sets with about one to three reps left ("effort eight or nine 
 
 Rule: with light dumbbells, use higher reps (15 to 30) and take sets closer to failure than with a heavy weight. Don't promise one-rep strength from light kit; promise muscle and working strength.
 
+Rule: a timed set (house default, the listener's design, 2026-11-02) runs forty to sixty seconds at a steady pace, with a load that leaves two or three reps in reserve at the end: about the ten to twenty reps of the range above. The effort rule holds as for counted sets. Timed sets suit steady whole-body work, where the coach talks with the listener through the set; heavy sets near the top of the load range stay counted.
+
 ## Weekly dose
 
 - **More sets, more growth.** Schoenfeld and colleagues (2017, 15 studies) found each extra weekly set per muscle added a little more growth (about 0.37 percent). Grouped as under 5, 5 to 9 and 10 or more sets a week, the difference was only a trend. Source: https://pubmed.ncbi.nlm.nih.gov/27433992/ Only two studies used trained people, and there was too little data at high volumes to find a ceiling.

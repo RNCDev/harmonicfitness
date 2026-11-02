@@ -61,7 +61,7 @@ value = "featured"
 +++
 # Content
 
-What fills the rests between exercises. Write your topics as plain lines, as many as you like, each with a note if you want one ("scores and previews; a big trade is worth hearing about"). Before each workout the coach picks the topics told longest ago, finds what's new or worth knowing, and tells each one the way that suits it: a quick hit, a bigger story, an explainer, a quiz, a recommendation. Say "update my interests" any time to add topics, with ideas from what's trending.
+What the coach talks about while you move and between exercises. Write your topics as plain lines, as many as you like, each with a note if you want one ("scores and previews; a big trade is worth hearing about"). Before each workout the coach picks the topics told longest ago, finds what's new or worth knowing, and tells each one the way that suits it: a quick hit, a bigger story, an explainer, a quiz, a recommendation. Say "update my interests" any time to add topics, with ideas from what's trending.
 
 ## Topics
 I like to stay current on and learn about:

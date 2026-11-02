@@ -16,11 +16,11 @@ import errors
 import paths
 
 FORMAT = 2
-WORK = ("sets", "pairs", "rounds", "intervals", "holds")
-OPTIONAL_DOSE_KEYS = ("bodyweight_reps",)   # checked when present
+WORK = ("sets", "pairs", "rounds", "timed", "intervals", "holds")
+OPTIONAL_DOSE_KEYS = ("bodyweight_reps", "timed_seconds")   # checked when present
 ALL_OUT_KEYS = ("most_seconds", "rest_ratio")   # [all_out]: what counts as a sprint, and how long it rests
 DOSE_KEYS = {
-    "strength": ("sets", "reps", "rest_seconds", "hard_sets_per_session", "bodyweight_reps"),
+    "strength": ("sets", "reps", "rest_seconds", "hard_sets_per_session", "bodyweight_reps", "timed_seconds"),
     "conditioning": ("work_seconds", "rest_seconds", "rounds", "efforts_per_session"),
     "mobility": ("hold_seconds", "rounds"),
     "skill": ("drill_seconds", "rounds"),
@@ -39,7 +39,7 @@ class Method:
     work: str
     finisher: Optional[dict] = None
     needs: List[str] = field(default_factory=list)
-    rest_seconds: Optional[List[int]] = None   # rounds: the rest between rounds, in place of the dose's
+    rest_seconds: Optional[List[int]] = None   # rounds and timed: the rest between rounds or stations, in place of the dose's
 
 
 @dataclass
@@ -127,8 +127,8 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
             fault = _range_fault(m.rest_seconds)
             if fault:
                 out.append(f"The rest_seconds of method {name} {fault}: {m.rest_seconds}.")
-            elif m.work != "rounds":
-                out.append(f"Method {name} has rest_seconds, which only a rounds method uses.")
+            elif m.work not in ("rounds", "timed"):
+                out.append(f"Method {name} has rest_seconds, which only a rounds or timed method uses.")
     pace = s.rep_pace
     if not isinstance(pace, (int, float)) or isinstance(pace, bool) or not 0.3 <= pace <= 2:
         out.append(f"The timing rep_pace is {pace}; it needs a number from 0.3 to 2.")

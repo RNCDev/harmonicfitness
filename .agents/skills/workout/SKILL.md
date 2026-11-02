@@ -19,7 +19,7 @@ Rules that always hold:
 This step reads only what the check-in's questions need.
 - `date "+%Y-%m-%d %A %H:%M"`: morning previews the day, evening recaps.
 - `./harmonicfitness check`: a `me/health.md` issue (a malformed `[[limits]]` row applies no limit; a prose injury with no row gets no rule) is fixed at the check-in, then checked again. Notes are fine; with no experience level the default is novice until set, so offer to set it.
-- `./harmonicfitness content plan`: the rests plan (topics due, a serial or not, the stock).
+- `./harmonicfitness content plan`: the content plan (topics due, a serial or not, the stock).
 - `./harmonicfitness get limits`: loosening signs; red flags.
 - `./harmonicfitness get coach`: who's coaching (the coach used last, else their own web coach, else a stand-in that works here); the check-in's Coach question offers them first. Exit 1 (that coach is archived): ask the Coach question with `./harmonicfitness coaches`' list.
 - Read `me/profile.md`, `me/training.md`, `me/health.md` and `me/log.md` (not `me/content.md`: research reads that). No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./harmonicfitness doctor` says so), only web coaches speak and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./harmonicfitness migrate`, then rerun.
@@ -80,8 +80,8 @@ Write `me/workouts/<stem>/<stem>.draft.txt`: the `movements:` line, then the seg
 <!-- web: skip -->
 Write in this order, so nothing waits:
 1. **Render ahead, for a local coach only.** When `./harmonicfitness get route --coach "<coach>"` said `local`, once the draft has its `movements:` line and first segment, run `./harmonicfitness build "<draft>" "<name>" --coach "<coach>" --follow` with `run_in_background: true`. For a web coach skip this step: every re-render would be billed (the build refuses `--follow` there). It renders each new or edited paragraph as it lands, and stops when the build starts.
-2. **Coaching first, without waiting for research.** Every segment's coaching from the brief: the opening with its weather, setups, cues, targets and self-checks, holds, transitions. Size the talk by the brief's Talk to time line; the rests' stories come later.
-3. **The stories, once research reports.** Fill the rests from the research sheet, the video sheet and the stock: the plan's topics, each in the format that suits it, woven through the session, each wrapped in `[story]` ... `[/story]`, and an open thread from the plan brought back where it fits (`knowledge/script.md`). Once the plan is posted, SendMessage any agent still searching to return what it has verified; script around gaps with coaching, never guesses.
+2. **Coaching first, without waiting for research.** Every segment's coaching from the brief: the opening with its weather, setups, cues, targets and self-checks, holds, transitions. Size the talk by the brief's Talk to time line; stories come later.
+3. **The stories, once research reports.** Fill the timed sets and rests from the research sheet, the video sheet and the stock: the plan's topics, each in the format that suits it, woven through the session, each wrapped in `[story]` ... `[/story]`, and an open thread from the plan brought back where it fits (`knowledge/script.md`). Once the plan is posted, SendMessage any agent still searching to return what it has verified; script around gaps with coaching, never guesses.
 4. **Read it through and rewrite** it as one piece, every safety line kept (`knowledge/script.md`, Last).
 5. **Lint.** `./harmonicfitness build "<draft>" "<name>" --lint-only --coach "<coach>"`, fix, repeat; only changed paragraphs render again. Rewrite any sentence it warns was said in an earlier workout.
 <!-- web: end -->

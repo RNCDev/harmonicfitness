@@ -65,7 +65,7 @@ PROFILE_SECTIONS = ("Default session",)   # the profile prose the brief quotes
 DOSE_WORDS = {"sets": "sets", "reps": "reps", "bodyweight_reps": "reps with no load",
               "rest_seconds": "rest (s)", "hard_sets_per_session": "hard sets a session",
               "work_seconds": "work (s)", "rounds": "rounds", "efforts_per_session": "hard efforts a session",
-              "hold_seconds": "hold (s)", "drill_seconds": "drill (s)"}
+              "hold_seconds": "hold (s)", "drill_seconds": "drill (s)", "timed_seconds": "a timed set (s)"}
 GOAL_DOSES = {"strength": ("strength", "conditioning"), "general": ("strength", "conditioning"),
               "targeted": ("strength", "conditioning"), "conditioning": ("conditioning", "strength"),
               "mobility": ("mobility",), "skill": ("skill", "strength")}
@@ -268,7 +268,8 @@ def _method_shape(m) -> str:
     """What the method's rules say beyond its about: how its work is counted, and a rest of its own."""
     parts = [f"work: {m.work}"]
     if m.rest_seconds:
-        parts.append(f"rest {m.rest_seconds[0]} to {m.rest_seconds[1]} s between rounds")
+        parts.append(f"rest {m.rest_seconds[0]} to {m.rest_seconds[1]} s between "
+                     + ("stations" if m.work == "timed" else "rounds"))
     return "; ".join(parts)
 
 
@@ -322,8 +323,9 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
             sets = max(round(work / 120), 1)
             out.append(f"- This session's work: about {sets} hard sets in its {work} s (a set with its rest is about "
                        "two minutes): three sets of each main movement when the time holds them, never two, and "
-                       "no more movements than leaves room for that. Rests are the dose's rests, never longer to fit "
-                       "a story, and the welcome stays under a minute: a story fits its rest, not the rest the story.")
+                       "no more movements than leaves room for that. Rests and timed sets are the dose's, never longer to "
+                       "fit a story, and the welcome stays under a minute: a story fits its moment, not the moment the "
+                       "story.")
         out += ["", f"Formats that suit a {minutes} minute {goal} session at this level with this kit "
                 "(any of them, or a mix, as long as the doses fit):"]
         out += [f"- {x.name}: {x.about} ({_method_shape(x)})" for x in ranked]
@@ -493,7 +495,8 @@ def _budget_line(voice_name: Optional[str], minutes: Optional[int] = None) -> Li
     return [f"- Talk to time: {voice_name} speaks about {wpm:.0f} words a minute"
             f"{'' if exact else ' (estimated; not measured on this computer yet)'}, so twenty seconds of talk "
             f"is about {wpm / 3:.0f} words. Holds, pauses and chimes take their own seconds. Write the skeleton "
-            "first (the `movements:` line and the `@@` lines with their counts, holds and `[reps N]` after each set's go, "
+            "first (the `movements:` line and the `@@` lines with their counts, holds and `[reps N]` after each counted "
+            "set's go, and an empty `[story] [/story]` after the go of each steady timed set that will carry a piece, "
             "no words yet): its build gives each segment's word budget, the reps' quiet left out, and every segment "
             "is written to its budget."]
 

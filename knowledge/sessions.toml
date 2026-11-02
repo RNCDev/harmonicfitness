@@ -38,6 +38,19 @@ cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breath
 finisher = { share = 0.10, seconds = [90, 300], from_minutes = 25 }   # house default: the finisher is house policy in programming.md
 work = "pairs"
 
+[methods.timed-sets]
+about = "A short loop of movements, each for a set time at a steady pace, a few rounds, the coach setting each one up before the go and talking with them through it."
+goals = ["general", "strength", "targeted"]   # general first: a whole-body day suits it best; heavy strength keeps counted sets
+minutes = [15, 60]   # house default: a loop of three or four timed stations and its rounds needs a quarter hour with warm-up and cool-down
+levels = ["novice", "experienced", "advanced"]
+warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
+cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
+work = "timed"   # each set the strength dose's timed_seconds, at a load that leaves two or three reps in reserve at the end
+rest_seconds = [30, 60]   # house default: a short breather between stations, the loop resting the other muscles in turn
+# House default, the listener's design (2026-11-02): timed work lets the coach set a movement up and then talk with
+# them through it, and stays in step with a listener who moves faster or slower than the plan, where a counted set
+# leaves them waiting on the audio or behind it. Effort is held as for counted sets (programming.md, Load range).
+
 [methods.circuit]
 about = "A short loop of movements, one after another with little rest, repeated for a few rounds."
 goals = ["general", "strength", "conditioning"]   # conditioning last: the conditioning methods fit it better
@@ -127,6 +140,7 @@ sets = [2, 3]                      # house default: few sets while technique set
 reps = [8, 12]                     # source: inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 rest_seconds = [60, 90]            # source: one to two minutes is enough for untrained people, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 hard_sets_per_session = [6, 12]    # house default: programming.md's session arithmetic, about two minutes a set, not a study
+timed_seconds = [40, 60]           # house default: about the ten to twenty reps of Iversen's range at the brief's rep pace https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 
 [dose.strength.experienced]
 sets = [3, 4]                      # house default: a step up from novice
@@ -134,6 +148,7 @@ reps = [6, 10]                     # source: inside Iversen's six to fifteen htt
 rest_seconds = [90, 120]           # source: one to two minutes for muscle work, ACSM https://pubmed.ncbi.nlm.nih.gov/19204579/
 hard_sets_per_session = [10, 16]   # house default: programming.md's session arithmetic, about two minutes a set, not a study
 bodyweight_reps = [10, 15]         # house default: a movement with no load needs more reps to be hard; inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+timed_seconds = [40, 60]           # house default: about the ten to twenty reps of Iversen's range at the brief's rep pace https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 
 [dose.strength.advanced]
 sets = [3, 5]                      # house default: a step up from experienced
@@ -141,6 +156,7 @@ reps = [4, 8]                      # house default: below Iversen's six for heav
 rest_seconds = [120, 180]          # source: trained people probably need two minutes or more, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772; the upper bound is a house default
 hard_sets_per_session = [12, 20]   # house default: programming.md's session arithmetic, about twenty at forty five minutes
 bodyweight_reps = [10, 20]         # house default: a movement with no load needs more reps to be hard; above Iversen's fifteen for trained people, slow on the way down
+timed_seconds = [40, 60]           # house default: about the ten to twenty reps of Iversen's range at the brief's rep pace https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 
 [dose.conditioning.novice]
 work_seconds = [20, 30]            # source: Gillen's efforts lasted twenty seconds https://pubmed.ncbi.nlm.nih.gov/27115137/; the upper bound is a house default

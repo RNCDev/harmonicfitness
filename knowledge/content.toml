@@ -1,16 +1,20 @@
-# What fills the rests besides the coaching. `./harmonicfitness content plan` reads this through
+# What the session carries besides the coaching. `./harmonicfitness content plan` reads this through
 # tools/content.py; the workout skill's research and script follow what it prints.
 #
 # The listener owns the topics: plain lines under `## Topics` in me/content.md ("I like to stay current
 # on and learn about..."). The engine owns the formats below: ways to tell something by ear, open to
-# any topic. The writer picks the format that suits each item and the time the rests have; the finder
-# (research) judges how big a story is, so a routine result is a quick hit and a big trade or a great
-# long read becomes the big story or an explainer. A listener leaves a format out with `skip_formats`.
+# any topic. Research finds the items and says how much there is to each (a line, a few beats, a serial's
+# worth); the writer picks the format that suits each item and the moment it lands in. A listener leaves
+# a format out with `skip_formats`.
 #
-# `words` is a rough size for one item at about 175 words a minute. `research` says where an item
-# comes from: "news" is found on the day; "evergreen" comes from the stock (me/workouts/research/
-# reserve/), stocked while the audio renders; "either" can be both; "none" needs no research (the writer
-# makes it from the brief, the log or the session itself). `across` is told in beats across several rests.
+# Each format says what it is and how a friend would tell it, not lines to say: `fits` where it lands
+# ("steady": during steady timed work, the warm-up or an easy walk, while they move; "rest": between
+# sets, while they recover; "close": the cool-down and the goodbye), `tell` its shape in beats, `ends`
+# what it lands on, and `avoid` the way it goes flat. `words` is a rough size for one item at about 175
+# words a minute. `research` says where an item comes from: "news" is found on the day; "evergreen" comes
+# from the stock (me/workouts/research/reserve/), stocked while the audio renders; "either" can be both;
+# "none" needs no research (the writer makes it from the brief, the log or the session itself). `across`
+# is told in beats across several rests or stretches of work.
 
 [[format]]
 id = "quick_hit"
@@ -19,6 +23,22 @@ group = "news"
 what = "a score, a headline, a release, a preview of tonight's game: one fact and why it matters to them"
 words = 50
 research = "news"
+fits = ["steady", "rest"]
+tell = "the fact in a breath, then why it's theirs"
+ends = "what it means for them, or what's next (tonight's game)"
+avoid = "two in a row, or a bare score with no reason to care"
+
+[[format]]
+id = "roundup"
+name = "Roundup"
+group = "news"
+what = "two or three small results or headlines from their topics, told together as one catch-up"
+words = 90
+research = "news"
+fits = ["rest", "steady"]
+tell = "the smaller ones in a line each, the one that matters most last"
+ends = "the coach's reaction to that one"
+avoid = "a ticker: a sentence each and no reaction"
 
 [[format]]
 id = "big_story"
@@ -28,6 +48,10 @@ what = "something significant on one of their topics (a big trade, a breakthroug
 words = 220
 research = "news"
 across = true
+fits = ["rest", "steady"]
+tell = "why it's theirs, what happened, the one number that lands; split at the turn"
+ends = "the coach's take, or what to watch for next"
+avoid = "a recap of every play"
 
 [[format]]
 id = "explainer"
@@ -36,6 +60,10 @@ group = "news"
 what = "how something works or why something happened, from a good article, paper or video; one idea made clear"
 words = 150
 research = "either"
+fits = ["steady", "rest"]
+tell = "the question first, then the one idea that answers it, with an everyday comparison"
+ends = "the idea in a sentence they could repeat"
+avoid = "a lecture: one idea, not three"
 
 [[format]]
 id = "number"
@@ -44,6 +72,10 @@ group = "news"
 what = "one figure from a topic and what it means, made concrete"
 words = 70
 research = "either"
+fits = ["steady", "rest"]
+tell = "the figure, then something they know to measure it against"
+ends = "what the number means for them"
+avoid = "a string of figures"
 
 [[format]]
 id = "myth_or_fact"
@@ -53,6 +85,10 @@ what = "a common belief about a topic, asked, then checked a rest later"
 words = 90
 research = "evergreen"
 across = true
+fits = ["rest"]
+tell = "the belief asked plainly, left with them through the work"
+ends = "the answer and its reason, a rest later"
+avoid = "answering it in the same breath"
 
 [[format]]
 id = "whats_on"
@@ -61,6 +97,10 @@ group = "news"
 what = "an upcoming show, talk, screening or exhibition near them: who, where, which night, and why it's theirs (a venue they named, or a kind of show their topics say they like, at a major venue nearby); never a ticket price or a sold-out claim not on the page found"
 words = 60
 research = "news"
+fits = ["rest", "close"]
+tell = "who, where, which night, and why it's theirs"
+ends = "the night, said plainly enough to remember"
+avoid = "a list of shows"
 
 [[format]]
 id = "on_this_day"
@@ -69,6 +109,10 @@ group = "news"
 what = "one moment from history on today's date, tied to a topic when one fits"
 words = 70
 research = "news"
+fits = ["steady", "rest"]
+tell = "the moment as a scene: who, where, what happened"
+ends = "a link to their topic, today or the work"
+avoid = "a date read out like a calendar"
 
 [[format]]
 id = "serial"
@@ -78,6 +122,10 @@ what = "one thread told in beats across the session, or across several sessions:
 words = 450
 research = "either"
 across = true
+fits = ["steady", "rest"]
+tell = "one beat a stretch, each picking up with a line of where we were"
+ends = "a hook to come back to (the last beat: the resolution, or what's next)"
+avoid = "a beat that only summarizes"
 
 [[format]]
 id = "profile"
@@ -86,6 +134,10 @@ group = "stories"
 what = "a person, team, company or place in three beats: who, the turn, where they are now"
 words = 140
 research = "evergreen"
+fits = ["steady", "rest"]
+tell = "who, the turn, where they are now"
+ends = "what the turn says, lightly"
+avoid = "a list of dates and titles"
 
 [[format]]
 id = "how_they_trained"
@@ -94,6 +146,22 @@ group = "stories"
 what = "an athlete, performer or expert from a topic whose training links to today's movement"
 words = 110
 research = "evergreen"
+fits = ["steady"]
+tell = "the person, the training detail, and how it echoes the set they're in"
+ends = "the link to this set"
+avoid = "telling them to train that way"
+
+[[format]]
+id = "inside_the_move"
+name = "Inside the move"
+group = "stories"
+what = "what today's movement does in the body: the muscles at work, why the legs burn, what the breath is for"
+words = 90
+research = "evergreen"
+fits = ["steady"]
+tell = "what they feel right now, then what's happening inside"
+ends = "how that helps them"
+avoid = "a medical claim, or a promise of results"
 
 [[format]]
 id = "quiz"
@@ -103,6 +171,10 @@ what = "a question asked in one rest and answered two or three later: trivia fro
 words = 120
 research = "evergreen"
 across = true
+fits = ["rest"]
+tell = "a question that works by ear, said twice"
+ends = "the answer and why, a few rests later, with a bit of fun"
+avoid = "a question that needs paper or a long list"
 
 [[format]]
 id = "this_or_that"
@@ -112,6 +184,10 @@ what = "a friendly debate to mull over during a set (best captain ever? book or 
 words = 80
 research = "either"
 across = true
+fits = ["rest", "steady"]
+tell = "two sides, a line each, then left with them"
+ends = "the coach's own pick later, with a reason"
+avoid = "settling it before they've thought"
 
 [[format]]
 id = "memory_game"
@@ -121,6 +197,10 @@ what = "a short list (four or five things, from a topic) given early and recalle
 words = 70
 research = "none"
 across = true
+fits = ["rest", "close"]
+tell = "four or five things, said slowly, then once more before the work"
+ends = "the list, recalled in the cool-down"
+avoid = "more than five things"
 
 [[format]]
 id = "brain_teaser"
@@ -130,6 +210,10 @@ what = "mental math, a riddle or word play short enough for one rest, answered i
 words = 60
 research = "evergreen"
 across = true
+fits = ["rest"]
+tell = "the teaser said slowly, twice"
+ends = "the answer, a rest later, and how to get there"
+avoid = "anything needing a pencil"
 
 [[format]]
 id = "language_bite"
@@ -139,6 +223,10 @@ what = "a phrase in a language one of their topics names, said, explained and us
 words = 60
 research = "none"
 across = true
+fits = ["rest", "steady"]
+tell = "the phrase, what it means, said once more slowly"
+ends = "the phrase used again later in the session"
+avoid = "more than one phrase"
 
 [[format]]
 id = "recommendation"
@@ -147,6 +235,10 @@ group = "personal"
 what = "a show, book, album, podcast, place or drink in the spirit of their Taste: why they'd like it and one concrete detail"
 words = 90
 research = "either"
+fits = ["steady", "rest", "close"]
+tell = "what it is, why it's theirs (their Taste), one concrete detail"
+ends = "when or where they could try it"
+avoid = "a list of picks"
 
 [[format]]
 id = "your_progress"
@@ -155,6 +247,10 @@ group = "personal"
 what = "a callback from their log: a streak, a heavier weight, a movement that's come along"
 words = 50
 research = "none"
+fits = ["rest", "close"]
+tell = "what the log shows, plainly"
+ends = "what it means for next time"
+avoid = "praise for what the coach couldn't see"
 
 [[format]]
 id = "reflection"
@@ -163,32 +259,51 @@ group = "personal"
 what = "a calm prompt for the cool-down: something to notice, a breath, a moment of thanks"
 words = 50
 research = "none"
+fits = ["close"]
+tell = "something to notice, slowly, with room to breathe"
+ends = "a quiet line, then the close"
+avoid = "a lesson or a moral"
 
-# How many topics a session's rests touch, by its length: the first band whose `up_to` (minutes) is at
-# least the session's. `spares` more are researched in case the rests have room; `serial` is whether the
-# session carries one thread told across it; `quick` is how many one-or-two-sentence quick hits (on this day,
-# a number, what's on) go into the work itself, in place of a repeated cue (house default: listener
-# feedback, 2026-11-01, that quick facts in the sets would make sessions feel more personal).
+# How many topics a session touches, by its length: the first band whose `up_to` (minutes) is at least the
+# session's. `spares` more are researched in case there's room; `serial` is whether the session carries one
+# thread told across it; `in_work` is how many pieces (a story's beat, a profile, a quick hit) are told during
+# steady timed work, after the setup and the first cue, rather than in the rests (house default: the listener's
+# design, 2026-11-02: set the movement up, then keep them company through it; listener feedback, 2026-11-01,
+# that stories in the sets made sessions feel more personal).
 [[band]]
 up_to = 15
 topics = 3
 spares = 1
 serial = false
-quick = 2
+in_work = 3
 
 [[band]]
 up_to = 30
 topics = 5
 spares = 2
 serial = true
-quick = 4
+in_work = 6
 
 [[band]]
 up_to = 999
 topics = 7
 spares = 2
 serial = true
-quick = 6
+in_work = 8
+
+# How the pieces sit together across a session, printed with the formats (house defaults: the listener's
+# review of two of their own sessions, 2026-11-02: the one that read as a news ticker announced each item by
+# its format and told four results in a row; the one that worked asked a quiz and paid it off, and linked a
+# story to the one before).
+[mix]
+rules = [
+    "Never say a format's name or announce a segment (\"on this day\", \"a quick dispatch\", \"news from\"): tell the thing, the way a friend starts a story.",
+    "Never two news items back to back: two or three small results become one roundup, with a reaction.",
+    "Steady timed work carries the easy listening (a story's next beat, a profile, an explainer, inside the move); the rests carry what needs a moment (a quiz asked or answered, a myth checked, a quick hit) and stay short after a hard set.",
+    "Hard efforts and counted sets carry none: the listener is working or counting.",
+    "A shape: something light and theirs early, the serial or the big story through the middle, a question paid off before the end, something calm at the close.",
+    "Every piece ends on its point (the coach's take, a question back to them, a link to the work, what's next), and links to the one before when it's true (\"since the Devils came up\").",
+]
 
 # What the listener has shown they like (tools/interests.py): evidence from feedback, ratings and what they
 # say they enjoyed, each signal fading by half every `half_life_days`. A learned topic, venue or taste counts

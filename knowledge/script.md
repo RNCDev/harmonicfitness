@@ -2,7 +2,7 @@
 
 A script has two jobs: get the listener through today's workout so it does what it's for (the goal, the doses, good form), and keep them glad they pressed play. Safety is the only hard rule, along with what the build checks. Everything else is up to you: write it the way this coach would talk to this person.
 
-The ingredients come from `./harmonicfitness brief`: the listener and their week, today's limits, the safe menu with each movement's coaching notes, the doses, and the coach with their character and pace. `./harmonicfitness content plan` says what the rests should carry. `knowledge/tts-rules.md` says what a voice can read.
+The ingredients come from `./harmonicfitness brief`: the listener and their week, today's limits, the safe menu with each movement's coaching notes, the doses, and the coach with their character and pace. `./harmonicfitness content plan` says what the session carries besides the coaching, and how its pieces sit together. `knowledge/tts-rules.md` says what a voice can read.
 
 ## Safety: the rules
 
@@ -29,8 +29,9 @@ The ingredients come from `./harmonicfitness brief`: the listener and their week
 The listener has no screen, no mirror and no clock. The coach's voice is all of those.
 
 - **Coach from the movement's notes** (`./harmonicfitness movements --about <ids>`): the setup, what one rep is the first time it appears (and whether reps count per side), where they should feel it, and the main fault's fix as a mid-set check ("If the hips sag, squeeze and brace.").
-- **Coach fully once, then trust them.** The first time a movement appears, give it everything: setup, the rep, the feel, the fault. After that a set needs its target, the count in, a cue or two and the finish ("Same as before, chest up, ten more."), not the whole lesson again. That leaves the rests and the easy work for the listener's world, which is what makes them press play next time. Safety lines never shrink: the self-check under a limit, every cue the listener must catch, and the limit cues, as "Limit cues where they matter" sets out (where a limit cue is itself a form cue, such as the breath, it replaces the movement's own).
-- **Stay with them through the work.** Lead the first reps to set the tempo, then cue what matters (form, the breath, how far through, the last few). No quiet runs past eight seconds (twenty with the pulse bed, `bed = "pulse"` in their settings; the brief's Counts and Voice lines say which), so a long set still gets a word every few seconds, but it can be short.
+- **Set it up, then keep them company.** The instructions come before the go: the movement, its one or two form points, the target, what to watch for. The first time a movement appears, that's the whole lesson (setup, the rep, the feel, the fault); after that, the target and the one point that matters ("Same as before, chest up, a minute at a pace you could hold."). After the go, one cue in the first seconds sets the tempo. Then steady timed work is where the coach talks with them: a story, the serial's next beat, inside the move (the content plan's In the work), broken by the time checks ("halfway", "last ten seconds") and one form reminder where tiredness bites, usually near the end. Nobody needs a form cue every few seconds, and constant cueing is what makes audio coaching sound like a drill. Safety lines never shrink: the self-check under a limit, every cue the listener must catch, and the limit cues, as "Limit cues where they matter" sets out (where a limit cue is itself a form cue, such as the breath, it replaces the movement's own).
+- **Hard work and counted sets keep the coach's whole attention.** A hard effort (an all-out interval, a heavy set's last reps, the named peak) gets short cues and encouragement, nothing to follow. A counted set gets cues only: a listener counting reps can't follow a story too. Where the session should carry talk, plan timed work (the brief lists timed methods), and keep counted sets for the heavy strength work.
+- **Stay with them through the work.** No quiet runs past eight seconds (twenty with the pulse bed, `bed = "pulse"` in their settings; the brief's Counts and Voice lines say which), so a set always has a voice in it: the talk in steady work, short cues in a counted set or a hard effort. A timed set keeps its full time with a bare `[hold]` before its last cue, so a piece that runs short leaves a moment of quiet, not an early end.
 - **Fit the set to its time.** Each movement's line gives its seconds a rep, already at the pace listeners really move: twelve reps at two and a quarter seconds is twenty-seven seconds of work, per side where it counts per side. Don't stretch a set past it; a listener who finishes first and waits in silence hears a coach behind them. Say the rest a segment actually holds.
 - **Paced breathing gets its time.** A breath counted in ("in for four, out for six") is followed by a hold at least as long as the count, so the voice never talks over the breath; give the in-breath and the out-breath each their own hold, so no silence runs past the limit; and a number of cycles said is a number scripted.
 - **Tell them where they are.** The time, the round, what's next and what to pick up. Timed work gets `[chime]` at each change and a `[count]` into the work.
@@ -51,9 +52,9 @@ For example, twelve single-leg bridges at two and a quarter seconds a rep, about
 One coach with one person they know: a good podcast host who happens to be coaching, not an app reading a list.
 
 - **The coach's voice.** Talk the way the brief's character talks: contractions, plain words, their humor, the listener's name now and then, their week and last feedback. Praise effort and the plan, never what only eyes would know ("that looked smoother", "best set yet", "great control"): the coach can't see them, so ask how it felt, or plan from the log. End a story on its point, not a stock tag line ("always good to keep an eye on that").
-- **A rest holds one story, told the way a friend would.** Why it's theirs (their team, their city, a show they loved), what happened, the one detail or number that makes it land, and what it means for them; then back to the work. The content plan says how many topics and the formats; mix them so no two rests sound alike (a quick hit, a this-or-that, a myth checked later, a show near them). Anything it lists as told stays untold. A rest with nothing worth telling gets the coach's own chat, their progress, the breath or what's next, never padding.
+- **Tell it the way a friend would.** Why it's theirs (their team, their city, a show they loved), what happened, the one detail or number that makes it land, and the coach's own reaction or what it means for them. The content plan's formats say how each kind is told and what it ends on, and its How they sit together how they mix: never name a format or announce a segment ("on this day", "news from the ice"), never two news items in a row, and a link from one piece to the next when it's true. Anything it lists as told stays untold. A moment with nothing worth telling gets the coach's own chat, their progress, the breath or what's next, never padding.
 - **Their taste counts as much as the news:** an upcoming show at their venues or near them (who, where, which night, from the listing; never a price or "sold out" not seen there), a recommendation from their Taste, a callback to something they enjoyed.
-- **Stories go in the rests and the easy work** (the warm-up, the cool-down, a walk between stations). The one exception is a quick hit, as the listener asked: once a movement has had its full coaching, a later set that isn't hard can trade a repeated cue for one sentence (on this day, a number, a show near them, a quick fact on a topic due; the content plan says about how many), never in a hard set, its last reps, or in place of a safety line. Wrap each story in `[story]` and `[/story]`: never spoken, and the build reads past them, so a story may name a movement off the menu or say left or right, but it never tells the listener to do anything, holds no `[hold]`, `[count]`, `[cue]` or `[chime]`, and closes in the segment it opens in.
+- **Where stories go.** Steady timed work and the easy work (the warm-up, the cool-down, a walk between stations) carry the longer listening: easy to follow while moving, a story's beat rather than a quiz or a run of numbers. A rest is for recovering first (the breath, how that felt, what's next), with room for something short: a quiz asked or answered, a myth checked, a quick hit; after a hard set, keep it short. Never in a hard effort, a counted set or its last reps, or in place of a safety line. Wrap each story in `[story]` and `[/story]`: never spoken, and the build reads past them, so a story may name a movement off the menu or say left or right, but it never tells the listener to do anything, holds no `[hold]`, `[count]`, `[cue]` or `[chime]`, and closes in the segment it opens in.
 - **Time-proof it.** The listener may press play an hour later. The brief says when it was written: give an event its day and time ("the Sixers host the Knicks tonight at seven thirty"), never "right now" or "in half an hour"; the weather is "this afternoon's".
 - **Weave threads.** A quiz asked in one rest and answered two later, an open thread from the plan brought back and closed, one left open for next time when it's worth it (`./harmonicfitness content thread`, after the build), the close echoing the welcome. Log every researched item told (`./harmonicfitness content log`).
 - **A shape:** a welcome under a minute that knows them (the day, the weather, how today fits the week), a build, a named peak, an easing off, and a close that says what they did, gives one reason to come back, and asks in a sentence how hard it felt.
@@ -85,6 +86,24 @@ A strength rest that carries a story, then hands back to the work:
     [story] Here's the part I liked. He told reporters he'd been shooting backhands after practice every day for a month, a hundred a day, because the coaches said it was the one shot goalies don't read. [/story]
 
     A hundred a day. We're doing twelve. Pick the dumbbells back up when you're ready, same weight, and same tempo, slow on the way down.
+
+A timed set set up before the go, then carrying a story between its time checks:
+
+<!-- example -->
+    @@ 55 | Round two, goblet squat, forty-five seconds
+    Goblet squat for forty-five seconds, at a pace you could hold the whole way. Same fifteen, held tight to the chest, and sit between the heels. [count 3 go]
+    Smooth and steady, and drive up through the whole foot.
+
+    [story] While you find your rhythm, the Flyers. That rookie from last week scored again last night, his third in four games, and this one came on the power play. [/story]
+
+    [story] What I like is how. The coaches moved him onto the second unit on Tuesday, and he scored on his first shift there. Sometimes a player just needs the puck more. [/story]
+
+    Halfway. Chest proud, and keep breathing.
+
+    [story] They're home against Boston on Saturday, the team that beat them twice already this year, and the coach says the kid stays on that unit. So that's the one to watch. [/story]
+
+    [hold]
+    Last ten seconds, slow and controlled on the way down. [cue rest]
 
 A quiz asked in one rest and answered later, the coach's own take in between:
 

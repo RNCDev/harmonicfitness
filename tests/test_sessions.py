@@ -37,7 +37,10 @@ class Methods(unittest.TestCase):
         self.assertEqual(pick("novice", "circuit"), "intervals")
         self.assertEqual(pick("novice", "intervals"), "circuit")     # circuit only after intervals was last
         self.assertEqual(pick("experienced", "intervals"), "tabata")   # a better-fitting method comes first
-        self.assertEqual([m.name for m in sessions.ranked(self.s, "general", 30, "novice", set())][0], "circuit")
+        # a whole-body day starts from timed sets, where the coach talks through the work
+        self.assertEqual([m.name for m in sessions.ranked(self.s, "general", 30, "novice", set())][:2],
+                         ["timed-sets", "circuit"])
+        self.assertEqual([m.name for m in sessions.ranked(self.s, "strength", 30, "novice", set())][0], "straight-sets")
 
     def test_choose_respects_minutes_and_needs(self):
         pick = choose(self.s, "strength", 15, "experienced", None, set())
@@ -69,7 +72,8 @@ class Methods(unittest.TestCase):
                     self.assertLessEqual(least, most, f"{intensity} {level} {key}")
 
     def test_methods_in_file_order(self):
-        self.assertEqual(list(self.s.methods), ["straight-sets", "paired-sets", "circuit", "intervals", "tabata",
+        self.assertEqual(list(self.s.methods), ["straight-sets", "paired-sets", "timed-sets", "circuit", "intervals",
+                                                "tabata",
                                                 "bike-intervals", "flow", "skill"])
         self.assertEqual(self.s.methods["bike-intervals"].needs, ["bike|air-bike"])
         self.assertIsNone(self.s.methods["circuit"].finisher)

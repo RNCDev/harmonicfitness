@@ -71,6 +71,32 @@ class Plan(unittest.TestCase):
         self.assertEqual(out, "movements: plank\n@@ 60 | Plank\n[count 3 go]\n[cue rest]\n"
                               "@@ 30 | Breathing\n[pause 4s] [pause 6s]\n")
 
+    def test_a_steady_timed_set_marked_in_the_skeleton_carries_a_story_and_says_how(self):
+        skeleton = SKELETON.replace("@@ 50 | Goblet squat set two\n[count 3 go]\n",
+                                    "@@ 50 | Goblet squat set two\n[count 3 go] [story] [/story]\n[hold]\n[cue rest]\n")
+        _, segs = writers.split(skeleton)
+        budget = writers.budgets(REPORT)
+        self.assertEqual(writers.steady(segs), {4})
+        warm = writers.split(SKELETON.replace("@@ 60 | Welcome\n", "@@ 60 | Welcome\n[count 3 go] [story] [/story]\n"))[1]
+        self.assertIn(1, writers.slots(warm, budget))   # a marked warm-up carries one, though it opens the session
+        rests = writers.slots(segs, budget)
+        self.assertEqual(rests[4], (118 - round(118 * writers.WORK_STORY_SHARE), round(118 * writers.WORK_STORY_SHARE)))
+        table = writers._plan_table(segs, budget, writers.story_words(budget, rests), frozenset({4}))
+        row = next(r for r in table.split("\n") if r.startswith("#4 "))
+        self.assertIn("a steady timed set: in text the setup, the go and a first cue", row)
+        self.assertIn("Markers: [count 3 go] [hold] [cue rest]", row)   # the mark itself isn't the coach's to write
+
+    def test_each_story_goes_to_a_slot_it_suits_in_the_order_told(self):
+        quiz = Told(number=1, topic="-", format="quiz", title="Q", source="s", text="Which planet?", lands="rest")
+        serial = Told(number=2, topic="-", format="serial", title="S", source="s", text="Part one.", lands="steady")
+        answer = Told(number=3, topic="-", format="quiz", title="A", source="s", text="Venus.", lands="rest")
+        placed = writers.place([quiz, serial, answer], {2: (10, 50), 3: (10, 50), 5: (10, 50)}, {2})
+        self.assertEqual({n: s.title for n, s in placed.items()}, {2: "S", 3: "Q", 5: "A"})
+
+    def test_a_guide_bullet_renamed_away_is_an_error_not_a_silent_gap(self):
+        with self.assertRaises(ValueError):
+            writers.bullets("- **One thing.** Text.", "Another thing")
+
     def test_a_thirty_minute_session_asks_for_about_a_dozen_stories(self):
         self.assertEqual(writers.pieces_for(30), 12)
         self.assertEqual(writers.pieces_for(10), 4)
@@ -86,6 +112,13 @@ class Assemble(unittest.TestCase):
                     3: Written(number=3, text="Set it down.", handback="Pick the bell back up."),
                     6: Written(number=6, text="Breathe in for four. [pause 4s] Good work today.")}
         draft = writers.assemble(SKELETON, coaching, {3: told(3, "First part.\n\nSecond [hold] part.")}, rests)
+        work = writers.assemble(SKELETON.replace("@@ 50 | Goblet squat set two\n[count 3 go]\n",
+                                                 "@@ 50 | Goblet squat set two\n[count 3 go] [story] [/story]\n"),
+                                {4: Written(number=4, text="Sixty seconds. [count 3 go] [story] [/story] Smooth.",
+                                            handback="Halfway. [hold] Last ten. [cue rest]")},
+                                {4: told(4, "The Flyers won.")}, {4: (40, 60)})
+        self.assertIn("@@ 50 | Goblet squat set two\nSixty seconds. [count 3 go] Smooth.\n\n[story] The Flyers won. "
+                      "[/story]\n\nHalfway. [hold] Last ten. [cue rest]", work)
         self.assertEqual([ln for ln in draft.split("\n") if ln.startswith("@@")],
                          [ln for ln in SKELETON.split("\n") if ln.startswith("@@")])
         rest = draft.split("@@ 90 | Rest after goblet squat set one\n")[1].split("@@")[0]
@@ -134,9 +167,11 @@ class Brief(unittest.TestCase):
         g = writers.guides(ROOT)
         coach, story, editor = g["coach"], g["content"], g["final"]
         self.assertIn("## Safety: the rules", coach)
-        self.assertIn("Coach fully once", coach)
-        self.assertNotIn("Coach fully once", story)
-        self.assertIn("A rest holds one story", story)
+        self.assertIn("Set it up, then keep them company", coach)
+        self.assertNotIn("Set it up, then keep them company", story)
+        self.assertIn("Tell it the way a friend would", story)
+        for text in (coach, story, editor):
+            self.assertIn("Where stories go", text)
         self.assertIn("Never invent facts", story)
         self.assertIn("Weave threads.** A quiz", story)
         self.assertIn("Never change a movement", editor)
@@ -175,11 +210,12 @@ class Switch(unittest.TestCase):
         self.assertIn("You have web search", one)
         self.assertNotIn("write_script", one)
         self.assertIn("write_script", two)
-        self.assertNotIn("Then the rests, in one `edit_segments`", two)
+        self.assertIn("Then the rests and the marked timed sets, in one `edit_segments`", one)
+        self.assertNotIn("Then the rests and the marked timed sets, in one `edit_segments`", two)
         self.assertEqual(agent.PREAMBLE, one)
         # with three writers the agent reads script.md's safety, not the craft the writers write by
-        self.assertIn("Coach fully once", agent.skill_text(ROOT))
-        self.assertNotIn("Coach fully once", agent.skill_text(ROOT, writers="three"))
+        self.assertIn("Set it up, then keep them company", agent.skill_text(ROOT))
+        self.assertNotIn("Set it up, then keep them company", agent.skill_text(ROOT, writers="three"))
         self.assertIn("Only the menu.", agent.skill_text(ROOT, writers="three"))
 
     def test_write_script_is_offered_only_to_a_three_writer_turn(self):

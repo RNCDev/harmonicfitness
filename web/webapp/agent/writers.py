@@ -1,8 +1,9 @@
 """Three writers for one script, the site's way since 0.51.0 (HARMONICFITNESS_WRITERS=one has the agent write it).
-The agent plans the session (the skeleton: every segment's seconds, counts, holds and reps). Then a personal content writer writes
-what the rests carry, from the listener's topics, the day's sheets and its own searches (started as the brief is
-saved); a coach writer writes the coaching from the brief and the movements' notes, each rest's around a story of
-known length; and a final script writer reads the assembled script with the build's check and makes it one coach talking to one
+The agent plans the session (the skeleton: every segment's seconds, counts, holds and reps, and an empty
+[story] [/story] in each steady timed set that carries a piece). Then a personal content writer writes what the rests
+and the steady work carry, from the listener's topics, the day's sheets and its own searches (started as the brief is
+saved); a coach writer writes the coaching from the brief and the movements' notes, each story's segment around a
+story of known length; and a final script writer reads the assembled script with the build's check and makes it one coach talking to one
 person. Each reads only its own material; code holds what must hold (the clock, the silences, what was told)."""
 import asyncio
 import functools
@@ -18,6 +19,7 @@ from . import tools
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STORY_SHARE = 0.7      # of a rest's words, about the story's: a rest whose share is under SMALLEST_STORY carries none
+WORK_STORY_SHARE = 0.55   # of a steady timed set's: its setup, go, first cue, time checks and finish take the rest
 SMALLEST_STORY = 40
 STORY_WORDS = 140      # what a story is asked to run to, before the skeleton says how long each rest is
 # Gemini's coach wrote 9 to 23 percent over the words it was asked for (0.50.3's loop), and paragraph breaks add
@@ -25,6 +27,7 @@ STORY_WORDS = 140      # what a story is asked to run to, before the skeleton sa
 # segment its length, since a word short there is a second of silence)
 COACH_AIM = 0.85
 SILENCE = 8.0          # draft.MAX_SILENCE: a fixed hold or pause past it is refused, so the coach talks through it
+PLACE = re.compile(r"[ \t]*\[story\]\s*\[/story\]", re.IGNORECASE)   # a skeleton's mark for a piece told during the work
 STORY_REST = re.compile(r"\b(rest|transition|recover\w*)\b", re.IGNORECASE)
 NOT_STORY = re.compile(r"\b(welcome|close|cool[- ]?down|warm[- ]?up)\b", re.IGNORECASE)
 ROW = re.compile(r"^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$", re.MULTILINE)
@@ -48,9 +51,12 @@ def web_copy(text: str) -> str:
 
 class Written(BaseModel):
     number: int = Field(description="the segment's number in the plan")
-    text: str = Field(description="the segment's words with its markers in place; for a rest that carries a story, "
-                                  "its opener")
-    handback: str = Field(default="", description="for a rest that carries a story, the words after it; else empty")
+    text: str = Field(description="the segment's words with its markers in place; for a segment that carries a "
+                                  "story, what comes before it: a rest's opener, or a steady timed set's setup, go "
+                                  "and first cue")
+    handback: str = Field(default="", description="for a segment that carries a story, what comes after it: a rest's "
+                                                  "way back to the work, or a steady timed set's time checks, bare "
+                                                  "[hold] and finish; else empty")
 
 
 class Coaching(BaseModel):
@@ -64,6 +70,9 @@ class Told(BaseModel):
     title: str = Field(description="a short title, for the log")
     source: str = Field(description="a link, or the sheet it came from")
     text: str = Field(description="the story as the coach says it, in paragraphs of under fifty words, no markers")
+    lands: str = Field(default="rest", description="steady if it's easy to follow while moving (a story's beat, a "
+                                                   "profile, an explainer), rest if it needs a moment (a quiz asked or "
+                                                   "answered, a myth checked, a quick hit)")
 
 
 class Stories(BaseModel):
@@ -103,8 +112,9 @@ def bullets(section: str, *titles: str) -> str:
     found = []
     for title in titles:
         m = re.search(rf"^- \*\*{re.escape(title)}.*?(?=^- \*\*|\Z)", section, re.MULTILINE | re.DOTALL)
-        if m:
-            found.append(m.group(0).strip())
+        if not m:   # a bullet renamed in script.md would drop out of a writer's prompt unnoticed
+            raise ValueError(f"no bullet titled {title!r} in the guide")
+        found.append(m.group(0).strip())
     return "\n".join(found)
 
 
@@ -129,13 +139,15 @@ def guides(engine_root: str) -> dict[str, str]:
     said = ("Characters", "Numbers and abbreviations", "Words that trip a voice")
     out = {
         "content": task("personal-content-writer.md") + "\n\n## Telling it\n" + bullets(
-            engaged, "The coach's voice", "A rest holds one story", "Their taste counts", "Time-proof it",
-            "Weave threads") + "\n" + bullets(safety, "Never invent facts") + voice(*said),
+            engaged, "The coach's voice", "Tell it the way a friend would", "Where stories go", "Their taste counts",
+            "Time-proof it", "Weave threads") + "\n" + bullets(safety, "Never invent facts") + voice(*said),
         "coach": task("coach-writer.md") + f"\n\n## Safety: the rules\n{safety}\n\n## Getting the workout done\n{done}"
-                 "\n\n## The voice and the shape\n" + bullets(engaged, "The coach's voice", "Time-proof it", "A shape")
+                 "\n\n## The voice and the shape\n" + bullets(engaged, "The coach's voice", "Where stories go",
+                                                            "Time-proof it", "A shape")
                  + voice(*(h for h in tts if h != "The draft")),
         "final": task("final-script-writer.md") + "\n\n## What it should sound like\n" + bullets(
-            engaged, "The coach's voice", "A rest holds one story", "Weave threads", "A shape")
+            engaged, "The coach's voice", "Tell it the way a friend would", "Where stories go", "Weave threads",
+            "A shape")
                   + voice(*said, "Markers"),
     }
     return {k: COMMAND.sub("", v) for k, v in out.items()}
@@ -160,14 +172,20 @@ def split(text: str) -> tuple[list[str], list[tuple[str, str, int, list[str]]]]:
     return head, segs
 
 
+def steady(segs: list) -> set[int]:
+    """The segments the skeleton marks for a piece told during the work (an empty [story] [/story])."""
+    return {n for n, (_, _, _, body) in enumerate(segs, 1) if PLACE.search("\n".join(body))}
+
+
 def slots(segs: list, budget: dict[int, int]) -> dict[int, tuple[int, int]]:
-    """The rests that carry a story: their numbers, as (the coach's words, the story's)."""
-    out = {}
+    """The segments that carry a story: the rests, and the steady timed sets the skeleton marks, by number, as (the
+    coach's words, the story's)."""
+    out, marked = {}, steady(segs)
     for n, (_, label, _, _) in enumerate(segs, 1):
-        if n in (1, len(segs)) or not STORY_REST.search(label) or NOT_STORY.search(label):
+        if n not in marked and (n in (1, len(segs)) or not STORY_REST.search(label) or NOT_STORY.search(label)):
             continue
         whole = budget.get(n, 0)
-        story = round(whole * STORY_SHARE)
+        story = round(whole * (WORK_STORY_SHARE if n in marked else STORY_SHARE))
         if story >= SMALLEST_STORY:
             out[n] = (whole - story, story)
     return out
@@ -262,11 +280,11 @@ def assemble(skeleton: str, coaching: dict[int, Written], stories: dict[int, Tol
     out = list(head)
     for n, (at, _, _, body) in enumerate(segs, 1):
         w = coaching.get(n)
-        parts = [w.text.strip() if w and w.text.strip() else "\n".join(body).strip()]
+        parts = [PLACE.sub("", w.text if w and w.text.strip() else "\n".join(body)).strip()]
         if n in rests and n in stories:
             parts.append(story_block(stories[n].text))
             if w and w.handback.strip():
-                parts.append(w.handback.strip())
+                parts.append(PLACE.sub("", w.handback).strip())
         out += [at, "\n\n".join(p for p in parts if p), ""]
     return "\n".join(out).rstrip("\n") + "\n"
 
@@ -305,18 +323,37 @@ def pieces_for(minutes: int) -> int:
     return max(2, round(minutes / 2.6))
 
 
-def story_words(budget: dict, rests) -> dict[int, int]:
-    """About how long each rest's story runs, for the coach writing beside the personal content writer: what it's asked for,
-    or less in a short rest."""
-    return {n: min(STORY_WORDS, round(budget.get(n, 0) * STORY_SHARE)) for n in rests}
+def story_words(budget: dict, rests: dict) -> dict[int, int]:
+    """About how long each slot's story runs, for the coach writing beside the personal content writer: what it's
+    asked for, or less in a short rest or set."""
+    return {n: min(STORY_WORDS, story) for n, (_, story) in rests.items()}
 
 
-def _plan_table(segs: list, budget: dict, stories: dict[int, int]) -> str:
+def place(told: list, rests: dict, marked: set) -> dict:
+    """The stories by slot, in the order told: each slot takes the first story left that suits it (steady work or a
+    rest), else the next one, so a quiz isn't told mid-set while a story waits for a rest."""
+    left, out = list(told), {}
+    for n in sorted(rests):
+        if not left:
+            break
+        kind = "steady" if n in marked else "rest"
+        pick = next((s for s in left if s.lands.strip().lower() == kind), left[0])
+        left.remove(pick)
+        out[n] = pick
+    return out
+
+
+def _plan_table(segs: list, budget: dict, stories: dict[int, int], marked: frozenset = frozenset()) -> str:
     rows, at = [], 0
     for n, (_, label, secs, body) in enumerate(segs, 1):
-        marks = " ".join(tools.MARK.findall("\n".join(body))) or "none"
+        marks = " ".join(m for m in tools.MARK.findall("\n".join(body))
+                         if m.lower() not in ("[story]", "[/story]")) or "none"
         whole = round(budget.get(n, 0) * (1 if "[hold]" in "\n".join(body) else COACH_AIM))
-        if n in stories:
+        if n in stories and n in marked:
+            words = stories[n]
+            say = (f"a steady timed set: in text the setup, the go and a first cue; in handback the time checks and "
+                   f"the finish; about {max(whole - words, 20)} words together (a {words}-word story goes between)")
+        elif n in stories:
             words = stories[n]
             say = f"opener and handback, about {max(whole - words, 20)} words together (a {words}-word story goes between)"
         else:
@@ -387,9 +424,11 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
               + (f"# The stock\n\n{_stock(deps, plan.output)}\n\n" if STOCK.search(plan.output) else "")
               + (f"# Today's research sheet\n\n{research.strip()}\n\n" if research else "")
               + f"# Today's feeds sheet\n\n{(feeds.output if feeds.code == 0 else '').strip() or 'none today'}\n\n"
-              f"# What to write\n\nThe session runs {minutes} minutes, with about {count} rests: {count} stories, "
-              f"about {STORY_WORDS} words each (anywhere from {STORY_WORDS // 2} to {STORY_WORDS * 4 // 3}). The last "
-              "two are spares, told only if there's room: nothing earlier depends on them.")
+              f"# What to write\n\nThe session runs {minutes} minutes, with about {count} places for a piece: some during "
+              f"steady timed work, while they move, and some in the rests. {count} stories, about {STORY_WORDS} words "
+              f"each (anywhere from {STORY_WORDS // 2} to {STORY_WORDS * 4 // 3}), each marked steady or rest by where "
+              "it suits (the plan's formats say where each kind lands). The last two are spares, told only if "
+              "there's room: nothing else depends on them.")
     told = await _ask(deps, "content", CONTENT, model, prompt, usage, "MEDIUM", capabilities=search)
     found = {s.number: s for s in told.output.stories}
     titles = told_titles(plan.output)
@@ -451,7 +490,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
     for n, secs in freed.items():   # a long hold's seconds become words: the coach talks them through
         budget[n] = budget.get(n, 0) + round(secs * rate)
 
-    rests = slots(segs, budget)
+    rests, marked = slots(segs, budget), steady(segs)
     about, feeds = await asyncio.gather(asyncio.to_thread(tools.run, plain, ["movements", "--about", ",".join(ids)]),
                                         asyncio.to_thread(tools.run, plain, ["feeds"]))
     weather = _section(feeds.output if feeds.code == 0 else "", "Weather") or "not known"
@@ -459,7 +498,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
         f"Now: {deps.now}.\n\n# The brief\n\n{coach_brief(brief, ids)}\n\n# The coaching notes\n\n"
         f"{about.output.strip()}\n\n# The weather\n\n{weather}\n\n# The plan\n\nThis coach says about {rate:.1f} "
         f"words a second, so each segment's words fill its seconds: a hold or pause you add takes {rate:.1f} words a "
-        f"second from them.\n\n{head[0] if head else ''}\n{_plan_table(segs, budget, story_words(budget, rests))}")
+        f"second from them.\n\n{head[0] if head else ''}\n{_plan_table(segs, budget, story_words(budget, rests), frozenset(marked))}")
 
     async def the_stories() -> list[Told]:   # started as the brief was saved, or written now
         job = deps.content_job if deps.content_job is not None and deps.content_for == path else None
@@ -473,7 +512,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
     # the stories and the coaching side by side, each from its own material
     told, coached = await asyncio.gather(the_stories(),
                                          _ask(deps, "coach", COACH, model, coach_prompt, usage, "MEDIUM"))
-    placed = dict(zip(sorted(rests), told))   # in order: the spares, last, go when there are fewer rests
+    placed = place(told, rests, marked)   # in order, each to a slot it suits: the spares, last, go when there are fewer
     coaching = {w.number: w for w in coached.output.segments}
     draft = assemble(skeleton, coaching, placed, rests)
 
@@ -496,7 +535,7 @@ async def write(deps, model, usage, path: str, search=()) -> tuple[str, str]:
         changed |= {e.number for e in edited.output.segments}
 
     logged = [f'--item "{s.topic} | {s.format} | {s.title} | {s.source}"' for _, s in sorted(placed.items())]
-    note = (f"Three writers wrote the words: {len(placed)} stories in {len(rests)} rests, the coaching for "
+    note = (f"Three writers wrote the words: {len(placed)} stories in {len(rests)} places, the coaching for "
             f"{len(coaching)} of {len(segs)} segments, and the final script writer changed {len(changed)}. "
             + ("After recording, log what was told: `content log --draft <draft> " + " ".join(logged) + "`."
                if logged else ""))

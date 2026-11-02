@@ -36,7 +36,7 @@ import os
 import re
 import sys
 import tomllib
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
@@ -51,6 +51,7 @@ RECENT_DAYS = 30    # how far back the plan lists what's been told
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 NO_TOPIC = "-"      # a told item tied to no topic (a puzzle, a callback from the log)
 RESEARCH = ("news", "evergreen", "either", "none")
+FITS = ("steady", "rest", "close")   # where a format lands: during steady work, in a rest, at the close
 # A stock sheet from before 0.35.0 names a slot; the format it was written for.
 LEGACY_SLOT_FORMAT = {"quiz": "quiz", "delight": "recommendation", "learn": "explainer", "today": "quick_hit",
                       "science": "explainer", "deep_dive": "serial"}
@@ -64,6 +65,10 @@ class Format(NamedTuple):
     words: int
     research: str
     across: bool
+    fits: Tuple[str, ...] = ()   # FITS
+    tell: str = ""               # its shape in beats
+    ends: str = ""               # what it lands on
+    avoid: str = ""              # how it goes flat
 
 
 class Band(NamedTuple):
@@ -71,7 +76,7 @@ class Band(NamedTuple):
     topics: int
     spares: int
     serial: bool
-    quick: int = 0   # quick hits told in the work itself, in place of a repeated cue
+    in_work: int = 0   # pieces told during steady timed work, after the setup and the first cue
 
 
 class Recipe(NamedTuple):
@@ -79,6 +84,7 @@ class Recipe(NamedTuple):
     bands: List[Band]
     per_topic: int
     per_run: int
+    mix: Tuple[str, ...] = ()   # how the pieces sit together across a session
 
 
 class Piece(NamedTuple):
@@ -103,12 +109,14 @@ def recipe(path=RECIPE) -> Recipe:
             raise errors.ContextError(f"{paths.show(path)} isn't valid TOML: {e}") from e
     try:
         formats = {f["id"]: Format(f["id"], f["name"], f["group"], f["what"], int(f["words"]), f["research"],
-                                   bool(f.get("across"))) for f in data["format"]}
+                                   bool(f.get("across")), tuple(f.get("fits", ())), str(f.get("tell", "")),
+                                   str(f.get("ends", "")), str(f.get("avoid", ""))) for f in data["format"]}
         bands = sorted((Band(int(b["up_to"]), int(b["topics"]), int(b.get("spares", 0)), bool(b.get("serial")),
-                             int(b.get("quick", 0)))
+                             int(b.get("in_work", 0)))
                         for b in data["band"]), key=lambda b: b.up_to)
         stock = data.get("stock", {})
         per_topic, per_run = int(stock.get("per_topic", 2)), int(stock.get("per_run", 6))
+        mix = tuple(str(x) for x in data.get("mix", {}).get("rules", ()))
     except (KeyError, TypeError, ValueError) as e:
         raise errors.ContextError(f"{paths.show(path)}: a format or band is missing a field or has the wrong type "
                                   f"({e})") from e
@@ -116,9 +124,13 @@ def recipe(path=RECIPE) -> Recipe:
     if bad:
         raise errors.ContextError(f"{paths.show(path)}: research must be one of {', '.join(RESEARCH)} "
                                   f"(not for {', '.join(bad)})")
+    bad = [f.id for f in formats.values() if not f.fits or set(f.fits) - set(FITS)]
+    if bad:
+        raise errors.ContextError(f"{paths.show(path)}: fits must name one or more of {', '.join(FITS)} "
+                                  f"(not for {', '.join(bad)})")
     if not bands:
         raise errors.ContextError(f"{paths.show(path)}: no [[band]]")
-    return Recipe(formats, bands, per_topic, per_run)
+    return Recipe(formats, bands, per_topic, per_run, mix)
 
 
 def band(r: Recipe, minutes: int) -> Band:
@@ -289,9 +301,9 @@ def restock(r: Recipe, topics: List[context.Topic], items, pieces) -> List[tuple
 def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=None, items=None,
                pieces=None) -> dict:
     """The plan as data (content plan --json): minutes; topics (how many the rests touch), spares, serial
-    (whether the session carries one thread), quick (quick hits told in the work); venues [{name, note}] (whose
+    (whether the session carries one thread), in_work (pieces told during steady timed work), mix [rules]; venues [{name, note}] (whose
     upcoming shows they want to hear about); due [{topic, note, last_told (a date or null), spare}]; formats
-    [{id, name, group, what, words, research, across}] and skipped [ids]; recent_days and told_recent
+    [{id, name, group, what, words, research, across, fits, tell, ends, avoid}] and skipped [ids]; recent_days and told_recent
     [{date, topic, format, title}]; reserve [{slug, title, topic, format, source, good_until, path}]; restock
     [{topic, note, more}]; threads [{id, date, topic, kind, what}] (left open by earlier sessions); unreadable
     [{slug, good_until, path}] (stock left out until its Good until line is a date or evergreen)."""
@@ -306,14 +318,15 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     since = (today - datetime.timedelta(days=RECENT_DAYS)).isoformat()
     picked = due(tops, items, b.topics + b.spares, lr.strength, today)
     return {
-        "minutes": minutes, "topics": b.topics, "spares": b.spares, "serial": b.serial, "quick": b.quick,
+        "minutes": minutes, "topics": b.topics, "spares": b.spares, "serial": b.serial, "in_work": b.in_work,
+        "mix": list(r.mix),
         "venues": [{"name": v.name, "note": v.note or None, "learned": False}
                    for v in (context.venues(profile) if profile is not None else [])]
         + [{"name": x.name, "note": x.note or None, "learned": True} for x in lr.venues],
         "taste": [{"name": x.name, "note": x.note or None, "parent": x.parent} for x in lr.taste],
         "due": [{"topic": t.name, "note": t.note or None, "last_told": d, "spare": i >= b.topics}
                 for i, (t, d) in enumerate(picked)],
-        "formats": [f._asdict() for f in r.formats.values() if f.id not in skip],
+        "formats": [dict(f._asdict(), fits=list(f.fits)) for f in r.formats.values() if f.id not in skip],
         "skipped": skip,
         "recent_days": RECENT_DAYS,
         "told_recent": [{"date": i["date"], "topic": item_topic(i) or None, "format": item_format(i) or None,
@@ -327,6 +340,7 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     }
 
 
+FITS_SAYS = {"steady": "in steady work", "rest": "in a rest", "close": "at the close"}
 RESEARCH_SAYS = {"news": "found on the day", "evergreen": "from the stock", "either": "the day or the stock",
                  "none": "no research: from the brief, the log or the session"}
 
@@ -335,18 +349,20 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
          pieces=None) -> List[str]:
     """The plan's lines (plan_facts, as text)."""
     f = plan_facts(minutes, today, r, profile, items, pieces)
-    out = [f"# Rests plan, {minutes} minutes", "",
-           f"The rests touch about {f['topics']} of the listener's topics"
+    out = [f"# Content plan, {minutes} minutes", "",
+           f"The session touches about {f['topics']} of the listener's topics"
            + (f", plus {f['spares']} spare in case there's room" if f["spares"] else "")
-           + (", and carry one serial thread told across the session" if f["serial"] else "")
-           + ". Judge each find by how big it is: a routine result is a quick hit; a big move, a breakthrough or "
-             "a great long read earns the big story, an explainer or the serial. Mix the formats; the brief's "
-             "Talk to time line says how much the rests hold.", ""]
-    if f["quick"]:
-        out += [f"Quick hits in the work: about {f['quick']}. After a movement's first full coaching, a later set that "
-                "isn't hard trades a repeated cue for one or two sentences (on this day, a number, what's on, a quick "
-                "fact on a topic due), in [story] ... [/story] like any story; never in a hard set or its last reps, "
-                "never in place of a safety line, a limit cue or a count. Each is logged like any item told.", ""]
+           + (", and carries one serial thread told across it" if f["serial"] else "")
+           + ". Pick each item's format by what there is to tell and where it lands, not by habit; the brief's "
+             "Talk to time line says how much each part holds.", ""]
+    if f["in_work"]:
+        out += [f"In the work: about {f['in_work']} pieces. Steady timed work is set up before the go (the movement, "
+                "its one or two form points, the target), gets a cue in its first seconds, then carries a piece while "
+                "they move, in [story] ... [/story], broken by the time checks (halfway, the last ten seconds) and a "
+                "form reminder where tiredness bites. Never in a hard effort, a counted set or the named peak, never "
+                "in place of a safety line, a limit cue or a count. Each is logged like any item told.", ""]
+    if f["mix"]:
+        out += ["## How they sit together"] + [f"- {x}" for x in f["mix"]] + [""]
     out += ["## Topics due (never told first, then the one told longest ago)"]
     out += [f"- {d['topic']}{' (spare)' if d['spare'] else ''}"
             f"{': ' + d['note'] if d['note'] else ''} ({'last told ' + d['last_told'] if d['last_told'] else 'never told'})"
@@ -365,14 +381,17 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
         out += ["", "## Taste they've shown lately (learned; for recommendations, alongside ## Taste)"]
         out += [f"- {x['name']}{' (' + x['parent'] + ')' if x['parent'] else ''}{': ' + x['note'] if x['note'] else ''}"
                 for x in f["taste"]]
-    out += ["", "## Formats (pick to suit the item; ids for content log)"]
+    out += ["", "## Formats (pick to suit the item and where it lands; ids for content log)"]
     groups = {}
     for x in f["formats"]:
         groups.setdefault(x["group"], []).append(x)
     for group, xs in groups.items():
         out.append(f"- {group}:")
         out += [f"  - {x['id']} ({x['name']}, about {x['words']} words"
-                f"{', told across rests' if x['across'] else ''}; {RESEARCH_SAYS[x['research']]}): {x['what']}"
+                f"{', told across the session' if x['across'] else ''}; {RESEARCH_SAYS[x['research']]}; "
+                f"{', '.join(FITS_SAYS[w] for w in x['fits'])}): {x['what']}."
+                + (f" Tell it: {x['tell']}." if x["tell"] else "") + (f" End on {x['ends']}." if x["ends"] else "")
+                + (f" Not {x['avoid']}." if x["avoid"] else "")
                 for x in xs]
     if f["skipped"]:
         out.append(f"- left out by the listener: {', '.join(f['skipped'])}")
@@ -598,8 +617,8 @@ def main(argv=None):
     p.add_argument("--minutes", type=cli.positive_int, default=25, help="the session's length (default 25)")
     cli.today_arg(p)
     p.add_argument("--json", action="store_true",
-                   help="the same plan as one JSON object: minutes, topics, spares, serial, quick, venues (name, note, learned), taste (name, note, parent), due (topic, note, "
-                        "last_told, spare), formats (id, name, group, what, words, research, across), skipped, "
+                   help="the same plan as one JSON object: minutes, topics, spares, serial, in_work, mix, venues (name, note, learned), taste (name, note, parent), due (topic, note, "
+                        "last_told, spare), formats (id, name, group, what, words, research, across, fits, tell, ends, avoid), skipped, "
                         "recent_days, told_recent, reserve, restock, threads (id, date, topic, kind, what), "
                         "unreadable (slug, good_until, path)")
     lg = sub.add_parser("log", help="record the items a session told")

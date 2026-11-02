@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import content  # noqa: E402
 import check  # noqa: E402
 import context  # noqa: E402
+import errors  # noqa: E402
 import frontmatter  # noqa: E402
 
 TODAY = datetime.date(2026, 10, 23)
@@ -208,24 +209,48 @@ class Record(unittest.TestCase):
         self.assertEqual([d["topic"] for d in f["due"]], ["Cities", "Jazz", "Kraken"])
         self.assertEqual(f["restock"][0]["topic"], "Jazz")
 
-    def test_venues_and_quick_hits_in_the_plan(self):
+    def test_venues_and_the_pieces_in_the_work_in_the_plan(self):
         r = content.recipe()
-        self.assertLess(content.band(r, 10).quick, content.band(r, 25).quick)
-        self.assertLessEqual(content.band(r, 25).quick, content.band(r, 60).quick)
+        self.assertLess(content.band(r, 10).in_work, content.band(r, 25).in_work)
+        self.assertLessEqual(content.band(r, 25).in_work, content.band(r, 60).in_work)
         self.assertIn("whats_on", r.formats)
         body = ("## Topics\n- Singer-songwriter music\n\n## Venues\nPlaces:\n- The Bell House: comedy and music\n"
                 "- Museum of the Moving Image\n- [a venue you go to]\n")
         p = context.Profile({}, body, None)
         self.assertEqual(context.venues(p), [T("The Bell House", "comedy and music"), T("Museum of the Moving Image", "")])
         f = content.plan_facts(25, TODAY, r, p, [], [])
-        self.assertEqual(f["quick"], content.band(r, 25).quick)
+        self.assertEqual(f["in_work"], content.band(r, 25).in_work)
         self.assertEqual(f["venues"], [{"name": "The Bell House", "note": "comedy and music", "learned": False},
                                        {"name": "Museum of the Moving Image", "note": None, "learned": False}])
         text = "\n".join(content.plan(25, TODAY, r, p, [], []))
         self.assertIn("- The Bell House: comedy and music", text)
-        self.assertIn(f"Quick hits in the work: about {f['quick']}", text)
+        self.assertIn(f"In the work: about {f['in_work']} pieces", text)
         none = "\n".join(content.plan(25, TODAY, r, profile("- Jazz\n"), [], []))
         self.assertIn("No venues yet", none)
+
+    def test_every_format_says_where_it_lands_and_how_its_told(self):
+        r = content.recipe()
+        for f in r.formats.values():
+            self.assertTrue(f.fits and set(f.fits) <= set(content.FITS), f.id)
+            self.assertTrue(f.tell and f.ends and f.avoid, f.id)
+        self.assertIn("roundup", r.formats)
+        self.assertTrue(r.mix)
+        text = "\n".join(content.plan(25, TODAY, r, profile("- Jazz\n"), [], []))
+        self.assertIn("## How they sit together", text)
+        self.assertIn("Never say a format's name", text)
+        self.assertIn("in a rest): a question asked in one rest", text)   # the quiz: rests only
+        self.assertIn("End on the coach's reaction to that one.", text)
+
+    def test_a_format_that_lands_nowhere_is_refused(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        bad = os.path.join(tmp.name, "content.toml")
+        with open(content.RECIPE, encoding="utf-8") as f:
+            text = f.read().replace('fits = ["rest"]\ntell = "a question', 'fits = ["sometime"]\ntell = "a question', 1)
+        with open(bad, "w", encoding="utf-8") as f:
+            f.write(text)
+        with self.assertRaises(errors.ContextError):
+            content.recipe(bad)
 
     def test_no_topics_still_plans(self):
         text = "\n".join(content.plan(25, TODAY, content.recipe(), profile(), [], []))
