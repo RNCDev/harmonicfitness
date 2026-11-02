@@ -609,7 +609,8 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
     for seg in segments:   # a one-sided movement keeps to its side, segment by segment; stories aside
         coaching, stories, tag_problems = draft.story_split(seg)
         found = [f'segment "{seg["label"]}" (line {seg["start"]}): {p}' for p in tag_problems]
-        found += side_problems(cat, on_menu, coaching) + story_problems(cat, on_menu, stories)
+        found += [f'segment "{seg["label"]}" (line {seg["start"]}): {p}'
+                  for p in side_problems(cat, on_menu, coaching) + story_problems(cat, on_menu, stories)]
         for why in found:
             if why not in issues:
                 issues.append(why)

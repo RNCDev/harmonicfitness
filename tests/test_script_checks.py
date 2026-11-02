@@ -3,6 +3,7 @@ a day, a whole-body session's patterns, and claims the coach can't make."""
 import datetime
 import os
 import sys
+import re
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
@@ -243,3 +244,28 @@ class Reps(unittest.TestCase):
         self.assertLess(skeleton, plain - 20)   # ten reps' quiet isn't talk
         self.assertLessEqual(abs(held - skeleton), 2)
         self.assertEqual(self.lint("@@ 45 | Goblet squat\n[count 3 go] [reps 10]\n", timer=None).rows[0].guide, plain)
+
+    def test_the_skeleton_says_how_many_words_go_before_the_go(self):
+        row = self.lint("@@ 50 | Goblet squat\n[count 3 go] [reps 10]\n").rows[0]
+        said = " ".join(row.reps)
+        inside, before = map(int, re.search(r"about (\d+) of the \d+ words are cues inside the reps; the other (\d+)",
+                                            said).groups())
+        self.assertEqual(inside + before, row.guide)
+        self.assertGreater(before, 0)
+
+
+class SkeletonPauses(unittest.TestCase):
+    """A skeleton's pauses with nothing between them yet each leave the budget, as the words will part them."""
+    V = Reps.V
+
+    def guide(self, body):
+        from unittest import mock
+        import tts_build
+        with mock.patch("voices.pace", return_value=(14.0, True)):
+            return tts_build.lint(draft.parse("@@ 70 | Breathing\n" + body + "\n"), self.V).rows[0].guide
+
+    def test_eight_breathing_pauses_count_forty_seconds_not_ten(self):
+        bare = self.guide("[pause 4s] [pause 6s] " * 4)
+        written = self.guide("In. [pause 4s] Out. [pause 6s] " * 4)
+        self.assertLess(abs(bare - written), 12)   # the written one at its own rate, the bare one at the sample's
+        self.assertLess(bare, self.guide("[pause 4s] [pause 6s]") - 40)

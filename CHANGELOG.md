@@ -2,6 +2,35 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.53.0] - 2026-11-02
+
+Scripts written to their budgets land closer to plan. Writers had been coming in about 8 percent off on a first draft, for two reasons. The pace the budgets came from was slower than real coaching. And a set's word budget assumed the coach talked through the whole set. The budgets now use a pace sample that reads like real coaching, and a new `[reps N]` marker reserves each set's rep time. Separately, `check` now catches a name or weights written only in the prose, where the coach never sees them.
+
+### Added
+- **`[reps N]`**, a silent marker placed right after a set's "go".
+  - **What the lint does:** it times the rest of that paragraph against N reps of the movement, at the seconds per rep the brief's menu shows. It takes the quiet half of that time out of the segment's word budget. Once the cues are written, it says how many seconds to add or cut.
+  - **Finding the movement:** the one named before the marker, else the one in the segment's label, else the declared movement whose main word (press, squat, row) the segment says. Failing all three, it uses the usual rep time and says so.
+  - **What it refuses:** a timed movement, a bare `[hold]` after the marker, and `[reps ten]` written in words. A story can't hold one.
+  - It is documented in `knowledge/tts-rules.md`, the brief's skeleton line, the web agent's skeleton instructions and the coach writer's prompt.
+- **`knowledge/pace-sample.draft.txt`:** a welcome, a set's cues, a rest and a story, mixed the way drafts mix them. The brief's Talk to time and a skeleton's budgets now come from it.
+- **`check` notes:**
+  - a name written in `profile.md`'s prose while `name` is empty;
+  - a kit with dumbbells or a kettlebell but no `weights`. Without them, scripts name each load by effort.
+
+### Changed
+- **Skeleton budgets** come from the pace sample, not the smoke test. The smoke test's seated coaching read about 4 percent slower than real drafts, and up to 8 percent slower on some. The new sample lands within 1 percent for four coaches. Skeletons stripped from three finished drafts now budget within 3 percent of the words they hold. The smoke test still measures each coach's pace from real recordings.
+- **The tests' invented listener** keeps its name and weights in the settings, as the template does.
+
+### Fixed
+- **A skeleton's reps note gives words, not just seconds.** It now says how many of the segment's words are cues inside the reps and how many go before the go. A test writer, told only the seconds, wrote later sets too short and drafted 6.6 percent under plan.
+- **A skeleton's pauses each count.** Pauses with nothing between them yet ran together as one capped at ten seconds, so a breathing segment with eight pauses asked for about twice the words it could hold.
+- **The guide and the side check now agree.** `script.md` asked the writer to say why the other side rests; the menu check refuses any word for the other side in the set's own segment. The guide now says to explain it in the segment before. A side refusal now names its segment and line.
+
+### For forks
+- **A new marker in the draft format.** An older engine reads `[reps N]` as words, so its lint refuses the digits. Drafts without it build as before.
+- **Budgets change.** Skeleton budgets and the brief's Talk to time read about 4 percent higher, so a draft in progress may lint a little short against its old budgets.
+- **`me/` needs no migration.**
+
 ## [0.52.0] - 2026-11-02
 
 What an injury limit means is now data the tools read. `knowledge/limits.toml` says, for each of the thirteen body areas and both levels, what to say in the opening, how to plan the session, which signs end a movement and which end the session, and a reason worth giving (with the condition that makes it true). It also holds the check-in's signs for loosening a limit, what carries on for a few weeks after one clears, and the red flags and emergencies. The brief quotes only today's level. `knowledge/injury-playbook.md` becomes its evidence: which lines are sourced and which are house judgment. The guidance was tuned over three rounds of 10-minute scripts written for invented listeners with injuries, each scored by reviewers on nine points (opening, today's plan, stop signs, limit cues, adjustments, reason, consistency, ear, workout). Twelve scripts scored 175 of 216 in the first round and 186 in the second. A final check on three of those scenarios (a broken wrist, a sore neck with a sore shoulder, a bruised rib) scored 48 of 54, against 42 for the same three in round 2, and gave the last fixes below. Every opening now carries the full stop rule, the heart rule and a line saying the session was made by AI.

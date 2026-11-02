@@ -25,8 +25,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
-                   MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_held, is_mark,
+from draft import (CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, HOLD_RE, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
+                   PAUSE_DEFAULT, PAUSE_MAX, PAUSE_RE, MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_held, is_mark,
                    layout, mark_issue, mark_words, paragraphs, plan, rep_stretches, REPS_TALK, silences, spans,
                    spoken, story_split, unstory)
 import counts  # noqa: E402
@@ -238,6 +238,11 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         speech = [sum(clip_seconds(text, voice, rate) for para in plans[i] for text, _ in para if spoken(text))
                   for i in range(len(segments))]
         fixed = [max(spokens[i] - speech[i], 0.0) for i in range(len(segments))]
+        # A skeleton's pauses with nothing between them yet run together as one, capped at PAUSE_MAX, but the
+        # words written between them will part them: a breathing segment's eight pauses counted as ten seconds,
+        # not forty, and asked for twice the words (2026-11-02). So until a segment has words, each counts alone.
+        fixed = [f + _unparted_pauses(segments[i], plans[i]) if not word_count(segments[i]["lines"]) else f
+                 for i, f in enumerate(fixed)]
         # The rate this draft's words are spoken at; until every segment has words, the voice's rate on a sample,
         # so the budgets stay the same from the skeleton through each pass that fills it.
         per_seg = [word_count(seg["lines"]) for seg in segments]
@@ -256,6 +261,11 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
     for i, seg in enumerate(segments, 1):
         reserved, rep_issues, rep_notes = _reps(i, seg, voice, rate, rep_timer, limit)
         guide = round(guide_wpm * max(seg["seconds"] - (fixed[i - 1] if voice else 0.0) - reserved, 0.0) / 60)
+        if rep_notes:   # a later set is mostly talk before the go, which "briefly after" made writers leave out
+            inside = round(guide_wpm * sum(n for n, _ in rep_notes) / 60)
+            rep_notes = [note for _, note in rep_notes] + [
+                f"      about {inside} of the {guide} words are cues inside the reps; the other {max(guide - inside, 0)}"
+                " go before the go (the setup, the target, a self-check) and after the last rep"]
         row = Row(i, seg["label"], seg["seconds"], word_count(seg["lines"]), guide, reps=rep_notes,
                   rep_issues=rep_issues)
         row.clip_issues += rep_issues
@@ -346,8 +356,23 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
 REPS_SLACK = (4.0, 0.25)   # a set's lines may miss its reps' time by this many seconds, or this share of it
 
 
+def _unparted_pauses(seg, paras):
+    """The seconds a wordless segment's pauses lose by running together: each [pause] alone (capped at PAUSE_MAX)
+    and each fixed hold, less what its plan gives them."""
+    alone = 0.0
+    for p in paragraphs(seg["lines"]):
+        for m in MARK_RE.finditer(p):
+            got = PAUSE_RE.fullmatch(m.group(0)) or HOLD_RE.fullmatch(m.group(0))
+            if not got or (HOLD_RE.fullmatch(m.group(0)) and not got.group(1)):
+                continue
+            num, unit = got.group(1), (got.group(2) or "s").lower()
+            secs = PAUSE_DEFAULT if num is None else float(num) / (1 if unit == "s" else 1000)
+            alone += min(secs, PAUSE_MAX) if PAUSE_RE.fullmatch(m.group(0)) else secs
+    return max(alone - sum(pause for para in paras for _, pause in para), 0.0)
+
+
 def _reps(i, seg, voice, rate, rep_timer, limit):
-    """(seconds of quiet its sets still owe, [issue], [note]) for a segment's [reps N] markers: each stretch's
+    """(seconds of quiet its sets still owe, [issue], [(seconds of cues, note)]) for a segment's [reps N] markers: each stretch's
     time is N times the movement's seconds a rep. Its cues fill about REPS_TALK of it, so the rest leaves the
     word budget, less any holds, pauses and counts already written inside it (so the budget holds steady as
     the skeleton fills). Once the stretch has words, its predicted length must land near the reps' time."""
@@ -369,8 +394,8 @@ def _reps(i, seg, voice, rate, rep_timer, limit):
         if voice:
             inside += sum(mark_seconds(t, voice, rate) for t, _ in after if is_mark(t))
         owed += max(need * (1 - REPS_TALK) - inside, 0.0)
-        notes.append(f"      {raw}: {n} reps of {name} take about {need:.0f} s, cues about "
-                     f"{need * REPS_TALK:.0f} s of it, quiet between them the rest")
+        notes.append((need * REPS_TALK, f"      {raw}: {n} reps of {name} take about {need:.0f} s, cues about "
+                                         f"{need * REPS_TALK:.0f} s of it, quiet between them the rest"))
         if any(t == HOLD and not pause for t, pause in after):
             issues.append(f"  {where}: a bare [hold] after {raw}: the reps set that stretch's time, so give its "
                           "quiet in holds of a few seconds ([hold 3s]) between the cues")
