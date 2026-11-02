@@ -44,7 +44,7 @@ HarmonicFitness runs under Claude Code and under ChatGPT's Codex, on the listene
   - `training.md`: `likes`, `dislikes`, `[[kits]]` (with `weights` and `unit`), the default session.
   - `content.md`, read only by research and the story tools: `youtube_favorites`, `puzzles`, `skip_formats`, `[[feeds]]`, and the sections `## Topics`, `## Venues`, `## Never bring up`, `## Taste`.
   - `settings.toml`: `setup`, `render` (routes in order), `cloud_max_chars`, `deliver_to`, `words_per_minute`, `bed` (`"pulse"`).
-- **`health.md`**: a `[[limits]]` row per injury (area, side, level `off-limits` or `delicate`, optional `flags` and `rehab`, note) that the brief applies, and prose with `## Clinician rules`, followed literally. Changed only at the check-in, with the listener's permission.
+- **`health.md`**: a `[[limits]]` row per injury (area, side, level `off-limits` or `delicate`, optional `flags`, `rehab` and `cleared`, note) that the brief applies, and prose with `## Clinician rules`, followed literally. A row with `cleared = <date>` is no limit: the screen skips it and the brief carries the area's after-clearing rule for its weeks. Changed only at the check-in, with the listener's permission.
 - **`log.md`**: sessions, added only by `./harmonicfitness log-session`, and feedback under `## Feedback`.
 - **`workouts/<stem>/`**, one folder per workout (`tools/workouts.py`): the draft, its brief and menu, and the build's `.txt` and `.build.json`. Beside them: `checks/` (smoke tests), `research/` (`daily/`, `videos/`, `puzzles/`, `reserve/` the researched stock, `told.jsonl`, `threads.jsonl`, `interests.jsonl`), `.audio-cache/` and `.logs/` (render logs and `builds.jsonl`, one line per MP3, failed web render or build outcome, each carrying its `build_id` and `kind`, read only through `records.parse`).
 - **`coaches/<slug>/`**: `persona.md` (persona schema 5), `pace.json`, a web coach's `sample.mp3`; `coaches/.auditions/` holds one in progress, `coaches/.archive/` retired ones.
@@ -59,7 +59,8 @@ Each file is read only through its tool, never parsed elsewhere:
 - `content.toml` (`tools/content.py`): story formats, topics a session touches by length, the stock's targets, `[interests]`.
 - `services.toml` (`tools/cloud.py`): the one list of web services. A new service is a section here and a module in `tools/services/` keeping the contract in `tools/services/__init__.py`.
 - `script.md` (safety, the build's checks, the aims, the read-through) and `tts-rules.md` (what a voice can read, the draft's format and markers): the writer's two guides, also split into the web writers' prompts.
-- `injury-playbook.md`, `kits.md`, `programming.md`, `voices.md`: references; where the playbook and `me/health.md` disagree, the strictest wins.
+- `limits.toml` (`tools/playbook.py`): what each limit means, by area and level: the session and stop signs the brief quotes for today's level, the check-in's loosening signs (`./harmonicfitness get limits`), what carries on after a limit clears, and the red flags. `injury-playbook.md` is its evidence: which lines are sourced, which house judgment, and how the screen applies limits.
+- `kits.md`, `programming.md`, `voices.md`: references; where any knowledge file and `me/health.md` disagree, the strictest wins.
 - `research/`: dated evidence notes behind the numbers. No tool reads it.
 
 ## Engine conventions

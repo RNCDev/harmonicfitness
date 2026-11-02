@@ -573,7 +573,7 @@ def list_files(ctx: RunContext[Deps], path: str = "me/") -> ToolResult:
 # Step 1 of the skill, run by the worker before the first model request, all at once: the model gets the
 # same results in the listener's first message, without a round trip for each.
 FIRST_RUNS = (["check"], ["content", "plan", "--minutes", "25"], ["get", "coach"], ["coaches", "list", "--json"],
-              ["get", "web-builds"])
+              ["get", "web-builds"], ["get", "limits"])
 MINUTES = re.compile(r"\b(\d{1,3})[- ]?(?:minutes?|mins?)\b", re.IGNORECASE)
 
 

@@ -1,0 +1,328 @@
+# What an injury limit means for a session, for the check-in, and for a while after it clears: one table per
+# area in the catalog's `areas`, with one per level (off-limits, delicate). Read only through tools/playbook.py:
+# the brief quotes today's level for each limit, `./harmonicfitness get limits` gives the check-in its signs.
+#
+# The evidence, and which lines are house judgment, are in knowledge/injury-playbook.md. What a limit rules out
+# of the menu is the catalog's (`loads`, flags; tools/catalog.py), the spoken limit cues are movements.toml's
+# [limit_cues], and the general stop rule is knowledge/script.md's: none of those is repeated here.
+#
+# Each level holds:
+#   opening   one sentence for the opening, spoken to the listener, holding the limit and its stop signs (required)
+#   session   what the work looks like today, for the writer: how to do what the menu holds, never a promise of
+#             movements it may have left out (required)
+#   stop      signs particular to this area that end that movement for today (required, at least one)
+#   stop_today  signs particular to this area that end the session for today (optional); numbness, tingling,
+#             dizziness and a joint giving way do too, by script.md's stop rule, so they're not repeated here
+# A sign sits in one list only, so it means the same thing wherever it's said. The opening holds both.
+#   say       a reason, spoken to the listener (optional)
+#   say_when  when the say line fits, for the writer: what the plan does for the sore side itself (optional)
+# {side} is the limit's side, or "sore" (delicate) or "injured" (off limits) for both, as in the limit cues.
+# Each area holds:
+#   check_in        delicate: when off limits can become delicate; clear: when delicate can clear (both required)
+#   after_clearing  weeks, plan and an optional spoken say: what carries on after the limit clears; the brief
+#                   quotes it until that many weeks after the row's `cleared` date in me/health.md
+#   red_flags       signs particular to this area that stop the session and send them to a clinician (optional)
+#   emergency       signs particular to this area that mean calling emergency services now (optional)
+# Red flags and emergencies are for the check-in, said in chat: the audio carries the opening's stop rule and heart
+# rule instead.
+
+format = 1
+
+[general]
+check_in = "Only the listener's report loosens a limit, never time passing, and \"mostly\" means not yet. Loosen one step at a time: off limits to delicate, delicate to clear. Worse or stiffer the next morning means the last session was too much, and the limit tightens. A clinician's rule that allows a movement the limit leaves out, such as a physio's slow calf raises, goes into the row's rehab, with the listener's say-so."
+red_flags = [
+  "can't bear weight",
+  "rapidly increasing swelling",
+  "numbness or tingling",
+  "a joint that gives way or locks",
+  "pain that keeps getting worse after a week or two",
+  "dizziness that doesn't settle with rest",
+  "breathlessness that's suddenly getting worse",
+]
+emergency = [
+  "chest pain, pressure or tightness, maybe spreading to the arm, neck or jaw",
+  "fainting or nearly fainting during exercise",
+  "a racing or irregular heartbeat with chest pain, breathlessness or feeling faint",
+]
+unlisted = "Ask what hurts and what makes it worse, pass the movements or flags that load it to --avoid (or an Avoid: line under Clinician rules for a lasting one), and suggest a clinician if it's new, severe or not improving. After surgery or a joint replacement, and in pregnancy, the clinician's or surgeon's precautions are the only guide: write them under Clinician rules word for word."
+unlisted_session = "The menu leaves out only what the Avoid: lines name, so leave out by hand anything jumping, box breathing and anything that strains or holds the breath, and choose the rest at moderate effort, which wins over the programming guide's. Name it in the opening with the clinician's rules, in plain words (ten weeks out from a hernia repair). Say that pain at that site means stop that move, and pain there that stays after a short rest means stop for today; coaching the breath out on effort and getting up through your side is fine, but add no other rules beyond the clinician's."
+
+[foot.off-limits]
+opening = "Your {side} foot sits this one out, so everything is seated or lying. Any pain in that foot means stop that move, and if it's still worse than when you started after a short rest, we stop for today."
+session = "Everything seated or lying, with the kit set out within reach before the start, and getting up and down planned through the hands and the other foot. Where a setup says feet flat, adapt it out loud: the {side} foot rests lightly or lifts clear, never pushing."
+stop = ["any pain in the {side} foot"]
+stop_today = ["pain in that foot that's still worse than when you started after a short rest"]
+say = "Your foot gets the day off, and the rest of you still gets a real workout."
+
+[foot.delicate]
+opening = "Your {side} foot stays light today, two feet down and nothing springing off the toes, and a sharp pain under the heel or through the arch means stop that move."
+session = "Standing work stays two-footed and slow, the foot flat and quiet, nothing springing off the toes."
+stop = ["sharp pain under the heel or through the arch"]
+say = "Calf stretches and foot strengthening are what the heel pain guideline recommends, so they're in here on purpose."
+say_when = "the plan has calf stretches or foot and calf strengthening"
+
+[foot.check_in]
+delicate = "walking barefoot is pain-free"
+clear = "walking barefoot stays pain-free, with nothing worse the morning after a delicate session"
+
+[ankle]
+red_flags = ["a snap or pop at the back of the ankle, or not being able to rise onto the toes"]
+
+[ankle.off-limits]
+opening = "Your {side} ankle sits this one out, so everything is seated or lying. Any pain or throbbing in that ankle means stop that move, and if it's still worse than when you started after a short rest, we stop for today."
+session = "Nothing standing, fetching the kit included: everything seated or lying, set out within reach before the start, the foot resting relaxed, never pointed or rolled. Seated ankle circles or tracing the alphabet come in only when the limit names them under rehab."
+stop = ["any pain or throbbing in the {side} ankle"]
+stop_today = ["pain in that ankle that's still worse than when you started after a short rest"]
+say = "Your ankle gets the day off, and the rest of you still gets a real workout."
+
+[ankle.delicate]
+opening = "Your {side} ankle stays light today, two feet down and no hopping, and a sharp twinge or new swelling there means stop that move."
+session = "Standing work stays two-footed: prefer short, narrow stances to wide or long ones, and step, never hop, from one place to the next; any marching keeps the steps small and sets that foot down flat and quiet. Plan a seated or lying version of the standing work, since the limit cue sends a twinge there. The general stop rule already covers an ankle that gives way."
+stop = ["a sharp twinge in the {side} ankle", "new swelling"]
+say = "Balance work is what keeps an ankle from going over again, so it's worth the wobble."
+say_when = "the plan has balance work standing on that ankle"
+
+[ankle.check_in]
+delicate = "no limp, no pain at rest and no swelling"
+clear = "single-leg balance (eyes open, then closed) and single-leg calf raises match the other side, with no swelling the next morning"
+
+[ankle.after_clearing]
+weeks = 8
+plan = "Keep balance work in every session where the menu has it: after a sprain, it cuts the chance of another."
+say = "Your ankle's cleared, and the balance work stays in for a few more weeks, because it's what keeps it from going over again."
+
+[calf]
+red_flags = [
+  "a snap or pop at the back of the ankle, or not being able to rise onto the toes",
+  "throbbing pain or swelling in one calf, with red, darkened or warm skin",
+]
+emergency = ["calf pain or swelling with breathlessness or chest pain"]
+
+[calf.off-limits]
+opening = "Your {side} calf stays out of it today, so no rising onto your toes and no pushing off that foot, and any pull in the calf or the Achilles means stop that move."
+session = "No rising onto the toes and no driving off that foot; the leg rests while the rest of the body works, and getting up goes through the hands."
+stop = ["any pull in the calf or the Achilles tendon"]
+
+[calf.delicate]
+opening = "Your {side} calf stays light today, heel down and smooth, nothing bouncing, and a sudden sharp pain or a grab that doesn't ease means stop that move."
+session = "Heel down and the pace smooth, nothing bouncing. Calf raises on the {side} side come in only when the limit names them under rehab; then they're slow and steady, two legs before one, and the heel-down cue is for everything else. Without that, raises are for the physio's plan, not this session, and the other calf's raises don't stand in for them. When a clinician's rule allows calf raises and none is on today's menu, say once that they stay with the physio's plan today."
+stop = ["a sudden sharp pain in the calf", "a cramp-like grab that doesn't ease"]
+say = "The test is tomorrow morning, so if the tendon feels no worse when you get up, today was the right amount."
+
+[calf.check_in]
+delicate = "a double-leg calf raise is pain-free"
+clear = "single-leg calf raises are pain-free and match the other side, with nothing worse or stiffer the next morning"
+
+[knee.off-limits]
+opening = "Your {side} knee sits this one out, no weight through it and no kneeling on it. Any pain in that knee means stop that move, and if it's still worse than when you started after a short rest, we stop for today."
+session = "The knee stays out of the work, straight or gently bent and unweighted. No kneeling on it, and getting up from the floor goes through the side and the hands."
+stop = ["any pain in the {side} knee"]
+stop_today = ["pain in that knee that's still worse than when you started after a short rest"]
+
+[knee.delicate]
+opening = "Your {side} knee stays light today, only as deep as it's comfortable and no jumping, and a pinch at the front or a catch means stop that move."
+session = "If the menu has squats or lunges, partial range only, as deep as stays comfortable and slow on the way down, and nothing landing. When it has none, glute and hip work on the {side} side stands in for the legs; the other leg's work alone doesn't."
+stop = ["a pinch at the front of the knee", "the knee catching"]
+say = "For a sore knee, working the hips along with the knee does more than knee work alone."
+say_when = "the plan has hip or glute work for the sore side"
+
+[knee.check_in]
+delicate = "walking and stairs are pain-free"
+clear = "a full squat and going down stairs are pain-free, with nothing worse the next morning"
+
+[hamstring.off-limits]
+opening = "Your {side} hamstring stays out of it today, nothing that stretches the back of that thigh, and any pull there means stop that move."
+session = "Nothing that stretches or loads the back of the thigh: no hinging forward, no long-leg reaches, and the knee softly bent whenever that leg is out straight."
+stop = ["a pull at the back of the thigh"]
+
+[hamstring.delicate]
+opening = "Your {side} hamstring stays light today, hinging only as far as a mild stretch, nothing fast, and a sharp pull or grab means stop that move."
+session = "Hinges go only as far as a mild pull, slow and smooth, with no fast kicks or sprinting."
+stop = ["a sharp pull or grab at the back of the thigh"]
+say = "Strengthening the hamstring, the slow lowering part especially, is what brings it back."
+say_when = "the plan has hinges or bridges"
+
+[hamstring.check_in]
+delicate = "a light hinge is pain-free"
+clear = "a full-range hinge and a brisk walk are pain-free, with nothing worse the next morning"
+
+[hamstring.after_clearing]
+weeks = 8
+plan = "Keep hamstring strengthening in the sessions, at normal effort: a hinge or a bridge, lowering over about three seconds. Ask how that hamstring feels after its first set; a sharp pull ends that movement for today. A recent strain makes another several times more likely."
+say = "Your hamstring's cleared, and hamstring work stays in for a while, because the best way to keep it from going again is to keep it strong."
+
+[hip.off-limits]
+opening = "Your {side} hip sits this one out, no deep bends and no standing on that leg alone. Any pain in that hip means stop that move, and if it's still worse than when you started after a short rest, we stop for today."
+session = "The hip stays out of the work: no deep bends and no weight on that leg alone. Getting down and up goes through the side and the hands, without twisting."
+stop = ["any pain in the {side} hip"]
+stop_today = ["pain in that hip that's still worse than when you started after a short rest"]
+
+[hip.delicate]
+opening = "Your {side} hip stays light today, nothing deep or wide. A pinch deep in the front or pain at the side means stop that move, and a limp coming on means we stop for today."
+session = "If the menu has squats or hinges, a pain-free range with moderate stances, never wide or very deep; no sitting cross-legged, no pivoting on that leg, and a resting leg kept long on the floor rather than pulled in or held up."
+stop = ["a pinch deep in the front of the hip as it bends", "pain at the side of the hip"]
+stop_today = ["a limp that comes on during the session"]
+say = "Strengthening around the hip, the glutes especially, is what helps most hip pain."
+say_when = "the sore hip itself does bridges, glute or side-hip work (the other leg's work doesn't count)"
+
+[hip.check_in]
+delicate = "no pain at night and no limp"
+clear = "a loaded squat and hinge are pain-free and single-leg balance is steady"
+
+[groin.off-limits]
+opening = "Your {side} groin stays out of it today, knees about hip width and nothing wide, and any pull in the inner thigh means stop that move."
+session = "Knees about hip width throughout: no side lunges, no wide stances and no legs spread apart. The legs come together before getting up or down, and a setup that says wide gets narrowed out loud."
+stop = ["a pull in the inner thigh"]
+
+[groin.delicate]
+opening = "Your {side} groin stays light today, feet about hip width and no quick side steps, and a sharp pull in the inner thigh means stop that move."
+session = "Feet hip width and knees over the toes, no quick side steps, and any stretch stops at the first pull. A setup that says wide gets narrowed out loud."
+stop = ["a sharp pull in the inner thigh or the groin"]
+say = "For groin pain that's hung on a while, strengthening the muscles around your hips is what helps most."
+say_when = "the pain has lasted two months or more and the plan strengthens that side's hip"
+
+[groin.check_in]
+delicate = "side steps are pain-free"
+clear = "side lunges and quick changes of direction are pain-free, with nothing worse the next morning"
+
+[low-back]
+red_flags = [
+  "fever or feeling generally unwell with the back pain",
+  "severe back pain that came on suddenly or is getting worse quickly",
+  "back pain worse at night or not eased by rest",
+]
+emergency = [
+  "numbness or pins and needles around the genitals, inner thighs, buttocks or back passage",
+  "new trouble peeing, leaking, or less feeling when peeing or passing a stool",
+  "pain, tingling, weakness or numbness in both legs",
+  "back pain that started after a serious accident",
+]
+
+[low-back.off-limits]
+opening = "Your back sits this one out, spine long and still, no rounding, no twisting and nothing lifted from the floor. Back pain that builds as you move means stop that move, and pain spreading into your buttock or leg means we stop for today."
+session = "Walking and neutral-spine core work go on; the spine stays long and still, with no rounding and no twisting, and nothing is lifted from the floor. Standing work spares the getting down and up; in a short session it can carry the whole plan, and in a longer one bridges or bird dogs stand in for hinges if the menu has them. The back's rule today is no worse than when you started, not two or three out of ten."
+stop = ["back pain that builds as you move"]
+stop_today = ["pain spreading into the buttock or down the leg"]
+say = "Staying active is what helps a sore back most, so moving today is the right call."
+
+[low-back.delicate]
+opening = "Your back stays light today, brace and keep a long spine. A pinch in the back means stop that move, and pain spreading into your buttock or leg means we stop for today."
+session = "Light hinging with a flat back is fine, bridges count as hinging, and every rep starts with a brace, the ribs stacked over the hips."
+stop = ["a pinch in the back"]
+stop_today = ["pain spreading into the buttock or down the leg"]
+say = "Staying active is what helps a sore back most, so moving today is the right call."
+
+[low-back.check_in]
+delicate = "getting out of bed and a ten-minute walk are pain-free"
+clear = "a light hinge is pain-free that day and the next"
+
+[rib]
+red_flags = ["fever, or coughing up blood"]
+emergency = ["a new chest pain that's never been checked (tenderness over the ribs doesn't rule out the heart)"]
+
+[rib.off-limits]
+opening = "Your ribs sit this one out, easy breathing all the way, no holding your breath, no twisting and no lifting, pushing or pulling. A sharp catch on a breath means stop that move, with no pushing through rib pain."
+session = "Easy, full breathing all the way through: no holding the breath (box breathing included), no hard bracing, no twisting, no lifting, pushing or pulling, and no lying on the sore side. Walking and moving little and often go on. Getting up rolls away from that side, through the hands. In the opening, the heart rule adds that chest pain or pressure still means stop and get help, even if it feels like the rib."
+stop = ["a sharp catch on a breath"]
+say = "Full, easy breaths and moving little and often help a rib settle, and holding the breath back doesn't."
+
+[rib.delicate]
+opening = "Your ribs stay light today, so breathe out on every effort and never hold your breath. A sharp catch in the ribs on a lift, or rib pain worse than when you started, means stop that move. If that pain is still worse after a short rest, or an easy breath keeps catching, we stop for today."
+session = "Breathe out on the effort and never hold the breath. Any twist stays small and slow; pushing and pulling stay at an easy effort, and a weight held at the chest, or a row or band pulled to it, is moved away from the ribs out loud (held low, elbows back toward the hips). At the ribs the rule is no worse than when you started, not two or three out of ten. In the opening, the heart rule adds that chest pain or pressure still means stop and get help, even if it feels like the rib."
+stop = ["a sharp catch in the ribs on a lift, a push or a pull", "rib pain that's worse than when you started"]
+stop_today = ["rib pain that's still worse than when you started after a short rest", "a catch on an easy breath that's still there after a short rest"]
+say = "Full, easy breaths help a rib settle, so let each breath come in as far as is comfortable."
+
+[rib.check_in]
+delicate = "deep breaths are pain-free"
+clear = "deep breaths, twisting and lifting are pain-free"
+
+[shoulder.off-limits]
+opening = "Your {side} arm rests today, nothing pushing, pulling or leaning on it. Any pain in that shoulder means stop that move, and if it's still worse than when you started after a short rest, we stop for today."
+session = "The arm rests by the side or in the lap: nothing pushes, pulls or bears weight through it, getting up and down included."
+stop = ["any pain in the {side} shoulder"]
+stop_today = ["pain in that shoulder that's still worse than when you started after a short rest"]
+
+[shoulder.delicate]
+opening = "Your {side} shoulder stays light today, elbow below shoulder height, and a pinch at the front or an ache that builds with each rep means stop that move."
+session = "Light work with the elbow below shoulder height, and the shoulder blades set down and back before each rep."
+stop = ["a pinch at the front of the shoulder", "an ache that builds with each rep"]
+say = "For a sore shoulder, light weights work about as well as heavy ones, so light today isn't a step back."
+say_when = "the plan has light work for that shoulder"
+
+[shoulder.check_in]
+delicate = "nights are pain-free and the arm lifts to shoulder height"
+clear = "a light overhead press is pain-free and strength is about equal on both sides"
+
+[elbow.off-limits]
+opening = "Your {side} arm rests today, no gripping, pushing or pulling with it. Any pain in that elbow means stop that move, and if it's still worse than when you started after a short rest, we stop for today."
+session = "No gripping, pushing or pulling through that arm, and no leaning on it to get up or down."
+stop = ["any pain in the {side} elbow"]
+stop_today = ["pain in that elbow that's still worse than when you started after a short rest"]
+
+[elbow.delicate]
+opening = "Your {side} elbow stays light today, with a relaxed grip. The rule there is no worse during a set or tomorrow morning, so pain that builds means stop that move."
+session = "Light presses and rows with a relaxed grip, the elbow soft. If you include forearm or grip work, it starts with holds, then slow lifts and slow lowering. Holding a dumbbell or a band loads the elbow even where the menu doesn't mark it, so keep the grip light there too. Here the rule is stricter than usual: no worse during the set or the next morning, so no allowance of two or three out of ten."
+stop = ["pain at the outside or inside of the elbow that builds with each rep"]
+say = "For a sore elbow, loading the forearm is the treatment, as long as it doesn't stir it up."
+say_when = "the plan has wrist curls, grip holds or other forearm work for that arm"
+
+[elbow.check_in]
+delicate = "lifting a full cup is pain-free"
+clear = "grip feels as strong as the other side, with no flare the next morning"
+
+[wrist]
+red_flags = [
+  "a fall onto the hand with pain at the base of the thumb that was never checked",
+  "very stiff fingers, a hand that's oversensitive to touch, or skin changes on it",
+]
+
+[wrist.off-limits]
+opening = "Your {side} hand sits this one out, no weight through that hand or forearm and nothing held in it. Any pain in that wrist means stop that move, and if it's still worse than when you started after a short rest, we stop for today."
+session = "No weight or grip through that hand or forearm: no planks of any kind on it, no push-ups, nothing held in it, and no leaning on it to get up. On a bike, that hand rests off the bars. Shoulder and elbow movement and the other arm's work go on; single-leg and balance work keeps the other hand near a wall, and a wobble means stepping down, never catching yourself on that hand. After a broken wrist, wrist work comes in only as the clinician's rehab names it."
+stop = ["any pain in the {side} wrist"]
+stop_today = ["pain in that wrist that's still worse than when you started after a short rest"]
+say = "Moving your shoulder and elbow is part of getting the wrist back, and the wrist's own loading waits for your clinician's go-ahead."
+say_when = "the plan moves that arm's shoulder or elbow, even without a weight"
+
+[wrist.delicate]
+opening = "Your {side} wrist stays light today, kept straight with a light grip, and sharp pain as it bends back, or pain on the little-finger side, means stop that move."
+session = "Straight-wrist work only, push-ups on handles if the kit has them, and a light grip."
+stop = ["sharp pain as the wrist bends back under load", "pain on the little-finger side of the wrist under load"]
+say = "Soft tissue heals with gradual loading, not rest alone, so light work is part of the mend."
+say_when = "the plan has light work for that wrist"
+
+[wrist.check_in]
+delicate = "a loose fist is pain-free"
+clear = "grip matches the other hand"
+
+[neck]
+red_flags = [
+  "clumsy hands, or trouble with buttons, zips or writing",
+  "arms or legs that feel weak or heavy",
+  "a headache that gets worse with effort",
+]
+emergency = [
+  "sudden neck or head pain unlike any before",
+  "dizziness, unsteadiness, slurred speech, trouble swallowing or changes in vision",
+  "numbness in the face, or a drooping face or eyelid",
+]
+
+[neck.off-limits]
+opening = "Your neck sits this one out, head neutral and still with no quick turns. Neck pain that builds as you move means stop that move, and pain spreading into your arm means we stop for today."
+session = "The head stays neutral and still: no fast head turns and nothing that loads the neck. Walking and the rest of the body's work go on."
+stop = ["neck pain that builds as you move"]
+stop_today = ["pain spreading into the arm"]
+say = "Staying generally active helps a sore neck settle."
+
+[neck.delicate]
+opening = "Your neck stays light today, head in line with your spine and nothing overhead. Neck pain that builds through a set means stop that move, and pain spreading into your arm or a headache that builds means we stop for today."
+session = "One light row or shoulder-blade movement when the menu has one, otherwise a light carry with the head neutral (one side only is fine), gentle neck movement within comfort, and no overhead pressing today; overhead work is the test for clearing it, later."
+stop = ["neck pain that builds through a set"]
+stop_today = ["pain spreading into the arm", "a headache that builds with the effort"]
+say = "Strengthening the upper back and shoulder blades helps a sore neck, even early on."
+say_when = "the plan has rows or shoulder-blade strengthening (blades held set during another lift don't count)"
+
+[neck.check_in]
+delicate = "slow head turns are pain-free"
+clear = "overhead work leaves no neck pain the next day"

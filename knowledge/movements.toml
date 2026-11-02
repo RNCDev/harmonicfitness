@@ -290,7 +290,7 @@ sided = false
 measure = "reps"
 patterns = ["squat"]
 muscles = ["quads", "glutes", "adductors", "core"]
-loads = { knee = 3, hip = 2, ankle = 2, low-back = 1, wrist = 1 }
+loads = { knee = 3, hip = 2, ankle = 2, low-back = 1, wrist = 1, rib = 1 }
 flags = []
 intensity = "strength"
 level = "novice"
@@ -672,7 +672,7 @@ sided = false
 measure = "reps"
 patterns = ["hinge", "hips"]
 muscles = ["hamstrings", "glutes", "calves", "core"]
-loads = { hamstring = 3, knee = 2, hip = 2, low-back = 1, neck = 1, ankle = 1 }
+loads = { hamstring = 3, knee = 2, hip = 2, low-back = 1, neck = 1, ankle = 1, foot = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "experienced"
@@ -724,7 +724,7 @@ sided = false
 measure = "reps"
 patterns = ["hinge"]
 muscles = ["hamstrings", "glutes", "back", "forearms"]
-loads = { hip = 3, hamstring = 3, low-back = 2, knee = 1, wrist = 2 }
+loads = { hip = 3, hamstring = 3, low-back = 2, knee = 1, wrist = 2, neck = 1 }
 flags = ["grip"]
 intensity = "strength"
 level = "experienced"
@@ -927,7 +927,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-push"]
 muscles = ["chest", "triceps", "shoulders"]
-loads = { shoulder = 3, elbow = 2, wrist = 1 }
+loads = { shoulder = 3, elbow = 2, wrist = 1, rib = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
@@ -1181,7 +1181,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
 muscles = ["back", "lats", "biceps", "hamstrings"]
-loads = { shoulder = 3, low-back = 2, elbow = 2, hip = 1, wrist = 1 }
+loads = { shoulder = 3, low-back = 2, elbow = 2, hip = 1, wrist = 1, neck = 1, rib = 1 }
 flags = ["grip"]
 intensity = "strength"
 level = "experienced"
@@ -1535,7 +1535,7 @@ sided = false
 measure = "time"
 patterns = ["anti-extension"]
 muscles = ["core", "shoulders", "glutes"]
-loads = { shoulder = 2, elbow = 2, low-back = 1, ankle = 1, foot = 2 }
+loads = { shoulder = 2, elbow = 2, low-back = 1, ankle = 1, foot = 2, wrist = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "novice"
@@ -1560,7 +1560,7 @@ sided = true
 measure = "time"
 patterns = ["anti-rotation"]
 muscles = ["core", "shoulders", "glutes", "abductors"]
-loads = { shoulder = 2, elbow = 2, hip = 1, knee = 2 }
+loads = { shoulder = 2, elbow = 2, hip = 1, knee = 2, wrist = 1 }
 support = {}
 flags = ["floor", "lying-side"]
 intensity = "strength"
@@ -1586,7 +1586,7 @@ sided = true
 measure = "time"
 patterns = ["anti-rotation"]
 muscles = ["core", "shoulders", "glutes", "abductors"]
-loads = { shoulder = 2, elbow = 2, hip = 1, ankle = 1, low-back = 1 }
+loads = { shoulder = 2, elbow = 2, hip = 1, ankle = 1, low-back = 1, wrist = 1 }
 support = {}
 flags = ["floor", "lying-side"]
 intensity = "strength"
@@ -1948,7 +1948,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
 muscles = ["back", "shoulders"]
-loads = { shoulder = 3, elbow = 1, wrist = 1 }
+loads = { shoulder = 3, elbow = 1, wrist = 1, rib = 1 }
 flags = []
 intensity = "strength"
 level = "novice"
@@ -1998,7 +1998,7 @@ sided = false
 measure = "reps"
 patterns = ["horizontal-pull"]
 muscles = ["back", "lats", "biceps"]
-loads = { shoulder = 3, elbow = 2, wrist = 1 }
+loads = { shoulder = 3, elbow = 2, wrist = 1, rib = 1 }
 flags = ["grip"]
 intensity = "strength"
 level = "novice"
@@ -2357,7 +2357,7 @@ sided = false
 measure = "reps"
 patterns = ["squat"]
 muscles = ["quads", "glutes", "adductors"]
-loads = { knee = 3, hip = 2, ankle = 1, low-back = 2 }
+loads = { knee = 3, hip = 2, ankle = 1, low-back = 2, foot = 1 }
 flags = []
 intensity = "strength"
 level = "novice"
@@ -3043,7 +3043,7 @@ sided = true
 measure = "time"
 patterns = ["hips", "anti-rotation"]
 muscles = ["adductors", "core", "shoulders", "abductors"]
-loads = { groin = 3, knee = 2, hip = 2, shoulder = 2, elbow = 2, low-back = 1 }
+loads = { groin = 3, knee = 2, hip = 2, shoulder = 2, elbow = 2, low-back = 1, wrist = 1 }
 support = { groin = 2, hip = 1 }
 flags = ["floor", "lying-side"]
 intensity = "strength"
@@ -3120,7 +3120,7 @@ sided = false
 measure = "reps"
 patterns = ["mobility", "vertical-push"]
 muscles = ["shoulders", "back"]
-loads = { shoulder = 2, elbow = 1, neck = 1 }
+loads = { shoulder = 2, elbow = 1, neck = 1, wrist = 1 }
 flags = ["overhead"]
 intensity = "mobility"
 level = "novice"
@@ -3597,7 +3597,7 @@ sided = false
 measure = "reps"
 patterns = ["hips", "hinge"]
 muscles = ["hamstrings", "glutes", "calves", "core"]
-loads = { hamstring = 3, knee = 2, hip = 2, ankle = 1, low-back = 1, neck = 1 }
+loads = { hamstring = 3, knee = 2, hip = 2, ankle = 1, low-back = 1, neck = 1, foot = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "experienced"
@@ -3929,7 +3929,7 @@ sided = false
 measure = "reps"
 patterns = ["hinge", "hips"]
 muscles = ["hamstrings", "glutes", "core"]
-loads = { hamstring = 3, knee = 2, hip = 2, low-back = 1, neck = 1, ankle = 1 }
+loads = { hamstring = 3, knee = 2, hip = 2, low-back = 1, neck = 1, ankle = 1, foot = 1 }
 flags = ["floor"]
 intensity = "strength"
 level = "experienced"
@@ -5366,7 +5366,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["shoulders", "core", "calves"]
-loads = { shoulder = 2, elbow = 2, ankle = 1, low-back = 1, calf = 1 }
+loads = { shoulder = 2, elbow = 2, ankle = 1, low-back = 1, calf = 1, wrist = 1 }
 flags = ["fast", "spine-twist"]
 intensity = "conditioning"
 effort = "moderate"
@@ -5837,7 +5837,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1, calf = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, calf = 1, wrist = 1 }
 flags = []
 intensity = "conditioning"
 effort = "moderate"
@@ -5863,7 +5863,7 @@ sided = false
 measure = "time"
 patterns = ["locomotion"]
 muscles = ["quads", "glutes", "hamstrings", "calves"]
-loads = { knee = 1, hip = 1, ankle = 1, foot = 1, calf = 1 }
+loads = { knee = 1, hip = 1, ankle = 1, foot = 1, calf = 1, wrist = 1 }
 flags = ["fast"]
 intensity = "conditioning"
 effort = "hard"
@@ -6440,7 +6440,7 @@ measure = "time"
 patterns = ["mobility"]
 muscles = ["glutes", "adductors", "hamstrings", "back"]
 loads = { hip = 2, wrist = 2, shoulder = 1, low-back = 1, knee = 2, groin = 2, ankle = 2, foot = 1 }
-support = { knee = 2, hip = 1, groin = 2, ankle = 1, foot = 1 }
+support = { knee = 2, hip = 1, groin = 2, ankle = 1, foot = 1, wrist = 2 }
 flags = ["floor", "kneeling", "spine-twist", "overhead"]
 intensity = "mobility"
 level = "novice"
@@ -6848,7 +6848,7 @@ sided = true
 measure = "time"
 patterns = ["mobility"]
 muscles = ["chest", "shoulders"]
-loads = { shoulder = 2 }
+loads = { shoulder = 2, wrist = 1 }
 support = {}
 flags = []
 intensity = "mobility"
@@ -7000,7 +7000,7 @@ sided = false
 measure = "reps"
 patterns = ["mobility"]
 muscles = ["shoulders", "back", "core"]
-loads = { shoulder = 2, neck = 1, low-back = 1, rib = 1 }
+loads = { shoulder = 2, neck = 1, low-back = 1, rib = 1, wrist = 1 }
 flags = ["overhead"]
 intensity = "mobility"
 level = "novice"
@@ -7079,7 +7079,7 @@ sided = false
 measure = "time"
 patterns = ["breathing"]
 muscles = ["core"]
-loads = {}
+loads = { rib = 2 }
 flags = []
 intensity = "breathing"
 level = "novice"

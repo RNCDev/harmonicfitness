@@ -302,7 +302,7 @@ class PresetAvoid(unittest.TestCase):
         self.assertTrue(ids, r.stdout[:500])
         cat = catalog.load(extra=[])
         self.assertFalse([i for i in ids if "impact" in cat.movements[i].flags], ids)
-        self.assertIn("impact", r.stdout.split("Left out today by Avoid", 1)[1].splitlines()[0])
+        self.assertIn("impact", r.stdout.split("Also left out of the menu today", 1)[1].splitlines()[0])
 
 
 class Menu(unittest.TestCase):

@@ -34,12 +34,12 @@ import draft  # noqa: E402
 import menu  # noqa: E402
 import fileio  # noqa: E402
 import paths  # noqa: E402
+import playbook  # noqa: E402
 import screen  # noqa: E402
 import sessions  # noqa: E402
 import voices  # noqa: E402
 
 KNOWLEDGE = os.path.join(paths.ROOT, "knowledge")
-PLAYBOOK = os.path.join(KNOWLEDGE, "injury-playbook.md")
 PROGRAMMING = os.path.join(KNOWLEDGE, "programming.md")
 KITS = os.path.join(KNOWLEDGE, "kits.md")
 
@@ -94,10 +94,6 @@ def _sections(text: str) -> Dict[str, str]:
     return {k: "\n".join(v).strip() for k, v in out.items()}
 
 
-def _first_paragraph(body: str) -> str:
-    return body.split("\n\n")[0].split("\n- ")[0].strip()
-
-
 def _range(v) -> str:
     return f"{v[0]:g}" if v[0] == v[1] else f"{v[0]:g} to {v[1]:g}"
 
@@ -121,11 +117,13 @@ def _kind(m: catalog.Movement) -> str:
     return f"{m.intensity}, {m.effort} effort" if m.effort else m.intensity
 
 
-def _limited(m: catalog.Movement, areas: List[str]) -> str:
-    """Its load on today's limited areas, as "neck 1, knee 1 (resting side 1)", or ""."""
+def _limited(m: catalog.Movement, limits: List[catalog.Limit], side: str = "") -> str:
+    """Its load on today's limited areas, as "neck 1, knee 1 (resting side 1)", or "". Offered on the healthy
+    `side` only, the working side carries no limit of a one-sided limit's area: only its resting side counts."""
     parts = []
-    for a in areas:
-        load, rest = m.loads.get(a, 0), (m.support.get(a, 0) if m.sided else 0)
+    for a in dict.fromkeys(lim.area for lim in limits):
+        rests_only = side and all(lim.side == screen.OTHER_SIDE.get(side) for lim in limits if lim.area == a)
+        load, rest = (0 if rests_only else m.loads.get(a, 0)), (m.support.get(a, 0) if m.sided else 0)
         if load or rest:
             parts.append(f"{a} {load}" + (f" (resting side {rest})" if rest else ""))
     return ", ".join(parts)
@@ -137,7 +135,6 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
     ones, each with its facts and the catalog's coaching notes. `compact` keeps the facts and the easier and
     harder versions (what designing needs) and leaves the coaching notes to `./harmonicfitness movements --about`,
     except for a movement that loads one of today's limited areas or works one side only: its notes stay."""
-    areas = list(dict.fromkeys(lim.area for lim in scr.limits))
 
     def entry(m, side=None):
         where = f"{side} side only" if side else ("one side at a time" if m.sided else "")
@@ -145,10 +142,9 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
                  f"{_kind(m)}, {m.level}", ", ".join(m.muscles)]
         if m.flags:
             facts.append("flags: " + ", ".join(m.flags))
-        load = _limited(m, areas)
+        load = _limited(m, scr.limits, side or "")
         if load:
-            facts.append(f"load on today's limits ({'the working side' if side else 'as rated'}): {load}"
-                         if side else f"load on today's limits: {load}")
+            facts.append(f"load on today's limits: {load}")
             facts.append("LIGHT ONLY today")
         tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
@@ -218,42 +214,53 @@ def _profile_lines(profile) -> List[str]:
     return out
 
 
-def _limit_lines(cat: catalog.Catalog, scr, h, request: dict) -> List[str]:
-    playbook = _sections(_read(PLAYBOOK))
-    today = list(request.get("limits") or [])
-    own = [lim for lim in scr.limits if lim not in today]
+def _limit_lines(cat: catalog.Catalog, scr, h, request: dict, today: datetime.date) -> List[str]:
+    pb = playbook.shipped()
+    asked = list(request.get("limits") or [])
+    own = [lim for lim in scr.limits if lim not in asked]
     out = []
-    for lim in own + today:
+    for lim in own + asked:
         side = f", {lim.side} side" if lim.side in ("left", "right") else ""
-        when = " (today only, from the check-in)" if lim in today and lim not in own else ""
+        when = " (today only, from the check-in)" if lim in asked and lim not in own else ""
         note = f" Note: {lim.note}" if lim.note and lim.note != catalog.meaning(lim.area, lim.level, lim.side) else ""
         out.append(f"- **{lim.area} {lim.level}{side}**{when}: {catalog.meaning(lim.area, lim.level, lim.side)}.{note}")
+        out += playbook.session_lines(pb, lim.area, lim.level, lim.side)
+    for what in health.unlisted_injuries(h):
+        out.append(f"- **Unlisted: {what.rstrip('.')}**: outside the catalog's areas, so no limit row and no researched "
+                   f"guidance. {pb.unlisted_session}")
     if not out:
         out.append("- No limits today.")
-    rules = health.clinician_lines(h, cat.areas, cat.flags)[len(health.limits(h, cat.areas, cat.flags)):]
+    limited = {lim.area for lim in scr.limits}
+    for lim, day in health.cleared_rows(h, cat.areas, cat.flags):
+        carried = None if lim.area in limited else playbook.after_clearing(pb, lim.area, day, today)
+        if carried:
+            plan, until, say = carried
+            side = f"{lim.side} " if lim.side in ("left", "right") else ""
+            out.append(f"- **{side}{lim.area}, cleared {day.isoformat()}**: no limit now, so it adds nothing to the "
+                       f"opening's rules and the work is at normal effort. Until {until.isoformat()}: {plan}")
+            if say:
+                out.append(f"  - Say once, at the first set that works it: \"{say}\"")
+    rules = [r for r in health.clinician_lines(h, cat.areas, cat.flags)[len(health.limits(h, cat.areas, cat.flags)):]
+             if not r.lower().startswith(health.AVOID)]   # an Avoid: line is the menu's, not words to quote
     if rules:
         out += ["", "Clinician rules (say them in the clinician's words, attributed to the clinician; follow "
                 "them literally, and where one is stricter than the general stop rule, such as no pushing "
-                "through pain, it wins for that area every time it comes up):"] + [f"- {r}" for r in rules]
+                "through pain, it wins for that area every time it comes up; the menu applies only Avoid: lines, so leave "
+                "out yourself what a rule forbids, such as a movement flagged overhead under no overhead work):"] \
+            + [f"- {r}" for r in rules]
     if any(catalog.AREA_POSITIONS.get((lim.area, lim.level)) for lim in scr.limits):
         out += ["", "Nothing standing today includes fetching the kit: have everything the session uses set out "
                 "within reach before the work starts, and script no walk to a rack or across the room."]
     avoided = sorted(a for a in scr.avoid)
     if avoided:
-        out += ["", "Left out today by Avoid: lines and the request: " + ", ".join(avoided) + "."]
+        out += ["", "Also left out of the menu today (by Avoid: lines, the request or the limits; not words to "
+                "quote): " + ", ".join(avoided) + "."]
     cues = screen.cue_lines(cat, scr.limits)
     if cues:
         out += ["", "Limit cues (the catalog's spoken lines; say them wherever a movement or a transition "
                 "touches the limit):"] + [line.replace("    ", "  - ", 1) if line.startswith("    ") else "- " + line.strip()
                                           for line in cues]
-    areas = list(dict.fromkeys(lim.area for lim in scr.limits))
-    for a in areas:
-        title = a.replace("-", " ").capitalize()
-        if title in playbook:
-            out += ["", f"From the injury playbook, {title}: {_first_paragraph(playbook[title])}"]
-    out += ["", "Red flags (stop and suggest a clinician, in chat, not the audio): "
-            + _first_paragraph(playbook.get("Red flags", "")).replace("Mention these in chat, not in the audio, if "
-                                                                      "the listener reports them: ", "")]
+    out += [""] + playbook.flag_lines(pb, [lim.area for lim in scr.limits])
     return out
 
 
@@ -530,13 +537,13 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
         out.append("- Dislikes (left off the menu): " + ", ".join(disliked) + ".")
     out += _coach_lines(voice) + _profile_lines(profile)
     out += ["", "## Today in the week"] + _week_lines(cat, log, today, feedback or [])
-    out += ["", "## Today's limits"] + _limit_lines(cat, scr, health, request)
+    out += ["", "## Today's limits"] + _limit_lines(cat, scr, health, request, today)
     out += ["", "## Safe menu",
             f"Every movement in the script comes from this list, warm-up and cool-down included: {count} today "
             f"({len(scr.sel.left_out)} left out: {left or 'none'}). Nothing from memory. `./harmonicfitness build` "
             "checks the draft's `movements:` line and its text against it."]
-    if any(_limited(m, list(dict.fromkeys(lim.area for lim in scr.limits)))
-           for m in list(scr.sel.allowed) + list(scr.sel.healthy_side_only)):
+    if any(_limited(m, scr.limits) for m in scr.sel.allowed) \
+            or any(_limited(m, scr.limits, sides.get(m.id, "")) for m in scr.sel.healthy_side_only):
         out.append(LIGHT_ONLY)
     if compact:
         out.append("Coaching notes: after designing, run `./harmonicfitness movements --about <the ids you chose, comma "

@@ -106,7 +106,7 @@ def screen(request: dict, cat: catalog.Catalog, goals, profile, h) -> Screen:
     own, problems = health.limit_rows(h, cat.areas, cat.flags)
     if problems:   # a dropped row protects nothing
         raise Unfit(f"health.md: a [[limits]] row was ignored ({problems[0]}; run ./harmonicfitness check)")
-    gap = health.prose_injury_gap(h, len(own))
+    gap = health.prose_injury_gap(h, len(own) + len(health.cleared_rows(h, cat.areas, cat.flags)))
     if gap:
         warnings.append(f"health.md: {gap}")
     limits = own + list(request.get("limits") or [])

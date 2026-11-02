@@ -2,6 +2,45 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.52.0] - 2026-11-02
+
+What an injury limit means is now data the tools read. `knowledge/limits.toml` says, for each of the thirteen body areas and both levels, what to say in the opening, how to plan the session, which signs end a movement and which end the session, and a reason worth giving (with the condition that makes it true). It also holds the check-in's signs for loosening a limit, what carries on for a few weeks after one clears, and the red flags and emergencies. The brief quotes only today's level. `knowledge/injury-playbook.md` becomes its evidence: which lines are sourced and which are house judgment. The guidance was tuned over three rounds of 10-minute scripts written for invented listeners with injuries, each scored by reviewers on nine points (opening, today's plan, stop signs, limit cues, adjustments, reason, consistency, ear, workout). Twelve scripts scored 175 of 216 in the first round and 186 in the second. A final check on three of those scenarios (a broken wrist, a sore neck with a sore shoulder, a bruised rib) scored 48 of 54, against 42 for the same three in round 2, and gave the last fixes below. Every opening now carries the full stop rule, the heart rule and a line saying the session was made by AI.
+
+### Added
+- **`knowledge/limits.toml`** and **`tools/playbook.py`**. `./harmonicfitness test` checks that every area and level is covered, and that no sign both ends a movement and ends the session.
+- **`./harmonicfitness get limits`**: the check-in's signs for loosening each limit, what carries on after a cleared one, and the red flags and emergencies. The workout and setup skills read the red flags from it, and the web agent's step 1 runs it.
+- **Clearing a limit:** `cleared = <YYYY-MM-DD>` on a `[[limits]]` row in `me/health.md`. The screen skips that row, and for the area's weeks the brief carries what should follow (a hamstring's slow lowering, say) and a line to say once.
+- **Unlisted injuries reach the brief.** A "- Unlisted: <what>" line gets its own entry and a house rule: moderate effort, no jumping or breath holds, and pain at that site stops the move.
+- **Evidence notes** in `knowledge/research/`: red flags; neck and hip; elbow, wrist and rib; Achilles, knee and how much pain during exercise the sources allow.
+- **`docs/index.html`** maps how the knowledge, coaches, tools and `me/` fit together, and **`docs/style-guide.html`** sets the house style.
+
+### Changed
+- **The brief's limits section:** for each limit, the opening line, today's plan, "Stop that movement on" and "Stop for today on" signs, and a reason to say. `Avoid:` lines are no longer quoted as clinician rules; they're listed as left out of the menu. The clinician rules header says the menu applies only `Avoid:` lines, so a writer leaves out by hand anything a prose rule forbids, such as overhead work.
+- **A movement offered on the healthy side only** is no longer marked LIGHT ONLY because of the other side's limit; only its resting side's load counts.
+- **`knowledge/script.md`:**
+  - Each sign means one thing everywhere: a stop sign ends the movement at any score, and is never answered with an easier version.
+  - The opening says each thing once, and says the session was made by AI, not by a certified trainer or a clinician.
+  - A limit cue is said at each first set where it fits the movement, word for word the first time and in a short form after.
+  - "No worse than when you started" holds for an elbow, a rib, and a low back off limits.
+- **The catalog's joint loads** (`knowledge/movements.toml`), where the screen let movements through:
+  - The wrist now counts in forearm and side planks, the Copenhagen plank, wall slides, wall angels, the doorway chest stretch, the elliptical and shadow boxing, and in the resting hand of the world's greatest stretch (both hands go on the floor).
+  - The foot counts in the leg press and heel-on-towel, heel-on-ball and suspension hamstring curls.
+  - The ribs count in the goblet squat, bent-over and band rows, band pull-aparts and the floor press, and box breathing's breath holds now keep it off the menu for a sore rib.
+  - The neck counts in the Romanian deadlift and bent-over row.
+- **README and CLAUDE.md** trimmed, each with its own job.
+- **Web app:** Woven Grid is fainter and Bloom bolder, both livelier.
+
+### Removed
+- **The script eval loop** (`docs/eval/`, which replaced `web/local_turn.py` and `docs/eval/timing.py` along the way) and the browser QAT setup (`.claude/browser-qat.md`, `web/qat_key.py`). The web writer `editor.md` is now `final-script-writer.md`.
+
+### Fixed
+- **Web tests** removed the temporary context folders they made. A leftover one was found by the cloud-mode home search on the next run, which made the cloud setup test fail.
+
+### For forks
+- **`me/` needs no migration.** `health.md` reads as before. `cleared` is a new optional key on a `[[limits]]` row, and an older engine refuses a row that carries it.
+- **The brief no longer reads `knowledge/injury-playbook.md`.** Move any edits to it into `knowledge/limits.toml`; the tests check that it covers every area and level.
+- **Menus change** where the catalog's new loads apply, under a wrist, foot, rib or neck limit.
+
 ## [0.51.0] - 2026-11-01
 
 Three writers write the web app's scripts. The agent still plans the session (the skeleton: every segment's seconds, counts and holds); then a story writer, started as soon as the brief is saved, writes the rests' stories from the listener's topics, the day's sheets and its own searches, while a coach writer writes the coaching from the brief and the movements' notes; code lays them on the skeleton, the build checks the result, and an editor reads the whole script with that check and makes it one coach talking to one person. Each writer reads only its own material: its task is a paragraph, and its craft the part of `knowledge/script.md` and `knowledge/tts-rules.md` it writes by. A day of tuning the single writer had left engagement at about 3 (docs/eval/README.md; 0.50.2). Judged the same way, the stories went from 3 to 3.5 to about 4 in every run, and the last round scored 5 / 4 / 4 and 4 / 4 / 4 (safety / efficacy / engagement) against 4 / 4 / 3 and 4.5 / 4 / 3.5 for the single writer. The cost is time and tokens: about four minutes to a priced, checked draft (230 to 268 seconds in the last three runs, the 45-minute holdout included, each priced on its first build), against one and a half to two and a half, and more of the listener's Gemini tokens a workout. While the writers work, the page says it takes a few minutes and the listener can step away. Still open, for the next loop: praise that implies the coach watched, one story spread over four rests, light bodyweight doses, and stories that start cold.

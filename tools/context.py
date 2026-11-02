@@ -585,6 +585,33 @@ def set_persona_setting(path, table, key, value):
 
 # ---- command line ----------------------------------------------------------------------
 
+def limits_report(today=None):
+    """What the check-in needs about health.md's limits, as lines: the rule for loosening, each limit with the
+    sign that loosens it one step, each cleared limit whose after-clearing rule still holds, and the red flags."""
+    import datetime
+    import catalog
+    import health
+    import playbook
+    cat, pb = catalog.load(), playbook.shipped()
+    today = today or datetime.date.today()
+    h = health.health()
+    current = health.limits(h, cat.areas, cat.flags)
+    out = [pb.check_in]
+    for lim in current:
+        side = f" {lim.side}" if lim.side in ("left", "right") else ""
+        out.append(f"- {lim.area} {lim.level}{side}: " + "; ".join(playbook.check_in_lines(pb, lim.area, lim.level)))
+    if not current:
+        out.append("- No limits.")
+    for lim, day in health.cleared_rows(h, cat.areas, cat.flags):
+        carried = playbook.after_clearing(pb, lim.area, day, today)
+        if carried:
+            side = f"{lim.side} " if lim.side in ("left", "right") else ""
+            out.append(f"- {side}{lim.area}, cleared {day.isoformat()}: no limit now; until {carried[1].isoformat()}, "
+                       f"{carried[0]}")
+    out += playbook.flag_lines(pb, [lim.area for lim in current])
+    return out
+
+
 def _get(args, p):
     """The value `get` prints: a str, an int, a list (routes) or None (nothing set)."""
     if args.what == "coach":
@@ -593,6 +620,8 @@ def _get(args, p):
         return coach.name if coach else None
     if args.what == "web-builds":
         return web_builds()
+    if args.what == "limits":
+        return limits_report()
     if args.what == "cost":
         import cost
         return cost.cost(args.coach, args.chars)
@@ -609,9 +638,10 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds", "cost"),
+    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds", "cost", "limits"),
                    help="web-builds: how many builds have sent a script to a web voice service; cost: what "
-                        "sending --chars characters costs with --coach (a web coach)")
+                        "sending --chars characters costs with --coach (a web coach); limits: what the check-in needs "
+                        "about health.md's limits (what loosens each, what carries on after one clears, the red flags)")
     g.add_argument("--coach", help="with route or cost: the coach the build is for (default: the last one used)")
     g.add_argument("--chars", type=cli.positive_int, default=None,
                    help="with cost: the characters to price (default: the profile's cloud_max_chars ceiling)")

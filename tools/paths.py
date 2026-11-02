@@ -85,6 +85,7 @@ EXAMPLE = os.path.join(ROOT, "me.example")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
 MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the shared movement catalog
 SESSIONS = os.path.join(ROOT, "knowledge", "sessions.toml")             # session methods and dose rules
+LIMITS = os.path.join(ROOT, "knowledge", "limits.toml")                 # what each injury limit means for a session
 CONTENT = os.path.join(ROOT, "knowledge", "content.toml")               # the formats, and how many topics a session touches
 
 

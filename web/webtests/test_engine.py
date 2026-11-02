@@ -13,8 +13,22 @@ from webapp import engine, folder  # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 
-def stub(body):
+MADE = []   # every temporary folder, removed when the module finishes
+
+
+def tearDownModule():
+    for d in MADE:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def tmp():
     d = tempfile.mkdtemp()
+    MADE.append(d)
+    return d
+
+
+def stub(body):
+    d = tmp()
     p = os.path.join(d, "harmonicfitness")
     with open(p, "w") as f:
         f.write("#!/bin/sh\n" + body + "\n")
@@ -26,7 +40,7 @@ class Engine(unittest.TestCase):
     def test_engine_env_is_allowlisted(self):
         # the engine prints its environment. `env` runs under its own name (a multi-call coreutils, as on
         # newer Ubuntu, picks its job from that name) and drops what the shell itself adds.
-        root, home = stub(f"exec {shutil.which('env')} -u PWD -u OLDPWD -u SHLVL -u _"), tempfile.mkdtemp()
+        root, home = stub(f"exec {shutil.which('env')} -u PWD -u OLDPWD -u SHLVL -u _"), tmp()
         with mock.patch.dict(os.environ, {"HARMONICFITNESS_MASTER_KEY": "secret-master",
                                           "DATABASE_URL": "postgres://x",
                                           "SESSION_SECRET": "s", "SOMETHING_ELSE": "y",
@@ -41,7 +55,7 @@ class Engine(unittest.TestCase):
         self.assertEqual((got["HOME"], got["HARMONICFITNESS_HOME"]), (home, home))
 
     def test_brief_runs_on_a_seeded_folder(self):
-        home = tempfile.mkdtemp()
+        home = tmp()
         folder.materialize(folder.seed(ROOT), home)
         draft = f"{home}/workouts/2026-10-27-strength-20/2026-10-27-strength-20.draft.txt"
         r = engine.run(ROOT, home, ["brief", "--goal", "strength", "--minutes", "20",
@@ -52,20 +66,20 @@ class Engine(unittest.TestCase):
         self.assertTrue(os.path.exists(draft.replace(".draft.txt", ".menu.json")))
 
     def test_web_mode_always_on(self):
-        root, home = stub('echo "$HARMONICFITNESS_WEB"'), tempfile.mkdtemp()
+        root, home = stub('echo "$HARMONICFITNESS_WEB"'), tmp()
         self.assertEqual(engine.run(root, home, []).stdout, "1\n")
         with self.assertRaises(ValueError):
             engine.run(root, home, [], extra_env={"HARMONICFITNESS_WEB": "0"})
 
     def test_extra_env_values_are_scrubbed(self):
-        root, home = stub('echo "$FISH_AUDIO_API_KEY"; echo "$FISH_AUDIO_API_KEY" >&2'), tempfile.mkdtemp()
+        root, home = stub('echo "$FISH_AUDIO_API_KEY"; echo "$FISH_AUDIO_API_KEY" >&2'), tmp()
         r = engine.run(root, home, [], extra_env={"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
         self.assertNotIn("sk-abcdefghijklmnop", r.stdout)
         self.assertNotIn("sk-abcdefghijklmnop", r.stderr)
         self.assertIn("<key>", r.stdout)
 
     def test_timeout_kills(self):
-        root, home = stub("sleep 10"), tempfile.mkdtemp()
+        root, home = stub("sleep 10"), tmp()
         t = time.time()
         r = engine.run(root, home, [], timeout=0.5)
         self.assertEqual(r.code, 124)
@@ -73,13 +87,13 @@ class Engine(unittest.TestCase):
         self.assertLess(time.time() - t, 8)
 
     def test_extra_env_cannot_override_home(self):
-        root, home = stub("env"), tempfile.mkdtemp()
+        root, home = stub("env"), tmp()
         for k in ("HOME", "HARMONICFITNESS_HOME"):
             with self.assertRaises(ValueError):
                 engine.run(root, home, [], extra_env={k: "/x"})
 
     def test_nonzero_code_passes_through(self):
-        root, home = stub("echo oops >&2; exit 3"), tempfile.mkdtemp()
+        root, home = stub("echo oops >&2; exit 3"), tmp()
         r = engine.run(root, home, [])
         self.assertEqual((r.code, r.stderr.strip()), (3, "oops"))
 

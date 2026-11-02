@@ -25,7 +25,7 @@ from frontmatter import body, front, placeholder, section, unfilled  # noqa: E40
 from sessionlog import Session, parse_session  # noqa: E402
 from store import SCHEMA, read_raw, schema_of, schema_problem, split  # noqa: E402
 from frontmatter import heading_index  # noqa: E402
-from health import Health, _limit_row, clinician_avoids, limit_rows, prose_injury_gap  # noqa: E402
+from health import Health, _limit_row, cleared_rows, clinician_avoids, limit_rows, prose_injury_gap  # noqa: E402
 
 
 def _catalog():
@@ -205,7 +205,7 @@ def _check_health(path, text):
             catalog.avoid_set(cat, [word])
         except ValueError as e:
             out.append(Issue(path, 0, f"Avoid: {e}; the brief won't plan until it's fixed"))
-    gap = prose_injury_gap(h, len(good))
+    gap = prose_injury_gap(h, len(good) + len(cleared_rows(h, cat.areas, cat.flags)))
     if gap:
         out.append(Issue(path, 0, gap))
     return out

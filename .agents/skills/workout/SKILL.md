@@ -9,7 +9,7 @@ The check-in is the only time the user is needed: they answer it in the first mi
 
 Rules that always hold:
 - Every movement in the script, warm-up and cool-down included, comes from the brief's safe menu; nothing from memory. The build checks the draft's `movements:` line and its text against the menu and stops on anything else.
-- A red flag from `knowledge/injury-playbook.md` (can't bear weight, rapidly increasing swelling, numbness, giving way, getting worse after a week or two) stops the session: say so in chat and suggest a clinician.
+- A red flag (`./harmonicfitness get limits` lists them) stops the session: say so in chat and suggest a clinician.
 - `me/health.md` is edited only at the check-in, which asks the user's permission.
 - After the check-in, don't ask anything (except step 2's coach question when the coach can't speak here, and step 3's one equipment question) or wait on the user. Take the defaults, run commands exactly as written (no leading `cd`, no absolute paths; they're allow-listed), and write only inside `me/`.
 
@@ -20,6 +20,7 @@ This step reads only what the check-in's questions need.
 - `date "+%Y-%m-%d %A %H:%M"`: morning previews the day, evening recaps.
 - `./harmonicfitness check`: a `me/health.md` issue (a malformed `[[limits]]` row applies no limit; a prose injury with no row gets no rule) is fixed at the check-in, then checked again. Notes are fine; with no experience level the default is novice until set, so offer to set it.
 - `./harmonicfitness content plan`: the rests plan (topics due, a serial or not, the stock).
+- `./harmonicfitness get limits`: loosening signs; red flags.
 - `./harmonicfitness get coach`: who's coaching (the coach used last, else their own web coach, else a stand-in that works here); the check-in's Coach question offers them first. Exit 1 (that coach is archived): ask the Coach question with `./harmonicfitness coaches`' list.
 - Read `me/profile.md`, `me/training.md`, `me/health.md` and `me/log.md` (not `me/content.md`: research reads that). No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./harmonicfitness doctor` says so), only web coaches speak and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./harmonicfitness migrate`, then rerun.
 
@@ -44,7 +45,7 @@ Feeds, knowledge files and the brief come after the check-in.
 
 - "Just go" means ask nothing: profile defaults, normal readiness (unless feedback says otherwise), limits unchanged, assumptions in one line.
 - Readiness changes the plan by the brief's Readiness rule (`knowledge/programming.md`). Soreness from training isn't a limit: that muscle group goes lighter today. Pain in a joint is: `--limit <area>=delicate` for today. Feedback on the last workout ("too long"): `./harmonicfitness workouts feedback 1 "<what they said>"`, then what it teaches: `./harmonicfitness interests add --source feedback` (its `--help`). Pain in feedback: ask at the check-in.
-- A change for today only becomes `--limit area=level[:side]` (level `off-limits` or `delicate`). A lasting change, or a new problem, goes into `me/health.md` (a `[[limits]]` row, the prose, the clinician rules); an injury outside the catalog's areas is written "- Unlisted: <what>", with an `Avoid: <movements or flags>` line under `## Clinician rules`. Only the listener's report loosens a limit, by the playbook's signs for that area; "mostly" means not yet.
+- A change for today only becomes `--limit area=level[:side]` (level `off-limits` or `delicate`). A lasting change, or a new problem, goes into `me/health.md` (a `[[limits]]` row, the prose, the clinician rules); an injury outside the catalog's areas is written "- Unlisted: <what>", with an `Avoid: <movements or flags>` line under `## Clinician rules`. Only the listener's report loosens a limit, by its `get limits` sign ("mostly" means not yet); clearing one adds `cleared = <YYYY-MM-DD>` to its row.
 - Lasting changes: kits, likes and dislikes in `me/training.md`; topics (lines under `## Topics`) and taste in `me/content.md`.
 
 <!-- web: skip -->
