@@ -13,7 +13,7 @@ export class ApiError extends Error {
 
 export type Me = { app_name: string; username: string; has_password: boolean; version: string;
   /** The animated background chosen in Settings; absent from a server older than 0.33.0. */
-  sky?: "flow" | "field" | "waves" | "bloom" | "strands" | "garden";
+  sky?: "flow" | "field" | "waves" | "bloom" | "woven" | "garden";
   /** Record without asking (Settings); absent from a server older than 0.48.0. */
   auto_record?: boolean };
 export type AuthInfo = { app_name: string; registration: boolean; version: string };
@@ -110,7 +110,7 @@ export const api = {
   setKey: (service: string, key: string) =>
     call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
   setWriter: (service: string) => call<void>("PUT", "/api/writer", { service }),
-  setSky: (sky: "flow" | "field" | "waves" | "bloom" | "strands" | "garden") => call<void>("PUT", "/api/sky", { sky }),
+  setSky: (sky: "flow" | "field" | "waves" | "bloom" | "woven" | "garden") => call<void>("PUT", "/api/sky", { sky }),
   setAutoRecord: (on: boolean) => call<void>("PUT", "/api/auto-record", { on }),
   /** `day` is the listener's own date (YYYY-MM-DD), as the log's are. */
   setCoach: (slug: string, day: string) => call<void>("PUT", "/api/coach", { slug, day }),

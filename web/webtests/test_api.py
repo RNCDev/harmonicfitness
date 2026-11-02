@@ -590,10 +590,10 @@ class Keys(ApiCase):
         self.assertEqual(keystore.sky(self.conn, uk), "field")
         self.conn.rollback()
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
-        for kind in ("waves", "bloom", "strands", "garden", "field"):
+        for kind in ("waves", "bloom", "woven", "garden", "field"):
             self.assertEqual(self.client.put("/api/sky", json={"sky": kind}, headers=self.origin()).status_code, 204, kind)
             self.assertEqual(keystore.sky(self.conn, uk), kind)
-        for bad in ({"sky": "clouds"}, {"sky": "arcs"}, {"sky": "lissajous"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
+        for bad in ({"sky": "clouds"}, {"sky": "arcs"}, {"sky": "lissajous"}, {"sky": "strands"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
             self.assertEqual(self.client.put("/api/sky", json=bad, headers=self.origin()).status_code, 422, bad)
         self.assertEqual(self.client.put("/api/sky", json={"sky": "flow"}).status_code, 403)   # no Origin
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
@@ -614,7 +614,7 @@ class Keys(ApiCase):
 
     def test_a_retired_sky_reads_as_the_default(self):
         _, uk = self.signed_in()
-        for retired in ("arcs", "lissajous"):   # Arcs went in 0.46.2, Lissajous in 0.50.3
+        for retired in ("arcs", "lissajous", "strands"):   # Arcs went in 0.46.2, Lissajous in 0.50.3, Hex Strands in 0.50.4
             self.conn.execute("update users set sky = %s where id = %s", (retired, uk.user_id))
             self.conn.commit()
             self.assertEqual(self.client.get("/api/me").json()["sky"], "flow", retired)

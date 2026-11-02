@@ -1,6 +1,6 @@
 [project]
 name = "harmonicfitness"
-version = "0.50.3"
+version = "0.50.4"
 description = "Narrated workout podcasts, written by Claude Code and voiced on your own computer or by a cloud voice."
 readme = "README.md"
 license = "MIT"

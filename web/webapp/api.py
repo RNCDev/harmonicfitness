@@ -169,7 +169,7 @@ class WriterBody(BaseModel):
 
 class SkyBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    sky: Literal["flow", "field", "waves", "bloom", "strands", "garden"]
+    sky: Literal["flow", "field", "waves", "bloom", "woven", "garden"]
 
 
 class AutoRecordBody(BaseModel):

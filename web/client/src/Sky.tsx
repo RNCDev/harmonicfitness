@@ -2,21 +2,22 @@
 // Sokolowski). Six to choose from under Background in Settings: Flow (fine lines drifting sideways), Field (a grid
 // of dots that a ripple crosses every few seconds, spreading from the top right like sound from a speaker), Waves
 // (its Interference Mesh: level lines bent by two sources of ripples), Bloom (its Phyllotaxis Bloom: strokes set out like a
-// sunflower's seeds, turning slowly, a pulse passing outward), Strands (its Hex Strands: a breathing hexagon grid
-// with bundles of lines wandering through it) and Garden (its Node Garden: drifting points linked to their near
+// sunflower's seeds, turning slowly, a pulse passing outward), Woven (its Woven Grid: a warped grid of fine threads
+// going over and under, like stretched cloth) and Garden (its Node Garden: drifting points linked to their near
 // neighbours). All hold still when the system asks for reduced motion, and brighten a little while the coach works.
 // The code says "sky"; the page says Background. (Arcs, after its Brockmann Beethoven Arcs, went in 0.46.2: Book of
-// Shapes' licence asks that one not be published. Lissajous went in 0.50.3, for Strands and Garden.)
+// Shapes' licence asks that one not be published. Lissajous went in 0.50.3, and Hex Strands, its
+// short-lived successor, in 0.50.4.)
 import { memo, useEffect, useRef, type ReactNode } from "react";
 import { Mark } from "./Mark";
 
-export type SkyKind = "flow" | "field" | "waves" | "bloom" | "strands" | "garden";
+export type SkyKind = "flow" | "field" | "waves" | "bloom" | "woven" | "garden";
 export const SKIES: { kind: SkyKind; name: string; about: string }[] = [
   { kind: "flow", name: "Flow", about: "Lines drift slowly across." },
   { kind: "field", name: "Field", about: "A ripple crosses it every few seconds." },
   { kind: "waves", name: "Waves", about: "Two ripples bend the lines as they meet." },
   { kind: "bloom", name: "Bloom", about: "A spiral of strokes turns slowly." },
-  { kind: "strands", name: "Hex Strands", about: "Lines wander through a breathing grid." },
+  { kind: "woven", name: "Woven Grid", about: "Threads stretch like cloth as it shifts." },
   { kind: "garden", name: "Node Garden", about: "Drifting points link and let go." },
 ];
 
@@ -185,7 +186,7 @@ function Waves() {
 // (radius by the square root of its number, so they fill the disc evenly), each pointing out from the centre and
 // longer toward the edge. The whole turns slowly, and a soft pulse travels outward through it every few seconds.
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-const SEEDS = 1720;   // more seeds as it grew, so they keep their spacing
+const SEEDS = 3870;   // more seeds as it grew, so they keep their spacing
 const BLOOM_SPIN = 0.012;    // radians a second
 const BLOOM_PERIOD = 6;      // seconds between pulses
 
@@ -195,7 +196,7 @@ function seeds(n: number): { a: number; r: number }[] {
 }
 
 const paintBloom: Painter = (ctx, w, h) => {
-  const cx = w * 0.72, cy = h * 0.5, R = Math.min(h * 0.86, w * 0.75);   // large: its edge runs off the page
+  const cx = w * 0.72, cy = h * 0.5, R = Math.min(h * 1.29, w * 1.125);   // large: its edge runs well off the page
   const all = seeds(SEEDS);
   return (t) => {
     const tt = t < 0 ? 0 : t;
@@ -210,6 +211,7 @@ const paintBloom: Painter = (ctx, w, h) => {
       const len = (4 + 18 * s.r) * (1 + 0.5 * lift);
       const a = s.a + spin, d = s.r * R;
       const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+      if (x < -len || x > w + len || y < -len || y > h + len) continue;     // off the page: much of it is
       ctx.globalAlpha = (0.08 + 0.16 * s.r) * (1 + 0.8 * lift);
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(a) * len / 2, y - Math.sin(a) * len / 2);
@@ -224,9 +226,9 @@ function Bloom() {
   return <canvas ref={useCanvas(paintBloom)} className="bloom" />;
 }
 
-// ---- shared by Strands and Garden: a fixed random sequence, and a slow field that carries points about ----
+// ---- shared by Woven and Garden: a fixed random sequence, and a slow field that carries points about ----
 
-/** The same "random" numbers every time for one seed (mulberry32), so a page draws the same strands or nodes. */
+/** The same "random" numbers every time for one seed (mulberry32), so a page draws the same nodes. */
 function rng(seed: number): () => number {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;
@@ -261,111 +263,62 @@ class SvgPen implements Pen {
 /** How much a line at this x shows: faint on the left, where the page's words sit, full on the right. */
 const fade = (x: number, w: number) => 0.35 + 0.65 * Math.max(0, Math.min(1, x / w));
 
-// ---- Strands: after Book of Shapes' Hex Strands (itself after markknol's Waved Grid on Turtletoy) ----
-// A grid of hexagons warped by a slow field, so cells balloon in places and crowd in others but never overlap: every
-// corner moves with the field, and a corner three cells share moves once. Some cells hold a bundle of parallel lines
-// from one wall to another, straight across or bending; the next cell carries the bundle on through the wall it came
-// in by, so each strand wanders across the grid until a wall stops it. The field drifts, and the cells breathe.
-const HEX = 44;              // px from a cell's centre to a corner
-const ROOT3 = Math.sqrt(3);
-const HEX_STEP = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];   // the cell through wall k, in (q, r)
+// ---- Woven: after Book of Shapes' Woven Grid (itself after llemarie's Interpolated random grid on Turtletoy) ----
+// A coarse grid pushed out of shape by a slow field, then every warped cell divided between its four corners into
+// fine threads both ways. A thread runs straight inside a cell and bends only where it crosses into the next, so the
+// grid reads as stretched fabric; the threads go over and under in a checkerboard, the upper ones brighter. The
+// field drifts, and the cloth shifts with it.
+const WEAVE = 120;        // px across a coarse cell
+const THREADS = 6;        // threads each way in a cell
 
-type Bundle = { e: number; x: number; n: number };   // in through wall e, out through wall x, n lines
-type Cell = { cx: number; cy: number; bundle?: Bundle };
-
-/** The cells covering w × h with a cell to spare past every edge, and the strands through them. */
-function hexCells(w: number, h: number, size: number): Cell[] {
-  const cells = new Map<string, Cell>();
-  for (let q = -1; q <= Math.ceil(w / (1.5 * size)) + 1; q++) {
-    for (let r = Math.floor(-q / 2) - 1; r <= Math.ceil(h / (ROOT3 * size) - q / 2) + 1; r++) {
-      cells.set(`${q},${r}`, { cx: 1.5 * size * q, cy: ROOT3 * size * (r + q / 2) });
-    }
-  }
-  const rand = rng(7);
-  const keys = [...cells.keys()];
-  for (let i = keys.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [keys[i], keys[j]] = [keys[j], keys[i]];
-  }
-  for (const key of keys) {
-    if (cells.get(key)!.bundle || rand() < 0.75) continue;
-    let [q, r] = key.split(",").map(Number);
-    let e = Math.floor(rand() * 6);
-    const n = 3 + Math.floor(rand() * 4);
-    for (let step = 0; step < 10; step++) {
-      const cell = cells.get(`${q},${r}`);
-      if (!cell || cell.bundle) break;                  // off the grid, or another strand's wall
-      const turn = rand();
-      const x = (e + (turn < 0.4 ? 3 : turn < 0.7 ? 2 : 4)) % 6;   // straight on, or bending either way
-      cell.bundle = { e, x, n };
-      if (rand() < 0.2) break;
-      q += HEX_STEP[x][0];
-      r += HEX_STEP[x][1];
-      e = (x + 3) % 6;
-    }
-  }
-  return [...cells.values()];
+/** Where the grid's corner (i, j) is at time t (in seconds; 0 when still): moved by two swells whose stretch adds
+ *  to under 1, so no cell ever folds over. */
+function weaveCorner(i: number, j: number, size: number, t: number): [number, number] {
+  const [ax, ay] = swell(i, j, 1.2, 0.35, 0.09 * t, 0.06 * t, 0);
+  const [bx, by] = swell(i, j, 2.1, 0.07, 1 - 0.07 * t, 2 + 0.05 * t, 0.7);
+  return [(i + ax + bx) * size, (j + ay + by) * size];
 }
 
-/** A cell's six corners as the field has moved them at time t (in seconds; 0 when still). */
-function hexCorners(cell: Cell, size: number, t: number): [number, number][] {
-  return Array.from({ length: 6 }, (_, k) => {
-    const x = cell.cx + size * Math.cos((k * Math.PI) / 3), y = cell.cy + size * Math.sin((k * Math.PI) / 3);
-    const u = x / size, v = y / size;
-    const [ax, ay] = swell(u, v, 0.42, 0.71, 0.08 * t, 0.055 * t, 0);
-    const [bx, by] = swell(u, v, 0.71, 0.21, 1 - 0.06 * t, 2 + 0.07 * t, 0.9);
-    return [x + (ax + bx) * size, y + (ay + by) * size];
-  });
-}
-
-/** Walls 0 to 2 of a cell: the other three are its neighbours', so each wall is drawn once. */
-function hexWalls(pen: Pen, v: [number, number][]) {
-  pen.moveTo(v[0][0], v[0][1]);
-  for (let k = 1; k <= 3; k++) pen.lineTo(v[k][0], v[k][1]);
-}
-
-/** A bundle's lines: in through wall e and out through wall x, leaving and meeting each wall square on, so a
- *  strand runs smoothly into the next cell. */
-function hexBundle(pen: Pen, v: [number, number][], { e, x, n }: Bundle) {
-  const at = (a: [number, number], b: [number, number], f: number) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-  const cx = v.reduce((s, p) => s + p[0], 0) / 6, cy = v.reduce((s, p) => s + p[1], 0) / 6;
-  const mid = (k: number) => at(v[k], v[(k + 1) % 6], 0.5);
-  const [me, mx] = [mid(e), mid(x)];
-  for (let i = 0; i < n; i++) {
-    const f = 0.2 + (0.6 * i) / (n - 1);
-    const [px, py] = at(v[e], v[(e + 1) % 6], f);
-    const [qx, qy] = at(v[(x + 1) % 6], v[x], f);   // the far wall walked the other way, so the lines never cross
-    pen.moveTo(px, py);
-    pen.bezierCurveTo(px + (cx - me[0]) * 0.55, py + (cy - me[1]) * 0.55, qx + (cx - mx[0]) * 0.55, qy + (cy - mx[1]) * 0.55, qx, qy);
-  }
-}
-
-const paintStrands: Painter = (ctx, w, h) => {
-  const cells = hexCells(w, h, HEX);
-  return (t) => {
-    const tt = t < 0 ? 0 : t;
-    ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 1;
-    for (const cell of cells) {
-      const v = hexCorners(cell, HEX, tt), o = fade(cell.cx, w);
-      ctx.globalAlpha = 0.09 * o;
-      ctx.beginPath();
-      hexWalls(ctx, v);
-      ctx.stroke();
-      if (cell.bundle) {
-        ctx.globalAlpha = 0.3 * o;
-        ctx.beginPath();
-        hexBundle(ctx, v, cell.bundle);
-        ctx.stroke();
+/** Every cell covering w × h with one to spare past each edge, its threads drawn by `pen`: across, then down. */
+function weave(w: number, h: number, size: number, threads: number, t: number,
+  draw: (across: boolean, over: boolean, x: number, run: (pen: Pen) => void) => void) {
+  const cols = Math.ceil(w / size) + 2, rows = Math.ceil(h / size) + 2;
+  const at = Array.from({ length: cols + 1 }, (_, i) => Array.from({ length: rows + 1 }, (_, j) => weaveCorner(i - 1, j - 1, size, t)));
+  const lerp = (a: [number, number], b: [number, number], f: number) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const p00 = at[i][j], p10 = at[i + 1][j], p01 = at[i][j + 1], p11 = at[i + 1][j + 1];
+      const x = (p00[0] + p11[0]) / 2, over = (i + j) % 2 === 0;
+      for (const across of [true, false]) {
+        draw(across, across === over, x, (pen) => {
+          for (let s = 0; s < threads; s++) {
+            const f = (s + 0.5) / threads;
+            const [ax, ay] = across ? lerp(p00, p01, f) : lerp(p00, p10, f);
+            const [bx, by] = across ? lerp(p10, p11, f) : lerp(p01, p11, f);
+            pen.moveTo(ax, ay);
+            pen.lineTo(bx, by);
+          }
+        });
       }
     }
-    ctx.globalAlpha = 1;
-  };
+  }
+}
+
+const paintWoven: Painter = (ctx, w, h) => (t) => {
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1;
+  weave(w, h, WEAVE, THREADS, t < 0 ? 0 : t, (_, over, x, run) => {
+    ctx.globalAlpha = (over ? 0.22 : 0.07) * fade(x, w);
+    ctx.beginPath();
+    run(ctx);
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
 };
 
-function Strands() {
-  return <canvas ref={useCanvas(paintStrands)} className="strands" />;
+function Woven() {
+  return <canvas ref={useCanvas(paintWoven)} className="woven" />;
 }
 
 // ---- Garden: after Book of Shapes' Node Garden ----
@@ -431,7 +384,7 @@ export const Sky = memo(function Sky({ kind = "flow", busy = false }: { kind?: S
   return (
     <div className={`sky sky-${kind}${busy ? " busy" : ""}`} data-sky={kind} aria-hidden="true">
       {kind === "field" ? <Field /> : kind === "waves" ? <Waves /> : kind === "bloom" ? <Bloom />
-        : kind === "strands" ? <Strands /> : kind === "garden" ? <Garden /> : <Flow />}
+        : kind === "woven" ? <Woven /> : kind === "garden" ? <Garden /> : <Flow />}
     </div>
   );
 });
@@ -452,8 +405,8 @@ export function SkyPreview({ kind }: { kind: SkyKind }) {
   if (kind === "bloom") {
     return (
       <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">
-        {seeds(400).map((p, i) => {
-          const d = p.r * 50, len = 1 + 3.5 * p.r;
+        {seeds(900).map((p, i) => {
+          const d = p.r * 75, len = 1 + 3.5 * p.r;
           const x = 108 + Math.cos(p.a) * d, y = 45 + Math.sin(p.a) * d, ux = Math.cos(p.a) * len / 2, uy = Math.sin(p.a) * len / 2;
           return <line key={i} x1={(x - ux).toFixed(1)} y1={(y - uy).toFixed(1)} x2={(x + ux).toFixed(1)} y2={(y + uy).toFixed(1)}
             stroke="currentColor" strokeWidth={0.7} opacity={0.6} />;
@@ -461,17 +414,13 @@ export function SkyPreview({ kind }: { kind: SkyKind }) {
       </svg>
     );
   }
-  if (kind === "strands") {
-    const walls = new SvgPen(), lines = new SvgPen();
-    for (const cell of hexCells(160, 90, 10)) {
-      const v = hexCorners(cell, 10, 0);
-      hexWalls(walls, v);
-      if (cell.bundle) hexBundle(lines, v, cell.bundle);
-    }
+  if (kind === "woven") {
+    const over = new SvgPen(), under = new SvgPen();
+    weave(160, 90, 24, 5, 0, (_, up, __, run) => run(up ? over : under));
     return (
       <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">
-        <path d={walls.d} fill="none" stroke="currentColor" strokeWidth={0.5} opacity={0.25} />
-        <path d={lines.d} fill="none" stroke="currentColor" strokeWidth={0.6} opacity={0.6} />
+        <path d={under.d} fill="none" stroke="currentColor" strokeWidth={0.5} opacity={0.25} />
+        <path d={over.d} fill="none" stroke="currentColor" strokeWidth={0.6} opacity={0.65} />
       </svg>
     );
   }

@@ -18,8 +18,9 @@ describe("Settings", () => {
     expect(link.closest("p")).toHaveTextContent("Nikolaj Sokolowski");
     expect(screen.queryByRole("button", { name: /Arcs/ })).toBeNull();   // retired: its licence asks it not be published
     expect(screen.getByRole("button", { name: /Bloom/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Lissajous/ })).toBeNull();   // replaced by Hex Strands and Node Garden
-    expect(screen.getByRole("button", { name: /Hex Strands/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Lissajous/ })).toBeNull();   // replaced in 0.50.3
+    expect(screen.queryByRole("button", { name: /Hex Strands/ })).toBeNull();   // replaced by Woven Grid in 0.50.4
+    expect(screen.getByRole("button", { name: /Woven Grid/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Node Garden/ })).toBeInTheDocument();
   });
 });

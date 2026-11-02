@@ -2,6 +2,22 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.50.4] - 2026-11-01
+
+Woven Grid in place of Hex Strands, and a larger Bloom.
+
+### Added
+- **Web app, Woven Grid:** a coarse grid pushed slowly out of shape, each warped cell divided between its four corners into fine threads both ways, straight inside a cell and bending only where they cross into the next, going over and under like stretched cloth. After Book of Shapes' Woven Grid.
+
+### Changed
+- **Web app, Bloom** is half again as large, filling the page, with more strokes so their spacing holds (and those off the page left undrawn).
+
+### Removed
+- **Web app, Hex Strands** (0.50.3). An account still set to it shows Flow until another is chosen.
+
+### For forks
+- No migration. The `sky` setting takes `woven`, and no longer `strands`.
+
 ## [0.50.3] - 2026-11-01
 
 Two new backgrounds for the web app, in place of Lissajous.
