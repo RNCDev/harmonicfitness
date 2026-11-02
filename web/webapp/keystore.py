@@ -53,13 +53,13 @@ def set_writer(conn, uk: UserKey, provider: str) -> None:
     conn.execute("update users set writer = %s where id = %s", (provider, uk.user_id))
 
 
-# "arcs" went in 0.46.2; an account still set to it reads as the default
-SKIES = ("flow", "field", "waves", "bloom", "lissajous")
+# "arcs" went in 0.46.2 and "lissajous" in 0.50.3; an account still set to one reads as the default
+SKIES = ("flow", "field", "waves", "bloom", "strands", "garden")
 
 
 def sky(conn, uk: UserKey) -> str:
     """The web app's animated background the user chose: "flow" (the default), "field", "waves",
-    "bloom" or "lissajous". Anything else stored (such as the retired "arcs") reads as "flow"."""
+    "bloom", "strands" or "garden". Anything else stored (such as the retired "arcs" or "lissajous") reads as "flow"."""
     row = conn.execute("select sky from users where id = %s", (uk.user_id,)).fetchone()
     return row[0] if row and row[0] in SKIES else SKIES[0]
 

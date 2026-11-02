@@ -590,10 +590,10 @@ class Keys(ApiCase):
         self.assertEqual(keystore.sky(self.conn, uk), "field")
         self.conn.rollback()
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
-        for kind in ("waves", "bloom", "lissajous", "field"):
+        for kind in ("waves", "bloom", "strands", "garden", "field"):
             self.assertEqual(self.client.put("/api/sky", json={"sky": kind}, headers=self.origin()).status_code, 204, kind)
             self.assertEqual(keystore.sky(self.conn, uk), kind)
-        for bad in ({"sky": "clouds"}, {"sky": "arcs"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
+        for bad in ({"sky": "clouds"}, {"sky": "arcs"}, {"sky": "lissajous"}, {"sky": 1}, {}, {"sky": "flow", "more": 1}):
             self.assertEqual(self.client.put("/api/sky", json=bad, headers=self.origin()).status_code, 422, bad)
         self.assertEqual(self.client.put("/api/sky", json={"sky": "flow"}).status_code, 403)   # no Origin
         self.assertEqual(self.client.get("/api/me").json()["sky"], "field")
@@ -614,9 +614,10 @@ class Keys(ApiCase):
 
     def test_a_retired_sky_reads_as_the_default(self):
         _, uk = self.signed_in()
-        self.conn.execute("update users set sky = 'arcs' where id = %s", (uk.user_id,))   # Arcs, retired in 0.46.2
-        self.conn.commit()
-        self.assertEqual(self.client.get("/api/me").json()["sky"], "flow")
+        for retired in ("arcs", "lissajous"):   # Arcs went in 0.46.2, Lissajous in 0.50.3
+            self.conn.execute("update users set sky = %s where id = %s", (retired, uk.user_id))
+            self.conn.commit()
+            self.assertEqual(self.client.get("/api/me").json()["sky"], "flow", retired)
 
     def test_a_chosen_writer_without_a_key_is_named(self):
         self.signed_in()

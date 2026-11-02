@@ -1,21 +1,23 @@
 // The sky: a quiet, moving pattern behind every page, after Book of Shapes (bookofshapes.com, by Nikolaj
-// Sokolowski). Five to choose from under Background in Settings: Flow (fine lines drifting sideways), Field (a grid
+// Sokolowski). Six to choose from under Background in Settings: Flow (fine lines drifting sideways), Field (a grid
 // of dots that a ripple crosses every few seconds, spreading from the top right like sound from a speaker), Waves
 // (its Interference Mesh: level lines bent by two sources of ripples), Bloom (its Phyllotaxis Bloom: strokes set out like a
-// sunflower's seeds, turning slowly, a pulse passing outward) and Lissajous (its Lissajous Field: a 2:3 Lissajous figure drawn as short
-// horizontal dashes, turning slowly like a trace on an oscilloscope). All hold still when the system asks for
-// reduced motion, and brighten a little while the coach works. The code says "sky"; the page says Background.
-// (Arcs, after its Brockmann Beethoven Arcs, went in 0.46.2: Book of Shapes' licence asks that one not be published.)
+// sunflower's seeds, turning slowly, a pulse passing outward), Strands (its Hex Strands: a breathing hexagon grid
+// with bundles of lines wandering through it) and Garden (its Node Garden: drifting points linked to their near
+// neighbours). All hold still when the system asks for reduced motion, and brighten a little while the coach works.
+// The code says "sky"; the page says Background. (Arcs, after its Brockmann Beethoven Arcs, went in 0.46.2: Book of
+// Shapes' licence asks that one not be published. Lissajous went in 0.50.3, for Strands and Garden.)
 import { memo, useEffect, useRef, type ReactNode } from "react";
 import { Mark } from "./Mark";
 
-export type SkyKind = "flow" | "field" | "waves" | "bloom" | "lissajous";
+export type SkyKind = "flow" | "field" | "waves" | "bloom" | "strands" | "garden";
 export const SKIES: { kind: SkyKind; name: string; about: string }[] = [
   { kind: "flow", name: "Flow", about: "Lines drift slowly across." },
   { kind: "field", name: "Field", about: "A ripple crosses it every few seconds." },
   { kind: "waves", name: "Waves", about: "Two ripples bend the lines as they meet." },
   { kind: "bloom", name: "Bloom", about: "A spiral of strokes turns slowly." },
-  { kind: "lissajous", name: "Lissajous", about: "A looping trace turns slowly." },
+  { kind: "strands", name: "Hex Strands", about: "Lines wander through a breathing grid." },
+  { kind: "garden", name: "Node Garden", about: "Drifting points link and let go." },
 ];
 
 const still = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -183,7 +185,7 @@ function Waves() {
 // (radius by the square root of its number, so they fill the disc evenly), each pointing out from the centre and
 // longer toward the edge. The whole turns slowly, and a soft pulse travels outward through it every few seconds.
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-const SEEDS = 1100;   // more seeds as it grew, so they keep their spacing
+const SEEDS = 1720;   // more seeds as it grew, so they keep their spacing
 const BLOOM_SPIN = 0.012;    // radians a second
 const BLOOM_PERIOD = 6;      // seconds between pulses
 
@@ -193,7 +195,7 @@ function seeds(n: number): { a: number; r: number }[] {
 }
 
 const paintBloom: Painter = (ctx, w, h) => {
-  const cx = w * 0.72, cy = h * 0.5, R = Math.min(h * 0.69, w * 0.6);   // large: its edge runs off the page
+  const cx = w * 0.72, cy = h * 0.5, R = Math.min(h * 0.86, w * 0.75);   // large: its edge runs off the page
   const all = seeds(SEEDS);
   return (t) => {
     const tt = t < 0 ? 0 : t;
@@ -222,53 +224,206 @@ function Bloom() {
   return <canvas ref={useCanvas(paintBloom)} className="bloom" />;
 }
 
-// ---- Lissajous: after Book of Shapes' Lissajous Field ----
-// The figure x = sin(2s + phase), y = sin(3s), drawn not as a line but as short horizontal dashes on rows a few
-// pixels apart: at every row, a dash wherever the curve crosses it, longer where the curve runs flatter. The phase
-// turns slowly, so the figure seems to rotate, as on an oscilloscope.
-const DASH_GAP = 7;       // px between rows of dashes
-const TURN = 0.05;        // radians of phase a second
+// ---- shared by Strands and Garden: a fixed random sequence, and a slow field that carries points about ----
 
-/** Where the curve crosses height v (-1..1): the x of each crossing (-1..1) and how flat it runs there. */
-function crossings(v: number, phase: number): { x: number; flat: number }[] {
-  const a = Math.asin(Math.max(-1, Math.min(1, v)));
-  const out: { x: number; flat: number }[] = [];
-  for (let n = 0; n < 3; n++) {                       // sin(3s) = v: 3s is a or pi - a, each turn round
-    for (const three of [a + n * Math.PI * 2, Math.PI - a + n * Math.PI * 2]) {
-      const s = three / 3;
-      const dx = 2 * Math.cos(2 * s + phase), dy = 3 * Math.cos(3 * s);
-      out.push({ x: Math.sin(2 * s + phase), flat: Math.min(4, Math.abs(dx) / Math.max(0.35, Math.abs(dy))) });
-    }
-  }
-  return out;
+/** The same "random" numbers every time for one seed (mulberry32), so a page draws the same strands or nodes. */
+function rng(seed: number): () => number {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-const paintLissajous: Painter = (ctx, w, h) => {
-  // large, running off the page's edges: only part of the figure shows at once
-  const cx = w * 0.72, cy = h * 0.5, ry = h * 0.68, rx = Math.min(w * 0.5, ry * 1.1);
-  const rows: number[] = [];
-  for (let y = -ry; y <= ry; y += DASH_GAP) rows.push(y);
+/** One swell of the field at (u, v): the slope of sin·sin, turned by `turn`. How sharply it stretches or squeezes
+ *  the plane is at most k × amp, so two swells whose k × amp add to under 1 never fold it over. */
+function swell(u: number, v: number, k: number, amp: number, a: number, b: number, turn: number): [number, number] {
+  const c = Math.cos(turn), s = Math.sin(turn);
+  const p = c * u + s * v, q = -s * u + c * v;
+  const gp = amp * Math.cos(k * p + a) * Math.sin(k * q + b);
+  const gq = amp * Math.sin(k * p + a) * Math.cos(k * q + b);
+  return [c * gp - s * gq, s * gp + c * gq];
+}
+
+/** Anything that draws lines: a canvas, or the SvgPen below for a preview. */
+type Pen = Pick<CanvasRenderingContext2D, "moveTo" | "lineTo" | "bezierCurveTo">;
+
+class SvgPen implements Pen {
+  d = "";
+  moveTo(x: number, y: number) { this.d += `M${x.toFixed(1)},${y.toFixed(1)}`; }
+  lineTo(x: number, y: number) { this.d += `L${x.toFixed(1)},${y.toFixed(1)}`; }
+  bezierCurveTo(a: number, b: number, c: number, d: number, e: number, f: number) {
+    this.d += `C${a.toFixed(1)},${b.toFixed(1)} ${c.toFixed(1)},${d.toFixed(1)} ${e.toFixed(1)},${f.toFixed(1)}`;
+  }
+}
+
+/** How much a line at this x shows: faint on the left, where the page's words sit, full on the right. */
+const fade = (x: number, w: number) => 0.35 + 0.65 * Math.max(0, Math.min(1, x / w));
+
+// ---- Strands: after Book of Shapes' Hex Strands (itself after markknol's Waved Grid on Turtletoy) ----
+// A grid of hexagons warped by a slow field, so cells balloon in places and crowd in others but never overlap: every
+// corner moves with the field, and a corner three cells share moves once. Some cells hold a bundle of parallel lines
+// from one wall to another, straight across or bending; the next cell carries the bundle on through the wall it came
+// in by, so each strand wanders across the grid until a wall stops it. The field drifts, and the cells breathe.
+const HEX = 44;              // px from a cell's centre to a corner
+const ROOT3 = Math.sqrt(3);
+const HEX_STEP = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];   // the cell through wall k, in (q, r)
+
+type Bundle = { e: number; x: number; n: number };   // in through wall e, out through wall x, n lines
+type Cell = { cx: number; cy: number; bundle?: Bundle };
+
+/** The cells covering w × h with a cell to spare past every edge, and the strands through them. */
+function hexCells(w: number, h: number, size: number): Cell[] {
+  const cells = new Map<string, Cell>();
+  for (let q = -1; q <= Math.ceil(w / (1.5 * size)) + 1; q++) {
+    for (let r = Math.floor(-q / 2) - 1; r <= Math.ceil(h / (ROOT3 * size) - q / 2) + 1; r++) {
+      cells.set(`${q},${r}`, { cx: 1.5 * size * q, cy: ROOT3 * size * (r + q / 2) });
+    }
+  }
+  const rand = rng(7);
+  const keys = [...cells.keys()];
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+  for (const key of keys) {
+    if (cells.get(key)!.bundle || rand() < 0.75) continue;
+    let [q, r] = key.split(",").map(Number);
+    let e = Math.floor(rand() * 6);
+    const n = 3 + Math.floor(rand() * 4);
+    for (let step = 0; step < 10; step++) {
+      const cell = cells.get(`${q},${r}`);
+      if (!cell || cell.bundle) break;                  // off the grid, or another strand's wall
+      const turn = rand();
+      const x = (e + (turn < 0.4 ? 3 : turn < 0.7 ? 2 : 4)) % 6;   // straight on, or bending either way
+      cell.bundle = { e, x, n };
+      if (rand() < 0.2) break;
+      q += HEX_STEP[x][0];
+      r += HEX_STEP[x][1];
+      e = (x + 3) % 6;
+    }
+  }
+  return [...cells.values()];
+}
+
+/** A cell's six corners as the field has moved them at time t (in seconds; 0 when still). */
+function hexCorners(cell: Cell, size: number, t: number): [number, number][] {
+  return Array.from({ length: 6 }, (_, k) => {
+    const x = cell.cx + size * Math.cos((k * Math.PI) / 3), y = cell.cy + size * Math.sin((k * Math.PI) / 3);
+    const u = x / size, v = y / size;
+    const [ax, ay] = swell(u, v, 0.42, 0.71, 0.08 * t, 0.055 * t, 0);
+    const [bx, by] = swell(u, v, 0.71, 0.21, 1 - 0.06 * t, 2 + 0.07 * t, 0.9);
+    return [x + (ax + bx) * size, y + (ay + by) * size];
+  });
+}
+
+/** Walls 0 to 2 of a cell: the other three are its neighbours', so each wall is drawn once. */
+function hexWalls(pen: Pen, v: [number, number][]) {
+  pen.moveTo(v[0][0], v[0][1]);
+  for (let k = 1; k <= 3; k++) pen.lineTo(v[k][0], v[k][1]);
+}
+
+/** A bundle's lines: in through wall e and out through wall x, leaving and meeting each wall square on, so a
+ *  strand runs smoothly into the next cell. */
+function hexBundle(pen: Pen, v: [number, number][], { e, x, n }: Bundle) {
+  const at = (a: [number, number], b: [number, number], f: number) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  const cx = v.reduce((s, p) => s + p[0], 0) / 6, cy = v.reduce((s, p) => s + p[1], 0) / 6;
+  const mid = (k: number) => at(v[k], v[(k + 1) % 6], 0.5);
+  const [me, mx] = [mid(e), mid(x)];
+  for (let i = 0; i < n; i++) {
+    const f = 0.2 + (0.6 * i) / (n - 1);
+    const [px, py] = at(v[e], v[(e + 1) % 6], f);
+    const [qx, qy] = at(v[(x + 1) % 6], v[x], f);   // the far wall walked the other way, so the lines never cross
+    pen.moveTo(px, py);
+    pen.bezierCurveTo(px + (cx - me[0]) * 0.55, py + (cy - me[1]) * 0.55, qx + (cx - mx[0]) * 0.55, qy + (cy - mx[1]) * 0.55, qx, qy);
+  }
+}
+
+const paintStrands: Painter = (ctx, w, h) => {
+  const cells = hexCells(w, h, HEX);
   return (t) => {
-    const phase = Math.PI / 4 + (t < 0 ? 0 : t) * TURN;
+    const tt = t < 0 ? 0 : t;
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = INK;
-    ctx.lineWidth = 1.2;
-    ctx.globalAlpha = 0.24;
-    ctx.beginPath();
-    for (const y of rows) {
-      for (const c of crossings(y / ry, phase)) {
-        const len = 14 + 14 * c.flat;
-        ctx.moveTo(cx + c.x * rx - len / 2, cy + y);
-        ctx.lineTo(cx + c.x * rx + len / 2, cy + y);
+    ctx.lineWidth = 1;
+    for (const cell of cells) {
+      const v = hexCorners(cell, HEX, tt), o = fade(cell.cx, w);
+      ctx.globalAlpha = 0.09 * o;
+      ctx.beginPath();
+      hexWalls(ctx, v);
+      ctx.stroke();
+      if (cell.bundle) {
+        ctx.globalAlpha = 0.3 * o;
+        ctx.beginPath();
+        hexBundle(ctx, v, cell.bundle);
+        ctx.stroke();
       }
     }
-    ctx.stroke();
     ctx.globalAlpha = 1;
   };
 };
 
-function Lissajous() {
-  return <canvas ref={useCanvas(paintLissajous)} className="lissajous" />;
+function Strands() {
+  return <canvas ref={useCanvas(paintStrands)} className="strands" />;
+}
+
+// ---- Garden: after Book of Shapes' Node Garden ----
+// Points scattered over the page, each joined to those within reach by a line that fades as they part. A slow field
+// carries them, so neighbours move together and clusters gather and break up, and each wanders a little on its own,
+// so the links keep forming and letting go.
+const NODE_GAP = 66;      // px: about one node to every 66 × 66
+const REACH = 130;        // px within which two nodes are linked
+
+type Node = { x: number; y: number; p: number; q: number; f: number; g: number };
+
+function gardenNodes(w: number, h: number, gap: number): Node[] {
+  const rand = rng(11);
+  return Array.from({ length: Math.round((w * h) / (gap * gap)) }, () => ({
+    x: (rand() * 1.1 - 0.05) * w, y: (rand() * 1.1 - 0.05) * h,
+    p: rand() * Math.PI * 2, q: rand() * Math.PI * 2, f: 0.06 + rand() * 0.08, g: 0.06 + rand() * 0.08,
+  }));
+}
+
+/** Where every node is at time t (in seconds; 0 when still), the field and its own wander measured in gaps. */
+function gardenAt(nodes: Node[], gap: number, t: number): [number, number][] {
+  return nodes.map((n) => {
+    const [fx, fy] = swell(n.x / gap, n.y / gap, 0.4, 1.2, 0.1 * t, -0.07 * t, 0.4);
+    return [n.x + (fx + 0.35 * Math.sin(n.f * t + n.p)) * gap, n.y + (fy + 0.35 * Math.sin(n.g * t + n.q)) * gap];
+  });
+}
+
+const paintGarden: Painter = (ctx, w, h) => {
+  const nodes = gardenNodes(w, h, NODE_GAP);
+  return (t) => {
+    const at = gardenAt(nodes, NODE_GAP, t < 0 ? 0 : t);
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = INK;
+    ctx.fillStyle = INK;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < at.length; i++) {
+      const [x, y] = at[i];
+      for (let j = i + 1; j < at.length; j++) {
+        const d = Math.hypot(at[j][0] - x, at[j][1] - y);
+        if (d >= REACH) continue;
+        const near = 1 - d / REACH;
+        ctx.globalAlpha = 0.34 * near * near * fade((x + at[j][0]) / 2, w);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(at[j][0], at[j][1]);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.6 * fade(x, w);
+      ctx.beginPath();
+      ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  };
+};
+
+function Garden() {
+  return <canvas ref={useCanvas(paintGarden)} className="garden" />;
 }
 
 /** The background of every page. Fixed behind the content; never takes a click or a screen reader's attention. */
@@ -276,7 +431,7 @@ export const Sky = memo(function Sky({ kind = "flow", busy = false }: { kind?: S
   return (
     <div className={`sky sky-${kind}${busy ? " busy" : ""}`} data-sky={kind} aria-hidden="true">
       {kind === "field" ? <Field /> : kind === "waves" ? <Waves /> : kind === "bloom" ? <Bloom />
-        : kind === "lissajous" ? <Lissajous /> : <Flow />}
+        : kind === "strands" ? <Strands /> : kind === "garden" ? <Garden /> : <Flow />}
     </div>
   );
 });
@@ -297,8 +452,8 @@ export function SkyPreview({ kind }: { kind: SkyKind }) {
   if (kind === "bloom") {
     return (
       <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">
-        {seeds(260).map((p, i) => {
-          const d = p.r * 40, len = 1 + 3.5 * p.r;
+        {seeds(400).map((p, i) => {
+          const d = p.r * 50, len = 1 + 3.5 * p.r;
           const x = 108 + Math.cos(p.a) * d, y = 45 + Math.sin(p.a) * d, ux = Math.cos(p.a) * len / 2, uy = Math.sin(p.a) * len / 2;
           return <line key={i} x1={(x - ux).toFixed(1)} y1={(y - uy).toFixed(1)} x2={(x + ux).toFixed(1)} y2={(y + uy).toFixed(1)}
             stroke="currentColor" strokeWidth={0.7} opacity={0.6} />;
@@ -306,16 +461,35 @@ export function SkyPreview({ kind }: { kind: SkyKind }) {
       </svg>
     );
   }
-  if (kind === "lissajous") {
-    const dashes = [];
-    for (let y = -76; y <= 76; y += 3) {
-      for (const [n, c] of crossings(y / 76, Math.PI / 4).entries()) {
-        const len = 4 + 4 * c.flat;
-        dashes.push(<line key={`${y}-${n}`} x1={110 + c.x * 80 - len / 2} x2={110 + c.x * 80 + len / 2} y1={45 + y} y2={45 + y}
-          stroke="currentColor" strokeWidth={0.8} opacity={0.55} />);
+  if (kind === "strands") {
+    const walls = new SvgPen(), lines = new SvgPen();
+    for (const cell of hexCells(160, 90, 10)) {
+      const v = hexCorners(cell, 10, 0);
+      hexWalls(walls, v);
+      if (cell.bundle) hexBundle(lines, v, cell.bundle);
+    }
+    return (
+      <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">
+        <path d={walls.d} fill="none" stroke="currentColor" strokeWidth={0.5} opacity={0.25} />
+        <path d={lines.d} fill="none" stroke="currentColor" strokeWidth={0.6} opacity={0.6} />
+      </svg>
+    );
+  }
+  if (kind === "garden") {
+    const at = gardenAt(gardenNodes(160, 90, 13), 13, 0), links = [];
+    for (let i = 0; i < at.length; i++) {
+      for (let j = i + 1; j < at.length; j++) {
+        const near = 1 - Math.hypot(at[j][0] - at[i][0], at[j][1] - at[i][1]) / 19;
+        if (near > 0) links.push(<line key={`${i}-${j}`} x1={at[i][0].toFixed(1)} y1={at[i][1].toFixed(1)} x2={at[j][0].toFixed(1)}
+          y2={at[j][1].toFixed(1)} stroke="currentColor" strokeWidth={0.6} opacity={(0.2 + 0.5 * near).toFixed(2)} />);
       }
     }
-    return <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">{dashes}</svg>;
+    return (
+      <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">
+        {links}
+        {at.map(([x, y], i) => <circle key={i} cx={x.toFixed(1)} cy={y.toFixed(1)} r={0.9} fill="currentColor" opacity={0.7} />)}
+      </svg>
+    );
   }
   if (kind === "waves") {
     const k = (Math.PI * 2) / 26;

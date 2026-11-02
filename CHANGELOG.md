@@ -2,6 +2,23 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.50.3] - 2026-11-01
+
+Two new backgrounds for the web app, in place of Lissajous.
+
+### Added
+- **Web app, Hex Strands:** a hexagon grid that slowly swells in places and crowds in others (never overlapping), with bundles of parallel lines wandering from cell to cell until a wall stops them. After Book of Shapes' Hex Strands.
+- **Web app, Node Garden:** points drifting over the page, each linked to its near neighbours by a line that fades as they part, so clusters gather and break up. After Book of Shapes' Node Garden.
+
+### Changed
+- **Web app, Bloom** is a quarter bigger, with more strokes so their spacing holds.
+
+### Removed
+- **Web app, Lissajous.** An account still set to it shows Flow until another is chosen.
+
+### For forks
+- No migration. The `sky` setting takes `strands` and `garden`, and no longer `lissajous`.
+
 ## [0.50.2] - 2026-11-01
 
 Less to read, more held in code. A five-iteration script-writing loop (docs/eval/README.md) on the web coach, the same two 30-minute requests an iteration against one snapshot, two judges a script. The writer reads about 2,630 fewer words a workout turn (a gym brief with a knee limit about 1,200 fewer), and every change kept is code: a 30-minute script reached a priced, checked draft in 104 to 152 seconds (baseline 117 and 129), safety 4 (3 once, from the Copenhagen set-up fixed below), efficacy 3 to 4 and engagement 3 to 4 (baseline 4 / 4 / 3 on both): the gym session's stories got the loop's first 4 from both judges once the rests thought hardest. A fifth iteration, each rest named in the skeleton for the item it tells, doubled the time (236 and 277 s: three times the thinking) without holding the plan, and was dropped. A holdout (a 45-minute upper-body session in a hotel gym) scored 4.5 / 4 / 3 against the baseline's 4 / 4 / 3, at 207 seconds against 164, the difference a silence the writer couldn't find by its words; with that fixed (below) it ran at 188 seconds, 4 / 4 / 3, its silences fixed by segment number with no detour. The holdouts, like the two requests, show the gains are in time held, words removed and faults gone rather than in the scores, which moved within a run's noise. Engagement is still the score to move: stories told as headlines with a tag line after, one big item over three rests, a generic coach.
