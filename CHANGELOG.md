@@ -2,6 +2,29 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.61.0] - 2026-11-03
+
+The website's Coaches page plays every coach's sample, the listener's own included, and lists their own coaches first. Four faults are fixed: the listener's own coaches had no sample to play, since the site kept no MP3s; the Active label was cut off along its top; hovering a card brought up a tooltip that repeated its description over the player; and a stand-in coach whose voice was made in the listener's account (Coach Reed) was marked "Yours".
+
+### Changed
+- **The site keeps each coach's sample** (web, `folder.COACH_SAMPLE`): `coaches/<slug>/sample.mp3` is the one MP3 kept with the listener's files (an archived coach's isn't). `./harmonicfitness sync` sends and fetches it too, so a sample made on a computer plays on the site after a sync.
+- **`GET /api/coaches/{slug}/sample.mp3` plays the listener's own copy first** (`store.read_one`), else the one the engine ships, with the same no-cache and ETag rules.
+- **`coaches list --json` gives `sample` for every web coach with a `sample.mp3`**, not only the shipped ones.
+- **"Yours" only for a coach the listener made** (web, `start._coaches`): a stand-in made in their account (`placeholder = true`, as Reed is) shows as the stock coach it is.
+- **The listener's own coaches come first** in their service's group on the Coaches page, then A to Z, so a card still never moves when another is chosen.
+- **A coach's `tone` is one sentence, in the stock coaches' shape** ("<two or three words>, a <who>; <one trait>."): the coach skill says so, since it's also the coach's line on the Coaches page; the rest of how they talk goes in the other `[character]` lines.
+
+### Fixed
+- **The Active label is whole** (web, `theme.css`): a choosable card carried the class `pick`, which is the menu's, so it took the menu's `overflow-y: auto` (clipping the label), its z-index, height cap and pop-in. The card's class is now `can`.
+- **No tooltip over a card:** the card's button no longer repeats the description as its `title`.
+- **The website agent can't write a coach's sample as text** (`write_file` refuses `coaches/<slug>/sample.mp3`; the engine makes it when a coach is kept).
+
+### For forks
+- **`folder.skipped` keeps `coaches/<slug>/sample.mp3`,** and `tools/websync.py` keeps the same pattern (`COACH_SAMPLE`; `test_sync` holds them equal). A sample made on the site before this release wasn't kept: on a computer that has it, `./harmonicfitness sync` sends it.
+- **The start screen's `own`** is false for a stand-in (`placeholder`), and its `sample` comes from the engine's listing for every web coach.
+- **The Coaches card class `pick` is now `can`** (`.cg-card.can`).
+- **`me/` needs no migration;** drafts, engine commands and exit codes are unchanged.
+
 ## [0.60.0] - 2026-11-03
 
 A workout can be planned for later on the website. The page's sentence now ends ", right now" or a time picked from the next day, every half hour ("at 7:00 PM", "tomorrow at 6:30 AM"). With a time, the check-in happens at once; then the chat shows what the session will cost with the coach, the most it may, and **Schedule it**. That press is the one approval. Fifteen minutes before the time, the site does the rest on its own: the brief, the research, the script and the recording, so the news, the weather and the menu are that hour's, and the MP3 is in the chat when the listener arrives. Tried live on Coach Freya: the check-in turn called the new tool and stopped (two model requests, no brief); the later turn wrote and checked the 15-minute script from it in 132 seconds, without a question, at 9,277 characters ($0.125) against a 12,000-character ceiling ($0.16).

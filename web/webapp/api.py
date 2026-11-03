@@ -592,20 +592,32 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     @app.get("/api/coaches/{slug}/sample.mp3")
     def coach_sample(uk: User, slug: str, request: Request):
-        """A stock coach's sample, as the engine ships it (coaches/<slug>/sample.mp3): the gallery plays it
-        before the listener has a key. A listener's own coach's sample isn't kept here (MP3s aren't)."""
+        """A coach's sample for the gallery: the listener's own copy (me/coaches/<slug>/sample.mp3, kept with
+        their files), which wins as their coach does, else the one the engine ships (coaches/<slug>/), which
+        plays before the listener has a key."""
         if not coach_slug.fullmatch(slug):
             raise HTTPException(404, "no such coach")
-        path = Path(settings.engine_root, "coaches", slug, "sample.mp3")
-        if not path.is_file():
-            raise HTTPException(404, "no sample for this coach")
+        with connection() as conn:
+            try:
+                own = store.read_one(conn, uk, f"coaches/{slug}/sample.mp3")
+            finally:
+                conn.rollback()
         # no-cache: the browser asks again each time (a 304 by its ETag when unchanged), so a re-recorded sample
         # is heard at once, never a day-old copy
-        st = path.stat()
-        tag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
+        if own is not None:
+            version, body = own
+            tag = f'"own-{version:x}-{len(body):x}"'
+        else:
+            path = Path(settings.engine_root, "coaches", slug, "sample.mp3")
+            if not path.is_file():
+                raise HTTPException(404, "no sample for this coach")
+            st = path.stat()
+            tag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
         headers = {"Cache-Control": "private, no-cache", "ETag": tag}
         if tag in (request.headers.get("if-none-match") or ""):
             return Response(status_code=304, headers=headers)
+        if own is not None:
+            return Response(own[1], media_type="audio/mpeg", headers=headers)
         return FileResponse(path, media_type="audio/mpeg", headers=headers)
 
     @app.get("/api/start")

@@ -12,8 +12,9 @@ the site holds now, and what both held at the last sync (me/web/sync-state.json,
                              instead, --prefer local sends this computer's now
 
 The first sync has no record, so a file both sides hold with different content is a conflict, and nothing is
-deleted. Only the files the site keeps are synced: never .env, MP3s, WAVs, the clip cache, render logs, lock
-files, auditions in progress, backups, git, or me/web/ itself. The password goes to the app and nowhere else.
+deleted. Only the files the site keeps are synced: never .env, MP3s (each web coach's sample.mp3 excepted),
+WAVs, the clip cache, render logs, lock files, auditions in progress, backups, git, or me/web/ itself. The
+password goes to the app and nowhere else.
 
     ./harmonicfitness sync
     ./harmonicfitness sync --dry-run
@@ -25,6 +26,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -41,6 +43,8 @@ SKIP = (
     "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store", ".cache/",
 )
 LOCAL_ONLY = ("web/", "coaches/.auditions/", ".git/", ".backup-*", "*.bundle")
+# but a web coach's sample, which the site keeps for its Coaches page (web/webapp/folder.py's COACH_SAMPLE)
+COACH_SAMPLE = re.compile(r"coaches/[^./][^/]*/sample\.mp3")
 STATE = os.path.join("web", "sync-state.json")
 BATCH = 200                 # files a request sends or asks for
 BATCH_BYTES = 8_000_000     # and bytes a request sends, before base64
@@ -48,6 +52,8 @@ BATCH_BYTES = 8_000_000     # and bytes a request sends, before base64
 
 def skipped(rel):
     """Whether a path (relative to me/, with /) is never synced."""
+    if COACH_SAMPLE.fullmatch(rel):
+        return False
     parts = rel.split("/")
     for pat in SKIP + LOCAL_ONLY:
         if pat.endswith("/"):

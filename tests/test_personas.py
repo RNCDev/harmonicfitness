@@ -384,6 +384,10 @@ class SetAndList(unittest.TestCase):
                                                            "notes"]))
         self.assertTrue(by["Coach Dana"]["default"])
         self.assertEqual(by["Coach Dana"]["service_name"], "Fish Audio")
+        self.assertFalse(by["Coach Dana"]["sample"])
+        with open(os.path.join(personas.lookup("Coach Dana").folder, "sample.mp3"), "wb") as f:
+            f.write(b"ID3")   # their own coach's sample, made when it was kept: the web app's gallery plays it
+        self.assertTrue({c["name"]: c for c in coaches.listing(None)}["Coach Dana"]["sample"])
         self.assertIn("(made the first time it's used)", by["Coach Reed"]["notes"])
         self.assertTrue(any("migrate archives it" in n for n in by["Coach Mine"]["notes"]))
         lines = coaches.listing_lines(found)

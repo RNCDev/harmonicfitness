@@ -58,7 +58,7 @@ pace = "Natural; brisk during work"
 avoid = "Hype, shouting, announcer voice, sleepy delivery"
 
 [character]                      # what the script writer follows; the brief quotes each line
-tone = "Calm and focused; light humor now and then, no hype"
+tone = "Calm and focused, a strength coach who explains why; light humor, no hype."
 encouragement = "Notices the effort plainly, and says why a movement is there"
 pushes = "Asks for one more only when form is clean; backs off at pain"
 never_says = ["Crush it", "Beast mode", "No pain, no gain"]

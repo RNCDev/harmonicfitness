@@ -142,10 +142,12 @@ def _coaches(listed: list, keyed, used: list[tuple[str, str]], services: list[st
     web.sort(key=lambda c: (bool(c.get("shipped", True)), rank.get(c.get("service"), len(rank))))
     coaches = [{"slug": c["slug"], "name": c["name"], "first": _first(c["name"]), "service": c.get("service"),
                 "service_name": c.get("service_name"), "ready": c.get("service") in keyed,
-                "own": not c.get("shipped", True), "current": False, "_stand_in": bool(c.get("placeholder")),
+                # own: one the listener made (a stand-in whose voice was made in their account, as Reed's, isn't)
+                "own": not c.get("shipped", True) and not c.get("placeholder"), "current": False,
+                "_stand_in": bool(c.get("placeholder")),
                 # for the gallery: how the coach sounds and talks, a sample to play, the cost, made on first use
                 "description": _words(c.get("description")), "tone": _words(c.get("tone")),
-                "sample": bool(c.get("sample")) and c.get("shipped", True),
+                "sample": bool(c.get("sample")),
                 "usd_per_workout": c.get("usd_per_workout") if isinstance(c.get("usd_per_workout"), (int, float))
                 and not isinstance(c.get("usd_per_workout"), bool) else None,
                 "pending": bool(c.get("pending")), "powered_by": _words(c.get("powered_by"))}
@@ -164,7 +166,7 @@ def _coaches(listed: list, keyed, used: list[tuple[str, str]], services: list[st
     if current is None:
         current = next((c for c in map(find, (v for _, v in reversed(used))) if c is not None), None)
         if current is not None and current["_stand_in"]:
-            current = next((c for c in coaches if c["own"] and not c["_stand_in"] and c["ready"]), current)
+            current = next((c for c in coaches if c["own"] and c["ready"]), current)
     current = current or next((c for c in coaches if c["ready"]), coaches[0])
     current["current"] = True
     ordered = [current] + [c for c in coaches if c is not current and c["ready"]] \

@@ -96,6 +96,17 @@ class Shape(unittest.TestCase):
                      "## Sessions\n- 2026-10-02 | 25 min | home | Coach Owen | squat | x\n")
         self.assertEqual(shape(files=files, coaches=STOCK + [own], keyed={"fish"})["coaches"][0]["first"], "Dana")
 
+    def test_a_stand_in_made_in_their_account_isnt_their_own(self):
+        """Reed, once his voice is made in their account, lives in me/coaches/ (not shipped) but is still the
+        stock coach: never "Yours". Their own coach's sample, kept with their files, plays."""
+        reed = web("Coach Reed", "coach-reed-fish", "fish", shipped=False, placeholder=True)
+        reed["sample"] = True
+        dana = web("Coach Dana", "coach-dana-gemini", "gemini", shipped=False, placeholder=False)
+        dana["sample"] = True
+        by = {c["first"]: c for c in shape(coaches=[reed, dana], keyed={"fish", "gemini"})["coaches"]}
+        self.assertEqual((by["Reed"]["own"], by["Dana"]["own"]), (False, True))
+        self.assertEqual((by["Reed"]["sample"], by["Dana"]["sample"]), (True, True))
+
     def test_coach_chosen_on_the_page(self):
         log = lambda *rows: edit(folder.seed(ROOT), "log.md", "## Sessions\n", "## Sessions\n" + "".join(
             f"- {d} | 25 min | home | {v} | squat | x\n" for d, v in rows))

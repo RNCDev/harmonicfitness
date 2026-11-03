@@ -65,6 +65,18 @@ describe("the Coaches page", () => {
     expect(p.onCoach).toHaveBeenCalledWith("coach-tess-openrouter");
   });
 
+  it("puts the listener's own coaches first in their group, then A to Z, with no tooltip over the card", () => {
+    const gemini = (first: string, own: boolean) => ({ ...coaches[1], slug: `coach-${first.toLowerCase()}-gemini`, first,
+      name: `Coach ${first}`, own, current: false, tone: `${first}'s line.` });
+    page({ coaches: [gemini("June", false), gemini("Dana", true), gemini("Fraser", false), { ...coaches[1] }] });
+    const names = screen.getAllByRole("listitem").map((li) => li.querySelector("b")?.textContent);
+    expect(names).toEqual(["Coach Dana", "Coach Fraser", "Coach June", "Coach Nolan"]);
+    expect(screen.getByText("Yours · Gemini")).toBeInTheDocument();
+    for (const b of screen.getAllByRole("button", { name: /^Choose/ })) expect(b).not.toHaveAttribute("title");
+    // the card's own class: never the menu's .pick, whose overflow clipped the Active label
+    for (const li of screen.getAllByRole("listitem")) expect(li).not.toHaveClass("pick");
+  });
+
   it("keeps every card in place when another is chosen", () => {
     const props = { onCoach: vi.fn(), onAddKey: vi.fn(), onClose: vi.fn() };
     const { rerender } = render(<CoachesPage coaches={coaches} {...props} />);

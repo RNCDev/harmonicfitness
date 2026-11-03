@@ -37,7 +37,8 @@ class FolderTests(unittest.TestCase):
         self.put("workouts/.audio-cache/a.wav")
         self.put("coaches/.auditions/1/c.lock")
         self.put("coaches/.auditions/1/c.json.tmp")
-        self.put("coaches/coach-dana-fish/sample.mp3")
+        self.put("coaches/.archive/coach-old-fish/sample.mp3")
+        self.put("coaches/coach-dana-fish/take.mp3")
         self.put("x.lock")
         self.put("a.mp3")
         self.put("deep/dir/b.mp3")
@@ -48,6 +49,15 @@ class FolderTests(unittest.TestCase):
         os.symlink("/etc/hosts", os.path.join(self.root, "evil"))
         os.symlink("/etc", os.path.join(self.root, "evildir"))
         self.assertEqual(folder.harvest(self.root, written), {})
+
+    def test_a_coachs_sample_is_kept(self):
+        """The one MP3 kept outside an audition: a coach's sample, which the Coaches page plays."""
+        written = folder.materialize({"a.md": b"a"}, self.root)
+        self.put("coaches/coach-dana-fish/sample.mp3", b"ID3")
+        self.assertEqual(folder.harvest(self.root, written), {"coaches/coach-dana-fish/sample.mp3": b"ID3"})
+        for rel in ("coaches/sample.mp3", "coaches/coach-dana-fish/x/sample.mp3", "coaches/.archive/sample.mp3",
+                    "workouts/coach-dana-fish/sample.mp3"):
+            self.assertTrue(folder.skipped(rel), rel)
 
     def test_an_audition_is_kept_between_turns(self):
         """A coach's audition spans turns (candidates, then the listener's pick): its narrative, candidates

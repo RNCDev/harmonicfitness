@@ -25,6 +25,7 @@ class SkipLists(unittest.TestCase):
         finally:
             sys.path.remove(os.path.join(ROOT, "tools"))
         self.assertEqual(websync.SKIP, folder.SKIP)
+        self.assertEqual(websync.COACH_SAMPLE.pattern, folder.COACH_SAMPLE.pattern)   # and the one MP3 both keep
 
 
 class Routes(test_api.ApiCase):

@@ -190,7 +190,8 @@ class Files(AgentCase):
         self.assertIn("me/profile.md", tools.list_files(self.deps).output)
 
     def test_write_refuses(self):
-        for bad in ("me/.env", "me/a.mp3", "tools/x.py", "me/../x.md", "knowledge/x.md", "me/"):
+        for bad in ("me/.env", "me/a.mp3", "tools/x.py", "me/../x.md", "knowledge/x.md", "me/",
+                    "me/coaches/coach-dana-fish/sample.mp3"):   # kept, but the engine's to make
             self.assertEqual(tools.write_file(self.deps, bad, "x").code, 64, bad)
         self.assertEqual(tools.write_file(self.deps, "me/big.md", "x" * (tools.WRITE_LIMIT + 1)).code, 64)
 

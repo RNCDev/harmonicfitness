@@ -71,6 +71,14 @@ def read_all(conn, uk: UserKey) -> dict[str, tuple[int, bytes]]:
     return dict(sorted(out.items()))
 
 
+def read_one(conn, uk: UserKey, path: str) -> tuple[int, bytes] | None:
+    """(version, body) of one file, or None when the user has none at that path."""
+    check_path(path)
+    row = conn.execute("select version, body from context_files where user_id = %s and path_hash = %s",
+                       (uk.user_id, _path_hash(uk, path))).fetchone()
+    return None if row is None else (row[0], crypto.open_(uk.key, bytes(row[1]), _aad(uk, path)))
+
+
 def listing(conn, uk: UserKey) -> list[tuple[str, int, object]]:
     """(path, version, updated_at) of each file, by path; bodies are not opened."""
     rows = conn.execute("select path, version, updated_at from context_files where user_id = %s",

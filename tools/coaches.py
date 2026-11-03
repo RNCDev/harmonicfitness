@@ -121,7 +121,7 @@ def listing(last=None, facts=None):
                     "default": bool(last and p.slug == last.slug), "placeholder": bool(p.placeholder),
                     "pending": bool(web and p.pending), "shipped": bool(p.shipped), "speaks_here": bool(speaks),
                     "description": p.description, "tone": p.table("character").get("tone") or None,
-                    "sample": bool(web and p.shipped and os.path.isfile(os.path.join(p.folder, "sample.mp3"))),
+                    "sample": bool(web and os.path.isfile(os.path.join(p.folder, "sample.mp3"))),
                     "usd_per_workout": _workout_usd(p) if web else None,
                     "powered_by": cloud.powered_by(p.service, _model(p)) if web and p.service in cloud.SERVICES else None,
                     "notes": notes})

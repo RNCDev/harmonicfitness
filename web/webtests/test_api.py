@@ -1339,3 +1339,20 @@ class CoachSamples(ApiCase):
         self.assertEqual(again.status_code, 304)   # unchanged: nothing sent again
         for slug in ("coach-reed-fish", "coach-nobody", "..%2Fsecrets", "coach-../x"):
             self.assertEqual(self.client.get(f"/api/coaches/{slug}/sample.mp3").status_code, 404, slug)
+
+    def test_their_own_coachs_sample_plays_from_their_files(self):
+        _, uk = self.signed_in()
+        store.write_back(self.conn, uk, {"coaches/coach-dana-fish/sample.mp3": b"ID3dana",
+                                         "coaches/coach-nora-openrouter/sample.mp3": b"ID3mine"}, {})
+        self.conn.commit()
+        r = self.client.get("/api/coaches/coach-dana-fish/sample.mp3")
+        self.assertEqual((r.status_code, r.headers["content-type"], r.content), (200, "audio/mpeg", b"ID3dana"))
+        self.assertEqual(r.headers["cache-control"], "private, no-cache")
+        again = self.client.get("/api/coaches/coach-dana-fish/sample.mp3", headers={"If-None-Match": r.headers["etag"]})
+        self.assertEqual(again.status_code, 304)
+        # their own copy wins over the shipped one, as their coach does
+        self.assertEqual(self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3").content, b"ID3mine")
+        # and no one else's plays
+        other = self.other_client()
+        self.signed_in(other)
+        self.assertEqual(other.get("/api/coaches/coach-dana-fish/sample.mp3").status_code, 404)

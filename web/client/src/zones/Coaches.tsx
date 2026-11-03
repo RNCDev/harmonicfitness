@@ -1,6 +1,7 @@
 // The Coaches page (beside Logs): every coach that can speak on the web, as compact cards across the whole width.
-// Each says how the coach talks and what a workout costs, and plays a sample where one ships (OpenRouter's
-// ready-made coaches) from a small player of its own, one sample at a time. A coach whose service has a key is
+// Each says how the coach talks and what a workout costs, and plays its sample (a ready-made coach's, or the
+// one kept when a coach was made) from a small player of its own, one sample at a time. The listener's own
+// coaches come first in their service's group. A coach whose service has a key is
 // chosen with a tap; one that needs a key says which, and can open that key's row in Settings. The page's one
 // colour, a soft blue, marks what plays and who is coaching you.
 import { useEffect, useRef, useState } from "react";
@@ -63,11 +64,10 @@ function Card({ c, onCoach }: { c: StartCoach; onCoach?: (slug: string) => void 
   const active = c.current && c.ready;
   const choosable = c.ready && !!onCoach;
   return (
-    <li className={`cg-card${active ? " cur" : ""}${c.ready ? "" : " off"}${choosable ? " pick" : ""}`}>
+    <li className={`cg-card${active ? " cur" : ""}${c.ready ? "" : " off"}${choosable ? " can" : ""}`}>
       {/* the whole card chooses the coach: a button laid over it, beneath the player and any link */}
       {choosable && (
         <button type="button" className="cg-choose" aria-label={`Choose ${c.first}`} aria-pressed={active}
-          title={active ? undefined : c.tone || c.description || undefined}
           onClick={() => { if (!active) onCoach!(c.slug); }} />
       )}
       {active && <span className="cg-on">Active</span>}
@@ -97,8 +97,8 @@ function heading(group: StartCoach[]): string {
 
 export function CoachGallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoach?: (slug: string) => void;
   onAddKey?: (service: string) => void }) {
-  // alphabetical, so a card never moves: choosing one only rings it
-  const byName = (a: StartCoach, b: StartCoach) => a.first.localeCompare(b.first);
+  // yours first, then alphabetical, so a card never moves: choosing one only rings it
+  const byName = (a: StartCoach, b: StartCoach) => Number(b.own) - Number(a.own) || a.first.localeCompare(b.first);
   const ready = coaches.filter((c) => c.ready).sort(byName);
   // coaches by service, each group A to Z: the ones that can speak, and the ones waiting for a key
   const bySvc = (list: StartCoach[]) => {

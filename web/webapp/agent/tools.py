@@ -310,6 +310,8 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
         return _refuse("give a file's path: me/...")
     if folder.skipped(rel):
         return _refuse("that kind of file isn't kept here")
+    if folder.COACH_SAMPLE.fullmatch(rel):
+        return _refuse("a coach's sample is the engine's: it's made when the coach is kept")
     if rel.startswith(folder.AUDITIONS) and "/" in rel[len(folder.AUDITIONS):]:
         return _refuse("an audition's own files are the engine's: write only the narrative, "
                        "me/coaches/.auditions/<slug>.md")

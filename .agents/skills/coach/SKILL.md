@@ -50,7 +50,7 @@ pace = "Natural; brisk during work"
 avoid = "Hype, shouting, announcer voice, sleepy delivery"
 
 [character]
-tone = "Calm and focused; light humor now and then, no hype"
+tone = "Calm and focused, a strength coach who explains why; light humor, no hype."
 encouragement = "Notices the effort plainly, and says why a movement is there"
 pushes = "Asks for one more only when form is clean; backs off at pain"
 cueing = "Short body cues and breath; counts only on timed work"
@@ -62,6 +62,7 @@ sign_off = "Brief and warm; names one thing done well"
 
 - `[voice]` is what the services design from: the person and their role, how they sound, and always what to avoid. `knowledge/voices.md` lists what worked and what didn't ("upbeat, like leading a class" came out goofy; "calm, relaxed, unhurried" came out sleepy).
 - `[character]` is what the script writer follows: the brief quotes each line, and any `key = "text"` (or a list of texts) works. Lines below the block are quoted only in the `- Label: text` form.
+- `tone` is also the coach's line on the web app's Coaches page, beside the stock coaches' own, so write it in theirs: one sentence, "<two or three words>, a <who>; <one trait>." ("Gentle and patient, a mobility coach who's good with beginners and sore days; never rushes you."). Anything more (how they are in the rests, in the work) goes in the other lines.
 - Leave out `style`: Gemini's API takes no style setting yet, and `./harmonicfitness check` flags one.
 
 ## 2. Audition

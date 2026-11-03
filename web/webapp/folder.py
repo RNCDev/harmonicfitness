@@ -6,6 +6,7 @@ at the folder materialize wrote, and harvest returns what it changed.
 import fnmatch
 import hashlib
 import os
+import re
 
 from .store import check_path
 
@@ -24,6 +25,10 @@ SKIP = (
 AUDITIONS = "coaches/.auditions/"
 AUDITION_FILES = (".md", ".json", ".wav", ".mp3")
 
+# A web coach's sample, the one MP3 kept outside an audition: the Coaches page plays it. Not one in .archive/.
+# tools/websync.py holds the same pattern (test_sync checks).
+COACH_SAMPLE = re.compile(r"coaches/[^./][^/]*/sample\.mp3")
+
 
 def audition_file(path: str) -> bool:
     """A file of a coach's audition: `coaches/.auditions/<narrative>.md`, or a candidates list, narrative,
@@ -40,6 +45,8 @@ def audition_file(path: str) -> bool:
 def skipped(path: str) -> bool:
     if path.startswith(AUDITIONS):
         return not audition_file(path)
+    if COACH_SAMPLE.fullmatch(path):
+        return False
     parts = path.split("/")
     for pat in SKIP:
         if pat.endswith("/"):
