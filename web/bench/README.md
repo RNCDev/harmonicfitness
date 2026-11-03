@@ -68,7 +68,7 @@ Set the rule before the runs:
 | Must-say lines kept | 51 of 54 | 41 of 41 |
 | Host's script at the review, against plan | 17 to 24 percent long | 0.5 percent short to 11 percent long |
 | A story rest, host's words against asked | 1.23 (its coaching 1.65) | 1.06 (its coaching 1.00) |
-| 30 minutes, median s (before the last three fixes) | 252 (250, 252, 278) | 172 (142, 172, 222) |
+| 30 minutes, median s (before the stop-sign, label, host-wording and short-rest fixes) | 252 (250, 252, 278) | 172 (142, 172, 222) |
 
 On the way there:
 - **Rests labelled with the next movement** ("Rest before single-arm floor press") made the rest that movement's
