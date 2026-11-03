@@ -25,6 +25,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 STORY_SHARE = 0.7      # of a rest's words, about the story's: a rest whose share is under SMALLEST_STORY carries none
 WORK_STORY_SHARE = 0.55   # of a steady timed set's: its setup, go, first cue, time checks and finish take the rest
 SMALLEST_STORY = 40
+# The fewest words a story slot leaves its coaching: a breath, the self-check where one falls and what's next (or a
+# set's setup, go and time checks) took about this many wherever they went, so a short rest's 30 percent was written
+# 80 percent over (0.59.0's bench, 2026-11-03); the story gives way to it rather than the segment running long, down
+# to SMALLEST_STORY: a session of thirty-second rests with the floor in full carried no story at all.
+COACHING_FLOOR = 60
 STORY_WORDS = 140      # what a story is asked to run to, before the skeleton says how long each rest is
 # Gemini's coach wrote 9 to 23 percent over the words it was asked for (0.50.3's loop), and paragraph breaks add
 # time of their own: it's asked for this share of each segment's words (all of them where a bare [hold] keeps the
@@ -45,7 +50,7 @@ NOT_WEB = re.compile(r"<!-- web: skip -->\n.*?<!-- web: end -->\n?", re.DOTALL)
 LEVELS = ("HIGH", "MEDIUM", "LOW")
 # The longest each writer's call is waited for before it's asked again thinking less: Gemini's own deadline (504) is
 # about 180 s, and a call that thinks that long is rare but whole (a final writer's 179 s against its usual 26 to 37, before 0.55.0's review).
-PATIENCE = {"research": 160, "trainer": 110, "host": 150, "review": 80}
+PATIENCE = {"research": 160, "trainer": 110, "host": 150, "review": 80, "top-up": 90}
 # How hard each writer thinks. The review is a checklist, and at MEDIUM its first pass ran past its patience in four
 # of six timed 10-minute runs (2026-11-02), each time asked again at LOW, which answered in about ten seconds: the
 # turn waited 80 s for nothing. The trainer stays at MEDIUM: at LOW it dropped the self-check a limit adds. The
@@ -158,6 +163,7 @@ def guides(engine_root: str) -> dict[str, str]:
                 + "\n" + bullets(safety, "Never invent facts") + voice(*(h for h in tts if h != "The draft")),
         "review": task("review.md") + f"\n\n## Safety: the rules\n{safety}" + voice(*said, "Markers"),
     }
+    out["top-up"] = out["research"]
     return {k: COMMAND.sub("", v) for k, v in out.items()}
 
 
@@ -194,6 +200,8 @@ def slots(segs: list, budget: dict[int, int]) -> dict[int, tuple[int, int]]:
             continue
         whole = budget.get(n, 0)
         story = round(whole * (WORK_STORY_SHARE if n in marked else STORY_SHARE))
+        if whole - story < COACHING_FLOOR:   # the coaching's floor, as far as a short story still fits
+            story = max(whole - COACHING_FLOOR, min(story, SMALLEST_STORY))
         if story >= SMALLEST_STORY:
             out[n] = (whole - story, story)
     return out
@@ -304,10 +312,16 @@ def pieces_for(minutes: int) -> int:
     return max(2, round(minutes / 2.6))
 
 
-def story_words(budget: dict, rests: dict) -> dict[int, int]:
-    """About how long each slot's story runs, in the plan the trainer reads: what it's
-    asked for, or less in a short rest or set."""
-    return {n: min(STORY_WORDS, story) for n, (_, story) in rests.items()}
+def asked(n: int, body: list[str], budget: dict) -> int:
+    """The words the host is asked for in segment `n`: a share of its budget, since the host writes long (all of
+    them where a bare [hold] keeps the segment its length, since a word short there is a second of silence)."""
+    return round(budget.get(n, 0) * (1 if "[hold]" in "\n".join(body) else COACH_AIM))
+
+
+def shares(n: int, words: int, budget: dict, rests: dict) -> tuple[int, int]:
+    """A story slot's words as (the coaching's, the story's), in proportion to the slot's budget."""
+    story = round(words * rests[n][1] / budget[n]) if budget.get(n) else 0
+    return words - story, story
 
 
 def place(told: list, rests: dict, marked: set) -> dict:
@@ -324,17 +338,22 @@ def place(told: list, rests: dict, marked: set) -> dict:
     return out
 
 
-def _plan_table(segs: list, budget: dict, stories: dict[int, int], marked: frozenset = frozenset()) -> str:
-    """The plan as the trainer reads it: each segment's time, label and markers, and where a story goes."""
+def _plan_table(segs: list, budget: dict, rests: dict, marked: frozenset = frozenset()) -> str:
+    """The plan as the trainer reads it: each segment's time, label, words and markers, and where a story goes and
+    how many of the words are left for the coaching around it (0.59.0: without the words, notes ran as long as the
+    segment, and the host wrote about as many words as the notes held)."""
     rows, at = [], 0
     for n, (_, label, secs, body) in enumerate(segs, 1):
         marks = " ".join(m for m in tools.MARK.findall("\n".join(body))
                          if m.lower() not in ("[story]", "[/story]")) or "none"
-        where = ""
-        if n in stories:
-            where = (" A story is told here, during the set, after its first cue." if n in marked else
-                     " A story is told here, in the rest.")
-        rows.append(f"#{n} at {at // 60}:{at % 60:02d}, {secs} s, {label}. Markers: {marks}.{where}")
+        words = asked(n, body, budget)
+        size = f" About {words} words."
+        if n in rests:
+            coaching, story = shares(n, words, budget, rests)
+            size = (f" About {words} words: {story} for a story, told "
+                    + ("during the set, after its first cue" if n in marked else "in the rest")
+                    + f", and {coaching} for the coaching around it.")
+        rows.append(f"#{n} at {at // 60}:{at % 60:02d}, {secs} s, {label}.{size} Markers: {marks}.")
         at += secs
     return "\n".join(rows)
 
@@ -348,12 +367,17 @@ def host_plan(segs: list, budget: dict, notes: dict[int, str], placed: dict, mar
     for n, (_, label, secs, body) in enumerate(segs, 1):
         marks = " ".join(m for m in tools.MARK.findall("\n".join(body))
                          if m.lower() not in ("[story]", "[/story]")) or "none"
-        words = round(budget.get(n, 0) * (1 if "[hold]" in "\n".join(body) else COACH_AIM))
+        words = asked(n, body, budget)
         story = placed.get(n)
         share = ""
         if story is not None and rests and n in rests and budget.get(n):
-            share = (f" About {round(words * rests[n][1] / budget[n])} of them are the story, told whole with its "
-                     "detail; the coaching around it takes the rest, nothing more.")
+            coaching, told = shares(n, words, budget, rests)
+            share = (f" About {told} of them are the story, told whole with its detail, and about {coaching} the "
+                     "coaching around it (the trainer's notes for it), nothing more.")
+        elif story is None and (n in marked or (rests is not None and n in rests)
+                                or (1 < n < len(segs) and STORY_REST.search(label))):
+            share = (" No story here: the coaching from the trainer's notes fills it, and nothing from outside "
+                     "them. The label names the segment; it's never a story to tell.")
         part = [f"## #{n} at {at // 60}:{at % 60:02d}, {secs} s, {label}",
                 f"Write about {words} words.{share} Markers, in order: {marks}.",
                 "Trainer's notes:\n" + (notes.get(n, "").strip() or "none")]
@@ -461,6 +485,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
               "marked steady or rest by where it suits (the plan's formats say where each kind lands). The last two are spares, told only if "
               "there's room: nothing else depends on them.")
     told = await _ask(deps, "research", RESEARCHER, model, prompt, usage, LEVEL["research"], capabilities=search)
+    deps.research_history = told.all_messages()   # what a top-up goes on from, once the skeleton's places are known
     found = {s.number: s for s in told.output.stories}
     titles = told_titles(plan.output)
     repeats = {n: t for n, s in found.items() if (t := retold(s, titles))}
@@ -475,7 +500,30 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
             + "; ".join(f"story {n} retells \"{t}\", told before" for n, t in repeats.items()) + "."),
             usage, LEVEL["research"], capabilities=search, history=told.all_messages())
         found.update({s.number: s for s in again.output.stories if s.number in repeats})
+        deps.research_history = again.all_messages()
     return [found[n] for n in sorted(found)]
+
+
+async def top_up(deps, model, usage, got: list, places: int, titles: list[str], search=()) -> list:
+    """More pieces when the skeleton has more places than the researcher wrote for (it wrote before the skeleton
+    existed): the researcher goes on from its own run, while the trainer works. A place left without one gets
+    coaching only, and the host is told so: a rest whose label named a topic got a story made up from the label
+    alone (2026-11-02)."""
+    short = places - len(got)
+    history = getattr(deps, "research_history", None)
+    if short <= 0 or not history:
+        return got
+    first = max((s.number for s in got), default=0) + 1
+    try:
+        more = await _ask(deps, "top-up", RESEARCHER, model, (
+            f"The session has {places} places for a piece, {short} more than these. Write {short} more the same "
+            f"way, numbered from {first}, each a different item from those above and nothing the plan lists as "
+            "told; return only the new ones."), usage, LEVEL["research"], capabilities=search, history=history)
+    except Exception:  # noqa: BLE001 - the places it would have filled get coaching only
+        logline(deps, "top-up failed: those places get coaching only")
+        return got
+    new = [s for s in more.output.stories if not retold(s, titles)][:short]
+    return got + [s.model_copy(update={"number": first + i}) for i, s in enumerate(new)]
 
 
 def without_retold(found: dict, repeats: dict, count: int) -> list | None:
@@ -559,21 +607,27 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
     trainer_prompt = (
         f"Now: {deps.now}.\n\n# The brief\n\n{coach_brief(brief, ids)}\n\n# The coaching notes\n\n"
         f"{about.output.strip()}\n\n# The plan\n\n{head[0] if head else ''}\n"
-        f"{_plan_table(segs, budget, story_words(budget, rests), frozenset(marked))}")
+        f"{_plan_table(segs, budget, rests, frozenset(marked))}")
 
-    async def the_stories() -> list[Told]:   # started as the brief was saved, or written now
+    async def the_stories() -> list[Told]:   # started as the brief was saved, or written now; topped up to the places
         job = deps.content_job if deps.content_job is not None and deps.content_for == path else None
         waited = time.monotonic()
+        got = None
         if job is not None:
             ready = job.done()
             try:
                 got = await asyncio.wrap_future(job)
                 logline(deps, "research " + ("was ready" if ready else
                                           f"waited for {time.monotonic() - waited:.1f}s"))
-                return got
             except Exception:  # noqa: BLE001 - the early run failed: write them now instead
                 logline(deps, "research: the early run failed, written now")
-        return await stories(deps, model, usage, path, max(1, round(sum(s for _, _, s, _ in segs) / 60)), search)
+        if got is None:
+            got = await stories(deps, model, usage, path, max(1, round(sum(s for _, _, s, _ in segs) / 60)), search)
+        if len(got) < len(rests):
+            plan = await asyncio.to_thread(tools.run, plain, ["content", "plan", "--minutes",
+                                                              str(max(1, round(sum(s for _, _, s, _ in segs) / 60)))])
+            got = await top_up(deps, model, usage, got, len(rests), told_titles(plan.output), search)
+        return got
 
     # the researcher's notes and the trainer's side by side, each from its own material
     told, noted = await asyncio.gather(the_stories(),
@@ -589,7 +643,9 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         f"hold or pause you add takes {rate:.1f} words a second from them.\n\n"
         f"{host_plan(segs, budget, notes, placed, frozenset(marked), rests)}")
     hosted = await _ask(deps, "host", HOST, model, host_prompt, usage, LEVEL["host"])
-    edits = hosted.output.segments
+    edits, unasked = without_unasked(hosted.output.segments, placed)
+    if unasked:
+        logline(deps, f"host told {len(unasked)} stories nobody researched: taken out")
     draft = apply_edits(skeleton, edits)
     spoken = {e.number for e in edits}
 
@@ -606,6 +662,10 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         draft = _read(full) if name and coach else draft
         prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n"
                   + (f"# The lines to check, one by one\n\n{must}\n\n" if must else "")
+                  + ("# Taken out\n\n" + "\n".join(
+                      f"- #{n} told a story the researcher didn't bring, and it was taken out: fill its time with "
+                      "coaching from your notes, nothing from outside them." for n in unasked) + "\n\n"
+                     if unasked else "")
                   + f"# Your notes\n\n{said}\n\n"
                   f"# The script\n\n{numbered(draft)}\n\n# The build's check\n\n{check}") if not attempt else (
                   f"The build's check after your edit:\n\n{check}\n\nFix what it names; return only those segments.")
@@ -634,6 +694,21 @@ async def _lint(deps, plain, path: str, full: str, name: str | None, coach: str 
     logline(deps, f"lint exit {r.code} {time.monotonic() - began:.1f}s")
     deps.linted = plain.linted   # a clean lint here: the build after the room prices this text without another
     return ("clean: " if r.code == 0 else "") + out
+
+
+STORY = re.compile(r"[ \t]*\[story\](.*?)\[/story\][ \t]*\n?", re.IGNORECASE | re.DOTALL)
+
+
+def without_unasked(edits: list[Edited], placed: dict) -> tuple[list[Edited], list[int]]:
+    """The host's segments with any story told where none was placed taken out (a story from nowhere: no notes, so
+    nothing it says was checked), and those segments' numbers, for the review to fill."""
+    out, unasked = [], []
+    for e in edits:
+        if e.number not in placed and any(m.strip() for m in STORY.findall(e.text)):
+            unasked.append(e.number)
+            e = e.model_copy(update={"text": re.sub(r"\n{3,}", "\n\n", STORY.sub("", e.text)).strip()})
+        out.append(e)
+    return out, unasked
 
 
 def apply_edits(draft: str, edits: list[Edited]) -> str:

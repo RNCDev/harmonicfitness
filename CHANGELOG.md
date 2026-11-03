@@ -2,6 +2,56 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.59.0] - 2026-11-03
+
+Website scripts land at their length with every safety line in, rests no longer get stories made up from their labels, and the knowledge files agree with each other and with the code. On the 15-minute test request (a strength workout with two one-sided limits on opposite sides), the release's three runs reached a checked price in a median 130 seconds from the brief, against 149 for 0.58.0, with no fixes after the writers' room in any run (0.58.0: a median of two), every must-say line kept (41 of 41; 0.58.0 kept 51 of 54), and the host's words within a few percent of what it was asked. Its scripts reached the review 0.5 percent short to 11 percent long where 0.58.0's ran 17 to 24 percent long. At 30 minutes, measured before the last three fixes below, the median fell from 252 seconds to 172. The bench that measured this is now in the repo, at `web/bench/`, with every result.
+
+### Changed
+- **The trainer sees each segment's words** (web, `writers._plan_table`), and, where a story goes, the words left for the coaching around it; its task says to size the notes to them. Without them its notes ran as long as the segment, and the host wrote as many words as the notes held.
+- **The host is told both shares** of a story slot, the story's and the coaching's (`writers.host_plan`).
+- **A story slot leaves its coaching 60 words** (`writers.COACHING_FLOOR`), as far as a 40-word story still fits. A breath, a self-check and what's next took about that many wherever they went, so a short rest's 30 percent was written 80 percent over; the story now gives way, down to a short one.
+- **The site settles a skeleton within ten percent of the request** (web, `tools.SETTLE`, from three percent), spreading the difference over the rests, as long as no rest ends under ten seconds or changes by more than half. Skeletons 3 to 6 percent off went back to the agent up to three times.
+- **A limit's stop signs may be said at the healthy side's set** (`menu._cue_sentences`): "Stop that movement on any pain in the right shoulder" in the left-arm press, in the forms the brief gives them. The guide has an off-limits area's stop signs said at its first working set, often that very set, so the review or the agent cut them to pass the build.
+- **The host and the review are told the one-side rule** (web, `host.md`, `review.md`): in a segment naming a one-sided movement, the other side comes up only in the lines the trainer marked to say word for word (the brief's limit cues and stop signs). "The injured arm", "the sore shoulder" and "keep the right arm out" in the left-arm press were the commonest reason a script failed after the room. The review may now change holds and pauses where the build's check asks for them.
+- **The website agent's instructions:** the coach commands match what the site allows, the "don't ask how they feel" rule is said once, rests are labelled just `Rest` (or `Transition`), never with a topic or a movement's name, and, with the writers' room, the agent no longer runs `feeds` or reads its sheet (the researcher and the host already get them).
+- **The "three stories in a row" warning** (`repeats.stacked_stories`) leaves a timed set alone: one story broken by its time checks, as `knowledge/script.md`'s own example tells it, isn't a pile.
+
+### Added
+- **More stories when the skeleton has more places** (web, `writers.top_up`). The researcher writes before the skeleton exists; when there are more places than pieces, it's asked for the rest, going on from its own run, while the trainer works, so the room doesn't wait for it.
+- **A story from nowhere is taken out** (web, `writers.without_unasked`). A rest given no story is told so, and that its label is no story to tell; a story the host tells there anyway is removed before the review, which fills the time with coaching.
+- **The script-writing bench** (`web/bench/`): timed runs of the website's agent on a copy of the listener's folder, stopping at the price, with a summary of each step, each writer and the quality checks. Its README has the method, the rule for keeping a change and every result so far. Runs write to `.bench/`, which git ignores, the Fly image leaves out and the privacy hook refuses.
+
+### Fixed (the knowledge files, checked against each other and the code)
+- **Stop for today, under every area off limits:** calf, hamstring, groin, rib, low back and neck had no "still worse after a short rest" sign, though the playbook says every off-limits area has one, and the rib off limits was looser than the rib delicate. Each now has it, in its opening too.
+- **The leg-clot red flag reaches every check-in:** it was asked only with a calf limit. It's in `[general]` now, with the thigh, and its emergency.
+- **The ankle's clearing sign includes easy hops,** as the playbook's order has it; clearing brings jumping back.
+- **What a limit's `rehab` list can bring in:** only the catalog's rehab drills (the ankle work, towel scrunch, single-leg balance). The playbook, the limits file and the kits guide promised calf raises and wrist handles that way; a calf raise stays with the physio's plan.
+- **A delicate wrist's session line** no longer points to push-ups on handles, which its menu leaves out.
+- **All-out rests:** the brief's line now says it's for flat-out efforts; the conditioning doses and a Tabata block's twenty seconds are hard, not flat out, and keep their own rests. The programming guide says the advanced dose's shorter rests are a house default.
+- **Mobility holds** follow their source: thirty seconds a hold, two a muscle, about sixty seconds in all (they allowed up to three minutes, marked "not searched").
+- **Timed-set arithmetic:** forty to sixty seconds at the brief's rep pace is eighteen to twenty-five reps, not ten to twenty.
+- **The writer's guide** (`knowledge/script.md`): each limit's opening line stays in the welcome, where the build looks; the self-check example says "take the easier version" ("switch" is refused beside a one-sided movement); the one-side rule names what the build refuses; a story never names an off-menu movement in a sentence to the listener; the four-figure cap is stated; a rest's piece is told whole; markers inside a story point to `tts-rules.md`; the made-by-AI example names the doctor; the line about logging stories is for a computer only.
+- **The workout skill** writes the skeleton first, as the brief and the guides assume.
+- **The voices guide:** `me/personas/` (not `me/coaches/`) before 0.15.0, Pocket's model at 0.4 GB, the stand-in order is the services file's, OpenRouter's not-yet-tried-live status explained, a listener's own coach names removed.
+- **Small ones:** the kits guide's dips (flagged `grip`, not `hanging`), impact out under any limit, "the listener"; the big story fits steady work first; stale counts in two code comments.
+
+### Tried and not kept
+- **Rest labels naming the next movement** ("Rest before single-arm floor press"): a label names its segment, so the rest before a one-sided set became that set's segment, where the guide's "say why the other side rests" can't be said. Builds failed five and six times over it, and the host thought for up to 150 seconds. Back to plain `Rest`.
+- **The coaching floor in full:** in a session of thirty-second rests it left no room for a story, so three runs in twelve told none.
+
+### Found, still open
+- **The host sometimes thinks for 130 to 150 seconds** at MEDIUM, about one run in three on the release's code (its usual is 30 to 60), once past its patience and asked again at LOW. Nothing in its material marked those runs out.
+- **The researcher's top-up can outlast the trainer** (47 seconds once), and at LOW it has no patience to cut it short.
+- **The trainer swings** from 28 to 86 seconds at MEDIUM, its thinking level unchanged.
+
+### For forks
+- **`writers._plan_table(segs, budget, rests, marked)`** takes the slots, not story lengths; `writers.story_words` is gone. New: `writers.asked`, `writers.shares`, `writers.top_up`, `writers.without_unasked`, `writers.COACHING_FLOOR`, `Deps.research_history`, and a `top-up` writer in `writers.PATIENCE` and `guides()`.
+- **`tools.SETTLE` is 0.10.**
+- **`menu._cue_sentences`** includes the playbook's stop signs; **`repeats.stacked_stories`** skips a segment with a go count or a hold.
+- **`knowledge/limits.toml`** has new `stop_today` rows and the clot flag in `[general]`; a fork's own rows keep theirs. **`knowledge/sessions.toml`'s mobility doses** are `hold_seconds = [30, 30]`, `rounds = [2, 2]`.
+- **`.bench/` is in `tools/hooks/private-paths`.**
+- **`me/` needs no migration;** drafts, commands and exit codes are unchanged.
+
 ## [0.58.0] - 2026-11-03
 
 Scripts are written faster on the website, and a workout under two limits on opposite sides can be built at all. A 15-minute strength script under a one-sided knee limit and a one-sided shoulder limit on the other side now reaches a checked, priced draft in a median of 184 seconds from the brief, down from 234 and 239 in two baselines of three timed runs each. All runs priced. Before the fix to the opening check, that request couldn't pass the build: the agent rebuilt it 25 times and stopped at the token cap. Each writer's time is now in the worker's log, which is how the rest was found. With three runs a side the totals swing widely (154 to 262 seconds after, 160 to 344 before), so the clearest gain is step by step: the room now waits a median 6 seconds for the researcher, not 110.

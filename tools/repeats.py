@@ -108,12 +108,16 @@ TARGET_BEFORE = re.compile(r"\b(?:one|two|three|four|five|six|seven|eight|nine|t
 
 
 STACKED = 3   # stories in one segment past which it's a pile, not a rest: "one story to a rest" (script.md)
+WORK = re.compile(r"\[count \d+ go\]|\[hold", re.IGNORECASE)   # a set under way: its stories are one, broken by the checks
 
 
 def stacked_stories(text: str) -> List[str]:
-    """Warnings for a segment holding STACKED or more [story] blocks: unrelated items told back to back."""
+    """Warnings for a rest holding STACKED or more [story] blocks: unrelated items told back to back. A timed set's
+    one story, broken by its time checks (script.md's own example), is left alone (0.59.0)."""
     out = []
     for seg in draft.parse(text):
+        if WORK.search("\n".join(line for _, line in seg["lines"])):
+            continue
         stories = draft.story_split(seg)[1]
         if len(stories) >= STACKED:
             out.append(f'segment "{seg["label"]}" tells {len(stories)} stories in a row; one story to a rest (a longer '

@@ -76,7 +76,7 @@ LOGS = os.path.join(WORKOUTS, ".logs")                # each build's render log,
 # one record per rendered MP3, and a "failed" one per web render that sent text and then stopped
 BUILDS = os.path.join(LOGS, "builds.jsonl")
 
-# The stock coaches the engine ships: ten local, four web (coaches/<slug>/). HARMONICFITNESS_SHIPPED is test-only.
+# The stock coaches the engine ships: ten local, fifteen web (coaches/<slug>/). HARMONICFITNESS_SHIPPED is test-only.
 SHIPPED = os.path.abspath(os.environ.get("HARMONICFITNESS_SHIPPED") or os.path.join(ROOT, "coaches"))
 PERSONAS = os.path.join(HOME, "coaches")   # the listener's own coaches, coaches/<slug>/ (personas/ before 0.15.0; migrate renames it)
 

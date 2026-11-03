@@ -18,7 +18,7 @@ Rule: end working sets with about one to three reps left ("effort eight or nine 
 
 Rule: with light dumbbells, use higher reps (15 to 30) and take sets closer to failure than with a heavy weight. Don't promise one-rep strength from light kit; promise muscle and working strength.
 
-- **Timed sets (house default, the listener's design, 2026-11-02).** No source sets a timed set's length; forty to sixty seconds at the brief's rep pace is about the ten to twenty reps of the range above, and timed work leaves the coach room to talk through the set.
+- **Timed sets (house default, the listener's design, 2026-11-02).** No source sets a timed set's length; forty to sixty seconds at the brief's rep pace is about eighteen to twenty-five reps, inside the fifteen to thirty for light dumbbells above, and timed work leaves the coach room to talk through the set.
 
 Rule: a timed set runs forty to sixty seconds at a steady pace, with a load that leaves two or three reps in reserve at the end. The effort rule holds as for counted sets. Timed sets suit steady whole-body work, where the coach talks with the listener through the set; heavy sets near the top of the load range stay counted.
 
@@ -110,7 +110,7 @@ Session shapes live in `knowledge/sessions.toml`: each method's goals, length, l
 
 Not found with a source: a best rest for hard-but-not-all-out efforts of 30 to 60 seconds, or for steady work broken into blocks. The ratios below for those are house defaults.
 
-Rule: genuine all-out efforts of 10 to 30 seconds get at least four times their length in easy movement, and five or six times when the listener should hit the next one as hard (a 20-second sprint gets about 2 minutes); expect the later ones to fade and say so, and keep them few. Hard efforts of 30 to 60 seconds that are not all-out take about equal to double their length in rest (house default), and steady blocks need only a short breather.
+Rule: genuine all-out efforts of 10 to 30 seconds get at least four times their length in easy movement, and five or six times when the listener should hit the next one as hard (a 20-second sprint gets about 2 minutes); expect the later ones to fade and say so, and keep them few. Hard efforts of 30 to 60 seconds that are not all-out take about equal to double their length in rest while fitness builds, and an advanced listener's as little as half (house defaults, as `knowledge/sessions.toml`'s conditioning doses set them); Tabata's twenty seconds are hard, not all-out, on its own ten-second rests; steady blocks need only a short breather.
 
 ## Effort by ear
 

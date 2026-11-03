@@ -1,4 +1,4 @@
-# The ten shipped local coaches: how each was made, so any of them can be remade
+# The shipped coaches: how the ten local ones and the twelve ready-made web ones ([[web_coach]]) were made, so any can be remade
 # (tools/coachmaker/, maintainer only). Every coach reads the same clip script.
 #
 # who, sound, energy: the persona's [voice] table. description: the line the designer heard.

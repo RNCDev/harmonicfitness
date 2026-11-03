@@ -103,6 +103,15 @@ class TheOpeningNamesTheSide(unittest.TestCase):
         own = "Your right arm sits out. Today it's the left single-arm floor press, left side only."
         self.assertTrue(menu.side_problems(CAT, on_menu, own))   # the writer's own wording still fails safe
 
+    def test_the_resting_sides_stop_signs_may_be_said_at_the_healthy_sides_set(self):
+        # an off-limits area's stop signs go at the first working set (script.md), often the healthy side's movement
+        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
+        for line in ("Stop that movement on any pain in the right shoulder.",
+                     "Stop for today on pain in that shoulder that's still worse than when you started after a short rest."):
+            self.assertEqual(menu.side_problems(CAT, on_menu, f"Left single-arm floor press, left side only. {line}"), [], line)
+        turn = "Left single-arm floor press. Any pain in the right shoulder, then switch to it."
+        self.assertTrue(menu.side_problems(CAT, on_menu, turn))   # anything else naming it still fails safe
+
     def test_no_one_sided_limit_needs_nothing(self):
         for m in ({"request": {}}, {"request": {"limits": ["knee=delicate:both"]}}):
             self.assertEqual(menu.opening_problems(m, segs("@@ 60 | Welcome\nTwenty minutes, let's go.\n")), [])
@@ -148,6 +157,9 @@ class SeenClaims(unittest.TestCase):
         three = "movements: x\n@@ 90 | Rest\n[story] One. [/story]\n\n[story] Two. [/story]\n\n[story] Three. [/story]\n"
         self.assertEqual(len(repeats.stacked_stories(three)), 1)
         self.assertEqual(repeats.stacked_stories(three.replace("\n\n[story] Three. [/story]", "")), [])
+        timed = ("movements: x\n@@ 90 | Steady march\n[count 3 go] Easy pace.\n[story] One. [/story]\n\nHalfway.\n"
+                 "[story] Two. [/story]\n\nTen seconds.\n[story] Three. [/story]\n[hold]\n[cue rest]\n")
+        self.assertEqual(repeats.stacked_stories(timed), [])   # one story, broken by the time checks
 
 
 class ToldToday(unittest.TestCase):

@@ -1,6 +1,6 @@
 # What a voice can read
 
-The coach's voice reads the script exactly as written: a local one (Pocket TTS on this computer) or a web one (the coach's own voice service), through `tools/render.py`. Nothing expands numbers or abbreviations first, and a symbol can come out as noise or a wrong word, so write exactly what should be heard. The build's lint (`tools/tts_build.py`) checks the mechanical points below. How the script should sound is `knowledge/script.md`'s, not a rule here.
+The coach's voice reads the script exactly as written: a local one (Pocket TTS on this computer) or a web one (the coach's own voice service), through `tools/render.py`. Nothing expands numbers or abbreviations first, and a symbol can come out as noise or a wrong word, so write exactly what should be heard. The build's lint (`tools/tts_build.py`) checks most of the mechanical points below (not every punctuation mark: keep to the guide where the lint lets something pass). How the script should sound is `knowledge/script.md`'s, not a rule here.
 
 ## The draft
 

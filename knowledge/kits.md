@@ -51,7 +51,7 @@ A flat or adjustable bench, for supported rows, presses, step-ups and seated wor
 A mat, and perhaps a foam roller and a stretching strap, for floor work, mobility and box breathing.
 
 ## Pull-up bar and dip station
-A doorway or mounted pull-up bar, and parallel dip bars (freestanding or on a power tower). Everything on them is body weight hung from the hands, so the catalog flags it `hanging` and rates the shoulder, elbow and wrist; a delicate shoulder or elbow keeps it off the menu.
+A doorway or mounted pull-up bar, and parallel dip bars (freestanding or on a power tower). What hangs from the bar the catalog flags `hanging`, and dips `grip`; both rate the shoulder, elbow and wrist, since they're body weight held in the hands; a delicate shoulder or elbow keeps it off the menu.
 - A doorway bar is only as safe as the frame: test it with a bounce before the first set, and never kip or swing on one. The catalog refuses kipping and muscle-ups.
 - Most people can't do many strict pull-ups. A chair or box under the bar turns the set into slow lowerings (negatives), and a dead hang or a shoulder-blade pull builds toward it. Cue a step down, never a drop, at the end of every set.
 - Dips drive the shoulder into deep extension under body weight: script a shallow range ("stop when your upper arms are level with the floor").
@@ -67,7 +67,7 @@ A medicine ball bounces and is for throws against a solid wall (a brick or concr
 - Downstairs neighbors and hotel floors don't welcome slams; use them at a gym or on a ground floor.
 
 ## Box
-A plyo box or a sturdy aerobic step. Step-ups and step-downs need only a step a little below knee height; jumps need a stable box that won't tip, a landing surface that doesn't slide, and only an advanced listener with no lower-leg limit (the catalog flags them `impact`). Always step down from a jump box, never jump down.
+A plyo box or a sturdy aerobic step. Step-ups and step-downs need only a step a little below knee height; jumps need a stable box that won't tip, a landing surface that doesn't slide, and only an advanced listener with no limit today (the catalog flags them `impact`, and any limit keeps impact out). Always step down from a jump box, never jump down.
 
 ## Sliders
 Gliding discs on a smooth floor, or a towel on a hard floor (the catalog accepts either). Carpet takes the plastic side up and a hard floor the felt side. Sliding work is slow and controlled: the slide loads the moving leg through its whole range, so cue a short slide first.
@@ -85,7 +85,7 @@ Heavy ropes anchored around a post or kettlebell, for waves and slams. Hard cond
 A landmine holds one end of a barbell, so the other end moves in an arc: presses go up and forward rather than straight overhead, kinder to a shoulder that dislikes overhead work, and rows and squats load the front of the body. A trap bar puts the lifter inside the bar, so the deadlift loads the knee more and the low back less than a straight bar; it is still a heavy pull, with setup and plate loading inside the segment.
 
 ## Jump rope
-A skipping rope, its length set so the handles reach the armpits with a foot on the middle. Impact work: the catalog flags it so, and any lower-leg limit keeps it out. Hotel rooms and low ceilings rule it out too.
+A skipping rope, its length set so the handles reach the armpits with a foot on the middle. Impact work: the catalog flags it so, and any limit keeps it out. Hotel rooms and low ceilings rule it out too.
 
 ## Outdoors
 Open ground, a track, a park or a hill. Sprints and hill repeats happen only here, never indoors. Say where to turn around, to watch for traffic and uneven ground, and to keep one earbud's volume low enough to hear the street. A hill repeat's way down is the rest, walked, never run.
@@ -100,13 +100,13 @@ Ankle weights turn the lying and standing leg lifts into rehab work that can gro
 A foam pad, a wobble board, or a BOSU dome up: the step after standing on one leg on the floor, for ankle rehab and balance. Set it beside a wall or a counter to touch, on a floor that doesn't slide, and step off rather than fall.
 
 ## Push-up handles
-Handles or parallettes keep the wrist straight rather than bent back at the end of its range, which many people with sore wrists find easier. No study has shown they lower the wrist's load, so the catalog still rates the wrist as it does on the floor, and a delicate wrist keeps them off the menu unless a clinician's plan names them. Set them on a floor that doesn't slide, under the shoulders.
+Handles or parallettes keep the wrist straight rather than bent back at the end of its range, which many people with sore wrists find easier. No study has shown they lower the wrist's load, so the catalog still rates the wrist as it does on the floor, and a delicate wrist keeps them off the menu. Set them on a floor that doesn't slide, under the shoulders.
 
 ## Smith machine
 A barbell on fixed rails, common in hotel gyms: squats, presses and rows without a rack or a spotter, as long as the safety stops are set just below the lowest point before the first rep. The rails decide the bar's path, so the feet find the body's place under it: say where they go.
 
 ## Hotel room (no gym)
-Typically bodyweight, a chair, a bed edge, a towel, maybe a band. No mat: floor work goes on the carpet or a folded towel under the knees. A chair for support goes against a wall so it can't slide, and nothing pushes on a chair with wheels; the bed edge is fine for sitting and incline push-ups, too soft for step-ups. Towel rows go around a door handle only if the door is solid and closed toward the user; when the door can't be trusted, the prone lat pulldown or the prone Y T W raise still gives the session its pull. Towel slides need a hard floor. Keep noise low; no jumping in hotel rooms.
+Typically bodyweight, a chair, a bed edge, a towel, maybe a band. No mat: floor work goes on the carpet or a folded towel under the knees. A chair for support goes against a wall so it can't slide, and nothing pushes on a chair with wheels; the bed edge is fine for sitting and incline push-ups, too soft for step-ups. Towel rows go around a door handle only if the door is solid and closed toward the listener; when the door can't be trusted, the prone lat pulldown or the prone Y T W raise still gives the session its pull. Towel slides need a hard floor. Keep noise low; no jumping in hotel rooms.
 
 ## Hotel gym (assume basic)
 Hotel gyms vary, so plan for the common minimum and offer a swap for anything less certain. Usually present: a dumbbell rack (often only up to about fifty pounds), an adjustable bench, a treadmill, an elliptical, an upright or recumbent bike, a mat area, and sometimes a cable machine or a Smith machine. The recumbent bike is the gentler option for a sore (delicate) ankle; an off-limits ankle rules pedaling out. Scripting notes: say "if your hotel has a cable machine, use it; if not, grab a dumbbell and do this instead" for anything beyond dumbbells and a bench. Heavy dumbbells may not exist, so program effort by reps and tempo ("pick a weight that leaves two reps in the tank") rather than specific pounds.

@@ -97,6 +97,8 @@ class Deps:
     # the personal content writer, started as the brief runs (three writers): its future, and the draft it writes for
     content_job: object = field(default=None, repr=False)
     content_for: str | None = None
+    # the researcher's conversation, for a top-up once the skeleton has more places than it wrote for
+    research_history: object = field(default=None, repr=False)
     loop: object = field(default=None, repr=False)   # the turn's event loop, which the personal content writer runs on
     # the web searches the writers' room ran this turn (the researcher's): the turn's usage counts them with its own
     room_searches: int = 0
@@ -385,7 +387,9 @@ def _request_seconds(full: str) -> int | None:
     return seconds if isinstance(seconds, int) and seconds > 0 else None
 
 
-SETTLE = 0.03   # a skeleton this close to the request is settled here: the difference spread over its rests
+# a skeleton this close to the request is settled here: the difference spread over its rests (0.59.0: ten percent;
+# at three, skeletons 3 to 6 percent off went back to the agent up to three times, about 18 s, 2026-11-03)
+SETTLE = 0.10
 LONGEST_REST = 120   # no dose in sessions.toml rests longer than two minutes: a rest past it is padding
 REST_LABEL = re.compile(r"rest|transition|breath|recover|walk|set-?up|shake", re.IGNORECASE)
 
@@ -399,8 +403,8 @@ def _retime(text: str, seconds: list[int]) -> str:
 def settle_clock(text: str, want: int | None) -> tuple[str, str]:
     """A skeleton within SETTLE of the request, settled to it: the difference spread over its rests (every segment
     when none is labelled as one), in steps of five seconds, since a writer told "add 15 s" re-planned the whole
-    skeleton five or six times (0.50.0's loops); (the text, a note). Further off, or with a rest too short to give,
-    it's left to the writer."""
+    skeleton five or six times (0.50.0's loops); (the text, a note). Further off, or where a rest would end under
+    ten seconds or change by more than half its length, it's left to the writer."""
     segs = segments_of(text)
     total = sum(s for s, _ in segs)
     if not want or total == want or abs(total - want) > SETTLE * want:
@@ -413,7 +417,7 @@ def settle_clock(text: str, want: int | None) -> tuple[str, str]:
     seconds = [s for s, _ in segs]
     for i, share in zip(idx, shares):
         seconds[i] += share
-    if any(seconds[i] < 10 for i in idx):
+    if any(seconds[i] < 10 or abs(seconds[i] - segs[i][0]) > segs[i][0] / 2 for i in idx):
         return text, ""
     changed = [f"{segs[i][1]} {segs[i][0]} to {seconds[i]}" for i, share in zip(idx, shares) if share]
     return _retime(text, seconds), (f" The segments added up to {total} s: {abs(diff)} s {'given to' if diff > 0 else 'taken from'} "

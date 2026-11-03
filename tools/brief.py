@@ -296,8 +296,9 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         out.append(f"- {intensity.capitalize()}: " + "; ".join(parts) + ".")
     if goal in ("conditioning", "general", "strength", "targeted"):
         ao = sess.all_out
-        out.append(f"- All-out sprints (a hard timed effort of {ao.get('most_seconds')} s or less) rest at least "
-                   f"{ao.get('rest_ratio')} times their work, and stay few.")
+        out.append(f"- All-out sprints (an effort run flat out, {ao.get('most_seconds')} s or less) rest at least "
+                   f"{ao.get('rest_ratio')} times their work, and stay few. The conditioning doses and a Tabata "
+                   "block's twenty seconds are hard, not flat out: they keep their own rests.")
     if goal == "conditioning":
         out.append("- On a conditioning day the work intervals run at the effort above, even when the profile says "
                    "it likes moderate sessions: that preference sets the warm-up, the steady work and the easy spells. "

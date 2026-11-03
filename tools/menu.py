@@ -380,8 +380,8 @@ def turn_to(text: str, side: str) -> Optional[str]:
 
 
 def _cue_sentences(cat: catalog.Catalog) -> set:
-    """Every shipped limit cue's sentences, catalog.plain, with {side} filled in as the brief fills it:
-    the sentences a segment may say that name the injured side."""
+    """Every shipped limit cue's sentences, and the playbook's opening, reason and stop-sign lines, catalog.plain,
+    with {side} filled in as the brief fills it: the sentences a segment may say that name the injured side."""
     cached = cat.__dict__.get("_cue_sentences")
     if cached is None:
         import playbook
@@ -390,6 +390,15 @@ def _cue_sentences(cat: catalog.Catalog) -> set:
         # opening check asks for the opening's line, so a welcome that also names the one-sided movement may say it
         lines += [text for a in playbook.shipped().areas.values() for lv in a.levels.values()
                   for text in (lv.opening, lv.say) if text]
+        # and its stop signs, in the forms the brief and the guide give them: script.md has an area's stop signs
+        # said at its first working set, often the healthy side's movement, and a line saying when to stop names
+        # the resting side without turning the work to it (0.59.0)
+        for a in playbook.shipped().areas.values():
+            for lv in a.levels.values():
+                for sign in lv.stop:
+                    lines += [f"Stop that movement on {sign}.", f"Stop that move on {sign}.", f"{sign} means stop that move."]
+                for sign in lv.stop_today:
+                    lines += [f"Stop for today on {sign}.", f"{sign} means we stop for today."]
         cached = {catalog.plain(sentence) for line in lines for word in ("left", "right", "injured", "sore")
                   for sentence in SENTENCE.split(line.replace(catalog.SIDE_SLOT, word)) if sentence.strip()}
         cat.__dict__["_cue_sentences"] = cached

@@ -22,3 +22,6 @@ __pycache__/
 
 # a local key file at the root (nothing reads it now); never committed
 /.env
+
+# the script-writing bench (web/bench/): each run holds a copy of the listener's files
+.bench/

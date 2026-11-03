@@ -53,16 +53,29 @@ class Plan(unittest.TestCase):
         # the welcome, the sets, a twenty-second rest and the breathing close carry none
         self.assertEqual(rests, {3: (219 - 153, 153)})
 
-    def test_the_trainer_sees_the_clock_and_where_each_story_goes_not_word_counts(self):
+    def test_a_short_rests_story_leaves_its_coaching_the_words_it_takes(self):
+        _, segs = writers.split(SKELETON)
+        rests = writers.slots(segs, {**writers.budgets(REPORT), 3: 125})
+        self.assertEqual(rests, {3: (writers.COACHING_FLOOR, 125 - writers.COACHING_FLOOR)})   # not 38 and 87
+        # a short rest keeps a short story, the coaching what's left, rather than losing the story to the floor
+        self.assertEqual(writers.slots(segs, {**writers.budgets(REPORT), 3: 83}), {3: (83 - writers.SMALLEST_STORY,
+                                                                                       writers.SMALLEST_STORY)})
+        self.assertEqual(writers.slots(segs, {**writers.budgets(REPORT), 3: 55}), {})   # too short to carry one
+
+    def test_the_trainer_sees_each_segments_words_and_what_a_story_leaves_the_coaching(self):
+        # without them its notes ran as long as the segment, and the host wrote as many words as the notes held
         _, segs = writers.split(SKELETON)
         budget = writers.budgets(REPORT)
         rests = writers.slots(segs, budget)
-        self.assertEqual(writers.story_words(budget, rests), {3: writers.STORY_WORDS})
-        table = writers._plan_table(segs, budget, {3: 140})
+        table = writers._plan_table(segs, budget, rests)
+        words = round(219 * writers.COACH_AIM)
+        coaching, story = writers.shares(3, words, budget, rests)
         row = next(r for r in table.split("\n") if r.startswith("#3 "))
-        self.assertIn("A story is told here, in the rest.", row)
-        self.assertIn("Markers: [count 3 go]", table)
-        self.assertNotIn("words", table)
+        self.assertIn(f"About {words} words: {story} for a story, told in the rest, and {coaching} for the coaching "
+                      "around it.", row)
+        self.assertEqual(coaching + story, words)
+        two = next(r for r in table.split("\n") if r.startswith("#2 "))
+        self.assertIn(f"About {round(118 * writers.COACH_AIM)} words. Markers: [count 3 go].", two)
 
     def test_the_host_gets_each_segments_words_markers_notes_and_story(self):
         _, segs = writers.split(SKELETON)
@@ -85,8 +98,20 @@ class Plan(unittest.TestCase):
         words = round(budget[3] * writers.COACH_AIM)
         self.assertIn(f"Write about {words} words. About {round(words * rests[3][1] / budget[3])} of them are the "
                       "story, told whole", three)
+        self.assertIn(f"and about {writers.shares(3, words, budget, rests)[0]} the coaching around it", three)
         two = plan.split("## #2 ", 1)[1].split("## #3 ", 1)[0]
         self.assertNotIn("of them are the story", two)
+        self.assertNotIn("No story here", two)   # a set is plainly coaching
+
+    def test_a_rest_left_without_a_story_says_so_and_its_label_is_no_story(self):
+        # a rest labelled with a topic, given no story, got one made up from the label alone (2026-11-02)
+        _, segs = writers.split(SKELETON.replace("Rest after goblet squat set one", "Rest, the team's game preview"))
+        budget = writers.budgets(REPORT)
+        plan = writers.host_plan(segs, budget, {}, {}, frozenset(), writers.slots(segs, budget))
+        three = plan.split("## #3 ", 1)[1].split("## #4 ", 1)[0]
+        self.assertIn("No story here", three)
+        self.assertIn("never a story to tell", three)
+        self.assertNotIn("No story here", plan.split("## #6 ", 1)[1])   # the close isn't a place for one
 
     def test_the_review_gets_the_must_say_lines_as_a_checklist(self):
         notes = {1: "Warm welcome.\nSAY, EVERY PART KEPT: Your left knee stays light today.\nSAY EXACTLY: Stop on a pinch.",
@@ -125,10 +150,10 @@ class Plan(unittest.TestCase):
         warm = writers.split(SKELETON.replace("@@ 60 | Welcome\n", "@@ 60 | Welcome\n[count 3 go] [story] [/story]\n"))[1]
         self.assertIn(1, writers.slots(warm, budget))   # a marked warm-up carries one, though it opens the session
         rests = writers.slots(segs, budget)
-        self.assertEqual(rests[4], (118 - round(118 * writers.WORK_STORY_SHARE), round(118 * writers.WORK_STORY_SHARE)))
-        table = writers._plan_table(segs, budget, writers.story_words(budget, rests), frozenset({4}))
+        self.assertEqual(rests[4], (writers.COACHING_FLOOR, 118 - writers.COACHING_FLOOR))   # the coaching's floor
+        table = writers._plan_table(segs, budget, rests, frozenset({4}))
         row = next(r for r in table.split("\n") if r.startswith("#4 "))
-        self.assertIn("A story is told here, during the set, after its first cue.", row)
+        self.assertIn("for a story, told during the set, after its first cue", row)
         self.assertIn("Markers: [count 3 go] [hold] [cue rest]", row)   # the mark itself isn't the coach's to write
 
     def test_each_story_goes_to_a_slot_it_suits_in_the_order_told(self):
@@ -173,6 +198,38 @@ class Assemble(unittest.TestCase):
         again = told(3, "The Devils went into Vegas and beat the Golden Knights five to two.", "Devils win in Vegas")
         self.assertEqual(writers.retold(again, titles), titles[0])
         self.assertIsNone(writers.retold(told(3, "The Devils host the Oilers on Tuesday night."), titles))
+
+    def test_a_story_told_where_none_was_placed_is_taken_out_for_the_review_to_fill(self):
+        edits = [Edited(number=3, text="Breathe.\n\n[story] The Flyers won. [/story]\n\nNext up."),
+                 Edited(number=5, text="Shake it out.\n\n[story]\nThe Comets beat someone, four to one.\n[/story]\n\nLast set.")]
+        out, unasked = writers.without_unasked(edits, {3: told(3, "The Flyers won.")})
+        self.assertEqual(unasked, [5])
+        self.assertEqual(out[0].text, edits[0].text)   # a placed story stays
+        self.assertEqual(out[1].text, "Shake it out.\n\nLast set.")
+
+    def test_more_places_than_stories_asks_the_researcher_for_the_rest(self):
+        import asyncio
+        from pydantic_ai.messages import ToolCallPart
+        from pydantic_ai.usage import RunUsage
+        asked = []
+
+        def reply(messages, info):
+            asked.append(messages)
+            return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"stories": [
+                {"number": 1, "topic": "-", "format": "quick_hit", "title": "New one", "source": "s", "text": "n"},
+                {"number": 2, "topic": "-", "format": "quick_hit", "title": "Comets beat Harbor Rovers", "source": "s",
+                 "text": "The Comets beat the Harbor Rovers again"}]})])
+        deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00")
+        got = [told(1, "a"), told(2, "b")]
+        self.assertIs(asyncio.run(writers.top_up(deps, FunctionModel(reply), RunUsage(), got, 4, [])), got)
+        self.assertEqual(asked, [])   # nothing to go on from: no second call
+        deps.research_history = [m for m in asyncio.run(writers.RESEARCHER.run(
+            "first", model=FunctionModel(reply))).all_messages()]
+        asked.clear()
+        more = asyncio.run(writers.top_up(deps, FunctionModel(reply), RunUsage(), got, 4, ["Comets beat Harbor Rovers at home"]))
+        self.assertEqual(len(asked), 1)
+        self.assertEqual([(s.number, s.title) for s in more], [(1, "A title"), (2, "A title"), (3, "New one")])
+        self.assertIs(asyncio.run(writers.top_up(deps, FunctionModel(reply), RunUsage(), got, 2, [])), got)
 
     def test_a_story_told_before_gives_way_to_a_spare_rather_than_a_second_call(self):
         found = {n: told(n, f"story {n}") for n in range(1, 7)}

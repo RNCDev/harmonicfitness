@@ -619,7 +619,7 @@ class Faster(AgentCase):
         self.assertEqual(self.deps.skeleton, "")
 
     def test_a_skeleton_close_to_the_request_is_settled_over_its_rests(self):
-        """Within three percent, the tool spreads the difference over the rests and says so; further off, the
+        """Within ten percent, the tool spreads the difference over the rests and says so; further off, the
         writer is told how far, as before."""
         self.menu(600)
         close = ("movements: air-squat\n\n@@ 60 | Welcome\n\n@@ 100 | Squats\n[hold]\n\n@@ 120 | Rest after squats\n\n"
@@ -630,9 +630,16 @@ class Faster(AgentCase):
                       "Rest after lunges 80 to 85), so they add up to the request's 600 s", r.output)
         self.assertEqual([s for s, _ in tools.segments_of(self.draft_text())], [60, 100, 130, 100, 85, 125])
         self.assertEqual(self.deps.skeletons[f"workouts/a/a.draft.txt"][2], (130, "Rest after squats"))
-        far = close.replace("@@ 125 | Close", "@@ 95 | Close")   # 555 s: 7.5 percent short
+        off = close.replace("@@ 125 | Close", "@@ 95 | Close")   # 555 s: 7.5 percent short, settled too
+        r = tools.write_file(self.deps, self.DRAFT, off)
+        self.assertIn("The segments added up to 555 s: 45 s given to the rests", r.output)
+        far = close.replace("@@ 125 | Close", "@@ 40 | Close")   # 500 s: 17 percent short
         r = tools.write_file(self.deps, self.DRAFT, far)
-        self.assertIn("adding up to 555 s", r.output)
+        self.assertIn("adding up to 500 s", r.output)
+        self.assertNotIn("given to the rests", r.output)
+        lopsided = ("movements: air-squat\n\n@@ 60 | Welcome\n\n@@ 200 | Squats\n[hold]\n\n@@ 20 | Rest after squats\n\n"
+                    "@@ 200 | Lunges\n[hold]\n\n@@ 20 | Rest after lunges\n\n@@ 70 | Close\n")   # 570 s, short rests
+        r = tools.write_file(self.deps, self.DRAFT, lopsided)   # 30 s over 40 s of rest would grow each by three quarters
         self.assertNotIn("given to the rests", r.output)
         padded = close.replace("@@ 120 | Rest after squats", "@@ 135 | Rest after squats")   # 600 s, a rest too long
         r = tools.write_file(self.deps, self.DRAFT, padded)
