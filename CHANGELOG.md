@@ -2,6 +2,22 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.61.1] - 2026-11-03
+
+A coach of the listener's own now has a 45-second sample like every stock coach. Until now, keeping or making a web coach saved the few seconds of the voice's design line as its `sample.mp3` (8 to 12 seconds), so on the Coaches page their own coaches sounded like a clip beside the stock coaches' 47 seconds.
+
+### Added
+- **`./harmonicfitness coaches sample "<name>"`** (`tools/coachsample.py`): speaks the script every stock coach's sample says, through the coach's own service, laid out and mastered as a build is, and writes their `sample.mp3`. About 500 characters, a cent or so. A coach that ships is refused (its sample comes with it), and so is the web client, where coaches are chosen.
+- **Keep and make speak it too:** `coaches keep` and `coaches make` (and the first build that makes a stand-in) write the full sample once the coach is saved. If it fails, the design line's sample stays and the coach is kept; the message says how to try again.
+
+### Changed
+- **A sample's pace estimate never replaces a measured pace:** the full sample records an estimate only while the coach's pace hasn't been measured by real renders.
+- **One sample script:** `coachsample.DRAFT`, which `tools/coachmaker/sample.py` and `web_coaches.py` (maintainer only) now read from there.
+
+### For forks
+- **`coaches make` and `coaches keep` send about 500 more characters** to the coach's service, after the save.
+- **`me/` needs no migration;** a coach kept before this release keeps its short sample until `coaches sample` remakes it.
+
 ## [0.61.0] - 2026-11-03
 
 The website's Coaches page plays every coach's sample, the listener's own included, and lists their own coaches first. Four faults are fixed: the listener's own coaches had no sample to play, since the site kept no MP3s; the Active label was cut off along its top; hovering a card brought up a tooltip that repeated its description over the player; and a stand-in coach whose voice was made in the listener's account (Coach Reed) was marked "Yours".

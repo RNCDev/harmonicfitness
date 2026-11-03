@@ -171,12 +171,14 @@ class Make(unittest.TestCase):
 
     def setUp(self):
         sys.path.insert(0, os.path.join(ROOT, "tests"))
-        from fakes import tone_wav
+        from fakes import tone_pcm, tone_wav
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
         folder = persona_home(self.d)
-        self.designs = []
+        self.designs, self.spoken = [], []
+        self.speaks = lambda text: tone_pcm(0.3)
         wav = tone_wav(0.5)
+        case = self
 
         class Fake:
             @staticmethod
@@ -187,6 +189,13 @@ class Make(unittest.TestCase):
             @staticmethod
             def save(candidate, name, description, wav):
                 return "voice-1"
+
+            @staticmethod
+            def speaker(voice):
+                def say(text, seed, previous_text=None, next_text=None):
+                    case.spoken.append(text)
+                    return case.speaks(text)
+                return say
 
         import cloud
         for patch in (mock.patch.object(personas.paths, "PERSONAS", folder),
@@ -224,6 +233,61 @@ class Make(unittest.TestCase):
         self.assertEqual(out.getvalue(), "")
         self.assertTrue(any(line.startswith("Made Coach Reed") for line in said))
         self.assertTrue(any("designing a voice" in line for line in said))
+
+
+    @unittest.skipUnless(FFMPEG, "ffmpeg not installed")
+    def test_a_made_coach_gets_the_full_sample(self):
+        """The design line is a few seconds; once made, the coach speaks the stock coaches' sample script."""
+        import coachmake
+        import coachsample
+        said = []
+        coachmake.make("Coach Reed", report=said.append)
+        reed = personas.lookup("Coach Reed")
+        self.assertEqual(self.spoken, coachsample.lines("Coach Reed")[1])   # each line once
+        self.assertTrue(self.spoken[0].startswith("Hi, I'm Coach Reed."))
+        self.assertTrue(os.path.getsize(reed.sample) > 0)
+        self.assertTrue(any("45-second sample" in line for line in said))
+        self.assertTrue(voices.pace(cloud_voice(reed))[0] > 0)
+
+    def test_a_sample_that_fails_leaves_the_coach_made(self):
+        import cloud
+        import coachmake
+
+        def refuses(text):
+            raise cloud.ServiceError("unavailable", "fish", "down for a moment")
+        self.speaks = refuses
+        said = []
+        self.assertEqual(coachmake.make("Coach Reed", report=said.append), "voice-1")
+        self.assertFalse(personas.lookup("Coach Reed").pending)
+        self.assertTrue(os.path.exists(personas.lookup("Coach Reed").sample))   # the design line's stays
+        self.assertTrue(any('coaches sample "Coach Reed"' in line for line in said))
+
+    @unittest.skipUnless(FFMPEG, "ffmpeg not installed")
+    def test_a_measured_pace_is_kept(self):
+        import coachmake
+        import coachsample
+        coachmake.make("Coach Reed", report=lambda line: None)
+        reed = personas.lookup("Coach Reed")
+        v = cloud_voice(reed)
+        with open(v["pace_file"], "w", encoding="utf-8") as f:   # as real renders leave it: measured
+            json.dump({voices._rate_key(v): {"name": "Coach Reed", "weight": 9000.0, "seconds": 800.0}}, f)
+        measured = voices.pace(v)
+        self.assertTrue(measured[1])
+        coachsample.speak(reed, report=lambda line: None)
+        self.assertEqual(voices.pace(v), measured)
+
+    def test_only_a_coach_of_your_own_gets_one(self):
+        import coachsample
+        for name in ("Coach Test", "Coach June"):
+            if any(p.name == name for p in personas.all()):
+                with self.assertRaises(errors.CoachError):
+                    coachsample.speak(personas.lookup(name), report=lambda line: None)
+        self.assertEqual(self.spoken, [])
+
+
+def cloud_voice(p):
+    import cloud
+    return cloud.voice_for(p, p.service)
 
 
 class AuditionReport(unittest.TestCase):

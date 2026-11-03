@@ -14,15 +14,7 @@ import numpy as np
 import common, asr, verify, engines, counts, draft, render
 
 SEEDS = [42, 43, 44, 45]
-DRAFT = """@@ 45 | Sample
-Hi, I'm {name}. Let's see how this feels. Stand tall, feet about hip width apart, and let your arms hang loose.
-
-We'll start with a few easy squats. Sit back like there's a chair behind you, chest up, and drive through your heels on the way up. [pause 1s]
-
-Find your stance, and get ready. [count 3 go] [chime] Down slow, and up strong. That's the pace. Keep breathing, nice and steady. [hold]
-
-Great work. That's how we'll train together. Shake it out, and when you're ready, we'll start your first workout.
-"""
+from coachsample import DRAFT  # noqa: E402  (every stock sample says the same script)
 
 OUT = sys.argv[1]
 roster = {c["slug"]: c for c in tomllib.load(open(ROOT + "/coaches/roster.toml", "rb"))["coach"]}

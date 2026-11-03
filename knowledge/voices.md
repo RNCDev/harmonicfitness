@@ -28,7 +28,7 @@ coaches/coach-reed-fish/       a stock web coach: persona.md only, until it's ma
 
 me/coaches/coach-dana-fish/    a web coach of the listener's own (part of the private me/ backup)
   persona.md     settings ([voice], [character]) and free notes
-  sample.mp3     the approved audition candidate
+  sample.mp3     45 seconds of the stock sample script in its voice (coaches sample remakes it)
   pace.json      pace, one entry per service, model and voice
 me/coaches/.auditions/         auditions in progress (not backed up)
 me/coaches/.archive/           coaches no longer in use (backed up; old log lines still find them)
@@ -78,7 +78,7 @@ The `coach` skill runs it: **keys, describe, audition, approve and name, the sta
 1. **Keys.** `./harmonicfitness keys` says which services have a key (never the key). Each key is the listener's own, pay-as-you-go: no subscription anywhere.
 2. **Describe.** Claude writes the narrative, a file in `persona.md`'s format with `[voice]` and `[character]`, to `me/coaches/.auditions/<slug>.md`.
 3. **Audition.** `./harmonicfitness coaches audition <narrative>` designs on every keyed service at once (asking Fish Audio for two candidates, ElevenLabs three, Gemini one, Inworld two, OpenRouter three stock voices; a service may return fewer, as Inworld once did live), each saying the coaching line below, and lands them in `me/coaches/.auditions/<date>-<n>/` as `<service>-<k>.wav` and `.mp3`, lettered A, B, C... in that service order, with each one's approximate cost a workout. A service that fails is one line; the others still land. `--services fish,gemini` auditions only those. Nothing is saved at Fish Audio, ElevenLabs, Inworld or OpenRouter; Gemini stores each voice as it designs it (it has to), and is named "harmonicfitness audition <id> <letter>" there.
-4. **Approve and name.** `./harmonicfitness coaches keep <audition>/<letter> --name "Coach Maya"` saves the voice at its service as "harmonicfitness Coach Maya" (Fish Audio a private model, ElevenLabs a voice in the account, Inworld a published voice; Gemini's is already stored; OpenRouter's stock voice needs nothing saved), and writes the coach's folder with the candidate as `sample.mp3` and a pace estimated from it. Several candidates from one audition can each become a coach. `./harmonicfitness coaches forget-audition <audition>` then closes it: Gemini's voices not kept are deleted, and the folder is removed.
+4. **Approve and name.** `./harmonicfitness coaches keep <audition>/<letter> --name "Coach Maya"` saves the voice at its service as "harmonicfitness Coach Maya" (Fish Audio a private model, ElevenLabs a voice in the account, Inworld a published voice; Gemini's is already stored; OpenRouter's stock voice needs nothing saved), and writes the coach's folder with the candidate as `sample.mp3` and a pace estimated from it, then speaks the 45-second sample every stock coach says in the new voice (`tools/coachsample.py`, about 500 characters) over it, so their own coach is heard as long as a stock one. Several candidates from one audition can each become a coach. `./harmonicfitness coaches forget-audition <audition>` then closes it: Gemini's voices not kept are deleted, and the folder is removed.
 5. **The stable.** A workout uses a coach by name.
 
 - **How they talk** is an edit to `[character]` or the notes: no audition, no cost.

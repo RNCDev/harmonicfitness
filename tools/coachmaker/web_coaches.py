@@ -20,6 +20,7 @@ import tomllib
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, "tools"), os.path.join(ROOT, "tools", "coachmaker")]
 import cloud  # noqa: E402
+import coachsample  # noqa: E402
 import context  # noqa: E402
 import draft  # noqa: E402
 import personas  # noqa: E402
@@ -30,15 +31,11 @@ ROSTER = os.path.join(ROOT, "coaches", "roster.toml")
 DEFAULT = "openrouter"
 # how a coach's description names its voice, by service
 OWN_VOICE = {"openrouter": "one of OpenRouter's stock voices", "gemini": "one of Gemini's own voices"}
-SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sample.py")
 
 
 def sample_draft(name):
-    """sample.py's draft, its count in words (a web coach has no recorded counts)."""
-    with open(SCRIPT, encoding="utf-8") as f:
-        src = f.read()
-    text = src.split('DRAFT = """', 1)[1].split('"""', 1)[0]
-    return text.replace("[count 3 go]", "Three, two, one, go.").format(name=name)
+    """The stock sample's draft, its count in words (a web coach has no recorded counts)."""
+    return coachsample.draft_text(name)
 
 
 def service(c):

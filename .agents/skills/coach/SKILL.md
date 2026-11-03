@@ -87,7 +87,7 @@ The listener approves one or more and names each ("B is Coach Dana, D is Coach N
 ./harmonicfitness coaches keep <audition>/<letter> --name "<name>"
 ```
 
-Keep saves the voice at its service as "harmonicfitness <name>" and writes `me/coaches/<slug>/`: `persona.md` (the narrative's `[voice]`, `[character]` and notes, plus the service and the saved voice), `sample.mp3` (the approved candidate) and `pace.json` (a pace estimated from the sample; every render then measures it). Two coaches from one audition each get their own folder, and may grow apart. A name that's taken is refused: pick another.
+Keep saves the voice at its service as "harmonicfitness <name>" and writes `me/coaches/<slug>/`: `persona.md` (the narrative's `[voice]`, `[character]` and notes, plus the service and the saved voice), `sample.mp3` (the approved candidate, then the 45-second sample every stock coach speaks, said in the new voice: about 500 characters, a cent or so; if that fails the candidate stays, and `./harmonicfitness coaches sample "<name>"` tries again) and `pace.json` (a pace estimated from the sample; every render then measures it). Two coaches from one audition each get their own folder, and may grow apart. A name that's taken is refused: pick another.
 
 Then, once every approved one is kept: `./harmonicfitness coaches forget-audition <audition>`. It deletes Gemini's voices that weren't kept and removes the audition's folder; unsaved drafts at the other services need nothing. Remove the narrative file too: each coach now has its own copy.
 
@@ -97,7 +97,7 @@ Then, once every approved one is kept: `./harmonicfitness coaches forget-auditio
 
 - **No longer wanted:** `./harmonicfitness coaches archive "<name>"` moves a coach of their own to `me/coaches/.archive/` (a stock coach can't be archived; just choose another): out of the list, still backed up, and old log lines naming it stay valid. Its voice stays at the service.
 - **How they talk** (tone, pet phrases, how they push): for a coach of their own, edit `[character]` or the notes in their `persona.md` (`me/coaches/<slug>/`). No audition, no cost. How the stock coaches talk is part of HarmonicFitness (never edit `coaches/`); feedback on a workout ("less chat") goes in the log as always.
-- **How they sound** (a web coach): a new voice on that coach's own service, from an edited `[voice]` in their `persona.md`: `./harmonicfitness coaches audition --coach "<name>"`, send the candidates as above, then `./harmonicfitness coaches keep <audition>/<letter> --name "<name>"`. It replaces the voice and `sample.mp3` and clears the old voice's pace. Adding `--replace-old` also deletes the old voice at the service: ask the listener first (on an ElevenLabs Free account it frees one of the 3 slots). Then `forget-audition`.
+- **How they sound** (a web coach): a new voice on that coach's own service, from an edited `[voice]` in their `persona.md`: `./harmonicfitness coaches audition --coach "<name>"`, send the candidates as above, then `./harmonicfitness coaches keep <audition>/<letter> --name "<name>"`. It replaces the voice and `sample.mp3` (the 45-second one again) and clears the old voice's pace. Adding `--replace-old` also deletes the old voice at the service: ask the listener first (on an ElevenLabs Free account it frees one of the 3 slots). Then `forget-audition`.
 
 ## Local coaches
 

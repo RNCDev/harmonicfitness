@@ -1235,7 +1235,9 @@ class InProcessBuild(unittest.TestCase):
         self.assertEqual(self.web_build(**env), 0, self.said())
         self.assertNotIn("made the first time", self.said())
         posts = [r.path for r in fake.requests if r.method == "POST"]
-        self.assertEqual(posts, ["/v1/voice-design", "/model"])   # one design and one save in all
+        # one design and one save in all, then the made coach's sample (spoken once, at the first build)
+        self.assertEqual(posts[:2], ["/v1/voice-design", "/model"])
+        self.assertEqual(set(posts[2:]), {"/v1/tts"})
         self.assertEqual(len(self.runs), 2)
         self.assertEqual(self.runs[0]["voice"]["voice_id"], "fish-model-1")   # the made voice, not the stale persona
         self.assertEqual(personas.lookup("Coach Reed").voice_id, "fish-model-1")
@@ -1258,7 +1260,8 @@ class InProcessBuild(unittest.TestCase):
         self.assertEqual([(r["voice"]["name"], r["voice"]["route"]) for r in self.runs],
                          [("Coach Owen", "inworld")] * 2)
         posts = [r.path.split(":")[-1] for r in fake.requests if r.method == "POST"]
-        self.assertEqual(posts, ["design", "publish"])   # made once across two builds
+        self.assertEqual(posts[:2], ["design", "publish"])   # made once across two builds
+        self.assertNotIn("design", posts[2:])   # the rest: its sample
         made = os.path.join(paths.PERSONAS, "coach-owen-inworld", "persona.md")   # in me/, never in the stock
         self.assertIn("voice_id", open(made, encoding="utf-8").read())
         self.assertIn('pending = "design"', open(os.path.join(stock, "coach-owen-inworld", "persona.md"),

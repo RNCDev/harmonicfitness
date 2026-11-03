@@ -57,7 +57,7 @@ def _made_description(text):
 def make(name, report=say, warn=stderr):
     """Make a pending web coach (a default that ships with no voice): design one voice from its [voice] on
     its own service, save the first candidate with no audition, and write voice_id, made, sample.mp3 and a
-    pace estimate, persona.md last. Says so (and what it costs) first. Returns the voice ID. A failure
+    pace estimate, persona.md last, then the 45-second sample (coachsample). Says so (and what it costs) first. Returns the voice ID. A failure
     leaves persona.md as it was, still pending; when a voice was already saved (or stored) at the service,
     `warn` says so, with its ID and what to do (a build passes a `warn` that reaches the terminal).
 
@@ -96,7 +96,7 @@ def _make(p, report, warn=stderr):
         report(f"Finishing {p.name}: its voice is already saved at {s['name']}.")
     else:
         report(f"{p.name} is made the first time it's used: designing a voice at {s['name']} from its "
-               f"description ({cost}).")
+               f"description ({cost}), then speaking its 45-second sample (about a cent).")
         c = module.design(description, voices.DESIGN_LINE, 1, f"harmonicfitness {p.name}")[0]
         voice_id, text, wav, recorded = None, c.get("text") or voices.DESIGN_LINE, c["wav"], False
     try:
@@ -131,5 +131,7 @@ def _make(p, report, warn=stderr):
     for done in (MADE, MADE_WAV):
         if os.path.exists(os.path.join(home, done)):
             os.remove(os.path.join(home, done))
+    import coachsample   # the design line is a few seconds: the full sample, as long as a stock coach's
+    coachsample.after_making(personas.load(home), report)
     report(f"Made {p.name} ({s['name']}): a stand-in until you make your own (\"I want a new coach\").")
     return voice_id

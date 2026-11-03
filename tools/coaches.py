@@ -14,6 +14,7 @@ with the listener's key), kept in me/coaches/.
     ./harmonicfitness coaches keep 2026-10-26-1/A --name "Coach Maya" --replace-old   # re-voice; delete the old voice
     ./harmonicfitness coaches forget-audition 2026-10-25-1      # close an audition (Gemini's unkept voices deleted)
     ./harmonicfitness coaches make "Coach Reed"                 # a pending default: design and save its voice (builds do)
+    ./harmonicfitness coaches sample "Coach Maya"               # speak your own coach's 45-second sample again
     ./harmonicfitness coaches archive "Coach Julius"            # out of the list, still found for old log lines
     ./harmonicfitness coaches last                              # the coach a build uses when none is named
     ./harmonicfitness coaches measured "Coach Maya" --route local   # exit 0 measured, 1 estimated, 64 unknown
@@ -186,6 +187,8 @@ def main(argv=None):
                    help="re-voicing: delete the coach's old voice at its service")
     mk = sub.add_parser("make", help="make a pending web coach: design its voice and save the first candidate")
     mk.add_argument("coach")
+    sm = sub.add_parser("sample", help="speak a web coach of your own's 45-second sample.mp3 again (about a cent)")
+    sm.add_argument("coach")
     f = sub.add_parser("forget-audition", help="close an audition: Gemini's unkept voices deleted, the folder removed")
     f.add_argument("audition", help="its id (such as 2026-10-25-1) or folder")
     r = sub.add_parser("archive", help="move a coach out of the list (old log lines still find them)")
@@ -197,7 +200,7 @@ def main(argv=None):
     sub.add_parser("download", help="fetch the local voice (Pocket TTS) and the take checker (setup does it)")
     args = ap.parse_args(argv)
 
-    if paths.WEB and args.cmd in ("audition", "keep"):   # the web client chooses coaches; it never makes one
+    if paths.WEB and args.cmd in ("audition", "keep", "sample"):   # the web client chooses coaches; it never makes one
         raise errors.UsageError("On the web app, coaches are chosen from the gallery, not made: a coach of your own "
                                 "is made with HarmonicFitness on your own computer.")
     if args.cmd == "last":
@@ -235,6 +238,10 @@ def main(argv=None):
         return cli.OK
     if args.cmd == "make":
         make(args.coach)
+        return cli.OK
+    if args.cmd == "sample":
+        import coachsample
+        coachsample.speak(personas.lookup(args.coach))   # a service's refusal exits through cli.run
         return cli.OK
     if args.cmd == "forget-audition":
         for line in forget_audition(args.audition):

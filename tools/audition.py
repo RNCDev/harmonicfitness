@@ -334,9 +334,9 @@ def _existing(name):
 def keep_web(ref, name, replace_old=False, report=say):
     """Save candidate `ref` (`<audition>/<letter>` or `<audition>/<service>-<k>`) at its service as
     "harmonicfitness <name>" and write the coach: persona.md (the narrative's [voice], [character] and notes,
-    with kind, service, voice_id, made), sample.mp3 and a pace estimate. An audition made with --coach
-    re-voices that coach: a new voice_id and sample, the old voice's pace dropped, and with `replace_old`
-    the old voice deleted at the service. Returns the coach's folder."""
+    with kind, service, voice_id, made), sample.mp3 (then the 45-second one, coachsample) and a pace estimate.
+    An audition made with --coach re-voices that coach: a new voice_id and sample, the old voice's pace
+    dropped, and with `replace_old` the old voice deleted at the service. Returns the coach's folder."""
     found = _web_ref(ref)
     if not found:
         raise errors.CoachError(f"{ref} isn't a candidate in an audition: <audition>/<letter>, such as "
@@ -423,6 +423,8 @@ def keep_web(ref, name, replace_old=False, report=say):
             voices.forget_pace(existing.pace_file, cloud.web_key(existing, model))
     _estimate(coach, service, wav, c["text"])
     fileio.atomic_write(coach.path, context.persona_text(settings, prose))   # last: all or nothing
+    import coachsample   # the design line is a few seconds: the full sample, as long as a stock coach's
+    coachsample.after_making(personas.load(target), report)
 
     if existing is not None and existing.voice_id and replace_old:
         try:
