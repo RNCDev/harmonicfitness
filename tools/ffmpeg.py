@@ -35,13 +35,15 @@ def bundled(path):
 
 
 def capable(path):
-    """(has the MP3 encoder, has the loudness filter) for the ffmpeg at `path`."""
+    """(has the MP3 encoder, has the loudness filters: loudnorm, and ebur128 that measures for it) for the ffmpeg
+    at `path`."""
     def listing(flag):
         try:
             return subprocess.run([path, "-hide_banner", flag], capture_output=True, text=True, timeout=30).stdout
         except (OSError, subprocess.SubprocessError):
             return ""
-    return "libmp3lame" in listing("-encoders"), "loudnorm" in listing("-filters")
+    filters = listing("-filters")
+    return "libmp3lame" in listing("-encoders"), "loudnorm" in filters and "ebur128" in filters
 
 
 def version(path=None):

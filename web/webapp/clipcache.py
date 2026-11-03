@@ -21,11 +21,13 @@ def _ok(path: str) -> bool:
 
 
 def load(conn, uk: UserKey, home: str) -> dict[str, float]:
-    """Write the user's kept clips into the folder's cache; {name: mtime} as written, to tell new ones later."""
+    """Write the user's kept clips into the folder's cache; {name: mtime} as written, to tell new ones later.
+    The rows come one at a time: a week of clips is up to MAX_TOTAL, and held all at once (2026-11-03) it kept
+    the worker so large that the engine's encode ran the 1 GB machine out of memory."""
     folder = os.path.join(home, FOLDER)
     os.makedirs(folder, exist_ok=True)
-    rows = conn.execute("update clip_cache set used_at = now() where user_id = %s returning path, body",
-                        (uk.user_id,)).fetchall()
+    rows = conn.cursor().stream("update clip_cache set used_at = now() where user_id = %s returning path, body",
+                                (uk.user_id,))
     written = {}
     for path, body in rows:
         if not _ok(path):

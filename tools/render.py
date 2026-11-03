@@ -43,7 +43,7 @@ import keys  # noqa: E402
 import paths  # noqa: E402
 import verify  # noqa: E402
 import wav  # noqa: E402
-from voices import EDGE, check_pace_file, clip_seconds, pace, record_rate, weight  # noqa: E402
+from voices import EDGE, check_pace_file, clip_seconds, pace, record_beat, record_rate, weight  # noqa: E402
 from audio import add_pulse, assemble, chime, end_tone, level  # noqa: E402
 # tools/coachmaker still reaches these two through this module
 from audio import SPEECH_LEVEL, speech_level  # noqa: E402,F401
@@ -62,8 +62,20 @@ CODECS = {".mp3": ["-c:a", "libmp3lame", "-b:a", "96k"],
           ".wav": ["-c:a", "pcm_s16le"]}
 
 
+EBUR128_SUMMARY = re.compile(r"Summary:.*?Integrated loudness:\s*I:\s*(-?[\d.]+|-inf) LUFS\s*Threshold:\s*(-?[\d.]+|-inf) LUFS"
+                             r".*?Loudness range:\s*LRA:\s*(-?[\d.]+) LU.*?True peak:\s*Peak:\s*(-?[\d.]+|-inf) dBFS", re.S)
+
+
 def loudness_stats(stderr):
-    """The measurements ffmpeg's loudnorm prints as the last JSON object on stderr."""
+    """The measurements loudnorm's second pass needs, from the measuring pass's stderr: the summary ebur128 prints
+    (the probe encode() runs: about six times faster than loudnorm's own, which resamples to 192 kHz, 15 s against
+    2.7 s on a thirty-minute workout), or the JSON object loudnorm prints. ebur128 gives no target offset, so it's
+    0: the output lands about 0.2 LU from the target, well inside what an ear can tell."""
+    e = EBUR128_SUMMARY.search(stderr or "")
+    if e:
+        i, thresh, lra, tp = e.groups()
+        if "-inf" not in (i, thresh, tp):
+            return {"input_i": i, "input_tp": tp, "input_lra": lra, "input_thresh": thresh, "target_offset": "0"}
     m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", stderr or "")
     try:
         stats = json.loads(m.group(0)) if m else None
@@ -82,7 +94,8 @@ def ffmpeg_version():
 
 
 def encode(pcm, out, title):
-    """Two-pass loudness normalization, then encode by the output's extension (checked by preflight)."""
+    """Two-pass loudness normalization (measured by ebur128, applied by loudnorm), then encode by the output's
+    extension (checked by preflight)."""
     ffmpeg = preflight(out)
     codec = CODECS[os.path.splitext(out)[1].lower()]
     timeout = max(120, 2 * len(pcm) / (2 * SR))   # 16-bit mono: a hung ffmpeg never holds the render lock forever
@@ -90,7 +103,7 @@ def encode(pcm, out, title):
         raw = os.path.join(td, "raw.wav")
         wav.write_wav(raw, pcm, SR)
         probe = _ffmpeg_run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
-                             f"{COMPRESS},loudnorm={LOUDNESS}:print_format=json", "-f", "null", "-"],
+                             f"{COMPRESS},ebur128=peak=true", "-f", "null", "-"],
                             "measure the loudness", timeout)
         m = loudness_stats(probe.stderr)
         af = (f"{COMPRESS},loudnorm={LOUDNESS}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
@@ -161,6 +174,21 @@ def spoken_clips(segments, voice=None):
                 elif is_mark(text) and counts.in_words(text, voice):
                     out.append(counts.in_words(text, voice))
     return out
+
+
+def measure_beat(segments, voice, cache_path):
+    """Record the seconds a piece of this build's counts said in words take (voices.record_beat), from their
+    cached clips, so the next lint times them as this voice says them. Nothing for a coach with recorded counts."""
+    pieces, secs = 0, 0.0
+    for seg in segments:
+        for para in plan(seg):
+            for text, _ in para:
+                words = counts.in_words(text, voice) if is_mark(text) else None
+                if words and cached(cache_path(words)):
+                    pieces += len(draft.mark_pieces(text))
+                    secs += os.path.getsize(cache_path(words)) / 2 / SR
+    if pieces:
+        record_beat(voice, pieces, secs)
 
 
 def mark_audio(text, voice, clip):
@@ -546,6 +574,7 @@ def run(segments, voice, out, draft_path, draft_sha256, seed=42, tolerance=TOTAL
                 say = None
                 engines.release()
         timings["check_s"], lap = round(time.time() - lap, 1), time.time()
+        measure_beat(segments, voice, cache_path)
 
         leveled = {}   # each line read and leveled once a build, however often it's said ("Rest.")
 

@@ -23,7 +23,9 @@ WRITE_LIMIT = 200_000   # the most a write may hold, in characters
 LIST_LIMIT = 500        # files a listing names
 CUT = "[cut]"
 TIMEOUT = 300           # seconds for one engine command; the engine's cold start can be slow
-BUILD_TIMEOUT = 600     # a full build: a pending coach's voice design, then the web voice renders every line
+BUILD_TIMEOUT = 600     # the least a full build gets: a pending coach's voice design, then the web voice renders every line
+RECORD_SHARE = 0.5      # a recording may take up to half the workout's length: fifteen minutes for a thirty-minute one
+TURN_FINISH = 120       # seconds the turn keeps past its recording's limit, to keep the MP3 and end
 
 ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 
@@ -84,6 +86,8 @@ class Deps:
     linted: tuple | None = None
     # saves what the recording made (the coach, the MP3, the clips) at once, so a later stop can't lose it
     checkpoint: Callable[[], None] | None = field(default=None, repr=False)
+    # the turn's clock: gives it at least this many seconds more from now, for a recording's whole limit
+    extend_turn: Callable[[float], None] | None = field(default=None, repr=False)
     # the coach the turn's `brief` was run for: a draft written without its build's coach builds with this one
     brief_coach: str | None = None
     # each draft's last "add about N words" as shown to the writer, and its words then: (shown, words), so the
@@ -731,6 +735,17 @@ def _sends(text: str) -> int | None:
     return int(found.group(1).replace(",", "")) if found else None
 
 
+def build_timeout(path: str) -> float:
+    """How long a full build of the draft at `path` may run: half the workout's length, never under BUILD_TIMEOUT.
+    A slow voice takes most of it: Gemini, two clips at a time, spoke a thirty-minute workout in 506 s."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            seconds = sum(int(m.group(1)) for m in LABEL.finditer(f.read()))
+    except (OSError, UnicodeDecodeError):
+        seconds = 0
+    return max(BUILD_TIMEOUT, RECORD_SHARE * seconds)
+
+
 def _digest(path: str) -> str | None:
     try:
         with open(path, "rb") as f:
@@ -760,8 +775,10 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
         cap = ok["chars"]
         if _flag(args, "--max-chars") is None:
             argv = argv + ["--max-chars", str(cap)]
-        r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT,
-                       cancel=deps.cancel)
+        timeout = build_timeout(argv[1])
+        if deps.extend_turn is not None:   # the turn's own clock never cuts the recording short
+            deps.extend_turn(timeout + TURN_FINISH)
+        r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=timeout, cancel=deps.cancel)
         if r.code in MADE_MP3:
             deps.recorded = draft   # the agent's run tool saves it (deps.checkpoint) once its steps are said
         out, err = (_mine_text(deps, t) for t in (r.stdout, r.stderr))

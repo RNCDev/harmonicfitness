@@ -26,7 +26,7 @@ from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from draft import (BEAT, CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, HOLD_RE, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
-                   PAUSE_DEFAULT, PAUSE_MAX, PAUSE_RE, MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, holds, is_held, is_mark,
+                   PAUSE_DEFAULT, PAUSE_MAX, PAUSE_RE, MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, held_quiet, holds, is_held, is_mark,
                    layout, mark_issue, mark_pieces, mark_words, paragraphs, plan, rep_stretches, REPS_TALK, silences, spans,
                    spoken, story_split, unstory)
 import counts  # noqa: E402
@@ -55,6 +55,10 @@ LINT_HEADROOM_ESTIMATED = 0.01   # an estimated one (a web coach before its firs
 # rendered as 9 to 11 seconds of quiet. The estimate is already read voices.SAMPLE_FAST faster, so this is the rest
 # of that 20 percent. Fixed pauses and holds don't change; bare holds, breaks and tails grow.
 ESTIMATED_FAST = 1.11
+# A measured pace still swings segment to segment: Fish's speech ran 0.90 to 1.08 of its prediction a segment over two
+# thirty-minute workouts (2026-11-03), and a held segment whose breaks had taken all they could rendered the 6 s its
+# talk ran short as a 15 s hold. So the silences are checked as if the voice ran this much fast there too.
+MEASURED_FAST = 1.03
 WORD_TOLERANCE = 0.08
 
 
@@ -79,6 +83,11 @@ def mark_seconds(text, voice, rate=None):
         return 0.0
     words = counts.in_words(text, voice)
     if words:   # a voice counts on the beat, not at its talking pace: "Four, three, two, one." took 4.1 s, not 1.4
+        from voices import beat
+        named = all(voice.get(k) for k in ("key", "engine", "model"))
+        measured = beat(voice) if named else None   # this voice's own beat, once a build measured it
+        if measured:
+            return len(mark_pieces(text)) * measured
         return max(clip_seconds(words, voice, rate), len(mark_pieces(text)) * BEAT)
     return 0.0 if counts.missing(text, voice) else counts.seconds(text, voice)
 
@@ -251,8 +260,9 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
         timeline = layout([(spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], is_held(seg))
                            for i, seg in enumerate(segments)])
         quiet_spokens, quiet_timeline = spokens, timeline
-        if not exact and headroom:   # an estimated pace can run fast, and the spare time then grows into quiet
-            quiet_spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i and chime else 0.0, rate * ESTIMATED_FAST,
+        if headroom:   # a voice can run fast (an estimated pace more), and the spare time then grows into quiet
+            fast = MEASURED_FAST if exact else ESTIMATED_FAST
+            quiet_spokens = [spoken_seconds(seg, voice, CHIME_SECONDS if i and chime else 0.0, rate * fast,
                                             plans[i]) for i, seg in enumerate(segments)]
             quiet_timeline = layout([(quiet_spokens[i], max(len(plans[i]) - 1, 0), seg["seconds"], is_held(seg))
                                      for i, seg in enumerate(segments)])
@@ -293,10 +303,12 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
             extra, length = quiet_timeline[i - 1]
             said = quiet_spokens[i - 1]
             bare = holds(seg)[0]
-            share = max(length - said, 0.0) / bare if bare else 0.0
             gaps = max(len(plans[i - 1]) - 1, 0)
-            tail = 0.0 if bare else max(length - said - extra * gaps, 0.0)
-            quiet = silences(plans[i - 1], extra, share, tail)
+            if bare:   # as the render lays it: the holds, and past the limit the breaks (draft.held_quiet)
+                extras, share = held_quiet(plans[i - 1], length - said, limit)
+                quiet = silences(plans[i - 1], extras, share, 0.0)
+            else:
+                quiet = silences(plans[i - 1], extra, 0.0, max(length - said - extra * gaps, 0.0))
         else:
             quiet = silences(plans[i - 1])
         for secs, before in quiet:
@@ -507,7 +519,7 @@ def render_report(report):
 
     summary = f"\nPlanned {report.total_seconds / 60:.1f} min | {report.total_words} words"
     if voice:
-        summary += (f" | predicted speech {report.total_spoken / 60:.1f} min with {voice['name']} "
+        summary += (f" | {report.total_spoken / 60:.1f} min of talk, counts and fixed holds predicted with {voice['name']} "
                     f"({report.pace:.2f} chars/s{'' if report.exact else ', estimated until its first render'})")
         drift = report.drift or 0.0
         summary += (f"\nPredicted length {report.predicted / 60:.1f} min, {drift:+.1%} of plan "

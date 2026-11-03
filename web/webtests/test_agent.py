@@ -3,7 +3,9 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
+from unittest import mock
 
 os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -111,6 +113,28 @@ class Run(AgentCase):
         self.assertIn("This workout is final", r.output)
         argv, timeout = calls[-1]
         self.assertEqual((argv[-2:], timeout), (["--max-chars", "3000"], tools.BUILD_TIMEOUT))
+
+    def write_draft(self, *seconds):
+        path = os.path.join(self.home, "workouts", "a", "a.draft.txt")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("movements: march in place\n" + "".join(f"@@ {s} | Part\nEasy now.\n\n" for s in seconds))
+        return path
+
+    def test_a_recording_may_take_half_the_workout_s_length_and_the_turn_waits_for_it(self):
+        self.write_draft(1200, 600)   # thirty minutes
+        self.deps.approved = {"draft": "me/workouts/a/a.draft.txt", "coach": "Coach Reed", "chars": 3000}
+        extended = []
+        self.deps.extend_turn = extended.append
+        patch, calls = self.fake_engine()
+        with patch:
+            tools.run(self.deps, list(self.BUILD))
+        self.assertEqual(calls[-1][1], 900)   # fifteen minutes to record
+        self.assertEqual(extended, [900 + tools.TURN_FINISH])
+
+    def test_a_short_workout_s_recording_keeps_the_least_build_time(self):
+        self.assertEqual(tools.build_timeout(self.write_draft(300, 300)), tools.BUILD_TIMEOUT)
+        self.assertEqual(tools.build_timeout(os.path.join(self.home, "nowhere.draft.txt")), tools.BUILD_TIMEOUT)
 
     def test_one_approval_records_once_and_the_workout_is_then_final(self):
         draft = "me/workouts/a/a.draft.txt"
@@ -1151,6 +1175,33 @@ class Instructions(AgentCase):
     def test_every_tool_is_registered(self):
         self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "edit_segments", "list_files",
                                                                    "write_script", "schedule_workout"})
+
+
+class TurnClock(AgentCase):
+    def test_past_its_time_the_turn_stops_the_engine_command_in_it_too(self):
+        import asyncio
+        self.deps.cancel = threading.Event()
+
+        async def slow(messages, info):
+            await asyncio.sleep(1.0)
+            return ModelResponse(parts=[TextPart("Hello.")])
+        with mock.patch.object(agent, "TURN_SECONDS", 0.2):
+            with self.assertRaises(agent.TurnError) as caught:
+                agent.run_turn(FunctionModel(slow), self.deps, None, "go")
+        self.assertEqual(caught.exception.reason, agent.TIMED_OUT)   # not "stopped", though the stop is set
+        self.assertTrue(self.deps.cancel.is_set())                   # a running build is killed, not left sending
+
+    def test_a_recording_s_limit_holds_the_turn_open(self):
+        import asyncio
+
+        async def recording(messages, info):
+            self.deps.extend_turn(3.0)   # as an approved build does before it starts
+            await asyncio.sleep(0.8)
+            return ModelResponse(parts=[TextPart("Recorded.")])
+        with mock.patch.object(agent, "TURN_SECONDS", 0.2):
+            out = agent.run_turn(FunctionModel(recording), self.deps, None, "go")
+        self.assertEqual(out.reply, "Recorded.")
+        self.assertIsNone(self.deps.extend_turn)   # the clock ends with its turn
 
 
 if __name__ == "__main__":

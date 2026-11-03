@@ -432,7 +432,8 @@ class Encode(unittest.TestCase):
             render.encode(quiet(0.1), os.path.join(d, "x.mp3"), "x")
         chains = [c[c.index("-af") + 1] for c in cmds]
         self.assertEqual(len(chains), 2)
-        self.assertTrue(all(c.startswith(render.COMPRESS + ",loudnorm=") for c in chains), chains)
+        self.assertTrue(chains[0].startswith(render.COMPRESS + ",ebur128="), chains)   # the measuring pass
+        self.assertTrue(chains[1].startswith(render.COMPRESS + ",loudnorm="), chains)
 
 
 class WindowsReplace(unittest.TestCase):

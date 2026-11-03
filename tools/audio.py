@@ -8,8 +8,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
-from draft import (CHIME, CHIME_SECONDS, HOLD, MAX_SILENCE, PARAGRAPH_GAP, fill_flag, is_held, is_mark,  # noqa: E402
-                   layout, plan, silences)
+from draft import (CHIME, CHIME_SECONDS, HOLD, MAX_SILENCE, PARAGRAPH_GAP, fill_flag, held_quiet, is_held,  # noqa: E402
+                   is_mark, layout, plan, silences)
 from engines import SR  # noqa: E402
 import verify  # noqa: E402
 
@@ -186,15 +186,18 @@ def assemble(segments, clip, lead=b"", bell=None, tail=b"", mark=None, quiet=Non
     for i, (seg, (extra, length)) in enumerate(zip(segments, timeline), 1):
         head, paras, spoken, gaps, n, held = built[i - 1]
         built[i - 1] = None   # this segment's paragraph copies go once it's laid out, not at the end
-        hold = max(length - spoken, 0.0) / n if n else 0.0
+        if n:   # held: its spare time goes to its bare holds, and past the limit into its breaks (held_quiet)
+            extras, hold = held_quiet(plan(seg), length - spoken, max_silence)
+        else:
+            extras, hold = [extra] * gaps, 0.0
         if quiet is not None:
             tail_secs = 0.0 if n else max(length - spoken - extra * gaps, 0.0)
             quiet += [(i, seg["label"], round(secs, 1), before)
-                      for secs, before in silences(plan(seg), extra, hold, tail_secs) if secs > max_silence + 0.05]
+                      for secs, before in silences(plan(seg), extras, hold, tail_secs) if secs > max_silence + 0.05]
         seg_pcm = bytearray(head)
         for j, p in enumerate(paras):
             if j:
-                seg_pcm += silence(PARAGRAPH_GAP + extra)
+                seg_pcm += silence(PARAGRAPH_GAP + extras[j - 1])
             for x in p:
                 seg_pcm += silence(hold) if x is None else x
         seg_pcm += silence(length - len(seg_pcm) / 2 / SR)

@@ -690,6 +690,18 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
             clips.update(clipcache.current(ctx.home))
         kept.extend(_keep_audio(ctx, written, kept_paths))
     deps.checkpoint = checkpoint
+
+    def keep_clips() -> None:
+        """A recording that stopped or failed partway still paid for each clip it made: kept, so the next
+        recording sends only what's missing."""
+        if clips is None:
+            return
+        try:
+            clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
+            ctx.conn.commit()
+        except Exception as e:  # noqa: BLE001 - the turn has failed already; this only saves money next time
+            ctx.conn.rollback()
+            print(f"worker: job {ctx.job_id} keeping clips failed: {type(e).__name__}", file=sys.stderr)
     ctx.say("thinking")
     first = conv.history is None
     background = ThreadPoolExecutor(max_workers=1)
@@ -718,12 +730,15 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
               f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out, {u.get('searches', 0)} web searches",
               file=sys.stderr, flush=True)
     except agent.TurnError as e:
+        keep_clips()
         raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG,
                      agent.STOPPED: STOPPED}.get(e.reason, CANT_FINISH)) from None
     except UsageLimitExceeded:
+        keep_clips()
         raise _Stop(TOO_LONG) from None
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
         print(f"worker: job {ctx.job_id} turn stopped: {type(e).__name__}", file=sys.stderr)
+        keep_clips()
         raise _Stop(providers.explain(provider, e).message) from None
     finally:
         background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed

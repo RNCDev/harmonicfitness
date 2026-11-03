@@ -2,6 +2,27 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.61.2] - 2026-11-03
+
+The website's recordings get time to finish. A thirty-minute workout on a Gemini coach, which speaks two clips at a time, takes about nine minutes to record, and the site gave a recording ten: a scheduled workout ran out of it, and its retry was cut off by the turn's fifteen-minute cap. Another recording made every line and then ran the worker's machine out of memory as it put the MP3 together. Separately, rendered silences ran past eight seconds in drafts the lint had passed, and the encode took longer than it needed.
+
+### Changed
+- **A recording may take half the workout's length** (web, `tools.build_timeout`): fifteen minutes for a thirty-minute workout, never under the ten it had. The turn's clock waits for it: a recording that starts late in a turn keeps its whole limit, plus two minutes to keep the MP3.
+- **A held segment's spare time is shared out** (`draft.held_quiet`): past the silence limit, the excess goes to the talk's paragraph breaks after the go (up to one and a half seconds more each), not all to the one bare `[hold]`. The lint and the render lay it out the same way, so a cue such as "twenty seconds left" also lands where it's written.
+- **Counts said in words are timed as the coach says them:** each render measures how long a web coach's spoken countdowns take and keeps it in its `pace.json` (`voices.record_beat`), and the lint times `[count]` and `[cue]` by it. A web voice says "Three, two, one, go." in about two seconds, not four.
+- **The lint leaves room for a measured voice to run a little fast** (`tts_build.MEASURED_FAST`, three percent) when it checks silences; a voice's speed swings by about that from one segment to the next.
+- **Loudness is measured with ffmpeg's `ebur128`** in the encode's first pass, in place of loudnorm's own measuring pass: the encode takes about 27 seconds for thirty minutes, not 44, with the same loudness. `doctor` now asks for both filters.
+- **`tts-rules.md` says one `[story]` pair may span several paragraphs,** and the lint's summary calls its figure "talk, counts and fixed holds", which is what it counts.
+
+### Fixed
+- **The worker reads the listener's kept clips one at a time** (web, `clipcache.load`): it fetched a week's clips (up to 400 MB) at once and stayed that large through the recording, so the engine's encode took the 1 GB machine past its memory.
+- **A turn past its time stops the engine command it was running** (web): a recording cut off by the turn's cap carried on sending lines to the voice service until its folder was removed.
+- **A recording that fails partway keeps its clips** (web, `worker.turn`): each was paid for, so the next recording sends only what's missing. Until now the clips were kept only once an MP3 was made.
+
+### For forks
+- **`ffmpeg.capable()` needs `ebur128` as well as `loudnorm`;** every standard ffmpeg build has both.
+- **A web coach's `pace.json` record gains a `beat` block;** older engines ignore it. No draft, command or `me/` change: nothing to migrate.
+
 ## [0.61.1] - 2026-11-03
 
 A coach of the listener's own now has a 45-second sample like every stock coach. Until now, keeping or making a web coach saved the few seconds of the voice's design line as its `sample.mp3` (8 to 12 seconds), so on the Coaches page their own coaches sounded like a clip beside the stock coaches' 47 seconds.

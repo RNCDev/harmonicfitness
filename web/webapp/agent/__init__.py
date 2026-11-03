@@ -33,7 +33,8 @@ LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=
 # on the listener's key: research for the topics due and what's on near them. Low context keeps each search
 # quick; Claude stops at max_uses a turn, and the instructions ask every writer for about six.
 SEARCH = WebSearchTool(search_context_size="low", max_uses=8)
-TURN_SECONDS = 900   # a turn's wall-clock cap: past it the run is cancelled (TurnError TIMED_OUT), never retried
+TURN_SECONDS = 900   # a turn's wall-clock cap, longer while a recording runs (tools.build_timeout): past it the run
+                     # and any engine command in it are cancelled (TurnError TIMED_OUT), never retried
 SKILL = (".claude/skills/workout/SKILL.md",)   # research.md is for a computer's research agents and sheets: none here
 # what the skill says to read before writing, given with it: two round trips fewer before every script
 WRITING = ("knowledge/script.md", "knowledge/tts-rules.md")
@@ -858,28 +859,38 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     if context:
         prompt = f"{context}\n\n---\n\nThe listener says:\n\n{prompt}"
     token = CancellationToken()
-    timer = threading.Timer(TURN_SECONDS, token.cancel)
-    timer.daemon = True
-    timer.start()
+    deadline = [time.monotonic() + TURN_SECONDS]
+    expired = threading.Event()
+
+    def extend(seconds: float) -> None:   # a recording's limit can run past TURN_SECONDS: the clock waits for it
+        deadline[0] = max(deadline[0], time.monotonic() + seconds)
+    deps.extend_turn = extend
     done = threading.Event()
-    def watch() -> None:   # Stop cancels the run as the clock would; the watch ends with the turn
+
+    def watch() -> None:   # Stop cancels the run, and so does the clock; the watch ends with the turn
         while not done.is_set():
-            if deps.cancel.wait(0.5):
+            # Stop wakes the watch at once; the clock is looked at between
+            if (deps.cancel.wait(0.1) if deps.cancel is not None else done.wait(0.1)) and deps.cancel is not None:
                 token.cancel()
                 return
-    if deps.cancel is not None:
-        threading.Thread(target=watch, daemon=True).start()
+            if time.monotonic() > deadline[0]:
+                expired.set()
+                token.cancel()
+                if deps.cancel is not None:   # an engine command still running ends too, and stops sending
+                    deps.cancel.set()
+                return
+    threading.Thread(target=watch, daemon=True).start()
     try:
         result = AGENT.run_sync(prompt, model=Narrated(model, deps), deps=deps, message_history=history,
                                 usage_limits=LIMITS, cancellation_token=token,
                                 capabilities=[NativeTool(t) for t in native_tools(model)])
     except RunCancelled:
-        if deps.cancel is not None and deps.cancel.is_set():
+        if not expired.is_set() and deps.cancel is not None and deps.cancel.is_set():
             raise TurnError("stopped", STOPPED) from None
         raise TurnError("the turn ran too long", TIMED_OUT) from None
     finally:
         done.set()
-        timer.cancel()
+        deps.extend_turn = None
         deps.ended.set()
         if deps.content_job is not None:   # a personal content writer the turn never waited for stops with it
             deps.content_job.cancel()

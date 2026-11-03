@@ -359,6 +359,54 @@ def layout(segments):
     return out
 
 
+HOLD_ROOM = 1.0   # seconds under the silence limit a held segment's bare holds are kept to, when its breaks can take the rest
+
+
+def _sounds(text):
+    return spoken(text) or is_mark(text) or text == CHIME
+
+
+def spread_breaks(paras):
+    """The paragraph breaks (1 for the one before paragraph 1, ...) a held segment may widen: after the paragraph
+    with its first count or cue (the setup before the go stays as written), up to the one with its last bare hold
+    (so the lines after it, "ten seconds left", keep their place before the end), and only between two sounds, so
+    the widened break never runs into a hold's or a pause's silence."""
+    def bare(para):
+        return any(text == HOLD and not pause for text, pause in para)
+    first_mark = next((j for j, para in enumerate(paras) if any(is_mark(t) for t, _ in para)), -1)
+    last_hold = max((j for j, para in enumerate(paras) if bare(para)), default=-1)
+    out = []
+    for j in range(max(first_mark, 0) + 1, last_hold + 1):
+        before, after = paras[j - 1], paras[j]
+        if before and after and _sounds(before[-1][0]) and before[-1][1] <= PAUSE_DEFAULT and _sounds(after[0][0]):
+            out.append(j)
+    return out
+
+
+def held_quiet(paras, spare, limit=MAX_SILENCE):
+    """How a held segment spends its spare seconds: ([extra seconds at each paragraph break], seconds at each bare
+    hold). Its bare holds take it all while each stays HOLD_ROOM under `limit`; past that, the rest widens the
+    breaks spread_breaks() allows, MAX_EXTRA_GAP each at most, and what they can't take goes back to the holds.
+    A voice that runs a little faster than predicted over a long stretch of talk then spreads the time it saved
+    through that talk, rather than piling it into one long quiet (9 to 17 s at one hold, 2026-11-03), and the lines
+    before a hold ("twenty seconds left") are said nearer their time."""
+    n = sum(text == HOLD and not pause for para in paras for text, pause in para)
+    extras = [0.0] * max(len(paras) - 1, 0)
+    if not n:
+        return extras, 0.0
+    spare = max(spare, 0.0)
+    cap = max(limit - HOLD_ROOM, 0.0)
+    if spare / n <= cap:
+        return extras, spare / n
+    breaks = spread_breaks(paras)
+    if not breaks:
+        return extras, spare / n
+    per = min((spare - n * cap) / len(breaks), MAX_EXTRA_GAP)
+    for j in breaks:
+        extras[j - 1] = per
+    return extras, (spare - per * len(breaks)) / n
+
+
 def max_silence(bed=False):
     """The longest quiet stretch the lint and the render allow: MAX_SILENCE, or BED_MAX_SILENCE with the pulse
     bed, which ticks softly through any long quiet so it never sounds like a dropped earbud."""
@@ -367,13 +415,14 @@ def max_silence(bed=False):
 
 def silences(paras, extra=0.0, share=0.0, tail=0.0):
     """[(seconds, the words before it)] for each stretch of silence in a segment laid out as the render lays
-    it: pauses, fixed holds, `share` seconds at each bare hold, `extra` added to each paragraph break and
-    `tail` at the end, run together until a clip, a count or the bell sounds. The lint calls it on predicted
-    lengths, the render (audio.assemble) on the clips it laid out."""
+    it: pauses, fixed holds, `share` seconds at each bare hold, `extra` added to each paragraph break (one
+    number for every break, or a list, one a break, as held_quiet() gives it) and `tail` at the end, run together
+    until a clip, a count or the bell sounds. The lint calls it on predicted lengths, the render
+    (audio.assemble) on the clips it laid out."""
     out, run, before = [], 0.0, ""
     for j, para in enumerate(paras):
         if j:
-            run += PARAGRAPH_GAP + extra
+            run += PARAGRAPH_GAP + (extra[j - 1] if isinstance(extra, (list, tuple)) else extra)
         for text, pause in para:
             if spoken(text) or is_mark(text) or text == CHIME:
                 if run > 0:

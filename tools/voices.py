@@ -216,6 +216,44 @@ def _every_coach_measured():
     return out
 
 
+BEAT_MEMORY = 120         # count pieces a voice's measured beat remembers; older builds weigh as this many
+BEAT_RANGE = (0.3, 1.5)   # seconds a piece: a measured beat outside this is a bad measurement, not a voice
+
+
+def record_beat(v, pieces, seconds, path=None):
+    """Fold a build's counts said in words ("Three, two, one, go." is four pieces) into the voice's measured
+    seconds a piece (render.py calls this, from the cached clips the build lays out), so the lint times a count
+    as this voice says it: Fish said that count in 2.1 s where the one-second beat predicted 4 (2026-11-03), and
+    every timed set rendered 2 to 3 s quieter than linted."""
+    if pieces <= 0 or seconds <= 0:
+        return
+    path = path or v.get("pace_file") or paths.PACE_FILE
+    with _locked(path):
+        data = _with_seed(v, path, _recorded(path, strict=True))
+        rec = data.get(_rate_key(v))
+        if not rec:
+            return   # measured with the voice's pace, never before it
+        old = rec.get("beat") or {}
+        n, s = float(old.get("pieces", 0.0)), float(old.get("seconds", 0.0))
+        if n > BEAT_MEMORY:
+            s, n = s * BEAT_MEMORY / n, BEAT_MEMORY
+        rec["beat"] = {"pieces": round(n + pieces, 3), "seconds": round(s + seconds, 3)}
+        data[_rate_key(v)] = rec
+        _write_rates(path, data)
+
+
+def beat(v, path=None):
+    """The voice's measured seconds for one piece of a count said in words, or None until a build has measured
+    it (the lint then keeps draft.BEAT)."""
+    path = path or v.get("pace_file")
+    rec = _with_seed(v, path, _recorded(path)).get(_rate_key(v)) or {}
+    b = rec.get("beat") or {}
+    if not b.get("pieces"):
+        return None
+    secs = b["seconds"] / b["pieces"]
+    return secs if BEAT_RANGE[0] <= secs <= BEAT_RANGE[1] else None
+
+
 def pace(v, path=None):
     """Weighted characters per second: the voice's speaking rate, and whether it's measured.
     A coach's comes from its own pace.json, seeded from the other coaches until measured."""
