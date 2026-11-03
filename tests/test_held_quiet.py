@@ -148,7 +148,7 @@ class LoudnessStats(unittest.TestCase):
     Peak:       -4.3 dBFS
 """
 
-    def test_ebur128_s_summary_gives_loudnorm_what_it_needs(self):
+    def test_ebur128_s_summary_gives_the_gain_what_it_needs(self):
         import render
         self.assertEqual(render.loudness_stats(self.EBUR128),
                          {"input_i": "-23.1", "input_tp": "-4.3", "input_lra": "5.1", "input_thresh": "-33.3",

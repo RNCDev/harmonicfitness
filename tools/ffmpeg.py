@@ -5,8 +5,8 @@ with errors.RenderStopped naming ffmpeg's version, its exit code and the end of 
 traceback, and never a build waiting forever under the render lock.
 
 HarmonicFitness needs only ffmpeg itself (not ffprobe), with the MP3 encoder (libmp3lame) and the
-loudness filter (loudnorm). imageio-ffmpeg 0.6.0's ffmpeg 7.1 has both on an Apple Silicon Mac
-(checked 2026-10-24); ./harmonicfitness doctor checks whichever one is found, on every system.
+loudness filters (ebur128 to measure, alimiter for the peaks). imageio-ffmpeg 0.6.0's ffmpeg 7.1 has them on an
+Apple Silicon Mac (checked 2026-10-24); ./harmonicfitness doctor checks whichever one is found, on every system.
 """
 import os
 import shutil
@@ -35,15 +35,15 @@ def bundled(path):
 
 
 def capable(path):
-    """(has the MP3 encoder, has the loudness filters: loudnorm, and ebur128 that measures for it) for the ffmpeg
-    at `path`."""
+    """(has the MP3 encoder, has the loudness filters: ebur128 that measures, and alimiter that holds the peaks
+    after the gain) for the ffmpeg at `path`."""
     def listing(flag):
         try:
             return subprocess.run([path, "-hide_banner", flag], capture_output=True, text=True, timeout=30).stdout
         except (OSError, subprocess.SubprocessError):
             return ""
     filters = listing("-filters")
-    return "libmp3lame" in listing("-encoders"), "loudnorm" in filters and "ebur128" in filters
+    return "libmp3lame" in listing("-encoders"), "alimiter" in filters and "ebur128" in filters
 
 
 def version(path=None):

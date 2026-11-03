@@ -34,7 +34,7 @@ ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
 # coach's voice in the listener's account (about a cent), as setup's quick start does. Coaches are chosen here,
 # never made (since 0.46.2): no `audition` or `keep`; `forget-audition` stays, to close one opened before.
 COMMANDS = {"brief", "build", "check", "content", "coaches", "coverage", "feeds", "get", "help", "interests", "keys",
-            "log-session", "movements", "workouts", "youtube"}
+            "log-session", "movements", "topics", "workouts", "youtube"}
 SUBCOMMANDS = {"coaches": {None, "list", "last", "measured", "make", "forget-audition", "archive"},
                "keys": {None}}
 MADE_MP3 = (0, 2)   # the build's exits that made an MP3 (2: its total ran a little off plan)
@@ -78,6 +78,13 @@ class Deps:
     phase: str = ""                  # what the turn last did (THINK in agent): names what the model is thinking about
     picked: tuple[str, str] | None = None   # the coach chosen on the page (Settings or the sentence): (slug, day)
     recorded: str | None = None      # the draft recorded this turn: the approval is spent, and that workout is final
+    # Logging, done by the site once the recording is made (agent.log_after): the room's stories for content log
+    # ({"draft", "items"}), a log-session the agent ran before its draft was built (its argv, kept to run then),
+    # and the draft the site logged this turn
+    told: dict | None = None
+    pending_log: list | None = None
+    logged: str | None = None
+    topics: bool = False             # a topics job (topics add): no workout skill, no web search, no feeds
     auto_record: bool = False        # Settings' Record without asking: a clean price records at once
     # reserves characters from today's allowance (and commits), as the Record button does; whether it fit
     reserve: Callable[[int], bool] | None = field(default=None, repr=False)
@@ -812,6 +819,11 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
                        f"{max(deps.chars_left, 0):,} left. Tell the listener; a shorter workout fits, or tomorrow.")
     deps.offer = {"draft": draft, "name": args[2], "coach": coach, "chars": chars, "usd": round(usd, 3),
                   "service": cost.get("service"), "design": bool(cost.get("pending_design"))}
+    # what the site logs once it's recorded, carried to the Record button's turn with the offer
+    if deps.pending_log and _flag(deps.pending_log, "--draft") == draft:
+        deps.offer["log"] = list(deps.pending_log)
+    if deps.told and deps.told.get("draft") == draft and deps.told.get("items"):
+        deps.offer["told"] = list(deps.told["items"])
     if deps.ceiling is not None and chars > deps.ceiling:   # over what "Schedule it" approved: the button decides
         deps.auto_record = False
         return _result(0, (f"Not recorded: the script speaks {chars:,} characters, over the {deps.ceiling:,} the "

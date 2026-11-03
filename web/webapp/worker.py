@@ -538,8 +538,8 @@ def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = N
     if step is None:
         ctx.say("step", text=text, failed=failed)
         return
-    if code is None:
-        ctx.started[step] = time.monotonic()
+    if code is None:   # a running step said again (a recording's "18 of 40") keeps the time it began
+        ctx.started.setdefault(step, time.monotonic())
     else:
         began = ctx.started.pop(step, None)
         took = f" {time.monotonic() - began:.1f}s" if began is not None else ""
@@ -633,6 +633,9 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                       cancel=ctx.cancel, picked=picked,
                       log=lambda text: print(f"worker: job {ctx.job_id} {text}", file=sys.stderr, flush=True))
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
+    opening = next((x.get("text") for x in conv.lines if x.get("role") == "user"), None)
+    # a topics job (topics add, or trending ideas): a light turn, with no workout skill, web search or feeds
+    deps.topics = agent.topics_job(opening, line) and not agent.needs_setup(ctx.home)
     # and the coach skill only while an old audition waits to be closed: coaches are chosen in the gallery
     # here, never made (since 0.46.2), and the skill's text would steer the agent to an audition
     deps.coach = agent.audition_open(ctx.home)
@@ -703,17 +706,20 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
             ctx.conn.rollback()
             print(f"worker: job {ctx.job_id} keeping clips failed: {type(e).__name__}", file=sys.stderr)
     ctx.say("thinking")
-    first = conv.history is None
+    # a history that's only the site's topics opener: the first turn that reads step 1, should it now be a workout
+    first = conv.history is None or agent.only_opener(conv.history)
     background = ThreadPoolExecutor(max_workers=1)
     sheet = os.path.join(ctx.home, "workouts", "research", "daily", f"{today}-feeds.md")
     # the check-in is answered (or, a set-up listener's workout request from the page's sentence, needs none):
     # research begins now, while the model reads
     begin = not first or (agent.intent(line) == "workout" and not agent.needs_setup(ctx.home))
-    if begin and not os.path.exists(sheet):
+    if begin and not deps.topics and not os.path.exists(sheet):
         deps.feeds = agent.start_feeds(deps, background)
     try:
         context = None
-        if first and line:
+        if deps.topics:   # what a topics job reads, in place of step 1
+            context = agent.topics_context(ctx.home)
+        elif first and line:
             try:
                 context = agent.prefetch(deps, line)
             except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
@@ -724,7 +730,10 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                     "in a line. The brief, the research and the script come fifteen minutes before their time.")
             context = f"{context}\n\n{note}" if context else note
         began = time.monotonic()
-        outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
+        if conv.history is None and deps.topics and agent.BARE_TOPICS.search(line or ""):
+            outcome = agent.opener_turn(line)   # "What's on your mind?": no model request to ask it
+        else:
+            outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
         u = outcome.usage
         print(f"worker: job {ctx.job_id} turn {time.monotonic() - began:.1f}s, {u.get('requests')} model requests, "
               f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out, {u.get('searches', 0)} web searches",

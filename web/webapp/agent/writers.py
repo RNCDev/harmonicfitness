@@ -58,6 +58,7 @@ PATIENCE = {"research": 160, "trainer": 110, "host": 150, "review": 80, "top-up"
 # 15-minute runs and held the room up a median 110 s; at LOW it took 17 to 27 s, with six sourced stories every run.
 # The host stays at MEDIUM: at LOW its scripts ran long, with silences.
 LEVEL = {"research": "LOW", "trainer": "MEDIUM", "host": "MEDIUM", "review": "LOW"}
+REVIEWS = 3   # the review's rounds at most: the first reads the whole script, each after it fixes what the check names
 
 
 def web_copy(text: str) -> str:
@@ -650,14 +651,16 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
     spoken = {e.number for e in edits}
 
     # the trainer's review: the script as the listener hears it, with the build's check and the trainer's notes;
-    # once more if the check still finds something after it
+    # each of its edits checked again, and given back while the check still finds something, up to REVIEWS rounds:
+    # the room never hands back an edit nobody checked (a last fix went unchecked, the build after the room failed
+    # and the agent spent a request on it, 2026-11-03)
     said = "\n\n".join(f"#{n}\n{t.strip()}" for n, t in sorted(notes.items()) if t.strip())
     must = must_say(notes)
     changed: set[int] = set()
     history = None
-    for attempt in range(2):
-        check = await _lint(deps, plain, path, full, name, coach, draft)
-        if attempt and check.startswith("clean"):
+    check = await _lint(deps, plain, path, full, name, coach, draft)
+    for attempt in range(REVIEWS):
+        if attempt and (check.startswith("clean") or check == "not checked"):
             break
         draft = _read(full) if name and coach else draft
         prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n"
@@ -673,13 +676,16 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         history = edited.all_messages()
         draft = apply_edits(draft, edited.output.segments)
         changed |= {e.number for e in edited.output.segments}
+        check = await _lint(deps, plain, path, full, name, coach, draft)
+    draft = _read(full) if name and coach else draft   # as the last check read it
 
-    logged = [f'--item "{s.topic} | {s.format} | {s.title} | {s.source}"' for _, s in sorted(placed.items())]
+    # what was told, for content log: the site logs it itself once the recording is made (agent.log_after)
+    deps.told = {"draft": path, "items": [f"{s.topic} | {s.format} | {s.title} | {s.source}"
+                                          for _, s in sorted(placed.items())]}
     note = (f"The writers' room wrote the words: the host told {len(placed)} stories in {len(rests)} places and wrote "
             f"{len(spoken)} of {len(segs)} segments from the trainer's notes, and the trainer's review changed "
-            f"{len(changed)}. "
-            + ("After recording, log what was told: `content log --draft <draft> " + " ".join(logged) + "`."
-               if logged else ""))
+            f"{len(changed)}. " + ("The site logs the stories told itself once the recording is made: no "
+                                   "`content log` for them." if placed else ""))
     return draft, note
 
 

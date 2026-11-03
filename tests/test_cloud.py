@@ -309,7 +309,7 @@ class Core(unittest.TestCase):
                          ("inworld-tts-2", "https://api.inworld.ai"))
         self.assertEqual({n: (s[n]["concurrency"], s[n]["max_chars"]) for n in s},
                          {"fish": (5, 0), "elevenlabs": (2, 10000), "gemini": (2, 0), "inworld": (5, 2000),
-                          "openrouter": (3, 10000)})
+                          "openrouter": (6, 10000)})
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-lite-tts"), 9)
         self.assertEqual(cloud.rate("inworld", "inworld-tts-2-flash"), 15)

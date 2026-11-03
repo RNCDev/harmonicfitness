@@ -65,7 +65,7 @@ def _ffmpeg_lines():
     where = "bundled with the environment" if ffmpeg.bundled(exe) else exe
     if mp3 and loud:
         return [f"  ffmpeg: {where}, with MP3 encoding and loudness normalization"]
-    missing = " and ".join(w for w, ok in (("MP3 encoding (libmp3lame)", mp3), ("loudness normalization (loudnorm and ebur128)", loud))
+    missing = " and ".join(w for w, ok in (("MP3 encoding (libmp3lame)", mp3), ("loudness normalization (ebur128 and alimiter)", loud))
                            if not ok)
     return [f"  ffmpeg: {where} lacks {missing}; install a full build ({ffmpeg.install_hint()})"]
 

@@ -2,6 +2,27 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.63.0] - 2026-11-03
+
+A thirty-minute workout on the website should take about six minutes less from request to MP3, and adding a topic takes seconds. On 2026-11-03 a thirty-minute workout with Coach Leah took about eighteen minutes end to end: making the MP3 took 373 seconds on the website's worker (a shared CPU, throttled after a day of recordings), the voice service 123. Telling the coach about a site they read took 40 seconds, most of it two web searches for the site's feed, and the model rewrote all of `content.md` to add one line.
+
+### Added
+- **`./harmonicfitness topics`** (`tools/topics.py`): the topics and venues, and `topics add "<Name>: <what about it>"` (several at once, `--venue` for a venue), written under `## Topics` by `context.add_topic_lines`, every other line kept and the template's hints dropped. `--feed "<address or podcast name>"` finds the feed without a web search (the address if it is one, the page's own feed link, the usual feed addresses with a `www.` retry for a bare domain, or Apple's podcast directory for a name), checks it, and adds it to `[[feeds]]` (`context.add_feed`) as `weekly` when its newest items come more than three days apart, else `rss`. It prints the feed's own title and description, marked as a stranger's text. About half a second for a site or a podcast.
+- **Topics, quickly, on the website.** "I'd like to update my interests." (or "add a topic" with nothing named) is answered at once, with no model request: "What's on your mind? ... Or do you want me to offer some trending topics?" A topics job is a light turn: no workout skill or writing guides, no web search, no background feeds, only `content.md`'s topics, venues and never-bring-up lines in place of step 1, and `topics add` to write them. A workout asked for after the opener goes on as a first turn would.
+
+### Changed
+- **The MP3's loudness is set with a gain and a limiter** (`render.loudness_chain`), not loudnorm: after ebur128 measures the mix, `volume` brings it to -16 LUFS and `alimiter` (0.75, about -2.5 dBFS) holds the peaks. loudnorm resamples to 192 kHz to do the same; on thirty minutes the second pass takes 2.9 s against 24.6 s on an Apple Silicon Mac, landing at -16.6 LUFS with peaks at -1.4 dBTP against loudnorm's -16.5 and -1.4. A plain clamped gain was tried and dropped: on peaky speech it landed 5 dB quiet. `ffmpeg.capable` and `doctor` now look for ebur128 and alimiter.
+- **OpenRouter speaks six lines at a time** (`knowledge/services.toml`, was three): thirty lines took 13.7 s at three, 7.4 s at five and 5.0 s at eight, with no rate limit hit.
+- **The writers' room checks every edit its review makes** (web, `writers.REVIEWS = 3`): each review's edit is linted, and the review goes round again while the lint finds something, up to three rounds. The last edit used to go back unchecked; on 2026-11-03 the build after the room failed on it and the agent spent a 29-second request fixing it.
+- **The site logs a recorded workout itself** (web, `agent.log_after`): the stories the writers' room told (`content log`) once the recording is made, and a `log-session` the agent sends ahead of the recording, which is kept ("Kept") and run then. Both ride on the offer to a Record button's turn. The agent sends `log-session` in the same reply as the skeleton, so after a recording only the closing reply is left: two model requests fewer.
+- **The setup skill's Update my interests** asks "What's on your mind? Or do you want me to offer some trending topics?" when nothing's named, and adds topics with `topics add`, with nothing to look up.
+
+### Fixed
+- **The worker's log timed a recording from its last progress update** (web, `worker._step`): each "18 of 40" said the step again and restarted its clock, so a 503-second recording was logged as 383.
+
+### For forks
+- **Nothing to migrate in `me/`.** `topics` is a new command (the web agent may run it). An ffmpeg without `alimiter` now fails `doctor`; every standard build has it. A fork with its own web agent instructions should send `log-session` before the recording, or keep sending it after: an early one is kept, a late one after the site logged is answered "Already logged".
+
 ## [0.62.0] - 2026-11-03
 
 The website's home page fills in faster once you're signed in. The opening sentence ("Hey, coach Reed, I'd like a 25-minute strength workout at home") was worked out from every one of the listener's files, by the engine run twice in a row, on every page load, and the page asked for it twice.

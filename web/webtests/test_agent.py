@@ -881,6 +881,83 @@ class Faster(AgentCase):
         self.assertEqual(calls[-1][-2:], ["--max-chars", "3000"])   # within the price
         self.assertIn(agent.AUTO_RECORDED, out.history_json.replace("\\n", "\n"))
 
+    LOG = ["log-session", "--draft", "me/workouts/a/a.draft.txt", "--format", "circuit", "--topics", "Formula 1",
+           "--loads", "goblet squat = 20 lb, 2s"]
+    TOLD = ["Formula 1 | explainer | The Undercut | me/workouts/research/reserve/the-undercut.md"]
+
+    def logging_fake(self):
+        """The engine, where log-session refuses a draft until it's recorded, as the real one does."""
+        from unittest import mock
+        calls, made = [], []
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            calls.append(argv)
+            if argv[:2] == ["get", "cost"]:
+                return tools.engine.Result(0, '{"service": "gemini", "chars": 3000, "usd": 0.05}', "")
+            if "--lint-only" in argv:
+                return tools.engine.Result(0, "lint ok\nSends 3,000 characters to the voice service", "")
+            if argv[0] == "log-session" and not made:
+                return tools.engine.Result(1, "", "Not logged: no build of me/workouts/a/a.draft.txt as it stands")
+            if argv[0] == "build":
+                made.append(argv)
+            return tools.engine.Result(0, "done", "")
+        return mock.patch.object(tools.engine, "run", side_effect=run), calls
+
+    def test_the_site_logs_the_room_s_stories_once_recorded(self):
+        self.draft()
+        self.deps.auto_record, self.deps.reserve = True, (lambda chars: True)
+        self.deps.told = {"draft": self.DRAFT, "items": list(self.TOLD)}
+        patch, calls = self.logging_fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn_that_builds()), self.deps, None, "go")
+        logged = [a for a in calls if a[:2] == ["content", "log"]]
+        self.assertEqual(len(logged), 1)   # the engine's own path for the draft: tools.run maps me/ to the folder
+        self.assertEqual(logged[0][:5] + logged[0][6:], ["content", "log", "--date", TODAY, "--draft", "--item", self.TOLD[0]])
+        self.assertTrue(logged[0][5].endswith("/workouts/a/a.draft.txt"))
+        self.assertIn("The site logged the 1 stories", out.history_json)
+        made = next(i for i, a in enumerate(calls) if a[0] == "build" and "--max-chars" in a)
+        self.assertGreater(calls.index(logged[0]), made)   # after the recording, never before
+
+    def test_a_log_session_sent_ahead_is_kept_with_the_offer_and_run_once_recorded(self):
+        self.draft()
+        patch, calls = self.logging_fake()
+
+        def ahead(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": list(self.BUILD)}, tool_call_id="b1"),
+                                            ToolCallPart("run", {"args": list(self.LOG)}, tool_call_id="l1")])
+            return ModelResponse(parts=[TextPart("ready")])
+        self.deps.told = {"draft": self.DRAFT, "items": list(self.TOLD)}
+        with patch:
+            out = agent.run_turn(FunctionModel(ahead), self.deps, None, "go")
+        self.assertIn("Kept: this draft isn't recorded yet", out.history_json)
+        self.assertEqual((self.deps.offer["log"], self.deps.offer["told"]), (self.LOG, self.TOLD))
+
+        # the Record button's turn: a fresh turn, with only the offer to go on
+        offer = self.deps.offer
+        self.deps = tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY, now=f"{TODAY} Wednesday 08:00")
+        self.deps.approved = offer
+        before = len(calls)
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn_that_builds()), self.deps, None, "Yes, record it.")
+        after = calls[before:]
+        self.assertEqual([a[0] for a in after], ["build", "content", "log-session"])
+        self.assertEqual(self.deps.logged, self.DRAFT)
+        self.assertIn("The site logged the session", out.history_json)
+
+    def test_a_log_session_after_the_site_logged_it_runs_nothing(self):
+        self.deps.logged = self.DRAFT
+        patch, calls = self.logging_fake()
+
+        def again(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": list(self.LOG)}, tool_call_id="l1")])
+            return ModelResponse(parts=[TextPart("ok")])
+        with patch:
+            out = agent.run_turn(FunctionModel(again), self.deps, None, "go")
+        self.assertEqual(calls, [])
+        self.assertIn("Already logged", out.history_json)
+
     LATER = {"at": "2026-11-04T12:00:00+00:00", "local": "2026-11-04 Wednesday 07:00", "offset": -300}
 
     def test_a_workout_for_later_is_checked_in_now_and_written_then(self):
@@ -1064,6 +1141,51 @@ class Search(AgentCase):
         self.assertNotIn("no web search", agent.PREAMBLE)
 
 
+class Topics(AgentCase):
+    """A topics job (0.63.0): the bare ask answered at once, then `topics add` on a light turn."""
+
+    def test_the_bare_ask_is_answered_without_a_model(self):
+        for line in ("I'd like to update my interests.", "update my topics", "Add a topic", "add a new topic please"):
+            self.assertTrue(agent.BARE_TOPICS.search(line), line)
+        for line in ("add F1 to my topics", "Can you add the Sunday Puzzle podcast?", "I like reading example.com",
+                     "update my interests and give me a workout"):
+            self.assertFalse(agent.BARE_TOPICS.search(line), line)
+        out = agent.opener_turn("I'd like to update my interests.")
+        self.assertEqual(out.reply, agent.TOPICS_OPENER)
+        self.assertIn("trending topics", out.reply)
+        self.assertTrue(agent.only_opener(out.history_json))
+        self.assertFalse(agent.only_opener(None))
+
+    def test_a_topics_job_goes_on_from_the_opener_and_stops_for_a_workout(self):
+        first = "I'd like to update my interests."
+        self.assertTrue(agent.topics_job(first, "I like reading https://www.example.com/"))
+        self.assertFalse(agent.topics_job(first, "actually, a 20 minute workout"))
+        self.assertFalse(agent.topics_job(first, "Lately I enjoyed a show at the Example Room"))
+        self.assertFalse(agent.topics_job("a 20 minute workout", "sounds good"))
+        self.assertFalse(agent.topics_job("a 20 minute workout", "add a topic about F1 for the rests"))   # mid check-in
+        self.assertFalse(agent.only_opener("x" * (agent.OPENER_MOST + 1)))
+
+    def test_a_topics_turn_is_light_with_no_search(self):
+        self.assertEqual(agent.skill_text(ROOT, topics=True), "")
+        self.assertIn(".claude/skills/setup/SKILL.md", agent.skill_text(ROOT, True, topics=True))
+        self.assertIn("topics", tools.COMMANDS)
+        sent = []
+
+        class Spy(FunctionModel):
+            async def request(self, messages, model_settings, params):
+                sent.append(list(params.native_tools))
+                return await super().request(messages, model_settings, params)
+        self.deps.topics = True
+        agent.run_turn(Spy(lambda m, i: ModelResponse(parts=[TextPart("added")])), self.deps, None, "add F1")
+        self.assertEqual(sent, [[]])   # a FunctionModel offers search otherwise (the test above)
+
+    def test_the_topics_context_holds_the_topics_and_never_bring_up(self):
+        text = agent.topics_context(self.home)
+        self.assertIn("## Topics", text)
+        self.assertIn("## Never bring up", text)
+        self.assertNotIn("[[feeds]]", text)
+
+
 class Enjoyed(AgentCase):
     def test_what_they_enjoyed_is_never_a_workout_request(self):
         for line in ("Lately I enjoyed a 5k run with friends", "We saw Atsuko Okatsuka at the Bell House",
@@ -1128,7 +1250,8 @@ class Instructions(AgentCase):
         self.assertTrue(agent.wants_setup("Finish setting me up"))
         self.assertFalse(agent.wants_setup("a 20 minute workout"))
         for line in ("I'd like to update my interests.", "add a topic", "Suggest some topics", "new topics please"):
-            self.assertTrue(agent.wants_setup(line), line)
+            self.assertFalse(agent.wants_setup(line), line)   # a topics job, on a light turn (0.63.0)
+            self.assertTrue(agent.topics_job(line, line), line)
         self.assertFalse(agent.wants_setup("a workout, any topic is fine"))
 
     def test_coaches_are_chosen_here_not_made(self):
@@ -1202,6 +1325,25 @@ class TurnClock(AgentCase):
             out = agent.run_turn(FunctionModel(recording), self.deps, None, "go")
         self.assertEqual(out.reply, "Recorded.")
         self.assertIsNone(self.deps.extend_turn)   # the clock ends with its turn
+
+
+
+class StepTimes(unittest.TestCase):
+    """The worker's log times a step from when it began: a recording's progress ("18 of 40") says the running
+    step again, and once restarted its clock (a 503 s recording logged as 383 s, 2026-11-03)."""
+
+    def test_a_running_step_said_again_keeps_its_start(self):
+        import io
+        import types
+        from webapp import worker
+        ctx = types.SimpleNamespace(started={}, job_id=7, say=lambda *a, **k: None)
+        err = io.StringIO()
+        with mock.patch.object(worker.time, "monotonic", side_effect=[0.0, 120.0, 503.0]), \
+                mock.patch.object(sys, "stderr", err):
+            worker._step(ctx, "Recording your workout", "run build", None, 3)
+            worker._step(ctx, "Recording your workout: 18 of 40", "run build", None, 3)
+            worker._step(ctx, "Recording your workout", "run build", 0, 3)
+        self.assertIn("run build exit 0 503.0s", err.getvalue())
 
 
 if __name__ == "__main__":

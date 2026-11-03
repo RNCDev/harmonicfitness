@@ -450,6 +450,90 @@ def venues(p):
     return out
 
 
+def _content_text(path):
+    """(the front block's match, the whole text) of content.md, for the writers below."""
+    try:
+        text = read_raw(path, "content").lstrip("\ufeff")
+    except FileNotFoundError:
+        raise errors.ContextError(f"No {show(path)} yet: set up first.") from None
+    m = frontmatter.TOML_FRONT_RE.match(text)
+    if not m:
+        raise errors.ContextError(f"{show(path)} has no settings block (+++ ... +++): run ./harmonicfitness migrate.")
+    return m, text
+
+
+def add_topic_lines(lines, venue=False, path=None):
+    """Add each "Name: what about it" line under `## Topics` in content.md (`## Venues` with `venue`), every other
+    line kept: a name already there, in any case, is left as it is, and the template's [hint] lines in that
+    section go once a real one is in. A file without the section gets it at the end. [(name, added)] in order;
+    a line that isn't a topic (empty, or a [hint]) raises errors.UsageError before anything is written."""
+    path = path or paths.CONTENT_MD
+    wanted = []
+    for raw in lines:
+        one = " ".join(str(raw).split())
+        t = topic_line("- " + one.lstrip("-* ").strip())
+        if t is None:
+            raise errors.UsageError(f"\"{one}\" isn't a topic: write it as \"Name: what about it\".")
+        wanted.append((t, f"- {t.name}" + (f": {t.note}" if t.note else "")))
+    m, text = _content_text(path)
+    rows = text[m.end():].split("\n")
+    name = "Venues" if venue else "Topics"
+    start = frontmatter.heading_index(rows, name)
+    if start is None:
+        while rows and rows[-1] == "":
+            rows.pop()
+        rows += ["", f"## {name}"]
+        start = len(rows) - 1
+    end = next((i for i in range(start + 1, len(rows)) if frontmatter.heading(rows[i]) is not None), len(rows))
+    have = {t.name.casefold() for t in map(topic_line, rows[start + 1:end]) if t}
+    out, new = [], []
+    for t, line in wanted:
+        if t.name.casefold() in have:
+            out.append((t.name, False))
+            continue
+        have.add(t.name.casefold())
+        new.append(line)
+        out.append((t.name, True))
+    if not new:
+        return out
+    body = [r for r in rows[start + 1:end]
+            if not (r.strip().startswith(("- ", "* ")) and placeholder(r.strip()[2:].strip()))]
+    last = max((i for i, r in enumerate(body) if r.strip().startswith(("- ", "* "))), default=None)
+    if last is None:   # after the section's own lines of prose ("I like to stay current on..."), before its gap
+        last = max((i for i, r in enumerate(body) if r.strip()), default=-1)
+    body = body[:last + 1] + new + body[last + 1:]
+    if end < len(rows) and (not body or body[-1] != ""):
+        body.append("")
+    rows = rows[:start + 1] + body + rows[end:]
+    fileio.atomic_write(path, text[:m.end()] + "\n".join(rows))
+    return out
+
+
+def add_feed(label, kind, value, path=None):
+    """Add a [[feeds]] table (label, kind, value) at the end of content.md's settings, every other line kept. False
+    when a feed with that value is there already (nothing written)."""
+    path = path or paths.CONTENT_MD
+    if kind not in FEED_KINDS:
+        raise errors.UsageError(f"unknown feed kind \"{kind}\" (choose from: {', '.join(FEED_KINDS)})")
+    m, text = _content_text(path)
+    block = m.group(1)
+    try:
+        now = tomllib.loads(block)
+    except tomllib.TOMLDecodeError as e:
+        raise errors.ContextError(f"{show(path)}'s settings don't read as TOML ({e}): ./harmonicfitness check.") from None
+    if any(str(f.get("value", "")).strip() == value for f in table_list(now.get("feeds"))):
+        return False
+    block = block.rstrip("\n") + (f"\n\n[[feeds]]\nlabel = {toml_value(label)}\nkind = {toml_value(kind)}\n"
+                                  f"value = {toml_value(value)}")
+    try:
+        tomllib.loads(block)
+    except tomllib.TOMLDecodeError:   # feeds written another way (an inline list): a [[feeds]] table can't join it
+        raise errors.ContextError(f"{show(path)} lists its feeds in a form a new [[feeds]] table can't join: add "
+                                  "this one by hand.") from None
+    fileio.atomic_write(path, frontmatter.wrap(block, text[m.end():]))
+    return True
+
+
 def _names(p, key):
     return [x.strip() for x in str_list(p.settings.get(key)) if x.strip()]
 

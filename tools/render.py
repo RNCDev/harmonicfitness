@@ -51,7 +51,11 @@ from clipcache import cached, check_path, clip_cache, render_clip  # noqa: E402
 from records import save_build_record, save_failed_record  # noqa: E402
 
 BREAKER = 3           # web requests failing in a row ("unavailable") before a render stops sending
-LOUDNESS = "I=-16:TP=-1.5:LRA=11"   # podcast level, with headroom under 0 dBFS
+TARGET_LUFS = -16.0   # podcast level
+# The limiter's ceiling, as a sample level: 0.75 (about -2.5 dBFS) lands the MP3's true peak near -1.5 dBTP, the
+# headroom under 0 dBFS that loudnorm's TP=-1.5 gave, and holds the peaks a full gain to -16 LUFS would push over.
+LIMIT = 0.75
+MAX_GAIN_DB = 24.0   # a near-silent mix isn't raised past this: its hiss would be what the listener hears
 # A gentle compressor ahead of the loudness pass, so quiet syllables stay audible over gym noise.
 COMPRESS = "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250"
 CHECK_TAKES = 4       # takes a local line gets (its seed, then the next ones) before the best one stands
@@ -67,10 +71,9 @@ EBUR128_SUMMARY = re.compile(r"Summary:.*?Integrated loudness:\s*I:\s*(-?[\d.]+|
 
 
 def loudness_stats(stderr):
-    """The measurements loudnorm's second pass needs, from the measuring pass's stderr: the summary ebur128 prints
-    (the probe encode() runs: about six times faster than loudnorm's own, which resamples to 192 kHz, 15 s against
-    2.7 s on a thirty-minute workout), or the JSON object loudnorm prints. ebur128 gives no target offset, so it's
-    0: the output lands about 0.2 LU from the target, well inside what an ear can tell."""
+    """The loudness the encode's gain is worked out from, from the measuring pass's stderr: the summary ebur128
+    prints (the probe encode() runs), or the JSON object loudnorm prints (an older probe). ebur128 gives no target
+    offset, so it's 0."""
     e = EBUR128_SUMMARY.search(stderr or "")
     if e:
         i, thresh, lra, tp = e.groups()
@@ -93,9 +96,22 @@ def ffmpeg_version():
     return ffmpeg_tool.version()
 
 
+def gain_db(stats):
+    """The gain that brings the measured mix to TARGET_LUFS, at most MAX_GAIN_DB either way."""
+    return max(-MAX_GAIN_DB, min(MAX_GAIN_DB, TARGET_LUFS - float(stats["input_i"])))
+
+
+def loudness_chain(stats):
+    """The encode's filters: the compressor, the gain to the target, and a limiter for the peaks the gain pushes
+    over. loudnorm did this in one filter but resamples to 192 kHz to do it: eight times slower (25 s against 3 s
+    for thirty minutes on an Apple Silicon Mac, over six minutes on a throttled web worker), for the same level
+    within 0.1 LU and the same peaks."""
+    return f"{COMPRESS},volume={gain_db(stats):.2f}dB,alimiter=limit={LIMIT}:level=false"
+
+
 def encode(pcm, out, title):
-    """Two-pass loudness normalization (measured by ebur128, applied by loudnorm), then encode by the output's
-    extension (checked by preflight)."""
+    """Two-pass loudness normalization (measured by ebur128, then a gain and a limiter), then encode by the
+    output's extension (checked by preflight)."""
     ffmpeg = preflight(out)
     codec = CODECS[os.path.splitext(out)[1].lower()]
     timeout = max(120, 2 * len(pcm) / (2 * SR))   # 16-bit mono: a hung ffmpeg never holds the render lock forever
@@ -105,9 +121,7 @@ def encode(pcm, out, title):
         probe = _ffmpeg_run([ffmpeg, "-hide_banner", "-nostats", "-i", raw, "-af",
                              f"{COMPRESS},ebur128=peak=true", "-f", "null", "-"],
                             "measure the loudness", timeout)
-        m = loudness_stats(probe.stderr)
-        af = (f"{COMPRESS},loudnorm={LOUDNESS}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
-              f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}")
+        af = loudness_chain(loudness_stats(probe.stderr))
         # Encoded beside the output under a temporary name (its extension kept, so ffmpeg picks the format),
         # then renamed: an old MP3 is never left half-overwritten, and a failure leaves nothing behind.
         stem, ext = os.path.splitext(out)

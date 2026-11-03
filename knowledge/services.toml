@@ -95,7 +95,8 @@ unit = "characters"
 # from OpenRouter's model list, checked 2026-10-31; credit bought there carries OpenRouter's own fee
 usd_per_million = { "elevenlabs/eleven-v4" = 80, "elevenlabs/eleven-v4-turbo" = 40, "microsoft/mai-voice-2.1" = 22 }
 design_usd = 0.01            # no design: about a cent to speak the coaching line on each stock voice offered
-concurrency = 3
+# 30 lines on eleven-v4-turbo, 2026-11-03: 13.7 s three at a time, 7.4 s at five, 5.0 s at eight, no 429 at any
+concurrency = 6
 max_chars = 10000
 candidates = 3
 note = "stock voices only (no voice designed for you); one key also writes workouts on the web app"

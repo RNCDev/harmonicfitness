@@ -572,6 +572,46 @@ class Turn(JobsCase):
         self.assertEqual(prompts[1], "25 minutes")
         self.assertEqual(started, [today()])
 
+    def test_the_bare_topics_ask_is_answered_at_once_then_a_light_turn_adds_it(self):
+        from concurrent.futures import Future
+        from webapp import agent
+        from pydantic_ai.messages import UserPromptPart
+        uk = self.user()
+        ver, body = store.read_all(self.conn, uk)["profile.md"]   # set up: an experience level
+        store.write_back(self.conn, uk, {"profile.md": body.replace(b'experience = ""', b'experience = "novice"')},
+                         {"profile.md": ver})
+        self.conn.commit()
+        line = "I'd like to update my interests."
+        cid = self.start(uk, line)
+        started, prompts = [], []
+
+        def fake_feeds(deps, pool):
+            started.append(deps.today)
+            f = Future()
+            f.set_result(agent.tools.ToolResult(code=0, output="sunny"))
+            return f
+
+        def never(messages, info):
+            raise AssertionError("the opener needs no model")
+        with mock.patch.object(agent, "start_feeds", side_effect=fake_feeds):
+            job, conv = self.run_turn(uk, never, cid, line=line)
+            self.assertEqual(self.state(job), ("done", None))
+            self.assertEqual(conv.lines[-1], {"role": "agent", "text": agent.TOPICS_OPENER})
+            self.conn.rollback()
+
+            def script(messages, info):
+                prompts.append([p.content for m in messages for p in m.parts if isinstance(p, UserPromptPart)][-1])
+                return ModelResponse(parts=[TextPart("Added Example Letter.")])
+            nxt = "I like reading https://www.example.com/"
+            self.assertTrue(conversations.begin_turn(self.conn, uk, cid, nxt, None))
+            self.conn.commit()
+            job, conv = self.run_turn(uk, script, cid, line=nxt)
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertIn("A topics job", prompts[0])          # the topics as they stand, in place of step 1
+        self.assertNotIn("Step 1 is done", prompts[0])
+        self.assertEqual(started, [])                      # no feeds for a topics job
+        self.conn.rollback()
+
     def test_a_recording_is_priced_then_approved_then_kept(self):
         from webapp import clipcache, media
         uk = self.user()

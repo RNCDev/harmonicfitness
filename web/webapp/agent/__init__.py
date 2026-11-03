@@ -18,7 +18,8 @@ from typing import Callable
 from pydantic_ai import Agent, CancellationToken, ModelMessagesTypeAdapter, RunContext, UsageLimits, WebSearchTool
 from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.capabilities import NativeTool
-from pydantic_ai.messages import NativeToolCallPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import (ModelRequest, ModelResponse, NativeToolCallPart, TextPart, ToolCallPart, ToolReturnPart,
+                                 UserPromptPart)
 from pydantic_ai.models.wrapper import WrapperModel
 
 from . import tools, writers
@@ -40,8 +41,21 @@ SKILL = (".claude/skills/workout/SKILL.md",)   # research.md is for a computer's
 WRITING = ("knowledge/script.md", "knowledge/tts-rules.md")
 SETUP = (".claude/skills/setup/SKILL.md",)
 COACH = (".claude/skills/coach/SKILL.md",)
-SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard|my interests|"
-                         r"(add|new|suggest)\w*( a| some)? topics?)\b", re.IGNORECASE)
+SETUP_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard)\b", re.IGNORECASE)
+# A topics job: what fills the rests, added at once with `topics add` (0.63.0), on a light turn of its own.
+TOPIC_WORDS = re.compile(r"\b(my (interests|topics)|interests? (to|for) (talk|follow|hear)|"
+                         r"(add|new|suggest|update|change|more|some|trending)\w*( a| an| some| this| that| my| more)?"
+                         r"( new)? (topics?|interests?|podcasts?|newsletters?|blogs?|feeds?|things to talk about))\b",
+                         re.IGNORECASE)
+# The bare ask, with nothing named: the page's "I'd like to update my interests." and its like. The site answers
+# it at once, with no model request; anything with a name in it goes to the model (a false match costs a turn).
+BARE_TOPICS = re.compile(r"^\W*((hi|hey|ok|so)\W+)?((i'?d|i would) like to|i want to|can (you|we)|could (you|we)|"
+                         r"let'?s|please)?\s*(update|change|add( to)?|edit)\s+((my|a|an|some|new)\s+)*"
+                         r"(interests?|topics?)"
+                         r"(\s+(please|now))?\W*$", re.IGNORECASE)
+OPENER_MOST = 4000   # characters: a history holding only the opener is far shorter
+TOPICS_OPENER = ("What's on your mind? A subject, a team, a podcast or a site you read: name it and I'll add it. "
+                 "Or do you want me to offer some trending topics?")
 # Asking to be set up (the quick start's interview), as against a task the setup skill also covers (interests).
 ONBOARD_WORDS = re.compile(r"\b(set(ting)? me up|set ?up|get(ting)? started|my profile|onboard)\b", re.IGNORECASE)
 # Asking for a workout: the one request a new listener's setup questions come with.
@@ -75,11 +89,14 @@ CRAFT = "\n## Getting the workout done"
 
 
 @functools.lru_cache(maxsize=8)
-def skill_text(engine_root: str, setup: bool = False, coach: bool = False, writers: str = "one") -> str:
+def skill_text(engine_root: str, setup: bool = False, coach: bool = False, writers: str = "one",
+               topics: bool = False) -> str:
     """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet, and the
     coach skill while a coach is being made), so the web follows the same steps as the CLI, less the passages
     marked for a computer only; with three writers, script.md only up to its craft, which the writers read."""
     parts = []
+    if topics and not (setup or coach):   # a topics job: the preamble's own rule is all it needs, read in a moment
+        return ""
     for rel in (SETUP if setup else ()) + (COACH if coach else ()) + SKILL + WRITING:
         with open(os.path.join(engine_root, rel), encoding="utf-8") as f:
             text = web_copy(f.read())
@@ -106,6 +123,58 @@ def wants_setup(line: str | None) -> bool:
 
 def wants_coach(line: str | None) -> bool:
     return bool(line and COACH_WORDS.search(line))
+
+
+def wants_topics(line: str | None) -> bool:
+    return bool(line and TOPIC_WORDS.search(line))
+
+
+def topics_job(first: str | None, line: str | None) -> bool:
+    """Whether this turn is a topics job (`topics add`, or trending ideas): a conversation that began with it (on
+    its first turn `first` is this line), where this line asks for nothing else (a workout, what they enjoyed, a
+    coach). A topic asked for in a workout's check-in stays in the workout's turn, with its skill."""
+    if not line or intent(line) in ("workout", "setup", "coach") or ENJOYED.search(line) or WORKOUT_WORDS.search(line):
+        return False   # "my interests, then a workout" needs the workout skill
+    return wants_topics(first)
+
+
+def opener_turn(line: str) -> "TurnOutcome":
+    """The bare "update my interests" answered at once, with no model request: the opener, kept in the history
+    as the model's own reply, so the next turn reads it as a conversation already under way."""
+    history = [ModelRequest(parts=[UserPromptPart(content=line)]), ModelResponse(parts=[TextPart(content=TOPICS_OPENER)])]
+    return TurnOutcome(history_json=ModelMessagesTypeAdapter.dump_json(history).decode("utf-8"), reply=TOPICS_OPENER,
+                       usage={"requests": 0, "tool_calls": 0, "input_tokens": 0, "output_tokens": 0, "searches": 0})
+
+
+def only_opener(history_json: str | None) -> bool:
+    """Whether a conversation's history is just the site's opener: its next turn is the first that reads step 1."""
+    if not history_json or len(history_json) > OPENER_MOST:   # a longer one holds more than the opener
+        return False
+    try:
+        history = ModelMessagesTypeAdapter.validate_json(history_json or "")
+    except ValueError:
+        return False
+    return (len(history) == 2 and isinstance(history[1], ModelResponse)
+            and [getattr(p, "content", None) for p in history[1].parts] == [TOPICS_OPENER])
+
+
+def topics_context(home: str) -> str:
+    """What a topics turn starts from, in place of step 1: the topics, venues and never-bring-up lines as
+    content.md has them (`topics add` checks for a name already there itself)."""
+    try:
+        with open(os.path.join(home, "content.md"), encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return "No content.md yet."
+    body = text.split("+++", 2)[2] if text.startswith("+++") and text.count("+++") >= 2 else text
+    keep, out = False, []
+    for line in body.splitlines():
+        if line.startswith("## "):
+            keep = line[3:].strip().casefold() in ("topics", "venues", "never bring up", "learned from you")
+        if keep:
+            out.append(line)
+    return ("A topics job: the listener's content.md, its topics, venues and never-bring-up lines as they stand "
+            "(nothing else from step 1 was read this turn):\n\n" + "\n".join(out).strip())
 
 
 def intent(line: str | None) -> str:
@@ -143,7 +212,7 @@ def _preamble(ctx: RunContext[Deps]) -> str:
 
 @AGENT.instructions
 def _skill(ctx: RunContext[Deps]) -> str:
-    return skill_text(ctx.deps.engine_root, ctx.deps.setup, ctx.deps.coach, ctx.deps.writers)
+    return skill_text(ctx.deps.engine_root, ctx.deps.setup, ctx.deps.coach, ctx.deps.writers, ctx.deps.topics)
 
 
 @AGENT.instructions
@@ -158,7 +227,8 @@ STEPS = {"brief": "Working out today's safe moves", "build": "Recording your wor
          "feeds": "Gathering today's news and weather", "get": "Checking your settings",
          "log-session": "Logging the session", "movements": "Looking through the moves",
          "youtube": "Finding a video", "keys": "Checking your voice keys", "help": "Looking up how a step works",
-         "interests": "Noting what you enjoy", "workouts": "Looking at your past workouts"}
+         "interests": "Noting what you enjoy", "workouts": "Looking at your past workouts",
+         "topics": "Adding your topic"}
 # a command's second word, where it says more than the first
 SUB_STEPS = {("get", "cost"): "Pricing the recording", ("get", "web-builds"): "Checking your past recordings",
              ("content", "log"): "Noting the stories you heard", ("content", "reserve"): "Checking the story stock",
@@ -296,12 +366,52 @@ def _coach_folders(home: str) -> set[str]:
 
 RECORDING = "Recording your workout"
 AUTO_RECORDED = ("Recorded straight away: the listener chose Record without asking in Settings, so there was no "
-                 "Record button. Log the session, then end your turn with the plan in one small table, the coach, "
-                 "and a line saying it's ready (in place of the one-line reply).")
+                 "Record button. Log the session unless the site says below that it did, then end your turn with "
+                 "the plan in one small table, the coach, and a line saying it's ready (in place of the one-line "
+                 "reply).")
 SCHEDULED_RECORDED = ("Recorded on time: the listener scheduled this workout and approved it, up to its ceiling, when "
-                      "they pressed Schedule it, so there was no Record button. Log the session, then end your turn "
-                      "with the plan in one small table, the coach, and a line saying it's ready for their time "
-                      "(in place of the one-line reply).")
+                      "they pressed Schedule it, so there was no Record button. Log the session unless the site says "
+                      "below that it did, then end your turn with the plan in one small table, the coach, and a line "
+                      "saying it's ready for their time (in place of the one-line reply).")
+# log-session's refusal for a draft not built as it stands: sent ahead of its recording, it's kept for then
+NOT_BUILT = "no build of"
+LOG_KEPT = ("Kept: this draft isn't recorded yet, so the site logs the session with these fields the moment the "
+            "recording is made. Don't run log-session for it again.")
+ALREADY_LOGGED = "Already logged: the site logged this session as the recording was made. Nothing more to log."
+LOGGING = "Logging the session"
+NOTING = "Noting the stories you heard"
+
+
+def log_after(deps: Deps, ok: dict, draft: str, result: ToolResult) -> ToolResult:
+    """Once a recording is made, the site logs it, so the model needn't spend a request on each: the stories the
+    writers' room told (content log) and the log-session the agent sent ahead of the recording (kept on the offer
+    for a Record button's turn). Either one refused goes to the model in the result, to fix and run itself."""
+    notes = []
+    room = deps.told if deps.told and deps.told.get("draft") == draft else {}
+    told = ok.get("told") or room.get("items")
+    if told:
+        argv = ["content", "log", "--date", deps.today, "--draft", draft]
+        for item in told:
+            argv += ["--item", item]
+        r = _step(deps, NOTING, "run content log", lambda: tools.run(deps, argv))
+        notes.append(f"The site logged the {len(told)} stories the writers told (content log): don't log them again."
+                     if r.code == 0 else
+                     f"The site's content log of the writers' stories was refused (exit {r.code}): "
+                     f"{(r.output + ' ' + r.error).strip()[:600]}. Run content log yourself, fixed.")
+    pending = ok.get("log") or deps.pending_log
+    if pending and tools._flag(pending, "--draft") == draft and deps.logged != draft:
+        r = _step(deps, LOGGING, "run log-session", lambda: tools.run(deps, pending))
+        if r.code == 0:
+            deps.logged = draft
+            notes.append("The site logged the session with the log-session you sent before the recording: don't run "
+                         "it again.")
+        else:
+            notes.append(f"The log-session you sent before the recording was refused (exit {r.code}): "
+                         f"{(r.output + ' ' + r.error).strip()[:600]}. Run it again, fixed.")
+    deps.pending_log = None
+    if not notes:
+        return result
+    return result.model_copy(update={"output": result.output + "\n\n" + "\n".join(notes)})
 OFF_PLAN = 2   # the build's exit when the MP3's total ran more than five percent off plan: an MP3 was still made
 OFF_PLAN_NOTE = f"{RECORDING} (a little off its planned length)"
 PROGRESS = re.compile(r"^\s*\[(\d+)/(\d+)\]", re.MULTILINE)   # render_cloud's "  [18/40] 4.2s audio"
@@ -408,7 +518,10 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
         draft = rest[1] if len(rest) > 1 else None
         if deps.approved and deps.approved.get("draft") == draft:
             deps.phase = "recorded"
+            ok = dict(deps.approved)
             result = _recording(deps, args, tool)
+            if deps.recorded:   # logged before the checkpoint, so a turn that stops after it keeps the log too
+                result = log_after(deps, ok, deps.recorded, result)
             if deps.recorded and deps.checkpoint is not None:
                 deps.checkpoint()   # the coach, the MP3 and the clips, kept now: a later stop can't lose them
             return result
@@ -419,9 +532,20 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
                 "Checking the script again" if deps.lint_failed else "Checking the script's safety and timing")
     if first == "coaches" and len(rest) > 1 and rest[1] in COACH_STEPS:
         text = COACH_STEPS[rest[1]]
+    logs = tools._flag(rest, "--draft") if first == "log-session" else None
+    if logs and deps.logged == logs:   # the site logged it as the recording was made
+        return ToolResult(code=0, output=ALREADY_LOGGED)
     result = _step(deps, text, tool, lambda: tools.run(deps, args))
     if result.refused:   # the site's own refusal: the script wasn't checked, so nothing about it changes
         return result
+    if logs and result.code != 0 and NOT_BUILT in result.output + result.error:
+        # sent ahead of the recording: kept, and run by the site the moment the recording is made (log_after)
+        deps.pending_log = list(rest)
+        if deps.offer and deps.offer.get("draft") == logs:
+            deps.offer["log"] = list(rest)
+        return ToolResult(code=0, output=LOG_KEPT)
+    if logs and result.code == 0:
+        deps.logged = logs
     if first == "build" and deps.skeleton:   # the lint gave the budgets: the words come next
         # after the whole skeleton's budgets come the rests, the stories: the request that writes them thinks hardest
         deps.phase = "rests" if deps.skeleton == "skeleton" else "skeleton"
@@ -883,7 +1007,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     try:
         result = AGENT.run_sync(prompt, model=Narrated(model, deps), deps=deps, message_history=history,
                                 usage_limits=LIMITS, cancellation_token=token,
-                                capabilities=[NativeTool(t) for t in native_tools(model)])
+                                capabilities=[] if deps.topics else [NativeTool(t) for t in native_tools(model)])
     except RunCancelled:
         if not expired.is_set() and deps.cancel is not None and deps.cancel.is_set():
             raise TurnError("stopped", STOPPED) from None

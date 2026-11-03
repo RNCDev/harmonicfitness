@@ -433,7 +433,12 @@ class Encode(unittest.TestCase):
         chains = [c[c.index("-af") + 1] for c in cmds]
         self.assertEqual(len(chains), 2)
         self.assertTrue(chains[0].startswith(render.COMPRESS + ",ebur128="), chains)   # the measuring pass
-        self.assertTrue(chains[1].startswith(render.COMPRESS + ",loudnorm="), chains)
+        # then the gain to the target (-20 LUFS measured: +4 dB) and the limiter, never loudnorm's 192 kHz pass
+        self.assertEqual(chains[1], render.COMPRESS + ",volume=4.00dB,alimiter=limit=0.75:level=false")
+
+    def test_the_gain_stops_at_its_cap(self):
+        self.assertEqual(render.gain_db({"input_i": "-70"}), render.MAX_GAIN_DB)
+        self.assertEqual(render.gain_db({"input_i": "-10"}), -6.0)
 
 
 class WindowsReplace(unittest.TestCase):
