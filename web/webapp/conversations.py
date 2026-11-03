@@ -30,7 +30,8 @@ class Conversation:
     coach: bool = False         # a coach is being made: the coach skill comes with the next turn too
     # a workout for later (0.60.0): {"at": UTC ISO, "local": "YYYY-MM-DD Weekday HH:MM", "offset": minutes east of
     # UTC}, and once the check-in is done the plan's estimate ("minutes", "coach", "chars", "usd", "ceiling_chars",
-    # "ceiling_usd"); "due" (UTC ISO, when the turn that writes it starts) once it's scheduled
+    # "ceiling_usd"); "due" (UTC ISO, when the turn that writes it starts) once it's scheduled; "done" once that
+    # turn has written it
     later: dict | None = None
     job_id: int | None = None   # plain; written only by set_job, never by save
     updated_at: datetime.datetime | None = None   # plain, as last read; save moves it to now() in the row

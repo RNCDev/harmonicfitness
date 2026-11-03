@@ -1121,7 +1121,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 "lines": c.lines, "question": c.question, "plan": c.plan,
                 "offer": {k: c.offer[k] for k in ("name", "coach", "chars", "usd", "service", "design")
                           if k in c.offer} if c.offer and c.state in ("idle", "failed") else None,
-                "later": {k: c.later[k] for k in ("at", "local", "due", "minutes", "coach", "usd", "ceiling_usd")
+                "later": {k: c.later[k] for k in ("at", "local", "due", "done", "minutes", "coach", "usd", "ceiling_usd")
                           if k in c.later} if c.later else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None}
 

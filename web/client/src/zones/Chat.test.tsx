@@ -83,6 +83,9 @@ describe("the chat", () => {
     expect(screen.getByRole("textbox")).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalled();
+    rerender(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]}
+      later={{ ...later, at: new Date(Date.now() - 60000).toISOString() }} />);
+    expect(screen.queryByRole("button", { name: /Schedule it/ })).toBeNull();   // its time has passed
   });
 
   it("Stop sits beside Send while the coach works, and only then", () => {

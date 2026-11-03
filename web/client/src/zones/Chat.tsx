@@ -331,7 +331,8 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
           </div>
         ))}
         {offer && !working && <RecordOffer offer={offer} onRecord={onRecord} />}
-        {later && later.usd != null && !offer && !working && !scheduled && <LaterOffer later={later} onSchedule={onSchedule} />}
+        {later && later.usd != null && !later.done && !later.due && new Date(later.at).getTime() > Date.now() && !offer
+          && !working && !scheduled && <LaterOffer later={later} onSchedule={onSchedule} />}
         {later && scheduled && <Scheduled later={later} onCancel={onCancel} />}
         {working && <Working steps={steps} stopping={stopping} />}
       </div>

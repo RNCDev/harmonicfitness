@@ -47,8 +47,8 @@ export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
 export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean };
 /** A workout for later: its time (UTC and the listener's), and once the check-in is done, its cost and ceiling;
  * `due` once it's scheduled (when the writing starts). */
-export type Later = { at: string; local: string; due?: string; minutes?: number; coach?: string; usd?: number;
-  ceiling_usd?: number };
+export type Later = { at: string; local: string; due?: string; done?: boolean; minutes?: number; coach?: string;
+  usd?: number; ceiling_usd?: number };
 export type Conversation = {
   id: number; state: "working" | "waiting" | "idle" | "failed" | "scheduled"; job_id: number | null;
   later?: Later | null;

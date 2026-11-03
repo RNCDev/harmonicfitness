@@ -738,8 +738,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     later = conv.later
     if deps.schedule and not deps.scheduled_run:   # the check-in is done: the plan's estimate, for Schedule it
         later = dict(conv.later or {}, **deps.schedule)
-    elif deps.scheduled_run:
-        later = None   # written (and recorded, or priced for the Record button): nothing waits for later
+    elif deps.scheduled_run:   # written (and recorded, or priced for the Record button): the page opens it on return
+        later = dict({k: v for k, v in (conv.later or {}).items() if k in ("at", "local", "due")}, done=True)
     done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle", later=later,
                                history=outcome.history_json, lines=lines, question=outcome.question,
                                plan=outcome.plan, stem=outcome.stem, offer=deps.offer,

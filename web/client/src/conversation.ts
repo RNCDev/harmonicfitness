@@ -63,7 +63,8 @@ export function useConversation(onSignedOut: () => void) {
   // and Stop). One from today waiting on the listener (the coach's questions, or a Record offer) is offered there.
   useEffect(() => {
     api.latestConversation().then((c) => {
-      if (c?.state === "working" || c?.state === "scheduled") adopt(c);
+      // a scheduled workout opens on its own, waiting, written, or failed: the listener came back for it
+      if (c?.state === "working" || c?.state === "scheduled" || (c?.later?.due && !isHistory(c))) adopt(c);
       else setWaiting(c && resumable(c) ? c : null);
     }, fail);
   }, [adopt, fail]);

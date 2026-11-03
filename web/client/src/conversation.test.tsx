@@ -64,6 +64,15 @@ describe("useConversation", () => {
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(51));
   });
 
+  it("opens a scheduled workout that was written while the page was closed", async () => {
+    const done = conv({ state: "idle", lines: [{ role: "agent", text: "", audio: { id: "a", name: "W", expires_at: "x" } }],
+      later: { at: new Date().toISOString(), local: "x", due: new Date().toISOString(), done: true } });
+    m.latest.mockResolvedValue(done);
+    const { result } = renderHook(() => useConversation(out));
+    await waitFor(() => expect(result.current.conv?.id).toBe(7));
+    expect(result.current.waiting).toBeNull();
+  });
+
   it("sets noKey when there is no model key", async () => {
     m.latest.mockResolvedValue(undefined);
     m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Settings first."));

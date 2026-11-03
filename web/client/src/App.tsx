@@ -240,7 +240,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
           start={start} onCoach={chooseCoach} coachBar={coachBar}
           waiting={waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null} onResume={resume}
           onAddKey={addKey} onOpenCoaches={() => setPage("coaches")}
-          later={conv?.later ?? null} scheduled={conv?.state === "scheduled"} onSchedule={schedule} onCancel={cancel} />
+          later={conv && conv.state !== "failed" ? conv.later ?? null : null} scheduled={conv?.state === "scheduled"} onSchedule={schedule} onCancel={cancel} />
       </div>
       <ContextColumn username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
         onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
