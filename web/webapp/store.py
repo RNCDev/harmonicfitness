@@ -86,6 +86,17 @@ def listing(conn, uk: UserKey) -> list[tuple[str, int, object]]:
     return sorted((_open_path(uk, p), v, u) for p, v, u in rows)
 
 
+def fingerprint(conn, uk: UserKey) -> str:
+    """A digest of which files the user has and each one's version, from the rows alone (no path or body is
+    opened): it changes whenever a file is written, added or removed."""
+    rows = conn.execute("select path_hash, version, updated_at from context_files where user_id = %s "
+                        "order by path_hash", (uk.user_id,)).fetchall()
+    h = hashlib.sha256()
+    for path_hash, v, u in rows:
+        h.update(bytes(path_hash) + f":{v}:{u.isoformat()}\n".encode())
+    return h.hexdigest()
+
+
 def write_back(conn, uk: UserKey, changes: dict[str, bytes | None],
                base: dict[str, int]) -> list[str]:
     """Apply changes in the caller's transaction; return the paths that conflicted.

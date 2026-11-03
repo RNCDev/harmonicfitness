@@ -2,6 +2,7 @@
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -201,6 +202,40 @@ class Gather(unittest.TestCase):
         self.assertEqual(r["minutes"], 25)
 
 
+class Kept(unittest.TestCase):
+    """The answer kept per listener (pure)."""
+
+    def setUp(self):
+        start._kept.clear()
+        self.addCleanup(start._kept.clear)
+
+    def test_kept_only_for_what_it_was_made_from(self):
+        start.remember("u1", ("a", 1), {"n": 1})
+        self.assertEqual(start.cached("u1", ("a", 1)), {"n": 1})
+        self.assertIsNone(start.cached("u2", ("a", 1)))
+        self.assertIsNone(start.cached("u1", ("a", 2)))   # made from something else: dropped
+        self.assertIsNone(start.cached("u1", ("a", 1)))
+
+    def test_kept_a_while_then_dropped(self):
+        with mock.patch.object(start.time, "monotonic", return_value=1000.0):
+            start.remember("u1", ("a",), {"n": 1})
+        with mock.patch.object(start.time, "monotonic", return_value=1000.0 + start.KEEP_SECONDS - 1):
+            self.assertEqual(start.cached("u1", ("a",)), {"n": 1})
+        with mock.patch.object(start.time, "monotonic", return_value=1000.0 + start.KEEP_SECONDS + 1):
+            self.assertIsNone(start.cached("u1", ("a",)))
+
+    def test_the_least_recently_asked_goes_first(self):
+        with mock.patch.object(start, "KEEP_USERS", 2):
+            start.remember("u1", (), {"n": 1})
+            start.remember("u2", (), {"n": 2})
+            start.cached("u1", ())
+            start.remember("u3", (), {"n": 3})
+        self.assertIsNotNone(start.cached("u1", ()))
+        self.assertIsNone(start.cached("u2", ()))
+        start.forget("u1")
+        self.assertIsNone(start.cached("u1", ()))
+
+
 class Route(test_api.ApiCase):
     def test_needs_session(self):
         self.assertEqual(self.client.get("/api/start").status_code, 401)
@@ -227,6 +262,34 @@ class Route(test_api.ApiCase):
         self.conn.commit()
         body = self.client.get("/api/start").json()
         self.assertEqual(body["coaches"][0]["slug"], "coach-fraser-gemini")   # the first of Gemini's six by name
+
+    def test_kept_until_a_file_a_key_or_the_coach_changes(self):
+        start._kept.clear()
+        self.addCleanup(start._kept.clear)
+        _, uk = self.signed_in()
+        from webapp import keystore, store
+        store.write_back(self.conn, uk, folder.seed(ROOT), {})
+        keystore.put(self.conn, uk, "gemini", "abc123def456abcd")
+        self.conn.commit()
+        with mock.patch.object(start, "gather", wraps=start.gather) as gather:
+            first = self.client.get("/api/start").json()
+            self.assertEqual(self.client.get("/api/start").json(), first)
+            self.assertEqual(gather.call_count, 1)   # the second load read no files and ran no engine
+            store.put(self.conn, uk, "profile.md", b"+++\nschema = 6\n+++\n")
+            self.conn.commit()
+            self.client.get("/api/start")
+            self.assertEqual(gather.call_count, 2)
+            keystore.put(self.conn, uk, "fish", "abc123def456abcd")
+            self.conn.commit()
+            self.client.get("/api/start")
+            self.assertEqual(gather.call_count, 3)
+            keystore.set_coach(self.conn, uk, "coach-wade-gemini", "2026-11-03")
+            self.conn.commit()
+            self.client.get("/api/start")
+            self.assertEqual(gather.call_count, 4)
+        self.assertIn(uk.user_id, start._kept)
+        self.assertEqual(self.client.post("/api/sign-out", headers=self.origin()).status_code, 204)
+        self.assertNotIn(uk.user_id, start._kept)   # signing out drops it
 
 
 if __name__ == "__main__":

@@ -3,20 +3,61 @@
     "Hey [coach], give me [25 minutes] of [strength] at [home]. Go easy on my [left knee]."
 
 `gather` writes the listener's files to a temporary folder and runs two read-only engine commands there
-(`coaches list --json`, `coverage --json`), each in its own process, so HARMONICFITNESS_HOME is never set in
-this one. `shape` turns the files and those two answers into the response; it is pure (no database, no
-paths) and is what the tests exercise. Nothing here opens a key: `keyed` is only which services have one.
+(`coaches list --json`, `coverage --json`), side by side, each in its own process, so HARMONICFITNESS_HOME is
+never set in this one. `shape` turns the files and those two answers into the response; it is pure (no
+database, no paths) and is what the tests exercise. Nothing here opens a key: `keyed` is only which services
+have one.
+
+The answer is kept a while per listener (`cached`, `remember`), under what it was made from: the files'
+versions (`store.fingerprint`), the keyed services, the chosen coach and the day. Any change to one of those
+makes a fresh answer, so a page load usually skips the files and the engine altogether.
 """
 import json
 import os
 import re
 import tempfile
+import threading
+import time
 import tomllib
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 
 from . import engine, folder, worker
 
 MINUTES_DEFAULT, MINUTES_MIN, MINUTES_MAX = 25, 10, 60
 READ_TIMEOUT = 60   # seconds per engine command; a cold start on the server is slower than a laptop's
+KEEP_SECONDS = 3600   # how long an answer is kept for a listener whose files don't change
+KEEP_USERS = 256      # answers kept at once; the least recently asked goes first
+
+_kept: OrderedDict = OrderedDict()   # user id -> (what it was made from, when, the answer)
+_kept_lock = threading.Lock()
+
+
+def cached(user_id, made_from: tuple) -> dict | None:
+    """The answer kept for this listener, if it was made from `made_from` within KEEP_SECONDS."""
+    with _kept_lock:
+        entry = _kept.get(user_id)
+        if entry is None:
+            return None
+        if entry[0] != made_from or time.monotonic() - entry[1] > KEEP_SECONDS:
+            del _kept[user_id]
+            return None
+        _kept.move_to_end(user_id)
+        return entry[2]
+
+
+def remember(user_id, made_from: tuple, answer: dict) -> None:
+    with _kept_lock:
+        _kept[user_id] = (made_from, time.monotonic(), answer)
+        _kept.move_to_end(user_id)
+        while len(_kept) > KEEP_USERS:
+            _kept.popitem(last=False)
+
+
+def forget(user_id) -> None:
+    """Drop the listener's kept answer (signing out, deleting the account)."""
+    with _kept_lock:
+        _kept.pop(user_id, None)
 
 # A preset's words for "...at [label]".
 PRESET_LABELS = {"bodyweight": "the park", "hotel-room": "a hotel room", "hotel-gym": "a hotel gym",
@@ -246,14 +287,17 @@ def _json(r: engine.Result) -> dict | None:
 
 def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, str] | None = None) -> dict:
     """Blocking: the listener's files (over the starter template, so the engine always sees a whole folder)
-    in a temporary folder, the two engine reads, then `shape`. Neither command's output leaves here."""
+    in a temporary folder, the two engine reads (side by side: both only read), then `shape`. Neither
+    command's output leaves here."""
     goals, presets = worker.engine_lists(engine_root)
     with tempfile.TemporaryDirectory(prefix="wt-start-") as tmp:
         home = os.path.join(tmp, "me")
         os.mkdir(home)
         folder.materialize({**folder.seed(engine_root), **files}, home)
-        listed = _json(engine.run(engine_root, home, ["coaches", "list", "--json"], timeout=READ_TIMEOUT))
-        coverage = _json(engine.run(engine_root, home, ["coverage", "--json"], timeout=READ_TIMEOUT))
+        with ThreadPoolExecutor(2) as pool:
+            reads = [pool.submit(engine.run, engine_root, home, argv, timeout=READ_TIMEOUT)
+                     for argv in (["coaches", "list", "--json"], ["coverage", "--json"])]
+            listed, coverage = (_json(r.result()) for r in reads)
     coaches = listed.get("coaches") if listed else None
     return shape(files, keyed, coaches if isinstance(coaches, list) else [], coverage,
                  engine_root=engine_root, presets=presets, goals=goals,

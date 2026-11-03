@@ -2,6 +2,23 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.62.0] - 2026-11-03
+
+The website's home page fills in faster once you're signed in. The opening sentence ("Hey, coach Reed, I'd like a 25-minute strength workout at home") was worked out from every one of the listener's files, by the engine run twice in a row, on every page load, and the page asked for it twice.
+
+### Changed
+- **The first screen's answer is kept per listener** (web, `GET /api/start`, `start.cached`): for up to an hour, under what it was made from: the files' versions (`store.fingerprint`, read from the rows without opening a path or body), the keyed services, the chosen coach and the day. A load with nothing changed reads no files and runs no engine; any change makes a fresh answer, and signing out or deleting the account drops it.
+- **Its two engine reads run side by side** (`start.gather`): `coaches list --json` and `coverage --json` only read, so the one waits on neither.
+- **The page asks for it once** (`App.tsx`): it asked again as soon as the keys list arrived, though the server had read the same keys; now it asks again only when a key changes.
+- **The sentence shows at once** (`Chat`, `Starter`): as soon as the page knows the keys, with its blanks rolling in when the answer comes; "Plan my workout" waits for it.
+- **`GET /api/level` reads only the profile's four files** (`level.parts`), not every file, on each page load.
+
+### Fixed
+- **A job test no longer fails after 22:30 UTC** (`webtests/test_jobs.py`): the listener's clock it sent was a fixed 08:00, more than fourteen hours off the server's late in the UTC day, so the listener's time zone was left out.
+
+### For forks
+- **Nothing to migrate.** A fork running several web processes keeps an answer in each, and each drops it on a change in the same way.
+
 ## [0.61.4] - 2026-11-03
 
 A deploy no longer kills a workout being written or recorded on the website.

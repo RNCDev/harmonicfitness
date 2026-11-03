@@ -1,5 +1,5 @@
 // The app: the sign-in page, or once signed in the sky, the chat, and the Settings drawer.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, APP_NAME, NotSignedIn, type KeyState, type Me, type StartInfo } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
 import { Mark } from "./Mark";
@@ -111,16 +111,23 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const steps = stepsOf(job?.stages ?? []);
 
   // What the first screen's sentence is filled in with: asked at once, beside the keys, and again whenever
-  // which keys are set changes. If it can't be had, the sentence still comes, with plain defaults.
+  // which keys are set changes. The keys list arriving isn't a change: the server read the same keys for the
+  // first answer. Only the latest ask is used. If it can't be had, the sentence still comes, with plain defaults.
   const [start, setStart] = useState<StartInfo | null>(null);
-  const keySig = (keys ?? []).map((k) => `${k.service}:${k.kind}:${k.set}`).join(",");
+  const keySig = keys === null ? null : keys.map((k) => `${k.service}:${k.kind}:${k.set}`).join(",");
+  const asked = useRef<{ sig: string | null; n: number } | null>(null);
   useEffect(() => {
-    let live = true;
-    api.start().then((s) => { if (live) setStart(s); }, (e) => {
+    const was = asked.current;
+    if (was && was.sig === null && keySig !== null) {
+      asked.current = { ...was, sig: keySig };
+      return;
+    }
+    const n = (was?.n ?? 0) + 1;
+    asked.current = { sig: keySig, n };
+    api.start().then((s) => { if (asked.current?.n === n) setStart(s); }, (e) => {
       if (e instanceof NotSignedIn) return onSignedOut();
-      if (live) setStart((s) => s ?? NO_START);
+      if (asked.current?.n === n) setStart((s) => s ?? NO_START);
     });
-    return () => { live = false; };
   }, [keySig, onSignedOut]);
   const coaches = start?.coaches ?? [];
   const shown = coaches.find((c) => c.current) ?? null;
@@ -237,7 +244,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
         <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
           offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
           onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
-          start={start} onCoach={chooseCoach} coachBar={coachBar}
+          start={start} starting={start === null && keys !== null} onCoach={chooseCoach} coachBar={coachBar}
           waiting={waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null} onResume={resume}
           onAddKey={addKey} onOpenCoaches={() => setPage("coaches")}
           later={conv && conv.state !== "failed" ? conv.later ?? null : null} scheduled={conv?.state === "scheduled"} onSchedule={schedule} onCancel={cancel} />

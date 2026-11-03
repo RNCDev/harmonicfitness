@@ -56,6 +56,8 @@ type Props = {
   onAddKey?: (service: string) => void;
   /** What the first screen's sentence is filled in with (null until it arrives). */
   start?: StartInfo | null;
+  /** The sentence shows before `start` arrives, its blanks rolling in when it does. */
+  starting?: boolean;
   /** The coach picked in the sentence. */
   onCoach?: (slug: string) => void;
   /** Opens the Coaches page. */
@@ -280,7 +282,7 @@ function atTime(iso: string | null): string {
 }
 
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
-  needsKey = null, onAddKey, start = null, onCoach, onOpenCoaches, coachBar = null, waiting = null, onResume,
+  needsKey = null, onAddKey, start = null, starting = false, onCoach, onOpenCoaches, coachBar = null, waiting = null, onResume,
   later = null, scheduled = false, onSchedule, onCancel }: Props) {
   const [text, setText] = useState(readDraft);
   const [stopping, setStopping] = useState(false);
@@ -319,7 +321,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
             <span className="resume-go" aria-hidden="true">→</span>
           </button>
         )}
-        {lines.length === 0 && !working && !needsKey && start && (
+        {lines.length === 0 && !working && !needsKey && (start || starting) && (
           <Starter info={start} onStart={onSend} onCoach={onCoach} onOpenCoaches={onOpenCoaches}
             onFill={(line) => { setText(line); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(line.length, line.length); }); }} />
         )}

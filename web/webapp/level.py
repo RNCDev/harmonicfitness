@@ -10,6 +10,12 @@ from . import worker
 from .workouts import Refused, _ok, _run
 
 
+def parts(engine_root: str) -> tuple[str, ...]:
+    """The files `current` reads (the profile's four), so a caller can fetch only those."""
+    ctx, = worker._engine_modules(engine_root, "context")
+    return tuple(ctx.PROFILE_PARTS)
+
+
 def current(engine_root: str, files: dict[str, bytes]) -> dict:
     """{"level", "set", "choices": [{"level", "said"}]}: the level the engine reads (its home file first), else
     novice with "set" false."""

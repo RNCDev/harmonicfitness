@@ -52,6 +52,32 @@ describe("the app", () => {
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
   });
 
+  it("shows the sentence before the start screen's answer, and asks for it once as the keys arrive", async () => {
+    const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
+    const gemini = { service: "gemini", name: "Gemini", key_page: "https://g.example", updated_at: null };
+    const starts: ((r: Response) => void)[] = [];
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/me") return json({ app_name: "HarmonicFitness", username: "ana", has_password: true, version: "" });
+      if (url === "/api/keys") return json([{ ...gemini, kind: "model", set: true }, { ...gemini, kind: "voice", set: true }]);
+      if (url === "/api/start") return new Promise<Response>((r) => { starts.push(r); });
+      if (url === "/api/conversations/latest") return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.resolve(new Response(null, { status: 404 }));
+    }));
+    render(<App />);
+    const plan = await screen.findByRole("region", { name: "Plan a workout" }, { timeout: 5000 });
+    expect(plan).toHaveAttribute("aria-busy", "true");   // the sentence is up while the answer is on its way
+    expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(starts).toHaveLength(1);   // the keys arriving is not a change
+    starts[0](new Response(JSON.stringify({ coaches: [{ slug: "coach-wade-gemini", name: "Coach Wade", first: "Wade",
+      service: "gemini", service_name: "Gemini", ready: true, own: false, current: true }], kits: [], minutes: 30,
+      limits: [], suggest: null, setup_quick: false })));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Plan my workout" })).toBeEnabled());
+    expect(screen.getByRole("region", { name: "Plan a workout" })).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByRole("button", { name: "Coach: Wade" })).toBeInTheDocument();
+    expect(starts).toHaveLength(1);
+  });
+
   it("shows the saved sky, and switches it from Settings, putting it back if the save is refused", async () => {
     const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
     const saved: string[] = [];

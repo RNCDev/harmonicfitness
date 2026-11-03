@@ -198,7 +198,7 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
   // What the app knows, until the listener changes it.
   const cur = info?.coaches.find((c) => c.current && c.ready) ?? ready[0];
   const v = {
-    coach: coach ?? cur?.first ?? "Coach",
+    coach: coach ?? cur?.first ?? (info ? "Coach" : "…"),
     minutes: minutes ?? info?.minutes ?? 25,
     place: place ?? (kits[0] ? kitWords(kits[0]) : "at home"),
     type: type ?? suggested(info) ?? "full-body workout",
@@ -327,7 +327,7 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
   }
 
   return (
-    <section className="starter" ref={wrap} aria-label="Plan a workout" onKeyDown={keys}>
+    <section className="starter" ref={wrap} aria-label="Plan a workout" aria-busy={!info} onKeyDown={keys}>
       <p className="eyebrow">{partOfDay(new Date())}{shownCoach ? ` · Coach ${shownCoach.first}, voiced by ${shownCoach.service_name}` : ""}</p>
       <p className="mad">
         Hey, coach {slot("coach", "Coach", v.coach)}, I'd like {article(v.minutes)}{" "}

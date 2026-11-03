@@ -20,6 +20,12 @@ def today() -> str:
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
 
+def now() -> str:
+    """The listener's clock as the page sends it: the server's own (UTC), so it is never more than 14 hours
+    off, whatever the hour the tests run at (a fixed 08:00 was 14.5 hours off after 22:30 UTC)."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %A %H:%M")
+
+
 class JobsCase(DBCase):
     def setUp(self):
         self.settings = config.Settings(database_url=dbcase.URL, master_key=MASTER,
@@ -486,7 +492,7 @@ class Turn(JobsCase):
 
     def turn_args(self, cid, line=None, answer=None, **over):
         args = {"conversation_id": cid, "line": line, "answer": answer, "today": today(),
-                "now": f"{today()} Wednesday 08:00"}
+                "now": now()}
         args.update(over)
         return args
 

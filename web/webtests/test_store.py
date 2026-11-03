@@ -145,6 +145,25 @@ class Store(DBCase):
         with self.assertRaises(crypto.Tampered):
             crypto.open_(b.key, bytes(row[0]), f"{a.user_id}:context_files:health.md".encode())
 
+    def test_the_fingerprint_changes_with_any_write(self):
+        _, uk = self.make_user()
+        _, other = self.make_user()
+        empty = store.fingerprint(self.conn, uk)
+        store.put(self.conn, uk, "a.md", b"x")
+        one = store.fingerprint(self.conn, uk)
+        self.assertNotEqual(one, empty)
+        self.assertEqual(store.fingerprint(self.conn, uk), one)   # nothing written: the same
+        store.put(self.conn, other, "a.md", b"x")
+        self.assertEqual(store.fingerprint(self.conn, uk), one)   # another user's write isn't this one's
+        store.put(self.conn, uk, "a.md", b"y")
+        two = store.fingerprint(self.conn, uk)
+        self.assertNotEqual(two, one)
+        store.put(self.conn, uk, "b.md", b"x")
+        three = store.fingerprint(self.conn, uk)
+        self.assertNotEqual(three, two)
+        store.write_back(self.conn, uk, {"b.md": None}, {"b.md": 1})
+        self.assertEqual(store.fingerprint(self.conn, uk), two)   # back to the files of before
+
     def test_aad_binds_the_row_to_its_path(self):
         _, uk = self.make_user()
         store.put(self.conn, uk, "a.md", b"secret")

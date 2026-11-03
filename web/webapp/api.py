@@ -561,6 +561,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     def sign_out(request: Request, uk: User):
         with connection() as conn:
             auth.sign_out(conn, request.cookies[COOKIE])
+        start.forget(uk.user_id)
         r = Response(status_code=204)
         r.delete_cookie(COOKIE, path="/", secure=_secure(settings), httponly=True, samesite="lax")
         return r
@@ -623,19 +624,27 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/api/start")
     async def start_screen(uk: User):
         """What the first screen's sentence is filled in with: the web coaches (current first), the kits,
-        the usual length, today's limits, a suggestion from the log, and whether setup is still quick."""
+        the usual length, today's limits, a suggestion from the log, and whether setup is still quick. Kept
+        per listener until a file, a key, the chosen coach or the day changes (start.cached)."""
         def work() -> dict:
             with connection() as conn:
                 try:
-                    files = {p: body for p, (_, body) in store.read_all(conn, uk).items()}
+                    mark = store.fingerprint(conn, uk)
                     have = keystore.listing(conn, uk)
                     chosen = keystore.coach(conn, uk)
+                    # as in GET /api/keys: a model key stored under a provider's own id voices its shared service too
+                    keyed = {s for s in services
+                             if s in have or any(p in have for p, t in providers.SHARED_KEY.items() if t == s)}
+                    made_from = (mark, frozenset(keyed), chosen, datetime.date.today().isoformat())
+                    kept = start.cached(uk.user_id, made_from)
+                    if kept is not None:
+                        return kept
+                    files = {p: body for p, (_, body) in store.read_all(conn, uk).items()}
                 finally:
                     conn.rollback()
-            # as in GET /api/keys: a model key stored under a provider's own id voices its shared service too
-            keyed = {s for s in services
-                     if s in have or any(p in have for p, t in providers.SHARED_KEY.items() if t == s)}
-            return start.gather(settings.engine_root, files, keyed, chosen)
+            answer = start.gather(settings.engine_root, files, keyed, chosen)
+            start.remember(uk.user_id, made_from, answer)
+            return answer
         return await anyio.to_thread.run_sync(work)
 
     @app.get("/api/context")
@@ -847,8 +856,17 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     @app.get("/api/level")
     async def get_level(uk: User):
-        """The listener's level (novice when none is set) and the three to choose from, each as they'd say it."""
-        return await anyio.to_thread.run_sync(lambda: _workout_call(uk, level.current))
+        """The listener's level (novice when none is set) and the three to choose from, each as they'd say it.
+        Only the profile's files are read, not all of them: Settings asks for this on every page load."""
+        def work() -> dict:
+            with connection() as conn:
+                try:
+                    files = {p: got[1] for p in level.parts(settings.engine_root)
+                             if (got := store.read_one(conn, uk, p)) is not None}
+                finally:
+                    conn.rollback()
+            return level.current(settings.engine_root, files)
+        return await anyio.to_thread.run_sync(work)
 
     @app.put("/api/level", status_code=204, **post)
     async def put_level(uk: User, body: Annotated[LevelBody, Body()]):
@@ -871,6 +889,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             except Exception:
                 conn.rollback()
                 raise
+        start.forget(uk.user_id)
         r = Response(status_code=204)
         r.delete_cookie(COOKIE, path="/")
         return r
