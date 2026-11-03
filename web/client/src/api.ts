@@ -45,8 +45,13 @@ export type JobView = {
 export type Audio = { id: string; name: string; expires_at: string };
 export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
 export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean };
+/** A workout for later: its time (UTC and the listener's), and once the check-in is done, its cost and ceiling;
+ * `due` once it's scheduled (when the writing starts). */
+export type Later = { at: string; local: string; due?: string; minutes?: number; coach?: string; usd?: number;
+  ceiling_usd?: number };
 export type Conversation = {
-  id: number; state: "working" | "waiting" | "idle" | "failed"; job_id: number | null;
+  id: number; state: "working" | "waiting" | "idle" | "failed" | "scheduled"; job_id: number | null;
+  later?: Later | null;
   lines: ChatLine[];
   /** A priced recording waiting for the Record button. */
   offer?: Offer | null;
@@ -121,14 +126,18 @@ export const api = {
   setCoach: (slug: string, day: string) => call<void>("PUT", "/api/coach", { slug, day }),
   deleteKey: (service: string) =>
     call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
-  startConversation: (line: string, w: When) =>
-    call<{ id: number; job_id: number }>("POST", "/api/conversations", { line, ...w }),
+  /** `startAt` (from `withOffset`) asks for the workout at that time: the check-in now, the writing before it. */
+  startConversation: (line: string, w: When, startAt?: string) =>
+    call<{ id: number; job_id: number }>("POST", "/api/conversations", { line, ...w, ...(startAt ? { start_at: startAt } : {}) }),
   latestConversation: () => call<Conversation | undefined>("GET", "/api/conversations/latest"),
   conversation: (id: number) => call<Conversation>("GET", `/api/conversations/${id}`),
   sendMessage: (id: number, line: string, w: When) =>
     call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w }),
   record: (id: number, w: When) => call<{ job_id: number }>("POST", `/api/conversations/${id}/record`, w),
   stop: (id: number) => call<{ stopping: boolean }>("POST", `/api/conversations/${id}/stop`),
+  /** Schedule it: the one approval for a workout for later, up to its ceiling. */
+  schedule: (id: number, w: When) => call<{ job_id: number; due: string }>("POST", `/api/conversations/${id}/schedule`, w),
+  cancel: (id: number) => call<Conversation>("POST", `/api/conversations/${id}/cancel`),
   start: () => call<StartInfo>("GET", "/api/start"),
   workouts: () => call<{ workouts: Workout[] }>("GET", "/api/workouts").then((r) => r.workouts),
   workoutScript: (ref: string) =>

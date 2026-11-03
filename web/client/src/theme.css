@@ -247,7 +247,8 @@ a:hover { color: #fff }
 .else-d { font-size: 14.5px; color: var(--ink-3); line-height: 1.45 }
 .else-a:hover .else-t { color: #fff }
 .pick {
-  position: absolute; z-index: 5; min-width: 220px; padding: 6px; border-radius: 2px; background: var(--sheet-2);
+  position: absolute; z-index: 5; min-width: 220px; max-height: min(420px, 60vh); overflow-y: auto;
+  padding: 6px; border-radius: 2px; background: var(--sheet-2);
   box-shadow: var(--lift), inset 0 0 0 1px var(--line); display: grid; animation: rise .16s ease-out;
   font: 16px/1.55 var(--font); letter-spacing: 0; text-transform: none;
 }

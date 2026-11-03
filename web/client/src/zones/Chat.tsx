@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Audio, ChatLine, Offer, StartInfo } from "../api";
+import type { Audio, ChatLine, Later, Offer, StartInfo } from "../api";
+import { ahead, clock } from "../when";
 import { Starter } from "./Starter";
 import { FIRST } from "./KeysBox";
 import { Meter } from "../Mark";
@@ -38,8 +39,8 @@ type Props = {
   steps?: Step[];
   error: string | null;
   noKey: boolean;
-  /** Resolves false when the line was refused, so the box gets its text back. */
-  onSend: (line: string) => Promise<boolean> | void;
+  /** Resolves false when the line was refused, so the box gets its text back. `startAt`: the starter's picked time. */
+  onSend: (line: string, startAt?: string) => Promise<boolean> | void;
   onOpenKeys: () => void;
   /** A priced recording waiting for approval, and the button that approves it. */
   offer?: Offer | null;
@@ -61,6 +62,12 @@ type Props = {
   onOpenCoaches?: () => void;
   /** The coach shown above the conversation, with their lane number. */
   coachBar?: { n: number; name: string; service: string } | null;
+  /** A workout for later: its plan (cost and ceiling once the check-in is done), whether it's scheduled, and the
+   * buttons that schedule and cancel it. */
+  later?: Later | null;
+  scheduled?: boolean;
+  onSchedule?: () => Promise<boolean> | void;
+  onCancel?: () => Promise<boolean> | void;
 };
 
 /** The language-model key a new listener adds first. */
@@ -111,6 +118,47 @@ function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promi
       <button type="button" className="go" disabled={busy}
         onClick={async () => { setBusy(true); if ((await onRecord?.()) === false) setBusy(false); }}>
         {busy ? "Starting…" : `Record it (${price})`}
+      </button>
+    </div>
+  );
+}
+
+/** A price as the Record button shows one: rounded up to the cent. */
+function dollars(usd: number): string {
+  return usd < 0.01 ? "under 1¢" : `$${(Math.ceil(usd * 100 - 1e-9) / 100).toFixed(2)}`;
+}
+
+/** The check-in is done for a workout at a later time: what it costs, the most it may, and Schedule it. */
+function LaterOffer({ later, onSchedule }: { later: Later; onSchedule?: () => Promise<boolean> | void }) {
+  const [busy, setBusy] = useState(false);
+  const at = new Date(later.at);
+  const cap = dollars(later.ceiling_usd ?? 0);
+  return (
+    <div className="m a offer">
+      <p>Your {later.minutes}-minute workout with {later.coach} is planned for <strong>{ahead(at)}</strong>.</p>
+      <p className="cx-s">About {dollars(later.usd ?? 0)}, and never more than {cap}, charged to your own key.
+        {" "}{later.coach ?? "Your coach"} writes and records it fifteen minutes before, with that hour's news and weather, so it's ready when you are.</p>
+      <button type="button" className="go" disabled={busy}
+        onClick={async () => { setBusy(true); if ((await onSchedule?.()) === false) setBusy(false); }}>
+        {busy ? "Scheduling…" : `Schedule it (up to ${cap})`}
+      </button>
+    </div>
+  );
+}
+
+/** A scheduled workout, waiting for its time; Cancel takes it back before the writing begins. */
+function Scheduled({ later, onCancel }: { later: Later; onCancel?: () => Promise<boolean> | void }) {
+  const [busy, setBusy] = useState(false);
+  const at = new Date(later.at);
+  const due = later.due ? new Date(later.due) : null;
+  return (
+    <div className="m a offer">
+      <p>Scheduled for <strong>{ahead(at)}</strong>{later.coach ? ` with ${later.coach}` : ""}.</p>
+      <p className="cx-s">{due ? `Writing starts at ${clock(due)}` : "Writing starts fifteen minutes before"}; the
+        workout appears here, ready to play, by {clock(at)}. Come back then, or leave this page open.</p>
+      <button type="button" className="go alt" disabled={busy}
+        onClick={async () => { setBusy(true); if ((await onCancel?.()) === false) setBusy(false); }}>
+        {busy ? "Cancelling…" : "Cancel"}
       </button>
     </div>
   );
@@ -232,7 +280,8 @@ function atTime(iso: string | null): string {
 }
 
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenKeys, offer, onRecord, onStop,
-  needsKey = null, onAddKey, start = null, onCoach, onOpenCoaches, coachBar = null, waiting = null, onResume }: Props) {
+  needsKey = null, onAddKey, start = null, onCoach, onOpenCoaches, coachBar = null, waiting = null, onResume,
+  later = null, scheduled = false, onSchedule, onCancel }: Props) {
   const [text, setText] = useState(readDraft);
   const [stopping, setStopping] = useState(false);
   useEffect(() => { if (!working) setStopping(false); }, [working]);
@@ -282,6 +331,8 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
           </div>
         ))}
         {offer && !working && <RecordOffer offer={offer} onRecord={onRecord} />}
+        {later && later.usd != null && !offer && !working && !scheduled && <LaterOffer later={later} onSchedule={onSchedule} />}
+        {later && scheduled && <Scheduled later={later} onCancel={onCancel} />}
         {working && <Working steps={steps} stopping={stopping} />}
       </div>
       {error && (
@@ -293,7 +344,9 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
       <form className="chat-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <label className="sr" htmlFor="chat-box">Message</label>
         <textarea id="chat-box" ref={box} rows={1} value={text}
-          placeholder={needsKey ? "Add a key in Settings first" : lines.length === 0 ? "Or describe the workout you want in your own words" : "Reply to your coach"} disabled={working || !!needsKey}
+          placeholder={needsKey ? "Add a key in Settings first" : scheduled ? "Scheduled: cancel it to change anything"
+            : lines.length === 0 ? "Or describe the workout you want in your own words" : "Reply to your coach"}
+          disabled={working || scheduled || !!needsKey}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -304,7 +357,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onOpenK
         {working && onStop && !stopping && (
           <button type="button" className="go stop" onClick={() => { setStopping(true); onStop(); }}>Stop</button>
         )}
-        <button type="submit" className="go" disabled={working || !!needsKey || !text.trim()}>Send</button>
+        <button type="submit" className="go" disabled={working || scheduled || !!needsKey || !text.trim()}>Send</button>
       </form>
     </main>
   );

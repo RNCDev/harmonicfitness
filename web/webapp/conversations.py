@@ -28,6 +28,10 @@ class Conversation:
     stem: str | None = None
     offer: dict | None = None   # a priced recording waiting for the listener's Record button
     coach: bool = False         # a coach is being made: the coach skill comes with the next turn too
+    # a workout for later (0.60.0): {"at": UTC ISO, "local": "YYYY-MM-DD Weekday HH:MM", "offset": minutes east of
+    # UTC}, and once the check-in is done the plan's estimate ("minutes", "coach", "chars", "usd", "ceiling_chars",
+    # "ceiling_usd"); "due" (UTC ISO, when the turn that writes it starts) once it's scheduled
+    later: dict | None = None
     job_id: int | None = None   # plain; written only by set_job, never by save
     updated_at: datetime.datetime | None = None   # plain, as last read; save moves it to now() in the row
 
@@ -38,7 +42,7 @@ def _aad(uk: UserKey, cid: int) -> bytes:
 
 def _seal(uk: UserKey, c: Conversation) -> bytes:
     body = {"history": c.history, "lines": c.lines, "question": c.question,
-            "plan": c.plan, "stem": c.stem, "offer": c.offer, "coach": c.coach}
+            "plan": c.plan, "stem": c.stem, "offer": c.offer, "coach": c.coach, "later": c.later}
     return crypto.seal(uk.key, json.dumps(body).encode("utf-8"), _aad(uk, c.id))
 
 
@@ -46,17 +50,19 @@ def _open(uk: UserKey, cid: int, state: str, version: int, job_id, sealed, updat
     body = json.loads(crypto.open_(uk.key, bytes(sealed), _aad(uk, cid)).decode("utf-8"))
     return Conversation(id=cid, state=state, version=version, history=body.get("history"),
                         lines=body.get("lines") or [], question=body.get("question"),
-                        plan=body.get("plan"), stem=body.get("stem"), offer=body.get("offer"), coach=body.get("coach") is True, job_id=job_id, updated_at=updated_at)
+                        plan=body.get("plan"), stem=body.get("stem"), offer=body.get("offer"), coach=body.get("coach") is True, job_id=job_id, updated_at=updated_at,
+                        later=body.get("later") if isinstance(body.get("later"), dict) else None)
 
 
-def create(conn, uk: UserKey, first_line: str) -> int:
-    """A new working conversation holding the user's first line. The sealed body's AAD names
-    the row's id, so the row is inserted with an empty body and sealed in the same transaction."""
+def create(conn, uk: UserKey, first_line: str, later: dict | None = None) -> int:
+    """A new working conversation holding the user's first line (and, for a workout at a time they picked,
+    `later`). The sealed body's AAD names the row's id, so the row is inserted with an empty body and sealed in
+    the same transaction."""
     cid = conn.execute(
         "insert into conversations (user_id, state, body) values (%s, 'working', %s) "
         "returning id", (uk.user_id, b"")).fetchone()[0]
     c = Conversation(id=cid, state="working", version=1,
-                     lines=[{"role": "user", "text": first_line}])
+                     lines=[{"role": "user", "text": first_line}], later=later)
     conn.execute("update conversations set body = %s where id = %s and user_id = %s",
                  (_seal(uk, c), cid, uk.user_id))
     return cid
@@ -96,10 +102,10 @@ def set_job(conn, uk: UserKey, cid: int, job_id: int | None) -> None:
 
 
 def heal(conn, uk: UserKey, conv: Conversation) -> Conversation:
-    """A working conversation whose turn job is done, failed or gone (the worker died mid-turn, say)
-    failed with the agent line "That didn't work: interrupted", under the version check. Returns the
+    """A working (or scheduled) conversation whose turn job is done, failed or gone (the worker died mid-turn,
+    say) failed with the agent line "That didn't work: interrupted", under the version check. Returns the
     conversation as it now stands; unchanged when it isn't working or its job is queued or running."""
-    if conv.state != "working":
+    if conv.state not in ("working", "scheduled"):
         return conv
     row = None if conv.job_id is None else conn.execute(
         "select state from jobs where id = %s and user_id = %s", (conv.job_id, uk.user_id)).fetchone()
@@ -142,3 +148,49 @@ def begin_turn(conn, uk: UserKey, cid: int, line: str | None, answer: dict | Non
     c.question = None
     c.state = "working"
     return save(conn, uk, c, c.version)
+
+
+def schedule(conn, uk: UserKey, cid: int, line: str, due: str) -> bool:
+    """The listener's "Schedule it": an idle conversation with a later plan goes scheduled, their line added and
+    the turn's start (`due`) noted. False when it isn't idle or has no plan for later. The caller sets the job."""
+    try:
+        c = load(conn, uk, cid)
+    except LookupError:
+        return False
+    if c.state != "idle" or not (c.later and c.later.get("chars")):
+        return False
+    c.lines.append({"role": "user", "text": line})
+    c.later = dict(c.later, due=due)
+    c.state = "scheduled"
+    return save(conn, uk, c, c.version)
+
+
+def wake(conn, uk: UserKey, cid: int, job_id: int) -> bool:
+    """A scheduled conversation's own turn begins: working from here. False when it isn't scheduled for that job
+    (cancelled, or changed meanwhile), so the job ends without touching it."""
+    try:
+        c = load(conn, uk, cid)
+    except LookupError:
+        return False
+    if c.state != "scheduled" or c.job_id != job_id:
+        return False
+    c.state = "working"
+    return save(conn, uk, c, c.version)
+
+
+CANCELLED = "Cancelled: nothing was written or recorded. Schedule it again, or tell me what to change."
+
+
+def unschedule(conn, uk: UserKey, cid: int) -> Conversation | None:
+    """Cancel: a scheduled conversation back to idle, its plan for later kept (so it can be scheduled again),
+    with a line saying so. None when it wasn't scheduled. The caller cancels the job first."""
+    try:
+        c = load(conn, uk, cid)
+    except LookupError:
+        return None
+    if c.state != "scheduled":
+        return None
+    c.state = "idle"
+    c.later = {k: v for k, v in (c.later or {}).items() if k != "due"} or None
+    c.lines.append({"role": "agent", "text": CANCELLED})
+    return c if save(conn, uk, c, c.version) else None

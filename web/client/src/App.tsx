@@ -107,7 +107,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [keys, setKeys] = useState<KeyState[] | null>(null);
   const [openRow, setOpenRow] = useState<{ service: string; n: number; choose?: boolean } | null>(null);
   const needsKey = keyNeeded(keys);
-  const { conv, working, error, noKey, send, record, halt, reset, job, waiting, resume } = useConversation(onSignedOut);
+  const { conv, working, error, noKey, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation(onSignedOut);
   const steps = stepsOf(job?.stages ?? []);
 
   // What the first screen's sentence is filled in with: asked at once, beside the keys, and again whenever
@@ -239,7 +239,8 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
           onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
           start={start} onCoach={chooseCoach} coachBar={coachBar}
           waiting={waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null} onResume={resume}
-          onAddKey={addKey} onOpenCoaches={() => setPage("coaches")} />
+          onAddKey={addKey} onOpenCoaches={() => setPage("coaches")}
+          later={conv?.later ?? null} scheduled={conv?.state === "scheduled"} onSchedule={schedule} onCancel={cancel} />
       </div>
       <ContextColumn username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
         onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}

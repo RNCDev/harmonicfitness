@@ -56,12 +56,12 @@ def _done(conn, fn):
         raise
 
 
-def add(conn, uk: UserKey, kind: str, args: dict) -> int:
+def add(conn, uk: UserKey, kind: str, args: dict, not_before=None) -> int:
     """Queue a job in the caller's transaction; the workers wake (NOTIFY jobs_queued) when it
-    commits. No commit."""
+    commits. With `not_before` (an aware datetime), no worker claims it until then. No commit."""
     job_id = conn.execute(
-        "insert into jobs (user_id, kind, args, state) values (%s, %s, %s, 'queued') returning id",
-        (uk.user_id, kind, b"")).fetchone()[0]
+        "insert into jobs (user_id, kind, args, state, not_before) values (%s, %s, %s, 'queued', %s) returning id",
+        (uk.user_id, kind, b"", not_before)).fetchone()[0]
     conn.execute("update jobs set args = %s where id = %s",
                  (_seal(uk, args, _aad(uk, job_id, "args")), job_id))
     conn.execute("select pg_notify('jobs_queued', '')")
@@ -81,15 +81,16 @@ def _in_lane(lane: str, alias: str) -> str:
 
 
 def claim(conn, lane: str = "main") -> Job | None:
-    """The oldest queued job in `lane` whose user has none running in that lane, now running; None if there is
-    none. Commits.
+    """The oldest queued job in `lane` that's due (no `not_before`, or it has passed) and whose user has none
+    running in that lane, now running; None if there is none. Commits.
 
     Two workers claiming jobs of one user at once: the loser hits the unique index and gets None."""
     if lane not in LANES:
         raise ValueError(f"unknown lane: {lane}")
     try:
         row = conn.execute(
-            f"select id, user_id, kind from jobs j where state = 'queued' and {_in_lane(lane, 'j')} and not exists "
+            f"select id, user_id, kind from jobs j where state = 'queued' and {_in_lane(lane, 'j')} "
+            "and (j.not_before is null or j.not_before <= now()) and not exists "
             f"(select 1 from jobs r where r.user_id = j.user_id and r.state = 'running' and {_in_lane(lane, 'r')}) "
             "order by id for update of j skip locked limit 1").fetchone()
         if row is None:
@@ -105,6 +106,20 @@ def claim(conn, lane: str = "main") -> Job | None:
         conn.rollback()
         raise
     return Job(id=row[0], user_id=UUID(str(row[1])), kind=row[2])
+
+
+def cancel_queued(conn, uk: UserKey, job_id: int) -> bool:
+    """A queued job of the user's, failed as cancelled before any worker claimed it; False once it's running or
+    gone. No commit: the caller does."""
+    return conn.execute("update jobs set state = 'failed', error = 'cancelled', finished_at = now() "
+                        "where id = %s and user_id = %s and state = 'queued' returning id",
+                        (job_id, uk.user_id)).fetchone() is not None
+
+
+def due_at(conn, job_id: int):
+    """When a job was due (its not_before), or None. No commit."""
+    row = conn.execute("select not_before from jobs where id = %s", (job_id,)).fetchone()
+    return row[0] if row else None
 
 
 def heartbeat(conn, job_id: int) -> bool:

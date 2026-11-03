@@ -136,6 +136,40 @@ class TurnLine(BaseModel):
     line: Line
     today: Day
     now: Now
+    # a workout for later (0.60.0): the time the listener picked, with their offset ("2026-11-04T07:00:00-05:00");
+    # read only when a conversation starts
+    start_at: Annotated[StrictStr, StringConstraints(max_length=40)] | None = None
+
+
+LEAD = datetime.timedelta(minutes=15)    # a scheduled workout's turn starts this long before its time
+FURTHEST = datetime.timedelta(hours=24)  # the furthest ahead: the check-in's "today" limits stay the day's
+
+
+def later_from(start_at: str | None, utc: datetime.datetime | None = None) -> dict | None:
+    """The plan for later a new conversation holds, from the page's picked time, or None for a workout now
+    (none picked, or one inside the lead, which runs at once). 422 for a time that can't be read or is more
+    than a day ahead."""
+    if not start_at:
+        return None
+    try:
+        at = datetime.datetime.fromisoformat(start_at)
+    except ValueError:
+        raise HTTPException(422, "start_at must be a time like 2026-11-04T07:00:00-05:00") from None
+    off = at.utcoffset()
+    if off is None or abs(off) > datetime.timedelta(hours=14):
+        raise HTTPException(422, "start_at needs the listener's offset from UTC")
+    now = utc or datetime.datetime.now(datetime.timezone.utc)
+    if at <= now + LEAD:
+        return None
+    if at > now + FURTHEST + datetime.timedelta(minutes=5):
+        raise HTTPException(422, "Pick a time in the next 24 hours.")
+    return {"at": at.astimezone(datetime.timezone.utc).isoformat(), "local": at.strftime("%Y-%m-%d %A %H:%M"),
+            "offset": int(off.total_seconds() // 60)}
+
+
+def said_when(local: str) -> str:
+    """"Wednesday at 07:00" from a plan's "2026-11-04 Wednesday 07:00"."""
+    return worker.api_when(local)
 
 
 STILL_WORKING = "Still working on the last message."
@@ -1065,8 +1099,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         with connection() as conn:
             try:
                 conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
-                queued = conn.execute("select count(*) from jobs where user_id = %s and "
-                                      "state = 'queued'", (uk.user_id,)).fetchone()[0]
+                queued = conn.execute("select count(*) from jobs where user_id = %s and state = 'queued' "
+                                      "and (not_before is null or not_before <= now())", (uk.user_id,)).fetchone()[0]
                 if queued >= MAX_QUEUED:
                     raise HTTPException(429, "too many jobs waiting")
                 yield conn
@@ -1087,6 +1121,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 "lines": c.lines, "question": c.question, "plan": c.plan,
                 "offer": {k: c.offer[k] for k in ("name", "coach", "chars", "usd", "service", "design")
                           if k in c.offer} if c.offer and c.state in ("idle", "failed") else None,
+                "later": {k: c.later[k] for k in ("at", "local", "due", "minutes", "coach", "usd", "ceiling_usd")
+                          if k in c.later} if c.later else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None}
 
     def healed(conn, uk: store.UserKey, cid: int) -> conversations.Conversation:
@@ -1107,8 +1143,9 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         if providers.pick(settings.providers, have, chosen) is None:
             name = providers.PROVIDERS[chosen if chosen in settings.providers else settings.providers[0]].name
             raise HTTPException(409, f"Add a key for {name} in Settings first.")
+        later = later_from(body.start_at)
         with turn_transaction(uk) as conn:
-            cid = conversations.create(conn, uk, body.line)
+            cid = conversations.create(conn, uk, body.line, later)
             job_id = queue_turn(conn, uk, turn_args(cid, body.line, None, body.today, body.now))
         return {"id": cid, "job_id": job_id}
 
@@ -1171,6 +1208,61 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 raise HTTPException(409, STILL_WORKING)
             job_id = queue_turn(conn, uk, args)
         return {"job_id": job_id}
+
+    @app.post("/api/conversations/{cid}/schedule", status_code=202, **post)
+    def schedule_later(uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnWhen, Body()]):
+        """The listener's Schedule it: the one approval for a workout at their time, up to its ceiling. The turn
+        that writes and records it is queued, due fifteen minutes before."""
+        with turn_transaction(uk) as conn:
+            c = healed(conn, uk, cid)
+            later = c.later or {}
+            if c.state != "idle" or not later.get("chars") or not later.get("at"):
+                raise HTTPException(409, "There's nothing waiting to be scheduled here.")
+            if conn.execute("select 1 from conversations where user_id = %s and state = 'scheduled'",
+                            (uk.user_id,)).fetchone():
+                raise HTTPException(409, "You've a workout scheduled already: cancel it first.")
+            now = datetime.datetime.now(datetime.timezone.utc)
+            at = datetime.datetime.fromisoformat(later["at"])
+            if at <= now:
+                raise HTTPException(409, "That time has passed: ask for the workout again.")
+            due = max(now, at - LEAD)
+            when = said_when(later.get("local", ""))
+            today, local_now = worker.local_clock(int(later.get("offset") or 0), now)
+            line = (f"(From the site; the listener isn't here.) It's time for the workout they scheduled for {when}: "
+                    "write it now from the check-in above, then build it. Their Schedule it approved one recording "
+                    f"of up to {int(later.get('ceiling_chars') or 0):,} characters, so a clean price records on its "
+                    "own. Ask nothing: where anything is open, take your pick and say so in your last line.")
+            args = dict(turn_args(cid, line, None, today, local_now), scheduled=True, offset=int(later.get("offset") or 0))
+            problem = worker.check_turn(args)
+            if problem is not None:
+                raise HTTPException(422, problem)
+            if not conversations.schedule(conn, uk, cid, f"Schedule it for {when}.", due.isoformat()):
+                raise HTTPException(409, STILL_WORKING)
+            job_id = jobs.add(conn, uk, "turn", args, not_before=due)
+            conversations.set_job(conn, uk, cid, job_id)
+        return {"job_id": job_id, "due": due.isoformat()}
+
+    @app.post("/api/conversations/{cid}/cancel", **post)
+    def cancel_later(uk: User, cid: Annotated[int, JOB_ID]):
+        """Cancel a scheduled workout before its turn begins; once it has, Stop ends it instead."""
+        with connection() as conn:
+            try:
+                try:
+                    c = conversations.load(conn, uk, cid)
+                except LookupError:
+                    raise HTTPException(404, "no such conversation") from None
+                if c.state != "scheduled":
+                    raise HTTPException(409, "Nothing's scheduled here.")
+                if c.job_id is None or not jobs.cancel_queued(conn, uk, c.job_id):
+                    raise HTTPException(409, "It's being written now: use Stop to end it.")
+                out = conversations.unschedule(conn, uk, cid)
+                if out is None:
+                    raise HTTPException(409, "Nothing's scheduled here.")
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
+        return shown(out)
 
     @app.post("/api/conversations/{cid}/stop", status_code=202, **post)
     def stop_turn(uk: User, cid: Annotated[int, JOB_ID]):

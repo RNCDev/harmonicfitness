@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { StartInfo } from "../api";
-import { kitWords, sentence, Starter } from "./Starter";
+import { kitWords, sentence, Starter, whenWords } from "./Starter";
+import { slots, withOffset } from "../when";
 
 const info: StartInfo = {
   coaches: [
@@ -48,6 +49,33 @@ describe("the starter", () => {
     expect(slot(/^Coach: Nolan$/)).toBeInTheDocument();
   });
 
+  it("plans a workout for a time picked in the sentence: the check-in now, the time sent with it", () => {
+    const onStart = vi.fn();
+    render(<Starter info={info} onStart={onStart} onFill={vi.fn()} />);
+    expect(slot(/^When: right now$/)).toBeInTheDocument();
+    fireEvent.click(slot(/^When:/));
+    const opts = within(screen.getByRole("listbox", { name: "When" })).getAllByRole("option");
+    expect(opts[0].textContent).toBe("right now");
+    fireEvent.click(opts[3]);
+    fireEvent.click(screen.getByRole("button", { name: "Plan it for later" }));
+    const [line, startAt] = onStart.mock.calls[0];
+    expect(line).toMatch(/^Hey, coach Reed, I'd like a 30-minute leg workout at home, (at|tomorrow at) .+\. Go easy/);
+    expect(startAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00[+-]\d{2}:\d{2}$/);
+    expect(new Date(startAt).getTime()).toBe(slots()[2].getTime());
+  });
+
+  it("offers every half hour from half an hour ahead, for a day", () => {
+    const now = new Date(2026, 10, 3, 9, 10);
+    const got = slots(now);
+    expect([got[0].getHours(), got[0].getMinutes()]).toEqual([10, 0]);
+    expect(got.length).toBe(47);
+    expect(got.every((d, i) => i === 0 || d.getTime() - got[i - 1].getTime() === 30 * 60000)).toBe(true);
+    expect(whenWords(null)).toBe("right now");
+    expect(whenWords(new Date(2026, 10, 3, 19, 30), now)).toMatch(/^at 7:30/);
+    expect(whenWords(new Date(2026, 10, 4, 6, 30), now)).toMatch(/^tomorrow at 6:30/);
+    expect(withOffset(new Date(2026, 10, 4, 6, 30))).toMatch(/^2026-11-04T06:30:00[+-]\d{2}:\d{2}$/);
+  });
+
   it("sends the request as it reads", () => {
     const onStart = vi.fn();
     render(<Starter info={info} onStart={onStart} onFill={vi.fn()} />);
@@ -55,7 +83,8 @@ describe("the starter", () => {
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "in a hotel room" }));
     fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
     expect(onStart).toHaveBeenCalledWith(
-      "Hey, coach Reed, I'd like a 30-minute leg workout in a hotel room. Go easy on my left knee today.");
+      "Hey, coach Reed, I'd like a 30-minute leg workout in a hotel room, right now. Go easy on my left knee today.",
+      undefined);
   });
 
   it("picks what's sore from the body chart: each side toggles OK, go easy, keep off", () => {
@@ -131,9 +160,9 @@ describe("the starter", () => {
     expect(kitWords({ id: "bodyweight", label: "the park", preset: true })).toBe("with no equipment");
     expect(kitWords({ id: "travel", label: "travel", preset: false })).toBe("with my travel kit");
     expect(sentence({ coach: "Nolan", minutes: 20, place: "at home", type: "cardio workout", body: {} }))
-      .toBe("Hey, coach Nolan, I'd like a 20-minute cardio workout at home. Nothing's bothering me today.");
+      .toBe("Hey, coach Nolan, I'd like a 20-minute cardio workout at home, right now. Nothing's bothering me today.");
     expect(sentence({ coach: "Nolan", minutes: 18, place: "at home", type: "core workout", body: { "left knee": "easy", "right knee": "easy", neck: "off" } }))
-      .toBe("Hey, coach Nolan, I'd like an 18-minute core workout at home. Go easy on my left knee and right knee, and keep off my neck today.");
+      .toBe("Hey, coach Nolan, I'd like an 18-minute core workout at home, right now. Go easy on my left knee and right knee, and keep off my neck today.");
   });
 });
 

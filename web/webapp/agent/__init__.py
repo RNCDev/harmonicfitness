@@ -297,6 +297,10 @@ RECORDING = "Recording your workout"
 AUTO_RECORDED = ("Recorded straight away: the listener chose Record without asking in Settings, so there was no "
                  "Record button. Log the session, then end your turn with the plan in one small table, the coach, "
                  "and a line saying it's ready (in place of the one-line reply).")
+SCHEDULED_RECORDED = ("Recorded on time: the listener scheduled this workout and approved it, up to its ceiling, when "
+                      "they pressed Schedule it, so there was no Record button. Log the session, then end your turn "
+                      "with the plan in one small table, the coach, and a line saying it's ready for their time "
+                      "(in place of the one-line reply).")
 OFF_PLAN = 2   # the build's exit when the MP3's total ran more than five percent off plan: an MP3 was still made
 OFF_PLAN_NOTE = f"{RECORDING} (a little off its planned length)"
 PROGRESS = re.compile(r"^\s*\[(\d+)/(\d+)\]", re.MULTILINE)   # render_cloud's "  [18/40] 4.2s audio"
@@ -434,7 +438,8 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
             recorded = run(ctx, args)
             if not deps.recorded:
                 return recorded
-            return recorded.model_copy(update={"output": AUTO_RECORDED + "\n" + recorded.output})
+            return recorded.model_copy(update={"output": (SCHEDULED_RECORDED if deps.scheduled_run else AUTO_RECORDED)
+                                               + "\n" + recorded.output})
     elif first == "brief":
         deps.phase = "brief"
         if deps.writers == "three" and result.code == 0:
@@ -604,6 +609,50 @@ async def _fill(ctx: RunContext[Deps], path: str, build_name: str | None, coach:
     except (OSError, TypeError):
         text = draft
     return built.model_copy(update={"output": note + "\n\n### the draft, as written\n" + text + "\n\n" + built.output})
+
+
+# A workout for later (0.60.0): its cost before the script exists, from the coach's own price, at characters a
+# minute measured from priced scripts (the 0.59.0 bench: a median 635 to 660 a minute, at most 749)
+CHARS_A_MINUTE = 650
+CEILING_A_MINUTE = 800
+
+
+async def _for_later(ctx: RunContext[Deps], tool):
+    """schedule_workout is offered only while the conversation holds a workout for later, before its own turn."""
+    return tool if ctx.deps.later and not ctx.deps.scheduled_run else None
+
+
+def _cost(deps: Deps, coach: str, chars: int) -> float | None:
+    got = tools._plain_run(deps, ["get", "cost", "--coach", coach, "--chars", str(chars), "--json"])
+    try:
+        cost = json.loads(got.output)
+    except ValueError:
+        return None
+    return float(cost.get("usd") or 0) + (float(cost.get("design_usd") or 0) if cost.get("pending_design") else 0)
+
+
+@AGENT.tool(sequential=True, prepare=_for_later)
+def schedule_workout(ctx: RunContext[Deps], minutes: int, coach: str) -> ToolResult:
+    """For a workout the listener asked for at a later time, once the check-in has nothing left to ask: works out
+    what it will cost with this coach, and the most it may, for the page's Schedule it button. Then end your turn."""
+    deps = ctx.deps
+
+    def work() -> ToolResult:
+        if not (isinstance(minutes, int) and 5 <= minutes <= 120 and isinstance(coach, str) and coach.strip()):
+            return tools._refuse("give the workout's minutes (5 to 120) and the coach's name")
+        chars, cap = minutes * CHARS_A_MINUTE, minutes * CEILING_A_MINUTE
+        usd, cap_usd = _cost(deps, coach, chars), _cost(deps, coach, cap)
+        if usd is None or cap_usd is None:
+            return tools._refuse(f"{coach} can't be priced here: pick a coach step 1 lists as able to speak here")
+        deps.schedule = {"minutes": minutes, "coach": coach, "chars": chars, "usd": round(usd, 2),
+                         "ceiling_chars": cap, "ceiling_usd": round(cap_usd, 2)}
+        when = (deps.later or {}).get("local", "their time")
+        return tools._result(0, (
+            f"Ready to schedule for {when}: about ${usd:.2f} with {coach}, never more than ${cap_usd:.2f}. The page "
+            "now shows the listener a Schedule it button with those, below your reply. End your turn: the plan in one line and the "
+            "time, and that Schedule it starts the writing fifteen minutes before. Don't say the prices (the button "
+            "shows them), and run nothing else."))
+    return _step(deps, "Working out what it costs", "schedule_workout", work)
 
 
 @AGENT.tool(sequential=True)

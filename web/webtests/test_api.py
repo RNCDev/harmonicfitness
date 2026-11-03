@@ -821,6 +821,97 @@ class Conversations(ApiCase):
         again = self.client.post(f"/api/conversations/{cid}/record", json=self.turn(), headers=self.origin())
         self.assertEqual(again.status_code, 409)
 
+    def later_at(self, hours=2.0, offset=-300):
+        zone = datetime.timezone(datetime.timedelta(minutes=offset))
+        return (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=hours)).astimezone(zone) \
+            .replace(second=0, microsecond=0)
+
+    def planned_for_later(self):
+        """A conversation for later whose check-in is done: its plan's estimate saved, as the worker saves it."""
+        user_id, uk = self.keyed()
+        at = self.later_at()
+        r = self.client.post("/api/conversations", json=self.turn(line="a 15-minute workout, at 7:00 AM",
+                                                                  start_at=at.isoformat()), headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        cid = r.json()["id"]
+        c = conversations.load(self.conn, uk, cid)
+        self.assertEqual((c.later["offset"], c.later["local"]), (-300, at.strftime("%Y-%m-%d %A %H:%M")))
+        self.conn.execute("update jobs set state = 'done', finished_at = now() where id = %s", (c.job_id,))
+        c.state = "idle"
+        c.later = dict(c.later, minutes=15, coach="Coach Reed", chars=9750, usd=0.15, ceiling_chars=12000,
+                       ceiling_usd=0.18)
+        self.assertTrue(conversations.save(self.conn, uk, c, c.version))
+        self.conn.commit()
+        return user_id, uk, cid, at
+
+    def schedule(self, cid):
+        r = self.client.post(f"/api/conversations/{cid}/schedule", json=self.turn(), headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        return r.json()["job_id"]
+
+    def test_schedule_it_queues_the_turn_fifteen_minutes_before_and_cancel_takes_it_back(self):
+        _, uk, cid, at = self.planned_for_later()
+        later = self.client.get(f"/api/conversations/{cid}").json()["later"]
+        self.assertEqual((later["usd"], later["ceiling_usd"], later["coach"]), (0.15, 0.18, "Coach Reed"))
+        self.assertNotIn("ceiling_chars", later)
+        job = self.schedule(cid)
+        due = self.conn.execute("select not_before from jobs where id = %s", (job,)).fetchone()[0]
+        self.assertAlmostEqual((at - due).total_seconds(), 15 * 60, delta=5)
+        args = jobs.args(self.conn, uk, job)
+        self.assertEqual((args["scheduled"], args["offset"]), (True, -300))
+        self.assertIn("12,000 characters", args["line"])
+        self.assertIsNone(worker.check_turn(args))
+        self.conn.rollback()
+        claimed = jobs.claim(self.conn)
+        self.assertTrue(claimed is None or claimed.id != job)   # not due: no worker takes it
+        c = self.client.get(f"/api/conversations/{cid}").json()
+        self.assertEqual((c["state"], c["job_id"]), ("scheduled", None))
+        self.assertIn("Schedule it for", c["lines"][-1]["text"])
+        self.assertEqual(self.client.post(f"/api/conversations/{cid}/messages", json=self.turn(line="hi"),
+                                          headers=self.origin()).status_code, 409)   # Cancel first
+        self.assertEqual(self.client.post(f"/api/conversations/{cid}/schedule", json=self.turn(),
+                                          headers=self.origin()).status_code, 409)
+        r = self.client.post(f"/api/conversations/{cid}/cancel", headers=self.origin())
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["state"], "idle")
+        self.assertEqual(r.json()["lines"][-1]["text"], conversations.CANCELLED)
+        self.assertEqual(self.conn.execute("select state, error from jobs where id = %s", (job,)).fetchone(),
+                         ("failed", "cancelled"))
+        self.conn.rollback()
+        self.schedule(cid)   # the plan is kept: it can be scheduled again
+
+    def test_the_scheduled_turn_wakes_its_conversation_and_cancel_then_says_stop(self):
+        _, uk, cid, _ = self.planned_for_later()
+        job = self.schedule(cid)
+        self.assertFalse(conversations.wake(self.conn, uk, cid, job + 1000))   # another job's: left alone
+        self.conn.execute("update jobs set state = 'running', started_at = now(), heartbeat_at = now() where id = %s",
+                          (job,))
+        self.assertTrue(conversations.wake(self.conn, uk, cid, job))
+        self.conn.commit()
+        r = self.client.post(f"/api/conversations/{cid}/cancel", headers=self.origin())
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(self.client.get(f"/api/conversations/{cid}").json()["state"], "working")
+
+    def test_a_scheduled_workout_whose_job_died_is_failed_not_left_waiting(self):
+        _, uk, cid, _ = self.planned_for_later()
+        job = self.schedule(cid)
+        self.conn.execute("update jobs set state = 'failed', error = 'interrupted' where id = %s", (job,))
+        self.conn.commit()
+        self.assertEqual(self.client.get(f"/api/conversations/{cid}").json()["state"], "failed")
+
+    def test_a_time_inside_the_lead_runs_now_and_one_past_a_day_is_refused(self):
+        _, uk = self.keyed()
+        soon = self.later_at(hours=0.1)
+        r = self.client.post("/api/conversations", json=self.turn(start_at=soon.isoformat(), line="a workout"),
+                             headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        self.assertIsNone(conversations.load(self.conn, uk, r.json()["id"]).later)
+        self.conn.rollback()
+        far = self.later_at(hours=30)
+        r = self.client.post("/api/conversations", json=self.turn(start_at=far.isoformat(), line="a workout"),
+                             headers=self.origin())
+        self.assertEqual(r.status_code, 422)
+
     def test_record_over_the_daily_allowance_is_refused(self):
         _, uk, cid = self.offered(chars=spend.DEFAULT_DAILY_CHARS + 1)
         r = self.client.post(f"/api/conversations/{cid}/record", json=self.turn(), headers=self.origin())
@@ -915,7 +1006,8 @@ class Conversations(ApiCase):
             stamp = got.pop("updated_at")
             self.assertEqual(got, {"id": body["id"], "state": "working", "job_id": body["job_id"],
                                    "lines": [{"role": "user", "text": "a 20-minute strength workout"}],
-                                   "question": None, "plan": {"format": "Straight sets"}, "offer": None})
+                                   "question": None, "plan": {"format": "Straight sets"}, "offer": None,
+                                   "later": None})
             when = datetime.datetime.fromisoformat(stamp)
             self.assertIsNotNone(when.tzinfo)
             self.assertLess(abs((datetime.datetime.now(datetime.timezone.utc) - when).total_seconds()), 300)

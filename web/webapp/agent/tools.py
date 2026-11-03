@@ -97,6 +97,13 @@ class Deps:
     # the personal content writer, started as the brief runs (three writers): its future, and the draft it writes for
     content_job: object = field(default=None, repr=False)
     content_for: str | None = None
+    # a workout for later (0.60.0): the conversation's plan for it (conversations.Conversation.later), what
+    # schedule_workout worked out for "Schedule it", whether this is the turn that writes it, and the characters
+    # the listener's "Schedule it" approved
+    later: dict | None = None
+    schedule: dict | None = None
+    scheduled_run: bool = False
+    ceiling: int | None = None
     # the researcher's conversation, for a top-up once the skeleton has more places than it wrote for
     research_history: object = field(default=None, repr=False)
     loop: object = field(default=None, repr=False)   # the turn's event loop, which the personal content writer runs on
@@ -220,6 +227,10 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
         if mapped is None:
             return _refuse(f"{a!r}: paths must be me/... inside the listener's folder")
         argv.append(mapped)
+    if command == "brief" and deps.later and not deps.scheduled_run:
+        return _refuse(f"this workout is for {deps.later.get('local', 'later')}: finish the check-in, then call "
+                       "schedule_workout and end your turn with the plan in a line. The brief, the research and the "
+                       "script come fifteen minutes before, so the news, the weather and the menu are fresh.")
     if command == "brief" and _flag(args, "--coach"):
         deps.brief_coach = _flag(args, "--coach")
     if command == "build" and "--lint-only" not in args:
@@ -782,6 +793,13 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
                        f"{max(deps.chars_left, 0):,} left. Tell the listener; a shorter workout fits, or tomorrow.")
     deps.offer = {"draft": draft, "name": args[2], "coach": coach, "chars": chars, "usd": round(usd, 3),
                   "service": cost.get("service"), "design": bool(cost.get("pending_design"))}
+    if deps.ceiling is not None and chars > deps.ceiling:   # over what "Schedule it" approved: the button decides
+        deps.auto_record = False
+        return _result(0, (f"Not recorded: the script speaks {chars:,} characters, over the {deps.ceiling:,} the "
+                           f"listener approved when they scheduled it, for about ${usd:.2f}. The page shows them a "
+                           "Record button with that price when they come back. End your turn: say in a line that "
+                           "the script is ready and checked but came out longer than planned, so it waits for "
+                           "their Record."))
     return _result(0, (f"Not recorded yet: recording sends {chars:,} characters to {cost.get('service')} for about "
                        f"${usd:.2f}{' (including the coach voice design)' if cost.get('pending_design') else ''}. "
                        "The page now shows the listener a Record button with that price. End your turn: say in a "

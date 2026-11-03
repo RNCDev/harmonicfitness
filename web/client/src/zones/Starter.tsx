@@ -4,6 +4,7 @@
 // in for the check-in.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { StartInfo, StartKit } from "../api";
+import { ahead, slots, withOffset } from "../when";
 
 /** The areas a listener can name, head to feet: the body chart's rows. */
 const ROWS = ["neck", "shoulder", "elbow", "wrist", "rib", "low back", "hip", "groin", "hamstring", "knee", "calf", "ankle", "foot"];
@@ -63,14 +64,22 @@ function bodyWords(body: Record<string, Level>): { easy: string[]; off: string[]
   return { easy: Object.keys(body).filter((a) => body[a] === "easy"), off: Object.keys(body).filter((a) => body[a] === "off") };
 }
 
+/** When, as it reads after the place: ", right now" or ", at 7:00 AM", ", tomorrow at 6:30 AM". */
+export function whenWords(at: Date | null, now: Date = new Date()): string {
+  if (!at) return "right now";
+  const said = ahead(at, now);
+  return said.startsWith("tomorrow") || /^[A-Z][a-z]+day /.test(said) ? said : `at ${said}`;
+}
+
 /** The request as it's sent. */
-export function sentence(v: { coach: string; minutes: number; place: string; type: string; body: Record<string, Level> }): string {
+export function sentence(v: { coach: string; minutes: number; place: string; type: string; body: Record<string, Level>;
+  when?: string }): string {
   const { easy, off } = bodyWords(v.body);
   let care = "Nothing's bothering me today.";
   if (easy.length && off.length) care = `Go easy on my ${list(easy)}, and keep off my ${list(off)} today.`;
   else if (easy.length) care = `Go easy on my ${list(easy)} today.`;
   else if (off.length) care = `Keep off my ${list(off)} today.`;
-  return `Hey, coach ${v.coach}, I'd like ${article(v.minutes)} ${v.minutes}-minute ${v.type} ${v.place}. ${care}`;
+  return `Hey, coach ${v.coach}, I'd like ${article(v.minutes)} ${v.minutes}-minute ${v.type} ${v.place}, ${v.when ?? "right now"}. ${care}`;
 }
 
 const still = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -124,10 +133,10 @@ function Flap({ text }: { text: string }) {
   );
 }
 
-type SlotKey = "coach" | "minutes" | "place" | "type" | "body";
+type SlotKey = "coach" | "minutes" | "place" | "type" | "body" | "when";
 
 /** Each blank's list, as a screen reader names it. */
-const LIST_NAMES: Record<SlotKey, string> = { coach: "Coach", minutes: "Length", place: "Where", type: "Workout",
+const LIST_NAMES: Record<SlotKey, string> = { coach: "Coach", minutes: "Length", place: "Where", type: "Workout", when: "When",
   body: "Anything bothering you today?" };
 
 function Slot({ k, label, text, open, onOpen, tone }: { k: SlotKey; label: string; text: string; open: boolean;
@@ -157,7 +166,7 @@ const OTHER: { label: string; about: string; line: string; fill?: boolean; quick
 type Props = {
   info: StartInfo | null;
   /** Sends a line as the first message; false when it was refused. */
-  onStart: (line: string) => Promise<boolean> | void;
+  onStart: (line: string, startAt?: string) => Promise<boolean> | void;
   /** Puts a line in the text box to finish by hand. */
   onFill: (line: string) => void;
   /** The coach the listener picked: made the current coach (and saved) by the page, which updates `info`.
@@ -178,6 +187,8 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
   const [place, setPlace] = useState<string | null>(null);
   const [type, setType] = useState<string | null>(null);
   const [body, setBody] = useState<Record<string, Level> | null>(null);
+  /** A time picked for the workout (null: right now). */
+  const [at, setAt] = useState<Date | null>(null);
   const [open, setOpen] = useState<{ k: SlotKey; left: number; top: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLElement>(null);
@@ -192,6 +203,7 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
     place: place ?? (kits[0] ? kitWords(kits[0]) : "at home"),
     type: type ?? suggested(info) ?? "full-body workout",
     body: body ?? floor,
+    when: whenWords(at),
   };
 
   const close = (refocus = true) => {
@@ -248,6 +260,9 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
     .map((w) => ({ label: w, value: w, on: w === v.place, set: setPlace as (x: never) => void }));
   if (open?.k === "type") options = [...new Set([...TYPES, v.type])]
     .map((t) => ({ label: t, value: t, on: t === v.type, set: setType as (x: never) => void }));
+  if (open?.k === "when") options = [{ label: "right now", value: null, on: !at, set: setAt as (x: never) => void },
+    ...slots().map((d) => ({ label: ahead(d), value: d, on: !!at && at.getTime() === d.getTime(),
+      set: setAt as (x: never) => void }))];
 
   // ---- the body chart: a chip per side (one for the neck and low back), from fine to go easy to keep off ----
   const rank = (m: Mark) => MARKS.indexOf(m);
@@ -288,7 +303,10 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
 
   async function start() {
     setBusy(true);
-    if ((await onStart(sentence(v))) === false) setBusy(false);
+    // a time already passed while the page sat open is a workout now
+    const later = at && at.getTime() > Date.now() + 20 * 60000 ? at : null;
+    const line = sentence({ ...v, when: whenWords(later) });
+    if ((await onStart(line, later ? withOffset(later) : undefined)) === false) setBusy(false);
   }
 
   const hint = !type && info?.suggest?.reason;
@@ -314,7 +332,7 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
       <p className="mad">
         Hey, coach {slot("coach", "Coach", v.coach)}, I'd like {article(v.minutes)}{" "}
         {slot("minutes", "Length", `${v.minutes}-minute`)} {slot("type", "Workout", v.type)}{" "}
-        {slot("place", "Where", v.place)}.
+        {slot("place", "Where", v.place)}, {slot("when", "When", v.when)}.
       </p>
       <p className="mad mad-2">
         {easy.length === 0 && off.length === 0 ? (<>{slot("body", "Anything bothering you", "Nothing's bothering me", "calm")} today.</>) : (<>
@@ -324,7 +342,8 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
       </p>
       {hint && <p className="hint">Suggested because of your log: {hint}.</p>}
       <div className="start-row">
-        <button type="button" className="go start" onClick={start} disabled={busy || ready.length === 0}>Plan my workout</button>
+        <button type="button" className="go start" onClick={start} disabled={busy || ready.length === 0}>
+          {at ? "Plan it for later" : "Plan my workout"}</button>
         {ready.length === 0 && info && <span className="start-note">Add a voice key in Settings first.</span>}
       </div>
       <nav className="else" aria-label="Other things you can do">

@@ -363,8 +363,12 @@ class _Stop(Exception):
 
 
 def _turn_request(args: dict) -> tuple[str | None, tuple[str, dict] | None, str, str]:
-    """(line, answer, today, now), checked; exactly one of line or answer."""
-    if set(args) - {"record"} != TURN_ARGS or args.get("record", False) not in (True, False):
+    """(line, answer, today, now), checked; exactly one of line or answer. A scheduled turn (0.60.0) also carries
+    `scheduled` and the listener's `offset` from UTC in minutes; its today and now are when it was due."""
+    if (set(args) - {"record", "scheduled", "offset"} != TURN_ARGS or args.get("record", False) not in (True, False)
+            or args.get("scheduled", False) not in (True, False)
+            or ("scheduled" in args) != ("offset" in args)
+            or ("offset" in args and not (type(args["offset"]) is int and abs(args["offset"]) <= 14 * 60))):
         raise _Stop("invalid request: needs conversation_id, line, answer, today and now")
     line, answer = args["line"], args["answer"]
     if (line is None) == (answer is None):
@@ -546,12 +550,37 @@ def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = N
             state="running" if code is None else "failed" if failed else "done", **({"think": True} if think else {}))
 
 
+def api_when(local: str) -> str:
+    """"Wednesday at 07:00" from "2026-11-04 Wednesday 07:00"."""
+    parts = local.split(" ")
+    return f"{parts[1]} at {parts[2]}" if len(parts) == 3 else local
+
+
+def local_clock(offset: int, utc: datetime.datetime | None = None) -> tuple[str, str]:
+    """(today, now) on the listener's clock, `offset` minutes east of UTC, as their page would send them."""
+    at = (utc or datetime.datetime.now(datetime.timezone.utc)).astimezone(
+        datetime.timezone(datetime.timedelta(minutes=offset)))
+    return at.strftime("%Y-%m-%d"), at.strftime("%Y-%m-%d %A %H:%M")
+
+
 def turn(ctx: Ctx) -> dict:
-    """One agent turn on the user's folder and language-model key, saved to their conversation."""
+    """One agent turn on the user's folder and language-model key, saved to their conversation. A scheduled
+    turn wakes its conversation first, on the listener's clock as it is now."""
     args = ctx.args
     cid = args.get("conversation_id") if isinstance(args, dict) else None
     if type(cid) is not int:
         raise JobFailed("invalid request: needs conversation_id, line, answer, today and now")
+    if args.get("scheduled") is True and type(args.get("offset")) is int:
+        today, now = local_clock(args["offset"])
+        ctx.args = args = dict(args, today=today, now=now)
+        woke = conversations.wake(ctx.conn, ctx.uk, cid, ctx.job_id)
+        due = jobs.due_at(ctx.conn, ctx.job_id)
+        ctx.conn.commit()
+        if not woke:
+            raise JobFailed("the conversation moved on")   # cancelled, or changed, as the turn was claimed
+        if due is not None:   # how early the run starts, for tuning its lead (the log, never the page)
+            late = (datetime.datetime.now(datetime.timezone.utc) - due).total_seconds()
+            print(f"worker: job {ctx.job_id} scheduled turn began {late:.0f}s after it was due", file=sys.stderr, flush=True)
     try:
         conv = conversations.load(ctx.conn, ctx.uk, cid)
     except LookupError:
@@ -611,6 +640,11 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     deps.approved = conv.offer if record else None
     deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)
     deps.auto_record = auto and not record
+    deps.later = conv.later if conv.later and not conv.offer else None
+    if ctx.args.get("scheduled") is True:   # "Schedule it" approved one recording, up to its ceiling
+        deps.scheduled_run = True
+        deps.auto_record = not record
+        deps.ceiling = int((conv.later or {}).get("ceiling_chars") or 0) or None
 
     def reserve(chars: int) -> bool:
         """Today's allowance, reserved for a recording made without the Record button (as its endpoint does)."""
@@ -672,6 +706,11 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                 context = agent.prefetch(deps, line)
             except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
                 print(f"worker: job {ctx.job_id} prefetch failed: {type(e).__name__}", file=sys.stderr)
+        if deps.later and not deps.scheduled_run and first:   # the page's picked time, said plainly for the check-in
+            note = (f"This workout is for later: {api_when(deps.later.get('local', ''))}, the listener's time. Do the "
+                    "check-in now; once nothing's left to ask, call schedule_workout and end your turn with the plan "
+                    "in a line. The brief, the research and the script come fifteen minutes before their time.")
+            context = f"{context}\n\n{note}" if context else note
         began = time.monotonic()
         outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
         u = outcome.usage
@@ -696,7 +735,12 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     kept.extend(_keep_audio(ctx, written, kept_paths))
     for audio in kept:
         lines = lines + [{"role": "agent", "text": "", "audio": audio}]
-    done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle",
+    later = conv.later
+    if deps.schedule and not deps.scheduled_run:   # the check-in is done: the plan's estimate, for Schedule it
+        later = dict(conv.later or {}, **deps.schedule)
+    elif deps.scheduled_run:
+        later = None   # written (and recorded, or priced for the Record button): nothing waits for later
+    done = dataclasses.replace(conv, state="waiting" if outcome.question else "idle", later=later,
                                history=outcome.history_json, lines=lines, question=outcome.question,
                                plan=outcome.plan, stem=outcome.stem, offer=deps.offer,
                                coach=deps.coach and not deps.coach_done)   # as returned: None after a failed brief

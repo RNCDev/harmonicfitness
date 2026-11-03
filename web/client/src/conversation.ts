@@ -5,6 +5,8 @@ import { localDate, localNow } from "./when";
 
 /** Waits before each new try at reading the conversation after a turn (about ten seconds in all). */
 const RELOAD_DELAYS = [1000, 3000, 6000];
+/** How often a scheduled conversation is read again, to see its writing begin. */
+const SCHEDULED_EVERY = 30000;
 
 const when = () => {
   const d = new Date();
@@ -14,7 +16,7 @@ const when = () => {
 /** True when a conversation last changed on an earlier local day than today: a new message starts a new
  * conversation. A working one is always current. */
 export function isHistory(c: Conversation | null, today: Date = new Date()): boolean {
-  if (!c || c.state === "working" || !c.updated_at) return false;
+  if (!c || c.state === "working" || c.state === "scheduled" || !c.updated_at) return false;
   const at = new Date(c.updated_at);
   return !Number.isNaN(at.getTime()) && localDate(at) < localDate(today);
 }
@@ -23,7 +25,7 @@ export function isHistory(c: Conversation | null, today: Date = new Date()): boo
  * no workout recorded yet, and waits on the listener (a Record offer, or the coach spoke last). Only a working one
  * reopens on its own; the rest are offered on the first screen. */
 export function resumable(c: Conversation, today: Date = new Date()): boolean {
-  if (c.state === "working") return true;
+  if (c.state === "working" || c.state === "scheduled") return true;
   if (c.state === "failed" || isHistory(c, today) || c.lines.some((l) => l.audio)) return false;
   return !!c.offer || c.lines[c.lines.length - 1]?.role === "agent";
 }
@@ -61,7 +63,7 @@ export function useConversation(onSignedOut: () => void) {
   // and Stop). One from today waiting on the listener (the coach's questions, or a Record offer) is offered there.
   useEffect(() => {
     api.latestConversation().then((c) => {
-      if (c?.state === "working") adopt(c);
+      if (c?.state === "working" || c?.state === "scheduled") adopt(c);
       else setWaiting(c && resumable(c) ? c : null);
     }, fail);
   }, [adopt, fail]);
@@ -101,6 +103,18 @@ export function useConversation(onSignedOut: () => void) {
     return () => { live = false; clearTimeout(timer); };
   }, [job?.id, job?.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A scheduled conversation is read again now and then: once its writing begins, it's working, and followed.
+  const scheduled = conv?.state === "scheduled";
+  useEffect(() => {
+    if (!scheduled || id === undefined) return;
+    const t = setInterval(() => {
+      api.conversation(id).then((c) => { if (c.state !== "scheduled") adopt(c); }, (e) => {
+        if (e instanceof NotSignedIn) onSignedOut();
+      });
+    }, SCHEDULED_EVERY);
+    return () => clearInterval(t);
+  }, [scheduled, id, adopt, onSignedOut]);
+
   const turn = useCallback(async (run: () => Promise<{ job_id: number }>, show: (c: Conversation) => Conversation) => {
     setError(null);
     setNoKey(false);
@@ -121,13 +135,13 @@ export function useConversation(onSignedOut: () => void) {
   // a job counts only while its chat is open: Stop closes the chat before the job's last word arrives
   const working = posting || conv?.state === "working" || (!!conv && (job?.state === "queued" || job?.state === "running"));
 
-  /** A new conversation, whatever is open. */
-  const start = useCallback(async (line: string) => {
+  /** A new conversation, whatever is open; `startAt`, for a workout at a time the listener picked. */
+  const start = useCallback(async (line: string, startAt?: string) => {
     setError(null);
     setNoKey(false);
     setPosting(true);
     try {
-      const { id: cid, job_id } = await api.startConversation(line, when());
+      const { id: cid, job_id } = await api.startConversation(line, when(), startAt);
       setWaiting(null);
       setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }],
         updated_at: new Date().toISOString() });
@@ -144,8 +158,8 @@ export function useConversation(onSignedOut: () => void) {
   const history = isHistory(conv);
 
   /** The chat's text box: the open conversation goes on; with none, or one from an earlier day, a new one. */
-  const send = useCallback(async (line: string) => {
-    if (!conv || history) return start(line);
+  const send = useCallback(async (line: string, startAt?: string) => {
+    if (!conv || history) return start(line, startAt);
     return turn(() => api.sendMessage(conv.id, line, when()), (c) => ({
       ...c, state: "working", lines: [...c.lines, { role: "user", text: line }],
       updated_at: new Date().toISOString(),
@@ -160,6 +174,36 @@ export function useConversation(onSignedOut: () => void) {
       updated_at: new Date().toISOString(),
     }));
   }, [conv, turn]);
+
+  /** Schedule it: the writing is queued for fifteen minutes before the workout's time. */
+  const schedule = useCallback(async () => {
+    if (!conv) return false;
+    setError(null);
+    setPosting(true);
+    try {
+      await api.schedule(conv.id, when());
+      setConv(await api.conversation(conv.id));
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
+    } finally {
+      setPosting(false);
+    }
+  }, [conv, fail]);
+
+  /** Cancel a scheduled workout before its writing begins. */
+  const cancel = useCallback(async () => {
+    if (!conv) return false;
+    setError(null);
+    try {
+      setConv(await api.cancel(conv.id));
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
+    }
+  }, [conv, fail]);
 
   /** The Stop button: the running turn's work ends within a few seconds, and the chat with it (the server
    * keeps it as stopped, so it isn't offered again); the page goes back to the first screen. If the stop
@@ -189,5 +233,5 @@ export function useConversation(onSignedOut: () => void) {
     setNoKey(false);
   }, [working, stop]);
 
-  return { conv, history, working, error, noKey, send, record, halt, reset, job, stop, waiting, resume };
+  return { conv, history, working, error, noKey, send, record, schedule, cancel, halt, reset, job, stop, waiting, resume };
 }

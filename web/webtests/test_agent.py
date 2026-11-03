@@ -856,6 +856,67 @@ class Faster(AgentCase):
         self.assertEqual(calls[-1][-2:], ["--max-chars", "3000"])   # within the price
         self.assertIn(agent.AUTO_RECORDED, out.history_json.replace("\\n", "\n"))
 
+    LATER = {"at": "2026-11-04T12:00:00+00:00", "local": "2026-11-04 Wednesday 07:00", "offset": -300}
+
+    def test_a_workout_for_later_is_checked_in_now_and_written_then(self):
+        self.deps.later = dict(self.LATER)
+        patch, calls = self.fake()
+        seen = []
+
+        def script(messages, info):
+            seen.append({t.name for t in info.function_tools})
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[
+                    ToolCallPart("run", {"args": ["brief", "--goal", "strength", "--minutes", "15"]}, tool_call_id="b"),
+                    ToolCallPart("schedule_workout", {"minutes": 15, "coach": "Coach Reed"}, tool_call_id="s")])
+            return ModelResponse(parts=[TextPart("A 15-minute strength workout for Wednesday at 07:00.")])
+        with patch:
+            out = agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertIn("schedule_workout", seen[0])
+        self.assertFalse(any(a[0] == "brief" for a in calls))   # the brief waits for its own turn
+        self.assertIn("Wednesday 07:00", out.history_json)
+        self.assertEqual(self.deps.schedule, {"minutes": 15, "coach": "Coach Reed", "chars": 15 * agent.CHARS_A_MINUTE,
+                                              "usd": 0.05, "ceiling_chars": 15 * agent.CEILING_A_MINUTE,
+                                              "ceiling_usd": 0.05})
+        self.assertIn(["get", "cost", "--coach", "Coach Reed", "--chars", str(15 * agent.CEILING_A_MINUTE), "--json"],
+                      calls)
+
+    def test_schedule_workout_is_offered_only_for_later_and_not_in_its_own_turn(self):
+        for later, run_, offered in ((None, False, False), (self.LATER, False, True), (self.LATER, True, False)):
+            seen = []
+
+            def script(messages, info):
+                seen.append({t.name for t in info.function_tools})
+                return ModelResponse(parts=[TextPart("ok")])
+            self.deps.later, self.deps.scheduled_run = later, run_
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+            self.assertEqual("schedule_workout" in seen[0], offered, (later, run_))
+
+    def test_a_workout_for_later_records_on_its_own_within_its_ceiling(self):
+        self.draft()
+        reserved = []
+        self.deps.later, self.deps.scheduled_run = dict(self.LATER), True
+        self.deps.auto_record, self.deps.ceiling = True, 4000
+        self.deps.reserve = lambda chars: reserved.append(chars) or True
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn_that_builds()), self.deps, None, "go")
+        self.assertEqual((reserved, self.deps.recorded), ([3000], self.DRAFT))
+        self.assertIn(agent.SCHEDULED_RECORDED, out.history_json.replace("\\n", "\n"))
+
+    def test_a_workout_for_later_over_its_ceiling_waits_for_record(self):
+        self.draft()
+        reserved = []
+        self.deps.later, self.deps.scheduled_run = dict(self.LATER), True
+        self.deps.auto_record, self.deps.ceiling = True, 2500
+        self.deps.reserve = lambda chars: reserved.append(chars) or True
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn_that_builds()), self.deps, None, "go")
+        self.assertEqual((reserved, self.deps.recorded), ([], None))
+        self.assertEqual(self.deps.offer["chars"], 3000)   # the Record button, with its real price
+        self.assertIn("over the 2,500 the listener approved", out.history_json)
+
     def test_record_without_asking_past_the_allowance_waits_for_record(self):
         self.draft()
         self.deps.auto_record = True
@@ -1088,7 +1149,7 @@ class Instructions(AgentCase):
 
     def test_every_tool_is_registered(self):
         self.assertEqual(set(agent.AGENT._function_toolset.tools), {"run", "read_file", "write_file", "edit_segments", "list_files",
-                                                                   "write_script"})
+                                                                   "write_script", "schedule_workout"})
 
 
 if __name__ == "__main__":

@@ -50,6 +50,20 @@ class JobsCase(DBCase):
 
 
 class Queue(JobsCase):
+    def test_a_job_not_yet_due_waits_and_one_queued_after_it_runs(self):
+        _, uk = self.make_user()
+        later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
+        first = jobs.add(self.conn, uk, "brief", {"x": 1}, not_before=later)
+        second = jobs.add(self.conn, uk, "brief", {"x": 2})
+        self.conn.commit()
+        self.assertEqual(jobs.claim(self.conn).id, second)
+        self.assertEqual(self.state(first), ("queued", None))
+        self.assertEqual(jobs.due_at(self.conn, first), later)
+        self.assertTrue(jobs.cancel_queued(self.conn, uk, first))
+        self.assertFalse(jobs.cancel_queued(self.conn, uk, second))   # running: Stop's to end
+        self.conn.commit()
+        self.assertEqual(self.state(first), ("failed", "cancelled"))
+
     def test_args_and_events_are_sealed(self):
         _, uk = self.make_user()
         job = jobs.enqueue(self.conn, uk, "brief", {"goal": "strength", "secret": "left ankle"})

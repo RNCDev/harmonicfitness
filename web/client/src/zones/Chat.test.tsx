@@ -66,6 +66,25 @@ describe("the chat", () => {
     expect(onRecord).toHaveBeenCalled();
   });
 
+  it("a workout for later is scheduled with its cost and ceiling, then waits with Cancel", () => {
+    const at = new Date(Date.now() + 3 * 3600000).toISOString();
+    const later = { at, local: "x", minutes: 15, coach: "Coach Freya", usd: 0.124, ceiling_usd: 0.151 };
+    const onSchedule = vi.fn();
+    const { rerender } = render(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} later={later}
+      onSchedule={onSchedule} />);
+    expect(screen.getByText(/About \$0.13, and never more than \$0.16/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Schedule it (up to $0.16)" }));
+    expect(onSchedule).toHaveBeenCalled();
+    const onCancel = vi.fn();
+    rerender(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} scheduled onCancel={onCancel}
+      later={{ ...later, due: new Date(Date.now() + 2.75 * 3600000).toISOString() }} />);
+    expect(screen.queryByRole("button", { name: /Schedule it/ })).toBeNull();
+    expect(screen.getByText(/Scheduled for/)).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalled();
+  });
+
   it("Stop sits beside Send while the coach works, and only then", () => {
     const { rerender, container } = render(<Chat {...base} working onStop={() => {}} />);
     const form = container.querySelector(".chat-form")!;

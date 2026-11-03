@@ -2,6 +2,25 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.60.0] - 2026-11-03
+
+A workout can be planned for later on the website. The page's sentence now ends ", right now" or a time picked from the next day, every half hour ("at 7:00 PM", "tomorrow at 6:30 AM"). With a time, the check-in happens at once; then the chat shows what the session will cost with the coach, the most it may, and **Schedule it**. That press is the one approval. Fifteen minutes before the time, the site does the rest on its own: the brief, the research, the script and the recording, so the news, the weather and the menu are that hour's, and the MP3 is in the chat when the listener arrives. Tried live on Coach Freya: the check-in turn called the new tool and stopped (two model requests, no brief); the later turn wrote and checked the 15-minute script from it in 132 seconds, without a question, at 9,277 characters ($0.125) against a 12,000-character ceiling ($0.16).
+
+### Added
+- **The time in the sentence** (web client, `Starter`): a When blank, "right now" by default, then every half hour from half an hour ahead for a day. The start button reads "Plan it for later" when a time is picked, and a time that passed while the page sat open is a workout now.
+- **A workout for later** (web): `POST /api/conversations` takes `start_at`; the first turn is the check-in only (`brief` is refused until the later turn); the agent's new `schedule_workout` tool, offered only then, prices the session with the coach's own `get cost` (650 characters a minute for the estimate, 800 for the ceiling, from priced scripts) and ends the turn.
+- **Schedule it and Cancel** (web): `POST /api/conversations/{id}/schedule` queues the writing turn fifteen minutes before the time; the conversation is `scheduled` and takes no messages until it begins. `POST /api/conversations/{id}/cancel` takes it back before then, keeping the plan; once it has begun, Stop ends it. The page shows the scheduled workout with Cancel, and reads it every 30 seconds to see the writing begin.
+- **The scheduled turn records on its own, within its ceiling** (web): on the listener's clock as it is then, with Record without asking for that one turn. Over the ceiling, it waits with the Record button and its real price. The worker logs how long after its due time each scheduled turn began, to tune the fifteen minutes from data.
+- **Jobs that wait** (`jobs.not_before`, migration 016): a worker claims a job only once it's due, and a job not yet due neither blocks the listener's other jobs nor counts toward the queued cap.
+
+### For forks
+- **Migration 016** adds `jobs.not_before` and the conversation state `scheduled`; the web service applies it on start.
+- **A turn job may carry `scheduled` and `offset`** (minutes east of UTC); its `today` and `now` are set when it runs (`worker.local_clock`).
+- **`conversations.Conversation.later`**, and `schedule`, `wake` and `unschedule`; `heal` covers a scheduled conversation whose job died.
+- **The starter sentence ends ", right now"** or the picked time; the agent's instructions say what a time means.
+- **`Deps.later`, `Deps.schedule`, `Deps.scheduled_run` and `Deps.ceiling`**; `agent.schedule_workout`, `agent.CHARS_A_MINUTE` and `agent.CEILING_A_MINUTE`.
+- **`me/` needs no migration;** drafts, engine commands and exit codes are unchanged.
+
 ## [0.59.0] - 2026-11-03
 
 Website scripts land at their length with every safety line in, rests no longer get stories made up from their labels, and the knowledge files agree with each other and with the code. On the 15-minute test request (a strength workout with two one-sided limits on opposite sides), the release's three runs reached a checked price in a median 130 seconds from the brief, against 149 for 0.58.0, with no fixes after the writers' room in any run (0.58.0: a median of two), every must-say line kept (41 of 41; 0.58.0 kept 51 of 54), and the host's words within a few percent of what it was asked. Its scripts reached the review 0.5 percent short to 11 percent long where 0.58.0's ran 17 to 24 percent long. At 30 minutes, measured before the stop-sign, rest-label, host-wording and short-rest fixes below, the median fell from 252 seconds to 172. The bench that measured this is now in the repo, at `web/bench/`, with every result.

@@ -52,6 +52,18 @@ describe("useConversation", () => {
     expect(result.current.working).toBe(true);
   });
 
+  it("opens a scheduled conversation on its own, and follows it once its writing begins", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    m.latest.mockResolvedValue(conv({ state: "scheduled", later: { at: new Date().toISOString(), local: "x" } }));
+    m.conversation.mockResolvedValue(conv({ state: "working", job_id: 51 }));
+    const { result } = renderHook(() => useConversation(out));
+    await waitFor(() => expect(result.current.conv?.state).toBe("scheduled"));
+    expect(result.current.working).toBe(false);
+    expect(isHistory(conv({ state: "scheduled", updated_at: yesterday() }))).toBe(false);
+    await act(async () => { vi.advanceTimersByTime(31000); });
+    await waitFor(() => expect(m.watch).toHaveBeenCalledWith(51));
+  });
+
   it("sets noKey when there is no model key", async () => {
     m.latest.mockResolvedValue(undefined);
     m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Settings first."));
@@ -110,7 +122,7 @@ describe("useConversation", () => {
     const { result } = renderHook(() => useConversation(out));
     await waitFor(() => expect(m.latest).toHaveBeenCalled());
     await act(async () => { expect(await result.current.send("A 20-minute workout")).toBe(true); });
-    expect(m.start).toHaveBeenCalledWith("A 20-minute workout", expect.anything());
+    expect(m.start).toHaveBeenCalledWith("A 20-minute workout", expect.anything(), undefined);
     expect(result.current.conv?.id).toBe(8);
     m.conversation.mockResolvedValue(conv({ id: 8 }));
     act(() => m.endJob!("done"));
