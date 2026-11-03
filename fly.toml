@@ -6,6 +6,10 @@
 
 app = "harmonicfitness"
 primary_region = "iad"
+# a deploy stops each machine with SIGTERM, which the worker takes as "finish this job, then stop" (Fly's
+# default SIGINT killed a job mid-recording), and waits Fly's longest, five minutes, for it
+kill_signal = "SIGTERM"
+kill_timeout = 300
 
 [build]
   dockerfile = "Dockerfile"

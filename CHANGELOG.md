@@ -2,6 +2,16 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.61.4] - 2026-11-03
+
+A deploy no longer kills a workout being written or recorded on the website.
+
+### Fixed
+- **A deploy lets the worker finish its job** (`fly.toml`: `kill_signal = "SIGTERM"`, `kill_timeout = 300`): Fly stopped machines with SIGINT, which the worker doesn't catch, so a deploy ended a running job at once (one did, mid-recording). On SIGTERM the worker takes no new job and stops once the current one ends; Fly waits up to its longest, five minutes, for it. A recording with more than that left can still be cut off.
+
+### For forks
+- **Nothing to migrate;** a fork deploying elsewhere wants the same stop signal for its worker.
+
 ## [0.61.3] - 2026-11-03
 
 A website recording may now take as long as the workout itself, not half of it: thirty minutes for a thirty-minute workout, never under ten.
