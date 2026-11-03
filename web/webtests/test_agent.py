@@ -121,7 +121,7 @@ class Run(AgentCase):
             f.write("movements: march in place\n" + "".join(f"@@ {s} | Part\nEasy now.\n\n" for s in seconds))
         return path
 
-    def test_a_recording_may_take_half_the_workout_s_length_and_the_turn_waits_for_it(self):
+    def test_a_recording_may_take_the_workout_s_length_and_the_turn_waits_for_it(self):
         self.write_draft(1200, 600)   # thirty minutes
         self.deps.approved = {"draft": "me/workouts/a/a.draft.txt", "coach": "Coach Reed", "chars": 3000}
         extended = []
@@ -129,8 +129,8 @@ class Run(AgentCase):
         patch, calls = self.fake_engine()
         with patch:
             tools.run(self.deps, list(self.BUILD))
-        self.assertEqual(calls[-1][1], 900)   # fifteen minutes to record
-        self.assertEqual(extended, [900 + tools.TURN_FINISH])
+        self.assertEqual(calls[-1][1], 1800)   # thirty minutes to record
+        self.assertEqual(extended, [1800 + tools.TURN_FINISH])
 
     def test_a_short_workout_s_recording_keeps_the_least_build_time(self):
         self.assertEqual(tools.build_timeout(self.write_draft(300, 300)), tools.BUILD_TIMEOUT)

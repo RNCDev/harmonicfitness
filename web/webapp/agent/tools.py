@@ -24,7 +24,7 @@ LIST_LIMIT = 500        # files a listing names
 CUT = "[cut]"
 TIMEOUT = 300           # seconds for one engine command; the engine's cold start can be slow
 BUILD_TIMEOUT = 600     # the least a full build gets: a pending coach's voice design, then the web voice renders every line
-RECORD_SHARE = 0.5      # a recording may take up to half the workout's length: fifteen minutes for a thirty-minute one
+RECORD_SHARE = 1.0      # a recording may take up to the workout's own length: thirty minutes for a thirty-minute one
 TURN_FINISH = 120       # seconds the turn keeps past its recording's limit, to keep the MP3 and end
 
 ENGINE_READ = ("knowledge/", ".claude/skills/", "coaches/")
@@ -736,7 +736,7 @@ def _sends(text: str) -> int | None:
 
 
 def build_timeout(path: str) -> float:
-    """How long a full build of the draft at `path` may run: half the workout's length, never under BUILD_TIMEOUT.
+    """How long a full build of the draft at `path` may run: the workout's own length, never under BUILD_TIMEOUT.
     A slow voice takes most of it: Gemini, two clips at a time, spoke a thirty-minute workout in 506 s."""
     try:
         with open(path, encoding="utf-8") as f:

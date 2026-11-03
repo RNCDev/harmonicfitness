@@ -2,6 +2,16 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.61.3] - 2026-11-03
+
+A website recording may now take as long as the workout itself, not half of it: thirty minutes for a thirty-minute workout, never under ten.
+
+### Changed
+- **`tools.RECORD_SHARE` is 1.0** (web): `build_timeout` gives a full build the workout's own length, and the turn's clock waits for it as before. A slow voice on a busy day has room to finish, and a recording that ends early ends as soon as it's done.
+
+### For forks
+- **Nothing to migrate.**
+
 ## [0.61.2] - 2026-11-03
 
 The website's recordings get time to finish. A thirty-minute workout on a Gemini coach, which speaks two clips at a time, takes about nine minutes to record, and the site gave a recording ten: a scheduled workout ran out of it, and its retry was cut off by the turn's fifteen-minute cap. Another recording made every line and then ran the worker's machine out of memory as it put the MP3 together. Separately, rendered silences ran past eight seconds in drafts the lint had passed, and the encode took longer than it needed.
