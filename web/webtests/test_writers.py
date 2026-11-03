@@ -174,6 +174,29 @@ class Assemble(unittest.TestCase):
         self.assertEqual(writers.retold(again, titles), titles[0])
         self.assertIsNone(writers.retold(told(3, "The Devils host the Oilers on Tuesday night."), titles))
 
+    def test_a_story_told_before_gives_way_to_a_spare_rather_than_a_second_call(self):
+        found = {n: told(n, f"story {n}") for n in range(1, 7)}
+        kept = writers.without_retold(found, {2: "an old title"}, 6)   # six asked for, the last two spares
+        self.assertEqual([s.number for s in kept], [1, 3, 4, 5, 6])
+        self.assertIsNone(writers.without_retold(found, {}, 6))   # nothing told before: nothing to drop
+        many = {n: "old" for n in (1, 2, 3)}
+        self.assertIsNone(writers.without_retold(found, many, 6))   # three left for four places: written again
+
+    def test_a_clean_lint_in_the_room_spares_the_build_its_own(self):
+        import asyncio
+        from dataclasses import replace
+        from unittest import mock
+        deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00")
+        plain = replace(deps, say=None)
+
+        def lint(d, args):
+            d.linted = (args[1], "Coach Freya", "abc", 900)   # as tools.run remembers a clean lint
+            return tools.ToolResult(code=0, output="Exported")
+        with mock.patch.object(tools, "write_file"), mock.patch.object(tools, "run", side_effect=lint):
+            out = asyncio.run(writers._lint(deps, plain, "me/x.draft.txt", "/x", "Workout", "Coach Freya", "text"))
+        self.assertTrue(out.startswith("clean"))
+        self.assertEqual(deps.linted, ("me/x.draft.txt", "Coach Freya", "abc", 900))
+
 
 class Brief(unittest.TestCase):
     def test_the_coach_gets_only_the_plans_movements_from_the_menu(self):
@@ -251,6 +274,65 @@ class Switch(unittest.TestCase):
         self.assertIn("Set it up, then keep them company", agent.skill_text(ROOT))
         self.assertNotIn("Set it up, then keep them company", agent.skill_text(ROOT, writers="three"))
         self.assertIn("Only the menu.", agent.skill_text(ROOT, writers="three"))
+
+    def test_a_clean_skeleton_goes_straight_to_the_writers_and_anything_else_comes_back(self):
+        self.assertIn("goes straight on to the writers", agent.preamble("three"))
+        deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00",
+                          writers="three")
+        deps.reports["me/x.draft.txt"] = "the budgets"
+        ctx = type("Ctx", (), {"deps": deps})()
+        filled = []
+
+        async def fill(ctx_, path, name, coach):
+            filled.append(path)
+            return tools.ToolResult(code=0, output="priced")
+        import asyncio
+        import threading
+        loop = asyncio.new_event_loop()
+        threading.Thread(target=loop.run_forever, daemon=True).start()
+        self.addCleanup(loop.call_soon_threadsafe, loop.stop)
+        deps.loop = loop
+        from unittest import mock
+        with mock.patch.object(agent, "_fill", fill):
+            issue = tools.ToolResult(code=1, output="Skeleton...", error="1 menu issue(s). Fix and rerun.")
+            self.assertIs(agent._chain(ctx, "me/x.draft.txt", issue, "W", "Coach Freya"), issue)
+            clean = tools.ToolResult(code=1, output="Skeleton...", error="A skeleton, no words yet: write every segment")
+            out = agent._chain(ctx, "me/x.draft.txt", clean, "W", "Coach Freya")
+        self.assertEqual(filled, ["me/x.draft.txt"])
+        self.assertIn("the writers filled it at once", out.output)
+        deps.writers = "one"
+        self.assertIs(agent._chain(ctx, "me/x.draft.txt", clean, "W", "Coach Freya"), clean)
+
+    def test_stop_ends_a_writers_room_a_clean_skeleton_started(self):
+        import asyncio
+        import threading
+        import time
+        from unittest import mock
+        deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00",
+                          writers="three", cancel=threading.Event())
+        deps.reports["me/x.draft.txt"] = "the budgets"
+        ctx = type("Ctx", (), {"deps": deps})()
+        cancelled = []
+
+        async def fill(ctx_, path, name, coach):
+            try:
+                await asyncio.sleep(30)   # a room still writing
+            except asyncio.CancelledError:
+                cancelled.append(path)
+                raise
+        loop = asyncio.new_event_loop()
+        threading.Thread(target=loop.run_forever, daemon=True).start()
+        self.addCleanup(loop.call_soon_threadsafe, loop.stop)
+        deps.loop = loop
+        threading.Timer(0.2, deps.cancel.set).start()   # the listener presses Stop
+        clean = tools.ToolResult(code=1, output="", error="A skeleton, no words yet")
+        began = time.monotonic()
+        with mock.patch.object(agent, "_fill", fill):
+            out = agent._chain(ctx, "me/x.draft.txt", clean, "W", "Coach Freya")
+        self.assertLess(time.monotonic() - began, 3)
+        self.assertTrue(out.refused)
+        time.sleep(0.1)
+        self.assertEqual(cancelled, ["me/x.draft.txt"])   # the room's model calls stop with it
 
     def test_write_script_is_offered_only_to_a_three_writer_turn(self):
         for writers_, offered in (("one", False), ("three", True)):

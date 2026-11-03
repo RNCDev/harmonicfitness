@@ -384,8 +384,13 @@ def _cue_sentences(cat: catalog.Catalog) -> set:
     the sentences a segment may say that name the injured side."""
     cached = cat.__dict__.get("_cue_sentences")
     if cached is None:
-        cached = {catalog.plain(sentence) for levels in cat.limit_cues.values() for lines in levels.values()
-                  for line in lines for word in ("left", "right", "injured", "sore")
+        import playbook
+        lines = [line for levels in cat.limit_cues.values() for group in levels.values() for line in group]
+        # and the playbook's lines the brief has the coach say for a limit (its opening, its reason to say): the
+        # opening check asks for the opening's line, so a welcome that also names the one-sided movement may say it
+        lines += [text for a in playbook.shipped().areas.values() for lv in a.levels.values()
+                  for text in (lv.opening, lv.say) if text]
+        cached = {catalog.plain(sentence) for line in lines for word in ("left", "right", "injured", "sore")
                   for sentence in SENTENCE.split(line.replace(catalog.SIDE_SLOT, word)) if sentence.strip()}
         cat.__dict__["_cue_sentences"] = cached
     return cached
@@ -594,7 +599,10 @@ def opening_problems(menu: dict, segments) -> List[str]:
     pb = playbook.shipped()
     seg = segments[0]
     text = remaining_idioms(draft.story_split(seg)[0])
+    if not re.search(r"[A-Za-z]", re.sub(r"\[[^\]]*\]", " ", text)):
+        return []   # an opening with no words yet (a skeleton's): nothing said, so nothing to check
     out = []
+    sided = []   # each one-sided limit: (its side, body part, playbook level, level name, how the opening names it)
     for s in (menu.get("request") or {}).get("limits") or []:
         area, _, rest = s.partition("=")
         level, _, side = rest.partition(":")
@@ -603,14 +611,20 @@ def opening_problems(menu: dict, segments) -> List[str]:
         lv = pb.areas[area].levels.get(level) if area in pb.areas else None
         found = re.search(r"\{side\}\s+([a-z]+)", lv.opening) if lv else None
         part = found.group(1) if found else area.replace("-", " ")
+        named = re.compile(rf"\b{side}(?:[\s-]+\w+)?[\s-]+{part}s?\b|\b{part}s?\b[^.!?\n]{{0,20}}\b{side}\b",
+                           re.IGNORECASE)
+        sided.append((side, part, lv, level, named))
+    for side, part, lv, level, named in sided:
         said = (f'say the brief\'s opening line for it, every part kept: "{playbook._sided(lv.opening, level, side)}"'
                 if lv and lv.opening else f"say which side, as the brief does: your {side} {part}")
         where = f'segment "{seg["label"]}" (line {seg["start"]})'
-        named = re.compile(rf"\b{side}(?:[\s-]+\w+)?[\s-]+{part}s?\b|\b{part}s?\b[^.!?\n]{{0,20}}\b{side}\b",
-                           re.IGNORECASE)
         other = screen.OTHER_SIDE[side]
+        # a sentence naming another limit's own side and part ("the left knee stays light", under a left knee limit
+        # and a right shoulder one) is that limit's care, not this one's on the wrong side
+        theirs = [n for s2, _, _, _, n in sided if s2 == other]
         wrong = next((x.strip() for x in SENTENCE.split(text)
-                      if re.search(rf"\b{other}\b", x, re.IGNORECASE) and CARE.search(x) and not named.search(x)), None)
+                      if re.search(rf"\b{other}\b", x, re.IGNORECASE) and CARE.search(x) and not named.search(x)
+                      and not any(n.search(x) for n in theirs)), None)
         if wrong:
             out.append(f'{where}: "{wrong}" ties today\'s care to the {other} side, but the limit is the {side} {part}: '
                        + said)

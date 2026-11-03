@@ -10,7 +10,7 @@ import re
 import threading
 import time
 import tomllib
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, TimeoutError as Waiting
 from dataclasses import replace
 from dataclasses import dataclass
 from typing import Callable
@@ -510,7 +510,7 @@ def write_file(ctx: RunContext[Deps], path: str, content: str, build_name: str |
                    lambda: tools.write_file(ctx.deps, path, content))
     if isinstance(path, str) and path.endswith(".draft.txt"):
         ctx.deps.phase = "draft"
-    return _then_build(ctx, path, result, build_name, coach)
+    return _chain(ctx, path, _then_build(ctx, path, result, build_name, coach), build_name, coach)
 
 
 @AGENT.tool(sequential=True)
@@ -523,7 +523,7 @@ def edit_segments(ctx: RunContext[Deps], path: str, edits: list[tools.SegmentEdi
     result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "edit_segments",
                    lambda: tools.edit_segments(ctx.deps, path, list(edits)))
     ctx.deps.phase = "draft"
-    return _then_build(ctx, path, result, build_name, coach)
+    return _chain(ctx, path, _then_build(ctx, path, result, build_name, coach), build_name, coach)
 
 
 # what the listener sees while the writers work: the longest step in a turn, so they know they can step away
@@ -544,8 +544,43 @@ async def write_script(ctx: RunContext[Deps], path: str, build_name: str | None 
     deps = ctx.deps
     if deps.writers != "three":
         return tools._refuse("write the script's words yourself, with edit_segments, as the instructions say")
+    return await _fill(ctx, path, build_name, coach)
+
+
+# what a skeleton's lint says when it's clean: its budgets are ready, and nothing in it needs fixing first
+CLEAN_SKELETON = "A skeleton, no words yet"
+
+
+def _chain(ctx: RunContext[Deps], path: object, result: ToolResult, name: str | None, coach: str | None) -> ToolResult:
+    """A skeleton whose lint is clean, filled by the writers' room in the same call (0.58.0): the model request
+    that only handed it to write_script is gone. write_script stays for a skeleton written before."""
+    deps = ctx.deps
+    if not (deps.writers == "three" and isinstance(path, str) and deps.loop is not None
+            and CLEAN_SKELETON in result.output + result.error and path in deps.reports):
+        return result
+    writers.logline(deps, "skeleton clean: straight to the writers")
+    job = deps.room_job = asyncio.run_coroutine_threadsafe(_fill(ctx, path, name, coach), deps.loop)
+    while True:   # this tool's thread waits, looking each second for Stop or the turn's end, which cancel the room
+        try:
+            filled = job.result(timeout=1)
+            break
+        except Waiting:
+            if deps.ended.is_set() or (deps.cancel is not None and deps.cancel.is_set()):
+                job.cancel()
+                return tools._refuse("stopped")
+        except CancelledError:
+            return tools._refuse("stopped")
+    if filled.refused:   # the room couldn't start (no brief beside the draft, say): its reason, as write_script gives it
+        return filled
+    return filled.model_copy(update={"output": "The skeleton's lint was clean, so the writers filled it at once.\n\n"
+                                               + filled.output})
+
+
+async def _fill(ctx: RunContext[Deps], path: str, build_name: str | None, coach: str | None) -> ToolResult:
+    deps = ctx.deps
     n = _begin(deps, WRITING_STEP, "write_script")
     model = getattr(ctx.model, "wrapped", ctx.model)   # the turn's model, without the narration
+    began = time.monotonic()
     try:
         draft, note = await writers.write(deps, model, ctx.usage, path, [NativeTool(t) for t in native_tools(model)],
                                           build_name, coach)
@@ -556,9 +591,12 @@ async def write_script(ctx: RunContext[Deps], path: str, build_name: str | None 
         _say(deps, WRITING_STEP, "write_script", 1, n)
         raise
     _say(deps, WRITING_STEP, "write_script", 0, n)
+    writers.logline(deps, f"wrote the script {time.monotonic() - began:.1f}s")
+    began = time.monotonic()
     written = await asyncio.to_thread(tools.write_file, deps, path, draft)
     deps.phase = "draft"
     built = await asyncio.to_thread(_then_build, ctx, path, written, build_name, coach)
+    writers.logline(deps, f"build after the room exit {built.code} {time.monotonic() - began:.1f}s")
     full, _ = tools._mine(deps, path)
     try:
         with open(full, encoding="utf-8") as f:
@@ -793,8 +831,11 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     finally:
         done.set()
         timer.cancel()
+        deps.ended.set()
         if deps.content_job is not None:   # a personal content writer the turn never waited for stops with it
             deps.content_job.cancel()
+        if deps.room_job is not None:   # and so does a writers' room a clean skeleton started
+            deps.room_job.cancel()
     u = result.usage
     searches = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts) + deps.room_searches
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,

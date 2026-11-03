@@ -2,6 +2,42 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.58.0] - 2026-11-03
+
+Scripts are written faster on the website, and a workout under two limits on opposite sides can be built at all. A 15-minute strength script under a one-sided knee limit and a one-sided shoulder limit on the other side now reaches a checked, priced draft in a median of 184 seconds from the brief, down from 234 and 239 in two baselines of three timed runs each. All runs priced. Before the fix to the opening check, that request couldn't pass the build: the agent rebuilt it 25 times and stopped at the token cap. Each writer's time is now in the worker's log, which is how the rest was found. With three runs a side the totals swing widely (154 to 262 seconds after, 160 to 344 before), so the clearest gain is step by step: the room now waits a median 6 seconds for the researcher, not 110.
+
+### Changed
+- **The researcher thinks at LOW** (web, `writers.LEVEL`). At MEDIUM it took 78 to 160 seconds, ran past its 160-second patience in five of fifteen timed runs (and was asked again at LOW anyway), and the room waited a median 110 seconds for it. At LOW it took 17 to 27 seconds, with six sourced stories every run, notes of about 100 words rather than 130, and no more names in the told stories that its notes don't hold.
+- **A clean skeleton goes straight to the writers' room** (web, `agent._chain`). The `write_file` (or `edit_segments`) whose lint says "A skeleton, no words yet" starts the room in the same call: the model request that only handed the skeleton to `write_script` is gone. `write_script` stays for a skeleton written before. The instructions say so. Stop and the turn's time limit still end the room: the call looks for them each second and cancels it.
+- **A story told before gives way to a spare** (web, `writers.without_retold`), rather than the researcher writing it again first, while what's left still fills all but the two spares.
+- **The build after the room skips a lint it just did** (web): a clean lint in the trainer's review is remembered, so the build prices the same text without linting it again. Only the review's copy of the turn's state had remembered it.
+
+### Added
+- **The writers' room in the worker's log** (web): a `room` line for each writer (its thinking level, seconds, tokens in and out, web searches, and whether it ran past its patience and was asked again lower), each lint, how long the room waited for the researcher, and the room's whole time. Never what a writer read or wrote. `Deps.log` carries it; the worker prints it under the job's number.
+
+### Fixed
+- **Two one-sided limits on opposite sides** (`tools/menu.py`, `opening_problems`): the opening check read the left limit's own line ("your left knee stays light") as the right limit's care tied to the wrong side, so no script could pass. A sentence naming another limit's own side and body part is that limit's care.
+- **The brief's own opening line beside a healthy-side movement** (`menu._cue_sentences`): a welcome that said the limit's opening line ("Your right arm rests today...") and named a movement allowed on the left only was refused for naming the right. The playbook's opening and "say" lines now count with the shipped limit cues, word for word; the writer's own wording still fails safe.
+- **A skeleton under a one-sided limit lints clean** (`opening_problems`): an opening with no words yet isn't checked, so a skeleton's lint gives its budgets without "never names the left knee".
+
+### Tried and not kept
+Each was timed in three runs beside a baseline (n = 3: a difference under about 25 percent is noise).
+- **The host writing in two parts at once:** the room waits for the slower part, and thinking, not writing, sets the time: 66, 169 and 142 seconds against about 46.
+- **The host at LOW:** 15 seconds quicker, but its scripts ran 12 percent long with silences over eight seconds, and one run took eight fixes.
+- **Code checking the must-say lines to skip the review:** the host's script never linted clean on its own, so the review was never skipped. Every must-say line was already in after the host.
+
+### Found, still open
+- **The host overshoots.** Rests asked for about 130 words come back with 175 to 236: the story notes are written for about 140 words, and the host is told to tell each whole. A movement's first set carries its whole lesson in a set's budget. Scripts reach the review 6 to 14 percent long; it takes two passes, and the build after the room still fails in about half the runs, for length or for one-sided wording ("other arm", a short name for a one-sided movement).
+- **A rest labelled with a topic** ("Rest, hockey preview") gets a story from the label alone when the researcher brought none, with facts from nowhere.
+- **The trainer is now the long pole:** 60 to 104 seconds at MEDIUM.
+
+### For forks
+- **`writers.LEVEL["research"]` is `"LOW"`.** Set it back to `"MEDIUM"` for richer notes at about a minute and a half more a script.
+- **`write_file` and `edit_segments` may run the writers' room** when they write a clean skeleton in a three-writer turn: their result is then the room's (the draft and its build).
+- **`Deps.log`:** an optional `Callable[[str], None]`. A caller without one gets no room lines. `Deps.room_job` and `Deps.ended` let the turn's end cancel a room a skeleton started.
+- **`menu.opening_problems`** returns nothing for an opening with no words, and excuses another limit's own side.
+- **`me/` needs no migration;** drafts, commands and exit codes are unchanged.
+
 ## [0.57.0] - 2026-11-02
 
 Scripts are written faster, and workouts come in at the length you asked for. A 10-minute script now reaches a checked, priced draft in a median of 168 seconds, down from 251, in three timed runs each way. And every workout on record had come in short of plan (ten of ten, mean 3.4 percent, three of them past the five percent limit): the lint now predicts a voice's length the way it really speaks. Nine test recordings on 2026-11-02 showed why. A voice reads a script faster than its sample, a stock web coach on the website never had its measured pace while the script was written, and a count said in words takes a second a number, not the speed of talk.

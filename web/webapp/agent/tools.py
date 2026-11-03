@@ -100,6 +100,12 @@ class Deps:
     loop: object = field(default=None, repr=False)   # the turn's event loop, which the personal content writer runs on
     # the web searches the writers' room ran this turn (the researcher's): the turn's usage counts them with its own
     room_searches: int = 0
+    # a line for the worker's log about the writers' room (each writer's and lint's time, never what it read or
+    # wrote); None in tests
+    log: Callable[[str], None] | None = field(default=None, repr=False)
+    # the writers' room started by a clean skeleton (agent._chain): its future, cancelled when the turn ends
+    room_job: object = field(default=None, repr=False)
+    ended: threading.Event = field(default_factory=threading.Event, repr=False)   # set as the turn's run ends
 
 
 class ToolResult(BaseModel):

@@ -74,11 +74,34 @@ class TheOpeningNamesTheSide(unittest.TestCase):
         found = menu.opening_problems(KNEE, segs("@@ 60 | Welcome\nYour knee stays light today.\n"))
         self.assertIn("never names the left knee", found[0])
 
+    def test_a_skeletons_empty_opening_waits_for_its_words(self):
+        # a skeleton lints clean to its budgets: the opening is checked once it says something
+        self.assertEqual(menu.opening_problems(KNEE, segs("@@ 60 | Welcome\n[pause 2s]\n\n@@ 40 | Set\n")), [])
+
     def test_the_named_side_passes_with_the_other_side_working(self):
         for text in ("Your left knee stays light today, and the right leg does the lunges, two left in the tank.",
                      "Easy on the knee on the left today. Right side lateral lunges only.",
                      "Your left-side knee stays light. [story] The right back was sore all season. [/story]"):
             self.assertEqual(menu.opening_problems(KNEE, segs(f"@@ 60 | Welcome\n{text}\n")), [], text)
+
+    def test_two_limits_on_opposite_sides_each_keep_their_own_care(self):
+        both = {"request": {"limits": ["knee=delicate:left", "shoulder=off-limits:right"]}}
+        ok = ("@@ 60 | Welcome\nYour left knee stays light today, only as deep as is comfortable. "
+              "Your right arm rests today, nothing pushing or pulling on it.\n")
+        self.assertEqual(menu.opening_problems(both, segs(ok)), [])
+        wrong = "@@ 60 | Welcome\nYour left knee stays light today. Keep the left arm easy today.\n"
+        found = menu.opening_problems(both, segs(wrong))
+        self.assertEqual(len(found), 1)   # the arm's care on the wrong side, the knee's line excused
+        self.assertIn('"Keep the left arm easy today" ties today\'s care to the left side', found[0])
+
+    def test_the_opening_line_may_share_a_segment_with_the_healthy_side_movement(self):
+        # the brief's own opening line names the sore side; the welcome naming the left-arm press may still say it
+        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
+        ok = ("Your right arm rests today, nothing pushing, pulling or leaning on it. "
+              "Today it's the left single-arm floor press, left side only.")
+        self.assertEqual(menu.side_problems(CAT, on_menu, ok), [])
+        own = "Your right arm sits out. Today it's the left single-arm floor press, left side only."
+        self.assertTrue(menu.side_problems(CAT, on_menu, own))   # the writer's own wording still fails safe
 
     def test_no_one_sided_limit_needs_nothing(self):
         for m in ({"request": {}}, {"request": {"limits": ["knee=delicate:both"]}}):

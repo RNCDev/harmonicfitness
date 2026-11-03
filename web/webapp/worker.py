@@ -601,7 +601,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home,
                       keys=dict(ctx.keys, **({"TZ": zone} if zone else {})), today=today,
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
-                      cancel=ctx.cancel, picked=picked)
+                      cancel=ctx.cancel, picked=picked,
+                      log=lambda text: print(f"worker: job {ctx.job_id} {text}", file=sys.stderr, flush=True))
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     # and the coach skill only while an old audition waits to be closed: coaches are chosen in the gallery
     # here, never made (since 0.46.2), and the skill's text would steer the agent to an audition

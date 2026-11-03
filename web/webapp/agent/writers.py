@@ -11,6 +11,7 @@ import asyncio
 import functools
 import os
 import re
+import time
 from dataclasses import replace
 
 from pydantic import BaseModel, Field
@@ -47,8 +48,11 @@ LEVELS = ("HIGH", "MEDIUM", "LOW")
 PATIENCE = {"research": 160, "trainer": 110, "host": 150, "review": 80}
 # How hard each writer thinks. The review is a checklist, and at MEDIUM its first pass ran past its patience in four
 # of six timed 10-minute runs (2026-11-02), each time asked again at LOW, which answered in about ten seconds: the
-# turn waited 80 s for nothing. The trainer stays at MEDIUM: at LOW it dropped the self-check a limit adds.
-LEVEL = {"research": "MEDIUM", "trainer": "MEDIUM", "host": "MEDIUM", "review": "LOW"}
+# turn waited 80 s for nothing. The trainer stays at MEDIUM: at LOW it dropped the self-check a limit adds. The
+# researcher thinks at LOW (0.58.0): at MEDIUM it took 78 to 160 s, ran past its patience in five of fifteen timed
+# 15-minute runs and held the room up a median 110 s; at LOW it took 17 to 27 s, with six sourced stories every run.
+# The host stays at MEDIUM: at LOW its scripts ran long, with silences.
+LEVEL = {"research": "LOW", "trainer": "MEDIUM", "host": "MEDIUM", "review": "LOW"}
 
 
 def web_copy(text: str) -> str:
@@ -383,6 +387,26 @@ def _stock(deps, plan: str) -> str:
     return "\n\n".join(out)
 
 
+def logline(deps, text: str) -> None:
+    """A line for the worker's log: what the room did and how long it took, never what it read or wrote."""
+    if getattr(deps, "log", None) is not None:
+        try:
+            deps.log("room " + text)
+        except Exception:  # noqa: BLE001 - a log line never fails the turn
+            pass
+
+
+def _tokens(result) -> tuple[int, int]:
+    """The tokens in and out of one writer's run (its own requests, not the turn's)."""
+    got_in = got_out = 0
+    for m in result.new_messages():
+        u = getattr(m, "usage", None)
+        if u is not None:
+            got_in += u.input_tokens or 0
+            got_out += u.output_tokens or 0
+    return got_in, got_out
+
+
 def _thinking(model, level: str) -> dict | None:
     return {"google_thinking_config": {"thinking_level": level}} if type(model).__name__ == "GoogleModel" else None
 
@@ -391,6 +415,7 @@ async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: s
     """One writer's call; cut off by Gemini's own deadline (504, thinking too long), it's
     asked again a level lower, as it is when it runs past its PATIENCE."""
     lower = LEVELS[LEVELS.index(level) + 1:] if level in LEVELS else ()
+    began = time.monotonic()
     try:
         result = await asyncio.wait_for(
             agent.run(prompt, model=model, instructions=guides(deps.engine_root)[who],
@@ -399,9 +424,16 @@ async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: s
             timeout=PATIENCE.get(who) if lower else None)
     except (ModelHTTPError, asyncio.TimeoutError) as e:
         if isinstance(e, ModelHTTPError) and e.status_code != 504 or not lower:
+            logline(deps, f"{who} {level} failed {time.monotonic() - began:.1f}s ({type(e).__name__})")
             raise
+        logline(deps, f"{who} {level} gave up {time.monotonic() - began:.1f}s "
+                   f"({'504' if isinstance(e, ModelHTTPError) else 'past its patience'}), asked again at {lower[0]}")
         return await _ask(deps, who, agent, model, prompt, usage, lower[0], capabilities, history)
-    deps.room_searches += sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts)
+    found = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts)
+    deps.room_searches += found
+    got_in, got_out = _tokens(result)
+    logline(deps, f"{who} {level} {time.monotonic() - began:.1f}s, {got_in} tokens in, {got_out} out"
+               + (f", {found} web searches" if found else ""))
     return result
 
 
@@ -432,13 +464,27 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
     found = {s.number: s for s in told.output.stories}
     titles = told_titles(plan.output)
     repeats = {n: t for n, s in found.items() if (t := retold(s, titles))}
+    kept = without_retold(found, repeats, count)
+    if kept is not None:
+        logline(deps, f"research: {len(repeats)} told before, dropped for spares")
+        return kept
     if repeats:
+        logline(deps, f"research: {len(repeats)} told before, asked again")
         again = await _ask(deps, "research", RESEARCHER, model, (
             "Write these again, whole, each about another item, and return only these: "
             + "; ".join(f"story {n} retells \"{t}\", told before" for n, t in repeats.items()) + "."),
             usage, LEVEL["research"], capabilities=search, history=told.all_messages())
         found.update({s.number: s for s in again.output.stories if s.number in repeats})
     return [found[n] for n in sorted(found)]
+
+
+def without_retold(found: dict, repeats: dict, count: int) -> list | None:
+    """The stories without those told before, when what's left still fills all but the two spares asked for (so
+    nothing waits on the researcher writing them again); None when there are repeats and too few would be left."""
+    if not repeats:
+        return None
+    left = [found[n] for n in sorted(found) if n not in repeats]
+    return left if len(left) >= max(1, count - 2) else None
 
 
 SAY = re.compile(r"^\s*(?:[-*]\s*)?(SAY EXACTLY:|SAY, EVERY PART KEPT:)\s*(.+?)\s*$", re.MULTILINE)
@@ -485,8 +531,10 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
     if report is None:
         if not (name and coach):
             raise NotReady("build the skeleton first (write_file with build_name and coach): its word budgets come next")
+        began = time.monotonic()
         linted = await asyncio.to_thread(tools.run, plain, ["build", path, name, "--coach", coach, "--lint-only"])
         report = linted.output + "\n" + linted.error
+        logline(deps, f"skeleton lint {time.monotonic() - began:.1f}s")
     budget = budgets(report)
     head, segs = split(skeleton)
     if len(budget) < len(segs):
@@ -503,8 +551,10 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         budget[n] = budget.get(n, 0) + round(secs * rate)
 
     rests, marked = slots(segs, budget), steady(segs)
+    began = time.monotonic()
     about, feeds = await asyncio.gather(asyncio.to_thread(tools.run, plain, ["movements", "--about", ",".join(ids)]),
                                         asyncio.to_thread(tools.run, plain, ["feeds"]))
+    logline(deps, f"notes and feeds {time.monotonic() - began:.1f}s")
     weather = _section(feeds.output if feeds.code == 0 else "", "Weather") or "not known"
     trainer_prompt = (
         f"Now: {deps.now}.\n\n# The brief\n\n{coach_brief(brief, ids)}\n\n# The coaching notes\n\n"
@@ -513,11 +563,16 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
 
     async def the_stories() -> list[Told]:   # started as the brief was saved, or written now
         job = deps.content_job if deps.content_job is not None and deps.content_for == path else None
+        waited = time.monotonic()
         if job is not None:
+            ready = job.done()
             try:
-                return await asyncio.wrap_future(job)
+                got = await asyncio.wrap_future(job)
+                logline(deps, "research " + ("was ready" if ready else
+                                          f"waited for {time.monotonic() - waited:.1f}s"))
+                return got
             except Exception:  # noqa: BLE001 - the early run failed: write them now instead
-                pass
+                logline(deps, "research: the early run failed, written now")
         return await stories(deps, model, usage, path, max(1, round(sum(s for _, _, s, _ in segs) / 60)), search)
 
     # the researcher's notes and the trainer's side by side, each from its own material
@@ -534,8 +589,9 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         f"hold or pause you add takes {rate:.1f} words a second from them.\n\n"
         f"{host_plan(segs, budget, notes, placed, frozenset(marked), rests)}")
     hosted = await _ask(deps, "host", HOST, model, host_prompt, usage, LEVEL["host"])
-    draft = apply_edits(skeleton, hosted.output.segments)
-    spoken = {e.number for e in hosted.output.segments}
+    edits = hosted.output.segments
+    draft = apply_edits(skeleton, edits)
+    spoken = {e.number for e in edits}
 
     # the trainer's review: the script as the listener hears it, with the build's check and the trainer's notes;
     # once more if the check still finds something after it
@@ -571,9 +627,12 @@ async def _lint(deps, plain, path: str, full: str, name: str | None, coach: str 
     """The build's check of `draft` (written to `path` first): "clean" and its summary, or its issues."""
     if not (name and coach):
         return "not checked"
+    began = time.monotonic()
     await asyncio.to_thread(tools.write_file, deps, path, draft)
     r = await asyncio.to_thread(tools.run, plain, ["build", path, name, "--coach", coach, "--lint-only"])
     out = (r.output + "\n" + r.error).strip()
+    logline(deps, f"lint exit {r.code} {time.monotonic() - began:.1f}s")
+    deps.linted = plain.linted   # a clean lint here: the build after the room prices this text without another
     return ("clean: " if r.code == 0 else "") + out
 
 
