@@ -295,7 +295,7 @@ class Core(unittest.TestCase):
         s = cloud.services()
         self.assertEqual(set(s), {"fish", "elevenlabs", "gemini", "inworld", "openrouter"})
         for name in s:
-            self.assertEqual(s[name]["tried_live"], name != "openrouter", name)
+            self.assertTrue(s[name]["tried_live"], name)
             self.assertEqual(s[name]["rates_checked"], "2026-10-25")
             for gone in ("copies_clip", "designs", "stock_voices"):
                 self.assertNotIn(gone, s[name])

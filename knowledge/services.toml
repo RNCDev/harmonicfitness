@@ -100,4 +100,4 @@ concurrency = 6
 max_chars = 10000
 candidates = 3
 note = "stock voices only (no voice designed for you); one key also writes workouts on the web app"
-tried_live = false
+tried_live = true    # a thirty-minute workout on the web app, Coach Leah, 2026-11-03

@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import errors  # noqa: E402
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
+import cloud  # noqa: E402
 import coachpick  # noqa: E402
 import context  # noqa: E402
 import keys  # noqa: E402
@@ -244,9 +245,15 @@ class Routes(unittest.TestCase):
         with mock.patch.object(routes, "local_installed", return_value=True):
             lines = "\n".join(coachpick.report_lines(self.coach, ["local"], MAC))
         self.assertRegex(lines, r"inworld .*key")
+        self.assertNotIn("not yet tried live", lines)   # every service has been run live
+        self.assertIn("A build here would use: local", lines)
+        shipped = cloud.services()
+        untried = dict(shipped, openrouter=dict(shipped["openrouter"], tried_live=False))
+        with mock.patch.object(routes, "local_installed", return_value=True), \
+                mock.patch.object(cloud, "services", return_value=untried):
+            lines = "\n".join(coachpick.report_lines(self.coach, ["local"], MAC))
         tried = [ln for ln in lines.splitlines() if "not yet tried live" in ln]
         self.assertEqual([ln.split()[0] for ln in tried], ["openrouter"])
-        self.assertIn("A build here would use: local", lines)
 
     def test_profile_defaults(self):
         p = context.Profile({}, "", "profile.md")

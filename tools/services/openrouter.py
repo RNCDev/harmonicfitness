@@ -14,7 +14,7 @@ Design: no request at all. The description picks the closest stock voices (gende
 sound words), and each says the coaching line once: the audition is by ear, so the matching only steers.
 Save: nothing to save; the voice ID is the candidate's. Delete: nothing to delete.
 Balance: GET /api/v1/credits, {total_credits, total_usage} in US dollars.
-Not yet tried live.
+Tried live: a thirty-minute workout on the web app, 2026-11-03.
 """
 import json
 import re
