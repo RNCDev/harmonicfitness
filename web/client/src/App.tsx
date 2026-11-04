@@ -214,7 +214,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       <Sky kind={sky} busy={working} />
       <div className={page !== "chat" ? "work show-logs" : "work"}>
         <header className="work-top">
-          <Mark live={working} />
+          <Mark />
           <span className="top-gap" />
           {conv && page === "chat" && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">

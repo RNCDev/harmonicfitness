@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MARK, UNLIT, WORDMARK_H } from "./brand";
+import { MARK, UNLIT } from "./brand";
 import { Mark, Meter } from "./Mark";
 
 afterEach(() => vi.useRealTimers());
@@ -9,24 +9,12 @@ const lit = (svg: Element | null) =>
   [...(svg?.querySelectorAll("rect") ?? [])].map((r) => r.getAttribute("opacity") !== String(UNLIT));
 
 describe("the logo", () => {
-  it("draws the wordmark's H as the meter's segments, some unlit, and names the app", () => {
+  it("draws the wordmark in type, no meter in it, and names the app", () => {
     const { container } = render(<Mark version="0.46.1 (abc1234)" />);
     expect(screen.getByRole("img", { name: "HarmonicFitness" })).toBeInTheDocument();
-    const meter = container.querySelector(".mark-name .meter");
-    expect(meter?.querySelectorAll("rect")).toHaveLength(WORDMARK_H.letter.segments.length);
-    const reading = lit(meter);
-    expect(reading).toEqual(WORDMARK_H.letter.segments.map((s) => s.lit));
-    expect(reading).toContain(false);
+    expect(container.querySelector(".mark-name .meter")).toBeNull();
+    expect(container.querySelectorAll(".mark-name rect")).toHaveLength(0);
     expect(screen.getByText("0.46.1 (abc1234)")).toBeInTheDocument();
-  });
-
-  it("moves the H only while live", () => {
-    vi.useFakeTimers();
-    const { container, rerender } = render(<Mark live />);
-    act(() => { vi.advanceTimersByTime(110); });
-    expect(container.querySelector(".meter")?.getAttribute("data-live")).toBe("true");
-    rerender(<Mark />);
-    expect(container.querySelector(".meter")?.getAttribute("data-live")).toBeNull();
   });
 
   it("draws the wordmark in the text colour, FITNESS lighter", () => {

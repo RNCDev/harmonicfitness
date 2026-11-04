@@ -1,6 +1,6 @@
 # HarmonicFitness brand
 
-The mark is an H drawn as a stereo level meter: two channels of segments and a middle bar, coloured Ember, from deep coral at the foot to a pale flare at the top. It is the app's sound and the app's name in one shape. The wordmark is HARMONICFITNESS in one word, set in Big Shoulders Display, the face the web app's headings use, with FITNESS in a lighter tone; in its main form the meter is its H, half again as tall as the other capitals.
+The mark is an H drawn as a stereo level meter: two channels of segments and a middle bar, coloured Ember, from deep coral at the foot to a pale flare at the top. It is the app's sound and the app's name in one shape. The wordmark is HARMONICFITNESS in one word, set in Big Shoulders Display, the face the web app's headings use, with FITNESS in a lighter tone. The wordmark in type is the main logo; the meter stands apart as the mark and the app icon.
 
 ## Files
 
@@ -8,12 +8,11 @@ The mark is an H drawn as a stereo level meter: two channels of segments and a m
 |---|---|
 | `lockup.svg`, `lockup.png` | Mark and wordmark, on light backgrounds |
 | `lockup-reversed.svg`, `lockup-reversed.png` | The same, on dark backgrounds |
-| `wordmark-h.svg`, `wordmark-h.png` | The main logo: the wordmark with the meter as its H, on light backgrounds |
-| `wordmark-h-reversed.svg`, `wordmark-h-reversed.png` | The same, on dark backgrounds |
+| `wordmark.svg`, `wordmark-reversed.svg` | The main logo: the wordmark in type, on light and on dark |
+| `wordmark-h.svg`, `wordmark-h.png`, `-reversed` | Retired: the wordmark with the meter as its H, kept until a new logo replaces it |
 | `mark.svg` | The mark alone, from about 60 px: ten segments a channel |
 | `mark-mid.svg` | The mark from about 24 to 60 px: six segments |
 | `mark-small.svg` | The mark below about 24 px: four segments |
-| `wordmark.svg`, `wordmark-reversed.svg` | The wordmark alone |
 | `app-icon.svg`, `app-icon-1024.png` | App icon: ink, the meter in Ember |
 | `app-icon-coral.svg`, `app-icon-coral-1024.png` | App icon on coral, the meter in ink |
 | `favicon.svg`, `favicon.ico` | Browser icons (16, 32 and 48 px in the ICO; 16 and 32 use the small form, 48 the mid) |
@@ -38,13 +37,13 @@ On a 100-unit square the two channels are 16 units wide, at x 16 and 68, from y 
 
 Smaller forms use fewer, taller segments, so the gaps stay at least a pixel wide: the full form has 10 a channel (gap 2.4, from about 60 px), the mid 6 (gap 4), the small 4 (gap 7, below about 24 px).
 
-In the wordmark-h files the meter is the H itself: square-cut, 1.5 cap heights tall and centred on the caps (rising above them and dropping below the baseline alike), its stems 13.5 % of its height (the font's own stem ratio), six segments, and the font's space before the A widened by a quarter. Centred, it reads as an emblem the word passes through: balanced, not climbing. `LETTER_SCALE` and `LETTER_ALIGN` in `make.py` set its size and place. The web app's header draws this form.
+In the retired wordmark-h files the meter is the H itself: square-cut, 1.5 cap heights tall and centred on the caps (rising above them and dropping below the baseline alike), its stems 13.5 % of its height (the font's own stem ratio), six segments, and the font's space before the A widened by a quarter. Centred, it reads as an emblem the word passes through: balanced, not climbing. `LETTER_SCALE` and `LETTER_ALIGN` in `make.py` set its size and place. It read poorly at header size (the pale top of the H fades into a dark ground, and the word reads as ARMONICFITNESS), so the header draws the wordmark in type.
 
 The wordmark is Big Shoulders Display Bold (weight 700, SIL Open Font License 1.1), tracked +0.01 em, outlined, so nothing needs the font installed. In the lockup the mark is 1.3 cap heights tall, centred on the caps, 0.45 cap heights from the wordmark.
 
 ## Motion
 
-In the web app the meter moves only where there's sound: the header's H while the coach is working or recording, and beside a workout's player while it plays. The levels are lively but made up, two slow waves and a quick one per channel, with peaks that fall back slowly. At rest, and whenever the system asks for reduced motion, it is the still mark.
+In the web app the meter moves only where there's sound: beside a workout's player while it plays. The levels are lively but made up, two slow waves and a quick one per channel, with peaks that fall back slowly. At rest, and whenever the system asks for reduced motion, it is the still mark.
 
 ## Remaking them
 

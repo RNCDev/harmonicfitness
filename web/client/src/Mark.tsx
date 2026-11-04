@@ -1,15 +1,14 @@
-// The logo: the wordmark, its H drawn as a stereo level meter in Ember half again as tall as the caps and centred
-// on them, the rest in the surrounding text colour with FITNESS lighter, so it reads on the sky and on a sheet
-// alike. Its shapes come from brand.ts, which assets/brand/make.py writes.
+// The logo: the wordmark, HARMONICFITNESS set in the display face, in the surrounding text colour with FITNESS
+// lighter, so it reads on the sky and on a sheet alike. Its shapes come from brand.ts, which assets/brand/make.py
+// writes.
 //
-// The meter moves only where there's sound: while the coach is working and while a workout plays. At rest, or
-// when the system asks for reduced motion, it shows the still mark.
+// The meter (the mark alone) moves only where there's sound: while a workout plays. At rest, or when the system
+// asks for reduced motion, it shows the still mark.
 import { useEffect, useState } from "react";
 import { APP_NAME } from "./api";
-import { FITNESS_OPACITY, MARK, UNLIT, WORDMARK, WORDMARK_H, type Form } from "./brand";
+import { FITNESS_OPACITY, MARK, UNLIT, WORDMARK, type Form } from "./brand";
 
-const WORD_H = 19; // the plain wordmark's height at the header's size, which sets the caps
-const LOGO_H = (WORDMARK_H.height * WORD_H) / WORDMARK.height; // the same caps, with the taller H
+const WORD_H = 19; // the wordmark's height at the header's size
 
 type Levels = { L: number; R: number; peakL: number; peakR: number };
 
@@ -47,7 +46,7 @@ function useLevels(live: boolean, n: number): Levels | null {
 }
 
 /** The meter's segments as an SVG group, reading the still mark or, while `live`, the moving levels. */
-function Segments({ form, live = false, y = 0 }: { form: Form; live?: boolean; y?: number }) {
+function Segments({ form, live = false }: { form: Form; live?: boolean }) {
   const n = Math.max(...form.segments.map((s) => s.fb));
   const levels = useLevels(live, n);
   const lit = (ch: string, fb: number, still: boolean) => {
@@ -56,7 +55,7 @@ function Segments({ form, live = false, y = 0 }: { form: Form; live?: boolean; y
     return fb <= level || (fb === peak && fb > level);
   };
   return (
-    <g className="meter" transform={y ? `translate(0 ${y})` : undefined} data-live={levels ? "true" : undefined}>
+    <g className="meter" data-live={levels ? "true" : undefined}>
       {form.segments.map((s, i) => (
         <rect key={i} x={s.x} y={s.y} width={s.w} height={s.h} rx={s.rx || undefined} fill={s.fill}
           opacity={lit(s.ch, s.fb, s.lit) ? undefined : UNLIT} />
@@ -78,15 +77,14 @@ export function Meter({ form = "mid", height, live = false, className }: {
   );
 }
 
-/** The wordmark with the meter for its H, which moves while `live`. */
-export function Mark({ version, live = false }: { version?: string; live?: boolean }) {
+/** The wordmark, with the version beside it when given. */
+export function Mark({ version }: { version?: string }) {
   return (
     <div className="mark">
-      <svg className="mark-name" width={(WORDMARK_H.width * LOGO_H) / WORDMARK_H.height} height={LOGO_H}
-        viewBox={`0 0 ${WORDMARK_H.width} ${WORDMARK_H.height}`} role="img" aria-label={APP_NAME}>
-        <Segments form={WORDMARK_H.letter as Form} live={live} y={WORDMARK_H.letterY} />
-        <path d={WORDMARK_H.armonic} fill="currentColor" />
-        <path d={WORDMARK_H.fitness} fill="currentColor" opacity={FITNESS_OPACITY} />
+      <svg className="mark-name" width={(WORDMARK.width * WORD_H) / WORDMARK.height} height={WORD_H}
+        viewBox={`0 0 ${WORDMARK.width} ${WORDMARK.height}`} role="img" aria-label={APP_NAME}>
+        <path d={WORDMARK.harmonic} fill="currentColor" />
+        <path d={WORDMARK.fitness} fill="currentColor" opacity={FITNESS_OPACITY} />
       </svg>
       {version && <span className="ver">{version}</span>}
     </div>
