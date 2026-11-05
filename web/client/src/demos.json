@@ -1,0 +1,285 @@
+{
+ "version": 1,
+ "built": "2026-11-04",
+ "engine": "0.63.0",
+ "demos": [
+  {
+   "slug": "jo",
+   "order": 1,
+   "name": "Jo",
+   "ask": "Thirty minutes, hotel room, nothing to lift. My left knee's cranky after the flight.",
+   "coach": "Coach Priya",
+   "minutes": 30,
+   "shows": "A one-sided limit in a hotel room: the left knee named with its stop signs, the chair and towel put to work, a space-history number to start.",
+   "story": "number",
+   "moments": [
+    {
+     "at": "0:00",
+     "label": "Priya introduces herself, and the left knee is named"
+    },
+    {
+     "at": "0:56",
+     "label": "The chair, the towel, and a number from Apollo"
+    }
+   ],
+   "request": {
+    "type": "full-body workout",
+    "place": "in a hotel room",
+    "when": "right now",
+    "care": "easy",
+    "area": "left knee"
+   },
+   "card": {
+    "tag": "travels for work",
+    "who": "Jo, travels for work and trains three times a week",
+    "kit": "Hotel room: a chair and a towel",
+    "limit": "Left knee, delicate",
+    "topics": [
+     "Space history",
+     "Jazz"
+    ],
+    "changed": "The left knee stays light: no jumping or deep bends, the right leg alone does the lunges, and the hips and glutes work for the left knee."
+   },
+   "audio": "https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/jo.mp3"
+  },
+  {
+   "slug": "ben",
+   "order": 2,
+   "name": "Ben",
+   "ask": "First time doing anything like this. Twenty-five minutes, I've only got a chair.",
+   "coach": "Coach Bea",
+   "minutes": 25,
+   "shows": "A novice with one chair: a movement set up step by step before the go, then a cooking myth checked in the rest.",
+   "story": "myth_or_fact",
+   "moments": [
+    {
+     "at": "0:00",
+     "label": "Feet, hands, then the move: a chair becomes a box squat"
+    },
+    {
+     "at": "1:25",
+     "label": "Myth or fact: searing doesn't seal in the juices"
+    }
+   ],
+   "request": {
+    "type": "full-body workout",
+    "place": "at home",
+    "when": "right now",
+    "care": "none"
+   },
+   "card": {
+    "tag": "first time training",
+    "who": "Ben, new to training",
+    "kit": "Living room: one chair",
+    "limit": "None",
+    "topics": [
+     "Cooking",
+     "Ancient Rome"
+    ],
+    "changed": ""
+   },
+   "audio": "https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/ben.mp3"
+  },
+  {
+   "slug": "lena",
+   "order": 3,
+   "name": "Lena",
+   "ask": "Push me. Dumbbells, forty-five minutes. I want to be wrecked.",
+   "coach": "Coach Desmond",
+   "minutes": 45,
+   "shows": "An advanced lifter's hardest set: the weight in pounds, short cues and counts with no chatter, then how a mountaineer trained in the rest.",
+   "story": "how_they_trained",
+   "moments": [
+    {
+     "at": "0:00",
+     "label": "The hardest set: the fifties, eight a side"
+    },
+    {
+     "at": "1:01",
+     "label": "How Alex Honnold trained for Freerider"
+    }
+   ],
+   "request": {
+    "type": "strength workout",
+    "place": "with my garage kit",
+    "when": "right now",
+    "care": "none"
+   },
+   "card": {
+    "tag": "lifts four times a week",
+    "who": "Lena, lifts four times a week",
+    "kit": "Garage: dumbbells from fifteen to fifty pounds, a bench, a mat",
+    "limit": "None",
+    "topics": [
+     "Formula One engineering",
+     "Mountaineering"
+    ],
+    "changed": ""
+   },
+   "audio": "https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/lena.mp3"
+  },
+  {
+   "slug": "ravi",
+   "order": 4,
+   "name": "Ravi",
+   "ask": "Forty minutes in the park, bodyweight, and tell me something I don't know.",
+   "coach": "Coach Bea",
+   "minutes": 40,
+   "shows": "Bodyweight in a park: a story told through steady timed work and picked up again in the rest, a serial on the history of maps.",
+   "story": "serial",
+   "moments": [
+    {
+     "at": "0:00",
+     "label": "Bea picks the story back up mid-walk"
+    },
+    {
+     "at": "1:27",
+     "label": "Gone in a week, and a best guess saved for later"
+    }
+   ],
+   "request": {
+    "type": "full-body workout",
+    "place": "with no equipment",
+    "when": "right now",
+    "care": "none"
+   },
+   "card": {
+    "tag": "trains in the park",
+    "who": "Ravi, runs and trains outdoors",
+    "kit": "A park: bodyweight only",
+    "limit": "None",
+    "topics": [
+     "The deep sea",
+     "The history of maps"
+    ],
+    "changed": ""
+   },
+   "audio": "https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/ravi.mp3"
+  },
+  {
+   "slug": "mo",
+   "order": 5,
+   "name": "Mo",
+   "ask": "Quick one before work. Thirty minutes, I've got a kettlebell.",
+   "coach": "Coach Desmond",
+   "minutes": 30,
+   "shows": "Kettlebells in kilos before work: a brain teaser asked in one rest, a short set, and the answer in the next rest.",
+   "story": "brain_teaser",
+   "moments": [
+    {
+     "at": "0:00",
+     "label": "The cup teaser"
+    },
+    {
+     "at": "0:49",
+     "label": "Twenty-four kilos, ten rows"
+    },
+    {
+     "at": "1:25",
+     "label": "The answer: count the losers"
+    }
+   ],
+   "request": {
+    "type": "strength workout",
+    "place": "with my kettlebell kit",
+    "when": "at 6:30 AM",
+    "care": "none"
+   },
+   "card": {
+    "tag": "trains before work",
+    "who": "Mo, trains before work",
+    "kit": "A flat: kettlebells of twelve, sixteen and twenty-four kilos, a mat",
+    "limit": "None",
+    "topics": [
+     "Chess history",
+     "Football tactics",
+     "Brain teasers"
+    ],
+    "changed": ""
+   },
+   "audio": "https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/mo.mp3"
+  },
+  {
+   "slug": "ines",
+   "order": 6,
+   "name": "Ines",
+   "ask": "My lower back's been tight all week. Something gentle, thirty-five minutes. I've got bands and a mat.",
+   "coach": "Coach Priya",
+   "minutes": 35,
+   "shows": "A delicate lower back and a novice's mobility session: slow band work with the breath, a bird's profile, and a calm close.",
+   "story": "profile",
+   "moments": [
+    {
+     "at": "0:00",
+     "label": "The breath leads the band, and a five-month-old godwit"
+    },
+    {
+     "at": "1:21",
+     "label": "Long exhale breathing"
+    },
+    {
+     "at": "2:09",
+     "label": "How hard did that feel?"
+    }
+   ],
+   "request": {
+    "type": "mobility session",
+    "place": "at home",
+    "when": "right now",
+    "care": "easy",
+    "area": "low back"
+   },
+   "card": {
+    "tag": "back to moving after two years off",
+    "who": "Ines, back to moving after two years off",
+    "kit": "Home: resistance bands and a mat",
+    "limit": "Lower back, delicate",
+    "topics": [
+     "Gardening",
+     "Birds"
+    ],
+    "changed": "The lower back kept light: nothing fast or heavy, a brace before every rep, and a roll to the side to get up from the floor."
+   },
+   "audio": "https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/ines.mp3"
+  },
+  {
+   "slug": "frank",
+   "order": 7,
+   "name": "Frank",
+   "ask": "Right shoulder's still healing. Legs and core only, forty minutes.",
+   "coach": "Coach Priya",
+   "minutes": 40,
+   "shows": "An off-limits shoulder after surgery: the right shoulder named and the surgeon's rule quoted as theirs, then legs work that never asks for that arm.",
+   "story": "explainer",
+   "moments": [
+    {
+     "at": "0:00",
+     "label": "The right shoulder named, and the surgeon's rule quoted"
+    },
+    {
+     "at": "1:11",
+     "label": "Left hand only, and how the X-1 got through the sound barrier"
+    }
+   ],
+   "request": {
+    "type": "leg workout",
+    "place": "at home",
+    "when": "right now",
+    "care": "off",
+    "area": "right shoulder"
+   },
+   "card": {
+    "tag": "six weeks after shoulder surgery",
+    "who": "Frank, six weeks after shoulder surgery",
+    "kit": "Home: a mat, a mini band and a chair",
+    "limit": "Right shoulder, off-limits",
+    "topics": [
+     "Aviation history",
+     "Crime novels"
+    ],
+    "changed": "The right arm sits out everything, getting down to the floor and up included, so the legs and core do all the work."
+   },
+   "audio": "https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/frank.mp3"
+  }
+ ]
+}

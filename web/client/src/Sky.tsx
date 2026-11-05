@@ -470,24 +470,32 @@ export function SkyPreview({ kind }: { kind: SkyKind }) {
   );
 }
 
-/** A page with the sky behind one short task: signing in, choosing a password, a server that can't be reached. */
-export function Solo({ version, children }: { version?: string; children: ReactNode }) {
+/** A page with the sky behind one short task: signing in, choosing a password, a server that can't be reached.
+ * `beside` (the sign-in page's demos) takes the wide column, saying what the app is, and the task sits next to it. */
+export function Solo({ version, children, beside }: { version?: string; children: ReactNode; beside?: ReactNode }) {
   return (
     <div className="app solo-app">
       <Sky />
-      <SoloFrame version={version}>{children}</SoloFrame>
+      <SoloFrame version={version} beside={beside}>{children}</SoloFrame>
     </div>
   );
 }
 
-function SoloFrame({ version, children }: { version?: string; children: ReactNode }) {
+function SoloFrame({ version, children, beside }: { version?: string; children: ReactNode; beside?: ReactNode }) {
   return (
     <div className="work">
       <header className="work-top"><Mark version={version} /></header>
-      <main className="solo">
-        <p className="eyebrow">Audio workouts for your earbuds, written and voiced fresh each time you ask.</p>
-        {children}
-      </main>
+      {beside ? (
+        <main className="solo solo-pair">
+          {beside}
+          <div className="solo-task">{children}</div>
+        </main>
+      ) : (
+        <main className="solo">
+          <p className="eyebrow">Workouts for your earbuds, written and voiced fresh each time you ask</p>
+          {children}
+        </main>
+      )}
     </div>
   );
 }

@@ -2,6 +2,26 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.65.0] - 2026-11-04
+
+The sign-in page now plays the demos: what seven invented listeners asked for, one at a time, each written as the request the app would send for them, with two minutes of the workout it made.
+
+### Added
+- **The demos on the sign-in page** (web, `client/src/Demos.tsx`). The sign-in form moves to the right, and the wide column says what the app is: "Ask in one sentence. Your coach builds the workout around your body, your kit and your time, and fills the rests with stories about what you're into."
+  - **Each demo is the app's own request:** its two lines in coral, with the blanks in cream ("Hey, coach Priya, I'd like a 30-minute full-body workout in a hotel room, right now. Go easy on my left knee today."). A keep-off area has the request's brick underline. Above it is a line on who asked and what they're into.
+  - **Play and move:** a play button plays the clip from the media bucket, with the moments marked on its line. Arrows and seven dots move between the asks.
+  - **Turning:** the words flip in as the request's do. The demos turn every ten seconds until someone plays, taps or tabs in, and don't turn for anyone who asks for less motion.
+  - **Behind one tap:** the ask in their own words, who they are, their kit and injury, what changed for them, and the moments, each jumping the clip to it.
+- **`./harmonicfitness demos web`** writes `web/client/src/demos.json` from `docs/demos/demos.toml`: each built demo's request, card and clip address. The client builds with it, so the page asks nothing of the server, and the clips already on the bucket serve as they are. It refuses a request the app couldn't write: a workout type off the app's list, a place not in the app's words for a kit, a time not "right now" or a clock time, or an area not on the body chart.
+- **`[demo.request]` for each demo** in `demos.toml`: `type`, `place`, `when`, `care` and `area`, plus a short `tag` on the card. Ben's kit is renamed `home` and Mo's `kettlebell`, so the app's own kit words read "at home" and "with my kettlebell kit".
+
+### Changed
+- **The signed-out pages' line** reads "Workouts for your earbuds, written and voiced fresh each time you ask" (was "Audio workouts for your earbuds, ...").
+- **`Solo` takes a `beside` column** (`client/src/Sky.tsx`), which only the sign-in page uses. `Starter.tsx` exports `article` for the demos' "a 30-minute".
+
+### For forks
+- **Nothing to migrate in `me/`.** A fork with its own demos adds `[demo.request]` to each and runs `./harmonicfitness demos web`: `test_demos` fails while `web/client/src/demos.json` is out of step with `demos.toml`, or while the request lists in `tools/demos.py` differ from `Starter.tsx`'s. A fork without demos can drop `beside={<Demos />}` from `SignIn.tsx`.
+
 ## [0.64.0] - 2026-11-04
 
 The stock coaches' samples moved out of git onto the website's media bucket on Fly, and the home page's seven demo clips are made: two minutes each, cut from full workouts written for invented listeners, waiting on the bucket for the home page to play them.

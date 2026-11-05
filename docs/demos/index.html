@@ -59,7 +59,7 @@
 <p class="lede">Seven clips of about two minutes, so someone can hear what HarmonicFitness does before they set anything
 up. Each is the chosen segments of a full workout of twenty-five to forty-five minutes, written by the engine for an
 invented listener from one ask in their own words, and spoken by an ElevenLabs coach.</p>
-<span class="status">Built 2026-11-04 · on the bucket · home page still to build</span>
+<span class="status">Built 2026-11-04 · on the bucket · on the sign-in page since 0.65.0</span>
 <p class="sub" style="margin-top:14px">The clips and <code>demos.json</code> are at
 <code>https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/</code>, publicly readable.</p>
 
@@ -237,14 +237,19 @@ one command.</p>
 
 <!-- 7. the home page -->
 <h2>The home page</h2>
-<p class="sub">Still to build in the web client, once the clips exist:</p>
+<p class="sub">Built in 0.65.0: the sign-in page's wide column, the form beside it (<code>web/client/src/Demos.tsx</code>).</p>
 <ul class="sub">
-  <li><b>A section on the sign-in page</b> (<code>web/client/src/SignIn.tsx</code>), above the sign-in, with the seven cards.</li>
-  <li><b>A <code>demos.json</code></b> beside the clips on the Fly bucket, made from
-    <code>demos.toml</code> (the ask, the card, the moments, the coach, the length, <code>version</code>). The coach-sample
-    route needs a signed-in listener, so the demos can't go through it.</li>
-  <li><b>The moments seek</b>: tapping one jumps the clip to it.</li>
-  <li><b>Tests</b> that the manifest matches <code>demos.toml</code> and every clip it names exists.</li>
+  <li><b>One ask at a time, as the app's own request.</b> Each demo reads as the two lines a listener sends
+    ("Hey, coach Priya, I'd like a 30-minute full-body workout in a hotel room, right now. Go easy on my left knee
+    today."), the blanks in cream, from <code>[demo.request]</code>. Above it, who asked and what they're into. Arrows
+    and dots move through the seven; it turns every ten seconds until someone plays, taps or tabs in, and never for
+    anyone who asks for less motion.</li>
+  <li><b>Two minutes to play</b>, straight from the bucket, with the moments marked on the line.</li>
+  <li><b>Behind one tap:</b> their ask in their own words, who they are, their kit and injury, what changed for them,
+    and the moments, each jumping the clip to it.</li>
+  <li><b>The data:</b> <code>./harmonicfitness demos web</code> writes <code>web/client/src/demos.json</code> from
+    <code>demos.toml</code> (the cards, the requests, each clip's address), and the client builds with it. A test
+    fails when it's out of step, and another when a request uses words the app's own lists don't offer.</li>
 </ul>
 
 <!-- 8. re-making -->
@@ -259,6 +264,8 @@ one command.</p>
     and choose by ear.</p></li>
   <li><b>Ask to “re-make the demos”.</b><p>Each demo's last scripts are kept in its <code>workouts/</code>, a starting
     point for the next ones.</p></li>
+  <li><b>Run <code>./harmonicfitness demos web</code></b> and ship the engine: the sign-in page builds with its
+    <code>demos.json</code>, pointing at the new version's clips.</li>
 </ol>
 
 <footer>Every listener on this page and in this folder is invented. HarmonicFitness is not medical advice.</footer>

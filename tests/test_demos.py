@@ -63,6 +63,41 @@ class ShippedSet(unittest.TestCase):
                 self.assertTrue(25 <= d["minutes"] <= 45)
         self.assertEqual(len(m["coaches"]), 3)   # three voices, each designed once
 
+    def test_every_request_reads_as_the_app_would_write_it(self):
+        import re
+        m = demos.manifest(os.path.join(SHIPPED_DEMOS, "demos.toml"))
+        for d in m["demo"]:
+            with self.subTest(demo=d["slug"]):
+                self.assertEqual(demos.request_problems(d), [])
+                place = d["request"]["place"]
+                with open(os.path.join(SHIPPED_DEMOS, "listeners", d["slug"], "training.md"), encoding="utf-8") as f:
+                    kits = re.findall(r'(?m)^name = "([^"]+)"', f.read())
+                if place == "at home":   # the app's words for a kit named home
+                    self.assertIn("home", kits)
+                elif place.startswith("with my "):   # and for any other kit of theirs
+                    self.assertIn(place[len("with my "):-len(" kit")], kits)
+
+    def test_the_request_lists_match_the_apps(self):
+        import re
+        with open(os.path.join(paths.ROOT, "web", "client", "src", "zones", "Starter.tsx"), encoding="utf-8") as f:
+            src = f.read()
+
+        def listed(name):
+            return tuple(re.findall(r'"([^"]+)"', re.search(rf"const {name} = (?:new Set\()?\[(.*?)\]", src, re.S).group(1)))
+        self.assertEqual(listed("TYPES"), demos.REQUEST_TYPES)
+        self.assertEqual(listed("ROWS"), demos.BODY_ROWS)
+        self.assertEqual(listed("SIDED"), demos.SIDED)
+
+    def test_the_sign_in_pages_copy_is_current(self):
+        with open(demos.web_file(), encoding="utf-8") as f:
+            shipped = f.read()
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "demos.json")
+            with mock.patch.object(demos, "web_file", return_value=out):
+                demos.write_web(demos.manifest(os.path.join(SHIPPED_DEMOS, "demos.toml")))
+            with open(out, encoding="utf-8") as f:
+                self.assertEqual(f.read(), shipped, "run ./harmonicfitness demos web after changing demos.toml")
+
     def test_every_listener_reads_as_the_tools_expect(self):
         for slug in sorted(os.listdir(os.path.join(SHIPPED_DEMOS, "listeners"))):
             with self.subTest(listener=slug), tempfile.TemporaryDirectory() as d:
@@ -195,6 +230,20 @@ class Demos(unittest.TestCase):
         self.assertEqual(dst, os.path.join(demos.clips_dir(), "bo.mp3"))
         with self.assertRaises(errors.UsageError):
             demos.publish("nobody", mp3)
+
+    def test_a_request_the_app_couldnt_write_is_named(self):
+        good = {"slug": "x", "request": {"type": "leg workout", "place": "at home", "when": "right now",
+                                         "care": "off", "area": "right shoulder"}}
+        self.assertEqual(demos.request_problems(good), [])
+        for change, word in (({"type": "leg day"}, "type"), ({"place": "in my garage"}, "place"),
+                             ({"when": "before work"}, "when"), ({"care": "gentle"}, "care"),
+                             ({"area": "shoulder"}, "area"), ({"area": "left neck"}, "area"),
+                             ({"care": "none"}, "no area")):
+            with self.subTest(change=change):
+                bad = {"slug": "x", "request": {**good["request"], **change}}
+                problems = demos.request_problems(bad)
+                self.assertEqual(len(problems), 1)
+                self.assertIn(word, problems[0])
 
     def test_status_says_how_far_each_has_got(self):
         self.make_coach("ann")

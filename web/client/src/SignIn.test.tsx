@@ -21,7 +21,8 @@ describe("the sign-in page", () => {
     serve(false, { status: 204 });
     render(<SignIn onSignedIn={() => {}} />);
     expect(await screen.findByText("0.20.0 (75da105)")).toBeInTheDocument();
-    expect(screen.getByText("Audio workouts for your earbuds, written and voiced fresh each time you ask.")).toBeInTheDocument();
+    expect(screen.getByText("Workouts for your earbuds, written and voiced fresh each time you ask")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Workouts other people asked for" })).toBeInTheDocument();   // the demos
   });
 
   it("offers an account only when registration is open", async () => {

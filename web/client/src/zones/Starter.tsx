@@ -54,7 +54,7 @@ function list(xs: string[]): string {
 }
 
 /** "a" or "an" before a number of minutes: an 8-minute, an 11-minute, an 18-minute. */
-function article(minutes: number): string {
+export function article(minutes: number): string {
   const s = String(minutes);
   return s.startsWith("8") || s === "11" || s === "18" ? "an" : "a";
 }

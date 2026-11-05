@@ -440,6 +440,67 @@ a.keys-bal:hover { color: var(--ink); text-decoration: underline }
 .auth .hint, .solo .hint { font-size: 14px; color: var(--ink-3); margin: -4px 0 4px }
 .auth .err { color: var(--stop); margin: 0; font-size: 15px }
 
+/* the sign-in page: the demos in the wide column, the form beside them (stacked under them on a phone) */
+.solo.solo-pair { margin: 0; max-width: 1360px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px clamp(40px, 6vw, 96px) }
+.solo-pair .demos { flex: 999 1 520px; min-width: 0 }
+.solo-pair .solo-task { flex: 1 1 300px; max-width: 380px; padding-top: 6px }
+.solo-pair h1 { font-size: clamp(40px, 3.4vw, 52px) }
+
+/* the demos (Demos.tsx): each ask as the request, in its coral and cream, one at a time */
+.demos .demo-eyebrow { margin: 0 0 10px; font-size: 14px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); max-width: 46ch }
+.demos .demo-lede { margin: 0 0 36px; max-width: 52ch; color: var(--ink-2); font-size: 17px; line-height: 1.5 }
+.demo-slides { display: grid }   /* every slide in one cell: the tallest sets the height, so nothing jumps */
+.demo-slide { grid-area: 1 / 1; visibility: hidden }
+.demo-slide.on { visibility: visible }
+.demos .demo-who { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3) }
+.demo-who b { color: var(--ink); font-weight: 600 }
+.demo-who span { color: var(--ink-2) }
+.demos .demo-req { margin: 0; font: 500 clamp(30px, 3.5vw, 54px)/1.16 var(--display); letter-spacing: .01em; text-transform: uppercase; color: var(--mad) }
+.demos .demo-req-2 { margin-top: 8px }
+.demo-slot {
+  color: #F2F0E8; padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
+}
+.demo-slot.off { background-image: linear-gradient(var(--stop), var(--stop)) }   /* keep off: the request's brick underline */
+.dw { display: inline-block }
+.demo-slide.on.turn .dw { animation: flip .32s cubic-bezier(.3, 1.4, .6, 1) both; transform-origin: 50% 60% }
+
+.demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; margin-top: 28px }
+.demo-player { display: flex; align-items: center; gap: 12px; flex: 1 1 260px; min-width: 0; max-width: 440px }
+.demo-play { flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--blue); color: var(--paper); display: grid; place-items: center; transition: background-color .15s }
+.demo-play:hover { background: #B8D1E8 }
+.demo-play svg { display: block }
+.demo-seek { flex: 1; min-width: 60px; height: 28px; display: flex; align-items: center; cursor: pointer }
+.demo-bar { position: relative; width: 100%; height: 2px; background: var(--line) }
+.demo-fill { position: absolute; inset: 0 auto 0 0; background: var(--blue) }
+.demo-tick { position: absolute; top: -3px; width: 2px; height: 8px; background: var(--ink-3) }
+.demo-time { flex: none; min-width: 74px; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums }
+.demo-nav { display: flex; align-items: center; gap: 4px }
+.demo-arrow { width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .15s, color .15s }
+.demo-arrow:hover { color: #fff; box-shadow: inset 0 0 0 1px var(--ink-2) }
+.demo-dots { display: flex; align-items: center; margin: 0 6px }
+.demo-dot { width: 22px; height: 44px; display: grid; place-items: center }
+.demo-dot::after { content: ""; width: 6px; height: 6px; border-radius: 3px; background: var(--line); transition: width .2s, background-color .2s }
+.demo-dot:hover::after { background: var(--ink-3) }
+.demo-dot[aria-current="true"]::after { width: 18px; background: var(--ink) }
+
+.demo-more { margin-top: 18px }
+.demo-more > button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; color: var(--ink-2);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line) }
+.demo-more > button:hover { color: #fff; text-decoration-color: currentColor }
+.demo-more > button svg { width: 12px; height: 12px; transition: transform .15s }
+.demo-more > button[aria-expanded="true"] svg { transform: rotate(90deg) }
+.demo-detail { margin-top: 10px; padding: 18px 20px; max-width: 640px; background: rgba(26, 27, 32, .92); box-shadow: var(--lift); font-size: 15px; animation: rise .16s ease-out }
+.demo-detail dl { display: grid; grid-template-columns: 76px 1fr; gap: 6px 14px; margin: 0 }
+.demo-detail dt { color: var(--ink-3); font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; padding-top: 3px }
+.demo-detail dd { margin: 0; color: var(--ink-2) }
+.demos .demo-changed { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule); color: var(--ink-2) }
+.demo-changed b { color: var(--ink); font-weight: 500 }
+.demo-moments { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--rule); display: grid; gap: 2px }
+.demo-moments button { display: flex; align-items: baseline; gap: 12px; min-height: 34px; text-align: left; color: var(--ink-2) }
+.demo-moments button:hover { color: #fff }
+.demo-at { flex: none; width: 34px; color: var(--blue); font-variant-numeric: tabular-nums }
+
 /* ---------- phone ---------- */
 @media (max-width: 760px) {
   .work-top { padding: 14px 16px 0; min-height: 56px; gap: 8px }
@@ -451,6 +512,9 @@ a.keys-bal:hover { color: var(--ink); text-decoration: underline }
   .else { margin-top: 40px }
   .start-row { margin-top: 24px }
   .solo { padding: 32px 20px 48px }
+  .solo-pair .solo-task { max-width: none; padding-top: 28px; border-top: 1px solid var(--rule) }
+  .demos .demo-req { font-size: 31px }
+  .demo-nav { width: 100%; justify-content: space-between }
 }
 
 @media (prefers-reduced-motion: reduce) {

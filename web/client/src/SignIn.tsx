@@ -1,6 +1,7 @@
 // Signed out: sign in, or make an account when registration is open. Also the screen that asks
 // for a password when an account has none (one from before passwords, or after a reset link).
 import { useEffect, useState, type FormEvent } from "react";
+import { Demos } from "./Demos";
 import { Solo } from "./Sky";
 import { api, NotSignedIn, plainError } from "./api";
 
@@ -46,7 +47,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   };
 
   return (
-    <Solo version={version}>
+    <Solo version={version} beside={<Demos />}>
       <h1>{mode === "in" ? "Sign in" : "Make an account"}</h1>
       <form className="auth" onSubmit={submit}>
         <label>

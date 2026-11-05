@@ -12,6 +12,7 @@ the seven, and the `demos` skill the steps.
     ./harmonicfitness demos publish jo <clip.mp3>             # to docs/demos/clips/jo.mp3 (git-ignored), for the bucket
     ./harmonicfitness demos upload                            # every staged clip and demos.json to the media bucket,
                                                               # as demos/v<version>/ (the bucket's keys in the shell)
+    ./harmonicfitness demos web                               # web/client/src/demos.json: the sign-in page's copy
 
 A demo listener's context folder is docs/demos/listeners/<slug>/ itself: invented, so it lives with the plan in the
 engine, never in me/ (the real listener's). Its profile files, research, briefs, menus and drafts are committed; what
@@ -21,6 +22,7 @@ HARMONICFITNESS_KEYS, so the key is read only by the engine and never copied. Ea
 stock voices, named by its voice ID in docs/demos/coaches/<name>.md, so nothing is designed.
 """
 import os
+import re
 import subprocess
 import sys
 import tomllib
@@ -203,12 +205,77 @@ def publish(slug, mp3):
     return dst
 
 
+# The request's blanks, as the app's own lists offer them (web/client/src/zones/Starter.tsx: TYPES, ROWS and SIDED;
+# test_demos holds them in step). A place is kitWords' words for a kit, which depend on the listener's kits.
+REQUEST_TYPES = ("full-body workout", "strength workout", "cardio workout", "mobility session", "leg workout",
+                 "upper-body workout", "core workout")
+BODY_ROWS = ("neck", "shoulder", "elbow", "wrist", "rib", "low back", "hip", "groin", "hamstring", "knee", "calf",
+             "ankle", "foot")
+SIDED = ("foot", "ankle", "calf", "knee", "hamstring", "hip", "groin", "rib", "shoulder", "elbow", "wrist")
+CARE = ("none", "easy", "off")
+
+
+def request_problems(d):
+    """What's wrong with a demo's [demo.request], as sentences (none: it reads as the app would write it)."""
+    r = d.get("request") or {}
+    slug = d.get("slug", "?")
+    out = []
+    if r.get("type") not in REQUEST_TYPES:
+        out.append(f"{slug}: request type {r.get('type')!r} isn't one the app offers ({', '.join(REQUEST_TYPES)}).")
+    place = r.get("place", "")
+    if not (place == "at home" or place.startswith(("in a ", "at the ", "with no equipment"))
+            or (place.startswith("with my ") and place.endswith(" kit"))):
+        out.append(f"{slug}: request place {place!r} isn't how the app words a kit.")
+    if not re.fullmatch(r"right now|at \d{1,2}:\d\d [AP]M|tomorrow at \d{1,2}:\d\d [AP]M", r.get("when", "")):
+        out.append(f"{slug}: request when {r.get('when')!r} should be \"right now\" or a time (\"at 6:30 AM\").")
+    care, area = r.get("care"), r.get("area", "")
+    if care not in CARE:
+        out.append(f"{slug}: request care {care!r} should be none, easy or off.")
+    elif care != "none":
+        side, _, base = area.partition(" ") if area.split(" ", 1)[0] in ("left", "right") else ("", "", area)
+        if base not in BODY_ROWS or bool(side) != (base in SIDED):
+            out.append(f"{slug}: request area {area!r} isn't a body chart row (with its side where it has one).")
+    elif area:
+        out.append(f"{slug}: request care none takes no area.")
+    return out
+
+
 def card(d, url):
-    """What the home page shows for one demo (demos.json): the ask, the coach, the length, the card, the clip."""
+    """What the home page shows for one demo (demos.json): the ask, the coach, the length, the request it reads as,
+    the card, the clip."""
     clip = d.get("clip") or {}
-    return {"slug": d.get("slug"), "order": d.get("order"), "ask": d.get("ask"), "coach": d.get("coach"),
-            "minutes": d.get("minutes"), "shows": d.get("shows"), "story": clip.get("story"),
-            "moments": clip.get("moments") or [], "card": d.get("card") or {}, "audio": url}
+    c = d.get("card") or {}
+    return {"slug": d.get("slug"), "order": d.get("order"), "name": (c.get("who") or d.get("slug", "")).partition(",")[0],
+            "ask": d.get("ask"), "coach": d.get("coach"), "minutes": d.get("minutes"), "shows": d.get("shows"),
+            "story": clip.get("story"), "moments": clip.get("moments") or [], "request": d.get("request") or {},
+            "card": c, "audio": url}
+
+
+def _body(m, cards):
+    return {"version": m.get("version", 1), "built": m.get("built", ""), "engine": m.get("engine", ""), "demos": cards}
+
+
+def web_file():
+    """The copy the web client builds with: web/client/src/demos.json."""
+    return os.path.join(paths.ROOT, "web", "client", "src", "demos.json")
+
+
+def write_web(m=None):
+    """web/client/src/demos.json: every built demo's card, its clip's address on the media bucket (as `upload` puts
+    it), for the sign-in page. Returns how many demos it holds."""
+    import bucket
+    import json
+    m = m or manifest()
+    problems = [p for d in m.get("demo", []) for p in request_problems(d)]
+    if problems:
+        raise errors.UsageError("\n".join(problems))
+    version = m.get("version", 1)
+    cards = [card(d, bucket.public_url(f"demos/v{version}/{d['slug']}.mp3", m.get("bucket", "")))
+             for d in sorted(m.get("demo", []), key=lambda d: d.get("order", 0)) if (d.get("clip") or {}).get("from")]
+    if not cards:
+        raise errors.HarmonicFitnessError("No demo is built yet (its [demo.clip] has no from): nothing to show.")
+    fileio.atomic_write(web_file(), (json.dumps(_body(m, cards), indent=1, ensure_ascii=False) + "\n").encode("utf-8"))
+    return len(cards)
 
 
 def upload(put=None):
@@ -231,8 +298,7 @@ def upload(put=None):
         cards.append(card(d, url))
     if not cards:
         raise errors.HarmonicFitnessError(f"No clips staged in {show(clips_dir())}: demos publish comes first.")
-    body = json.dumps({"version": version, "built": m.get("built", ""), "engine": m.get("engine", ""),
-                       "demos": cards}, indent=1).encode()
+    body = json.dumps(_body(m, cards), indent=1).encode()
     key = f"demos/v{version}/demos.json"
     done.append((key, put(key, body, "application/json")))
     return done
@@ -283,6 +349,7 @@ def main(argv=None):
     e.add_argument("--from", dest="first", type=cli.positive_int, help="the clip's first segment, from 1")
     e.add_argument("--to", dest="last", type=cli.positive_int, help="the clip's last segment")
     sub.add_parser("upload", help="every staged clip and demos.json to the media bucket (the bucket's keys in the shell)")
+    sub.add_parser("web", help="write web/client/src/demos.json, the sign-in page's copy of the built demos")
     p = sub.add_parser("publish", help="copy a demo's rendered clip to docs/demos/clips/<slug>.mp3, for the media bucket")
     p.add_argument("slug")
     p.add_argument("mp3")
@@ -312,5 +379,9 @@ def main(argv=None):
         return 0
     if a.cmd == "publish":
         print(f"Published {show(publish(a.slug, a.mp3))}.")
+        return 0
+    if a.cmd == "web":
+        n = write_web()
+        print(f"Wrote {show(web_file())}: {n} demos for the sign-in page.")
         return 0
     raise cli.Usage(f"demos {a.cmd}: run it as demos run <slug> <command> ...")

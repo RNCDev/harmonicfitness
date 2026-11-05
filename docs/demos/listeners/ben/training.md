@@ -4,7 +4,7 @@ likes = []
 dislikes = []
 
 [[kits]]
-name = "living room"
+name = "home"
 equipment = ["chair"]
 +++
 # Training

@@ -8,8 +8,13 @@
 #
 # Each [[demo]] names its listener (listeners/<slug>/, its own context folder: never in me/), the ask, the
 # check-in's answers, the brief's flags, the coach, the clip (what it shows, the story told in it, and the segments
-# the writer arranges so they fall together), and the card the home page shows with it. `from`, `to`, `moments` and
-# `changed` are filled in at build.
+# the writer arranges so they fall together), the request the sign-in page shows it as, and the card behind it.
+# `from`, `to`, `moments` and `changed` are filled in at build.
+#
+# [demo.request] is the app's own request sentence with its blanks filled ("Hey, coach Priya, I'd like a 30-minute
+# full-body workout in a hotel room, right now. Go easy on my left knee today."): `type`, `place` and `when` are
+# words the app's lists offer (Starter.tsx: its TYPES, kitWords, whenWords), `care` is none, easy or off, with the
+# `area` as the body chart names it. `demos web` writes it, with the cards, into web/client/src/demos.json.
 
 version = 1            # raise by one each time the set is re-made; the web manifest carries it
 built = "2026-11-04"   # the day the set was built
@@ -64,7 +69,15 @@ moments = [
   { at = "0:56", label = "The chair, the towel, and a number from Apollo" },
 ]
 
+[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+type = "full-body workout"
+place = "in a hotel room"
+when = "right now"
+care = "easy"
+area = "left knee"
+
 [demo.card]
+tag = "travels for work"
 who = "Jo, travels for work and trains three times a week"
 kit = "Hotel room: a chair and a towel"
 limit = "Left knee, delicate"
@@ -80,7 +93,7 @@ coach = "Coach Bea"
 coach_file = "coaches/bea.md"
 ask = "First time doing anything like this. Twenty-five minutes, I've only got a chair."
 shows = "A novice with one chair: a movement set up step by step before the go, then a cooking myth checked in the rest."
-brief = '--goal general --minutes 25 --kit "living room" --coach "Coach Bea"'
+brief = '--goal general --minutes 25 --kit home --coach "Coach Bea"'
 
 [demo.check_in]
 today = "Fine. A bit nervous about doing it wrong."
@@ -97,7 +110,14 @@ moments = [
   { at = "1:25", label = "Myth or fact: searing doesn't seal in the juices" },
 ]
 
+[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+type = "full-body workout"
+place = "at home"
+when = "right now"
+care = "none"
+
 [demo.card]
+tag = "first time training"
 who = "Ben, new to training"
 kit = "Living room: one chair"
 limit = "None"
@@ -130,7 +150,14 @@ moments = [
   { at = "1:01", label = "How Alex Honnold trained for Freerider" },
 ]
 
+[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+type = "strength workout"
+place = "with my garage kit"
+when = "right now"
+care = "none"
+
 [demo.card]
+tag = "lifts four times a week"
 who = "Lena, lifts four times a week"
 kit = "Garage: dumbbells from fifteen to fifty pounds, a bench, a mat"
 limit = "None"
@@ -163,7 +190,14 @@ moments = [
   { at = "1:27", label = "Gone in a week, and a best guess saved for later" },
 ]
 
+[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+type = "full-body workout"
+place = "with no equipment"
+when = "right now"
+care = "none"
+
 [demo.card]
+tag = "trains in the park"
 who = "Ravi, runs and trains outdoors"
 kit = "A park: bodyweight only"
 limit = "None"
@@ -179,7 +213,7 @@ coach = "Coach Desmond"
 coach_file = "coaches/desmond.md"
 ask = "Quick one before work. Thirty minutes, I've got a kettlebell."
 shows = "Kettlebells in kilos before work: a brain teaser asked in one rest, a short set, and the answer in the next rest."
-brief = '--goal strength --minutes 30 --kit flat --coach "Coach Desmond"'
+brief = '--goal strength --minutes 30 --kit kettlebell --coach "Coach Desmond"'
 
 [demo.check_in]
 today = "Awake, one coffee in."
@@ -197,7 +231,14 @@ moments = [
   { at = "1:25", label = "The answer: count the losers" },
 ]
 
+[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+type = "strength workout"
+place = "with my kettlebell kit"
+when = "at 6:30 AM"
+care = "none"
+
 [demo.card]
+tag = "trains before work"
 who = "Mo, trains before work"
 kit = "A flat: kettlebells of twelve, sixteen and twenty-four kilos, a mat"
 limit = "None"
@@ -231,7 +272,15 @@ moments = [
   { at = "2:09", label = "How hard did that feel?" },
 ]
 
+[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+type = "mobility session"
+place = "at home"
+when = "right now"
+care = "easy"
+area = "low back"
+
 [demo.card]
+tag = "back to moving after two years off"
 who = "Ines, back to moving after two years off"
 kit = "Home: resistance bands and a mat"
 limit = "Lower back, delicate"
@@ -264,7 +313,15 @@ moments = [
   { at = "1:11", label = "Left hand only, and how the X-1 got through the sound barrier" },
 ]
 
+[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+type = "leg workout"
+place = "at home"
+when = "right now"
+care = "off"
+area = "right shoulder"
+
 [demo.card]
+tag = "six weeks after shoulder surgery"
 who = "Frank, six weeks after shoulder surgery"
 kit = "Home: a mat, a mini band and a chair"
 limit = "Right shoulder, off-limits"

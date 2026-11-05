@@ -4,7 +4,7 @@ likes = []
 dislikes = []
 
 [[kits]]
-name = "flat"
+name = "kettlebell"
 equipment = ["kettlebell", "mat"]
 weights = { kettlebell = [12, 16, 24] }
 unit = "kg"
