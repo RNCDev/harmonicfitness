@@ -42,7 +42,8 @@ COMMANDS = {
     "migrate":     ("migrate", None, "bring me/ up to this version's format (backs up first)"),
     "models":      ("models", None, "the local voice models in models/, and adopt the ones already downloaded"),
     "cache":       ("cache", None, "the clip cache's size, and prune"),
-    "harness":     ("harness", None, "check that ChatGPT's Codex files match the Claude Code ones; sync rewrites them"),
+    "demos":       ("demos", None, "the home page's demo clips (docs/demos/): each demo listener's folder, run a command as one, cut a clip's segments, publish it"),
+    "harness":     ("harness", None,"check that ChatGPT's Codex files match the Claude Code ones; sync rewrites them"),
     "test":        (None, None, "run the engine's tests, then the web app's (test engine, or test web, runs one)"),
     "setup":       (None, None, "first-run setup (environment, me/, privacy hook, voice model)"),
     "doctor":      (None, None, "what this computer can do: system, prerequisites, audio routes"),
@@ -64,6 +65,7 @@ def test_env(env):
     """The environment the tests run in: HARMONICFITNESS_HOME pointed at an absent folder (as in CI, where there is
     no me/), unless it's already set, so no test can read or write the real context folder."""
     env = dict(env)
+    env.pop("HARMONICFITNESS_KEYS", None)   # a key file outside the test home would be read by the tests
     if not env.get("HARMONICFITNESS_HOME"):
         env["HARMONICFITNESS_HOME"] = os.path.join(tempfile.mkdtemp(prefix="harmonicfitness-tests-"), "me")
     # The stock coaches the tests see: a fixture set, so a test never depends on the real ten.

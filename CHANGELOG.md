@@ -2,6 +2,30 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.64.0] - 2026-11-04
+
+The stock coaches' samples moved out of git onto the website's media bucket on Fly, and the home page's seven demo clips are made: two minutes each, cut from full workouts written for invented listeners, waiting on the bucket for the home page to play them.
+
+### Added
+- **Demo clips for the home page** (`docs/demos/`, `./harmonicfitness demos`, the `demos` skill, maintainer only). Seven invented listeners in `docs/demos/listeners/<slug>/`, each with one ask in their own words. For each, a full workout of 25 to 45 minutes is written and linted, and only a two-minute clip of it is rendered, on ElevenLabs `eleven_v4`.
+  - **What they show:** a hotel room with a cranky left knee, a first session with one chair, an advanced lifter's hardest dumbbell set, a park serial, a kettlebell brain teaser, a gentle session for a tight lower back, and legs and core around a healing right shoulder. Each tells a different story format.
+  - **Coaches:** ElevenLabs stock voices, so nothing is designed and no voice slot is used: Lily for Coach Priya, Matilda for Bea, Charlie for Desmond (`docs/demos/coaches/`).
+  - **Commands:** `demos run <slug> <command>` runs any engine command as that listener. `demos excerpt` cuts the clip's segments into a draft of their own, with the menu beside it. `demos publish` stages a clip in `docs/demos/clips/`. `demos upload` sends the clips and `demos.json` (each demo's ask, coach, card and clip address) to `demos/v<version>/` on the bucket.
+  - **Cost:** the seven clips took about 12,100 characters, about 97 cents, against about 170,000 for the full workouts.
+- **`HARMONICFITNESS_KEYS`** names the key file in place of `me/.env`. `demos run` sets it, so a demo listener speaks with the maintainer's keys without a copy. The tests drop it.
+- **`coaches sample-file <coach>`** prints the path of a coach's sample, fetching a stock one once into `me/coaches/.samples/` and checking its SHA-256. The setup and coach skills use it to choose by ear.
+
+### Changed
+- **Stock samples are on the media bucket** (`harmonicfitness-media`, publicly readable), not in git: the 22 `coaches/*/sample.mp3` files (13 MB) are gone from the repo and ignored. `coaches/samples.json` lists each sample's size, SHA-256 and the bucket's address, and `tools/media.py` reads it. `tools/coachmaker/upload_samples.py` uploads a remade sample, signed by `tools/bucket.py` in the standard library, so no new dependency.
+- **The website's sample route redirects a stock coach's sample to the bucket** (web, `GET /api/coaches/<slug>/sample.mp3`, a 307 cached for an hour). The listener's own coach's sample is served as before.
+- **ElevenLabs voice design uses its newer model** (`knowledge/services.toml`: `design_model = "eleven_ttv_v3"`, `design_guidance = 3`). The candidates now read a line in full, unhurried sentences (`design_line`), since the shared line of short cues came out rushed. `services.validate` checks the three fields.
+- **Audition previews are encoded at 128 kb/s** (`tools/audition.py`, was 48), so a candidate's voice isn't judged through a thin encoding.
+- **OpenRouter is marked tried live** (`tried_live = true`): a full web workout ran on Coach Leah, so setup and `doctor` stop calling it untried.
+- **The logo's H is a letter again** in the web header and the docs (`wordmark.svg`, `wordmark-reversed.svg`): at header size the meter H read poorly. The meter stays as the mark, the app icon and the favicon.
+
+### For forks
+- **Nothing to migrate in `me/`.** A fork that reads `coaches/<slug>/sample.mp3` directly should go through `coaches sample-file` or `coaches/samples.json`. To ship samples from your own bucket, upload them with `tools/coachmaker/upload_samples.py` (the bucket's `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `BUCKET_NAME` in the shell), or set `HARMONICFITNESS_MEDIA_URL` to another https address that serves the same paths.
+
 ## [0.63.0] - 2026-11-03
 
 A thirty-minute workout on the website should take about six minutes less from request to MP3, and adding a topic takes seconds. On 2026-11-03 a thirty-minute workout with Coach Leah took about eighteen minutes end to end: making the MP3 took 373 seconds on the website's worker (a shared CPU, throttled after a day of recordings), the voice service 123. Telling the coach about a site they read took 40 seconds, most of it two web searches for the site's feed, and the model rewrote all of `content.md` to add one line.

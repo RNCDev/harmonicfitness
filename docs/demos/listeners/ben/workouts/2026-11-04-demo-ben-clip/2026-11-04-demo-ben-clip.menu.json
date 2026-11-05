@@ -1,0 +1,643 @@
+{
+ "format": 2,
+ "date": "2026-11-04",
+ "health_sha256": "eeaf815afa37d2c0ce78b61973c132ff98ca1ed44fd085e0469d2132de458e00",
+ "request": {
+  "goal": "general",
+  "minutes": 25,
+  "kit": "living room",
+  "level": "novice"
+ },
+ "seconds": 145,
+ "movements": [
+  {
+   "id": "air-squat",
+   "name": "air squat",
+   "aliases": [
+    "bodyweight squat",
+    "squat"
+   ]
+  },
+  {
+   "id": "box-squat",
+   "name": "box squat",
+   "aliases": [
+    "chair squat",
+    "bench squat",
+    "squat to a box",
+    "sit to stand"
+   ]
+  },
+  {
+   "id": "reverse-lunge",
+   "name": "reverse lunge",
+   "aliases": [
+    "reverse lunges",
+    "back lunge",
+    "step-back lunge"
+   ]
+  },
+  {
+   "id": "split-squat",
+   "name": "split squat",
+   "aliases": [
+    "static lunge",
+    "dumbbell split squat"
+   ]
+  },
+  {
+   "id": "step-up",
+   "name": "step-up",
+   "aliases": [
+    "step up",
+    "step-ups",
+    "bench step-up",
+    "box step-up",
+    "dumbbell step-up"
+   ]
+  },
+  {
+   "id": "wall-sit",
+   "name": "wall sit",
+   "aliases": [
+    "wall squat"
+   ]
+  },
+  {
+   "id": "straight-leg-raise",
+   "name": "straight-leg raise",
+   "aliases": [
+    "straight leg raise",
+    "lying straight-leg raise"
+   ]
+  },
+  {
+   "id": "glute-bridge",
+   "name": "glute bridge",
+   "aliases": [
+    "bridge",
+    "hip bridge",
+    "bodyweight glute bridge"
+   ]
+  },
+  {
+   "id": "single-leg-glute-bridge",
+   "name": "single-leg glute bridge",
+   "aliases": [
+    "single leg glute bridge",
+    "single-leg bridge",
+    "one-leg glute bridge"
+   ]
+  },
+  {
+   "id": "pillow-squeeze-bridge",
+   "name": "pillow-squeeze bridge",
+   "aliases": [
+    "pillow squeeze bridge",
+    "bridge with a squeeze",
+    "adductor squeeze bridge"
+   ]
+  },
+  {
+   "id": "donkey-kick",
+   "name": "donkey kick",
+   "aliases": [
+    "donkey kicks",
+    "quadruped hip extension"
+   ]
+  },
+  {
+   "id": "incline-push-up",
+   "name": "incline push-up",
+   "aliases": [
+    "incline pushup",
+    "incline push up",
+    "bench push-up",
+    "chair push-up"
+   ]
+  },
+  {
+   "id": "wall-push-up",
+   "name": "wall push-up",
+   "aliases": [
+    "wall pushup",
+    "wall push up",
+    "standing push-up"
+   ]
+  },
+  {
+   "id": "prone-y-t-w-raise",
+   "name": "prone y t w raise",
+   "aliases": [
+    "prone ytw",
+    "y t w raises",
+    "prone y t w",
+    "y t w"
+   ]
+  },
+  {
+   "id": "dead-bug",
+   "name": "dead bug",
+   "aliases": [
+    "deadbug",
+    "dead bugs"
+   ]
+  },
+  {
+   "id": "bird-dog",
+   "name": "bird dog",
+   "aliases": [
+    "birddog",
+    "bird dogs"
+   ]
+  },
+  {
+   "id": "forearm-plank",
+   "name": "forearm plank",
+   "aliases": [
+    "plank",
+    "front plank",
+    "elbow plank"
+   ]
+  },
+  {
+   "id": "side-plank-from-the-knee",
+   "name": "side plank from the knee",
+   "aliases": [
+    "side plank from knee",
+    "kneeling side plank",
+    "knee side plank",
+    "modified side plank"
+   ]
+  },
+  {
+   "id": "reverse-crunch",
+   "name": "reverse crunch",
+   "aliases": [
+    "reverse crunches"
+   ]
+  },
+  {
+   "id": "bicycle-crunch",
+   "name": "bicycle crunch",
+   "aliases": [
+    "bicycle crunches"
+   ]
+  },
+  {
+   "id": "clamshell",
+   "name": "clamshell",
+   "aliases": [
+    "clamshells",
+    "clam shell",
+    "clams"
+   ]
+  },
+  {
+   "id": "side-lying-leg-raise",
+   "name": "side-lying leg raise",
+   "aliases": [
+    "side lying leg raise",
+    "side-lying hip abduction",
+    "side leg raise"
+   ]
+  },
+  {
+   "id": "standing-calf-raise",
+   "name": "standing calf raise",
+   "aliases": [
+    "standing calf raises",
+    "standing heel raise",
+    "bodyweight calf raise",
+    "double-leg calf raise"
+   ]
+  },
+  {
+   "id": "side-lying-hip-adduction",
+   "name": "side-lying hip adduction",
+   "aliases": [
+    "side lying hip adduction",
+    "side-lying inner thigh lift",
+    "inner thigh lift",
+    "side-lying adduction"
+   ]
+  },
+  {
+   "id": "glute-bridge-march",
+   "name": "glute bridge march",
+   "aliases": [
+    "marching glute bridge",
+    "marching bridge",
+    "bridge march",
+    "glute bridge marches"
+   ]
+  },
+  {
+   "id": "wall-slide",
+   "name": "wall slide",
+   "aliases": [
+    "wall slides",
+    "forearm wall slide",
+    "serratus wall slide"
+   ]
+  },
+  {
+   "id": "tibialis-raise",
+   "name": "tibialis raise",
+   "aliases": [
+    "tibialis raises",
+    "tib raise",
+    "wall toe raise",
+    "toe raise against the wall"
+   ]
+  },
+  {
+   "id": "prone-lat-pulldown",
+   "name": "prone lat pulldown",
+   "aliases": [
+    "lying lat pulldown",
+    "face-down lat pulldown",
+    "floor lat pulldown"
+   ]
+  },
+  {
+   "id": "wall-push-up-plus",
+   "name": "wall push-up plus",
+   "aliases": [
+    "wall push up plus",
+    "wall pushup plus",
+    "wall scapular push-up"
+   ]
+  },
+  {
+   "id": "split-squat-hold",
+   "name": "split squat hold",
+   "aliases": [
+    "isometric split squat",
+    "split squat isometric hold",
+    "static split squat hold"
+   ]
+  },
+  {
+   "id": "marching-in-place",
+   "name": "marching in place",
+   "aliases": [
+    "march in place",
+    "marching",
+    "standing march"
+   ]
+  },
+  {
+   "id": "seated-march",
+   "name": "seated march",
+   "aliases": [
+    "seated marching",
+    "marching seated",
+    "seated knee lifts"
+   ]
+  },
+  {
+   "id": "arm-circles",
+   "name": "arm circles",
+   "aliases": [
+    "arm swings",
+    "shoulder circles"
+   ]
+  },
+  {
+   "id": "jumping-jacks",
+   "name": "jumping jacks",
+   "aliases": [
+    "jumping jack",
+    "star jumps"
+   ]
+  },
+  {
+   "id": "step-jack",
+   "name": "step jacks",
+   "aliases": [
+    "step jack",
+    "low-impact jacks",
+    "low impact jumping jacks",
+    "no-jump jacks"
+   ]
+  },
+  {
+   "id": "high-knees",
+   "name": "high knees",
+   "aliases": [
+    "high knee",
+    "high-knee run",
+    "running in place"
+   ]
+  },
+  {
+   "id": "butt-kicks",
+   "name": "butt kicks",
+   "aliases": [
+    "butt kickers",
+    "heel flicks"
+   ]
+  },
+  {
+   "id": "shadow-boxing",
+   "name": "shadow boxing",
+   "aliases": [
+    "standing shadow boxing",
+    "shadowboxing",
+    "boxing in place"
+   ]
+  },
+  {
+   "id": "lateral-shuffle",
+   "name": "lateral shuffle",
+   "aliases": [
+    "side shuffle",
+    "side shuffles"
+   ]
+  },
+  {
+   "id": "leg-swings",
+   "name": "leg swings",
+   "aliases": [
+    "leg swing",
+    "front leg swings",
+    "side leg swings"
+   ]
+  },
+  {
+   "id": "worlds-greatest-stretch",
+   "name": "world's greatest stretch",
+   "aliases": [
+    "worlds greatest stretch",
+    "world's greatest",
+    "lunge with a twist"
+   ]
+  },
+  {
+   "id": "cat-cow",
+   "name": "cat-cow",
+   "aliases": [
+    "cat cow",
+    "cat camel",
+    "cat and cow"
+   ]
+  },
+  {
+   "id": "thread-the-needle",
+   "name": "thread the needle",
+   "aliases": [
+    "thread-the-needle",
+    "thread the needle stretch"
+   ]
+  },
+  {
+   "id": "ninety-ninety-hip-switch",
+   "name": "ninety-ninety hip switches",
+   "aliases": [
+    "ninety ninety hip switch",
+    "hip switches"
+   ]
+  },
+  {
+   "id": "childs-pose",
+   "name": "child's pose",
+   "aliases": [
+    "childs pose",
+    "child pose",
+    "resting pose"
+   ]
+  },
+  {
+   "id": "supine-twist",
+   "name": "supine twist",
+   "aliases": [
+    "lying twist",
+    "lying spinal twist",
+    "supine spinal twist"
+   ]
+  },
+  {
+   "id": "figure-four-stretch",
+   "name": "figure-four stretch",
+   "aliases": [
+    "figure four stretch",
+    "figure four",
+    "lying figure four",
+    "supine figure four"
+   ]
+  },
+  {
+   "id": "seated-figure-four",
+   "name": "seated figure four",
+   "aliases": [
+    "seated figure-four stretch",
+    "chair figure four",
+    "seated pigeon"
+   ]
+  },
+  {
+   "id": "seated-hamstring-stretch",
+   "name": "seated hamstring stretch",
+   "aliases": [
+    "chair hamstring stretch",
+    "seated forward reach"
+   ]
+  },
+  {
+   "id": "knees-to-chest",
+   "name": "knees to chest",
+   "aliases": [
+    "knees-to-chest stretch",
+    "double knee to chest",
+    "knee hug"
+   ]
+  },
+  {
+   "id": "sphinx-stretch",
+   "name": "sphinx stretch",
+   "aliases": [
+    "sphinx pose",
+    "prone press on the forearms"
+   ]
+  },
+  {
+   "id": "half-kneeling-hip-flexor-stretch",
+   "name": "half-kneeling hip flexor stretch",
+   "aliases": [
+    "hip flexor stretch",
+    "kneeling hip flexor stretch",
+    "kneeling lunge stretch"
+   ]
+  },
+  {
+   "id": "standing-quad-stretch",
+   "name": "standing quad stretch",
+   "aliases": [
+    "quad stretch",
+    "standing quadriceps stretch"
+   ]
+  },
+  {
+   "id": "standing-calf-stretch",
+   "name": "standing calf stretch",
+   "aliases": [
+    "calf stretch",
+    "wall calf stretch"
+   ]
+  },
+  {
+   "id": "doorway-chest-stretch",
+   "name": "doorway chest stretch",
+   "aliases": [
+    "chest stretch",
+    "door frame chest stretch",
+    "pec stretch"
+   ]
+  },
+  {
+   "id": "cross-body-shoulder-stretch",
+   "name": "cross-body shoulder stretch",
+   "aliases": [
+    "cross body shoulder stretch",
+    "shoulder stretch",
+    "across the chest stretch"
+   ]
+  },
+  {
+   "id": "shoulder-rolls",
+   "name": "shoulder rolls",
+   "aliases": [
+    "seated shoulder rolls",
+    "shoulder shrugs and rolls"
+   ]
+  },
+  {
+   "id": "neck-rolls",
+   "name": "half neck circles",
+   "aliases": [
+    "neck rolls",
+    "half neck rolls",
+    "seated half neck circles"
+   ]
+  },
+  {
+   "id": "seated-side-bend",
+   "name": "seated side bend",
+   "aliases": [
+    "side bend",
+    "seated side stretch",
+    "seated lateral stretch"
+   ]
+  },
+  {
+   "id": "seated-twist",
+   "name": "seated twist",
+   "aliases": [
+    "seated spinal twist",
+    "chair twist",
+    "seated rotation"
+   ]
+  },
+  {
+   "id": "wall-angel",
+   "name": "wall angel",
+   "aliases": [
+    "wall angels",
+    "back-to-wall angel",
+    "standing wall angel"
+   ]
+  },
+  {
+   "id": "side-lying-open-book",
+   "name": "side-lying open book",
+   "aliases": [
+    "side lying open book",
+    "open book stretch",
+    "side-lying thoracic rotation"
+   ]
+  },
+  {
+   "id": "knee-to-wall-ankle-mobilization",
+   "name": "knee to wall ankle mobilization",
+   "aliases": [
+    "knee to wall ankle drill",
+    "knee to wall mobilisation",
+    "standing ankle dorsiflexion mobilization"
+   ]
+  },
+  {
+   "id": "box-breathing",
+   "name": "box breathing",
+   "aliases": [
+    "square breathing",
+    "box breath",
+    "four-square breathing"
+   ]
+  },
+  {
+   "id": "long-exhale-breathing",
+   "name": "long exhale breathing",
+   "aliases": [
+    "long exhale",
+    "extended exhale breathing",
+    "slow exhale breathing"
+   ]
+  },
+  {
+   "id": "belly-breathing",
+   "name": "belly breathing",
+   "aliases": [
+    "diaphragmatic breathing",
+    "deep belly breathing"
+   ]
+  },
+  {
+   "id": "ninety-ninety-breathing",
+   "name": "ninety-ninety breathing",
+   "aliases": [
+    "ninety ninety breathing",
+    "breathing with feet on the wall",
+    "supine ninety-ninety breathing"
+   ]
+  },
+  {
+   "id": "seated-shadow-boxing",
+   "name": "seated shadow boxing",
+   "aliases": [
+    "seated punching finisher",
+    "seated punching",
+    "seated punches",
+    "seated boxing"
+   ]
+  },
+  {
+   "id": "seated-arm-pump",
+   "name": "seated arm pumping",
+   "aliases": [
+    "seated arm pumping drill",
+    "seated arm pumps",
+    "seated sprint arms",
+    "seated arm drill"
+   ]
+  },
+  {
+   "id": "seated-speed-bag",
+   "name": "seated speed bag",
+   "aliases": [
+    "speed bag arms",
+    "speed bag",
+    "seated speed bag punches"
+   ]
+  },
+  {
+   "id": "seated-overhead-punches",
+   "name": "seated overhead punches",
+   "aliases": [
+    "overhead punches",
+    "seated punch-ups",
+    "seated sky punches"
+   ]
+  }
+ ]
+}

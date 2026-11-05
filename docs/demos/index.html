@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo Clips</title>
+<meta name="description" content="The plan for the home page's demo clips: seven invented listeners, seven asks, three ElevenLabs coaches, and how to build and re-make them.">
+<link rel="icon" href="../../assets/brand/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap">
+<link rel="stylesheet" href="../docs.css">
+<style>
+  .status { display: inline-block; margin-top: 18px; padding: 4px 10px; border: 1px dashed var(--coral); border-radius: 2px;
+    font: 700 13px/1 var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--coral) }
+  td .ask { color: var(--ink); font-style: italic }
+  td:first-child { font: 700 20px/1 var(--display); color: var(--coral) }
+  .matrix td:first-child { font: 400 15.5px/1.4 var(--font); color: var(--ink) }
+  .matrix td { white-space: nowrap }
+
+  /* the card, as the home page would show it: the ask always, the profile on hover, focus or tap */
+  .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); margin-top: 18px }
+  .demo { position: relative; background: var(--sheet); border: 1px solid var(--rule); border-top: 4px solid var(--blue);
+    border-radius: 2px; padding: 18px 18px 16px; min-width: 0; cursor: pointer; outline: none }
+  .demo:focus-visible { box-shadow: 0 0 0 2px var(--coral) }
+  .demo .play { display: flex; align-items: center; gap: 12px }
+  .demo .btn { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--blue); display: grid; place-items: center }
+  .demo .btn::before { content: ""; border: 7px solid transparent; border-left: 11px solid var(--blue); border-right: 0; margin-left: 4px }
+  .demo .meta { font-size: 14px; color: var(--ink-3) }
+  .demo .ask { margin: 14px 0 0; font-size: 18px; line-height: 1.4; color: var(--ink) }
+  .demo .ask::before { content: "\201C" } .demo .ask::after { content: "\201D" }
+  .demo .hint { margin-top: 10px; font-size: 13.5px; color: var(--ink-3) }
+  .demo .profile { display: none; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line) }
+  .demo:hover .profile, .demo:focus .profile, .demo:focus-within .profile { display: block }
+  .demo:hover .hint, .demo:focus .hint, .demo:focus-within .hint { display: none }
+  .demo dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 15px }
+  .demo dt { color: var(--ink-3) } .demo dd { margin: 0; color: var(--ink-2) }
+  .demo .moments { margin: 12px 0 0; padding: 0; list-style: none; font-size: 14.5px; color: var(--ink-2) }
+  .demo .moments b { font: 600 13.5px var(--mono); color: var(--blue); margin-right: 8px }
+
+  .files { font: 15px/1.7 var(--mono); color: var(--ink-2); background: var(--sheet); border: 1px solid var(--rule);
+    border-radius: 2px; padding: 14px 18px; overflow-x: auto; white-space: pre; margin: 0 }
+  .files i { font-style: normal; color: var(--ink-3) }
+  pre.cmd { font: 14.5px/1.6 var(--mono); color: var(--ink); background: var(--sheet-2); border-radius: 2px; padding: 10px 14px;
+    margin: 8px 0 0; overflow-x: auto; white-space: pre }
+</style>
+</head>
+<body>
+<div class="page">
+
+
+<header class="top">
+  <a href="../index.html" aria-label="HarmonicFitness docs"><img src="../../assets/brand/wordmark-reversed.svg" alt="HarmonicFitness"></a>
+  <nav><a href="../index.html">How it fits</a><a href="../style-guide.html">Style guide</a><a href="index.html" aria-current="page">Demos</a></nav>
+</header>
+
+<p class="kicker" style="margin-top:48px">The home page, before sign-in</p>
+<h1 style="margin-top:10px">Demo clips</h1>
+<p class="lede">Seven clips of about two minutes, so someone can hear what HarmonicFitness does before they set anything
+up. Each is the chosen segments of a full workout of twenty-five to forty-five minutes, written by the engine for an
+invented listener from one ask in their own words, and spoken by an ElevenLabs coach.</p>
+<span class="status">Built 2026-11-04 · on the bucket · home page still to build</span>
+<p class="sub" style="margin-top:14px">The clips and <code>demos.json</code> are at
+<code>https://harmonicfitness-media.fly.storage.tigris.dev/demos/v1/</code>, publicly readable.</p>
+
+<!-- 1. the seven -->
+<h2>The seven</h2>
+<p class="sub">Each clip shows one thing the engine does, with a different kind of story. <code>demos.toml</code> holds
+each one's check-in answers, brief flags, the segments the writer arranges for the clip, and its card.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Listener</th><th>The ask</th><th>Coach</th><th>The clip</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jo</td><td class="ask">“Thirty minutes, hotel room, nothing to lift. My left knee's cranky after the flight.”</td><td>Priya</td><td>The opening, the left knee named with its stop signs, the chair and towel put to work, and a space-history number through the warm-up</td></tr>
+    <tr><td>2</td><td>Ben</td><td class="ask">“First time doing anything like this. Twenty-five minutes, I've only got a chair.”</td><td>Bea</td><td>A movement set up step by step for a beginner, its first set, and a cooking myth checked in the rest</td></tr>
+    <tr><td>3</td><td>Lena</td><td class="ask">“Push me. Dumbbells, forty-five minutes. I want to be wrecked.”</td><td>Desmond</td><td>The hardest set: the weight in pounds, short cues and counts, then how a mountaineer trained in the rest</td></tr>
+    <tr><td>4</td><td>Ravi</td><td class="ask">“Forty minutes in the park, bodyweight, and tell me something I don't know.”</td><td>Bea</td><td>A serial on the history of maps, told through steady work and picked up in the rest</td></tr>
+    <tr><td>5</td><td>Mo</td><td class="ask">“Quick one before work. Thirty minutes, I've got a kettlebell.”</td><td>Desmond</td><td>A brain teaser asked in one rest, a kettlebell set in kilos, the answer in the next rest</td></tr>
+    <tr><td>6</td><td>Ines</td><td class="ask">“My lower back's been tight all week. Something gentle, thirty-five minutes. I've got bands and a mat.”</td><td>Priya</td><td>Slow band work with the breath, a bird's profile, then the cool-down and sign-off</td></tr>
+    <tr><td>7</td><td>Frank</td><td class="ask">“Right shoulder's still healing. Legs and core only, forty minutes.”</td><td>Priya</td><td>The right shoulder named, the surgeon's rule quoted as theirs, then legs work that never asks for that arm, with an aviation explainer</td></tr>
+  </tbody>
+</table></div>
+
+<h3 style="margin-top:28px">What they cover between them</h3>
+<div class="table-wrap matrix"><table>
+  <thead><tr><th>Listener</th><th>Kit</th><th>Length</th><th>Limit</th><th>Level</th><th>Session</th><th>Story</th></tr></thead>
+  <tbody>
+    <tr><td>Jo</td><td>Hotel room: chair, towel</td><td>30 min</td><td>Left knee, delicate</td><td>Experienced</td><td>General</td><td>A number</td></tr>
+    <tr><td>Ben</td><td>One chair</td><td>25 min</td><td>None</td><td>Novice</td><td>General</td><td>Myth or fact</td></tr>
+    <tr><td>Lena</td><td>Dumbbells (lb), bench</td><td>45 min</td><td>None</td><td>Advanced</td><td>Strength</td><td>How they trained</td></tr>
+    <tr><td>Ravi</td><td>A park, bodyweight</td><td>40 min</td><td>None</td><td>Experienced</td><td>General</td><td>A serial</td></tr>
+    <tr><td>Mo</td><td>Kettlebells (kg)</td><td>30 min</td><td>None</td><td>Experienced</td><td>Strength</td><td>A brain teaser</td></tr>
+    <tr><td>Ines</td><td>Bands, mat</td><td>35 min</td><td>Lower back, delicate</td><td>Novice</td><td>Mobility</td><td>A profile</td></tr>
+    <tr><td>Frank</td><td>Mat, mini band, chair</td><td>40 min</td><td>Right shoulder, off-limits, with a surgeon's rule</td><td>Experienced</td><td>Targeted: legs, core</td><td>An explainer</td></tr>
+  </tbody>
+</table></div>
+
+<p class="sub" style="margin-top:18px">Three coaches, each one of ElevenLabs's own stock voices, chosen by ear:</p>
+<ul class="sub">
+  <li><b>Priya</b>, the voice Lily (British, warm; a physio who coaches): the three limits, Jo, Ines and Frank.</li>
+  <li><b>Desmond</b>, the voice Charlie (Australian, deep; driving): the strength sessions, Lena and Mo.</li>
+  <li><b>Bea</b>, the voice Matilda (American, warm; patient, a storyteller): the beginner and the stories, Ben and Ravi.</li>
+</ul>
+<p class="sub">All three speak with <code>eleven_v4</code>, ElevenLabs's more natural model, never the turbo one. A stock
+voice has the same ID on every account and takes no voice slot, so nothing is designed. Designed voices were tried first
+and turned down by ear, tinny and breathy, even on ElevenLabs's newer design model.</p>
+
+<!-- 2. the card -->
+<h2>The card</h2>
+<p class="sub">The ask is always on the card: it's the hook. The profile and the clip's moments open on hover on a
+computer and on tap on a phone, because phones have no hover. Try one: hover, or tab to it.</p>
+<div class="cards">
+  <div class="demo" tabindex="0">
+    <div class="play"><span class="btn" aria-hidden="true"></span>
+      <div><b>Jo</b> with Coach Priya<div class="meta">Two minutes from a thirty-minute session</div></div></div>
+    <p class="ask">Thirty minutes, hotel room, nothing to lift. My left knee's cranky after the flight.</p>
+    <div class="hint">Hover or tap to see who asked</div>
+    <div class="profile">
+      <dl>
+        <dt>Who</dt><dd>Jo, travels for work and trains three times a week</dd>
+        <dt>Kit</dt><dd>Hotel room: a chair and a towel</dd>
+        <dt>Limit</dt><dd>Left knee, delicate</dd>
+        <dt>Topics</dt><dd>Space history, jazz</dd>
+        <dt>Changed</dt><dd>No deep knee bends, no jumping; every knee movement light</dd>
+      </dl>
+      <ul class="moments">
+        <li><b>0:12</b>The left knee, named</li>
+        <li><b>0:48</b>The towel under the left knee</li>
+        <li><b>1:30</b>A number from the first Moon landing</li>
+      </ul>
+    </div>
+  </div>
+  <div class="demo" tabindex="0">
+    <div class="play"><span class="btn" aria-hidden="true"></span>
+      <div><b>Frank</b> with Coach Priya<div class="meta">Two minutes from a forty-minute session</div></div></div>
+    <p class="ask">Right shoulder's still healing. Legs and core only, forty minutes.</p>
+    <div class="hint">Hover or tap to see who asked</div>
+    <div class="profile">
+      <dl>
+        <dt>Who</dt><dd>Frank, six weeks after shoulder surgery</dd>
+        <dt>Kit</dt><dd>Home: a mat, a mini band and a chair</dd>
+        <dt>Limit</dt><dd>Right shoulder, off-limits</dd>
+        <dt>Topics</dt><dd>Aviation history, crime novels</dd>
+        <dt>Changed</dt><dd>Nothing pushing, pulling or leaning on the right arm, and nothing overhead</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+<p class="sub" style="margin-top:14px">The times and the “Changed” lines above are examples: each is set at build, by
+listening. Every card also says, in one line, that its listener is invented.</p>
+
+<!-- 3. how a clip is made -->
+<h2>How a clip is made</h2>
+<p class="sub">The whole workout is written and linted, which costs nothing. Only the clip's segments are rendered: about
+ten thousand characters for the seven, around eighty cents on <code>eleven_v4</code>, instead of a hundred and seventy
+thousand for the full workouts.</p>
+<ol class="steps">
+  <li><b>Write the whole workout.</b><p>The workout skill, as that listener, from the brief. The writer arranges it so
+    the clip's segments (<code>[demo.clip] segments</code>) fall together, add up to about two minutes and make sense
+    heard alone.</p></li>
+  <li><b>Lint it clean.</b><p>Every check a listener's workout gets: the menu, the timing, the silences, what a voice
+    can read.</p></li>
+  <li><b>Cut the clip's segments.</b><p><code>demos excerpt</code> writes them, word for word, as a draft of their own,
+    with the full draft's menu beside it. Under a one-sided limit the clip starts at the opening, because the build checks
+    that the first segment names the side.</p></li>
+  <li><b>Render only the clip.</b><p>A normal build of the clip's draft: linted, gated by the menu, spoken by the coach.
+    Its card says “two minutes from a thirty-minute session”, which is true: the script is a full session that passed
+    every check.</p></li>
+</ol>
+
+<!-- 4. what's here -->
+<h2>What's in the repo</h2>
+<p class="sub">Everything needed to build the set again, kept in the engine so it can be re-made in a year. Every
+listener here is invented, and each file says so on its first line.</p>
+<pre class="files">docs/demos/
+  index.html            <i>this page</i>
+  demos.toml            <i>the seven: ask, check-in answers, brief flags, coach, the clip, the card</i>
+  coaches/<i>&lt;name&gt;</i>.md      <i>Priya, Desmond and Bea, each a stock voice by its ID</i>
+  listeners/<i>&lt;slug&gt;</i>/      <i>one invented listener each, and its own context folder</i>
+    profile.md  training.md  content.md  health.md  log.md  settings.toml
+    workouts/           <i>research, the brief and menu, the full draft and the clip's draft</i>
+.claude/skills/demos/   <i>the steps (copied for Codex to .agents/skills/demos/)</i>
+tools/demos.py          <i>./harmonicfitness demos: list, home, run, excerpt, publish, upload</i>
+tests/test_demos.py     <i>the shipped set reads clean; each step, with no network</i></pre>
+<div class="note"><b>Checked on 2026-11-04 against engine 0.63.0:</b> <code>./harmonicfitness check</code> reads all seven
+listeners clean, and each demo's brief screens with its flags (menus of forty-nine to a hundred and forty-eight
+movements). <code>tests/test_demos.py</code> keeps checking both. The privacy hook's paths are anchored at the repo's
+root, so it spares these files, as it spares <code>docs/x/log.md</code> in its test.</div>
+
+<p class="sub">The listeners are built so the clips stay right for a year:</p>
+<ul class="sub">
+  <li><b>No feeds</b>, and every news format in <code>skip_formats</code>: only evergreen stories.</li>
+  <li><b>“Never bring up”</b> holds the date, the day, the season and the weather, so research and the writer leave them out.</li>
+  <li><b>An empty log</b>, kept empty (no <code>log-session</code> for a demo), so no demo refers to a history it doesn't have.</li>
+  <li><b><code>writing_rules</code></b> in <code>demos.toml</code>, given to the writer with every demo: no dates, every fact checked against two sources.</li>
+</ul>
+
+<!-- 5. before building -->
+<h2>Before building</h2>
+<ol class="steps">
+  <li><b>A paid ElevenLabs plan.</b><p>The home page is public, so the plan's terms must cover commercial use of the
+    audio. Stock voices take no voice slot.</p></li>
+  <li><b>The key in <code>me/.env</code>.</b><p>Nothing to copy. <code>demos run</code> points the engine at it through
+    <code>HARMONICFITNESS_KEYS</code>, so a demo listener's folder needs no key file of its own and only the engine reads
+    the key. <code>./harmonicfitness keys</code> shows ElevenLabs set.</p></li>
+  <li><b>About ten thousand characters,</b> plus a 45-second sample a demo (about a cent each). The skill says what it
+    will spend and waits for a yes before anything is billed.</li>
+  <li><b>The Fly bucket</b> the clips are stored in, named in <code>demos.toml</code> (<code>bucket</code>).</li>
+</ol>
+
+<!-- 6. build -->
+<h2>Build</h2>
+<p class="sub">Ask Claude Code (or Codex) to “build the demos”: the <code>demos</code> skill runs these, demo by demo.
+Every command for a demo listener goes through <code>demos run</code>, which sets its folder and the key file for that
+one command.</p>
+<ol class="steps">
+  <li><b>The listener's folder.</b><p><code>docs/demos/listeners/&lt;slug&gt;/</code> is the demo's own context folder,
+    never <code>me/</code>, which is the real listener's. <code>demos home</code> installs its coach there from
+    <code>docs/demos/coaches/</code>, held to <code>eleven_v4</code>, and the coach's sample records its pace, for the
+    lint. What the engine generates in the folder is git-ignored.</p>
+    <pre class="cmd">./harmonicfitness demos home jo
+./harmonicfitness demos run jo coaches sample "Coach Priya"</pre></li>
+  <li><b>The whole workout, written and linted.</b>
+    <pre class="cmd">./harmonicfitness demos run jo brief --goal general --minutes 30 --preset hotel-room --coach "Coach Priya" \
+  --save docs/demos/listeners/jo/workouts/&lt;stem&gt;/&lt;stem&gt;.draft.txt
+./harmonicfitness demos run jo build "&lt;draft&gt;" "Demo jo" --lint-only --coach "Coach Priya"</pre></li>
+  <li><b>The clip, cut and rendered.</b>
+    <pre class="cmd">./harmonicfitness demos excerpt "&lt;draft&gt;"                 <i style="font-style:normal;color:var(--ink-3)"># the segments, numbered</i>
+./harmonicfitness demos excerpt "&lt;draft&gt;" --from 1 --to 2
+./harmonicfitness demos run jo build "&lt;clip draft&gt;" "Demo jo v1" --coach "Coach Priya"</pre></li>
+  <li><b>Listened to, published, recorded.</b><p>If it falls flat, rewrite those segments, lint, cut and build again: only
+    changed paragraphs are billed again. Then <code>from</code>, <code>to</code>, <code>moments</code> and
+    <code>changed</code> go into <code>demos.toml</code>.</p>
+    <pre class="cmd">./harmonicfitness demos publish jo "&lt;clip MP3&gt;"     <i style="font-style:normal;color:var(--ink-3)"># to docs/demos/clips/jo.mp3, then the bucket</i>
+./harmonicfitness demos upload                         <i style="font-style:normal;color:var(--ink-3)"># clips and demos.json to the bucket</i>
+./harmonicfitness demos                                <i style="font-style:normal;color:var(--ink-3)"># how far each has got</i></pre></li>
+</ol>
+
+<!-- 7. the home page -->
+<h2>The home page</h2>
+<p class="sub">Still to build in the web client, once the clips exist:</p>
+<ul class="sub">
+  <li><b>A section on the sign-in page</b> (<code>web/client/src/SignIn.tsx</code>), above the sign-in, with the seven cards.</li>
+  <li><b>A <code>demos.json</code></b> beside the clips on the Fly bucket, made from
+    <code>demos.toml</code> (the ask, the card, the moments, the coach, the length, <code>version</code>). The coach-sample
+    route needs a signed-in listener, so the demos can't go through it.</li>
+  <li><b>The moments seek</b>: tapping one jumps the clip to it.</li>
+  <li><b>Tests</b> that the manifest matches <code>demos.toml</code> and every clip it names exists.</li>
+</ul>
+
+<!-- 8. re-making -->
+<h2>Re-making them in a year</h2>
+<ol class="steps">
+  <li><b>Raise <code>version</code></b> in <code>demos.toml</code>, and clear <code>from</code>, <code>to</code>,
+    <code>moments</code> and <code>changed</code>.</li>
+  <li><b>Read the asks, the clips and the writing rules again.</b><p>Change any that no longer show something new, and
+    check <code>model</code> against <code>knowledge/services.toml</code>.</p></li>
+  <li><b>Keep the three coaches.</b><p>Their stock voice IDs are in <code>docs/demos/coaches/</code>, the same on any
+    account. If ElevenLabs retires one, have a few stock voices speak the same coaching line on <code>eleven_v4</code>
+    and choose by ear.</p></li>
+  <li><b>Ask to “re-make the demos”.</b><p>Each demo's last scripts are kept in its <code>workouts/</code>, a starting
+    point for the next ones.</p></li>
+</ol>
+
+<footer>Every listener on this page and in this folder is invented. HarmonicFitness is not medical advice.</footer>
+</div>
+</body>
+</html>

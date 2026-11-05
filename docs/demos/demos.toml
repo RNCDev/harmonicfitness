@@ -1,0 +1,272 @@
+# The demo clips on the web app's home page, heard before anyone signs in: seven clips of about two minutes, each
+# the chosen segments of a full workout written for an invented listener from one ask in their own words. Nobody
+# here is a real person. docs/demos/index.html is the plan; the `demos` skill builds them; ./harmonicfitness demos
+# is the command.
+#
+# The whole workout is written and linted, which costs nothing; only the clip's segments are rendered
+# (./harmonicfitness demos excerpt), about ten thousand characters for the seven instead of a hundred and seventy.
+#
+# Each [[demo]] names its listener (listeners/<slug>/, its own context folder: never in me/), the ask, the
+# check-in's answers, the brief's flags, the coach, the clip (what it shows, the story told in it, and the segments
+# the writer arranges so they fall together), and the card the home page shows with it. `from`, `to`, `moments` and
+# `changed` are filled in at build.
+
+version = 1            # raise by one each time the set is re-made; the web manifest carries it
+built = "2026-11-04"   # the day the set was built
+engine = "0.63.0"      # the engine's VERSION it was built with
+service = "elevenlabs"
+model = "eleven_v4"    # ElevenLabs's more natural model, never eleven_v4_turbo; `demos home` holds each coach to it
+coaches = ["Coach Priya", "Coach Desmond", "Coach Bea"]   # ElevenLabs stock voices Lily, Charlie and Matilda: nothing designed
+bucket = "harmonicfitness-media"   # the app's public Fly (Tigris) bucket: demos/v<version>/<slug>.mp3 and demos.json
+keys = "me/.env"       # the listener's own key file, read only by the engine (demos run sets HARMONICFITNESS_KEYS)
+clip_seconds = [90, 150]   # the clip's segments add up to about two minutes
+
+# Given to the writer for every demo, beside the workout skill's rules: these clips play for a year or more.
+writing_rules = [
+  "No dates, days of the week, months, seasons, holidays, weather or news: every line must sound right in any month.",
+  "Only evergreen stories, in the format the clip names; check every fact against two sources, kept in the day's research sheet.",
+  "Never call it a first session together unless the ask says so: there is no log to look back on.",
+  "Use the listener's name in the welcome, at the hardest set and at the sign-off, as for any listener.",
+  "In the welcome, the coach says their own name once (\"I'm Priya\"): someone hearing a clip cold should know who's talking.",
+  "Write the whole workout and lint it clean; arrange it so the clip's segments fall together and add up to about two minutes, and so they make sense heard alone.",
+]
+
+# What the seven show between them (index.html, The seven):
+#   kits     a hotel room (chair, towel), one chair, dumbbells in pounds, a park, kettlebells in kilos, bands, a mini band
+#   lengths  25, 30, 30, 35, 40, 40, 45 minutes
+#   limits   a delicate knee on one side, a delicate lower back, an off-limits shoulder with a surgeon's rule, none
+#   levels   novice (Ben, Ines), experienced (Jo, Ravi, Mo, Frank), advanced (Lena)
+#   sessions general, strength, mobility, targeted
+#   stories  number, myth or fact, how they trained, serial, brain teaser, profile, explainer
+
+[[demo]]
+slug = "jo"
+order = 1
+minutes = 30
+coach = "Coach Priya"
+coach_file = "coaches/priya.md"
+ask = "Thirty minutes, hotel room, nothing to lift. My left knee's cranky after the flight."
+shows = "A one-sided limit in a hotel room: the left knee named with its stop signs, the chair and towel put to work, a space-history number to start."
+brief = '--goal general --minutes 30 --preset hotel-room --coach "Coach Priya"'
+
+[demo.check_in]
+today = "Stiff from a six-hour flight. The left knee aches on stairs; no swelling, fine walking."
+sore = "Left knee, as in health.md. Nothing new."
+energy = "Medium"
+
+[demo.clip]
+story = "number"       # a format id from knowledge/content.toml
+segments = "The opening (the left knee named in the brief's words, the chair and the towel set out, the towel under the left knee for anything kneeling) and the warm-up's first steady movement, with a space-history number told through it. A one-sided limit's clip starts at segment 1."
+from = 1
+to = 2
+moments = [
+  { at = "0:00", label = "Priya introduces herself, and the left knee is named" },
+  { at = "0:56", label = "The chair, the towel, and a number from Apollo" },
+]
+
+[demo.card]
+who = "Jo, travels for work and trains three times a week"
+kit = "Hotel room: a chair and a towel"
+limit = "Left knee, delicate"
+topics = ["Space history", "Jazz"]
+changed = "The left knee stays light: no jumping or deep bends, the right leg alone does the lunges, and the hips and glutes work for the left knee."
+
+
+[[demo]]
+slug = "ben"
+order = 2
+minutes = 25
+coach = "Coach Bea"
+coach_file = "coaches/bea.md"
+ask = "First time doing anything like this. Twenty-five minutes, I've only got a chair."
+shows = "A novice with one chair: a movement set up step by step before the go, then a cooking myth checked in the rest."
+brief = '--goal general --minutes 25 --kit "living room" --coach "Coach Bea"'
+
+[demo.check_in]
+today = "Fine. A bit nervous about doing it wrong."
+sore = "Nothing."
+energy = "Good"
+
+[demo.clip]
+story = "myth_or_fact"
+segments = "The first main movement with the chair: its full beginner's setup (feet, hands, then the move), its first set, and the rest after it, where a cooking myth is checked."
+from = 5
+to = 6
+moments = [
+  { at = "0:00", label = "Feet, hands, then the move: a chair becomes a box squat" },
+  { at = "1:25", label = "Myth or fact: searing doesn't seal in the juices" },
+]
+
+[demo.card]
+who = "Ben, new to training"
+kit = "Living room: one chair"
+limit = "None"
+topics = ["Cooking", "Ancient Rome"]
+changed = ""
+
+
+[[demo]]
+slug = "lena"
+order = 3
+minutes = 45
+coach = "Coach Desmond"
+coach_file = "coaches/desmond.md"
+ask = "Push me. Dumbbells, forty-five minutes. I want to be wrecked."
+shows = "An advanced lifter's hardest set: the weight in pounds, short cues and counts with no chatter, then how a mountaineer trained in the rest."
+brief = '--goal strength --minutes 45 --kit garage --coach "Coach Desmond"'
+
+[demo.check_in]
+today = "Slept well, feeling strong."
+sore = "Nothing."
+energy = "High"
+
+[demo.clip]
+story = "how_they_trained"
+segments = "The hardest set: its setup naming the dumbbells' weight in pounds, the counted set in short cues, and the rest after it with how a mountaineer trained for a big climb."
+from = 23
+to = 24
+moments = [
+  { at = "0:00", label = "The hardest set: the fifties, eight a side" },
+  { at = "1:01", label = "How Alex Honnold trained for Freerider" },
+]
+
+[demo.card]
+who = "Lena, lifts four times a week"
+kit = "Garage: dumbbells from fifteen to fifty pounds, a bench, a mat"
+limit = "None"
+topics = ["Formula One engineering", "Mountaineering"]
+changed = ""
+
+
+[[demo]]
+slug = "ravi"
+order = 4
+minutes = 40
+coach = "Coach Bea"
+coach_file = "coaches/bea.md"
+ask = "Forty minutes in the park, bodyweight, and tell me something I don't know."
+shows = "Bodyweight in a park: a story told through steady timed work and picked up again in the rest, a serial on the history of maps."
+brief = '--goal general --minutes 40 --kit park --coach "Coach Bea"'
+
+[demo.check_in]
+today = "Good. Legs a little heavy from a run two days ago."
+sore = "Calves, from training: lighter on them today."
+energy = "Medium"
+
+[demo.clip]
+story = "serial"
+segments = "A steady timed set outdoors with the serial's next beat told through the work, and the rest where it carries on and ends on something to wait for."
+from = 26
+to = 27
+moments = [
+  { at = "0:00", label = "Bea picks the story back up mid-walk" },
+  { at = "1:27", label = "Gone in a week, and a best guess saved for later" },
+]
+
+[demo.card]
+who = "Ravi, runs and trains outdoors"
+kit = "A park: bodyweight only"
+limit = "None"
+topics = ["The deep sea", "The history of maps"]
+changed = ""
+
+
+[[demo]]
+slug = "mo"
+order = 5
+minutes = 30
+coach = "Coach Desmond"
+coach_file = "coaches/desmond.md"
+ask = "Quick one before work. Thirty minutes, I've got a kettlebell."
+shows = "Kettlebells in kilos before work: a brain teaser asked in one rest, a short set, and the answer in the next rest."
+brief = '--goal strength --minutes 30 --kit flat --coach "Coach Desmond"'
+
+[demo.check_in]
+today = "Awake, one coffee in."
+sore = "Nothing."
+energy = "Good"
+
+[demo.clip]
+story = "brain_teaser"
+segments = "A rest that asks a brain teaser, the kettlebell set after it (its weight in kilos, kept under a minute), and the rest that answers it."
+from = 11
+to = 13
+moments = [
+  { at = "0:00", label = "The cup teaser" },
+  { at = "0:49", label = "Twenty-four kilos, ten rows" },
+  { at = "1:25", label = "The answer: count the losers" },
+]
+
+[demo.card]
+who = "Mo, trains before work"
+kit = "A flat: kettlebells of twelve, sixteen and twenty-four kilos, a mat"
+limit = "None"
+topics = ["Chess history", "Football tactics", "Brain teasers"]
+changed = ""
+
+
+[[demo]]
+slug = "ines"
+order = 6
+minutes = 35
+coach = "Coach Priya"
+coach_file = "coaches/priya.md"
+ask = "My lower back's been tight all week. Something gentle, thirty-five minutes. I've got bands and a mat."
+shows = "A delicate lower back and a novice's mobility session: slow band work with the breath, a bird's profile, and a calm close."
+brief = '--goal mobility --minutes 35 --kit home --coach "Coach Priya"'
+
+[demo.check_in]
+today = "Tight in the lower back after a week at a desk. No pain down the legs, no numbness."
+sore = "Lower back, as in health.md."
+energy = "Low"
+
+[demo.clip]
+story = "profile"
+segments = "The last flow with the band, slow, the breath with every movement, a bird's profile told through it, then the cool-down and the sign-off."
+from = 33
+to = 35
+moments = [
+  { at = "0:00", label = "The breath leads the band, and a five-month-old godwit" },
+  { at = "1:21", label = "Long exhale breathing" },
+  { at = "2:09", label = "How hard did that feel?" },
+]
+
+[demo.card]
+who = "Ines, back to moving after two years off"
+kit = "Home: resistance bands and a mat"
+limit = "Lower back, delicate"
+topics = ["Gardening", "Birds"]
+changed = "The lower back kept light: nothing fast or heavy, a brace before every rep, and a roll to the side to get up from the floor."
+
+
+[[demo]]
+slug = "frank"
+order = 7
+minutes = 40
+coach = "Coach Priya"
+coach_file = "coaches/priya.md"
+ask = "Right shoulder's still healing. Legs and core only, forty minutes."
+shows = "An off-limits shoulder after surgery: the right shoulder named and the surgeon's rule quoted as theirs, then legs work that never asks for that arm."
+brief = '--goal targeted --minutes 40 --kit home --target quads,glutes,hamstrings,core --coach "Coach Priya"'
+
+[demo.check_in]
+today = "Shoulder is fine at rest. Legs are fresh."
+sore = "Right shoulder, as in health.md. Nothing new."
+energy = "Good"
+
+[demo.clip]
+story = "explainer"
+segments = "The opening (the right shoulder named, the surgeon's rule quoted as theirs) and the first steady legs or core movement with the mini band, nothing on the right arm, with an aviation explainer told through it. A one-sided limit's clip starts at segment 1."
+from = 1
+to = 2
+moments = [
+  { at = "0:00", label = "The right shoulder named, and the surgeon's rule quoted" },
+  { at = "1:11", label = "Left hand only, and how the X-1 got through the sound barrier" },
+]
+
+[demo.card]
+who = "Frank, six weeks after shoulder surgery"
+kit = "Home: a mat, a mini band and a chair"
+limit = "Right shoulder, off-limits"
+topics = ["Aviation history", "Crime novels"]
+changed = "The right arm sits out everything, getting down to the floor and up included, so the legs and core do all the work."

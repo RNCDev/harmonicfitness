@@ -1328,17 +1328,27 @@ class Account(ApiCase):
 
 
 class CoachSamples(ApiCase):
-    def test_a_stock_coachs_sample_plays_for_a_signed_in_listener(self):
+    def test_a_stock_coachs_sample_plays_from_the_media_bucket(self):
         self.assertEqual(self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3").status_code, 401)
         self.signed_in()
-        r = self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3")
-        self.assertEqual((r.status_code, r.headers["content-type"]), (200, "audio/mpeg"))
-        self.assertGreater(len(r.content), 100_000)
-        self.assertEqual(r.headers["cache-control"], "private, no-cache")   # a re-recorded sample is heard at once
-        again = self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3", headers={"If-None-Match": r.headers["etag"]})
-        self.assertEqual(again.status_code, 304)   # unchanged: nothing sent again
+        r = self.client.get("/api/coaches/coach-nora-openrouter/sample.mp3", follow_redirects=False)
+        self.assertEqual(r.status_code, 307)   # coaches/samples.json lists it on the bucket; nothing ships in git
+        self.assertEqual(r.headers["location"],
+                         "https://harmonicfitness-media.fly.storage.tigris.dev/coaches/coach-nora-openrouter/sample.mp3")
         for slug in ("coach-reed-fish", "coach-nobody", "..%2Fsecrets", "coach-../x"):
-            self.assertEqual(self.client.get(f"/api/coaches/{slug}/sample.mp3").status_code, 404, slug)
+            self.assertEqual(self.client.get(f"/api/coaches/{slug}/sample.mp3", follow_redirects=False).status_code,
+                             404, slug)
+
+    def test_a_listed_sample_needs_an_https_address(self):
+        from webapp import api
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "coaches"))
+            path = os.path.join(d, "coaches", "samples.json")
+            for url, want in (("http://example.com", None), ("https://m.example", "https://m.example/coaches/coach-x/sample.mp3")):
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump({"url": url, "samples": {"coach-x": {}}}, f)
+                self.assertEqual(api.stock_sample_url(d, "coach-x"), want)
+            self.assertIsNone(api.stock_sample_url(d, "coach-y"))
 
     def test_their_own_coachs_sample_plays_from_their_files(self):
         _, uk = self.signed_in()

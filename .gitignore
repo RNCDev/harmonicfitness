@@ -25,3 +25,18 @@ __pycache__/
 
 # the script-writing bench (web/bench/): each run holds a copy of the listener's files
 .bench/
+
+# The stock coaches' 45-second samples live on the media bucket (coaches/samples.json lists them;
+# tools/coachmaker/upload_samples.py uploads them), never in git.
+coaches/*/sample.mp3
+
+# The demo listeners (docs/demos/listeners/<slug>/): their files, research, briefs, menus and drafts are kept;
+# what the engine makes there (the installed coach, caches, logs, builds) is not. Clips wait in docs/demos/clips/
+# for `demos upload`.
+docs/demos/listeners/*/coaches/
+docs/demos/listeners/*/workouts/.audio-cache/
+docs/demos/listeners/*/workouts/.logs/
+docs/demos/listeners/*/workouts/*/Demo *
+docs/demos/listeners/**/*.lock
+docs/demos/listeners/**/*.mp3
+docs/demos/clips/

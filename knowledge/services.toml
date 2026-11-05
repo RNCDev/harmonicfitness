@@ -16,6 +16,8 @@
 # max_chars: the most characters one request may carry (0: no documented limit).
 # candidates: how many voices an audition asks this service for (lettered in this file's order).
 # note: a caveat shown beside the service.
+# design_model, design_guidance, design_line (optional, ElevenLabs): the design model, how closely it keeps to
+# the description (lower is freer), and the line its candidates read (100 to 1,000 characters).
 
 rates_checked = "2026-10-25"
 
@@ -48,6 +50,12 @@ usd_per_million = { "eleven_v4" = 80, "eleven_v4_turbo" = 40 }
 concurrency = 2
 max_chars = 10000
 candidates = 3
+# The design: ElevenLabs's newer design model, a guidance below its default of five (which it warns can sound
+# artificial; lower suits a detailed description), and a line in full, unhurried sentences, since the shared
+# line of short cues came out rushed on every candidate (2026-11-04).
+design_model = "eleven_ttv_v3"
+design_guidance = 3
+design_line = "Alright, let's settle in. Stand tall with your feet about hip width apart, and let your shoulders drop away from your ears. We'll take this first one slowly, so you can feel where the work is. Breathe in as you lower, and breathe out as you come back up. That's it, nice and steady. There's no rush today."
 note = "not yet tried on a Free account; Free keeps 3 voices and a monthly allowance"
 tried_live = true
 

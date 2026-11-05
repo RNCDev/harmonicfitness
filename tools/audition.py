@@ -82,13 +82,13 @@ def _reason(e):
 
 
 def _mp3(wav, mp3):
-    """The candidate as an MP3 (mono, 48 kbps) to listen to; False when ffmpeg isn't here."""
+    """The candidate as an MP3 (mono, 128 kbps: at 48 the previews sounded tinny) to listen to; False when ffmpeg isn't here."""
     import ffmpeg
     exe = ffmpeg.exe()
     if not exe:
         return False
     try:
-        ffmpeg.to_mp3(wav, mp3, "48k", path=exe)
+        ffmpeg.to_mp3(wav, mp3, "128k", path=exe)
     except errors.RenderStopped:   # a sample to listen to: the WAV is still there
         return False
     return True

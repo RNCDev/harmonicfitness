@@ -15,6 +15,7 @@ with the listener's key), kept in me/coaches/.
     ./harmonicfitness coaches forget-audition 2026-10-25-1      # close an audition (Gemini's unkept voices deleted)
     ./harmonicfitness coaches make "Coach Reed"                 # a pending default: design and save its voice (builds do)
     ./harmonicfitness coaches sample "Coach Maya"               # speak your own coach's 45-second sample again
+    ./harmonicfitness coaches sample-file "Coach Andy"          # a sample to play: a stock one fetched from the bucket once
     ./harmonicfitness coaches archive "Coach Julius"            # out of the list, still found for old log lines
     ./harmonicfitness coaches last                              # the coach a build uses when none is named
     ./harmonicfitness coaches measured "Coach Maya" --route local   # exit 0 measured, 1 estimated, 64 unknown
@@ -42,6 +43,7 @@ import errors  # noqa: E402
 import cloud  # noqa: E402
 import context  # noqa: E402
 import keys  # noqa: E402
+import media  # noqa: E402
 import paths  # noqa: E402
 import personas  # noqa: E402
 import routes  # noqa: E402
@@ -93,8 +95,8 @@ def default_coach():
 
 def listing(last=None, facts=None):
     """Every coach as a dict, in the list's order: name, slug, kind, service, service_name, default, placeholder,
-    pending, shipped, speaks_here, description, tone (how the coach talks), sample (a stock web coach's
-    sample.mp3 ships beside it), usd_per_workout (a web coach's, about), powered_by (who makes the voices of a
+    pending, shipped, speaks_here, description, tone (how the coach talks), sample (a web coach's own sample.mp3,
+    or a stock coach's on the media bucket, coaches/samples.json), usd_per_workout (a web coach's, about), powered_by (who makes the voices of a
     go-between service: OpenRouter's "ElevenLabs") (what --json prints for each), and notes (the list's remarks on it,
     such as "(a stand-in)"). `last` is the coach a build uses when none is named (default_coach). speaks_here: a
     web coach's service has a key here; a local coach renders here (never in the web client). `facts` stands in
@@ -109,6 +111,7 @@ def listing(last=None, facts=None):
             local["facts"] = routes.computer(facts)
         return routes.usable("local", p, local["facts"])[0]
 
+    samples = media.manifest()   # the stock samples on the media bucket
     for p in personas.all():
         web = p.is_web
         speaks = keys.is_set(p.service) if web else local_ok(p)
@@ -122,7 +125,8 @@ def listing(last=None, facts=None):
                     "default": bool(last and p.slug == last.slug), "placeholder": bool(p.placeholder),
                     "pending": bool(web and p.pending), "shipped": bool(p.shipped), "speaks_here": bool(speaks),
                     "description": p.description, "tone": p.table("character").get("tone") or None,
-                    "sample": bool(web and os.path.isfile(os.path.join(p.folder, "sample.mp3"))),
+                    "sample": bool(web and (os.path.isfile(os.path.join(p.folder, "sample.mp3"))
+                                            or (p.shipped and media.has_sample(p.slug, samples)))),
                     "usd_per_workout": _workout_usd(p) if web else None,
                     "powered_by": cloud.powered_by(p.service, _model(p)) if web and p.service in cloud.SERVICES else None,
                     "notes": notes})
@@ -198,6 +202,9 @@ def main(argv=None):
     s.add_argument("setting", help="for example elevenlabs.model, or description")
     s.add_argument("value")
     sub.add_parser("download", help="fetch the local voice (Pocket TTS) and the take checker (setup does it)")
+    sf = sub.add_parser("sample-file", help="a coach's 45-second sample as a file to play: a stock coach's fetched "
+                                          "once from the media bucket, a coach of your own's own sample.mp3")
+    sf.add_argument("coach")
     args = ap.parse_args(argv)
 
     if paths.WEB and args.cmd in ("audition", "keep", "sample"):   # the web client chooses coaches; it never makes one
@@ -259,6 +266,11 @@ def main(argv=None):
         value = _value(args.value)
         personas.set_setting(p, args.setting, value)
         print(f"{p.name}: {args.setting} = {value}")
+        return cli.OK
+    if args.cmd == "sample-file":
+        p = personas.lookup(args.coach)
+        own = os.path.join(p.folder, "sample.mp3")
+        print(own if not p.shipped and os.path.isfile(own) else media.sample_file(p.slug))
         return cli.OK
     if args.cmd == "download":
         if paths.WEB:

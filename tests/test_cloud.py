@@ -232,6 +232,10 @@ class Core(unittest.TestCase):
             self.assertIn(want, problems)
         self.assertEqual(services.validate({"elevenlabs": dict(shipped["elevenlabs"], tried_live="yes")}),
                          ["[elevenlabs] tried_live must be true or false (it's 'yes')"])
+        design = " | ".join(services.validate({"elevenlabs": dict(shipped["elevenlabs"], design_model="",
+                                                                   design_guidance=-1, design_line="Too short.")}))
+        for want in ("[elevenlabs] design_model", "[elevenlabs] design_guidance", "[elevenlabs] design_line"):
+            self.assertIn(want, design)
 
     def test_an_unreadable_2xx_answer_is_a_service_error(self):
         for body in (b"<html>oops</html>", b"[1, 2]", b"", b"\xff\xfe"):
@@ -647,10 +651,15 @@ class ElevenLabs(ServiceCase):
         req = fake.requests[0]
         self.assertEqual(req.path, "/v1/text-to-voice/design?output_format=pcm_24000")
         body = json.loads(req.body)
-        self.assertEqual(set(body), {"voice_description", "text"})
+        s = cloud.services()["elevenlabs"]
+        self.assertEqual(set(body), {"voice_description", "text", "model_id", "guidance_scale"})
         self.assertEqual(body["voice_description"], "A warm coach in her forties.")
+        # services.toml's design: the newer model, a guidance under ElevenLabs's default of five, and its own
+        # line in full sentences in place of the shared one
+        self.assertEqual((body["model_id"], body["guidance_scale"]), (s["design_model"], s["design_guidance"]))
+        self.assertLess(body["guidance_scale"], 5)
+        self.assertEqual(body["text"], s["design_line"])
         self.assertGreaterEqual(len(body["text"]), 100)
-        self.assertTrue(body["text"].startswith("Okay, set your feet."))
         self.assertEqual([c["draft_id"] for c in out], ["g0", "g1", "g2"])   # every preview is a candidate
         for c in out:
             self.check_candidate(c, "the words spoken")

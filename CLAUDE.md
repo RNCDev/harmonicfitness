@@ -6,18 +6,19 @@ HarmonicFitness turns a request for a workout into a narrated MP3 for earbuds, w
 
 Priorities, in order: safe for the listener's body today, clean to the ear, worth listening to.
 
-The README is for people (what it is, how to start, costs); `docs/index.html` is the one-page map of how the parts connect, and `docs/style-guide.html` the house style for words, terms and visuals.
+The README is for people (what it is, how to start, costs); `docs/index.html` is the one-page map of how the parts connect, `docs/style-guide.html` the house style for words, terms and visuals, and `docs/demos/` the plan and files for the home page's demo clips.
 
 ## What runs when
 
 - **Any request for a workout, in any words,** runs the `workout` skill (`.claude/skills/workout/SKILL.md`): check-in (asked first, from the profile, health and log alone), research, the brief, design, script, build, log and backup.
 - **Getting started** ("set up harmonicfitness", "set me up", "finish setting me up"), **or changing the profile, injuries, topics ("update my interests"), feeds, audio route or delivery,** runs the `setup` skill, as does a workout request when `me/profile.md` doesn't exist yet. Its quick start is one round of questions, one web key where local voices don't run (`keys init`, then `keys open`), a coach chosen by ear from samples, and a ten-minute workout; the rest waits for "finish setting me up" (`setup = "quick"` in `me/settings.toml` until then).
 - **"I want a new coach", in any words, at any point,** runs the `coach` skill: "switch coach" picks another stock coach by ear; a coach of their own is a web coach (keys, describe, audition across every keyed service, approve and name). Local coaches are chosen, never made.
+- **"Build the demos" (the home page's demo clips, maintainer only)** runs the `demos` skill: seven invented listeners from `docs/demos/demos.toml`, each a full workout written and linted, of which only the two-minute clip is rendered, on ElevenLabs stock voices, and stored on the media bucket. Every command runs as `./harmonicfitness demos run <slug> ...`, in the context folder `docs/demos/listeners/<slug>/` (what the engine generates there is git-ignored), with this listener's key file.
 - **A request from outside a copy of this repo** ("use https://github.com/RNCDev/harmonicfitness and set me up") follows the README's "For Claude" section: download to `~/harmonicfitness`, then hand over to a session opened in that folder, where these instructions and the safety settings load. A new listener is set up only on their own computer, never on Claude Code on the web. Keep that section, the README's Start here and the setup skill in step.
 
 Rules that always hold:
 - **Never read, print or copy `me/.env`**: it holds the listener's voice keys, pasted into that file by the listener, never into the chat. Only the engine reads it, when it sends to a voice service.
-- **During a session, write only inside `me/`.** Never put personal details (health, location, the log, drafts, a listener's name) in the engine, its tests, its examples or `docs/`; the pre-push hook in `tools/hooks/` and CI both refuse them.
+- **During a session, write only inside `me/`.** Never put personal details (health, location, the log, drafts, a listener's name) in the engine, its tests, its examples or `docs/`; the pre-push hook in `tools/hooks/` and CI both refuse them. The invented demo listeners in `docs/demos/listeners/` are the one exception; nothing real ever goes there.
 
 ## Two assistants
 
@@ -30,8 +31,9 @@ HarmonicFitness runs under Claude Code and under ChatGPT's Codex, on the listene
 
 1. **Engine** (this repo, public, versioned): `harmonicfitness`, `tools/`, `.claude/`, `AGENTS.md`, `.agents/`, `.codex/`, `tests/`, `knowledge/`, `docs/` (plain HTML sharing one `docs.css`), the template `me.example/`, the brand in `assets/brand/` (every file from its `make.py`, maintainer only) and the web client in `web/` (its own `web/README.md`).
 2. **Coaches.** A persona folder: a person's name, how they talk (`[character]`, which the script follows) and how they sound (`[voice]`, which a service designs from). Two kinds:
-   - **Local** (`kind = "local"`): the ten stock coaches in `coaches/` (Andy, Marcus, Theo, Sam, Callum; Maya, Claire, Rosa, Helen, Kate), spoken on this computer by Pocket TTS from `pocket.safetensors`, with recorded counts and cues (`cues/`), a measured `pace.json` and a 45-second `sample.mp3`. Coach Andy is the stand-in when no coach was ever chosen. `coaches/roster.toml` says how each was made; `tools/coachmaker/` remakes them (maintainer only).
+   - **Local** (`kind = "local"`): the ten stock coaches in `coaches/` (Andy, Marcus, Theo, Sam, Callum; Maya, Claire, Rosa, Helen, Kate), spoken on this computer by Pocket TTS from `pocket.safetensors`, with recorded counts and cues (`cues/`) and a measured `pace.json`. Coach Andy is the stand-in when no coach was ever chosen. `coaches/roster.toml` says how each was made; `tools/coachmaker/` remakes them (maintainer only).
    - **Web** (`kind = "web"`): speaks only through its service, with the listener's key. Twelve ready-made ones ship, six on OpenRouter and six on Gemini, each a voice of that service's own with a sample and a pace estimate. Three stock ones (Reed on Fish Audio, Ellis on ElevenLabs, Owen on Inworld) are `placeholder = true`, `pending = "design"`: the quick start or the first build that needs one designs its voice in the listener's account, saying so first, and writes it to `me/coaches/<slug>/`. Where a service has several, the first by name is its stand-in.
+   - **Samples:** every stock coach's 45-second sample is on the app's public media bucket on Fly (`harmonicfitness-media`), never in git. `coaches/samples.json` lists them (bytes, SHA-256, the address) and `tools/media.py` reads it (`coaches sample-file` fetches one for choosing by ear; the web app redirects to it); `tools/coachmaker/upload_samples.py` uploads a remade one (`tools/bucket.py`). The demo clips are there too, as `demos/v<version>/<slug>.mp3`.
    - The listener's own coaches live in `me/coaches/` and win over a stock coach of the same name. Local model weights download into `models/` (git-ignored, pinned revisions), never into git.
 3. **The listener's context** (private): `me/`, ignored by git (`HARMONICFITNESS_HOME` moves it), template `me.example/`. Kept as its own private repo, nested but never a submodule; `./harmonicfitness backup` commits and pushes it.
 
@@ -48,7 +50,7 @@ HarmonicFitness runs under Claude Code and under ChatGPT's Codex, on the listene
 - **`log.md`**: sessions, added only by `./harmonicfitness log-session`, and feedback under `## Feedback`.
 - **`workouts/<stem>/`**, one folder per workout (`tools/workouts.py`): the draft, its brief and menu, and the build's `.txt` and `.build.json`. Beside them: `checks/` (smoke tests), `research/` (`daily/`, `videos/`, `puzzles/`, `reserve/` the researched stock, `told.jsonl`, `threads.jsonl`, `interests.jsonl`), `.audio-cache/` and `.logs/` (render logs and `builds.jsonl`, one line per MP3, failed web render or build outcome, each carrying its `build_id` and `kind`, read only through `records.parse`).
 - **`coaches/<slug>/`**: `persona.md` (persona schema 5), `pace.json`, a web coach's `sample.mp3`; `coaches/.auditions/` holds one in progress, `coaches/.archive/` retired ones.
-- **`.env`**: the web voice keys and, optionally, the web app account `pull` and `sync` sign in with. Made by `keys init`, opened by `keys open`, filled in by the listener.
+- **`.env`**: the web voice keys and, optionally, the web app account `pull` and `sync` sign in with. Made by `keys init`, opened by `keys open`, filled in by the listener. `HARMONICFITNESS_KEYS` names another key file instead (`demos run` sets it, so a demo listener speaks with this listener's keys, never copied; the tests drop it).
 - **`movements.toml`** (optional): private catalog entries; a shipped id wins.
 
 ## Knowledge (`knowledge/`)
@@ -101,9 +103,10 @@ Each file is read only through its tool, never parsed elsewhere:
 ## The other tools, by job
 
 - **Computer:** `doctor` (readiness; `--facts` feeds `tools/machine.py`), `setup` (environment, `me/`, privacy hook, local engine as a uv extra remembered in `.venv/.harmonicfitness-extra`), `models`, `tools/voices.py` (model pins), `tools/ffmpeg.py`, `harness`.
-- **Coaches:** `coaches` (list, last, measured, audition, keep, make, sample, archive, set, download), `tools/personas.py` (lookup, merge), `tools/audition.py`, `tools/coachmake.py`, `tools/coachsample.py` (a web coach's 45-second sample, after keep and make), `tools/cloud.py` and `tools/services/`, `keys` (names set, never values), `balances`.
+- **Coaches:** `coaches` (list, last, measured, audition, keep, make, sample, sample-file, archive, set, download), `tools/personas.py` (lookup, merge), `tools/audition.py`, `tools/coachmake.py`, `tools/coachsample.py` (a web coach's 45-second sample, after keep and make), `tools/cloud.py` and `tools/services/`, `keys` (names set, never values), `balances`.
 - **Context:** `check`, `get`, `set` (the listener's level, every other line kept), `log-session` (`tools/logsession.py`), `migrate`, `workouts` (list, show, feedback, rate, delete), `backup` (refuses a key file and a public remote), `cache prune`, `pull` and `sync` (the web app's copy of `me/`).
 - **Planning and research:** `brief`, `movements` (`--about` for coaching notes), `coverage`, `feeds`, `content` (plan, log, thread, reserve, trending), `interests` (learned likes, fading by half-life), `topics` (add one at once, its feed found without a web search), `youtube`.
+- **Demos:** `demos` (`tools/demos.py`: list, home, run, excerpt, publish, upload), from `docs/demos/demos.toml`.
 - **Privacy:** `tools/hooks/` (the pre-push hook, `check-private.sh` shared with CI, and `private-paths`, the one list of paths never pushed).
 
 ## Tests

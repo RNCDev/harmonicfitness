@@ -29,6 +29,28 @@ import voices  # noqa: E402
 
 REAL = os.path.join(ROOT, "coaches")
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "stock")
+with open(os.path.join(REAL, "samples.json"), encoding="utf-8") as _f:
+    SAMPLES = json.load(_f)   # the stock samples on the media bucket (tools/media.py)
+
+
+def _tracked(folder):
+    """Whether git tracks the folder's sample.mp3 (none should: they live on the media bucket)."""
+    out = subprocess.run(["git", "ls-files", "--error-unmatch", os.path.join(folder, "sample.mp3")], cwd=ROOT,
+                         capture_output=True)
+    return out.returncode == 0
+
+
+class SampleList(unittest.TestCase):
+    def test_every_ready_coach_has_its_sample_on_the_bucket_and_none_in_git(self):
+        self.assertTrue(SAMPLES["url"].startswith("https://"))
+        made = [d for d in sorted(os.listdir(REAL)) if os.path.isfile(os.path.join(REAL, d, "persona.md"))
+                and not personas.load(os.path.join(REAL, d)).pending]
+        self.assertEqual(sorted(SAMPLES["samples"]), made)
+        for slug, entry in SAMPLES["samples"].items():
+            self.assertEqual(len(entry["sha256"]), 64, slug)
+        if shutil.which("git"):
+            out = subprocess.run(["git", "ls-files", "coaches"], cwd=ROOT, capture_output=True, text=True).stdout
+            self.assertNotIn("sample.mp3", out)
 WEB = ("coach-reed-fish", "coach-ellis-elevenlabs", "coach-owen-inworld")
 
 
@@ -51,8 +73,10 @@ class ShippedCoaches(unittest.TestCase):
                 self.assertTrue(p.character, "how the coach talks")
                 with open(os.path.join(folder, "clip.txt"), encoding="utf-8") as f:
                     self.assertTrue(f.read().strip())
-                for name in ("clip.wav", "sample.mp3"):
-                    self.assertGreater(os.path.getsize(os.path.join(folder, name)), 1000, name)
+                self.assertGreater(os.path.getsize(os.path.join(folder, "clip.wav")), 1000)
+                # its sample is on the media bucket, listed with its size and hash, never in git
+                self.assertGreater(SAMPLES["samples"][f"coach-{slug}-local"]["bytes"], 100_000)
+                self.assertFalse(os.path.exists(os.path.join(folder, "sample.mp3")) and _tracked(folder))
                 with open(os.path.join(folder, "pocket.safetensors"), "rb") as f:   # a safetensors header
                     n = struct.unpack("<Q", f.read(8))[0]
                     self.assertIsInstance(json.loads(f.read(n)), dict)
@@ -102,7 +126,7 @@ class ShippedCoaches(unittest.TestCase):
                     self.assertTrue(gemini.own_voice(p.voice_id), p.voice_id)
                 with open(os.path.join(folder, "persona.md"), encoding="utf-8") as f:
                     self.assertEqual(f.read(), maker.persona_text(c))
-                self.assertGreater(os.path.getsize(os.path.join(folder, "sample.mp3")), 100_000)
+                self.assertGreater(SAMPLES["samples"][slug]["bytes"], 100_000)   # on the media bucket
                 for name in ("persona.md", "pace.json"):
                     with open(os.path.join(folder, name), encoding="utf-8") as a, \
                             open(os.path.join(FIXTURE, slug, name), encoding="utf-8") as b:

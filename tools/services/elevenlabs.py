@@ -41,11 +41,19 @@ def speaker(voice):
 
 
 def design(description, line, n=3, label=None):
-    """Every preview ElevenLabs makes (three) of `line`, repeated to the 100 characters the design needs."""
-    text = line
+    """Every preview ElevenLabs makes (three) of services.toml's design_line, else `line` repeated to the 100
+    characters the design needs; with its design_model and design_guidance when set (ElevenLabs's defaults are
+    the older eleven_multilingual_ttv_v2 and a guidance of 5, which it warns can sound artificial)."""
+    s = cloud.services()[SERVICE]
+    text = s.get("design_line") or line
     while len(text) < 100:
         text = f"{text} {line}"
-    body = json.dumps({"voice_description": description[:1000], "text": text[:1000]}).encode()
+    body = {"voice_description": description[:1000], "text": text[:1000]}
+    if s.get("design_model"):
+        body["model_id"] = s["design_model"]
+    if s.get("design_guidance") is not None:
+        body["guidance_scale"] = s["design_guidance"]
+    body = json.dumps(body).encode()
     _, _, data = cloud.request("POST", cloud.base_url(SERVICE) + "/v1/text-to-voice/design?output_format=pcm_24000",
                                _headers(), body, timeout=180, service=SERVICE, idempotent=False)
     answer = cloud.json_answer(data, SERVICE, "the design")

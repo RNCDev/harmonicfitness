@@ -6,6 +6,7 @@ Read `CLAUDE.md` in full before doing anything else, and follow it as your own i
 
 The skills, copied whole into `.agents/skills/`:
 - `coach`: `.claude/skills/coach/SKILL.md`
+- `demos`: `.claude/skills/demos/SKILL.md`
 - `setup`: `.claude/skills/setup/SKILL.md`
 - `workout`: `.claude/skills/workout/SKILL.md`
 

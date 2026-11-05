@@ -59,7 +59,11 @@ SETTINGS = os.path.join(HOME, "settings.toml")   # the tools' settings: setup, a
 HEALTH = os.path.join(HOME, "health.md")
 LOG = os.path.join(HOME, "log.md")
 MY_MOVEMENTS = os.path.join(HOME, "movements.toml")   # the listener's private movements
-ENV_FILE = os.path.join(HOME, ".env")                  # cloud voice API keys: read only by tools/keys.py
+# Cloud voice API keys: read only by tools/keys.py. HARMONICFITNESS_KEYS names another key file, so a context
+# folder with none of its own (a demo listener's, ./harmonicfitness demos run) speaks with the listener's keys,
+# never copied; the tests drop it.
+ENV_FILE = (os.path.abspath(os.path.expanduser(os.environ["HARMONICFITNESS_KEYS"])) if os.environ.get("HARMONICFITNESS_KEYS")
+            else os.path.join(HOME, ".env"))
 WORKOUTS = os.path.join(HOME, "workouts")
 CHECKS = os.path.join(WORKOUTS, "checks")             # smoke tests and builds of drafts outside a workout folder
 RESEARCH = os.path.join(WORKOUTS, "research")
@@ -88,6 +92,7 @@ MOVEMENTS = os.path.join(ROOT, "knowledge", "movements.toml")           # the sh
 SESSIONS = os.path.join(ROOT, "knowledge", "sessions.toml")             # session methods and dose rules
 LIMITS = os.path.join(ROOT, "knowledge", "limits.toml")                 # what each injury limit means for a session
 CONTENT = os.path.join(ROOT, "knowledge", "content.toml")               # the formats, and how many topics a session touches
+DEMOS = os.path.join(ROOT, "docs", "demos")                             # the home page's demo clips: demos.toml, the invented listeners (each its own context folder), coaches
 
 
 def require(path, what="file"):

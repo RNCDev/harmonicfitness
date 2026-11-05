@@ -72,7 +72,8 @@ def validate(tables):
     """What's wrong with {service: settings} as the engine reads it (an empty list when nothing is): each needs
     a name, an https:// url, key_page and billing_page, a key_var, a default_model among its models, a unit (characters or
     bytes), usd_per_million (a number, or one per model), concurrency and candidates (whole numbers, at least 1),
-    max_chars (a whole number, 0 for no limit) and tried_live (true or false); design_usd and note are optional."""
+    max_chars (a whole number, 0 for no limit) and tried_live (true or false); design_usd, note, design_model,
+    design_guidance and design_line are optional."""
     problems = []
     for service, t in tables.items():
         def bad(field, want):
@@ -102,6 +103,12 @@ def validate(tables):
             bad("design_usd", "a number")
         if "note" in t and not isinstance(t["note"], str):
             bad("note", "a string")
+        if "design_model" in t and (not isinstance(t["design_model"], str) or not t["design_model"].strip()):
+            bad("design_model", "a non-empty string")
+        if "design_guidance" in t and not _number(t["design_guidance"]):
+            bad("design_guidance", "a number")
+        if "design_line" in t and not (isinstance(t["design_line"], str) and 100 <= len(t["design_line"]) <= 1000):
+            bad("design_line", "a string of 100 to 1,000 characters")
     return problems
 
 REQUIRED = {"speaker": ["voice"], "design": ["description", "line", "n", "label"],

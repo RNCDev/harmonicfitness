@@ -1,0 +1,93 @@
+{
+ "url": "https://harmonicfitness-media.fly.storage.tigris.dev",
+ "samples": {
+  "coach-andy-local": {
+   "bytes": 569738,
+   "sha256": "0a83870e35e2eec97d2274cacdef6c5910c07285a14cfe8a0c6cb28a7ed1e2f4"
+  },
+  "coach-callum-local": {
+   "bytes": 569740,
+   "sha256": "6fdc1bc61d5f714e8108838094e381a2178f132a1acaf105c15760080e51ae13"
+  },
+  "coach-claire-local": {
+   "bytes": 569740,
+   "sha256": "269d1806bf86012c2ceb2ef964cbcd6dbc625466a35035c783fda42d5ee1bc12"
+  },
+  "coach-fraser-gemini": {
+   "bytes": 569740,
+   "sha256": "205ac1dca1eeb517c99eab15f2942644a491b28c4c8adfb66f98f43f55a58ae4"
+  },
+  "coach-freya-gemini": {
+   "bytes": 569739,
+   "sha256": "8bd7dd5a6fd40b108cd9db17cddaf54d8dbdb50d97ac28aff7e19e53657f1083"
+  },
+  "coach-graham-openrouter": {
+   "bytes": 569740,
+   "sha256": "8215eea3ddfa9711d0862dfb0d6ef2d90a9b7323ee4532f25e4e7d06fe805013"
+  },
+  "coach-helen-local": {
+   "bytes": 569739,
+   "sha256": "4b2bb953833ebcce41b37fe47f3577d9d066fe4512e0b75232972cc16c31e714"
+  },
+  "coach-jonah-openrouter": {
+   "bytes": 569739,
+   "sha256": "3984b1de5a52d4d6d658aec75862fecd202a35d48857ade6f8162fbbaa1bd905"
+  },
+  "coach-june-gemini": {
+   "bytes": 569738,
+   "sha256": "305cd1c5c3cb513d30a479c084e123ce70b77fbb3d784bef4b9468b4e937c1f9"
+  },
+  "coach-kate-local": {
+   "bytes": 569738,
+   "sha256": "3284309b4fc0d22ecf60035b67ad36da74ffdb243601f3d6f09f073e5b89340f"
+  },
+  "coach-leah-openrouter": {
+   "bytes": 569738,
+   "sha256": "3b5542d8d2e19fe42b46a2264b9b067e3e757fb2d5b7df40bd9aecc6596925cb"
+  },
+  "coach-marcus-local": {
+   "bytes": 569740,
+   "sha256": "6748b140a8fbc146925cd84bf25c3cf54413741fcd929290a349b0d7ea19ef5a"
+  },
+  "coach-maya-local": {
+   "bytes": 569738,
+   "sha256": "b6ccb9cb53855043ffdf001929d17439d0c47dba8db00f65797ab0c830081e58"
+  },
+  "coach-miles-gemini": {
+   "bytes": 569739,
+   "sha256": "08461af4414f34b1226d6e1da74a6086e8f2d6d4b843851a572156ecc83003f2"
+  },
+  "coach-nora-openrouter": {
+   "bytes": 569738,
+   "sha256": "ed88d6d27a4a477a6c91e2a8392d1ddb11d8e465d922537050b31398e8e43802"
+  },
+  "coach-rosa-local": {
+   "bytes": 569738,
+   "sha256": "464504a7dd25033197a66cabb1e3b5d51d6635d4d906f6cf7ed07b397f3d5343"
+  },
+  "coach-rowan-openrouter": {
+   "bytes": 569739,
+   "sha256": "1470260fa243d938cb34a6ff7fef9a392ed56ed930554e56b9482f1a6dcd484a"
+  },
+  "coach-ruby-gemini": {
+   "bytes": 569738,
+   "sha256": "658773fc3e0da8039adabfcaa7ab2e4ae19991203a14bb5180367f05cbb2a88c"
+  },
+  "coach-sam-local": {
+   "bytes": 569737,
+   "sha256": "2a5c0c42881b89bff24aa2d77fb1fc2d1fdd6db5d6a63d527e8ab049f5b23312"
+  },
+  "coach-tess-openrouter": {
+   "bytes": 569738,
+   "sha256": "bf1caa669f4e805ccac703a3f61ce9e0f30d32ec89a129ee50b68892de03d140"
+  },
+  "coach-theo-local": {
+   "bytes": 569738,
+   "sha256": "3dada4e86e585456645758ab09ae66854aa55f7dc913b053496aef14ca36aaa2"
+  },
+  "coach-wade-gemini": {
+   "bytes": 569738,
+   "sha256": "370f65cb8adcd0b45ac87415d8bb1af6593249561b2b6e3cad97e8f904d1f8f3"
+  }
+ }
+}

@@ -294,6 +294,19 @@ def _refused_page() -> str:
             f"was already used.</p></body></html>\n")
 
 
+def stock_sample_url(engine_root: str, slug: str) -> str | None:
+    """A stock coach's sample on the media bucket, from coaches/samples.json (tools/media.py writes it), or None.
+    Only an https:// address counts."""
+    try:
+        data = json.loads(Path(engine_root, "coaches", "samples.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    url = str(data.get("url") or "").rstrip("/")
+    if slug not in (data.get("samples") or {}) or not url.startswith("https://"):
+        return None
+    return f"{url}/coaches/{slug}/sample.mp3"
+
+
 def build_version(engine_root: str, env=os.environ) -> str:
     """What the page shows, so a deploy is visible: the engine's VERSION and the deployed commit
     (HARMONICFITNESS_COMMIT, baked in at build from GIT_COMMIT_SHA), as "0.20.0 (75da105)"."""
@@ -594,8 +607,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/api/coaches/{slug}/sample.mp3")
     def coach_sample(uk: User, slug: str, request: Request):
         """A coach's sample for the gallery: the listener's own copy (me/coaches/<slug>/sample.mp3, kept with
-        their files), which wins as their coach does, else the one the engine ships (coaches/<slug>/), which
-        plays before the listener has a key."""
+        their files), which wins as their coach does, else a stock coach's from the media bucket (a redirect to
+        the address coaches/samples.json lists), which plays before the listener has a key."""
         if not coach_slug.fullmatch(slug):
             raise HTTPException(404, "no such coach")
         with connection() as conn:
@@ -610,8 +623,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             tag = f'"own-{version:x}-{len(body):x}"'
         else:
             path = Path(settings.engine_root, "coaches", slug, "sample.mp3")
-            if not path.is_file():
-                raise HTTPException(404, "no sample for this coach")
+            if not path.is_file():   # a stock coach's sample is on the media bucket, listed in coaches/samples.json
+                url = stock_sample_url(settings.engine_root, slug)
+                if url is None:
+                    raise HTTPException(404, "no sample for this coach")
+                return RedirectResponse(url, status_code=307, headers={"Cache-Control": "public, max-age=3600"})
             st = path.stat()
             tag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
         headers = {"Cache-Control": "private, no-cache", "ETag": tag}

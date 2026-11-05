@@ -1,0 +1,9 @@
+# A demo listener's settings (docs/demos/): invented, nobody real. Built on ElevenLabs, kept in workouts/.
+schema = 6
+setup = "full"
+render = ["elevenlabs"]
+# A forty-five minute session runs to about thirty-five thousand characters; the default stops at thirty thousand.
+cloud_max_chars = 45000
+deliver_to = ""
+words_per_minute = 165
+bed = "off"
