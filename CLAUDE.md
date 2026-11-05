@@ -111,7 +111,7 @@ Each file is read only through its tool, never parsed elsewhere:
 
 ## Tests
 
-`./harmonicfitness test` (or `test engine`, `test web`) after changing a tool. The tests need no models, network or personal files: they point `HARMONICFITNESS_HOME` at an absent folder, `tests/helpers.py` redirects every path to a temporary home, and `HARMONICFITNESS_SHIPPED` points at `tests/fixtures/stock/` so only `test_stock` sees the real coaches. Web services are faked in `tests/fakes.py`. CI runs a privacy job, then the engine's tests (skipped when a push changes only `web/`, the changelog or the version), the web app's tests and, on main, the Fly deploy.
+After changing a tool, `./harmonicfitness test changed`: only the engine tests the change reaches, with the enforcers (`tools/testpick.py`); `test <name>` runs one module. The whole suite (`test`, or `test engine`, `test web`) is CI's on every push, and worth a local run only for a change that reaches across the engine or that CI can't see (Windows paths). The tests need no models, network or personal files: they point `HARMONICFITNESS_HOME` at an absent folder, `tests/helpers.py` redirects every path to a temporary home, and `HARMONICFITNESS_SHIPPED` points at `tests/fixtures/stock/` so only `test_stock` sees the real coaches. Web services are faked in `tests/fakes.py`. CI runs a privacy job, then the engine's tests (skipped when a push changes only `web/`, the changelog or the version), the web app's tests and, on main, the Fly deploy.
 
 ## Releases
 
@@ -119,4 +119,4 @@ Semantic Versioning in its 0.x form (pre-1.0; the numbering restarted at 0.16.0,
 - **Minor (0.X.0):** breaks how drafts, coaches, commands, exit codes or the `me/` layout work, so something must be migrated; its CHANGELOG section says what to do under "For forks".
 - **Patch (0.x.Y):** everything else: new capabilities, fixes, tuning, doc corrections.
 
-To release: a dated section in `CHANGELOG.md`, the version bumped, commit, `git tag -a vX.Y.Z -m "..."`, push with tags, `gh release create vX.Y.Z --notes-file <that section>`. Ask before pushing if it's unclear whether the work is done.
+To release: a dated section in `CHANGELOG.md`, the version bumped, commit and push, wait for CI to pass (`gh run watch`), then `git tag -a vX.Y.Z -m "..."`, push the tag, `gh release create vX.Y.Z --notes-file <that section>`. Ask before pushing if it's unclear whether the work is done.

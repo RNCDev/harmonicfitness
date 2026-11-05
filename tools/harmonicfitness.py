@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import cli  # noqa: E402
+import testpick  # noqa: E402
 
 # command: (module, the subcommand it stands for in that module, or None; what it does)
 COMMANDS = {
@@ -44,7 +45,7 @@ COMMANDS = {
     "cache":       ("cache", None, "the clip cache's size, and prune"),
     "demos":       ("demos", None, "the home page's demo clips (docs/demos/): each demo listener's folder, run a command as one, cut a clip's segments, publish it"),
     "harness":     ("harness", None,"check that ChatGPT's Codex files match the Claude Code ones; sync rewrites them"),
-    "test":        (None, None, "run the engine's tests, then the web app's (test engine, or test web, runs one)"),
+    "test":        (None, None, "run the engine's tests, then the web app's (test engine, or test web, runs one; test changed only those covering what's changed; test <name> one module)"),
     "setup":       (None, None, "first-run setup (environment, me/, privacy hook, voice model)"),
     "doctor":      (None, None, "what this computer can do: system, prerequisites, audio routes"),
 }
@@ -96,6 +97,26 @@ def main(argv=None):
         return cli.USAGE
     if cmd == "test":
         env = test_env(os.environ)
+        # "changed" runs only the engine tests that cover what's changed and not yet pushed (tools/testpick.py);
+        # names ("demos", "test_media") run those modules. Either is the loop while working; CI runs everything.
+        # a name is any argument that isn't an option or the pattern after -k
+        names = [a for i, a in enumerate(rest) if not a.startswith("-") and (i == 0 or rest[i - 1] != "-k")]
+        if names and names[0] not in ("engine", "web"):
+            tests = testpick.sources(os.path.join(ROOT, "tests"), "test_")
+            if names == ["changed"]:
+                files = testpick.changed_files(ROOT)
+                picked = testpick.pick(files, tests, testpick.sources(os.path.join(ROOT, "tools")))
+                print(f"{len(picked)} of {len(tests)} test modules, for {len(files)} changed files"
+                      + (" (web/ changed: run test web, or let CI)" if any(f.startswith("web/") for f in files) else ""))
+            else:
+                picked = [n if n.startswith("test_") else f"test_{n}" for n in names]
+                unknown = [n for n in picked if n not in tests]
+                if unknown:
+                    print(f"No such test module: {', '.join(unknown)} (tests/test_<name>.py)", file=sys.stderr)
+                    return cli.USAGE
+            opts = [a for a in rest if a not in names]
+            env["PYTHONPATH"] = os.pathsep.join(filter(None, [os.path.join(ROOT, "tests"), env.get("PYTHONPATH")]))
+            return subprocess.call([sys.executable, "-m", "unittest", *opts, *picked], cwd=ROOT, env=env)
         # "engine" or "web" first runs only that half (CI runs them side by side, and skips the engine's when a
         # push changed only web/)
         part = rest.pop(0) if rest and rest[0] in ("engine", "web") else None
