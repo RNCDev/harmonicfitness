@@ -537,6 +537,9 @@ def without_retold(found: dict, repeats: dict, count: int) -> list | None:
 
 
 SAY = re.compile(r"^\s*(?:[-*]\s*)?(SAY EXACTLY:|SAY, EVERY PART KEPT:)\s*(.+?)\s*$", re.MULTILINE)
+# the same labels at the head of a script's line, however a writer copied them: the trainer's mark, never spoken
+SAY_LABEL = re.compile(r"^[ \t]*(?:[-*][ \t]*)?SAY(?: EXACTLY|,? EVERY PART KEPT)[ \t]*[:\-–—][ \t]*",
+                       re.IGNORECASE | re.MULTILINE)
 
 
 def must_say(notes: dict[int, str]) -> str:
@@ -719,9 +722,10 @@ def without_unasked(edits: list[Edited], placed: dict) -> tuple[list[Edited], li
 
 def apply_edits(draft: str, edits: list[Edited]) -> str:
     """The draft with the host's or the review's segments in place of its own, each under its own @@ line (the clock is the
-    skeleton's: an edit can't change it)."""
+    skeleton's: an edit can't change it). A must-say label copied onto a line is taken off: the coach read "SAY
+    EXACTLY" aloud before five welcome rules (2026-11-05)."""
     head, segs = split(draft)
-    bodies = {e.number: e.text.strip("\n") for e in edits if 1 <= e.number <= len(segs)}
+    bodies = {e.number: SAY_LABEL.sub("", e.text).strip("\n") for e in edits if 1 <= e.number <= len(segs)}
     out = list(head)
     for n, (at, _, _, body) in enumerate(segs, 1):
         text = bodies.get(n)

@@ -191,6 +191,19 @@ class Assemble(unittest.TestCase):
         self.assertEqual(out, "movements: plank\n@@ 30 | Welcome\nEvening, Sam.\n\n@@ 40 | Plank\n[count 3 go] Brace.\n")
         self.assertIn("#2 @@ 40 | Plank", writers.numbered(draft))
 
+    def test_the_trainers_must_say_labels_never_reach_the_voice(self):
+        # the host copied "SAY EXACTLY:" onto five welcome rules and the coach read it aloud (2026-11-05)
+        out = writers.apply_edits(SKELETON, [Edited(number=1, text=(
+            "Before we move, the rules.\n\nSAY EXACTLY: Sharp pain means stop that movement.\n\n"
+            "- say, every part kept: Your left knee stays light today.\n\nSay exactly - Breathe out as you stand.\n\n"
+            "If a pinch comes, say exactly where."))])
+        welcome = out.split("@@ 50 |", 1)[0]
+        self.assertIn("\nSharp pain means stop that movement.\n", welcome)
+        self.assertIn("\nYour left knee stays light today.\n", welcome)
+        self.assertIn("\nBreathe out as you stand.\n", welcome)
+        self.assertIn("say exactly where.", welcome)   # the words in a sentence are the coach's own
+        self.assertNotRegex(welcome, r"(?i)\bSAY(?: EXACTLY|, EVERY PART KEPT)\s*[:-]")
+
     def test_a_retold_item_is_caught_by_its_words(self):
         titles = writers.told_titles("## Told in the last 30 days\n- 2026-11-01 New Jersey Devils / quick_hit: "
                                      "Devils beat Golden Knights 5-2 in Vegas\n")

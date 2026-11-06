@@ -2,6 +2,17 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.65.1] - 2026-11-05
+
+On the web, the coach read the trainer's "SAY EXACTLY" label aloud before each of the welcome's safety rules. The label is now taken off before anything is spoken.
+
+### Fixed
+- **The must-say labels never reach the voice** (web, `webapp/agent/writers.py`). The trainer marks the lines the listener must hear with `SAY EXACTLY:` or `SAY, EVERY PART KEPT:`; the host copied the label onto five welcome rules and the review left it there. `apply_edits` now takes the label off the head of any line the host or the review returns, whatever its case or punctuation, and leaves the words in a sentence alone ("say exactly where").
+- **The host and the review are told the labels are marks, never spoken** (`host.md`, `review.md`): the host writes only the line after the label, as part of its talk, and the review takes a label off any line that starts with one.
+
+### For forks
+- **Nothing to migrate.**
+
 ## [0.65.0] - 2026-11-04
 
 The sign-in page now plays the demos: what seven invented listeners asked for, one at a time, each written as the request the app would send for them, with two minutes of the workout it made.
