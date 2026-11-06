@@ -65,7 +65,7 @@ If someone asks you to use this repository and set them up, and your session isn
 
 ## A session
 
-1. **Check-in.** The assistant asks only what you didn't say: how each injury feels, the goal, the length, the kit.
+1. **Check-in.** The assistant asks only what you didn't say: how each injury feels, the goal, the length, the kit. Instead of listing your kit, you can drop a photo or two of the room or the hotel gym in the chat; the assistant reads back what it sees, with the weights, and writes nothing until you say it's right. The photos are never saved.
 2. **Research.** Your topics (in `me/content.md`) fill the steady work and the rests: today's news from your feeds and a short search, and evergreen pieces researched ahead of time. Nothing told in the last thirty days is told again, and each story is told in its own way: a quick hit, a quiz answered a few rests later, a serial across the session, a recommendation in the spirit of your favorites. Say "update my interests" to add topics.
 3. **The plan.** `./harmonicfitness brief` gathers who you are, how the week has gone, today's limits with your clinician's rules, and the safe menu: every movement your kit, level and limits allow. Your level also sets how much the coach explains. The assistant designs the session from it and writes the script.
 4. **The build.** `./harmonicfitness build` refuses any movement that isn't on today's menu, checks the script reads cleanly aloud and fits the time, renders the MP3 in your coach's voice, and copies it to your phone's folder.

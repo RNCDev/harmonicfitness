@@ -16,6 +16,7 @@ Where the instructions name a Claude Code tool, use the nearest one you have:
 - **Agent with `run_in_background`** (the research agents): do that research yourself, within the same budgets, before the step that needs it.
 - **`run_in_background` on a command:** run it and wait.
 - **Artifact:** not available here; skip that step.
+- **Read on a photo** (Kits from photos): look at the image the listener attached or named; if you can't see images here, ask them to list the kit instead.
 
 Rules that always hold:
 - Never read, print or copy `me/.env`, not even through a search over a folder: it holds the listener's voice keys.

@@ -5,7 +5,7 @@ description: Build a narrated workout script and MP3. Use whenever the user asks
 
 # Workout: request to MP3
 
-The check-in is the only time the user is needed: they answer it in the first minute and step away, and research, design, script, render and the copy to their delivery folder all run unattended. `./harmonicfitness brief` supplies the ingredients (the listener, today's limits, the safe menu with its coaching notes, the programming guide, the equipment notes); you design the session and write it.
+The check-in is the only time the user is needed: they answer it in the first minute and step away, and research, design, script, render and the copy to their delivery folder all run unattended. `./harmonicfitness brief` supplies the ingredients; you design the session and write it.
 
 Rules that always hold:
 - Every movement in the script, warm-up and cool-down included, comes from the brief's safe menu; nothing from memory. The build checks the draft's `movements:` line and its text against the menu and stops on anything else.
@@ -47,6 +47,9 @@ Feeds, knowledge files and the brief come after the check-in.
 - Readiness changes the plan by the brief's Readiness rule (`knowledge/programming.md`). Soreness from training isn't a limit: that muscle group goes lighter today. Pain in a joint is: `--limit <area>=delicate` for today. Feedback on the last workout ("too long"): `./harmonicfitness workouts feedback 1 "<what they said>"`, then what it teaches: `./harmonicfitness interests add --source feedback` (its `--help`). Pain in feedback: ask at the check-in.
 - A change for today only becomes `--limit area=level[:side]` (level `off-limits` or `delicate`). A lasting change, or a new problem, goes into `me/health.md` (a `[[limits]]` row, the prose, the clinician rules); an injury outside the catalog's areas is written "- Unlisted: <what>", with an `Avoid: <movements or flags>` line under `## Clinician rules`. Only the listener's report loosens a limit, by its `get limits` sign ("mostly" means not yet); clearing one adds `cleared = <YYYY-MM-DD>` to its row.
 - Lasting changes: kits, likes and dislikes in `me/training.md`; topics (lines under `## Topics`) and taste in `me/content.md`.
+<!-- web: skip -->
+- **Photos of the kit** settle the Kit slot: the `setup` skill's Kits from photos (its readback is the Kit question).
+<!-- web: end -->
 
 <!-- web: skip -->
 **Can the coach speak here?** Once it's answered, run `./harmonicfitness get route --coach "<coach>"`. It prints `local` or the web coach's service: go on. Exit 1, "is a local coach, and local voices don't run here": offer, in one AskUserQuestion, the web coaches that can speak here (pass one with `--coach`), then "A new coach of your own" (the `coach` skill); with no key, adding one (the `setup` skill's Keys). Exit 4 (from `get coach` or `get route`): a key holds a stray character; `./harmonicfitness keys` names which, the listener re-pastes it (`./harmonicfitness keys open`), then rerun. Exit 64 means a web coach's service has no key here (the message says how to add one): offer, in one AskUserQuestion, the coaches that can speak here (`./harmonicfitness coaches`: a web coach whose service `./harmonicfitness keys` shows set, or a local coach where local voices run), or adding the key (the `setup` skill's Keys). A coach marked "(made the first time it's used)" is a stand-in with no voice yet: say in a line, before the build, that the build first designs its voice and saves it in their account (about $0.01 on Fish Audio or Gemini; Inworld doesn't publish its design cost; on ElevenLabs it takes one of the account's voice slots).
@@ -106,7 +109,7 @@ By exit code:
 - 64: the command was wrong; or a web coach can't speak here: offer the coaches that can, as in step 2.
 
 <!-- web: skip -->
-A web build prints its cost before sending, and makes a stand-in's voice first. A warning that a segment "holds N s of silence as rendered" isn't a stop: mention it when delivering. The MP3 goes to the profile's `deliver_to` folder (`<name>.build.json` says where); on Claude Code on the web the build makes the web copy (`<name>.player.html`, `<name>.web-1.mp3`...) in the workout's folder.
+A web build prints its cost before sending. A warning that a segment "holds N s of silence as rendered" isn't a stop: mention it when delivering. The MP3 goes to the profile's `deliver_to` folder (`<name>.build.json` says where); on Claude Code on the web the build makes the web copy (`<name>.player.html`, `<name>.web-1.mp3`...) in the workout's folder.
 <!-- web: end -->
 
 ## 7. Deliver, log, back up

@@ -18,6 +18,7 @@ The README is for people (what it is, how to start, costs); `docs/index.html` is
 
 Rules that always hold:
 - **Never read, print or copy `me/.env`**: it holds the listener's voice keys, pasted into that file by the listener, never into the chat. Only the engine reads it, when it sends to a voice service.
+- **A photo the listener shares of their kit is looked at, never kept:** no copy anywhere, and nothing it shows but the equipment goes into the chat or a file. The kit is read back and confirmed before it's written (the `setup` skill's Kits from photos).
 - **During a session, write only inside `me/`.** Never put personal details (health, location, the log, drafts, a listener's name) in the engine, its tests, its examples or `docs/`; the pre-push hook in `tools/hooks/` and CI both refuse them. The invented demo listeners in `docs/demos/listeners/` are the one exception; nothing real ever goes there.
 
 ## Two assistants

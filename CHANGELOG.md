@@ -2,6 +2,26 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.66.0] - 2026-11-06
+
+A kit can be shown instead of listed: drop a photo or two of the room, the garage or the hotel gym in the chat, and the assistant reads the equipment and weights from them, reads the list back, and writes nothing until the listener says it's right. The photos are never saved.
+
+### Added
+- **Kits from photos** (the `setup` skill's new reference section, on a computer only). Wherever a kit is described (the quick start, a kit change, a workout request), the listener can send photos.
+  - **What's read:** each item becomes an id from the catalog's equipment list. Only what's clearly there counts: anything unclear is asked about or left out. An item the catalog has no id for is named as not used. Weights come from the numbers on the handles, bells, plates or rack, and one that can't be read is asked, never guessed.
+  - **What a photo can't tell** is asked only where it changes what's safe: a band's kind, the top weight of adjustable dumbbells, a bike's pedals under a foot or ankle limit. Otherwise it takes the safer reading (a bench is flat). A pull-up bar's mount is never judged from a photo; the script still tests it before the first set.
+  - **The readback:** one question, "From your photos I see: ... Is that right?", before anything is written or briefed. The listener's answer wins over the photo.
+  - **A video can't be read:** the assistant asks for a few photos, or screenshots from the video.
+- **Photos at the check-in** (the `workout` skill). Photos of today's kit settle the Kit slot, and the readback is the Kit question, one of the four. "Save it as a kit" writes a `[[kits]]` row so its weights print in the brief. "Today only" briefs with `--equipment` and says loads by feel, never a number. A photo sent with "just go" still gets this one question.
+- **Codex:** `AGENTS.md` says how to read a photo, and to ask for the kit as a list where images can't be seen (`tools/harness.py`).
+
+### Changed
+- **A new rule in `CLAUDE.md`:** a photo the listener shares of their kit is looked at, never kept. No copy is made anywhere, and nothing it shows but the equipment goes into the chat or a file.
+- **The README's check-in** says photos work in place of a list.
+
+### For forks
+- **Nothing to migrate in `me/`:** a kit from photos is an ordinary `[[kits]]` row. Run `./harmonicfitness harness sync` after merging, so `.agents/skills/` and `AGENTS.md` match. The web client is unchanged: the new passages are marked `web: skip`, since it has no image upload yet.
+
 ## [0.65.1] - 2026-11-05
 
 On the web, the coach read the trainer's "SAY EXACTLY" label aloud before each of the welcome's safety rules. The label is now taken off before anything is spoken.
