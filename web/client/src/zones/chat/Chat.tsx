@@ -125,7 +125,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
 
   const at = clockAt(waiting?.at);
   return (
-    <main className="chat" aria-label="Chat">
+    <main className={lines.length > 0 || working ? "chat talk" : "chat"} aria-label="Chat">
       {coachBar && lines.length > 0 && (
         <div className="coachbar"><b>{coachBar.name}</b><small>{coachBar.service}</small></div>
       )}

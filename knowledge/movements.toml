@@ -1197,6 +1197,32 @@ easier = []
 harder = []
 
 [[movement]]
+id = "staggered-stance-row"
+name = "staggered-stance row"
+aliases = ["hand-on-thigh row", "staggered stance dumbbell row", "staggered stance kettlebell row", "unsupported single-arm row"]
+needs = ["dumbbells|kettlebell"]
+position = "standing"
+sided = true
+measure = "reps"
+patterns = ["horizontal-pull"]
+muscles = ["back", "lats", "biceps", "forearms", "core"]
+loads = { shoulder = 3, elbow = 2, low-back = 2, wrist = 1, hip = 1 }
+support = { wrist = 1, shoulder = 1, knee = 1 }
+flags = ["grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Hold the weight in one hand and step the other foot forward. Hinge at the hips with your back flat, rest your free hand on your front thigh, and let the weight hang under your shoulder."
+cues = ["Elbow drives toward your back pocket.", "Back flat, chest square to the floor.", "Lower to a full stretch."]
+rep = "One rep is pulling the weight up to your hip and lowering it until the arm hangs long. Count reps on each side."
+feel = "Feel it in the middle of your back and behind the shoulder, not in the low back."
+faults = ["If your low back rounds or aches, press the free hand into your thigh, brace your belly and hinge a little less.", "If you twist open, keep both shoulders square to the floor and take a lighter weight.", "If you curl the weight up, lead with the elbow."]
+easier = ["single-arm-row"]
+harder = ["bent-over-row"]
+
+[[movement]]
 id = "bent-over-row"
 name = "bent-over row"
 aliases = ["bent over row", "dumbbell bent-over row", "two-arm dumbbell row"]
@@ -1347,6 +1373,31 @@ easier = []
 harder = []
 
 # Strength: arms ----------------------------------------------------------------------------
+
+[[movement]]
+id = "reverse-snow-angel"
+name = "reverse snow angel"
+aliases = ["reverse snow angels", "prone snow angel", "face-down snow angel"]
+needs = []
+position = "lying"
+sided = false
+measure = "reps"
+patterns = ["horizontal-pull", "mobility"]
+muscles = ["back", "shoulders", "lats"]
+loads = { shoulder = 2, low-back = 1, neck = 1 }
+flags = ["floor", "overhead"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 4
+transition_seconds = 10
+draft = false
+setup = "Lie face down, forehead resting on a folded towel, legs long and arms by your sides with the palms facing up."
+cues = ["Lift the hands just off the floor.", "Sweep them wide and up past your head.", "Slow, and keep the shoulders down."]
+rep = "One rep is sweeping both arms, lifted just off the floor, out wide and up past your head, then back down to your sides."
+feel = "Feel it between and below the shoulder blades, not in the neck or the low back."
+faults = ["If your low back arches or your head lifts, keep your forehead on the towel and lift the hands lower.", "If you shrug, slide the shoulders away from your ears.", "If the hands drop to the floor, make the sweep smaller and slower."]
+easier = []
+harder = []
 
 [[movement]]
 id = "hammer-curl"
@@ -2062,6 +2113,56 @@ feel = "Feel it in the middle of your back and behind the shoulder, not in the n
 faults = ["If you twist toward the band, keep your chest square and step closer to ease it.", "If the shoulder shrugs toward your ear, set it down before you pull.", "If the band snaps your arm forward, slow the return."]
 easier = []
 harder = []
+
+[[movement]]
+id = "band-lat-pulldown"
+name = "band lat pulldown"
+aliases = ["kneeling band pulldown", "banded lat pulldown", "resistance band lat pulldown", "kneeling band lat pulldown"]
+needs = ["band"]
+position = "kneeling"
+sided = false
+measure = "reps"
+patterns = ["vertical-pull"]
+muscles = ["lats", "back", "biceps"]
+loads = { shoulder = 3, elbow = 2, knee = 2, wrist = 1 }
+flags = ["floor", "kneeling", "overhead", "grip"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Anchor a band near the top of a shut door that opens away from you. Kneel tall facing it, a folded towel under your knees, hold the band in both hands with your arms reaching up and forward, and shuffle back until it pulls."
+cues = ["Pull your elbows down toward your back pockets.", "Shoulders down, away from your ears.", "Kneel tall and let it up slowly."]
+rep = "One rep is pulling the band down until your hands reach your shoulders, elbows by your sides, then letting your arms reach long and high again."
+feel = "Feel it along the sides of your back under the armpits, not in the neck or the forearms."
+faults = ["If you lean back to pull, kneel tall, squeeze the glutes and take a lighter band.", "If you shrug, set the shoulders down before each pull.", "If the band snaps your arms up, slow the return and control it all the way."]
+easier = []
+harder = []
+
+[[movement]]
+id = "band-overhead-press"
+name = "band overhead press"
+aliases = ["banded overhead press", "band shoulder press", "resistance band overhead press", "resistance band shoulder press"]
+needs = ["band"]
+position = "standing"
+sided = false
+measure = "reps"
+patterns = ["vertical-push"]
+muscles = ["shoulders", "triceps", "core"]
+loads = { shoulder = 3, elbow = 2, low-back = 2, wrist = 1, neck = 2 }
+flags = ["overhead"]
+intensity = "strength"
+level = "novice"
+seconds_per_rep = 3
+transition_seconds = 15
+draft = false
+setup = "Step one foot onto the middle of a long band, the other foot a short step ahead for balance. Bring an end of the band up to each shoulder, palms facing forward, the band running behind your arms."
+cues = ["Squeeze the glutes and brace.", "Press up until your arms frame your ears.", "Lower slowly to your shoulders."]
+rep = "One rep is pressing both hands overhead until the arms are nearly straight and lowering them back to your shoulders."
+feel = "Feel it in the shoulders and the backs of the arms, not in the low back or the neck."
+faults = ["If the band slips under your foot, stop, set the whole foot on it and start again.", "If your low back arches, squeeze the glutes, brace your belly and take a lighter band.", "If you shrug up to your ears, press the shoulders down as you lift."]
+easier = []
+harder = ["overhead-press"]
 
 [[movement]]
 id = "band-chest-press"

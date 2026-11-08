@@ -23,6 +23,10 @@
 .top-btn[aria-pressed="true"] { color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--text) }
 
 .chat { flex: 1; min-height: 0; width: min(100%, 1480px + 2 * var(--gut)); display: flex; flex-direction: column; padding: 0 var(--gut) var(--s-5) }
+/* a conversation: one column in the middle; the log scrolls the full width, so its bar sits at the window's edge */
+.chat.talk { width: 100%; padding-inline: 0 }
+.chat.talk > :not(.chat-log) { width: min(100% - 2 * var(--gut), var(--talk)); margin-inline: auto }
+.chat.talk .chat-log { padding-inline: max(var(--gut), (100% - var(--talk)) / 2) }
 .coachbar {
   display: flex; align-items: center; gap: var(--s-2h); padding: var(--s-3h) 0 var(--s-3); border-bottom: 1px solid var(--border);
   font-size: var(--fs-md); letter-spacing: var(--track-btn); text-transform: uppercase; color: var(--text-muted);

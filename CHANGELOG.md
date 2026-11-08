@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.71.5] - 2026-11-08
+
+The chat reads as one conversation on a wide screen. It used to start at the left and stretch to nearly 1500px, leaving the right of the window empty and a wide gap between the listener's lines and the coach's; its scrollbar, the browser's grey default with arrows, ran down the middle of the page beside the text.
+
+### Changed
+- **A conversation sits in one centred column** (`web/client/src/styles/frame.css`, `Chat.tsx`): once there's a line, the coach bar, the lines, the cards and the box to write in share a column at most `--talk` (52rem, a new token in `tokens.css` and its copy in `docs/`) wide. The first screen keeps its layout.
+- **The log scrolls the full width,** so its bar sits at the window's edge, and it's thin and in the theme's colours (`chat.css`); the Logs and Settings pages' bar too (`pages.css`).
+
 ## [0.71.4] - 2026-11-08
 
 A scheduled workout's note no longer says to leave the page open. The writing and recording run on the server at their time, whether the page is open or not; an open page only shows the workout without a refresh.

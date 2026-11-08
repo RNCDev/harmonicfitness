@@ -1,7 +1,7 @@
 /* The pages beside the chat (Logs, Coaches): the column and its heading. Part of theme.css, which imports every part in order. */
 /* ---------- pages beside the chat (Logs, Coaches): the work column, its heading, a line under it ---------- */
 .work[data-page]:not([data-page="chat"]) > .chat { display: none }
-.page { flex: 1; min-height: 0; overflow-y: auto; width: min(100%, 1100px + 2 * var(--gut)); padding: var(--s-4h) var(--gut) var(--s-6h) }
+.page { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; width: min(100%, 1100px + 2 * var(--gut)); padding: var(--s-4h) var(--gut) var(--s-6h) }
 .page.wide { width: 100% }
 .page-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap }
 .page-top h1 { font-size: var(--fs-d4); line-height: var(--lh-solid); letter-spacing: var(--track-btn) }
