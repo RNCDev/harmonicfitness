@@ -5,6 +5,7 @@ import { ChoosePassword, SignIn } from "./zones/SignIn";
 import { Mark } from "./ui/Mark";
 import { Sky, type SkyKind } from "./ui/Sky";
 import { useConversation } from "./lib/conversation";
+import { KeyAskContext, type KeyAsk } from "./lib/keyAsk";
 import { hasModelKey, keyRows } from "./lib/keys";
 import { stepsOf } from "./lib/steps";
 import { useSaved } from "./lib/useAction";
@@ -13,8 +14,8 @@ import { useStartInfo } from "./lib/useStartInfo";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/icons";
 import { Solo } from "./ui/Solo";
-import { Chat, type KeyNeeded } from "./zones/Chat";
-import { ContextColumn } from "./zones/ContextColumn";
+import { Chat, type KeyNeeded } from "./zones/chat/Chat";
+import { Settings } from "./zones/Settings";
 import { Logs } from "./zones/Logs";
 import { CoachesPage } from "./zones/Coaches";
 
@@ -87,7 +88,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [page, go] = usePage();
   const toggle = (p: "logs" | "coaches") => go(page === p ? "chat" : p);
   const [keys, setKeys] = useState<KeyState[] | null>(null);
-  const [openRow, setOpenRow] = useState<{ service: string; n: number; choose?: boolean } | null>(null);
+  const [openRow, setOpenRow] = useState<KeyAsk | null>(null);
   const needsKey = keyNeeded(keys);
   const { conv, working, error, noKey, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation();
   const steps = stepsOf(job?.stages ?? []);
@@ -164,10 +165,12 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
             onSchedule: schedule, onCancel: cancel,
           }} />
       </div>
-      <ContextColumn username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
-        onSignOut={signOut} onDeleted={onSignedOut} onKeys={setKeys} openRow={openRow} returnFocus={gear}
-        sky={sky} onSky={(s) => void chooseSky(s)} skyError={skyError}
-        autoRecord={autoRecord} onAutoRecord={(on) => void chooseAutoRecord(on)} autoRecordError={autoRecordError} />
+      <KeyAskContext.Provider value={openRow}>
+        <Settings username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
+          onSignOut={signOut} onDeleted={onSignedOut} onKeys={setKeys} returnFocus={gear}
+          sky={sky} onSky={(s) => void chooseSky(s)} skyError={skyError}
+          autoRecord={autoRecord} onAutoRecord={(on) => void chooseAutoRecord(on)} autoRecordError={autoRecordError} />
+      </KeyAskContext.Provider>
     </div>
   );
 }

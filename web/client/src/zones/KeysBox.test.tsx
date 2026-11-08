@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { KeyAskContext } from "../lib/keyAsk";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { balanceText, KeysBox } from "./KeysBox";
 import { api, ApiError, checkBalances, NotSignedIn, type KeyState } from "../lib/api";
@@ -114,16 +115,16 @@ describe("the Keys box", () => {
   it("the welcome's pick chooses the writer and opens its key", async () => {
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
     m.keys.mockResolvedValue([CLAUDE, gpt, FISH]);
-    render(<KeysBox openRow={{ service: "openai", n: 1, choose: true }} />);
+    render(<KeyAskContext.Provider value={{ service: "openai", n: 1, choose: true }}><KeysBox /></KeyAskContext.Provider>);
     expect(await screen.findByLabelText("ChatGPT key")).toBeInTheDocument();
     expect(m.setWriter).toHaveBeenCalledWith("openai");
     expect(screen.getByRole("radio", { name: "ChatGPT" })).toBeChecked();
   });
 
   it("opens a row for its key when asked", async () => {
-    const { rerender } = render(<KeysBox openRow={null} />);
+    const { rerender } = render(<KeyAskContext.Provider value={null}><KeysBox /></KeyAskContext.Provider>);
     await screen.findByRole("button", { name: "Add ElevenLabs key" });
-    rerender(<KeysBox openRow={{ service: "elevenlabs", n: 1 }} />);
+    rerender(<KeyAskContext.Provider value={{ service: "elevenlabs", n: 1 }}><KeysBox /></KeyAskContext.Provider>);
     expect(await screen.findByLabelText("ElevenLabs key")).toHaveFocus();
   });
 

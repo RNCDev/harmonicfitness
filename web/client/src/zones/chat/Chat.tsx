@@ -3,17 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatLine, Later, Offer, Plan, StartInfo } from "../lib/api";
-import { clockAt, count, dollars, mss, timeOfDay } from "../lib/format";
-import { serviceName, writerRank } from "../lib/keys";
-import { keepLineBreaks } from "../lib/lines";
-import type { Step } from "../lib/steps";
-import { Quiet, useAction } from "../lib/useAction";
-import { AudioFile } from "../ui/AudioFile";
-import { Button } from "../ui/Button";
-import { Notice } from "../ui/Notice";
-import { ahead } from "../lib/when";
-import { Starter } from "./Starter";
+import type { ChatLine, Later, Offer, StartInfo } from "../../lib/api";
+import { clockAt } from "../../lib/format";
+import { writerRank } from "../../lib/keys";
+import { readDraft, keepDraft } from "../../lib/draft";
+import { keepLineBreaks } from "../../lib/lines";
+import type { Step } from "../../lib/steps";
+import { AudioFile } from "../../ui/AudioFile";
+import { Button } from "../../ui/Button";
+import { Notice } from "../../ui/Notice";
+import { Starter } from "../Starter";
+import { LaterOffer, RecordOffer, Scheduled } from "./Offers";
+import { Working } from "./Working";
 
 /** The language-model key a new listener adds first. */
 export type KeyNeeded = { name: string; service: string; voice: boolean }[];
@@ -91,169 +92,6 @@ function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: str
           </Button>
         ))}
       </div>
-    </div>
-  );
-}
-
-/** An approval button: busy from the tap until its screen goes; a refusal (false) gives it back. */
-function useApproval(act?: () => Promise<boolean> | void) {
-  return useAction(async () => { if ((await act?.()) === false) throw new Quiet(); }, { hold: true });
-}
-
-/** The plan, from the draft's own segments: each movement's sets and time, then the rests and the talk. */
-function PlanTable({ plan }: { plan: Plan }) {
-  return (
-    <table className="plan">
-      <thead><tr><th scope="col">Part</th><th scope="col">Sets</th><th scope="col">Time</th></tr></thead>
-      <tbody>
-        {plan.rows.map((r) => (
-          <tr key={r.what}><td>{r.what}</td><td>{r.kind === "talk" ? "" : r.segments}</td><td>{mss(r.seconds)}</td></tr>
-        ))}
-      </tbody>
-      <tfoot><tr><th scope="row">Total</th><td /><td>{mss(plan.seconds)}</td></tr></tfoot>
-    </table>
-  );
-}
-
-/** Said once, on the card before the first recording: where the script goes, and what that means. */
-function privacyNote(service: string): string {
-  const name = serviceName(service);
-  return `Recording sends the script to ${name}, and it can mention your injuries ("easy on that left knee").`
-    + (service === "gemini"
-      ? " On Gemini's free tier, Google may use what it's sent to improve its models, with human review; a paid key doesn't."
-      : "")
-    + " Your key is stored encrypted on this site, never shown again, and removed in Settings.";
-}
-
-function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promise<boolean> | void }) {
-  const rec = useApproval(onRecord);
-  const price = offer.usd < 0.01 ? dollars(offer.usd) : `about ${dollars(offer.usd)}`;
-  return (
-    <div className="m a offer">
-      <p><strong>{offer.name}</strong> is ready to record with {offer.coach}.</p>
-      {offer.plan && offer.plan.rows.length > 0 && <PlanTable plan={offer.plan} />}
-      <p className="cx-s">{count(offer.chars)} characters on {serviceName(offer.service)}, {price}
-        {offer.design ? ", including designing the coach's voice" : ""}. It's charged to your own key.</p>
-      {offer.first && <p className="cx-s privacy">{privacyNote(offer.service)}</p>}
-      <Button variant="primary" busy={rec.busy} busyLabel="Starting…" onClick={() => void rec.run()}>
-        {`Record it (${price})`}
-      </Button>
-    </div>
-  );
-}
-
-/** The check-in is done for a workout at a later time: what it costs, the most it may, and Schedule it. */
-function LaterOffer({ later, onSchedule }: { later: Later; onSchedule?: () => Promise<boolean> | void }) {
-  const go = useApproval(onSchedule);
-  const at = new Date(later.at);
-  const cap = dollars(later.ceiling_usd ?? 0);
-  return (
-    <div className="m a offer">
-      <p>Your {later.minutes}-minute workout with {later.coach} is planned for <strong>{ahead(at)}</strong>.</p>
-      <p className="cx-s">About {dollars(later.usd ?? 0)}, and never more than {cap}, charged to your own key.
-        {" "}{later.coach ?? "Your coach"} writes and records it fifteen minutes before, with that hour's news and weather, so it's ready when you are.</p>
-      <Button variant="primary" busy={go.busy} busyLabel="Scheduling…" onClick={() => void go.run()}>
-        {`Schedule it (up to ${cap})`}
-      </Button>
-    </div>
-  );
-}
-
-/** A scheduled workout, waiting for its time; Cancel takes it back before the writing begins. */
-function Scheduled({ later, onCancel }: { later: Later; onCancel?: () => Promise<boolean> | void }) {
-  const stop = useApproval(onCancel);
-  const at = new Date(later.at);
-  const due = later.due ? new Date(later.due) : null;
-  return (
-    <div className="m a offer">
-      <p>Scheduled for <strong>{ahead(at)}</strong>{later.coach ? ` with ${later.coach}` : ""}.</p>
-      <p className="cx-s">{due ? `Writing starts at ${timeOfDay(due)}` : "Writing starts fifteen minutes before"}; the
-        workout appears here, ready to play, by {timeOfDay(at)}. Come back then, or leave this page open.</p>
-      <Button variant="outline" busy={stop.busy} busyLabel="Cancelling…" onClick={() => void stop.run()}>Cancel</Button>
-    </div>
-  );
-}
-
-const SHOWN_STEPS = 6;
-
-/** The box's unsent text, kept for this tab across a reload. Storage may be missing or refuse: then it isn't kept. */
-const DRAFT = "hf-chat-draft";
-function readDraft(): string {
-  try {
-    return sessionStorage.getItem(DRAFT) ?? "";
-  } catch {
-    return "";
-  }
-}
-function keepDraft(text: string): void {
-  try {
-    if (text) sessionStorage.setItem(DRAFT, text);
-    else sessionStorage.removeItem(DRAFT);
-  } catch {
-    /* not kept */
-  }
-}
-
-/** Steps in a row that say the same thing are one step, as the later one stands. */
-function collapsed(steps: Step[]): Step[] {
-  return steps.filter((s, i) => i === steps.length - 1 || s.text !== steps[i + 1].text);
-}
-
-/** A note for a wait that has run long, by what it's waiting on. */
-function longWait(s: Step): string {
-  if (s.kind === "recording") return "Recording a full workout takes a few minutes.";
-  if (s.kind === "voice") return "Making a voice takes a minute or two.";
-  if (s.kind === "think") return "Planning carefully takes a minute when there's a lot to fit in.";
-  return "Still on it.";
-}
-const LONG = 25;   // seconds before a running step says it's a long one
-const TIMED = 8;   // seconds before a running step shows its own clock
-
-function elapsed(since: number): string {
-  const s = Math.max(0, Math.round((Date.now() - since) / 1000));
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
-}
-
-/** "Your coach is working…" with a running clock, the coach's latest steps, and what it's thinking about now.
- * The chat's log already announces what's added to it, so this says nothing more on its own. */
-function Working({ steps, stopping }: { steps: Step[]; stopping: boolean }) {
-  const [since] = useState(() => Date.now());
-  const [, tick] = useState(0);
-  const began = useRef(new Map<string, number>());   // when each running step was first seen
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  steps = steps.map((s, i) => (s.key ? s : { ...s, key: `n${i}` }));
-  const last = steps[steps.length - 1];
-  const thinking = last?.think && last.running ? last : null;
-  steps = collapsed(steps.filter((s) => !s.think));
-  if (thinking) {
-    // "Wrapping up" read as a step and then thought about is one line, not two
-    if (steps.length && !steps[steps.length - 1].running && steps[steps.length - 1].text === thinking.text) steps = steps.slice(0, -1);
-    steps = [...steps, thinking];
-  }
-  const now = Date.now();
-  for (const s of steps) if (s.running && !began.current.has(s.key!)) began.current.set(s.key!, now);
-  const age = (s: Step) => (now - (began.current.get(s.key!) ?? now)) / 1000;
-  const current = steps.find((s) => s.running && age(s) >= LONG);
-  const shown = steps.slice(-SHOWN_STEPS);
-  return (
-    <div className="m a thinking">
-      <p className="think-head">{stopping ? "Stopping…" : "Your coach is working…"} <span className="clock">{elapsed(since)}</span></p>
-      {shown.length > 0 && (
-        <ul className="steps">
-          {steps.length > shown.length && <li className="more">{steps.length - shown.length} earlier steps</li>}
-          {shown.map((s) => (
-            <li key={s.key} className={`${s.running ? "now" : s.failed ? "bad" : ""}${s.think ? " think" : ""}`}
-              aria-current={s.running ? "step" : undefined}>
-              {s.text}{s.think && s.running ? "…" : ""}
-              {s.running && age(s) >= TIMED && <>{" "}<span className="step-t">{elapsed(began.current.get(s.key!)!)}</span></>}
-            </li>
-          ))}
-        </ul>
-      )}
-      {current && <p className="think-hint">{longWait(current)}</p>}
     </div>
   );
 }

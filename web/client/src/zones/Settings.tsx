@@ -128,8 +128,6 @@ type Props = {
   /** The account is gone: back to the sign-in page. */
   onDeleted?: () => void;
   onKeys?: (keys: KeyState[]) => void;
-  /** A key row to open in edit mode (the welcome card's "Add your key"). */
-  openRow?: { service: string; n: number; choose?: boolean } | null;
   /** The background behind the page (the sky), the choice of it, and why the last choice didn't hold. */
   sky?: SkyKind;
   onSky?: (sky: SkyKind) => void;
@@ -228,7 +226,7 @@ function SkyBox({ sky, onSky, error }: { sky: SkyKind; onSky: (sky: SkyKind) => 
   );
 }
 
-export function ContextColumn({ username, version, open, onClose, onSignOut, onDeleted = onSignOut, onKeys, openRow,
+export function Settings({ username, version, open, onClose, onSignOut, onDeleted = onSignOut, onKeys,
   sky = "flow", onSky, skyError, autoRecord = false, onAutoRecord, autoRecordError, returnFocus }: Props) {
   const drawer = useRef<HTMLElement>(null);
   useFocusTrap(drawer, open, { onEscape: onClose, returnFocus, inert: true });
@@ -244,7 +242,7 @@ export function ContextColumn({ username, version, open, onClose, onSignOut, onD
         {/* a wide screen: the keys beside your choices, then your files beside the account; a phone: one column */}
         <div className="cx-list">
           <div className="cx-cell cx-keys">
-            <KeysBox onKeys={onKeys} openRow={openRow} />
+            <KeysBox onKeys={onKeys} />
           </div>
           <div className="cx-cell cx-prefs">
             <LevelBox />

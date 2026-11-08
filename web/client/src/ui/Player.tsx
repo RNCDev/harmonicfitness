@@ -76,7 +76,7 @@ export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({
     if (first.current) { first.current = false; return; }
     const a = audio.current;
     if (!a) return;
-    a.pause();
+    if (!a.paused) a.pause();
     if (lazy) a.removeAttribute("src");
     setOn(false); setAt(0); setLength(0);
   }, [src, lazy]);
@@ -88,7 +88,7 @@ export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({
     return a;
   };
   const start = (a: HTMLAudioElement) => {
-    if (now && now !== a) now.pause();
+    if (now && now !== a && !now.paused) now.pause();
     now = a;
     void a.play()?.catch(() => setOn(false));
   };

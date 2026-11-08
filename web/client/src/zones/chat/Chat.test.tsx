@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Chat } from "./Chat";
-import { stepsOf } from "../lib/steps";
-import type { Offer } from "../lib/api";
+import { stepsOf } from "../../lib/steps";
+import type { Offer } from "../../lib/api";
 
 const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
 

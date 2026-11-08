@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, NotSignedIn, plainError, type Balance, type KeyState } from "../lib/api";
 import { balance, count, shortDay } from "../lib/format";
+import { useKeyAsk } from "../lib/keyAsk";
 import { keyRows, writerRank, type KeyRowState } from "../lib/keys";
 import { useAction } from "../lib/useAction";
 import { useBalances } from "../lib/useBalances";
@@ -141,11 +142,11 @@ function KeyRow({ k, open, balance, onChanged, onChoose }: {
 type Props = {
   /** Every listing and change, for the page (the welcome card goes once a model key is set). */
   onKeys?: (keys: KeyState[]) => void;
-  /** A row to open for a key: its service, and a count that grows with each ask; `choose` also makes it the writer. */
-  openRow?: { service: string; n: number; choose?: boolean } | null;
 };
 
-export function KeysBox({ onKeys, openRow }: Props) {
+export function KeysBox({ onKeys }: Props) {
+  // a row asked for from elsewhere (lib/keyAsk.ts): its service, and `choose` also makes it the writer
+  const openRow = useKeyAsk();
   const res = useResource(api.keys, "Couldn't load your keys.");
   const keys = res.data, setKeys = res.set;
   const [error, setError] = useState<string | null>(null);

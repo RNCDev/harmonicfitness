@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { api, ApiError, type LevelState } from "../lib/api";
-import { ContextColumn } from "./ContextColumn";
+import { Settings } from "./Settings";
 
 vi.mock("./KeysBox", () => ({ KeysBox: () => null }));
 
 describe("Settings", () => {
   it("holds keys, not coaches (they have their own page)", () => {
-    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
+    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
     expect(screen.queryByRole("heading", { name: "Coaches" })).toBeNull();
   });
 
   it("credits the backgrounds to Book of Shapes", () => {
-    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onSky={vi.fn()} />);
+    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onSky={vi.fn()} />);
     const link = screen.getByRole("link", { name: "Book of Shapes" });
     expect(link).toHaveAttribute("href", "https://bookofshapes.com");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -28,7 +28,7 @@ describe("Settings", () => {
 
 describe("the version", () => {
   it("shows at the foot of Settings", () => {
-    render(<ContextColumn username="sam" version="0.42.3 (abc1234)" open onClose={vi.fn()}
+    render(<Settings username="sam" version="0.42.3 (abc1234)" open onClose={vi.fn()}
       onSignOut={vi.fn()} />);
     expect(screen.getByText("Version 0.42.3 (abc1234)")).toBeInTheDocument();
   });
@@ -44,7 +44,7 @@ const LEVELS: LevelState = {
 
 describe("your level", () => {
   afterEach(() => vi.restoreAllMocks());
-  const open = () => render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
+  const open = () => render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
 
   it("offers the three sentences, novice until one is chosen", async () => {
     vi.spyOn(api, "level").mockResolvedValue(LEVELS);
@@ -79,7 +79,7 @@ describe("an empty answer", () => {
   afterEach(() => vi.restoreAllMocks());
   it("leaves the level loading, never breaks the drawer", async () => {
     vi.spyOn(api, "level").mockResolvedValue(undefined as unknown as LevelState);
-    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
+    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
     expect(await screen.findByText("Loading your level…")).toBeInTheDocument();
     expect(screen.getByText("Signed in as")).toBeInTheDocument();
   });
@@ -91,7 +91,7 @@ describe("deleting the account", () => {
   it("asks for the password in place, with focus there, and deletes only once it's typed", async () => {
     const del = vi.spyOn(api, "deleteAccount").mockResolvedValue(undefined);
     const onDeleted = vi.fn();
-    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onDeleted={onDeleted} />);
+    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onDeleted={onDeleted} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete my account" }));
     const box = screen.getByLabelText("Your password");
     expect(box).toHaveFocus();
@@ -104,7 +104,7 @@ describe("deleting the account", () => {
 
   it("Keep my account goes back with nothing sent", () => {
     const del = vi.spyOn(api, "deleteAccount");
-    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
+    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete my account" }));
     fireEvent.click(screen.getByRole("button", { name: "Keep my account" }));
     expect(screen.getByRole("button", { name: "Delete my account" })).toBeInTheDocument();
