@@ -8,7 +8,7 @@ Write each segment whole, to about its words (where a story goes, the plan split
 
 Talk the way a coach talks to a person: plain words. No clinical or science terms (parasympathetic, eccentric, VO2, motor units): say what it does for them ("slow breaths out calm you down").
 
-Say a limit's reminder once, at the first set that touches it: the opening has given the rules, and the listener heard them. Later sets, the rests and the cool-down don't repeat it ("right arm rests" at every set sounds nervous, and stops being heard).
+Say a limit's reminder once, at the first set that touches it: the opening has given the rules, and the listener heard them. Later sets, other movements on the same area, the rests and the cool-down don't repeat it, even where a note seems to ("right arm rests" at every set sounds nervous, and stops being heard): a later one-sided set names only the working side ("left arm, same again").
 
 Name each movement as the plan's label names it, the first time in each segment ("single-arm floor presses", not "floor presses"): a shorter name is often another movement, one today's limits leave out, and the build refuses it. After that, the short name is fine.
 

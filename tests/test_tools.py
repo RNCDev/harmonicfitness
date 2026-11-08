@@ -903,6 +903,15 @@ class InProcessBuild(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.folder, "Test build.txt")))
         self.assertEqual(self.runs, [])
 
+    def test_a_skeleton_with_a_set_out_of_shape_is_not_clean(self):
+        # the web agent sends a clean skeleton ("A skeleton, no words yet") straight to the writers, who wrote
+        # to "[reps 8] [count 3 go]" as given: a go with no time after it (0.70.1)
+        self.real_lint()
+        path = self.small_draft("movements: box breathing\n@@ 40 | A\n[reps 8] [count 3 go]\n")
+        self.assertEqual(self.build("--lint-only", draft_path=path), cli.ISSUES, self.said())
+        self.assertIn("issue(s) in the skeleton's sets", self.said())
+        self.assertNotIn("A skeleton, no words yet", self.said())
+
     def test_the_real_lint_passes_a_clean_draft_to_the_render(self):
         self.real_lint()
         path = self.small_draft("movements: box breathing\n@@ 8 | A\nBreathe in, and all the way out. [hold]\n")

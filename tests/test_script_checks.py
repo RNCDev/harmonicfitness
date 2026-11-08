@@ -360,6 +360,17 @@ class Reps(unittest.TestCase):
         bare = self.lint("@@ 40 | Goblet squat\n[count 3 go] [reps 10] Down slow. [hold] Up.\n")
         self.assertIn("a bare [hold] after [reps 10]", " ".join(self.issues(bare)))
 
+    def test_the_reps_come_after_their_own_go(self):
+        before = self.lint("@@ 40 | Goblet squat\n[reps 8] [count 3 go]\n")
+        self.assertIn("comes before the set's go", " ".join(self.issues(before)))
+        # the go left at the end of the segment before, and the set run from its setup into the reps
+        gone = self.lint("@@ 10 | Warm-up\nGoblet squats first. [count 3 go]\n\n@@ 40 | Goblet squat\n[reps 8]\n")
+        self.assertIn("has no go before it in this segment", " ".join(self.issues(gone)))
+        for fine in ("[count 3 go] [reps 8]", "[cue go] [reps 8]", "Ready, and go. [reps 8]",
+                     "[count 3 go] [reps 8] [hold 3s] Switch sides. [reps 8]"):
+            self.assertNotIn("go before", " ".join(self.issues(self.lint(f"@@ 60 | Goblet squat\n{fine}\n"))), fine)
+        self.assertIn("no go", " ".join(self.issues(self.lint("@@ 40 | Goblet squat\n[reps 8]\n", timer=None))))
+
     def test_a_set_said_by_its_main_word_is_timed_as_the_declared_movement(self):
         import build
         timer = build.rep_timer(CAT, ["half-kneeling kettlebell press", "goblet squat"])

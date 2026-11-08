@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.70.1] - 2026-11-08
+
+The two loose ends 0.70.0 left: a set whose reps had no time, and the resting arm named at every set. On three bench runs of a 10-minute workout, every set started with its go before its reps, and the right arm came up three or four times after the opening where 0.70.0's runs named it eight to ten.
+
+### Fixed
+- **A `[reps N]` needs its set's go before it, in the same segment.** The lint refuses one with no go (or switch) before it, as in "[reps 8] [count 3 go]", where the reps got no time, or a set whose go was left at the end of the segment before. A skeleton with a set out of shape now stops ("issue(s) in the skeleton's sets") instead of reading as clean, so the web agent fixes it before the writers write to it.
+- **A limit's reminder is said once in the session,** at the first set that touches its area. The trainer's notes carry it nowhere else (not another movement on the same area, a rest or the cool-down), a later one-sided set names only the working side, and the review cuts a repeat.
+
 ## [0.70.0] - 2026-11-08
 
 Safety is said once, in the coach's words, and the build stops only what would have the listener do something unsafe. The trainer no longer marks lines to say word for word, so no label can reach the voice; the rules are said once in the opening with the made-by-AI line, a limited area gets one short reminder at its first set, and the listener is trusted from there. On the bench, the time from the brief to the price fell from a median 218 s to 129 s, the review's passes from three to one, and the rooms whose first check failed "off the menu" from three in three to one (a knee hug off the menu, caught). Minor, since a draft whose opening never says it was made by AI is now refused (see For forks).

@@ -541,6 +541,11 @@ def _run(b, text):
         return BuildResult(cli.ISSUES, None, b.lines)
     problems = report.problems
     empty = [r.index for r in report.rows if r.words == 0]
+    sets = sum(len(r.rep_issues) for r in report.rows if not r.words)
+    if empty and sets and not smoke:   # a skeleton's sets out of shape: fixed before any words are written to them
+        b.fail(f"\n{sets} issue(s) in the skeleton's sets (above): fix them, then build again.")
+        b.stopped(f"{sets} issue(s) in the skeleton's sets", stage="lint")
+        return BuildResult(cli.ISSUES, None, b.lines)
     if empty and not smoke:   # a skeleton, or a draft still being written: its budgets are the report
         b.fail("\nA skeleton, no words yet: write every segment to its budget, then build again."
                if len(empty) == len(report.rows) else

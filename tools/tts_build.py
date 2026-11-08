@@ -367,6 +367,10 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
 
 
 REPS_SLACK = (4.0, 0.25)   # a set's lines may miss its reps' time by this many seconds, or this share of it
+# what starts a set's reps: a go (or a switch, for the second side), as a count's cue, a recorded cue or a word.
+# A skeleton's "[reps 8] [count 3 go]", or a go left at the end of the segment before, gave the reps no time and
+# no start, and the lint timed nothing (0.70.1)
+STARTS_REPS = re.compile(r"\[(?:count\s+\d+\s+|cue\s+)(?:go|switch(?:\s+sides)?)\s*\]|\b(?:go|switch)\b", re.IGNORECASE)
 
 
 def _unparted_pauses(seg, paras):
@@ -395,6 +399,13 @@ def _reps(i, seg, voice, rate, rep_timer, limit):
         if n is None or n < 1:
             issues.append(f"  {where}: {raw}: write [reps N], N a numeral, the reps that follow it (both sides "
                           "counted, [reps twenty] as [reps 20])")
+            continue
+        if not STARTS_REPS.search(before):
+            late = any(STARTS_REPS.search(t) for t, _ in after)
+            issues.append(f"  {where}: {raw} " + ("comes before the set's go, so the reps get no time: put it right "
+                          f"after the go ([count 3 go] {raw})" if late else
+                          f"has no go before it in this segment: each set starts with its own go, in its own "
+                          f"segment, right before its reps ([count 3 go] {raw})"))
             continue
         if rep_timer is None:
             continue

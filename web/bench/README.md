@@ -57,6 +57,14 @@ Set the rule before the runs:
 
 ## Results
 
+### 0.70.1 (2026-11-08): a set's go before its reps, the reminder once
+
+Three runs of the 10-minute workout, priced 3/3. Every skeleton was clean at once and every set read
+`[count 3 go] [reps N]`; the lint found no set out of shape in the final scripts. The right arm or shoulder came up
+three or four times after the opening (setting up a one-arm press, rolling over, the close), where 0.70.0's runs
+named it eight to ten. Median time to the price 187 s (120, 270, 187): one host call took its full 150 s and was
+asked again at LOW, the slow tail 0.58.0 found, not the change.
+
 ### 0.70.0 (2026-11-08): safety said once, in the coach's words
 
 The same 10-minute request against 0.69.1's baseline (the table below), three runs, from the brief to the price.
