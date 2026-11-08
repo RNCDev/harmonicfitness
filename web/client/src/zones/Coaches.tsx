@@ -4,57 +4,50 @@
 // coaches come first in their service's group. A coach whose service has a key is
 // chosen with a tap; one that needs a key says which, and can open that key's row in Settings. The page's one
 // colour, a soft blue, marks what plays and who is coaching you.
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { StartCoach } from "../api";
-
-const an = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
+import { an } from "../lib/format";
+import { Notice } from "../ui/Notice";
+import { PlayButton, PlayTime, Seek } from "../ui/Player";
 
 /** "about $1.60 a workout", or nothing when the cost isn't known. */
 export function cost(c: StartCoach): string | null {
   return typeof c.usd_per_workout === "number" ? `about $${c.usd_per_workout.toFixed(2)} a workout` : null;
 }
 
-const clock = (s: number) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "0:00");
-
-/** The sample playing now, so starting another pauses it. */
-let playing: HTMLAudioElement | null = null;
+/** The sample playing now in this gallery, so starting another pauses it. */
+const NowPlaying = createContext<MutableRefObject<HTMLAudioElement | null>>({ current: null });
 
 /** A coach's sample: a play button, the time, and a line to seek along. */
 function Sample({ c }: { c: StartCoach }) {
+  const playing = useContext(NowPlaying);
   const audio = useRef<HTMLAudioElement>(null);
   const [on, setOn] = useState(false);
   const [at, setAt] = useState(0);
   const [length, setLength] = useState(0);
-  useEffect(() => () => { if (playing === audio.current) playing = null; }, []);
+  useEffect(() => () => { if (playing.current === audio.current) playing.current = null; }, [playing]);
 
   function toggle() {
     const a = audio.current;
     if (!a) return;
     if (!a.paused) { a.pause(); return; }
-    if (playing && playing !== a) playing.pause();
-    playing = a;
+    if (playing.current && playing.current !== a) playing.current.pause();
+    playing.current = a;
     void a.play()?.catch(() => setOn(false));
   }
 
+  const label = `Coach ${c.first}'s sample`;
   return (
-    <div className={`cg-play${on ? " on" : ""}`}>
+    <div className={`player${on ? " on" : ""}`}>
       <audio ref={audio} preload="metadata" src={`/api/coaches/${encodeURIComponent(c.slug)}/sample.mp3`}
-        aria-label={`Coach ${c.first}'s sample`}
+        aria-label={label}
         onPlay={() => setOn(true)} onPause={() => setOn(false)} onEnded={() => { setOn(false); setAt(0); }}
         onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setLength(e.currentTarget.duration)} />
-      <button type="button" className="cg-btn" onClick={toggle}
-        aria-label={`${on ? "Pause" : "Play"} Coach ${c.first}'s sample`}>
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          {on ? <path d="M3 2h3v10H3zM8 2h3v10H8z" fill="currentColor" />
-            : <path d="M3.5 1.8v10.4L12 7z" fill="currentColor" />}
-        </svg>
-      </button>
-      <input type="range" className="cg-seek" min={0} max={length || 1} step={0.1} value={at}
-        aria-label={`Coach ${c.first}'s sample, position`} disabled={!length}
-        style={{ ["--done" as string]: `${length ? (at / length) * 100 : 0}%` }}
-        onChange={(e) => { const a = audio.current; if (a) { a.currentTime = Number(e.target.value); setAt(a.currentTime); } }} />
-      <span className="cg-time">{length ? (on || at > 0 ? `${clock(at)} / ${clock(length)}` : clock(length)) : ""}</span>
+      <PlayButton playing={on} onClick={toggle} label={label} />
+      <Seek at={at} length={length} label={`${label}, position`}
+        onSeek={(t) => { const a = audio.current; if (a) { a.currentTime = t; setAt(a.currentTime); } }} />
+      <PlayTime at={at} length={length} playing={on} />
     </div>
   );
 }
@@ -95,7 +88,13 @@ function heading(group: StartCoach[]): string {
   return `${c.service_name}${by} · ${group.length === 1 ? "1 coach" : `${group.length} coaches`}`;
 }
 
-export function CoachGallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoach?: (slug: string) => void;
+export function CoachGallery(props: { coaches: StartCoach[]; onCoach?: (slug: string) => void;
+  onAddKey?: (service: string) => void }) {
+  const playing = useRef<HTMLAudioElement | null>(null);
+  return <NowPlaying.Provider value={playing}><Gallery {...props} /></NowPlaying.Provider>;
+}
+
+function Gallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoach?: (slug: string) => void;
   onAddKey?: (service: string) => void }) {
   // yours first, then alphabetical, so a card never moves: choosing one only rings it
   const byName = (a: StartCoach, b: StartCoach) => Number(b.own) - Number(a.own) || a.first.localeCompare(b.first);
@@ -159,19 +158,22 @@ export function CoachGallery({ coaches, onCoach, onAddKey }: { coaches: StartCoa
 }
 
 /** The page itself: a heading, a line on what to do, and the gallery. */
-export function CoachesPage({ coaches, onCoach, onAddKey, onClose }: { coaches: StartCoach[] | null;
-  onCoach: (slug: string) => void; onAddKey: (service: string) => void; onClose: () => void }) {
+export function CoachesPage({ coaches, onCoach, onAddKey, onClose, error = null }: { coaches: StartCoach[] | null;
+  onCoach: (slug: string) => void; onAddKey: (service: string) => void; onClose: () => void;
+  /** Why the last coach chosen didn't hold. */
+  error?: string | null }) {
   const any = coaches?.some((c) => c.ready);
   return (
-    <section className="logs coaches wide" aria-labelledby="coaches-title">
-      <div className="logs-top">
+    <section className="page wide" aria-labelledby="coaches-title">
+      <div className="page-top">
         <h1 id="coaches-title">Coaches</h1>
         <button type="button" className="quiet" onClick={onClose}>Back to the chat</button>
       </div>
-      <p className="logs-note">{any
+      <p className="page-note">{any
         ? "Listen to a sample, then tap a coach to choose them."
         : "Listen to a sample, then add the key for the coaches you like. Keys stay in Settings."}</p>
-      {coaches === null ? <p className="logs-note">Loading…</p>
+      <Notice tone="error">{error}</Notice>
+      {coaches === null ? <Notice tone="busy" className="page-note">Loading the coaches…</Notice>
         : <CoachGallery coaches={coaches} onCoach={onCoach} onAddKey={onAddKey} />}
     </section>
   );

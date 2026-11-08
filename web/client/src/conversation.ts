@@ -33,14 +33,14 @@ export function resumable(c: Conversation, today: Date = new Date()): boolean {
 /** A failed turn's or call's message that Settings answers ("add a language-model key in Settings"). */
 const NEEDS_KEYS = /\b(Keys|Settings)\b/;
 
-export function useConversation(onSignedOut: () => void) {
+export function useConversation() {
   const [conv, setConv] = useState<Conversation | null>(null);
   /** Today's conversation waiting on the listener, offered on the first screen rather than reopened. */
   const [waiting, setWaiting] = useState<Conversation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [noKey, setNoKey] = useState(false);
   const [posting, setPosting] = useState(false);
-  const { job, watch, stop } = useJob(onSignedOut);
+  const { job, watch, stop } = useJob();
   const watched = useRef(0);
 
   const follow = useCallback((jobId: number) => {
@@ -49,10 +49,10 @@ export function useConversation(onSignedOut: () => void) {
   }, [watch]);
 
   const fail = useCallback((e: unknown) => {
-    if (e instanceof NotSignedIn) return onSignedOut();
+    if (e instanceof NotSignedIn) return;   // api.ts has sent the page to sign-in
     setNoKey(e instanceof ApiError && ((e.status === 409 && /key/i.test(e.message)) || NEEDS_KEYS.test(e.message)));
     setError(plainError(e));
-  }, [onSignedOut]);
+  }, []);
 
   const adopt = useCallback((c: Conversation | undefined) => {
     setConv(c ?? null);
@@ -91,7 +91,7 @@ export function useConversation(onSignedOut: () => void) {
     const attempt = (n: number) => {
       api.conversation(id).then((c) => { if (live) setConv(c); }, (e) => {
         if (!live) return;
-        if (e instanceof NotSignedIn) return onSignedOut();
+        if (e instanceof NotSignedIn) return;
         if (n < RELOAD_DELAYS.length) {
           timer = setTimeout(() => attempt(n + 1), RELOAD_DELAYS[n]);
           return;
@@ -109,12 +109,12 @@ export function useConversation(onSignedOut: () => void) {
   useEffect(() => {
     if (!scheduled || id === undefined) return;
     const t = setInterval(() => {
-      api.conversation(id).then((c) => { if (c.state !== "scheduled") adopt(c); }, (e) => {
-        if (e instanceof NotSignedIn) onSignedOut();
+      api.conversation(id).then((c) => { if (c.state !== "scheduled") adopt(c); }, () => {
+        /* read again at the next tick; a lost session has gone to sign-in */
       });
     }, SCHEDULED_EVERY);
     return () => clearInterval(t);
-  }, [scheduled, id, adopt, onSignedOut]);
+  }, [scheduled, id, adopt]);
 
   const turn = useCallback(async (run: () => Promise<{ job_id: number }>, show: (c: Conversation) => Conversation) => {
     setError(null);

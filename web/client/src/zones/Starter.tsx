@@ -4,6 +4,13 @@
 // in for the check-in.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { StartInfo, StartKit } from "../api";
+import { article, listAnd as list } from "../lib/format";
+import { prefersReducedMotion as still } from "../lib/motion";
+import { Quiet, useAction } from "../lib/useAction";
+import { useFocusTrap } from "../lib/useFocusTrap";
+import { Button } from "../ui/Button";
+import { Icon } from "../ui/icons";
+import { Notice } from "../ui/Notice";
 import { ahead, slots, withOffset } from "../when";
 
 /** The areas a listener can name, head to feet: the body chart's rows. */
@@ -49,16 +56,6 @@ function suggested(info: StartInfo | null): string | null {
   return (s.target && TARGET_WORDS[s.target]) || GOAL_WORDS[s.goal] || null;
 }
 
-function list(xs: string[]): string {
-  return xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
-}
-
-/** "a" or "an" before a number of minutes: an 8-minute, an 11-minute, an 18-minute. */
-export function article(minutes: number): string {
-  const s = String(minutes);
-  return s.startsWith("8") || s === "11" || s === "18" ? "an" : "a";
-}
-
 /** What the body line says, as shown and as sent. */
 function bodyWords(body: Record<string, Level>): { easy: string[]; off: string[] } {
   return { easy: Object.keys(body).filter((a) => body[a] === "easy"), off: Object.keys(body).filter((a) => body[a] === "off") };
@@ -82,7 +79,6 @@ export function sentence(v: { coach: string; minutes: number; place: string; typ
   return `Hey, coach ${v.coach}, I'd like ${article(v.minutes)} ${v.minutes}-minute ${v.type} ${v.place}, ${v.when ?? "right now"}. ${care}`;
 }
 
-const still = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const GLYPHS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 /** Where each word of a text starts and ends, so a long blank wraps between words, never inside one. */
@@ -145,9 +141,7 @@ function Slot({ k, label, text, open, onOpen, tone }: { k: SlotKey; label: strin
     <button type="button" className={`slot${tone ? " " + tone : ""}`} data-k={k} aria-haspopup={k === "body" ? "dialog" : "listbox"}
       aria-expanded={open} aria-label={`${label}: ${text}`} onClick={(e) => onOpen(k, e.currentTarget)}>
       <Flap text={text} />
-      <svg className="car" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-        <path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
+      <Icon name="chevron-down" size={10} weight={3.6} className="car" />
     </button>
   );
 }
@@ -174,9 +168,11 @@ type Props = {
   onCoach?: (slug: string) => void;
   /** Opens the Coaches page: to switch coach, or, with no coach that can speak yet, to choose one. */
   onOpenCoaches?: () => void;
+  /** Why the last coach picked didn't hold (the server refused it). */
+  coachError?: string | null;
 };
 
-export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props) {
+export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches, coachError = null }: Props) {
   const ready = (info?.coaches ?? []).filter((c) => c.ready);
   const kits = info?.kits ?? [];
   const floor: Record<string, Level> = {};
@@ -190,7 +186,6 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
   /** A time picked for the workout (null: right now). */
   const [at, setAt] = useState<Date | null>(null);
   const [open, setOpen] = useState<{ k: SlotKey; left: number; top: number } | null>(null);
-  const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLElement>(null);
   const pick = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLButtonElement | null>(null);
@@ -237,6 +232,9 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
   }, [open]);
+
+  // the body chart holds the keyboard while it's open (its Escape is the section's, below)
+  useFocusTrap(pick, open?.k === "body");
 
   function keys(e: React.KeyboardEvent) {
     if (!open) return;
@@ -292,7 +290,7 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
     const fixed = floorAt(k) === "off";
     return (
       <button type="button" className={`bdot ${where} ${mark}`} data-mark={mark} disabled={fixed}
-        aria-label={`${k}: ${MARK_WORDS[mark]}`} title={fixed ? "Set in your health notes; change it in the chat" : undefined}
+        aria-label={`${k}: ${MARK_WORDS[mark]}`} aria-describedby={fixed ? "body-fixed" : undefined}
         onClick={() => tap(k)}>{where === "l" ? "L" : where === "r" ? "R" : ""}</button>
     );
   };
@@ -301,13 +299,14 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
   const slot = (k: SlotKey, label: string, text: string, tone?: "off" | "calm") =>
     <Slot k={k} label={label} text={text} open={open?.k === k} onOpen={openSlot} tone={tone} />;
 
-  async function start() {
-    setBusy(true);
+  // busy until the chat takes over; a refused start gives the button back
+  const begin = useAction(async () => {
     // a time already passed while the page sat open is a workout now
     const later = at && at.getTime() > Date.now() + 20 * 60000 ? at : null;
     const line = sentence({ ...v, when: whenWords(later) });
-    if ((await onStart(line, later ? withOffset(later) : undefined)) === false) setBusy(false);
-  }
+    if ((await onStart(line, later ? withOffset(later) : undefined)) === false) throw new Quiet();
+  }, { hold: true });
+  const fixedAny = ROWS.some((a) => (SIDED.has(a) ? [`left ${a}`, `right ${a}`] : [a]).some((k) => floorAt(k) === "off"));
 
   const hint = !type && info?.suggest?.reason;
   const shownCoach = ready.find((c) => c.first === v.coach);
@@ -342,10 +341,11 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
       </p>
       {hint && <p className="hint">Suggested because of your log: {hint}.</p>}
       <div className="start-row">
-        <button type="button" className="go start" onClick={start} disabled={busy || ready.length === 0}>
-          {at ? "Plan it for later" : "Plan my workout"}</button>
+        <Button variant="primary" className="start" onClick={() => void begin.run()} busy={begin.busy}
+          disabled={ready.length === 0}>{at ? "Plan it for later" : "Plan my workout"}</Button>
         {ready.length === 0 && info && <span className="start-note">Add a voice key in Settings first.</span>}
       </div>
+      <Notice tone="error">{coachError}</Notice>
       <nav className="else" aria-label="Other things you can do">
         <p className="else-h">Or ask for something else</p>
         <ul className="else-list">
@@ -379,6 +379,8 @@ export function Starter({ info, onStart, onFill, onCoach, onOpenCoaches }: Props
           <div className="bleft">
             <p className="pick-h">Anything bothering you today?</p>
             <p className="pick-s">Tap a side to change it: once to go easy, twice to keep off, again for OK.</p>
+            {fixedAny && <p className="hint" id="body-fixed">A side in a dashed ring is kept off by your health notes. To change
+              it, tell your coach in the chat.</p>}
             <ul className="bkey" aria-label="Key">
               <li><i className="bdot easy" aria-hidden="true" />Go easy</li>
               <li><i className="bdot off" aria-hidden="true" />Keep off</li>

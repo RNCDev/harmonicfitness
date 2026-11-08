@@ -61,7 +61,8 @@ class WebCopy(unittest.TestCase):
         at = [text.index(f'"Long%20one.web-{n}.mp3"') for n in (1, 2, 3)]   # URL-encoded
         self.assertEqual(at, sorted(at))
         self.assertIn("Part ", text)
-        self.assertIn("prefers-color-scheme: dark", text)
+        self.assertIn("color-scheme: dark", text)   # dark only, in the app's colours, on any host theme
+        self.assertIn("background: var(--paper)", text)
         self.assertNotIn("<script src", text)   # self-contained
 
 

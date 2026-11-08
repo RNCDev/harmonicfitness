@@ -75,4 +75,11 @@ describe("the demos on the sign-in page", () => {
     expect(play).toHaveBeenCalled();
     delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>).readyState;
   });
+
+  it("seeks with a slider, so the keyboard can skip through a clip", () => {
+    render(<Demos />);
+    const seek = screen.getByRole("slider", { name: "Jo's workout, position" });
+    expect(seek).toBeDisabled();   // until the clip's length is known
+    expect(screen.getByText("2 min")).toBeInTheDocument();
+  });
 });

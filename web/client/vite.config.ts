@@ -19,6 +19,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
+    css: true,   // so theme.test.ts reads the stylesheets themselves, not the empty stand-ins Vitest uses by default
     include: ["src/**/*.test.{ts,tsx}"],
   },
 });

@@ -107,4 +107,35 @@ describe("the app", () => {
     await waitFor(() => expect(saved).toHaveLength(2));
     await waitFor(() => expect(sky()).toBe("flow"));   // refused: back as it was
   });
+
+  it("gives Logs an address, and holds the keyboard inside Settings while it's open", async () => {
+    const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
+    const claude = { service: "anthropic", name: "Claude", key_page: "https://a.example", set: true, updated_at: null,
+      kind: "model", writer: true };
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/me") return json({ app_name: "HarmonicFitness", username: "ana", has_password: true, version: "" });
+      if (url === "/api/keys") return json([claude]);
+      if (url === "/api/workouts") return json({ workouts: [] });
+      if (url === "/api/level") return json({ level: "novice", set: false, choices: [] });
+      if (url === "/api/start") return json({ coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false });
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Logs" }, { timeout: 5000 }));
+    expect(window.location.hash).toBe("#logs");
+    expect(await screen.findByText("No workouts logged yet.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to the chat" }));
+    expect(window.location.hash).toBe("");
+    expect(screen.queryByRole("heading", { name: "Logs" })).toBeNull();
+
+    const gear = screen.getByRole("button", { name: "Settings" });
+    gear.focus();
+    fireEvent.click(gear);
+    const drawer = screen.getByRole("dialog", { name: "Settings" });
+    await waitFor(() => expect(drawer).toContainElement(document.activeElement as HTMLElement));
+    expect(document.querySelector(".work")).toHaveAttribute("inert");   // the page behind can't be reached
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(gear).toHaveFocus());
+    expect(document.querySelector(".work")).not.toHaveAttribute("inert");
+  });
 });

@@ -30,7 +30,6 @@ vi.mock("./api", async (orig) => {
 
 import { isHistory, resumable, useConversation } from "./conversation";
 
-const out = () => {};
 
 const conv = (over: Partial<Conversation>): Conversation => ({
   id: 7, state: "idle", job_id: null, lines: [{ role: "user", text: "hi" }],
@@ -47,7 +46,7 @@ afterEach(() => { vi.useRealTimers(); });
 describe("useConversation", () => {
   it("resumes a working conversation by following its job", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
     expect(result.current.working).toBe(true);
   });
@@ -56,7 +55,7 @@ describe("useConversation", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     m.latest.mockResolvedValue(conv({ state: "scheduled", later: { at: new Date().toISOString(), local: "x" } }));
     m.conversation.mockResolvedValue(conv({ state: "working", job_id: 51 }));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(result.current.conv?.state).toBe("scheduled"));
     expect(result.current.working).toBe(false);
     expect(isHistory(conv({ state: "scheduled", updated_at: yesterday() }))).toBe(false);
@@ -68,7 +67,7 @@ describe("useConversation", () => {
     const done = conv({ state: "idle", lines: [{ role: "agent", text: "", audio: { id: "a", name: "W", expires_at: "x" } }],
       later: { at: new Date().toISOString(), local: "x", due: new Date().toISOString(), done: true } });
     m.latest.mockResolvedValue(done);
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(result.current.conv?.id).toBe(7));
     expect(result.current.waiting).toBeNull();
   });
@@ -76,7 +75,7 @@ describe("useConversation", () => {
   it("sets noKey when there is no model key", async () => {
     m.latest.mockResolvedValue(undefined);
     m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Settings first."));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await act(async () => { expect(await result.current.send("a workout")).toBe(false); });
     expect(result.current.noKey).toBe(true);
     expect(result.current.error).toBe("Add a key for Claude in Settings first.");
@@ -87,7 +86,7 @@ describe("useConversation", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.conversation.mockRejectedValue(new ApiError(500, "Server is down."));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.watch).toHaveBeenCalled());
     act(() => m.endJob!("done"));
     await act(async () => { await vi.advanceTimersByTimeAsync(11000); });
@@ -101,7 +100,7 @@ describe("useConversation", () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.conversation.mockRejectedValueOnce(new ApiError(500, "x"))
       .mockResolvedValue(conv({ lines: [{ role: "user", text: "hi" }, { role: "agent", text: "Done" }] }));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.watch).toHaveBeenCalled());
     act(() => m.endJob!("done"));
     await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
@@ -113,7 +112,7 @@ describe("useConversation", () => {
     for (const c of [conv({}), conv({ state: "failed", lines: [{ role: "agent", text: "That didn't work." }] }),
       conv({ updated_at: yesterday(), lines: [{ role: "agent", text: "Which kit?" }] })]) {
       m.latest.mockResolvedValue(c);
-      const { result, unmount } = renderHook(() => useConversation(out));
+      const { result, unmount } = renderHook(() => useConversation());
       await waitFor(() => expect(m.latest).toHaveBeenCalled());
       await act(async () => { await Promise.resolve(); });
       expect(result.current.conv).toBeNull();
@@ -128,7 +127,7 @@ describe("useConversation", () => {
     m.latest.mockResolvedValue(conv({ id: 7 }));
     m.start.mockResolvedValueOnce({ id: 8, job_id: 50 }).mockResolvedValueOnce({ id: 9, job_id: 52 });
     m.send.mockResolvedValue({ job_id: 51 });
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.latest).toHaveBeenCalled());
     await act(async () => { expect(await result.current.send("A 20-minute workout")).toBe(true); });
     expect(m.start).toHaveBeenCalledWith("A 20-minute workout", expect.anything(), undefined);
@@ -150,7 +149,7 @@ describe("useConversation", () => {
 
   it("opens on the first screen, offering today's conversation while the coach waits for an answer", async () => {
     m.latest.mockResolvedValue(conv({ lines: [{ role: "user", text: "hi" }, { role: "agent", text: "1. How's the knee?" }] }));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(result.current.waiting?.id).toBe(7));
     expect(result.current.conv).toBeNull();
     expect(result.current.working).toBe(false);
@@ -162,7 +161,7 @@ describe("useConversation", () => {
   it("a new message from the first screen drops the waiting conversation", async () => {
     m.latest.mockResolvedValue(conv({ lines: [{ role: "agent", text: "Which kit?" }] }));
     m.start.mockResolvedValue({ id: 8, job_id: 50 });
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(result.current.waiting?.id).toBe(7));
     await act(async () => { await result.current.send("A 20-minute workout"); });
     expect(m.start).toHaveBeenCalled();
@@ -193,7 +192,7 @@ describe("useConversation", () => {
   it("Stop ends the chat: the turn is stopped and the page goes back to the first screen", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.halt.mockResolvedValue({ stopping: true });
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(result.current.conv?.id).toBe(7));
     await act(async () => { await result.current.halt(); });
     expect(m.halt).toHaveBeenCalledWith(7);
@@ -204,7 +203,7 @@ describe("useConversation", () => {
   it("a Stop that can't be sent keeps the chat open, with the error", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.halt.mockRejectedValue(new Error("offline"));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(result.current.conv?.id).toBe(7));
     await act(async () => { await result.current.halt(); });
     expect(result.current.conv?.id).toBe(7);
@@ -214,7 +213,7 @@ describe("useConversation", () => {
   it("offers Settings when a turn fails for want of a key", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.conversation.mockResolvedValue(conv({ state: "failed" }));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
     act(() => m.endJob!("failed", "Claude refused the key. Replace it in Settings."));
     await waitFor(() => expect(result.current.error).toBe("Claude refused the key. Replace it in Settings."));
@@ -224,7 +223,7 @@ describe("useConversation", () => {
   it("no Settings button for a failure that isn't about keys", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.conversation.mockResolvedValue(conv({ state: "failed" }));
-    const { result } = renderHook(() => useConversation(out));
+    const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
     act(() => m.endJob!("failed", "this turn ran too long; try again with less to do"));
     await waitFor(() => expect(result.current.error).toBeTruthy());

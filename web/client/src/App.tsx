@@ -1,16 +1,22 @@
 // The app: the sign-in page, or once signed in the sky, the chat, and the Settings drawer.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, APP_NAME, NotSignedIn, type KeyState, type Me, type StartInfo } from "./api";
+import { api, APP_NAME, NotSignedIn, setAuthLost, type KeyState, type Me } from "./api";
 import { ChoosePassword, SignIn } from "./SignIn";
 import { Mark } from "./Mark";
-import { Sky, Solo, type SkyKind } from "./Sky";
+import { Sky, type SkyKind } from "./Sky";
 import { useConversation } from "./conversation";
-import { localDate } from "./when";
-import { Chat, stepsOf, type KeyNeeded } from "./zones/Chat";
+import { hasModelKey, keyRows } from "./lib/keys";
+import { stepsOf } from "./lib/steps";
+import { useSaved } from "./lib/useAction";
+import { usePage } from "./lib/usePage";
+import { useStartInfo } from "./lib/useStartInfo";
+import { Button } from "./ui/Button";
+import { Icon } from "./ui/icons";
+import { Solo } from "./ui/Solo";
+import { Chat, type KeyNeeded } from "./zones/Chat";
 import { ContextColumn } from "./zones/ContextColumn";
 import { Logs } from "./zones/Logs";
 import { CoachesPage } from "./zones/Coaches";
-import { hasModelKey, keyRows } from "./zones/KeysBox";
 
 /** With no language-model key yet: the ones to choose from, to write the workouts. */
 function keyNeeded(keys: KeyState[] | null): KeyNeeded | null {
@@ -22,37 +28,12 @@ function keyNeeded(keys: KeyState[] | null): KeyNeeded | null {
 
 type Auth = "loading" | "in" | "out" | "error";
 
-/** The sentence's defaults when the server can't say more. */
-const NO_START: StartInfo = { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false };
-
-const Gear = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
-    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-
-const CoachesIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M12 3v18M8 8v8M4 11v2M16 6v12M20 10v4" />
-  </svg>
-);
-
-const LogsIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-  </svg>
-);
-
 function Unreachable({ onRetry }: { onRetry: () => void }) {
   return (
     <Solo>
       <h1>Can't reach HarmonicFitness</h1>
       <p>Check your connection, then try again.</p>
-      <button type="button" className="go" onClick={onRetry}>Try again</button>
+      <Button variant="primary" onClick={onRetry}>Try again</Button>
     </Solo>
   );
 }
@@ -62,7 +43,7 @@ function Loading() {
   return (
     <div className="app" aria-busy="true">
       <Sky />
-      <div className="work" />
+      <div className="work"><p className="sr" role="status">Loading HarmonicFitness…</p></div>
     </div>
   );
 }
@@ -72,6 +53,8 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
 
   const signedOut = useCallback(() => setAuth("out"), []);
+  // a call anywhere that finds no one signed in brings the page back here
+  useEffect(() => setAuthLost(signedOut), [signedOut]);
 
   const load = useCallback(async () => {
     setAuth("loading");
@@ -92,8 +75,7 @@ export function App() {
   if (auth === "out") return <SignIn onSignedIn={load} />;
   if (auth === "error" || !me) return <Unreachable onRetry={load} />;
   if (!me.has_password) {
-    return <ChoosePassword username={me.username} onSignedOut={signedOut}
-      onDone={() => setMe({ ...me, has_password: true })} />;
+    return <ChoosePassword username={me.username} onDone={() => setMe({ ...me, has_password: true })} />;
   }
   return <SignedIn me={me} onSignedOut={signedOut} />;
 }
@@ -101,95 +83,23 @@ export function App() {
 /** The signed-in page. Mounted only once the server says who is signed in; unmounting it closes the job's stream. */
 function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [drawer, setDrawer] = useState(false);
-  const [page, setPage] = useState<"chat" | "logs" | "coaches">("chat");
-  const logs = page === "logs";
-  const toggle = (p: "logs" | "coaches") => setPage((cur) => (cur === p ? "chat" : p));
+  const gear = useRef<HTMLButtonElement>(null);
+  const [page, go] = usePage();
+  const toggle = (p: "logs" | "coaches") => go(page === p ? "chat" : p);
   const [keys, setKeys] = useState<KeyState[] | null>(null);
   const [openRow, setOpenRow] = useState<{ service: string; n: number; choose?: boolean } | null>(null);
   const needsKey = keyNeeded(keys);
-  const { conv, working, error, noKey, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation(onSignedOut);
+  const { conv, working, error, noKey, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation();
   const steps = stepsOf(job?.stages ?? []);
+  const { start, coaches, coachBar, chooseCoach, coachError } = useStartInfo(keys);
 
-  // What the first screen's sentence is filled in with: asked at once, beside the keys, and again whenever
-  // which keys are set changes. The keys list arriving isn't a change: the server read the same keys for the
-  // first answer. Only the latest ask is used. If it can't be had, the sentence still comes, with plain defaults.
-  const [start, setStart] = useState<StartInfo | null>(null);
-  const keySig = keys === null ? null : keys.map((k) => `${k.service}:${k.kind}:${k.set}`).join(",");
-  const asked = useRef<{ sig: string | null; n: number } | null>(null);
-  useEffect(() => {
-    const was = asked.current;
-    if (was && was.sig === null && keySig !== null) {
-      asked.current = { ...was, sig: keySig };
-      return;
-    }
-    const n = (was?.n ?? 0) + 1;
-    asked.current = { sig: keySig, n };
-    api.start().then((s) => { if (asked.current?.n === n) setStart(s); }, (e) => {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      if (asked.current?.n === n) setStart((s) => s ?? NO_START);
-    });
-  }, [keySig, onSignedOut]);
-  const coaches = start?.coaches ?? [];
-  const shown = coaches.find((c) => c.current) ?? null;
-  const coachBar = shown ? { n: coaches.indexOf(shown) + 1, name: shown.name, service: shown.service_name } : null;
+  // the settings that switch at once and save behind, put back with the reason if the server refuses
+  const [sky, chooseSky, skyError] = useSaved<SkyKind>(me.sky ?? "flow", api.setSky,
+    "That background didn't save. Try again.");
+  const [autoRecord, chooseAutoRecord, autoRecordError] = useSaved(me.auto_record ?? false, api.setAutoRecord,
+    "That didn't save. Try again.");
 
-  // The coach, chosen in Settings or the sentence: switched at once in both, then saved (the server keeps it
-  // as the first screen's coach, and tells the chat); put back if the server refuses it.
-  const chooseCoach = useCallback(async (slug: string) => {
-    const mark = (current: string | undefined) => setStart((s) => s && {
-      ...s, coaches: s.coaches.map((c) => ({ ...c, current: c.slug === current })) });
-    const before = start?.coaches.find((c) => c.current)?.slug;
-    if (slug === before || !start?.coaches.some((c) => c.slug === slug && c.ready)) return;
-    mark(slug);
-    try {
-      await api.setCoach(slug, localDate(new Date()));
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      mark(before);
-    }
-  }, [start, onSignedOut]);
-
-  // The sky: switched at once, then saved; put back if the server refuses it.
-  const [sky, setSky] = useState<SkyKind>(me.sky ?? "flow");
-  const chooseSky = useCallback(async (next: SkyKind) => {
-    const before = sky;
-    setSky(next);
-    try {
-      await api.setSky(next);
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      setSky(before);
-    }
-  }, [sky, onSignedOut]);
-
-  // Record without asking: switched at once, then saved; put back if the server refuses it.
-  const [autoRecord, setAutoRecord] = useState(me.auto_record ?? false);
-  const chooseAutoRecord = useCallback(async (on: boolean) => {
-    setAutoRecord(on);
-    try {
-      await api.setAutoRecord(on);
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      setAutoRecord(!on);
-    }
-  }, [onSignedOut]);
-
-  // The drawer: Escape closes it and focus goes back to its button.
-  const closeDrawer = useCallback(() => {
-    setDrawer(false);
-    document.querySelector<HTMLElement>(".ctx-toggle")?.focus();
-  }, []);
-  useEffect(() => {
-    if (!drawer) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeDrawer();
-    };
-    document.addEventListener("keydown", onKey);
-    // focus moves into the drawer, unless a key's box there already has it ("Add your key")
-    const ctx = document.getElementById("ctx");
-    if (!ctx?.contains(document.activeElement)) ctx?.querySelector<HTMLElement>("button")?.focus();
-    return () => document.removeEventListener("keydown", onKey);
-  }, [drawer, closeDrawer]);
+  const closeDrawer = useCallback(() => setDrawer(false), []);
 
   // A key's row in Settings. From the welcome card the key is also chosen to write; from a coach that needs it,
   // the row only opens, so a voice key never changes who writes (OpenRouter's and Gemini's can do both).
@@ -212,46 +122,50 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   return (
     <div className="app">
       <Sky kind={sky} busy={working} />
-      <div className={page !== "chat" ? "work show-logs" : "work"}>
+      <div className="work" data-page={page}>
         <header className="work-top">
           <Mark />
           <span className="top-gap" />
           {conv && page === "chat" && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+            <Icon name="plus" size={14} weight={3.4} />
             New workout
           </button>}
-          <button type="button" className="top-btn new logs-toggle" aria-pressed={page === "coaches"} title="Hear and choose your coach"
+          <button type="button" className="top-btn new page-toggle" aria-pressed={page === "coaches"} title="Hear and choose your coach"
             aria-label="Coaches" onClick={() => toggle("coaches")}>
-            <CoachesIcon />
+            <Icon name="coaches" size={16} />
             <span className="top-label">Coaches</span>
           </button>
-          <button type="button" className="top-btn new logs-toggle" aria-pressed={logs} title="Your past workouts"
+          <button type="button" className="top-btn new page-toggle" aria-pressed={page === "logs"} title="Your past workouts"
             aria-label="Logs" onClick={() => toggle("logs")}>
-            <LogsIcon />
+            <Icon name="logs" size={16} />
             <span className="top-label">Logs</span>
           </button>
-          <button type="button" className="top-btn icon ctx-toggle" aria-label="Settings" title="Settings"
+          <button ref={gear} type="button" className="top-btn icon" aria-label="Settings" title="Settings"
             aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
-            <Gear />
+            <Icon name="gear" size={18} weight={1.7} />
           </button>
         </header>
-        {logs && <Logs onClose={() => setPage("chat")} onSignedOut={onSignedOut} />}
+        {page === "logs" && <Logs onClose={() => go("chat")} />}
         {page === "coaches" && <CoachesPage coaches={start ? coaches : null} onCoach={(slug) => void chooseCoach(slug)}
-          onAddKey={addVoiceKey} onClose={() => setPage("chat")} />}
+          onAddKey={addVoiceKey} onClose={() => go("chat")} error={coachError} />}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
         <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
-          offer={!working ? conv?.offer ?? null : null} onRecord={record} onStop={halt}
-          onSend={send} onOpenKeys={() => setDrawer(true)} needsKey={needsKey}
-          start={start} starting={start === null && keys !== null} onCoach={chooseCoach} coachBar={coachBar}
-          waiting={waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null} onResume={resume}
-          onAddKey={addKey} onOpenCoaches={() => setPage("coaches")}
-          later={conv && conv.state !== "failed" ? conv.later ?? null : null} scheduled={conv?.state === "scheduled"} onSchedule={schedule} onCancel={cancel} />
+          onSend={send} onStop={halt} onOpenKeys={() => setDrawer(true)} coachBar={coachBar}
+          first={{
+            needsKey, onAddKey: addKey, start, starting: start === null && keys !== null,
+            onCoach: (slug) => void chooseCoach(slug), coachError, onOpenCoaches: () => go("coaches"),
+            waiting: waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null, onResume: resume,
+          }}
+          offers={{
+            offer: !working ? conv?.offer ?? null : null, onRecord: record,
+            later: conv && conv.state !== "failed" ? conv.later ?? null : null, scheduled: conv?.state === "scheduled",
+            onSchedule: schedule, onCancel: cancel,
+          }} />
       </div>
       <ContextColumn username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
-        onSignedOut={onSignedOut} onSignOut={signOut} onKeys={setKeys} openRow={openRow}
-        sky={sky} onSky={chooseSky} autoRecord={autoRecord} onAutoRecord={chooseAutoRecord} />
+        onSignOut={signOut} onDeleted={onSignedOut} onKeys={setKeys} openRow={openRow} returnFocus={gear}
+        sky={sky} onSky={(s) => void chooseSky(s)} skyError={skyError}
+        autoRecord={autoRecord} onAutoRecord={(on) => void chooseAutoRecord(on)} autoRecordError={autoRecordError} />
     </div>
   );
 }

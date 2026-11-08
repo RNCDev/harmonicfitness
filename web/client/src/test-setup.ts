@@ -6,3 +6,6 @@ afterEach(() => cleanup());
 
 // jsdom has no canvas: the Field sky draws nothing in tests, quietly.
 HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext;
+
+// each test starts on the chat, whatever page the last one opened (#logs, #coaches)
+afterEach(() => window.history.replaceState(null, "", "/"));

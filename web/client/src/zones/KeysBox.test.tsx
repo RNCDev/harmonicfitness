@@ -31,7 +31,7 @@ const check = checkBalances as unknown as ReturnType<typeof vi.fn>;
 describe("the Keys box", () => {
   it("groups the keys as required and optional", async () => {
     m.keys.mockResolvedValue([CLAUDE, FISH, ELEVEN]);
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     expect(await screen.findByRole("heading", { name: "Keys" })).toBeInTheDocument();
     const required = screen.getByRole("region", { name: "Who writes your workouts" });
     const optional = screen.getByRole("region", { name: "More voices (optional)" });
@@ -47,7 +47,7 @@ describe("the Keys box", () => {
     const model: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example/keys",
       set: true, updated_at: "2026-10-31T12:00:00Z", kind: "model", writer: true };
     m.keys.mockResolvedValue([model, { ...model, kind: "voice" }, { ...FISH, set: false }, ELEVEN]);
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     expect(await screen.findByText(/Your OpenRouter key voices your coaches too/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add Fish Audio key" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add another voice (optional)" }));
@@ -58,7 +58,7 @@ describe("the Keys box", () => {
     const model: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example/keys",
       set: true, updated_at: null, kind: "model", writer: true };
     m.keys.mockResolvedValue([model, { ...model, kind: "voice" }, FISH, ELEVEN]);
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     expect(await screen.findByRole("region", { name: "More voices (optional)" })).toHaveTextContent("ElevenLabs");
     expect(screen.queryByRole("button", { name: "Add another voice (optional)" })).toBeNull();
   });
@@ -69,7 +69,7 @@ describe("the Keys box", () => {
     const voice: KeyState = { ...model, kind: "voice" };
     const seen = vi.fn();
     m.keys.mockResolvedValue([model, voice, FISH]);
-    render(<KeysBox onSignedOut={() => {}} onKeys={seen} />);
+    render(<KeysBox onKeys={seen} />);
     expect(await screen.findAllByRole("button", { name: "Add Gemini key" })).toHaveLength(1);
     const required = screen.getByRole("region", { name: "Who writes your workouts" });
     expect(required).toHaveTextContent("+ voices");
@@ -90,7 +90,7 @@ describe("the Keys box", () => {
     const gem: KeyState = { service: "gemini", name: "Gemini", key_page: "https://g.example", set: false, updated_at: null, kind: "model" };
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
     m.keys.mockResolvedValue([CLAUDE, gpt, gem, { ...gem, kind: "voice" }, or, { ...or, kind: "voice" }, FISH]);
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     await screen.findByRole("radiogroup", { name: "Who writes your workouts" });
     expect(screen.getAllByRole("radio").map((r) => r.getAttribute("id"))).toEqual(["writer-openrouter", "writer-gemini", "writer-anthropic", "writer-openai"]);
     expect(screen.getByRole("radio", { name: "OpenRouter" })).toBeInTheDocument();   // the tag isn't part of its name
@@ -101,7 +101,7 @@ describe("the Keys box", () => {
     const claude = { ...CLAUDE, set: true, writer: true };
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model", writer: false };
     m.keys.mockResolvedValue([claude, gpt, FISH]);
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     const group = await screen.findByRole("radiogroup", { name: "Who writes your workouts" });
     expect(screen.getByRole("radio", { name: "Claude" })).toBeChecked();
     expect(group.closest("section")).toHaveTextContent("Pick one.");
@@ -114,21 +114,21 @@ describe("the Keys box", () => {
   it("the welcome's pick chooses the writer and opens its key", async () => {
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
     m.keys.mockResolvedValue([CLAUDE, gpt, FISH]);
-    render(<KeysBox onSignedOut={() => {}} openRow={{ service: "openai", n: 1, choose: true }} />);
+    render(<KeysBox openRow={{ service: "openai", n: 1, choose: true }} />);
     expect(await screen.findByLabelText("ChatGPT key")).toBeInTheDocument();
     expect(m.setWriter).toHaveBeenCalledWith("openai");
     expect(screen.getByRole("radio", { name: "ChatGPT" })).toBeChecked();
   });
 
   it("opens a row for its key when asked", async () => {
-    const { rerender } = render(<KeysBox onSignedOut={() => {}} openRow={null} />);
+    const { rerender } = render(<KeysBox openRow={null} />);
     await screen.findByRole("button", { name: "Add ElevenLabs key" });
-    rerender(<KeysBox onSignedOut={() => {}} openRow={{ service: "elevenlabs", n: 1 }} />);
+    rerender(<KeysBox openRow={{ service: "elevenlabs", n: 1 }} />);
     expect(await screen.findByLabelText("ElevenLabs key")).toHaveFocus();
   });
 
   it("shows every service, set or not", async () => {
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     expect(await screen.findByTitle(/^Key added/)).toBeInTheDocument();
     expect(screen.getAllByTitle(/^Key added/)).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /^Add / })).toHaveLength(1);   // an unset key just offers Add
@@ -138,7 +138,7 @@ describe("the Keys box", () => {
   });
 
   it("saves a key and never shows it", async () => {
-    const { container } = render(<KeysBox onSignedOut={() => {}} />);
+    const { container } = render(<KeysBox />);
     fireEvent.click(await screen.findByRole("button", { name: "Add ElevenLabs key" }));
     const input = screen.getByLabelText("ElevenLabs key");
     expect(input).toHaveFocus();
@@ -155,7 +155,7 @@ describe("the Keys box", () => {
 
   it("shows the server's refusal", async () => {
     m.setKey.mockRejectedValue(new ApiError(400, "That doesn't look like a Fish Audio key: bad."));
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     fireEvent.click(await screen.findByRole("button", { name: "Replace Fish Audio key" }));
     fireEvent.change(screen.getByLabelText("Fish Audio key"), { target: { value: "a b" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -164,7 +164,7 @@ describe("the Keys box", () => {
   });
 
   it("removes after asking", async () => {
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     fireEvent.click(await screen.findByRole("button", { name: "Remove Fish Audio key" }));
     expect(screen.getByText("Remove your Fish Audio key?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Keep" }));
@@ -176,10 +176,9 @@ describe("the Keys box", () => {
     expect(screen.queryByText(/^Set\b/)).toBeNull();
   });
 
-  it("signs out on NotSignedIn and links to the key page safely", async () => {
-    const out = vi.fn();
+  it("says nothing of a lost session (the app goes to sign-in), and links to the key page safely", async () => {
     m.setKey.mockRejectedValue(new NotSignedIn("x"));
-    render(<KeysBox onSignedOut={out} />);
+    render(<KeysBox />);
     fireEvent.click(await screen.findByRole("button", { name: "Add ElevenLabs key" }));
     const link = screen.getByRole("link", { name: "Get a key" });
     expect(link).toHaveAttribute("href", "https://el.example/keys");
@@ -187,7 +186,9 @@ describe("the Keys box", () => {
     expect(link).toHaveAttribute("target", "_blank");
     fireEvent.change(screen.getByLabelText("ElevenLabs key"), { target: { value: "abc" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(out).toHaveBeenCalled());
+    await waitFor(() => expect(m.setKey).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText("ElevenLabs key")).toBeInTheDocument();   // the box stays as it was
   });
 });
 
@@ -202,7 +203,7 @@ describe("balances", () => {
   it("shows what's left where the service says, and a billing link where it can't", async () => {
     m.keys.mockResolvedValue([fish, eleven, inworld, unset]);
     check.mockResolvedValue({ fish: { ok: true, usd: 12.50 }, elevenlabs: { ok: true, used: 2120, limit: 30000 } });
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     const left = await screen.findByRole("link", { name: "$12.50 left" });
     expect(left).toHaveAttribute("href", "https://fish.example/billing");
     expect(left).toHaveAttribute("target", "_blank");
@@ -216,7 +217,7 @@ describe("balances", () => {
     m.keys.mockResolvedValue([fish, eleven]);
     let done: (v: unknown) => void = () => {};
     check.mockReturnValue(new Promise((r) => { done = r; }));
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     expect(await screen.findAllByText("Checking balance…")).toHaveLength(2);
     done({ fish: { ok: false, kind: "auth" } });
     expect(await screen.findByRole("link", { name: "Fish Audio billing" })).toBeInTheDocument();
@@ -225,7 +226,7 @@ describe("balances", () => {
 
   it("never asks when no key that can say is set", async () => {
     m.keys.mockResolvedValue([inworld, { ...fish, set: false, updated_at: null }]);
-    render(<KeysBox onSignedOut={() => {}} />);
+    render(<KeysBox />);
     expect(await screen.findByRole("link", { name: "Inworld billing" })).toBeInTheDocument();
     expect(check).not.toHaveBeenCalled();
   });

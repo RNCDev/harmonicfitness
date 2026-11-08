@@ -7,12 +7,12 @@ vi.mock("./KeysBox", () => ({ KeysBox: () => null }));
 
 describe("Settings", () => {
   it("holds keys, not coaches (they have their own page)", () => {
-    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignedOut={vi.fn()} onSignOut={vi.fn()} />);
+    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
     expect(screen.queryByRole("heading", { name: "Coaches" })).toBeNull();
   });
 
   it("credits the backgrounds to Book of Shapes", () => {
-    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignedOut={vi.fn()} onSignOut={vi.fn()} onSky={vi.fn()} />);
+    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onSky={vi.fn()} />);
     const link = screen.getByRole("link", { name: "Book of Shapes" });
     expect(link).toHaveAttribute("href", "https://bookofshapes.com");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -29,7 +29,7 @@ describe("Settings", () => {
 describe("the version", () => {
   it("shows at the foot of Settings", () => {
     render(<ContextColumn username="sam" version="0.42.3 (abc1234)" open onClose={vi.fn()}
-      onSignedOut={vi.fn()} onSignOut={vi.fn()} />);
+      onSignOut={vi.fn()} />);
     expect(screen.getByText("Version 0.42.3 (abc1234)")).toBeInTheDocument();
   });
 });
@@ -44,7 +44,7 @@ const LEVELS: LevelState = {
 
 describe("your level", () => {
   afterEach(() => vi.restoreAllMocks());
-  const open = () => render(<ContextColumn username="sam" open onClose={vi.fn()} onSignedOut={vi.fn()} onSignOut={vi.fn()} />);
+  const open = () => render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
 
   it("offers the three sentences, novice until one is chosen", async () => {
     vi.spyOn(api, "level").mockResolvedValue(LEVELS);
@@ -72,5 +72,15 @@ describe("your level", () => {
     fireEvent.click(await screen.findByRole("radio", { name: /I know my way around/ }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Try again"));
     expect(screen.getByRole("radio", { name: /I've trained before/ })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+describe("an empty answer", () => {
+  afterEach(() => vi.restoreAllMocks());
+  it("leaves the level loading, never breaks the drawer", async () => {
+    vi.spyOn(api, "level").mockResolvedValue(undefined as unknown as LevelState);
+    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
+    expect(await screen.findByText("Loading your level…")).toBeInTheDocument();
+    expect(screen.getByText("Signed in as")).toBeInTheDocument();
   });
 });

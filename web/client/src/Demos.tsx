@@ -5,7 +5,10 @@
 // demos.json is written by `./harmonicfitness demos web` from docs/demos/demos.toml; the clips are on the media bucket.
 import { useEffect, useRef, useState } from "react";
 import data from "./demos.json";
-import { article } from "./zones/Starter";
+import { article, listAnd as list, seconds as secs } from "./lib/format";
+import { prefersReducedMotion as still } from "./lib/motion";
+import { Icon } from "./ui/icons";
+import { PlayButton, PlayTime, Seek } from "./ui/Player";
 
 type Demo = {
   slug: string; name: string; coach: string; minutes: number; ask: string; audio: string;
@@ -17,10 +20,6 @@ type Demo = {
 export const DEMOS = data.demos as Demo[];
 export const TURN_MS = 10000;
 
-const still = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-const secs = (at: string) => { const [m, s] = at.split(":").map(Number); return m * 60 + s; };
-const list = (xs: string[]) => (xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 /** A run of words, each its own span so a turn flips them in one after another; `from` counts on across a slide. */
 function Words({ text, from }: { text: string; from: number }) {
@@ -55,9 +54,6 @@ function Request({ d }: { d: Demo }) {
   ))}</>;
 }
 
-const PLAY = <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6L13 8z" fill="currentColor" /></svg>;
-const PAUSE = <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.6v10H4.5zM8.9 3h2.6v10H8.9z" fill="currentColor" /></svg>;
-const chevron = (d: string) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d={d} /></svg>;
 
 export function Demos() {
   const [at, setAt] = useState(0);
@@ -95,10 +91,7 @@ export function Demos() {
     const start = () => { a.currentTime = t; void a.play(); };
     if (a.readyState >= 1) start(); else a.addEventListener("loadedmetadata", start, { once: true });
   };
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const a = audio.current, r = e.currentTarget.getBoundingClientRect();
-    if (a && length) a.currentTime = ((e.clientX - r.left) / r.width) * length;
-  };
+  const seek = (t: number) => { const a = audio.current; if (a && length) { a.currentTime = t; setTime(t); } };
   const sync = () => { const a = audio.current!; setTime(a.currentTime); setLength(a.duration || 0); };
 
   return (
@@ -120,31 +113,25 @@ export function Demos() {
       </div>
 
       <div className="demo-controls">
-        <div className="demo-player">
-          <button type="button" className="demo-play" onClick={toggle}
-            aria-label={`${playing ? "Pause" : "Play"} ${d.name}'s workout`}>{playing ? PAUSE : PLAY}</button>
-          <div className="demo-seek" onClick={seek} aria-hidden="true">
-            <div className="demo-bar">
-              <div className="demo-fill" style={{ width: length ? `${(time / length) * 100}%` : 0 }} />
-              {length > 0 && d.moments.filter((m) => secs(m.at) > 0).map((m) =>
-                <span key={m.at} className="demo-tick" style={{ left: `${(secs(m.at) / length) * 100}%` }} />)}
-            </div>
-          </div>
-          <span className="demo-time">{length ? `${clock(time)} / ${clock(length)}` : "2 min"}</span>
+        <div className={`player${playing ? " on" : ""}`}>
+          <PlayButton large playing={playing} onClick={toggle} label={`${d.name}'s workout`} />
+          <Seek at={time} length={length} onSeek={(t) => { setHeld(true); seek(t); }} label={`${d.name}'s workout, position`}
+            ticks={d.moments.map((m) => secs(m.at))} />
+          <PlayTime at={time} length={length} playing={playing} idle="2 min" />
         </div>
         <div className="demo-nav">
-          <button type="button" className="demo-arrow" onClick={() => go(at - 1)} aria-label="Previous ask">{chevron("M10 3 5 8l5 5")}</button>
+          <button type="button" className="demo-arrow" onClick={() => go(at - 1)} aria-label="Previous ask"><Icon name="chevron-left" weight={2.4} /></button>
           <div className="demo-dots">
             {DEMOS.map((x, i) => <button key={x.slug} type="button" className="demo-dot" aria-label={`${x.name}'s ask`}
               aria-current={i === at} onClick={() => go(i)} />)}
           </div>
-          <button type="button" className="demo-arrow" onClick={() => go(at + 1)} aria-label="Next ask">{chevron("m6 3 5 5-5 5")}</button>
+          <button type="button" className="demo-arrow" onClick={() => go(at + 1)} aria-label="Next ask"><Icon name="chevron-right" weight={2.4} /></button>
         </div>
       </div>
 
       <div className="demo-more">
         <button type="button" aria-expanded={open} aria-controls="demo-detail" onClick={() => { setHeld(true); setOpen(!open); }}>
-          {chevron("m6 3 5 5-5 5")}About {d.name}, and what you'll hear
+          <Icon name="chevron-right" weight={2.4} />About {d.name}, and what you'll hear
         </button>
         {open && (
           <div className="demo-detail" id="demo-detail">

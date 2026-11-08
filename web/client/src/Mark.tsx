@@ -7,25 +7,18 @@
 import { useEffect, useState } from "react";
 import { APP_NAME } from "./api";
 import { FITNESS_OPACITY, MARK, UNLIT, WORDMARK, type Form } from "./brand";
+import { prefersReducedMotion } from "./lib/motion";
 
 const WORD_H = 19; // the wordmark's height at the header's size
 
 type Levels = { L: number; R: number; peakL: number; peakR: number };
-
-function reducedMotion(): boolean {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-}
 
 /** A made-up but lively pair of levels, two slow waves and a quicker one per channel, with peaks that fall back
  * slowly. Not the audio's real level: reading it would mean routing the player through Web Audio. */
 function useLevels(live: boolean, n: number): Levels | null {
   const [levels, setLevels] = useState<Levels | null>(null);
   useEffect(() => {
-    if (!live || reducedMotion()) {
+    if (!live || prefersReducedMotion()) {
       setLevels(null);
       return;
     }

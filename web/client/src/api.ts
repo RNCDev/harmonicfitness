@@ -81,15 +81,20 @@ export type Workout = { n: number; date: string; minutes: number; kit: string; c
   audio?: Audio };
 export const workoutRef = (w: Workout) => w.build_id ?? String(w.n);
 
-/** A call to the server. An empty answer (a 201 from register, a 204) is no body, whatever its status. */
-export async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
-  const r = await fetch(url, {
-    method,
-    credentials: "same-origin",
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (r.status === 401) throw new NotSignedIn("not signed in");
+/** What the page does when the server says no one is signed in: set once by the app (back to the sign-in page),
+ * so no screen has to. Every call still throws NotSignedIn, which screens just let go. */
+let authLost: () => void = () => {};
+export function setAuthLost(fn: () => void): () => void {
+  authLost = fn;
+  return () => { if (authLost === fn) authLost = () => {}; };
+}
+
+/** A 401 tells the app; any other refusal is an ApiError with the server's own words, where it sent some. */
+async function checked(r: Response): Promise<Response> {
+  if (r.status === 401) {
+    authLost();
+    throw new NotSignedIn("not signed in");
+  }
   if (!r.ok) {
     let detail = r.statusText;
     try {
@@ -100,9 +105,23 @@ export async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: st
     }
     throw new ApiError(r.status, detail);
   }
+  return r;
+}
+
+/** A call to the server. An empty answer (a 201 from register, a 204) is no body, whatever its status. */
+export async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body?: unknown): Promise<T> {
+  const r = await checked(await fetch(url, {
+    method,
+    credentials: "same-origin",
+    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }));
   const text = await r.text();
   return (text.trim() === "" ? undefined : JSON.parse(text)) as T;
 }
+
+const jobResult = (id: number) =>
+  call<{ id: number; state: JobState; error: string | null; result: unknown }>("GET", `/api/jobs/${id}`);
 
 export const api = {
   me: () => call<Me>("GET", "/api/me"),
@@ -152,36 +171,23 @@ export const api = {
   signOut: () => call<void>("POST", "/api/sign-out"),
   deleteAccount: (password: string) => call<void>("POST", "/api/account/delete", { password }),
   importFolder: async (zip: Blob): Promise<{ imported: number; left_out: number }> => {
-    const r = await fetch("/api/import", {
+    const r = await checked(await fetch("/api/import", {
       method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/zip" }, body: zip,
-    });
-    if (r.status === 401) throw new NotSignedIn("not signed in");
-    if (!r.ok) {
-      let detail = r.statusText;
-      try {
-        const j = await r.json();
-        if (typeof j?.detail === "string") detail = j.detail;
-      } catch {
-        /* no JSON body */
-      }
-      throw new ApiError(r.status, detail);
-    }
+    }));
     return r.json();
   },
   /** Starts a balance check (a worker job; one already waiting is returned), read with `jobResult`. */
   balances: () => call<{ id: number }>("POST", "/api/balances"),
-  jobResult: (id: number) =>
-    call<{ id: number; state: JobState; error: string | null; result: unknown }>("GET", `/api/jobs/${id}`),
-  job: (id: number) =>
-    call<{ id: number; state: JobState; error: string | null }>(
-      "GET", `/api/jobs/${id}`),
+  jobResult,
+  /** How a job ended (its result too, unread). */
+  job: jobResult,
 };
 
-/** A message for a person, from a failed call. */
-export function plainError(e: unknown): string {
+/** A message for a person, from a failed call: the server's words, or `fallback` when it never answered. */
+export function plainError(e: unknown, fallback = "Couldn't reach the server."): string {
   if (e instanceof ApiError && e.status === 422) return "Check what you typed and try again.";
-  if (e instanceof ApiError) return e.message;
-  return "Couldn't reach the server.";
+  if (e instanceof ApiError) return e.message || fallback;
+  return fallback;
 }
 
 function jobError(e: unknown): string {
@@ -190,7 +196,7 @@ function jobError(e: unknown): string {
 }
 
 /** One job at a time: follow its events, then read how it ended. */
-export function useJob(onSignedOut: () => void) {
+export function useJob() {
   const [job, setJob] = useState<JobView | null>(null);
   const source = useRef<EventSource | null>(null);
 
@@ -205,10 +211,10 @@ export function useJob(onSignedOut: () => void) {
       const j = await api.job(id);
       setJob((v) => (v && v.id === id ? { ...v, state: j.state, error: j.error } : v));
     } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
+      if (e instanceof NotSignedIn) return;   // the app is already on its way to the sign-in page
       setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: jobError(e) } : v));
     }
-  }, [onSignedOut]);
+  }, []);
 
   const follow = useCallback((id: number) => {
     stop();

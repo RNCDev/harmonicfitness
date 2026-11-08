@@ -155,7 +155,7 @@ them there and in <code>make.py</code>, never by hand.</p>
 <div class="ember-labels"><span>Ember low · 0</span><span>Coral · 0.65</span><span>Ember high · 1</span></div>
 
 <h3 style="margin-top:36px">The app's surfaces</h3>
-<p class="sub">From <code>web/client/src/theme.css</code>. The app is dark: paper underneath, sheets on top, and
+<p class="sub">From <code>web/client/src/tokens.css</code>, the one list the app, these docs and the web player page share. The app is dark: paper underneath, sheets on top, and
 three tones of cream for text.</p>
 <div class="swatches">
   <div class="sw" style="--s:#111215"><i></i><div><b>--paper</b><code>#111215</code><span>The page.</span></div></div>
@@ -187,7 +187,9 @@ colour, so the colour is never the only cue.</p>
     <div style="font:700 clamp(36px,5vw,56px)/1 var(--display);text-transform:uppercase;letter-spacing:.03em">Twenty-five minutes</div></div>
   <div class="type-row"><div class="meta"><b>Heading</b>Display, 700, 22 to 36 px, +0.05 em</div>
     <div style="font:700 26px/1.1 var(--display);text-transform:uppercase;letter-spacing:.06em">Today's limits</div></div>
-  <div class="type-row"><div class="meta"><b>Label</b>Display, 700, 13 to 15 px, +0.12 to 0.2 em</div>
+  <div class="type-row"><div class="meta"><b>Label, in the app</b>IBM Plex Sans Condensed, 500 to 600, 12 to 14 px, +0.16 em, uppercase, ink-3 (<code>.label</code>)</div>
+    <div style="font:600 13px/1.2 var(--font);text-transform:uppercase;letter-spacing:.16em;color:var(--ink-3)">Rest after set two</div></div>
+  <div class="type-row"><div class="meta"><b>Label, in the docs</b>Display, 700, 13 to 15 px, +0.12 to 0.2 em</div>
     <div style="font:700 14px/1 var(--display);text-transform:uppercase;letter-spacing:.16em;color:var(--coral)">Rest after set two</div></div>
   <div class="type-row"><div class="meta"><b>Body</b>IBM Plex Sans Condensed, 400, 17 px, line height 1.55</div>
     <div style="color:var(--ink-2)">Set them down and shake the arms out. That's two of three, and the next set is the same weight.</div></div>
@@ -256,7 +258,7 @@ the same top bar. Keep each page self-contained: no scripts and no build step.</
 public engine. No listener's name, health, location, log lines or drafts, even as examples: the pre-push hook and CI
 refuse them. Make up example names and facts, and keep them obviously generic.</div>
 
-<footer>Sources: <code>assets/brand/README.md</code> (the mark and colours), <code>web/client/src/theme.css</code>
+<footer>Sources: <code>assets/brand/README.md</code> (the mark and colours), <code>web/client/src/tokens.css</code>
 (the app's tokens), <code>knowledge/script.md</code> and <code>knowledge/tts-rules.md</code> (the coach's lines).
 <a href="index.html">How it fits together</a>.</footer>
 

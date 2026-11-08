@@ -8,8 +8,8 @@
 // The code says "sky"; the page says Background. (Arcs, after its Brockmann Beethoven Arcs, went in 0.46.2: Book of
 // Shapes' licence asks that one not be published. Lissajous went in 0.50.3, and Hex Strands, its
 // short-lived successor, in 0.50.4.)
-import { memo, useEffect, useRef, type ReactNode } from "react";
-import { Mark } from "./Mark";
+import { memo, useEffect, useRef } from "react";
+import { prefersReducedMotion, token } from "./lib/motion";
 
 export type SkyKind = "flow" | "field" | "waves" | "bloom" | "woven" | "garden";
 export const SKIES: { kind: SkyKind; name: string; about: string }[] = [
@@ -21,7 +21,7 @@ export const SKIES: { kind: SkyKind; name: string; about: string }[] = [
   { kind: "garden", name: "Node Garden", about: "Drifting points link and let go." },
 ];
 
-const still = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const still = prefersReducedMotion;
 
 // ---- Flow: two layers of lines, each repeating every 1440 units, so their drift loops without a seam ----
 const W = 1440;
@@ -70,6 +70,7 @@ function useCanvas(paint: Painter) {
       c!.width = Math.round(w * dpr);
       c!.height = Math.round(h * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      INK = token("--ink", INK);
       draw = paint(ctx!, w, h);
     }
     layout();
@@ -90,7 +91,8 @@ function useCanvas(paint: Painter) {
   return canvas;
 }
 
-const INK = "#EDEAE0";
+/** The canvases draw in the page's ink (tokens.css), read when each one lays out. */
+let INK = "#EDEAE0";
 
 // ---- Field: dots on a canvas, so a few thousand of them cost one draw per frame ----
 const GAP = 28;          // px between dots
@@ -467,35 +469,5 @@ export function SkyPreview({ kind }: { kind: SkyKind }) {
     <svg className="sky-mini" viewBox="0 0 160 90" aria-hidden="true">
       {dots}
     </svg>
-  );
-}
-
-/** A page with the sky behind one short task: signing in, choosing a password, a server that can't be reached.
- * `beside` (the sign-in page's demos) takes the wide column, saying what the app is, and the task sits next to it. */
-export function Solo({ version, children, beside }: { version?: string; children: ReactNode; beside?: ReactNode }) {
-  return (
-    <div className="app solo-app">
-      <Sky />
-      <SoloFrame version={version} beside={beside}>{children}</SoloFrame>
-    </div>
-  );
-}
-
-function SoloFrame({ version, children, beside }: { version?: string; children: ReactNode; beside?: ReactNode }) {
-  return (
-    <div className="work">
-      <header className="work-top"><Mark version={version} /></header>
-      {beside ? (
-        <main className="solo solo-pair">
-          {beside}
-          <div className="solo-task">{children}</div>
-        </main>
-      ) : (
-        <main className="solo">
-          <p className="eyebrow">Workouts for your earbuds, written and voiced fresh each time you ask</p>
-          {children}
-        </main>
-      )}
-    </div>
   );
 }

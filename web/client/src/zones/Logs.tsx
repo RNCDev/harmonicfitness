@@ -1,25 +1,23 @@
 // The Logs page: every logged workout, newest first, with its script, feedback, a rating and delete.
 // Sorted and filtered here, in the page; each change goes to the server and the list is read again.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Meter } from "../Mark";
-import { api, NotSignedIn, plainError, workoutRef, type Audio, type Rating, type Workout } from "../api";
+import { api, NotSignedIn, plainError, workoutRef, type Rating, type Workout } from "../api";
+import { optimistic, useAction } from "../lib/useAction";
+import { AudioFile } from "../ui/AudioFile";
+import { Button } from "../ui/Button";
+import { ConfirmInline } from "../ui/ConfirmInline";
+import { Field } from "../ui/Field";
+import { Icon } from "../ui/icons";
+import { Notice } from "../ui/Notice";
 
 type Sort = "newest" | "oldest" | "longest" | "shortest" | "best" | "worst";
 type RatingFilter = "all" | Rating | "unrated";
 
 /** A face for each rating: the mouth is what changes. */
-const Face = ({ mouth }: { mouth: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="9.5" />
-    <path d="M9 9.5h.01M15 9.5h.01" strokeWidth="2.4" />
-    <path d={mouth} />
-  </svg>
-);
-const RATINGS: { value: Rating; label: string; mouth: string }[] = [
-  { value: "positive", label: "Positive", mouth: "M8 14a4.5 4.5 0 0 0 8 0" },
-  { value: "neutral", label: "Neutral", mouth: "M8.5 15h7" },
-  { value: "negative", label: "Negative", mouth: "M8 16.5a4.5 4.5 0 0 1 8 0" },
+const RATINGS: { value: Rating; label: string }[] = [
+  { value: "positive", label: "Positive" },
+  { value: "neutral", label: "Neutral" },
+  { value: "negative", label: "Negative" },
 ];
 const SCORE: Record<string, number> = { positive: 2, neutral: 1, negative: 0 };
 
@@ -56,28 +54,7 @@ export function arrange(list: Workout[], q: string, rating: RatingFilter, format
   return [...kept].sort(by[sort]);
 }
 
-/** A logged workout's MP3, while it's kept: play it, or download it. */
-function WorkoutAudio({ audio }: { audio: Audio }) {
-  const src = `/api/media/${encodeURIComponent(audio.id)}`;
-  const until = new Date(audio.expires_at);
-  const when = Number.isNaN(until.getTime()) ? ""
-    : ` · kept until ${until.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
-  const [playing, setPlaying] = useState(false);
-  return (
-    <div className="logs-audio">
-      <div className="logs-audio-row">
-        <Meter className="audio-meter" height={22} live={playing} />
-        <audio controls preload="none" src={src} aria-label={`Play ${audio.name}`} onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
-      </div>
-      <p className="logs-audio-note">
-        <a href={`${src}?download=1`} download={`${audio.name}.mp3`}>Download the MP3</a>{when}
-      </p>
-    </div>
-  );
-}
-
-export function Logs({ onClose, onSignedOut }: { onClose: () => void; onSignedOut: () => void }) {
+export function Logs({ onClose }: { onClose: () => void }) {
   const [list, setList] = useState<Workout[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -86,19 +63,14 @@ export function Logs({ onClose, onSignedOut }: { onClose: () => void; onSignedOu
   const [kit, setKit] = useState("all");
   const [sort, setSort] = useState<Sort>("newest");
 
-  const failed = useCallback((e: unknown) => {
-    if (e instanceof NotSignedIn) onSignedOut();
-    else setError(plainError(e));
-  }, [onSignedOut]);
-
   const load = useCallback(async () => {
     try {
       setList(await api.workouts());
       setError(null);
     } catch (e) {
-      failed(e);
+      if (!(e instanceof NotSignedIn)) setError(plainError(e, "Couldn't load your workouts. Try again in a moment."));
     }
-  }, [failed]);
+  }, []);
   useEffect(() => { void load(); }, [load]);
 
   const formats = useMemo(() => [...new Set((list ?? []).map((w) => w.format ?? "").filter(Boolean))].sort(), [list]);
@@ -106,20 +78,20 @@ export function Logs({ onClose, onSignedOut }: { onClose: () => void; onSignedOu
   const shown = useMemo(() => arrange(list ?? [], q, rating, format, kit, sort), [list, q, rating, format, kit, sort]);
 
   return (
-    <section className="logs" aria-labelledby="logs-title">
-      <div className="logs-top">
+    <section className="page" aria-labelledby="logs-title">
+      <div className="page-top">
         <h1 id="logs-title">Logs</h1>
         <button type="button" className="quiet" onClick={onClose}>Back to the chat</button>
       </div>
       <div className="logs-controls">
         <label className="logs-search">
           <span className="sr">Search</span>
-          <input type="search" placeholder="Search movements, topics, feedback" value={q}
+          <input className="input" type="search" placeholder="Search movements, topics, feedback" value={q}
             onChange={(e) => setQ(e.target.value)} />
         </label>
         <label>
           <span>Rating</span>
-          <select value={rating} onChange={(e) => setRating(e.target.value as RatingFilter)}>
+          <select className="input" value={rating} onChange={(e) => setRating(e.target.value as RatingFilter)}>
             <option value="all">All</option>
             {RATINGS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             <option value="unrated">Not rated</option>
@@ -127,21 +99,21 @@ export function Logs({ onClose, onSignedOut }: { onClose: () => void; onSignedOu
         </label>
         <label>
           <span>Format</span>
-          <select value={format} onChange={(e) => setFormat(e.target.value)}>
+          <select className="input" value={format} onChange={(e) => setFormat(e.target.value)}>
             <option value="all">All</option>
             {formats.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
         </label>
         <label>
           <span>Kit</span>
-          <select value={kit} onChange={(e) => setKit(e.target.value)}>
+          <select className="input" value={kit} onChange={(e) => setKit(e.target.value)}>
             <option value="all">All</option>
             {kits.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
         </label>
         <label>
           <span>Sort</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+          <select className="input" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="longest">Longest first</option>
@@ -151,30 +123,29 @@ export function Logs({ onClose, onSignedOut }: { onClose: () => void; onSignedOu
           </select>
         </label>
       </div>
-      {error && <p className="logs-error" role="alert">{error}</p>}
-      {list === null && !error && <p className="logs-note" aria-busy="true">Loading your workouts…</p>}
-      {list !== null && list.length === 0 && <p className="logs-note">No workouts logged yet.</p>}
+      <Notice tone="error">{error}</Notice>
+      {list === null && !error && <Notice tone="busy" className="page-note">Loading your workouts…</Notice>}
+      {list !== null && list.length === 0 && <p className="page-note">No workouts logged yet.</p>}
       {list !== null && list.length > 0 && shown.length === 0 &&
-        <p className="logs-note">No workouts match. <button type="button" className="quiet" onClick={() => {
+        <p className="page-note">No workouts match. <button type="button" className="quiet" onClick={() => {
           setQ(""); setRating("all"); setFormat("all"); setKit("all");
         }}>Clear the filters</button></p>}
-      {list !== null && list.length > 0 && <p className="logs-count">{shown.length} of {list.length} workouts</p>}
+      {list !== null && list.length > 0 && <p className="page-count">{shown.length} of {list.length} workouts</p>}
       <ol className="logs-list">
-        {shown.map((w) => <WorkoutCard key={workoutRef(w) + w.date} w={w} onChanged={load} onFailed={failed} />)}
+        {shown.map((w) => <WorkoutCard key={workoutRef(w) + w.date} w={w} onChanged={load} />)}
       </ol>
     </section>
   );
 }
 
-function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => Promise<void>;
-  onFailed: (e: unknown) => void }) {
+/** One workout, with its own errors: a refused rating or note says so on its card, not at the top of the page. */
+function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<void> }) {
   const ref = workoutRef(w);
   const [script, setScript] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [rated, setRated] = useState<Rating | null>(w.rating);
-  const [confirm, setConfirm] = useState(false);
   /** What the coach noted from the last feedback (worked out in the background): null until it says. */
   const [noted, setNoted] = useState<string | null>(null);
   const live = useRef(true);
@@ -200,39 +171,30 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
     if (live.current) setNoted(null);
   };
 
-  /** Run a change, then read the list again; false when it was refused. */
-  const act = async (work: () => Promise<void>): Promise<boolean> => {
-    setBusy(true);
-    try {
-      await work();
-      await onChanged();
-      return true;
-    } catch (e) {
-      onFailed(e);
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
+  /** A change to this workout, then the list read again. */
+  const change = useAction(async (work: () => Promise<void>) => { setError(null); await work(); await onChanged(); });
+  const busy = change.busy;
+  const [deleting, setDeleting] = useState(false);
+  const shownError = error ?? change.error;
 
   const toggleScript = async () => {
     if (open) return setOpen(false);
     setOpen(true);
+    setError(null);
     if (script === null) {
       try {
         setScript(await api.workoutScript(ref));
       } catch (e) {
         setOpen(false);
-        onFailed(e);
+        if (!(e instanceof NotSignedIn)) setError(plainError(e, "Couldn't load the script. Try again."));
       }
     }
   };
 
-  const rate = (r: Rating) => {
+  // at once; put back, with the reason, if the server refuses
+  const rate = async (r: Rating) => {
     const next = rated === r ? null : r;
-    const before = rated;
-    setRated(next);   // at once; put back if the server refuses
-    void act(() => api.rateWorkout(ref, next ?? "none")).then((ok) => { if (!ok) setRated(before); });
+    setError(await optimistic(rated, next, setRated, () => api.rateWorkout(ref, next ?? "none")));
   };
 
   const title = `${longDate(w.date)}, ${w.minutes} minutes`;
@@ -245,14 +207,14 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
         </div>
         <div className="logs-rate" role="group" aria-label={`Rate the ${title} workout`}>
           {RATINGS.map((r) => (
-            <button key={r.value} type="button" className={`logs-rate-btn ${r.value}`} aria-pressed={rated === r.value}
-              title={r.label} disabled={busy} onClick={() => rate(r.value)}>
-              <Face mouth={r.mouth} /><span className="sr">{r.label}</span>
+            <button key={r.value} type="button" className={`rate-btn ${r.value}`} aria-pressed={rated === r.value}
+              title={r.label} disabled={busy} onClick={() => void rate(r.value)}>
+              <Icon name={`face-${r.value}`} size={20} weight={1.8} /><span className="sr">{r.label}</span>
             </button>
           ))}
         </div>
       </div>
-      {w.audio && <WorkoutAudio audio={w.audio} />}
+      {w.audio && <AudioFile audio={w.audio} preload="none" />}
       <p className="logs-moves">{w.movements.join(", ")}</p>
       {w.topics && <p className="logs-topics">Topics: {w.topics}</p>}
       {w.feedback.length > 0 && (
@@ -262,19 +224,17 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
       )}
       {noted && <p className="logs-noted" role="status">{noted}</p>}
       <div className="logs-actions">
-        <button type="button" className="act" aria-expanded={open} disabled={!w.has_script}
-          title={w.has_script ? undefined : "No script was kept for this workout"} onClick={() => void toggleScript()}>
+        <Button aria-expanded={open} disabled={!w.has_script} aria-describedby={w.has_script ? undefined : `noscript-${ref}`}
+          onClick={() => void toggleScript()}>
           {open ? "Hide the script" : "Show the script"}
-        </button>
-        {!confirm
-          ? <button type="button" className="act danger" disabled={busy} onClick={() => setConfirm(true)}>Delete</button>
-          : <span className="logs-confirm" role="alert">
-              Delete this workout, its feedback and its files?
-              <button type="button" className="act danger" disabled={busy}
-                onClick={() => void act(() => api.deleteWorkout(ref))}>Delete it</button>
-              <button type="button" className="act" onClick={() => setConfirm(false)}>Keep it</button>
-            </span>}
+        </Button>
+        {!w.has_script && <span className="notice" id={`noscript-${ref}`}>No script was kept for this workout.</span>}
+        {!deleting
+          ? <Button danger disabled={busy} onClick={() => setDeleting(true)}>Delete</Button>
+          : <ConfirmInline question="Delete this workout, its feedback and its files?" confirm="Delete it"
+              busy={busy} onConfirm={() => void change.run(() => api.deleteWorkout(ref))} onKeep={() => setDeleting(false)} />}
       </div>
+      <Notice tone="error">{shownError}</Notice>
       {open && (
         <div className="logs-script" tabIndex={0} aria-label="Script">
           {script === null ? <p aria-busy="true">Loading the script…</p> : script}
@@ -284,18 +244,17 @@ function WorkoutCard({ w, onChanged, onFailed }: { w: Workout; onChanged: () => 
         e.preventDefault();
         const text = note.trim();
         if (!text) return;
-        void act(async () => {
+        void change.run(async () => {
           const r = await api.workoutFeedback(ref, text);
           setNote("");
           if (r?.job_id) void follow(r.job_id);
         });
       }}>
-        <label>
-          <span className="sr">Feedback on this workout</span>
-          <input type="text" maxLength={1000} placeholder="Add feedback: too long, loved the quiz…" value={note}
+        <Field id={`feedback-${ref}`} label="Feedback on this workout" hideLabel>
+          <input className="input" type="text" maxLength={1000} placeholder="Add feedback: too long, loved the quiz…" value={note}
             onChange={(e) => setNote(e.target.value)} disabled={busy} />
-        </label>
-        <button type="submit" className="act" disabled={busy || !note.trim()}>Save</button>
+        </Field>
+        <Button type="submit" busy={busy} disabled={!note.trim()}>Save</Button>
       </form>
     </li>
   );

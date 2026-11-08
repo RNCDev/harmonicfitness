@@ -131,6 +131,14 @@ The browser client is in `client/` (Vite, React and TypeScript; Node 20 or later
     npm run build     # writes dist/, which the server above serves
     npm run dev       # a dev server on :5173 that sends /api and /link to the server on :8000
 
+How `client/src/` is laid out:
+
+- **`tokens.css`**: every colour, size, space, corner, layer and duration, the one list. `theme.css` imports it and types in no colour of its own (`theme.test.ts`); `docs/tokens.css` is an exact copy and the web player page (`tools/webcopy.py`) inlines it (`tests/test_tokens.py`).
+- **`lib/`**: logic shared by the pages, with no markup: how numbers, lists, prices and times are written (`format.ts`), the keys (`keys.ts`), reduced motion (`motion.ts`), a button's call to the server (`useAction`: busy, error; `optimistic` and `useSaved`: change at once, put back with the reason), the first screen's request (`useStartInfo`), Logs' and Coaches' addresses (`usePage`: `#logs`, `#coaches`) and a panel that holds the keyboard (`useFocusTrap`: the Settings drawer and the body chart).
+- **`ui/`**: the shared pieces: `Button` (busy and disabled in one place), `Field` (a label, hint and error tied to the input), `Notice` and `Loadable` (errors, notes, loading), `ConfirmInline` (asking before a delete), `Player` (the round button and the slider the demos and the Coaches page share), `AudioFile` (a workout's MP3), `icons`, `Solo` and `PasswordForm`.
+- **`zones/`**: the pages. A page may show another page's component, but takes no helper from it, and `lib/` and `ui/` never reach into a page (`layers.test.ts`).
+- **A lost session** is handled once: `api.ts` tells the app (`setAuthLost`) on any 401, and the pages just let `NotSignedIn` go.
+
 ## Deploy
 
 The web client runs on Fly.io (`fly.toml`, app `harmonicfitness`, region `iad`). The root `Dockerfile` builds one image (the client built in a Node stage, then the engine and `web/` on `python:3.11-slim` with ffmpeg and the `web` extra only: no local voices), which Fly runs as two process groups, told apart by `HARMONICFITNESS_ROLE`; `web/entrypoint.sh` starts the right one:

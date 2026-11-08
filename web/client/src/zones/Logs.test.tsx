@@ -41,7 +41,7 @@ describe("arrange", () => {
 
 describe("the Logs page", () => {
   it("lists the workouts newest first and filters them", async () => {
-    render(<Logs onClose={() => {}} onSignedOut={() => {}} />);
+    render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
     expect(screen.getByText("3 of 3 workouts")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Rating"), { target: { value: "positive" } });
@@ -53,9 +53,9 @@ describe("the Logs page", () => {
   });
 
   it("plays and offers a workout's MP3 while it's kept, and only then", async () => {
-    m.workouts.mockResolvedValue([W({ audio: { id: "m-1", name: "Workout 2026-10-30", expires_at: "2026-10-31T20:00:00Z" } }),
+    m.workouts.mockResolvedValue([W({ audio: { id: "m-1", name: "Workout 2026-10-30", expires_at: new Date(Date.now() + 86400000).toISOString() } }),
       W({ n: 2, build_id: "bbb222" })]);
-    render(<Logs onClose={() => {}} onSignedOut={() => {}} />);
+    render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(2));
     expect(within(cards()[0]).getByLabelText("Play Workout 2026-10-30")).toHaveAttribute("src", "/api/media/m-1");
     expect(within(cards()[0]).getByRole("link", { name: "Download the MP3" })).toHaveAttribute("href", "/api/media/m-1?download=1");
@@ -63,7 +63,7 @@ describe("the Logs page", () => {
   });
 
   it("rates, and a second press clears the rating", async () => {
-    render(<Logs onClose={() => {}} onSignedOut={() => {}} />);
+    render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
     const first = cards()[0];
     fireEvent.click(within(first).getByRole("button", { name: "Positive" }));
@@ -75,16 +75,16 @@ describe("the Logs page", () => {
 
   it("puts a refused rating back and says why", async () => {
     m.rateWorkout.mockRejectedValue(new ApiError(409, "Your files changed at the same moment. Try again."));
-    render(<Logs onClose={() => {}} onSignedOut={() => {}} />);
+    render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
     const btn = within(cards()[0]).getByRole("button", { name: "Neutral" });
     fireEvent.click(btn);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
+    expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("Try again");   // on its own card
     await waitFor(() => expect(btn).toHaveAttribute("aria-pressed", "false"));
   });
 
   it("shows the script, saves feedback and deletes after a confirm", async () => {
-    render(<Logs onClose={() => {}} onSignedOut={() => {}} />);
+    render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
     const first = cards()[0];
     fireEvent.click(within(first).getByRole("button", { name: "Show the script" }));

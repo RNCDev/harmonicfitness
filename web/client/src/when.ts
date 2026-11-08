@@ -23,14 +23,14 @@ export function withOffset(d: Date): string {
 }
 
 /** "7:00 AM" in the browser's own way of writing a time. */
-export function clock(d: Date): string {
+export function timeOfDay(d: Date): string {
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 /** "7:00 AM", "tomorrow at 6:30 AM", "Friday at 6:30 AM": a time ahead, from where `now` is. */
 export function ahead(d: Date, now: Date = new Date()): string {
   const days = Math.round((new Date(localDate(d)).getTime() - new Date(localDate(now)).getTime()) / 86400000);
-  return days <= 0 ? clock(d) : days === 1 ? `tomorrow at ${clock(d)}` : `${DAYS[d.getDay()]} at ${clock(d)}`;
+  return days <= 0 ? timeOfDay(d) : days === 1 ? `tomorrow at ${timeOfDay(d)}` : `${DAYS[d.getDay()]} at ${timeOfDay(d)}`;
 }
 
 /** The times a workout can be planned for: every half hour from at least half an hour ahead, for a day. */

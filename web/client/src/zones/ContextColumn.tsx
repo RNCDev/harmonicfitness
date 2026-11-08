@@ -1,55 +1,48 @@
 // The Settings drawer. On a wide screen, two rows of two: the keys (what's used most) beside the listener's own
 // choices (their level, recording, the background behind the page, called the sky in the code, with its credit); then
-// their files (download, bring in a folder) beside the account (who is signed in, the password, another device, signing out, deleting it). On a phone, one
-// column in the same order.
-import { useEffect, useRef, useState } from "react";
+// their files (download, bring in a folder) beside the account (who is signed in, the password, another device, signing
+// out, deleting it). On a phone, one column in the same order. While it's open it holds the keyboard: Tab stays
+// inside, Escape closes it, and the page behind can't be reached.
+import { useEffect, useRef, useState, type RefObject } from "react";
 import QRCode from "qrcode";
 import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type Level, type LevelState } from "../api";
-import { PasswordForm } from "../SignIn";
+import { clockAt } from "../lib/format";
+import { optimistic, useAction } from "../lib/useAction";
+import { useFocusTrap } from "../lib/useFocusTrap";
 import { SKIES, SkyPreview, type SkyKind } from "../Sky";
+import { Button } from "../ui/Button";
+import { Field } from "../ui/Field";
+import { Loadable, Notice } from "../ui/Notice";
+import { PasswordForm } from "../ui/PasswordForm";
 import { KeysBox } from "./KeysBox";
 
-function until(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
+/** A QR code must be black on white for a phone's camera, whatever the page's colours. */
+const QR_COLOURS = { dark: "#000000", light: "#ffffff" };
 
-function DeviceLinkBox({ onSignedOut }: { onSignedOut: () => void }) {
+function DeviceLinkBox() {
   const [link, setLink] = useState<DeviceLink | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [drawError, setDrawError] = useState<string | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const make = useAction(async () => { setDrawError(null); setLink(await api.deviceLink()); },
+    { fallback: "Couldn't make a link. Try again." });
 
   useEffect(() => {
     if (link && canvas.current) {
-      QRCode.toCanvas(canvas.current, link.url, {
-        width: 200, margin: 2, color: { dark: "#000000", light: "#ffffff" },
-      }).catch(() => setError("Couldn't draw the code; the link below still works."));
+      QRCode.toCanvas(canvas.current, link.url, { width: 200, margin: 2, color: QR_COLOURS })
+        .catch(() => setDrawError("Couldn't draw the code; the link below still works."));
     }
   }, [link]);
 
-  async function make() {
-    setBusy(true);
-    setError(null);
-    try {
-      setLink(await api.deviceLink());
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      setError("Couldn't make a link. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  const until = link ? clockAt(link.expires_at) : "";
   return (
     <div className="cx-box">
-      <button type="button" className="act" onClick={make} disabled={busy}>
+      <Button busy={make.busy} busyLabel="Making a link…" onClick={() => void make.run()}>
         {link ? "Make a new link" : "Sign in another device"}
-      </button>
-      {error && <p className="cx-s err" role="alert">{error}</p>}
+      </Button>
+      <Notice tone="error">{make.error ?? drawError}</Notice>
       {link && (
         <div className="device">
-          <p className="cx-s">Scan this code with your phone, or open the link on the other device. It works once, for 10 minutes{until(link.expires_at) && ` (until ${until(link.expires_at)})`}.</p>
+          <p className="cx-s">Scan this code with your phone, or open the link on the other device. It works once, for 10 minutes{until && ` (until ${until})`}.</p>
           <canvas ref={canvas} className="qr" aria-label="QR code of the sign-in link" role="img" />
           <p className="link"><code>{link.url}</code></p>
         </div>
@@ -58,36 +51,23 @@ function DeviceLinkBox({ onSignedOut }: { onSignedOut: () => void }) {
   );
 }
 
-function ImportBox({ onSignedOut }: { onSignedOut: () => void }) {
-  const [busy, setBusy] = useState(false);
+function ImportBox() {
   const [note, setNote] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function take(file: File | undefined) {
-    if (!file) return;
-    setBusy(true);
+  const take = useAction(async (file: File) => {
     setNote(null);
-    setError(null);
-    try {
-      const r = await api.importFolder(file);
-      setNote(`Brought in ${r.imported} files${r.left_out ? ` (left out ${r.left_out}: keys, audio, caches, backups)` : ""}.`);
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      setError(e instanceof ApiError ? e.message : "Couldn't send it. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
+    const r = await api.importFolder(file);
+    setNote(`Brought in ${r.imported} files${r.left_out ? ` (left out ${r.left_out}: keys, audio, caches, backups)` : ""}.`);
+  }, { fallback: "Couldn't send it. Try again." });
 
   return (
     <div className="cx-box">
-      <label className="act">
-        {busy ? "Bringing it in…" : "Bring in a folder"}
-        <input type="file" accept=".zip,application/zip" disabled={busy} className="sr"
-          onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ""; }} />
+      <label className="act" aria-busy={take.busy || undefined}>
+        {take.busy ? "Bringing it in…" : "Bring in a folder"}
+        <input type="file" accept=".zip,application/zip" disabled={take.busy} className="sr"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void take.run(f); e.target.value = ""; }} />
       </label>
-      {note && <p className="cx-s" role="status">{note}</p>}
-      {error && <p className="cx-s err" role="alert">{error}</p>}
+      <Notice className="cx-s">{note}</Notice>
+      <Notice tone="error">{take.error}</Notice>
     </div>
   );
 }
@@ -96,43 +76,28 @@ function ExportBox() {
   return <a className="act" href="/api/export" download>Download your files</a>;
 }
 
-function DeleteBox({ onSignedOut }: { onSignedOut: () => void }) {
+function DeleteBox({ onDeleted }: { onDeleted: () => void }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function remove() {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.deleteAccount(password);
-      onSignedOut();
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      setError(e instanceof ApiError ? e.message : "Couldn't delete it. Try again.");
-      setBusy(false);
-    }
-  }
+  const remove = useAction(async () => { await api.deleteAccount(password); onDeleted(); },
+    { fallback: "Couldn't delete it. Try again.", hold: true });
 
   return (
     <div className="cx-box">
       {!open ? (
         <button type="button" className="quiet danger" onClick={() => setOpen(true)}>Delete my account</button>
       ) : (
-        <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove(); }}>
-          <p className="cx-s err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
-          <label>
-            Your password
-            <input type="password" autoComplete="current-password" value={password}
+        <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove.run(); }}>
+          <p className="notice err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
+          <Field id="delete-password" label="Your password" error={remove.error}>
+            <input className="input" type="password" autoComplete="current-password" value={password}
               onChange={(e) => setPassword(e.target.value)} />
-          </label>
-          {error && <p className="err" role="alert">{error}</p>}
+          </Field>
           <div className="keys-actions">
-            <button type="submit" className="go danger" disabled={busy || !password}>
-              {busy ? "Deleting…" : "Delete everything"}
-            </button>
-            <button type="button" className="quiet" onClick={() => { setOpen(false); setPassword(""); setError(null); }}>Cancel</button>
+            <Button type="submit" variant="primary" danger busy={remove.busy} busyLabel="Deleting…" disabled={!password}>
+              Delete everything
+            </Button>
+            <Button variant="text" disabled={remove.busy} onClick={() => { setOpen(false); setPassword(""); remove.clear(); }}>Cancel</Button>
           </div>
         </form>
       )}
@@ -140,20 +105,17 @@ function DeleteBox({ onSignedOut }: { onSignedOut: () => void }) {
   );
 }
 
-function PasswordBox({ username, onSignedOut }: { username: string; onSignedOut: () => void }) {
+function PasswordBox({ username }: { username: string }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
   return (
     <div className="cx-box">
       {open ? (
-        <PasswordForm username={username} needsCurrent onSignedOut={onSignedOut}
-          onDone={() => { setOpen(false); setDone(true); }} />
+        <PasswordForm username={username} needsCurrent onDone={() => { setOpen(false); setDone(true); }} />
       ) : (
-        <button type="button" className="act" onClick={() => { setOpen(true); setDone(false); }}>
-          Change password
-        </button>
+        <Button onClick={() => { setOpen(true); setDone(false); }}>Change password</Button>
       )}
-      {done && <p className="cx-s" role="status">Password changed.</p>}
+      {done && <Notice className="cx-s">Password changed.</Notice>}
     </div>
   );
 }
@@ -164,20 +126,26 @@ type Props = {
   version?: string;
   open: boolean;
   onClose: () => void;
-  onSignedOut: () => void;
+  /** Sign out, at the listener's ask. */
   onSignOut: () => void;
+  /** The account is gone: back to the sign-in page. */
+  onDeleted?: () => void;
   onKeys?: (keys: KeyState[]) => void;
   /** A key row to open in edit mode (the welcome card's "Add your key"). */
   openRow?: { service: string; n: number; choose?: boolean } | null;
-  /** The background behind the page (the sky), and the choice of it. */
+  /** The background behind the page (the sky), the choice of it, and why the last choice didn't hold. */
   sky?: SkyKind;
   onSky?: (sky: SkyKind) => void;
+  skyError?: string | null;
   /** Record without asking: a checked script records at once, with no Record button. */
   autoRecord?: boolean;
   onAutoRecord?: (on: boolean) => void;
+  autoRecordError?: string | null;
+  /** Where focus goes when the drawer closes (the Settings button). */
+  returnFocus?: RefObject<HTMLElement>;
 };
 
-function RecordBox({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+function RecordBox({ on, onChange, error }: { on: boolean; onChange: (on: boolean) => void; error?: string | null }) {
   return (
     <section className="cx-box" aria-labelledby="cx-rec-h">
       <h3 className="cx-h" id="cx-rec-h">Recording</h3>
@@ -190,64 +158,67 @@ function RecordBox({ on, onChange }: { on: boolean; onChange: (on: boolean) => v
           ? "A checked script records without showing you the price first (usually less than 1 USD)."
           : "Preview the pricing (usually less than 1 USD) and waits for you to initiate recording."}
       </p>
+      <Notice tone="error">{error}</Notice>
     </section>
   );
 }
 
 /** The listener's level, picked by the sentence that fits them: it sets the movements, the doses and how much the
  *  coach explains. Novice until one is chosen, as the planning assumes. Chosen at once, then saved; put back if refused. */
-function LevelBox({ onSignedOut }: { onSignedOut: () => void }) {
+function LevelBox() {
   const [state, setState] = useState<LevelState | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     api.level().then((s) => { if (live) setState(s); }).catch((e) => {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      if (live) setError("Your level couldn't be loaded.");
+      if (live && !(e instanceof NotSignedIn)) setLoadError("Your level couldn't be loaded.");
     });
     return () => { live = false; };
-  }, [onSignedOut]);
+  }, []);
 
   async function choose(level: Level) {
     if (!state || level === state.level) return;
-    const before = state;
-    setState({ ...state, level, set: true });
-    setError(null);
-    try {
-      await api.setLevel(level);
-    } catch (e) {
-      if (e instanceof NotSignedIn) return onSignedOut();
-      setState(before);
-      setError(e instanceof ApiError && e.status === 409 ? e.message : "Your level couldn't be saved. Try again.");
-    }
+    setError(await optimistic(state, { ...state, level, set: true }, setState, async () => {
+      try {
+        await api.setLevel(level);
+      } catch (e) {
+        // a clash says what happened in the server's words; anything else in ours
+        throw e instanceof NotSignedIn || (e instanceof ApiError && e.status === 409) ? e : new Error("not saved");
+      }
+    }, "Your level couldn't be saved. Try again."));
   }
 
   return (
     <section className="cx-box" aria-labelledby="cx-level-h">
       <h3 className="cx-h" id="cx-level-h">Your level</h3>
-      {state && (
-        <div className="level-opts" role="radiogroup" aria-labelledby="cx-level-h">
-          {state.choices.map((c) => (
-            <button key={c.level} type="button" role="radio" aria-checked={state.level === c.level}
-              className={`level-opt${state.level === c.level ? " on" : ""}`} onClick={() => void choose(c.level)}>
-              <span className="level-dot" aria-hidden="true" />
-              <span>{c.said}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      <p className="cx-s">
-        {state && !state.set
-          ? "Not chosen yet, so workouts are planned for someone new. Pick the one that fits."
-          : "Setting your level adjusts your trainer's guidance."}
-      </p>
-      {error && <p className="cx-s err" role="alert">{error}</p>}
+      <Loadable value={state} error={loadError} what="your level" room={150}>
+        {(s) => (
+          <>
+            <div className="level-opts" role="radiogroup" aria-labelledby="cx-level-h">
+              {s.choices.map((c) => (
+                <button key={c.level} type="button" role="radio" aria-checked={s.level === c.level}
+                  className={`level-opt${s.level === c.level ? " on" : ""}`} onClick={() => void choose(c.level)}>
+                  <span className="level-dot" aria-hidden="true" />
+                  <span>{c.said}</span>
+                </button>
+              ))}
+            </div>
+            <p className="cx-s">
+              {!s.set
+                ? "Not chosen yet, so workouts are planned for someone new. Pick the one that fits."
+                : "Setting your level adjusts your trainer's guidance."}
+            </p>
+          </>
+        )}
+      </Loadable>
+      <Notice tone="error">{error}</Notice>
     </section>
   );
 }
 
-function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void }) {
+function SkyBox({ sky, onSky, error }: { sky: SkyKind; onSky: (sky: SkyKind) => void; error?: string | null }) {
   return (
     <section className="cx-box" aria-labelledby="cx-sky-h">
       <h3 className="cx-h" id="cx-sky-h">Background</h3>
@@ -260,6 +231,7 @@ function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void })
           </button>
         ))}
       </div>
+      <Notice tone="error">{error}</Notice>
       <p className="cx-s sky-credit">
         Patterns after <a href="https://bookofshapes.com" target="_blank" rel="noopener noreferrer">Book of Shapes</a> by
         Nikolaj Sokolowski.
@@ -268,12 +240,15 @@ function SkyBox({ sky, onSky }: { sky: SkyKind; onSky: (sky: SkyKind) => void })
   );
 }
 
-export function ContextColumn({ username, version, open, onClose, onSignedOut, onSignOut, onKeys, openRow,
-  sky = "flow", onSky, autoRecord = false, onAutoRecord }: Props) {
+export function ContextColumn({ username, version, open, onClose, onSignOut, onDeleted = onSignOut, onKeys, openRow,
+  sky = "flow", onSky, skyError, autoRecord = false, onAutoRecord, autoRecordError, returnFocus }: Props) {
+  const drawer = useRef<HTMLElement>(null);
+  useFocusTrap(drawer, open, { onEscape: onClose, returnFocus, inert: true });
   return (
     <>
-      <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" />
-      <aside className={`ctx${open ? " open" : ""}`} id="ctx" aria-label="Settings">
+      <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" data-scrim="" />
+      <aside ref={drawer} className={`ctx${open ? " open" : ""}`} id="ctx" aria-label="Settings" role="dialog"
+        aria-modal={open || undefined}>
         <div className="ctx-top">
           <h2>Settings</h2>
           <button type="button" className="ctx-close" onClick={onClose}>Close</button>
@@ -281,18 +256,18 @@ export function ContextColumn({ username, version, open, onClose, onSignedOut, o
         {/* a wide screen: the keys beside your choices, then your files beside the account; a phone: one column */}
         <div className="cx-list">
           <div className="cx-cell cx-keys">
-            <KeysBox onSignedOut={onSignedOut} onKeys={onKeys} openRow={openRow} />
+            <KeysBox onKeys={onKeys} openRow={openRow} />
           </div>
           <div className="cx-cell cx-prefs">
-            <LevelBox onSignedOut={onSignedOut} />
-            {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} />}
-            {onSky && <SkyBox sky={sky} onSky={onSky} />}
+            <LevelBox />
+            {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} error={autoRecordError} />}
+            {onSky && <SkyBox sky={sky} onSky={onSky} error={skyError} />}
           </div>
           <section className="cx-cell cx-files" aria-labelledby="cx-files-h">
             <h3 className="cx-h" id="cx-files-h">Your files</h3>
             <div className="act-row">
               <ExportBox />
-              <ImportBox onSignedOut={onSignedOut} />
+              <ImportBox />
             </div>
             <p className="cx-s">Your profile, log and workouts as a ZIP, or a <code>me</code> folder from
               HarmonicFitness on your computer. Keys are never included.</p>
@@ -302,12 +277,12 @@ export function ContextColumn({ username, version, open, onClose, onSignedOut, o
             <p className="cx-s">Signed in as <strong>{username}</strong></p>
             {/* what a button opens (the password form, the sign-in code) comes below its row */}
             <div className="act-row">
-              <PasswordBox username={username} onSignedOut={onSignedOut} />
-              <DeviceLinkBox onSignedOut={onSignedOut} />
+              <PasswordBox username={username} />
+              <DeviceLinkBox />
             </div>
             <div className="cx-foot">
               <button type="button" className="quiet" onClick={onSignOut}>Sign out</button>
-              <DeleteBox onSignedOut={onSignedOut} />
+              <DeleteBox onDeleted={onDeleted} />
               {version && <p className="cx-version">Version {version}</p>}
             </div>
           </section>
@@ -316,3 +291,4 @@ export function ContextColumn({ username, version, open, onClose, onSignedOut, o
     </>
   );
 }
+

@@ -2,6 +2,44 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.67.0] - 2026-11-07
+
+The web client after a front-end audit: one list of colours and sizes for the app, the docs and the web player page; one way to show a busy button, an error, a field and a disabled control; errors shown beside what failed; Logs and Coaches with addresses of their own; and Settings and the body chart holding the keyboard while they're open. Minor at the maintainer's ask: nothing in `me/`, the drafts, the commands or the exit codes changes, but the client's own parts moved (see For forks).
+
+### Added
+- **`web/client/src/tokens.css`**, the one list of every colour, type size, letter-spacing, space, corner, layer and duration. `theme.css` imports it and types in no colour of its own; `docs/tokens.css` is an exact copy that `docs.css` imports; the web player page inlines it.
+- **Shared parts** in `client/src/ui/`: `Button` (busy and disabled in one place, with words like "Deleting…" while it waits), `Field` (a label, hint and error tied to the input for a screen reader), `Notice` and `Loadable` (errors, notes and loading, each said one way), `ConfirmInline` (asking before a delete, focus on the way back), `Player` (the round button, a real slider and the time), `AudioFile` (a workout's MP3), `icons`, `Solo` and `PasswordForm`.
+- **Shared logic** in `client/src/lib/`: `format.ts` (prices, lists, times, "a" or "an"), `keys.ts`, `motion.ts`, `steps.ts`, `useAction` (a call's busy and error), `optimistic` and `useSaved` (change at once, put back with the reason), `useStartInfo`, `usePage` and `useFocusTrap`.
+- **Logs and Coaches have addresses**, `#logs` and `#coaches`: a reload keeps the page, and the back button closes it.
+- **Tests that hold the rules:** `theme.test.ts` (no colour typed into `theme.css`, no token used that isn't defined), `layers.test.ts` (`lib/` and `ui/` never reach into a page; a page takes only components from another; reduced motion asked in one place; no page signs itself out), and `tests/test_tokens.py` (the docs' copy is exact, the brand colours equal `assets/brand/make.py`'s, the player page is the app's look, with or without `web/`).
+
+### Changed
+- **A lost session is handled once:** `api.ts` tells the app on any 401 (`setAuthLost`), so no page needs to. `onSignedOut` went from 85 mentions in 11 files to the two that mean it: signing out and deleting the account.
+- **Errors show beside what failed.** A refused rating or note on the Logs page says so on its own card, not at the top of the page. A background, the recording switch or a coach that didn't save now says why, where before it snapped back without a word. A too-short password is said under the password box, which turns brick.
+- **One disabled look:** every disabled control dims the same (it was 40% to 60%, and some links didn't dim at all), and nothing disabled brightens under the pointer.
+- **One look per kind of control:** the eight outlined buttons share one rule; the three input styles are one `.input`; the dozen small uppercase labels are one rule; headings take their sizes from one scale. Sixteen font sizes (with six half-pixel ones) became twelve steps; eleven letter-spacings became five.
+- **Settings and the body chart hold the keyboard:** focus moves in, Tab stays inside, Escape closes, and focus goes back to the button that opened it. While Settings is open, the page behind can't be reached.
+- **The sign-in demos' clip can be skipped through from the keyboard:** the line under it is a slider, as on the Coaches page.
+- **Said, not hidden in a tooltip:** a body-chart side kept off by the health notes has a line saying how to change it, and a workout with no script says "No script was kept for this workout."
+- **"Gemini key saved."** (or removed) shows once a key is saved; before, the row only closed.
+- **Loading says what's loading**, in the room the content will take: the keys, your level (it was blank, then jumped in), the coaches.
+- **The web player page** (`tools/webcopy.py`, made for Claude Code on the web) is in the app's colours and type, dark only. It had a green accent and a light theme of its own.
+- **The chat's progress is announced once:** the coach's working steps no longer have a live region of their own inside the chat's.
+- **The style guide** says the app's labels are in the body face, and the docs' in the display face, as each is; its surfaces table points at `tokens.css`.
+
+### Fixed
+- **An MP3 on the Logs page whose time has passed** says it has expired, as the chat does, rather than offering a player that can't play.
+
+### For forks
+- **Nothing to migrate in `me/`.**
+- **If you changed the web client,** these moved:
+  - `useConversation()` and `useJob()` take no argument.
+  - `onSignedOut` is gone from `ContextColumn`, `KeysBox`, `Logs`, `PasswordForm` and `ChoosePassword`. The drawer takes `onDeleted` and `returnFocus` instead.
+  - `Chat`'s props are grouped into `first` (the welcome, the waiting conversation, the request) and `offers` (Record, Schedule, Cancel).
+  - `Solo` moved from `Sky.tsx`, and `PasswordForm` from `SignIn.tsx`, to `ui/`. `stepsOf` moved from `zones/Chat.tsx` to `lib/steps.ts`, `keyRows`, `hasModelKey` and `FIRST` from `zones/KeysBox.tsx` to `lib/keys.ts`, and `article` from `zones/Starter.tsx` to `lib/format.ts`. `when.ts`'s `clock` is `timeOfDay`.
+  - The CSS classes `.logs`, `.logs-top` and `.logs-note` are `.page`, `.page-top` and `.page-note`. `.cg-play`, `.cg-btn`, `.cg-seek` and the demo player's classes are `.player`, `.play`, `.seek` and `.p-time`. `.logs-rate-btn` is `.rate-btn`, and `--mad` is `--coral`.
+- **A colour of your own goes in `tokens.css`,** or `theme.test.ts` fails. Copy `tokens.css` to `docs/tokens.css` after changing it, or `test_tokens` fails.
+
 ## [0.66.0] - 2026-11-06
 
 A kit can be shown instead of listed: drop a photo or two of the room, the garage or the hotel gym in the chat, and the assistant reads the equipment and weights from them, reads the list back, and writes nothing until the listener says it's right. The photos are never saved.

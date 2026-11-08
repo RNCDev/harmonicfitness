@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { Chat, stepsOf } from "./Chat";
+import { Chat } from "./Chat";
+import { stepsOf } from "../lib/steps";
 
 const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
 
@@ -59,8 +60,8 @@ describe("the chat", () => {
 
   it("offers the priced recording with its price, and records on the button", () => {
     const onRecord = vi.fn();
-    render(<Chat {...base} offer={{ name: "Workout 5 min", coach: "Coach Reed", chars: 3000, usd: 0.045,
-      service: "fish" }} onRecord={onRecord} />);
+    render(<Chat {...base} offers={{ offer: { name: "Workout 5 min", coach: "Coach Reed", chars: 3000, usd: 0.045,
+      service: "fish" }, onRecord }} />);
     expect(screen.getByText(/3,000 characters on Fish Audio, about \$0.05/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Record it (about $0.05)" }));
     expect(onRecord).toHaveBeenCalled();
@@ -70,21 +71,20 @@ describe("the chat", () => {
     const at = new Date(Date.now() + 3 * 3600000).toISOString();
     const later = { at, local: "x", minutes: 15, coach: "Coach Freya", usd: 0.124, ceiling_usd: 0.151 };
     const onSchedule = vi.fn();
-    const { rerender } = render(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} later={later}
-      onSchedule={onSchedule} />);
+    const { rerender } = render(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} offers={{ later, onSchedule }} />);
     expect(screen.getByText(/About \$0.13, and never more than \$0.16/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Schedule it (up to $0.16)" }));
     expect(onSchedule).toHaveBeenCalled();
     const onCancel = vi.fn();
-    rerender(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} scheduled onCancel={onCancel}
-      later={{ ...later, due: new Date(Date.now() + 2.75 * 3600000).toISOString() }} />);
+    rerender(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} offers={{ scheduled: true, onCancel,
+      later: { ...later, due: new Date(Date.now() + 2.75 * 3600000).toISOString() } }} />);
     expect(screen.queryByRole("button", { name: /Schedule it/ })).toBeNull();
     expect(screen.getByText(/Scheduled for/)).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalled();
     rerender(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]}
-      later={{ ...later, at: new Date(Date.now() - 60000).toISOString() }} />);
+      offers={{ later: { ...later, at: new Date(Date.now() - 60000).toISOString() } }} />);
     expect(screen.queryByRole("button", { name: /Schedule it/ })).toBeNull();   // its time has passed
   });
 
@@ -98,7 +98,7 @@ describe("the chat", () => {
 
   it("offers the waiting conversation on the first screen", () => {
     const onResume = vi.fn();
-    render(<Chat {...base} waiting={{ offer: false, at: null }} onResume={onResume} />);
+    render(<Chat {...base} first={{ waiting: { offer: false, at: null }, onResume }} />);
     fireEvent.click(screen.getByRole("button", { name: /Pick up where you left off/ }));
     expect(onResume).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Your coach asked you something.")).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("the chat", () => {
     const onAddKey = vi.fn();
     const need = [{ name: "Claude", service: "anthropic", voice: false }, { name: "ChatGPT", service: "openai", voice: false },
       { name: "Gemini", service: "gemini", voice: true }, { name: "OpenRouter", service: "openrouter", voice: true }];
-    render(<Chat {...base} needsKey={need} onAddKey={onAddKey} />);
+    render(<Chat {...base} first={{ needsKey: need, onAddKey }} />);
     expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
     const picks = screen.getAllByRole("button").filter((b) => b.className === "welcome-pick");
     expect(picks.map((b) => b.querySelector(".welcome-pick-name")?.textContent)).toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"]);
@@ -145,9 +145,9 @@ describe("the chat", () => {
   });
 
   it("with a key, offers the starter sentence once it knows what to fill it with", () => {
-    const { rerender } = render(<Chat {...base} needsKey={null} />);
+    const { rerender } = render(<Chat {...base} first={{ needsKey: null }} />);
     expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
-    rerender(<Chat {...base} needsKey={null} start={{ coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false }} />);
+    rerender(<Chat {...base} first={{ needsKey: null, start: { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false } }} />);
     expect(screen.getByRole("region", { name: "Plan a workout" })).toBeInTheDocument();
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();

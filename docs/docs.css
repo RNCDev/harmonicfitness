@@ -1,24 +1,16 @@
-/* HarmonicFitness docs: one stylesheet for every page in docs/. Tokens match web/client/src/theme.css;
-   the layer colours are the docs' own (style-guide.html, Colour). */
+/* HarmonicFitness docs: one stylesheet for every page in docs/. The tokens are the app's own (tokens.css, copied
+   from web/client/src/tokens.css); the layer colours are the docs' own (style-guide.html, Colour). */
+
+@import url("tokens.css");   /* the app's tokens: an exact copy of web/client/src/tokens.css (tests/test_tokens.py) */
 
 :root {
-  /* the app's tokens */
-  --paper: #111215; --sheet: #1A1B20; --sheet-2: #22232A;
-  --ink: #EDEAE0; --ink-2: #C2C1BA; --ink-3: #9A9993;
-  --rule: #34353B; --line: #4A4A47; --dim: #6E6E69;
-  --coral: #FF5A3C; --ember-low: #8C2F22; --ember-high: #FFC2AE;
-  --blue: #9DBEDD; --blue-tint: #1C2530; --stop: #E3907D; --stop-tint: #3A201B;
-  --font: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
-  --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --gut: clamp(16px, 4vw, 56px);
+  --gut: clamp(16px, 4vw, 56px);   /* the docs' own gutter, narrower on a phone than the app's */
 
   /* one colour per layer, the same on every page */
   --knowledge: var(--blue);
   --coaches: var(--coral);
   --me: var(--ember-high);
   --tools: var(--ink);
-  color-scheme: dark;
 }
 
 * { box-sizing: border-box }

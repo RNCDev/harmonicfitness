@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, call, checkBalances } from "./api";
+import { api, ApiError, call, checkBalances, NotSignedIn, plainError, setAuthLost } from "./api";
 
 function answer(status: number, body: string | null) {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));
@@ -43,5 +43,25 @@ describe("checkBalances", () => {
     await expect(checkBalances({ every: 1 })).resolves.toBeNull();
     answers({ id: 2 }, { id: 2, state: "queued", error: null, result: null });
     await expect(checkBalances({ every: 1, within: 0 })).resolves.toBeNull();
+  });
+});
+
+describe("a lost session", () => {
+  it("tells the app once, from any call, and still throws NotSignedIn", async () => {
+    const lost = vi.fn();
+    const off = setAuthLost(lost);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 401 })));
+    await expect(call("GET", "/api/me")).rejects.toBeInstanceOf(NotSignedIn);
+    await expect(api.importFolder(new Blob(["x"]))).rejects.toBeInstanceOf(NotSignedIn);
+    expect(lost).toHaveBeenCalledTimes(2);
+    off();
+    await expect(call("GET", "/api/me")).rejects.toBeInstanceOf(NotSignedIn);
+    expect(lost).toHaveBeenCalledTimes(2);   // let go
+  });
+
+  it("words a refusal: the server's words, else the caller's fallback", () => {
+    expect(plainError(new ApiError(409, "Your files changed."))).toBe("Your files changed.");
+    expect(plainError(new ApiError(422, "x"))).toBe("Check what you typed and try again.");
+    expect(plainError(new TypeError("fetch failed"), "Couldn't send it. Try again.")).toBe("Couldn't send it. Try again.");
   });
 });
