@@ -21,6 +21,7 @@ a note here.
 |---|---|---|
 | [2026-10-21-session-structure.md](2026-10-21-session-structure.md) | Training: block order, methods, pattern balance, joint-load ladders, exercise count | `sessions.toml` (block order, push and pull balance) |
 | [2026-10-30-movement-library.md](2026-10-30-movement-library.md) | Exercises, biomechanics, equipment: the 49 drafts finished and 103 new movements of 0.41.0 to 0.42.0, the new equipment, the refused names | `movements.toml` (loads, levels, coaching, `[unlisted]`), `kits.md` |
+| [2026-11-08-pulls-and-presses.md](2026-11-08-pulls-and-presses.md) | Exercises: four pulls and presses for small kits (band pulldown, band overhead press, staggered-stance row, reverse snow angel), and the doorframe row left out | `movements.toml` (loads, levels, coaching) |
 | [2026-11-02-red-flags.md](2026-11-02-red-flags.md) | Safety: the signs that stop a session, by urgency (heart, a clot in the leg, cauda equina, Achilles rupture, the neck) | `limits.toml` (`red_flags`, `emergency`), `injury-playbook.md` |
 | [2026-11-02-neck-and-hip.md](2026-11-02-neck-and-hip.md) | Safety: exercise around a known neck or hip problem | `limits.toml` (neck, hip), `injury-playbook.md` |
 | [2026-11-02-elbow-wrist-rib.md](2026-11-02-elbow-wrist-rib.md) | Safety: tennis elbow, a broken wrist and the scaphoid, rib injuries | `limits.toml` (elbow, wrist, rib), `injury-playbook.md` |

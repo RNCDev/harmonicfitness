@@ -10,6 +10,9 @@ The chat reads as one conversation on a wide screen. It used to start at the lef
 - **A conversation sits in one centred column** (`web/client/src/styles/frame.css`, `Chat.tsx`): once there's a line, the coach bar, the lines, the cards and the box to write in share a column at most `--talk` (52rem, a new token in `tokens.css` and its copy in `docs/`) wide. The first screen keeps its layout.
 - **The log scrolls the full width,** so its bar sits at the window's edge, and it's thin and in the theme's colours (`chat.css`); the Logs and Settings pages' bar too (`pages.css`).
 
+### Added
+- **Four pulls and presses for small kits** (`knowledge/movements.toml`), where a bodyweight, band or one-weight kit had one or two to choose from, so a whole-body session repeated the same row or skipped pulling: `band-lat-pulldown` (kneeling, the band anchored high in a door), `band-overhead-press` (standing on the band), `staggered-stance-row` (one weight, the free hand on the front thigh, no bench) and `reverse-snow-angel` (face down, no kit). All novice. The evidence, and why a doorframe row was left out, is in `knowledge/research/2026-11-08-pulls-and-presses.md`.
+
 ## [0.71.4] - 2026-11-08
 
 A scheduled workout's note no longer says to leave the page open. The writing and recording run on the server at their time, whether the page is open or not; an open page only shows the workout without a refresh.

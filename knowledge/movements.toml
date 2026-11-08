@@ -1372,8 +1372,6 @@ faults = ["If your neck strains, keep your forehead resting and look at the floo
 easier = []
 harder = []
 
-# Strength: arms ----------------------------------------------------------------------------
-
 [[movement]]
 id = "reverse-snow-angel"
 name = "reverse snow angel"
@@ -1398,6 +1396,8 @@ feel = "Feel it between and below the shoulder blades, not in the neck or the lo
 faults = ["If your low back arches or your head lifts, keep your forehead on the towel and lift the hands lower.", "If you shrug, slide the shoulders away from your ears.", "If the hands drop to the floor, make the sweep smaller and slower."]
 easier = []
 harder = []
+
+# Strength: arms ----------------------------------------------------------------------------
 
 [[movement]]
 id = "hammer-curl"
