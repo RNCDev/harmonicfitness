@@ -157,7 +157,7 @@ function RecordBox({ on, onChange, error }: { on: boolean; onChange: (on: boolea
       <p className="cx-s switch-note">
         {on
           ? "A checked script records without showing you the price first (usually less than 1 USD)."
-          : "Preview the pricing (usually less than 1 USD) and waits for you to initiate recording."}
+          : "Shows you the price first (usually less than 1 USD) and waits for you to press Record."}
       </p>
       <Notice tone="error">{error}</Notice>
     </section>

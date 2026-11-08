@@ -700,9 +700,26 @@ async def _lint(deps, plain, path: str, full: str, name: str | None, coach: str 
     await asyncio.to_thread(tools.write_file, deps, path, draft)
     r = await asyncio.to_thread(tools.run, plain, ["build", path, name, "--coach", coach, "--lint-only"])
     out = (r.output + "\n" + r.error).strip()
-    logline(deps, f"lint exit {r.code} {time.monotonic() - began:.1f}s")
+    logline(deps, f"lint exit {r.code} {time.monotonic() - began:.1f}s" + (f": {issue_kinds(out)}" if r.code else ""))
     deps.linted = plain.linted   # a clean lint here: the build after the room prices this text without another
     return ("clean: " if r.code == 0 else "") + out
+
+
+ISSUE = re.compile(r"^\s*line \d+: ([^:(]{1,40})", re.MULTILINE)
+
+
+def issue_kinds(lint: str) -> str:
+    """What a failed lint found, by kind only ("digits x2, an ellipsis"), for the worker's log: never the script's
+    words, which may be the listener's. Which kinds the host's draft misses most is what its guide should say."""
+    kinds: dict[str, int] = {}
+    for m in ISSUE.finditer(lint):
+        kind = m.group(1).strip()
+        kinds[kind] = kinds.get(kind, 0) + 1
+    for words, kind in (("<-- too long", "total too long"), ("<-- too short", "total too short"),
+                        ("menu issue", "off the menu")):
+        if words in lint:
+            kinds[kind] = 1
+    return ", ".join(f"{k} x{n}" if n > 1 else k for k, n in kinds.items()) or "no line issue (see the check)"
 
 
 STORY = re.compile(r"[ \t]*\[story\](.*?)\[/story\][ \t]*\n?", re.IGNORECASE | re.DOTALL)

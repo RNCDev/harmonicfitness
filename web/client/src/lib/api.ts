@@ -45,7 +45,12 @@ export type JobView = {
 
 export type Audio = { id: string; name: string; expires_at: string };
 export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
-export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean };
+/** The plan the engine worked out from the draft's own segments (`get plan`), so its times add up. */
+export type PlanRow = { what: string; kind: "movement" | "rest" | "talk"; segments: number; seconds: number };
+export type Plan = { rows: PlanRow[]; seconds: number };
+/** `first`: no script has gone to a voice service yet, so the card says where it goes. */
+export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean;
+  plan?: Plan | null; first?: boolean };
 /** A workout for later: its time (UTC and the listener's), and once the check-in is done, its cost and ceiling;
  * `due` once it's scheduled (when the writing starts). */
 export type Later = { at: string; local: string; due?: string; done?: boolean; minutes?: number; coach?: string;

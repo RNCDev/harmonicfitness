@@ -417,7 +417,9 @@ def render_cloud(voice, todo, clips, seed, cache_path, sent, max_chars=None):
                 in_a_row[0] = 0
             return secs
         jobs = {}
-        for text in todo:
+        # the longest lines go out first, so the last requests still out are short ones: with a few at once,
+        # the render no longer waits on one long line sent at the end
+        for text in sorted(todo, key=len, reverse=True):
             i = at[text]
             ctx = {"previous_text": order[i - 1] if i else None,
                    "next_text": order[i + 1] if i + 1 < len(order) else None}

@@ -41,7 +41,7 @@ class Shape(unittest.TestCase):
     def test_starter_template(self):
         r = shape(coverage=COVERAGE_EMPTY)
         self.assertEqual(set(r), {"coaches", "kits", "minutes", "limits", "suggest", "setup_quick"})
-        self.assertEqual(r["minutes"], 25)
+        self.assertEqual(r["minutes"], start.FIRST_MINUTES)   # no level yet: the quick start's ten-minute workout
         self.assertEqual(r["limits"], [])
         self.assertIsNone(r["suggest"])
         self.assertTrue(r["setup_quick"])
@@ -61,7 +61,7 @@ class Shape(unittest.TestCase):
     def test_no_files_at_all(self):
         r = shape(files={}, coaches=[], coverage=None)
         self.assertEqual(r["coaches"], [])
-        self.assertEqual(r["minutes"], 25)
+        self.assertEqual(r["minutes"], start.FIRST_MINUTES)
         self.assertEqual(r["limits"], [])
         self.assertIsNone(r["suggest"])
         self.assertTrue(r["setup_quick"])
@@ -71,7 +71,7 @@ class Shape(unittest.TestCase):
         files = {"profile.md": b"+++\nnot = [toml\n+++\n", "training.md": b"+++\nnever closes\n",
                  "health.md": b"+++\nlimits = 3\n+++\n", "settings.toml": b"=", "log.md": b"\xff\xfe"}
         r = shape(files=files)
-        self.assertEqual((r["minutes"], r["limits"], r["setup_quick"]), (25, [], True))
+        self.assertEqual((r["minutes"], r["limits"], r["setup_quick"]), (start.FIRST_MINUTES, [], True))
 
     def test_ready_coach_is_current_then_ready_first(self):
         r = shape(keyed={"gemini", "inworld"})
@@ -129,7 +129,8 @@ class Shape(unittest.TestCase):
         self.assertEqual(pick(log(("2026-10-01", "Coach Owen")), ("coach-gone-fish", "2026-10-02")), "Owen")
 
     def test_minutes(self):
-        seed = folder.seed(ROOT)
+        """A listener with a level gets their usual length; one with none yet, the first workout's ten minutes."""
+        seed = edit(folder.seed(ROOT), "profile.md", 'experience = ""', 'experience = "novice"')
         for words, want in (("forty-five", 45), ("fifteen", 15), ("30", 30), ("ninety", 60), ("5", 10),
                             ("half an hour", 30), ("an hour", 60), ("whatever", 25)):
             with self.subTest(words):
@@ -147,7 +148,7 @@ class Shape(unittest.TestCase):
 
     def test_kits_from_profile_with_presets_after(self):
         files = edit(folder.seed(ROOT), "training.md", 'name = "home"', 'name = "garage"')
-        files = edit(files, "training.md", 'equipment = ["dumbbells", "band", "mat"]',
+        files = edit(files, "training.md", 'equipment = []',
                      'equipment = ["kettlebell"]\n\n[[kits]]\nname = "hotel-room"\nequipment = []')
         kits = shape(files=files)["kits"]
         self.assertEqual([(k["id"], k["preset"]) for k in kits],
@@ -199,7 +200,7 @@ class Gather(unittest.TestCase):
     def test_no_files(self):
         r = start.gather(ROOT, {}, set())
         self.assertEqual(r["coaches"][0]["slug"], "coach-reed-fish")
-        self.assertEqual(r["minutes"], 25)
+        self.assertEqual(r["minutes"], start.FIRST_MINUTES)
 
 
 class Kept(unittest.TestCase):

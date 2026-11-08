@@ -10,4 +10,6 @@ For each segment, return its number and its notes, as short plain lines, never t
 - Every line the listener must hear word for word, each on its own line starting `SAY EXACTLY:` (a limit cue the first time in a movement, a stop sign). In the welcome, the rules this session needs: each limit's opening line on a line starting `SAY, EVERY PART KEPT:`, then each clinician rule, the stop rule, the heart rule (with any line the brief adds to it) and the made-by-AI line, each `SAY EXACTLY:` or `SAY, EVERY PART KEPT:`, in the full or the short form as the rules below say, with what overlaps folded together as they say.
 - Where the plan says a story goes, what the host should know around it (the cue before it, how to hand back), never the story. A rest that carries one keeps its coaching to a breath, the self-check where one falls, and what's next: the story has the rest of the time, so no extra breathing or shake-out lines.
 
+Write the notes in a coach's plain words, not a textbook's: no clinical or science terms (parasympathetic, eccentric, VO2, motor units). Say what it does for them ("long, slow breaths out settle the heart rate").
+
 Leave the welcome's warmth and the close to the host, who knows the listener: give them only the facts (the session's shape, what changed, what to ask at the end).

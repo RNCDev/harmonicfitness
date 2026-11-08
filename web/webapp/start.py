@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from . import engine, folder, worker
 
 MINUTES_DEFAULT, MINUTES_MIN, MINUTES_MAX = 25, 10, 60
+FIRST_MINUTES = 10   # the setup skill's quick start ends with a ten-minute workout
 READ_TIMEOUT = 60   # seconds per engine command; a cold start on the server is slower than a laptop's
 KEEP_SECONDS = 3600   # how long an answer is kept for a listener whose files don't change
 KEEP_USERS = 256      # answers kept at once; the least recently asked goes first
@@ -268,7 +269,8 @@ def shape(files: dict[str, bytes], keyed, coaches: list, coverage: dict | None, 
     return {
         "coaches": _coaches(coaches, frozenset(keyed), used, list(services), chosen),
         "kits": _kits(ctx, profile, training, presets),
-        "minutes": _minutes(fm, training_prose),
+        # a new listener (no level yet) is offered the quick start's ten-minute first workout
+        "minutes": _minutes(fm, training_prose) if profile.get("experience") else FIRST_MINUTES,
         "limits": _limits(health),
         "suggest": _suggest(coverage, goals),
         "setup_quick": setup == "quick",

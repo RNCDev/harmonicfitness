@@ -2,6 +2,33 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.69.0] - 2026-11-08
+
+What a browser walk of a new listener's first ten-minute workout on the web app found, fixed. The coach no longer assumes equipment: a new listener's home kit is bodyweight only until they say what they have, and the quick start asks. The Record card shows the plan, worked out by the engine from the script itself, so its times always add up (the model's own table had added a 600-second workout to 500 seconds), and, before the first recording, where the script goes (the privacy line, which the model had left out). The coach's lettered answers show one to a line, the first workout ends with what to do next, and a new listener is offered ten minutes and novice as the safe pick. Minor at the maintainer's ask: the template's kit changes what a new `me/` folder holds (see For forks).
+
+### Added
+- **`./harmonicfitness get plan --draft <draft>`**: the plan a draft holds, from its own segments: each declared movement's sets and time in the order it comes, then the rests, then the talk (welcome, setups, changeovers), with the total. `--json` prints `{"rows": [{"what", "kind", "segments", "seconds"}], "seconds"}`; without it, a small table. The rows always add up to the draft's length.
+- **The Record card shows that plan**, read beside the price, so it adds no wait. A workout recorded with no card (Record without asking, a scheduled one) gives the model the same table to post as it stands.
+- **The privacy line on the Record card** before the first build that sends a script to a voice service (`get web-builds` is 0): where the script goes, that it can mention injuries, what Gemini's free tier may do with it, and that the key is kept encrypted and removed in Settings. The model says it only when there's no card.
+- **The first workout's closing.** After a new listener's first recording, the coach adds two lines: "switch coach" or the Coaches page for another voice, "finish setting me up" for stories about what they're into, and that a line on how it went shapes the next one.
+- **The worker's log names what a failed room lint found,** by kind only ("digits x2", "total too long"), never the script's words, so what the host's draft misses most can be put in its guide.
+
+### Changed
+- **A new listener's home kit is bodyweight only** (`me.example/training.md`: `equipment = []`; it listed dumbbells, a band and a mat), and the quick start always asks the Kit question, with "Bodyweight only" recommended: "at home" in the first screen's sentence names the place, not what's there. A session never plans around equipment the listener hasn't said they own.
+- **Novice is the recommended level** in the quick start (it was "experienced"): with nothing known yet, safe comes first.
+- **On the web, the quick start's first reply asks the name and the level together** ("Sam, a" answers both), then the kit: two short replies before the workout is written, where it was name, then level.
+- **The first screen offers ten minutes to a new listener** (no level yet), the quick start's first workout, in place of the template's twenty-five.
+- **The coach's line breaks show as line breaks.** A reply's lines ("a) …", "b) …") ran together as one paragraph in the chat; each single break between two lines of text is kept now, while tables, lists and code keep Markdown's own rules.
+- **The model writes no plan table on the web** and says nothing of the plan's times: its one line before the Record card names the format and the equipment ("A bodyweight circuit, no equipment needed"). It had said "the Record button above" of a button below.
+- **The trainer's notes and the host's script are in plain words** (no "parasympathetic tone"), and the host leads into each story with a line of its own and ends it on its detail, never a moral.
+- **A `log-session` sent ahead of the recording reads "Noting the session for your log"** on the listener's steps, as a success; it read "Logging the session" before anything was recorded, and the worker logged it as exit 1.
+- **A web render sends its longest lines first,** so the last requests still out are short ones.
+- **Settings' Record without asking, off:** "Shows you the price first (usually less than 1 USD) and waits for you to press Record." The step clock has a space before it for a screen reader ("…step away 8 s", not "away8s").
+
+### For forks
+- **New `me/` folders get a bodyweight-only home kit.** Nothing to migrate: an existing folder keeps its own kits. If your fork's first screen or tests read the template's kit, it's `equipment = []` now.
+- **A Record offer can carry `plan` and `first`** (`GET /api/conversations/...`'s `offer`); a client that ignores them shows the card as before.
+
 ## [0.68.0] - 2026-11-08
 
 The web client after a second front-end audit: the rules the stylesheet already kept for colour now hold for spacing, type size, corners, breakpoints and hover too; every button with a shared look is the one Button; every list loads, fails and sits empty the same way, with Try again and a next step; a refused username or password is said under its own box; the body chart takes a fingertip on a phone; and the request's lists close when focus leaves them. Minor at the maintainer's ask: nothing in `me/`, the drafts, the commands or the exit codes changes, but the client's files moved and two tokens were renamed (see For forks).

@@ -367,18 +367,20 @@ def _coach_folders(home: str) -> set[str]:
 RECORDING = "Recording your workout"
 AUTO_RECORDED = ("Recorded straight away: the listener chose Record without asking in Settings, so there was no "
                  "Record button. Log the session unless the site says below that it did, then end your turn with "
-                 "the plan in one small table, the coach, and a line saying it's ready (in place of the one-line "
-                 "reply).")
+                 "the plan (the table below, as it stands: the site worked it out from the script), the coach, and "
+                 "a line saying it's ready (in place of the one-line reply).")
 SCHEDULED_RECORDED = ("Recorded on time: the listener scheduled this workout and approved it, up to its ceiling, when "
                       "they pressed Schedule it, so there was no Record button. Log the session unless the site says "
-                      "below that it did, then end your turn with the plan in one small table, the coach, and a line "
-                      "saying it's ready for their time (in place of the one-line reply).")
+                      "below that it did, then end your turn with the plan (the table below, as it stands: the site "
+                      "worked it out from the script), the coach, and a line saying it's ready for their time (in "
+                      "place of the one-line reply).")
 # log-session's refusal for a draft not built as it stands: sent ahead of its recording, it's kept for then
 NOT_BUILT = "no build of"
 LOG_KEPT = ("Kept: this draft isn't recorded yet, so the site logs the session with these fields the moment the "
             "recording is made. Don't run log-session for it again.")
 ALREADY_LOGGED = "Already logged: the site logged this session as the recording was made. Nothing more to log."
 LOGGING = "Logging the session"
+NOTING_LOG = "Noting the session for your log"   # a log-session sent before the recording: kept until it's made
 NOTING = "Noting the stories you heard"
 
 
@@ -535,16 +537,23 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
     logs = tools._flag(rest, "--draft") if first == "log-session" else None
     if logs and deps.logged == logs:   # the site logged it as the recording was made
         return ToolResult(code=0, output=ALREADY_LOGGED)
-    result = _step(deps, text, tool, lambda: tools.run(deps, args))
+    if logs and deps.recorded != logs:   # sent ahead of the recording: noted now, logged once it's made
+        text = NOTING_LOG
+
+    def work() -> ToolResult:
+        r = tools.run(deps, args)
+        if logs and not r.refused and r.code != 0 and NOT_BUILT in r.output + r.error:
+            # kept, and run by the site the moment the recording is made (log_after): a success, on the
+            # listener's steps and in the worker's log alike
+            deps.pending_log = list(rest)
+            if deps.offer and deps.offer.get("draft") == logs:
+                deps.offer["log"] = list(rest)
+            return ToolResult(code=0, output=LOG_KEPT)
+        return r
+    result = _step(deps, text, tool, work)
     if result.refused:   # the site's own refusal: the script wasn't checked, so nothing about it changes
         return result
-    if logs and result.code != 0 and NOT_BUILT in result.output + result.error:
-        # sent ahead of the recording: kept, and run by the site the moment the recording is made (log_after)
-        deps.pending_log = list(rest)
-        if deps.offer and deps.offer.get("draft") == logs:
-            deps.offer["log"] = list(rest)
-        return ToolResult(code=0, output=LOG_KEPT)
-    if logs and result.code == 0:
+    if logs and result.code == 0 and result.output != LOG_KEPT:
         deps.logged = logs
     if first == "build" and deps.skeleton:   # the lint gave the budgets: the words come next
         # after the whole skeleton's budgets come the rests, the stories: the request that writes them thinks hardest
@@ -563,8 +572,9 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
             recorded = run(ctx, args)
             if not deps.recorded:
                 return recorded
+            table = tools.plan_table(offer)
             return recorded.model_copy(update={"output": (SCHEDULED_RECORDED if deps.scheduled_run else AUTO_RECORDED)
-                                               + "\n" + recorded.output})
+                                               + ("\n\n" + table + "\n" if table else "") + "\n" + recorded.output})
     elif first == "brief":
         deps.phase = "brief"
         if deps.writers == "three" and result.code == 0:

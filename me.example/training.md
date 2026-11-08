@@ -7,9 +7,10 @@ dislikes = []
 
 # Equipment kits a session can be planned with: a name and the equipment ids you have there (./harmonicfitness movements lists them); the first is the default. For free weights, add the weights you have, lightest to heaviest, and their unit, such as weights = { dumbbells = [10, 15, 20] } and unit = "lb".
 
+# Until setup asks what you have, home is bodyweight only: a session never plans around equipment you may not own.
 [[kits]]
 name = "home"
-equipment = ["dumbbells", "band", "mat"]
+equipment = []
 +++
 # Training
 

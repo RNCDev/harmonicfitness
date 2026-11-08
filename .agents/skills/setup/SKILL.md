@@ -35,8 +35,8 @@ If `me/profile.md` already has real answers, this is an update: ask only about w
 
 1. **One AskUserQuestion round, four questions:**
    - **Name:** what the coach should call them (options: "Use my first name" and "No name", with their name through Other). It goes in the settings as `name`.
-   - **Experience:** "How would you describe yourself?", with three options in the listener's words: "I'm new to this, or it's been a long while." (novice), "I've trained before and know the basic moves, but I'm no expert." (experienced, Recommended), "I know my way around and want to be pushed." (advanced). It becomes `experience`, which sets the movements and doses, and how much the coach explains.
-   - **Kit:** bodyweight only, a hotel room, a gym, or "what's at home" through Other (dumbbells, bands, a bench...). It becomes the first `[[kits]]` row (Kits, below).
+   - **Experience:** "How would you describe yourself?", with three options in the listener's words: "I'm new to this, or it's been a long while." (novice, Recommended: with nothing known yet, safe comes first, and it changes any time), "I've trained before and know the basic moves, but I'm no expert." (experienced), "I know my way around and want to be pushed." (advanced). It becomes `experience`, which sets the movements and doses, and how much the coach explains.
+   - **Kit:** bodyweight only (Recommended), a hotel room, a gym, or "what's at home" through Other (dumbbells, bands, a bench...). It becomes the first `[[kits]]` row (Kits, below). Always asked: the template's home kit is bodyweight only until they say what they have, so a session never plans around equipment they may not own.
 <!-- web: skip -->
    - **Kit by photo:** say in the Kit question that a photo or two of where they train works too ("or say 'photos' and drop them in the chat"); photos are read by Kits from photos, below, once the round is answered.
 <!-- web: end -->

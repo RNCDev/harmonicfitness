@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatLine, Later, Offer, StartInfo } from "../lib/api";
-import { clockAt, count, dollars, timeOfDay } from "../lib/format";
+import type { ChatLine, Later, Offer, Plan, StartInfo } from "../lib/api";
+import { clockAt, count, dollars, mss, timeOfDay } from "../lib/format";
 import { serviceName, writerRank } from "../lib/keys";
+import { keepLineBreaks } from "../lib/lines";
 import type { Step } from "../lib/steps";
 import { Quiet, useAction } from "../lib/useAction";
 import { AudioFile } from "../ui/AudioFile";
@@ -96,14 +97,41 @@ function useApproval(act?: () => Promise<boolean> | void) {
   return useAction(async () => { if ((await act?.()) === false) throw new Quiet(); }, { hold: true });
 }
 
+/** The plan, from the draft's own segments: each movement's sets and time, then the rests and the talk. */
+function PlanTable({ plan }: { plan: Plan }) {
+  return (
+    <table className="plan">
+      <thead><tr><th scope="col">Part</th><th scope="col">Sets</th><th scope="col">Time</th></tr></thead>
+      <tbody>
+        {plan.rows.map((r) => (
+          <tr key={r.what}><td>{r.what}</td><td>{r.kind === "talk" ? "" : r.segments}</td><td>{mss(r.seconds)}</td></tr>
+        ))}
+      </tbody>
+      <tfoot><tr><th scope="row">Total</th><td /><td>{mss(plan.seconds)}</td></tr></tfoot>
+    </table>
+  );
+}
+
+/** Said once, on the card before the first recording: where the script goes, and what that means. */
+function privacyNote(service: string): string {
+  const name = serviceName(service);
+  return `Recording sends the script to ${name}, and it can mention your injuries ("easy on that left knee").`
+    + (service === "gemini"
+      ? " On Gemini's free tier, Google may use what it's sent to improve its models, with human review; a paid key doesn't."
+      : "")
+    + " Your key is stored encrypted on this site, never shown again, and removed in Settings.";
+}
+
 function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promise<boolean> | void }) {
   const rec = useApproval(onRecord);
   const price = offer.usd < 0.01 ? dollars(offer.usd) : `about ${dollars(offer.usd)}`;
   return (
     <div className="m a offer">
       <p><strong>{offer.name}</strong> is ready to record with {offer.coach}.</p>
+      {offer.plan && offer.plan.rows.length > 0 && <PlanTable plan={offer.plan} />}
       <p className="cx-s">{count(offer.chars)} characters on {serviceName(offer.service)}, {price}
         {offer.design ? ", including designing the coach's voice" : ""}. It's charged to your own key.</p>
+      {offer.first && <p className="cx-s privacy">{privacyNote(offer.service)}</p>}
       <Button variant="primary" busy={rec.busy} busyLabel="Starting…" onClick={() => void rec.run()}>
         {`Record it (${price})`}
       </Button>
@@ -217,7 +245,7 @@ function Working({ steps, stopping }: { steps: Step[]; stopping: boolean }) {
             <li key={s.key} className={`${s.running ? "now" : s.failed ? "bad" : ""}${s.think ? " think" : ""}`}
               aria-current={s.running ? "step" : undefined}>
               {s.text}{s.think && s.running ? "…" : ""}
-              {s.running && age(s) >= TIMED && <span className="step-t">{elapsed(began.current.get(s.key!)!)}</span>}
+              {s.running && age(s) >= TIMED && <>{" "}<span className="step-t">{elapsed(began.current.get(s.key!)!)}</span></>}
             </li>
           ))}
         </ul>
@@ -278,7 +306,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
             <p key={i} className="m u">{l.text}</p>
           ) : (
             <div key={i} className="m a md">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{l.text}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{keepLineBreaks(l.text)}</ReactMarkdown>
             </div>
           ))}
         {offer && !working && <RecordOffer offer={offer} onRecord={onRecord} />}

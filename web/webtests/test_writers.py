@@ -173,6 +173,18 @@ class Plan(unittest.TestCase):
         self.assertEqual(writers.pieces_for(1), 2)
 
 
+class IssueKinds(unittest.TestCase):
+    def test_a_failed_lint_is_logged_by_kind_never_by_its_words(self):
+        lint = ("2 issue(s). Fix and rerun.\n  4    50    75  Air squat set 1\n"
+                "  line 46: digits: spell numbers out, as in '10 now'\n  line 47: digits: spell them\n"
+                "  line 52: an ellipsis: use a comma\n")
+        self.assertEqual(writers.issue_kinds(lint), "digits x2, an ellipsis")
+        self.assertNotIn("10 now", writers.issue_kinds(lint))
+        self.assertEqual(writers.issue_kinds("Predicted length 10.9 min, +9.0% of plan (...)  <-- too long: trim words"),
+                         "total too long")
+        self.assertEqual(writers.issue_kinds("1 issue(s)."), "no line issue (see the check)")
+
+
 class Assemble(unittest.TestCase):
     def test_the_hosts_script_keeps_the_skeletons_clock_and_a_segment_left_out_keeps_its_markers(self):
         draft = writers.apply_edits(SKELETON, [

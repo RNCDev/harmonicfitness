@@ -127,6 +127,45 @@ def declared(text):
     return list(dict.fromkeys(out))
 
 
+REST_LABEL = re.compile(r"^\s*rest\b", re.IGNORECASE)
+TALK = "Talk and changeovers"
+
+
+def summary(text, names):
+    """The plan a draft holds, from its own segments, so its times always add up: one row per movement in the
+    order it first comes, then its rests, then the talk between (welcome, setups, changeovers). `names` is [(display name, [names it goes by])] for the declared movements; a segment belongs to the
+    movement its label names first, a label starting "Rest" to the rests, any other to the talk. Returns
+    {"rows": [{"what", "kind" ("movement", "rest" or "talk"), "segments", "seconds"}], "seconds": total}."""
+    forms = [(shown, [re.compile(r"(?<![a-z])" + re.escape(" ".join(n.lower().replace("-", " ").split()))
+                                 + r"(?:e?s)?(?![a-z])") for n in known if n.strip()]) for shown, known in names]
+    rows = {}
+    for seg in parse(text):
+        label = " ".join(seg["label"].lower().replace("-", " ").split())
+        if REST_LABEL.match(label):
+            what, kind = "Rests", "rest"
+        else:
+            hits = [(m.start(), shown) for shown, pats in forms for pat in pats for m in [pat.search(label)] if m]
+            what, kind = (min(hits)[1], "movement") if hits else (TALK, "talk")
+        row = rows.setdefault(what, {"what": what, "kind": kind, "segments": 0, "seconds": 0})
+        row["segments"] += 1
+        row["seconds"] += seg["seconds"]
+    order = {"movement": 0, "rest": 1, "talk": 2}
+    out = sorted(rows.values(), key=lambda r: order[r["kind"]])   # stable: movements keep the order they come in
+    return {"rows": out, "seconds": sum(r["seconds"] for r in out)}
+
+
+def summary_lines(plan):
+    """The plan as a small Markdown table: what, how many sets (or rests), and time."""
+    def clock(sec):
+        return f"{sec // 60}:{sec % 60:02d}"
+    out = ["| | Sets | Time |", "|---|---|---|"]
+    for r in plan["rows"]:
+        count = "" if r["kind"] == "talk" else str(r["segments"])
+        out.append(f"| {r['what']} | {count} | {clock(r['seconds'])} |")
+    out.append(f"| **Total** | | **{clock(plan['seconds'])}** |")
+    return out
+
+
 def is_smoke(path):
     """Whether `path` is the engine's smoke test (knowledge/smoke-test.draft.txt), known by its place, never by
     its name: it's the one draft that builds without a menu."""

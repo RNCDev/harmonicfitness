@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Chat } from "./Chat";
 import { stepsOf } from "../lib/steps";
+import type { Offer } from "../lib/api";
 
 const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
 
@@ -229,5 +230,37 @@ describe("the chat", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(onSend).toHaveBeenCalledWith("20 minutes, legs");
     expect(sessionStorage.getItem("hf-chat-draft")).toBeNull();
+  });
+});
+
+const offer: Offer = {
+  name: "Workout 10 min", coach: "Coach Fraser", chars: 6951, usd: 0.1, service: "gemini",
+  plan: { rows: [{ what: "Air squat", kind: "movement", segments: 2, seconds: 100 },
+                 { what: "Rests", kind: "rest", segments: 5, seconds: 150 },
+                 { what: "Talk and changeovers", kind: "talk", segments: 2, seconds: 80 }], seconds: 330 },
+};
+
+describe("the Record card", () => {
+  const show = (o: Offer) =>
+    render(<Chat {...base} lines={[{ role: "agent", text: "a) Novice\nb) Experienced" }]} offers={{ offer: o }} />);
+
+  it("shows the plan the engine worked out, with its total", () => {
+    show(offer);
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Air squat")).toBeInTheDocument();
+    expect(within(table).getByText("1:40")).toBeInTheDocument();
+    expect(within(table).getByText("5:30")).toBeInTheDocument();
+    expect(screen.queryByText(/free tier/)).toBeNull();
+  });
+
+  it("says where the script goes before the first recording", () => {
+    show({ ...offer, first: true });
+    expect(screen.getByText(/Recording sends the script to Gemini/)).toBeInTheDocument();
+    expect(screen.getByText(/free tier/)).toBeInTheDocument();
+  });
+
+  it("keeps the coach's line breaks", () => {
+    show(offer);
+    expect(document.querySelector(".md br")).not.toBeNull();
   });
 });

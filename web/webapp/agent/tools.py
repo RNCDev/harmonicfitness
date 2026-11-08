@@ -807,6 +807,7 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
         chars = _sends(count.stdout + count.stderr)
     if chars is None:
         return _refuse("couldn't count the script's characters for its price; this coach may not be a web coach")
+    notes = _offer_notes(deps, argv[1])   # the draft's own path; side by side with the price, neither waits
     priced = engine.run(deps.engine_root, deps.home, ["get", "cost", "--coach", coach, "--chars", str(chars), "--json"],
                         extra_env=deps.keys, timeout=TIMEOUT, cancel=deps.cancel)
     try:
@@ -819,6 +820,7 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
                        f"{max(deps.chars_left, 0):,} left. Tell the listener; a shorter workout fits, or tomorrow.")
     deps.offer = {"draft": draft, "name": args[2], "coach": coach, "chars": chars, "usd": round(usd, 3),
                   "service": cost.get("service"), "design": bool(cost.get("pending_design"))}
+    deps.offer.update(notes())
     # what the site logs once it's recorded, carried to the Record button's turn with the offer
     if deps.pending_log and _flag(deps.pending_log, "--draft") == draft:
         deps.offer["log"] = list(deps.pending_log)
@@ -836,6 +838,57 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
                        "The page now shows the listener a Record button with that price. End your turn: say in a "
                        "line that the script is ready and checked (the button shows the price: don't say it). Don't build again "
                        "until they approve."))
+
+
+def _offer_notes(deps: Deps, draft: str) -> Callable[[], dict]:
+    """What the Record card shows beside the price, started now and read by calling the result: the plan, worked
+    out by the engine from the draft's own segments (so its times add up, which a plan the model wrote by hand
+    didn't), and `first` when no build has sent a script to a voice service yet, so the card says where the script
+    goes before the first one does. Both only read, so they run while the price is worked out. `draft` is the
+    engine's path for it (the build's argv, mapped from me/...), not the agent's."""
+    def ask(argv: list[str]) -> Future:
+        done: Future = Future()
+
+        def go() -> None:
+            try:
+                done.set_result(engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT,
+                                           cancel=deps.cancel))
+            except BaseException as e:  # noqa: BLE001 - a note the card can do without
+                done.set_exception(e)
+        threading.Thread(target=go, daemon=True).start()
+        return done
+    plan, sent = ask(["get", "plan", "--draft", draft, "--json"]), ask(["get", "web-builds", "--json"])
+
+    def read(job: Future) -> object:
+        try:
+            r = job.result()
+            return json.loads(r.stdout) if r.code == 0 else None
+        except Exception:  # noqa: BLE001 - no note, no harm: the card shows the price alone
+            return None
+
+    def notes() -> dict:
+        out: dict = {}
+        value = read(plan)
+        if isinstance(value, dict) and isinstance(value.get("rows"), list):
+            out["plan"] = value
+        count = read(sent)
+        if isinstance(count, dict) and isinstance(count.get("web_builds"), int):
+            out["first"] = count["web_builds"] == 0
+        return out
+    return notes
+
+
+def plan_table(offer: dict | None) -> str:
+    """The offer's plan as the engine's Markdown table, for a reply that has no Record card to show it."""
+    plan = (offer or {}).get("plan")
+    if not plan:
+        return ""
+    clock = lambda sec: f"{sec // 60}:{sec % 60:02d}"   # noqa: E731
+    lines = ["| | Sets | Time |", "|---|---|---|"]
+    for r in plan["rows"]:
+        lines.append(f"| {r['what']} | {'' if r['kind'] == 'talk' else r['segments']} | {clock(r['seconds'])} |")
+    lines.append(f"| **Total** | | **{clock(plan['seconds'])}** |")
+    return "\n".join(lines)
 
 
 def _mine_text(deps: Deps, text: str) -> str:

@@ -2079,7 +2079,7 @@ class MigrateFrom4(unittest.TestCase):
         h = health_md.health(os.path.join(paths.EXAMPLE, "health.md"))
         self.assertEqual((health_md.limits(h), health_md.clinician_lines(h)), ([], []))
         p = context.profile(os.path.join(paths.EXAMPLE, "profile.md"))
-        self.assertEqual(context.kits(p), {"home": ["dumbbells", "band", "mat"]})
+        self.assertEqual(context.kits(p), {"home": []})   # bodyweight only until setup asks what they have
         self.assertEqual(store.SCHEMA, 6)
 
 

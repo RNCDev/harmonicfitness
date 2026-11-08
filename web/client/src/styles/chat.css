@@ -22,7 +22,7 @@
 .steps li.think { color: var(--ink-2); font-weight: 400 }
 .steps li.think::before { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); animation: breathe 1.6s ease-in-out infinite }
 @keyframes breathe { 50% { transform: scale(.7) } }
-.step-t { margin-left: var(--s-2); font-size: var(--fs-sm); color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 400 }
+.step-t { margin-left: var(--s-1h); font-size: var(--fs-sm); color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 400 }
 .think-hint { margin: var(--s-2) 0 0 var(--s-5); font-size: var(--fs-md); color: var(--ink-3) }
 @keyframes pulse { 50% { box-shadow: 0 0 0 8px transparent } }
 .m.md > :first-child { margin-top: 0 }
@@ -46,6 +46,11 @@
 .welcome p + p { margin-top: var(--s-1h) }
 .m.offer .go, .welcome .go { justify-self: start; margin-top: var(--s-3) }
 .m.offer { box-shadow: inset 0 0 0 1px var(--line), var(--lift) }
+.m.offer table.plan { border-collapse: collapse; margin: var(--s-2) 0; font-size: var(--fs-base); width: 100%; max-width: 28em }
+.m.offer .plan th, .m.offer .plan td { border-bottom: 1px solid var(--rule); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left }
+.m.offer .plan thead th { font-weight: 600; color: var(--ink-2) }
+.m.offer .plan td:nth-child(n+2), .m.offer .plan th:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; width: 4.5em }
+.m.offer .plan tfoot th, .m.offer .plan tfoot td { border-bottom: 0; font-weight: 600 }
 .welcome h2 { margin: 0 0 var(--s-2); font: 700 var(--fs-welcome)/1 var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
 .welcome { margin: auto 0 0 }
 .welcome-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--s-2h); margin-top: var(--s-4) }

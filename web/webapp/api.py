@@ -1172,7 +1172,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         (ISO, so the client can show an earlier day's conversation as history)."""
         return {"id": c.id, "state": c.state, "job_id": c.job_id if c.state == "working" else None,
                 "lines": c.lines, "question": c.question, "plan": c.plan,
-                "offer": {k: c.offer[k] for k in ("name", "coach", "chars", "usd", "service", "design")
+                "offer": {k: c.offer[k] for k in ("name", "coach", "chars", "usd", "service", "design", "plan", "first")
                           if k in c.offer} if c.offer and c.state in ("idle", "failed") else None,
                 "later": {k: c.later[k] for k in ("at", "local", "due", "done", "minutes", "coach", "usd", "ceiling_usd")
                           if k in c.later} if c.later else None,

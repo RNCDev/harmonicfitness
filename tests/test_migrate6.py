@@ -92,6 +92,8 @@ class Split(unittest.TestCase):
         for key in ("bed",):                              # new in 0.39.0, optional: absent means off
             example.settings.pop(key)
             example.sources.pop(key)
+        # a folder keeps its own kits; the template's home kit is bodyweight only since 0.69.0
+        self.assertEqual(mine.settings.pop("kits")[0]["name"], example.settings.pop("kits")[0]["name"])
         self.assertEqual(mine.settings, example.settings)
         self.assertEqual(mine.sources.keys(), example.sources.keys())
         for key in mine.sources:

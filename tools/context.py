@@ -20,6 +20,7 @@ older schema stops the tools with the command that brings it up to date, `./harm
     ./harmonicfitness get coach             # also: route, routes, wpm, experience, web-builds
     ./harmonicfitness get web-builds --json # {"web_builds": 3}: any get value as JSON
     ./harmonicfitness get cost --coach "Coach Reed" --chars 12000 --json   # a web build's price (tools/cost.py)
+    ./harmonicfitness get plan --draft <draft> # the plan a draft holds, from its segments, as a table
     ./harmonicfitness deliver               # existing delivery folders, one per line
     ./harmonicfitness check                 # every file's format, and lines not filled in yet
     ./harmonicfitness log-session --draft me/workouts/<stem>/<stem>.draft.txt \\
@@ -719,6 +720,25 @@ def limits_report(today=None):
     return out
 
 
+def plan_summary(path):
+    """The plan a draft holds, from its segments (draft.summary): each declared movement by its catalog name."""
+    import catalog
+    import draft
+    if not path:
+        raise errors.UsageError("get plan needs --draft <the draft>.")
+    if not os.path.isfile(path):
+        raise errors.UsageError(f"No draft at {paths.show(path)}.")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    cat = catalog.load()
+    names = []
+    for word in draft.declared(text):
+        m = cat.movements.get(word) or catalog.resolve(cat, word)
+        shown = (m.name if m else word).strip()
+        names.append((shown[:1].upper() + shown[1:], [word] + ([m.name, m.id] + list(m.aliases) if m else [])))
+    return draft.summary(text, names)
+
+
 def _get(args, p):
     """The value `get` prints: a str, an int, a list (routes) or None (nothing set)."""
     if args.what == "coach":
@@ -732,6 +752,8 @@ def _get(args, p):
     if args.what == "cost":
         import cost
         return cost.cost(args.coach, args.chars)
+    if args.what == "plan":
+        return plan_summary(args.draft)
     if args.what == "routes":
         return list(routes(p))
     if args.what == "route":
@@ -745,15 +767,19 @@ def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("get", help="print one value from the profile (empty when it has none)")
-    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds", "cost", "limits"),
+    g.add_argument("what", choices=("wpm", "experience", "route", "routes", "coach", "web-builds", "cost", "limits",
+                                    "plan"),
                    help="web-builds: how many builds have sent a script to a web voice service; cost: what "
                         "sending --chars characters costs with --coach (a web coach); limits: what the check-in needs "
-                        "about health.md's limits (what loosens each, what carries on after one clears, the red flags)")
+                        "about health.md's limits (what loosens each, what carries on after one clears, the red flags); plan: "
+                        "the plan --draft holds, from its own segments (each movement's sets and time, the rests, "
+                        "the talk), as a table")
     g.add_argument("--coach", help="with route or cost: the coach the build is for (default: the last one used)")
     g.add_argument("--chars", type=cli.positive_int, default=None,
                    help="with cost: the characters to price (default: the profile's cloud_max_chars ceiling)")
     g.add_argument("--route", "--engine", dest="engine", metavar="ROUTE",
                    help="with route: a route to use if it works here (--engine is the older name)")
+    g.add_argument("--draft", help="with plan: the draft")
     g.add_argument("--json", action="store_true",
                    help='the value as one JSON object keyed by its name, "-" as "_": {"web_builds": 3}, '
                         '{"routes": ["local"]}, {"coach": null} when there is none')
@@ -782,6 +808,9 @@ def main(argv=None):
         if args.what == "cost":   # already an object: --json prints it as it is, else a sentence
             import cost
             print(json.dumps(value, ensure_ascii=False) if args.json else "\n".join(cost.lines(value)))
+        elif args.what == "plan":   # an object too: --json as it is, else a table
+            import draft
+            print(json.dumps(value, ensure_ascii=False) if args.json else "\n".join(draft.summary_lines(value)))
         elif args.json:
             print(json.dumps({args.what.replace("-", "_"): value}, ensure_ascii=False))
         elif isinstance(value, list):

@@ -22,6 +22,13 @@ from webapp.agent import tools  # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 TODAY = "2026-10-28"
 STEM = f"{TODAY}-strength-20"
+# the Record card's notes, read beside the price (tools._offer_notes): left out where a test counts the build's calls
+NOTE_CALLS = (["get", "plan"], ["get", "web-builds"])
+
+
+def counted(calls):
+    """The engine calls a build made, without the Record card's notes."""
+    return [a for a in calls if a[:2] not in NOTE_CALLS]
 
 
 def parts(messages, kind):
@@ -637,7 +644,7 @@ class Faster(AgentCase):
         with patch:
             agent.run_turn(FunctionModel(script), self.deps, None, "go")
         # two lints for the budgets, then the last pass's own lint and its price (an unapproved build)
-        self.assertEqual([a[0] for a in calls], ["build", "build", "build", "get"])
+        self.assertEqual([a[0] for a in counted(calls)], ["build", "build", "build", "get"])
         self.assertEqual(self.deps.offer["name"], "Workout A")
         self.assertEqual(phases[1:3], ["rests", "skeleton"])   # the rests after the whole skeleton, then the rest
         self.assertIn("Checking the script so far", said)
@@ -831,6 +838,29 @@ class Faster(AgentCase):
 
     BUILD = ["build", "me/workouts/a/a.draft.txt", "Workout A", "--coach", "Coach Ruby"]
 
+    def test_the_offer_carries_the_engine_s_plan_and_says_when_it_s_the_first(self):
+        """The Record card's plan comes from the engine (get plan), never the model; `first` before the first web
+        build, so the card says where the script goes."""
+        self.draft()
+        patch, calls = self.fake()
+        plan = {"rows": [{"what": "Air squat", "kind": "movement", "segments": 2, "seconds": 100}], "seconds": 100}
+
+        asked = []
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            if argv[:2] == ["get", "plan"]:
+                asked.append(argv[3])
+                return tools.engine.Result(0, json.dumps(plan), "")
+            if argv[:2] == ["get", "web-builds"]:
+                return tools.engine.Result(0, '{"web_builds": 0}', "")
+            return patch.kwargs["side_effect"](root, home, argv, extra_env, timeout, cancel)
+        with mock.patch.object(tools.engine, "run", side_effect=run):
+            tools.run(self.deps, list(self.BUILD))
+        self.assertEqual((self.deps.offer["plan"], self.deps.offer["first"]), (plan, True))
+        # the engine is given the draft's own path, as the build is: it can't read the agent's me/...
+        self.assertEqual([os.path.realpath(a) for a in asked], [os.path.realpath(os.path.join(self.home, "workouts", "a", "a.draft.txt"))])
+        self.assertIn("| Air squat | 2 | 1:40 |", tools.plan_table(self.deps.offer))
+
     def test_the_lint_s_own_count_prices_the_script(self):
         self.draft()
         patch, calls = self.fake()
@@ -839,7 +869,7 @@ class Faster(AgentCase):
         self.assertIn("Not recorded yet", r.output)
         self.assertEqual(self.deps.offer["chars"], 3000)
         self.assertFalse(any("--max-chars" in a for a in calls))   # one lint, then the price, nothing more
-        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(counted(calls)), 2)
 
     def test_a_script_just_linted_clean_is_priced_without_linting_again(self):
         self.draft()
@@ -847,10 +877,10 @@ class Faster(AgentCase):
         with patch:
             self.assertEqual(tools.run(self.deps, self.BUILD + ["--lint-only"]).code, 0)
             tools.run(self.deps, list(self.BUILD))
-            self.assertEqual([a[0] for a in calls], ["build", "get"])
+            self.assertEqual([a[0] for a in counted(calls)], ["build", "get"])
             self.draft(self.TEXT.replace("Hello there.", "Hello again."))   # changed since: linted again
             tools.run(self.deps, list(self.BUILD))
-        self.assertEqual([a[0] for a in calls], ["build", "get", "build", "get"])
+        self.assertEqual([a[0] for a in counted(calls)], ["build", "get", "build", "get"])
 
     def test_an_older_engine_is_counted_the_old_way(self):
         self.draft()
@@ -928,10 +958,15 @@ class Faster(AgentCase):
                                             ToolCallPart("run", {"args": list(self.LOG)}, tool_call_id="l1")])
             return ModelResponse(parts=[TextPart("ready")])
         self.deps.told = {"draft": self.DRAFT, "items": list(self.TOLD)}
+        said = []
+        self.deps.say = lambda text, tool, code, step, think=False: said.append((text, tool, code))
         with patch:
             out = agent.run_turn(FunctionModel(ahead), self.deps, None, "go")
         self.assertIn("Kept: this draft isn't recorded yet", out.history_json)
         self.assertEqual((self.deps.offer["log"], self.deps.offer["told"]), (self.LOG, self.TOLD))
+        # kept, not logged yet: a success on the listener's steps and in the worker's log, under its own words
+        self.assertIn((agent.NOTING_LOG, "run log-session", 0), said)
+        self.assertIsNone(self.deps.logged)
 
         # the Record button's turn: a fresh turn, with only the offer to go on
         offer = self.deps.offer
@@ -1045,7 +1080,7 @@ class ThirtyMinuteLoop1(Faster):
             return ModelResponse(parts=[TextPart("ready")])
         with patch:
             agent.run_turn(FunctionModel(script), self.deps, None, "go")
-        self.assertEqual([a[0] for a in calls], ["build", "get"])   # linted and priced, no `run build` turn
+        self.assertEqual([a[0] for a in counted(calls)], ["build", "get"])   # linted and priced, no `run build` turn
         self.assertEqual(self.deps.offer["name"], "Workout A")
 
     def test_a_write_without_its_build_only_writes(self):
