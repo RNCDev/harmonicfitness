@@ -15,7 +15,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$HERE")"
 . "$HERE/common.sh"
 MEM_FLOOR=8    # GB of memory for a local voice model (a guess: the models need 3 to 5 GB)
-DISK_FLOOR=6   # GB free for the local engine, its model and the take checker (about 1 to 3 GB of PyTorch, 0.6 GB of model, 2.5 GB of checker)
+DISK_FLOOR=6   # GB free for the local engine, its model and the take checker (about 1 to 3 GB of PyTorch, 0.4 GB of model, 2.5 GB of checker)
 
 # ---- what the computer is ----------------------------------------------------------------
 UNAME_S="${HARMONICFITNESS_FAKE_OS-$(uname -s 2>/dev/null)}"

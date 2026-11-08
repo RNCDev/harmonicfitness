@@ -24,7 +24,7 @@ from pydantic_ai.models.wrapper import WrapperModel
 
 from . import tools, writers
 from .tools import Deps, ToolResult
-from .writers import NOT_WEB, web_copy
+from .writers import web_copy
 
 __all__ = ["AGENT", "Deps", "LIMITS", "audition_open", "prefetch", "wants_coach", "start_feeds", "NOT_OPEN", "STOPPED", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
            "UNFINISHABLE", "run_turn"]

@@ -17,7 +17,7 @@
 # ./harmonicfitness backup, so a zip download sets up too.
 #
 # The local voice downloads once from Hugging Face (no account or login needed) into models/ (or
-# HARMONICFITNESS_MODELS; ./harmonicfitness models adopt moves one already in ~/.cache/huggingface/hub): about 0.6 GB for
+# HARMONICFITNESS_MODELS; ./harmonicfitness models adopt moves one already in ~/.cache/huggingface/hub): about 0.4 GB for
 # Pocket TTS's public model and 2.5 GB for the speech recognizer that checks each take (Parakeet through
 # ONNX), the same on every computer. Rendering works offline after that. An existing context folder is
 # brought up to this version's format (./harmonicfitness migrate), backed up first; ./harmonicfitness models then lists

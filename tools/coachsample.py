@@ -39,10 +39,6 @@ def lines(name):
     return segs, list(dict.fromkeys(t for seg in segs for para in draft.plan(seg) for t, _ in para if draft.spoken(t)))
 
 
-def characters(name):
-    return sum(len(t) for t in lines(name)[1])
-
-
 def speak(p, report=print):
     """Speak the sample with web coach `p` and write its sample.mp3 (a failure leaves the old one).
     Records a pace estimate from it only while the coach's pace isn't measured. Returns the MP3's path."""

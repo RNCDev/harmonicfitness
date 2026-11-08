@@ -6,6 +6,9 @@ is served. A step's kind comes from its tool."""
 
 # a job that couldn't start: no language-model key, or the one there was refused
 NO_MODEL_KEY = "add a language-model key in Settings"
+# the codes themselves, as the page reads them
+NO_KEY_CODE = "no_model_key"
+KEY_REFUSED_CODE = "key_refused"
 KEY_REFUSED = " refused the key. Replace it in Settings."
 
 
@@ -20,9 +23,9 @@ def of_error(error: str | None) -> str | None:
     if not error:
         return None
     if error == NO_MODEL_KEY:
-        return "no_model_key"
+        return NO_KEY_CODE
     if error.endswith(KEY_REFUSED):
-        return "key_refused"
+        return KEY_REFUSED_CODE
     return None
 
 

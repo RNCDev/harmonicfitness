@@ -352,8 +352,6 @@ BOTH_SIDES = ("each side", "both sides", "each leg", "both legs", "each arm", "b
               "every side", "every leg", "every arm", "other side", "other leg", "other arm", "opposite side",
               "opposite leg", "opposite arm", "switch", "swap sides", "repeat on the other", "bilateral",
               "two sides", "each hip", "per limb", "left right", "right left", "l r", "r l", "r and l", "l and r")
-# the BOTH_SIDES words that move to the other side later on (every BOTH_SIDES phrase counts segment-wide) ("Now switch to the other leg.")
-SWITCH = ("switch", "other side", "other leg", "swap sides", "repeat on the other")
 # not a comma, a colon or a parenthesis: "Right single-leg glute bridge: ten (each side)." is one sentence
 SENTENCE = re.compile(r"[.!?;\n]")
 
@@ -438,11 +436,6 @@ def _phrase(text: str, phrases) -> Optional[str]:
     return next((w for w in phrases if f" {w} " in padded), None)
 
 
-def both_sides(text: str) -> Optional[str]:
-    """The words in `text` that do a movement on both sides ("each side", "alternating"...), or None."""
-    return _phrase(text, BOTH_SIDES)
-
-
 def _say(side: str) -> str:
     return "healthy side" if side == "healthy" else f"{side} side"
 
@@ -460,19 +453,6 @@ def name_side_problem(name: str, side: str) -> Optional[str]:
         return f'"{name}" names the {", ".join(sorted(named - {side}))} side, but today\'s menu allows it on the {side} side only'
     say = "healthy side" if side == "healthy" else side
     return f'"{name}" is allowed on the {side} side only today; name the side (say "{say} {name}")'
-
-
-def one_side_problem(text: str, mname: str, side: str) -> Optional[str]:
-    """Why a sentence naming (or dosing) a movement the menu allows on one side only puts it on another side
-    or both, or None: a both-sides phrase, or a side word ("left", "right", "both") other than the menu's."""
-    say = _say(side)
-    phrase = both_sides(text)
-    named = set(catalog.plain(text).split()) & {"left", "right", "both"}
-    if phrase is None and not (named - {side}):
-        return None
-    how = f'"{phrase}"' if phrase else f'the {", ".join(sorted(named - {side}))} side'
-    return (f'"{text.strip()}" puts {mname} on {how}, but today\'s menu allows it on the {say} only; write its '
-            f'dose for that side alone (say "3 x 10, {say} only")')
 
 
 def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:

@@ -7,10 +7,10 @@ to the listener. It's for the maintainer, and it isn't a test: each run calls Ge
 ## What a run is
 
 `run_one.py` runs the website's agent in this process, as the worker would but with no database: the page's starter
-sentence ("Hey, coach Freya, I'd like a 15-minute strength workout at home. Go easy on my left knee, and keep off my
-right shoulder today."), "Go with your pick" to any question, and a stop at the price. Nothing is recorded or logged.
-Two one-sided limits on opposite sides make it a hard request: the menu, the opening and every set's side wording
-are all in play.
+sentence ("Hey, coach Freya, I'd like a 15-minute strength workout at home, right now. Go easy on my left knee, and
+keep off my right shoulder today."), "Go with your pick" to any question, and a stop at the price. Nothing is recorded
+or logged. Two one-sided limits on opposite sides make it a hard request: the menu, the opening and every set's side
+wording are all in play.
 
 Each run works on its own copy of the listener's folder, made from `.bench/base`. The first batch of the day makes
 that from `me/`, without the key file or the clip cache, and fetches the day's feeds once so every run reads the
@@ -38,7 +38,7 @@ web/bench/batch.sh <label> <minutes> <runs> [--engine <checkout>] [--set NAME=VA
 - seconds from the brief to the price, to the writers' room, in it and after it;
 - the agent's fixes after the room, and the review's passes;
 - each writer's seconds;
-- the must-say lines the final script leaves out;
+- what the opening leaves out of the made-by-AI line and the stop rule;
 - names in a told story that none of the researcher's notes hold (a name the host may have made up; read the
   story to judge);
 - a greeting or goodbye mid-session.

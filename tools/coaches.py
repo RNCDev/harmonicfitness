@@ -2,9 +2,10 @@
 right; measure and tune them.
 
 A coach is a persona folder (tools/personas.py): a person's name, how they talk, and how they sound. The ten
-local coaches ship in coaches/ (a clip, its Pocket TTS voice file, recorded counts and cues, a sample); they're
-chosen, not made. A web coach is a voice a service designed and saved (Fish Audio, ElevenLabs, Gemini, Inworld,
-with the listener's key), kept in me/coaches/.
+local coaches ship in coaches/ (a clip, its Pocket TTS voice file, recorded counts and cues; each one's sample is on
+the media bucket, coaches/samples.json); they're chosen, not made. A web coach is a voice of a service's, with the
+listener's key (Fish Audio, ElevenLabs, Gemini, Inworld, OpenRouter): ready-made, or designed and saved, kept in
+me/coaches/.
 
     ./harmonicfitness coaches                                   # every coach and where it speaks, the last used marked
     ./harmonicfitness coaches audition maya.md                  # candidates from every keyed service, nothing saved

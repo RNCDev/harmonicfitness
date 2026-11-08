@@ -18,8 +18,8 @@ import sys
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LINE = ("Hey, coach Freya, I'd like a {minutes}-minute strength workout at home. Go easy on my left knee, "
-        "and keep off my right shoulder today.")
+LINE = ("Hey, coach Freya, I'd like a {minutes}-minute strength workout at home, right now. Go easy on my "
+        "left knee, and keep off my right shoulder today.")
 ANSWER = "Go with your pick."
 
 

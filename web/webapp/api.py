@@ -1196,7 +1196,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
         if providers.pick(settings.providers, have, chosen) is None:
             name = providers.PROVIDERS[chosen if chosen in settings.providers else settings.providers[0]].name
-            return JSONResponse({"detail": f"Add a key for {name} in Settings first.", "code": "no_model_key"}, 409)
+            return JSONResponse({"detail": f"Add a key for {name} in Settings first.", "code": codes.NO_KEY_CODE}, 409)
         later = later_from(body.start_at)
         with turn_transaction(uk) as conn:
             cid = conversations.create(conn, uk, body.line, later)

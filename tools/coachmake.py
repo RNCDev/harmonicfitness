@@ -12,7 +12,6 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import audition  # noqa: E402
 import errors  # noqa: E402
 import cloud  # noqa: E402
 import context  # noqa: E402

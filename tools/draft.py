@@ -50,7 +50,6 @@ MARK_RE = re.compile("|".join(r.pattern for r in (PAUSE_RE, CHIME_RE, HOLD_RE, C
 # eight, liftoff") without coaching it; so a story may hold no timing marker ([hold], [count], [cue], [chime]),
 # and stays inside one segment (story_problems).
 STORY_TAG_RE = re.compile(r"\[\s*/?\s*story\s*\]", re.IGNORECASE)
-STORY_OPEN, STORY_CLOSE = "[story]", "[/story]"
 CHIME = "[chime]"   # a span whose text is this rings the bell instead of speaking
 HOLD = "[hold]"     # a span whose text is this takes a share of the segment's spare time as silence
 NUMBER_WORDS = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")

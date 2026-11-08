@@ -24,7 +24,6 @@ import locks  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
-ENGINES = ("pocket",)
 # Every local voice runs on PyTorch: an Apple Silicon Mac's processor, a PC's processor or an NVIDIA card.
 BACKEND = "torch"
 # Pocket TTS (Kyutai, CC-BY-4.0): the public model, which can't clone a clip but loads a coach's saved voice
@@ -289,13 +288,6 @@ def download(v=None):
         hf_hub_download(repo, filename, revision=rev)
     print(f"The take checker ({CHECK_MODEL[0]}, about {SIZES_GB[CHECK_MODEL[0]]} GB)", flush=True)
     snapshot_download(CHECK_MODEL[0], revision=CHECK_MODEL[1], local_dir=CHECK_DIR, allow_patterns=CHECK_FILES)
-
-
-def downloaded():
-    """Whether the local voice's files and the take checker are all in models/."""
-    from huggingface_hub import try_to_load_from_cache
-    have = all(isinstance(try_to_load_from_cache(repo, f, revision=rev), str) for repo, f, rev in POCKET_FILES)
-    return have and all(os.path.exists(os.path.join(CHECK_DIR, f)) for f in CHECK_FILES)
 
 
 def write_wav(path, pcm, rate=24000):
