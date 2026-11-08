@@ -20,12 +20,16 @@ jumping jacks" is.
 The [unlisted] names (catalog.Catalog.unlisted: "pistol squat", "muscle-up", a bare "lunges") are
 real movements the catalog doesn't hold, so never on a menu: mentions yields each as ("unlisted", ...) and
 check refuses it, unless it's a shortened name of a declared movement ("lunges" after a reverse lunge).
-A movement the menu allows on one side only keeps to that side (side_problems, per segment): a sentence
-that names it may hold no both-sides phrase (BOTH_SIDES: "each side", "alternating"...) and no other
-side's word, and a segment that names it no switch phrase anywhere ("switch", "other leg"...). It fails
-safe: a negation doesn't excuse it, and a side word in the sentence for something else is refused too.
-Under a one-sided limit, the opening names the side with its body part, and never ties the limit's care to
-the other side (opening_problems).
+A movement the menu allows on one side only keeps to that side (side_issues, per segment): a segment that
+names it may hold no both-sides or switch phrase (BOTH_SIDES: "each side", "switch", "the other arm"...) and
+no turn to the other side, with its name or without ("then the left", "ten a side"): those tell the listener
+to work the side that rests, so they stop the build. A word for the other side in a sentence about its care
+("the right arm rests by your side", "keeping off that right shoulder": RESTING) is only a warning; refusing
+those failed nearly every first draft (0.69.1's bench).
+The opening says the session was written by AI (ai_problems) and, under a one-sided limit, names the side with
+its body part (opening_problems); a sentence there that seems to tie the care to the other side, and a heavy
+load beside a movement that loads a limited area (load_problems), are warnings. The listener has heard the
+rules and that it's made by AI; the build stops only what would have them do something unsafe.
 Library only; the brief and the build call it; the web's show_plan uses side_problems and part_of.
 """
 import datetime
@@ -405,6 +409,14 @@ def _cue_sentences(cat: catalog.Catalog) -> set:
     return cached
 
 
+# a sentence about the resting side's care, not a turn to it: "the right arm rests by your side", "down to the floor
+# without loading that right arm", "notice how that right shoulder feels". A turn word there doesn't send the work over.
+RESTING = re.compile(r"\b(?:rest|rests|resting|keep\w* (?:\w+ ){0,3}off|stays?|out of (?:it|the work|this|harm)|by your "
+                     r"side|in your lap|sits? (?:this one|it) out|light|easy|gentle|protect\w*|sore|tender|"
+                     r"delicate|injured|without|limp|relax\w*|loose|quiet|soft|still|calm|zero|no (?:weight|load|"
+                     r"pressure)|feels?|careful\w*|healthy|helps?)\b", re.IGNORECASE)
+
+
 def opposite_side(cat: catalog.Catalog, text: str, side: str) -> Optional[str]:
     """The first word in `text` naming a side other than `side` ("left" when the right is allowed; either
     for "healthy"; "the injured leg", "the weaker side" for any),  outside a sentence that is one of the shipped limit cues with its side filled in, or
@@ -464,40 +476,70 @@ def one_side_problem(text: str, mname: str, side: str) -> Optional[str]:
 
 
 def side_problems(cat: catalog.Catalog, on_menu: dict, text: str) -> List[str]:
+    """Every side problem side_issues finds, stops and warnings alike (the web's show_plan, the tests)."""
+    stops, warns = side_issues(cat, on_menu, text)
+    return stops + warns
+
+
+def side_issues(cat: catalog.Catalog, on_menu: dict, text: str) -> Tuple[List[str], List[str]]:
     """What puts a movement the menu allows on one side only (on_menu: id -> menu entry, its "side" set) on
-    another side or both, in one segment's text (or one plan field's), one problem per movement. A sentence
-    that names one may hold no other side's word (one_side_problem); the whole text that names one may hold
-    no both-sides phrase (BOTH_SIDES, its SWITCH phrases among them), no word naming another side outside a
-    shipped limit cue (opposite_side) and no turn without a side word (turn_to: "change legs", "the other
-    one", "ten a side"), in any sentence: "Right single-leg glute bridge. Ten each side." is refused. Fails safe: a negated
-    mention is checked too ("no single-leg glute bridge on the left"), and so is a side word or both-sides
-    phrase meant for something else in the same segment (the writer splits the segment)."""
-    problems, sided, named = [], set(), []
+    another side or both, in one segment's text (or one plan field's), one problem per movement, as (stops,
+    warnings). Every sentence of a segment that names one is read (a side word meant for something else in the
+    same segment counts too; the writer splits the segment):
+    - a stop: a dose or turn for both or either side (HARD: "ten each side", "switch", "alternating", turn_to's
+      "change legs" and "ten a side"), or any sentence naming the other side or both ("then the left", "ten more
+      on the left", "with both arms", "the other arm next") that isn't about its rest (RESTING);
+    - a warning: a word for the other side, or for both, in a sentence about its rest ("the right arm rests by
+      your side", "down without loading that right arm", "notice how that right shoulder feels"): the resting
+      side's care, whose refusal failed nearly every first draft (0.69.1's bench).
+    "Right single-leg glute bridge. Ten each side." stops; so does "Right single-leg glute bridge, ten. Then
+    the left."; "Right single-leg glute bridge; the left leg rests" warns."""
+    stops, warns, done = [], [], set()
     text = remaining_idioms(text)
-    for sentence in SENTENCE.split(text):
+    sentences = [x for x in SENTENCE.split(text) if x.strip()]
+    named = []
+    for sentence in sentences:
         for mid, _, _ in mentions(cat, sentence):
             side = (on_menu.get(mid) or {}).get("side") if mid in cat.movements else None
-            if not side:
-                continue
-            if mid not in named:
+            if side and mid not in named:
                 named.append(mid)
-            why = None if mid in sided else one_side_problem(sentence, cat.movements[mid].name, side)
-            if why:
-                sided.add(mid)
-                problems.append(why)
-    phrase = both_sides(text) if named else None
     for mid in named:
-        if mid in sided:
-            continue
         side = on_menu[mid]["side"]
-        found = phrase or opposite_side(cat, text, side) or turn_to(text, side)
-        how = f'"{found}"' if found else None
-        if how:
-            sided.add(mid)
-            problems.append(f'{how} in the same segment as {cat.movements[mid].name} puts it on another side or '
-                            f'both, but today\'s menu allows it on the {_say(side)} only; keep that segment to the '
-                            f'{_say(side)}')
-    return problems
+        name = cat.movements[mid].name
+        hard = soft = None
+        for sentence in sentences:
+            how, strict = _other_side(cat, sentence, side)
+            if how and strict and hard is None:
+                hard = (sentence, how)
+            elif how and soft is None:
+                soft = (sentence, how)
+        for found, bucket in ((hard, stops), (None if hard else soft, warns)):
+            if found and mid not in done:
+                done.add(mid)
+                sentence, how = found
+                bucket.append(f'"{" ".join(sentence.split())}" puts {name} on {how}, but today\'s menu allows it '
+                              f"on the {_say(side)} only; keep that segment to the {_say(side)}")
+    return stops, warns
+
+
+# both sides or either, in a dose or a turn: never the resting side's care
+HARD = ("each side", "each leg", "each arm", "per side", "per leg", "per arm", "per limb", "each hip", "alternating",
+        "alternate", "switch", "swap sides", "repeat on the other", "either side", "every side", "every leg",
+        "every arm", "two sides", "bilateral")
+def _other_side(cat: catalog.Catalog, sentence: str, side: str) -> Tuple[Optional[str], bool]:
+    """(the words in `sentence` naming another side or both, whether they send the work there), or (None, False).
+    A shipped limit cue or stop sign (opposite_side's exception) names the resting side and is fine."""
+    hard = _phrase(sentence, HARD)
+    if hard:
+        return f'"{hard}"', True
+    turn = turn_to(sentence, side)
+    if turn and turn not in ("the other", "the other one"):
+        return f'"{turn}"', True
+    other = _phrase(sentence, BOTH_SIDES) or turn or opposite_side(cat, sentence, side)
+    if not other:
+        return None, False
+    how = f"the {other} side" if other in SIDES else f'"{other}"'
+    return how, not RESTING.search(sentence)
 
 
 def spoken_text(segments) -> str:
@@ -511,9 +553,17 @@ REMAINING = re.compile(r"\bleft(?=\s+(?:in\s+the\s+tank|in\s+reserve|to\s+go|in\
                        r"|\b((?:rep|second|minute|round|set|breath)s?)\s+left\b", re.IGNORECASE)
 
 
+# "hold steady right there", "right now", "all right": "right" meaning just or correct, never a side
+RIGHT_IDIOM = re.compile(r"\b(?:all right|that's right|right (?=(?:there|here|now|away|back|after|before|through|into|"
+                         r"on time|at the|where|when|then|as|about|up to|over|to the end|off the bat)\b))",
+                         re.IGNORECASE)
+
+
 def remaining_idioms(text: str) -> str:
-    """`text` with each "left" that means what remains written "remaining", for the one-side check."""
-    return REMAINING.sub(lambda m: f"{m.group(1)} remaining" if m.group(1) else "remaining", text)
+    """`text` with each "left" that means what remains written "remaining", and each "right" that means just or
+    correct taken out, for the one-side check."""
+    text = REMAINING.sub(lambda m: f"{m.group(1)} remaining" if m.group(1) else "remaining", text)
+    return RIGHT_IDIOM.sub("", text)
 
 
 # a sentence in a story speaking to the listener ("you", "let's") reads as coaching, not as the story
@@ -596,21 +646,47 @@ CARE = re.compile(r"\b(?:light|easy|gentle|careful|sore|delicate|tender|injured|
                   r"sits? (?:this one|it) out)\b", re.IGNORECASE)
 
 
+# the made-by-AI line, said in every opening: the reason the rest can trust the listener
+AI_LINE = re.compile(r"\b(?:AI|A\.I\.|artificial intelligence)\b")
+
+
+def ai_problems(segments) -> List[str]:
+    """The opening (the first segment, stories aside) must say the session was made by AI. Nothing is asked of an
+    opening with no words yet (a skeleton's), nor of a draft of one segment (a fragment, a test's), which has no
+    opening apart from its work."""
+    if len(segments) < 2:
+        return []
+    seg = segments[0]
+    text = draft.story_split(seg)[0]
+    if not re.search(r"[A-Za-z]", re.sub(r"\[[^\]]*\]", " ", text)) or AI_LINE.search(text):
+        return []
+    return [f'segment "{seg["label"]}" (line {seg["start"]}): the opening never says the session was made by AI; '
+            'say it in a plain sentence near the rules ("This session was put together by AI, not a trainer or a '
+            'clinician, so your body and your doctor have the final say.")']
+
+
 def opening_problems(menu: dict, segments) -> List[str]:
+    """Every opening problem opening_issues finds, stops and warnings alike."""
+    stops, warns = opening_issues(menu, segments)
+    return stops + warns
+
+
+def opening_issues(menu: dict, segments) -> Tuple[List[str], List[str]]:
     """Under a one-sided limit, the opening (the first segment, stories aside) names the side with its body part
     ("left knee"), as the brief's opening line does, and no sentence there ties the limit's care to the other side
     ("the right side stays light"): told the wrong side, or none, a listener can load the sore one. One issue a
-    limit."""
+    limit, as (stops, warnings): an opening that never names the side stops the build; one that seems to tie the
+    care to the other side is a warning, since a sentence about something else reads the same way."""
     import playbook
     import screen
     if not segments:
-        return []
+        return [], []
     pb = playbook.shipped()
     seg = segments[0]
     text = remaining_idioms(draft.story_split(seg)[0])
     if not re.search(r"[A-Za-z]", re.sub(r"\[[^\]]*\]", " ", text)):
-        return []   # an opening with no words yet (a skeleton's): nothing said, so nothing to check
-    out = []
+        return [], []   # an opening with no words yet (a skeleton's): nothing said, so nothing to check
+    stops, warns = [], []
     sided = []   # each one-sided limit: (its side, body part, playbook level, level name, how the opening names it)
     for s in (menu.get("request") or {}).get("limits") or []:
         area, _, rest = s.partition("=")
@@ -635,11 +711,11 @@ def opening_problems(menu: dict, segments) -> List[str]:
                       if re.search(rf"\b{other}\b", x, re.IGNORECASE) and CARE.search(x) and not named.search(x)
                       and not any(n.search(x) for n in theirs)), None)
         if wrong:
-            out.append(f'{where}: "{wrong}" ties today\'s care to the {other} side, but the limit is the {side} {part}: '
+            (warns if named.search(text) else stops).append(f'{where}: "{wrong}" ties today\'s care to the {other} side, but the limit is the {side} {part}: '
                        + said)
         elif not named.search(text):
-            out.append(f"{where}: the opening never names the {side} {part}, the side today's limit is on: " + said)
-    return out
+            stops.append(f"{where}: the opening never names the {side} {part}, the side today's limit is on: " + said)
+    return stops, warns
 
 
 def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tuple[List[str], List[str]]:
@@ -692,15 +768,18 @@ def check(cat: catalog.Catalog, menu: Optional[dict], text: str, segments) -> Tu
                 warnings.append(f"the script names \"{said}\" ({mid}) but the movements: line doesn't; add it")
     for seg in segments:   # a one-sided movement keeps to its side, segment by segment; stories aside
         coaching, stories, tag_problems = draft.story_split(seg)
-        found = [f'segment "{seg["label"]}" (line {seg["start"]}): {p}' for p in tag_problems]
-        found += [f'segment "{seg["label"]}" (line {seg["start"]}): {p}'
-                  for p in side_problems(cat, on_menu, coaching) + story_problems(cat, on_menu, stories)]
-        for why in found:
+        where = f'segment "{seg["label"]}" (line {seg["start"]})'
+        stops, warns = side_issues(cat, on_menu, coaching)
+        for why in [f"{where}: {p}" for p in tag_problems + stops + story_problems(cat, on_menu, stories)]:
             if why not in issues:
                 issues.append(why)
-    for why in load_problems(cat, menu, segments) + opening_problems(menu, segments):
+        warnings += [f"{where}: {p}" for p in warns if f"{where}: {p}" not in warnings]
+    stops, warns = opening_issues(menu, segments)
+    opening = menu.get("excerpt_from", 1) == 1   # a demo clip from mid-session (demos.excerpt) has no opening
+    for why in stops + (ai_problems(segments) if opening else []):
         if why not in issues:
             issues.append(why)
+    warnings += [w for w in warns + load_problems(cat, menu, segments) if w not in warnings]
     want = menu.get("seconds")
     total = sum(seg["seconds"] for seg in segments)
     if want and total != want:

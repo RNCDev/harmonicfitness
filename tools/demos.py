@@ -190,7 +190,8 @@ def excerpt(draft_path, first, last):
     out = os.path.join(folder, name + draft.DRAFT_SUFFIX)
     body = "".join(chunks[first - 1:last])
     fileio.atomic_write(out, header + body if body.endswith("\n") else header + body + "\n")
-    menu.write(draft.menu_path(out), dict(full_menu, seconds=seconds))
+    # excerpt_from: a clip from mid-session has no opening, so the build asks no made-by-AI line of its first segment
+    menu.write(draft.menu_path(out), dict(full_menu, seconds=seconds, excerpt_from=first))
     return out, seconds
 
 

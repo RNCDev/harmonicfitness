@@ -2,6 +2,28 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.70.0] - 2026-11-08
+
+Safety is said once, in the coach's words, and the build stops only what would have the listener do something unsafe. The trainer no longer marks lines to say word for word, so no label can reach the voice; the rules are said once in the opening with the made-by-AI line, a limited area gets one short reminder at its first set, and the listener is trusted from there. On the bench, the time from the brief to the price fell from a median 218 s to 129 s, the review's passes from three to one, and the rooms whose first check failed "off the menu" from three in three to one (a knee hug off the menu, caught). Minor, since a draft whose opening never says it was made by AI is now refused (see For forks).
+
+### Changed
+- **The trainer's notes carry no `SAY EXACTLY:` or `SAY, EVERY PART KEPT:` lines.** Safety points are plain notes, and the host says them in the coach's own words, keeping each side and body part. The review no longer goes down a word-for-word checklist: it checks the opening's rules, the sides and the build's check. A label copied onto a line is still taken off before the voice hears it.
+- **The safety guide is eight short rules, not thirteen** (`knowledge/script.md`): the menu, the rules once in the opening, made by AI, one reminder under a limit, one side only, nothing standing to fetch the kit, the weights on hand, never invent facts. Stop signs and limit cues are what to draw on, not lines to recite, and nothing asks for a self-check at every set.
+- **The menu gate stops only what sends the listener somewhere unsafe.** For a one-sided movement it refuses "each side", "switch", "ten a side", "with both arms" or "then the left"; a word for the resting side in a sentence about its rest ("the right arm rests by your side", "down without loading that right arm", "notice how that shoulder feels") is a warning. "Heavy" beside a limited area's movement, and opening care that seems tied to the other side, are warnings too. "Right there" and "all right" are no side.
+- **The host says a limit's reminder once,** and names each movement by its full menu name the first time in a segment (a shorter name is often another movement: "floor presses" for the single-arm floor press).
+
+### Added
+- **The build checks that the opening says the session was made by AI** (a draft of more than one segment; a demo clip from mid-session is excused by `excerpt_from` in its menu, which `demos excerpt` writes).
+
+### For forks
+- **A draft whose first segment never mentions AI ("AI", "A.I." or "artificial intelligence") is refused** when it has a menu and more than one segment. Add the made-by-AI sentence to the opening. Demo clip menus made before this release need `"excerpt_from": <first segment>` (the shipped ones have it).
+- **`menu.side_issues` and `menu.opening_issues` return `(stops, warnings)`;** `side_problems` and `opening_problems` still return both together.
+- **`writers.must_say` and `writers.SAY` are gone,** and the bench's summary reports `opening` (no made-by-AI line, no stop rule) in place of `must_say` and `missing`.
+
+### Still open
+- The lint doesn't time a set whose `[reps]` comes before its go, or whose cues sit in later paragraphs; two of three bench scripts had a set with no time left for its reps.
+- The bench's story check reads only the researcher's notes, not the top-up's.
+
 ## [0.69.1] - 2026-11-08
 
 The two timing questions 0.69.0 left open, measured on the maintainer's keys. Gemini's voice now sends eight requests at once, where it sent two: a 30-minute workout records in about 100 s rather than 400. The writers' thinking levels stay: each lower setting was much faster but wrote at least one script in three that a listener shouldn't hear.

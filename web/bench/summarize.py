@@ -3,7 +3,7 @@
   .venv/bin/python web/bench/summarize.py <label>...      (each a folder under .bench/out/)
 
 Per run: seconds from the brief to the price, to the writers' room, in it and after it; the fixes the agent made
-after the room; each writer's seconds; must-say lines the final draft leaves out; names in a told story that none
+after the room; each writer's seconds; what the opening leaves out (the made-by-AI line, the stop rule); names in a told story that none
 of the researcher's notes hold (fabrication candidates); greetings or goodbyes mid-session. Per label: the medians,
 and the host's words against what it was asked, by kind of segment.
 """
@@ -19,7 +19,6 @@ from webapp.agent import writers  # noqa: E402
 
 OUT = os.path.join(REPO, ".bench", "out")
 STORY = re.compile(r"\[story\](.*?)\[/story\]", re.DOTALL | re.IGNORECASE)
-SIDES = re.compile(r"\b(left|right)\s+([a-z]+)")
 COMMON = set("""I I'm I've I'll I'd You You're We We're It It's That That's This The A An And But So Now Then Here There
 What When Where Why How If Or Not No Yes Okay Ok Alright All Right Left Good Great Nice Next One Two Three Four Five Six
 Seven Eight Nine Ten Eleven Twelve Twenty Thirty Forty Fifty Hold Keep Let Let's Rest Breathe Back Down Up Go Start Stop
@@ -29,40 +28,18 @@ Still Even Also Well Oh Think Picture Imagine Remember Speaking Meanwhile Anyway
 Very Really Quick Easy Light Big Small New Old Those These""".split())
 
 
-def _plain(text):
-    text = re.sub(r"\[[^\]]*\]", " ", text).replace("’", "'").replace("‘", "'")
-    return " ".join(re.findall(r"[a-z0-9']+", text.lower()))
-
-
-def unsaid(draft, lines):
-    """The must-say lines (segment, kind, line) the draft leaves out."""
+def opening(draft):
+    """What the opening (the first segment, stories aside) leaves out of what the build can't check alone: the
+    made-by-AI line and the stop rule. The sides are the menu gate's; read the scripts for the rest."""
     _, segs = writers.split(draft)
+    if not segs:
+        return []
+    body = STORY.sub(" ", "\n".join(segs[0][3]))
     out = []
-    for n, kind, line in lines:
-        body = _plain("\n".join(segs[n - 1][3])) if 1 <= n <= len(segs) else ""
-        want = _plain(line)
-        if kind == "SAY EXACTLY:":
-            ok = want in body
-        else:
-            words = [w for w in want.split() if len(w) > 3 and w not in writers.STOP]
-            have = set(body.split())
-            ok = all(f"{a} {b}" in body for a, b in SIDES.findall(want)) and (
-                not words or sum(w in have for w in words) >= 0.7 * len(words))
-        if not ok:
-            out.append((n, kind, line))
-    return out
-
-
-def must_lines(r):
-    """Every must-say line the room gave the host: from the host's plan (where code writes them since 0.59.0) or
-    the trainer's notes (before)."""
-    out = []
-    host = next((w for w in r["writers"] if w["who"] == "host"), None)
-    if host:
-        for block in re.split(r"\n(?=## #\d+ )", host["prompt"]):
-            m = re.match(r"## #(\d+) ", block)
-            if m:
-                out += [(int(m.group(1)), k, line) for k, line in writers.SAY.findall(block)]
+    if not re.search(r"\b(?:AI|A\.I\.|artificial intelligence)\b", body):
+        out.append("no made-by-AI line")
+    if not re.search(r"\bstop\b", body, re.IGNORECASE):
+        out.append("no stop rule")
     return out
 
 
@@ -141,7 +118,6 @@ def facts(path):
         if "research was ready" in ln["line"]:
             writers_s["research wait"] = [0.0]
     unknown, odd = fidelity(r)
-    missing = unsaid(r["draft"], must_lines(r)) if r["draft"] else []
     return {"run": os.path.basename(os.path.dirname(path)), "priced": bool(r["offer"]), "total": round(end, 1),
             "from_brief": round(end - brief, 1) if brief is not None else None,
             "to_room": round(room_start - brief, 1) if room_start and brief is not None else None,
@@ -150,8 +126,7 @@ def facts(path):
             "fixes_after": sum(1 for e in after if e["tool"] == "edit_segments"),
             "reviews": len(writers_s.get("review", [])),
             "writers": {k: round(sum(v), 1) for k, v in writers_s.items()},
-            "must_say": f"{len(must_lines(r)) - len(missing)}/{len(must_lines(r))}",
-            "missing": [f"#{n}: {line[:60]}" for n, _, line in missing],
+            "opening": opening(r["draft"]) if r["draft"] else ["no draft"],
             "not_in_notes": unknown, "one_voice": odd, "lint_clean": bool(r["final_lint"]) and "Fix and rerun" not in r["final_lint"],
             "error": last["error"]}, words_by_kind(r)
 

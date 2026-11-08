@@ -177,7 +177,7 @@ def session_lines(pb: Playbook, area: str, level: str, side: str = "both") -> Li
         return []
     out = []
     if lv.opening:
-        out.append(f"  - Opening (say it in the opening, in your words if you like, every part kept): "
+        out.append(f"  - Opening (say it in the opening, in your words, keeping its side and body part): "
                    f"\"{_sided(lv.opening, level, side)}\"")
     out.append(f"  - Today, for you: {_sided(lv.session, level, side)}")
     if lv.stop:

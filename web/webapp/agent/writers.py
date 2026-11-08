@@ -3,7 +3,7 @@ divided as a show's team divides it since 0.55.0. The agent plans the session (t
 counts, holds and reps, and an empty [story] [/story] in each steady timed set that carries a piece). Then, side by
 side, a researcher finds what the steady work and the rests carry, from the listener's topics, the day's sheets and
 its own searches (started as the brief is saved), and returns notes, not the telling; and a trainer turns the brief
-and the movements' notes into each segment's notes for the host, the must-say lines marked. The host, the coach's
+and the movements' notes into each segment's notes for the host, the safety points among them. The host, the coach's
 voice, writes every word from both, so the script is one person talking; the trainer's review then checks it with
 the build's check, safety first and the host's voice left alone. Each reads only its own material; code holds what
 must hold (the clock, the silences, what was told, where each story goes)."""
@@ -68,9 +68,8 @@ def web_copy(text: str) -> str:
 
 class Note(BaseModel):
     number: int = Field(description="the segment's number in the plan")
-    notes: str = Field(description="the trainer's notes for the host, short plain lines, never the lines themselves; "
-                                   "each line the listener must hear word for word starting SAY EXACTLY:, and each "
-                                   "to keep every part of starting SAY, EVERY PART KEPT:")
+    notes: str = Field(description="the trainer's notes for the host, short plain lines, never the lines themselves "
+                                   "and never a label in front of one: the host says the safety points in its own words")
 
 
 class Notes(BaseModel):
@@ -536,18 +535,10 @@ def without_retold(found: dict, repeats: dict, count: int) -> list | None:
     return left if len(left) >= max(1, count - 2) else None
 
 
-SAY = re.compile(r"^\s*(?:[-*]\s*)?(SAY EXACTLY:|SAY, EVERY PART KEPT:)\s*(.+?)\s*$", re.MULTILINE)
-# the same labels at the head of a script's line, however a writer copied them: the trainer's mark, never spoken
+# an old must-say label at the head of a script's line ("SAY EXACTLY:"): the trainer no longer writes them, and one
+# the coach read aloud (2026-11-05) is taken off any line that still carries one, never refused
 SAY_LABEL = re.compile(r"^[ \t]*(?:[-*][ \t]*)?SAY(?: EXACTLY|,? EVERY PART KEPT)[ \t]*[:\-–—][ \t]*",
                        re.IGNORECASE | re.MULTILINE)
-
-
-def must_say(notes: dict[int, str]) -> str:
-    """The trainer's must-say lines as the review's checklist, by segment: a line buried in its notes is the one a
-    review passes over (a left knee became "the right side" through two reviews, 2026-11-02)."""
-    how = {"SAY EXACTLY:": "word for word", "SAY, EVERY PART KEPT:": "every part kept"}
-    return "\n".join(f"- #{n}, {how[kind]}: {line}"
-                     for n, text in sorted(notes.items()) for kind, line in SAY.findall(text))
 
 
 def numbered(text: str) -> str:
@@ -658,7 +649,6 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
     # the room never hands back an edit nobody checked (a last fix went unchecked, the build after the room failed
     # and the agent spent a request on it, 2026-11-03)
     said = "\n\n".join(f"#{n}\n{t.strip()}" for n, t in sorted(notes.items()) if t.strip())
-    must = must_say(notes)
     changed: set[int] = set()
     history = None
     check = await _lint(deps, plain, path, full, name, coach, draft)
@@ -667,7 +657,6 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
             break
         draft = _read(full) if name and coach else draft
         prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n"
-                  + (f"# The lines to check, one by one\n\n{must}\n\n" if must else "")
                   + ("# Taken out\n\n" + "\n".join(
                       f"- #{n} told a story the researcher didn't bring, and it was taken out: fill its time with "
                       "coaching from your notes, nothing from outside them." for n in unasked) + "\n\n"
@@ -739,8 +728,7 @@ def without_unasked(edits: list[Edited], placed: dict) -> tuple[list[Edited], li
 
 def apply_edits(draft: str, edits: list[Edited]) -> str:
     """The draft with the host's or the review's segments in place of its own, each under its own @@ line (the clock is the
-    skeleton's: an edit can't change it). A must-say label copied onto a line is taken off: the coach read "SAY
-    EXACTLY" aloud before five welcome rules (2026-11-05)."""
+    skeleton's: an edit can't change it)."""
     head, segs = split(draft)
     bodies = {e.number: SAY_LABEL.sub("", e.text).strip("\n") for e in edits if 1 <= e.number <= len(segs)}
     out = list(head)

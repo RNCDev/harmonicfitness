@@ -57,6 +57,26 @@ Set the rule before the runs:
 
 ## Results
 
+### 0.70.0 (2026-11-08): safety said once, in the coach's words
+
+The same 10-minute request against 0.69.1's baseline (the table below), three runs, from the brief to the price.
+The trainer's `SAY EXACTLY:` lines and the review's word-for-word checklist went, the safety guide shrank from
+thirteen rules to eight, and the build's wording checks stop only what would send the listener somewhere unsafe.
+
+| | 0.69.1 | 0.70.0 |
+|---|---|---|
+| Median s (runs) | 218 (293, 218, 158) | 129 (129, 134, 108) |
+| Review passes, median | 3 | 1 (1, 2, 1) |
+| Fixes after the room, median | 1 | 0 (0, 0, 0) |
+| Rooms whose first check failed "off the menu" | 3 of 3 | 1 of 3 (a knee hug off the menu: caught) |
+| Final scripts within 4 percent of plan | 3 of 3 | 3 of 3 |
+
+Two batches on the way there found the rest of the false stops, each now a warning or read past: the resting
+side's care in other words ("down to the floor without loading that right arm", "notice how that right shoulder
+feels", "the other arm rests limp"), "pin both shoulder blades", and "right there". A shortened name that is
+another movement ("floor presses" for the single-arm floor press, which loads both shoulders) still stops the
+build; the host is told to say the label's full name the first time in a segment.
+
 ### 0.69.1 (2026-11-08): the host and trainer at LOW
 
 The 10-minute request, three runs a configuration, from the brief to the price, about $3.60 in all. The rule, set

@@ -289,7 +289,7 @@ DRAFT = """movements: goblet squat, dead bug
 movements: box breathing
 
 @@ 120 | Warm-up
-Welcome. Swing your arms easy, then squat down slow. Push up through your heels.
+Welcome. Made by AI, so you have the final say. Swing your arms easy, then squat down slow. Push up through your heels.
 
 @@ 120 | Work
 Goblet squats now. Then the dead bug.

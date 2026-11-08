@@ -259,8 +259,8 @@ def _limit_lines(cat: catalog.Catalog, scr, h, request: dict, today: datetime.da
                 "quote): " + ", ".join(avoided) + "."]
     cues = screen.cue_lines(cat, scr.limits)
     if cues:
-        out += ["", "Limit cues (the catalog's spoken lines; say them wherever a movement or a transition "
-                "touches the limit):"] + [line.replace("    ", "  - ", 1) if line.startswith("    ") else "- " + line.strip()
+        out += ["", "Limit cues (what to draw on for the one short reminder, in the coach's words, at the first set "
+                "where a movement or a transition touches the limit; not lines to recite):"] + [line.replace("    ", "  - ", 1) if line.startswith("    ") else "- " + line.strip()
                                           for line in cues]
     out += [""] + playbook.flag_lines(pb, [lim.area for lim in scr.limits])
     return out

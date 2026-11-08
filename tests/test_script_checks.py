@@ -26,7 +26,7 @@ def segs(text):
 
 
 class HeavyUnderALimit(unittest.TestCase):
-    def test_heavy_with_a_movement_that_loads_a_limited_area_is_refused(self):
+    def test_heavy_with_a_movement_that_loads_a_limited_area_is_found(self):
         found = menu.load_problems(CAT, KNEE, segs("@@ 60 | Carry\nPick up a heavy pair for the farmer carry, and walk.\n"))
         self.assertEqual(len(found), 1)
         self.assertIn('"heavy" with farmer carry, which loads today\'s limited knee', found[0])
@@ -111,6 +111,53 @@ class TheOpeningNamesTheSide(unittest.TestCase):
             self.assertEqual(menu.side_problems(CAT, on_menu, f"Left single-arm floor press, left side only. {line}"), [], line)
         turn = "Left single-arm floor press. Any pain in the right shoulder, then switch to it."
         self.assertTrue(menu.side_problems(CAT, on_menu, turn))   # anything else naming it still fails safe
+
+    def test_the_resting_sides_care_is_a_warning_and_a_turn_to_it_stops(self):
+        # 0.69.1's bench: a close that named the resting shoulder beside the left-arm press failed nearly every room
+        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
+        care = "Left single-arm floor press done, protecting your left knee and keeping off that right shoulder."
+        stops, warns = menu.side_issues(CAT, on_menu, care)
+        self.assertEqual(stops, [])
+        self.assertTrue(warns)
+        # the false catches 0.69.1's bench still had after a first loosening: the resting side's care, in other words
+        for line in ("Down to the floor without loading that right arm.", "The other arm rests limp.",
+                     "Notice how that left knee and right shoulder feel.", "Keep your right arm totally relaxed."):
+            stops, warns = menu.side_issues(CAT, on_menu, f"Left single-arm floor press, ten. {line}")
+            self.assertEqual(stops, [], line)
+            self.assertTrue(warns, line)
+        for turn in ("Left single-arm floor press, ten. Then the right.", "Left single-arm floor press, ten each side.",
+                     "Left single-arm floor press. Now switch arms.", "Left single-arm floor press with both arms."):
+            self.assertTrue(menu.side_issues(CAT, on_menu, turn)[0], turn)
+
+    def test_idioms_and_setup_cues_are_no_side(self):
+        # the second batch's last false catches (2026-11-08)
+        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
+        for line in ("If it felt smooth, hold steady right there.", "Pin both shoulder blades to the floor.",
+                     "All right, right now we press."):
+            self.assertEqual(menu.side_issues(CAT, on_menu, f"Left single-arm floor press, ten. {line}"), ([], []), line)
+
+    def test_heavy_under_a_limit_is_a_warning_in_the_build(self):
+        menu_ = {"request": {"limits": ["knee=delicate:left"]}, "seconds": 120,
+                 "movements": [{"id": "farmer-carry"}]}
+        text = ("movements: farmer carry\n@@ 60 | Welcome\nMade by AI, so your body has the final say. Your left knee "
+                "stays easy.\n@@ 60 | Carry\nPick up a heavy pair for the farmer carry, and walk.\n")
+        issues, warnings = menu.check(CAT, menu_, text, draft.parse(text))
+        self.assertEqual(issues, [])
+        self.assertTrue(any("heavy" in w for w in warnings))
+
+    def test_the_opening_says_its_made_by_ai(self):
+        two = "@@ 60 | Welcome\n{}\n@@ 60 | Set\nTen reps.\n"
+        self.assertTrue(menu.ai_problems(segs(two.format("Twenty minutes, let's go."))))
+        for said in ("This was put together by AI, so you have the final say.", "Written by artificial intelligence."):
+            self.assertEqual(menu.ai_problems(segs(two.format(said))), [], said)
+        self.assertEqual(menu.ai_problems(segs(two.format("[pause 2s]"))), [])          # a skeleton's empty welcome
+        self.assertEqual(menu.ai_problems(segs("@@ 60 | Work\nTen reps.\n")), [])       # a fragment has no opening
+
+    def test_care_tied_to_the_other_side_is_a_warning_once_the_side_is_named(self):
+        text = "@@ 60 | Welcome\nYour left knee stays light today. Keep the right side easy too.\n"
+        stops, warns = menu.opening_issues(KNEE, segs(text))
+        self.assertEqual(stops, [])
+        self.assertTrue(warns)
 
     def test_no_one_sided_limit_needs_nothing(self):
         for m in ({"request": {}}, {"request": {"limits": ["knee=delicate:both"]}}):

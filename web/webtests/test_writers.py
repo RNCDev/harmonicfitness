@@ -80,11 +80,11 @@ class Plan(unittest.TestCase):
     def test_the_host_gets_each_segments_words_markers_notes_and_story(self):
         _, segs = writers.split(SKELETON)
         budget = writers.budgets(REPORT)
-        plan = writers.host_plan(segs, budget, {2: "SAY EXACTLY: Knees over the toes.\nTen reps, two in the tank."},
+        plan = writers.host_plan(segs, budget, {2: "Knees over the toes.\nTen reps, two in the tank."},
                                  {3: told(3, "Why it's theirs: their team.\nThe Flyers won four to two.")})
         two = plan.split("## #2 ", 1)[1].split("## #3 ", 1)[0]
         self.assertIn(f"Write about {round(118 * writers.COACH_AIM)} words. Markers, in order: [count 3 go].", two)
-        self.assertIn("SAY EXACTLY: Knees over the toes.", two)
+        self.assertIn("Knees over the toes.", two)
         three = plan.split("## #3 ", 1)[1].split("## #4 ", 1)[0]
         self.assertIn("Tell this story here (in the rest; quick_hit, -):\nWhy it's theirs: their team.", three)
         self.assertIn("Trainer's notes:\nnone", three)
@@ -112,15 +112,6 @@ class Plan(unittest.TestCase):
         self.assertIn("No story here", three)
         self.assertIn("never a story to tell", three)
         self.assertNotIn("No story here", plan.split("## #6 ", 1)[1])   # the close isn't a place for one
-
-    def test_the_review_gets_the_must_say_lines_as_a_checklist(self):
-        notes = {1: "Warm welcome.\nSAY, EVERY PART KEPT: Your left knee stays light today.\nSAY EXACTLY: Stop on a pinch.",
-                 4: "- SAY EXACTLY: Keep the left knee over the toes.", 2: "Ten reps."}
-        self.assertEqual(writers.must_say(notes),
-                         "- #1, every part kept: Your left knee stays light today.\n"
-                         "- #1, word for word: Stop on a pinch.\n"
-                         "- #4, word for word: Keep the left knee over the toes.")
-        self.assertEqual(writers.must_say({1: "No lines to say."}), "")
 
     def test_a_hyphenated_stem_has_a_build_name_so_the_room_checks_its_script(self):
         # without one the review read a full-body script with no build's check, twice (2026-11-02)
@@ -303,7 +294,8 @@ class Brief(unittest.TestCase):
         g = writers.guides(ROOT)
         trainer, research, host, review = g["trainer"], g["research"], g["host"], g["review"]
         self.assertIn("## Safety: the rules", trainer)
-        self.assertIn("SAY EXACTLY:", trainer)
+        self.assertNotIn("SAY EXACTLY", trainer + host + review)   # no label for a writer to copy into the script
+        self.assertIn("Under a limit, one reminder", trainer)
         self.assertIn("Set it up, then keep them company", trainer)
         self.assertNotIn("Set it up, then keep them company", research)
         self.assertIn("Tell it the way a friend would", research)
