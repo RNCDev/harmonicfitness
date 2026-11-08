@@ -6,7 +6,7 @@
   .top-btn.new { font-size: var(--fs-sm); padding: var(--s-2) var(--s-2h); letter-spacing: var(--track-wide) }
   .chat { padding: 0 var(--s-4) var(--s-3) }
   .chat-log { padding: var(--s-4h) 0 var(--s-2h) }
-  .eyebrow { margin-bottom: var(--s-3h); font-size: var(--fs-sm); letter-spacing: var(--track-btn) }
+  .eyebrow { margin-bottom: var(--s-3h); font-size: var(--fs-sm); letter-spacing: var(--track-wide) }
   .else { margin-top: var(--s-6h) }
   .start-row { margin-top: var(--s-5) }
   .solo { padding: var(--s-6) var(--s-4h) var(--s-7) }
@@ -16,7 +16,10 @@
 }
 
 /* a phone: Coaches and Logs as icons, so the header keeps Settings in view */
-@media (max-width: 480px) { .top-label { display: none } .top-btn.page-toggle { padding-inline: var(--s-2h) } }
+@media (max-width: 480px) {
+  .top-label { display: none }
+  .top-btn.page-toggle { width: var(--control); height: var(--control); padding: 0; justify-content: center }   /* as square as Settings */
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
