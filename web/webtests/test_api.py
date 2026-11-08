@@ -1275,7 +1275,7 @@ class Media(ApiCase):
         self.signed_in(client=other)
         self.assertEqual(other.get(f"/api/media/{audio['id']}").status_code, 404)
         self.assertEqual(self.client.get("/api/media/not-a-uuid").status_code, 404)
-        self.conn.execute("update media set expires_at = now() - interval '1 minute'")
+        self.conn.execute("update media set expires_at = now() - interval '1 minute' where id = %s", (audio["id"],))
         self.conn.commit()
         self.assertEqual(self.client.get(f"/api/media/{audio['id']}").status_code, 404)
         self.assertEqual(media.sweep(self.conn), 1)
@@ -1294,7 +1294,8 @@ class Media(ApiCase):
             self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers["cache-control"].split("max-age=")[1].isdigit(), True)
         self.assertEqual(sorted(media.by_build(self.conn, uk)), ["b1", "b2", "b3"])
-        self.assertEqual(media.sweep(self.conn), 0)   # nothing past its time: a workout's has none
+        media.sweep(self.conn)   # a workout's MP3 has no time to pass: the sweep leaves it
+        self.assertEqual(sorted(media.by_build(self.conn, uk)), ["b1", "b2", "b3"])
 
     def test_a_conversation_marks_a_replaced_recording_gone(self):
         from webapp import conversations, media
