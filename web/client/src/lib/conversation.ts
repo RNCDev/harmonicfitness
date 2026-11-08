@@ -1,6 +1,6 @@
 // The conversation with the agent: load the latest, start a new one or continue it, follow each turn's job.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, NotSignedIn, plainError, useJob, type Conversation } from "./api";
+import { api, ApiError, NotSignedIn, plainError, useJob, type Conversation, type ErrorCode } from "./api";
 import { localDate, localNow } from "./when";
 
 /** Waits before each new try at reading the conversation after a turn (about ten seconds in all). */
@@ -30,8 +30,8 @@ export function resumable(c: Conversation, today: Date = new Date()): boolean {
   return !!c.offer || c.lines[c.lines.length - 1]?.role === "agent";
 }
 
-/** A failed turn's or call's message that Settings answers ("add a language-model key in Settings"). */
-const NEEDS_KEYS = /\b(Keys|Settings)\b/;
+/** A refusal Settings answers: no language-model key, or one its service refused. */
+const needsKeys = (code: ErrorCode | null | undefined) => code === "no_model_key" || code === "key_refused";
 
 export function useConversation() {
   const [conv, setConv] = useState<Conversation | null>(null);
@@ -50,7 +50,7 @@ export function useConversation() {
 
   const fail = useCallback((e: unknown) => {
     if (e instanceof NotSignedIn) return;   // api.ts has sent the page to sign-in
-    setNoKey(e instanceof ApiError && ((e.status === 409 && /key/i.test(e.message)) || NEEDS_KEYS.test(e.message)));
+    setNoKey(e instanceof ApiError && needsKeys(e.code));
     setError(plainError(e));
   }, []);
 
@@ -83,7 +83,7 @@ export function useConversation() {
     if (!job || id === undefined) return;
     if (job.state === "failed" && job.error) {
       setError(plainError(new ApiError(0, job.error)));
-      setNoKey(NEEDS_KEYS.test(job.error));
+      setNoKey(needsKeys(job.code));
     }
     if (job.state !== "done" && job.state !== "failed") return;
     let live = true;

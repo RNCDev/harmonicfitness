@@ -389,11 +389,11 @@ class Api(ApiCase):
         _, uk = self.signed_in()
         job = jobs.enqueue(self.conn, uk, "brief", {"goal": "strength"})
         self.assertEqual(self.client.get(f"/api/jobs/{job}").json(),
-                         {"id": job, "state": "queued", "error": None, "result": None})
+                         {"id": job, "state": "queued", "error": None, "code": None, "result": None})
         jobs.claim(self.conn)
         jobs.finish(self.conn, uk, job, {"brief_md": "# Today's brief"})
         self.assertEqual(self.client.get(f"/api/jobs/{job}").json(),
-                         {"id": job, "state": "done", "error": None,
+                         {"id": job, "state": "done", "error": None, "code": None,
                           "result": {"brief_md": "# Today's brief"}})
 
     def read_stream(self, job, headers=None):
@@ -422,7 +422,7 @@ class Api(ApiCase):
         events = self.read_stream(job)
         t.join()
         self.assertEqual([e[2].get("stage") for e in events[:-1]], ["folder", "brief", "saved"])
-        self.assertEqual(events[-1][1:], ("state", {"state": "done", "error": None}))
+        self.assertEqual(events[-1][1:], ("state", {"state": "done", "error": None, "code": None}))
         ids = [int(e[0]) for e in events[:-1]]
         self.assertEqual(ids, sorted(ids))
         result = self.client.get(f"/api/jobs/{job}").json()["result"]
@@ -448,7 +448,7 @@ class Api(ApiCase):
         with mock.patch.object(api, "POLL_EVERY", 0.2):
             events = self.read_stream(job)
         timer.join()
-        self.assertEqual(events, [(None, "state", {"state": "failed", "error": "interrupted"})])
+        self.assertEqual(events, [(None, "state", {"state": "failed", "error": "interrupted", "code": None})])
 
     def test_keep_alive(self):
         _, uk = self.signed_in()
@@ -628,6 +628,7 @@ class Keys(ApiCase):
         r = self.client.post("/api/conversations", json={"line": "hi", "today": today(), "now": f"{today()} Wednesday 08:00"},
                              headers=self.origin())
         self.assertEqual((r.status_code, r.json()["detail"]), (409, "Add a key for ChatGPT in Settings first."))
+        self.assertEqual(r.json()["code"], "no_model_key")
 
     def test_put_then_list(self):
         self.signed_in()

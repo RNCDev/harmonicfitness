@@ -91,7 +91,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const needsKey = keyNeeded(keys);
   const { conv, working, error, noKey, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation();
   const steps = stepsOf(job?.stages ?? []);
-  const { start, coaches, coachBar, chooseCoach, coachError } = useStartInfo(keys);
+  const { start, error: startError, reload: reloadStart, coaches, coachBar, chooseCoach, coachError } = useStartInfo(keys);
 
   // the settings that switch at once and save behind, put back with the reason if the server refuses
   const [sky, chooseSky, skyError] = useSaved<SkyKind>(me.sky ?? "flow", api.setSky,
@@ -146,7 +146,8 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
           </button>
         </header>
         {page === "logs" && <Logs onClose={() => go("chat")} />}
-        {page === "coaches" && <CoachesPage coaches={start ? coaches : null} onCoach={(slug) => void chooseCoach(slug)}
+        {page === "coaches" && <CoachesPage coaches={start && !startError ? coaches : null} loadError={startError}
+          onRetry={reloadStart} onCoach={(slug) => void chooseCoach(slug)}
           onAddKey={addVoiceKey} onOpenSettings={() => setDrawer(true)} onClose={() => go("chat")} error={coachError} />}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
         <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
@@ -154,6 +155,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
           first={{
             needsKey, onAddKey: addKey, start, starting: start === null && keys !== null,
             onCoach: (slug) => void chooseCoach(slug), coachError, onOpenCoaches: () => go("coaches"),
+            startError, onRetryStart: reloadStart,
             waiting: waiting && !conv ? { offer: !!waiting.offer, at: waiting.updated_at } : null, onResume: resume,
           }}
           offers={{

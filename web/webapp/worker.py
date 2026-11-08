@@ -27,7 +27,7 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, config, conversations, db, engine, folder, jobs, keystore, media, providers, spend, store
+from . import clipcache, codes, config, conversations, db, engine, folder, jobs, keystore, media, providers, spend, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 STOP_POLL = 2             # seconds between the heartbeat's looks for the listener's Stop
@@ -346,7 +346,7 @@ def _date_ok(day: str) -> bool:
 TURN_ARGS = {"conversation_id", "line", "answer", "today", "now"}
 TURN_NOW = re.compile(r"\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}", re.ASCII)
 MAX_LINE = 4000
-NO_MODEL_KEY = "add a language-model key in Settings"
+NO_MODEL_KEY = codes.NO_MODEL_KEY
 TOO_LONG = "this turn ran too long; try again with less to do"
 ANSWER_NOT_OPEN = "that answer didn't match the open question; send a message instead"
 CANT_FINISH = "the coach stopped on a step it can't finish here; send a message to carry on"
@@ -546,8 +546,10 @@ def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = N
         # how long the model thought, and each tool's exit: the turn's timeline, never what it read or wrote
         line = f"think{' failed' if failed else ''}{took}" if think else f"{tool} exit {code}{took}"
         print(f"worker: job {ctx.job_id} {line}", file=sys.stderr, flush=True)
+    kind = codes.step_kind(text, tool, think)
     ctx.say("step", text=text, failed=failed, id=step,
-            state="running" if code is None else "failed" if failed else "done", **({"think": True} if think else {}))
+            state="running" if code is None else "failed" if failed else "done", **({"think": True} if think else {}),
+            **({"kind": kind} if kind else {}))
 
 
 def api_when(local: str) -> str:

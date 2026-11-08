@@ -54,9 +54,12 @@ type Props = {
   onOpenCoaches?: () => void;
   /** Why the last coach picked didn't hold (the server refused it). */
   coachError?: string | null;
+  /** Why the coaches couldn't be loaded (`info` then holds plain defaults), and asking again. */
+  loadError?: string | null;
+  onRetry?: () => void;
 };
 
-export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = null }: Props) {
+export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = null, loadError = null, onRetry }: Props) {
   const ready = (info?.coaches ?? []).filter((c) => c.ready);
   const kits = info?.kits ?? [];
   const floor: Record<string, Level> = {};
@@ -125,7 +128,8 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
   const hint = !type && info?.suggest?.reason;
   const shownCoach = ready.find((c) => c.first === v.coach);
 
-  if (ready.length === 0 && info && onOpenCoaches) {
+  // no coach can speak: choose one, unless the answer never came, which says so with Try again instead
+  if (ready.length === 0 && info && !loadError && onOpenCoaches) {
     return (
       <section className="starter" aria-label="Plan a workout">
         <p className="label eyebrow">One more step</p>
@@ -157,8 +161,14 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
       <div className="start-row">
         <Button variant="primary" size="lg" onClick={() => void begin.run()} busy={begin.busy}
           disabled={ready.length === 0}>{at ? "Plan it for later" : "Plan my workout"}</Button>
-        {ready.length === 0 && info && <span className="start-note">Add a voice key in Settings first.</span>}
+        {ready.length === 0 && info && !loadError && <span className="start-note">Add a voice key in Settings first.</span>}
       </div>
+      {loadError && (
+        <div className="failed">
+          <Notice tone="error">{loadError}</Notice>
+          {onRetry && <Button onClick={onRetry}>Try again</Button>}
+        </div>
+      )}
       <Notice tone="error">{coachError}</Notice>
       <nav className="else" aria-label="Other things you can do">
         <p className="label else-h">Or ask for something else</p>

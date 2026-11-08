@@ -162,9 +162,12 @@ function Gallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches: Star
 }
 
 /** The page itself: a heading, a line on what to do, and the gallery. */
-export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClose, error = null }: {
+export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClose, error = null, loadError = null,
+  onRetry }: {
   coaches: StartCoach[] | null; onCoach: (slug: string) => void; onAddKey: (service: string) => void;
   onOpenSettings?: () => void; onClose: () => void;
+  /** Why the coaches couldn't be loaded, and asking again: shown in place of the gallery, never as "no coaches". */
+  loadError?: string | null; onRetry?: () => void;
   /** Why the last coach chosen didn't hold. */
   error?: string | null }) {
   const any = coaches?.some((c) => c.ready);
@@ -178,7 +181,7 @@ export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClos
         ? "Listen to a sample, then tap a coach to choose them."
         : "Listen to a sample, then add the key for the coaches you like. Keys stay in Settings."}</p>
       <Notice tone="error">{error}</Notice>
-      <Loadable value={coaches} what="the coaches">
+      <Loadable value={coaches} error={loadError} onRetry={onRetry} what="the coaches">
         {(list) => <CoachGallery coaches={list} onCoach={onCoach} onAddKey={onAddKey} onOpenSettings={onOpenSettings} />}
       </Loadable>
     </section>

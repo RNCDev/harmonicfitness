@@ -5,9 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export const APP_NAME = "HarmonicFitness";
 
 export class NotSignedIn extends Error {}
-/** A refusal, in the server's words; `field` names the form's box it's about, when the server says. */
+/** What the page offers for a refusal or a failed job, named by the server beside its words (0.71.0): the page reads
+ * the code, never the wording. */
+export type ErrorCode = "no_model_key" | "key_refused";
+/** A refusal, in the server's words; `field` names the form's box it's about, and `code` what the page can offer for
+ * it, when the server says. */
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public field?: string) {
+  constructor(public status: number, message: string, public field?: string, public code?: ErrorCode) {
     super(message);
   }
 }
@@ -40,6 +44,8 @@ export type JobView = {
   id: number;
   state: JobState;
   error: string | null;
+  /** What the page can offer for the error (Open Settings), when there is something. */
+  code?: ErrorCode | null;
   stages: Stage[];
 };
 
@@ -104,14 +110,16 @@ async function checked(r: Response): Promise<Response> {
   if (!r.ok) {
     let detail = r.statusText;
     let field: string | undefined;
+    let code: ErrorCode | undefined;
     try {
       const j = await r.json();
       if (typeof j?.detail === "string") detail = j.detail;
       if (typeof j?.field === "string") field = j.field;
+      if (typeof j?.code === "string") code = j.code as ErrorCode;
     } catch {
       /* no JSON body */
     }
-    throw new ApiError(r.status, detail, field);
+    throw new ApiError(r.status, detail, field, code);
   }
   return r;
 }
@@ -129,7 +137,7 @@ export async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: st
 }
 
 const jobResult = (id: number) =>
-  call<{ id: number; state: JobState; error: string | null; result: unknown }>("GET", `/api/jobs/${id}`);
+  call<{ id: number; state: JobState; error: string | null; code?: ErrorCode | null; result: unknown }>("GET", `/api/jobs/${id}`);
 
 export const api = {
   me: () => call<Me>("GET", "/api/me"),
@@ -217,7 +225,7 @@ export function useJob() {
   const finish = useCallback(async (id: number) => {
     try {
       const j = await api.job(id);
-      setJob((v) => (v && v.id === id ? { ...v, state: j.state, error: j.error } : v));
+      setJob((v) => (v && v.id === id ? { ...v, state: j.state, error: j.error, code: j.code ?? null } : v));
     } catch (e) {
       if (e instanceof NotSignedIn) return;   // the app is already on its way to the sign-in page
       setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: jobError(e) } : v));
@@ -243,14 +251,14 @@ export function useJob() {
     es.addEventListener("state", (e) => {
       es.close();
       if (source.current === es) source.current = null;
-      let end: { state?: JobState; error?: string | null } = {};
+      let end: { state?: JobState; error?: string | null; code?: ErrorCode | null } = {};
       try {
         end = JSON.parse((e as MessageEvent).data);
       } catch {
         /* read it from the job instead */
       }
       if (end.state === "failed") {
-        setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: end.error ?? null } : v));
+        setJob((v) => (v && v.id === id ? { ...v, state: "failed", error: end.error ?? null, code: end.code ?? null } : v));
       } else {
         void finish(id);
       }

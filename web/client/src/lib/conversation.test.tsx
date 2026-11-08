@@ -7,7 +7,7 @@ const stop = () => {};
 
 const m = vi.hoisted(() => ({
   latest: vi.fn(), conversation: vi.fn(), start: vi.fn(), send: vi.fn(), watch: vi.fn(), halt: vi.fn(),
-  endJob: null as null | ((state: "done" | "failed", error?: string) => void),
+  endJob: null as null | ((state: "done" | "failed", error?: string, code?: "no_model_key" | "key_refused") => void),
 }));
 
 vi.mock("./api", async (orig) => {
@@ -18,7 +18,7 @@ vi.mock("./api", async (orig) => {
       sendMessage: m.send, stop: m.halt },
     useJob: () => {
       const [job, setJob] = useState<{ id: number; state: string; error: string | null; stages: [] } | null>(null);
-      m.endJob = (state, error) => setJob((j) => (j ? { ...j, state, error: error ?? null } : j));
+      m.endJob = (state, error, code) => setJob((j) => (j ? { ...j, state, error: error ?? null, code: code ?? null } : j));
       const watch = useCallback((id: number) => {
         m.watch(id);
         setJob({ id, state: "running", error: null, stages: [] });
@@ -74,7 +74,7 @@ describe("useConversation", () => {
 
   it("sets noKey when there is no model key", async () => {
     m.latest.mockResolvedValue(undefined);
-    m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Settings first."));
+    m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Settings first.", undefined, "no_model_key"));
     const { result } = renderHook(() => useConversation());
     await act(async () => { expect(await result.current.send("a workout")).toBe(false); });
     expect(result.current.noKey).toBe(true);
@@ -215,7 +215,7 @@ describe("useConversation", () => {
     m.conversation.mockResolvedValue(conv({ state: "failed" }));
     const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
-    act(() => m.endJob!("failed", "Claude refused the key. Replace it in Settings."));
+    act(() => m.endJob!("failed", "Claude refused the key. Replace it in Settings.", "key_refused"));
     await waitFor(() => expect(result.current.error).toBe("Claude refused the key. Replace it in Settings."));
     expect(result.current.noKey).toBe(true);
   });
@@ -225,7 +225,8 @@ describe("useConversation", () => {
     m.conversation.mockResolvedValue(conv({ state: "failed" }));
     const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
-    act(() => m.endJob!("failed", "this turn ran too long; try again with less to do"));
+    // the wording mentions Settings, but without a code nothing is offered: the page reads codes, not words
+    act(() => m.endJob!("failed", "Something in Settings went wrong; try again"));
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.noKey).toBe(false);
   });

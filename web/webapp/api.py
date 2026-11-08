@@ -37,7 +37,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
     RedirectResponse, Response, StreamingResponse
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
+from . import APP_NAME, auth, codes, config, conversations, db, engine, folder, jobs, keystore, media, providers, \
     level, spend, start, store, \
     worker, workouts
 
@@ -1114,7 +1114,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 raise HTTPException(404, "no such job") from None
             finally:
                 conn.rollback()
-        return {"id": job_id, "state": st["state"], "error": st["error"], "result": res}
+        return {"id": job_id, "state": st["state"], "error": st["error"], "code": codes.of_error(st["error"]),
+                "result": res}
 
     @app.get("/api/jobs/{job_id}/events")
     def job_events(request: Request, uk: User, job_id: Annotated[int, JOB_ID]):
@@ -1195,7 +1196,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
         if providers.pick(settings.providers, have, chosen) is None:
             name = providers.PROVIDERS[chosen if chosen in settings.providers else settings.providers[0]].name
-            raise HTTPException(409, f"Add a key for {name} in Settings first.")
+            return JSONResponse({"detail": f"Add a key for {name} in Settings first.", "code": "no_model_key"}, 409)
         later = later_from(body.start_at)
         with turn_transaction(uk) as conn:
             cid = conversations.create(conn, uk, body.line, later)
@@ -1398,7 +1399,7 @@ async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey
                     last_sent = time.monotonic()
                     yield f"id: {event_id}\ndata: {json.dumps(body)}\n\n"
                 if st["state"] in ("done", "failed"):
-                    end = {"state": st["state"], "error": st["error"]}
+                    end = {"state": st["state"], "error": st["error"], "code": codes.of_error(st["error"])}
                     yield f"event: state\ndata: {json.dumps(end)}\n\n"
                     return
             notified = await run(wait, min(WAIT_SLICE, POLL_EVERY, KEEP_ALIVE))

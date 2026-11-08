@@ -18,6 +18,15 @@ const page = (over: Partial<Parameters<typeof CoachesPage>[0]> = {}) => {
 };
 
 describe("the Coaches page", () => {
+  it("a failed load says so with Try again, never that a key is missing", () => {
+    const onRetry = vi.fn();
+    page({ coaches: null, loadError: "Couldn't load your coaches.", onRetry });
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load your coaches.");
+    expect(screen.queryByText(/once a key is added/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
   it("with a voice key, shows only the coaches that can speak, by name, and what another key would add", () => {
     const p = page();
     const names = screen.getAllByRole("listitem").map((li) => li.querySelector("b")?.textContent);

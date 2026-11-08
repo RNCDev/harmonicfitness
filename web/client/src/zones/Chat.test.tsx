@@ -208,7 +208,7 @@ describe("the chat", () => {
   it("a long wait shows its own clock and says it's a long one", () => {
     vi.useFakeTimers();
     try {
-      render(<Chat {...base} working steps={stepsOf([{ stage: "step", text: "Recording your workout", id: 1, state: "running" }])} />);
+      render(<Chat {...base} working steps={stepsOf([{ stage: "step", text: "Recording your workout", id: 1, state: "running", kind: "recording" }])} />);
       expect(screen.queryByText("Recording a full workout takes a few minutes.")).toBeNull();
       act(() => { vi.advanceTimersByTime(30_000); });
       expect(screen.getByText("Recording a full workout takes a few minutes.")).toBeInTheDocument();

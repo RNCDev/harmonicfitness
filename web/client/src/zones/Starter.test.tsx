@@ -21,6 +21,17 @@ const info: StartInfo = {
 const slot = (name: RegExp) => screen.getByRole("button", { name });
 
 describe("the starter", () => {
+  it("a failed load keeps the request, says why and offers Try again, not \"Choose your coach\"", () => {
+    const onRetry = vi.fn();
+    const none: StartInfo = { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false };
+    render(<Starter info={none} onStart={vi.fn()} onOpenCoaches={vi.fn()} loadError="Couldn't load your coaches." onRetry={onRetry} />);
+    expect(screen.queryByText("Choose your coach.")).toBeNull();
+    expect(screen.queryByText("Add a voice key in Settings first.")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load your coaches.");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
   it("fills the blanks from what the app knows", () => {
     render(<Starter info={info} onStart={vi.fn()} />);
     expect(slot(/^Coach: Reed$/)).toBeInTheDocument();

@@ -33,6 +33,9 @@ export type FirstScreen = {
   onCoach?: (slug: string) => void;
   coachError?: string | null;
   onOpenCoaches?: () => void;
+  /** Why the request's coaches and defaults couldn't be loaded, and asking again. */
+  startError?: string | null;
+  onRetryStart?: () => void;
 };
 
 /** What waits on the listener's approval: a priced recording, or a workout for later and its schedule. */
@@ -198,9 +201,9 @@ function collapsed(steps: Step[]): Step[] {
 
 /** A note for a wait that has run long, by what it's waiting on. */
 function longWait(s: Step): string {
-  if (/^Recording/.test(s.text)) return "Recording a full workout takes a few minutes.";
-  if (/^Designing|voices/.test(s.text)) return "Making a voice takes a minute or two.";
-  if (s.think) return "Planning carefully takes a minute when there's a lot to fit in.";
+  if (s.kind === "recording") return "Recording a full workout takes a few minutes.";
+  if (s.kind === "voice") return "Making a voice takes a minute or two.";
+  if (s.kind === "think") return "Planning carefully takes a minute when there's a lot to fit in.";
   return "Still on it.";
 }
 const LONG = 25;   // seconds before a running step says it's a long one
@@ -258,7 +261,7 @@ function Working({ steps, stopping }: { steps: Step[]; stopping: boolean }) {
 export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop, onOpenKeys, coachBar = null,
   first = {}, offers = {} }: Props) {
   const { needsKey = null, onAddKey, waiting = null, onResume, start = null, starting = false, onCoach, coachError,
-    onOpenCoaches } = first;
+    onOpenCoaches, startError = null, onRetryStart } = first;
   const { offer = null, onRecord, later = null, scheduled = false, onSchedule, onCancel } = offers;
   const [text, setText] = useState(readDraft);
   const [stopping, setStopping] = useState(false);
@@ -299,7 +302,8 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
           </button>
         )}
         {lines.length === 0 && !working && !needsKey && (start || starting) && (
-          <Starter info={start} onStart={onSend} onCoach={onCoach} onOpenCoaches={onOpenCoaches} coachError={coachError} />
+          <Starter info={start} onStart={onSend} onCoach={onCoach} onOpenCoaches={onOpenCoaches} coachError={coachError}
+            loadError={startError} onRetry={onRetryStart} />
         )}
         {lines.map((l, i) => l.audio ? <div key={i} className="m a audio"><AudioFile audio={l.audio} titled /></div>
           : l.role === "user" ? (
