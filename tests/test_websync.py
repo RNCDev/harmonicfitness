@@ -66,7 +66,8 @@ class Plan(unittest.TestCase):
         for rel in (".env", "keys.env", "workouts/w/Workout.mp3", "workouts/.audio-cache/x.json", "x.lock",
                     "workouts/.logs/W.log", "web/sync-state.json", "web/2026-10-31/me/log.md",
                     "coaches/.auditions/a.md", ".git/config", ".backup-2026/log.md", ".gitignore", "a.bundle",
-                    "coaches/.archive/coach-x/sample.mp3", "coaches/coach-x/take.mp3"):
+                    "coaches/.archive/coach-x/sample.mp3", "coaches/coach-x/take.mp3",
+                    "workouts/.logs/backup-remote.json"):
             self.assertTrue(websync.skipped(rel), rel)
         for rel in ("log.md", "workouts/w/w.draft.txt", "workouts/.logs/builds.jsonl", "coaches/coach-x/persona.md",
                     "workouts/research/told.jsonl", "coaches/coach-x/sample.mp3"):

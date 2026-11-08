@@ -2,6 +2,13 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.71.2] - 2026-11-08
+
+`./harmonicfitness sync` no longer sends the backup's note of which GitHub remote this computer confirmed private (`me/workouts/.logs/backup-remote.json`). Each backup rewrites it, so it showed as changed on both sides at every sync.
+
+### Fixed
+- **Sync leaves `workouts/.logs/backup-remote.json` on this computer** (`tools/websync.py`'s `LOCAL_ONLY`): it means something only where the backup checked the remote. A copy the web app already holds is left alone in both directions.
+
 ## [0.71.1] - 2026-11-08
 
 A new Settings drawer, and a workout's recording kept until three newer ones replace it, where it went after a day. Settings is now tabs (Keys, Level, Recording, Background, Files) over the one chosen section, with the account always at the foot; the level is three cards, the key in use is marked, and the logo's coral marks what's chosen. A patch: the database change (migration 017) applies itself on deploy.

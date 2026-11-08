@@ -37,12 +37,13 @@ import paths  # noqa: E402
 import webpull  # noqa: E402
 
 # What the site never keeps (web/webapp/folder.py's SKIP, which test_websync holds in step), and what is this
-# computer's alone: auditions in progress, backups, git, and me/web/ (pulls, conflicts and this record).
+# computer's alone: auditions in progress, backups, git, me/web/ (pulls, conflicts and this record), and the backup's
+# note of which GitHub remote this computer confirmed private (tools/backup.py).
 SKIP = (
     ".env", ".env.*", "*.env", "*.lock", "workouts/.audio-cache/",
     "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store", ".cache/",
 )
-LOCAL_ONLY = ("web/", "coaches/.auditions/", ".git/", ".backup-*", "*.bundle")
+LOCAL_ONLY = ("web/", "coaches/.auditions/", ".git/", ".backup-*", "*.bundle", "workouts/.logs/backup-remote.json")
 # but a web coach's sample, which the site keeps for its Coaches page (web/webapp/folder.py's COACH_SAMPLE)
 COACH_SAMPLE = re.compile(r"coaches/[^./][^/]*/sample\.mp3")
 STATE = os.path.join("web", "sync-state.json")
