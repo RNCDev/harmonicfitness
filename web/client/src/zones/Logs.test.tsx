@@ -43,7 +43,7 @@ describe("the Logs page", () => {
   it("lists the workouts newest first and filters them", async () => {
     render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
-    expect(screen.getByText("3 of 3 workouts")).toBeInTheDocument();
+    expect(screen.getByText("3 workouts")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Rating"), { target: { value: "positive" } });
     expect(cards()).toHaveLength(1);
     expect(cards()[0]).toHaveTextContent("loved it");
@@ -89,8 +89,9 @@ describe("the Logs page", () => {
     const first = cards()[0];
     fireEvent.click(within(first).getByRole("button", { name: "Show the script" }));
     expect(await within(first).findByText(/Fifteen minutes on the bike/)).toBeInTheDocument();
-    expect(within(cards()[2]).getByRole("button", { name: "Show the script" })).toBeDisabled();
+    expect(within(cards()[2]).queryByRole("button", { name: "Show the script" })).toBeNull();   // none was kept
 
+    fireEvent.click(within(first).getByRole("button", { name: "Add feedback" }));
     fireEvent.change(within(first).getByLabelText("Feedback on this workout"), { target: { value: "too long" } });
     fireEvent.click(within(first).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(m.workoutFeedback).toHaveBeenCalledWith("aaa111", "too long"));

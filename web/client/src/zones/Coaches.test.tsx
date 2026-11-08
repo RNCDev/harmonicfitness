@@ -56,7 +56,7 @@ describe("the Coaches page", () => {
     expect(screen.getByText("OpenRouter, powered by ElevenLabs · 3 coaches")).toBeInTheDocument();
     expect(screen.getByText("Gemini · 1 coach")).toBeInTheDocument();
     expect(screen.getAllByText("Direct and precise.")).toHaveLength(3);
-    expect(screen.getAllByText("OpenRouter · about $0.80 a workout")).toHaveLength(3);
+    expect(screen.getAllByText("about $0.80 a workout")).toHaveLength(3);
     expect(screen.getByLabelText("Coach Nora's sample")).toHaveAttribute("src", "/api/coaches/coach-nora-openrouter/sample.mp3");
     expect(screen.getByRole("button", { name: "Play Coach Nora's sample" })).toBeInTheDocument();   // heard before any key
     expect(screen.getAllByRole("button", { name: /^Add an? / })).toHaveLength(4);   // one a service
@@ -80,7 +80,7 @@ describe("the Coaches page", () => {
     page({ coaches: [gemini("June", false), gemini("Dana", true), gemini("Fraser", false), { ...coaches[1] }] });
     const names = screen.getAllByRole("listitem").map((li) => li.querySelector("b")?.textContent);
     expect(names).toEqual(["Coach Dana", "Coach Fraser", "Coach June", "Coach Nolan"]);
-    expect(screen.getByText("Yours · Gemini")).toBeInTheDocument();
+    expect(screen.getByText("Yours")).toBeInTheDocument();
     for (const b of screen.getAllByRole("button", { name: /^Choose/ })) expect(b).not.toHaveAttribute("title");
     // the card's own class: never the menu's .pick, whose overflow clipped the Active label
     for (const li of screen.getAllByRole("listitem")) expect(li).not.toHaveClass("pick");

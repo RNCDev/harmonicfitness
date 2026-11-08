@@ -15,8 +15,8 @@
 .ctx.open { transform: none; visibility: visible; transition: transform var(--t-slide) var(--ease-slide) }
 .ctx-top { display: flex; justify-content: space-between; align-items: center; padding: var(--s-5) var(--s-6h) var(--s-3) }
 .ctx-top h2 { font-size: var(--fs-d3); line-height: var(--lh-solid); letter-spacing: var(--track-btn) }
-.ctx-close { font-size: var(--fs-md); letter-spacing: var(--track-btn); text-transform: uppercase; color: var(--text-2); padding: var(--s-3) 0 var(--s-3) var(--s-3) }
-.ctx-close:hover:not(:disabled) { color: var(--text-strong) }
+.ctx-close, .page-close { font-size: var(--fs-md); letter-spacing: var(--track-btn); text-transform: uppercase; color: var(--text-2); padding: var(--s-3) 0 var(--s-3) var(--s-3) }
+.ctx-close:hover:not(:disabled), .page-close:hover:not(:disabled) { color: var(--text-strong) }
 
 /* the tabs: a row of words, the chosen one underlined */
 .cx-tabs { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); padding: 0 var(--s-6h); box-shadow: inset 0 -1px 0 var(--border) }

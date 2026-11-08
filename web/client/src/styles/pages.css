@@ -1,8 +1,12 @@
 /* The pages beside the chat (Logs, Coaches): the column and its heading. Part of theme.css, which imports every part in order. */
 /* ---------- pages beside the chat (Logs, Coaches): the work column, its heading, a line under it ---------- */
 .work[data-page]:not([data-page="chat"]) > .chat { display: none }
-.page { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; width: min(100%, 1100px + 2 * var(--gut)); padding: var(--s-4h) var(--gut) var(--s-6h) }
-.page.wide { width: 100% }
-.page-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap }
+/* the column sits in the middle; the page scrolls the full width, so its bar sits at the window's edge */
+.page {
+  flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; width: 100%;
+  padding: var(--s-4h) max(var(--gut), (100% - var(--page)) / 2) var(--s-6h);
+}
+/* the top of every page: its name and one line under it, Close at the right (as Settings has) */
+.page-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-4); margin-bottom: var(--s-5) }
 .page-top h1 { font-size: var(--fs-d4); line-height: var(--lh-solid); letter-spacing: var(--track-btn) }
-.page-note, .page-count { color: var(--text-muted); font-size: var(--fs-md); margin: var(--s-1h) 0 var(--s-3h) }
+.page-note, .page-count { color: var(--text-muted); font-size: var(--fs-md); margin: var(--s-2) 0 0 }

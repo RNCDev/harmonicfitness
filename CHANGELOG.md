@@ -2,6 +2,16 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.71.6] - 2026-11-08
+
+The Logs and Coaches pages look like one app. Both sit in one centred column, as the chat does, and scroll the full width with a thin bar at the window's edge; both open with the same top (the name, one line under it, and Close where Settings has it). Logs says less on each card.
+
+### Changed
+- **One page column** (`styles/pages.css`, a new `--page` token in `tokens.css` and its copy in `docs/`): Logs and Coaches share it; the Coaches page is no longer the whole width.
+- **The same top on each page:** the name, a line under it (the count on Logs), and Close (`.page-close`, Settings' Close), named "Back to the chat" for a screen reader.
+- **Logs cards** (`zones/Logs.tsx`, `styles/logs.css`): the date as the title and the length in the line under it; the script, feedback and delete as words in one row, Delete at the right; the feedback box opens on Add feedback, with Cancel; no script link when none was kept; the rating faces without boxes; feedback shown as a quote. The filters say what they filter ("Any rating") in place of labels over them.
+- **Coach cards** (`zones/Coaches.tsx`) drop the service's name, which their group's heading already says.
+
 ## [0.71.5] - 2026-11-08
 
 The chat reads as one conversation on a wide screen. It used to start at the left and stretch to nearly 1500px, leaving the right of the window empty and a wide gap between the listener's lines and the coach's; its scrollbar, the browser's grey default with arrows, ran down the middle of the page beside the text.

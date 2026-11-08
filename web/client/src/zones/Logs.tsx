@@ -75,34 +75,39 @@ export function Logs({ onClose }: { onClose: () => void }) {
   return (
     <section className="page" aria-labelledby="logs-title">
       <div className="page-top">
-        <h1 className="head" id="logs-title">Logs</h1>
-        <Button variant="text" onClick={onClose}>Back to the chat</Button>
+        <div>
+          <h1 className="head" id="logs-title">Logs</h1>
+          {list && list.length > 0 && <p className="page-count">
+            {shown.length === list.length ? `${list.length} ${list.length === 1 ? "workout" : "workouts"}`
+              : `${shown.length} of ${list.length} workouts`}</p>}
+        </div>
+        <Button variant="bare" className="page-close" aria-label="Back to the chat" onClick={onClose}>Close</Button>
       </div>
       <div className="logs-controls">
         <Field id="logs-search" label="Search" hideLabel className="logs-search">
           <input className="input" type="search" placeholder="Search movements, topics, feedback" value={q}
             onChange={(e) => setQ(e.target.value)} />
         </Field>
-        <Field id="logs-rating" label="Rating">
+        <Field id="logs-rating" label="Rating" hideLabel>
           <select className="input" value={rating} onChange={(e) => setRating(e.target.value as RatingFilter)}>
-            <option value="all">All</option>
+            <option value="all">Any rating</option>
             {RATINGS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             <option value="unrated">Not rated</option>
           </select>
         </Field>
-        <Field id="logs-format" label="Format">
+        <Field id="logs-format" label="Format" hideLabel>
           <select className="input" value={format} onChange={(e) => setFormat(e.target.value)}>
-            <option value="all">All</option>
+            <option value="all">Any format</option>
             {formats.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
         </Field>
-        <Field id="logs-kit" label="Kit">
+        <Field id="logs-kit" label="Kit" hideLabel>
           <select className="input" value={kit} onChange={(e) => setKit(e.target.value)}>
-            <option value="all">All</option>
+            <option value="all">Any kit</option>
             {kits.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
         </Field>
-        <Field id="logs-sort" label="Sort">
+        <Field id="logs-sort" label="Sort" hideLabel>
           <select className="input" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -116,13 +121,12 @@ export function Logs({ onClose }: { onClose: () => void }) {
       <Loadable value={list} error={res.error} onRetry={res.reload} what="your workouts" isEmpty={(l) => l.length === 0}
         empty={<Empty action={<Button onClick={onClose}>Plan a workout</Button>}>
           Your workouts show here once you've recorded one.</Empty>}>
-        {(all) => (
+        {() => (
           <>
             {shown.length === 0 &&
               <p className="page-note">No workouts match. <Button variant="text" onClick={() => {
                 setQ(""); setRating("all"); setFormat("all"); setKit("all");
               }}>Clear the filters</Button></p>}
-            <p className="page-count">{shown.length} of {all.length} workouts</p>
             <ol className="logs-list">
               {shown.map((w) => <WorkoutCard key={workoutRef(w) + w.date} w={w} onChanged={load} />)}
             </ol>
@@ -139,6 +143,7 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
   const [script, setScript] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
+  const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rated, setRated] = useState<Rating | null>(w.rating);
   /** What the coach noted from the last feedback (worked out in the background): null until it says. Until then,
@@ -188,26 +193,26 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
     setError(await optimistic(rated, next, setRated, () => api.rateWorkout(ref, next ?? "none")));
   };
 
-  const title = `${longDate(w.date)}, ${w.minutes} minutes`;
+  const title = longDate(w.date);
   return (
     <li className="logs-card">
       <div className="logs-head">
         <div>
           <h2 className="head">{title}</h2>
-          <p className="logs-meta">{[w.format, w.kit, w.coach].filter(Boolean).join(" · ")}</p>
+          <p className="logs-meta">{[`${w.minutes} min`, w.format, w.kit, w.coach].filter(Boolean).join(" · ")}</p>
         </div>
         <div className="logs-rate" role="group" aria-label={`Rate the ${title} workout`}>
           {RATINGS.map((r) => (
-            <Button key={r.value} variant="bare" className={`rate-btn outlined ${r.value}`} pressed={rated === r.value}
+            <Button key={r.value} variant="bare" className={`rate-btn ${r.value}`} pressed={rated === r.value}
               title={r.label} disabled={busy} onClick={() => void rate(r.value)}>
-              <Icon name={`face-${r.value}`} size={20} weight={1.8} /><span className="sr">{r.label}</span>
+              <Icon name={`face-${r.value}`} size={22} weight={1.7} /><span className="sr">{r.label}</span>
             </Button>
           ))}
         </div>
       </div>
       {w.audio && <AudioFile audio={w.audio} preload="none" />}
       <p className="logs-moves">{w.movements.join(", ")}</p>
-      {w.topics && <p className="logs-topics">Topics: {w.topics}</p>}
+      {w.topics && <p className="logs-topics"><span className="logs-topics-h">Topics</span> {w.topics}</p>}
       {w.feedback.length > 0 && (
         <ul className="logs-feedback" aria-label="Feedback">
           {w.feedback.map((f, i) => <li key={i}>{f}</li>)}
@@ -215,13 +220,12 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
       )}
       {noted && <p className="logs-noted" role="status">{noted}</p>}
       <div className="logs-actions">
-        <Button aria-expanded={open} disabled={!w.has_script} aria-describedby={w.has_script ? undefined : `noscript-${ref}`}
-          onClick={() => void toggleScript()}>
+        {w.has_script && <Button variant="text" aria-expanded={open} onClick={() => void toggleScript()}>
           {open ? "Hide the script" : "Show the script"}
-        </Button>
-        {!w.has_script && <span className="notice" id={`noscript-${ref}`}>No script was kept for this workout.</span>}
+        </Button>}
+        {!writing && <Button variant="text" onClick={() => setWriting(true)}>Add feedback</Button>}
         {!deleting
-          ? <Button danger disabled={busy} onClick={() => setDeleting(true)}>Delete</Button>
+          ? <Button variant="text" danger className="logs-delete" disabled={busy} onClick={() => setDeleting(true)}>Delete</Button>
           : <ConfirmInline question="Delete this workout, its feedback and its files?" confirm="Delete it"
               busy={busy} onConfirm={() => void change.run(() => api.deleteWorkout(ref))} onKeep={() => setDeleting(false)} />}
       </div>
@@ -231,23 +235,25 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
           {script === null ? <p aria-busy="true">Loading the script…</p> : script}
         </div>
       )}
-      <form className="logs-note-form" onSubmit={(e) => {
+      {writing && <form className="logs-note-form" onSubmit={(e) => {
         e.preventDefault();
         const text = note.trim();
         if (!text) return;
         void change.run(async () => {
           const r = await api.workoutFeedback(ref, text);
           setNote("");
+          setWriting(false);
           if (r?.job_id) void follow(r.job_id);
           else setNoted("Feedback saved.");
         });
       }}>
         <Field id={`feedback-${ref}`} label="Feedback on this workout" hideLabel>
-          <input className="input" type="text" maxLength={1000} placeholder="Add feedback: too long, loved the quiz…" value={note}
-            onChange={(e) => setNote(e.target.value)} disabled={busy} />
+          <input className="input" type="text" maxLength={1000} placeholder="Too long, loved the quiz…" value={note}
+            autoFocus onChange={(e) => setNote(e.target.value)} disabled={busy} />
         </Field>
         <Button type="submit" busy={busy} disabled={!note.trim()}>Save</Button>
-      </form>
+        <Button variant="text" disabled={busy} onClick={() => { setWriting(false); setNote(""); }}>Cancel</Button>
+      </form>}
     </li>
   );
 }

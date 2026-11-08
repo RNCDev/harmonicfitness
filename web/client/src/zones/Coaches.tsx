@@ -34,7 +34,8 @@ function Card({ c, onCoach }: { c: StartCoach; onCoach?: (slug: string) => void 
       {active && <span className="cg-on">Active</span>}
       <div className="cg-head">
         <b>Coach {c.first}</b>
-        <small>{c.own ? "Yours · " : ""}{c.service_name}{price ? ` · ${price}` : ""}</small>
+        {/* the group's heading names the service */}
+        <small>{[c.own ? "Yours" : "", price].filter(Boolean).join(" · ")}</small>
       </div>
       {(c.tone || c.description) && <p className="cg-tone">{c.tone || c.description}</p>}
       {(c.sample || c.pending) && (
@@ -133,14 +134,16 @@ export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClos
   error?: string | null }) {
   const any = coaches?.some((c) => c.ready);
   return (
-    <section className="page wide" aria-labelledby="coaches-title">
+    <section className="page" aria-labelledby="coaches-title">
       <div className="page-top">
-        <h1 className="head" id="coaches-title">Coaches</h1>
-        <Button variant="text" onClick={onClose}>Back to the chat</Button>
+        <div>
+          <h1 className="head" id="coaches-title">Coaches</h1>
+          <p className="page-note">{any
+            ? "Play a sample, then tap a coach to choose them."
+            : "Play a sample, then add the key for the coaches you like."}</p>
+        </div>
+        <Button variant="bare" className="page-close" aria-label="Back to the chat" onClick={onClose}>Close</Button>
       </div>
-      <p className="page-note">{any
-        ? "Listen to a sample, then tap a coach to choose them."
-        : "Listen to a sample, then add the key for the coaches you like. Keys stay in Settings."}</p>
       <Notice tone="error">{error}</Notice>
       <Loadable value={coaches} error={loadError} onRetry={onRetry} what="the coaches">
         {(list) => <CoachGallery coaches={list} onCoach={onCoach} onAddKey={onAddKey} onOpenSettings={onOpenSettings} />}

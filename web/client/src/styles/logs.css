@@ -1,35 +1,38 @@
 /* The Logs page. Part of theme.css, which imports every part in order. */
 /* ---------- Logs: past workouts, their scripts, feedback and ratings ---------- */
-.logs-controls { display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-4); align-items: end; margin: var(--s-5) 0 var(--s-2h) }
+.logs-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: end; margin: 0 0 var(--s-4h) }
 .logs-controls .field { gap: var(--s-1) }
 .logs-controls .label { font-size: var(--fs-sm) }
 .logs-controls .input { font-size: var(--fs-md); background: var(--surface-raised); padding: var(--s-2) var(--s-3); min-height: var(--control); width: auto }
 .logs-search { flex: 1 1 260px }
 .logs-search .input { width: 100% }
 .logs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3h) }
-.logs-card { background: var(--panel); box-shadow: inset 0 0 0 1px var(--border); padding: var(--s-4h) var(--s-4h); display: grid; gap: var(--s-2h); min-width: 0 }
+.logs-card { background: var(--panel); box-shadow: inset 0 0 0 1px var(--border); padding: var(--s-4h) var(--s-5); display: grid; gap: var(--s-3); min-width: 0 }
 .logs-head { display: flex; justify-content: space-between; gap: var(--s-3h); align-items: start }
 .logs-head h2 { font-size: var(--fs-d1); line-height: var(--lh-head); letter-spacing: var(--track-wide) }
 .logs-meta { margin: var(--s-1) 0 0; color: var(--text-2); font-size: var(--fs-md) }
 .logs-moves, .logs-topics { margin: 0; font-size: var(--fs-md); color: var(--text-2); overflow-wrap: anywhere }
 .logs-topics { color: var(--text-muted); font-size: var(--fs-md) }
+.logs-topics-h { color: var(--text-2) }
 .logs-card .audio-file { margin: 2px 0 var(--s-1) }
 .logs-card .audio-file .cx-s { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--s-1) }
-.logs-feedback { margin: 0; padding-left: var(--s-4h); font-size: var(--fs-md) }
+.logs-feedback { list-style: none; margin: 0; padding: 0 0 0 var(--s-3); border-left: 2px solid var(--border-strong); display: grid; gap: var(--s-1); font-size: var(--fs-md) }
 .logs-noted { margin: var(--s-1h) 0 0; font-size: var(--fs-md); color: var(--text-2); font-style: italic }
 .logs-rate { display: flex; flex: none; gap: var(--s-1h) }
-.rate-btn { width: var(--control-sm); height: var(--control-sm); display: grid; place-items: center; font: 600 var(--fs-lg)/var(--lh-solid) var(--font); color: var(--text-muted) }
+.rate-btn { width: var(--control-sm); height: var(--control-sm); display: grid; place-items: center; font: 600 var(--fs-lg)/var(--lh-solid) var(--font); color: var(--text-muted); border-radius: 50% }
+.rate-btn:hover:not(:disabled) { color: var(--text-strong); background: var(--hover) }
 .rate-btn[aria-pressed="true"] { color: var(--on-action); background: var(--action); box-shadow: none }
 .rate-btn[aria-pressed="true"]:hover:not(:disabled) { color: var(--on-action); box-shadow: none }
 .rate-btn.negative[aria-pressed="true"] { background: var(--danger) }
-.logs-actions { display: flex; flex-wrap: wrap; gap: var(--s-2h); align-items: center }
+.logs-actions { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4h); align-items: center; font-size: var(--fs-md) }
+.logs-actions .logs-delete { margin-left: auto }
 .logs-actions .notice { color: var(--text-muted) }
 .logs-script {
   white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow-y: auto; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--border); padding: var(--s-4) var(--s-4h); font-size: var(--fs-md); line-height: var(--lh-body); color: var(--text-2);
 }
 .logs-script p { margin: 0 }
-.logs-note-form { display: flex; gap: var(--s-2h); align-items: stretch }
+.logs-note-form { display: flex; gap: var(--s-2h); align-items: center }
 .logs-note-form .field { flex: 1 }
 .logs-note-form .input { background: var(--surface-raised); padding: var(--s-2) var(--s-3); min-height: var(--control); font-size: var(--fs-md) }
 @media (max-width: 640px) {
