@@ -1,6 +1,7 @@
 // The stylesheet keeps to its tokens. theme.css is the list of parts (styles/*.css); every rule here holds for each
-// part: no colour typed in by hand and no tint mixed in a rule, no token used that tokens.css doesn't define, no
-// type size or spacing typed in pixels, corners only from the corner tokens, the four breakpoints, and no hover look
+// part: no colour typed in by hand and no tint mixed in a rule, colours only by their role, no token used that
+// tokens.css doesn't define, no type size, spacing or control size typed in pixels, line heights, opacities, durations
+// and focus rings only from their tokens, corners only from the corner tokens, the four breakpoints, and no hover look
 // on a disabled control.
 import { describe, expect, it } from "vitest";
 import theme from "./theme.css?raw";
@@ -46,6 +47,28 @@ describe("theme.css", () => {
     const SPACING = /(?:^|[;{\s])(?:padding|margin|gap|row-gap|column-gap|inset|top|left|right|bottom)[\w-]*\s*:([^;}]*)/g;
     expect(broken((css) => [...css.matchAll(SPACING)].flatMap((m) =>
       (m[1].match(/(?<![\w.-])\d+px/g) ?? []).filter((v) => parseInt(v, 10) > 2)))).toEqual([]);
+  });
+
+  it("names each colour by its role: the palette is tokens.css's own, never a rule's", () => {
+    const PALETTE = /var\(--(ink|ink-2|ink-3|ink-hi|ink-slot|rule|line|paper|sheet|sheet-2|drawer|stop|stop-tint|blue|blue-hi|blue-tint|coral)\)/g;
+    expect(broken(all(PALETTE))).toEqual([]);
+  });
+
+  it("sizes a control only by the size tokens (a hairline, a small mark under 16px, or a layout width may be typed)", () => {
+    const SIZE = /(?:^|[;{\s])(?:width|height|min-width|min-height)\s*:([^;}]*)/g;
+    expect(broken((css) => [...css.matchAll(SIZE)].flatMap((m) =>
+      (m[1].match(/(?<![\w.-])\d+px/g) ?? []).filter((v) => parseInt(v, 10) >= 16 && parseInt(v, 10) <= 64)))).toEqual([]);
+  });
+
+  it("sets line height, opacity, motion and focus only from their tokens", () => {
+    // a line's height may also match a control's, so a label sits level with the dot beside it
+    expect(broken(all(/line-height:(?!\s*(?:var\(--(?:lh-[\w-]+|chip|control)\)|inherit|normal))[^;}]+/g))).toEqual([]);
+    expect(broken(all(/font:[^;}]*\/\s*[\d.]+/g))).toEqual([]);
+    expect(broken(all(/opacity:(?!\s*(?:0|1|var\(--(?:o-[\w-]+|disabled)\))\s*(?:[;}!]|$))[^;}]+/g))).toEqual([]);
+    expect(broken((css) => (css.match(/(?:transition|animation)[\w-]*:[^;}]+/g) ?? [])
+      .flatMap((d) => (d.match(/(?<![\w.-])\d*\.?\d+m?s\b/g) ?? []).filter((t) => t !== ".01ms")))).toEqual([]);
+    expect(broken(all(/outline-offset:(?!\s*var\(--focus-(?:offset|inset)\))[^;}]+/g))).toEqual([]);
+    expect(broken(all(/outline:\s*\d+px solid[^;}]*/g))).toEqual([]);
   });
 
   it("rounds corners only by the corner tokens (or a circle)", () => {

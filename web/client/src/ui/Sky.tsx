@@ -70,7 +70,7 @@ function useCanvas(paint: Painter) {
       c!.width = Math.round(w * dpr);
       c!.height = Math.round(h * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      INK = token("--ink", INK);
+      INK = token("--text", getComputedStyle(c!).color || INK);
       draw = paint(ctx!, w, h);
     }
     layout();
@@ -91,8 +91,9 @@ function useCanvas(paint: Painter) {
   return canvas;
 }
 
-/** The canvases draw in the page's ink (tokens.css), read when each one lays out. */
-let INK = "#EDEAE0";
+/** The canvases draw in the page's text colour (the --text role, tokens.css), read when each one lays out; where
+ * styles aren't loaded, the canvas's own colour. */
+let INK = "white";
 
 // ---- Field: dots on a canvas, so a few thousand of them cost one draw per frame ----
 const GAP = 28;          // px between dots

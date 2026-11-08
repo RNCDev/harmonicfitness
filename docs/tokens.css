@@ -23,8 +23,6 @@
 
   /* the same colours at a strength: every tint is named here, never mixed in a rule */
   --hover: color-mix(in srgb, var(--ink) 5%, transparent);
-  --hover-faint: color-mix(in srgb, var(--ink) 3%, transparent);
-  --hover-soft: color-mix(in srgb, var(--ink) 6%, transparent);
   --lead-wash: color-mix(in srgb, var(--ink) 4%, transparent);       /* the ask to do first */
   --glow: color-mix(in srgb, var(--ink) 25%, transparent);
   --danger-line: color-mix(in srgb, var(--stop) 50%, transparent);   /* an outlined button that deletes */
@@ -35,19 +33,16 @@
   --veil: color-mix(in srgb, var(--paper) 72%, transparent);
   --veil-light: color-mix(in srgb, var(--paper) 60%, transparent);
   --panel: color-mix(in srgb, var(--sheet) 92%, transparent);
-  --panel-soft: color-mix(in srgb, var(--sheet) 88%, transparent);
-  --panel-solid: color-mix(in srgb, var(--sheet) 94%, transparent);
   --card: color-mix(in srgb, var(--sheet-2) 92%, transparent);
   --scrim: color-mix(in srgb, #000 50%, transparent);
-  --scrim-dialog: color-mix(in srgb, #000 45%, transparent);
   --lift: 0 24px 48px -20px color-mix(in srgb, #000 70%, transparent), 0 2px 6px color-mix(in srgb, #000 30%, transparent);
 
   /* type: a display face for headings and buttons, a narrow sans for the rest. Body text is --fs-body in the app,
-     --fs-lg on the docs pages. */
+     --fs-lg on the docs pages. Four sizes for text, steps a reader can tell apart, then the display face's. */
   --font: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --display: "Big Shoulders Display Variable", "Big Shoulders Display", "Arial Narrow", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-base: 15px; --fs-body: 16px; --fs-lg: 17px; --fs-xl: 18px; --fs-btn: 19px;
+  --fs-sm: 13px; --fs-md: 15px; --fs-body: 16px; --fs-lg: 18px;
   --fs-d1: 22px; --fs-d2: 24px; --fs-d3: 30px; --fs-d4: 34px;   /* the display face's headings */
   /* the display face at its largest, growing with the window */
   --fs-request: clamp(38px, 4.8vw, 70px);        /* the request on the first screen */
@@ -56,6 +51,8 @@
   --fs-hero-pair: clamp(40px, 3.4vw, 52px);      /* the same, beside the demos */
   --fs-welcome: clamp(32px, 3.6vw, 44px);        /* the welcome card */
   --track-tight: .02em; --track-head: .05em; --track-wide: .1em; --track-btn: .14em; --track-label: .16em;
+  /* line heights: set solid, a heading's, a control's or a short note's, and running text */
+  --lh-solid: 1; --lh-tight: 1.1; --lh-head: 1.2; --lh-ui: 1.4; --lh-body: 1.55;
 
   /* space: steps of 4 and 8, with the half steps the layout uses */
   --s-1: 4px; --s-1h: 6px; --s-2: 8px; --s-2h: 10px; --s-3: 12px; --s-3h: 14px; --s-4: 16px; --s-4h: 20px;
@@ -65,17 +62,30 @@
   /* corners: controls are square, sheets (cards, panels, bubbles, menus) a little round, a pill fully */
   --radius-control: 0; --radius-sheet: 2px; --radius-pill: 999px;
 
-  /* sizes: a fingertip's target (every control on a touch screen takes at least this), and a control's height */
-  --hit: 44px; --control: 40px;
+  /* sizes: a fingertip's target (every control on a touch screen takes at least this), a control's height, and the
+     smaller pieces: a round play or a rating, the large play, a chart's dot, a count's badge, a box to tick */
+  --hit: 44px; --control: 40px; --control-sm: 36px; --control-lg: 52px; --chip: 30px; --badge: 26px; --tick: 18px;
+  --dot: 11px;
+
+  /* focus: one ring, outside a control or (where the outside is clipped) just inside it */
+  --focus-ring: 2px solid var(--ink); --focus-offset: 3px; --focus-inset: -2px;
+  --focus-ring-inset: inset 0 0 0 2px var(--ink);
 
   /* layers, motion */
   --z-raised: 1; --z-over: 2; --z-menu: 5; --z-dialog: 60; --z-scrim: 65; --z-drawer: 70;
-  --t-fast: .15s; --t-slow: .18s; --t-slide: .28s; --ease-slide: cubic-bezier(.2, .8, .2, 1);
-  --disabled: .45;
+  --t-fast: .15s; --t-flip: .3s; --t-slide: .28s; --t-pulse: 1.5s; --t-sky: 1.2s; --t-drift: 120s; --t-drift-back: 200s; --ease-slide: cubic-bezier(.2, .8, .2, 1);
+  --ease-flip: cubic-bezier(.3, 1.45, .6, 1);
+  /* how strongly a thing shows: switched off, busy, quieter, a faint mark */
+  --disabled: .45; --o-busy: .75; --o-muted: .8; --o-faint: .5;
 
-  /* roles: what a colour is for. New rules use these; the palette above is what they're made of. */
-  --text: var(--ink); --text-muted: var(--ink-3); --surface: var(--paper); --surface-raised: var(--sheet);
-  --action: var(--ink); --danger: var(--stop); --sample: var(--blue); --request-fixed: var(--coral);
+  /* roles: what a colour is for. The app's stylesheets use only these (theme.test.ts); the palette above is what
+     they're made of, so a second theme would redefine the roles alone. */
+  --text: var(--ink); --text-2: var(--ink-2); --text-muted: var(--ink-3); --text-strong: var(--ink-hi);
+  --text-slot: var(--ink-slot); --border: var(--rule); --border-strong: var(--line);
+  --surface: var(--paper); --surface-raised: var(--sheet); --surface-2: var(--sheet-2); --surface-drawer: var(--drawer);
+  --action: var(--ink); --on-action: var(--paper); --danger: var(--stop); --danger-surface: var(--stop-tint);
+  --sample: var(--blue); --sample-strong: var(--blue-hi); --sample-surface: var(--blue-tint);
+  --request-fixed: var(--coral);
 
   color-scheme: dark;
 }

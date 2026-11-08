@@ -4,5 +4,5 @@
 .page { flex: 1; min-height: 0; overflow-y: auto; width: min(100%, 1100px + 2 * var(--gut)); padding: var(--s-4h) var(--gut) var(--s-6h) }
 .page.wide { width: 100% }
 .page-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap }
-.page-top h1 { font-size: var(--fs-d4); line-height: 1; letter-spacing: var(--track-btn) }
-.page-note, .page-count { color: var(--ink-3); font-size: var(--fs-md); margin: var(--s-1h) 0 var(--s-3h) }
+.page-top h1 { font-size: var(--fs-d4); line-height: var(--lh-solid); letter-spacing: var(--track-btn) }
+.page-note, .page-count { color: var(--text-muted); font-size: var(--fs-md); margin: var(--s-1h) 0 var(--s-3h) }

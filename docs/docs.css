@@ -32,7 +32,7 @@ code { font: .88em var(--mono); background: var(--sheet-2); border-radius: var(-
 .top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: var(--s-5) 0; border-bottom: 1px solid var(--rule) }
 .top img { height: 30px; width: auto }
 .top nav { display: flex; gap: var(--s-4h); flex-wrap: wrap }
-.top nav a { font: 700 var(--fs-base)/1 var(--display); letter-spacing: .12em; text-transform: uppercase; text-decoration: none; color: var(--ink-2) }
+.top nav a { font: 700 var(--fs-md)/1 var(--display); letter-spacing: .12em; text-transform: uppercase; text-decoration: none; color: var(--ink-2) }
 .top nav a[aria-current] { color: var(--ink); box-shadow: 0 2px 0 var(--coral) }
 
 /* headings */
@@ -55,7 +55,7 @@ h3 { font-size: var(--fs-d1); line-height: 1.1; letter-spacing: .06em; margin: 0
 .l-knowledge { --c: var(--knowledge) } .l-coaches { --c: var(--coaches) }
 .l-me { --c: var(--me) } .l-tools { --c: var(--tools) }
 .layer { border-top: 4px solid var(--c) }
-.layer .path { font: 600 var(--fs-base) var(--mono); color: var(--c) }
+.layer .path { font: 600 var(--fs-md) var(--mono); color: var(--c) }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none }
 
 /* chips: which layers a step reads or writes */
@@ -76,7 +76,7 @@ h3 { font-size: var(--fs-d1); line-height: 1.1; letter-spacing: .06em; margin: 0
 
 /* tables */
 .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius-sheet) }
-table { width: 100%; border-collapse: collapse; font-size: var(--fs-base) }
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-md) }
 th, td { text-align: left; vertical-align: top; padding: var(--s-2h) var(--s-3h); border-bottom: 1px solid var(--rule) }
 th { font: 700 var(--fs-md)/1.2 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); background: var(--sheet) }
 tr:last-child td { border-bottom: 0 }

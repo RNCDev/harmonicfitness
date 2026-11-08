@@ -1,14 +1,14 @@
 /* A page with one short task (sign in, a password, unreachable), and the sign-in page's demos. Part of theme.css, which imports every part in order. */
 /* ---------- signed out, unreachable ---------- */
 .solo { margin: auto 0 0; width: 100%; max-width: calc(30rem + 2 * var(--gut)); padding: var(--s-7) var(--gut) var(--s-8) }
-.solo h1 { font: 700 var(--fs-hero)/1 var(--display); letter-spacing: var(--track-head); text-transform: uppercase; margin: 0 0 var(--s-3h) }
-.solo p { color: var(--ink-2); margin: 0 0 var(--s-5) }
+.solo h1 { font: 700 var(--fs-hero)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase; margin: 0 0 var(--s-3h) }
+.solo p { color: var(--text-2); margin: 0 0 var(--s-5) }
 .solo .hint { margin: -4px 0 var(--s-1) }
 .solo .auth { margin-bottom: var(--s-5h) }
 .auth { display: flex; flex-direction: column; gap: var(--s-3h); margin-top: var(--s-4) }
-.auth .label { font-size: var(--fs-md); font-weight: 500; letter-spacing: var(--track-btn); color: var(--ink-2) }
+.auth .label { font-size: var(--fs-md); font-weight: 500; letter-spacing: var(--track-btn); color: var(--text-2) }
 .auth .go { align-self: flex-start; margin-top: var(--s-1h) }
-.auth > .notice.err { font-size: var(--fs-base) }
+.auth > .notice.err { font-size: var(--fs-md) }
 
 /* the sign-in page: the demos in the wide column, the form beside them (stacked under them on a phone) */
 .solo.solo-pair { margin: 0; max-width: 1360px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-6h) clamp(var(--s-6h), 6vw, var(--s-9)) }
@@ -18,46 +18,46 @@
 
 /* the demos (Demos.tsx): each ask as the request, in its coral and cream, one at a time */
 .demos .demo-eyebrow { margin: 0 0 var(--s-2h); max-width: 46ch }
-.demos .demo-lede { margin: 0 0 var(--s-6h); max-width: 52ch; color: var(--ink-2); font-size: var(--fs-lg); line-height: 1.5 }
+.demos .demo-lede { margin: 0 0 var(--s-6h); max-width: 52ch; color: var(--text-2); font-size: var(--fs-lg); line-height: var(--lh-body) }
 .demo-slides { display: grid }   /* every slide in one cell: the tallest sets the height, so nothing jumps */
 .demo-slide { grid-area: 1 / 1; visibility: hidden }
 .demo-slide.on { visibility: visible }
 .demos .demo-who { margin: 0 0 var(--s-2h) }
-.demo-who b { color: var(--ink); font-weight: 600 }
-.demo-who span { color: var(--ink-2) }
-.demos .demo-req { margin: 0; font: 500 var(--fs-request-demo)/1.16 var(--display); letter-spacing: var(--track-tight); text-transform: uppercase; color: var(--coral) }
+.demo-who b { color: var(--text); font-weight: 600 }
+.demo-who span { color: var(--text-2) }
+.demos .demo-req { margin: 0; font: 500 var(--fs-request-demo)/var(--lh-head) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase; color: var(--request-fixed) }
 .demos .demo-req-2 { margin-top: var(--s-2) }
 .demo-slot {
-  color: var(--ink-slot); padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  color: var(--text-slot); padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
   background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
 }
-.demo-slot.off { background-image: linear-gradient(var(--stop), var(--stop)) }   /* keep off: the request's brick underline */
+.demo-slot.off { background-image: linear-gradient(var(--danger), var(--danger)) }   /* keep off: the request's brick underline */
 .dw { display: inline-block }
-.demo-slide.on.turn .dw { animation: flip .32s cubic-bezier(.3, 1.4, .6, 1) both; transform-origin: 50% 60% }
+.demo-slide.on.turn .dw { animation: flip var(--t-flip) var(--ease-flip) both; transform-origin: 50% 60% }
 
 .demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3h) var(--s-5); margin-top: var(--s-5h) }
 .demo-controls .player { flex: 1 1 260px; max-width: 440px }
 .demo-nav { display: flex; align-items: center; gap: var(--s-1) }
-.icon-btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2) }
+.icon-btn { width: var(--hit); height: var(--hit); display: grid; place-items: center; color: var(--text-2) }
 .demo-dots { display: flex; align-items: center; margin: 0 var(--s-1h) }
-.demo-dot { width: 22px; height: 44px; display: grid; place-items: center }
-.demo-dot::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--line); transition: width .2s, background-color .2s }
-.demo-dot:hover:not(:disabled)::before { background: var(--ink-3) }
-.demo-dot[aria-current="true"]::before { width: 18px; background: var(--ink) }
+.demo-dot { width: calc(var(--hit) / 2); height: var(--hit); display: grid; place-items: center }
+.demo-dot::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--border-strong); transition: width var(--t-fast), background-color var(--t-fast) }
+.demo-dot:hover:not(:disabled)::before { background: var(--text-muted) }
+.demo-dot[aria-current="true"]::before { width: var(--tick); background: var(--action) }
 
 .demo-more { margin-top: var(--s-4h) }
-.demo-more > button { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 40px; font-size: var(--fs-base); color: var(--ink-2);
-  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line) }
-.demo-more > button:hover:not(:disabled) { color: var(--ink-hi); text-decoration-color: currentColor }
+.demo-more > button { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--control); font-size: var(--fs-md); color: var(--text-2);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong) }
+.demo-more > button:hover:not(:disabled) { color: var(--text-strong); text-decoration-color: currentColor }
 .demo-more > button svg { width: 12px; height: 12px; transition: transform var(--t-fast) }
 .demo-more > button[aria-expanded="true"] svg { transform: rotate(90deg) }
-.demo-detail { margin-top: var(--s-2h); padding: var(--s-4h) var(--s-4h); max-width: 640px; background: var(--panel); box-shadow: var(--lift); font-size: var(--fs-base); animation: rise .16s ease-out }
+.demo-detail { margin-top: var(--s-2h); padding: var(--s-4h) var(--s-4h); max-width: 640px; background: var(--panel); box-shadow: var(--lift); font-size: var(--fs-md); animation: rise var(--t-fast) ease-out }
 .demo-detail dl { display: grid; grid-template-columns: 76px 1fr; gap: var(--s-1h) var(--s-3h); margin: 0 }
-.demo-detail dt { padding-top: var(--s-1); font-size: var(--fs-xs) }
-.demo-detail dd { margin: 0; color: var(--ink-2) }
-.demos .demo-changed { margin: var(--s-3h) 0 0; padding-top: var(--s-3); border-top: 1px solid var(--rule); color: var(--ink-2) }
-.demo-changed b { color: var(--ink); font-weight: 500 }
-.demo-moments { list-style: none; margin: var(--s-3h) 0 0; padding: var(--s-3) 0 0; border-top: 1px solid var(--rule); display: grid; gap: 2px }
-.demo-moments button { display: flex; align-items: baseline; gap: var(--s-3); min-height: 34px; text-align: left; color: var(--ink-2) }
-.demo-moments button:hover:not(:disabled) { color: var(--ink-hi) }
-.demo-at { flex: none; width: 34px; color: var(--blue); font-variant-numeric: tabular-nums }
+.demo-detail dt { padding-top: var(--s-1); font-size: var(--fs-sm) }
+.demo-detail dd { margin: 0; color: var(--text-2) }
+.demos .demo-changed { margin: var(--s-3h) 0 0; padding-top: var(--s-3); border-top: 1px solid var(--border); color: var(--text-2) }
+.demo-changed b { color: var(--text); font-weight: 500 }
+.demo-moments { list-style: none; margin: var(--s-3h) 0 0; padding: var(--s-3) 0 0; border-top: 1px solid var(--border); display: grid; gap: 2px }
+.demo-moments button { display: flex; align-items: baseline; gap: var(--s-3); min-height: var(--control-sm); text-align: left; color: var(--text-2) }
+.demo-moments button:hover:not(:disabled) { color: var(--text-strong) }
+.demo-at { flex: none; width: var(--control-sm); color: var(--sample); font-variant-numeric: tabular-nums }

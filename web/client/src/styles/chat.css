@@ -5,99 +5,99 @@
 .m.a { align-self: flex-start }
 .m.md, .m.thinking { background: var(--veil); box-shadow: 0 0 24px 18px var(--veil) }
 .m.u {
-  align-self: flex-end; max-width: 34em; background: var(--sheet-2); color: var(--ink); padding: var(--s-3) var(--s-4);
-  border-radius: var(--radius-sheet); white-space: pre-wrap; box-shadow: inset 0 0 0 1px var(--rule);
+  align-self: flex-end; max-width: 34em; background: var(--surface-2); color: var(--text); padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-sheet); white-space: pre-wrap; box-shadow: inset 0 0 0 1px var(--border);
 }
-.m.thinking { color: var(--ink-2); min-width: 16em }
-.think-head { margin: 0; font-weight: 600; color: var(--ink) }
-.think-head .clock { font-weight: 400; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-left: var(--s-1h) }
-.steps { list-style: none; margin: var(--s-2h) 0 0; padding: 0; font-size: var(--fs-base); position: relative }
-.steps::before { content: ""; position: absolute; left: var(--s-1); top: var(--s-2); bottom: var(--s-2); width: 1px; background: var(--rule) }
-.steps li { position: relative; padding: var(--s-1) 0 var(--s-1) var(--s-5); color: var(--ink-3) }
-.steps li::before { content: ""; position: absolute; left: 0; top: var(--s-2); width: 11px; height: 11px; border-radius: 50%; background: var(--step-done) }
-.steps li.bad::before { background: var(--stop) }
-.steps li.now { color: var(--ink); font-weight: 500 }
-.steps li.now::before { background: var(--ink); box-shadow: 0 0 0 4px var(--glow); animation: pulse 1.4s ease-in-out infinite }
+.m.thinking { color: var(--text-2); min-width: 16em }
+.think-head { margin: 0; font-weight: 600; color: var(--text) }
+.think-head .clock { font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-left: var(--s-1h) }
+.steps { list-style: none; margin: var(--s-2h) 0 0; padding: 0; font-size: var(--fs-md); position: relative }
+.steps::before { content: ""; position: absolute; left: var(--s-1); top: var(--s-2); bottom: var(--s-2); width: 1px; background: var(--border) }
+.steps li { position: relative; padding: var(--s-1) 0 var(--s-1) var(--s-5); color: var(--text-muted) }
+.steps li::before { content: ""; position: absolute; left: 0; top: var(--s-2); width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--step-done) }
+.steps li.bad::before { background: var(--danger) }
+.steps li.now { color: var(--text); font-weight: 500 }
+.steps li.now::before { background: var(--action); box-shadow: 0 0 0 4px var(--glow); animation: pulse var(--t-pulse) ease-in-out infinite }
 .steps li.more::before { background: transparent }
-.steps li.think { color: var(--ink-2); font-weight: 400 }
-.steps li.think::before { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); animation: breathe 1.6s ease-in-out infinite }
+.steps li.think { color: var(--text-2); font-weight: 400 }
+.steps li.think::before { background: transparent; box-shadow: inset 0 0 0 2px var(--text); animation: breathe var(--t-pulse) ease-in-out infinite }
 @keyframes breathe { 50% { transform: scale(.7) } }
-.step-t { margin-left: var(--s-1h); font-size: var(--fs-sm); color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 400 }
-.think-hint { margin: var(--s-2) 0 0 var(--s-5); font-size: var(--fs-md); color: var(--ink-3) }
+.step-t { margin-left: var(--s-1h); font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; font-weight: 400 }
+.think-hint { margin: var(--s-2) 0 0 var(--s-5); font-size: var(--fs-md); color: var(--text-muted) }
 @keyframes pulse { 50% { box-shadow: 0 0 0 8px transparent } }
 .m.md > :first-child { margin-top: 0 }
 .m.md > :last-child { margin-bottom: 0 }
 .m.md p, .m.md ul, .m.md ol { margin: 0 0 .7em }
 .m.md ul, .m.md ol { padding-left: 1.3em }
-.m.md h1, .m.md h2, .m.md h3, .m.md h4 { font-size: var(--fs-d1); line-height: 1.15; margin: 1em 0 .4em }
-.m.md hr { border: 0; border-top: 1px solid var(--rule); margin: 1em 0 }
-.m.md blockquote { margin: 0 0 .7em; padding: var(--s-2) var(--s-3h); background: var(--sheet); border-left: 0; box-shadow: inset 0 0 0 1px var(--rule) }
-.m.md code { font-size: .9em; background: var(--sheet-2); border-radius: var(--radius-sheet); padding: 0 var(--s-1); overflow-wrap: anywhere }
-.m.md pre { overflow-x: auto; background: var(--sheet); padding: var(--s-3); border-radius: var(--radius-sheet) }
+.m.md h1, .m.md h2, .m.md h3, .m.md h4 { font-size: var(--fs-d1); line-height: var(--lh-head); margin: 1em 0 .4em }
+.m.md hr { border: 0; border-top: 1px solid var(--border); margin: 1em 0 }
+.m.md blockquote { margin: 0 0 .7em; padding: var(--s-2) var(--s-3h); background: var(--surface-raised); border-left: 0; box-shadow: inset 0 0 0 1px var(--border) }
+.m.md code { font-size: .9em; background: var(--surface-2); border-radius: var(--radius-sheet); padding: 0 var(--s-1); overflow-wrap: anywhere }
+.m.md pre { overflow-x: auto; background: var(--surface-raised); padding: var(--s-3); border-radius: var(--radius-sheet) }
 .m.md pre code { background: none; padding: 0 }
-.m.md table { border-collapse: collapse; margin: 0 0 .7em; font-size: var(--fs-base); display: block; overflow-x: auto; max-width: 100% }
-.m.md th, .m.md td { border-bottom: 1px solid var(--rule); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left; vertical-align: top }
-.m.md th { font-weight: 600; color: var(--ink-2) }
+.m.md table { border-collapse: collapse; margin: 0 0 .7em; font-size: var(--fs-md); display: block; overflow-x: auto; max-width: 100% }
+.m.md th, .m.md td { border-bottom: 1px solid var(--border); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left; vertical-align: top }
+.m.md th { font-weight: 600; color: var(--text-2) }
 .m.offer, .m.audio, .welcome {
-  display: grid; gap: var(--s-1h); padding: var(--s-5) var(--s-5); border-radius: var(--radius-sheet); background: var(--sheet); width: 100%; max-width: 40em;
-  box-shadow: inset 0 0 0 1px var(--rule), var(--lift);
+  display: grid; gap: var(--s-1h); padding: var(--s-5) var(--s-5); border-radius: var(--radius-sheet); background: var(--surface-raised); width: 100%; max-width: 40em;
+  box-shadow: inset 0 0 0 1px var(--border), var(--lift);
 }
 .m.offer p, .welcome p { margin: 0 }
 .welcome p + p { margin-top: var(--s-1h) }
 .m.offer .go, .welcome .go { justify-self: start; margin-top: var(--s-3) }
-.m.offer { box-shadow: inset 0 0 0 1px var(--line), var(--lift) }
-.m.offer table.plan { border-collapse: collapse; margin: var(--s-2) 0; font-size: var(--fs-base); width: 100%; max-width: 28em }
-.m.offer .plan th, .m.offer .plan td { border-bottom: 1px solid var(--rule); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left }
-.m.offer .plan thead th { font-weight: 600; color: var(--ink-2) }
+.m.offer { box-shadow: inset 0 0 0 1px var(--border-strong), var(--lift) }
+.m.offer table.plan { border-collapse: collapse; margin: var(--s-2) 0; font-size: var(--fs-md); width: 100%; max-width: 28em }
+.m.offer .plan th, .m.offer .plan td { border-bottom: 1px solid var(--border); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left }
+.m.offer .plan thead th { font-weight: 600; color: var(--text-2) }
 .m.offer .plan td:nth-child(n+2), .m.offer .plan th:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; width: 4.5em }
 .m.offer .plan tfoot th, .m.offer .plan tfoot td { border-bottom: 0; font-weight: 600 }
-.welcome h2 { margin: 0 0 var(--s-2); font: 700 var(--fs-welcome)/1 var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
+.welcome h2 { margin: 0 0 var(--s-2); font: 700 var(--fs-welcome)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
 .welcome { margin: auto 0 0 }
 .welcome-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--s-2h); margin-top: var(--s-4) }
 .step-note { display: block; max-width: 46ch; margin: var(--s-1) 0 var(--s-4h); font-size: var(--fs-body) }
 .welcome-pick { display: grid; gap: var(--s-1); text-align: left; padding: var(--s-4) var(--s-4h); border-radius: var(--radius-control) }
 .welcome-pick:hover:not(:disabled) { background: var(--selected) }
-.welcome-pick-name { font-size: var(--fs-d2); line-height: 1.05 }
-.welcome-pick-note { font-size: var(--fs-md); color: var(--ink-2); line-height: 1.4 }
+.welcome-pick-name { font-size: var(--fs-d2); line-height: var(--lh-tight) }
+.welcome-pick-note { font-size: var(--fs-md); color: var(--text-2); line-height: var(--lh-ui) }
 
 /* ---------- a workout's MP3, in the chat and on the Logs page ---------- */
-.audio-name { margin-bottom: var(--s-1h); font-size: var(--fs-d2); line-height: 1.05 }
+.audio-name { margin-bottom: var(--s-1h); font-size: var(--fs-d2); line-height: var(--lh-tight) }
 .audio-name .audio-meter { display: inline-block; vertical-align: -2px; margin-right: var(--s-2h) }
 .audio-row { display: flex; align-items: center; gap: var(--s-3) }
 .audio-row .audio-meter { flex: none }
-.audio-file audio { width: 100%; display: block; color-scheme: dark; min-width: 0 }
+.audio-file audio { width: 100%; display: block; min-width: 0 }
 .audio-file.compact audio { max-width: 480px }
-.audio-file .cx-s a { color: var(--ink-2) }
+.audio-file .cx-s a { color: var(--text-2) }
 
-.switch { display: flex; align-items: center; gap: var(--s-2h); cursor: pointer; font-size: var(--fs-base); color: var(--ink) }
-.switch input { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--ink); cursor: pointer }
+.switch { display: flex; align-items: center; gap: var(--s-2h); cursor: pointer; font-size: var(--fs-md); color: var(--text) }
+.switch input { flex-shrink: 0; width: var(--tick); height: var(--tick); margin: 0; accent-color: var(--text); cursor: pointer }
 .chat-error {
-  margin: 0 0 var(--s-2); padding: var(--s-3) var(--s-4); border-radius: var(--radius-sheet); background: var(--stop-tint); display: flex; flex-wrap: wrap;
+  margin: 0 0 var(--s-2); padding: var(--s-3) var(--s-4); border-radius: var(--radius-sheet); background: var(--danger-surface); display: flex; flex-wrap: wrap;
   gap: var(--s-2) var(--s-3); align-items: center; justify-content: space-between;
 }
-.chat-error .notice { font-size: var(--fs-base); color: var(--ink) }
-.chat-error .go.alt { color: var(--stop); box-shadow: inset 0 0 0 1px var(--stop) }
+.chat-error .notice { font-size: var(--fs-md); color: var(--text) }
+.chat-error .go.alt { color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger) }
 .chat-form {
   display: flex; gap: var(--s-2); align-items: flex-end; padding: var(--s-1h) var(--s-1h) var(--s-1h) var(--s-4);
-  border-radius: var(--radius-control); background: var(--panel-solid); box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius-control); background: var(--panel); box-shadow: inset 0 0 0 1px var(--border-strong);
 }
-.chat-form:focus-within { box-shadow: inset 0 0 0 1px var(--ink) }
+.chat-form:focus-within { box-shadow: inset 0 0 0 1px var(--text) }
 .chat-form textarea {
   flex: 1; min-width: 0; resize: none; font: inherit; padding: var(--s-2h) 0; border: 0; background: transparent; color: inherit;
-  min-height: 42px; max-height: 30vh; outline: none; field-sizing: content;
+  min-height: var(--control); max-height: 30vh; outline: none; field-sizing: content;
 }
-.chat-form textarea::placeholder { color: var(--ink-3) }
-.chat-form textarea:disabled { color: var(--ink-3); cursor: not-allowed }
+.chat-form textarea::placeholder { color: var(--text-muted) }
+.chat-form textarea:disabled { color: var(--text-muted); cursor: not-allowed }
 .chat-form .go { padding: var(--s-3) var(--s-4h); font-size: var(--fs-lg) }
-.chat-form .go.stop { background: transparent; color: var(--stop); box-shadow: inset 0 0 0 1px var(--stop) }
-.chat-form .go.stop:hover:not(:disabled) { background: var(--stop); color: var(--paper) }
+.chat-form .go.stop { background: transparent; color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger) }
+.chat-form .go.stop:hover:not(:disabled) { background: var(--danger); color: var(--on-action) }
 /* a quiet line above the request, never a card: the request stays the one thing on the screen */
 .resume {
   display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-2h); align-self: flex-start;
   margin: 0 0 var(--s-3); padding: 0; text-align: left; background: none; box-shadow: none;
-  font-size: var(--fs-md); color: var(--ink-3);
+  font-size: var(--fs-md); color: var(--text-muted);
 }
-.resume-h { order: 2; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line) }
+.resume-h { order: 2; color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong) }
 .resume-s { order: 1 }
-.resume-go { order: 3; color: var(--ink-2) }
-.resume:hover:not(:disabled) .resume-h, .resume:hover:not(:disabled) .resume-go { color: var(--ink-hi); text-decoration-color: currentColor }
+.resume-go { order: 3; color: var(--text-2) }
+.resume:hover:not(:disabled) .resume-h, .resume:hover:not(:disabled) .resume-go { color: var(--text-strong); text-decoration-color: currentColor }
