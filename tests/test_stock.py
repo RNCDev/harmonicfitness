@@ -49,7 +49,7 @@ class SampleList(unittest.TestCase):
         for slug, entry in SAMPLES["samples"].items():
             self.assertEqual(len(entry["sha256"]), 64, slug)
         if shutil.which("git"):
-            out = subprocess.run(["git", "ls-files", "coaches"], cwd=ROOT, capture_output=True, text=True).stdout
+            out = subprocess.run(["git", "ls-files", "coaches"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout
             self.assertNotIn("sample.mp3", out)
 WEB = ("coach-reed-fish", "coach-ellis-elevenlabs", "coach-owen-inworld")
 
@@ -277,7 +277,7 @@ class MigrateCoaches(unittest.TestCase):
     def migrate(self, *args):
         env = dict(os.environ, HARMONICFITNESS_HOME=self.home, HARMONICFITNESS_SHIPPED=FIXTURE)
         return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, encoding="utf-8", timeout=120)
 
     def test_the_coaches_step(self):
         out = self.migrate("--dry-run")

@@ -33,7 +33,7 @@ SECTIONS = ("## The listener", "## Today in the week", "## Today's limits", "## 
 def run(cmd, *args, home=LISTENER):
     env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=home)
     return subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), cmd, *args],
-                          capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+                          capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
 
 
 def brief(*args, home=LISTENER):
@@ -195,9 +195,9 @@ class Brief(unittest.TestCase):
             target = os.path.join(folder, "2026-10-21-strength.draft.txt")
             r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", "--save", target, home=home)
             self.assertEqual(r.returncode, 0, r.stderr)
-            with open(os.path.join(folder, "2026-10-21-strength.brief.md")) as f:
+            with open(os.path.join(folder, "2026-10-21-strength.brief.md"), encoding="utf-8") as f:
                 self.assertEqual(f.read(), r.stdout)
-            with open(os.path.join(folder, "2026-10-21-strength.menu.json")) as f:
+            with open(os.path.join(folder, "2026-10-21-strength.menu.json"), encoding="utf-8") as f:
                 saved = json.load(f)
         self.assertEqual(saved["seconds"], 1800)
         self.assertEqual(saved["request"]["kit"], "home")
@@ -208,9 +208,9 @@ class Brief(unittest.TestCase):
             home = os.path.join(d, "me")
             shutil.copytree(LISTENER, home)
             path = os.path.join(home, "health.md")
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 text = f.read()
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(text.replace('level = "delicate"', 'level = "sore"', 1))
             r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", home=home)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
@@ -221,7 +221,7 @@ class Brief(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             home = os.path.join(d, "me")
             shutil.copytree(LISTENER, home)
-            with open(os.path.join(home, "health.md"), "a") as f:
+            with open(os.path.join(home, "health.md"), "a", encoding="utf-8") as f:
                 f.write("- Avoid: goblet-squat, overhead\n")
             r = brief("--goal", "strength", "--minutes", "30", "--kit", "home", home=home)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -432,7 +432,7 @@ class Lint(unittest.TestCase):
             shutil.copytree(LISTENER, home)
             path = os.path.join(home, "workouts", "x", "x.draft.txt")
             os.makedirs(os.path.dirname(path))
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
             if menu_data is not None:   # a menu from today, made from this listener's health.md, as the brief would
                 menu_data = dict(menu_data, date=datetime.date.today().isoformat(),
@@ -441,7 +441,7 @@ class Lint(unittest.TestCase):
             env = dict(os.environ, HARMONICFITNESS_HOME=home, HARMONICFITNESS_FAKE_LOCAL_ENGINE="1")
             return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build.py"), path, "x", "--lint-only",
                                    "--coach", "Coach Julius"],
-                                  capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+                                  capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
 
     def test_a_missing_menu_fails(self):
         r = self.lint(DRAFT, None)
@@ -469,14 +469,14 @@ class LogSession(unittest.TestCase):
             shutil.copytree(LISTENER, home)
             path = os.path.join(d, "x.draft.txt")
             text = DRAFT.replace("goblet squat", "goblet-squat", 1)
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
             # a built draft: its menu (the date, length and kit) and a build record with its hash
             menu.write(draft.menu_path(path), {"format": menu.FORMAT, "date": "2026-10-21",
                                                "request": {"minutes": 5, "kit": "home"},
                                                "seconds": 300, "movements": []})
             os.makedirs(os.path.join(home, "workouts", ".logs"))
-            with open(os.path.join(home, "workouts", ".logs", "builds.jsonl"), "w") as f:
+            with open(os.path.join(home, "workouts", ".logs", "builds.jsonl"), "w", encoding="utf-8") as f:
                 f.write(json.dumps({"draft_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}) + "\n")
             r = run("log-session", "--date", "2026-10-21", "--minutes", "5", "--kit", "home", "--coach",
                     "Chatterbox Coach", "--draft", path, "--topics", "test topics", "--format", "circuit", home=home)

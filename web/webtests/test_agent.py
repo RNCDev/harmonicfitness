@@ -201,7 +201,7 @@ class Files(AgentCase):
         self.assertEqual(tools.read_file(self.deps, "me/nothing.md").code, 1)
 
     def test_read_refuses_the_rest(self):
-        with open(os.path.join(self.home, ".env"), "w") as f:
+        with open(os.path.join(self.home, ".env"), "w", encoding="utf-8") as f:
             f.write("FISH_AUDIO_API_KEY=secret-value-here\n")
         for bad in ("me/.env", "tools/paths.py", "CLAUDE.md", "knowledge/../tools/paths.py", "me/../x",
                     "/etc/passwd", "web/webapp/config.py"):
@@ -230,7 +230,7 @@ class Files(AgentCase):
         self.assertEqual(tools.write_file(self.deps, "me/health.md", "+++\nschema = 6\n+++\n").code, 0)
 
     def test_list_hides_skipped_files(self):
-        with open(os.path.join(self.home, ".env"), "w") as f:
+        with open(os.path.join(self.home, ".env"), "w", encoding="utf-8") as f:
             f.write("X=1\n")
         self.assertNotIn(".env", tools.list_files(self.deps).output)
 
@@ -1328,7 +1328,7 @@ class Instructions(AgentCase):
         self.assertFalse(agent.audition_open(self.home))
         os.makedirs(os.path.join(self.home, "coaches", ".auditions", "2026-10-28-1"))
         self.assertFalse(agent.audition_open(self.home))
-        with open(os.path.join(self.home, "coaches", ".auditions", "2026-10-28-1", "candidates.json"), "w") as f:
+        with open(os.path.join(self.home, "coaches", ".auditions", "2026-10-28-1", "candidates.json"), "w", encoding="utf-8") as f:
             f.write("[]")
         self.assertTrue(agent.audition_open(self.home))   # the listener picks next turn: the skill stays
         self.assertEqual(agent._write_step("me/coaches/.auditions/coach-dana.md"), "Describing your coach")

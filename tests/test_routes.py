@@ -42,7 +42,7 @@ class Routes(unittest.TestCase):
 
     def key(self, service):
         keys.init(service, path=self.env)
-        with open(self.env, "a") as f:
+        with open(self.env, "a", encoding="utf-8") as f:
             f.write(f"{keys.SERVICE_VARS[service]}=test-key\n")
 
     def test_first_usable_route_wins_on_faked_computers(self):

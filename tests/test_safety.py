@@ -224,7 +224,7 @@ class MenuTampering(unittest.TestCase):
         env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=cls.home)
         r = subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "brief", "--today", cls.TODAY, "--goal", "general",
                             "--minutes", "5", "--kit", "home", "--save", cls.draft],
-                           capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+                           capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
         assert r.returncode == 0, r.stderr
         with open(draft.menu_path(cls.draft), encoding="utf-8") as f:
             cls.saved = json.load(f)
@@ -326,7 +326,7 @@ class MenuTampering(unittest.TestCase):
             env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=home)
             r = subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "brief", "--today", self.TODAY, "--goal",
                                 "general", "--minutes", "5", "--kit", "home", "--save", target],
-                               capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+                               capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertIn("setup", r.stderr)
             self.assertFalse(os.path.exists(draft.menu_path(target)))

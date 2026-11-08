@@ -2,6 +2,30 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.73.0] - 2026-11-08
+
+The engine's tests now pass on Windows and a Mac as well as Linux, and CI runs them on all three. Three tests failed on Windows (two setup tests and a path check), and others leaned on the system's text encoding, which is UTF-8 on a Mac and cp1252 on Windows. Minor, since the repository now fixes LF line endings in every checkout (see For forks).
+
+### Changed
+- **CI runs the engine's tests on Linux, macOS and Windows** (`.github/workflows/test.yml`, a matrix on the `engine` job, in Git Bash on Windows).
+- **LF line endings everywhere** (`.gitattributes`: `* text=auto eol=lf`, audio, images and model weights as binary). Git for Windows used to check the shell scripts out with CRLF.
+- **Text names its encoding:** every text-mode `open()`, `Path.read_text`/`write_text` and `subprocess` call with `text=True`, in `tools/`, `tests/` and `web/`, says `encoding="utf-8"`. The tools that read git's, ffmpeg's and the readiness check's output (`backup`, `ffmpeg`, `machine`, `testpick`) decode it as UTF-8 and replace what they can't read, so a folder name with an accent no longer garbles or stops them on Windows.
+- **The stock of researched pieces reads in one order everywhere** (`content.sheets`): oldest first, then by name, since each system lists a folder in its own order.
+- `./harmonicfitness test` removes its temporary home when the run ends.
+
+### Fixed
+- **Setup's tests on Windows** (`test_setup.restricted_path`): the trimmed PATH holds small scripts that run each tool, not symlinks, which Git Bash's tools can't run from (they print nothing).
+- **The Codex sandbox test** (`test_harness`) compares the cache folder as a path, so Git Bash's `C:/Users/...` matches Python's `C:\Users\...`.
+- **Steadier tests:** the slow-service deadline and render-lock tests leave a slow runner more room; the models tests skip on a Windows computer that can't make symlinks; the skills and demo-listener tests skip a Mac's `.DS_Store`; the stand-in ffmpeg works on Windows; file handles and test servers are closed.
+
+### Added
+- **`test_contract.SameOnEveryComputer`:** fails on any text read or written without a named encoding, and checks `.gitattributes` keeps LF endings.
+- `test_content.Sheets`, for the stock's order.
+
+### For forks
+- **Line endings:** after pulling, a Windows checkout made before this release keeps its CRLF files until they're checked out again. With no changes of your own waiting, run `git rm --cached -r -q . && git reset --hard` once to rewrite them with LF.
+- **Tests:** a new test that opens text without `encoding=` fails `test_contract`; add `encoding="utf-8"`.
+
 ## [0.72.0] - 2026-11-08
 
 The Logs and Coaches pages are easier to scan. Logs shows one line a workout, like a playlist: the date, the length, format, kit and coach, the topics, a dot where there's feedback, and the rating faces. A line opens in place to its MP3, movements, topics, feedback, script and delete. Coaches is an audition: each coach is a small tile, grouped by service, and a tap puts that coach on a stage beside the tiles and plays their sample, with their full description, what a workout costs, and one Choose button. The Coaches page uses more of a wide screen, since its tiles are compared side by side; Logs keeps the reading column. Minor, since the client's Coaches and Logs markup and styles changed (see For forks).

@@ -24,7 +24,7 @@ def clean_env(**extra):
 def facts(fake=None, root=ROOT, **extra):
     env = clean_env(**{f"HARMONICFITNESS_FAKE_{k}": v for k, v in (fake or {}).items()}, **extra)
     out = subprocess.run(["sh", os.path.join(root, "tools", "doctor.sh"), "--facts"], env=env,
-                         capture_output=True, text=True, timeout=60)
+                         capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert out.returncode == 0, out.stderr
     return dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line)
 
@@ -84,7 +84,7 @@ class Doctor(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             repo = copy_repo(d)
             out = subprocess.run(["sh", os.path.join(repo, "harmonicfitness"), "doctor"], env=clean_env(),
-                                 capture_output=True, text=True, timeout=60)
+                                 capture_output=True, text=True, encoding="utf-8", timeout=60)
             self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
             self.assertIn("This computer", out.stdout)
             self.assertIn("once ./harmonicfitness setup", out.stdout)
@@ -115,7 +115,7 @@ class CloudSession(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d)
         repo = copy_repo(d)
         out = subprocess.run(["sh", os.path.join(repo, "harmonicfitness"), *args], cwd=repo, env=clean_env(**env),
-                             capture_output=True, text=True, timeout=60)
+                             capture_output=True, text=True, encoding="utf-8", timeout=60)
         return out, repo
 
     def test_remote_facts_no_local(self):
@@ -156,19 +156,19 @@ class CloudSession(unittest.TestCase):
         os.makedirs(os.path.join(d, "engine"))
         repo = copy_repo(os.path.join(d, "engine"))
         uv, log = os.path.join(d, "uv"), os.path.join(d, "uv.log")
-        with open(uv, "w") as f:
+        with open(uv, "w", encoding="utf-8") as f:
             f.write(STUB_UV)
         os.chmod(uv, 0o755)
         env = clean_env(CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_UV=uv, UV_LOG=log, HARMONICFITNESS_PYTHON=sys.executable,
                         HOME=d, HARMONICFITNESS_FAKE_OS="Linux", HARMONICFITNESS_FAKE_ARCH="x86_64", HARMONICFITNESS_FAKE_GPU="")
         out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh")], cwd=repo, env=env,
-                             capture_output=True, text=True, timeout=120)
+                             capture_output=True, text=True, encoding="utf-8", timeout=120)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        with open(log) as f:
+        with open(log, encoding="utf-8") as f:
             self.assertNotIn("--extra", f.read())
         self.assertTrue(os.path.isdir(os.path.join(repo, "me", "coaches")))
         out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh"), "--local"], cwd=repo, env=env,
-                             capture_output=True, text=True, timeout=120)
+                             capture_output=True, text=True, encoding="utf-8", timeout=120)
         self.assertEqual(out.returncode, 1)
         self.assertIn("Claude Code on the web", out.stdout)
 
@@ -179,7 +179,7 @@ class CloudSession(unittest.TestCase):
             os.makedirs(os.path.join(root, "tools"))
             mine = os.path.join(d, "harmonicfitness-me")
             os.makedirs(os.path.join(mine, "coaches"))
-            open(os.path.join(mine, "profile.md"), "w").close()
+            open(os.path.join(mine, "profile.md"), "w", encoding="utf-8").close()
             remote = {"CLAUDE_CODE_REMOTE": "true"}
             self.assertEqual(paths.find_home(root, remote), mine)
             self.assertEqual(paths.find_home(root, {}), os.path.join(root, "me"))   # only on the web
@@ -187,10 +187,10 @@ class CloudSession(unittest.TestCase):
                              os.path.join(d, "x"))
             other = os.path.join(d, "another")
             os.makedirs(os.path.join(other, "personas"))
-            open(os.path.join(other, "profile.md"), "w").close()
+            open(os.path.join(other, "profile.md"), "w", encoding="utf-8").close()
             self.assertEqual(paths.find_home(root, remote), os.path.join(root, "me"))   # two: don't guess
             os.makedirs(os.path.join(root, "me"))
-            open(os.path.join(root, "me", "profile.md"), "w").close()
+            open(os.path.join(root, "me", "profile.md"), "w", encoding="utf-8").close()
             self.assertEqual(paths.find_home(root, remote), os.path.join(root, "me"))
 
     def test_remote_without_home_says_one_time(self):
@@ -243,13 +243,18 @@ TOOLS = ("sh", "uname", "dirname", "basename", "cp", "mkdir", "find", "sed", "gi
 
 
 def restricted_path(d, leave_out=("uv", "ffmpeg")):
-    """A PATH holding only the basic tools setup uses, without uv or ffmpeg."""
+    """A PATH holding only the basic tools setup uses, without uv or ffmpeg. Each is a two-line script that runs
+    the real one, not a symlink: Git Bash's tools on Windows can't find their DLL from a link in another folder,
+    and print nothing."""
     bin_dir = os.path.join(d, "bin")
     os.makedirs(bin_dir, exist_ok=True)
     for name in TOOLS:
         found = shutil.which(name)
         if found and name not in leave_out:
-            os.symlink(found, os.path.join(bin_dir, name))
+            path = os.path.join(bin_dir, name)
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(f'#!/bin/sh\nexec "{found.replace(os.sep, "/")}" "$@"\n')
+            os.chmod(path, 0o755)
     return bin_dir
 
 
@@ -260,7 +265,7 @@ class Setup(unittest.TestCase):
         os.makedirs(os.path.join(self.d, "repo"))
         self.repo = copy_repo(os.path.join(self.d, "repo"))
         self.uv = os.path.join(self.d, "uv")
-        with open(self.uv, "w") as f:
+        with open(self.uv, "w", encoding="utf-8") as f:
             f.write(STUB_UV)
         os.chmod(self.uv, 0o755)
         self.uv_log = os.path.join(self.d, "uv.log")
@@ -272,7 +277,7 @@ class Setup(unittest.TestCase):
         if path:
             e["PATH"] = path
         return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=e,
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, encoding="utf-8", timeout=120)
 
     def test_setup_outside_git_reaches_the_models_step(self):
         out = self.setup("--no-models")
@@ -285,7 +290,7 @@ class Setup(unittest.TestCase):
         os.makedirs(os.path.join(self.repo, ".venv", "bin"))
         out = self.setup("--no-models")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        with open(self.uv_log) as f:
+        with open(self.uv_log, encoding="utf-8") as f:
             self.assertIn("sync --frozen", f.read())
 
     def test_missing_uv_names_the_installer(self):
@@ -319,7 +324,7 @@ class LocalExtra(unittest.TestCase):
         self.repo = copy_repo(os.path.join(self.d, "repo"))
         self.uv, self.py, self.log = (os.path.join(self.d, n) for n in ("uv", "python", "calls.log"))
         for path, text in ((self.uv, STUB_UV), (self.py, STUB_PY.format(python=sys.executable))):
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
             os.chmod(path, 0o755)
 
@@ -327,10 +332,10 @@ class LocalExtra(unittest.TestCase):
         env = clean_env(UV_LOG=self.log, HARMONICFITNESS_UV=self.uv, HARMONICFITNESS_PYTHON=self.py, HOME=self.d,
                         **{f"HARMONICFITNESS_FAKE_{k}": v for k, v in fake.items()})
         return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=env,
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, encoding="utf-8", timeout=120)
 
     def calls(self):
-        with open(self.log) as f:
+        with open(self.log, encoding="utf-8") as f:
             return f.read()
 
     def test_setup_installs_the_extra_the_doctor_names(self):
@@ -339,12 +344,12 @@ class LocalExtra(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("sync --frozen --extra cpu", self.calls())
         self.assertIn("tools/coaches.py download", self.calls())
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra")) as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), encoding="utf-8") as f:
             self.assertEqual(f.read().strip(), "cpu")
 
     def test_no_models_keeps_an_installed_extra(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w") as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w", encoding="utf-8") as f:
             f.write("cuda\n")
         out = self.setup("--no-models", OS="Linux", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -353,7 +358,7 @@ class LocalExtra(unittest.TestCase):
 
     def test_a_macs_mlx_extra_from_before_15_becomes_cpu(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w") as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w", encoding="utf-8") as f:
             f.write("mlx\n")
         out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -362,7 +367,7 @@ class LocalExtra(unittest.TestCase):
 
     def test_low_disk_never_uninstalls_an_engine(self):
         os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w") as f:
+        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w", encoding="utf-8") as f:
             f.write("cpu\n")
         out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -493,12 +498,12 @@ class RenderListWithoutTools(unittest.TestCase):
             with open(path, "w", encoding="utf-8") as f:
                 f.write('schema = 6\nrender = ["fish", "local"]   # a comment\ndeliver_to = ""\n')
             out = subprocess.run(["sh", "-c", f'ROOT="{ROOT}"; . "{ROOT}/tools/common.sh"; render_routes_from_file "$1"', "_", path],
-                                 capture_output=True, text=True)
+                                 capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(out.stdout.split(), ["fish", "local"], out.stderr)
             with open(path, "w", encoding="utf-8") as f:
                 f.write("schema = 6\n")
             out = subprocess.run(["sh", "-c", f'ROOT="{ROOT}"; . "{ROOT}/tools/common.sh"; render_routes_from_file "$1"', "_", path],
-                                 capture_output=True, text=True)
+                                 capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(out.stdout.split(), [])
         with open(os.path.join(ROOT, "tools", "setup.sh"), encoding="utf-8") as f:
             self.assertIn("render_routes_from_file", f.read())

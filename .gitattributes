@@ -1,0 +1,13 @@
+# One line ending on every computer: LF in the repository and in each checkout, Windows included, whatever
+# core.autocrlf says. The shell scripts run under Git Bash, and a file reads and hashes the same on a Mac and a PC.
+* text=auto eol=lf
+
+# Never touched as text.
+*.mp3 binary
+*.wav binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.safetensors binary
+*.onnx binary

@@ -1117,13 +1117,16 @@ class CloudRender(unittest.TestCase):
             # that stop before the encode still run (the ones that encode skip without a real one)
             stub = os.path.join(self.d, "bin")
             os.makedirs(stub, exist_ok=True)
-            with open(os.path.join(stub, "ffmpeg"), "w") as f:
+            with open(os.path.join(stub, "ffmpeg"), "w", encoding="utf-8") as f:
                 f.write("#!/bin/sh\nexit 1\n")
             os.chmod(os.path.join(stub, "ffmpeg"), 0o755)
+            if os.name == "nt":   # Windows finds a program by its extension (PATHEXT), never a bare script
+                with open(os.path.join(stub, "ffmpeg.bat"), "w", encoding="utf-8") as f:
+                    f.write("@exit /b 1\n")
             e["PATH"] = stub + os.pathsep + e.get("PATH", "")
         draft_path = helpers.draft_with_menu(DRAFT, os.path.join(self.d, "cloud.draft.txt"), self.home)
         return subprocess.run([sys.executable, "-c", RENDER, os.path.join(ROOT, "tools"), draft_path, COACHES[service],
-                               out or os.path.join(self.d, "x.mp3"), *([str(max_chars)] if max_chars else [])], env=e, capture_output=True, text=True, timeout=120)
+                               out or os.path.join(self.d, "x.mp3"), *([str(max_chars)] if max_chars else [])], env=e, capture_output=True, text=True, encoding="utf-8", timeout=120)
 
     def render(self, url, out=None):
         return self.render_on("fish", url, out)
@@ -1210,7 +1213,7 @@ class CloudRender(unittest.TestCase):
                     with open(path, encoding="utf-8") as f:
                         texts.append(f.read())
                 self.assertFalse(any(SECRET in t for t in texts))
-                with open(os.path.splitext(mp3)[0] + ".build.json") as f:
+                with open(os.path.splitext(mp3)[0] + ".build.json", encoding="utf-8") as f:
                     record = json.load(f)
                 self.assertEqual(record["route"], service)
                 self.assertGreater(record["chars_sent"], 100)
@@ -1326,7 +1329,7 @@ class TrimRule(unittest.TestCase):
         code = ("import sys; sys.path.insert(0, sys.argv[1]); import cloud; "
                 "print(sorted(m for m in ('torch', 'numpy', 'pocket_tts', 'onnx_asr') if m in sys.modules))")
         out = subprocess.run([sys.executable, "-c", code, os.path.join(ROOT, "tools")], capture_output=True,
-                             text=True, timeout=60)
+                             text=True, encoding="utf-8", timeout=60)
         self.assertEqual(out.stdout.strip(), "[]", out.stderr)
 
 
@@ -1337,7 +1340,7 @@ class Deadline(unittest.TestCase):
         import time
 
         def slow(req):
-            time.sleep(1.5)
+            time.sleep(4)   # far past the deadline, so a slow runner's lag can't pass for an answer
             return wav_answer(req)
         with FakeService(slow) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "0"}):
             started = time.monotonic()
@@ -1346,7 +1349,7 @@ class Deadline(unittest.TestCase):
             took = time.monotonic() - started
         self.assertEqual(got.exception.kind, "unavailable")
         self.assertIn("no answer within 0.4s", str(got.exception))
-        self.assertLess(took, 1.4)
+        self.assertLess(took, 2.5)
 
     def test_a_wait_past_the_deadline_is_not_slept(self):
         slept = []

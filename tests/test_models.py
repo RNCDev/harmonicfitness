@@ -12,6 +12,20 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 
 import models  # noqa: E402
 
+
+def can_link():
+    """Whether this computer lets a test make a symlink: Windows allows it only with Developer Mode or as an
+    administrator (GitHub's runners are), and Hugging Face's cache is made of them."""
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.symlink(d, os.path.join(d, "link"), target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return False
+    return True
+
+
+CAN_LINK = can_link()
+
 REV = "a7056f505a4a8ca72d8b5fb1440071d6f1a35739"   # voices.LOCAL_MODELS["pocket"]
 REPO = "kyutai/pocket-tts-without-voice-cloning"
 
@@ -34,11 +48,12 @@ def fake_hub(hub, repo=REPO, rev=REV, shared=True, name="model.safetensors", dat
             f.write(data)
     os.symlink(os.path.join("..", "..", "blobs", sha), os.path.join(folder, "snapshots", rev, name))
     os.makedirs(os.path.join(folder, "refs"), exist_ok=True)
-    with open(os.path.join(folder, "refs", "main"), "w") as f:
+    with open(os.path.join(folder, "refs", "main"), "w", encoding="utf-8") as f:
         f.write(rev)
     return os.path.join(folder, "snapshots", rev, name)
 
 
+@unittest.skipUnless(CAN_LINK, "this computer can't make symlinks (Windows: turn on Developer Mode)")
 class Models(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp()
@@ -48,11 +63,11 @@ class Models(unittest.TestCase):
     def test_paths_point_hugging_face_at_models(self):
         code = "import sys; sys.path.insert(0, 'tools'); import paths, os; print(os.environ['HF_HUB_CACHE'])"
         env = {k: v for k, v in os.environ.items() if k not in ("HARMONICFITNESS_MODELS", "HF_HUB_CACHE")}
-        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
+        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(out.stdout.strip(), os.path.join(ROOT, "models"))
         env["HARMONICFITNESS_MODELS"] = self.new
         env["HF_HUB_CACHE"] = "/somewhere/else"
-        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
+        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(out.stdout.strip(), self.new)
 
     def test_adopt_keeps_shared_blob_links(self):
@@ -96,7 +111,7 @@ class Models(unittest.TestCase):
         os.makedirs(repo)
         subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
         shutil.copy(os.path.join(ROOT, ".gitignore"), repo)
-        os.symlink(self.d, os.path.join(repo, "models"))
+        os.symlink(self.d, os.path.join(repo, "models"), target_is_directory=True)
         self.assertEqual(subprocess.run(["git", "check-ignore", "-q", "models"], cwd=repo).returncode, 0)
 
 

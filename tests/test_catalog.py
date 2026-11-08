@@ -35,7 +35,7 @@ def run_movements(args):
     """Run `./harmonicfitness movements ...` against the real catalog; returns the CompletedProcess."""
     env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable)
     return subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "movements", *args],
-                          capture_output=True, text=True, env=env, cwd=ROOT)
+                          capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT)
 
 
 class CatalogFormat(unittest.TestCase):
@@ -197,7 +197,7 @@ class RealCatalog(unittest.TestCase):
         import unittest.mock
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "movements.toml")
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write('[[movement]]\nid = "garage-sled-drag"\nname = "garage sled drag"\npatterns = ["locomotion"]\n')
             with unittest.mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
                 cat = catalog.load()
@@ -211,7 +211,7 @@ class RealCatalog(unittest.TestCase):
         import unittest.mock
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "movements.toml")
-            with open(path, "w") as f:   # no loads, so no limit could screen it
+            with open(path, "w", encoding="utf-8") as f:   # no loads, so no limit could screen it
                 f.write('[[movement]]\nid = "my-jump-squat"\nname = "my jump squat"\nneeds = []\n'
                         'position = "standing"\nmeasure = "reps"\npatterns = ["squat"]\nmuscles = ["quads"]\n'
                         'flags = ["impact"]\nintensity = "strength"\nlevel = "novice"\nseconds_per_rep = 2\n'
@@ -221,7 +221,7 @@ class RealCatalog(unittest.TestCase):
             self.assertTrue(cat.movements["my-jump-squat"].draft)
             off = [catalog.Limit("knee", "both", "off-limits", [], [], "")]
             self.assertEqual(catalog.select(cat, set(), "novice", off).left_out["my-jump-squat"], ["draft"])
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write("[[movement]\nid = ")
             with unittest.mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
                 with unittest.mock.patch("sys.stderr"):
@@ -238,7 +238,7 @@ class RealCatalog(unittest.TestCase):
         lines = [f"{k} = {json_value(v)}" for k, v in spin.items()]
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "movements.toml")
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write("format = 3\n[[movement]]\n" + "\n".join(lines) + "\n")
             issues = check.check_movements(path)
             self.assertEqual(len(issues), 1, issues)
@@ -600,13 +600,13 @@ class Filter(unittest.TestCase):
         r = run_movements(["--help"])
         self.assertIn("applies no health limits", " ".join(r.stdout.split()))
         self.assertIn("applies no health limits", " ".join(movements.__doc__.split()))
-        with open(os.path.join(ROOT, "knowledge", "kits.md")) as f:
+        with open(os.path.join(ROOT, "knowledge", "kits.md"), encoding="utf-8") as f:
             self.assertIn("applies no health limits", " ".join(f.read().split()))
 
 
 class KnowledgeFiles(unittest.TestCase):
     def test_programming_reference_is_sourced(self):
-        with open(os.path.join(ROOT, "knowledge", "programming.md")) as f:
+        with open(os.path.join(ROOT, "knowledge", "programming.md"), encoding="utf-8") as f:
             text = f.read()
         for heading in ("## Effort", "## Load range", "## Weekly dose", "## Rest and pairing", "## Tempo",
                         "## Progression", "## Warm-up, finisher and cool-down", "## One-sided training",
@@ -615,7 +615,7 @@ class KnowledgeFiles(unittest.TestCase):
         self.assertGreaterEqual(text.count("Source: https://"), 8)
 
     def test_playbook_has_a_section_per_area_and_no_phases(self):
-        with open(os.path.join(ROOT, "knowledge", "injury-playbook.md")) as f:
+        with open(os.path.join(ROOT, "knowledge", "injury-playbook.md"), encoding="utf-8") as f:
             text = f.read()
         headings = {line[3:].strip() for line in text.splitlines() if line.startswith("## ")}
         for area in catalog.load().areas:
@@ -632,14 +632,14 @@ class KnowledgeFiles(unittest.TestCase):
                     os.path.join("knowledge", "programming.md"),
                     os.path.join(".claude", "skills", "workout", "SKILL.md"),
                     os.path.join(".claude", "skills", "setup", "SKILL.md")):
-            with open(os.path.join(ROOT, rel)) as f:
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
                 text = f.read()
             for name in gone:
                 self.assertNotIn(name, text, (rel, name))
 
     def test_skills_call_brief_not_rules(self):
         def skill(name):
-            with open(os.path.join(ROOT, ".claude", "skills", name, "SKILL.md")) as f:
+            with open(os.path.join(ROOT, ".claude", "skills", name, "SKILL.md"), encoding="utf-8") as f:
                 return f.read()
         workout, setup = skill("workout"), skill("setup")
         for needle in ("./harmonicfitness brief", "--save", "./harmonicfitness check", "format: <method name>", "movements:",

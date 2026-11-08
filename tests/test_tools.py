@@ -510,7 +510,7 @@ class FreshFork(unittest.TestCase):
     def run_tool(self, home, *args):
         env = dict(os.environ, HARMONICFITNESS_HOME=home, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_FAKE_LOCAL_ENGINE="1")
         return subprocess.run(["sh", "harmonicfitness", *args], cwd=ROOT, env=env,
-                              capture_output=True, text=True, timeout=60)
+                              capture_output=True, text=True, encoding="utf-8", timeout=60)
 
     def test_example_context_works(self):
         with tempfile.TemporaryDirectory() as d:
@@ -575,7 +575,7 @@ class FreshFork(unittest.TestCase):
     def test_nothing_personal_is_tracked(self):
         if not os.path.isdir(os.path.join(ROOT, ".git")):
             self.skipTest("not a git checkout")
-        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split("\n")
+        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout.split("\n")
         pattern = private_pattern()
         self.assertTrue(re.search(pattern, "knowledge/health.md"))   # the one CI used to miss
         # the template is the one me.* folder that's part of the engine; the hook and CI spare it the same way
@@ -634,7 +634,7 @@ class YouTube(unittest.TestCase):
             self.assertEqual(youtube.handles(profile=prof), ["chanA", "chanB"])
             self.assertEqual(youtube.handles("Puzzles", profile=prof), ["MindYourDecisions"])
             os.makedirs(os.path.join(d, "puzzles"))
-            open(os.path.join(d, "puzzles", "used1.md"), "w").close()
+            open(os.path.join(d, "puzzles", "used1.md"), "w", encoding="utf-8").close()
             seen = youtube.used(os.path.join(d, "puzzles"))
         entries = [{"id": "used1", "duration": 300}, {"id": "short", "duration": 40},
                    {"id": "ok1", "duration": 240}, {"id": "long", "duration": 3600}, {"id": "ok2", "duration": 600}]
@@ -649,9 +649,9 @@ class YouTube(unittest.TestCase):
 
     def test_in_progress_and_done(self):
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "abc.md"), "w") as f:
+            with open(os.path.join(d, "abc.md"), "w", encoding="utf-8") as f:
                 f.write("# Long One\n- Channel: x\n- Parts: 2\n\n## Part one\n")
-            with open(os.path.join(d, "old.md"), "w") as f:
+            with open(os.path.join(d, "old.md"), "w", encoding="utf-8") as f:
                 f.write("# Short\n- Channel: y\n")
             self.assertEqual(youtube.in_progress(d), [("abc", 1, 2, "Long One")])
             self.assertEqual(youtube.mark_done("abc", d), (1, 2))
@@ -816,7 +816,7 @@ def run(args, home=None, cwd=ROOT, env=None, stdin=None):
     e = dict(os.environ, **(env or {}))
     if home:
         e["HARMONICFITNESS_HOME"] = home
-    return subprocess.run(args, cwd=cwd, env=e, capture_output=True, text=True, input=stdin, timeout=120)
+    return subprocess.run(args, cwd=cwd, env=e, capture_output=True, text=True, encoding="utf-8", input=stdin, timeout=120)
 
 
 def fresh_home(d):
@@ -1270,9 +1270,10 @@ class InProcessBuild(unittest.TestCase):
         self.assertEqual(posts[:2], ["design", "publish"])   # made once across two builds
         self.assertNotIn("design", posts[2:])   # the rest: its sample
         made = os.path.join(paths.PERSONAS, "coach-owen-inworld", "persona.md")   # in me/, never in the stock
-        self.assertIn("voice_id", open(made, encoding="utf-8").read())
-        self.assertIn('pending = "design"', open(os.path.join(stock, "coach-owen-inworld", "persona.md"),
-                                                 encoding="utf-8").read())
+        with open(made, encoding="utf-8") as f:
+            self.assertIn("voice_id", f.read())
+        with open(os.path.join(stock, "coach-owen-inworld", "persona.md"), encoding="utf-8") as f:
+            self.assertIn('pending = "design"', f.read())
 
     def test_a_failed_make_stops_the_build(self):
         fake = self.add_pending_coach()
@@ -1484,7 +1485,7 @@ class PaceFile(unittest.TestCase):
         voices.record_rate(self.V1, 600.0, 40.0)
         voices.record_rate(self.V2, 700.0, 50.0)
         voices.record_rate(self.V1, 600.0, 40.0)
-        with open(self.path) as f:
+        with open(self.path, encoding="utf-8") as f:
             data = json.load(f)
         self.assertEqual(sorted(r["name"] for r in data.values()), ["One", "Two"])
         self.assertEqual(voices.pace(self.V1), (15.0, True))
@@ -1496,13 +1497,13 @@ class PaceFile(unittest.TestCase):
         voices.record_estimate(self.V1, 300.0, 40.0)   # even past MIN_MEASURED seconds, still an estimate
         self.assertEqual(voices.pace(self.V1), (7.5 * voices.SAMPLE_FAST, False))
         voices.record_rate(self.V1, 600.0, 40.0)
-        with open(self.path) as f:
+        with open(self.path, encoding="utf-8") as f:
             rec = json.load(f)[voices._rate_key(self.V1)]
         self.assertNotIn("estimate", rec)
         self.assertEqual((rec["weight"], rec["seconds"]), (600.0, 40.0))
         self.assertEqual(voices.pace(self.V1), (15.0, True))
         voices.record_rate(self.V1, 600.0, 40.0)   # a second render adds to the first as usual
-        with open(self.path) as f:
+        with open(self.path, encoding="utf-8") as f:
             self.assertEqual(json.load(f)[voices._rate_key(self.V1)]["seconds"], 80.0)
 
     def test_the_rate_follows_the_latest_renders(self):
@@ -1512,20 +1513,20 @@ class PaceFile(unittest.TestCase):
         rate, measured = voices.pace(self.V1)
         self.assertTrue(measured)
         self.assertAlmostEqual(rate, (13.0 * voices.PACE_MEMORY + 15.0 * 600) / (voices.PACE_MEMORY + 600))
-        with open(self.path) as f:
+        with open(self.path, encoding="utf-8") as f:
             self.assertEqual(json.load(f)[voices._rate_key(self.V1)]["seconds"], voices.PACE_MEMORY + 600)
 
     def test_a_damaged_file_is_set_aside_not_overwritten(self):
         voices.record_rate(self.V1, 600.0, 40.0)
-        with open(self.path, "a") as f:
+        with open(self.path, "a", encoding="utf-8") as f:
             f.write("\n{garbage")
-        with open(self.path) as f:
+        with open(self.path, encoding="utf-8") as f:
             damaged = f.read()
         with self.assertRaises(errors.PROBLEMS):
             voices.record_rate(self.V2, 700.0, 50.0)
         kept = glob.glob(self.path + ".corrupt-*")
         self.assertEqual(len(kept), 1)
-        with open(kept[0]) as f:
+        with open(kept[0], encoding="utf-8") as f:
             self.assertEqual(f.read(), damaged)
         self.assertFalse(os.path.exists(self.path))
         with self.assertRaises(errors.PROBLEMS):
@@ -1662,7 +1663,7 @@ class Hooks(unittest.TestCase):
     def git(self, *args):
         out = subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com",
                               "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
-                             cwd=self.repo, capture_output=True, text=True, check=True)
+                             cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True)
         return out.stdout.strip()
 
     def commit(self, msg, add=None, remove=None):
@@ -1676,7 +1677,7 @@ class Hooks(unittest.TestCase):
 
     def push(self, local, remote):
         hook = os.path.join(ROOT, "tools", "hooks", "pre-push")
-        return subprocess.run(["sh", hook, "origin", "url"], cwd=self.repo, capture_output=True, text=True,
+        return subprocess.run(["sh", hook, "origin", "url"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8",
                               input=f"refs/heads/main {local} refs/heads/main {remote}\n")
 
     def setUp(self):
@@ -2316,7 +2317,7 @@ class RenderLock(unittest.TestCase):
             holder = subprocess.Popen([sys.executable, "-c", (
                 "import sys, time; sys.path.insert(0, 'tools'); import render\n"
                 f"with render.render_lock({d!r}):\n"
-                f"    open({ready!r}, 'w').close(); time.sleep(1.0)\n")], cwd=ROOT)
+                f"    open({ready!r}, 'w').close(); time.sleep(3.0)\n")], cwd=ROOT)
             try:
                 deadline = time.time() + 20
                 while not os.path.exists(ready) and time.time() < deadline:
@@ -2325,7 +2326,8 @@ class RenderLock(unittest.TestCase):
                 with mock.patch("sys.stdout", new_callable=__import__("io").StringIO) as out:
                     with render.render_lock(d):
                         waited = time.time() - started
-                self.assertGreater(waited, 0.5)
+                # held for three seconds after ready, so a slow runner that's late to look still waits
+                self.assertGreater(waited, 1.0)
                 self.assertIn("waiting", out.getvalue())
             finally:
                 holder.wait(timeout=20)
@@ -2549,7 +2551,7 @@ class PrivatePaths(unittest.TestCase):
         hook = os.path.join(ROOT, "tools", "hooks", "check-private.sh")
         with tempfile.TemporaryDirectory() as d:
             def g(*args):
-                return subprocess.run(["git", *args], cwd=d, capture_output=True, text=True, check=True)
+                return subprocess.run(["git", *args], cwd=d, capture_output=True, text=True, encoding="utf-8", check=True)
             g("init", "-q")
             g("config", "user.name", "T")
             g("config", "user.email", "t@example.com")
@@ -2557,13 +2559,13 @@ class PrivatePaths(unittest.TestCase):
             write_file(os.path.join(d, "me.example", "profile.md"), "template\n")
             g("add", "-A")
             g("commit", "-q", "-m", "the template")
-            ok = subprocess.run(["sh", hook, "HEAD"], cwd=d, capture_output=True, text=True)
+            ok = subprocess.run(["sh", hook, "HEAD"], cwd=d, capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
             write_file(os.path.join(d, "me.real", "profile.md"), "mine\n")
             write_file(os.path.join(d, "profile.md"), "mine\n")
             g("add", "-A")
             g("commit", "-q", "-m", "oops")
-            bad = subprocess.run(["sh", hook, "HEAD~1..HEAD"], cwd=d, capture_output=True, text=True)
+            bad = subprocess.run(["sh", hook, "HEAD~1..HEAD"], cwd=d, capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(bad.returncode, 1, bad.stdout + bad.stderr)
             self.assertIn("me.real/profile.md", bad.stdout)
             self.assertIn("  profile.md", bad.stdout)

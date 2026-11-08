@@ -37,7 +37,8 @@ def git(home, *args, timeout=None):
     # reason instead of waiting forever on a prompt nobody sees (an ssh command the listener set is kept)
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
-    return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True, env=env, timeout=timeout)
+    return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", env=env, timeout=timeout)
 
 
 def _push(home, args):
@@ -77,7 +78,7 @@ def visibility(slug):
     if shutil.which("gh"):
         try:
             out = subprocess.run(["gh", "repo", "view", slug, "--json", "visibility", "-q", ".visibility"],
-                                 capture_output=True, text=True, timeout=20)
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20)
             if out.returncode == 0 and out.stdout.strip():
                 return out.stdout.strip().upper()
         except (OSError, subprocess.TimeoutExpired):

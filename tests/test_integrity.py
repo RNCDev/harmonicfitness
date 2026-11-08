@@ -4,6 +4,7 @@ can't crash the commands that load the catalog. Also the small boundary checks: 
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import threading
@@ -208,6 +209,7 @@ class CatalogCache(unittest.TestCase):
 
     def test_default_loads_once_and_again_when_the_file_changes(self):
         d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
         path = os.path.join(d, "movements.toml")
         with open(path, "w", encoding="utf-8") as f:
             f.write('[[movement]]\nid = "garage-drag"\nname = "garage drag"\npatterns = ["locomotion"]\n')
@@ -488,7 +490,7 @@ class BuildTrail(unittest.TestCase):
         print("rendering for a test")   # the engine's own progress: on the terminal and in the log
         if self.fails:
             raise self.fails
-        with open(out, "w") as f:
+        with open(out, "w", encoding="utf-8") as f:
             f.write("x")
         with open(os.path.splitext(out)[0] + ".build.json", "w", encoding="utf-8") as f:
             json.dump({"route": "local", "build_id": kw["build_id"]}, f)
@@ -693,7 +695,7 @@ class DeliveryPlan(unittest.TestCase):
         import build
         d = tempfile.mkdtemp()
         mp3 = os.path.join(d, "x.mp3")
-        with open(mp3, "w") as f:
+        with open(mp3, "w", encoding="utf-8") as f:
             f.write("x")
 
         def refused(src, dst):

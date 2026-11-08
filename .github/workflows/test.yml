@@ -1,8 +1,8 @@
 name: tests
 on: [push, pull_request]
-# Four jobs. The privacy checks run first and alone gate the rest; then the engine's tests, the web app's tests
-# and (on main) the deploy run side by side, so a release goes live in about two minutes. A deploy can go out
-# before a test fails; the failure still shows here, and the fix is the next push.
+# Four jobs. The privacy checks run first and alone gate the rest; then the engine's tests (on Linux, a Mac
+# and Windows), the web app's tests and (on main) the deploy run side by side, so a release goes live in about
+# two minutes. A deploy can go out before a test fails; the failure still shows here, and the fix is the next push.
 jobs:
   privacy:
     runs-on: ubuntu-latest
@@ -52,10 +52,19 @@ jobs:
           fi
           echo "engine=$engine" | tee -a "$GITHUB_OUTPUT"
 
+  # On all three systems listeners and maintainers use: Linux (the server and Claude Code on the web), a Mac and
+  # Windows (Git Bash runs ./harmonicfitness there). Paths, line endings, text encodings and the shell tools differ.
   engine:
     needs: privacy
     if: needs.privacy.outputs.engine == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       # The project's own environment, from uv.lock, as ./harmonicfitness setup makes it (no local voice engine):

@@ -48,7 +48,7 @@ class Split(unittest.TestCase):
     def migrate(self, *args):
         env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
         return subprocess.run([sys.executable, "tools/migrate.py", *args], cwd=ROOT, env=env,
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, encoding="utf-8")
 
     def test_an_old_profile_says_migrate_and_not_missing(self):
         issues = check.check([os.path.join(self.home, n) for n in context.PROFILE_PARTS])
@@ -163,7 +163,7 @@ class Pantry(unittest.TestCase):
 
     def migrate(self):
         env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
-        return subprocess.run([sys.executable, "tools/migrate.py"], cwd=ROOT, env=env, capture_output=True, text=True)
+        return subprocess.run([sys.executable, "tools/migrate.py"], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8")
 
     def test_the_pantry_moves_into_the_reserve_once(self):
         self.assertTrue(migrate.pantry_due(self.home))

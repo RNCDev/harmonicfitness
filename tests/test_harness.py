@@ -25,10 +25,12 @@ class Harness(unittest.TestCase):
         self.assertEqual(harness.problems(ROOT), [])
 
     def test_every_claude_skill_is_copied_whole_for_codex(self):
-        names = os.listdir(os.path.join(ROOT, ".claude", "skills"))
-        self.assertEqual(sorted(names), sorted(os.listdir(os.path.join(ROOT, ".agents", "skills"))))
+        def entries(*parts):   # a Mac's Finder leaves .DS_Store files about; harness.problems skips them too
+            return sorted(n for n in os.listdir(os.path.join(ROOT, *parts)) if n != ".DS_Store")
+        names = entries(".claude", "skills")
+        self.assertEqual(names, entries(".agents", "skills"))
         for name in names:
-            for fn in os.listdir(os.path.join(ROOT, ".claude", "skills", name)):
+            for fn in entries(".claude", "skills", name):
                 with open(os.path.join(ROOT, ".claude", "skills", name, fn), encoding="utf-8") as a, \
                         open(os.path.join(ROOT, ".agents", "skills", name, fn), encoding="utf-8") as b:
                     self.assertEqual(a.read(), b.read(), f"{name}/{fn}")
@@ -112,24 +114,29 @@ class Harness(unittest.TestCase):
             self.assertTrue(any("should allow" in p for p in harness.problems(d)))
 
     def test_the_command(self):
-        out = subprocess.run(["sh", "harmonicfitness", "harness"], cwd=ROOT, capture_output=True, text=True,
+        out = subprocess.run(["sh", "harmonicfitness", "harness"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                              env=dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable))
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("in step", out.stdout)
+
+
+def same_path(p):
+    return os.path.normcase(os.path.realpath(p))
 
 
 class CodexSandbox(unittest.TestCase):
     def test_inside_codexs_sandbox_uvs_cache_stays_in_the_project(self):
         with tempfile.TemporaryDirectory() as d:
             fake = os.path.join(d, "python")
-            with open(fake, "w") as f:
+            with open(fake, "w", encoding="utf-8") as f:
                 f.write('#!/bin/sh\necho "$UV_CACHE_DIR"\n')
             os.chmod(fake, 0o755)
             env = {k: v for k, v in os.environ.items() if k != "UV_CACHE_DIR"}
-            out = subprocess.run(["sh", "harmonicfitness", "help"], cwd=ROOT, capture_output=True, text=True,
+            out = subprocess.run(["sh", "harmonicfitness", "help"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                                  env=dict(env, CODEX_SANDBOX="seatbelt", HARMONICFITNESS_PYTHON=fake))
-            self.assertEqual(out.stdout.strip(), os.path.join(ROOT, ".cache", "uv"))
-            out = subprocess.run(["sh", "harmonicfitness", "help"], cwd=ROOT, capture_output=True, text=True,
+            # the shell names the folder its own way (C:/Users/... in Git Bash), so compare as paths
+            self.assertEqual(same_path(out.stdout.strip()), same_path(os.path.join(ROOT, ".cache", "uv")))
+            out = subprocess.run(["sh", "harmonicfitness", "help"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                                  env=dict(env, HARMONICFITNESS_PYTHON=fake))
             self.assertEqual(out.stdout.strip(), "")
 

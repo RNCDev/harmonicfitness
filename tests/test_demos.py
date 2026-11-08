@@ -99,7 +99,8 @@ class ShippedSet(unittest.TestCase):
                 self.assertEqual(f.read(), shipped, "run ./harmonicfitness demos web after changing demos.toml")
 
     def test_every_listener_reads_as_the_tools_expect(self):
-        for slug in sorted(os.listdir(os.path.join(SHIPPED_DEMOS, "listeners"))):
+        listeners = os.path.join(SHIPPED_DEMOS, "listeners")
+        for slug in sorted(n for n in os.listdir(listeners) if os.path.isdir(os.path.join(listeners, n))):
             with self.subTest(listener=slug), tempfile.TemporaryDirectory() as d:
                 shutil.copytree(os.path.join(SHIPPED_DEMOS, "listeners", slug), os.path.join(d, "me"))
                 with helpers.home(os.path.join(d, "me")):
@@ -261,10 +262,10 @@ class KeyFile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             keys = os.path.join(d, "elsewhere.env")
             env = dict(os.environ, HARMONICFITNESS_HOME=os.path.join(d, "me"), HARMONICFITNESS_KEYS=keys)
-            out = subprocess.run([sys.executable, "-c", code], cwd=tools, env=env, capture_output=True, text=True)
+            out = subprocess.run([sys.executable, "-c", code], cwd=tools, env=env, capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(out.stdout.strip(), os.path.abspath(keys))
             env.pop("HARMONICFITNESS_KEYS")
-            out = subprocess.run([sys.executable, "-c", code], cwd=tools, env=env, capture_output=True, text=True)
+            out = subprocess.run([sys.executable, "-c", code], cwd=tools, env=env, capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(out.stdout.strip(), os.path.join(os.path.abspath(os.path.join(d, "me")), ".env"))
 
     def test_the_tests_never_see_another_key_file(self):

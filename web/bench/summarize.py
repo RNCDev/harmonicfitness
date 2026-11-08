@@ -97,7 +97,8 @@ def words_by_kind(r):
 
 
 def facts(path):
-    r = json.load(open(path))
+    with open(path, encoding="utf-8") as f:
+        r = json.load(f)
     ev = r["events"]
     brief = next((e["t"] for e in ev if (e["tool"] or "").startswith("run brief") and e["code"] is None), None)
     last = r["turns"][-1]

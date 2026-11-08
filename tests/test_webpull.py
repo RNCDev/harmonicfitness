@@ -94,11 +94,11 @@ class Pull(unittest.TestCase):
     def test_saves_files_conversation_and_mp3_then_signs_out(self):
         got = webpull.pull(self.account(), dest_root=self.d)
         dest = got["folder"]
-        with open(os.path.join(dest, "me", "workouts", "2026-10-29-strength-25", "a.draft.txt")) as f:
+        with open(os.path.join(dest, "me", "workouts", "2026-10-29-strength-25", "a.draft.txt"), encoding="utf-8") as f:
             self.assertEqual(f.read(), "@@ 30 | Welcome\nHi.")
         with open(os.path.join(dest, "Strength 25.mp3"), "rb") as f:
             self.assertEqual(f.read(), b"ID3 fake mp3")
-        with open(os.path.join(dest, "conversation.json")) as f:
+        with open(os.path.join(dest, "conversation.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["id"], 7)
         self.assertEqual((got["files"], got["expired"], len(got["mp3s"])), (1, 1, 1))
         everything = [os.path.join(r, n) for r, _, ns in os.walk(self.d) for n in ns]
@@ -128,7 +128,7 @@ class Pull(unittest.TestCase):
 
     def test_account_read_from_env_file_and_password_scrubbed(self):
         env = os.path.join(self.d, ".env")
-        with open(env, "w") as f:
+        with open(env, "w", encoding="utf-8") as f:
             f.write(f"HARMONIC_USERNAME=harmonic1\nHARMONIC_PASSWORD={PASSWORD}\n")
         clean = {k: v for k, v in os.environ.items() if k not in keys.ACCOUNT_VARS}
         with mock.patch.dict(os.environ, clean, clear=True):

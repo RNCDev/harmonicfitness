@@ -16,7 +16,8 @@ DOCTOR_SH = os.path.join(paths.ROOT, "tools", "doctor.sh")
 def facts():
     """The computer's facts, from `sh tools/doctor.sh --facts`, read once per process."""
     try:
-        out = subprocess.run(["sh", DOCTOR_SH, "--facts"], capture_output=True, text=True, timeout=60)
+        out = subprocess.run(["sh", DOCTOR_SH, "--facts"], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:   # no sh here (Python started outside Git Bash), or a hang
         return {"local": "no", "local_reason": f"the readiness check (tools/doctor.sh) couldn't run here ({e}); "
                                                 "run ./harmonicfitness doctor from Git Bash or a terminal"}

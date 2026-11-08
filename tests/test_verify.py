@@ -472,7 +472,7 @@ class FfmpegStops(unittest.TestCase):
         d = tempfile.mkdtemp()
         self.addCleanup(__import__("shutil").rmtree, d, True)
         path = os.path.join(d, "ffmpeg")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write("#!/bin/sh\n"
                     "if [ \"$1\" = -version ]; then echo 'ffmpeg version 9.9-fake'; exit 0; fi\n" + body + "\n")
         os.chmod(path, 0o755)

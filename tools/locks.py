@@ -77,7 +77,7 @@ def file_lock(path):
             _held[key] -= 1
         return
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path + ".lock", "a") as lock:
+    with open(path + ".lock", "a", encoding="utf-8") as lock:
         acquire(lock)
         _held[key] = 1
         try:
@@ -111,12 +111,12 @@ def render_lock(folder, wait_message=True, follow=False):
     running ahead (--follow) is asked to stop instead, after its current clip."""
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, ".render.lock")
-    with open(path, "a+") as f:
+    with open(path, "a+", encoding="utf-8") as f:
         if not acquire(f, block=False):
             f.seek(0)
             holder = f.read().strip() or "unknown"
             if holder.endswith(FOLLOWING):
-                open(stop_file(folder), "w").close()
+                open(stop_file(folder), "w", encoding="utf-8").close()
                 if wait_message:
                     print("Stopping the render running ahead after its current clip.", flush=True)
             elif wait_message:

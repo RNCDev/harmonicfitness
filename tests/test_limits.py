@@ -32,7 +32,7 @@ cleared = 2026-10-01
 def run(*args, home=LISTENER):
     env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=home)
     return subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), *args],
-                          capture_output=True, text=True, env=env, cwd=ROOT, timeout=120)
+                          capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
 
 
 def with_row(home, row):

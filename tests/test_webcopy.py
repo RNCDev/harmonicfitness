@@ -35,7 +35,7 @@ class WebCopy(unittest.TestCase):
         size = os.path.getsize(parts[0])
         self.assertLess(abs(size - 20 * 6000) / (20 * 6000), 0.3, size)   # 48 kbps is 6 KB a second
         self.assertAlmostEqual(webcopy.duration(parts[0]), 20, delta=0.5)
-        out = subprocess.run([FFMPEG, "-hide_banner", "-i", parts[0]], capture_output=True, text=True)
+        out = subprocess.run([FFMPEG, "-hide_banner", "-i", parts[0]], capture_output=True, text=True, encoding="utf-8")
         self.assertIn("mono", out.stderr)
 
     def test_a_rebuild_in_fewer_parts_leaves_no_stale_part(self):

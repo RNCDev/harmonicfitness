@@ -108,11 +108,11 @@ class Workouts(unittest.TestCase):
         folder = os.path.join(paths.WORKOUTS, "2026-10-30-conditioning-15")
         os.makedirs(folder)
         draft = os.path.join(folder, "2026-10-30-conditioning-15.draft.txt")
-        open(draft, "w").close()
+        open(draft, "w", encoding="utf-8").close()
         drive = os.path.join(self.tmp.name, "drive")
         os.makedirs(drive)
         copy = os.path.join(drive, "w.mp3")   # delivered_to names the folder; the name gives the file
-        open(copy, "w").close()
+        open(copy, "w", encoding="utf-8").close()
         os.makedirs(paths.LOGS, exist_ok=True)
         with open(paths.BUILDS, "w", encoding="utf-8") as f:
             f.write(json.dumps({"kind": "mp3", "build_id": "ccc333", "draft": draft, "out": "x.mp3",

@@ -265,6 +265,22 @@ class Record(unittest.TestCase):
         self.assertEqual(content.restock(r, tops, [], full), [])
 
 
+class Sheets(unittest.TestCase):
+    def test_oldest_first_then_by_name_whatever_order_the_folder_lists(self):
+        # A Mac, Windows and Linux each list a folder in their own order, and sheets written in one go can share
+        # a modification time: the stock reads the same on all three.
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("c.md", "a.md", "b.md", "old.md", "notes.txt"):
+                write(os.path.join(d, name), "x")
+            for name in ("c.md", "a.md", "b.md"):
+                os.utime(os.path.join(d, name), (2_000_000, 2_000_000))
+            os.utime(os.path.join(d, "old.md"), (1_000_000, 1_000_000))
+            for listed in (["c.md", "a.md", "b.md", "old.md"], ["b.md", "old.md", "a.md", "c.md"]):
+                with mock.patch.object(content.os, "listdir", return_value=listed):
+                    self.assertEqual([os.path.basename(p) for p in content.sheets(d)],
+                                     ["old.md", "a.md", "b.md", "c.md"])
+
+
 class Trending(unittest.TestCase):
     def test_reddit_safe_for_work_only_one_a_community(self):
         listing = {"data": {"children": [

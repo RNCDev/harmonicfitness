@@ -263,5 +263,51 @@ class ErrorChannel(unittest.TestCase):
         self.assertNotIn("cloud", imports("records"))
 
 
+def python_files(*folders):
+    for folder in folders:
+        for here, dirs, files in os.walk(os.path.join(paths.ROOT, folder)):
+            dirs[:] = [d for d in dirs if d not in ("__pycache__", "node_modules", "fixtures")]
+            yield from (os.path.join(here, f) for f in sorted(files) if f.endswith(".py"))
+
+
+class SameOnEveryComputer(unittest.TestCase):
+    """Text read or written without a named encoding is UTF-8 on a Mac and the code page (cp1252) on Windows: a
+    name with an accent or a dash reads back garbled there, or stops the read. So every text-mode open(), Path
+    read or write, and subprocess decoding names its encoding, in the engine, the web app and their tests."""
+
+    def test_text_names_its_encoding(self):
+        import ast
+        found = []
+        for path in python_files("tools", "tests", "web"):
+            with open(path, encoding="utf-8") as f:
+                tree = ast.parse(f.read())
+            for n in ast.walk(tree):
+                if not isinstance(n, ast.Call) or any(k.arg == "encoding" for k in n.keywords):
+                    continue
+                kw = {k.arg: k.value for k in n.keywords}
+                func = n.func
+                name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+                if name == "open" and isinstance(func, ast.Name):
+                    mode = n.args[1] if len(n.args) > 1 else kw.get("mode")
+                    text = mode is None or (isinstance(mode, ast.Constant) and "b" not in str(mode.value))
+                elif name in ("read_text", "write_text"):
+                    text = True
+                elif name in ("run", "check_output", "Popen", "check_call", "call"):
+                    flag = kw.get("text") or kw.get("universal_newlines")
+                    text = isinstance(flag, ast.Constant) and flag.value is True
+                else:
+                    text = False
+                if text:
+                    found.append(f"{os.path.relpath(path, paths.ROOT)}:{n.lineno}")
+        self.assertEqual(found, [], 'name the encoding (encoding="utf-8"), so Windows reads what a Mac wrote')
+
+    def test_line_endings_are_pinned(self):
+        # Without it, Git for Windows checks the shell scripts out with CRLF (core.autocrlf), and a file's bytes
+        # differ from a Mac's.
+        with open(os.path.join(paths.ROOT, ".gitattributes"), encoding="utf-8") as f:
+            rules = [line.split() for line in f if line.strip() and not line.startswith("#")]
+        self.assertIn(["*", "text=auto", "eol=lf"], rules)
+
+
 if __name__ == "__main__":
     unittest.main()

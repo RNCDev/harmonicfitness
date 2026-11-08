@@ -39,7 +39,8 @@ def capable(path):
     after the gain) for the ffmpeg at `path`."""
     def listing(flag):
         try:
-            return subprocess.run([path, "-hide_banner", flag], capture_output=True, text=True, timeout=30).stdout
+            return subprocess.run([path, "-hide_banner", flag], capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=30).stdout
         except (OSError, subprocess.SubprocessError):
             return ""
     filters = listing("-filters")
@@ -52,7 +53,8 @@ def version(path=None):
     if not path:
         return None
     try:
-        out = subprocess.run([path, "-version"], capture_output=True, text=True, timeout=10).stdout
+        out = subprocess.run([path, "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                             timeout=10).stdout
         return out.splitlines()[0] if out else None
     except (OSError, subprocess.SubprocessError):
         return None

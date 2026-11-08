@@ -73,10 +73,10 @@ class Keys(unittest.TestCase):
     def test_keys_command_never_prints_a_value(self):
         home = os.path.join(self.d, "me")
         os.makedirs(home)
-        with open(os.path.join(home, ".env"), "w") as f:
+        with open(os.path.join(home, ".env"), "w", encoding="utf-8") as f:
             f.write(f"FISH_AUDIO_API_KEY={SECRET}\n")
         env = dict(os.environ, HARMONICFITNESS_HOME=home, HARMONICFITNESS_PYTHON=sys.executable)
-        out = subprocess.run(["sh", "harmonicfitness", "keys"], cwd=ROOT, env=env, capture_output=True, text=True,
+        out = subprocess.run(["sh", "harmonicfitness", "keys"], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8",
                              timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn(SECRET, out.stdout + out.stderr)
@@ -86,7 +86,7 @@ class Keys(unittest.TestCase):
     def test_init_appends_once_and_is_private(self):
         path = keys.init("elevenlabs", path=self.env)
         keys.init("elevenlabs", path=self.env)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             text = f.read()
         self.assertEqual(text.count("ELEVENLABS_API_KEY="), 1)
         self.assertIn("elevenlabs.io", text)
@@ -100,7 +100,7 @@ class Keys(unittest.TestCase):
         keys.init("gemini", path=self.env)
         keys.init("inworld", path=self.env)
         self.assertEqual(keys.get("fish", path=self.env), SECRET)
-        with open(self.env) as f:
+        with open(self.env, encoding="utf-8") as f:
             text = f.read()
         self.assertIn("GEMINI_API_KEY=", text)
         self.assertIn("INWORLD_API_KEY=", text)
@@ -126,7 +126,7 @@ class Keys(unittest.TestCase):
                     self.assertEqual(keys.open_env(self.env, run=lambda a: calls.append(a)), argv)
                 self.assertEqual(calls[-1], argv)
         self.assertTrue(os.path.exists(self.env))   # made with init's header
-        with open(self.env) as f:
+        with open(self.env, encoding="utf-8") as f:
             text = f.read()
         self.assertIn("API keys for HarmonicFitness", text)
         self.assertNotIn("_API_KEY=", text)   # no service line added
@@ -137,7 +137,7 @@ class Keys(unittest.TestCase):
         self.write(f"FISH_AUDIO_API_KEY={SECRET}\n".encode())
         with mock.patch.object(keys.paths, "REMOTE", False):
             keys.open_env(self.env, run=lambda a: None)
-        with open(self.env) as f:
+        with open(self.env, encoding="utf-8") as f:
             self.assertEqual(f.read(), f"FISH_AUDIO_API_KEY={SECRET}\n")
 
     def test_keys_open_without_an_opener_names_the_file(self):
@@ -164,11 +164,11 @@ class BackupRefusesKeys(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             home = os.path.join(d, "me")
             new_repo(home)
-            with open(os.path.join(home, ".gitignore"), "w") as f:
+            with open(os.path.join(home, ".gitignore"), "w", encoding="utf-8") as f:
                 f.write("*.mp3\n")
-            with open(os.path.join(home, ".env"), "w") as f:
+            with open(os.path.join(home, ".env"), "w", encoding="utf-8") as f:
                 f.write(f"FISH_AUDIO_API_KEY={SECRET}\n")
-            with open(os.path.join(home, "log.md"), "w") as f:
+            with open(os.path.join(home, "log.md"), "w", encoding="utf-8") as f:
                 f.write("log\n")
             code, out = run_backup(home, push=False)
             self.assertEqual(code, 1, out)
@@ -178,7 +178,7 @@ class BackupRefusesKeys(unittest.TestCase):
             self.assertEqual(git(home, "diff", "--cached", "--name-only"), "")
 
     def test_example_gitignore_ignores_env(self):
-        with open(os.path.join(ROOT, "me.example", ".gitignore")) as f:
+        with open(os.path.join(ROOT, "me.example", ".gitignore"), encoding="utf-8") as f:
             self.assertIn(".env", [line.strip() for line in f])
 
 
@@ -197,7 +197,7 @@ class OnTheWeb(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             env = dict(os.environ, CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_HOME=os.path.join(d, "me"))
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "keys.py"), "init", "fish"], env=env,
-                                 capture_output=True, text=True, timeout=60)
+                                 capture_output=True, text=True, encoding="utf-8", timeout=60)
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertIn("Environment variables", out.stdout)
             self.assertIn("FISH_AUDIO_API_KEY=<your key>", out.stdout)
@@ -207,7 +207,7 @@ class OnTheWeb(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             env = dict(os.environ, CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_HOME=os.path.join(d, "me"))
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "keys.py"), "open"], env=env,
-                                 capture_output=True, text=True, timeout=60)
+                                 capture_output=True, text=True, encoding="utf-8", timeout=60)
             self.assertEqual(out.returncode, 0, out.stderr)
             self.assertIn("Environment variables", out.stdout)
             self.assertIn("GEMINI_API_KEY", out.stdout)
@@ -218,7 +218,7 @@ class OnTheWeb(unittest.TestCase):
             env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_REMOTE"}
             env.update(HARMONICFITNESS_WEB="1", HARMONICFITNESS_HOME=os.path.join(d, "me"))
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", script), *args], env=env,
-                                 capture_output=True, text=True, timeout=60)
+                                 capture_output=True, text=True, encoding="utf-8", timeout=60)
             return out, os.path.exists(os.path.join(d, "me", ".env"))
 
     def test_init_in_the_web_client_points_to_the_app(self):
@@ -237,7 +237,7 @@ class OnTheWeb(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             env = dict(os.environ, CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_HOME=os.path.join(d, "me"))
             out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "coaches.py"), "download"], env=env,
-                                 capture_output=True, text=True, timeout=60)
+                                 capture_output=True, text=True, encoding="utf-8", timeout=60)
             self.assertEqual(out.returncode, 64, out.stdout + out.stderr)
             self.assertIn("cloud voice only", out.stderr)   # a refusal: on stderr
 

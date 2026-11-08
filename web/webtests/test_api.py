@@ -16,7 +16,7 @@ from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-VERSION = open(os.path.join(ROOT, "VERSION")).read().strip()
+VERSION = open(os.path.join(ROOT, "VERSION"), encoding="utf-8").read().strip()
 BASE = "https://wt.test"
 
 
@@ -753,7 +753,7 @@ class Keys(ApiCase):
         self.assertEqual(ctx.key_env(), {"GEMINI_API_KEY": "AIzaold123def456abcd"})
 
     def test_api_never_opens_keys(self):
-        with open(api.__file__) as f:
+        with open(api.__file__, encoding="utf-8") as f:
             self.assertNotIn("open_all", f.read())
 
 
@@ -1129,9 +1129,9 @@ class Client(ApiCase):
     def test_serves_dist_with_fallback(self):
         os.makedirs(os.path.join(self.dist, "assets"))
         self.addCleanup(__import__("shutil").rmtree, self.dist, True)
-        with open(os.path.join(self.dist, "index.html"), "w") as f:
+        with open(os.path.join(self.dist, "index.html"), "w", encoding="utf-8") as f:
             f.write("<!doctype html><title>WT</title>")
-        with open(os.path.join(self.dist, "assets", "app.js"), "w") as f:
+        with open(os.path.join(self.dist, "assets", "app.js"), "w", encoding="utf-8") as f:
             f.write("console.log(1)")
         app = api.create_app(self.settings, connect=self.connect, client_dist=self.dist)
         with TestClient(app, base_url=BASE) as c:

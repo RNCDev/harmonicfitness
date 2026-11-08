@@ -48,10 +48,10 @@ def offered(scr):
 
 class Screen(unittest.TestCase):
     def health_with(self, extra_rules):
-        with open(os.path.join(LISTENER, "health.md")) as f:
+        with open(os.path.join(LISTENER, "health.md"), encoding="utf-8") as f:
             text = f.read()
         path = os.path.join(tempfile.mkdtemp(), "health.md")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(text.replace("- No pushing through wrist pain.", "- No pushing through wrist pain.\n" + extra_rules))
         return health_md.health(path)
 
@@ -140,7 +140,8 @@ class Screen(unittest.TestCase):
         with self.assertRaises(screen.Unfit) as caught:   # an avoid that rules nothing out protects nothing
             screen_for(h=self.health_with("- Avoid: wobbly-thing"))
         self.assertIn("wobbly-thing", str(caught.exception))
-        issues = check._check_health("health.md", open(self.health_with("- Avoid: wobbly-thing").path).read())
+        with open(self.health_with("- Avoid: wobbly-thing").path, encoding="utf-8") as f:
+            issues = check._check_health("health.md", f.read())
         self.assertTrue(any("wobbly-thing" in i.message for i in issues))
 
     def test_a_side_lying_movement_is_never_offered_one_side_only(self):

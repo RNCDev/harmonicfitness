@@ -125,7 +125,7 @@ class Migrate5(unittest.TestCase):
     def migrate(self, *args):
         env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
         return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, encoding="utf-8", timeout=120)
 
     def test_migrate_4_to_5(self):
         out = self.migrate("--dry-run")
@@ -174,7 +174,7 @@ class MigratePersonas(unittest.TestCase):
     def migrate(self, *args):
         env = dict(os.environ, HARMONICFITNESS_HOME=self.home)
         return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, encoding="utf-8", timeout=120)
 
     def test_migrate_adds_kind_to_every_persona_including_archive(self):
         out = self.migrate("--dry-run")
@@ -220,9 +220,11 @@ class MigratePersonas(unittest.TestCase):
                 self.assertIn(rule, have)
             for kept in ("!coaches/*/sample.mp3", "!coaches/.archive/*/sample.mp3"):
                 self.assertGreater(have.index(kept), have.index("*.mp3"))
-        before = open(ignore, encoding="utf-8").read()
+        with open(ignore, encoding="utf-8") as f:
+            before = f.read()
         self.migrate()
-        self.assertEqual(open(ignore, encoding="utf-8").read(), before)   # added once
+        with open(ignore, encoding="utf-8") as f:
+            self.assertEqual(f.read(), before)   # added once
 
 
 if __name__ == "__main__":

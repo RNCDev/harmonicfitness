@@ -217,7 +217,9 @@ def sheets(folder=None) -> List[str]:
     folder = folder or paths.RESERVE
     if not os.path.isdir(folder):
         return []
-    return sorted((os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(".md")), key=os.path.getmtime)
+    # by name within one modification time, since a folder lists in a different order on each system
+    return sorted((os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(".md")),
+                  key=lambda p: (os.path.getmtime(p), p))
 
 
 def current(piece: Piece, today: Optional[datetime.date]) -> bool:

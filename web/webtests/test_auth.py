@@ -292,7 +292,7 @@ class Migration004(unittest.TestCase):
             for p in sorted(db.MIGRATIONS.glob("*.sql")):
                 if p.name >= "004":
                     break
-                c.execute(p.read_text())
+                c.execute(p.read_text(encoding="utf-8"))
                 c.execute("insert into schema_migrations (name) values (%s)", (p.name,))
             emails = ["Ana.B@x.test", "ana.b@y.test", "a+b@z.test", "émile@x.test"]
             for i, e in enumerate(emails):

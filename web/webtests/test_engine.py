@@ -30,7 +30,7 @@ def tmp():
 def stub(body):
     d = tmp()
     p = os.path.join(d, "harmonicfitness")
-    with open(p, "w") as f:
+    with open(p, "w", encoding="utf-8") as f:
         f.write("#!/bin/sh\n" + body + "\n")
     os.chmod(p, 0o755)
     return d

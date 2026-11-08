@@ -56,7 +56,7 @@ class Upload(unittest.TestCase):
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
         self.env = os.path.join(self.d, ".env")
-        with open(self.env, "w") as f:
+        with open(self.env, "w", encoding="utf-8") as f:
             f.write(f"FISH_AUDIO_API_KEY={FISH}\nOPENROUTER_API_KEY={ROUTER}\nANTHROPIC_API_KEY={CLAUDE}\n"
                     "GEMINI_API_KEY=\n")
         clean = {v: "" for v in keys.SECRET_VARS}
@@ -96,7 +96,7 @@ class Upload(unittest.TestCase):
     def test_needs_the_sign_in_and_sends_nothing_without_keys(self):
         with self.assertRaises(errors.UsageError):
             webkeys.upload({"HARMONIC_USERNAME": "harmonic1"}, app=StubApp())
-        with open(self.env, "w") as f:
+        with open(self.env, "w", encoding="utf-8") as f:
             f.write("FISH_AUDIO_API_KEY=\n")
         app = StubApp()
         self.assertTrue(webkeys.upload({}, app=app)["none"])

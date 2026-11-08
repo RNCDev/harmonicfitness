@@ -19,7 +19,7 @@ import paths  # noqa: E402
 
 
 def git(cwd, *args):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, encoding="utf-8", check=True).stdout
 
 
 def new_repo(path):
@@ -64,8 +64,8 @@ class Backup(unittest.TestCase):
         cache = os.path.join(self.home, "workouts", ".audio-cache")
         os.makedirs(cache)
         for name in ("abc.pcm", "voice-pace.json"):
-            open(os.path.join(cache, name), "w").close()
-        open(os.path.join(self.home, "workouts", "Workout.mp3"), "w").close()
+            open(os.path.join(cache, name), "w", encoding="utf-8").close()
+        open(os.path.join(self.home, "workouts", "Workout.mp3"), "w", encoding="utf-8").close()
 
         code, out = run(self.home, "Workout 2026-10-22 Legs 30 min")
         self.assertEqual(code, cli.OK, out)
@@ -234,6 +234,7 @@ class Visibility(unittest.TestCase):
 
         server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)   # cleanups run last first: shut down, then close the socket
         self.addCleanup(server.shutdown)
         return f"http://127.0.0.1:{server.server_address[1]}/repos/"
 

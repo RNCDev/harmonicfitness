@@ -3,9 +3,11 @@ environment (.venv, Python 3.11, made by `./harmonicfitness setup`).
 
     ./harmonicfitness <command> [options]      # ./harmonicfitness help lists them
 """
+import atexit
 import importlib
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -97,6 +99,8 @@ def main(argv=None):
         return cli.USAGE
     if cmd == "test":
         env = test_env(os.environ)
+        if not os.environ.get("HARMONICFITNESS_HOME"):   # the run's own temporary home goes when it ends
+            atexit.register(shutil.rmtree, os.path.dirname(env["HARMONICFITNESS_HOME"]), True)
         # "changed" runs only the engine tests that cover what's changed and not yet pushed (tools/testpick.py);
         # names ("demos", "test_media") run those modules. Either is the loop while working; CI runs everything.
         # a name is any argument that isn't an option or the pattern after -k
