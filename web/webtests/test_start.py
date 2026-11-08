@@ -253,7 +253,7 @@ class Route(test_api.ApiCase):
         self.assertEqual(set(body), {"coaches", "kits", "minutes", "limits", "suggest", "setup_quick"})
         self.assertEqual(body["coaches"][0]["slug"], "coach-fraser-gemini")   # the first of Gemini's six by name
         self.assertTrue(body["coaches"][0]["ready"] and body["coaches"][0]["current"])
-        self.assertEqual(body["minutes"], 25)
+        self.assertEqual(body["minutes"], start.FIRST_MINUTES)   # no level yet: the first workout
         self.assertTrue(body["setup_quick"])
 
     def test_shared_model_key_counts_for_gemini(self):
