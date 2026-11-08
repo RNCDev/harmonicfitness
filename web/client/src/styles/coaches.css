@@ -1,42 +1,48 @@
 /* The Coaches page. Part of theme.css, which imports every part in order. */
-/* ---------- the Coaches page (beside Logs): the whole width, compact cards, the soft blue its one colour ---------- */
-.cg { display: grid; gap: var(--s-2) }
-.cg-h { margin: var(--s-2h) 0 0; letter-spacing: var(--track-wide); font-weight: 400 }
-.cg-list { list-style: none; margin: 0; padding: var(--s-2h) 0 0; display: grid; gap: var(--s-4h) var(--s-3);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)) }
-.cg-card {
-  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: var(--s-1h);
-  padding: var(--s-3) var(--s-3h); border-radius: var(--radius-sheet); background: var(--card); box-shadow: inset 0 0 0 1px var(--border);
-  transition: transform var(--t-fast) ease, box-shadow var(--t-fast) ease, background-color var(--t-fast) ease;
-}
-.cg-card > * { min-width: 0 }
-.cg-card.off { opacity: var(--o-muted) }
-/* a coach you can choose: the whole card is the button, and it lifts a little under the pointer */
-.cg-card.can { cursor: pointer }
-@media (hover: hover) {
-  .cg-card.can:hover { transform: translateY(-3px); box-shadow: inset 0 0 0 1px var(--border-strong), var(--lift) }
-}
-.cg-choose { position: absolute; inset: 0; z-index: 0; width: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer }
-.cg-choose:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset) }
-.cg-card.can > :not(.cg-choose):not(.cg-on) { position: relative; z-index: var(--z-raised); pointer-events: none }
-.cg-card.can .player { pointer-events: auto }
-/* the coach coaching you: a blue ring, and Active on the card's top edge */
-.cg-card.cur { box-shadow: inset 0 0 0 2px var(--sample); background: var(--current-wash); cursor: default }
-.cg-card.cur .cg-choose { cursor: default }
-@media (hover: hover) { .cg-card.cur:hover { transform: none; box-shadow: inset 0 0 0 2px var(--sample) } }
-.cg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--s-2h) }
-.cg-head b { font-size: var(--fs-body); color: var(--sample) }
-.cg-head small { color: var(--text-muted); font-size: var(--fs-sm) }
-.cg-tone { margin: 0; font-size: var(--fs-md); line-height: var(--lh-ui); color: var(--text-2);
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden }
-.cg-note { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-ui) }
-.cg-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: var(--control-sm); margin-top: 2px }
-.cg-foot .player { flex: 1 }
-.cg-foot .seek { max-width: 220px; min-width: var(--badge) }
-.cg-card > .cg-on { position: absolute; z-index: var(--z-over); top: -9px; right: var(--s-3); font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--track-wide);
-  text-transform: uppercase; line-height: var(--lh-solid); padding: var(--s-1) var(--s-2); color: var(--on-action); background: var(--sample); border-radius: var(--radius-sheet) }
-.cg-need { font-size: var(--fs-md); color: var(--text-muted) }
-.cg-more { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1h) var(--s-4); margin: var(--s-3h) 0 0; font-size: var(--fs-md); color: var(--text-muted) }
-.cg-group { display: grid; gap: var(--s-2); margin-top: var(--s-2) }
+/* ---------- the Coaches page (beside Logs): an audition, tiles beside a stage, the soft blue its one colour ---------- */
+.cg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem); gap: var(--s-6); align-items: start }
+.cg-roster { display: grid; gap: var(--s-5); min-width: 0 }
+.cg-group { display: grid; gap: var(--s-2h) }
 .cg-group-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-1h) var(--s-4) }
-.cg-group-h .cg-h { margin: 0 }
+.cg-h { margin: 0; letter-spacing: var(--track-wide); font-weight: 400 }
+.cg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)) }
+
+/* a tile: the coach's name and a few words; a tap puts them on the stage */
+.cg-tile > button {
+  position: relative; width: 100%; height: 100%; display: grid; align-content: start; gap: 2px; padding: var(--s-2h) var(--s-3);
+  text-align: left; font: inherit; color: var(--text); background: var(--card); border: 0; border-radius: var(--radius-sheet);
+  box-shadow: inset 0 0 0 1px var(--border); cursor: pointer;
+  transition: box-shadow var(--t-fast) ease, background-color var(--t-fast) ease;
+}
+.cg-tile > button:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--border-strong) }
+.cg-tile > button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset) }
+.cg-tile b { font-size: var(--fs-md); font-weight: 600; color: var(--sample) }
+.cg-gist { font-size: var(--fs-sm); line-height: var(--lh-ui); color: var(--text-muted) }
+.cg-mark { font-size: var(--fs-sm); color: var(--sample) }
+/* the coach on the stage: a cream ring; the coach coaching you: the blue wash */
+.cg-tile.cur > button { background: var(--current-wash) }
+.cg-tile.on > button, .cg-tile.on > button:hover:not(:disabled) { box-shadow: inset 0 0 0 2px var(--text) }
+
+/* the stage: the coach you're hearing, their sample, and Choose */
+.cg-side { position: sticky; top: 0 }
+.cg-stage {
+  display: grid; gap: var(--s-3h); padding: var(--s-5); background: var(--panel); box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: var(--radius-sheet);
+}
+.cg-svc { margin: 0; letter-spacing: var(--track-wide); font-weight: 400 }
+.cg-name { margin: 0; font-size: var(--fs-d4); line-height: var(--lh-solid); letter-spacing: var(--track-head) }
+.cg-tone { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-2) }
+.cg-price, .cg-note { margin: 0; font-size: var(--fs-sm); color: var(--text-muted) }
+.cg-act { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-1) }
+.cg-act .go { flex: 1 }
+.cg-now { margin: 0; font-size: var(--fs-md); font-weight: 600; letter-spacing: var(--track-wide); text-transform: uppercase; color: var(--sample) }
+.cg-need { font-size: var(--fs-md); color: var(--text-muted) }
+.cg-more { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1h) var(--s-4); margin: 0; font-size: var(--fs-md); color: var(--text-muted) }
+
+/* a narrow screen: the stage above the tiles */
+@media (max-width: 760px) {
+  .cg { grid-template-columns: minmax(0, 1fr); gap: var(--s-5) }
+  .cg-side { position: static; order: -1 }
+  .cg-stage { padding: var(--s-4) }
+}

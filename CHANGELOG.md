@@ -2,6 +2,21 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.72.0] - 2026-11-08
+
+The Logs and Coaches pages are easier to scan. Logs shows one line a workout, like a playlist: the date, the length, format, kit and coach, the topics, a dot where there's feedback, and the rating faces. A line opens in place to its MP3, movements, topics, feedback, script and delete. Coaches is an audition: each coach is a small tile, grouped by service, and a tap puts that coach on a stage beside the tiles and plays their sample, with their full description, what a workout costs, and one Choose button. The Coaches page uses more of a wide screen, since its tiles are compared side by side; Logs keeps the reading column. Minor, since the client's Coaches and Logs markup and styles changed (see For forks).
+
+### Changed
+- **Logs as rows that open** (`zones/Logs.tsx`, `styles/logs.css`): `WorkoutCard` becomes `WorkoutRow`; the line is a toggle (`.logs-toggle`, `aria-expanded`), and the details sit in `.logs-more`. A refused rating still says so on its own line, open or shut. Movements are chips. On a narrow screen the line shows the date over the details and drops the topics.
+- **Coaches as an audition** (`zones/Coaches.tsx`, `styles/coaches.css`): tiles (`.cg-tile`, "Hear Coach …") beside a stage (`.cg-stage`) that starts on the coach coaching you. A tap plays the sample; hearing never chooses. The stage's button chooses, says "Coaching you now" for the current coach, or names the key a coach needs. On a narrow screen the stage sits above the tiles.
+- **A wider column for comparing** (`--page-wide`, 84rem, in `tokens.css` and its copy in `docs/`; `.page.wide` in `styles/pages.css`), used by Coaches.
+
+### Added
+- `rowDate` in `lib/format.ts`: "Sun, Nov 8", with the year only when it isn't this one.
+
+### For forks
+- **Client:** the Coaches page's cards (`.cg-card`, `.cg-choose`, `.cg-head`, `.cg-foot`, `.cg-on`) are gone, replaced by `.cg-tile`, `.cg-stage` and their parts; a coach is chosen from the stage's Choose button, not by tapping its card. The Logs card's `.logs-head` is gone (the line is `.logs-line`). Copy `tokens.css` to `docs/tokens.css` (it gains `--page-wide`).
+
 ## [0.71.6] - 2026-11-08
 
 The Logs and Coaches pages look like one app. Both sit in one centred column, as the chat does, and scroll the full width with a thin bar at the window's edge; both open with the same top (the name, one line under it, and Close where Settings has it). Logs says less on each card.

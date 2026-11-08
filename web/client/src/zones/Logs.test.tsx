@@ -27,6 +27,8 @@ beforeEach(() => {
 });
 
 const cards = () => screen.getAllByRole("listitem").filter((li) => li.classList.contains("logs-card"));
+/** Open a workout's line to its details. */
+const open = (card: HTMLElement) => fireEvent.click(card.querySelector(".logs-toggle")!);
 
 describe("arrange", () => {
   it("filters by words, rating, format and kit, and sorts", () => {
@@ -46,6 +48,8 @@ describe("the Logs page", () => {
     expect(screen.getByText("3 workouts")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Rating"), { target: { value: "positive" } });
     expect(cards()).toHaveLength(1);
+    expect(cards()[0]).not.toHaveTextContent("loved it");   // shut: the line only
+    open(cards()[0]);
     expect(cards()[0]).toHaveTextContent("loved it");
     fireEvent.change(screen.getByLabelText("Rating"), { target: { value: "all" } });
     fireEvent.change(screen.getByLabelText("Search"), { target: { value: "nothing like this" } });
@@ -57,6 +61,8 @@ describe("the Logs page", () => {
       W({ n: 2, build_id: "bbb222" })]);
     render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(2));
+    expect(within(cards()[0]).queryByRole("link", { name: "Download the MP3" })).toBeNull();   // until opened
+    cards().forEach(open);
     expect(within(cards()[0]).getByLabelText("Workout 2026-10-30")).toHaveAttribute("src", "/api/media/m-1");
     expect(within(cards()[0]).getByRole("link", { name: "Download the MP3" })).toHaveAttribute("href", "/api/media/m-1?download=1");
     expect(within(cards()[1]).queryByRole("link", { name: "Download the MP3" })).toBeNull();
@@ -86,7 +92,9 @@ describe("the Logs page", () => {
   it("shows the script, saves feedback and deletes after a confirm", async () => {
     render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
+    cards().forEach(open);
     const first = cards()[0];
+    expect(first.querySelector(".logs-toggle")).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(within(first).getByRole("button", { name: "Show the script" }));
     expect(await within(first).findByText(/Fifteen minutes on the bike/)).toBeInTheDocument();
     expect(within(cards()[2]).queryByRole("button", { name: "Show the script" })).toBeNull();   // none was kept

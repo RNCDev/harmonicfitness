@@ -58,7 +58,8 @@
   --s-1: 4px; --s-1h: 6px; --s-2: 8px; --s-2h: 10px; --s-3: 12px; --s-3h: 14px; --s-4: 16px; --s-4h: 20px;
   --s-5: 24px; --s-5h: 28px; --s-6: 32px; --s-6h: 40px; --s-7: 48px; --s-8: 72px; --s-9: 96px;
   --gut: clamp(20px, 4vw, 56px);
-  --page: 64rem;                                  /* a page's column: Logs, Coaches */
+  --page: 64rem;                                  /* a page's column: Logs */
+  --page-wide: 84rem;                             /* a page that compares side by side: Coaches */
   --talk: 52rem;                                  /* a conversation's column: the lines, the coach bar, the box to write in */
 
   /* corners: controls are square, sheets (cards, panels, bubbles, menus) a little round, a pill fully */

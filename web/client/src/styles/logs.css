@@ -6,16 +6,33 @@
 .logs-controls .input { font-size: var(--fs-md); background: var(--surface-raised); padding: var(--s-2) var(--s-3); min-height: var(--control); width: auto }
 .logs-search { flex: 1 1 260px }
 .logs-search .input { width: 100% }
-.logs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3h) }
-.logs-card { background: var(--panel); box-shadow: inset 0 0 0 1px var(--border); padding: var(--s-4h) var(--s-5); display: grid; gap: var(--s-3); min-width: 0 }
-.logs-head { display: flex; justify-content: space-between; gap: var(--s-3h); align-items: start }
-.logs-head h2 { font-size: var(--fs-d1); line-height: var(--lh-head); letter-spacing: var(--track-wide) }
-.logs-meta { margin: var(--s-1) 0 0; color: var(--text-2); font-size: var(--fs-md) }
-.logs-moves, .logs-topics { margin: 0; font-size: var(--fs-md); color: var(--text-2); overflow-wrap: anywhere }
-.logs-topics { color: var(--text-muted); font-size: var(--fs-md) }
+/* one line a workout, like a playlist: the line opens in place to the rest */
+.logs-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border) }
+.logs-card { border-bottom: 1px solid var(--border); min-width: 0 }
+.logs-card.open { background: var(--panel) }
+.logs-line { display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-2) 0 0 }
+.logs-toggle {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: var(--s-3h) 8.5rem minmax(0, 17rem) minmax(0, 1fr) var(--s-2);
+  align-items: center; gap: var(--s-3h); padding: var(--s-3) var(--s-2); min-height: var(--hit); text-align: left;
+  background: none; border: 0; color: var(--text); font: inherit; cursor: pointer;
+}
+.logs-toggle:hover:not(:disabled) .logs-date { color: var(--text-strong) }
+.logs-toggle:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-inset) }
+.logs-chev { color: var(--text-muted); transition: transform var(--t-fast) ease }
+.logs-card.open .logs-chev { transform: rotate(90deg) }
+.logs-date { font-size: var(--fs-lg); line-height: var(--lh-head); letter-spacing: var(--track-wide); white-space: nowrap }
+.logs-meta, .logs-topics { font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.logs-meta { color: var(--text-2) }
+.logs-topics { color: var(--text-muted) }
+/* a workout with feedback: a small dot at the line's end */
+.logs-has-note { width: var(--s-2); height: var(--s-2); border-radius: 50%; background: var(--text-2) }
+.logs-more { display: grid; gap: var(--s-3); padding: 0 var(--s-5) var(--s-4h) calc(var(--s-2) + var(--s-3h) + var(--s-3h)) }
+.logs-moves { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-1h) }
+.logs-moves li { background: var(--surface-2); padding: 2px var(--s-2); font-size: var(--fs-sm); color: var(--text-2) }
+.logs-topics-all { margin: 0; font-size: var(--fs-md); color: var(--text-muted); overflow-wrap: anywhere }
 .logs-topics-h { color: var(--text-2) }
-.logs-card .audio-file { margin: 2px 0 var(--s-1) }
-.logs-card .audio-file .cx-s { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--s-1) }
+.logs-more .audio-file { max-width: 36rem }
+.logs-more .audio-file .cx-s { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--s-1) }
 .logs-feedback { list-style: none; margin: 0; padding: 0 0 0 var(--s-3); border-left: 2px solid var(--border-strong); display: grid; gap: var(--s-1); font-size: var(--fs-md) }
 .logs-noted { margin: var(--s-1h) 0 0; font-size: var(--fs-md); color: var(--text-2); font-style: italic }
 .logs-rate { display: flex; flex: none; gap: var(--s-1h) }
@@ -35,8 +52,14 @@
 .logs-note-form { display: flex; gap: var(--s-2h); align-items: center }
 .logs-note-form .field { flex: 1 }
 .logs-note-form .input { background: var(--surface-raised); padding: var(--s-2) var(--s-3); min-height: var(--control); font-size: var(--fs-md) }
+@media (max-width: 760px) {
+  .logs-toggle { grid-template-columns: var(--s-3h) minmax(0, 1fr) var(--s-2); row-gap: 2px }
+  .logs-meta { grid-column: 2; grid-row: 2 }
+  .logs-topics { display: none }
+  .logs-has-note { grid-column: 3; grid-row: 1 }
+  .logs-more { padding: 0 var(--s-3) var(--s-4) }
+}
 @media (max-width: 640px) {
-  .logs-head { flex-direction: column }
   .logs-controls .field:not(.logs-search) { flex: 1 1 40% }
   .logs-controls select { width: 100% }
 }

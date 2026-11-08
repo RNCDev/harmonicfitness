@@ -71,6 +71,14 @@ export function longDate(day: string): string {
     year: "numeric" });
 }
 
+/** "Sun, Nov 8" from "2026-11-08", with the year only when it isn't this one: a line in a list (Logs). */
+export function rowDate(day: string, today: Date = new Date()): string {
+  const [y, m, d] = day.split("-").map(Number);
+  if (!y || !m || !d) return day;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short",
+    ...(y === today.getFullYear() ? {} : { year: "numeric" }) });
+}
+
 /** "Thursday night": the day and its part, for the line above the request. In English on purpose: the words
  * around it ("night", the request itself) are English, so the weekday is too. */
 export function dayPart(d: Date): string {

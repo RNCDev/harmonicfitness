@@ -1,8 +1,9 @@
-// The Logs page: every logged workout, newest first, with its script, feedback, a rating and delete.
+// The Logs page: every logged workout, newest first, one line each (when, what, the topics, a rating); a line opens
+// in place to its MP3, movements, feedback, script and delete.
 // Sorted and filtered here, in the page; each change goes to the server and the list is read again.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, NotSignedIn, plainError, waitForJob, workoutRef, type Rating, type Workout } from "../lib/api";
-import { longDate } from "../lib/format";
+import { longDate, rowDate } from "../lib/format";
 import { optimistic, useAction } from "../lib/useAction";
 import { useResource } from "../lib/useResource";
 import { AudioFile } from "../ui/AudioFile";
@@ -128,7 +129,7 @@ export function Logs({ onClose }: { onClose: () => void }) {
                 setQ(""); setRating("all"); setFormat("all"); setKit("all");
               }}>Clear the filters</Button></p>}
             <ol className="logs-list">
-              {shown.map((w) => <WorkoutCard key={workoutRef(w) + w.date} w={w} onChanged={load} />)}
+              {shown.map((w) => <WorkoutRow key={workoutRef(w) + w.date} w={w} onChanged={load} />)}
             </ol>
           </>
         )}
@@ -137,8 +138,8 @@ export function Logs({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** One workout, with its own errors: a refused rating or note says so on its card, not at the top of the page. */
-function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<void> }) {
+/** One workout, with its own errors: a refused rating or note says so on its line, not at the top of the page. */
+function WorkoutRow({ w, onChanged }: { w: Workout; onChanged: () => Promise<void> }) {
   const ref = workoutRef(w);
   const [script, setScript] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -146,6 +147,8 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rated, setRated] = useState<Rating | null>(w.rating);
+  /** The line opened to the workout's details. */
+  const [shown, setShown] = useState(false);
   /** What the coach noted from the last feedback (worked out in the background): null until it says. Until then,
    * and if it never says, "Feedback saved." stays, so the listener knows the note went in. */
   const [noted, setNoted] = useState<string | null>(null);
@@ -194,66 +197,74 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
   };
 
   const title = longDate(w.date);
+  const meta = [`${w.minutes} min`, w.format, w.kit, w.coach].filter(Boolean).join(" · ");
+  const panel = `logs-more-${ref}`;
   return (
-    <li className="logs-card">
-      <div className="logs-head">
-        <div>
-          <h2 className="head">{title}</h2>
-          <p className="logs-meta">{[`${w.minutes} min`, w.format, w.kit, w.coach].filter(Boolean).join(" · ")}</p>
-        </div>
+    <li className={`logs-card${shown ? " open" : ""}`}>
+      <div className="logs-line">
+        <Button variant="bare" className="logs-toggle" aria-expanded={shown} aria-controls={panel}
+          aria-label={`${title}, ${meta}`} onClick={() => setShown(!shown)}>
+          <Icon name="chevron-right" size={14} className="logs-chev" />
+          <span className="head logs-date">{rowDate(w.date)}</span>
+          <span className="logs-meta">{meta}</span>
+          <span className="logs-topics">{w.topics}</span>
+          {w.feedback.length > 0 && <span className="logs-has-note" title="Has feedback" />}
+        </Button>
         <div className="logs-rate" role="group" aria-label={`Rate the ${title} workout`}>
           {RATINGS.map((r) => (
             <Button key={r.value} variant="bare" className={`rate-btn ${r.value}`} pressed={rated === r.value}
               title={r.label} disabled={busy} onClick={() => void rate(r.value)}>
-              <Icon name={`face-${r.value}`} size={22} weight={1.7} /><span className="sr">{r.label}</span>
+              <Icon name={`face-${r.value}`} size={20} weight={1.7} /><span className="sr">{r.label}</span>
             </Button>
           ))}
         </div>
       </div>
-      {w.audio && <AudioFile audio={w.audio} preload="none" />}
-      <p className="logs-moves">{w.movements.join(", ")}</p>
-      {w.topics && <p className="logs-topics"><span className="logs-topics-h">Topics</span> {w.topics}</p>}
-      {w.feedback.length > 0 && (
-        <ul className="logs-feedback" aria-label="Feedback">
-          {w.feedback.map((f, i) => <li key={i}>{f}</li>)}
-        </ul>
-      )}
-      {noted && <p className="logs-noted" role="status">{noted}</p>}
-      <div className="logs-actions">
-        {w.has_script && <Button variant="text" aria-expanded={open} onClick={() => void toggleScript()}>
-          {open ? "Hide the script" : "Show the script"}
-        </Button>}
-        {!writing && <Button variant="text" onClick={() => setWriting(true)}>Add feedback</Button>}
-        {!deleting
-          ? <Button variant="text" danger className="logs-delete" disabled={busy} onClick={() => setDeleting(true)}>Delete</Button>
-          : <ConfirmInline question="Delete this workout, its feedback and its files?" confirm="Delete it"
-              busy={busy} onConfirm={() => void change.run(() => api.deleteWorkout(ref))} onKeep={() => setDeleting(false)} />}
-      </div>
       <Notice tone="error">{shownError}</Notice>
-      {open && (
-        <div className="logs-script" tabIndex={0} aria-label="Script">
-          {script === null ? <p aria-busy="true">Loading the script…</p> : script}
+      {noted && <p className="logs-noted" role="status">{noted}</p>}
+      {shown && <div className="logs-more" id={panel}>
+        {w.audio && <AudioFile audio={w.audio} preload="none" />}
+        <ul className="logs-moves" aria-label="Movements">{w.movements.map((m, i) => <li key={i}>{m}</li>)}</ul>
+        {w.topics && <p className="logs-topics-all"><span className="logs-topics-h">Topics</span> {w.topics}</p>}
+        {w.feedback.length > 0 && (
+          <ul className="logs-feedback" aria-label="Feedback">
+            {w.feedback.map((f, i) => <li key={i}>{f}</li>)}
+          </ul>
+        )}
+        <div className="logs-actions">
+          {w.has_script && <Button variant="text" aria-expanded={open} onClick={() => void toggleScript()}>
+            {open ? "Hide the script" : "Show the script"}
+          </Button>}
+          {!writing && <Button variant="text" onClick={() => setWriting(true)}>Add feedback</Button>}
+          {!deleting
+            ? <Button variant="text" danger className="logs-delete" disabled={busy} onClick={() => setDeleting(true)}>Delete</Button>
+            : <ConfirmInline question="Delete this workout, its feedback and its files?" confirm="Delete it"
+                busy={busy} onConfirm={() => void change.run(() => api.deleteWorkout(ref))} onKeep={() => setDeleting(false)} />}
         </div>
-      )}
-      {writing && <form className="logs-note-form" onSubmit={(e) => {
-        e.preventDefault();
-        const text = note.trim();
-        if (!text) return;
-        void change.run(async () => {
-          const r = await api.workoutFeedback(ref, text);
-          setNote("");
-          setWriting(false);
-          if (r?.job_id) void follow(r.job_id);
-          else setNoted("Feedback saved.");
-        });
-      }}>
-        <Field id={`feedback-${ref}`} label="Feedback on this workout" hideLabel>
-          <input className="input" type="text" maxLength={1000} placeholder="Too long, loved the quiz…" value={note}
-            autoFocus onChange={(e) => setNote(e.target.value)} disabled={busy} />
-        </Field>
-        <Button type="submit" busy={busy} disabled={!note.trim()}>Save</Button>
-        <Button variant="text" disabled={busy} onClick={() => { setWriting(false); setNote(""); }}>Cancel</Button>
-      </form>}
+        {open && (
+          <div className="logs-script" tabIndex={0} aria-label="Script">
+            {script === null ? <p aria-busy="true">Loading the script…</p> : script}
+          </div>
+        )}
+        {writing && <form className="logs-note-form" onSubmit={(e) => {
+          e.preventDefault();
+          const text = note.trim();
+          if (!text) return;
+          void change.run(async () => {
+            const r = await api.workoutFeedback(ref, text);
+            setNote("");
+            setWriting(false);
+            if (r?.job_id) void follow(r.job_id);
+            else setNoted("Feedback saved.");
+          });
+        }}>
+          <Field id={`feedback-${ref}`} label="Feedback on this workout" hideLabel>
+            <input className="input" type="text" maxLength={1000} placeholder="Too long, loved the quiz…" value={note}
+              autoFocus onChange={(e) => setNote(e.target.value)} disabled={busy} />
+          </Field>
+          <Button type="submit" busy={busy} disabled={!note.trim()}>Save</Button>
+          <Button variant="text" disabled={busy} onClick={() => { setWriting(false); setNote(""); }}>Cancel</Button>
+        </form>}
+      </div>}
     </li>
   );
 }

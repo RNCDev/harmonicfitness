@@ -1,49 +1,60 @@
-// The Coaches page (beside Logs): every coach that can speak on the web, as compact cards across the whole width.
-// Each says how the coach talks and what a workout costs, and plays its sample (a ready-made coach's, or the
-// one kept when a coach was made) from a small player of its own, one sample at a time (ui/Player.tsx). The listener's own
-// coaches come first in their service's group. A coach whose service has a key is
-// chosen with a tap; one that needs a key says which, and can open that key's row in Settings. The page's one
-// colour, a soft blue, marks what plays and who is coaching you.
+// The Coaches page (beside Logs): an audition. Every coach that can speak on the web is a small tile, by service; a
+// tap puts that coach on the stage beside them and plays their sample (a ready-made coach's, or the one kept when a
+// coach was made), one sample at a time (ui/Player.tsx). The stage says how the coach talks and what a workout costs,
+// and chooses them. The listener's own coaches come first in their service's group. A coach whose service has no key
+// says which key it needs, and can open that key's row in Settings. The page's one colour, a soft blue, marks what
+// plays and who is coaching you.
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import type { StartCoach } from "../lib/api";
 import { an, dollars } from "../lib/format";
 import { Button } from "../ui/Button";
 import { Empty, Loadable, Notice } from "../ui/Notice";
-import { AudioPlayer } from "../ui/Player";
+import { AudioPlayer, type AudioHandle } from "../ui/Player";
 
 /** "about $1.60 a workout", or nothing when the cost isn't known. */
 export function cost(c: StartCoach): string | null {
   return typeof c.usd_per_workout === "number" ? `about ${dollars(c.usd_per_workout)} a workout` : null;
 }
 
-/** A coach's sample: a play button, the time, and a line to seek along. */
-function Sample({ c }: { c: StartCoach }) {
-  return <AudioPlayer src={`/api/coaches/${encodeURIComponent(c.slug)}/sample.mp3`} label={`Coach ${c.first}'s sample`} />;
+/** How the coach talks, in a few words for a tile: the line up to its first comma ("Warm and steady"). */
+const gist = (c: StartCoach) => (c.tone || c.description || "").split(/[,;.]/)[0].trim();
+
+/** One coach's tile: their name and a few words. A tap puts them on the stage. */
+function Tile({ c, picked, onPick }: { c: StartCoach; picked: boolean; onPick: () => void }) {
+  const active = c.current && c.ready;
+  return (
+    <li className={`cg-tile${active ? " cur" : ""}${picked ? " on" : ""}`}>
+      <Button variant="bare" pressed={picked} aria-label={`Hear Coach ${c.first}`} onClick={onPick}>
+        <b>Coach {c.first}</b>
+        {gist(c) && <span className="cg-gist">{gist(c)}</span>}
+        {(active || c.own) && <span className="cg-mark">{active ? "Active" : "Yours"}</span>}
+      </Button>
+    </li>
+  );
 }
 
-function Card({ c, onCoach }: { c: StartCoach; onCoach?: (slug: string) => void }) {
-  const price = cost(c);
+/** The coach on the stage: who they are, their sample, and the one thing to do next. */
+function Stage({ c, player, onCoach, addKey }: { c: StartCoach; player: Ref<AudioHandle>;
+  onCoach?: (slug: string) => void; addKey: (service: string, label: string) => ReactNode }) {
   const active = c.current && c.ready;
-  const choosable = c.ready && !!onCoach;
+  const price = cost(c);
+  const svc = `${c.service_name}${c.powered_by ? `, powered by ${c.powered_by}` : ""}`;
   return (
-    <li className={`cg-card${active ? " cur" : ""}${c.ready ? "" : " off"}${choosable ? " can" : ""}`}>
-      {/* the whole card chooses the coach: a button laid over it, beneath the player and any link */}
-      {choosable && (
-        <button type="button" className="cg-choose" aria-label={`Choose ${c.first}`} aria-pressed={active}
-          onClick={() => { if (!active) onCoach!(c.slug); }} />
-      )}
-      {active && <span className="cg-on">Active</span>}
-      <div className="cg-head">
-        <b>Coach {c.first}</b>
-        {/* the group's heading names the service */}
-        <small>{[c.own ? "Yours" : "", price].filter(Boolean).join(" · ")}</small>
-      </div>
+    <section className="cg-stage" aria-label={`Coach ${c.first}, on stage`}>
+      <p className="label cg-svc">{svc}</p>
+      <h2 className="head cg-name">Coach {c.first}</h2>
       {(c.tone || c.description) && <p className="cg-tone">{c.tone || c.description}</p>}
-      {(c.sample || c.pending) && (
-        <div className="cg-foot">
-          {c.sample ? <Sample c={c} /> : <p className="cg-note">Voice made on first use (about 1¢)</p>}
-        </div>
-      )}
-    </li>
+      {c.sample
+        ? <AudioPlayer ref={player} large src={`/api/coaches/${encodeURIComponent(c.slug)}/sample.mp3`}
+            label={`Coach ${c.first}'s sample`} />
+        : c.pending && <p className="cg-note">Voice made on first use (about 1¢)</p>}
+      {price && <p className="cg-price">{price}</p>}
+      <div className="cg-act">
+        {active ? <p className="cg-now">Coaching you now</p>
+          : c.ready && onCoach ? <Button variant="primary" onClick={() => onCoach(c.slug)}>Choose {c.first}</Button>
+          : addKey(c.service, `Add ${an(c.service_name)} ${c.service_name} key to choose ${c.first}`)}
+      </div>
+    </section>
   );
 }
 
@@ -59,7 +70,7 @@ function heading(group: StartCoach[]): string {
 
 export function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches: StartCoach[];
   onCoach?: (slug: string) => void; onAddKey?: (service: string) => void; onOpenSettings?: () => void }) {
-  // yours first, then alphabetical, so a card never moves: choosing one only rings it
+  // yours first, then alphabetical, so a tile never moves: choosing one only marks it
   const byName = (a: StartCoach, b: StartCoach) => Number(b.own) - Number(a.own) || a.first.localeCompare(b.first);
   const ready = coaches.filter((c) => c.ready).sort(byName);
   // coaches by service, each group A to Z: the ones that can speak, and the ones waiting for a key
@@ -72,6 +83,28 @@ export function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { c
   const voiced = bySvc(ready);
   const waiting = bySvc(coaches.filter((c) => !c.ready).sort(byName));
   const services = order(waiting);
+  // with a voice key, only the coaches it can voice; with none, every coach, to hear first
+  const groups = ready.length > 0 ? order(voiced).map((s) => voiced.get(s)!) : services.map((s) => waiting.get(s)!);
+  const listed = groups.flat();
+
+  const [picked, setPicked] = useState<string | null>(null);
+  const onStage = listed.find((c) => c.slug === picked) ?? listed.find((c) => c.current && c.ready) ?? listed[0];
+  const player = useRef<AudioHandle>(null);
+  const side = useRef<HTMLDivElement>(null);
+  const playNext = useRef(false);
+  // a tap plays the coach it put on the stage, once the stage's player holds their sample
+  useEffect(() => {
+    if (!playNext.current) return;
+    playNext.current = false;
+    player.current?.play();
+  }, [picked]);
+  const pick = (slug: string) => {
+    playNext.current = true;
+    setPicked(slug);
+    // on a narrow screen the stage sits above the tiles: bring it into view
+    if (window.matchMedia?.("(max-width: 760px)").matches) side.current?.scrollIntoView?.({ block: "nearest" });
+  };
+
   if (coaches.length === 0) {
     return <Empty action={onOpenSettings && <Button onClick={onOpenSettings}>Open Settings</Button>}>
       Coaches show here once a key is added.</Empty>;
@@ -80,19 +113,24 @@ export function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { c
     ? <Button variant="text" onClick={() => onAddKey(service)}>{label}</Button>
     : <span className="cg-need">{label}</span>;
 
-  if (ready.length > 0) {   // only the coaches your keys can voice, and a line on what another key would add
-    return (
-      <div className="cg">
-        {order(voiced).map((s) => {
-          const group = voiced.get(s)!, name = group[0].service_name;
+  return (
+    <div className="cg">
+      <div className="cg-roster">
+        {groups.map((group) => {
+          const s = group[0].service, name = group[0].service_name;
           return (
             <section key={s} className="cg-group" aria-label={`${name} coaches`}>
-              <p className="label cg-h">{heading(group)}</p>
-              <ul className="cg-list">{group.map((c) => <Card key={c.slug} c={c} onCoach={onCoach} />)}</ul>
+              <div className="cg-group-h">
+                <p className="label cg-h">{heading(group)}</p>
+                {ready.length === 0 && addKey(s, `Add ${an(name)} ${name} key`)}
+              </div>
+              <ul className="cg-list">
+                {group.map((c) => <Tile key={c.slug} c={c} picked={c.slug === onStage.slug} onPick={() => pick(c.slug)} />)}
+              </ul>
             </section>
           );
         })}
-        {services.length > 0 && (
+        {ready.length > 0 && services.length > 0 && (
           <p className="cg-more">
             <span>More coaches with another voice key:</span>
             {services.map((s) => {
@@ -102,28 +140,14 @@ export function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { c
           </p>
         )}
       </div>
-    );
-  }
-  // no voice key yet: every coach, by service, to hear first; one key opens a whole group
-  return (
-    <div className="cg">
-      {services.map((s) => {
-        const group = waiting.get(s)!, name = group[0].service_name;
-        return (
-          <section key={s} className="cg-group" aria-label={`${name} coaches`}>
-            <div className="cg-group-h">
-              <p className="label cg-h">{heading(group)}</p>
-              {addKey(s, `Add ${an(name)} ${name} key`)}
-            </div>
-            <ul className="cg-list">{group.map((c) => <Card key={c.slug} c={c} />)}</ul>
-          </section>
-        );
-      })}
+      <div className="cg-side" ref={side}>
+        <Stage c={onStage} player={player} onCoach={onCoach} addKey={addKey} />
+      </div>
     </div>
   );
 }
 
-/** The page itself: a heading, a line on what to do, and the gallery. */
+/** The page itself: a heading, a line on what to do, and the audition. */
 export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClose, error = null, loadError = null,
   onRetry }: {
   coaches: StartCoach[] | null; onCoach: (slug: string) => void; onAddKey: (service: string) => void;
@@ -134,13 +158,13 @@ export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClos
   error?: string | null }) {
   const any = coaches?.some((c) => c.ready);
   return (
-    <section className="page" aria-labelledby="coaches-title">
+    <section className="page wide" aria-labelledby="coaches-title">
       <div className="page-top">
         <div>
           <h1 className="head" id="coaches-title">Coaches</h1>
           <p className="page-note">{any
-            ? "Play a sample, then tap a coach to choose them."
-            : "Play a sample, then add the key for the coaches you like."}</p>
+            ? "Tap a coach to hear them, then choose the one you like."
+            : "Tap a coach to hear them, then add the key for the coaches you like."}</p>
         </div>
         <Button variant="bare" className="page-close" aria-label="Back to the chat" onClick={onClose}>Close</Button>
       </div>
