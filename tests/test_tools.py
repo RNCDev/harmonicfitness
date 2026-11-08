@@ -1,7 +1,8 @@
-"""Fast checks for the text, timing, log and feed logic. No models, no audio rendering,
-no network. Python 3.11 or later (the project's environment).
+"""Fast checks across the engine: a draft's text and timing, the build around the render, the log, feeds, the
+context files and the command line. No models, no audio rendering, no network. Python 3.11 or later (the
+project's environment).
 
-    ./harmonicfitness test        # or, in CI: python -m unittest discover tests
+    ./harmonicfitness test test_tools     # this module; CI runs ./harmonicfitness test engine
 """
 import contextlib
 import datetime as dt
@@ -56,8 +57,6 @@ from audio import SR, assemble, chime, end_tone, silence  # noqa: E402
 from tts_build import lint_line, word_count  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Drafts that ship with the engine; personal drafts in me/ are never test fixtures.
-DRAFTS = sorted(glob.glob(os.path.join(ROOT, "tests", "fixtures", "*.draft.txt"))) + [paths.SMOKE_DRAFT]
 
 
 def secs(pcm):
@@ -829,11 +828,10 @@ def fresh_home(d):
 class ExitCodes(unittest.TestCase):
     """A mistyped command exits 64, never 2, which means 'the workout ran long'."""
 
-    def test_mistyped_options_exit_64(self):
+    def test_mistyped_arguments_exit_64(self):
+        # an unknown option is 64 on every command (test_contract); these are a missing or unknown argument
         fixture = os.path.join("tests", "fixtures", "example.draft.txt")
-        for args in (["tools/build.py", fixture, "x", "--coach", "Chatterbox Coach", "--sed", "5"],
-                     ["tools/build.py", fixture],                           # the name is missing
-                     ["tools/coverage.py", "--bogus"],
+        for args in (["tools/build.py", fixture],                           # the name is missing
                      ["tools/context.py", "get", "nothing"],
                      ["tools/coaches.py", "measured", "Nobody At All"]):
             out = run([sys.executable, *args])
@@ -1544,6 +1542,19 @@ class PaceFile(unittest.TestCase):
 
 
 class LintReport(unittest.TestCase):
+    def test_a_web_voice_s_lint_says_what_it_sends_and_a_local_one_doesn_t(self):
+        segs = parse("@@ 20 | A\nHello there, and welcome in.\n")
+        web = {"name": "x", "key": "x", "engine": "gemini", "model": "m", "backend": "cloud"}
+        local = {"name": "x", "key": "x", "engine": "pocket", "model": "m"}
+        with mock.patch("voices.pace", return_value=(14.5, False)):
+            sent = tts_build.lint(segs, web)
+            kept = tts_build.lint(segs, local)
+        self.assertEqual(sent.sent, len("Hello there, and welcome in."))
+        self.assertIn(f"Sends {sent.sent:,} characters to the voice service", "\n".join(tts_build.render_report(sent)))
+        self.assertIsNone(kept.sent)
+        self.assertFalse(any("Sends" in line for line in tts_build.render_report(kept)))
+        self.assertEqual(sent.notes, [])   # not an issue: only --max-chars makes one
+
     def test_report_fields_without_printing(self):
         segs = parse("@@ 60 | A\nWarm up. Ten lbs.\n@@ 60 | B\nSquats now.\n")
         report = tts_build.lint(segs, wpm=60)
@@ -1851,8 +1862,9 @@ value = "x\""""
         self.assertIn("newer", str(e.exception.code))
 
 
-class Context3(unittest.TestCase):
-    """Schema 3: experience, likes, dislikes, kits, and the health file's limits."""
+class ProfileAndHealth(unittest.TestCase):
+    """The profile's settings (experience, likes, dislikes, kits, name) and the health file's limits, as read and as
+    check notes them."""
 
     SETTINGS = """experience = "experienced"
 likes = ["goblet-squat"]
@@ -2109,7 +2121,7 @@ class Wrapper(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             home = fresh_home(d)
             self.assertEqual(self.harmonicfitness("get", "routes", home=home).stdout.strip(), "local")
-            out = self.harmonicfitness("voices", "measured", "Nobody", home=home)
+            out = self.harmonicfitness("coaches", "measured", "Nobody At All", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
             out = self.harmonicfitness("build", "--bogus", home=home)
             self.assertEqual(out.returncode, cli.USAGE)
@@ -2636,22 +2648,6 @@ class ContextRobustness(unittest.TestCase):
             self.assertEqual(out.getvalue().count("Logged"), 2)
 
 
-class AtomicWrite(unittest.TestCase):
-    def test_writes_text_and_bytes_leaving_no_part_file(self):
-        import fileio
-        import harmonicfitness
-        with tempfile.TemporaryDirectory() as d:
-            p = os.path.join(d, "sub", "x.json")
-            fileio.atomic_write(p, '{"a": 1}\n')   # makes the folder
-            with open(p, encoding="utf-8") as f:
-                self.assertEqual(f.read(), '{"a": 1}\n')
-            fileio.atomic_write(p, b"\x00\x01")
-            with open(p, "rb") as f:
-                self.assertEqual(f.read(), b"\x00\x01")
-            self.assertEqual(os.listdir(os.path.dirname(p)), ["x.json"])
-        self.assertEqual(harmonicfitness.COMMANDS["check"][0], "check")   # ./harmonicfitness check runs tools/check.py
-
-
 class Dedupe(unittest.TestCase):
     """Each small rule lives in one place: service names, the render list, coach matching, the research paths."""
 
@@ -2709,7 +2705,6 @@ class Dedupe(unittest.TestCase):
         for name in ("blocks", "min_slots", "fixed"):
             self.assertFalse(hasattr(s.methods["circuit"], name), name)
         self.assertEqual(s.methods["circuit"].rest_seconds, [45, 90])
-        self.assertFalse(hasattr(sessions, "all_out"))   # the composer's helper, unused since 0.7.2
         self.assertEqual(sessions.problems(s, catalog.load()), [])
 
     def test_the_shell_scripts_share_their_helpers(self):

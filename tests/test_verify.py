@@ -200,8 +200,6 @@ class CheckTakes(unittest.TestCase):
             f.write(json.dumps({"ok": True, "missed_cues": []}))
         self.assertIsNone(clipcache.verdict(clipcache.check_path(self.cache_path, line)))
 
-
-class CheckTakesReuse(CheckTakes):
     def test_a_say_passed_in_is_reused_not_loaded_again(self):
         line = "Three, two, one, and rest."
         self.cached(line)

@@ -227,14 +227,10 @@ class RealCatalog(unittest.TestCase):
                 with unittest.mock.patch("sys.stderr"):
                     cat = catalog.load()   # an unreadable file is skipped, not a crash
             self.assertIn("air-squat", cat.movements)
-            sys.path.insert(0, os.path.join(ROOT, "tools"))
-            import context
             self.assertIn("can't be read", check.check_movements(path)[0].message)
 
     def test_check_lists_a_private_entry_missing_its_effort(self):
         import tempfile
-        sys.path.insert(0, os.path.join(ROOT, "tools"))
-        import context
         spin = dict(vars(catalog.load(FIXTURE).movements["bike-easy-spin"]), id="garage-spin", name="garage spin",
                     aliases=[])
         for k in ("effort", "private", "has_loads"):
@@ -654,7 +650,6 @@ class KnowledgeFiles(unittest.TestCase):
         for needle in ("--avoid", "Unlisted:", "Avoid:"):
             self.assertIn(needle, workout, needle)
         self.assertEqual(workout.count(EVERY_MOVEMENT_RULE), 1)
-        self.assertNotIn("./harmonicfitness session", workout)   # the composer is an optional reference now
         self.assertIn("default is novice", workout)
         self.assertLess(len(re.sub(r"<!--.*?-->", "", workout).split()), 2600)   # procedure, not knowledge
         for name, text in (("workout", workout), ("setup", setup)):

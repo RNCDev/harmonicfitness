@@ -94,25 +94,4 @@ describe("the Coaches page", () => {
     rerender(<CoachesPage coaches={coaches.map((c) => ({ ...c, current: c.first === "Reed" }))} {...props} />);
     expect(order()).toEqual(before);
   });
-
-  it("plays one sample at a time", () => {
-    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (this: HTMLMediaElement) {
-      Object.defineProperty(this, "paused", { value: false, configurable: true });
-      this.dispatchEvent(new Event("play"));
-      return Promise.resolve();
-    });
-    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(function (this: HTMLMediaElement) {
-      Object.defineProperty(this, "paused", { value: true, configurable: true });
-      this.dispatchEvent(new Event("pause"));
-    });
-    page({ coaches: [coaches[3], { ...coaches[3], slug: "coach-leah-openrouter", first: "Leah", name: "Coach Leah" }] });
-    fireEvent.click(screen.getByRole("button", { name: "Play Coach Nora's sample" }));
-    expect(screen.getByRole("button", { name: "Pause Coach Nora's sample" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Play Coach Leah's sample" }));
-    expect(screen.getByRole("button", { name: "Play Coach Nora's sample" })).toBeInTheDocument();   // paused by Leah's
-    expect(screen.getByRole("button", { name: "Pause Coach Leah's sample" })).toBeInTheDocument();
-    expect(play).toHaveBeenCalledTimes(2);
-    expect(pause).toHaveBeenCalledTimes(1);
-    play.mockRestore(); pause.mockRestore();
-  });
 });

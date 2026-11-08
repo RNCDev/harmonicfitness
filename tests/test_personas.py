@@ -1,5 +1,5 @@
-"""Coaches as persona folders (me/personas/<slug>/): clip, settings, pace and service voices.
-No models: the fixture coach is half a second of a tone (tests/fixtures/personas/coach-test)."""
+"""Coaches as persona folders (me/coaches/<slug>/, and the stock ones): clip, settings, pace and service voices.
+No models: the fixture coach is half a second of a tone (tests/fixtures/stock/coach-test)."""
 import hashlib
 import json
 import os
@@ -14,10 +14,8 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import errors  # noqa: E402
 
 import context  # noqa: E402
-import check  # noqa: E402
 import ffmpeg  # noqa: E402
 import personas  # noqa: E402
-import routes  # noqa: E402
 import voices  # noqa: E402
 
 FIXTURE = personas.paths.SHIPPED   # the stock coaches the tests see (tests/fixtures/stock: ./harmonicfitness test sets HARMONICFITNESS_SHIPPED)
@@ -492,8 +490,8 @@ class SetAndList(unittest.TestCase):
 
 
 class NoPrintInLibrary(unittest.TestCase):
-    """Library modules this release cleaned say things through report/warn callbacks: print only in the
-    default sinks (say, stderr) and main."""
+    """These library modules say things through report/warn callbacks: print only in the default sinks (say,
+    stderr) and main."""
     CLEAN = ("audition.py", "coachmake.py", "catalog.py", "logsession.py", "frontmatter.py", "fileio.py")
     SINKS = {"say", "stderr", "_stderr", "main"}
 

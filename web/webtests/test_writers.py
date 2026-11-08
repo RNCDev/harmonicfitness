@@ -187,14 +187,14 @@ class Assemble(unittest.TestCase):
         self.assertIn("Set it down.\n\n[story] The Flyers won. [/story]\n\nPick the bell back up.", draft)
         self.assertIn("@@ 50 | Goblet squat set two\n[count 3 go]", draft)   # the lint says what's left
 
-    def test_the_editor_changes_only_the_words_of_the_segments_it_returns(self):
+    def test_an_edit_changes_only_the_words_of_the_segments_it_returns(self):
         draft = "movements: plank\n@@ 30 | Welcome\nHello.\n\n@@ 40 | Plank\n[count 3 go] Brace.\n"
         out = writers.apply_edits(draft, [Edited(number=1, text="@@ 99 | Hijacked\nEvening, Sam."),
                                           Edited(number=7, text="nothing there")])
         self.assertEqual(out, "movements: plank\n@@ 30 | Welcome\nEvening, Sam.\n\n@@ 40 | Plank\n[count 3 go] Brace.\n")
         self.assertIn("#2 @@ 40 | Plank", writers.numbered(draft))
 
-    def test_the_trainers_must_say_labels_never_reach_the_voice(self):
+    def test_a_say_exactly_label_never_reaches_the_voice(self):
         # the host copied "SAY EXACTLY:" onto five welcome rules and the coach read it aloud (2026-11-05)
         out = writers.apply_edits(SKELETON, [Edited(number=1, text=(
             "Before we move, the rules.\n\nSAY EXACTLY: Sharp pain means stop that movement.\n\n"

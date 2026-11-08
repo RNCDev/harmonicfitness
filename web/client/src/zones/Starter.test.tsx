@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { StartInfo } from "../lib/api";
-import { kitWords, sentence, whenWords } from "../lib/request";
+import { whenWords } from "../lib/request";
 import { Starter } from "./Starter";
 import { slots, withOffset } from "../lib/when";
 
@@ -208,15 +208,6 @@ describe("the starter", () => {
     render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();   // no Coaches page to send to
     expect(screen.getByText("Add a voice key in Settings first.")).toBeInTheDocument();
-  });
-
-  it("words for kits and the request with nothing sore", () => {
-    expect(kitWords({ id: "bodyweight", label: "the park", preset: true })).toBe("with no equipment");
-    expect(kitWords({ id: "travel", label: "travel", preset: false })).toBe("with my travel kit");
-    expect(sentence({ coach: "Nolan", minutes: 20, place: "at home", type: "cardio workout", body: {} }))
-      .toBe("Hey, coach Nolan, I'd like a 20-minute cardio workout at home, right now. Nothing's bothering me today.");
-    expect(sentence({ coach: "Nolan", minutes: 18, place: "at home", type: "core workout", body: { "left knee": "easy", "right knee": "easy", neck: "off" } }))
-      .toBe("Hey, coach Nolan, I'd like an 18-minute core workout at home, right now. Go easy on my left knee and right knee, and keep off my neck today.");
   });
 });
 

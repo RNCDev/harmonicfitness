@@ -551,19 +551,37 @@ class Prefetch(AgentCase):
         self.assertEqual(run.call_args.args[2], ["feeds"])
 
 
-class Faster(AgentCase):
-    """0.48.0: fewer round trips and smaller fixes on the way to a priced script."""
+class DraftCase(AgentCase):
+    """A turn over one draft, me/workouts/a/a.draft.txt, with the engine faked."""
     DRAFT = "me/workouts/a/a.draft.txt"
     TEXT = "movements: air-squat\n\n@@ 30 | Welcome\nHello there.\n\n@@ 60 | Squats\nSquat now.\n[hold]\n\n@@ 30 | Close\nDone.\n"
 
     def draft(self, text=None):
         tools.write_file(self.deps, self.DRAFT, text or self.TEXT)
-        with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
-            return f.read()
+        return self.draft_text()
 
     def draft_text(self):
         with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
             return f.read()
+
+    def fake(self, sends=True):
+        from unittest import mock
+        calls = []
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            calls.append(argv)
+            if argv[:2] == ["get", "cost"]:
+                return tools.engine.Result(0, '{"service": "gemini", "chars": 3000, "usd": 0.05}', "")
+            if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
+                return tools.engine.Result(1, "  the script speaks 3,000 characters; this build may send at most 1", "")
+            if "--lint-only" in argv:
+                return tools.engine.Result(0, "lint ok\nSends 3,000 characters to the voice service" if sends else "lint ok", "")
+            return tools.engine.Result(0, "recorded", "")
+        return mock.patch.object(tools.engine, "run", side_effect=run), calls
+
+
+class Faster(DraftCase):
+    """0.48.0: fewer round trips and smaller fixes on the way to a priced script."""
 
     def test_a_turn_fixes_several_segments_in_one_call(self):
         self.draft()
@@ -821,21 +839,6 @@ class Faster(AgentCase):
         self.assertIn('<file path="knowledge/script.md">', text)
         self.assertIn('<file path="knowledge/tts-rules.md">', text)
 
-    def fake(self, sends=True):
-        from unittest import mock
-        calls = []
-
-        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
-            calls.append(argv)
-            if argv[:2] == ["get", "cost"]:
-                return tools.engine.Result(0, '{"service": "gemini", "chars": 3000, "usd": 0.05}', "")
-            if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
-                return tools.engine.Result(1, "  the script speaks 3,000 characters; this build may send at most 1", "")
-            if "--lint-only" in argv:
-                return tools.engine.Result(0, "lint ok\nSends 3,000 characters to the voice service" if sends else "lint ok", "")
-            return tools.engine.Result(0, "recorded", "")
-        return mock.patch.object(tools.engine, "run", side_effect=run), calls
-
     BUILD = ["build", "me/workouts/a/a.draft.txt", "Workout A", "--coach", "Coach Ruby"]
 
     def test_the_offer_carries_the_engine_s_plan_and_says_when_it_s_the_first(self):
@@ -1066,7 +1069,7 @@ class Faster(AgentCase):
         self.assertFalse(any(a[0] == "build" and "--lint-only" not in a for a in calls))
 
 
-class ThirtyMinuteLoop1(Faster):
+class ThirtyMinuteScripts(DraftCase):
     """0.49.4: a write that builds, long paragraphs split by the site, the feeds sheet with `run feeds`."""
 
     def test_a_draft_written_with_its_build_is_built_in_the_same_call(self):

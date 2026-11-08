@@ -24,7 +24,7 @@ import personas  # noqa: E402
 import helpers  # noqa: E402
 import errors  # noqa: E402
 from fakes import FakeService, tone_pcm, tone_wav  # noqa: E402
-from test_personas import FIXTURE, persona_home  # noqa: E402
+from test_personas import persona_home  # noqa: E402
 
 SECRET = "sk-test-NEVERPRINT-123"
 DRAFT = os.path.join(ROOT, "tests", "fixtures", "example.draft.txt")

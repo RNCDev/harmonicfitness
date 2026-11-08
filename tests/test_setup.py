@@ -310,7 +310,7 @@ exec "{python}" "$@"
 
 
 class LocalExtra(unittest.TestCase):
-    """9.0: the local engines are an optional extra, chosen by the readiness check."""
+    """The local engines are an optional extra (since 0.9.0), chosen by the readiness check."""
 
     def setUp(self):
         self.d = tempfile.mkdtemp()
@@ -459,14 +459,14 @@ class Skills(unittest.TestCase):
         for name in ("setup", "workout", "coach"):
             text = self.read(name)
             for cmd in re.findall(r"\./harmonicfitness ([a-z-]+)", text):
-                self.assertIn(cmd, set(harmonicfitness.COMMANDS) | {"help", "session"}, (name, cmd))
+                self.assertIn(cmd, set(harmonicfitness.COMMANDS) | {"help"}, (name, cmd))
             self.assertNotIn("--voice", text, name)
             self.assertNotIn("voices/", text, name)
         for doc in ("CLAUDE.md", "README.md", os.path.join("knowledge", "voices.md")):
             with open(os.path.join(ROOT, doc), encoding="utf-8") as f:
                 text = f.read()
             for cmd in re.findall(r"\./harmonicfitness ([a-z-]+)", text):
-                self.assertIn(cmd, set(harmonicfitness.COMMANDS) | {"help", "session"}, (doc, cmd))
+                self.assertIn(cmd, set(harmonicfitness.COMMANDS) | {"help"}, (doc, cmd))
             self.assertNotIn("voices/smoke-test", text, doc)
 
     def test_player_picks_the_system_player(self):

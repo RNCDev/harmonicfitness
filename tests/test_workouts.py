@@ -1,4 +1,4 @@
-"""The workouts command (tools/workoutlog.py): list, feedback and delete, and the build ids that tie told
+"""The workouts command (tools/workoutlog.py): list, show, feedback, rate and delete, and the build ids that tie told
 stories and threads to the workout that told them."""
 import json
 import os
@@ -154,44 +154,6 @@ class BuildLinks(unittest.TestCase):
             self.assertEqual(content.close_thread("2026-10-30", "t1", path=threads, build="def")["build"], "def")
         with mock.patch("records.latest_build", return_value=None), self.assertRaises(ValueError):
             content.draft_build(os.path.join(ROOT, "knowledge", "smoke-test.draft.txt"))
-
-
-SECONDS = 19
-
-
-class EstimatedPaceSilence(unittest.TestCase):
-    def test_an_estimated_pace_checks_held_quiet_as_if_the_voice_ran_fast(self):
-        import tts_build
-        from draft import parse
-        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
-        # four seconds of talk around a bare hold in an eleven-second segment: about seven seconds quiet as predicted
-        talk = ("Go now, quick legs and steady breathing, the hips quiet on the seat and the hands soft on the bars "
-                "while you hold that pace. [hold] And ease off now, let the legs slow down and the breathing settle "
-                "back to easy.")
-        segs = parse(f"@@ {SECONDS} | A\n{talk}\n")
-        with mock.patch("voices.pace", return_value=(14.5, True)):
-            measured = tts_build.lint(segs, v).rows[0].clip_issues
-        with mock.patch("voices.pace", return_value=(14.5, False)):
-            estimated = tts_build.lint(segs, v).rows[0].clip_issues
-        self.assertFalse(any("of silence" in i for i in measured), measured)
-        self.assertTrue(any("of silence" in i for i in estimated), estimated)
-
-
-class WebLintCount(unittest.TestCase):
-    def test_a_web_voice_s_lint_says_what_it_sends_and_a_local_one_doesn_t(self):
-        import tts_build
-        from draft import parse
-        segs = parse("@@ 20 | A\nHello there, and welcome in.\n")
-        web = {"name": "x", "key": "x", "engine": "gemini", "model": "m", "backend": "cloud"}
-        local = {"name": "x", "key": "x", "engine": "pocket", "model": "m"}
-        with mock.patch("voices.pace", return_value=(14.5, False)):
-            sent = tts_build.lint(segs, web)
-            kept = tts_build.lint(segs, local)
-        self.assertEqual(sent.sent, len("Hello there, and welcome in."))
-        self.assertIn(f"Sends {sent.sent:,} characters to the voice service", "\n".join(tts_build.render_report(sent)))
-        self.assertIsNone(kept.sent)
-        self.assertFalse(any("Sends" in line for line in tts_build.render_report(kept)))
-        self.assertEqual(sent.notes, [])   # not an issue: only --max-chars makes one
 
 
 if __name__ == "__main__":

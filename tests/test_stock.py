@@ -60,7 +60,8 @@ def roster():
 
 
 class ShippedCoaches(unittest.TestCase):
-    """The real coaches/ folder: ten local coaches made by tools/coachmaker/, four web coaches to make."""
+    """The real coaches/ folder: ten local coaches made by tools/coachmaker/, three web coaches to make, and twelve
+    ready-made web coaches on OpenRouter and Gemini."""
 
     def test_every_local_coach_is_complete(self):
         slugs = [c["slug"] for c in roster()["coach"]]

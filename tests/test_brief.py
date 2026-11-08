@@ -98,7 +98,7 @@ class Brief(unittest.TestCase):
         import brief as brief_tool
         from unittest import mock
         import paths
-        with mock.patch.object(paths, "PERSONAS", os.path.join(LISTENER, "personas")), \
+        with mock.patch.object(paths, "PERSONAS", os.path.join(LISTENER, "coaches")), \
                 mock.patch.object(paths, "PROFILE", os.path.join(LISTENER, "profile.md")):
             with mock.patch("voices.pace", return_value=(10.0, True)):
                 slow, exact = brief_tool.talk_rate("Chatterbox Coach")   # an old name finds Coach Julius

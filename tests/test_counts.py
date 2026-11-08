@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import counts  # noqa: E402
 import draft  # noqa: E402
 import tts_build  # noqa: E402
-from draft import parse, plan, spans, spoken  # noqa: E402
+from draft import parse, spans, spoken  # noqa: E402
 from render import SR, assemble  # noqa: E402
 
 NUMBER = 0.5      # every number clip in the fixture, in seconds

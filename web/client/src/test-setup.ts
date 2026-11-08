@@ -4,7 +4,7 @@ import { afterEach } from "vitest";
 
 afterEach(() => cleanup());
 
-// jsdom has no canvas: the Field sky draws nothing in tests, quietly.
+// jsdom has no canvas: the canvas skies (Field, Waves, Bloom, Woven, Garden) draw nothing in tests, quietly.
 HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext;
 
 // each test starts on the chat, whatever page the last one opened (#logs, #coaches)

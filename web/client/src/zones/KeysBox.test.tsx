@@ -121,10 +121,17 @@ describe("the Keys box", () => {
     expect(screen.getByRole("radio", { name: "ChatGPT" })).toBeChecked();
   });
 
-  it("opens a row for its key when asked", async () => {
+  it("opens a row for its key when asked, and again when asked again", async () => {
+    const ask = (n: number) => <KeyAskContext.Provider value={{ service: "elevenlabs", n }}><KeysBox /></KeyAskContext.Provider>;
     const { rerender } = render(<KeyAskContext.Provider value={null}><KeysBox /></KeyAskContext.Provider>);
     await screen.findByRole("button", { name: "Add ElevenLabs key" });
-    rerender(<KeyAskContext.Provider value={{ service: "elevenlabs", n: 1 }}><KeysBox /></KeyAskContext.Provider>);
+    rerender(ask(1));
+    expect(await screen.findByLabelText("ElevenLabs key")).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("ElevenLabs key")).toBeNull();
+    rerender(ask(1));   // the same ask, drawn again: the row stays closed
+    expect(screen.queryByLabelText("ElevenLabs key")).toBeNull();
+    rerender(ask(2));   // the same row, asked for again
     expect(await screen.findByLabelText("ElevenLabs key")).toHaveFocus();
   });
 

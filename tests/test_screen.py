@@ -14,7 +14,6 @@ import check  # noqa: E402
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import context  # noqa: E402
-import sessionlog  # noqa: E402
 import health as health_md  # noqa: E402
 import screen  # noqa: E402
 import sessions  # noqa: E402

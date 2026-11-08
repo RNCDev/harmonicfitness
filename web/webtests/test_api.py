@@ -951,6 +951,7 @@ class Conversations(ApiCase):
         r = self.client.post("/api/conversations", json=self.turn(line="hi"), headers=self.origin())
         self.assertEqual((r.status_code, r.json()["detail"]),
                          (409, "Add a key for Claude in Settings first."))
+        self.assertEqual(r.json()["code"], "no_model_key")   # the page's Open Settings reads the code, not the words
         self.assertEqual(self.turn_jobs(user_id), [])
         self.assertIsNone(conversations.latest(self.conn, uk))
         self.conn.rollback()

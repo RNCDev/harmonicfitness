@@ -1,5 +1,6 @@
-"""A held segment's spare time (draft.held_quiet), a web voice's measured count beat (voices.record_beat), and the
-loudness measurement encode() reads from ebur128 (render.loudness_stats)."""
+"""A held segment's spare time (draft.held_quiet), and the lint's margin on it for a measured or estimated pace; a
+web voice's measured count beat (voices.record_beat); and the loudness measurement encode() reads from ebur128
+(render.loudness_stats)."""
 import json
 import os
 import sys
@@ -79,6 +80,23 @@ class MeasuredMargin(unittest.TestCase):
             margin = tts_build.lint(segs, v).rows[0].clip_issues
         self.assertFalse(any("of silence" in i for i in exact), exact)
         self.assertTrue(any("of silence" in i for i in margin), margin)
+
+
+class EstimatedPaceSilence(unittest.TestCase):
+    def test_an_estimated_pace_checks_held_quiet_as_if_the_voice_ran_fast(self):
+        import tts_build
+        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+        # about twelve seconds of talk around a bare hold in a nineteen-second segment: about seven seconds quiet
+        talk = ("Go now, quick legs and steady breathing, the hips quiet on the seat and the hands soft on the bars "
+                "while you hold that pace. [hold] And ease off now, let the legs slow down and the breathing settle "
+                "back to easy.")
+        segs = parse(f"@@ 19 | A\n{talk}\n")
+        with mock.patch("voices.pace", return_value=(14.5, True)):
+            measured = tts_build.lint(segs, v).rows[0].clip_issues
+        with mock.patch("voices.pace", return_value=(14.5, False)):
+            estimated = tts_build.lint(segs, v).rows[0].clip_issues
+        self.assertFalse(any("of silence" in i for i in measured), measured)
+        self.assertTrue(any("of silence" in i for i in estimated), estimated)
 
 
 class CountBeat(unittest.TestCase):

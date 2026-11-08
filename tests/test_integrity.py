@@ -77,6 +77,17 @@ class AtomicWrites(unittest.TestCase):
     ALLOWED = {"fileio.py", "build.py", "render.py", "cloud.py", "voices.py",
                "keys.py", "locks.py", "clipcache.py", "wav.py"}
 
+    def test_atomic_write_takes_text_and_bytes_leaving_no_part_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "sub", "x.json")
+            fileio.atomic_write(p, '{"a": 1}\n')   # makes the folder
+            with open(p, encoding="utf-8") as f:
+                self.assertEqual(f.read(), '{"a": 1}\n')
+            fileio.atomic_write(p, b"\x00\x01")
+            with open(p, "rb") as f:
+                self.assertEqual(f.read(), b"\x00\x01")
+            self.assertEqual(os.listdir(os.path.dirname(p)), ["x.json"])
+
     def test_atomic_copy(self):
         d = tempfile.mkdtemp()
         src, dst = os.path.join(d, "a.mp3"), os.path.join(d, "out", "b.mp3")
@@ -512,7 +523,6 @@ class BuildTrail(unittest.TestCase):
             return f.read()
 
     def test_delivered(self):
-        import build
         self.assertEqual(self.build(), 0, self.out.getvalue())
         self.one_event("delivered")
         self.assertIn("rendering for a test", self.out.getvalue())

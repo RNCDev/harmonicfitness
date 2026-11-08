@@ -80,7 +80,10 @@ export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({
     if (lazy) a.removeAttribute("src");
     setOn(false); setAt(0); setLength(0);
   }, [src, lazy]);
-  useEffect(() => () => { if (now === audio.current) now = null; }, []);
+  useEffect(() => {
+    const mine = audio.current;   // the ref is cleared before the cleanup runs
+    return () => { if (now === mine) now = null; };
+  }, []);
 
   const load = () => {
     const a = audio.current!;
