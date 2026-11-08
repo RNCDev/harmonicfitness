@@ -133,7 +133,7 @@ function KeyRow({ k, open, balance, onChanged, onChoose }: {
         </form>
       )}
       <Notice tone="error">{remove.error}</Notice>
-      {!editing && !asking && <Notice className="cx-s">{saved}</Notice>}
+      {!editing && !asking && <Notice tone="done" className="cx-s">{saved}</Notice>}
     </div>
   );
 }

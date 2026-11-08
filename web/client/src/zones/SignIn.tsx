@@ -1,27 +1,28 @@
 // Signed out: sign in, or make an account when registration is open. Also the screen that asks
 // for a password when an account has none (one from before passwords, or after a reset link).
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Demos } from "./Demos";
 import { api } from "../lib/api";
 import { Quiet, useAction } from "../lib/useAction";
+import { useChecked } from "../lib/useChecked";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Notice } from "../ui/Notice";
 import { MIN_PASSWORD, PasswordForm, tooShort } from "../ui/PasswordForm";
+import { Solo } from "../ui/Solo";
 
 /** The server's rule for a new username (web/webapp/auth.py USERNAME), checked here too, as you type once you've
  * tried, so it's said under the box before anything is sent. */
 const USERNAME = /^[a-z0-9][a-z0-9_.-]{2,31}$/;
 export const badName = (name: string) => (USERNAME.test(name.trim().toLowerCase()) ? null
   : "Use 3 to 32 letters, numbers, dots, dashes or underscores, starting with a letter or number.");
-import { Solo } from "../ui/Solo";
 
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [mode, setMode] = useState<"in" | "new">("in");
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [tried, setTried] = useState(false);
+  const form = useChecked();
   const [version, setVersion] = useState("");
 
   useEffect(() => {
@@ -32,30 +33,24 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   }, []);
 
   const fresh = mode === "new";
-  const short = fresh && tried ? tooShort(password) : null;
-  const nameWrong = fresh && tried ? badName(username) : null;
+  const short = fresh ? form.check(tooShort, password) : null;
+  const nameWrong = fresh ? form.check(badName, username) : null;
   const go = useAction(async () => {
     if (fresh && (tooShort(password) || badName(username))) throw new Quiet();
     await (fresh ? api.register : api.signIn)(username, password);
     onSignedIn();
   });
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    setTried(true);
-    void go.run();
-  }
-
   const switchTo = (m: "in" | "new") => {
     setMode(m);
-    setTried(false);
+    form.reset();
     go.clear();
   };
 
   return (
     <Solo version={version} beside={<Demos />}>
       <h1>{fresh ? "Make an account" : "Sign in"}</h1>
-      <form className="auth" onSubmit={submit} noValidate>
+      <form className="auth" onSubmit={(e) => form.submit(e, () => void go.run())} noValidate>
         <Field id="signin-username" label="Username" error={nameWrong ?? go.errorFor("username")}
           hint={fresh ? "3 to 32 characters: letters, numbers, dots, dashes or underscores." : null}>
           <input className="input" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false}

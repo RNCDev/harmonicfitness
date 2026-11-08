@@ -1,8 +1,9 @@
 // Set or change the password: on the page that asks for one, and in Settings. The rule (at least eight
 // characters) is checked as you type once you've tried, and said under the box it's about.
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { api } from "../lib/api";
 import { Quiet, useAction } from "../lib/useAction";
+import { useChecked } from "../lib/useChecked";
 import { Button } from "./Button";
 import { Field } from "./Field";
 import { Notice } from "./Notice";
@@ -16,25 +17,20 @@ export function PasswordForm({ username, needsCurrent, onDone }: {
 }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
-  const [tried, setTried] = useState(false);
-  const short = tried ? tooShort(next) : null;
+  const form = useChecked();
+  const short = form.check(tooShort, next);
   const save = useAction(async () => {
     if (tooShort(next)) throw new Quiet();
     await api.setPassword(needsCurrent ? current : null, next);
     setCurrent("");
     setNext("");
-    setTried(false);
+    form.reset();
     onDone();
   });
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    setTried(true);
-    void save.run();
-  }
 
   return (
-    <form className="auth" onSubmit={submit} noValidate>
+    <form className="auth" onSubmit={(e) => form.submit(e, () => void save.run())} noValidate>
       {/* lets a password manager save the pair */}
       <input type="text" name="username" autoComplete="username" hidden readOnly value={username} />
       {needsCurrent && (

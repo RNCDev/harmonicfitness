@@ -84,3 +84,30 @@ describe("an empty answer", () => {
     expect(screen.getByText("Signed in as")).toBeInTheDocument();
   });
 });
+
+describe("deleting the account", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("asks for the password in place, with focus there, and deletes only once it's typed", async () => {
+    const del = vi.spyOn(api, "deleteAccount").mockResolvedValue(undefined);
+    const onDeleted = vi.fn();
+    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onDeleted={onDeleted} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete my account" }));
+    const box = screen.getByLabelText("Your password");
+    expect(box).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Delete everything" })).toBeDisabled();
+    fireEvent.change(box, { target: { value: "hunter22" } });
+    fireEvent.submit(box.closest("form")!);
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+    expect(del).toHaveBeenCalledWith("hunter22");
+  });
+
+  it("Keep my account goes back with nothing sent", () => {
+    const del = vi.spyOn(api, "deleteAccount");
+    render(<ContextColumn username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete my account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep my account" }));
+    expect(screen.getByRole("button", { name: "Delete my account" })).toBeInTheDocument();
+    expect(del).not.toHaveBeenCalled();
+  });
+});

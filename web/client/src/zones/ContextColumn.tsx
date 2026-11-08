@@ -12,6 +12,7 @@ import { useResource } from "../lib/useResource";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { SKIES, SkyPreview, type SkyKind } from "../ui/Sky";
 import { Button, ChoiceRow } from "../ui/Button";
+import { ConfirmInline } from "../ui/ConfirmInline";
 import { Field } from "../ui/Field";
 import { Loadable, Notice } from "../ui/Notice";
 import { PasswordForm } from "../ui/PasswordForm";
@@ -67,7 +68,7 @@ function ImportBox() {
         <input type="file" accept=".zip,application/zip" disabled={take.busy} className="sr"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void take.run(f); e.target.value = ""; }} />
       </label>
-      <Notice className="cx-s">{note}</Notice>
+      <Notice tone="done" className="cx-s">{note}</Notice>
       <Notice tone="error">{take.error}</Notice>
     </div>
   );
@@ -88,19 +89,14 @@ function DeleteBox({ onDeleted }: { onDeleted: () => void }) {
       {!open ? (
         <Button variant="text" danger onClick={() => setOpen(true)}>Delete my account</Button>
       ) : (
-        <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove.run(); }}>
-          <p className="notice err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
-          <Field id="delete-password" label="Your password" error={remove.error}>
+        <ConfirmInline question="Delete your account and everything in it?"
+          detail="Your files, keys, chats and audio. It can't be undone." confirm="Delete everything" keep="Keep my account"
+          canConfirm={!!password} busy={remove.busy} onConfirm={() => void remove.run()}
+          onKeep={() => { setOpen(false); setPassword(""); remove.clear(); }}
+          field={<Field id="delete-password" label="Your password" error={remove.error}>
             <input className="input" type="password" autoComplete="current-password" value={password}
               onChange={(e) => setPassword(e.target.value)} />
-          </Field>
-          <div className="keys-actions">
-            <Button type="submit" variant="primary" danger busy={remove.busy} busyLabel="Deleting…" disabled={!password}>
-              Delete everything
-            </Button>
-            <Button variant="text" disabled={remove.busy} onClick={() => { setOpen(false); setPassword(""); remove.clear(); }}>Cancel</Button>
-          </div>
-        </form>
+          </Field>} />
       )}
     </div>
   );
@@ -116,7 +112,7 @@ function PasswordBox({ username }: { username: string }) {
       ) : (
         <Button onClick={() => { setOpen(true); setDone(false); }}>Change password</Button>
       )}
-      {done && <Notice className="cx-s">Password changed.</Notice>}
+      <Notice tone="done" className="cx-s">{done && "Password changed."}</Notice>
     </div>
   );
 }

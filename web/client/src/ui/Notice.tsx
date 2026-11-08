@@ -1,14 +1,14 @@
-// One look for what the page says back: an error (announced at once), a note (announced politely) or something
-// still on its way. Renders nothing without words. Loadable and Empty are the three states every list shares:
+// One look for what the page says back: an error (announced at once), a note (announced politely), something done
+// ("Password changed.", one sentence, past tense) or something still on its way. Renders nothing without words. Loadable and Empty are the three states every list shares:
 // loading, failed (with Try again), and empty (with the one thing to do next).
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 
 export function Notice({ tone = "status", className, children }: {
-  tone?: "error" | "status" | "busy"; className?: string; children: ReactNode;
+  tone?: "error" | "status" | "done" | "busy"; className?: string; children: ReactNode;
 }) {
   if (children === null || children === undefined || children === false || children === "") return null;
-  const cls = `notice${tone === "error" ? " err" : tone === "busy" ? " busy" : ""}${className ? " " + className : ""}`;
+  const cls = `notice${tone === "error" ? " err" : tone === "busy" ? " busy" : tone === "done" ? " done" : ""}${className ? " " + className : ""}`;
   if (tone === "error") return <p className={cls} role="alert">{children}</p>;
   if (tone === "busy") return <p className={cls} role="status" aria-busy="true">{children}</p>;
   return <p className={cls} role="status">{children}</p>;

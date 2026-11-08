@@ -66,8 +66,13 @@ describe("the starter", () => {
     const chart = screen.getByRole("dialog", { name: "Anything bothering you today?" });
     expect(chart).toHaveAttribute("aria-modal", "true");
     expect(document.querySelector(".pick-scrim")).not.toBeNull();
+    // drawn on the body, beside the page, which sleeps while it's open
+    expect(chart.parentElement).toBe(document.body);
+    const page = chart.ownerDocument.querySelector(".starter")!.closest("body > *")!;
+    expect(page).toHaveAttribute("inert");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(page).not.toHaveAttribute("inert");
     expect(slot(/^Go easy on:/)).toHaveFocus();
   });
 

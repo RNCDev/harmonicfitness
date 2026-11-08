@@ -19,6 +19,7 @@ label.act:has(input:disabled) { opacity: var(--disabled); cursor: not-allowed }
 .notice { margin: 0; font-size: var(--fs-md); line-height: var(--lh-ui); color: var(--text-2); text-wrap: pretty }
 .notice.err { color: var(--danger) }
 .notice.busy { color: var(--text-muted) }
+.notice.done { color: var(--text-2) }
 .cx-s { font-size: var(--fs-md); line-height: var(--lh-ui); color: var(--text-2); margin: 2px 0 0; text-wrap: pretty }
 .hold { display: block; min-height: var(--hold, 0px) }   /* the room a section takes while it loads, so nothing jumps */
 
@@ -39,11 +40,12 @@ select.input { padding-right: var(--s-2) }
 .mark { display: flex; align-items: center; gap: var(--s-2h); line-height: var(--lh-solid); color: var(--text) }
 .mark svg { flex: none; display: block }
 .mark .ver { font-size: var(--fs-sm); color: var(--text-muted); align-self: flex-end; font-variant-numeric: tabular-nums }
-.quiet {
-  color: var(--text-2); font-size: var(--fs-md); text-decoration: underline; text-underline-offset: 3px;
-  text-decoration-color: var(--border-strong); text-align: left;
+/* underlined words: a quiet button, the resume line's words, the demos' "About" */
+.quiet, .resume-h, .demo-more > button {
+  color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong);
 }
-.quiet:hover:not(:disabled) { color: var(--text-strong); text-decoration-color: currentColor }
+.quiet { font-size: var(--fs-md); text-align: left }
+.quiet:hover:not(:disabled), .demo-more > button:hover:not(:disabled) { color: var(--text-strong); text-decoration-color: currentColor }
 .quiet.danger { color: var(--danger); text-decoration-color: var(--danger) }
 
 /* the outlined family: a thin line that brightens under the pointer, quieter than the cream .go */

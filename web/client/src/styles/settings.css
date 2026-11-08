@@ -69,7 +69,9 @@ a.keys-bal:hover { color: var(--text); text-decoration: underline }
 
 /* asking before something goes: the question, then the brick button and the way back */
 .confirm { display: inline-flex; flex-wrap: wrap; gap: var(--s-2h) var(--s-3h); align-items: center }
-.confirm-q { font-size: var(--fs-md); color: var(--danger) }
+.confirm-q { margin: 0; font-size: var(--fs-md); color: var(--danger) }
+.confirm-form { display: grid; gap: var(--s-3); justify-items: start; width: 100% }
+.confirm-form .field { width: 100% }
 
 /* your level: three sentences as radio rows */
 .level-opts { display: grid; margin: 0 0 var(--s-1); border-top: 1px solid var(--border) }

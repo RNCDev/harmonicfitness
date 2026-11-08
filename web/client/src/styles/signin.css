@@ -40,9 +40,7 @@
 .demo-dot[aria-current="true"]::before { width: var(--tick); background: var(--action) }
 
 .demo-more { margin-top: var(--s-4h) }
-.demo-more > button { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--control); font-size: var(--fs-md); color: var(--text-2);
-  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong) }
-.demo-more > button:hover:not(:disabled) { color: var(--text-strong); text-decoration-color: currentColor }
+.demo-more > button { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--control); font-size: var(--fs-md) }
 .demo-more > button svg { width: 12px; height: 12px; transition: transform var(--t-fast) }
 .demo-more > button[aria-expanded="true"] svg { transform: rotate(90deg) }
 .demo-detail { margin-top: var(--s-2h); padding: var(--s-4h) var(--s-4h); max-width: 640px; background: var(--panel); box-shadow: var(--lift); font-size: var(--fs-md); animation: rise var(--t-fast) ease-out }
