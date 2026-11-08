@@ -198,10 +198,10 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
         </div>
         <div className="logs-rate" role="group" aria-label={`Rate the ${title} workout`}>
           {RATINGS.map((r) => (
-            <button key={r.value} type="button" className={`rate-btn outlined ${r.value}`} aria-pressed={rated === r.value}
+            <Button key={r.value} variant="bare" className={`rate-btn outlined ${r.value}`} pressed={rated === r.value}
               title={r.label} disabled={busy} onClick={() => void rate(r.value)}>
               <Icon name={`face-${r.value}`} size={20} weight={1.8} /><span className="sr">{r.label}</span>
-            </button>
+            </Button>
           ))}
         </div>
       </div>

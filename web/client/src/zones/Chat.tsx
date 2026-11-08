@@ -84,11 +84,11 @@ function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: str
         account.</p>
       <div className="welcome-picks">
         {[...need].sort((a, b) => writerRank(a.service, a.voice) - writerRank(b.service, b.voice)).map((o) => (
-          <button key={o.service} type="button" className="welcome-pick outlined" onClick={() => onAddKey?.(o.service)}>
+          <Button key={o.service} variant="tile" className="welcome-pick" onClick={() => onAddKey?.(o.service)}>
             <span className="head welcome-pick-name">{o.name}</span>
             <span className="welcome-pick-note">{PICK_NOTES[o.service]
               ?? (o.voice ? "Writes your workouts and voices your coach" : "Writes your workouts; then choose a coach")}</span>
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -295,11 +295,11 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
       <div className="chat-log" ref={log} role="log" aria-live="polite">
         {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? (() => onOpenKeys())} />}
         {lines.length === 0 && !working && !needsKey && waiting && onResume && (
-          <button type="button" className="resume" onClick={onResume}>
+          <Button variant="bare" className="resume" onClick={onResume}>
             <span className="resume-h">Pick up where you left off</span>
             <span className="resume-s">{waiting.offer ? "Your workout is ready to record" : "Your coach asked you something"}{at && ` at ${at}`}.</span>
             <span className="resume-go" aria-hidden="true">→</span>
-          </button>
+          </Button>
         )}
         {lines.length === 0 && !working && !needsKey && (start || starting) && (
           <Starter info={start} onStart={onSend} onCoach={onCoach} onOpenCoaches={onOpenCoaches} coachError={coachError}

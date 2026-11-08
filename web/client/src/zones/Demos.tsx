@@ -92,9 +92,9 @@ export function Demos() {
       </div>
 
       <div className="demo-more">
-        <button type="button" aria-expanded={open} aria-controls="demo-detail" onClick={() => { setHeld(true); setOpen(!open); }}>
+        <Button variant="bare" aria-expanded={open} aria-controls="demo-detail" onClick={() => { setHeld(true); setOpen(!open); }}>
           <Icon name="chevron-right" weight={2.4} />About {d.name}, and what you'll hear
-        </button>
+        </Button>
         {open && (
           <div className="demo-detail" id="demo-detail">
             <dl>
@@ -106,8 +106,8 @@ export function Demos() {
             {d.card.changed && <p className="demo-changed"><b>What changed for {d.name}.</b> {d.card.changed}</p>}
             <ul className="demo-moments">
               {d.moments.map((m) => (
-                <li key={m.at}><button type="button" onClick={() => player.current?.play(secs(m.at))}>
-                  <span className="demo-at">{m.at}</span><span>{m.label}</span></button></li>
+                <li key={m.at}><Button variant="bare" onClick={() => player.current?.play(secs(m.at))}>
+                  <span className="demo-at">{m.at}</span><span>{m.label}</span></Button></li>
               ))}
             </ul>
           </div>

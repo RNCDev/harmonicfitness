@@ -122,6 +122,12 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
     if ((await onStart(line, later ? withOffset(later) : undefined)) === false) throw new Quiet();
   }, { hold: true });
 
+  // the other asks: busy from the tap until the chat takes over; a refusal gives them back
+  const [asked, setAsked] = useState<string | null>(null);
+  const ask = useAction(async (line: string) => {
+    if ((await onStart(line)) === false) throw new Quiet();
+  }, { hold: true });
+
   const hint = !type && info?.suggest?.reason;
   const shownCoach = ready.find((c) => c.first === v.coach);
 
@@ -166,11 +172,12 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
           {OTHER.filter((o) => !o.quick || info?.setup_quick)
             .sort((a, b) => Number(!!b.quick) - Number(!!a.quick)).map((o) => (
             <li key={o.label}>
-              <button type="button" className={`else-a${o.quick ? " lead" : ""}`} onClick={() => void onStart(o.line)}>
+              <Button variant="bare" className={`else-a${o.quick ? " lead" : ""}`} busy={ask.busy && asked === o.line}
+                disabled={ask.busy} onClick={() => { setAsked(o.line); void ask.run(o.line); }}>
                 <span className="else-t">{o.label}</span>
                 <span className="else-d">{o.about}</span>
                 <span className="else-go" aria-hidden="true">→</span>
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

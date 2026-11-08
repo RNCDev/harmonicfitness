@@ -11,7 +11,7 @@ import { optimistic, useAction } from "../lib/useAction";
 import { useResource } from "../lib/useResource";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { SKIES, SkyPreview, type SkyKind } from "../ui/Sky";
-import { Button } from "../ui/Button";
+import { Button, ChoiceRow } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Loadable, Notice } from "../ui/Notice";
 import { PasswordForm } from "../ui/PasswordForm";
@@ -192,11 +192,9 @@ function LevelBox() {
           <>
             <div className="level-opts" role="radiogroup" aria-labelledby="cx-level-h">
               {s.choices.map((c) => (
-                <button key={c.level} type="button" role="radio" aria-checked={s.level === c.level}
-                  className={`level-opt${s.level === c.level ? " on" : ""}`} onClick={() => void choose(c.level)}>
-                  <span className="level-dot" aria-hidden="true" />
-                  <span>{c.said}</span>
-                </button>
+                <ChoiceRow key={c.level} checked={s.level === c.level} onClick={() => void choose(c.level)}>
+                  {c.said}
+                </ChoiceRow>
               ))}
             </div>
             <p className="cx-s">
@@ -218,11 +216,11 @@ function SkyBox({ sky, onSky, error }: { sky: SkyKind; onSky: (sky: SkyKind) => 
       <h3 className="label cx-h" id="cx-sky-h">Background</h3>
       <div className="sky-opts" role="group" aria-labelledby="cx-sky-h">
         {SKIES.map((s) => (
-          <button key={s.kind} type="button" className={`sky-opt outlined${sky === s.kind ? " on" : ""}`}
-            aria-pressed={sky === s.kind} title={s.about} onClick={() => onSky(s.kind)}>
+          <Button key={s.kind} variant="tile" className="sky-opt" pressed={sky === s.kind} title={s.about}
+            onClick={() => onSky(s.kind)}>
             <SkyPreview kind={s.kind} />
             <span className="sky-opt-name">{s.name}</span>
-          </button>
+          </Button>
         ))}
       </div>
       <Notice tone="error">{error}</Notice>
@@ -245,7 +243,7 @@ export function ContextColumn({ username, version, open, onClose, onSignOut, onD
         aria-modal={open || undefined}>
         <div className="ctx-top">
           <h2 className="head">Settings</h2>
-          <button type="button" className="ctx-close" onClick={onClose}>Close</button>
+          <Button variant="bare" className="ctx-close" onClick={onClose}>Close</Button>
         </div>
         {/* a wide screen: the keys beside your choices, then your files beside the account; a phone: one column */}
         <div className="cx-list">

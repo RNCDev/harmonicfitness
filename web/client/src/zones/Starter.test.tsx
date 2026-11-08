@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { StartInfo } from "../lib/api";
 import { kitWords, sentence, whenWords } from "../lib/request";
 import { Starter } from "./Starter";
@@ -169,17 +169,26 @@ describe("the starter", () => {
     expect(b).toHaveFocus();
   });
 
-  it("something else: each sends at once; coaches and feedback have their own pages", () => {
-    const onStart = vi.fn();
+  it("something else: each sends at once; coaches and feedback have their own pages", async () => {
+    const onStart = vi.fn().mockResolvedValue(false);   // refused, so the asks come back
     render(<Starter info={info} onStart={onStart} onOpenCoaches={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
     expect(onStart).toHaveBeenCalledWith("I'd like to update an injury.");
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Update my interests/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /^Update my interests/ }));   // also what they've enjoyed
     expect(onStart).toHaveBeenCalledWith("I'd like to update my interests.");
     expect(screen.queryByRole("button", { name: /^Tell me what you enjoyed/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Give feedback on my last workout/ })).toBeNull();   // on Logs
     expect(screen.queryByRole("button", { name: /^Pick a different coach/ })).toBeNull();   // the Coaches page
     expect(screen.queryByRole("button", { name: /^Finish setting me up/ })).toBeNull();
+  });
+
+  it("an ask on its way keeps the others from sending a second", () => {
+    const onStart = vi.fn(() => new Promise<boolean>(() => {}));
+    render(<Starter info={info} onStart={onStart} onOpenCoaches={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
+    expect(screen.getByRole("button", { name: /^Update my interests/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Update an injury or pain/ })).toHaveAttribute("aria-busy", "true");
   });
 
   it("setup not finished: Finish setting me up comes first, marked as the one to do", () => {

@@ -52,9 +52,20 @@ describe("the client's layers", () => {
     expect(bad).toEqual([]);
   });
 
-  it("draws every button with a shared look through Button, so busy and disabled work the same everywhere", () => {
-    const LOOKS = /<button\b[^>]*className=(?:"|\{`)[^"`]*\b(go|quiet|act|icon-btn)\b/;
-    const bad = Object.entries(SOURCES).filter(([p, src]) => p !== "./ui/Button.tsx" && LOOKS.test(src)).map(([p]) => p);
+  it("draws every button outside ui/ through Button (or ChoiceRow), so pressed, busy and disabled work the same", () => {
+    // the custom widgets, each with a look of its own: a request's blank, a picker's option, the body chart's dots, a
+    // coach card's whole-card button, the demos' dots. This list only shrinks.
+    const CUSTOM = /^(slot|opt|bdot|cg-choose|demo-dot)$/;
+    const bad = Object.entries(SOURCES).filter(([p]) => !p.startsWith("./ui/")).flatMap(([p, src]) =>
+      [...src.matchAll(/<button\b[^>]*/g)].map((m) => m[0])
+        .filter((tag) => !CUSTOM.test(tag.match(/className=(?:"|\{`)([\w-]+)/)?.[1] ?? ""))
+        .map((tag) => `${p}: ${tag.slice(0, 60)}`));
+    expect(bad).toEqual([]);
+  });
+
+  it("keeps the shared looks in ui/: no raw button outside it takes go, quiet, act or icon-btn", () => {
+    const LOOKS = /<button\b[^>]*className=(?:"|\{`)[^"`]*\b(go|quiet|act|icon-btn|top-btn|tile)\b/;
+    const bad = Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./ui/") && LOOKS.test(src)).map(([p]) => p);
     expect(bad).toEqual([]);
   });
 

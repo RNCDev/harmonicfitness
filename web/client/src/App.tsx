@@ -126,24 +126,24 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
         <header className="work-top">
           <Mark />
           <span className="top-gap" />
-          {conv && page === "chat" && <button type="button" className="top-btn outlined new" onClick={reset} disabled={working}>
+          {conv && page === "chat" && <Button variant="header" className="new" onClick={reset} disabled={working}>
             <Icon name="plus" size={14} weight={3.4} />
             New workout
-          </button>}
-          <button type="button" className="top-btn outlined new page-toggle" aria-pressed={page === "coaches"} title="Hear and choose your coach"
+          </Button>}
+          <Button variant="header" className="new page-toggle" pressed={page === "coaches"} title="Hear and choose your coach"
             aria-label="Coaches" onClick={() => toggle("coaches")}>
             <Icon name="coaches" size={16} />
             <span className="top-label">Coaches</span>
-          </button>
-          <button type="button" className="top-btn outlined new page-toggle" aria-pressed={page === "logs"} title="Your past workouts"
+          </Button>
+          <Button variant="header" className="new page-toggle" pressed={page === "logs"} title="Your past workouts"
             aria-label="Logs" onClick={() => toggle("logs")}>
             <Icon name="logs" size={16} />
             <span className="top-label">Logs</span>
-          </button>
-          <button ref={gear} type="button" className="top-btn outlined icon" aria-label="Settings" title="Settings"
+          </Button>
+          <Button ref={gear} variant="header" className="icon" aria-label="Settings" title="Settings"
             aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
             <Icon name="gear" size={18} weight={1.7} />
-          </button>
+          </Button>
         </header>
         {page === "logs" && <Logs onClose={() => go("chat")} />}
         {page === "coaches" && <CoachesPage coaches={start && !startError ? coaches : null} loadError={startError}
