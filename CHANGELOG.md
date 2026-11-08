@@ -2,6 +2,13 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.71.4] - 2026-11-08
+
+A scheduled workout's note no longer says to leave the page open. The writing and recording run on the server at their time, whether the page is open or not; an open page only shows the workout without a refresh.
+
+### Fixed
+- **The Scheduled note's wording** (`web/client/src/zones/chat/Offers.tsx`): "Writing starts at 2:15 PM, on our side, so you can close this page. The workout appears here, ready to play, by 2:30 PM."
+
 ## [0.71.3] - 2026-11-08
 
 The coach bar above the chat no longer shows a number in a circle beside the coach's name. It was the coach's place in the coach list, from when that list was numbered; the Coaches page has no numbers now, so it pointed at nothing.

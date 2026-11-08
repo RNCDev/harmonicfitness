@@ -79,8 +79,8 @@ export function Scheduled({ later, onCancel }: { later: Later; onCancel?: () => 
   return (
     <div className="m a offer">
       <p>Scheduled for <strong>{ahead(at)}</strong>{later.coach ? ` with ${later.coach}` : ""}.</p>
-      <p className="cx-s">{due ? `Writing starts at ${timeOfDay(due)}` : "Writing starts fifteen minutes before"}; the
-        workout appears here, ready to play, by {timeOfDay(at)}. Come back then, or leave this page open.</p>
+      <p className="cx-s">{due ? `Writing starts at ${timeOfDay(due)}` : "Writing starts fifteen minutes before"}, on
+        our side, so you can close this page. The workout appears here, ready to play, by {timeOfDay(at)}.</p>
       <Button variant="outline" busy={stop.busy} busyLabel="Cancelling…" onClick={() => void stop.run()}>Cancel</Button>
     </div>
   );
