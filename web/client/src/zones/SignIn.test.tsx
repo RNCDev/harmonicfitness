@@ -59,6 +59,25 @@ describe("the sign-in page", () => {
     expect(calls.map((c) => c.url)).toEqual(["/api/auth"]);
   });
 
+  it("says a username's problem under the username box: its rule before sending, the server's refusal after", async () => {
+    const calls = serve(true, { status: 409, body: { detail: "That username is taken.", field: "username" } });
+    render(<SignIn onSignedIn={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Make an account" }));
+    const name = screen.getByLabelText("Username");
+    fireEvent.change(name, { target: { value: "a!" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "long enough" } });
+    fireEvent.click(screen.getByRole("button", { name: "Make my account" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("3 to 32 letters");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(calls.map((c) => c.url)).toEqual(["/api/auth"]);   // nothing sent
+
+    fireEvent.change(name, { target: { value: "ana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Make my account" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("That username is taken."));
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name.getAttribute("aria-describedby")).toContain("signin-username-err");
+  });
+
   it("takes register's empty 201 as signed in", async () => {
     const calls = serve(true, { status: 201 });
     const done = vi.fn();

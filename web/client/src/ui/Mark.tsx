@@ -5,9 +5,9 @@
 // The meter (the mark alone) moves only where there's sound: while a workout plays. At rest, or when the system
 // asks for reduced motion, it shows the still mark.
 import { useEffect, useState } from "react";
-import { APP_NAME } from "./api";
+import { APP_NAME } from "../lib/api";
 import { FITNESS_OPACITY, MARK, UNLIT, WORDMARK, type Form } from "./brand";
-import { prefersReducedMotion } from "./lib/motion";
+import { prefersReducedMotion } from "../lib/motion";
 
 const WORD_H = 19; // the wordmark's height at the header's size
 

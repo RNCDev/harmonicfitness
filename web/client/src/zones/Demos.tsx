@@ -4,11 +4,12 @@
 // seconds until someone plays, taps or tabs into it, and not at all for anyone who asks for less motion.
 // demos.json is written by `./harmonicfitness demos web` from docs/demos/demos.toml; the clips are on the media bucket.
 import { useEffect, useRef, useState } from "react";
-import data from "./demos.json";
-import { article, listAnd as list, seconds as secs } from "./lib/format";
-import { prefersReducedMotion as still } from "./lib/motion";
-import { Icon } from "./ui/icons";
-import { PlayButton, PlayTime, Seek } from "./ui/Player";
+import data from "../demos.json";
+import { article, listAnd as list, seconds as secs } from "../lib/format";
+import { prefersReducedMotion as still } from "../lib/motion";
+import { Button } from "../ui/Button";
+import { Icon } from "../ui/icons";
+import { PlayButton, PlayTime, Seek } from "../ui/Player";
 
 type Demo = {
   slug: string; name: string; coach: string; minutes: number; ask: string; audio: string;
@@ -97,7 +98,7 @@ export function Demos() {
   return (
     <section className="demos" aria-roledescription="carousel" aria-label="Workouts other people asked for"
       onMouseEnter={() => setPointing(true)} onMouseLeave={() => setPointing(false)} onFocus={() => setHeld(true)}>
-      <p className="demo-eyebrow">Workouts for your earbuds, written and voiced fresh each time you ask</p>
+      <p className="label demo-eyebrow">Workouts for your earbuds, written and voiced fresh each time you ask</p>
       <p className="demo-lede">Ask in one sentence. Your coach builds the workout around your body, your kit and your
         time, and fills the rests with stories about what you're into. Here's what seven people asked for.</p>
 
@@ -105,7 +106,7 @@ export function Demos() {
         {DEMOS.map((x, i) => (
           <div key={x.slug} className={`demo-slide${i === at ? " on" : ""}${i === at && turned ? " turn" : ""}`}
             role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${DEMOS.length}: ${x.name}`} aria-hidden={i !== at}>
-            <p className="demo-who"><b>{x.name}</b>{x.card.tag && <> · <span>{x.card.tag}</span></>}
+            <p className="label demo-who"><b>{x.name}</b>{x.card.tag && <> · <span>{x.card.tag}</span></>}
               {x.card.topics?.length ? <> · into {list(x.card.topics)}</> : null}</p>
             <Request d={x} />
           </div>
@@ -120,12 +121,12 @@ export function Demos() {
           <PlayTime at={time} length={length} playing={playing} idle="2 min" />
         </div>
         <div className="demo-nav">
-          <button type="button" className="demo-arrow" onClick={() => go(at - 1)} aria-label="Previous ask"><Icon name="chevron-left" weight={2.4} /></button>
+          <Button variant="icon" onClick={() => go(at - 1)} aria-label="Previous ask"><Icon name="chevron-left" weight={2.4} /></Button>
           <div className="demo-dots">
             {DEMOS.map((x, i) => <button key={x.slug} type="button" className="demo-dot" aria-label={`${x.name}'s ask`}
               aria-current={i === at} onClick={() => go(i)} />)}
           </div>
-          <button type="button" className="demo-arrow" onClick={() => go(at + 1)} aria-label="Next ask"><Icon name="chevron-right" weight={2.4} /></button>
+          <Button variant="icon" onClick={() => go(at + 1)} aria-label="Next ask"><Icon name="chevron-right" weight={2.4} /></Button>
         </div>
       </div>
 
@@ -136,10 +137,10 @@ export function Demos() {
         {open && (
           <div className="demo-detail" id="demo-detail">
             <dl>
-              <dt>In words</dt><dd>&ldquo;{d.ask}&rdquo;</dd>
-              {d.card.who && <><dt>Who</dt><dd>{d.card.who.replace(/^[^,]*,\s*/, "")}</dd></>}
-              {d.card.kit && <><dt>Kit</dt><dd>{d.card.kit}</dd></>}
-              {d.card.limit && <><dt>Injury</dt><dd>{d.card.limit}</dd></>}
+              <dt className="label">In words</dt><dd>&ldquo;{d.ask}&rdquo;</dd>
+              {d.card.who && <><dt className="label">Who</dt><dd>{d.card.who.replace(/^[^,]*,\s*/, "")}</dd></>}
+              {d.card.kit && <><dt className="label">Kit</dt><dd>{d.card.kit}</dd></>}
+              {d.card.limit && <><dt className="label">Injury</dt><dd>{d.card.limit}</dd></>}
             </dl>
             {d.card.changed && <p className="demo-changed"><b>What changed for {d.name}.</b> {d.card.changed}</p>}
             <ul className="demo-moments">

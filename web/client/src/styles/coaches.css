@@ -1,0 +1,42 @@
+/* The Coaches page. Part of theme.css, which imports every part in order. */
+/* ---------- the Coaches page (beside Logs): the whole width, compact cards, the soft blue its one colour ---------- */
+.cg { display: grid; gap: var(--s-2) }
+.cg-h { margin: var(--s-2h) 0 0; letter-spacing: var(--track-wide); font-weight: 400 }
+.cg-list { list-style: none; margin: 0; padding: var(--s-2h) 0 0; display: grid; gap: var(--s-4h) var(--s-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)) }
+.cg-card {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; gap: var(--s-1h);
+  padding: var(--s-3) var(--s-3h); border-radius: var(--radius-sheet); background: var(--card); box-shadow: inset 0 0 0 1px var(--rule);
+  transition: transform var(--t-slow) ease, box-shadow var(--t-slow) ease, background-color var(--t-slow) ease;
+}
+.cg-card > * { min-width: 0 }
+.cg-card.off { opacity: .8 }
+/* a coach you can choose: the whole card is the button, and it lifts a little under the pointer */
+.cg-card.can { cursor: pointer }
+@media (hover: hover) {
+  .cg-card.can:hover { transform: translateY(-3px); box-shadow: inset 0 0 0 1px var(--line), var(--lift) }
+}
+.cg-choose { position: absolute; inset: 0; z-index: 0; width: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer }
+.cg-choose:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px }
+.cg-card.can > :not(.cg-choose):not(.cg-on) { position: relative; z-index: var(--z-raised); pointer-events: none }
+.cg-card.can .player { pointer-events: auto }
+/* the coach coaching you: a blue ring, and Active on the card's top edge */
+.cg-card.cur { box-shadow: inset 0 0 0 2px var(--blue); background: var(--current-wash); cursor: default }
+.cg-card.cur .cg-choose { cursor: default }
+@media (hover: hover) { .cg-card.cur:hover { transform: none; box-shadow: inset 0 0 0 2px var(--blue) } }
+.cg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--s-2h) }
+.cg-head b { font-size: var(--fs-body); color: var(--blue) }
+.cg-head small { color: var(--ink-3); font-size: var(--fs-sm) }
+.cg-tone { margin: 0; font-size: var(--fs-md); line-height: 1.4; color: var(--ink-2);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden }
+.cg-note { margin: 0; font-size: var(--fs-sm); color: var(--ink-3); line-height: 1.35 }
+.cg-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: 36px; margin-top: 2px }
+.cg-foot .player { flex: 1 }
+.cg-foot .seek { max-width: 220px; min-width: 24px }
+.cg-card > .cg-on { position: absolute; z-index: var(--z-over); top: -9px; right: var(--s-3); font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--track-wide);
+  text-transform: uppercase; line-height: 1; padding: var(--s-1) var(--s-2); color: var(--paper); background: var(--blue); border-radius: var(--radius-sheet) }
+.cg-need { font-size: var(--fs-md); color: var(--ink-3) }
+.cg-more { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1h) var(--s-4); margin: var(--s-3h) 0 0; font-size: var(--fs-md); color: var(--ink-3) }
+.cg-group { display: grid; gap: var(--s-2); margin-top: var(--s-2) }
+.cg-group-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-1h) var(--s-4) }
+.cg-group-h .cg-h { margin: 0 }

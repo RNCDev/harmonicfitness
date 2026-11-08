@@ -205,7 +205,7 @@ def publish(slug, mp3):
     return dst
 
 
-# The request's blanks, as the app's own lists offer them (web/client/src/zones/Starter.tsx: TYPES, ROWS and SIDED;
+# The request's blanks, as the app's own lists offer them (web/client/src/lib/request.ts: TYPES, ROWS and SIDED;
 # test_demos holds them in step). A place is kitWords' words for a kit, which depend on the listener's kits.
 REQUEST_TYPES = ("full-body workout", "strength workout", "cardio workout", "mobility session", "leg workout",
                  "upper-body workout", "core workout")

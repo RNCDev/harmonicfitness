@@ -1,9 +1,9 @@
 // A workout's MP3, in the chat and on the Logs page: play it here, or download it, until the site lets it go.
 // The meter moves while it plays.
 import { useState } from "react";
-import type { Audio } from "../api";
+import type { Audio } from "../lib/api";
 import { keptUntil } from "../lib/format";
-import { Meter } from "../Mark";
+import { Meter } from "./Mark";
 
 export function AudioFile({ audio, titled = false, preload = "metadata" }: {
   audio: Audio;
@@ -22,7 +22,7 @@ export function AudioFile({ audio, titled = false, preload = "metadata" }: {
   return (
     <div className={`audio-file${titled ? "" : " compact"}`}>
       {titled && (
-        <p className="audio-name">{!expired && <Meter className="audio-meter" height={22} live={playing} />}{audio.name}</p>
+        <p className="head audio-name">{!expired && <Meter className="audio-meter" height={22} live={playing} />}{audio.name}</p>
       )}
       {expired ? (
         <p className="cx-s">This recording has expired. Ask for the workout again to record a new one.</p>

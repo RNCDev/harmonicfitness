@@ -2,6 +2,42 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.68.0] - 2026-11-08
+
+The web client after a second front-end audit: the rules the stylesheet already kept for colour now hold for spacing, type size, corners, breakpoints and hover too; every button with a shared look is the one Button; every list loads, fails and sits empty the same way, with Try again and a next step; a refused username or password is said under its own box; the body chart takes a fingertip on a phone; and the request's lists close when focus leaves them. Minor at the maintainer's ask: nothing in `me/`, the drafts, the commands or the exit codes changes, but the client's files moved and two tokens were renamed (see For forks).
+
+### Added
+- **A tap area a fingertip can hit.** On a touch screen the body chart's sides are 40 px dots with 44 px tap areas, 44 px apart (they were 30 px dots, 38 px apart), so marking a sore knee doesn't mark the other one. The rating faces, the players' round buttons and the billing link get a 44 px tap area around them. The size is a token, `--hit`.
+- **Try again** wherever a list fails to load (Logs, your keys, your level), in place of "close Settings and open it again".
+- **An empty list says what will show there and offers the way:** Logs' "Your workouts show here once you've recorded one." with Plan a workout; Coaches' "Coaches show here once a key is added." with Open Settings.
+- **"Feedback saved."** on a workout's card once a note is in, kept if the coach's summary never comes.
+- **A username's problem under the username box.** Making an account checks the name's rule as you type (once you've tried), as the password's length already was, and the server's refusal ("That username is taken.") lands under the box it's about, which turns brick. The server says which box: `POST /api/register` and `POST /api/password` answer a refusal with `{"detail", "field"}`.
+- **Shared parts:** `ui/Popover` (a list under its control, or a modal dialog over a scrim), `ui/Flap`, `Empty` beside `Loadable` in `ui/Notice`; `lib/useResource` (a screen's data: the answer, why it failed, reload), `lib/useBalances`, `lib/request.ts` (the request's words), `lib/bodyMarks.ts` (the body chart's taps, tested on their own) and `waitForJob` in `lib/api.ts` (the one loop that waits on a background job).
+- **Tests that hold the new rules.** `theme.test.ts`, over every part of the stylesheet: no tint mixed in a rule, no type size or spacing typed in pixels, corners only from the corner tokens, only the four breakpoints, and no hover look on a disabled control. `layers.test.ts`: every file in `zones/`, `ui/` or `lib/`; no button typing a shared look's class by hand; `toLocale…` only in `lib/format.ts`; no page keeping its own still-mounted flag. `tests/test_tokens.py`: the docs' stylesheet types no size of its own.
+
+### Changed
+- **One spacing scale.** About 170 hand-typed spacings are tokens now, on steps of 4 and 8 px with half steps at 6, 10, 14, 20, 28 and 40 (`--s-1h` to `--s-9`). A few moved by 2 to 4 px to land on a step; the screens are otherwise as they were.
+- **The display sizes are tokens:** the request (`--fs-request`), its copy in the demos, the sign-in heading and the welcome card. The docs' stylesheet takes its sizes and spaces from the tokens too.
+- **Corners are named:** controls square (`--radius-control`), sheets 2 px round (`--radius-sheet`), a pill fully round. The Logs cards' corners match the other cards'.
+- **Every tint is named in `tokens.css`** (`--danger-line`, `--danger-wash`, `--sample-line`, `--current-wash`, …), with a small layer of roles (`--text`, `--action`, `--danger`, `--sample`, …) for new rules.
+- **Four breakpoints:** 480, 640, 760 and 1000 px. The Logs page's 560 is 640.
+- **The chat's Send and Stop, and 15 other buttons, are the one Button,** so each shows it's busy and switches off the same way. A busy button without words of its own keeps its words, adds "…", and no longer looks switched off.
+- **The request's lists** close when focus leaves them (Tab), and move with Home, End and an option's first letter. The body chart is a modal dialog over a scrim you can press to close it.
+- **The coach cards lift under a pointer only:** on a phone a tapped card no longer stays raised.
+- **Prices are written one way:** the Coaches page's "about $0.27 a workout" rounds up to the cent, as the Record button's quote does, so the two never differ by a cent.
+- **The stylesheet is in parts:** `theme.css` imports `styles/base.css`, `primitives.css` and a part per area, in the same order as before. The shared looks are classes the components name (`label`, `head`, `outlined`), not lists of every class that uses them.
+- **The style guide** says what shipped: body text 16 px in the app and 17 px in the docs, coral's one job in each, and the space, corner, tap and breakpoint rules.
+
+### For forks
+- **Nothing to migrate in `me/`.**
+- **If you changed the web client,** these moved:
+  - `api.ts`, `conversation.ts` and `when.ts` are in `lib/`; `SignIn.tsx` and `Demos.tsx` in `zones/`; `Mark.tsx`, `Sky.tsx` and `brand.ts` in `ui/` (`assets/brand/make.py` writes `ui/brand.ts`).
+  - `kitWords`, `sentence` and `whenWords` moved from `zones/Starter.tsx` to `lib/request.ts`; `partOfDay` is `dayPart` in `lib/format.ts`; `longDate` moved from `zones/Logs.tsx`, and `timeOfDay` from `when.ts`, to `lib/format.ts`. `Starter` takes no `onFill`.
+  - `useAction` also returns `field` and `errorFor(name)`; `ApiError` takes a third argument, `field`.
+  - Button looks: `variant` takes `stop` and `icon` too, and `size` (`lg`, `sm`) replaces the `start` and `done` classes. An outlined control carries the class `outlined`; a label `label`; a display heading `head`. `.demo-arrow` is `.icon-btn`.
+- **Two tokens were renamed:** `--radius` is `--radius-sheet` (with `--radius-control` for square controls) and `--ok` is `--step-done`. Copy `tokens.css` to `docs/tokens.css` after changing it.
+- **Your own CSS** goes in a part under `styles/`, imported from `theme.css`, and must pass `theme.test.ts`: spacing and sizes from the tokens, a tint added to `tokens.css`, corners from the corner tokens.
+
 ## [0.67.0] - 2026-11-07
 
 The web client after a front-end audit: one list of colours and sizes for the app, the docs and the web player page; one way to show a busy button, an error, a field and a disabled control; errors shown beside what failed; Logs and Coaches with addresses of their own; and Settings and the body chart holding the keyboard while they're open. Minor at the maintainer's ask: nothing in `me/`, the drafts, the commands or the exit codes changes, but the client's own parts moved (see For forks).

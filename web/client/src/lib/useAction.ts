@@ -1,34 +1,42 @@
 // A button's call to the server: busy while it runs, its error in words, and nothing to do for a lost session
 // (api.ts sends the page to sign-in itself).
 import { useCallback, useRef, useState } from "react";
-import { NotSignedIn, plainError } from "../api";
+import { ApiError, NotSignedIn, plainError } from "./api";
 
 /** Thrown by an action's work to end it without an error: the caller already said what happened. */
 export class Quiet extends Error {}
 
 /** `run` calls `work`, resolving true when it went through. `hold` keeps the button busy after success, for an
- * action whose screen goes away on its own (a recording starting). */
+ * action whose screen goes away on its own (a recording starting). `field` is the form box a refusal is about,
+ * when the server named one: the form says the error under that box instead of above the button. */
 export function useAction<A extends unknown[]>(work: (...a: A) => Promise<unknown>,
   { fallback = "Couldn't reach the server.", hold = false }: { fallback?: string; hold?: boolean } = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [field, setField] = useState<string | null>(null);
   const latest = useRef(work);
   latest.current = work;
   const run = useCallback(async (...a: A): Promise<boolean> => {
     setBusy(true);
     setError(null);
+    setField(null);
     try {
       await latest.current(...a);
       if (!hold) setBusy(false);
       return true;
     } catch (e) {
       setBusy(false);
-      if (!(e instanceof NotSignedIn) && !(e instanceof Quiet)) setError(plainError(e, fallback));
+      if (!(e instanceof NotSignedIn) && !(e instanceof Quiet)) {
+        setError(plainError(e, fallback));
+        setField(e instanceof ApiError ? e.field ?? null : null);
+      }
       return false;
     }
   }, [fallback, hold]);
-  const clear = useCallback(() => setError(null), []);
-  return { run, busy, error, clear };
+  const clear = useCallback(() => { setError(null); setField(null); }, []);
+  /** The error for one box (`name`), or, with no name, the error no box claims. */
+  const errorFor = (name?: string) => (name ? (field === name ? error : null) : field ? null : error);
+  return { run, busy, error, field, errorFor, clear };
 }
 
 /** Change a value at once, save it, and put it back if the server refuses: the error, or null once saved. */

@@ -79,11 +79,11 @@ class ShippedSet(unittest.TestCase):
 
     def test_the_request_lists_match_the_apps(self):
         import re
-        with open(os.path.join(paths.ROOT, "web", "client", "src", "zones", "Starter.tsx"), encoding="utf-8") as f:
+        with open(os.path.join(paths.ROOT, "web", "client", "src", "lib", "request.ts"), encoding="utf-8") as f:
             src = f.read()
 
         def listed(name):
-            return tuple(re.findall(r'"([^"]+)"', re.search(rf"const {name} = (?:new Set\()?\[(.*?)\]", src, re.S).group(1)))
+            return tuple(re.findall(r'"([^"]+)"', re.search(rf"export const {name} = (?:new Set\()?\[(.*?)\]", src, re.S).group(1)))
         self.assertEqual(listed("TYPES"), demos.REQUEST_TYPES)
         self.assertEqual(listed("ROWS"), demos.BODY_ROWS)
         self.assertEqual(listed("SIDED"), demos.SIDED)

@@ -9,7 +9,7 @@
 // Shapes' licence asks that one not be published. Lissajous went in 0.50.3, and Hex Strands, its
 // short-lived successor, in 0.50.4.)
 import { memo, useEffect, useRef } from "react";
-import { prefersReducedMotion, token } from "./lib/motion";
+import { prefersReducedMotion, token } from "../lib/motion";
 
 export type SkyKind = "flow" | "field" | "waves" | "bloom" | "woven" | "garden";
 export const SKIES: { kind: SkyKind; name: string; about: string }[] = [

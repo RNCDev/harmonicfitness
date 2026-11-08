@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { StartInfo } from "../api";
-import { kitWords, sentence, Starter, whenWords } from "./Starter";
-import { slots, withOffset } from "../when";
+import type { StartInfo } from "../lib/api";
+import { kitWords, sentence, whenWords } from "../lib/request";
+import { Starter } from "./Starter";
+import { slots, withOffset } from "../lib/when";
 
 const info: StartInfo = {
   coaches: [
@@ -21,7 +22,7 @@ const slot = (name: RegExp) => screen.getByRole("button", { name });
 
 describe("the starter", () => {
   it("fills the blanks from what the app knows", () => {
-    render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} />);
+    render(<Starter info={info} onStart={vi.fn()} />);
     expect(slot(/^Coach: Reed$/)).toBeInTheDocument();
     expect(slot(/^Length: 30-minute$/)).toBeInTheDocument();
     expect(slot(/^Where: at home$/)).toBeInTheDocument();
@@ -31,8 +32,36 @@ describe("the starter", () => {
     expect(screen.getByText("Suggested because of your log: legs: last trained 6 days ago.")).toBeInTheDocument();
   });
 
+  it("moves through a list from the keyboard, and closes it when focus leaves", () => {
+    render(<Starter info={info} onStart={vi.fn()} />);
+    fireEvent.click(slot(/^Length:/));
+    const list = screen.getByRole("listbox", { name: "Length" });
+    const opts = within(list).getAllByRole("option");
+    expect(opts.find((o) => o.getAttribute("aria-selected") === "true")).toHaveFocus();   // the chosen one first
+    fireEvent.keyDown(list, { key: "End" });
+    expect(opts[opts.length - 1]).toHaveFocus();
+    fireEvent.keyDown(list, { key: "Home" });
+    expect(opts[0]).toHaveFocus();
+    fireEvent.keyDown(list, { key: "4" });
+    expect(opts.find((o) => o.textContent === "40 minutes")).toHaveFocus();
+    // Tab onward: focus lands on the next control, and the list closes behind it
+    fireEvent.blur(opts[0], { relatedTarget: slot(/^Workout:/) });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("opens the body chart as a modal dialog over a scrim", () => {
+    render(<Starter info={info} onStart={vi.fn()} />);
+    fireEvent.click(slot(/^Go easy on:/));
+    const chart = screen.getByRole("dialog", { name: "Anything bothering you today?" });
+    expect(chart).toHaveAttribute("aria-modal", "true");
+    expect(document.querySelector(".pick-scrim")).not.toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(slot(/^Go easy on:/)).toHaveFocus();
+  });
+
   it("offers only the coaches that can speak", () => {
-    render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} />);
+    render(<Starter info={info} onStart={vi.fn()} />);
     fireEvent.click(slot(/^Coach:/));
     const opts = within(screen.getByRole("listbox", { name: "Coach" })).getAllByRole("option").map((o) => o.textContent);
     expect(opts).toEqual(["Reed", "Nolan"]);
@@ -40,18 +69,18 @@ describe("the starter", () => {
 
   it("hands a picked coach to the page, and follows the page's current coach", () => {
     const onCoach = vi.fn();
-    const { rerender } = render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} onCoach={onCoach} />);
+    const { rerender } = render(<Starter info={info} onStart={vi.fn()} onCoach={onCoach} />);
     fireEvent.click(slot(/^Coach:/));
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Nolan" }));
     expect(onCoach).toHaveBeenCalledWith("coach-nolan-gemini");
     const now = { ...info, coaches: info.coaches.map((c) => ({ ...c, current: c.first === "Nolan" })) };
-    rerender(<Starter info={now} onStart={vi.fn()} onFill={vi.fn()} onCoach={onCoach} />);
+    rerender(<Starter info={now} onStart={vi.fn()} onCoach={onCoach} />);
     expect(slot(/^Coach: Nolan$/)).toBeInTheDocument();
   });
 
   it("plans a workout for a time picked in the sentence: the check-in now, the time sent with it", () => {
     const onStart = vi.fn();
-    render(<Starter info={info} onStart={onStart} onFill={vi.fn()} />);
+    render(<Starter info={info} onStart={onStart} />);
     expect(slot(/^When: right now$/)).toBeInTheDocument();
     fireEvent.click(slot(/^When:/));
     const opts = within(screen.getByRole("listbox", { name: "When" })).getAllByRole("option");
@@ -78,7 +107,7 @@ describe("the starter", () => {
 
   it("sends the request as it reads", () => {
     const onStart = vi.fn();
-    render(<Starter info={info} onStart={onStart} onFill={vi.fn()} />);
+    render(<Starter info={info} onStart={onStart} />);
     fireEvent.click(slot(/^Where:/));
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "in a hotel room" }));
     fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
@@ -88,7 +117,7 @@ describe("the starter", () => {
   });
 
   it("picks what's sore from the body chart: each side toggles OK, go easy, keep off", () => {
-    render(<Starter info={{ ...info, limits: [] }} onStart={vi.fn()} onFill={vi.fn()} />);
+    render(<Starter info={{ ...info, limits: [] }} onStart={vi.fn()} />);
     fireEvent.click(slot(/^Anything bothering you:/));
     const chart = screen.getByRole("group", { name: "Body, head to feet" });
     fireEvent.click(within(chart).getByRole("button", { name: "right shoulder: ok" }));
@@ -107,7 +136,7 @@ describe("the starter", () => {
 
   it("can tighten a limit from health notes, never loosen it", () => {
     render(<Starter info={{ ...info, limits: [{ area: "knee", side: "left", level: "delicate" },
-      { area: "wrist", side: null, level: "off-limits" }] }} onStart={vi.fn()} onFill={vi.fn()} />);
+      { area: "wrist", side: null, level: "off-limits" }] }} onStart={vi.fn()} />);
     fireEvent.click(slot(/^Go easy on:/));
     const chart = screen.getByRole("group", { name: "Body, head to feet" });
     fireEvent.click(within(chart).getByRole("button", { name: "left knee: go easy" }));
@@ -121,7 +150,7 @@ describe("the starter", () => {
   });
 
   it("Escape closes a list and gives focus back to its blank", () => {
-    render(<Starter info={info} onStart={vi.fn()} onFill={vi.fn()} />);
+    render(<Starter info={info} onStart={vi.fn()} />);
     const b = slot(/^Length:/);
     fireEvent.click(b);
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
@@ -131,7 +160,7 @@ describe("the starter", () => {
 
   it("something else: each sends at once; coaches and feedback have their own pages", () => {
     const onStart = vi.fn();
-    render(<Starter info={info} onStart={onStart} onFill={vi.fn()} onOpenCoaches={vi.fn()} />);
+    render(<Starter info={info} onStart={onStart} onOpenCoaches={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
     expect(onStart).toHaveBeenCalledWith("I'd like to update an injury.");
     fireEvent.click(screen.getByRole("button", { name: /^Update my interests/ }));   // also what they've enjoyed
@@ -143,7 +172,7 @@ describe("the starter", () => {
   });
 
   it("setup not finished: Finish setting me up comes first, marked as the one to do", () => {
-    render(<Starter info={{ ...info, setup_quick: true }} onStart={vi.fn()} onFill={vi.fn()} />);
+    render(<Starter info={{ ...info, setup_quick: true }} onStart={vi.fn()} />);
     const items = within(screen.getByRole("navigation", { name: "Other things you can do" })).getAllByRole("button");
     expect(items[0]).toHaveAccessibleName(/^Finish setting me up/);
     expect(items[0]).toHaveClass("lead");
@@ -151,7 +180,7 @@ describe("the starter", () => {
   });
 
   it("with no voice key, it waits and says why", () => {
-    render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()} onFill={vi.fn()} />);
+    render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();   // no Coaches page to send to
     expect(screen.getByText("Add a voice key in Settings first.")).toBeInTheDocument();
   });
@@ -170,7 +199,7 @@ describe("choosing a coach", () => {
   it("with a key that only writes, asks for a coach first", () => {
     const onOpenCoaches = vi.fn();
     render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()}
-      onFill={vi.fn()} onOpenCoaches={onOpenCoaches} />);
+      onOpenCoaches={onOpenCoaches} />);
     expect(screen.queryByRole("button", { name: "Plan my workout" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Coach:/ })).toBeNull();   // no sentence to a coach with no voice
     expect(screen.getByText("One more step")).toBeInTheDocument();

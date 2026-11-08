@@ -107,7 +107,7 @@ Each file is read only through its tool, never parsed elsewhere:
 - **Coaches:** `coaches` (list, last, measured, audition, keep, make, sample, sample-file, archive, set, download), `tools/personas.py` (lookup, merge), `tools/audition.py`, `tools/coachmake.py`, `tools/coachsample.py` (a web coach's 45-second sample, after keep and make), `tools/cloud.py` and `tools/services/`, `keys` (names set, never values), `balances`.
 - **Context:** `check`, `get`, `set` (the listener's level, every other line kept), `log-session` (`tools/logsession.py`), `migrate`, `workouts` (list, show, feedback, rate, delete), `backup` (refuses a key file and a public remote), `cache prune`, `pull` and `sync` (the web app's copy of `me/`).
 - **Planning and research:** `brief`, `movements` (`--about` for coaching notes), `coverage`, `feeds`, `content` (plan, log, thread, reserve, trending), `interests` (learned likes, fading by half-life), `topics` (add one at once, its feed found without a web search), `youtube`.
-- **Demos:** `demos` (`tools/demos.py`: list, home, run, excerpt, publish, upload, web), from `docs/demos/demos.toml`; `web` writes `web/client/src/demos.json`, the sign-in page's demos (`web/client/src/Demos.tsx`).
+- **Demos:** `demos` (`tools/demos.py`: list, home, run, excerpt, publish, upload, web), from `docs/demos/demos.toml`; `web` writes `web/client/src/demos.json`, the sign-in page's demos (`web/client/src/zones/Demos.tsx`).
 - **Privacy:** `tools/hooks/` (the pre-push hook, `check-private.sh` shared with CI, and `private-paths`, the one list of paths never pushed).
 
 ## Tests

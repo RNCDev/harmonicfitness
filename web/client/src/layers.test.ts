@@ -45,6 +45,31 @@ describe("the client's layers", () => {
     expect(where).toEqual(["./lib/motion.ts"]);
   });
 
+  it("keeps every file in its folder: pages in zones/, shared pieces in ui/, logic in lib/", () => {
+    // brand.ts is the mark's shapes, written by assets/brand/make.py beside Mark.tsx, which draws them
+    const bad = Object.keys(SOURCES).filter((p) => !["./main.tsx", "./App.tsx", "./test-setup.ts", "./ui/brand.ts"].includes(p)
+      && !(p.endsWith(".tsx") ? /^\.\/(zones|ui)\//.test(p) : /^\.\/lib\//.test(p)));
+    expect(bad).toEqual([]);
+  });
+
+  it("draws every button with a shared look through Button, so busy and disabled work the same everywhere", () => {
+    const LOOKS = /<button\b[^>]*className=(?:"|\{`)[^"`]*\b(go|quiet|act|icon-btn)\b/;
+    const bad = Object.entries(SOURCES).filter(([p, src]) => p !== "./ui/Button.tsx" && LOOKS.test(src)).map(([p]) => p);
+    expect(bad).toEqual([]);
+  });
+
+  it("writes numbers, prices, dates and times in lib/format.ts alone", () => {
+    const bad = Object.entries(SOURCES).filter(([p, src]) => p !== "./lib/format.ts" && /\.toLocale\w*\(/.test(src))
+      .map(([p]) => p);
+    expect(bad).toEqual([]);
+  });
+
+  it("loads data through lib/: no page keeps its own still-mounted flag", () => {
+    const bad = Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./lib/") && /let live = true/.test(src))
+      .map(([p]) => p);
+    expect(bad).toEqual([]);
+  });
+
   it("leaves a lost session to api.ts: no page calls back to sign out on NotSignedIn", () => {
     const bad = Object.entries(SOURCES).filter(([, src]) => /instanceof NotSignedIn\)\s*(return\s+)?on\w+\(/.test(src))
       .map(([p]) => p);

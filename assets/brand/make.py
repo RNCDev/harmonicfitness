@@ -1,7 +1,7 @@
 """Make HarmonicFitness's brand assets from one geometry (maintainer only).
 
 Writes the SVGs and PNGs in assets/brand/, the site's icons in web/client/public/ and the
-shapes the web client draws its logo from (web/client/src/brand.ts). The wordmark is Big Shoulders
+shapes the web client draws its logo from (web/client/src/ui/brand.ts). The wordmark is Big Shoulders
 Display Bold (SIL Open Font License), outlined, so nothing needs the font installed.
 
     curl -sSLfo /tmp/BigShouldersDisplay.ttf \\
@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BRAND = ROOT / "assets" / "brand"
 PUBLIC = ROOT / "web" / "client" / "public"
-CLIENT_TS = ROOT / "web" / "client" / "src" / "brand.ts"
+CLIENT_TS = ROOT / "web" / "client" / "src" / "ui" / "brand.ts"
 
 INK, CORAL, CREAM, WHITE = "#111215", "#FF5A3C", "#EDEAE0", "#FFFFFF"
 

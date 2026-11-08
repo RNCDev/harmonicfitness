@@ -17,7 +17,7 @@ The mark is an H drawn as a stereo level meter: two channels of segments and a m
 | `app-icon-coral.svg`, `app-icon-coral-1024.png` | App icon on coral, the meter in ink |
 | `favicon.svg`, `favicon.ico` | Browser icons (16, 32 and 48 px in the ICO; 16 and 32 use the small form, 48 the mid) |
 
-The web client's own copies are in `web/client/public/` (favicon and Apple touch icon) and `web/client/src/brand.ts` (the segments of each form and the wordmark's outlines, which `Mark.tsx` draws).
+The web client's own copies are in `web/client/public/` (favicon and Apple touch icon) and `web/client/src/ui/brand.ts` (the segments of each form and the wordmark's outlines, which `Mark.tsx` draws).
 
 ## Colours
 

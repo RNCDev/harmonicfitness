@@ -13,7 +13,7 @@
 #
 # [demo.request] is the app's own request sentence with its blanks filled ("Hey, coach Priya, I'd like a 30-minute
 # full-body workout in a hotel room, right now. Go easy on my left knee today."): `type`, `place` and `when` are
-# words the app's lists offer (Starter.tsx: its TYPES, kitWords, whenWords), `care` is none, easy or off, with the
+# words the app's lists offer (web/client/src/lib/request.ts: its TYPES, kitWords, whenWords), `care` is none, easy or off, with the
 # `area` as the body chart names it. `demos web` writes it, with the cards, into web/client/src/demos.json.
 
 version = 1            # raise by one each time the set is re-made; the web manifest carries it
@@ -69,7 +69,7 @@ moments = [
   { at = "0:56", label = "The chair, the towel, and a number from Apollo" },
 ]
 
-[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+[demo.request]   # the app's request (web/client/src/lib/request.ts), its blanks from the app's own lists
 type = "full-body workout"
 place = "in a hotel room"
 when = "right now"
@@ -110,7 +110,7 @@ moments = [
   { at = "1:25", label = "Myth or fact: searing doesn't seal in the juices" },
 ]
 
-[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+[demo.request]   # the app's request (web/client/src/lib/request.ts), its blanks from the app's own lists
 type = "full-body workout"
 place = "at home"
 when = "right now"
@@ -150,7 +150,7 @@ moments = [
   { at = "1:01", label = "How Alex Honnold trained for Freerider" },
 ]
 
-[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+[demo.request]   # the app's request (web/client/src/lib/request.ts), its blanks from the app's own lists
 type = "strength workout"
 place = "with my garage kit"
 when = "right now"
@@ -190,7 +190,7 @@ moments = [
   { at = "1:27", label = "Gone in a week, and a best guess saved for later" },
 ]
 
-[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+[demo.request]   # the app's request (web/client/src/lib/request.ts), its blanks from the app's own lists
 type = "full-body workout"
 place = "with no equipment"
 when = "right now"
@@ -231,7 +231,7 @@ moments = [
   { at = "1:25", label = "The answer: count the losers" },
 ]
 
-[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+[demo.request]   # the app's request (web/client/src/lib/request.ts), its blanks from the app's own lists
 type = "strength workout"
 place = "with my kettlebell kit"
 when = "at 6:30 AM"
@@ -272,7 +272,7 @@ moments = [
   { at = "2:09", label = "How hard did that feel?" },
 ]
 
-[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+[demo.request]   # the app's request (web/client/src/lib/request.ts), its blanks from the app's own lists
 type = "mobility session"
 place = "at home"
 when = "right now"
@@ -313,7 +313,7 @@ moments = [
   { at = "1:11", label = "Left hand only, and how the X-1 got through the sound barrier" },
 ]
 
-[demo.request]   # the app's request (web/client/src/zones/Starter.tsx), its blanks from the app's own lists
+[demo.request]   # the app's request (web/client/src/lib/request.ts), its blanks from the app's own lists
 type = "leg workout"
 place = "at home"
 when = "right now"

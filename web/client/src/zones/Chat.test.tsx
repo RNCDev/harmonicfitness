@@ -132,7 +132,7 @@ describe("the chat", () => {
       { name: "Gemini", service: "gemini", voice: true }, { name: "OpenRouter", service: "openrouter", voice: true }];
     render(<Chat {...base} first={{ needsKey: need, onAddKey }} />);
     expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
-    const picks = screen.getAllByRole("button").filter((b) => b.className === "welcome-pick");
+    const picks = screen.getAllByRole("button").filter((b) => b.classList.contains("welcome-pick"));
     expect(picks.map((b) => b.querySelector(".welcome-pick-name")?.textContent)).toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"]);
     expect(picks[1]).toHaveTextContent("six coaches to choose from. Free key");
     expect(picks[0]).toHaveTextContent("six coaches with ElevenLabs voices");

@@ -123,7 +123,9 @@ describe("the app", () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Logs" }, { timeout: 5000 }));
     expect(window.location.hash).toBe("#logs");
-    expect(await screen.findByText("No workouts logged yet.")).toBeInTheDocument();
+    // an empty list says what will show here, and offers the way there
+    expect(await screen.findByText("Your workouts show here once you've recorded one.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plan a workout" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to the chat" }));
     expect(window.location.hash).toBe("");
     expect(screen.queryByRole("heading", { name: "Logs" })).toBeNull();

@@ -1,7 +1,7 @@
 // What the first screen's request is filled in with (GET /api/start), and choosing the coach in it.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, NotSignedIn, type KeyState, type StartInfo } from "../api";
-import { localDate } from "../when";
+import { api, NotSignedIn, type KeyState, type StartInfo } from "./api";
+import { localDate } from "./when";
 import { optimistic } from "./useAction";
 
 /** The request's defaults when the server can't say more. */

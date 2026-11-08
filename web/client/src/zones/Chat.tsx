@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatLine, Later, Offer, StartInfo } from "../api";
-import { clockAt, dollars } from "../lib/format";
+import type { ChatLine, Later, Offer, StartInfo } from "../lib/api";
+import { clockAt, count, dollars, timeOfDay } from "../lib/format";
 import { serviceName, writerRank } from "../lib/keys";
 import type { Step } from "../lib/steps";
 import { Quiet, useAction } from "../lib/useAction";
 import { AudioFile } from "../ui/AudioFile";
 import { Button } from "../ui/Button";
 import { Notice } from "../ui/Notice";
-import { ahead, timeOfDay } from "../when";
+import { ahead } from "../lib/when";
 import { Starter } from "./Starter";
 
 /** The language-model key a new listener adds first. */
@@ -80,8 +80,8 @@ function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: str
         account.</p>
       <div className="welcome-picks">
         {[...need].sort((a, b) => writerRank(a.service, a.voice) - writerRank(b.service, b.voice)).map((o) => (
-          <button key={o.service} type="button" className="welcome-pick" onClick={() => onAddKey?.(o.service)}>
-            <span className="welcome-pick-name">{o.name}</span>
+          <button key={o.service} type="button" className="welcome-pick outlined" onClick={() => onAddKey?.(o.service)}>
+            <span className="head welcome-pick-name">{o.name}</span>
             <span className="welcome-pick-note">{PICK_NOTES[o.service]
               ?? (o.voice ? "Writes your workouts and voices your coach" : "Writes your workouts; then choose a coach")}</span>
           </button>
@@ -102,7 +102,7 @@ function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promi
   return (
     <div className="m a offer">
       <p><strong>{offer.name}</strong> is ready to record with {offer.coach}.</p>
-      <p className="cx-s">{offer.chars.toLocaleString()} characters on {serviceName(offer.service)}, {price}
+      <p className="cx-s">{count(offer.chars)} characters on {serviceName(offer.service)}, {price}
         {offer.design ? ", including designing the coach's voice" : ""}. It's charged to your own key.</p>
       <Button variant="primary" busy={rec.busy} busyLabel="Starting…" onClick={() => void rec.run()}>
         {`Record it (${price})`}
@@ -271,8 +271,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
           </button>
         )}
         {lines.length === 0 && !working && !needsKey && (start || starting) && (
-          <Starter info={start} onStart={onSend} onCoach={onCoach} onOpenCoaches={onOpenCoaches} coachError={coachError}
-            onFill={(line) => { setText(line); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(line.length, line.length); }); }} />
+          <Starter info={start} onStart={onSend} onCoach={onCoach} onOpenCoaches={onOpenCoaches} coachError={coachError} />
         )}
         {lines.map((l, i) => l.audio ? <div key={i} className="m a audio"><AudioFile audio={l.audio} titled /></div>
           : l.role === "user" ? (
@@ -308,9 +307,9 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
             }
           }} />
         {working && onStop && !stopping && (
-          <button type="button" className="go stop" onClick={() => { setStopping(true); onStop(); }}>Stop</button>
+          <Button variant="stop" onClick={() => { setStopping(true); onStop(); }}>Stop</Button>
         )}
-        <button type="submit" className="go" disabled={working || scheduled || !!needsKey || !text.trim()}>Send</button>
+        <Button type="submit" variant="primary" disabled={working || scheduled || !!needsKey || !text.trim()}>Send</Button>
       </form>
     </main>
   );

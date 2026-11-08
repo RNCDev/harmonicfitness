@@ -145,7 +145,7 @@ words or go. Each coach's own voice is in its <code>persona.md</code>.</div>
 <p class="sub">Five brand colours, from <code>assets/brand/README.md</code>. Ember is the meter's gradient. Change
 them there and in <code>make.py</code>, never by hand.</p>
 <div class="swatches">
-  <div class="sw" style="--s:#FF5A3C"><i></i><div><b>Coral</b><code>#FF5A3C</code><span>The brand colour. Accents, the active item, the request's fixed words.</span></div></div>
+  <div class="sw" style="--s:#FF5A3C"><i></i><div><b>Coral</b><code>#FF5A3C</code><span>The brand colour. In the app, only the request's fixed words; in these docs, links, the current page and the kicker.</span></div></div>
   <div class="sw" style="--s:#8C2F22"><i></i><div><b>Ember low</b><code>#8C2F22</code><span>The foot of the meter.</span></div></div>
   <div class="sw" style="--s:#FFC2AE"><i></i><div><b>Ember high</b><code>#FFC2AE</code><span>The top of the meter.</span></div></div>
   <div class="sw" style="--s:#111215"><i></i><div><b>Ink</b><code>#111215</code><span>Dark backgrounds; words on light.</span></div></div>
@@ -191,13 +191,22 @@ colour, so the colour is never the only cue.</p>
     <div style="font:600 13px/1.2 var(--font);text-transform:uppercase;letter-spacing:.16em;color:var(--ink-3)">Rest after set two</div></div>
   <div class="type-row"><div class="meta"><b>Label, in the docs</b>Display, 700, 13 to 15 px, +0.12 to 0.2 em</div>
     <div style="font:700 14px/1 var(--display);text-transform:uppercase;letter-spacing:.16em;color:var(--coral)">Rest after set two</div></div>
-  <div class="type-row"><div class="meta"><b>Body</b>IBM Plex Sans Condensed, 400, 17 px, line height 1.55</div>
+  <div class="type-row"><div class="meta"><b>Body</b>IBM Plex Sans Condensed, 400, 16 px in the app (<code>--fs-body</code>), 17 px in these docs (<code>--fs-lg</code>), line height 1.55</div>
     <div style="color:var(--ink-2)">Set them down and shake the arms out. That's two of three, and the next set is the same weight.</div></div>
   <div class="type-row"><div class="meta"><b>Code</b>The system's monospace, 0.88 em, on sheet-2</div>
     <div><code>./harmonicfitness build "&lt;draft&gt;" "&lt;name&gt;" --lint-only</code></div></div>
 </div>
 <div class="note">Headings are always uppercase, set in the display face. Body text is never uppercase. Keep lines of
 body text under about 64 characters wide.</div>
+
+<h3 style="margin-top:36px">Space, corners and sizes</h3>
+<p class="sub">All in <code>tokens.css</code>; the app's stylesheet types none of them by hand (<code>theme.test.ts</code>).</p>
+<ul class="card" style="list-style:none;margin:0;padding-left:20px">
+  <li><b>Space:</b> steps of 4 and 8 px (<code>--s-1</code> to <code>--s-9</code>), with half steps at 6, 10, 14, 20, 28 and 40.</li>
+  <li><b>Corners:</b> controls are square (<code>--radius-control</code>); cards, panels, bubbles and menus are 2 px round (<code>--radius-sheet</code>); a pill is fully round.</li>
+  <li><b>A fingertip:</b> on a touch screen every control takes a tap at least 44 px across (<code>--hit</code>); a control is 40 px tall (<code>--control</code>).</li>
+  <li><b>Breakpoints:</b> 480 (a phone), 640 (narrow), 760 (a tablet) and 1000 px (wide), and no others.</li>
+</ul>
 
 <!-- MARK -->
 <h2 id="mark">The mark</h2>

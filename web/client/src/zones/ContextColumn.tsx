@@ -5,11 +5,12 @@
 // inside, Escape closes it, and the page behind can't be reached.
 import { useEffect, useRef, useState, type RefObject } from "react";
 import QRCode from "qrcode";
-import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type Level, type LevelState } from "../api";
+import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type Level, type LevelState } from "../lib/api";
 import { clockAt } from "../lib/format";
 import { optimistic, useAction } from "../lib/useAction";
+import { useResource } from "../lib/useResource";
 import { useFocusTrap } from "../lib/useFocusTrap";
-import { SKIES, SkyPreview, type SkyKind } from "../Sky";
+import { SKIES, SkyPreview, type SkyKind } from "../ui/Sky";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Loadable, Notice } from "../ui/Notice";
@@ -61,7 +62,7 @@ function ImportBox() {
 
   return (
     <div className="cx-box">
-      <label className="act" aria-busy={take.busy || undefined}>
+      <label className="act outlined" aria-busy={take.busy || undefined}>
         {take.busy ? "Bringing it in…" : "Bring in a folder"}
         <input type="file" accept=".zip,application/zip" disabled={take.busy} className="sr"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void take.run(f); e.target.value = ""; }} />
@@ -73,7 +74,7 @@ function ImportBox() {
 }
 
 function ExportBox() {
-  return <a className="act" href="/api/export" download>Download your files</a>;
+  return <a className="act outlined" href="/api/export" download>Download your files</a>;
 }
 
 function DeleteBox({ onDeleted }: { onDeleted: () => void }) {
@@ -85,7 +86,7 @@ function DeleteBox({ onDeleted }: { onDeleted: () => void }) {
   return (
     <div className="cx-box">
       {!open ? (
-        <button type="button" className="quiet danger" onClick={() => setOpen(true)}>Delete my account</button>
+        <Button variant="text" danger onClick={() => setOpen(true)}>Delete my account</Button>
       ) : (
         <form className="auth" onSubmit={(e) => { e.preventDefault(); void remove.run(); }}>
           <p className="notice err">This deletes your account and everything in it: your files, keys, chats and audio. It can't be undone.</p>
@@ -148,7 +149,7 @@ type Props = {
 function RecordBox({ on, onChange, error }: { on: boolean; onChange: (on: boolean) => void; error?: string | null }) {
   return (
     <section className="cx-box" aria-labelledby="cx-rec-h">
-      <h3 className="cx-h" id="cx-rec-h">Recording</h3>
+      <h3 className="label cx-h" id="cx-rec-h">Recording</h3>
       <label className="switch">
         <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
         <span className="switch-name">Record without asking</span>
@@ -166,17 +167,10 @@ function RecordBox({ on, onChange, error }: { on: boolean; onChange: (on: boolea
 /** The listener's level, picked by the sentence that fits them: it sets the movements, the doses and how much the
  *  coach explains. Novice until one is chosen, as the planning assumes. Chosen at once, then saved; put back if refused. */
 function LevelBox() {
-  const [state, setState] = useState<LevelState | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const res = useResource(api.level, "Your level couldn't be loaded.");
+  const state = res.data;
+  const setState = (s: LevelState | null) => res.set(() => s);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    api.level().then((s) => { if (live) setState(s); }).catch((e) => {
-      if (live && !(e instanceof NotSignedIn)) setLoadError("Your level couldn't be loaded.");
-    });
-    return () => { live = false; };
-  }, []);
 
   async function choose(level: Level) {
     if (!state || level === state.level) return;
@@ -192,8 +186,8 @@ function LevelBox() {
 
   return (
     <section className="cx-box" aria-labelledby="cx-level-h">
-      <h3 className="cx-h" id="cx-level-h">Your level</h3>
-      <Loadable value={state} error={loadError} what="your level" room={150}>
+      <h3 className="label cx-h" id="cx-level-h">Your level</h3>
+      <Loadable value={state} error={res.error} onRetry={res.reload} what="your level" room={150}>
         {(s) => (
           <>
             <div className="level-opts" role="radiogroup" aria-labelledby="cx-level-h">
@@ -221,10 +215,10 @@ function LevelBox() {
 function SkyBox({ sky, onSky, error }: { sky: SkyKind; onSky: (sky: SkyKind) => void; error?: string | null }) {
   return (
     <section className="cx-box" aria-labelledby="cx-sky-h">
-      <h3 className="cx-h" id="cx-sky-h">Background</h3>
+      <h3 className="label cx-h" id="cx-sky-h">Background</h3>
       <div className="sky-opts" role="group" aria-labelledby="cx-sky-h">
         {SKIES.map((s) => (
-          <button key={s.kind} type="button" className={`sky-opt${sky === s.kind ? " on" : ""}`}
+          <button key={s.kind} type="button" className={`sky-opt outlined${sky === s.kind ? " on" : ""}`}
             aria-pressed={sky === s.kind} title={s.about} onClick={() => onSky(s.kind)}>
             <SkyPreview kind={s.kind} />
             <span className="sky-opt-name">{s.name}</span>
@@ -250,7 +244,7 @@ export function ContextColumn({ username, version, open, onClose, onSignOut, onD
       <aside ref={drawer} className={`ctx${open ? " open" : ""}`} id="ctx" aria-label="Settings" role="dialog"
         aria-modal={open || undefined}>
         <div className="ctx-top">
-          <h2>Settings</h2>
+          <h2 className="head">Settings</h2>
           <button type="button" className="ctx-close" onClick={onClose}>Close</button>
         </div>
         {/* a wide screen: the keys beside your choices, then your files beside the account; a phone: one column */}
@@ -264,7 +258,7 @@ export function ContextColumn({ username, version, open, onClose, onSignOut, onD
             {onSky && <SkyBox sky={sky} onSky={onSky} error={skyError} />}
           </div>
           <section className="cx-cell cx-files" aria-labelledby="cx-files-h">
-            <h3 className="cx-h" id="cx-files-h">Your files</h3>
+            <h3 className="label cx-h" id="cx-files-h">Your files</h3>
             <div className="act-row">
               <ExportBox />
               <ImportBox />
@@ -273,7 +267,7 @@ export function ContextColumn({ username, version, open, onClose, onSignOut, onD
               HarmonicFitness on your computer. Keys are never included.</p>
           </section>
           <section className="cx-cell cx-account" aria-labelledby="cx-account-h">
-            <h3 className="cx-h" id="cx-account-h">Account</h3>
+            <h3 className="label cx-h" id="cx-account-h">Account</h3>
             <p className="cx-s">Signed in as <strong>{username}</strong></p>
             {/* what a button opens (the password form, the sign-in code) comes below its row */}
             <div className="act-row">
@@ -281,7 +275,7 @@ export function ContextColumn({ username, version, open, onClose, onSignOut, onD
               <DeviceLinkBox />
             </div>
             <div className="cx-foot">
-              <button type="button" className="quiet" onClick={onSignOut}>Sign out</button>
+              <Button variant="text" onClick={onSignOut}>Sign out</Button>
               <DeleteBox onDeleted={onDeleted} />
               {version && <p className="cx-version">Version {version}</p>}
             </div>

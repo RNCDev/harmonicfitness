@@ -5,14 +5,15 @@
 // chosen with a tap; one that needs a key says which, and can open that key's row in Settings. The page's one
 // colour, a soft blue, marks what plays and who is coaching you.
 import { createContext, useContext, useEffect, useRef, useState, type MutableRefObject } from "react";
-import type { StartCoach } from "../api";
-import { an } from "../lib/format";
-import { Notice } from "../ui/Notice";
+import type { StartCoach } from "../lib/api";
+import { an, dollars } from "../lib/format";
+import { Button } from "../ui/Button";
+import { Empty, Loadable, Notice } from "../ui/Notice";
 import { PlayButton, PlayTime, Seek } from "../ui/Player";
 
 /** "about $1.60 a workout", or nothing when the cost isn't known. */
 export function cost(c: StartCoach): string | null {
-  return typeof c.usd_per_workout === "number" ? `about $${c.usd_per_workout.toFixed(2)} a workout` : null;
+  return typeof c.usd_per_workout === "number" ? `about ${dollars(c.usd_per_workout)} a workout` : null;
 }
 
 /** The sample playing now in this gallery, so starting another pauses it. */
@@ -89,13 +90,13 @@ function heading(group: StartCoach[]): string {
 }
 
 export function CoachGallery(props: { coaches: StartCoach[]; onCoach?: (slug: string) => void;
-  onAddKey?: (service: string) => void }) {
+  onAddKey?: (service: string) => void; onOpenSettings?: () => void }) {
   const playing = useRef<HTMLAudioElement | null>(null);
   return <NowPlaying.Provider value={playing}><Gallery {...props} /></NowPlaying.Provider>;
 }
 
-function Gallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoach?: (slug: string) => void;
-  onAddKey?: (service: string) => void }) {
+function Gallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches: StartCoach[];
+  onCoach?: (slug: string) => void; onAddKey?: (service: string) => void; onOpenSettings?: () => void }) {
   // yours first, then alphabetical, so a card never moves: choosing one only rings it
   const byName = (a: StartCoach, b: StartCoach) => Number(b.own) - Number(a.own) || a.first.localeCompare(b.first);
   const ready = coaches.filter((c) => c.ready).sort(byName);
@@ -109,9 +110,12 @@ function Gallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoac
   const voiced = bySvc(ready);
   const waiting = bySvc(coaches.filter((c) => !c.ready).sort(byName));
   const services = order(waiting);
-  if (coaches.length === 0) return <p className="cx-s">No coaches yet: add a key to hear them.</p>;
+  if (coaches.length === 0) {
+    return <Empty action={onOpenSettings && <Button onClick={onOpenSettings}>Open Settings</Button>}>
+      Coaches show here once a key is added.</Empty>;
+  }
   const addKey = (service: string, label: string) => onAddKey
-    ? <button type="button" className="quiet" onClick={() => onAddKey(service)}>{label}</button>
+    ? <Button variant="text" onClick={() => onAddKey(service)}>{label}</Button>
     : <span className="cg-need">{label}</span>;
 
   if (ready.length > 0) {   // only the coaches your keys can voice, and a line on what another key would add
@@ -121,7 +125,7 @@ function Gallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoac
           const group = voiced.get(s)!, name = group[0].service_name;
           return (
             <section key={s} className="cg-group" aria-label={`${name} coaches`}>
-              <p className="cg-h">{heading(group)}</p>
+              <p className="label cg-h">{heading(group)}</p>
               <ul className="cg-list">{group.map((c) => <Card key={c.slug} c={c} onCoach={onCoach} />)}</ul>
             </section>
           );
@@ -146,7 +150,7 @@ function Gallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoac
         return (
           <section key={s} className="cg-group" aria-label={`${name} coaches`}>
             <div className="cg-group-h">
-              <p className="cg-h">{heading(group)}</p>
+              <p className="label cg-h">{heading(group)}</p>
               {addKey(s, `Add ${an(name)} ${name} key`)}
             </div>
             <ul className="cg-list">{group.map((c) => <Card key={c.slug} c={c} />)}</ul>
@@ -158,23 +162,25 @@ function Gallery({ coaches, onCoach, onAddKey }: { coaches: StartCoach[]; onCoac
 }
 
 /** The page itself: a heading, a line on what to do, and the gallery. */
-export function CoachesPage({ coaches, onCoach, onAddKey, onClose, error = null }: { coaches: StartCoach[] | null;
-  onCoach: (slug: string) => void; onAddKey: (service: string) => void; onClose: () => void;
+export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClose, error = null }: {
+  coaches: StartCoach[] | null; onCoach: (slug: string) => void; onAddKey: (service: string) => void;
+  onOpenSettings?: () => void; onClose: () => void;
   /** Why the last coach chosen didn't hold. */
   error?: string | null }) {
   const any = coaches?.some((c) => c.ready);
   return (
     <section className="page wide" aria-labelledby="coaches-title">
       <div className="page-top">
-        <h1 id="coaches-title">Coaches</h1>
-        <button type="button" className="quiet" onClick={onClose}>Back to the chat</button>
+        <h1 className="head" id="coaches-title">Coaches</h1>
+        <Button variant="text" onClick={onClose}>Back to the chat</Button>
       </div>
       <p className="page-note">{any
         ? "Listen to a sample, then tap a coach to choose them."
         : "Listen to a sample, then add the key for the coaches you like. Keys stay in Settings."}</p>
       <Notice tone="error">{error}</Notice>
-      {coaches === null ? <Notice tone="busy" className="page-note">Loading the coaches…</Notice>
-        : <CoachGallery coaches={coaches} onCoach={onCoach} onAddKey={onAddKey} />}
+      <Loadable value={coaches} what="the coaches">
+        {(list) => <CoachGallery coaches={list} onCoach={onCoach} onAddKey={onAddKey} onOpenSettings={onOpenSettings} />}
+      </Loadable>
     </section>
   );
 }

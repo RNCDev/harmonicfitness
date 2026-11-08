@@ -1,0 +1,128 @@
+/* The first screen's request, its pickers and the body chart. Part of theme.css, which imports every part in order. */
+/* ---------- the request ---------- */
+/* the request at the top, the other asks anchored at the bottom, just above the message box */
+.starter { position: relative; margin: 0; padding: clamp(var(--s-2), 3vh, var(--s-6)) 0 var(--s-2); flex: 1 0 auto; display: flex; flex-direction: column }
+.eyebrow, .demo-eyebrow { font-size: var(--fs-md); font-weight: 500 }
+.eyebrow { margin: 0 0 var(--s-4h) }
+.mad {
+  margin: 0; font: 500 var(--fs-request)/1.2 var(--display); letter-spacing: var(--track-tight); text-transform: uppercase;
+  color: var(--coral);
+}
+.mad-2 { margin-top: var(--s-2h) }
+.slot {
+  display: inline; font: inherit; letter-spacing: inherit; text-transform: inherit; line-height: inherit;
+  color: var(--ink-slot); padding: 0 2px; margin: 0 -1px; border-radius: var(--radius-control); -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
+  background-color: transparent; transition: background-color var(--t-fast);
+}
+.slot:hover:not(:disabled), .slot[aria-expanded="true"] { background-image: linear-gradient(currentColor, currentColor); background-color: var(--hover-soft) }
+.slot .car { opacity: .5; margin-left: var(--s-1h); vertical-align: middle }
+.slot.off { background-image: linear-gradient(var(--stop), var(--stop)) }   /* cream words, a brick underline: clear of the coral */
+.slot.off:hover:not(:disabled), .slot.off[aria-expanded="true"] { background-image: linear-gradient(var(--stop), var(--stop)); background-color: var(--stop-tint) }
+.flw { white-space: nowrap }
+.fl { display: inline-block; animation: flip .26s cubic-bezier(.3, 1.5, .6, 1) both; transform-origin: 50% 60% }
+@keyframes flip { from { transform: perspective(200px) rotateX(-90deg); opacity: 0 } to { transform: none; opacity: 1 } }
+.starter .hint { margin: var(--s-4) 0 0; font-size: var(--fs-base) }
+.start-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3) var(--s-4h); margin: var(--s-6h) 0 0 }
+.go.start { font-size: var(--fs-d1); padding: var(--s-4h) var(--s-6) }
+.start-note { font-size: var(--fs-base); color: var(--ink-3); max-width: 26em }
+.starter > .notice { margin-top: var(--s-3) }
+.else { margin-top: auto; padding-top: var(--s-7) }
+.else-h { margin: 0 0 var(--s-2) }
+.else-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); column-gap: var(--s-5h) }
+.else-a {
+  position: relative; display: grid; gap: 2px; width: 100%; text-align: left; padding: var(--s-3) var(--s-6h) var(--s-3) var(--s-3h);   /* the words inset from the shading */
+  border-top: 1px solid var(--rule); transition: background-color var(--t-slow), border-color var(--t-slow);
+}
+.else-a:hover:not(:disabled), .else-a:focus-visible { background: var(--hover); border-top-color: var(--ink) }
+.else-go {
+  position: absolute; right: var(--s-3); top: var(--s-3); font-size: var(--fs-xl); line-height: 1; color: var(--ink);
+  opacity: 0; transform: translateX(-6px); transition: opacity var(--t-slow), transform var(--t-slow);
+}
+.else-a:hover:not(:disabled) .else-go, .else-a:focus-visible .else-go { opacity: 1; transform: none }
+/* the one to do first (setup not finished): a cream rule, a faint tint, its arrow showing */
+.else-a.lead { border-top: 2px solid var(--ink); background: var(--lead-wash); padding-top: var(--s-3) }
+.else-a.lead .else-go { opacity: .8; transform: none }
+.else-a.lead .else-d { color: var(--ink-2) }
+.else-a:hover:not(:disabled) .else-d { color: var(--ink-2) }
+.else-t { font-weight: 600; font-size: var(--fs-body); transition: color var(--t-slow) }
+.else-d { font-size: var(--fs-md); color: var(--ink-3); line-height: 1.45 }
+.else-a:hover:not(:disabled) .else-t { color: var(--ink-hi) }
+.pick {
+  position: absolute; z-index: var(--z-menu); min-width: 220px; max-height: min(420px, 60vh); overflow-y: auto;
+  padding: var(--s-1h); border-radius: var(--radius-sheet); background: var(--sheet-2);
+  box-shadow: var(--lift), inset 0 0 0 1px var(--line); display: grid; animation: rise .16s ease-out;
+  font: var(--fs-body)/1.55 var(--font); letter-spacing: 0; text-transform: none;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(-4px) } }
+.opt { text-align: left; padding: var(--s-2h) var(--s-3); border-radius: var(--radius-control); font-size: var(--fs-body) }
+.opt:hover:not(:disabled) { background: var(--hover-row) }
+.opt:focus-visible { background: var(--hover-row); outline: 2px solid var(--ink); outline-offset: -2px }
+.opt.on { font-weight: 600; color: var(--ink-hi) }
+.opt.on::after {
+  content: ""; display: inline-block; width: 11px; height: 6px; margin-left: var(--s-2h); vertical-align: 3px;
+  border: solid currentColor; border-width: 0 0 2px 2px; transform: rotate(-45deg);
+}
+.pick-body {
+  position: fixed; z-index: var(--z-dialog); left: 50%; top: 50%; transform: translate(-50%, -50%); animation: none;
+  width: min(600px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: var(--s-6) var(--s-6);
+  grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s-6h); align-items: stretch;
+  box-shadow: var(--lift), inset 0 0 0 1px var(--line);
+}
+/* the dimmed page behind the body chart: an element, so a press on it closes the chart */
+.pick-scrim { position: fixed; inset: 0; z-index: var(--z-dialog); background: var(--scrim-dialog) }
+.pick-h { font-size: var(--fs-d2) }
+.pick-s { margin: -6px 0 2px; font-size: var(--fs-base); color: var(--ink-2) }
+/* the body chart: choose how careful, then tap round L and R buttons, head to feet; cream is go easy, dark grey keep off */
+.bleft { display: flex; flex-direction: column; gap: var(--s-4h); min-width: 0 }
+.bleft .pick-s { margin: -8px 0 0; line-height: 1.45; font-size: var(--fs-md) }
+.bleft .hint { font-size: var(--fs-sm) }
+.bkey { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4h) }
+.bkey li { display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-md); color: var(--ink-2) }
+.bkey .bdot { width: 14px; height: 14px; cursor: default; box-shadow: none }
+.bchart {
+  display: grid; grid-template-columns: max-content 30px 30px; column-gap: var(--s-3); row-gap: var(--s-2); align-items: center; align-content: start;
+  padding-left: var(--s-6); border-left: 1px solid var(--rule);
+}
+.brow2 { display: contents }
+.bsep { grid-column: 1 / -1; width: 100%; height: 0; margin: var(--s-1) 0; border: 0; border-top: 1px solid var(--rule) }
+.barea { font-size: var(--fs-md); color: var(--ink-2); text-align: right; padding-right: 2px; line-height: 30px }
+.barea:first-letter { text-transform: uppercase }
+.bdot {
+  width: 30px; height: 30px; border-radius: 50%; justify-self: center; display: grid; place-items: center;
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--track-tight); color: var(--ink-3);
+}
+.bdot:hover:not(:disabled) { color: var(--ink) }
+.bdot:active:not(:disabled) { transform: scale(.9) }
+.bdot.easy { background: var(--ink); color: var(--paper); box-shadow: none }
+.bdot.off { background: var(--mute-fill); color: var(--ink-hi); box-shadow: none }
+.bdot:disabled { outline: 1px dashed var(--ink-3); outline-offset: 2px }
+.bdot.both { grid-column: 2 / 4 }
+.bsum { border-top: 1px solid var(--rule); padding-top: var(--s-4); font-size: var(--fs-base); line-height: 1.45 }
+.bsum-none { margin: 0; color: var(--ink-3) }
+.bsum dl { margin: 0; display: grid; gap: var(--s-1) 0 }
+.bsum dt { margin-top: var(--s-1h); font-size: var(--fs-xs) }
+.bsum dt:first-child { margin-top: 0 }
+.bsum dd { margin: 0; color: var(--ink) }
+.bsum dd:first-letter { text-transform: uppercase }
+.bfoot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: var(--s-2h) }
+@media (max-width: 640px) {
+  .pick-body { grid-template-columns: minmax(0, 1fr); row-gap: var(--s-4); padding: var(--s-4h) }
+  .bchart { padding-left: 0; border-left: 0; justify-content: center }
+  .bleft { display: contents }   /* on a phone: the controls, the chart, then the summary and Done */
+  .bchart { order: 5 }
+  .bsum { order: 6 }
+  .bfoot { order: 7 }
+}
+.pick-body .done { padding: var(--s-2h) var(--s-5); font-size: var(--fs-lg) }
+
+/* on a touch screen the chart's sides are a fingertip apart: 40px dots, 44px from centre to centre */
+@media (pointer: coarse) {
+  .bchart { grid-template-columns: max-content var(--hit) var(--hit); row-gap: var(--s-1) }
+  .bdot { width: var(--control); height: var(--control) }
+  .barea { line-height: var(--control) }
+  .bchart .bdot { position: relative }
+  .bchart .bdot::after {   /* the tap area: a full fingertip, meeting the next row's with no gap between */
+    content: ""; position: absolute; left: 50%; top: 50%; width: var(--hit); height: var(--hit); transform: translate(-50%, -50%);
+  }
+}

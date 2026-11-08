@@ -91,7 +91,7 @@ body {{ margin: 0; background: var(--paper); color: var(--ink); font: var(--fs-b
 main {{ max-width: 560px; margin: 0 auto; padding: var(--s-6) var(--s-4) var(--s-7); }}
 h1 {{ font: 700 var(--fs-d3)/1.05 var(--display); letter-spacing: var(--track-head); text-transform: uppercase; margin: 0 0 var(--s-2); }}
 p {{ color: var(--ink-2); margin: 0 0 20px; }}
-.card {{ background: var(--sheet); box-shadow: inset 0 0 0 1px var(--rule); border-radius: var(--radius); padding: var(--s-4); }}
+.card {{ background: var(--sheet); box-shadow: inset 0 0 0 1px var(--rule); border-radius: var(--radius-sheet); padding: var(--s-4); }}
 audio {{ width: 100%; color-scheme: dark; }}
 .now {{ font-size: var(--fs-md); color: var(--ink-3); margin: var(--s-2) 0 0; }}
 ul {{ list-style: none; padding: 0; margin: 20px 0 0; }}
@@ -135,7 +135,7 @@ FALLBACK_TOKENS = """:root {
   --ink-hi: #FFFFFF; --rule: #34353B;
   --font: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
-  --fs-md: 14px; --fs-body: 16px; --fs-d3: 30px; --track-head: .05em; --radius: 2px;
+  --fs-md: 14px; --fs-body: 16px; --fs-d3: 30px; --track-head: .05em; --radius-sheet: 2px;
   --s-2: 8px; --s-4: 16px; --s-6: 32px; --s-7: 48px;
   color-scheme: dark;
 }"""

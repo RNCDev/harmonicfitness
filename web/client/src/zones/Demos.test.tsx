@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { DEMOS, Demos, TURN_MS } from "./Demos";
-import { sentence } from "./zones/Starter";
+import { sentence } from "../lib/request";
 
 const slides = (c: HTMLElement) => [...c.querySelectorAll<HTMLElement>(".demo-slide")];
 const shown = (c: HTMLElement) => slides(c).findIndex((s) => s.classList.contains("on"));

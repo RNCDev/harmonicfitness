@@ -1,7 +1,7 @@
 // Set or change the password: on the page that asks for one, and in Settings. The rule (at least eight
 // characters) is checked as you type once you've tried, and said under the box it's about.
 import { useState, type FormEvent } from "react";
-import { api } from "../api";
+import { api } from "../lib/api";
 import { Quiet, useAction } from "../lib/useAction";
 import { Button } from "./Button";
 import { Field } from "./Field";
@@ -38,17 +38,17 @@ export function PasswordForm({ username, needsCurrent, onDone }: {
       {/* lets a password manager save the pair */}
       <input type="text" name="username" autoComplete="username" hidden readOnly value={username} />
       {needsCurrent && (
-        <Field id="pw-current" label="Current password">
+        <Field id="pw-current" label="Current password" error={save.errorFor("current")}>
           <input className="input" type="password" autoComplete="current-password" required value={current}
             onChange={(e) => setCurrent(e.target.value)} />
         </Field>
       )}
       <Field id="pw-new" label="New password" hint={`At least ${MIN_PASSWORD} characters. Other devices are signed out.`}
-        error={short}>
+        error={short ?? save.errorFor("new")}>
         <input className="input" type="password" autoComplete="new-password" required value={next}
           onChange={(e) => setNext(e.target.value)} />
       </Field>
-      <Notice tone="error">{save.error}</Notice>
+      <Notice tone="error">{save.errorFor()}</Notice>
       <Button type="submit" variant="outline" busy={save.busy} busyLabel="Saving…">
         {needsCurrent ? "Change password" : "Save password"}
       </Button>

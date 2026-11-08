@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { StartCoach } from "../api";
+import type { StartCoach } from "../lib/api";
 import { CoachesPage } from "./Coaches";
 
 const coaches: StartCoach[] = [

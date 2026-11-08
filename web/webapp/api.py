@@ -395,6 +395,12 @@ def folder_from_zip(data: bytes) -> tuple[dict[str, bytes], int]:
         raise ValueError("That ZIP has no profile.md: zip the me folder itself.")
     return files, left_out
 
+def _refused(status: int, message: str, field: str) -> JSONResponse:
+    """A refusal about one box of a form: `detail` says why, as every refusal does, and `field` names the box (the
+    request's own key: "username", "password", "current", "new"), so the page can say it there."""
+    return JSONResponse({"detail": message, "field": field}, status)
+
+
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
                client_dist: str | os.PathLike | None = None) -> FastAPI:
     """The app. `connect` (tests) opens a connection; without it requests use a pool of
@@ -505,9 +511,9 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             with connection() as conn:
                 token = auth.register(conn, settings, body.username, body.password)
         except auth.Invalid as e:
-            raise HTTPException(400, str(e)) from None
+            return _refused(400, str(e), e.field)
         except auth.Taken:
-            raise HTTPException(409, "That username is taken.") from None
+            return _refused(409, "That username is taken.", "username")
         reg_all.hit("all")
         return signed_in(token, 201)
 
@@ -532,9 +538,9 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 auth.set_password(conn, uk.user_id, body.current, body.new,
                                   keep_session=request.cookies.get(COOKIE))
         except auth.Invalid as e:
-            raise HTTPException(400, str(e)) from None
+            return _refused(400, str(e), "new" if e.field == "password" else e.field)
         except auth.WrongPassword:
-            raise HTTPException(400, "Your current password isn't right.") from None
+            return _refused(400, "Your current password isn't right.", "current")
         return Response(status_code=204)
 
     @app.get("/link/{token}", response_class=HTMLResponse)

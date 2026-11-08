@@ -1,0 +1,112 @@
+/* The Settings drawer. Part of theme.css, which imports every part in order. */
+/* ---------- Settings ---------- */
+/* One column on a phone; on a wide screen two rows of two, each pair split by a rule: the keys beside your
+   choices (level, recording, background), then your files beside the account. Each section opens with a small
+   label; a section's own items sit 22px apart, sections 30px. */
+.ctx-scrim { display: none }
+.ctx-scrim.show { display: block; position: fixed; inset: 0; z-index: var(--z-scrim); background: var(--scrim); backdrop-filter: blur(2px) }
+.ctx {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 94vw); z-index: var(--z-drawer); background: var(--drawer); color: var(--ink);
+  padding: var(--s-5) var(--s-5) var(--s-6); overflow-y: auto; transform: translateX(105%); visibility: hidden;
+  box-shadow: inset 1px 0 0 var(--rule), var(--lift);
+  transition: transform var(--t-slide) var(--ease-slide), visibility var(--t-slide);
+}
+/* visible at once on opening, so focus can move in; hidden only once it has slid out */
+.ctx.open { transform: none; visibility: visible; transition: transform var(--t-slide) var(--ease-slide) }
+.ctx-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s-4h) }
+.ctx-top h2 { font-size: var(--fs-d3); line-height: 1; letter-spacing: var(--track-btn) }
+.ctx-close { font-size: var(--fs-md); letter-spacing: var(--track-btn); text-transform: uppercase; color: var(--ink-2); padding: var(--s-3) 0 var(--s-3) var(--s-3) }
+.ctx-close:hover:not(:disabled) { color: var(--ink-hi) }
+.cx-list { display: grid; grid-template-columns: minmax(0, 1fr) }
+.cx-cell { display: grid; gap: var(--s-5); align-content: start; min-width: 0; padding: var(--s-5) 0 }
+.cx-cell:first-child { padding-top: var(--s-1) }
+.cx-cell + .cx-cell { border-top: 1px solid var(--rule) }
+.cx-files, .cx-account { gap: var(--s-2h); justify-items: start }
+@media (min-width: 1000px) {
+  .ctx { width: min(900px, 94vw); padding: var(--s-5) var(--s-6h) var(--s-6) }
+  .ctx-top { margin-bottom: var(--s-5) }
+  .cx-list { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) }
+  .cx-cell { padding: 0 0 var(--s-5h) }
+  .cx-cell:nth-child(odd) { padding-right: var(--s-6) }
+  .cx-cell:nth-child(even) { padding-left: var(--s-6); box-shadow: inset 1px 0 0 var(--rule) }
+  .cx-cell + .cx-cell { border-top: 0 }
+  .cx-list > .cx-files, .cx-list > .cx-account { border-top: 1px solid var(--rule); padding-top: var(--s-5); padding-bottom: 0 }
+}
+.cx-box { display: grid; gap: var(--s-1); min-width: 0 }
+.cx-h { margin: 0 0 var(--s-1h) }
+.cx-files > .cx-h, .cx-account > .cx-h { margin-bottom: 0 }
+.cx-files code { font-size: .95em }
+
+/* the keys: two lists of one-line rows, the writer's chosen row tinted */
+.keys-group { margin-top: var(--s-4) }
+.keys-group:first-of-type { margin-top: 2px }
+.keys-group > [role=radiogroup], .keys-group > div { margin-top: var(--s-2); border-top: 1px solid var(--rule) }
+.keys-h { margin: 0; font-size: var(--fs-base); font-weight: 600; color: var(--ink) }
+.keys-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-1) var(--s-3);
+  padding: var(--s-2) var(--s-2h); border-bottom: 1px solid var(--rule);
+}
+.keys-row > * { grid-column: 1 / -1 }
+.keys-row > .keys-id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: var(--s-2h); min-width: 0; min-height: 26px }
+.keys-label { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s-2h); min-width: 0 }
+.keys-row.writer .keys-name { cursor: pointer }
+.keys-row.writer.on { background: var(--selected); box-shadow: inset 2px 0 0 var(--ink) }
+.keys-row > .keys-actions:not(.confirm) { grid-column: 2; grid-row: 1; justify-self: end }
+.keys-row > .confirm { margin-top: 2px }
+.keys-row .keys-name { font-weight: 600 }
+.keys-row.writer > .keys-note { padding-left: var(--s-5h) }
+.keys-bal { font-size: var(--fs-md); color: var(--ink-3); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums }
+a.keys-bal:hover { color: var(--ink); text-decoration: underline }
+.keys-bill { display: inline-flex; align-items: center; padding: var(--s-1); margin: -4px 0; color: var(--ink-3) }
+.keys-bill:hover, .keys-bill:focus-visible { color: var(--ink) }
+.keys-actions { display: flex; flex-wrap: wrap; gap: var(--s-3h); align-items: center }
+.keys-actions .quiet { font-size: var(--fs-md) }
+.keys-id input[type=radio] { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--ink); cursor: pointer }
+.keys-note { margin: 0 }
+.keys-tag { font-size: var(--fs-xs); font-weight: 600; letter-spacing: var(--track-head); padding: 0 var(--s-1h); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap }
+.keys-edit { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-1h) }
+.keys-edit .label { font-size: var(--fs-md); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-2) }
+.keys-foot { margin-top: var(--s-3); color: var(--ink-3); font-size: var(--fs-sm); line-height: 1.45 }
+
+/* asking before something goes: the question, then the brick button and the way back */
+.confirm { display: inline-flex; flex-wrap: wrap; gap: var(--s-2h) var(--s-3h); align-items: center }
+.confirm-q { font-size: var(--fs-md); color: var(--stop) }
+
+/* your level: three sentences as radio rows */
+.level-opts { display: grid; margin: 0 0 var(--s-1); border-top: 1px solid var(--rule) }
+.level-opt {
+  display: flex; align-items: flex-start; gap: var(--s-2h); text-align: left; padding: var(--s-2) var(--s-2h); font-size: var(--fs-base); line-height: 1.4;
+  color: var(--ink-2); border-bottom: 1px solid var(--rule); transition: background-color var(--t-fast), color var(--t-fast);
+}
+.level-opt:hover:not(:disabled) { color: var(--ink); background: var(--hover-faint) }
+.level-opt.on { color: var(--ink); background: var(--selected); box-shadow: inset 2px 0 0 var(--ink) }
+.level-dot { flex: none; width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-3) }
+.level-opt.on .level-dot { box-shadow: inset 0 0 0 1.5px var(--ink), inset 0 0 0 5px var(--drawer); background: var(--ink) }
+
+/* recording: the switch's note sits under its words */
+.switch-note { padding-left: var(--s-5h) }
+
+/* the background: six small pictures, three across; the words are each one's tooltip */
+.sky-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin: 0 0 var(--s-1) }
+.sky-opt { display: grid; gap: var(--s-1h); text-align: left; padding: var(--s-1h) var(--s-1h) var(--s-2); min-width: 0 }
+.sky-opt.on { box-shadow: inset 0 0 0 2px var(--ink) }
+.sky-opt.on:hover:not(:disabled) { box-shadow: inset 0 0 0 2px var(--ink) }
+.sky-mini { display: block; width: 100%; height: auto; background: var(--paper); color: var(--ink) }
+.sky-opt-name { font-weight: 500; font-size: var(--fs-md); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.sky-credit { margin-top: 2px; font-size: var(--fs-sm); color: var(--ink-3) }
+.sky-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px }
+
+/* files and account: a row of outlined actions; what one opens comes below the row */
+.act-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); width: 100% }
+.act-row > .cx-box { display: contents }
+.act-row > .cx-box > :not(.act) { order: 1; flex-basis: 100% }
+/* the account's foot: sign out, then delete (the one in brick), and the version at the far end */
+.cx-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-2) var(--s-5); width: 100%; margin-top: var(--s-2) }
+.cx-foot .cx-box { justify-items: start }
+.cx-foot .quiet { font-size: var(--fs-md) }
+.cx-foot .cx-version { margin-left: auto }
+.cx-foot .cx-box:has(form) { flex-basis: 100%; order: 2 }   /* the question before deleting: a line of its own */
+.cx-version { margin: 0; font-size: var(--fs-sm); color: var(--ink-3); font-variant-numeric: tabular-nums }
+.device { margin-top: var(--s-3) }
+.qr { display: block; margin: var(--s-3) 0; width: 200px; height: 200px; max-width: 100% }
+.link { margin: 0; font-size: var(--fs-sm); overflow-wrap: anywhere }

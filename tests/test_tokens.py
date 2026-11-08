@@ -46,6 +46,15 @@ class Tokens(unittest.TestCase):
         body = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
         self.assertEqual(re.findall(r"#[0-9A-Fa-f]{3,8}\b", body), [])
 
+    def test_the_docs_stylesheet_types_no_size_outside_its_own_tokens(self):
+        """Type sizes come from tokens.css (or the three docs-only heading sizes named at its top), and every
+        token it uses is defined."""
+        css = re.sub(r"/\*.*?\*/", "", read(os.path.join(ROOT, "docs", "docs.css")), flags=re.S)
+        rules = css[css.index("}", css.index(":root")) + 1:]   # after the docs' own :root
+        self.assertEqual(re.findall(r"font(?:-size)?:[^;}]*?(?:\b\d+(?:\.\d+)?px|clamp\()", rules), [])
+        defined = set(re.findall(r"(--[\w-]+)\s*:", read(TOKENS) + css))
+        self.assertEqual(set(re.findall(r"var\((--[\w-]+)", css)) - defined - {"--c"}, set())
+
     def test_the_player_page_is_the_apps_look(self):
         with tempfile.TemporaryDirectory() as d:
             page = webcopy.page("Workout", [os.path.join(d, "Workout.web-1.mp3")], os.path.join(d, "p.html"))

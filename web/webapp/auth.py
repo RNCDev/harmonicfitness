@@ -39,7 +39,12 @@ class Refused(Exception):
 
 
 class Invalid(ValueError):
-    """A username or password that can't be used; the message says why, for the person."""
+    """A username or password that can't be used; the message says why, for the person, and `field` which box it's
+    about ("username" or "password"), so the page can say it under that box."""
+
+    def __init__(self, message: str, field: str):
+        super().__init__(message)
+        self.field = field
 
 
 class Taken(Exception):
@@ -62,15 +67,15 @@ def username(raw) -> str:
     name = raw.strip().lower() if isinstance(raw, str) else ""
     if not USERNAME.match(name):
         raise Invalid("A username is 3 to 32 letters, digits, dots, dashes or underscores, "
-                      "starting with a letter or digit.")
+                      "starting with a letter or digit.", "username")
     return name
 
 
 def _check_password(pw) -> str:
     if not isinstance(pw, str) or len(pw) < PASSWORD_MIN:
-        raise Invalid(f"Use a password of at least {PASSWORD_MIN} characters.")
+        raise Invalid(f"Use a password of at least {PASSWORD_MIN} characters.", "password")
     if len(pw) > PASSWORD_MAX:
-        raise Invalid(f"Use a password of at most {PASSWORD_MAX} characters.")
+        raise Invalid(f"Use a password of at most {PASSWORD_MAX} characters.", "password")
     return pw
 
 

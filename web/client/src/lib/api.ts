@@ -5,8 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export const APP_NAME = "HarmonicFitness";
 
 export class NotSignedIn extends Error {}
+/** A refusal, in the server's words; `field` names the form's box it's about, when the server says. */
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public field?: string) {
     super(message);
   }
 }
@@ -97,13 +98,15 @@ async function checked(r: Response): Promise<Response> {
   }
   if (!r.ok) {
     let detail = r.statusText;
+    let field: string | undefined;
     try {
       const j = await r.json();
       if (typeof j?.detail === "string") detail = j.detail;
+      if (typeof j?.field === "string") field = j.field;
     } catch {
       /* no JSON body */
     }
-    throw new ApiError(r.status, detail);
+    throw new ApiError(r.status, detail, field);
   }
   return r;
 }
@@ -265,20 +268,33 @@ export function useJob() {
   return { job, watch, stop };
 }
 
-/** Each keyed service's balance, from a check the worker runs: null when it failed or took too long. */
-export async function checkBalances(opts: { every?: number; within?: number; live?: () => boolean } = {}):
-  Promise<Record<string, Balance> | null> {
+/** How waiting on a background job ended: its result once done, else why there is none. "gone": the screen that
+ * asked closed first. */
+export type JobEnd = { state: "done"; result: unknown } | { state: "failed" | "timeout" | "gone" };
+
+/** Wait for a worker job, reading it every `every` ms for at most `within` ms, while `live()` holds. The one
+ * polling loop on this side: the balance check and the feedback's summary both use it. A failed read ends it as
+ * failed. */
+export async function waitForJob(id: number, opts: { every?: number; within?: number; live?: () => boolean } = {})
+  : Promise<JobEnd> {
   const { every = 1500, within = 90_000, live = () => true } = opts;
-  const { id } = await api.balances();
   const until = Date.now() + within;
   while (live()) {
     const j = await api.jobResult(id);
-    if (j.state === "done") {
-      const found = (j.result as { balances?: unknown } | null)?.balances;
-      return found && typeof found === "object" ? (found as Record<string, Balance>) : null;
-    }
-    if (j.state === "failed" || Date.now() >= until) return null;
+    if (j.state === "done") return { state: "done", result: j.result };
+    if (j.state === "failed") return { state: "failed" };
+    if (Date.now() >= until) return { state: "timeout" };
     await new Promise((r) => setTimeout(r, every));
   }
-  return null;
+  return { state: "gone" };
+}
+
+/** Each keyed service's balance, from a check the worker runs: null when it failed or took too long. */
+export async function checkBalances(opts: { every?: number; within?: number; live?: () => boolean } = {}):
+  Promise<Record<string, Balance> | null> {
+  const { id } = await api.balances();
+  const end = await waitForJob(id, opts);
+  if (end.state !== "done") return null;
+  const found = (end.result as { balances?: unknown } | null)?.balances;
+  return found && typeof found === "object" ? (found as Record<string, Balance>) : null;
 }

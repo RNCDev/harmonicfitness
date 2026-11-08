@@ -2,13 +2,19 @@
 // for a password when an account has none (one from before passwords, or after a reset link).
 import { useEffect, useState, type FormEvent } from "react";
 import { Demos } from "./Demos";
-import { api } from "./api";
-import { Quiet, useAction } from "./lib/useAction";
-import { Button } from "./ui/Button";
-import { Field } from "./ui/Field";
-import { Notice } from "./ui/Notice";
-import { MIN_PASSWORD, PasswordForm, tooShort } from "./ui/PasswordForm";
-import { Solo } from "./ui/Solo";
+import { api } from "../lib/api";
+import { Quiet, useAction } from "../lib/useAction";
+import { Button } from "../ui/Button";
+import { Field } from "../ui/Field";
+import { Notice } from "../ui/Notice";
+import { MIN_PASSWORD, PasswordForm, tooShort } from "../ui/PasswordForm";
+
+/** The server's rule for a new username (web/webapp/auth.py USERNAME), checked here too, as you type once you've
+ * tried, so it's said under the box before anything is sent. */
+const USERNAME = /^[a-z0-9][a-z0-9_.-]{2,31}$/;
+export const badName = (name: string) => (USERNAME.test(name.trim().toLowerCase()) ? null
+  : "Use 3 to 32 letters, numbers, dots, dashes or underscores, starting with a letter or number.");
+import { Solo } from "../ui/Solo";
 
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [mode, setMode] = useState<"in" | "new">("in");
@@ -27,8 +33,9 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
 
   const fresh = mode === "new";
   const short = fresh && tried ? tooShort(password) : null;
+  const nameWrong = fresh && tried ? badName(username) : null;
   const go = useAction(async () => {
-    if (fresh && tooShort(password)) throw new Quiet();
+    if (fresh && (tooShort(password) || badName(username))) throw new Quiet();
     await (fresh ? api.register : api.signIn)(username, password);
     onSignedIn();
   });
@@ -49,29 +56,30 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     <Solo version={version} beside={<Demos />}>
       <h1>{fresh ? "Make an account" : "Sign in"}</h1>
       <form className="auth" onSubmit={submit} noValidate>
-        <Field id="signin-username" label="Username"
+        <Field id="signin-username" label="Username" error={nameWrong ?? go.errorFor("username")}
           hint={fresh ? "3 to 32 characters: letters, numbers, dots, dashes or underscores." : null}>
           <input className="input" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false}
             required value={username} onChange={(e) => setUsername(e.target.value)} />
         </Field>
-        <Field id="signin-password" label="Password" hint={fresh ? `At least ${MIN_PASSWORD} characters.` : null} error={short}>
+        <Field id="signin-password" label="Password" hint={fresh ? `At least ${MIN_PASSWORD} characters.` : null}
+          error={short ?? go.errorFor("password")}>
           <input className="input" name="password" type="password" required
             autoComplete={fresh ? "new-password" : "current-password"}
             value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
-        <Notice tone="error">{go.error}</Notice>
+        <Notice tone="error">{go.errorFor()}</Notice>
         <Button type="submit" variant="primary" busy={go.busy} busyLabel={fresh ? "Making it…" : "Signing in…"}>
           {fresh ? "Make my account" : "Sign in"}
         </Button>
       </form>
       {fresh ? (
-        <p>Have an account? <button type="button" className="quiet" onClick={() => switchTo("in")}>
-          Sign in</button></p>
+        <p>Have an account? <Button variant="text" onClick={() => switchTo("in")}>
+          Sign in</Button></p>
       ) : (
         <>
           {open && (
-            <p>New here? <button type="button" className="quiet" onClick={() => switchTo("new")}>
-              Make an account</button></p>
+            <p>New here? <Button variant="text" onClick={() => switchTo("new")}>
+              Make an account</Button></p>
           )}
           <p className="hint">Forgot your password? Ask the person who runs this site to send you a reset link.</p>
         </>

@@ -1,10 +1,10 @@
 // The app: the sign-in page, or once signed in the sky, the chat, and the Settings drawer.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, APP_NAME, NotSignedIn, setAuthLost, type KeyState, type Me } from "./api";
-import { ChoosePassword, SignIn } from "./SignIn";
-import { Mark } from "./Mark";
-import { Sky, type SkyKind } from "./Sky";
-import { useConversation } from "./conversation";
+import { api, APP_NAME, NotSignedIn, setAuthLost, type KeyState, type Me } from "./lib/api";
+import { ChoosePassword, SignIn } from "./zones/SignIn";
+import { Mark } from "./ui/Mark";
+import { Sky, type SkyKind } from "./ui/Sky";
+import { useConversation } from "./lib/conversation";
 import { hasModelKey, keyRows } from "./lib/keys";
 import { stepsOf } from "./lib/steps";
 import { useSaved } from "./lib/useAction";
@@ -126,28 +126,28 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
         <header className="work-top">
           <Mark />
           <span className="top-gap" />
-          {conv && page === "chat" && <button type="button" className="top-btn new" onClick={reset} disabled={working}>
+          {conv && page === "chat" && <button type="button" className="top-btn outlined new" onClick={reset} disabled={working}>
             <Icon name="plus" size={14} weight={3.4} />
             New workout
           </button>}
-          <button type="button" className="top-btn new page-toggle" aria-pressed={page === "coaches"} title="Hear and choose your coach"
+          <button type="button" className="top-btn outlined new page-toggle" aria-pressed={page === "coaches"} title="Hear and choose your coach"
             aria-label="Coaches" onClick={() => toggle("coaches")}>
             <Icon name="coaches" size={16} />
             <span className="top-label">Coaches</span>
           </button>
-          <button type="button" className="top-btn new page-toggle" aria-pressed={page === "logs"} title="Your past workouts"
+          <button type="button" className="top-btn outlined new page-toggle" aria-pressed={page === "logs"} title="Your past workouts"
             aria-label="Logs" onClick={() => toggle("logs")}>
             <Icon name="logs" size={16} />
             <span className="top-label">Logs</span>
           </button>
-          <button ref={gear} type="button" className="top-btn icon" aria-label="Settings" title="Settings"
+          <button ref={gear} type="button" className="top-btn outlined icon" aria-label="Settings" title="Settings"
             aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
             <Icon name="gear" size={18} weight={1.7} />
           </button>
         </header>
         {page === "logs" && <Logs onClose={() => go("chat")} />}
         {page === "coaches" && <CoachesPage coaches={start ? coaches : null} onCoach={(slug) => void chooseCoach(slug)}
-          onAddKey={addVoiceKey} onClose={() => go("chat")} error={coachError} />}
+          onAddKey={addVoiceKey} onOpenSettings={() => setDrawer(true)} onClose={() => go("chat")} error={coachError} />}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
         <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
           onSend={send} onStop={halt} onOpenKeys={() => setDrawer(true)} coachBar={coachBar}

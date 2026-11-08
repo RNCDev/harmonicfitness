@@ -120,9 +120,12 @@ class SignIn(ApiCase):
                           "has_password": True, "version": VERSION, "sky": "flow", "auto_record": False})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/context").json()])
         r = self.register("FRESH.ONE", client=self.other_client())
-        self.assertEqual((r.status_code, r.json()["detail"]), (409, "That username is taken."))
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.json(), {"detail": "That username is taken.", "field": "username"})
         r = self.register("pw", "short", client=self.other_client())
-        self.assertEqual(r.status_code, 400)
+        self.assertEqual((r.status_code, r.json()["field"]), (400, "username"))   # the name is checked first
+        r = self.register("another.one", "short", client=self.other_client())
+        self.assertEqual((r.status_code, r.json()["field"]), (400, "password"))
         r = self.register("okname", "short", client=self.other_client())
         self.assertEqual(r.json()["detail"], "Use a password of at least 8 characters.")
         for body in ({"username": "a"}, {"username": 5, "password": "long enough"},

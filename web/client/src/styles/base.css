@@ -1,0 +1,9 @@
+/* The page itself: box sizing, the body, a button's reset, focus, links. Part of theme.css, which imports every part in order. */
+* { box-sizing: border-box }
+html, body { margin: 0; height: 100% }
+body { color: var(--ink); background: var(--paper); font: var(--fs-body)/1.55 var(--font); -webkit-font-smoothing: antialiased; overflow-x: hidden }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: var(--radius-sheet) }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+a { color: var(--ink) }
+a:hover { color: var(--ink-hi) }

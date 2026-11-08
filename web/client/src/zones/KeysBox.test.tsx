@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { balanceText, KeysBox } from "./KeysBox";
-import { api, ApiError, checkBalances, NotSignedIn, type KeyState } from "../api";
+import { api, ApiError, checkBalances, NotSignedIn, type KeyState } from "../lib/api";
 
-vi.mock("../api", async (orig) => {
-  const real = await orig<typeof import("../api")>();
+vi.mock("../lib/api", async (orig) => {
+  const real = await orig<typeof import("../lib/api")>();
   return { ...real, checkBalances: vi.fn(),
     api: { keys: vi.fn(), setKey: vi.fn(), deleteKey: vi.fn(), setWriter: vi.fn() } };
 });

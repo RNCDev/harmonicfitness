@@ -1,14 +1,16 @@
 // The Logs page: every logged workout, newest first, with its script, feedback, a rating and delete.
 // Sorted and filtered here, in the page; each change goes to the server and the list is read again.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, NotSignedIn, plainError, workoutRef, type Rating, type Workout } from "../api";
+import { api, NotSignedIn, plainError, waitForJob, workoutRef, type Rating, type Workout } from "../lib/api";
+import { longDate } from "../lib/format";
 import { optimistic, useAction } from "../lib/useAction";
+import { useResource } from "../lib/useResource";
 import { AudioFile } from "../ui/AudioFile";
 import { Button } from "../ui/Button";
 import { ConfirmInline } from "../ui/ConfirmInline";
 import { Field } from "../ui/Field";
 import { Icon } from "../ui/icons";
-import { Notice } from "../ui/Notice";
+import { Empty, Loadable, Notice } from "../ui/Notice";
 
 type Sort = "newest" | "oldest" | "longest" | "shortest" | "best" | "worst";
 type RatingFilter = "all" | Rating | "unrated";
@@ -20,14 +22,6 @@ const RATINGS: { value: Rating; label: string }[] = [
   { value: "negative", label: "Negative" },
 ];
 const SCORE: Record<string, number> = { positive: 2, neutral: 1, negative: 0 };
-
-/** "Fri 30 Oct 2026" from "2026-10-30", read as the listener's own date. */
-export function longDate(day: string): string {
-  const [y, m, d] = day.split("-").map(Number);
-  if (!y || !m || !d) return day;
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short",
-    year: "numeric" });
-}
 
 /** The workouts the controls leave, in their order. */
 export function arrange(list: Workout[], q: string, rating: RatingFilter, format: string, kit: string,
@@ -55,23 +49,24 @@ export function arrange(list: Workout[], q: string, rating: RatingFilter, format
 }
 
 export function Logs({ onClose }: { onClose: () => void }) {
-  const [list, setList] = useState<Workout[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const res = useResource(api.workouts, "Couldn't load your workouts.");
+  const list = res.data;
   const [q, setQ] = useState("");
   const [rating, setRating] = useState<RatingFilter>("all");
   const [format, setFormat] = useState("all");
   const [kit, setKit] = useState("all");
   const [sort, setSort] = useState<Sort>("newest");
 
+  // after a change, the list is read again; a failed read leaves the list as it was and asks again
+  const { set, reload } = res;
   const load = useCallback(async () => {
     try {
-      setList(await api.workouts());
-      setError(null);
-    } catch (e) {
-      if (!(e instanceof NotSignedIn)) setError(plainError(e, "Couldn't load your workouts. Try again in a moment."));
+      const fresh = await api.workouts();
+      set(() => fresh);
+    } catch {
+      reload();
     }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  }, [set, reload]);
 
   const formats = useMemo(() => [...new Set((list ?? []).map((w) => w.format ?? "").filter(Boolean))].sort(), [list]);
   const kits = useMemo(() => [...new Set((list ?? []).map((w) => w.kit))].sort(), [list]);
@@ -80,39 +75,34 @@ export function Logs({ onClose }: { onClose: () => void }) {
   return (
     <section className="page" aria-labelledby="logs-title">
       <div className="page-top">
-        <h1 id="logs-title">Logs</h1>
-        <button type="button" className="quiet" onClick={onClose}>Back to the chat</button>
+        <h1 className="head" id="logs-title">Logs</h1>
+        <Button variant="text" onClick={onClose}>Back to the chat</Button>
       </div>
       <div className="logs-controls">
-        <label className="logs-search">
-          <span className="sr">Search</span>
+        <Field id="logs-search" label="Search" hideLabel className="logs-search">
           <input className="input" type="search" placeholder="Search movements, topics, feedback" value={q}
             onChange={(e) => setQ(e.target.value)} />
-        </label>
-        <label>
-          <span>Rating</span>
+        </Field>
+        <Field id="logs-rating" label="Rating">
           <select className="input" value={rating} onChange={(e) => setRating(e.target.value as RatingFilter)}>
             <option value="all">All</option>
             {RATINGS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             <option value="unrated">Not rated</option>
           </select>
-        </label>
-        <label>
-          <span>Format</span>
+        </Field>
+        <Field id="logs-format" label="Format">
           <select className="input" value={format} onChange={(e) => setFormat(e.target.value)}>
             <option value="all">All</option>
             {formats.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
-        </label>
-        <label>
-          <span>Kit</span>
+        </Field>
+        <Field id="logs-kit" label="Kit">
           <select className="input" value={kit} onChange={(e) => setKit(e.target.value)}>
             <option value="all">All</option>
             {kits.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
-        </label>
-        <label>
-          <span>Sort</span>
+        </Field>
+        <Field id="logs-sort" label="Sort">
           <select className="input" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -121,19 +111,24 @@ export function Logs({ onClose }: { onClose: () => void }) {
             <option value="best">Best rated first</option>
             <option value="worst">Worst rated first</option>
           </select>
-        </label>
+        </Field>
       </div>
-      <Notice tone="error">{error}</Notice>
-      {list === null && !error && <Notice tone="busy" className="page-note">Loading your workouts…</Notice>}
-      {list !== null && list.length === 0 && <p className="page-note">No workouts logged yet.</p>}
-      {list !== null && list.length > 0 && shown.length === 0 &&
-        <p className="page-note">No workouts match. <button type="button" className="quiet" onClick={() => {
-          setQ(""); setRating("all"); setFormat("all"); setKit("all");
-        }}>Clear the filters</button></p>}
-      {list !== null && list.length > 0 && <p className="page-count">{shown.length} of {list.length} workouts</p>}
-      <ol className="logs-list">
-        {shown.map((w) => <WorkoutCard key={workoutRef(w) + w.date} w={w} onChanged={load} />)}
-      </ol>
+      <Loadable value={list} error={res.error} onRetry={res.reload} what="your workouts" isEmpty={(l) => l.length === 0}
+        empty={<Empty action={<Button onClick={onClose}>Plan a workout</Button>}>
+          Your workouts show here once you've recorded one.</Empty>}>
+        {(all) => (
+          <>
+            {shown.length === 0 &&
+              <p className="page-note">No workouts match. <Button variant="text" onClick={() => {
+                setQ(""); setRating("all"); setFormat("all"); setKit("all");
+              }}>Clear the filters</Button></p>}
+            <p className="page-count">{shown.length} of {all.length} workouts</p>
+            <ol className="logs-list">
+              {shown.map((w) => <WorkoutCard key={workoutRef(w) + w.date} w={w} onChanged={load} />)}
+            </ol>
+          </>
+        )}
+      </Loadable>
     </section>
   );
 }
@@ -146,7 +141,8 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [rated, setRated] = useState<Rating | null>(w.rating);
-  /** What the coach noted from the last feedback (worked out in the background): null until it says. */
+  /** What the coach noted from the last feedback (worked out in the background): null until it says. Until then,
+   * and if it never says, "Feedback saved." stays, so the listener knows the note went in. */
   const [noted, setNoted] = useState<string | null>(null);
   const live = useRef(true);
   useEffect(() => () => { live.current = false; }, []);
@@ -154,21 +150,16 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
 
   /** Follow the enrichment job until it ends (two minutes at most), then show its summary, if any. */
   const follow = async (id: number) => {
-    setNoted("Noting what that tells me…");
-    for (let i = 0; i < 60 && live.current; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      try {
-        const j = await api.jobResult(id);
-        if (j.state === "done") {
-          const summary = (j.result as { summary?: unknown } | null)?.summary;
-          return setNoted(typeof summary === "string" && summary.trim() ? summary : null);
-        }
-        if (j.state === "failed") return setNoted(null);
-      } catch {
-        return setNoted(null);
-      }
+    setNoted("Feedback saved. Noting what that tells me…");
+    let end;
+    try {
+      end = await waitForJob(id, { every: 2000, within: 120_000, live: () => live.current });
+    } catch {
+      end = { state: "failed" as const };
     }
-    if (live.current) setNoted(null);
+    if (!live.current) return;
+    const summary = end.state === "done" ? (end.result as { summary?: unknown } | null)?.summary : null;
+    setNoted(typeof summary === "string" && summary.trim() ? summary : "Feedback saved.");
   };
 
   /** A change to this workout, then the list read again. */
@@ -202,12 +193,12 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
     <li className="logs-card">
       <div className="logs-head">
         <div>
-          <h2>{title}</h2>
+          <h2 className="head">{title}</h2>
           <p className="logs-meta">{[w.format, w.kit, w.coach].filter(Boolean).join(" · ")}</p>
         </div>
         <div className="logs-rate" role="group" aria-label={`Rate the ${title} workout`}>
           {RATINGS.map((r) => (
-            <button key={r.value} type="button" className={`rate-btn ${r.value}`} aria-pressed={rated === r.value}
+            <button key={r.value} type="button" className={`rate-btn outlined ${r.value}`} aria-pressed={rated === r.value}
               title={r.label} disabled={busy} onClick={() => void rate(r.value)}>
               <Icon name={`face-${r.value}`} size={20} weight={1.8} /><span className="sr">{r.label}</span>
             </button>
@@ -248,6 +239,7 @@ function WorkoutCard({ w, onChanged }: { w: Workout; onChanged: () => Promise<vo
           const r = await api.workoutFeedback(ref, text);
           setNote("");
           if (r?.job_id) void follow(r.job_id);
+          else setNoted("Feedback saved.");
         });
       }}>
         <Field id={`feedback-${ref}`} label="Feedback on this workout" hideLabel>

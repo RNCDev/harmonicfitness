@@ -1,4 +1,6 @@
-// The browser's own date and time, as the server's turn expects them.
+// The browser's own date and time, as the server's turn expects them, and the arithmetic on them. How a time is
+// written for a person is lib/format.ts's.
+import { timeOfDay } from "./format";
 
 /** The browser's local date as YYYY-MM-DD (never UTC's). */
 export function localDate(d: Date = new Date()): string {
@@ -20,11 +22,6 @@ export function withOffset(d: Date): string {
   const off = -d.getTimezoneOffset();
   const sign = off >= 0 ? "+" : "-";
   return `${localDate(d)}T${p(d.getHours())}:${p(d.getMinutes())}:00${sign}${p(Math.floor(Math.abs(off) / 60))}:${p(Math.abs(off) % 60)}`;
-}
-
-/** "7:00 AM" in the browser's own way of writing a time. */
-export function timeOfDay(d: Date): string {
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 /** "7:00 AM", "tomorrow at 6:30 AM", "Friday at 6:30 AM": a time ahead, from where `now` is. */

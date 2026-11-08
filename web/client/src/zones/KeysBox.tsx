@@ -4,10 +4,12 @@
 // keys wait behind a link. Add, replace or remove. A key is never shown again. A set key shows what's left on its
 // account where the service says, else a link to its billing page, beside its name.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, checkBalances, NotSignedIn, plainError, type Balance, type KeyState } from "../api";
-import { shortDay } from "../lib/format";
+import { api, NotSignedIn, plainError, type Balance, type KeyState } from "../lib/api";
+import { balance, count, shortDay } from "../lib/format";
 import { keyRows, writerRank, type KeyRowState } from "../lib/keys";
 import { useAction } from "../lib/useAction";
+import { useBalances } from "../lib/useBalances";
+import { useResource } from "../lib/useResource";
 import { Button } from "../ui/Button";
 import { ConfirmInline } from "../ui/ConfirmInline";
 import { Field } from "../ui/Field";
@@ -23,15 +25,15 @@ export type BalanceState = "checking" | Balance | null;
 export function balanceText(b: Balance): { text: string; title: string } | null {
   if (!b.ok) return null;
   if (typeof b.usd === "number") {
-    return { text: `$${b.usd.toLocaleString([], { minimumFractionDigits: 2, maximumFractionDigits: 2 })} left`,
+    return { text: `${balance(b.usd)} left`,
       title: "API credit left" };
   }
   if (typeof b.used === "number" && typeof b.limit === "number") {
     const left = Math.max(0, b.limit - b.used);
     const resets = typeof b.resets === "number"
-      ? `, resets ${new Date(b.resets * 1000).toLocaleDateString([], { month: "short", day: "numeric" })}` : "";
-    return { text: `${left.toLocaleString()} credits left`,
-      title: `${b.used.toLocaleString()} of ${b.limit.toLocaleString()} credits used this period${resets}` };
+      ? `, resets ${shortDay(new Date(b.resets * 1000))}` : "";
+    return { text: `${count(left)} credits left`,
+      title: `${count(b.used)} of ${count(b.limit)} credits used this period${resets}` };
   }
   return null;
 }
@@ -99,13 +101,13 @@ function KeyRow({ k, open, balance, onChanged, onChoose }: {
       </span>
       {!editing && !asking && (
         <span className="keys-actions">
-          <button type="button" className="quiet" aria-label={`${k.set ? "Replace" : "Add"} ${k.name} key`}
+          <Button variant="text" aria-label={`${k.set ? "Replace" : "Add"} ${k.name} key`}
             onClick={() => { setEditing(true); setSaved(null); save.clear(); }}>
             {k.set ? "Replace" : "Add"}
-          </button>
+          </Button>
           {k.set && (
-            <button type="button" className="quiet" aria-label={`Remove ${k.name} key`}
-              onClick={() => { setAsking(true); setSaved(null); remove.clear(); }}>Remove</button>
+            <Button variant="text" aria-label={`Remove ${k.name} key`}
+              onClick={() => { setAsking(true); setSaved(null); remove.clear(); }}>Remove</Button>
           )}
         </span>
       )}
@@ -144,19 +146,11 @@ type Props = {
 };
 
 export function KeysBox({ onKeys, openRow }: Props) {
-  const [keys, setKeys] = useState<KeyState[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const res = useResource(api.keys, "Couldn't load your keys.");
+  const keys = res.data, setKeys = res.set;
   const [error, setError] = useState<string | null>(null);
   const report = useRef(onKeys);
   report.current = onKeys;
-
-  useEffect(() => {
-    let live = true;
-    api.keys().then((k) => { if (live) setKeys(k); }, (e) => {
-      if (live && !(e instanceof NotSignedIn)) setLoadError(plainError(e, "Couldn't load your keys. Close Settings and open it again."));
-    });
-    return () => { live = false; };
-  }, []);
 
   useEffect(() => { if (keys) report.current?.(keys); }, [keys]);
 
@@ -189,16 +183,7 @@ export function KeysBox({ onKeys, openRow }: Props) {
   // what's left on each account that can say: asked again whenever the set of such keys changes
   const asking = useMemo(() => keyRows(keys ?? []).filter((r) => r.set && r.reports)
     .map((r) => `${r.service}@${r.updated_at ?? ""}`).join(" "), [keys]);
-  const [balances, setBalances] = useState<Record<string, Balance> | "checking" | null>(null);
-  useEffect(() => {
-    if (!asking) { setBalances(null); return; }
-    let live = true;
-    setBalances("checking");
-    checkBalances({ live: () => live }).then((b) => { if (live) setBalances(b); }, () => {
-      if (live) setBalances(null);   // the rows fall back to their billing links
-    });
-    return () => { live = false; };
-  }, [asking]);
+  const balances = useBalances(asking);
   const balanceOf = (service: string): BalanceState =>
     balances === "checking" ? "checking" : balances?.[service] ?? null;
 
@@ -228,9 +213,9 @@ export function KeysBox({ onKeys, openRow }: Props) {
 
   return (
     <section className="cx-box" aria-labelledby="cx-keys-h">
-      <h3 className="cx-h" id="cx-keys-h">Keys</h3>
+      <h3 className="label cx-h" id="cx-keys-h">Keys</h3>
       <Notice tone="error">{error}</Notice>
-      <Loadable value={keys} error={loadError} what="your keys" room={180}>
+      <Loadable value={keys} error={res.error} onRetry={res.reload} what="your keys" room={180}>
         {() => (
           <>
             {group("Who writes your workouts", required.length > 1
@@ -241,7 +226,7 @@ export function KeysBox({ onKeys, openRow }: Props) {
               : optional.length > 0 && (
                 <section className="keys-group" aria-label="More voices (optional)">
                   <p className="cx-s">Your {writer?.name} key voices your coaches too. Nothing else to add.</p>
-                  <button type="button" className="quiet" onClick={() => setMoreVoices(true)}>Add another voice (optional)</button>
+                  <Button variant="text" onClick={() => setMoreVoices(true)}>Add another voice (optional)</Button>
                 </section>
               )}
           </>

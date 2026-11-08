@@ -1,6 +1,6 @@
 // The keys, as the pages use them: a service's rows merged into one, whether a writer is set, and the order
 // a new listener meets them in.
-import type { KeyState } from "../api";
+import type { KeyState } from "./api";
 
 /** One row: a service's key, and whether it writes the workouts (model), voices a coach (voice), or both. */
 export type KeyRowState = KeyState & { voice: boolean };

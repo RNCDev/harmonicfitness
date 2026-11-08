@@ -1,0 +1,95 @@
+/* The shared looks: disabled, labels, headings, notices, fields, buttons, the empty and failed states, touch targets. Part of theme.css, which imports every part in order. */
+/* ---------- one rule for every disabled control ---------- */
+:is(button, input, select, textarea, .act):disabled, :is(button, a, .act)[aria-disabled="true"],
+label.act:has(input:disabled) { opacity: var(--disabled); cursor: not-allowed }
+.chat-form textarea:disabled { opacity: 1 }   /* the chat box dims its words instead, while the coach works */
+
+/* ---------- labels: the small uppercase line over a section or a field ---------- */
+.label {
+  display: block; margin: 0; font-size: var(--fs-sm); font-weight: 600; line-height: 1.2; letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ink-3);
+}
+
+/* ---------- headings in the display face ---------- */
+.head, .m.md :is(h1, h2, h3, h4) {
+  margin: 0; font-family: var(--display); font-weight: 700; line-height: 1.1; letter-spacing: var(--track-head); text-transform: uppercase;
+}
+
+/* ---------- notices: an error, a note, or something on its way ---------- */
+.notice { margin: 0; font-size: var(--fs-md); line-height: 1.45; color: var(--ink-2); text-wrap: pretty }
+.notice.err { color: var(--stop) }
+.notice.busy { color: var(--ink-3) }
+.cx-s { font-size: var(--fs-md); line-height: 1.45; color: var(--ink-2); margin: 2px 0 0; text-wrap: pretty }
+.hold { display: block; min-height: var(--hold, 0px) }   /* the room a section takes while it loads, so nothing jumps */
+
+/* ---------- fields ---------- */
+.field { display: grid; gap: var(--s-1h); min-width: 0 }
+.input {
+  font: inherit; font-size: var(--fs-body); color: var(--ink); background: var(--paper); border: 0; border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1px var(--line); padding: var(--s-2h) var(--s-3); min-height: 44px; width: 100%;
+  letter-spacing: 0; text-transform: none;
+}
+select.input { padding-right: var(--s-2) }
+.input:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ink) }
+.input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--stop) }
+.input[aria-invalid="true"]:focus-visible { box-shadow: inset 0 0 0 2px var(--stop) }
+.hint { margin: 0; font-size: var(--fs-md); color: var(--ink-3) }
+
+/* ---------- buttons ---------- */
+.mark { display: flex; align-items: center; gap: var(--s-2h); line-height: 1; color: var(--ink) }
+.mark svg { flex: none; display: block }
+.mark .ver { font-size: var(--fs-xs); color: var(--ink-3); align-self: flex-end; font-variant-numeric: tabular-nums }
+.quiet {
+  color: var(--ink-2); font-size: var(--fs-base); text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: var(--line); text-align: left;
+}
+.quiet:hover:not(:disabled) { color: var(--ink-hi); text-decoration-color: currentColor }
+.quiet.danger { color: var(--stop); text-decoration-color: var(--stop) }
+
+/* the outlined family: a thin line that brightens under the pointer, quieter than the cream .go */
+.outlined {
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow var(--t-fast), background-color var(--t-fast), color var(--t-fast), transform .1s;
+}
+.outlined:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--ink-2); color: var(--ink-hi);
+}
+.act {
+  display: inline-flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3h); font-size: var(--fs-md); font-weight: 500; line-height: 1.3;
+  color: var(--ink); text-decoration: none; text-align: left; cursor: pointer;
+}
+.act:hover:not(:disabled) { background: var(--hover) }
+.act:focus-visible, .act:has(:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px }
+.act.danger { color: var(--stop); box-shadow: inset 0 0 0 1px var(--danger-line) }
+.act.danger:hover:not(:disabled) { color: var(--stop); box-shadow: inset 0 0 0 1px var(--stop); background: var(--danger-wash) }
+.go {
+  display: inline-block; font: 700 var(--fs-btn)/1 var(--display); letter-spacing: var(--track-btn); text-transform: uppercase;
+  background: var(--ink); color: var(--paper); border-radius: var(--radius-control); padding: var(--s-3h) var(--s-5); white-space: nowrap; text-decoration: none;
+  transition: background-color var(--t-fast), transform var(--t-fast);
+}
+.go:hover:not(:disabled) { background: var(--ink-hi); color: var(--paper) }
+.go:active:not(:disabled) { transform: translateY(1px) }
+.go.alt {
+  background: transparent; color: var(--ink-2);
+  font: 500 var(--fs-md)/1 var(--font); letter-spacing: var(--track-btn); padding: var(--s-4) var(--s-5);
+}
+.go.alt:hover:not(:disabled) { background: transparent }
+.go.danger { background: var(--stop); color: var(--paper) }
+.go.danger:hover:not(:disabled) { background: var(--danger-hover) }
+
+/* ---------- a button at work: it keeps its words (or says what it's doing) and shows it's busy, not switched off ---------- */
+:is(button, .act)[aria-busy="true"]:disabled { opacity: .75; cursor: progress }
+.busy-dots { margin-left: 1px }
+
+/* ---------- a list's other states: failed (the reason, then Try again) and empty (what will show, then the way there) ---------- */
+.failed, .empty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3) }
+.failed .notice, .empty .page-note { margin: 0 }
+
+/* ---------- a fingertip's target: on a touch screen, a small control's tap area grows to --hit around it ---------- */
+@media (pointer: coarse) {
+  .rate-btn, .play, .keys-bill { position: relative }
+  .rate-btn::after, .play::after, .keys-bill::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, var(--hit)); height: max(100%, var(--hit));
+    transform: translate(-50%, -50%);
+  }
+}
