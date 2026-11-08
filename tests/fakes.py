@@ -37,6 +37,10 @@ class Request:
         self.method, self.path, self.headers, self.body = method, path, headers, body
 
 
+class _Server(http.server.ThreadingHTTPServer):
+    request_queue_size = 64   # the default 5 resets connections when a render sends eight or more at once
+
+
 class FakeService:
     """Start with `with FakeService(answer) as fake:`; fake.url is the base URL, fake.requests what came in.
     answer(request) returns (status, headers dict, body bytes)."""
@@ -65,7 +69,7 @@ class FakeService:
             def log_message(self, *args):
                 pass
 
-        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server = _Server(("127.0.0.1", 0), Handler)
         loud = self.server.handle_error
 
         def handle_error(request, client_address):   # a client that gave up (a test's deadline) isn't news

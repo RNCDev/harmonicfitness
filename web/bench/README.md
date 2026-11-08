@@ -57,6 +57,39 @@ Set the rule before the runs:
 
 ## Results
 
+### 0.69.1 (2026-11-08): the host and trainer at LOW
+
+The 10-minute request, three runs a configuration, from the brief to the price, about $3.60 in all. The rule, set
+before the runs: kept only if the median drops at least 25 percent and every run holds quality. None did, so
+`LEVEL` stays as it was.
+
+| Configuration | Median s (runs) | Runs clean | Kept? |
+|---|---|---|---|
+| As it is (trainer and host at MEDIUM) | 218 (293, 218, 158) | | |
+| The host at LOW | 91 (91, 82, 98) | 1 of 3 | No |
+| The trainer at LOW | 86 (86, 237, 67) | 1 of 3 | No |
+| Both at LOW | 67 (64, 67, 91) | 1 of 3 | No |
+
+Every run was priced, every final script within 4 percent of plan, and no setting took more review passes than the
+baseline's three. What failed, read in the scripts:
+- **The host at LOW:** story details stretched past the notes (a weekday the notes don't give, a number pinned to
+  one thing the notes spread over several); in another run every rep set's cues sat in paragraphs after `[reps]`, so the lint
+  never timed them, and the coach talked through about 7 s of a 27-second set.
+- **The trainer at LOW:** a warm-up knee hug, screened off today's menu and pulling with the off-limits arm, which the
+  menu gate missed ("hug your knees"); the per-movement knee stop sign dropped; story claims widened (a record
+  "in American history" where the notes said within one team). In one run it put labels before its `SAY EXACTLY:`
+  marks, so `writers.SAY` caught two of nine and the review's checklist missed the rest; the host said them anyway.
+  It kept the self-check a limit adds every time, but dropped the off-limits pain split in all three both-LOW runs.
+- **Both at LOW:** a set cued "fingertips behind ears" under an off-limits shoulder, time calls that missed their
+  marks ("halfway" at 13 s of 60), small claims past the notes.
+- **The baseline isn't clean either:** one run in three left out seven must-say lines. Every room's first lint, in
+  every configuration, failed on "off the menu" as well as the total.
+
+Found along the way, not yet fixed:
+- The lint times a set's cues only in the `[reps]` marker's own paragraph; cues in the next paragraphs go untimed.
+- `summarize.py`'s story check reads only the researcher's notes, not the top-up's, so a top-up story's names show
+  as not in the notes.
+
 ### 0.59.0 (2026-11-03): the host's length, stories from nowhere, the knowledge files
 
 0.58.0 itself (a worktree of the tag) against this release's code, three runs each, from the brief to the price.

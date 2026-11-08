@@ -232,6 +232,7 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
         left = deadline - (time.monotonic() - start)
         if left <= 0:
             raise out_of_time()
+        slowed = False   # this try met a rate limit (a 429), so the wait before the next is said on stderr
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         req.harmonicfitness_service = service
         try:
@@ -253,6 +254,7 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             # try is reported as the quota (the last error raised below).
             rate_limited = e.code == 429 and (_short(retry_after) or retry_after is None)
             limited = rate_limited or (e.code == 429 and kind == "unavailable")
+            slowed = e.code == 429
             if not rate_limited and (e.code not in RETRY_STATUS or kind != "unavailable"):
                 raise last from None
             if not idempotent and not limited:
@@ -277,6 +279,9 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             seconds = _wait_seconds(attempt, retry_after)
             if seconds > deadline - (time.monotonic() - start):
                 raise out_of_time()
+            if slowed:   # otherwise a render on its rate limit only looks slow; the service and wait, nothing else
+                print(f"({service or 'the service'} asked to slow down: waiting {seconds:.0f} s)", file=sys.stderr,
+                      flush=True)
             _wait(seconds, sleep, stop)
     raise last
 

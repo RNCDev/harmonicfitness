@@ -2,6 +2,19 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.69.1] - 2026-11-08
+
+The two timing questions 0.69.0 left open, measured on the maintainer's keys. Gemini's voice now sends eight requests at once, where it sent two: a 30-minute workout records in about 100 s rather than 400. The writers' thinking levels stay: each lower setting was much faster but wrote at least one script in three that a listener shouldn't hear.
+
+### Changed
+- **Gemini voices eight lines at once** (`concurrency = 8` under `[gemini]` in `knowledge/services.toml`). The same 30-minute script, from an empty cache: 401 s at two, 199 s at four, 103 s at eight, 56 s at sixteen, with no rate limit hit at any. Eight, not sixteen: sixteen is untried on a free or lower-tier key. The measurements are in `knowledge/voices.md`.
+
+### Added
+- **A render that meets a voice service's rate limit says so,** one line on stderr per wait: "(gemini asked to slow down: waiting 4 s)", the service and the wait, never the text or the key. It was retried silently, so a render on its limit only looked slow.
+
+### Not changed
+- **The writers' thinking levels.** The host, the trainer and both at LOW cut the median time to the price from 218 s to 91, 86 and 67 s, but each wrote at least one script in three with a fault: a story detail past its notes, a warm-up move off the menu, the off-limits arm in a set's setup, or a set's cues left untimed. The runs and what went wrong are in `web/bench/README.md`'s Results.
+
 ## [0.69.0] - 2026-11-08
 
 What a browser walk of a new listener's first ten-minute workout on the web app found, fixed. The coach no longer assumes equipment: a new listener's home kit is bodyweight only until they say what they have, and the quick start asks. The Record card shows the plan, worked out by the engine from the script itself, so its times always add up (the model's own table had added a 600-second workout to 500 seconds), and, before the first recording, where the script goes (the privacy line, which the model had left out). The coach's lettered answers show one to a line, the first workout ends with what to do next, and a new listener is offered ten minutes and novice as the safe pick. Minor at the maintainer's ask: the template's kit changes what a new `me/` folder holds (see For forks).

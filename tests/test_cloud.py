@@ -1,7 +1,9 @@
 """Cloud voices against local fake servers that mimic each service's documented API.
 No network leaves the machine, and every key is a made-up test value."""
 import base64
+import contextlib
 import glob
+import io
 import json
 import os
 import shutil
@@ -74,6 +76,23 @@ class Core(unittest.TestCase):
         with FakeService(answer) as fake:
             status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None)
         self.assertEqual((status, data, len(calls)), (200, b"ok", 3))
+
+    def test_a_rate_limit_wait_is_said_on_stderr_and_other_retries_are_not(self):
+        answers = iter([(429, {}, b"{}"), (429, {"Retry-After": "4"}, b"{}"), (200, {}, b"ok")])
+        err = io.StringIO()
+        with FakeService(lambda req: next(answers)) as fake, contextlib.redirect_stderr(err):
+            cloud.request("POST", fake.url + "/x", {"x-goog-api-key": "secret-key"}, b"the text",
+                          service="gemini", sleep=lambda s: None)
+        lines = err.getvalue().splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(all(line.startswith("(gemini asked to slow down: waiting ") for line in lines))
+        self.assertNotIn("secret-key", err.getvalue())
+        self.assertNotIn("the text", err.getvalue())
+        answers = iter([(503, {}, b"{}"), (200, {}, b"ok")])
+        err = io.StringIO()
+        with FakeService(lambda req: next(answers)) as fake, contextlib.redirect_stderr(err):
+            cloud.request("POST", fake.url + "/x", {}, b"", service="gemini", sleep=lambda s: None)
+        self.assertEqual(err.getvalue(), "")
 
     def test_a_request_that_saves_is_retried_only_on_429(self):
         calls = []
@@ -312,7 +331,7 @@ class Core(unittest.TestCase):
         self.assertEqual((s["inworld"]["default_model"], s["inworld"]["url"]),
                          ("inworld-tts-2", "https://api.inworld.ai"))
         self.assertEqual({n: (s[n]["concurrency"], s[n]["max_chars"]) for n in s},
-                         {"fish": (5, 0), "elevenlabs": (2, 10000), "gemini": (2, 0), "inworld": (5, 2000),
+                         {"fish": (5, 0), "elevenlabs": (2, 10000), "gemini": (8, 0), "inworld": (5, 2000),
                           "openrouter": (6, 10000)})
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-lite-tts"), 9)
