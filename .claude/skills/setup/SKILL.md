@@ -122,7 +122,7 @@ Then add the key:
 
 ## Step 4: the local engine, when the route includes local
 
-If doctor (or `./harmonicfitness models adopt --dry-run`) found HarmonicFitness's models already downloaded elsewhere, offer to move them (`./harmonicfitness models adopt`) rather than download again. Say the size (about 4 GB in all: PyTorch, Pocket TTS's 0.6 GB model and the 2.5 GB take checker; no account or login needed), then run `./harmonicfitness setup --local` with `run_in_background: true`. It skips what's done. A computer that had an older HarmonicFitness keeps models nothing uses now: `./harmonicfitness models` lists them with their sizes, and they can delete those folders to free the space (offer it; never delete them unasked).
+If doctor (or `./harmonicfitness models adopt --dry-run`) found HarmonicFitness's models already downloaded elsewhere, offer to move them (`./harmonicfitness models adopt`) rather than download again. Say the size (about 4 GB in all: PyTorch, Pocket TTS's 0.4 GB model and the 2.5 GB take checker; no account or login needed), then run `./harmonicfitness setup --local` with `run_in_background: true`. It skips what's done. A computer that had an older HarmonicFitness keeps models nothing uses now: `./harmonicfitness models` lists them with their sizes, and they can delete those folders to free the space (offer it; never delete them unasked).
 
 ## Keep it safe
 

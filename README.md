@@ -129,7 +129,7 @@ A web coach's voice is designed from a written description, never copied from a 
 - [docs/index.html](docs/index.html): how the parts connect; [docs/style-guide.html](docs/style-guide.html): the house style.
 - [CLAUDE.md](CLAUDE.md): the rules and the code map the assistants work from.
 - [web/README.md](web/README.md): the web app.
-- `./harmonicfitness help` lists every command (each takes `--help`); `./harmonicfitness test` runs the tests CI runs.
+- `./harmonicfitness help` lists every command (each takes `--help`); `./harmonicfitness test` runs the engine's and the web app's tests, as CI does (the browser client's own are `npm test` in `web/client`).
 
 ## Support
 
