@@ -61,8 +61,8 @@ type Props = {
   /** Stops the running turn. */
   onStop?: () => void;
   onOpenKeys: () => void;
-  /** The coach shown above the conversation, with their lane number. */
-  coachBar?: { n: number; name: string; service: string } | null;
+  /** The coach shown above the conversation. */
+  coachBar?: { name: string; service: string } | null;
   first?: FirstScreen;
   offers?: Offers;
 };
@@ -127,8 +127,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
   return (
     <main className="chat" aria-label="Chat">
       {coachBar && lines.length > 0 && (
-        <div className="coachbar"><span className="lane-badge" aria-hidden="true">{coachBar.n}</span>
-          <b>{coachBar.name}</b><small>{coachBar.service}</small></div>
+        <div className="coachbar"><b>{coachBar.name}</b><small>{coachBar.service}</small></div>
       )}
       <div className="chat-log" ref={log} role="log" aria-live="polite">
         {lines.length === 0 && !working && needsKey && <Welcome need={needsKey} onAddKey={onAddKey ?? (() => onOpenKeys())} />}

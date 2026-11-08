@@ -29,8 +29,3 @@
 }
 .coachbar b { font-weight: 600; color: var(--text-2) }
 .coachbar small { margin-left: auto; font-size: var(--fs-sm) }
-.lane-badge {
-  display: inline-grid; place-items: center; width: var(--badge); height: var(--badge); border-radius: 50%; font-weight: 600;
-  font-size: var(--fs-sm); flex: none; font-variant-numeric: tabular-nums; letter-spacing: 0;
-  background: var(--action); color: var(--on-action);
-}

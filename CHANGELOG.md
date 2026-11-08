@@ -2,6 +2,13 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.71.3] - 2026-11-08
+
+The coach bar above the chat no longer shows a number in a circle beside the coach's name. It was the coach's place in the coach list, from when that list was numbered; the Coaches page has no numbers now, so it pointed at nothing.
+
+### Removed
+- **The coach bar's number badge** (`web/client/src/zones/chat/Chat.tsx`): the bar shows the coach's name and service only. `coachBar` loses `n`, and the `.lane-badge` style is gone.
+
 ## [0.71.2] - 2026-11-08
 
 `./harmonicfitness sync` no longer sends the backup's note of which GitHub remote this computer confirmed private (`me/workouts/.logs/backup-remote.json`). Each backup rewrites it, so it showed as changed on both sides at every sync.

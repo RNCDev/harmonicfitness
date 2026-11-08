@@ -47,6 +47,6 @@ export function useStartInfo(keys: KeyState[] | null) {
 
   const coaches = start?.coaches ?? [];
   const shown = coaches.find((c) => c.current) ?? null;
-  const coachBar = shown ? { n: coaches.indexOf(shown) + 1, name: shown.name, service: shown.service_name } : null;
+  const coachBar = shown ? { name: shown.name, service: shown.service_name } : null;
   return { start, error, reload, coaches, coachBar, chooseCoach, coachError };
 }
