@@ -2,6 +2,38 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.71.0] - 2026-11-08
+
+The web client after a third front-end audit, and a cleanup of the tests, the leftovers and the docs. A listener whose coaches fail to load is told so, with Try again, where the app told them to add a key they already had. Every workout plays in the app's own player, and the stylesheets, the docs pages and their tests now hold every colour, size, line height and focus ring to the design tokens. Minor, since tokens, client files and a few engine functions were renamed or removed (see For forks).
+
+### Fixed
+- **A failed load of the coaches no longer looks like having none.** The Coaches page said "Coaches show here once a key is added" and the first screen asked the listener to choose a coach; both now say the coaches couldn't be loaded, with Try again (`useStartInfo` keeps the error and a reload).
+- **"Open Settings" no longer depends on an error's wording.** The server sends a code beside its words (`web/webapp/codes.py`: `no_model_key` or `key_refused`, on a refusal, a job's result and its last event), and a step's `kind` (`think`, `recording`, `voice`) for the note on a long wait. The page reads the codes.
+- **The other asks on the first screen** ("Update an injury or pain"…) are busy from the tap, so a slow server can't take a second one.
+- **The body chart puts the page behind it to sleep,** as the Settings drawer does: it's drawn on the body, so a screen reader can't wander behind it.
+- **On a phone,** the header's three icons are one size, and the docs' demos page no longer scrolls sideways.
+
+### Changed
+- **One audio player** (`ui/Player.tsx`'s `AudioPlayer`) for a workout's MP3, a coach's sample and a demo's clip, one clip at a time across the page. The chat and Logs used the browser's own player.
+- **The request sentence has one source** (`lib/request.ts`'s `requestParts`, drawn by `ui/RequestLine.tsx`), so the sign-in demos read exactly as the first screen does.
+- **Colours by role.** The app's stylesheets and the docs name a colour by what it's for (`--text`, `--text-muted`, `--surface`, `--border`, `--action`, `--danger`, `--sample`…), never the palette, so a second theme would redefine the roles alone.
+- **The type scale is four sizes** (13, 15, 16, 18 px) where it was eight a pixel apart, and near-duplicate tints and durations are one each. Small text is a pixel larger in places.
+- **New tokens** for control sizes, line heights, opacities, durations and the focus ring, and `theme.test.ts` refuses each typed by hand. `layers.test.ts` refuses a raw button outside `ui/` but five named custom widgets; `Button` gains `header`, `tile` and `bare` looks and `pressed`, and `ChoiceRow` is a radio row.
+- **Deleting the account** uses the shared inline confirm, with the password inside it; sign-in and the password form check their rules through `lib/useChecked.ts`; success notes take a `done` tone.
+- **The docs pages** keep their styles in `docs/docs.css`, with a focus ring for the keyboard; `tests/test_tokens.py` holds them to the app's style rules.
+- **Files:** the chat is `zones/chat/` (`Chat`, `Offers`, `Working`), the Settings drawer is `zones/Settings.tsx`, the backgrounds' painters are `lib/skyPaint.ts`.
+- **Tests:** 31 web tests and 7 engine tests ran twice through subclassing and now run once; tests named after removed commands and folders say what they check; new tests cover the player, the request's parts, the painters and `useChecked`.
+- **Docs:** README, CLAUDE.md, `web/README.md`, the skills and `knowledge/voices.md` checked against the code (seven agent tools, every provider and background, the run tool's time limits, exit 3, Pocket's 0.4 GB, the stock samples on the bucket).
+
+### Removed
+- Unused engine code: `menu.one_side_problem`, `menu.both_sides`, `menu.SWITCH`, `voices.downloaded`, `voices.ENGINES`, `coachsample.characters`, `draft.STORY_OPEN` and `draft.STORY_CLOSE`.
+
+### For forks
+- **Tokens:** `--fs-xs`, `--fs-base`, `--fs-xl`, `--fs-btn`, `--hover-faint`, `--hover-soft`, `--panel-soft`, `--panel-solid`, `--scrim-dialog` and `--t-slow` are gone (use `--fs-sm`, `--fs-md`, `--fs-lg`, `--hover`, `--panel`, `--scrim`, `--t-fast`), and `--fs-md` is 15 px. A rule in `web/client/src/styles/` or `docs/docs.css` that names a palette colour (`--ink`, `--sheet`, `--stop`, `--blue`…) fails the tests: use its role. Copy `tokens.css` to `docs/tokens.css` after any change.
+- **Client:** `zones/Chat.tsx` is `zones/chat/Chat.tsx`, `ContextColumn` is `Settings`, `KeysBox` and `Settings` take no `openRow` (provide `KeyAskContext` from `lib/keyAsk.ts`), `CoachGallery` keeps no now-playing context of its own, and `Starter`'s `SlotKey` comes from `lib/request.ts`.
+- **Engine:** the functions under Removed are gone; nothing in the engine called them.
+- **The bench's starter sentence** ends ", right now", as the app's does, so new runs send slightly different text from earlier ones.
+
 ## [0.70.1] - 2026-11-08
 
 The two loose ends 0.70.0 left: a set whose reps had no time, and the resting arm named at every set. On three bench runs of a 10-minute workout, every set started with its go before its reps, and the right arm came up three or four times after the opening where 0.70.0's runs named it eight to ten.
