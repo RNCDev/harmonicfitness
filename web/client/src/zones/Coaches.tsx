@@ -1,56 +1,23 @@
 // The Coaches page (beside Logs): every coach that can speak on the web, as compact cards across the whole width.
 // Each says how the coach talks and what a workout costs, and plays its sample (a ready-made coach's, or the
-// one kept when a coach was made) from a small player of its own, one sample at a time. The listener's own
+// one kept when a coach was made) from a small player of its own, one sample at a time (ui/Player.tsx). The listener's own
 // coaches come first in their service's group. A coach whose service has a key is
 // chosen with a tap; one that needs a key says which, and can open that key's row in Settings. The page's one
 // colour, a soft blue, marks what plays and who is coaching you.
-import { createContext, useContext, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { StartCoach } from "../lib/api";
 import { an, dollars } from "../lib/format";
 import { Button } from "../ui/Button";
 import { Empty, Loadable, Notice } from "../ui/Notice";
-import { PlayButton, PlayTime, Seek } from "../ui/Player";
+import { AudioPlayer } from "../ui/Player";
 
 /** "about $1.60 a workout", or nothing when the cost isn't known. */
 export function cost(c: StartCoach): string | null {
   return typeof c.usd_per_workout === "number" ? `about ${dollars(c.usd_per_workout)} a workout` : null;
 }
 
-/** The sample playing now in this gallery, so starting another pauses it. */
-const NowPlaying = createContext<MutableRefObject<HTMLAudioElement | null>>({ current: null });
-
 /** A coach's sample: a play button, the time, and a line to seek along. */
 function Sample({ c }: { c: StartCoach }) {
-  const playing = useContext(NowPlaying);
-  const audio = useRef<HTMLAudioElement>(null);
-  const [on, setOn] = useState(false);
-  const [at, setAt] = useState(0);
-  const [length, setLength] = useState(0);
-  useEffect(() => () => { if (playing.current === audio.current) playing.current = null; }, [playing]);
-
-  function toggle() {
-    const a = audio.current;
-    if (!a) return;
-    if (!a.paused) { a.pause(); return; }
-    if (playing.current && playing.current !== a) playing.current.pause();
-    playing.current = a;
-    void a.play()?.catch(() => setOn(false));
-  }
-
-  const label = `Coach ${c.first}'s sample`;
-  return (
-    <div className={`player${on ? " on" : ""}`}>
-      <audio ref={audio} preload="metadata" src={`/api/coaches/${encodeURIComponent(c.slug)}/sample.mp3`}
-        aria-label={label}
-        onPlay={() => setOn(true)} onPause={() => setOn(false)} onEnded={() => { setOn(false); setAt(0); }}
-        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setLength(e.currentTarget.duration)} />
-      <PlayButton playing={on} onClick={toggle} label={label} />
-      <Seek at={at} length={length} label={`${label}, position`}
-        onSeek={(t) => { const a = audio.current; if (a) { a.currentTime = t; setAt(a.currentTime); } }} />
-      <PlayTime at={at} length={length} playing={on} />
-    </div>
-  );
+  return <AudioPlayer src={`/api/coaches/${encodeURIComponent(c.slug)}/sample.mp3`} label={`Coach ${c.first}'s sample`} />;
 }
 
 function Card({ c, onCoach }: { c: StartCoach; onCoach?: (slug: string) => void }) {
@@ -89,13 +56,7 @@ function heading(group: StartCoach[]): string {
   return `${c.service_name}${by} · ${group.length === 1 ? "1 coach" : `${group.length} coaches`}`;
 }
 
-export function CoachGallery(props: { coaches: StartCoach[]; onCoach?: (slug: string) => void;
-  onAddKey?: (service: string) => void; onOpenSettings?: () => void }) {
-  const playing = useRef<HTMLAudioElement | null>(null);
-  return <NowPlaying.Provider value={playing}><Gallery {...props} /></NowPlaying.Provider>;
-}
-
-function Gallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches: StartCoach[];
+export function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches: StartCoach[];
   onCoach?: (slug: string) => void; onAddKey?: (service: string) => void; onOpenSettings?: () => void }) {
   // yours first, then alphabetical, so a card never moves: choosing one only rings it
   const byName = (a: StartCoach, b: StartCoach) => Number(b.own) - Number(a.own) || a.first.localeCompare(b.first);

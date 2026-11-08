@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Audio } from "../lib/api";
 import { keptUntil } from "../lib/format";
 import { Meter } from "./Mark";
+import { AudioPlayer } from "./Player";
 
 export function AudioFile({ audio, titled = false, preload = "metadata" }: {
   audio: Audio;
@@ -15,10 +16,7 @@ export function AudioFile({ audio, titled = false, preload = "metadata" }: {
   const src = `/api/media/${encodeURIComponent(audio.id)}`;
   const expired = new Date(audio.expires_at).getTime() <= Date.now();
   const until = keptUntil(audio.expires_at);
-  const player = (
-    <audio controls preload={preload} src={src} aria-label={titled ? undefined : `Play ${audio.name}`}
-      onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
-  );
+  const player = <AudioPlayer src={src} label={audio.name} preload={preload} large={titled} onPlaying={setPlaying} />;
   return (
     <div className={`audio-file${titled ? "" : " compact"}`}>
       {titled && (

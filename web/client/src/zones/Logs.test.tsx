@@ -57,7 +57,7 @@ describe("the Logs page", () => {
       W({ n: 2, build_id: "bbb222" })]);
     render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(2));
-    expect(within(cards()[0]).getByLabelText("Play Workout 2026-10-30")).toHaveAttribute("src", "/api/media/m-1");
+    expect(within(cards()[0]).getByLabelText("Workout 2026-10-30")).toHaveAttribute("src", "/api/media/m-1");
     expect(within(cards()[0]).getByRole("link", { name: "Download the MP3" })).toHaveAttribute("href", "/api/media/m-1?download=1");
     expect(within(cards()[1]).queryByRole("link", { name: "Download the MP3" })).toBeNull();
   });

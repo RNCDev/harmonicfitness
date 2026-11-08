@@ -5,11 +5,13 @@
 // demos.json is written by `./harmonicfitness demos web` from docs/demos/demos.toml; the clips are on the media bucket.
 import { useEffect, useRef, useState } from "react";
 import data from "../demos.json";
-import { article, listAnd as list, seconds as secs } from "../lib/format";
+import { listAnd as list, seconds as secs } from "../lib/format";
+import { requestParts, type RequestValues } from "../lib/request";
 import { prefersReducedMotion as still } from "../lib/motion";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/icons";
-import { PlayButton, PlayTime, Seek } from "../ui/Player";
+import { AudioPlayer, type AudioHandle } from "../ui/Player";
+import { RequestLine } from "../ui/RequestLine";
 
 type Demo = {
   slug: string; name: string; coach: string; minutes: number; ask: string; audio: string;
@@ -25,34 +27,19 @@ export const TURN_MS = 10000;
 /** A run of words, each its own span so a turn flips them in one after another; `from` counts on across a slide. */
 function Words({ text, from }: { text: string; from: number }) {
   return <>{text.split(/(\s+)/).map((w, i) => /^\s+$/.test(w) ? w :
-    <span key={i} className="dw" style={{ animationDelay: `${(from + i / 2) * 22}ms` }}>{w}</span>)}</>;
+    <span key={i} className="fl" style={{ animationDelay: `${(from + i / 2) * 22}ms` }}>{w}</span>)}</>;
 }
 
-/** The request, as Starter.tsx writes it: [fixed words, blank words, blank tone] in order. */
-function parts(d: Demo): [string, string, string][][] {
+/** A demo's request as the app's own (lib/request.ts), so the two never read differently. */
+function values(d: Demo): RequestValues {
   const r = d.request;
-  const one: [string, string, string][] = [
-    ["Hey, coach ", d.coach.replace(/^Coach /, ""), ""], [`, I'd like ${article(d.minutes)} `, `${d.minutes}-minute`, ""],
-    [" ", r.type, ""], [" ", r.place, ""], [", ", r.when, ""], [".", "", ""]];
-  const two: [string, string, string][] = r.care === "easy" ? [["Go easy on my ", r.area ?? "", ""], [" today.", "", ""]]
-    : r.care === "off" ? [["Keep off my ", r.area ?? "", "off"], [" today.", "", ""]]
-    : [["", "Nothing's bothering me", ""], [" today.", "", ""]];
-  return [one, two];
+  return { coach: d.coach.replace(/^Coach /, ""), minutes: d.minutes, type: r.type, place: r.place, when: r.when,
+    body: r.care === "easy" || r.care === "off" ? { [r.area ?? ""]: r.care } : {} };
 }
 
 function Request({ d }: { d: Demo }) {
-  let n = 0;
-  const count = (s: string) => { const at = n; n += s.split(/\s+/).filter(Boolean).length; return at; };
-  return <>{parts(d).map((line, l) => (
-    <p key={l} className={`demo-req${l ? " demo-req-2" : ""}`}>
-      {line.map(([fixed, blank, tone], i) => (
-        <span key={i}>
-          {fixed && <Words text={fixed} from={count(fixed)} />}
-          {blank && <span className={`demo-slot${tone ? " " + tone : ""}`}><Words text={blank} from={count(blank)} /></span>}
-        </span>
-      ))}
-    </p>
-  ))}</>;
+  return <RequestLine parts={requestParts(values(d))} className="demo-req" fixed={(t, at) => <Words text={t} from={at} />}
+    blank={(p, at) => <span className={`blank${p.tone === "off" ? " off" : ""}`}><Words text={p.blank!} from={at} /></span>} />;
 }
 
 
@@ -62,10 +49,7 @@ export function Demos() {
   const [held, setHeld] = useState(false);        // someone played, tapped or tabbed in: it stops turning for good
   const [pointing, setPointing] = useState(false);
   const [open, setOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [time, setTime] = useState(0);
-  const [length, setLength] = useState(0);
-  const audio = useRef<HTMLAudioElement>(null);
+  const player = useRef<AudioHandle>(null);
   const d = DEMOS[at];
 
   useEffect(() => {
@@ -74,26 +58,7 @@ export function Demos() {
     return () => clearInterval(t);
   }, [held, pointing]);
 
-  // a new ask: the last one's clip stops and is let go
-  useEffect(() => {
-    const a = audio.current;
-    if (!a) return;
-    a.pause();
-    a.removeAttribute("src");
-    setPlaying(false); setTime(0); setLength(0);
-  }, [at]);
-
   const go = (i: number) => { setHeld(true); setTurned(true); setAt((i + DEMOS.length) % DEMOS.length); };
-  const load = () => { const a = audio.current!; if (!a.getAttribute("src")) a.src = d.audio; return a; };
-  const toggle = () => { setHeld(true); const a = load(); if (a.paused) void a.play(); else a.pause(); };
-  const jump = (t: number) => {
-    setHeld(true);
-    const a = load();
-    const start = () => { a.currentTime = t; void a.play(); };
-    if (a.readyState >= 1) start(); else a.addEventListener("loadedmetadata", start, { once: true });
-  };
-  const seek = (t: number) => { const a = audio.current; if (a && length) { a.currentTime = t; setTime(t); } };
-  const sync = () => { const a = audio.current!; setTime(a.currentTime); setLength(a.duration || 0); };
 
   return (
     <section className="demos" aria-roledescription="carousel" aria-label="Workouts other people asked for"
@@ -114,12 +79,8 @@ export function Demos() {
       </div>
 
       <div className="demo-controls">
-        <div className={`player${playing ? " on" : ""}`}>
-          <PlayButton large playing={playing} onClick={toggle} label={`${d.name}'s workout`} />
-          <Seek at={time} length={length} onSeek={(t) => { setHeld(true); seek(t); }} label={`${d.name}'s workout, position`}
-            ticks={d.moments.map((m) => secs(m.at))} />
-          <PlayTime at={time} length={length} playing={playing} idle="2 min" />
-        </div>
+        <AudioPlayer ref={player} src={d.audio} lazy large label={`${d.name}'s workout`} idle="2 min"
+          ticks={d.moments.map((m) => secs(m.at))} onTouch={() => setHeld(true)} />
         <div className="demo-nav">
           <Button variant="icon" onClick={() => go(at - 1)} aria-label="Previous ask"><Icon name="chevron-left" weight={2.4} /></Button>
           <div className="demo-dots">
@@ -145,15 +106,13 @@ export function Demos() {
             {d.card.changed && <p className="demo-changed"><b>What changed for {d.name}.</b> {d.card.changed}</p>}
             <ul className="demo-moments">
               {d.moments.map((m) => (
-                <li key={m.at}><button type="button" onClick={() => jump(secs(m.at))}>
+                <li key={m.at}><button type="button" onClick={() => player.current?.play(secs(m.at))}>
                   <span className="demo-at">{m.at}</span><span>{m.label}</span></button></li>
               ))}
             </ul>
           </div>
         )}
       </div>
-      <audio ref={audio} preload="none" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)} onTimeUpdate={sync} onLoadedMetadata={sync} />
     </section>
   );
 }

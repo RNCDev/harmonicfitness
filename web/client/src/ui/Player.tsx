@@ -1,6 +1,7 @@
-// The small player the Coaches page and the sign-in demos share: a round button, a line to seek along (a real
-// slider, so it works from the keyboard), and the time. The <audio> itself is the caller's, so each can load its
-// clip when it likes.
+// The app's one audio player, for a workout's MP3 (the chat and Logs), a coach's sample (Coaches) and a demo's clip
+// (the sign-in page): a round button, a line to seek along (a real slider, so it works from the keyboard), and the
+// time. One clip plays at a time across the page: starting one pauses any other.
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { mss } from "../lib/format";
 import { Icon } from "./icons";
 
@@ -34,3 +35,88 @@ export function Seek({ at, length, onSeek, label, ticks = [] }: {
 export function PlayTime({ at, length, playing, idle = "" }: { at: number; length: number; playing: boolean; idle?: string }) {
   return <span className="p-time">{length ? (playing || at > 0 ? `${mss(at)} / ${mss(length)}` : mss(length)) : idle}</span>;
 }
+
+/** The clip playing now, anywhere on the page. */
+let now: HTMLAudioElement | null = null;
+
+/** Play from `at` seconds (from where it is, without one). */
+export type AudioHandle = { play: (at?: number) => void };
+
+type Props = {
+  src: string;
+  /** What's playing, as a screen reader hears it: "Play <label>", "<label>, position". */
+  label: string;
+  preload?: "none" | "metadata";
+  /** Fetch nothing until the first play (the demos' clips, from the media bucket). */
+  lazy?: boolean;
+  large?: boolean;
+  /** Seconds to mark on the line (a demo's moments). */
+  ticks?: number[];
+  /** Said where the time goes before the length is known. */
+  idle?: string;
+  className?: string;
+  onPlaying?: (on: boolean) => void;
+  /** Any touch of the player: the demos stop turning. */
+  onTouch?: () => void;
+};
+
+export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({ src, label, preload = "metadata",
+  lazy = false, large = false, ticks, idle, className, onPlaying, onTouch }, ref) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [on, setOn] = useState(false);
+  const [at, setAt] = useState(0);
+  const [length, setLength] = useState(0);
+  const said = useRef({ onPlaying, onTouch });
+  said.current = { onPlaying, onTouch };
+
+  useEffect(() => { said.current.onPlaying?.(on); }, [on]);
+  // a new clip: the last one stops and is let go
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    const a = audio.current;
+    if (!a) return;
+    a.pause();
+    if (lazy) a.removeAttribute("src");
+    setOn(false); setAt(0); setLength(0);
+  }, [src, lazy]);
+  useEffect(() => () => { if (now === audio.current) now = null; }, []);
+
+  const load = () => {
+    const a = audio.current!;
+    if (lazy && a.getAttribute("src") !== src) a.src = src;
+    return a;
+  };
+  const start = (a: HTMLAudioElement) => {
+    if (now && now !== a) now.pause();
+    now = a;
+    void a.play()?.catch(() => setOn(false));
+  };
+  const toggle = () => {
+    said.current.onTouch?.();
+    const a = load();
+    if (!a.paused) { a.pause(); return; }
+    start(a);
+  };
+  useImperativeHandle(ref, () => ({
+    play: (t?: number) => {
+      said.current.onTouch?.();
+      const a = load();
+      const go = () => { if (t !== undefined) a.currentTime = t; start(a); };
+      if (t === undefined || a.readyState >= 1) go(); else a.addEventListener("loadedmetadata", go, { once: true });
+    },
+  }));
+  const sync = (a: HTMLAudioElement) => { setAt(a.currentTime); setLength(Number.isFinite(a.duration) ? a.duration : 0); };
+
+  return (
+    <div className={`player${on ? " on" : ""}${className ? " " + className : ""}`}>
+      <audio ref={audio} preload={lazy ? "none" : preload} src={lazy ? undefined : src} aria-label={label}
+        onPlay={() => setOn(true)} onPause={() => setOn(false)} onEnded={() => { setOn(false); setAt(0); }}
+        onTimeUpdate={(e) => sync(e.currentTarget)} onLoadedMetadata={(e) => sync(e.currentTarget)} />
+      <PlayButton playing={on} onClick={toggle} label={label} large={large} />
+      <Seek at={at} length={length} label={`${label}, position`} ticks={ticks}
+        onSeek={(t) => { said.current.onTouch?.(); const a = audio.current; if (a && length) { a.currentTime = t; setAt(t); } }} />
+      <PlayTime at={at} length={length} playing={on} idle={idle} />
+    </div>
+  );
+});

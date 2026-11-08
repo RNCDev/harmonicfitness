@@ -9,11 +9,16 @@
   color: var(--request-fixed);
 }
 .mad-2 { margin-top: var(--s-2h) }
+/* a blank in the request (the first screen's, and the sign-in demos'): cream words on a grey underline, brick to
+   keep off. On the first screen each is a button (.slot) that opens its choices. */
+.blank, .slot {
+  color: var(--text-slot); padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
+}
+.blank.off { background-image: linear-gradient(var(--danger), var(--danger)) }
 .slot {
   display: inline; font: inherit; letter-spacing: inherit; text-transform: inherit; line-height: inherit;
-  color: var(--text-slot); padding: 0 2px; margin: 0 -1px; border-radius: var(--radius-control); -webkit-box-decoration-break: clone; box-decoration-break: clone;
-  background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
-  background-color: transparent; transition: background-color var(--t-fast);
+  border-radius: var(--radius-control); background-color: transparent; transition: background-color var(--t-fast);
 }
 .slot:hover:not(:disabled), .slot[aria-expanded="true"] { background-image: linear-gradient(currentColor, currentColor); background-color: var(--hover) }
 .slot .car { opacity: var(--o-faint); margin-left: var(--s-1h); vertical-align: middle }

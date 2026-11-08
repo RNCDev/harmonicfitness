@@ -27,13 +27,7 @@
 .demo-who span { color: var(--text-2) }
 .demos .demo-req { margin: 0; font: 500 var(--fs-request-demo)/var(--lh-head) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase; color: var(--request-fixed) }
 .demos .demo-req-2 { margin-top: var(--s-2) }
-.demo-slot {
-  color: var(--text-slot); padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
-  background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
-}
-.demo-slot.off { background-image: linear-gradient(var(--danger), var(--danger)) }   /* keep off: the request's brick underline */
-.dw { display: inline-block }
-.demo-slide.on.turn .dw { animation: flip var(--t-flip) var(--ease-flip) both; transform-origin: 50% 60% }
+.demo-slide:not(.turn) .fl { animation: none }   /* the words flip in only as a demo turns, as the request's do */
 
 .demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3h) var(--s-5); margin-top: var(--s-5h) }
 .demo-controls .player { flex: 1 1 260px; max-width: 440px }

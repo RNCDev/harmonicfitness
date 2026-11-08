@@ -4,8 +4,9 @@
 // (lib/request.ts) as the first message; its answers stand in for the check-in.
 import { useRef, useState } from "react";
 import type { StartInfo } from "../lib/api";
-import { article, dayPart, listAnd as list } from "../lib/format";
-import { areaName, bodyWords, kitWords, MINUTES, sentence, suggested, TYPES, whenWords, type Level } from "../lib/request";
+import { dayPart } from "../lib/format";
+import { areaName, kitWords, MINUTES, requestParts, sentence, suggested, TYPES, whenWords, type Level, type SlotKey }
+  from "../lib/request";
 import { Quiet, useAction } from "../lib/useAction";
 import { ahead, slots, withOffset } from "../lib/when";
 import { Button } from "../ui/Button";
@@ -13,9 +14,8 @@ import { Flap } from "../ui/Flap";
 import { Icon } from "../ui/icons";
 import { Notice } from "../ui/Notice";
 import { Popover } from "../ui/Popover";
+import { RequestLine } from "../ui/RequestLine";
 import { BodyChart } from "./BodyChart";
-
-type SlotKey = "coach" | "minutes" | "place" | "type" | "body" | "when";
 
 /** Each blank's list, as a screen reader names it. */
 const LIST_NAMES: Record<SlotKey, string> = { coach: "Coach", minutes: "Length", place: "Where", type: "Workout", when: "When",
@@ -113,9 +113,6 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
     ...slots().map((d) => ({ label: ahead(d), value: d, on: !!at && at.getTime() === d.getTime(),
       set: setAt as (x: never) => void }))];
 
-  const { easy, off } = bodyWords(v.body);
-  const slot = (k: SlotKey, label: string, text: string, tone?: "off" | "calm") =>
-    <Slot k={k} label={label} text={text} open={open === k} onOpen={openSlot} tone={tone} />;
 
   // busy until the chat takes over; a refused start gives the button back
   const begin = useAction(async () => {
@@ -146,17 +143,9 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
   return (
     <section className="starter" ref={wrap} aria-label="Plan a workout" aria-busy={!info}>
       <p className="label eyebrow">{dayPart(new Date())}{shownCoach ? ` · Coach ${shownCoach.first}, voiced by ${shownCoach.service_name}` : ""}</p>
-      <p className="mad">
-        Hey, coach {slot("coach", "Coach", v.coach)}, I'd like {article(v.minutes)}{" "}
-        {slot("minutes", "Length", `${v.minutes}-minute`)} {slot("type", "Workout", v.type)}{" "}
-        {slot("place", "Where", v.place)}, {slot("when", "When", v.when)}.
-      </p>
-      <p className="mad mad-2">
-        {easy.length === 0 && off.length === 0 ? (<>{slot("body", "Anything bothering you", "Nothing's bothering me", "calm")} today.</>) : (<>
-          {easy.length > 0 && <>Go easy on my {slot("body", "Go easy on", list(easy))}</>}
-          {off.length > 0 && <>{easy.length ? ", and keep off my " : "Keep off my "}{slot("body", "Keep off", list(off), "off")}</>} today.
-        </>)}
-      </p>
+      <RequestLine parts={requestParts(v)} className="mad" blank={(p) => (
+        <Slot k={p.key!} label={p.label!} text={p.blank!} open={open === p.key} onOpen={openSlot} tone={p.tone} />
+      )} />
       {hint && <p className="hint">Suggested because of your log: {hint}.</p>}
       <div className="start-row">
         <Button variant="primary" size="lg" onClick={() => void begin.run()} busy={begin.busy}

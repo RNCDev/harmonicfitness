@@ -23,7 +23,7 @@ describe("the demos on the sign-in page", () => {
     expect(said(slides(container)[0])).toBe(
       "Hey, coach Priya, I'd like a 30-minute full-body workout in a hotel room, right now. Go easy on my left knee today.");
     const frank = slides(container)[DEMOS.findIndex((d) => d.slug === "frank")];
-    expect(frank.querySelector(".demo-slot.off")).toHaveTextContent("right shoulder");   // keep off: the brick underline
+    expect(frank.querySelector(".blank.off")).toHaveTextContent("right shoulder");   // keep off: the brick underline
   });
 
   it("says who asked and what they're into, above the request", () => {

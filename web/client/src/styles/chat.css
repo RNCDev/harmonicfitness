@@ -65,8 +65,8 @@
 .audio-name .audio-meter { display: inline-block; vertical-align: -2px; margin-right: var(--s-2h) }
 .audio-row { display: flex; align-items: center; gap: var(--s-3) }
 .audio-row .audio-meter { flex: none }
-.audio-file audio { width: 100%; display: block; min-width: 0 }
-.audio-file.compact audio { max-width: 480px }
+.audio-file .player { width: 100% }
+.audio-file.compact .player { max-width: 480px }
 .audio-file .cx-s a { color: var(--text-2) }
 
 .switch { display: flex; align-items: center; gap: var(--s-2h); cursor: pointer; font-size: var(--fs-md); color: var(--text) }

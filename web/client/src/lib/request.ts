@@ -52,13 +52,45 @@ export function whenWords(at: Date | null, now: Date = new Date()): string {
   return said.startsWith("tomorrow") || /^[A-Z][a-z]+day /.test(said) ? said : `at ${said}`;
 }
 
-/** The request as it's sent. */
-export function sentence(v: { coach: string; minutes: number; place: string; type: string; body: Record<string, Level>;
-  when?: string }): string {
+/** Which blank a part of the request is: each opens its own list (or, for the body, the chart). */
+export type SlotKey = "coach" | "minutes" | "place" | "type" | "body" | "when";
+
+/** One piece of the request: words that stay, then (maybe) a blank the listener can change, with its name for a
+ * screen reader and its tone ("off": keep off, the brick underline; "calm": nothing's bothering them). */
+export type Part = { fixed: string; blank?: string; key?: SlotKey; label?: string; tone?: "off" | "calm" };
+
+export type RequestValues = { coach: string; minutes: number; place: string; type: string; body: Record<string, Level>;
+  when?: string };
+
+/** The request's two lines, as parts: the one source of its words, for the first screen, the sign-in page's demos
+ * and the sentence that's sent. */
+export function requestParts(v: RequestValues): [Part[], Part[]] {
   const { easy, off } = bodyWords(v.body);
-  let care = "Nothing's bothering me today.";
-  if (easy.length && off.length) care = `Go easy on my ${list(easy)}, and keep off my ${list(off)} today.`;
-  else if (easy.length) care = `Go easy on my ${list(easy)} today.`;
-  else if (off.length) care = `Keep off my ${list(off)} today.`;
-  return `Hey, coach ${v.coach}, I'd like ${article(v.minutes)} ${v.minutes}-minute ${v.type} ${v.place}, ${v.when ?? "right now"}. ${care}`;
+  const one: Part[] = [
+    { fixed: "Hey, coach ", blank: v.coach, key: "coach", label: "Coach" },
+    { fixed: `, I'd like ${article(v.minutes)} `, blank: `${v.minutes}-minute`, key: "minutes", label: "Length" },
+    { fixed: " ", blank: v.type, key: "type", label: "Workout" },
+    { fixed: " ", blank: v.place, key: "place", label: "Where" },
+    { fixed: ", ", blank: v.when ?? "right now", key: "when", label: "When" },
+    { fixed: "." },
+  ];
+  const two: Part[] = [];
+  if (!easy.length && !off.length) {
+    two.push({ fixed: "", blank: "Nothing's bothering me", key: "body", label: "Anything bothering you", tone: "calm" });
+  }
+  if (easy.length) two.push({ fixed: "Go easy on my ", blank: list(easy), key: "body", label: "Go easy on" });
+  if (off.length) {
+    two.push({ fixed: easy.length ? ", and keep off my " : "Keep off my ", blank: list(off), key: "body", label: "Keep off",
+      tone: "off" });
+  }
+  two.push({ fixed: " today." });
+  return [one, two];
+}
+
+/** A line of parts as it reads. */
+export const lineText = (line: Part[]) => line.map((p) => p.fixed + (p.blank ?? "")).join("");
+
+/** The request as it's sent: its two lines, as they read. */
+export function sentence(v: RequestValues): string {
+  return requestParts(v).map(lineText).join(" ");
 }
