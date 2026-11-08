@@ -828,7 +828,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.get("/api/workouts")
     async def list_workouts(uk: User):
         """The logged workouts, newest first: date, length, kit, coach, format, movements, topics, build id,
-        feedback, rating, whether a script is kept, and its MP3 while the site keeps it (`audio`)."""
+        feedback, rating, whether a script is kept, and its MP3 while the site keeps it (`audio`: the three newest)."""
         rows = await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.listing))
 
         def kept() -> dict[str, dict]:
@@ -838,7 +838,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 finally:
                     conn.rollback()
         audio = await anyio.to_thread.run_sync(kept)
-        for row in rows:   # the MP3 still kept (24 hours) for a workout, to play or download from the Logs page
+        for row in rows:   # the MP3 still kept (the newest three workouts') for a workout, to play or download from Logs
             if isinstance(row, dict) and row.get("build_id") in audio:
                 row["audio"] = audio[row["build_id"]]
         return {"workouts": rows}
@@ -918,17 +918,19 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     @app.get("/api/media/{mid}")
     def get_media(uk: User, request: Request, mid: Annotated[str, PathParam(max_length=40)], download: bool = False):
-        """A workout's MP3, the user's own, for 24 hours: inline for the player, or as a download. The
-        browser may keep it until it expires (private: never a shared cache)."""
+        """An MP3, the user's own, while it's kept (a workout's until three newer ones replace it, any other for
+        24 hours): inline for the player, or as a download. The browser may keep it until it expires, or a day for
+        a workout's (private: never a shared cache)."""
         with connection() as conn:
             try:
                 found = media.get(conn, uk, mid)
             finally:
                 conn.rollback()
         if found is None:
-            raise HTTPException(404, "That audio has expired or isn't yours.")
+            raise HTTPException(404, "That audio is no longer kept, or isn't yours.")
         name, body, expires = found
-        left = max(0, int((expires - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+        left = 86_400 if expires is None else \
+            max(0, int((expires - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
         safe = "".join(c if c.isalnum() or c in " -_." else "_" for c in name).strip() or "workout"
         headers = {"Cache-Control": f"private, max-age={left}", "Accept-Ranges": "bytes",
                    "Content-Disposition": f'{"attachment" if download else "inline"}; filename="{safe}.mp3"'}
@@ -1168,11 +1170,16 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         conversations.set_job(conn, uk, args["conversation_id"], job_id)
         return job_id
 
-    def shown(c: conversations.Conversation) -> dict:
+    def shown(conn, uk: store.UserKey, c: conversations.Conversation) -> dict:
         """What the client sees: never the history; the job only while it works; when it last changed
-        (ISO, so the client can show an earlier day's conversation as history)."""
+        (ISO, so the client can show an earlier day's conversation as history); and each recording no longer kept
+        (a newer workout replaced it) marked `gone`, so the page says so in place of a player."""
+        lost = media.gone(conn, uk, c.lines)
+        lines = [{**x, "audio": {**x["audio"], "gone": True}}
+                 if isinstance(x, dict) and isinstance(x.get("audio"), dict) and x["audio"].get("id") in lost else x
+                 for x in c.lines]
         return {"id": c.id, "state": c.state, "job_id": c.job_id if c.state == "working" else None,
-                "lines": c.lines, "question": c.question, "plan": c.plan,
+                "lines": lines, "question": c.question, "plan": c.plan,
                 "offer": {k: c.offer[k] for k in ("name", "coach", "chars", "usd", "service", "design", "plan", "first")
                           if k in c.offer} if c.offer and c.state in ("idle", "failed") else None,
                 "later": {k: c.later[k] for k in ("at", "local", "due", "done", "minutes", "coach", "usd", "ceiling_usd")
@@ -1210,22 +1217,24 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 c = conversations.latest(conn, uk)
                 if c is not None:
                     c = conversations.heal(conn, uk, c)
+                out = None if c is None else shown(conn, uk, c)
                 conn.commit()
             except BaseException:
                 conn.rollback()
                 raise
-        return Response(status_code=204) if c is None else shown(c)
+        return Response(status_code=204) if out is None else out
 
     @app.get("/api/conversations/{cid}")
     def get_conversation(uk: User, cid: Annotated[int, JOB_ID]):
         with connection() as conn:
             try:
                 c = healed(conn, uk, cid)
+                out = shown(conn, uk, c)
                 conn.commit()
             except BaseException:
                 conn.rollback()
                 raise
-        return shown(c)
+        return out
 
     @app.get("/api/conversations/{cid}/history")
     def conversation_history(uk: User, cid: Annotated[int, JOB_ID]):
@@ -1312,11 +1321,12 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 out = conversations.unschedule(conn, uk, cid)
                 if out is None:
                     raise HTTPException(409, "Nothing's scheduled here.")
+                view = shown(conn, uk, out)
                 conn.commit()
             except BaseException:
                 conn.rollback()
                 raise
-        return shown(out)
+        return view
 
     @app.post("/api/conversations/{cid}/stop", status_code=202, **post)
     def stop_turn(uk: User, cid: Annotated[int, JOB_ID]):

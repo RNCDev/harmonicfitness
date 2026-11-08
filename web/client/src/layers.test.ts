@@ -52,7 +52,7 @@ describe("the client's layers", () => {
     expect(bad).toEqual([]);
   });
 
-  it("draws every button outside ui/ through Button (or ChoiceRow), so pressed, busy and disabled work the same", () => {
+  it("draws every button outside ui/ through Button, so pressed, busy and disabled work the same", () => {
     // the custom widgets, each with a look of its own: a request's blank, a picker's option, the body chart's dots, a
     // coach card's whole-card button, the demos' dots. This list only shrinks.
     const CUSTOM = /^(slot|opt|bdot|cg-choose|demo-dot)$/;

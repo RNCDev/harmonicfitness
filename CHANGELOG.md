@@ -2,6 +2,25 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.71.1] - 2026-11-08
+
+A new Settings drawer, and a workout's recording kept until three newer ones replace it, where it went after a day. Settings is now tabs (Keys, Level, Recording, Background, Files) over the one chosen section, with the account always at the foot; the level is three cards, the key in use is marked, and the logo's coral marks what's chosen. A patch: the database change (migration 017) applies itself on deploy.
+
+### Changed
+- **Settings, in three parts.** Tabs at the top, one per section, and only the chosen section below them; the account (who is signed in and the version, then Change password, Sign in another device, Sign out and Delete my account, one row of worded actions) always at the foot, with a line saying what signing in another device does. The drawer is narrower, and a phone works the same way.
+- **The level is three cards,** each a short name (New or returning, Some experience, Experienced) over its sentence, the chosen one ringed. A new listener starts on New or returning, as before.
+- **The keys:** the writer in use is marked In use, and a click anywhere on another writer's row picks it (no radio buttons). "+ voices" is plain muted text. An open key box has Save and a Cancel button, Get a key is a link out at its end, and a click outside the row closes it.
+- **Recording** is an on/off switch.
+- **A touch of the logo's coral** (the new `--accent` role) on what's chosen in Settings: the tab, the level, the switch, the background, the key in use.
+- **A workout's MP3 is kept until three newer ones replace it** (making a fourth deletes the oldest), with no time limit; any other MP3 (a coach's sample in the chat) still goes after 24 hours. A chat whose recording was replaced says so in place of its player (`gone`), and the Logs page plays the three newest.
+
+### Removed
+- `ChoiceRow` and its `.choice-row` styles (the level cards replace it).
+
+### For forks
+- **Database:** migration 017 makes `media.expires_at` nullable, clears it for workout MP3s and deletes each listener's workout MP3s past the newest three. `media.put` returns `expires_at` null for a workout's, and the client's `Audio` type has `expires_at: string | null` and `gone`.
+- **Client:** `ChoiceRow` is gone from `ui/Button.tsx`; the `.switch` styles moved from `chat.css` to `settings.css`. Copy `tokens.css` to `docs/tokens.css` (it gains `--accent`).
+
 ## [0.71.0] - 2026-11-08
 
 The web client after a third front-end audit, and a cleanup of the tests, the leftovers and the docs. A listener whose coaches fail to load is told so, with Try again, where the app told them to add a key they already had. Every workout plays in the app's own player, and the stylesheets, the docs pages and their tests now hold every colour, size, line height and focus ring to the design tokens. Minor, since tokens, client files and a few engine functions were renamed or removed (see For forks).

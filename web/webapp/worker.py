@@ -508,7 +508,8 @@ def _build_id(mp3: str) -> str | None:
 
 
 def _keep_audio(ctx: Ctx, written: dict[str, str], done: set[str] | None = None) -> list[dict]:
-    """The MP3s this turn made (new_audio), kept 24 hours for the listener, less those in `done` (kept
+    """The MP3s this turn made (new_audio), kept for the listener (a workout's until three newer ones replace
+    it), less those in `done` (kept
     already this turn; each kept one is added to it). Committed now, so the chat can link them as soon as
     the turn is saved."""
     kept = []

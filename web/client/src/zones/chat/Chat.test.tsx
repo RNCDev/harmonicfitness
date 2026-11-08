@@ -47,7 +47,7 @@ describe("the chat", () => {
     expect(screen.getAllByText("Reading")).toHaveLength(1);
   });
 
-  it("plays and offers a workout's audio until it expires", () => {
+  it("plays and offers a workout's audio while it's kept, and says when it's gone", () => {
     const later = new Date(Date.now() + 3600_000).toISOString();
     const { container, rerender } = render(<Chat {...base} lines={[{ role: "agent", text: "",
       audio: { id: "abc", name: "Workout 5 min", expires_at: later } }]} />);
@@ -56,7 +56,15 @@ describe("the chat", () => {
     rerender(<Chat {...base} lines={[{ role: "agent", text: "",
       audio: { id: "abc", name: "Workout 5 min", expires_at: "2020-01-01T00:00:00Z" } }]} />);
     expect(container.querySelector("audio")).toBeNull();
-    expect(screen.getByText(/has expired/)).toBeInTheDocument();
+    expect(screen.getByText(/no longer kept/)).toBeInTheDocument();
+    // a workout's: no expiry, played until a newer workout replaces it, then marked gone
+    rerender(<Chat {...base} lines={[{ role: "agent", text: "", audio: { id: "abc", name: "Workout 5 min", expires_at: null } }]} />);
+    expect(container.querySelector("audio")?.getAttribute("src")).toBe("/api/media/abc");
+    expect(screen.queryByText(/kept until/)).toBeNull();
+    rerender(<Chat {...base} lines={[{ role: "agent", text: "",
+      audio: { id: "abc", name: "Workout 5 min", expires_at: null, gone: true } }]} />);
+    expect(container.querySelector("audio")).toBeNull();
+    expect(screen.getByText(/three newest workouts/)).toBeInTheDocument();
   });
 
   it("offers the priced recording with its price, and records on the button", () => {

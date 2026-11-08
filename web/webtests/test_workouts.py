@@ -113,7 +113,9 @@ class Routes(test_api.ApiCase):
         self.conn.commit()
         row = self.client.get("/api/workouts").json()["workouts"][0]
         self.assertEqual(row["audio"], newest)
-        self.conn.execute("update media set expires_at = now() - interval '1 second'")
+        self.assertIsNone(newest["expires_at"])   # a workout's MP3 has no expiry
+        for build in ("ddd1", "ddd2", "ddd3"):   # three newer workouts replace it
+            media.put(self.conn, uk, "Workout", b"ID3later", build_id=build)
         self.conn.commit()
         self.assertNotIn("audio", self.client.get("/api/workouts").json()["workouts"][0])
 

@@ -86,6 +86,7 @@
   --action: var(--ink); --on-action: var(--paper); --danger: var(--stop); --danger-surface: var(--stop-tint);
   --sample: var(--blue); --sample-strong: var(--blue-hi); --sample-surface: var(--blue-tint);
   --request-fixed: var(--coral);
+  --accent: var(--coral);   /* a small mark of the brand on what's chosen: a tab, a level, a switch, a background */
 
   color-scheme: dark;
 }

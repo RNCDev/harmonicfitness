@@ -23,7 +23,7 @@ The web client's own copies are in `web/client/public/` (favicon and Apple touch
 
 | Name | Hex | Use |
 |---|---|---|
-| Coral | `#FF5A3C` | The brand colour; Ember's upper range, and the request's fixed words in the app |
+| Coral | `#FF5A3C` | The brand colour; Ember's upper range, and in the app the request's fixed words and a small mark on what's chosen in Settings |
 | Ember low | `#8C2F22` | The foot of the meter |
 | Ember high | `#FFC2AE` | The top of the meter |
 | Ink | `#111215` | Dark backgrounds; the words on light; the meter on coral |

@@ -69,8 +69,6 @@
 .audio-file.compact .player { max-width: 480px }
 .audio-file .cx-s a { color: var(--text-2) }
 
-.switch { display: flex; align-items: center; gap: var(--s-2h); cursor: pointer; font-size: var(--fs-md); color: var(--text) }
-.switch input { flex-shrink: 0; width: var(--tick); height: var(--tick); margin: 0; accent-color: var(--text); cursor: pointer }
 .chat-error {
   margin: 0 0 var(--s-2); padding: var(--s-3) var(--s-4); border-radius: var(--radius-sheet); background: var(--danger-surface); display: flex; flex-wrap: wrap;
   gap: var(--s-2) var(--s-3); align-items: center; justify-content: space-between;

@@ -1,71 +1,104 @@
 /* The Settings drawer. Part of theme.css, which imports every part in order. */
 /* ---------- Settings ---------- */
-/* One column on a phone; on a wide screen two rows of two, each pair split by a rule: the keys beside your
-   choices (level, recording, background), then your files beside the account. Each section opens with a small
-   label; a section's own items sit 22px apart, sections 30px. */
+/* Three parts, top to bottom: the title with a row of tabs, one per section; the chosen section alone; then the
+   account (who is signed in, the password, another device, signing out, deleting it) in a band on the page's paper.
+   The drawer scrolls as one when a section, or something the account opens, runs long. */
 .ctx-scrim { display: none }
 .ctx-scrim.show { display: block; position: fixed; inset: 0; z-index: var(--z-scrim); background: var(--scrim); backdrop-filter: blur(2px) }
 .ctx {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 94vw); z-index: var(--z-drawer); background: var(--surface-drawer); color: var(--text);
-  padding: var(--s-5) var(--s-5) var(--s-6); overflow-y: auto; transform: translateX(105%); visibility: hidden;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(600px, 100vw); z-index: var(--z-drawer); background: var(--surface-drawer); color: var(--text);
+  display: flex; flex-direction: column; overflow-y: auto; transform: translateX(105%); visibility: hidden;
   box-shadow: inset 1px 0 0 var(--border), var(--lift);
   transition: transform var(--t-slide) var(--ease-slide), visibility var(--t-slide);
 }
 /* visible at once on opening, so focus can move in; hidden only once it has slid out */
 .ctx.open { transform: none; visibility: visible; transition: transform var(--t-slide) var(--ease-slide) }
-.ctx-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s-4h) }
+.ctx-top { display: flex; justify-content: space-between; align-items: center; padding: var(--s-5) var(--s-6h) var(--s-3) }
 .ctx-top h2 { font-size: var(--fs-d3); line-height: var(--lh-solid); letter-spacing: var(--track-btn) }
 .ctx-close { font-size: var(--fs-md); letter-spacing: var(--track-btn); text-transform: uppercase; color: var(--text-2); padding: var(--s-3) 0 var(--s-3) var(--s-3) }
 .ctx-close:hover:not(:disabled) { color: var(--text-strong) }
-.cx-list { display: grid; grid-template-columns: minmax(0, 1fr) }
-.cx-cell { display: grid; gap: var(--s-5); align-content: start; min-width: 0; padding: var(--s-5) 0 }
-.cx-cell:first-child { padding-top: var(--s-1) }
-.cx-cell + .cx-cell { border-top: 1px solid var(--border) }
-.cx-files, .cx-account { gap: var(--s-2h); justify-items: start }
-@media (min-width: 1000px) {
-  .ctx { width: min(900px, 94vw); padding: var(--s-5) var(--s-6h) var(--s-6) }
-  .ctx-top { margin-bottom: var(--s-5) }
-  .cx-list { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) }
-  .cx-cell { padding: 0 0 var(--s-5h) }
-  .cx-cell:nth-child(odd) { padding-right: var(--s-6) }
-  .cx-cell:nth-child(even) { padding-left: var(--s-6); box-shadow: inset 1px 0 0 var(--border) }
-  .cx-cell + .cx-cell { border-top: 0 }
-  .cx-list > .cx-files, .cx-list > .cx-account { border-top: 1px solid var(--border); padding-top: var(--s-5); padding-bottom: 0 }
+
+/* the tabs: a row of words, the chosen one underlined */
+.cx-tabs { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); padding: 0 var(--s-6h); box-shadow: inset 0 -1px 0 var(--border) }
+.cx-tabs button {
+  padding: var(--s-3) 0; font-size: var(--fs-md); font-weight: 500; color: var(--text-muted);
+  transition: color var(--t-fast), box-shadow var(--t-fast);
 }
+.cx-tabs button:hover:not(:disabled) { color: var(--text) }
+.cx-tabs button[aria-current="true"], .cx-tabs button[aria-current="true"]:hover:not(:disabled) { color: var(--text); box-shadow: inset 0 -2px 0 var(--text) }
+.cx-tabs button:focus-visible { outline: none; box-shadow: var(--focus-ring-inset) }
+
+/* the chosen section alone; its name is the tab's, so its heading is for screen readers only */
+.cx-main { flex: 1 0 auto; padding: var(--s-6) var(--s-6h) var(--s-7) }
+.cx-sec { gap: var(--s-4); align-content: start; min-width: 0 }
+.cx-main > .cx-sec { display: none }
+.cx-main:is([data-shown="cx-keys"]) > #cx-keys, .cx-main:is([data-shown="cx-level"]) > #cx-level,
+.cx-main:is([data-shown="cx-rec"]) > #cx-rec, .cx-main:is([data-shown="cx-sky"]) > #cx-sky,
+.cx-main:is([data-shown="cx-files"]) > #cx-files { display: grid }
+.cx-h { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+.cx-sec > :is(.level-opts + .cx-s, .switch + .switch-note) { margin-top: calc(var(--s-2) * -1) }   /* a choice's note sits with the choice */
+
+/* the account: who and the version, then one row of worded actions, then what another device means */
+.cx-foot { display: grid; gap: var(--s-4); padding: var(--s-5) var(--s-6h) var(--s-6); background: var(--surface); box-shadow: inset 0 1px 0 var(--border) }
+.cx-foot-who { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2) var(--s-4) }
+.cx-foot-who .cx-s { margin: 0 }
+/* one row of worded actions, evenly spaced, deleting at the far end in brick */
+.act-row.cx-foot-acts { column-gap: var(--s-5); row-gap: var(--s-2) }
+.cx-foot-acts > .cx-box:last-child { display: grid; justify-items: start; margin-left: auto }
+.cx-foot-acts > .cx-box:last-child:has(form) { flex-basis: 100%; order: 2; margin-left: 0 }   /* the question before deleting: a line of its own */
+.cx-foot-note { margin: 0; font-size: var(--fs-sm); color: var(--text-muted) }
 .cx-box { display: grid; gap: var(--s-1); min-width: 0 }
-.cx-h { margin: 0 0 var(--s-1h) }
-.cx-files > .cx-h, .cx-account > .cx-h { margin-bottom: 0 }
-.cx-files code { font-size: .95em }
+.cx-sec.cx-box { gap: var(--s-4) }
+.cx-sec code { font-size: .95em }
 
 /* the keys: two lists of one-line rows, the writer's chosen row tinted */
-.keys-group { margin-top: var(--s-4) }
-.keys-group:first-of-type { margin-top: 2px }
+.keys-group { margin-top: var(--s-2) }
+.keys-group:first-of-type { margin-top: 0 }
 .keys-group > [role=radiogroup], .keys-group > div { margin-top: var(--s-2); border-top: 1px solid var(--border) }
-.keys-h { margin: 0; font-size: var(--fs-md); font-weight: 600; color: var(--text) }
+.keys-h { margin: 0 0 var(--s-1); font-size: var(--fs-sm); font-weight: 600; line-height: var(--lh-head); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-muted) }
 .keys-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-1) var(--s-3);
-  padding: var(--s-2) var(--s-2h); border-bottom: 1px solid var(--border);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-1) var(--s-5);
+  padding: var(--s-2h) var(--s-3); border-bottom: 1px solid var(--border);
 }
 .keys-row > * { grid-column: 1 / -1 }
 .keys-row > .keys-id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: var(--s-2h); min-width: 0; min-height: var(--badge) }
-.keys-label { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s-2h); min-width: 0 }
-.keys-row.writer .keys-name { cursor: pointer }
+.keys-label { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s-2h); min-width: 0 }
+/* what's left sits at the row's right, before its buttons, so the balances line up */
+.keys-label > :is(.keys-bal, .keys-bill) { margin-left: auto }
 .keys-row > .keys-actions:not(.confirm) { grid-column: 2; grid-row: 1; justify-self: end }
 .keys-row > .confirm { margin-top: 2px }
 .keys-row .keys-name { font-weight: 600 }
-.keys-row.writer > .keys-note { padding-left: var(--s-5h) }
 .keys-bal { font-size: var(--fs-md); color: var(--text-muted); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums }
 a.keys-bal:hover { color: var(--text); text-decoration: underline }
 .keys-bill { display: inline-flex; align-items: center; padding: var(--s-1); margin: -4px 0; color: var(--text-muted) }
 .keys-bill:hover, .keys-bill:focus-visible { color: var(--text) }
 .keys-actions { display: flex; flex-wrap: wrap; gap: var(--s-3h); align-items: center }
 .keys-actions .quiet { font-size: var(--fs-md) }
-.keys-id input[type=radio] { flex-shrink: 0; width: var(--tick); height: var(--tick); margin: 0; accent-color: var(--text); cursor: pointer }
 .keys-note { margin: 0 }
-.keys-tag { font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--track-head); padding: 0 var(--s-1h); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--border-strong); white-space: nowrap }
+.keys-tag { font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap }
+/* the writer in use: tinted, with a mark of the brand at its edge and in its tag */
+.keys-row.writer.on { color: var(--text); background: var(--selected); box-shadow: inset 2px 0 0 var(--accent) }
+.keys-use {
+  font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--track-head); padding: 0 var(--s-1h); color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent); white-space: nowrap
+}
+/* a writer to pick: the whole row is its button (the name's, stretched), its links and buttons on top */
+.keys-row.writer { position: relative }
+.keys-pick { text-align: left }
+.keys-pick::after { content: ""; position: absolute; inset: 0 }
+.keys-pick:focus-visible { outline: none }
+.keys-pick:focus-visible::after { box-shadow: var(--focus-ring-inset) }
+.keys-row.writer :is(.keys-bal, .keys-bill, .keys-actions, .keys-edit, .notice) { position: relative; z-index: var(--z-raised) }
+.keys-row:has(.keys-pick:hover:not(:disabled)) { background: var(--hover) }
+.keys-more { margin-top: calc(var(--s-2) * -1) }   /* the note under the writers sits with them */
 .keys-edit { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-1h) }
+/* where to get a key: a link out (its icon says it opens the service's site), at the row's far end */
+.keys-get {
+  display: inline-flex; align-items: center; gap: var(--s-1); margin-left: auto; font-size: var(--fs-md); color: var(--text-2);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong)
+}
+a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColor }
 .keys-edit .label { font-size: var(--fs-md); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-2) }
-.keys-foot { margin-top: var(--s-3); color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-ui) }
 
 /* asking before something goes: the question, then the brick button and the way back */
 .confirm { display: inline-flex; flex-wrap: wrap; gap: var(--s-2h) var(--s-3h); align-items: center }
@@ -73,11 +106,31 @@ a.keys-bal:hover { color: var(--text); text-decoration: underline }
 .confirm-form { display: grid; gap: var(--s-3); justify-items: start; width: 100% }
 .confirm-form .field { width: 100% }
 
-/* your level: three sentences as radio rows */
-.level-opts { display: grid; margin: 0 0 var(--s-1); border-top: 1px solid var(--border) }
+/* your level: three cards side by side (stacked on a phone), each a short name over the sentence; the chosen one ringed */
+.level-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin: 0 0 var(--s-1) }
+.level-card {
+  display: grid; align-content: start; gap: var(--s-1h); padding: var(--s-3) var(--s-3h) var(--s-3h); text-align: left; min-width: 0;
+  box-shadow: inset 0 0 0 1px var(--border-strong); transition: background-color var(--t-fast), box-shadow var(--t-fast);
+}
+.level-card:hover:not(:disabled) { background: var(--hover); box-shadow: inset 0 0 0 1px var(--text-2) }
+.level-card[aria-checked="true"], .level-card[aria-checked="true"]:hover:not(:disabled) { background: var(--selected); box-shadow: inset 0 0 0 2px var(--accent) }
+.level-name { font-size: var(--fs-md); font-weight: 600; line-height: var(--lh-head); color: var(--text) }
+.level-said { font-size: var(--fs-sm); line-height: var(--lh-ui); color: var(--text-2) }
+@media (max-width: 480px) { .level-opts { grid-template-columns: minmax(0, 1fr) } }
 
-/* recording: the switch's note sits under its words */
-.switch-note { padding-left: var(--s-5h) }
+/* recording: an on/off switch (a pill with a knob, in the brand's ember when on), its note under its words */
+.switch { display: flex; align-items: center; gap: var(--s-2h); cursor: pointer; font-size: var(--fs-md); color: var(--text) }
+.switch input {
+  appearance: none; flex-shrink: 0; width: calc(var(--tick) * 2); height: var(--tick); margin: 0; cursor: pointer; border-radius: var(--radius-pill);
+  background: radial-gradient(circle closest-side, var(--text-muted) 70%, transparent 76%) left center / var(--tick) var(--tick) no-repeat, var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border-strong); transition: background-color var(--t-fast);
+}
+.switch input:checked {
+  background: radial-gradient(circle closest-side, var(--on-action) 70%, transparent 76%) right center / var(--tick) var(--tick) no-repeat, var(--accent);
+  box-shadow: none;
+}
+.switch input:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset) }
+.switch-note { padding-left: calc(var(--tick) * 2 + var(--s-2h)) }
 
 /* the background: six small pictures, three across; the words are each one's tooltip */
 .sky-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin: 0 0 var(--s-1) }
@@ -87,17 +140,21 @@ a.keys-bal:hover { color: var(--text); text-decoration: underline }
 .sky-credit { margin-top: 2px; font-size: var(--fs-sm); color: var(--text-muted) }
 .sky-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px }
 
-/* files and account: a row of outlined actions; what one opens comes below the row */
+/* files and account: a row of actions; what one opens comes below the row */
 .act-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); width: 100% }
 .act-row > .cx-box { display: contents }
-.act-row > .cx-box > :not(.act) { order: 1; flex-basis: 100% }
-/* the account's foot: sign out, then delete (the one in brick), and the version at the far end */
-.cx-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-2) var(--s-5); width: 100%; margin-top: var(--s-2) }
-.cx-foot .cx-box { justify-items: start }
-.cx-foot .quiet { font-size: var(--fs-md) }
-.cx-foot .cx-version { margin-left: auto }
-.cx-foot .cx-box:has(form) { flex-basis: 100%; order: 2 }   /* the question before deleting: a line of its own */
+.act-row > .cx-box > :not(.act, .quiet) { order: 1; flex-basis: 100% }
 .cx-version { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums }
 .device { margin-top: var(--s-3) }
 .qr { display: block; margin: var(--s-3) 0; width: 200px; height: 200px; max-width: 100% }
 .link { margin: 0; font-size: var(--fs-sm); overflow-wrap: anywhere }
+
+/* the brand's ember, here and there: on what's chosen in Settings */
+.cx-tabs button[aria-current="true"], .cx-tabs button[aria-current="true"]:hover:not(:disabled) { box-shadow: inset 0 -2px 0 var(--accent) }
+.sky-opt[aria-pressed="true"], .sky-opt[aria-pressed="true"]:hover:not(:disabled) { box-shadow: inset 0 0 0 2px var(--accent) }
+
+/* a phone: a narrower margin, and the tabs closer, so they keep to one line */
+@media (max-width: 480px) {
+  .ctx-top, .cx-main, .cx-foot { padding-left: var(--s-5); padding-right: var(--s-5) }
+  .cx-tabs { padding: 0 var(--s-5); column-gap: var(--s-4) }
+}

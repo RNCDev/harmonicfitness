@@ -1,7 +1,7 @@
-// The Settings drawer. On a wide screen, two rows of two: the keys (what's used most) beside the listener's own
-// choices (their level, recording, the background behind the page, called the sky in the code, with its credit); then
-// their files (download, bring in a folder) beside the account (who is signed in, the password, another device, signing
-// out, deleting it). On a phone, one column in the same order. While it's open it holds the keyboard: Tab stays
+// The Settings drawer, in three parts: tabs at the top, one per section (the keys, what's used most; the listener's
+// level; recording; the background behind the page, called the sky in the code, with its credit; their files); the
+// chosen section alone; and the account at the foot (who is signed in, the password, another device, signing out,
+// deleting it, the version). While it's open it holds the keyboard: Tab stays
 // inside, Escape closes it, and the page behind can't be reached.
 import { useEffect, useRef, useState, type RefObject } from "react";
 import QRCode from "qrcode";
@@ -11,11 +11,12 @@ import { optimistic, useAction } from "../lib/useAction";
 import { useResource } from "../lib/useResource";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { SKIES, SkyPreview, type SkyKind } from "../ui/Sky";
-import { Button, ChoiceRow } from "../ui/Button";
+import { Button } from "../ui/Button";
 import { ConfirmInline } from "../ui/ConfirmInline";
 import { Field } from "../ui/Field";
 import { Loadable, Notice } from "../ui/Notice";
 import { PasswordForm } from "../ui/PasswordForm";
+import { useKeyAsk } from "../lib/keyAsk";
 import { KeysBox } from "./KeysBox";
 
 /** A QR code must be black on white for a phone's camera, whatever the page's colours. */
@@ -38,7 +39,7 @@ function DeviceLinkBox() {
   const until = link ? clockAt(link.expires_at) : "";
   return (
     <div className="cx-box">
-      <Button busy={make.busy} busyLabel="Making a link…" onClick={() => void make.run()}>
+      <Button variant="text" busy={make.busy} busyLabel="Making a link…" onClick={() => void make.run()}>
         {link ? "Make a new link" : "Sign in another device"}
       </Button>
       <Notice tone="error">{make.error ?? drawError}</Notice>
@@ -110,7 +111,7 @@ function PasswordBox({ username }: { username: string }) {
       {open ? (
         <PasswordForm username={username} needsCurrent onDone={() => { setOpen(false); setDone(true); }} />
       ) : (
-        <Button onClick={() => { setOpen(true); setDone(false); }}>Change password</Button>
+        <Button variant="text" onClick={() => { setOpen(true); setDone(false); }}>Change password</Button>
       )}
       <Notice tone="done" className="cx-s">{done && "Password changed."}</Notice>
     </div>
@@ -142,10 +143,10 @@ type Props = {
 
 function RecordBox({ on, onChange, error }: { on: boolean; onChange: (on: boolean) => void; error?: string | null }) {
   return (
-    <section className="cx-box" aria-labelledby="cx-rec-h">
-      <h3 className="label cx-h" id="cx-rec-h">Recording</h3>
+    <section className="cx-box cx-sec" id="cx-rec" aria-labelledby="cx-rec-h">
+      <h3 className="head cx-h" id="cx-rec-h">Recording</h3>
       <label className="switch">
-        <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
+        <input type="checkbox" role="switch" checked={on} onChange={(e) => onChange(e.target.checked)} />
         <span className="switch-name">Record without asking</span>
       </label>
       <p className="cx-s switch-note">
@@ -158,7 +159,10 @@ function RecordBox({ on, onChange, error }: { on: boolean; onChange: (on: boolea
   );
 }
 
-/** The listener's level, picked by the sentence that fits them: it sets the movements, the doses and how much the
+/** Each level's short name, over the sentence a listener would say. */
+const LEVEL_NAMES: Record<Level, string> = { novice: "New or returning", experienced: "Some experience", advanced: "Experienced" };
+
+/** The listener's level, picked by the sentence that fits them, as three cards side by side: it sets the movements, the doses and how much the
  *  coach explains. Novice until one is chosen, as the planning assumes. Chosen at once, then saved; put back if refused. */
 function LevelBox() {
   const res = useResource(api.level, "Your level couldn't be loaded.");
@@ -179,16 +183,18 @@ function LevelBox() {
   }
 
   return (
-    <section className="cx-box" aria-labelledby="cx-level-h">
-      <h3 className="label cx-h" id="cx-level-h">Your level</h3>
+    <section className="cx-box cx-sec" id="cx-level" aria-labelledby="cx-level-h">
+      <h3 className="head cx-h" id="cx-level-h">Your level</h3>
       <Loadable value={state} error={res.error} onRetry={res.reload} what="your level" room={150}>
         {(s) => (
           <>
             <div className="level-opts" role="radiogroup" aria-labelledby="cx-level-h">
               {s.choices.map((c) => (
-                <ChoiceRow key={c.level} checked={s.level === c.level} onClick={() => void choose(c.level)}>
-                  {c.said}
-                </ChoiceRow>
+                <Button key={c.level} variant="bare" className="level-card" role="radio" aria-checked={s.level === c.level}
+                  onClick={() => void choose(c.level)}>
+                  <span className="level-name">{LEVEL_NAMES[c.level]}</span>
+                  <span className="level-said">{c.said}</span>
+                </Button>
               ))}
             </div>
             <p className="cx-s">
@@ -206,8 +212,12 @@ function LevelBox() {
 
 function SkyBox({ sky, onSky, error }: { sky: SkyKind; onSky: (sky: SkyKind) => void; error?: string | null }) {
   return (
-    <section className="cx-box" aria-labelledby="cx-sky-h">
-      <h3 className="label cx-h" id="cx-sky-h">Background</h3>
+    <section className="cx-box cx-sec" id="cx-sky" aria-labelledby="cx-sky-h">
+      <h3 className="head cx-h" id="cx-sky-h">Background</h3>
+      <p className="cx-s sky-credit">
+        Patterns after <a href="https://bookofshapes.com" target="_blank" rel="noopener noreferrer">Book of Shapes</a> by
+        Nikolaj Sokolowski.
+      </p>
       <div className="sky-opts" role="group" aria-labelledby="cx-sky-h">
         {SKIES.map((s) => (
           <Button key={s.kind} variant="tile" className="sky-opt" pressed={sky === s.kind} title={s.about}
@@ -218,10 +228,6 @@ function SkyBox({ sky, onSky, error }: { sky: SkyKind; onSky: (sky: SkyKind) => 
         ))}
       </div>
       <Notice tone="error">{error}</Notice>
-      <p className="cx-s sky-credit">
-        Patterns after <a href="https://bookofshapes.com" target="_blank" rel="noopener noreferrer">Book of Shapes</a> by
-        Nikolaj Sokolowski.
-      </p>
     </section>
   );
 }
@@ -230,6 +236,19 @@ export function Settings({ username, version, open, onClose, onSignOut, onDelete
   sky = "flow", onSky, skyError, autoRecord = false, onAutoRecord, autoRecordError, returnFocus }: Props) {
   const drawer = useRef<HTMLElement>(null);
   useFocusTrap(drawer, open, { onEscape: onClose, returnFocus, inert: true });
+  // the tabs: one per section, and only the chosen section shows (a button, not a link: the page's own address
+  // already says which page is open)
+  const sections = [
+    { id: "cx-keys", name: "Keys" },
+    { id: "cx-level", name: "Level" },
+    ...(onAutoRecord ? [{ id: "cx-rec", name: "Recording" }] : []),
+    ...(onSky ? [{ id: "cx-sky", name: "Background" }] : []),
+    { id: "cx-files", name: "Files" },
+  ];
+  const [shown, setShown] = useState("cx-keys");
+  // a key's row asked for from elsewhere (the welcome card, a coach that needs a key) is in Keys
+  const keyAsk = useKeyAsk();
+  useEffect(() => { if (keyAsk) setShown("cx-keys"); }, [keyAsk]);
   return (
     <>
       <div className={`ctx-scrim${open ? " show" : ""}`} onClick={onClose} aria-hidden="true" data-scrim="" />
@@ -239,42 +258,46 @@ export function Settings({ username, version, open, onClose, onSignOut, onDelete
           <h2 className="head">Settings</h2>
           <Button variant="bare" className="ctx-close" onClick={onClose}>Close</Button>
         </div>
-        {/* a wide screen: the keys beside your choices, then your files beside the account; a phone: one column */}
-        <div className="cx-list">
-          <div className="cx-cell cx-keys">
-            <KeysBox onKeys={onKeys} />
-          </div>
-          <div className="cx-cell cx-prefs">
-            <LevelBox />
-            {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} error={autoRecordError} />}
-            {onSky && <SkyBox sky={sky} onSky={onSky} error={skyError} />}
-          </div>
-          <section className="cx-cell cx-files" aria-labelledby="cx-files-h">
-            <h3 className="label cx-h" id="cx-files-h">Your files</h3>
+        <nav className="cx-tabs" aria-label="Settings sections">
+          {sections.map((s) => (
+            <Button key={s.id} variant="bare" aria-current={shown === s.id || undefined} onClick={() => setShown(s.id)}>
+              {s.name}
+            </Button>
+          ))}
+        </nav>
+        <div className="cx-main" data-shown={shown}>
+          <KeysBox onKeys={onKeys} />
+          <LevelBox />
+          {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} error={autoRecordError} />}
+          {onSky && <SkyBox sky={sky} onSky={onSky} error={skyError} />}
+          <section className="cx-box cx-sec" id="cx-files" aria-labelledby="cx-files-h">
+            <h3 className="head cx-h" id="cx-files-h">Your files</h3>
+            <p className="cx-s">Your profile, log and workouts as a ZIP, or a <code>me</code> folder from
+              HarmonicFitness on your computer. Keys are never included.</p>
             <div className="act-row">
               <ExportBox />
               <ImportBox />
             </div>
-            <p className="cx-s">Your profile, log and workouts as a ZIP, or a <code>me</code> folder from
-              HarmonicFitness on your computer. Keys are never included.</p>
-          </section>
-          <section className="cx-cell cx-account" aria-labelledby="cx-account-h">
-            <h3 className="label cx-h" id="cx-account-h">Account</h3>
-            <p className="cx-s">Signed in as <strong>{username}</strong></p>
-            {/* what a button opens (the password form, the sign-in code) comes below its row */}
-            <div className="act-row">
-              <PasswordBox username={username} />
-              <DeviceLinkBox />
-            </div>
-            <div className="cx-foot">
-              <Button variant="text" onClick={onSignOut}>Sign out</Button>
-              <DeleteBox onDeleted={onDeleted} />
-              {version && <p className="cx-version">Version {version}</p>}
-            </div>
           </section>
         </div>
+        {/* the account, always at the foot: who and the version, then one row of worded actions (the password,
+            another device, signing out, deleting it; what one opens comes below the row), then what another device means */}
+        <section className="cx-foot" aria-labelledby="cx-account-h">
+          <h3 className="head cx-h" id="cx-account-h">Account</h3>
+          <div className="cx-foot-who">
+            <p className="cx-s">Signed in as <strong>{username}</strong></p>
+            {version && <p className="cx-version">Version {version}</p>}
+          </div>
+          <div className="act-row cx-foot-acts">
+            <PasswordBox username={username} />
+            <DeviceLinkBox />
+            <Button variant="text" onClick={onSignOut}>Sign out</Button>
+            <DeleteBox onDeleted={onDeleted} />
+          </div>
+          <p className="cx-s cx-foot-note">Sign in another device shows a code to scan with your phone: it signs you in
+            there, no password needed.</p>
+        </section>
       </aside>
     </>
   );
 }
-

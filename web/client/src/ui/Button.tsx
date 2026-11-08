@@ -4,7 +4,7 @@
 // (styles/primitives.css): cream for the one action on a screen, an outline for the rest, underlined words for a quiet
 // one, a brick outline to stop what's running, a square outlined icon, the header's buttons, a picture or card to
 // pick (a tile), and brick for anything that deletes; `bare` leaves the look to the className. Every button outside
-// ui/ is this component, or ChoiceRow, but for the few custom widgets layers.test.ts names.
+// ui/ is this component, but for the few custom widgets layers.test.ts names.
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 const LOOK = {
@@ -39,15 +39,3 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     </button>
   );
 });
-
-/** One of a few choices, as a row (a radio): a dot, then the words; the chosen row tinted with a bar at its edge. */
-export function ChoiceRow({ checked, children, className, ...rest }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "role">
-  & { checked: boolean }) {
-  return (
-    <button type="button" role="radio" aria-checked={checked} className={`choice-row${className ? " " + className : ""}`}
-      {...rest}>
-      <span className="choice-dot" aria-hidden="true" />
-      <span>{children}</span>
-    </button>
-  );
-}

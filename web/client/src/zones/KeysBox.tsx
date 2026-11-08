@@ -63,6 +63,7 @@ function KeyRow({ k, open, balance, onChanged, onChoose }: {
   const [value, setValue] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const row = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (open > 0) { setEditing(true); setAsking(false); } }, [open]);
   useEffect(() => { if (editing) input.current?.focus(); }, [editing, open]);
@@ -86,17 +87,29 @@ function KeyRow({ k, open, balance, onChanged, onChoose }: {
     setValue("");
     save.clear();
   }
+  // an open key box closes on a click anywhere outside its row, unless it's saving
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    if (!editing || save.busy) return;
+    const away = (e: PointerEvent) => { if (!row.current?.contains(e.target as Node)) closeRef.current(); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [editing, save.busy]);
 
   return (
-    <div className={`keys-row${onChoose ? " writer" : ""}${k.writer ? " on" : ""}`}>
+    <div ref={row} className={`keys-row${onChoose ? " writer" : ""}${k.writer ? " on" : ""}`}>
       {/* one line: the name, its tag and what's left on the left, its buttons on the right (when it was set is the
           name's tooltip); anything opened goes below, across the row */}
       <span className="keys-id">
-        {onChoose && <input type="radio" name="writer" id={`writer-${k.service}`} checked={!!k.writer} onChange={onChoose} />}
         <span className="keys-label" title={k.set ? setOn(k.updated_at) : undefined}>
-          {onChoose ? <label className="keys-name" htmlFor={`writer-${k.service}`}>{k.name}</label>
+          {/* a writer not in use: its name is a button whose area covers the row, so a click anywhere picks it */}
+          {onChoose && !k.writer
+            ? <Button variant="bare" className="keys-name keys-pick" aria-label={`Use ${k.name} to write your workouts`}
+                onClick={onChoose}>{k.name}</Button>
             : <span className="keys-name">{k.name}</span>}
           {k.kind === "model" && k.voice && <span className="keys-tag" title="This key also voices your coaches">+ voices</span>}
+          {onChoose && k.writer && <span className="keys-use">In use</span>}
           {k.set && <BalanceTag k={k} balance={balance} />}
         </span>
       </span>
@@ -128,8 +141,10 @@ function KeyRow({ k, open, balance, onChanged, onChoose }: {
           </Field>
           <span className="keys-actions">
             <Button type="submit" variant="primary" busy={save.busy} disabled={value === ""}>Save</Button>
-            <Button variant="text" onClick={close} disabled={save.busy}>Cancel</Button>
-            <a className="cx-s" href={k.key_page} target="_blank" rel="noopener noreferrer">Get a key</a>
+            <Button variant="outline" onClick={close} disabled={save.busy}>Cancel</Button>
+            <a className="keys-get" href={k.key_page} target="_blank" rel="noopener noreferrer">
+              Get a key <Icon name="billing" size={14} weight={2.25} />
+            </a>
           </span>
         </form>
       )}
@@ -203,7 +218,7 @@ export function KeysBox({ onKeys }: Props) {
     <section className="keys-group" aria-label={title}>
       <h4 className="keys-h">{title}</h4>
       <p className="cx-s">{note}</p>
-      <div role={writers ? "radiogroup" : undefined} aria-label={writers ? title : undefined}>
+      <div>
         {list.map((k) => (
           <KeyRow key={k.service} k={k} open={openFor(k.service)} balance={balanceOf(k.service)} onChanged={changed}
             onChoose={writers ? () => void choose(k.service, false) : undefined} />
@@ -213,8 +228,9 @@ export function KeysBox({ onKeys }: Props) {
   );
 
   return (
-    <section className="cx-box" aria-labelledby="cx-keys-h">
-      <h3 className="label cx-h" id="cx-keys-h">Keys</h3>
+    <section className="cx-box cx-sec" id="cx-keys" aria-labelledby="cx-keys-h">
+      <h3 className="head cx-h" id="cx-keys-h">Keys</h3>
+      <p className="cx-s">Keys are encrypted, never shown again, and sent only to their own service.</p>
       <Notice tone="error">{error}</Notice>
       <Loadable value={keys} error={res.error} onRetry={res.reload} what="your keys" room={180}>
         {() => (
@@ -225,7 +241,7 @@ export function KeysBox({ onKeys }: Props) {
             {voicesShown
               ? group("More voices (optional)", "Each adds coaches of its own.", optional)
               : optional.length > 0 && (
-                <section className="keys-group" aria-label="More voices (optional)">
+                <section className="keys-group keys-more" aria-label="More voices (optional)">
                   <p className="cx-s">Your {writer?.name} key voices your coaches too. Nothing else to add.</p>
                   <Button variant="text" onClick={() => setMoreVoices(true)}>Add another voice (optional)</Button>
                 </section>
@@ -233,7 +249,6 @@ export function KeysBox({ onKeys }: Props) {
           </>
         )}
       </Loadable>
-      <p className="cx-s keys-foot">Keys are encrypted, never shown again, and sent only to their own service.</p>
     </section>
   );
 }

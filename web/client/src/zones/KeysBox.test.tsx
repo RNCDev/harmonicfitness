@@ -92,9 +92,9 @@ describe("the Keys box", () => {
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
     m.keys.mockResolvedValue([CLAUDE, gpt, gem, { ...gem, kind: "voice" }, or, { ...or, kind: "voice" }, FISH]);
     render(<KeysBox />);
-    await screen.findByRole("radiogroup", { name: "Who writes your workouts" });
-    expect(screen.getAllByRole("radio").map((r) => r.getAttribute("id"))).toEqual(["writer-openrouter", "writer-gemini", "writer-anthropic", "writer-openai"]);
-    expect(screen.getByRole("radio", { name: "OpenRouter" })).toBeInTheDocument();   // the tag isn't part of its name
+    await screen.findByRole("region", { name: "Who writes your workouts" });
+    expect(screen.getAllByRole("button", { name: /^Use .* to write your workouts$/ }).map((b) => b.getAttribute("aria-label")))
+      .toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"].map((n) => `Use ${n} to write your workouts`));
     expect(screen.getAllByText("+ voices")).toHaveLength(2);
   });
 
@@ -103,11 +103,12 @@ describe("the Keys box", () => {
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model", writer: false };
     m.keys.mockResolvedValue([claude, gpt, FISH]);
     render(<KeysBox />);
-    const group = await screen.findByRole("radiogroup", { name: "Who writes your workouts" });
-    expect(screen.getByRole("radio", { name: "Claude" })).toBeChecked();
-    expect(group.closest("section")).toHaveTextContent("Pick one.");
-    fireEvent.click(screen.getByRole("radio", { name: "ChatGPT" }));
-    await waitFor(() => expect(screen.getByRole("radio", { name: "ChatGPT" })).toBeChecked());
+    const group = await screen.findByRole("region", { name: "Who writes your workouts" });
+    expect(screen.getByText("In use").closest(".keys-row")).toHaveTextContent("Claude");
+    expect(screen.queryByRole("button", { name: "Use Claude to write your workouts" })).toBeNull();
+    expect(group).toHaveTextContent("Pick one");
+    fireEvent.click(screen.getByRole("button", { name: "Use ChatGPT to write your workouts" }));
+    await waitFor(() => expect(screen.getByText("In use").closest(".keys-row")).toHaveTextContent("ChatGPT"));
     expect(m.setWriter).toHaveBeenCalledWith("openai");
     expect(await screen.findByLabelText("ChatGPT key")).toHaveFocus();
   });
@@ -118,7 +119,18 @@ describe("the Keys box", () => {
     render(<KeyAskContext.Provider value={{ service: "openai", n: 1, choose: true }}><KeysBox /></KeyAskContext.Provider>);
     expect(await screen.findByLabelText("ChatGPT key")).toBeInTheDocument();
     expect(m.setWriter).toHaveBeenCalledWith("openai");
-    expect(screen.getByRole("radio", { name: "ChatGPT" })).toBeChecked();
+    expect(screen.getByText("In use").closest(".keys-row")).toHaveTextContent("ChatGPT");
+  });
+
+  it("closes an open key box on a click outside its row, but not inside it", async () => {
+    m.keys.mockResolvedValue([CLAUDE, ELEVEN]);
+    render(<KeysBox />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add ElevenLabs key" }));
+    const box = await screen.findByLabelText("ElevenLabs key");
+    fireEvent.pointerDown(box);
+    expect(screen.getByLabelText("ElevenLabs key")).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByLabelText("ElevenLabs key")).toBeNull());
   });
 
   it("opens a row for its key when asked, and again when asked again", async () => {

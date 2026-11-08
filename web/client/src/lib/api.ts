@@ -49,7 +49,9 @@ export type JobView = {
   stages: Stage[];
 };
 
-export type Audio = { id: string; name: string; expires_at: string };
+/** An MP3 the site keeps: a workout's has no expiry (`expires_at` null; three newer ones replace it), and `gone`
+ *  marks one a conversation still names that's no longer kept. */
+export type Audio = { id: string; name: string; expires_at: string | null; gone?: boolean };
 export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
 /** The plan the engine worked out from the draft's own segments (`get plan`), so its times add up. */
 export type PlanRow = { what: string; kind: "movement" | "rest" | "talk"; segments: number; seconds: number };

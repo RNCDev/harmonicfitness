@@ -1280,6 +1280,40 @@ class Media(ApiCase):
         self.assertEqual(self.client.get(f"/api/media/{audio['id']}").status_code, 404)
         self.assertEqual(media.sweep(self.conn), 1)
 
+    def test_keeps_the_three_newest_workouts_and_any_other_mp3_a_day(self):
+        from webapp import media
+        _, uk = self.signed_in()
+        sample = self.kept(uk)   # no build: a coach's sample, kept 24 hours
+        self.assertIsNotNone(sample["expires_at"])
+        made = [media.put(self.conn, uk, f"Workout {n}", self.MP3, build_id=f"b{n}") for n in range(4)]
+        self.conn.commit()
+        self.assertTrue(all(a["expires_at"] is None for a in made))
+        self.assertEqual(self.client.get(f"/api/media/{made[0]['id']}").status_code, 404)   # the oldest went
+        for a in made[1:] + [sample]:
+            r = self.client.get(f"/api/media/{a['id']}")
+            self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["cache-control"].split("max-age=")[1].isdigit(), True)
+        self.assertEqual(sorted(media.by_build(self.conn, uk)), ["b1", "b2", "b3"])
+        self.assertEqual(media.sweep(self.conn), 0)   # nothing past its time: a workout's has none
+
+    def test_a_conversation_marks_a_replaced_recording_gone(self):
+        from webapp import conversations, media
+        _, uk = self.signed_in()
+        old = media.put(self.conn, uk, "Workout old", self.MP3, build_id="old")
+        cid = conversations.create(self.conn, uk, "a workout")
+        c = conversations.load(self.conn, uk, cid)
+        c.state = "idle"
+        c.lines = c.lines + [{"role": "agent", "text": "", "audio": old}]
+        self.assertTrue(conversations.save(self.conn, uk, c, c.version))
+        self.conn.commit()
+        line = self.client.get(f"/api/conversations/{cid}").json()["lines"][-1]
+        self.assertNotIn("gone", line["audio"])
+        for n in range(3):
+            media.put(self.conn, uk, f"Workout {n}", self.MP3, build_id=f"new{n}")
+        self.conn.commit()
+        line = self.client.get(f"/api/conversations/{cid}").json()["lines"][-1]
+        self.assertEqual(line["audio"], {**old, "gone": True})
+
     def test_needs_a_session(self):
         self.assertEqual(self.client.get("/api/media/00000000-0000-0000-0000-000000000000").status_code, 401)
 

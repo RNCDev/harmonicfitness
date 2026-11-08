@@ -1264,7 +1264,7 @@ class Instructions(AgentCase):
         self.assertNotIn(".claude/skills/workout/research.md", text)   # a computer's research agents only
         self.assertIn("Never ask the listener for a key or a password", text)
         self.assertIn("--lint-only", text)
-        self.assertIn("kept 24 hours", text)
+        self.assertIn("kept until three newer workouts replace it", text)
         self.assertIn("one side only", text)
         self.assertIn(f"today is {TODAY}", text)
 
