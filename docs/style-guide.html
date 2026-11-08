@@ -10,50 +10,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap">
 <link rel="stylesheet" href="docs.css">
-<style>
-  .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 0 }
-  .toc a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 2px; text-decoration: none; font-size: 15px; color: var(--ink-2) }
-  .toc a:hover { border-color: var(--coral); color: var(--ink) }
-
-  .dodont { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px }
-  .dodont .card h3 { font-size: 18px; letter-spacing: .14em }
-  .do h3 { color: var(--blue) } .dont h3 { color: var(--stop) }
-  .dodont ul { padding-left: 0; list-style: none }
-  .dodont li { padding: 8px 0; border-top: 1px solid var(--rule); color: var(--ink) }
-  .dodont li:first-child { border-top: 0 }
-  .dodont li small { display: block; color: var(--ink-3); font-size: 14px }
-
-  .swatches { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); margin-top: 16px }
-  .sw { border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; background: var(--sheet) }
-  .sw i { display: block; height: 72px; background: var(--s) }
-  .sw div { padding: 10px 12px }
-  .sw b { display: block; font-weight: 600 }
-  .sw code { background: none; padding: 0; color: var(--ink-3) }
-  .sw span { display: block; font-size: 13.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.35 }
-  .ember { height: 28px; border-radius: 2px; margin-top: 16px;
-    background: linear-gradient(in oklch to right, #8C2F22 0%, #FF5A3C 65%, #FFC2AE 100%) }
-  @supports not (background: linear-gradient(in oklch to right, red, blue)) {
-    .ember { background: linear-gradient(to right, #8C2F22 0%, #FF5A3C 65%, #FFC2AE 100%) }
-  }
-  .ember-labels { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--ink-3); margin-top: 6px }
-
-  .type-row { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-top: 1px solid var(--rule); align-items: baseline }
-  .type-row:first-of-type { border-top: 0 }
-  .type-row .meta { color: var(--ink-3); font-size: 14px; line-height: 1.4 }
-  .type-row .meta b { display: block; color: var(--ink-2); font-weight: 600 }
-
-  .marks { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); margin-top: 16px }
-  .marks .card { display: flex; flex-direction: column; gap: 14px }
-  .marks .stage { display: flex; align-items: center; justify-content: center; min-height: 120px; background: var(--paper); border: 1px solid var(--rule); border-radius: 2px }
-  .marks .stage.light { background: #EDEAE0 }
-
-  .demo { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); margin-top: 16px }
-
-  @media (max-width: 640px) {
-    .dodont { grid-template-columns: 1fr }
-    .type-row { grid-template-columns: 1fr; gap: 6px }
-  }
-</style>
 </head>
 <body>
 <div class="page">
@@ -63,8 +19,8 @@
   <nav><a href="index.html">How it fits</a><a href="style-guide.html" aria-current="page">Style guide</a><a href="demos/index.html">Demos</a></nav>
 </header>
 
-<p class="kicker" style="margin-top:48px">Style guide</p>
-<h1 style="margin-top:10px">How it looks and sounds</h1>
+<p class="kicker">Style guide</p>
+<h1>How it looks and sounds</h1>
 <p class="lede">The rules for anything written for HarmonicFitness: these docs, the web app, the README, error
 messages and the coach's lines. It's mostly about words, because the product is a voice in someone's ear.</p>
 
@@ -154,7 +110,7 @@ them there and in <code>make.py</code>, never by hand.</p>
 <div class="ember" role="img" aria-label="Ember gradient from Ember low through Coral to Ember high"></div>
 <div class="ember-labels"><span>Ember low · 0</span><span>Coral · 0.65</span><span>Ember high · 1</span></div>
 
-<h3 style="margin-top:36px">The app's surfaces</h3>
+<h3 class="spaced">The app's surfaces</h3>
 <p class="sub">From <code>web/client/src/tokens.css</code>, the one list the app, these docs and the web player page share. The app is dark: paper underneath, sheets on top, and
 three tones of cream for text.</p>
 <div class="swatches">
@@ -169,10 +125,10 @@ three tones of cream for text.</p>
   <div class="sw" style="--s:#E3907D"><i></i><div><b>--stop</b><code>#E3907D</code><span>Something stopped or refused.</span></div></div>
 </div>
 
-<h3 style="margin-top:36px">Layer colours, in diagrams</h3>
+<h3 class="spaced">Layer colours, in diagrams</h3>
 <p class="sub">Each folder has one colour, the same on every docs page. Always put the folder's name beside its
 colour, so the colour is never the only cue.</p>
-<div class="chips" style="margin-top:0">
+<div class="chips flush">
   <span class="chip l-knowledge"><i class="dot"></i>knowledge/ · dusk blue</span>
   <span class="chip l-coaches"><i class="dot"></i>coaches/ · coral</span>
   <span class="chip l-me"><i class="dot"></i>me/ · ember high</span>
@@ -182,26 +138,26 @@ colour, so the colour is never the only cue.</p>
 <!-- TYPE -->
 <h2 id="type">Type</h2>
 <p class="sub">Two faces, both free on Google Fonts. Headings are tall and loud; body text is narrow and calm.</p>
-<div class="card" style="padding-top:4px;padding-bottom:4px">
-  <div class="type-row"><div class="meta"><b>Display</b>Big Shoulders Display, 700, uppercase, +0.02 to 0.06 em</div>
-    <div style="font:700 clamp(36px,5vw,56px)/1 var(--display);text-transform:uppercase;letter-spacing:.03em">Twenty-five minutes</div></div>
+<div class="card type-card">
+  <div class="type-row"><div class="meta"><b>Display</b>Big Shoulders Display, 700, uppercase, +0.02 to 0.05 em</div>
+    <div class="sample-display">Twenty-five minutes</div></div>
   <div class="type-row"><div class="meta"><b>Heading</b>Display, 700, 22 to 36 px, +0.05 em</div>
-    <div style="font:700 26px/1.1 var(--display);text-transform:uppercase;letter-spacing:.06em">Today's limits</div></div>
-  <div class="type-row"><div class="meta"><b>Label, in the app</b>IBM Plex Sans Condensed, 500 to 600, 12 to 14 px, +0.16 em, uppercase, ink-3 (<code>.label</code>)</div>
-    <div style="font:600 13px/1.2 var(--font);text-transform:uppercase;letter-spacing:.16em;color:var(--ink-3)">Rest after set two</div></div>
-  <div class="type-row"><div class="meta"><b>Label, in the docs</b>Display, 700, 13 to 15 px, +0.12 to 0.2 em</div>
-    <div style="font:700 14px/1 var(--display);text-transform:uppercase;letter-spacing:.16em;color:var(--coral)">Rest after set two</div></div>
-  <div class="type-row"><div class="meta"><b>Body</b>IBM Plex Sans Condensed, 400, 16 px in the app (<code>--fs-body</code>), 17 px in these docs (<code>--fs-lg</code>), line height 1.55</div>
-    <div style="color:var(--ink-2)">Set them down and shake the arms out. That's two of three, and the next set is the same weight.</div></div>
+    <div class="sample-heading">Today's limits</div></div>
+  <div class="type-row"><div class="meta"><b>Label, in the app</b>IBM Plex Sans Condensed, 600, 13 px (<code>--fs-sm</code>), +0.16 em, uppercase, ink-3 (<code>.label</code>)</div>
+    <div class="sample-label">Rest after set two</div></div>
+  <div class="type-row"><div class="meta"><b>Label, in the docs</b>Display, 700, 13 to 15 px, +0.14 to 0.16 em</div>
+    <div class="kicker">Rest after set two</div></div>
+  <div class="type-row"><div class="meta"><b>Body</b>IBM Plex Sans Condensed, 400, 16 px in the app (<code>--fs-body</code>), 18 px in these docs (<code>--fs-lg</code>), line height 1.55</div>
+    <div class="sample-body">Set them down and shake the arms out. That's two of three, and the next set is the same weight.</div></div>
   <div class="type-row"><div class="meta"><b>Code</b>The system's monospace, 0.88 em, on sheet-2</div>
     <div><code>./harmonicfitness build "&lt;draft&gt;" "&lt;name&gt;" --lint-only</code></div></div>
 </div>
 <div class="note">Headings are always uppercase, set in the display face. Body text is never uppercase. Keep lines of
 body text under about 64 characters wide.</div>
 
-<h3 style="margin-top:36px">Space, corners and sizes</h3>
+<h3 class="spaced">Space, corners and sizes</h3>
 <p class="sub">All in <code>tokens.css</code>; the app's stylesheet types none of them by hand (<code>theme.test.ts</code>).</p>
-<ul class="card" style="list-style:none;margin:0;padding-left:20px">
+<ul class="card plain">
   <li><b>Space:</b> steps of 4 and 8 px (<code>--s-1</code> to <code>--s-9</code>), with half steps at 6, 10, 14, 20, 28 and 40.</li>
   <li><b>Corners:</b> controls are square (<code>--radius-control</code>); cards, panels, bubbles and menus are 2 px round (<code>--radius-sheet</code>); a pill is fully round.</li>
   <li><b>A fingertip:</b> on a touch screen every control takes a tap at least 44 px across (<code>--hit</code>); a control is 40 px tall (<code>--control</code>).</li>
@@ -213,16 +169,16 @@ body text under about 64 characters wide.</div>
 <p class="sub">An H drawn as a stereo level meter: two channels and a middle bar, in Ember. Use the form that fits the
 size. The files and their rules are in <code>assets/brand/</code>.</p>
 <div class="marks">
-  <div class="card"><div class="stage"><img src="../assets/brand/mark.svg" alt="The full mark" style="height:88px;width:auto"></div>
+  <div class="card"><div class="stage"><img src="../assets/brand/mark.svg" alt="The full mark" class="mark-full"></div>
     <div><h3>mark.svg</h3><p>About 60 px and up. Ten segments a channel.</p></div></div>
-  <div class="card"><div class="stage"><img src="../assets/brand/mark-mid.svg" alt="The mid mark" style="height:44px;width:auto"></div>
+  <div class="card"><div class="stage"><img src="../assets/brand/mark-mid.svg" alt="The mid mark" class="mark-mid"></div>
     <div><h3>mark-mid.svg</h3><p>24 to 60 px. Six segments.</p></div></div>
-  <div class="card"><div class="stage"><img src="../assets/brand/mark-small.svg" alt="The small mark" style="height:20px;width:auto"></div>
+  <div class="card"><div class="stage"><img src="../assets/brand/mark-small.svg" alt="The small mark" class="mark-small"></div>
     <div><h3>mark-small.svg</h3><p>Under 24 px. Four segments.</p></div></div>
-  <div class="card"><div class="stage light"><img src="../assets/brand/wordmark.svg" alt="The wordmark on light" style="width:86%;height:auto"></div>
+  <div class="card"><div class="stage light"><img src="../assets/brand/wordmark.svg" alt="The wordmark on light" class="wordmark"></div>
     <div><h3>wordmark</h3><p>The main logo, in type. Use <code>-reversed</code> on dark.</p></div></div>
 </div>
-<div class="grid" style="margin-top:14px">
+<div class="grid">
   <div class="card"><h3>Do</h3><ul><li>Use the files as made.</li><li>Leave clear space of at least one segment's
     width around it.</li><li>Let it move only while there's sound, and never when the system asks for reduced motion.</li></ul></div>
   <div class="card"><h3>Don't</h3><ul><li>Recolour, stretch or redraw it. Change <code>make.py</code> instead.</li>
@@ -250,8 +206,8 @@ the same top bar. Keep each page self-contained: no scripts and no build step.</
     <li>Broad strokes. Link to the file that holds the detail rather than copying it.</li></ul></div>
 </div>
 
-<h3 style="margin-top:36px">The parts, as they render</h3>
-<div class="demo">
+<h3 class="spaced">The parts, as they render</h3>
+<div class="parts">
   <ol class="steps">
     <li><b>Brief.</b><p>The day's ingredients and the safe menu.</p>
       <div class="chips"><span class="chip l-knowledge"><i class="dot"></i>catalog</span><span class="chip out l-me"><i class="dot"></i>menu</span></div></li>
@@ -259,11 +215,11 @@ the same top bar. Keep each page self-contained: no scripts and no build step.</
   <div>
     <div class="card layer l-coaches"><div class="path">coaches/</div><h3>A layer card</h3><p>A top edge in the
       folder's colour, its path in monospace, then one heading and a line or two.</p></div>
-    <div class="note" style="margin-top:14px"><b>A note.</b> One idea, in a sentence or two.</div>
+    <div class="note"><b>A note.</b> One idea, in a sentence or two.</div>
   </div>
 </div>
 
-<div class="note" style="margin-top:28px"><b>Keep docs free of personal details.</b> <code>docs/</code> is part of the
+<div class="note spaced"><b>Keep docs free of personal details.</b> <code>docs/</code> is part of the
 public engine. No listener's name, health, location, log lines or drafts, even as examples: the pre-push hook and CI
 refuse them. Make up example names and facts, and keep them obviously generic.</div>
 

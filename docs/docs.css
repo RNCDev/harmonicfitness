@@ -1,5 +1,7 @@
-/* HarmonicFitness docs: one stylesheet for every page in docs/. The tokens are the app's own (tokens.css, copied
-   from web/client/src/tokens.css); the layer colours are the docs' own (style-guide.html, Colour). */
+/* HarmonicFitness docs: one stylesheet for every page in docs/, and the only one (the pages hold no <style> and no
+   style= but a colour swatch's --s). The tokens are the app's own (tokens.css, copied from web/client/src/tokens.css);
+   the layer colours, the accent and a few sizes are the docs' own, named below. Its rules keep to the tokens as the
+   app's do (tests/test_tokens.py, as web/client/src/theme.test.ts): colours by role, no size typed in pixels. */
 
 @import url("tokens.css");   /* the app's tokens: an exact copy of web/client/src/tokens.css (tests/test_tokens.py) */
 
@@ -7,6 +9,16 @@
   --gut: clamp(16px, 4vw, 56px);   /* the docs' own gutter, narrower on a phone than the app's */
   /* the docs' own headings, larger than the app's: its sizes and spaces otherwise come from tokens.css */
   --fs-docs-title: clamp(40px, 6vw, 72px); --fs-docs-section: clamp(26px, 3.4vw, 36px); --fs-docs-lede: clamp(18px, 2vw, 21px);
+  --fs-docs-display: clamp(36px, 5vw, 56px);   /* the display face's sample, in the style guide */
+
+  /* the docs' accent: links, the current page, the kicker, the steps and the flow. In the app coral is only the
+     request's fixed words (--request-fixed); here it leads the eye. */
+  --accent: var(--coral);
+  /* the mark's Ember, low to high, and the light it's shown on */
+  --ember-mid: var(--coral); --light-stage: var(--ink);
+
+  /* the docs' own sizes: the wordmark in the top bar, and each mark at the size it's made for */
+  --logo: 30px; --mark-full: 88px; --mark-mid: 44px; --mark-small: 20px;
 
   /* one colour per layer, the same on every page */
   --knowledge: var(--blue);
@@ -18,38 +30,44 @@
 * { box-sizing: border-box }
 html { -webkit-text-size-adjust: 100% }
 body {
-  margin: 0; background: var(--paper); color: var(--ink);
-  font: 400 var(--fs-lg)/1.55 var(--font);
+  margin: 0; background: var(--surface); color: var(--text);
+  font: 400 var(--fs-lg)/var(--lh-body) var(--font);
 }
 img, svg { max-width: 100%; display: block }
-a { color: var(--ink); text-decoration-color: var(--coral); text-underline-offset: 3px }
-a:hover { color: var(--coral) }
-code { font: .88em var(--mono); background: var(--sheet-2); border-radius: var(--radius-sheet); padding: 1px var(--s-1); overflow-wrap: anywhere }
+a { color: var(--text); text-decoration-color: var(--accent); text-underline-offset: 3px }
+a:hover { color: var(--accent) }
+:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); border-radius: var(--radius-sheet) }
+code { font: .88em var(--mono); background: var(--surface-2); border-radius: var(--radius-sheet); padding: 1px var(--s-1); overflow-wrap: anywhere }
 
 .page { max-width: 1120px; margin: 0 auto; padding: 0 var(--gut) var(--s-8) }
 
 /* top bar */
-.top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: var(--s-5) 0; border-bottom: 1px solid var(--rule) }
-.top img { height: 30px; width: auto }
+.top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: var(--s-5) 0; border-bottom: 1px solid var(--border) }
+.top img { height: var(--logo); width: auto }
 .top nav { display: flex; gap: var(--s-4h); flex-wrap: wrap }
-.top nav a { font: 700 var(--fs-md)/1 var(--display); letter-spacing: .12em; text-transform: uppercase; text-decoration: none; color: var(--ink-2) }
-.top nav a[aria-current] { color: var(--ink); box-shadow: 0 2px 0 var(--coral) }
+.top nav a { font: 700 var(--fs-md)/var(--lh-solid) var(--display); letter-spacing: var(--track-btn); text-transform: uppercase; text-decoration: none; color: var(--text-2) }
+.top nav a[aria-current] { color: var(--text); box-shadow: 0 2px 0 var(--accent) }
 
-/* headings */
+/* headings: a page opens with its kicker, then its title */
 h1, h2, h3 { font-family: var(--display); font-weight: 700; text-transform: uppercase; margin: 0 }
-h1 { font-size: var(--fs-docs-title); line-height: .98; letter-spacing: .02em; margin: var(--s-7) 0 var(--s-3h) }
-h2 { font-size: var(--fs-docs-section); line-height: 1.05; letter-spacing: .05em; margin: var(--s-8) 0 var(--s-2) }
-h3 { font-size: var(--fs-d1); line-height: 1.1; letter-spacing: .06em; margin: 0 0 var(--s-1h) }
-.lede { font-size: var(--fs-docs-lede); color: var(--ink-2); max-width: 60ch; margin: 0 }
-.sub { color: var(--ink-2); max-width: 64ch; margin: 0 0 var(--s-5) }
-.kicker { font: 700 var(--fs-sm)/1 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--coral) }
+h1 { font-size: var(--fs-docs-title); line-height: var(--lh-solid); letter-spacing: var(--track-tight); margin: var(--s-7) 0 var(--s-3h) }
+h2 { font-size: var(--fs-docs-section); line-height: var(--lh-tight); letter-spacing: var(--track-head); margin: var(--s-8) 0 var(--s-2) }
+h3 { font-size: var(--fs-d1); line-height: var(--lh-tight); letter-spacing: var(--track-head); margin: 0 0 var(--s-1h) }
+h3.spaced { margin-top: var(--s-6) }
+.lede { font-size: var(--fs-docs-lede); color: var(--text-2); max-width: 60ch; margin: 0 }
+.sub { color: var(--text-2); max-width: 64ch; margin: 0 0 var(--s-5) }
+.sub.follow { margin-top: var(--s-3h) }
+.kicker { font: 700 var(--fs-sm)/var(--lh-solid) var(--display); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--accent) }
+.top + .kicker { margin-top: var(--s-7) }
+.kicker + h1 { margin-top: var(--s-2h) }
 
 /* cards */
 .grid { display: grid; gap: var(--s-3h); grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)) }
-.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); padding: var(--s-4h); min-width: 0 }
-.card p { margin: 0 0 var(--s-2h); color: var(--ink-2) }
-.card ul { margin: 0; padding-left: var(--s-4h); color: var(--ink-2) }
+.card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sheet); padding: var(--s-4h); min-width: 0 }
+.card p { margin: 0 0 var(--s-2h); color: var(--text-2) }
+.card ul { margin: 0; padding-left: var(--s-4h); color: var(--text-2) }
 .card li { margin: var(--s-1) 0 }
+ul.card.plain { list-style: none; margin: 0 }
 
 /* a layer's colour: put .l-knowledge (and so on) on any element */
 .l-knowledge { --c: var(--knowledge) } .l-coaches { --c: var(--coaches) }
@@ -60,31 +78,179 @@ h3 { font-size: var(--fs-d1); line-height: 1.1; letter-spacing: .06em; margin: 0
 
 /* chips: which layers a step reads or writes */
 .chips { display: flex; flex-wrap: wrap; gap: var(--s-1h); margin-top: var(--s-2h) }
-.chip { display: inline-flex; align-items: center; gap: var(--s-1h); padding: var(--s-1) var(--s-2); border: 1px solid var(--line); border-radius: var(--radius-sheet); font-size: var(--fs-sm); color: var(--ink-2); white-space: nowrap }
+.chips.flush { margin-top: 0 }
+.chip { display: inline-flex; align-items: center; gap: var(--s-1h); padding: var(--s-1) var(--s-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sheet); font-size: var(--fs-sm); color: var(--text-2); white-space: nowrap }
 .chip.out { border-style: dashed }
 
 /* numbered steps */
 .steps { list-style: none; margin: 0; padding: 0; counter-reset: s; display: grid; gap: var(--s-2h) }
-.steps > li { counter-increment: s; position: relative; padding: var(--s-3h) var(--s-4) var(--s-3h) 58px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet) }
-.steps > li::before { content: counter(s); position: absolute; left: var(--s-4); top: var(--s-3); font: 700 var(--fs-d3)/1 var(--display); color: var(--coral) }
-.steps b { color: var(--ink) }
-.steps p { margin: 2px 0 0; color: var(--ink-2) }
+.steps > li { counter-increment: s; position: relative; min-width: 0; padding: var(--s-3h) var(--s-4) var(--s-3h) calc(var(--s-7) + var(--s-2h)); background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sheet) }
+.steps > li::before { content: counter(s); position: absolute; left: var(--s-4); top: var(--s-3); font: 700 var(--fs-d3)/var(--lh-solid) var(--display); color: var(--accent) }
+.steps b { color: var(--text) }
+.steps p { margin: 2px 0 0; color: var(--text-2) }
 
 /* callouts */
-.note { border-left: 3px solid var(--coral); background: var(--sheet); padding: var(--s-3) var(--s-4); color: var(--ink-2); margin: var(--s-4) 0 }
-.note b { color: var(--ink) }
+.note { border-left: 3px solid var(--accent); background: var(--surface-raised); padding: var(--s-3) var(--s-4); color: var(--text-2); margin: var(--s-4) 0 }
+.note.spaced { margin-top: var(--s-6) }
+.note b { color: var(--text) }
 
 /* tables */
-.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius-sheet) }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sheet) }
 table { width: 100%; border-collapse: collapse; font-size: var(--fs-md) }
-th, td { text-align: left; vertical-align: top; padding: var(--s-2h) var(--s-3h); border-bottom: 1px solid var(--rule) }
-th { font: 700 var(--fs-md)/1.2 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); background: var(--sheet) }
+th, td { text-align: left; vertical-align: top; padding: var(--s-2h) var(--s-3h); border-bottom: 1px solid var(--border) }
+th { font: 700 var(--fs-md)/var(--lh-head) var(--display); letter-spacing: var(--track-btn); text-transform: uppercase; color: var(--text-muted); background: var(--surface-raised) }
 tr:last-child td { border-bottom: 0 }
-td:first-child { color: var(--ink); white-space: nowrap }
-td { color: var(--ink-2) }
+td:first-child { color: var(--text); white-space: nowrap }
+td { color: var(--text-2) }
 
-footer { margin-top: var(--s-8); padding-top: var(--s-4h); border-top: 1px solid var(--rule); color: var(--ink-3); font-size: var(--fs-md) }
+footer { margin-top: var(--s-8); padding-top: var(--s-4h); border-top: 1px solid var(--border); color: var(--text-muted); font-size: var(--fs-md) }
 
 @media (prefers-reduced-motion: no-preference) {
-  a, .top nav a { transition: color .15s }
+  a, .top nav a { transition: color var(--t-fast) }
 }
+
+
+/* How it fits (index.html) ---------------------------------------------------------------------------------------- */
+
+/* the map: three sources, the engine, the results */
+.map { margin-top: var(--s-5h); display: grid; gap: 0 }
+.sources { display: grid; gap: var(--s-3h); grid-template-columns: repeat(3, minmax(0, 1fr)) }
+.src .gives { margin-top: var(--s-3); padding-top: var(--s-2h); border-top: 1px dashed var(--border-strong); font-size: var(--fs-md); color: var(--text) }
+.src .gives span { color: var(--c); font-weight: 600 }
+.join { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3h); height: var(--s-7) }
+.join div { position: relative }
+.join div::before { content: ""; position: absolute; left: 50%; top: 0; bottom: var(--s-2h); border-left: 2px solid var(--c) }
+.join div::after { content: ""; position: absolute; left: calc(50% - var(--s-1h)); bottom: 2px; border: 6px solid transparent; border-top: 8px solid var(--c); border-bottom: 0 }
+.engine { background: var(--surface-raised); border: 1px solid var(--border); border-top: 4px solid var(--tools); border-radius: var(--radius-sheet); padding: var(--s-4h) }
+.engine-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-1h) var(--s-4); margin-bottom: var(--s-4) }
+.engine-head .path { font: 600 var(--fs-md) var(--mono); color: var(--tools) }
+.engine-head h3 { margin-top: var(--s-1) }
+.engine-head p { margin: 0; color: var(--text-2); font-size: var(--fs-md) }
+.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--s-5) }
+.flow li { position: relative; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sheet); padding: var(--s-3) var(--s-3) var(--s-2h) }
+.flow li:not(:last-child)::after { content: ""; position: absolute; right: -17px; top: 50%; margin-top: -6px; border: 6px solid transparent; border-left: 9px solid var(--accent); border-right: 0 }
+.flow .n { font: 700 var(--fs-sm)/var(--lh-solid) var(--display); letter-spacing: var(--track-label); color: var(--accent) }
+.flow h3 { font-size: var(--fs-d1); margin: var(--s-1h) 0 var(--s-1) }
+.flow p { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-ui); color: var(--text-2) }
+.back { display: flex; align-items: center; gap: var(--s-3); margin: var(--s-4) 0 0; padding: var(--s-3) var(--s-4); border: 1px dashed var(--me); border-radius: var(--radius-sheet); color: var(--text-2); font-size: var(--fs-md) }
+.back b { color: var(--me) }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4h); margin: var(--s-4h) 0 0; color: var(--text-muted); font-size: var(--fs-sm) }
+.legend span { display: inline-flex; align-items: center; gap: var(--s-1h) }
+
+.two { display: grid; gap: var(--s-3h); grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.two h3 { margin-bottom: var(--s-3h) }
+.two .steps > li { background: var(--surface-2) }
+.rules { display: grid; gap: var(--s-3h); grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); margin-top: var(--s-4) }
+.rule-card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sheet); padding: var(--s-4) var(--s-4h) }
+.rule-card b { display: block; font: 700 var(--fs-d1)/var(--lh-tight) var(--display); letter-spacing: var(--track-head); text-transform: uppercase; color: var(--text); margin-bottom: var(--s-1) }
+.rule-card span { color: var(--text-2); font-size: var(--fs-md) }
+
+@media (max-width: 1000px) {
+  .flow { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .flow li:nth-child(3)::after { display: none }
+  .two { grid-template-columns: 1fr }
+}
+@media (max-width: 640px) {
+  .sources, .join { grid-template-columns: 1fr }
+  .join { height: var(--s-6h) }
+  .join div:not(:nth-child(2)) { display: none }
+  .join div:nth-child(2) { --c: var(--text-muted) }
+  .flow { grid-template-columns: 1fr; gap: var(--s-4h) }
+  .flow li:not(:last-child)::after { display: block; right: auto; left: 50%; top: auto; bottom: -15px; margin: 0 0 0 -6px;
+    border: 6px solid transparent; border-top: 9px solid var(--accent); border-bottom: 0 }
+}
+
+
+/* Style guide (style-guide.html) ---------------------------------------------------------------------------------- */
+
+.toc { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-5h) 0 0 }
+.toc a { padding: var(--s-1h) var(--s-3); border: 1px solid var(--border-strong); border-radius: var(--radius-sheet); text-decoration: none; font-size: var(--fs-md); color: var(--text-2) }
+.toc a:hover { border-color: var(--accent); color: var(--text) }
+
+.dodont { display: grid; gap: var(--s-3h); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--s-4) }
+.dodont .card h3 { font-size: var(--fs-lg); letter-spacing: var(--track-btn) }
+.do h3 { color: var(--sample) } .dont h3 { color: var(--danger) }
+.dodont ul { padding-left: 0; list-style: none }
+.dodont li { padding: var(--s-2) 0; border-top: 1px solid var(--border); color: var(--text) }
+.dodont li:first-child { border-top: 0 }
+.dodont li small { display: block; color: var(--text-muted); font-size: var(--fs-sm) }
+
+/* a colour swatch: its colour is the data on the element (style="--s:#…") */
+.swatches { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); margin-top: var(--s-4) }
+.sw { border: 1px solid var(--border); border-radius: var(--radius-sheet); overflow: hidden; background: var(--surface-raised) }
+.sw i { display: block; height: 72px; background: var(--s) }
+.sw div { padding: var(--s-2h) var(--s-3) }
+.sw b { display: block; font-weight: 600 }
+.sw code { background: none; padding: 0; color: var(--text-muted) }
+.sw span { display: block; font-size: var(--fs-sm); color: var(--text-2); margin-top: var(--s-1); line-height: var(--lh-ui) }
+.ember { height: var(--s-5h); border-radius: var(--radius-sheet); margin-top: var(--s-4);
+  background: linear-gradient(to right, var(--ember-low) 0%, var(--ember-mid) 65%, var(--ember-high) 100%) }
+@supports (background: linear-gradient(in oklch to right, red, blue)) {
+  .ember { background: linear-gradient(in oklch to right, var(--ember-low) 0%, var(--ember-mid) 65%, var(--ember-high) 100%) }
+}
+.ember-labels { display: flex; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--s-1h) }
+
+.type-card { padding-top: var(--s-1); padding-bottom: var(--s-1) }
+.type-row { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--s-4); padding: var(--s-4h) 0; border-top: 1px solid var(--border); align-items: baseline }
+.type-row:first-of-type { border-top: 0 }
+.type-row .meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-ui) }
+.type-row .meta b { display: block; color: var(--text-2); font-weight: 600 }
+.sample-display { font: 700 var(--fs-docs-display)/var(--lh-solid) var(--display); text-transform: uppercase; letter-spacing: var(--track-tight) }
+.sample-heading { font: 700 var(--fs-d2)/var(--lh-tight) var(--display); text-transform: uppercase; letter-spacing: var(--track-head) }
+.sample-label { font: 600 var(--fs-sm)/var(--lh-head) var(--font); text-transform: uppercase; letter-spacing: var(--track-label); color: var(--text-muted) }
+.sample-body { color: var(--text-2) }
+
+.marks { display: grid; gap: var(--s-3h); grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); margin-top: var(--s-4) }
+.marks .card { display: flex; flex-direction: column; gap: var(--s-3h) }
+.marks .stage { display: flex; align-items: center; justify-content: center; min-height: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sheet) }
+.marks .stage.light { background: var(--light-stage) }
+.marks .stage img { width: auto }
+.marks .mark-full { height: var(--mark-full) }
+.marks .mark-mid { height: var(--mark-mid) }
+.marks .mark-small { height: var(--mark-small) }
+.marks .stage .wordmark { width: 86%; height: auto }
+.marks + .grid { margin-top: var(--s-3h) }
+
+/* the parts, as they render */
+.parts { display: grid; gap: var(--s-3h); grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); margin-top: var(--s-4) }
+.parts .note { margin-top: var(--s-3h) }
+
+@media (max-width: 640px) {
+  .dodont { grid-template-columns: 1fr }
+  .type-row { grid-template-columns: 1fr; gap: var(--s-1h) }
+}
+
+
+/* Demo clips (demos/index.html) ----------------------------------------------------------------------------------- */
+
+.status { display: inline-block; margin-top: var(--s-4h); padding: var(--s-1) var(--s-2h); border: 1px dashed var(--accent); border-radius: var(--radius-sheet);
+  font: 700 var(--fs-sm)/var(--lh-solid) var(--display); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--accent) }
+td .ask { color: var(--text); font-style: italic }
+.seven td:first-child { font: 700 var(--fs-d1)/var(--lh-solid) var(--display); color: var(--accent) }
+.matrix td:first-child { font: 400 var(--fs-md)/var(--lh-ui) var(--font); color: var(--text) }
+.matrix td { white-space: nowrap }
+
+/* the card, as the home page would show it: the ask always, the profile on hover, focus or tap */
+.cards { display: grid; gap: var(--s-3h); grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); margin-top: var(--s-4h) }
+.demo { position: relative; background: var(--surface-raised); border: 1px solid var(--border); border-top: 4px solid var(--sample);
+  border-radius: var(--radius-sheet); padding: var(--s-4h) var(--s-4h) var(--s-4); min-width: 0; cursor: pointer }
+.demo .play { display: flex; align-items: center; gap: var(--s-3) }
+.demo .btn { flex: none; width: var(--control); height: var(--control); border-radius: 50%; border: 1px solid var(--sample); display: grid; place-items: center }
+.demo .btn::before { content: ""; border: 7px solid transparent; border-left: 11px solid var(--sample); border-right: 0; margin-left: var(--s-1) }
+.demo .meta { font-size: var(--fs-sm); color: var(--text-muted) }
+.demo .ask { margin: var(--s-3h) 0 0; font-size: var(--fs-lg); line-height: var(--lh-ui); color: var(--text) }
+.demo .ask::before { content: "\201C" } .demo .ask::after { content: "\201D" }
+.demo .hint { margin-top: var(--s-2h); font-size: var(--fs-sm); color: var(--text-muted) }
+.demo .profile { display: none; margin-top: var(--s-3h); padding-top: var(--s-3); border-top: 1px dashed var(--border-strong) }
+.demo:hover .profile, .demo:focus .profile, .demo:focus-within .profile { display: block }
+.demo:hover .hint, .demo:focus .hint, .demo:focus-within .hint { display: none }
+.demo dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--s-1) var(--s-3); font-size: var(--fs-md) }
+.demo dt { color: var(--text-muted) } .demo dd { margin: 0; color: var(--text-2) }
+.demo .moments { margin: var(--s-3) 0 0; padding: 0; list-style: none; font-size: var(--fs-md); color: var(--text-2) }
+.demo .moments b { font: 600 var(--fs-sm) var(--mono); color: var(--sample); margin-right: var(--s-2) }
+
+.files { font: var(--fs-md)/var(--lh-body) var(--mono); color: var(--text-2); background: var(--surface-raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sheet); padding: var(--s-3h) var(--s-4h); overflow-x: auto; white-space: pre; margin: 0 }
+pre.cmd { font: var(--fs-md)/var(--lh-body) var(--mono); color: var(--text); background: var(--surface-2); border-radius: var(--radius-sheet); padding: var(--s-2h) var(--s-3h);
+  margin: var(--s-2) 0 0; overflow-x: auto; white-space: pre }
+.files i, pre.cmd i { font-style: normal; color: var(--text-muted) }

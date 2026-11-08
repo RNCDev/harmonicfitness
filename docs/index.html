@@ -10,53 +10,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap">
 <link rel="stylesheet" href="docs.css">
-<style>
-  /* the map: three sources, the engine, the results */
-  .map { margin-top: 28px; display: grid; gap: 0 }
-  .sources { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)) }
-  .src .gives { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 15px; color: var(--ink) }
-  .src .gives span { color: var(--c); font-weight: 600 }
-  .join { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; height: 54px }
-  .join div { position: relative }
-  .join div::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 10px; border-left: 2px solid var(--c) }
-  .join div::after { content: ""; position: absolute; left: calc(50% - 6px); bottom: 2px; border: 6px solid transparent; border-top: 8px solid var(--c); border-bottom: 0 }
-  .engine { background: var(--sheet); border: 1px solid var(--rule); border-top: 4px solid var(--tools); border-radius: 2px; padding: 20px }
-  .engine-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 16px }
-  .engine-head p { margin: 0; color: var(--ink-2); font-size: 15px }
-  .flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 22px }
-  .flow li { position: relative; background: var(--sheet-2); border: 1px solid var(--rule); border-radius: 2px; padding: 12px 12px 10px }
-  .flow li:not(:last-child)::after { content: ""; position: absolute; right: -17px; top: 50%; margin-top: -6px; border: 6px solid transparent; border-left: 9px solid var(--coral); border-right: 0 }
-  .flow .n { font: 700 13px/1 var(--display); letter-spacing: .16em; color: var(--coral) }
-  .flow h3 { font-size: 21px; margin: 6px 0 4px }
-  .flow p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--ink-2) }
-  .back { display: flex; align-items: center; gap: 12px; margin: 16px 0 0; padding: 12px 16px; border: 1px dashed var(--me); border-radius: 2px; color: var(--ink-2); font-size: 15px }
-  .back b { color: var(--me) }
-  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 18px 0 0; color: var(--ink-3); font-size: 14px }
-  .legend span { display: inline-flex; align-items: center; gap: 7px }
-
-  .two { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)) }
-  .two h3 { margin-bottom: 14px }
-  .two .steps > li { background: var(--sheet-2) }
-  .rules { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)) }
-  .rule-card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 2px; padding: 16px 18px }
-  .rule-card b { display: block; font: 700 20px/1.1 var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--ink); margin-bottom: 4px }
-  .rule-card span { color: var(--ink-2); font-size: 15px }
-
-  @media (max-width: 900px) {
-    .flow { grid-template-columns: repeat(3, minmax(0, 1fr)) }
-    .flow li:nth-child(3)::after { display: none }
-    .two { grid-template-columns: 1fr }
-  }
-  @media (max-width: 640px) {
-    .sources, .join { grid-template-columns: 1fr }
-    .join { height: 40px }
-    .join div:not(:nth-child(2)) { display: none }
-    .join div:nth-child(2) { --c: var(--ink-3) }
-    .flow { grid-template-columns: 1fr; gap: 18px }
-    .flow li:not(:last-child)::after { display: block; right: auto; left: 50%; top: auto; bottom: -15px; margin: 0 0 0 -6px;
-      border: 6px solid transparent; border-top: 9px solid var(--coral); border-bottom: 0 }
-  }
-</style>
 </head>
 <body>
 <div class="page">
@@ -66,8 +19,8 @@
   <nav><a href="index.html" aria-current="page">How it fits</a><a href="style-guide.html">Style guide</a><a href="demos/index.html">Demos</a></nav>
 </header>
 
-<p class="kicker" style="margin-top:48px">The big picture</p>
-<h1 style="margin-top:10px">How it fits together</h1>
+<p class="kicker">The big picture</p>
+<h1>How it fits together</h1>
 <p class="lede">A request for a workout becomes a narrated MP3 for earbuds. Four folders make that happen. Three hold
 what the app knows, and one, <code>tools/</code>, does the work.</p>
 
@@ -109,8 +62,8 @@ and then audio, and saves what happened back to that person's folder.</p>
 
   <section class="engine">
     <div class="engine-head">
-      <div><div class="path" style="font:600 15px var(--mono);color:var(--tools)">tools/ &nbsp;·&nbsp; ./harmonicfitness</div>
-        <h3 style="margin-top:4px">The engine</h3></div>
+      <div><div class="path">tools/ &nbsp;·&nbsp; ./harmonicfitness</div>
+        <h3>The engine</h3></div>
       <p>Every step runs through one command, so one permission covers it.</p>
     </div>
     <ol class="flow">
@@ -216,7 +169,7 @@ and then audio, and saves what happened back to that person's folder.</p>
 
 <!-- 4. the rules that always hold -->
 <h2>Rules that always hold</h2>
-<div class="rules" style="margin-top:16px">
+<div class="rules">
   <div class="rule-card"><b>Only the menu</b><span>Every movement comes from today's safe menu. The build refuses
     anything else.</span></div>
   <div class="rule-card"><b>The right side</b><span>Under a one-sided limit, the opening names the sore side, and a
