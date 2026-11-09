@@ -23,6 +23,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
+import errors  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
@@ -32,20 +33,35 @@ GITHUB = re.compile(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$")
 PUSH_TIMEOUT = 300   # seconds a push may take before it's given up
 
 
-def git(home, *args, timeout=None):
+GIT_TIMEOUT = 60     # seconds any other git command may take
+
+
+def git(home, *args, timeout=GIT_TIMEOUT):
+    """git's answer; one that runs past `timeout` is a failure (exit 1) saying so, never a wait without end."""
     # GIT_TERMINAL_PROMPT=0 and ssh's BatchMode: a push that needs a password or a passphrase fails with the
     # reason instead of waiting forever on a prompt nobody sees (an ssh command the listener set is kept)
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
-    return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", env=env, timeout=timeout)
+    try:
+        return subprocess.run(["git", *args], cwd=home, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", env=env, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        waited = f"{timeout // 60} minutes" if timeout >= 120 else f"{timeout} seconds"
+        what = "the remote" if args[:1] == ("push",) else f"git {args[0]}"
+        return subprocess.CompletedProcess(["git", *args], 1, "", f"no answer from {what} in {waited}")
+
+
+def _git_ok(home, *args, what):
+    """git's answer when it worked; else HarmonicFitnessError naming what couldn't be done, with git's reason."""
+    out = git(home, *args)
+    if out.returncode:
+        reason = (out.stderr or out.stdout).strip().splitlines()
+        raise errors.HarmonicFitnessError(f"Not backed up: couldn't {what}" + (f" ({reason[-1]})." if reason else "."))
+    return out
 
 
 def _push(home, args):
-    try:
-        return git(home, *args, timeout=PUSH_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(args, 1, "", f"no answer from the remote in {PUSH_TIMEOUT // 60} minutes")
+    return git(home, *args, timeout=PUSH_TIMEOUT)
 
 
 KEY_FILE = re.compile(r"(^|\.)env(\.|$)")   # .env, .env.bak, keys.env, x.env.local
@@ -152,16 +168,20 @@ def backup(home, message, push=True, unverified=False):
               f"make it a private repo: cd {where} && git init && "
               "gh repo create harmonicfitness-me --private --source . --push")
         return cli.OK
-    git(home, "add", "-A")
-    staged = git(home, "diff", "--cached", "--name-only", "-z").stdout.split("\0")
-    keyfiles = [p for p in staged if p and KEY_FILE.search(os.path.basename(p))]
-    if keyfiles:   # API keys never go into the backup, even when the ignore rule is missing
+    _git_ok(home, "add", "-A", what="stage the changes")
+    staged = _git_ok(home, "diff", "--cached", "--name-only", "-z", what="list the changes").stdout.split("\0")
+    tracked = _git_ok(home, "ls-files", "-z", what="list what's backed up").stdout.split("\0")
+    keyfiles = sorted({p for p in staged + tracked if p and KEY_FILE.search(os.path.basename(p))})
+    if keyfiles:   # API keys never go into the backup, even when the ignore rule is missing or it went in before
         git(home, "reset", "-q")
         print(f"Not backed up: {', '.join(keyfiles)} looks like a key file (.env and its copies hold API keys, "
-              f"which never go into the backup). Move it out of {where} or add it to {where}/.gitignore, then rerun.",
-              file=sys.stderr)
+              f"which never go into the backup). Move it out of {where} or add it to {where}/.gitignore "
+              "(one already backed up: git rm --cached <file>, then commit), then rerun.", file=sys.stderr)
         return cli.ISSUES
-    if git(home, "diff", "--cached", "--quiet").returncode == 0:
+    quiet = git(home, "diff", "--cached", "--quiet")
+    if quiet.returncode not in (0, 1):
+        raise errors.HarmonicFitnessError(f"Not backed up: couldn't compare the changes ({quiet.stderr.strip()}).")
+    if quiet.returncode == 0:
         print("Nothing new to commit.")
     else:
         out = git(home, "commit", "-q", "-m", message)

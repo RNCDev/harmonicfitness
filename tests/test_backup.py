@@ -110,6 +110,30 @@ class Backup(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             git(self.home, "rev-parse", "HEAD")   # nothing committed
 
+    def test_a_key_file_backed_up_before_is_refused(self):
+        new_repo(self.home)
+        with open(os.path.join(self.home, "keys.env"), "w", encoding="utf-8") as f:
+            f.write("FISH_AUDIO_API_KEY=x\n")
+        git(self.home, "add", "-f", "keys.env")
+        git(self.home, "commit", "-q", "-m", "by hand")
+        code, out = run(self.home, push=False)
+        self.assertEqual(code, cli.ISSUES)
+        self.assertIn("keys.env", out)
+        self.assertIn("git rm --cached", out)
+
+    def test_a_failed_add_is_never_nothing_to_commit(self):
+        new_repo(self.home)
+        open(os.path.join(self.home, ".git", "index.lock"), "w").close()   # a git that died mid-way left it
+        with self.assertRaises(backup.errors.HarmonicFitnessError) as got:
+            run(self.home, push=False)
+        self.assertIn("couldn't stage the changes", str(got.exception))
+
+    def test_a_git_that_hangs_gives_up(self):
+        with mock.patch.object(backup.subprocess, "run", side_effect=subprocess.TimeoutExpired(["git"], 60)):
+            out = backup.git(self.home, "add", "-A")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("no answer from git add in 60 seconds", out.stderr)
+
     def test_an_unverifiable_github_remote_is_refused_unless_asked(self):
         new_repo(self.home)
         git(self.home, "add", "-A")
