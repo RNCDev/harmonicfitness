@@ -93,9 +93,30 @@ def _read(home, rel):
         return f.read()
 
 
+def syncable(rel):
+    """Whether a path the web app names may be written here: a plain relative path (no empty, `.` or `..` part, no
+    backslash or NUL), not one that never syncs, read case-blind too (macOS and Windows fold case, so `.ENV` is
+    `.env`)."""
+    if not isinstance(rel, str) or not rel or "\\" in rel or "\x00" in rel or rel.startswith("/"):
+        return False
+    if any(part in ("", ".", "..") for part in rel.split("/")):
+        return False
+    return not skipped(rel) and not skipped(rel.lower())
+
+
+def _check_named(rels):
+    """Refuse the whole sync when the web app names a file it never keeps: nothing is written then."""
+    bad = sorted(r for r in rels if not syncable(r))
+    if bad:
+        raise errors.HarmonicFitnessError("The web app named a file it never keeps, so nothing was synced: "
+                                          + ", ".join(repr(r)[:80] for r in bad[:5]))
+
+
 def _inside(home, rel):
-    target = os.path.abspath(os.path.join(home, *rel.split("/")))
-    if not target.startswith(os.path.abspath(home) + os.sep):
+    """The path under home, with every folder on the way resolved (a link can't send a write elsewhere)."""
+    root = os.path.realpath(home)
+    target = os.path.join(os.path.realpath(os.path.join(home, *rel.split("/")[:-1])), rel.split("/")[-1])
+    if not target.startswith(root + os.sep):
         raise errors.HarmonicFitnessError(f"The web app named a file outside me/: {rel!r}")
     return target
 
@@ -217,6 +238,7 @@ def sync(account, home=None, prefer=None, dry_run=False, site=None, now=None):
         state = load_state(home, account_key)
         local = local_files(home)
         remote = site.listing()
+        _check_named(remote)
         todo = plan(local, remote, state, prefer)
         report = {k: list(v) for k, v in todo.items()}
         report.update(conflict_folder=None, refused=[], lost=[])
@@ -226,6 +248,7 @@ def sync(account, home=None, prefer=None, dry_run=False, site=None, now=None):
         for p in todo["conflict"]:   # the next sync sends this computer's copy: it's as if the site's was seen
             new_state[p] = {"version": remote[p][0], "sha": (state.get(p) or {}).get("sha", "")}
         fetched = site.read(todo["pull"] + todo["conflict"])
+        _check_named(fetched)
         for p in todo["pull"]:
             if p not in fetched:   # gone from the site since the listing: the next sync sees it
                 continue

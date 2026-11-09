@@ -167,6 +167,35 @@ class Sync(unittest.TestCase):
         site.write = real
         self.assertEqual(self.sync(site)["conflict"], ["a.md"])            # the next sync sees both changed
 
+    def test_a_site_naming_a_file_it_never_keeps_writes_nothing(self):
+        self.put(".env", b"SECRET=mine")
+        for rel in (".env", ".ENV", ".git/config", "web/sync-state.json", "a/../b.md", "./log.md", "a//b.md"):
+            with self.subTest(rel=rel):
+                site = FakeSite({"log.md": b"fine", rel: b"theirs"})
+                with self.assertRaises(websync.errors.HarmonicFitnessError):
+                    self.sync(site)
+                self.assertEqual(self.get(".env"), b"SECRET=mine")
+                self.assertIsNone(self.get("log.md"))                      # the whole sync stopped
+                self.assertIsNone(self.get(".git/config"))
+
+    def test_a_read_naming_another_file_is_refused(self):
+        site = FakeSite({"log.md": b"fine"})
+        site.read = lambda paths: {".env": (1, b"SECRET=theirs")}
+        with self.assertRaises(websync.errors.HarmonicFitnessError):
+            self.sync(site)
+        self.assertIsNone(self.get(".env"))
+
+    def test_a_linked_folder_cant_send_a_write_outside(self):
+        outside = tempfile.mkdtemp(prefix="hf-out-")
+        self.addCleanup(__import__("shutil").rmtree, outside, True)
+        try:
+            os.symlink(outside, os.path.join(self.home, "workouts"), target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("this system can't make a link here (Windows without the right)")
+        with self.assertRaises(websync.errors.HarmonicFitnessError):
+            self.sync(FakeSite({"workouts/w/w.draft.txt": b"draft"}))
+        self.assertEqual(os.listdir(outside), [])
+
     def test_credentials_are_needed(self):
         with self.assertRaises(websync.errors.UsageError):
             websync.sync({}, home=self.home, site=FakeSite())
