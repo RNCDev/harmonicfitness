@@ -4,7 +4,7 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 
 ## [0.74.0] - 2026-11-09
 
-A shorter road to the first workout, and a private podcast feed. Five ready-made thirty-minute workouts, written and reviewed here and to be recorded once on ElevenLabs, will play at once: on the web before any key, on a computer while the local voice downloads. On the web a new listener answers the setup's first questions on the first screen in one go, and their first workout records as soon as it's written. While the words are written the chat shows the workout's plan. A Podcast tab in Settings gives a private link that puts each new workout on the phone by itself. On a computer, the download starts as setup does, and choosing a coach is one listening step. `ROADMAP.md` says what's planned next.
+A shorter road to the first workout, and a private podcast feed. Five ready-made thirty-minute workouts, recorded once on ElevenLabs, play at once: on the sign-in page with no account, on the web before any key, and on a computer while the local voice downloads. On the web a new listener answers the setup's first questions on the first screen in one go, and their first workout records as soon as it's written. While the words are written the chat shows the workout's plan. A Podcast tab in Settings gives a private link that puts each new workout on the phone by itself. On a computer, the download starts as setup does, and choosing a coach is one listening step. `ROADMAP.md` says what's planned next.
 
 ### Added
 - **A private podcast feed** (web, Settings' **Podcast** tab):
@@ -19,7 +19,7 @@ A shorter road to the first workout, and a private podcast feed. Five ready-made
 - **The plan while the words are written:** a clean skeleton's plan (`get plan --draft`) is sent as a `plan` job event as the writers' room starts (`tools.show_plan`), and the chat shows it under the coach's steps.
 - **Ready-made workouts** (`./harmonicfitness ready`, `tools/ready.py`): five thirty-minute sessions, one each of full body, strength, cardio, mobility and core.
   - Each is bodyweight with a chair and a towel, low impact, at novice doses with a harder option for every movement.
-  - They're written like the demos, as invented listeners (`docs/demos/ready.toml`, `docs/demos/listeners/ready-*/`; `demos home` and `demos run` take their slugs), to be recorded whole on the demos' ElevenLabs stock voices.
+  - They're written like the demos, as invented listeners (`docs/demos/ready.toml`, `docs/demos/listeners/ready-*/`; `demos home` and `demos run` take their slugs), recorded whole on the demos' ElevenLabs stock voices and published on the media bucket as `ready/v1/`.
   - Each script went through two rounds of review, one judge for rhythm and engagement and one for workout quality against its invented ask. Those rounds brought timed sets where the cues ask for slow reps, the full stop and heart rules in each coach's own words, a varied set, and no balancing on a chair that's against the wall.
   - They're made for no one, so the opening and the list say they aren't adapted to any injury.
   - `ready` lists them, and `ready file <slug>` fetches one into `me/workouts/.ready/`, checked against `knowledge/ready.json` (`--deliver` copies it to the delivery folders).
@@ -46,7 +46,7 @@ Minor, because the web app's database and the engine's commands change. After pu
 - **Web database:** migration 018 adds `users.feed_hash` and `users.feed_token` for the podcast feed. The web service applies it as it starts, as with every migration. Deploy the web service before running `python -m webapp.admin` against the new code.
 - **`HARMONICFITNESS_BASE_URL`** must be the address podcast apps can reach, since every feed link is built from it.
 - **A new command, `ready`.** A fork with its own command of that name should rename it.
-- **Ready-made workouts:** the scripts and their invented listeners ship, but the recordings don't yet. `knowledge/ready.json` doesn't exist until the set is recorded and `./harmonicfitness ready upload` runs with the bucket's keys. Until then `ready` says none are published, and the web app shows no list.
+- **Ready-made workouts:** the recordings live on this project's media bucket, and `knowledge/ready.json` points at them. A fork with its own bucket should record its own set and run `./harmonicfitness ready upload` with that bucket's keys (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BUCKET_NAME`; for Fly's Tigris, the app's own keys from `fly ssh console -C printenv` work), or keep this list to play this project's recordings.
 - **The setup skill and the coach skill changed.** Run `./harmonicfitness harness sync` if you keep your own copies of `.agents/skills/`.
 
 ## [0.73.0] - 2026-11-08
