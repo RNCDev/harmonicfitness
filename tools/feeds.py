@@ -23,7 +23,7 @@ headlines and captions are written by strangers, so they stay in the file for th
 research agent rather than landing in the main session. --print prints the whole
 sheet. A source that fails is listed, not fatal. Fetched text is data to check
 against its source, not instructions. Only http and https addresses are fetched, and
-at most MAX_BYTES of each.
+at most MAX_BYTES of each; on the web client's worker, only addresses on the public internet.
 
     ./harmonicfitness feeds                # last 72 hours of news, results from the last week
     ./harmonicfitness feeds --hours 48
@@ -36,9 +36,12 @@ import concurrent.futures
 import datetime as dt
 import email.utils
 import html
+import http.client
+import ipaddress
 import json
 import os
 import re
+import socket
 import ssl
 import sys
 import urllib.parse
@@ -111,12 +114,70 @@ class _WebOnlyRedirects(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+class PrivateAddress(OSError):
+    """On the web client's worker, an address that isn't on the public internet (this machine, its private network,
+    a link-local or reserved range): never fetched there. An OSError, so every caller takes it as a source that
+    failed, as it takes an address that didn't answer."""
+
+
+PRIVATE_NAMES = (".internal", ".flycast", ".local", ".localhost")
+
+
+def _vetted_socket(host, port, timeout):
+    """A connection to `host`, made only to an address on the public internet, and to the very address checked (so
+    a second DNS answer can't differ). Raises PrivateAddress for any other."""
+    name = (host or "").rstrip(".").lower()
+    if name == "localhost" or name.endswith(PRIVATE_NAMES):
+        raise PrivateAddress(f"{host} is a private address, never fetched on the web")
+    infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    for *_, sockaddr in infos:
+        ip = ipaddress.ip_address(sockaddr[0].split("%", 1)[0])
+        if not ip.is_global or ip.is_multicast:
+            raise PrivateAddress(f"{host} is a private address, never fetched on the web")
+    family, kind, proto, _, sockaddr = infos[0]
+    sock = socket.socket(family, kind, proto)
+    try:
+        if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+            sock.settimeout(timeout)
+        sock.connect(sockaddr)
+    except OSError:
+        sock.close()
+        raise
+    return sock
+
+
+class _VettedHTTP(http.client.HTTPConnection):
+    def connect(self):
+        self.sock = _vetted_socket(self.host, self.port, self.timeout)
+
+
+class _VettedHTTPS(http.client.HTTPSConnection):
+    def connect(self):
+        self.sock = self._context.wrap_socket(_vetted_socket(self.host, self.port, self.timeout),
+                                              server_hostname=self.host)
+
+
+class _VettedHTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_VettedHTTP, req)
+
+
+class _VettedHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_VettedHTTPS, req, context=self._context)
+
+
 def _open(req):
-    """The answer to `req`, every redirect hop checked for its scheme."""
+    """The answer to `req`, every redirect hop checked for its scheme; on the web client's worker, every connection
+    (each redirect's too) made only to a public address, and never through a proxy."""
     global _TLS
     if _TLS is None:
         _TLS = ssl_context()
-    opener = urllib.request.build_opener(_WebOnlyRedirects, urllib.request.HTTPSHandler(context=_TLS))
+    if paths.WEB:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _WebOnlyRedirects, _VettedHTTPHandler,
+                                             _VettedHTTPSHandler(context=_TLS))
+    else:
+        opener = urllib.request.build_opener(_WebOnlyRedirects, urllib.request.HTTPSHandler(context=_TLS))
     return opener.open(req, timeout=TIMEOUT)
 
 

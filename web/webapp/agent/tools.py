@@ -258,7 +258,7 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
     slow = (command, sub) in SLOW
     if (command, sub) == ("coaches", "audition"):
         deps.auditions += 1   # counted when sent: a failed audition may still have paid for a design
-    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=BUILD_TIMEOUT if slow else TIMEOUT,
+    r = engine.run(deps.engine_root, deps.home, argv, extra_env=_keys(deps, argv), timeout=BUILD_TIMEOUT if slow else TIMEOUT,
                    cancel=deps.cancel)
     if command == "coaches" and sub in ("keep", "forget-audition") and r.code == 0:
         deps.coach_done = True
@@ -268,8 +268,18 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
                    r.stderr.replace(home, "me").replace(deps.home, "me"))
 
 
+# The commands that fetch web pages, at addresses the listener or the model gave: they never need a voice key, so
+# none is in their environment (0.76.0).
+FETCHERS = frozenset({"feeds", "topics", "youtube", "content"})
+
+
+def _keys(deps: Deps, argv: list[str]) -> dict:
+    """The listener's keys for an engine command's environment: none for a command that fetches pages."""
+    return {} if argv and argv[0] in FETCHERS else deps.keys
+
+
 def _plain_run(deps: Deps, argv: list[str]) -> ToolResult:
-    r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=TIMEOUT, cancel=deps.cancel)
+    r = engine.run(deps.engine_root, deps.home, argv, extra_env=_keys(deps, argv), timeout=TIMEOUT, cancel=deps.cancel)
     return _result(r.code, _mine_text(deps, r.stdout), _mine_text(deps, r.stderr))
 
 

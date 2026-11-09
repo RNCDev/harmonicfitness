@@ -26,6 +26,7 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
@@ -222,8 +223,22 @@ def paragraphs(events):
     return out
 
 
+YOUTUBE_HOSTS = ("youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be")
+
+
+def video_url(ref):
+    """The watch address for a video id or a YouTube address. On the web client's worker only YouTube's own
+    addresses are opened (yt-dlp would fetch any page it's handed); anywhere else any address yt-dlp reads."""
+    if not ref.startswith("http"):
+        return f"https://www.youtube.com/watch?v={ref}"
+    host = (urllib.parse.urlsplit(ref).hostname or "").lower()
+    if paths.WEB and host not in YOUTUBE_HOSTS:
+        raise errors.UsageError(f"Only YouTube addresses are read here, not {host or 'this one'}.")
+    return ref
+
+
 def transcript(ref):
-    url = ref if ref.startswith("http") else f"https://www.youtube.com/watch?v={ref}"
+    url = video_url(ref)
     with ydl() as y:
         try:
             info = y.extract_info(url, download=False)
