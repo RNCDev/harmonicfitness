@@ -2,6 +2,55 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.76.0] - 2026-11-09
+
+The back-end audit's fixes. A recording the listener paid for survives a dropped database connection and a deploy; the clip cache keeps saving money; nothing a stranger wrote can loosen an injury limit; the engine on the web fetches only public addresses; and the site stops keeping what nobody can use. A minor release because the maintainer asked for one: the database gains two migrations, every refusal's body gains a field, and `sync` and `backup` refuse what they used to let through.
+
+### Fixed
+- **A recording survives a dropped database connection** (web worker):
+  - Job events go on a connection of their own (autocommit, one at a time). A progress line never commits or rolls back the job's own work, from whichever thread says it, and one that can't be sent never fails the job.
+  - What a recording made (its files, clips and MP3) is saved again on a fresh connection when the database dropped the first (`Ctx.retrying`). An MP3 counts as kept only once committed, so a retry keeps it.
+  - The job is finished or failed on a connection that works, never left running for reap. A lane opens its connection again between jobs once it's twenty minutes old, and every worker connection has TCP keepalives.
+- **A deploy stops a job cleanly.** SIGTERM still lets the running job finish, but one still running four minutes on (`DRAIN_SECONDS`, inside `fly.toml`'s five-minute `kill_timeout`) is stopped the way Stop stops it: clips kept, and the chat says the site restarted.
+- **The heartbeat retries.** One that fails is tried again on a new connection, three tries inside reap's two minutes. Before, one error ended it for good: the job spent on, unwatched, Stop stopped working, and its result was thrown away. A job it does lose is now stopped too, and says "interrupted".
+- **The worker's main lane restarts after an unexpected error,** as the enrichment lane already did.
+- **The web clip cache works past its first 400 MB.** Loading it no longer marks every clip used, which meant nothing ever aged out for a listener who kept recording, and at the cap new clips were silently skipped, so a re-record paid for every line again. A clip the build read is marked used without being sent again, and at the cap the clips used longest ago make room.
+- **The stock reaches the web researcher.** The content plan's paths are `me/...` by the time the writers' room reads them, which its pattern never matched, so the researched pieces in reserve were never told on the web.
+- **No writer is asked twice for the same request.** A writer that runs past its patience is asked again thinking less only where the model has a thinking level (Gemini). For any other model the second ask was the identical request, paid for twice, with no timeout.
+- **A voice service's outage is retried.** A 5xx whose page mentions a quota was taken for the listener's quota and never retried; a 400 echoing a story about payment read as a billing problem. Quota and billing now come from the refusal's own code, and its wording counts only on a 402, 403 or 429.
+- **`backup` says so when git couldn't stage.** A failed `git add` (a leftover `index.lock`, say) was "Nothing new to commit", a push and exit 0. Now it's exit 1 with git's reason. The key-file check reads everything already backed up as well as what's staged, and every git call has a timeout.
+- **Concurrent writes no longer lose a change.** Feedback, ratings, taking a session back, the level, topics, feeds and the learned interests each hold their file's lock (`log.md`, `profile.md`, `content.md`, `training.md`) while they read, change and write it, as `log-session` already did. Each write was atomic, but two at once lost one. `sync` takes the same lock while it replaces one of the six context files.
+- **Feedback starting with a dash is saved.** "--help" or "-_-" was read as an option and dropped.
+
+### Security
+- **No request body over its route's limit is read into memory** (`api._BodyLimit`). A declared length over it is refused at once, and a chunked body is read only up to it. The limit is 64 KB by default, 10 MB for an import, a sync's 30 MB in base64, and 512 KB for a sync's read. Before, the import read the whole upload before checking it, and the sign-in link route read any body with no session at all.
+- **`sync` refuses a file the web app should never name.** A listing or a read naming `.env`, `.git/`, `web/` or a path with `..` (read case-blind, so `.ENV` counts) stops the whole sync before anything is written. A linked folder can't send a write outside `me/`.
+- **On the web, the engine fetches only public addresses** (`feeds.fetch`, and `topics` through it): every connection, each redirect's too, goes only to an address on the public internet, the very address checked, never through a proxy. `youtube` opens only YouTube's addresses there. The agent's `feeds`, `topics`, `youtube` and `content` commands get no voice key, only the listener's clock.
+- **No page or feed can talk the agent out of a limit.** Once a turn has read text strangers wrote (its web search, the feeds, a fetched page, the research folder), a `health.md` that loosens a limit is refused: a limit lifted or cleared, off-limits eased to delicate, a clinician's rule dropped, or settings that can't be read. The check-in at a turn's start can still loosen one, as the listener asks, and tightening always goes through. A scheduled workout's turn never changes `health.md`.
+- **`DELETE /api/workouts/all` can't delete the whole log:** "all" is never a workout's reference.
+- Ten wrong passwords in fifteen minutes on a signed-in account (changing it, deleting the account) answer 429. Over https every response carries `Strict-Transport-Security`. Feedback queues at most three enrichment jobs at once; every line is still saved.
+
+### Changed
+- **Every refusal has one shape** (`api.error_body`): `detail` as before, `code` and `field` at the top when there are any, and beside them `error: {code, message, field}`. An error no route caught is a 500 in that shape, logged by type and frames, never its message.
+- **Error codes are stored beside the words** (migration 020, `jobs.error_code`): a turn stopped for no model key, or a key the provider refused, stores its code, and `codes.of_status` reads it first. The Logs routes answer 404 or 400 from the bridge's kind, not by searching the words, and an engine crash shows a plain sentence, never its last stderr line.
+- **The worker's failure lines say where:** the frames the exception passed through (file, line, function), never its message (`webapp/log.py`).
+- **A conversation's saved history drops each request's instructions** (each run sends its own; kept, they added a megabyte or two a workout). Past 400,000 characters, an earlier turn's long tool results are shortened to a line (`agent.compact`).
+- **Indexes for the busiest queries** (migration 019): a stream's events, the claim, each message's queued count, a conversation's job, and sessions and links by user.
+- **The site stops keeping what nobody can use** (`webapp/retention.py`): finished jobs fourteen days on (their events with them; a conversation's own job is kept), expired sessions, sign-in links a day past their time, and allowance days over thirty days old. Conversations stay. The main lane sweeps once a minute, not on every five-second poll, and a claim that loses a race tries again at once.
+- Each cloud answer is read up to 64 MB, a refusal up to 64 KB.
+- `POST /api/jobs` answers `job_id` as every other route does (`id` kept).
+
+### Not in this release
+From the audit, left for later: splitting `api.create_app` into routers, a single rule for who commits a transaction, the web process no longer importing the worker, one HTTP module for the engine, a shared listener for progress streams, chunked media, smaller folder reads for the Logs page, more worker slots, a generated OpenAPI contract, a worker health check, a Content-Security-Policy (it needs a browser check), giving back the allowance a failed recording reserved, and counting retried speech requests in the cost.
+
+### For forks
+- Migrations 019 (indexes) and 020 (`jobs.error_code`) apply at the web service's start. Both only add, so a worker still on 0.75.0 keeps working against them during a deploy.
+- A refusal's body gains `error: {code, message, field}`. A client that compares whole bodies needs the new key; one that reads `detail`, `code` and `field` is unchanged.
+- `jobs.fail` takes `code=`, `jobs.status` returns `code`, and `worker.JobFailed`, `worker._Stop` and `workouts.Refused` carry a code or kind.
+- `worker.Ctx` takes `connect`. Without it (tests), events go on `conn` as before.
+- `clipcache.load` no longer marks clips used, and `clipcache.save` marks a loaded clip whose time moved as used without sending it.
+- In the engine, `backup` raises `HarmonicFitnessError` (exit 1) when git can't stage, `sync` refuses a listing that names an unsyncable path, and on the web worker (`HARMONICFITNESS_WEB=1`) `feeds.fetch` refuses private addresses with `feeds.PrivateAddress`.
+
 ## [0.75.0] - 2026-11-09
 
 A new front for the sign-in page. It had three things asking for attention at once (the form, a turning carousel of demos and the free workouts below the fold), and its large request wrapped with a lone comma or full stop on a line of its own. Now the page fits in one screen on a laptop: one demo request on the left, with its player and the seven names to pick another, and the free workouts in their own panel on the right. Sign in and Make an account move to the header.
