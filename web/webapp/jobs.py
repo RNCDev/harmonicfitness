@@ -80,7 +80,7 @@ def _in_lane(lane: str, alias: str) -> str:
     return f"{alias}.kind = 'enrich'" if lane == "enrich" else f"{alias}.kind <> 'enrich'"
 
 
-def claim(conn, lane: str = "main") -> Job | None:
+def claim(conn, lane: str = "main", _tries: int = 3) -> Job | None:
     """The oldest queued job in `lane` that's due (no `not_before`, or it has passed) and whose user has none
     running in that lane, now running; None if there is none. Commits.
 
@@ -100,8 +100,10 @@ def claim(conn, lane: str = "main") -> Job | None:
                      "where id = %s", (row[0],))
         conn.commit()
     except psycopg.errors.UniqueViolation:
+        # another worker started a job of this user's in the lane meanwhile: try for the next one now (0.76.0), so
+        # other listeners' queued jobs don't wait out the idle poll; their own waits until that one is done
         conn.rollback()
-        return None
+        return claim(conn, lane, _tries - 1) if _tries > 1 else None
     except Exception:
         conn.rollback()
         raise

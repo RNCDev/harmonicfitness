@@ -28,7 +28,8 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, codes, config, log, conversations, db, engine, folder, jobs, keystore, media, providers, spend, store
+from . import clipcache, codes, config, conversations, db, engine, folder, jobs, keystore, log, media, providers, \
+    retention, spend, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 HEARTBEAT_TRIES = 3       # a heartbeat that fails is tried again on a new connection, this many tries in all
@@ -982,6 +983,19 @@ class _Heartbeat(threading.Thread):
         self.join(timeout=CONNECT_TIMEOUT + JOIN_SLACK)
 
 
+SWEEP_EVERY = 60   # seconds between the main lane's sweeps of expired media, unused clips and finished jobs
+_last_sweep = [float("-inf")]
+
+
+def _sweep_due() -> bool:
+    """Whether the sweeps are due (at most once a SWEEP_EVERY, not on every five-second poll), marking them done."""
+    now = time.monotonic()
+    if now - _last_sweep[0] < SWEEP_EVERY:
+        return False
+    _last_sweep[0] = now
+    return True
+
+
 def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None = None, lane: str = "main",
             stopping: threading.Event | None = None) -> bool:
     """Reap stale jobs, claim one in `lane` and run it; whether a job ran. `connect` opens the heartbeat's
@@ -991,8 +1005,13 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
     connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT, **KEEPALIVES))
     if lane == "main":
         jobs.reap(conn)
-        media.sweep(conn)
-        clipcache.prune(conn)
+        if _sweep_due():
+            media.sweep(conn)
+            clipcache.prune(conn)
+            gone = retention.sweep(conn)
+            if any(gone.values()):
+                print("worker: swept " + ", ".join(f"{n} {t}" for t, n in gone.items() if n), file=sys.stderr,
+                      flush=True)
     job = jobs.claim(conn, lane)
     if job is None:
         return False

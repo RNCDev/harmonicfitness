@@ -13,8 +13,11 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 
 def _where(filename: str) -> str:
-    """A frame's file as the repo names it (web/webapp/worker.py); a library's by its last two parts."""
+    """A frame's file as the repo names it (web/webapp/worker.py); a library's from its package down; anything else
+    by its last two parts."""
     full = os.path.abspath(filename)
+    if "site-packages" + os.sep in full:   # a library: from its package down (pydantic_ai/models/wrapper.py)
+        return full.split("site-packages" + os.sep, 1)[1].replace(os.sep, "/")
     if full.startswith(_ROOT + os.sep):
         return os.path.relpath(full, _ROOT).replace(os.sep, "/")
     return "/".join(full.replace(os.sep, "/").split("/")[-2:])
