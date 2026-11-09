@@ -28,7 +28,7 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, codes, config, conversations, db, engine, folder, jobs, keystore, media, providers, spend, store
+from . import clipcache, codes, config, log, conversations, db, engine, folder, jobs, keystore, media, providers, spend, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 HEARTBEAT_TRIES = 3       # a heartbeat that fails is tried again on a new connection, this many tries in all
@@ -385,7 +385,7 @@ def enrich(ctx: Ctx) -> dict:
     try:
         found = enricher.enrich(model, facts, text.strip()[:1000], agent.native_tools(model))
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
-        print(f"worker: job {ctx.job_id} enrich stopped: {type(e).__name__}", file=sys.stderr, flush=True)
+        log.failure(f"job {ctx.job_id} enrich stopped", e)
         raise JobFailed(providers.explain(provider, e).message) from None
     argv = enricher.signal_args(found.signals)
     if not argv:
@@ -727,7 +727,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     try:
         model = providers.model_for(provider, providers.stored_key(stored, provider))
     except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
-        print(f"worker: job {ctx.job_id} model client failed: {type(e).__name__}", file=sys.stderr)
+        log.failure(f"job {ctx.job_id} model client failed", e)
         raise _Stop(providers.explain(provider, e).message) from None
     del stored   # the model key lives only in the model client from here on
 
@@ -801,7 +801,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         try:
             conflicts = ctx.retrying(save)
         except Exception as e:  # noqa: BLE001 - the turn's own save at the end tries again
-            print(f"worker: job {ctx.job_id} checkpoint failed: {type(e).__name__}", file=sys.stderr)
+            log.failure(f"job {ctx.job_id} checkpoint failed", e)
             return
         for path, body in changes.items():   # what the end of the turn compares against from here on
             if path in conflicts:
@@ -826,7 +826,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         try:
             ctx.retrying(lambda: _save_clips(ctx, clips))
         except Exception as e:  # noqa: BLE001 - the turn has failed already; this only saves money next time
-            print(f"worker: job {ctx.job_id} keeping clips failed: {type(e).__name__}", file=sys.stderr)
+            log.failure(f"job {ctx.job_id} keeping clips failed", e)
     ctx.say("thinking")
     # a history that's only the site's topics opener: the first turn that reads step 1, should it now be a workout
     first = conv.history is None or agent.only_opener(conv.history)
@@ -845,7 +845,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
             try:
                 context = agent.prefetch(deps, line)
             except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
-                print(f"worker: job {ctx.job_id} prefetch failed: {type(e).__name__}", file=sys.stderr)
+                log.failure(f"job {ctx.job_id} prefetch failed", e)
         if deps.later and not deps.scheduled_run and first:   # the page's picked time, said plainly for the check-in
             note = (f"This workout is for later: {api_when(deps.later.get('local', ''))}, the listener's time. Do the "
                     "check-in now; once nothing's left to ask, call schedule_workout and end your turn with the plan "
@@ -868,7 +868,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         keep_clips()
         raise _Stop(TOO_LONG) from None
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
-        print(f"worker: job {ctx.job_id} turn stopped: {type(e).__name__}", file=sys.stderr)
+        log.failure(f"job {ctx.job_id} turn stopped", e)
         keep_clips()
         raise _Stop(providers.explain(provider, e).message) from None
     finally:
@@ -1020,7 +1020,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
         outcome = ("failed", e.error, e.detail)
     except Exception as e:  # noqa: BLE001 - only the type is logged: the message may be personal
         _quietly_rollback(ctx.conn if ctx else conn)
-        print(f"worker: job {job.id} stopped: {type(e).__name__}", file=sys.stderr)
+        log.failure(f"job {job.id} stopped", e)
     finally:
         beat.stop()
         if home is not None:
@@ -1071,7 +1071,7 @@ def _complete(conn, uk, job_id: int, result: dict, ctx: Ctx) -> str | None:
     try:
         done = jobs.complete(conn, uk, job_id, result, apply)
     except Exception as e:  # noqa: BLE001 - only the type is logged: the message may be personal
-        print(f"worker: job {job_id} stopped: {type(e).__name__}", file=sys.stderr)
+        log.failure(f"job {job_id} stopped", e)
         jobs.fail(conn, uk, job_id, UNEXPECTED)
         return UNEXPECTED
     if not done:
@@ -1091,7 +1091,7 @@ def _lost(conn, job_id: int, ctx: Ctx | None, error: str) -> None:
         conn.commit()
     except Exception as e:  # noqa: BLE001 - only the type is logged
         conn.rollback()
-        print(f"worker: job {job_id} couldn't record the loss: {type(e).__name__}", file=sys.stderr)
+        log.failure(f"job {job_id} couldn't record the loss", e)
 
 
 def main() -> int:
@@ -1128,8 +1128,7 @@ def _lane(settings: config.Settings, stopping: threading.Event, lane: str) -> No
         try:
             serve(settings, stopping, lane=lane)
         except Exception as e:  # noqa: BLE001 - only the type: the message may be personal
-            print(f"worker: the {lane} lane stopped ({type(e).__name__}); starting it again", file=sys.stderr,
-                  flush=True)
+            log.failure(f"the {lane} lane stopped, starting it again", e)
             stopping.wait(RECONNECT_WAIT)
 
 
