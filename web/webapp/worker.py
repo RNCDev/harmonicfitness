@@ -41,6 +41,9 @@ CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
 JOIN_SLACK = 5            # seconds past CONNECT_TIMEOUT that stopping the heartbeat may wait
 IDLE_WAIT = 5             # seconds to wait for NOTIFY jobs_queued before polling again
 RECONNECT_WAIT = 2        # seconds before reconnecting after the database closed the worker's connection
+MAX_CONNECTION_AGE = 20 * 60   # seconds a lane keeps its connection before opening another, between jobs
+# TCP keepalives on every worker connection, so one the network dropped is noticed in a minute, not at the next use
+KEEPALIVES = {"keepalives": 1, "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 3}
 BRIEF_TIMEOUT = 300       # seconds; the engine's cold start can be slow
 NEVER_WRITE_BACK = frozenset()   # the check-in may change health.md, with the listener's permission (the skill's rule)
 
@@ -985,7 +988,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
     own connection (default: settings.database_url), and the job's others. Only the main lane reaps and sweeps.
     `stopping` is the worker's own stop: a job still running DRAIN_SECONDS after it is set is stopped."""
     _uv_cache()
-    connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT))
+    connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT, **KEEPALIVES))
     if lane == "main":
         jobs.reap(conn)
         media.sweep(conn)
@@ -1138,11 +1141,18 @@ def serve(settings: config.Settings, stopping: threading.Event, connect: Callabl
     connect = connect or _connect
     run = run or functools.partial(run_one, stopping=stopping)
     conn = listen = None
+    opened = 0.0
     try:
         while not stopping.is_set():
             try:
+                # a connection a job had to replace, or one old enough that the database may close it mid-job, is
+                # opened again now, between jobs (0.76.0)
+                if conn is not None and (not _usable(conn) or time.monotonic() - opened > MAX_CONNECTION_AGE):
+                    _close(conn, listen)
+                    conn = listen = None
                 if conn is None:
                     conn, listen = connect(settings)
+                    opened = time.monotonic()
                 if run(conn, settings, **({"lane": lane} if lane != "main" else {})):
                     continue
                 for _ in listen.notifies(timeout=IDLE_WAIT, stop_after=1):
@@ -1158,9 +1168,9 @@ def serve(settings: config.Settings, stopping: threading.Event, connect: Callabl
 
 def _connect(settings: config.Settings) -> tuple:
     """The worker's connection and its listening one (autocommit, on jobs_queued)."""
-    conn = db.connect(settings.database_url)
+    conn = psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT, **KEEPALIVES)
     try:
-        listen = psycopg.connect(settings.database_url, autocommit=True, connect_timeout=CONNECT_TIMEOUT)
+        listen = psycopg.connect(settings.database_url, autocommit=True, connect_timeout=CONNECT_TIMEOUT, **KEEPALIVES)
         listen.execute("listen jobs_queued")
     except BaseException:
         conn.close()

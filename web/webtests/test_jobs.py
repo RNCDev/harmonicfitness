@@ -352,6 +352,41 @@ class Reconnect(unittest.TestCase):
         self.assertEqual(opened, [0, 1])          # connected again after the drop, rather than exiting
         self.assertEqual(sorted(closed), [0, 0, 1, 1])
 
+    def test_an_old_or_replaced_connection_is_opened_again_between_jobs(self):
+        import threading
+        stopping = threading.Event()
+        opened, runs = [], []
+
+        class Conn:
+            closed, broken = False, False
+
+            def notifies(self, timeout, stop_after):
+                return iter(())
+
+            def close(self):
+                self.closed = True
+
+        def connect(settings):
+            opened.append(1)
+            return Conn(), Conn()
+
+        def run(conn, settings):
+            runs.append(conn)
+            if len(runs) == 2:
+                conn.closed = True    # a job replaced it (Ctx.fresh closes the dropped one)
+            if len(runs) == 4:
+                stopping.set()
+            return True
+        with mock.patch.object(worker, "MAX_CONNECTION_AGE", 3600):
+            worker.serve(None, stopping, connect=connect, run=run)
+        self.assertEqual(len(opened), 2)           # once at the start, once after the job closed it
+        self.assertIs(runs[0], runs[1])
+        self.assertIsNot(runs[1], runs[2])
+        opened.clear(), runs.clear(), stopping.clear()
+        with mock.patch.object(worker, "MAX_CONNECTION_AGE", -1):   # every connection is too old by the next job
+            worker.serve(None, stopping, connect=connect, run=run)
+        self.assertEqual(len(opened), 4)
+
 
 class LostJobs(JobsCase):
     def files_and_events(self, uk, job):
