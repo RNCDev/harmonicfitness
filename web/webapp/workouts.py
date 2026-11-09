@@ -43,7 +43,8 @@ def _ok(result) -> str:
 
 
 def check_ref(ref: str) -> str:
-    if not REF.fullmatch(ref or ""):
+    """One workout's build id or number. Never "all", which the engine reads as every workout."""
+    if not REF.fullmatch(ref or "") or ref.lower() == "all":
         raise Refused("That isn't a workout.")
     return ref
 
@@ -69,7 +70,7 @@ def add_feedback(engine_root: str, files: dict[str, bytes], ref: str, text: str)
         raise Refused("Say what the feedback is.")
     if len(text) > FEEDBACK_MAX:
         raise Refused(f"Keep feedback under {FEEDBACK_MAX} characters.")
-    result, changed = _run(engine_root, files, ["workouts", "feedback", check_ref(ref), text])
+    result, changed = _run(engine_root, files, ["workouts", "feedback", check_ref(ref), "--", text])
     _ok(result)
     return changed
 

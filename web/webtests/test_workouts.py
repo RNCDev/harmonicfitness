@@ -58,6 +58,22 @@ class Calls(unittest.TestCase):
             with self.subTest(call=call.__name__), self.assertRaises(workouts.Refused):
                 call(ROOT, files, *args)
 
+    def test_all_is_never_a_workout(self):
+        files = listener_files()
+        for ref in ("all", "ALL", "All"):
+            for call, args in ((workouts.delete, (ref,)), (workouts.rate, (ref, "positive")),
+                               (workouts.add_feedback, (ref, "fine")), (workouts.script, (ref,))):
+                with self.subTest(ref=ref, call=call.__name__), self.assertRaises(workouts.Refused):
+                    call(ROOT, files, *args)
+        self.assertEqual(len(workouts.listing(ROOT, files)), 1)
+
+    def test_feedback_that_looks_like_an_option_is_saved_as_words(self):
+        files = listener_files()
+        for text in ("--help", "-_- too hard"):
+            changed = workouts.add_feedback(ROOT, files, "ccc333", text)
+            files.update(changed)
+        self.assertEqual(workouts.listing(ROOT, files)[0]["feedback"], ["--help", "-_- too hard"])
+
     def test_a_listener_without_a_log_has_no_workouts(self):
         self.assertEqual(workouts.listing(ROOT, {}), [])
 
