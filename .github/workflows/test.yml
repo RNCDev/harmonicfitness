@@ -1,8 +1,18 @@
 name: tests
-on: [push, pull_request]
+# Branches and pull requests, not tags: a release's tag points at a commit main has already tested.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+# A newer push to a branch cancels the run it replaces. On main each commit is its own group, so nothing waits or
+# is cancelled while a deploy may be under way.
+concurrency:
+  group: tests-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: true
 # Four jobs. The privacy checks run first and alone gate the rest; then the engine's tests (on Linux, a Mac
-# and Windows), the web app's tests and (on main) the deploy run side by side, so a release goes live in about
-# two minutes. A deploy can go out before a test fails; the failure still shows here, and the fix is the next push.
+# and Windows, each spread over the runner's cores by tools/testrun.py), the web app's tests and (on main) the
+# deploy run side by side, so a release goes live in about two minutes. A deploy can go out before a test fails;
+# the failure still shows here, and the fix is the next push.
 jobs:
   privacy:
     runs-on: ubuntu-latest

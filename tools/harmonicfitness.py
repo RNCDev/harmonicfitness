@@ -17,6 +17,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import cli  # noqa: E402
 import testpick  # noqa: E402
+import testrun  # noqa: E402
 
 # command: (module, the subcommand it stands for in that module, or None; what it does)
 COMMANDS = {
@@ -77,6 +78,11 @@ def test_env(env):
     return env
 
 
+def engine_env(env):
+    """The test environment with tests/ importable, so a batch can name its classes ("test_tools.RenderLock")."""
+    return dict(env, PYTHONPATH=os.pathsep.join(filter(None, [os.path.join(ROOT, "tests"), env.get("PYTHONPATH")])))
+
+
 def main(argv=None):
     # A Windows console defaults to a code page that can't print an emoji in a video title or
     # headline; UTF-8 can, and anything a console still can't show prints as a placeholder.
@@ -120,14 +126,15 @@ def main(argv=None):
                     print(f"No such test module: {', '.join(unknown)} (tests/test_<name>.py)", file=sys.stderr)
                     return cli.USAGE
             opts = [a for a in rest if a not in names]
-            env["PYTHONPATH"] = os.pathsep.join(filter(None, [os.path.join(ROOT, "tests"), env.get("PYTHONPATH")]))
-            return subprocess.call([sys.executable, "-m", "unittest", *opts, *picked], cwd=ROOT, env=env)
+            if not picked:
+                return 0
+            return testrun.run(ROOT, engine_env(env), picked, opts, verbose="-v" in opts)
         # "engine" or "web" first runs only that half (CI runs them side by side, and skips the engine's when a
-        # push changed only web/)
+        # push changed only web/). The engine's run side by side, a batch of test classes per core (tools/testrun.py).
         part = rest.pop(0) if rest and rest[0] in ("engine", "web") else None
         code = 0
         if part != "web":
-            code = subprocess.call([sys.executable, "-m", "unittest", "discover", "tests", *rest], cwd=ROOT, env=env)
+            code = testrun.run(ROOT, engine_env(env), (), rest, verbose="-v" in rest)
         if part == "engine":
             return code
         # The web client's tests (web/), when its optional extra is installed; their failure fails the command.
