@@ -58,6 +58,8 @@ LOGIN_PER_NAME = (10, 15 * 60)
 LOGIN_PER_ADDRESS = (50, 15 * 60)
 REGISTER_PER_ADDRESS = (10, 60 * 60)   # every attempt counts, taken names too
 REGISTER_ALL = (50, 60 * 60)
+CONFIRM_PER_USER = (10, 15 * 60)       # wrong passwords a signed-in user may give (a new password, deleting the account)
+HSTS = (b"strict-transport-security", b"max-age=31536000")
 
 
 class Throttle:
@@ -259,8 +261,8 @@ class _Headers:
     BASE = ((b"x-content-type-options", b"nosniff"), (b"x-frame-options", b"DENY"),
             (b"referrer-policy", b"same-origin"), (b"x-robots-tag", b"noindex"))
 
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, app, secure: bool = False):
+        self.app, self.secure = app, secure
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -271,7 +273,9 @@ class _Headers:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 have = {k.lower() for k, _ in headers}
-                extra = list(self.BASE) + ([(b"cache-control", b"no-store")] if api else [])
+                # HSTS only where the site is served over https: never on a computer's own http://localhost
+                extra = (list(self.BASE) + ([HSTS] if self.secure else [])
+                         + ([(b"cache-control", b"no-store")] if api else []))
                 headers += [(k, v) for k, v in extra if k not in have]
                 message = {**message, "headers": headers}
             await send(message)
@@ -512,7 +516,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app = FastAPI(title=APP_NAME, lifespan=lifespan, docs_url=None, redoc_url=None,
                   openapi_url=None)
     app.add_middleware(_BodyLimit)
-    app.add_middleware(_Headers)   # added last, so it runs first: a 413 gets the security headers too
+    app.add_middleware(_Headers, secure=_secure(settings))   # added last, so it runs first: a 413 gets the security headers too
 
     @app.exception_handler(RequestValidationError)
     def invalid(_request: Request, e: RequestValidationError):
@@ -546,6 +550,14 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     User = Annotated[store.UserKey, Depends(session)]
     post = {"dependencies": [Depends(same_origin)]}
     login_name, login_addr = Throttle(*LOGIN_PER_NAME), Throttle(*LOGIN_PER_ADDRESS)
+    confirms = Throttle(*CONFIRM_PER_USER)
+
+    def confirming(uk: store.UserKey) -> str:
+        """The throttle's key for a signed-in user's password checks; 429 once they've given too many wrong."""
+        key = str(uk.user_id)
+        if confirms.full(key):
+            raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
+        return key
     reg_addr, reg_all = Throttle(*REGISTER_PER_ADDRESS), Throttle(*REGISTER_ALL)
 
     def signed_in(token: str, status: int = 204) -> Response:
@@ -600,6 +612,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     @app.post("/api/password", status_code=204, **post)
     def password(request: Request, uk: User, body: Annotated[NewPassword, Body()]):
+        key = confirming(uk)
         try:
             with connection() as conn:
                 auth.set_password(conn, uk.user_id, body.current, body.new,
@@ -607,6 +620,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         except auth.Invalid as e:
             return _refused(400, str(e), "new" if e.field == "password" else e.field)
         except auth.WrongPassword:
+            confirms.hit(key)
             return _refused(400, "Your current password isn't right.", "current")
         return Response(status_code=204)
 
@@ -928,6 +942,12 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 if providers.pick(settings.providers, keystore.listing(conn, uk), keystore.writer(conn, uk)) is None:
                     conn.rollback()
                     return None
+                # within the queued-jobs cap, as every other job is (0.76.0): the feedback itself is saved either way
+                conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
+                if conn.execute("select count(*) from jobs where user_id = %s and state = 'queued' and kind = 'enrich'",
+                                (uk.user_id,)).fetchone()[0] >= MAX_QUEUED:
+                    conn.rollback()
+                    return None
                 return jobs.enqueue(conn, uk, "enrich", {"ref": workouts.check_ref(ref), "text": body.text,
                                                          "today": datetime.date.today().isoformat()})
         return {"job_id": await anyio.to_thread.run_sync(queue)}
@@ -967,11 +987,13 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     def delete_account(uk: User, body: Annotated[Confirm, Body()]):
         """Delete the account and everything it holds: files, keys, chats, audio, kept clips, jobs. Needs the
         password; nothing can bring it back."""
+        key = confirming(uk)
         with connection() as conn:
             try:
                 row = conn.execute("select password_hash from users where id = %s for update",
                                    (uk.user_id,)).fetchone()
                 if row is None or not auth.verify_password(body.password, row[0]):
+                    confirms.hit(key)
                     raise HTTPException(400, "That password isn't right.")
                 conn.execute("delete from users where id = %s", (uk.user_id,))
                 conn.commit()

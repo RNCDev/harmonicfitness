@@ -96,8 +96,15 @@ class Routes(test_api.ApiCase):
         self.assertEqual(self.conn.execute("select kind, state from jobs where id = %s", (job,)).fetchone(),
                          ("enrich", "queued"))
         self.conn.rollback()
+        for n in range(2, 5):   # feedback keeps being saved; past the queued cap no more enrich jobs wait
+            r = self.client.post("/api/workouts/ccc333/feedback", json={"text": f"note {n}"}, headers=self.origin())
+            self.assertEqual(r.status_code, 202, r.text)
+        self.assertIsNone(r.json()["job_id"])
+        self.assertEqual(self.conn.execute("select count(*) from jobs where kind = 'enrich' and state = 'queued'")
+                         .fetchone()[0], test_api.api.MAX_QUEUED)
+        self.conn.rollback()
         row = self.client.get("/api/workouts").json()["workouts"][0]
-        self.assertEqual((row["rating"], row["feedback"]), ("negative", ["too long"]))
+        self.assertEqual((row["rating"], row["feedback"]), ("negative", ["too long", "note 2", "note 3", "note 4"]))
         self.assertEqual(self.client.put("/api/workouts/ccc333/rating", json={"rating": "great"},
                                          headers=self.origin()).status_code, 422)
         self.assertEqual(self.client.get("/api/workouts/nope99/script").status_code, 404)

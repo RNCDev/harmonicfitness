@@ -327,6 +327,14 @@ class LocalCookie(ApiCase):
         self.assertNotIn("Secure", r.headers["set-cookie"])
         self.assertEqual(self.client.get("/api/me").status_code, 200)
 
+    def test_no_hsts_on_a_computer_s_own_http(self):
+        self.assertNotIn("strict-transport-security", self.client.get("/healthz").headers)
+
+
+class Hsts(ApiCase):
+    def test_https_asks_browsers_to_keep_to_it(self):
+        self.assertEqual(self.client.get("/healthz").headers["strict-transport-security"], "max-age=31536000")
+
 
 class Api(ApiCase):
     def test_options_lists_goals(self):
@@ -1480,6 +1488,19 @@ class Account(ApiCase):
                                                (user_id,)).fetchone()[0], 0, table)
         self.conn.rollback()
         self.assertEqual(self.client.get("/api/me").status_code, 401)
+
+    def test_wrong_passwords_on_a_session_are_throttled(self):
+        self.registered()
+        self.conn.rollback()
+        for _ in range(api.CONFIRM_PER_USER[0]):
+            r = self.client.post("/api/account/delete", json={"password": "not it"}, headers=self.origin())
+            self.assertEqual(r.status_code, 400)
+        r = self.client.post("/api/account/delete", json={"password": "long enough"}, headers=self.origin())
+        self.assertEqual(r.status_code, 429)   # even the right one, until the window passes
+        r = self.client.post("/api/password", json={"current": "long enough", "new": "another long one"},
+                             headers=self.origin())
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(self.client.get("/api/me").status_code, 200)   # the account is still there
 
     def test_delete_needs_the_origin(self):
         self.registered()
