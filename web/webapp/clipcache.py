@@ -1,6 +1,10 @@
 """The engine's clip cache (workouts/.audio-cache/), kept a week per listener so re-recording a workout
 sends only the lines that changed: clips and their take checks, and the coach's measured pace. Sealed with
-the user's data key. Only a recording turn loads and saves it. Nothing commits here except prune."""
+the user's data key. Only a recording turn loads and saves it. Nothing commits here except prune.
+
+A clip's `used_at` moves only when a build used it (0.76.0): loading the cache marks nothing, and a clip the
+engine read (it touches each one it uses, for its own prune) is marked used without being sent again. At the
+listener's MAX_TOTAL, the clips used longest ago make room for the new ones, so the cache keeps working."""
 import os
 
 from . import crypto
@@ -26,8 +30,7 @@ def load(conn, uk: UserKey, home: str) -> dict[str, float]:
     the worker so large that the engine's encode ran the 1 GB machine out of memory."""
     folder = os.path.join(home, FOLDER)
     os.makedirs(folder, exist_ok=True)
-    rows = conn.cursor().stream("update clip_cache set used_at = now() where user_id = %s returning path, body",
-                                (uk.user_id,))
+    rows = conn.cursor().stream("select path, body from clip_cache where user_id = %s", (uk.user_id,))
     written = {}
     for path, body in rows:
         if not _ok(path):
@@ -66,24 +69,54 @@ def current(home: str) -> dict[str, float]:
         return {}
 
 
+def _evict(conn, uk: UserKey, need: int, keep: list[str]) -> int:
+    """Delete the listener's clips used longest ago, never the pace or one in `keep`, until `need` bytes are free
+    (or none is left to delete); the bytes freed."""
+    freed, gone = 0, []
+    rows = conn.execute("select path, bytes from clip_cache where user_id = %s and path <> %s and "
+                        "not (path = any(%s)) order by used_at, path", (uk.user_id, PACE, keep)).fetchall()
+    for path, size in rows:
+        if freed >= need:
+            break
+        gone.append(path)
+        freed += size
+    if gone:
+        conn.execute("delete from clip_cache where user_id = %s and path = any(%s)", (uk.user_id, gone))
+    return freed
+
+
 def save(conn, uk: UserKey, home: str, before: dict[str, float]) -> int:
-    """Keep the cache files the build added or changed; how many."""
+    """Keep the cache files the build added or changed, and mark used the clips it read; how many were sent.
+
+    A clip loaded from the store (in `before`) whose time moved was read by the build: marked used, not sent again.
+    Any other file that's new or changed is sent, and the pace and take checks whenever they changed. Past
+    MAX_TOTAL, the clips used longest ago go first."""
     folder = os.path.join(home, FOLDER)
     if not os.path.isdir(folder):
         return 0
-    total = conn.execute("select coalesce(sum(bytes), 0) from clip_cache where user_id = %s",
-                         (uk.user_id,)).fetchone()[0]
-    n = 0
+    hits, new = [], []
     for name in sorted(os.listdir(folder)):
         full = os.path.join(folder, name)
         if not _ok(name) or os.path.islink(full) or not os.path.isfile(full):
             continue
         if before.get(name) == os.path.getmtime(full):
             continue
-        size = os.path.getsize(full)
-        if size > MAX_FILE or total + size > MAX_TOTAL:
+        if name in before and name.endswith(".pcm"):
+            hits.append(name)
+        elif os.path.getsize(full) <= MAX_FILE:
+            new.append((name, os.path.getsize(full)))
+    if hits:
+        conn.execute("update clip_cache set used_at = now() where user_id = %s and path = any(%s)", (uk.user_id, hits))
+    total = conn.execute("select coalesce(sum(bytes), 0) from clip_cache where user_id = %s and not (path = any(%s))",
+                         (uk.user_id, [name for name, _ in new])).fetchone()[0]
+    need = sum(size for _, size in new)
+    if total + need > MAX_TOTAL:
+        total -= _evict(conn, uk, total + need - MAX_TOTAL, hits + [name for name, _ in new])
+    n = 0
+    for name, size in new:
+        if total + size > MAX_TOTAL:
             continue
-        with open(full, "rb") as f:
+        with open(os.path.join(folder, name), "rb") as f:
             body = f.read()
         conn.execute("insert into clip_cache (user_id, path, body, bytes) values (%s, %s, %s, %s) "
                      "on conflict (user_id, path) do update set body = excluded.body, bytes = excluded.bytes, "
