@@ -313,8 +313,9 @@ class Brief(unittest.TestCase):
 
 
 class Patience(unittest.TestCase):
-    def test_a_writer_past_its_patience_is_asked_again_thinking_less(self):
+    def ask(self, thinks: bool):
         import asyncio
+        from unittest import mock
         from pydantic_ai.messages import ToolCallPart
         from pydantic_ai.usage import RunUsage
         calls = []
@@ -322,15 +323,24 @@ class Patience(unittest.TestCase):
         async def reply(messages, info):
             calls.append(len(calls))
             if len(calls) == 1:
-                await asyncio.sleep(1)   # the first try thinks too long
+                await asyncio.sleep(0.5)   # the first try thinks too long
             return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"segments": []})])
         deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00")
         old = dict(writers.PATIENCE)
-        writers.PATIENCE["review"] = 0.2
+        writers.PATIENCE["review"] = 0.1
         self.addCleanup(writers.PATIENCE.update, old)
-        out = asyncio.run(writers._ask(deps, "review", writers.REVIEW, FunctionModel(reply), "edit", RunUsage(), "HIGH"))
+        level = (lambda model, lv: {"google_thinking_config": {"thinking_level": lv}}) if thinks else (lambda m, lv: None)
+        with mock.patch.object(writers, "_thinking", side_effect=level):
+            out = asyncio.run(writers._ask(deps, "review", writers.REVIEW, FunctionModel(reply), "edit", RunUsage(),
+                                           "HIGH"))
         self.assertEqual(out.output.segments, [])
-        self.assertEqual(len(calls), 2)   # asked once more, a level lower
+        return calls
+
+    def test_a_writer_past_its_patience_is_asked_again_thinking_less(self):
+        self.assertEqual(len(self.ask(thinks=True)), 2)   # Gemini: asked once more, a level lower
+
+    def test_a_model_without_a_thinking_level_is_asked_once(self):
+        self.assertEqual(len(self.ask(thinks=False)), 1)  # a second ask would be the same request, paid twice
 
 
 class Switch(unittest.TestCase):
@@ -445,3 +455,35 @@ class Switch(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Stock(unittest.TestCase):
+    """The researcher is handed the stock's pieces from the engine's content plan, as tools.run returns it (0.76.0:
+    the plan's paths are me/... by then, which the old pattern never matched)."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from webapp import folder
+        root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+        self.home = tempfile.mkdtemp(prefix="hf-stock-")
+        self.addCleanup(shutil.rmtree, self.home, True)
+        folder.materialize(folder.seed(root), self.home)
+        os.makedirs(os.path.join(self.home, "workouts", "research", "reserve"), exist_ok=True)
+        with open(os.path.join(self.home, "workouts", "research", "reserve", "moon-dust.md"), "w",
+                  encoding="utf-8") as f:
+            f.write("# Moon dust\n- Topic: space\n- Format: one strange fact\n- Source: https://example.org/moon\n"
+                    "- Good until: evergreen\n\nThe dust smells of spent gunpowder, the astronauts said.\n")
+        self.deps = tools.Deps(engine_root=root, home=self.home, keys={}, today="2026-11-09",
+                               now="2026-11-09 Monday 08:00")
+
+    def test_the_stock_from_the_plan_reaches_the_researcher(self):
+        plan = tools.run(self.deps, ["content", "plan", "--minutes", "20"])
+        self.assertEqual(plan.code, 0, plan.error)
+        self.assertIn("Moon dust", plan.output)
+        self.assertTrue(writers.STOCK.search(plan.output), plan.output[-600:])
+        got = writers._stock(self.deps, plan.output)
+        self.assertIn("spent gunpowder", got)
+
+    def test_a_stock_path_outside_the_folder_is_never_read(self):
+        self.assertEqual(writers._stock(self.deps, "- space / fact: x (me/../../etc/passwd.md, slug x)"), "")

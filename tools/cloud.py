@@ -43,6 +43,8 @@ from services import estimate, rate  # noqa: E402,F401  (they read only services
 
 SR = 24000
 RETRY_STATUS = (429, 500, 502, 503, 504)
+MAX_ANSWER = 64 << 20    # bytes of an answer read at most: the longest clip is a small fraction of this
+MAX_REFUSAL = 64 << 10   # and of a refusal's body
 TRIES = 6
 RATE_WAIT = 120             # seconds: a 429 asking to wait this long or less is retried, whatever its body says
 DEADLINE = 300.0            # seconds one request may take in all, its tries and the waits between them
@@ -131,12 +133,37 @@ def _message(body):
     return json.dumps(data)[:300]
 
 
+CODE_FIELDS = ("error_code", "code", "type", "status", "reason")
+
+
+def _codes(body):
+    """The words a refusal's JSON names itself by (its error code, type or status, at the top, under "error" or under
+    "detail"), lowercased, never its message: a message may echo the request's own text."""
+    try:
+        data = json.loads(body.decode("utf-8", "replace"))
+    except ValueError:
+        return ""
+    found = []
+    for part in (data, data.get("error") if isinstance(data, dict) else None,
+                 data.get("detail") if isinstance(data, dict) else None):
+        if isinstance(part, dict):
+            found += [str(part[k]) for k in CODE_FIELDS if isinstance(part.get(k), (str, int))]
+    return " ".join(found).lower()
+
+
 def _kind(status, body):
+    """What a refusal means for the listener. A server error is an outage, whatever its page says; otherwise the
+    refusal's own code says quota or billing, and its wording counts only where the status already points there
+    (402, 403, 429), so a 400 echoing a story about payment is still a bad request (0.76.0)."""
+    if status >= 500:
+        return "unavailable" if status in RETRY_STATUS else "bad_request"
     text = body.decode("utf-8", "replace").lower()
-    if "quota" in text:
+    codes = _codes(body)
+    if "quota" in codes or "resource_exhausted" in codes or (status in (403, 429) and "quota" in text):
         return "quota"
-    if status == 402 or (400 <= status < 500 and ("insufficient_credits" in text or "payment" in text)):
-        return "billing"   # a 5xx page that mentions payment is still an outage
+    if (status == 402 or "insufficient_credits" in codes or "payment" in codes
+            or (status == 403 and ("insufficient_credits" in text or "payment" in text))):
+        return "billing"
     if status in (401, 403):
         return "auth"
     if status in RETRY_STATUS:
@@ -237,9 +264,12 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
         req.harmonicfitness_service = service
         try:
             with _open(req, min(timeout, left)) as r:
-                return r.status, dict(r.headers), r.read()
+                data = r.read(MAX_ANSWER + 1)
+                if len(data) > MAX_ANSWER:
+                    raise ServiceError("bad_request", service, f"the answer was over {MAX_ANSWER >> 20} MB")
+                return r.status, dict(r.headers), data
         except urllib.error.HTTPError as e:
-            data = e.read() or b""
+            data = e.read(MAX_REFUSAL) or b""
             kind = _kind(e.code, data)
             last = ServiceError(kind, service, f"{_message(data)} (HTTP {e.code})", status=e.code)
             retry_after = e.headers.get("Retry-After") if e.headers else None

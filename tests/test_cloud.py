@@ -297,7 +297,13 @@ class Core(unittest.TestCase):
                                    (402, b'{"status": 402, "message": "No payment"}', "billing"),
                                    (400, b'{"detail": {"message": "text too long"}}', "bad_request"),
                                    (400, b'{"error_code": "quota_exceeded", "message": "out"}', "quota"),
-                                   (503, b"{}", "unavailable")):
+                                   (503, b"{}", "unavailable"),
+                                   # 0.76.0: an outage page that mentions a quota is still an outage
+                                   (503, b'{"message": "quota service is down"}', "unavailable"),
+                                   # and a bad request echoing the script's own words is still a bad request
+                                   (400, b'{"message": "invalid text: the payment of quota debts"}', "bad_request"),
+                                   (403, b'{"message": "monthly quota reached"}', "quota"),
+                                   (400, b'{"error": {"code": "insufficient_credits", "message": "x"}}', "billing")):
             with FakeService(lambda req, s=status, b=body: (s, {}, b)) as fake:
                 with self.assertRaises(cloud.ServiceError) as e:
                     cloud.request("POST", fake.url + "/x", {"Authorization": f"Bearer {SECRET}"}, b"",

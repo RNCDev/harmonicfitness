@@ -43,7 +43,9 @@ ROW = re.compile(r"^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$", re.MU
 SEGMENT = re.compile(r"^@@\s*(\d+)\s*\|\s*(.*?)\s*$")
 TIMED = re.compile(r"\[(?:hold|pause) (\d+(?:\.\d+)?)s\]")
 TOLD = re.compile(r"^- (?:\d{4}-\d{2}-\d{2} )?[^/\n]+/ [a-z_]+: (.+)$", re.MULTILINE)
-STOCK = re.compile(r"\((/[^,()]+\.md), slug [\w-]+\)")
+# a stock piece in the content plan, as tools.run hands it on: its path is me/... by then (0.76.0; the absolute path
+# the engine prints is rewritten before the room sees it)
+STOCK = re.compile(r"\((me/[^,()]+\.md), slug [\w-]+[,)]")
 COMMAND = re.compile(r"\s*\([^()]*`\./harmonicfitness[^`]*`[^()]*\)")
 # a passage the engine's files mark for a computer only: the web's copy leaves it out
 NOT_WEB = re.compile(r"<!-- web: skip -->\n.*?<!-- web: end -->\n?", re.DOTALL)
@@ -399,15 +401,16 @@ def _home_text(deps, rel: str) -> str:
 
 
 def _stock(deps, plan: str) -> str:
-    home = os.path.realpath(deps.home)
+    """Each stock piece the plan names, read from the listener's folder (a path that leaves it is skipped)."""
     out = []
     for path in STOCK.findall(plan):
-        real = os.path.realpath(path)
-        if real.startswith(home + os.sep):
-            try:
-                out.append(f"### {os.path.basename(path)}\n{_read(real).strip()}")
-            except OSError:
-                pass
+        real, _ = tools._mine(deps, path)
+        if real is None:
+            continue
+        try:
+            out.append(f"### {os.path.basename(path)}\n{_read(real).strip()}")
+        except OSError:
+            pass
     return "\n\n".join(out)
 
 
@@ -437,8 +440,10 @@ def _thinking(model, level: str) -> dict | None:
 
 async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: str, capabilities=(), history=None):
     """One writer's call; cut off by Gemini's own deadline (504, thinking too long), it's
-    asked again a level lower, as it is when it runs past its PATIENCE."""
-    lower = LEVELS[LEVELS.index(level) + 1:] if level in LEVELS else ()
+    asked again a level lower, as it is when it runs past its PATIENCE. Only a model with a thinking level is asked
+    again (0.76.0): for any other the second ask would be the same request, paid for twice, so it gets one ask with no
+    patience, within the client's own timeout and the turn's clock."""
+    lower = LEVELS[LEVELS.index(level) + 1:] if level in LEVELS and _thinking(model, level) is not None else ()
     began = time.monotonic()
     try:
         result = await asyncio.wait_for(
