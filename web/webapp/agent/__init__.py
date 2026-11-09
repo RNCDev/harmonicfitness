@@ -731,6 +731,9 @@ def _chain(ctx: RunContext[Deps], path: object, result: ToolResult, name: str | 
 
 async def _fill(ctx: RunContext[Deps], path: str, build_name: str | None, coach: str | None) -> ToolResult:
     deps = ctx.deps
+    # the room's researcher reads the feeds and searches the web, and its notes come back in the draft: from here on
+    # the turn has read text strangers wrote (the health.md gate, tools._health_write)
+    deps.untrusted = True
     n = _begin(deps, WRITING_STEP, "write_script")
     model = getattr(ctx.model, "wrapped", ctx.model)   # the turn's model, without the narration
     began = time.monotonic()

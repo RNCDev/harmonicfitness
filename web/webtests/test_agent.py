@@ -1519,6 +1519,15 @@ class HealthGate(AgentCase):
         tools.read_file(self.deps, "me/workouts/research/daily/x.md")
         self.assertTrue(self.deps.untrusted)
 
+    def test_the_writers_room_counts_as_pages(self):
+        import asyncio
+        import types
+        from webapp import agent as agent_mod
+        ctx = types.SimpleNamespace(deps=self.deps, model=None, usage=None)
+        with mock.patch.object(agent_mod.writers, "write", side_effect=agent_mod.writers.NotReady("no brief")):
+            asyncio.run(agent_mod._fill(ctx, "me/workouts/a/a.draft.txt", None, None))
+        self.assertTrue(self.deps.untrusted)
+
     def test_a_scheduled_turn_never_changes_health(self):
         self.deps.scheduled_run = True
         r = self.write(self.OLD + "\nMore care today.\n")
