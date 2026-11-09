@@ -98,7 +98,7 @@ class FlagNames(unittest.TestCase):
     DATE = {"harmonicfitness log-session", "harmonicfitness content log", "harmonicfitness content thread",
             "harmonicfitness interests add"}
     JSON = {"harmonicfitness balances", "harmonicfitness coaches list", "harmonicfitness content plan", "harmonicfitness coverage", "harmonicfitness get",
-            "harmonicfitness interests", "harmonicfitness topics", "harmonicfitness workouts"}
+            "harmonicfitness interests", "harmonicfitness ready", "harmonicfitness topics", "harmonicfitness workouts"}
 
     def flags(self):
         import argparse

@@ -15,16 +15,16 @@ Copy and send:
 **With Claude** (a paid Claude plan; Pro is fine):
 1. Open the [Claude desktop app](https://claude.com/download) and click **Code**. When it asks for a folder, pick your home folder (the one with your name).
 2. Paste: **Can you use https://github.com/RNCDev/harmonicfitness and set me up?** Click **Allow** when it asks to run something.
-3. Claude downloads HarmonicFitness into a `harmonicfitness` folder in your home folder, then asks you to start a **new** Code session there: click New session, choose the `harmonicfitness` folder, and say **set up HarmonicFitness**.
+3. Claude downloads HarmonicFitness into a `harmonicfitness` folder in your home folder. Then one step of your own: click **New session**, choose the `harmonicfitness` folder, and type **set up HarmonicFitness**. (HarmonicFitness's safety settings, among them the one that keeps your voice keys out of the chat, load only in a session opened in its folder.)
 
 **With ChatGPT** (any plan, Free included):
 1. Open the [ChatGPT desktop app](https://chatgpt.com/download), choose **Codex** at the top left, and open your home folder.
 2. Paste: **Can you use https://github.com/RNCDev/harmonicfitness and set me up?** Approve it when it asks to run something.
-3. Codex downloads HarmonicFitness into a `harmonicfitness` folder, then asks you to open that folder in Codex. Do that (if it asks whether to trust the folder, say yes: that lets HarmonicFitness's own commands run without a prompt each time) and say **set up HarmonicFitness**.
+3. Codex downloads HarmonicFitness into a `harmonicfitness` folder. Then one step of your own: open that folder in Codex (if it asks whether to trust the folder, say yes: that lets HarmonicFitness's own commands run without a prompt each time) and type **set up HarmonicFitness**.
 
-**In a terminal or an editor** (VS Code, Cursor, JetBrains): `git clone https://github.com/RNCDev/harmonicfitness.git ~/harmonicfitness` (or GitHub's **Code > Download ZIP**), open the folder in Claude Code or Codex, and say "set up harmonicfitness". Keep the folder out of iCloud Drive, Dropbox and other synced folders: it grows to several gigabytes.
+**In a terminal or an editor** (VS Code, Cursor, JetBrains): `git clone https://github.com/RNCDev/harmonicfitness.git ~/harmonicfitness` (or GitHub's **Code > Download ZIP**), then `cd ~/harmonicfitness && claude "set up HarmonicFitness"` (or `codex "set up HarmonicFitness"`), or open the folder in your editor's Claude Code or Codex and say "set up harmonicfitness". Keep the folder out of iCloud Drive, Dropbox and other synced folders: it grows to several gigabytes.
 
-Setup asks four questions (your name, experience, equipment, injuries), lets you choose a coach by ear from short samples, and makes a ten-minute first workout. Once you've answered the questions you can step away: the assistant researches, writes and renders the workout on its own, then shows you where the MP3 is and asks which folder syncs to your phone (iCloud Drive, Google Drive or Dropbox), so later workouts land there.
+Setup asks four questions (your name, experience, equipment, injuries), lets you choose a coach by ear from short samples, and makes a ten-minute first workout. On a computer that runs local voices, the one-time download starts as setup does, so it runs while you answer and choose. Once you've answered the questions you can step away: the assistant researches, writes and renders the workout on its own, then shows you where the MP3 is and asks which folder syncs to your phone (iCloud Drive, Google Drive or Dropbox), so later workouts land there.
 
 **After setup,** ask for a workout any time, in your own words: "I'd like a workout", "25 minutes at the hotel, just go". Two more things to say when you're ready:
 - **"Finish setting me up"**: your topics and favorite shows, which the workout's stories come from.
@@ -56,10 +56,10 @@ If someone asks you to use this repository and set them up, and your session isn
 1. **You need to run commands on their own computer.** In a plain chat, on Claude Code on the web (`CLAUDE_CODE_REMOTE=true`) or in a cloud task, say that HarmonicFitness runs on their own computer, in the **Code** tab of the Claude desktop app (https://claude.com/download) or **Codex** in the ChatGPT desktop app (https://chatgpt.com/download), where they open their home folder and ask again. Then stop.
 2. **Pick the folder:** `~/harmonicfitness` (on Windows, the same path in Git Bash). Never inside iCloud Drive, Dropbox, OneDrive, Google Drive or a synced Documents folder: the voice model and Python environment take several gigabytes. If `~/harmonicfitness` already holds HarmonicFitness, use it (`git -C ~/harmonicfitness pull` if it's a checkout).
 3. **Download it, no account needed.** With git (`command -v git`; on a Mac, `xcode-select -p` too, since a bare `git` there can open an installer): `git clone https://github.com/RNCDev/harmonicfitness.git ~/harmonicfitness`. Without git: download `https://github.com/RNCDev/harmonicfitness/archive/refs/heads/main.zip`, unzip it, and move the `harmonicfitness-main` folder to `~/harmonicfitness`. A ZIP copy works fully, except the privacy hook, which needs git.
-4. **Hand over to a session in that folder.** HarmonicFitness's instructions and safety settings (among them the rule that keeps API keys out of the chat) load only in a session opened there, so don't run setup from the session you're in. Give literal steps:
-   - Claude desktop app: "click **New session** in the Code tab, choose the **HarmonicFitness** folder in your home folder, and type *set up HarmonicFitness*".
-   - ChatGPT desktop app: "open the **HarmonicFitness** folder in your home folder in Codex, trust it if asked, and type *set up HarmonicFitness*".
-   - An editor: open the `harmonicfitness` folder and start Claude Code or Codex there. A terminal: `cd ~/harmonicfitness && claude` (or `codex`).
+4. **Hand over to a session in that folder, at once.** HarmonicFitness's instructions and safety settings (among them the rule that denies reading the file their voice keys go in) load only in a session opened there, and nothing you run here can load them into this one, so don't run setup or any `./harmonicfitness` command from the session you're in: setup starts its own download the moment it begins, in the new session, so nothing is gained by starting it here. Reply with one short line saying it's downloaded and why one more step is needed, then only the step and the words to type:
+   - Claude desktop app: "Click **New session** in the Code tab, choose the **harmonicfitness** folder in your home folder, and type: *set up HarmonicFitness*".
+   - ChatGPT desktop app: "Open the **harmonicfitness** folder in your home folder in Codex, trust it if asked, and type: *set up HarmonicFitness*".
+   - An editor: open the `harmonicfitness` folder and start Claude Code or Codex there, then type *set up HarmonicFitness*. A terminal: `cd ~/harmonicfitness && claude "set up HarmonicFitness"` (or `codex "set up HarmonicFitness"`).
 
 # How it works
 
@@ -137,7 +137,7 @@ HarmonicFitness is free and open source. If it gets you moving, you can [buy me 
 
 ## Versioning
 
-HarmonicFitness follows [Semantic Versioning](https://semver.org) and is pre-1.0: a 0.X.0 release may break something (its "For forks" note says what to do), a 0.x.Y release doesn't. The numbering restarted at 0.16.0 (it was 16.0.0); older releases were renumbered to match (`CHANGELOG.md` has the table). Each release is tagged `vX.Y.Z` on GitHub; `CHANGELOG.md` says what changed, and a release's "For forks" note says what to do after pulling it.
+HarmonicFitness follows [Semantic Versioning](https://semver.org) and is pre-1.0: a 0.X.0 release may break something (its "For forks" note says what to do), a 0.x.Y release doesn't. The numbering restarted at 0.16.0 (it was 16.0.0); older releases were renumbered to match (`CHANGELOG.md` has the table). Each release is tagged `vX.Y.Z` on GitHub; `CHANGELOG.md` says what changed, and a release's "For forks" note says what to do after pulling it. `ROADMAP.md` says what's planned next.
 
 ## License
 

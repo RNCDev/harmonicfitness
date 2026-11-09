@@ -45,6 +45,7 @@ COMMANDS = {
     "migrate":     ("migrate", None, "bring me/ up to this version's format (backs up first)"),
     "models":      ("models", None, "the local voice models in models/, and adopt the ones already downloaded"),
     "cache":       ("cache", None, "the clip cache's size, and prune"),
+    "ready":       ("ready", None, "the ready-made workouts: five thirty-minute sessions recorded once, to play while your own coach gets ready"),
     "demos":       ("demos", None, "the home page's demo clips (docs/demos/): each demo listener's folder, run a command as one, cut a clip's segments, publish it"),
     "harness":     ("harness", None,"check that ChatGPT's Codex files match the Claude Code ones; sync rewrites them"),
     "test":        (None, None, "run the engine's tests, then the web app's (test engine, or test web, runs one; test changed only those covering what's changed; test <name> one module)"),

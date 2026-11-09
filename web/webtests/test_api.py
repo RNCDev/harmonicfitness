@@ -1326,6 +1326,91 @@ class Media(ApiCase):
         self.assertNotIn(self.MP3[:64], body)
 
 
+class Feed(ApiCase):
+    MP3 = bytes(range(256)) * 40
+
+    def feed_url(self) -> str:
+        r = self.client.post("/api/feed", headers=self.origin())
+        self.assertEqual(r.status_code, 200)
+        return r.json()["url"]
+
+    def test_off_until_turned_on_then_shown_again(self):
+        self.signed_in()
+        self.assertEqual(self.client.get("/api/feed").json(), {"url": None})
+        url = self.feed_url()
+        self.assertTrue(url.startswith(f"{self.base_url}/feed/") and url.endswith(".xml"))
+        self.assertEqual(self.client.get("/api/feed").json(), {"url": url})
+
+    def test_lists_the_kept_workouts_and_plays_them_without_a_session(self):
+        from webapp import media
+        _, uk = self.signed_in()
+        url = self.feed_url()
+        made = [media.put(self.conn, uk, f"Workout {n}", self.MP3, build_id=f"b{n}") for n in range(4)]
+        sample = media.put(self.conn, uk, "Coach sample", self.MP3)   # not a workout: never in the feed
+        self.conn.commit()
+        app = self.other_client()   # a podcast app: no cookie
+        path = url[len(self.base_url):]
+        r = app.get(path)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.headers["content-type"].startswith("application/rss+xml"))
+        self.assertEqual(r.text.count("<item>"), 3)   # the three newest; the oldest went
+        self.assertLess(r.text.index("Workout 3"), r.text.index("Workout 1"))
+        self.assertNotIn(made[0]["id"], r.text)
+        self.assertNotIn(sample["id"], r.text)
+        self.assertIn("<itunes:block>Yes</itunes:block>", r.text)
+        token = path[len("/feed/"):-len(".xml")]
+        ep = app.get(f"/feed/{token}/{made[3]['id']}.mp3")
+        self.assertEqual((ep.status_code, ep.content, ep.headers["content-type"]), (200, self.MP3, "audio/mpeg"))
+        part = app.get(f"/feed/{token}/{made[3]['id']}.mp3", headers={"Range": "bytes=0-9"})
+        self.assertEqual((part.status_code, part.content), (206, self.MP3[:10]))
+        self.assertEqual(app.get(f"/feed/{token}/{sample['id']}.mp3").status_code, 404)
+        self.assertEqual(app.get(f"/feed/{token}/{made[0]['id']}.mp3").status_code, 404)
+
+    def test_a_new_link_or_turning_it_off_stops_the_old_one(self):
+        from webapp import media
+        _, uk = self.signed_in()
+        old = self.feed_url()[len(self.base_url):]
+        audio = media.put(self.conn, uk, "Workout", self.MP3, build_id="b")
+        self.conn.commit()
+        new = self.feed_url()[len(self.base_url):]
+        self.assertNotEqual(old, new)
+        self.assertEqual(self.client.get(old).status_code, 404)
+        self.assertEqual(self.client.get(f"{old[:-4]}/{audio['id']}.mp3").status_code, 404)
+        self.assertEqual(self.client.get(new).status_code, 200)
+        self.assertEqual(self.client.delete("/api/feed", headers=self.origin()).status_code, 204)
+        self.assertEqual(self.client.get(new).status_code, 404)
+        self.assertEqual(self.client.get("/api/feed").json(), {"url": None})
+
+    def test_another_users_workout_isnt_in_my_feed(self):
+        from webapp import media
+        self.signed_in()
+        url = self.feed_url()
+        token = url[len(self.base_url) + len("/feed/"):-len(".xml")]
+        _, other = self.make_user()
+        theirs = media.put(self.conn, other, "Theirs", self.MP3, build_id="t")
+        self.conn.commit()
+        self.assertNotIn(theirs["id"], self.client.get(f"/feed/{token}.xml").text)
+        self.assertEqual(self.client.get(f"/feed/{token}/{theirs['id']}.mp3").status_code, 404)
+
+    def test_unknown_or_malformed_tokens_are_404_and_not_the_client(self):
+        for path in ("/feed/" + "a" * 43 + ".xml", "/feed/nope.xml", "/feed/x", "/feed"):
+            self.assertEqual(self.client.get(path).status_code, 404, path)
+
+    def test_managing_it_needs_a_session_and_our_origin(self):
+        self.assertEqual(self.client.get("/api/feed").status_code, 401)
+        self.signed_in()
+        self.assertEqual(self.client.post("/api/feed").status_code, 403)
+        self.assertEqual(self.client.delete("/api/feed").status_code, 403)
+
+    def test_token_sealed_at_rest(self):
+        self.signed_in()
+        url = self.feed_url()
+        token = url.rsplit("/", 1)[1][:-len(".xml")]
+        row = self.conn.execute("select feed_hash, feed_token from users where feed_hash is not null").fetchone()
+        self.conn.rollback()
+        self.assertNotIn(token.encode(), bytes(row[0]) + bytes(row[1]))
+
+
 class Account(ApiCase):
     def registered(self, name=None, pw="long enough"):
         import uuid

@@ -32,11 +32,13 @@ coaches/*/sample.mp3
 
 # The demo listeners (docs/demos/listeners/<slug>/): their files, research, briefs, menus and drafts are kept;
 # what the engine makes there (the installed coach, caches, logs, builds) is not. Clips wait in docs/demos/clips/
+docs/demos/ready/
 # for `demos upload`.
 docs/demos/listeners/*/coaches/
 docs/demos/listeners/*/workouts/.audio-cache/
 docs/demos/listeners/*/workouts/.logs/
 docs/demos/listeners/*/workouts/*/Demo *
+docs/demos/listeners/*/workouts/*/Ready-made *
 docs/demos/listeners/**/*.lock
 docs/demos/listeners/**/*.mp3
 docs/demos/clips/

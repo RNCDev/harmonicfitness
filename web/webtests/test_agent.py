@@ -44,6 +44,38 @@ class AgentCase(unittest.TestCase):
                                now=f"{TODAY} Wednesday 08:00")
 
 
+class ShowPlan(AgentCase):
+    """A clean skeleton's plan goes to the chat while the writers' room fills it (tools.show_plan)."""
+    PLAN = {"rows": [{"what": "Air squat", "kind": "movement", "segments": 2, "seconds": 100}], "seconds": 100}
+    DRAFT = "me/workouts/a/a.draft.txt"
+
+    def shown(self, result):
+        events = []
+        self.deps.event = lambda stage, **fields: events.append((stage, fields))
+        with mock.patch.object(tools.engine, "run", return_value=result) as run:
+            tools.show_plan(self.deps, self.DRAFT)
+        return events, run
+
+    def test_the_engine_s_plan_is_sent_as_an_event(self):
+        events, run = self.shown(tools.engine.Result(0, json.dumps(self.PLAN), ""))
+        self.assertEqual(events, [("plan", {"plan": self.PLAN})])
+        argv = run.call_args.args[2]
+        self.assertEqual(argv[:3], ["get", "plan", "--draft"])
+        self.assertEqual(os.path.realpath(argv[3]), os.path.realpath(os.path.join(self.home, "workouts", "a", "a.draft.txt")))
+
+    def test_nothing_is_shown_when_the_plan_cant_be_worked_out(self):
+        for result in (tools.engine.Result(1, "", "No draft"), tools.engine.Result(0, "not json", ""),
+                       tools.engine.Result(0, '{"rows": [], "seconds": 0}', "")):
+            self.assertEqual(self.shown(result)[0], [])
+
+    def test_without_an_event_sink_or_outside_the_folder_the_engine_isnt_asked(self):
+        with mock.patch.object(tools.engine, "run") as run:
+            tools.show_plan(self.deps, self.DRAFT)   # no event sink (tests, and the agent run by hand)
+            self.deps.event = lambda *a, **k: None
+            tools.show_plan(self.deps, "me/../../etc/passwd")
+        run.assert_not_called()
+
+
 class Run(AgentCase):
     def test_runs_the_engine_with_me_paths(self):
         draft = f"me/workouts/{STEM}/{STEM}.draft.txt"
@@ -1285,6 +1317,8 @@ class Instructions(AgentCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(text.replace('experience = ""', 'experience = "novice"', 1))
         self.assertFalse(agent.needs_setup(self.home))
+        self.assertTrue(agent.about_me("Nothing's bothering me today. About me: call me Sam. I'm new to this."))
+        self.assertFalse(agent.about_me("Tell me about meditation"))
         self.assertTrue(agent.wants_setup("Finish setting me up"))
         self.assertFalse(agent.wants_setup("a 20 minute workout"))
         for line in ("I'd like to update my interests.", "add a topic", "Suggest some topics", "new topics please"):

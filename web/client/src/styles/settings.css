@@ -34,6 +34,7 @@
 .cx-main > .cx-sec { display: none }
 .cx-main:is([data-shown="cx-keys"]) > #cx-keys, .cx-main:is([data-shown="cx-level"]) > #cx-level,
 .cx-main:is([data-shown="cx-rec"]) > #cx-rec, .cx-main:is([data-shown="cx-sky"]) > #cx-sky,
+.cx-main:is([data-shown="cx-feed"]) > #cx-feed,
 .cx-main:is([data-shown="cx-files"]) > #cx-files { display: grid }
 .cx-h { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
 .cx-sec > :is(.level-opts + .cx-s, .switch + .switch-note) { margin-top: calc(var(--s-2) * -1) }   /* a choice's note sits with the choice */

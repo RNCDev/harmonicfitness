@@ -84,7 +84,9 @@ export type StartCoach = { slug: string; name: string; first: string; service: s
 export type StartKit = { id: string; label: string; preset: boolean };
 export type StartLimit = { area: string; side: string | null; level: "delicate" | "off-limits" };
 export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: number; limits: StartLimit[];
-  suggest: { goal: string; target?: string | null; reason: string } | null; setup_quick: boolean };
+  suggest: { goal: string; target?: string | null; reason: string } | null; setup_quick: boolean;
+  /** No level yet: the first screen asks the setup's first questions with the request. */
+  new?: boolean };
 
 /** A logged workout (GET /api/workouts), newest first. `ref` it by its build id, else its number. */
 export type Rating = "positive" | "neutral" | "negative";
@@ -151,6 +153,10 @@ export const api = {
   setPassword: (current: string | null, next: string) =>
     call<void>("POST", "/api/password", current === null ? { new: next } : { current, new: next }),
   deviceLink: () => call<DeviceLink>("POST", "/api/device-link"),
+  /** The private podcast feed's link (null while it's off); making one replaces the old link. */
+  feed: () => call<{ url: string | null }>("GET", "/api/feed"),
+  makeFeed: () => call<{ url: string }>("POST", "/api/feed"),
+  stopFeed: () => call<void>("DELETE", "/api/feed"),
   keys: () => call<KeyState[]>("GET", "/api/keys"),
   setKey: (service: string, key: string) =>
     call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),

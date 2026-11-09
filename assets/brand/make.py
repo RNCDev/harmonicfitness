@@ -323,11 +323,12 @@ def main() -> None:
 
     (PUBLIC / "favicon.svg").write_text(files["favicon.svg"])
     (PUBLIC / "apple-touch-icon.png").write_bytes(png(square, 180))
+    (PUBLIC / "podcast-cover.png").write_bytes(png(square, 1400))   # the private podcast feed's artwork
     _ico(PUBLIC / "favicon.ico")
     (BRAND / "favicon.ico").write_bytes((PUBLIC / "favicon.ico").read_bytes())
 
     _client_ts(word)
-    print("wrote", len(files) + 9, "files")
+    print("wrote", len(files) + 10, "files")
 
 
 def _png_wide(svg_text: str, px: int) -> bytes:

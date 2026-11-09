@@ -224,3 +224,35 @@ describe("choosing a coach", () => {
     expect(onOpenCoaches).toHaveBeenCalled();
   });
 });
+
+describe("a new listener's first screen", () => {
+  const fresh: StartInfo = { ...info, minutes: 10, limits: [], suggest: null, setup_quick: true, new: true };
+
+  it("asks the setup's first questions with the request, and sends the answers after it", async () => {
+    const onStart = vi.fn().mockResolvedValue(true);
+    render(<Starter info={fresh} onStart={onStart} />);
+    fireEvent.change(screen.getByLabelText("What should your coach call you?"), { target: { value: " Sam " } });
+    fireEvent.click(screen.getByRole("radio", { name: /I've trained before/ }));
+    fireEvent.change(screen.getByLabelText("What do you have at home to train with?"),
+      { target: { value: "two dumbbells and a bench." } });
+    expect(screen.getByText(/records as soon as it's written/)).toHaveTextContent("Recording sends the script to Fish Audio");
+    fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
+    await waitFor(() => expect(onStart).toHaveBeenCalled());
+    expect(onStart.mock.calls[0][0]).toMatch(/today\. About me: call me Sam\. I've trained before and know the basic moves, but I'm no expert\. At home I have two dumbbells and a bench\.$/);
+  });
+
+  it("left as it is: no name, novice, bodyweight", async () => {
+    const onStart = vi.fn().mockResolvedValue(true);
+    render(<Starter info={fresh} onStart={onStart} />);
+    expect(screen.getByRole("radio", { name: /I'm new to this/ })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
+    await waitFor(() => expect(onStart).toHaveBeenCalled());
+    expect(onStart.mock.calls[0][0]).toContain(
+      "About me: no name, please. I'm new to this, or it's been a long while. At home I have no equipment: bodyweight only.");
+  });
+
+  it("isn't asked once they have a level", () => {
+    render(<Starter info={info} onStart={vi.fn()} />);
+    expect(screen.queryByText("First, about you")).toBeNull();
+  });
+});

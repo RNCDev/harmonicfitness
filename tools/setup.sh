@@ -19,7 +19,8 @@
 # The local voice downloads once from Hugging Face (no account or login needed) into models/ (or
 # HARMONICFITNESS_MODELS; ./harmonicfitness models adopt moves one already in ~/.cache/huggingface/hub): about 0.4 GB for
 # Pocket TTS's public model and 2.5 GB for the speech recognizer that checks each take (Parakeet through
-# ONNX), the same on every computer. Rendering works offline after that. An existing context folder is
+# ONNX), the same on every computer. The voice comes first: a workout can render once it's in, and one built
+# while the checker is still downloading goes unchecked by ear (the build says so). Rendering works offline after that. An existing context folder is
 # brought up to this version's format (./harmonicfitness migrate), backed up first; ./harmonicfitness models then lists
 # the models older versions downloaded that nothing uses now.
 #
@@ -151,7 +152,7 @@ if [ "$1" = "--no-models" ]; then
 elif [ -z "$WANT" ]; then
   echo "   skipped: no local voices on this computer"
 else
-  "$PY" tools/coaches.py download   # Pocket TTS and the take checker
+  "$PY" tools/coaches.py download   # Pocket TTS, then the take checker (a build meanwhile renders without it)
 fi
 
 echo

@@ -339,6 +339,65 @@ class RunLocal(unittest.TestCase):
         release.assert_called_once()
 
 
+class CheckerDownload(unittest.TestCase):
+    """voices.download holds a lock while it fetches, so a build that needs the take checker waits for setup's
+    download (engines.listener) instead of fetching the same 2.5 GB a second time alongside it."""
+
+    def setUp(self):
+        import voices
+        self.voices = voices
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.d, True)
+        check_dir = os.path.join(self.d, "checker")
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(voices, "CHECK_DIR", check_dir))
+        stack.enter_context(mock.patch.object(voices, "CHECK_LOCK", os.path.join(self.d, ".take-checker.lock")))
+
+    def test_a_lock_left_by_a_download_that_ended_is_free(self):
+        self.assertFalse(self.voices.checker_downloading())
+        open(self.voices.CHECK_LOCK, "w", encoding="utf-8").close()
+        self.assertFalse(self.voices.checker_downloading())
+
+    def test_a_download_holding_the_lock_is_seen(self):
+        import subprocess
+        import time
+        ready = os.path.join(self.d, "ready")
+        holder = subprocess.Popen([sys.executable, "-c", (
+            "import sys, time; sys.path.insert(0, 'tools'); import locks\n"
+            f"f = open({self.voices.CHECK_LOCK!r}, 'a', encoding='utf-8'); locks.acquire(f)\n"
+            f"open({ready!r}, 'w', encoding='utf-8').close(); time.sleep(3.0)\n")],
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        try:
+            deadline = time.time() + 20
+            while not os.path.exists(ready) and time.time() < deadline:
+                time.sleep(0.02)
+            self.assertTrue(self.voices.checker_downloading())
+            self.assertFalse(self.voices.checker_present())
+        finally:
+            holder.wait(timeout=20)
+
+    def test_setup_fetches_the_voice_first_and_holds_the_lock_throughout(self):
+        import types
+        order, seen = [], {}
+
+        def hf_hub_download(repo, filename, revision=None):
+            order.append(("voice", filename))
+            seen["during the voice"] = self.voices.checker_downloading()
+
+        def snapshot_download(repo, revision=None, local_dir=None, allow_patterns=None):
+            order.append(("checker", repo))
+            seen["during the checker"] = self.voices.checker_downloading()
+        fake = types.SimpleNamespace(hf_hub_download=hf_hub_download, snapshot_download=snapshot_download)
+        out = io.StringIO()
+        with mock.patch.dict(sys.modules, {"huggingface_hub": fake}), \
+                mock.patch.object(self.voices.paths, "MODELS", self.d), contextlib.redirect_stdout(out):
+            self.voices.download()
+        self.assertEqual([k for k, _ in order], ["voice"] * len(self.voices.POCKET_FILES) + ["checker"])
+        self.assertEqual(seen, {"during the voice": True, "during the checker": True})
+        self.assertFalse(self.voices.checker_downloading())   # the download ended: its lock is free
+
+
 class RenderLocal(unittest.TestCase):
     """render._render_local: a render that fails midway still frees the model and keeps what it measured."""
 

@@ -111,3 +111,44 @@ describe("deleting the account", () => {
     expect(del).not.toHaveBeenCalled();
   });
 });
+
+describe("the podcast feed", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const URL = "https://app.test/feed/abc.xml";
+  const last = (name: string) => { const all = screen.getAllByRole("button", { name }); return all[all.length - 1]; };
+  const openOn = () => {
+    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Podcast" }));
+  };
+
+  it("is off until the listener makes a link, then shows it", async () => {
+    vi.spyOn(api, "feed").mockResolvedValue({ url: null });
+    const make = vi.spyOn(api, "makeFeed").mockResolvedValue({ url: URL });
+    openOn();
+    fireEvent.click(await screen.findByRole("button", { name: "Make my podcast link" }));
+    expect(await screen.findByText(URL)).toBeInTheDocument();
+    expect(make).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/anyone with the link can hear your workouts/)).toBeInTheDocument();
+  });
+
+  it("asks before a new link stops the old one", async () => {
+    vi.spyOn(api, "feed").mockResolvedValue({ url: URL });
+    const make = vi.spyOn(api, "makeFeed").mockResolvedValue({ url: "https://app.test/feed/new.xml" });
+    openOn();
+    fireEvent.click(await screen.findByRole("button", { name: "Make a new link" }));
+    expect(make).not.toHaveBeenCalled();
+    expect(screen.getByText(/stops working, in every app/)).toBeInTheDocument();
+    fireEvent.click(last("Make a new link"));
+    expect(await screen.findByText("https://app.test/feed/new.xml")).toBeInTheDocument();
+  });
+
+  it("turns off, after asking", async () => {
+    vi.spyOn(api, "feed").mockResolvedValue({ url: URL });
+    const stop = vi.spyOn(api, "stopFeed").mockResolvedValue(undefined);
+    openOn();
+    fireEvent.click(await screen.findByRole("button", { name: "Turn it off" }));
+    fireEvent.click(last("Turn it off"));
+    expect(await screen.findByRole("button", { name: "Make my podcast link" })).toBeInTheDocument();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+});

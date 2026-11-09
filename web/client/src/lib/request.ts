@@ -94,3 +94,15 @@ export const lineText = (line: Part[]) => line.map((p) => p.fixed + (p.blank ?? 
 export function sentence(v: RequestValues): string {
   return requestParts(v).map(lineText).join(" ");
 }
+
+/** A new listener's answers to the setup's first questions, from the first screen: what to call them, their level as
+ * they'd say it, and what they have at home ("" for nothing). */
+export type About = { name: string; said: string; home: string };
+
+/** The answers as they're sent, after the request: one line the agent takes in place of asking. */
+export function aboutMe(a: About): string {
+  const name = a.name.trim().replace(/\s+/g, " ").slice(0, 40);
+  const home = a.home.trim().replace(/\s+/g, " ").replace(/[.]+$/, "").slice(0, 200);
+  return `About me: ${name ? `call me ${name}` : "no name, please"}. ${a.said} `
+    + `At home I have ${home ? home : "no equipment: bodyweight only"}.`;
+}

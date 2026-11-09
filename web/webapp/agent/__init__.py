@@ -121,6 +121,16 @@ def wants_setup(line: str | None) -> bool:
     return bool(line and SETUP_WORDS.search(line))
 
 
+# A new listener's first screen sends the quick start's first answers after the request ("About me: call me Sam.
+# I'm new to this... At home I have ..."), and says before they send it that the first workout records at once.
+ABOUT_ME = re.compile(r"(^|\s)About me: ")
+
+
+def about_me(line: str | None) -> bool:
+    """The first screen's answers to the quick start's first questions are in this line."""
+    return bool(line and ABOUT_ME.search(line))
+
+
 def wants_coach(line: str | None) -> bool:
     return bool(line and COACH_WORDS.search(line))
 
@@ -700,6 +710,7 @@ def _chain(ctx: RunContext[Deps], path: object, result: ToolResult, name: str | 
         return result
     writers.logline(deps, "skeleton clean: straight to the writers")
     job = deps.room_job = asyncio.run_coroutine_threadsafe(_fill(ctx, path, name, coach), deps.loop)
+    tools.show_plan(deps, path)   # the workout's shape, in the chat while the room writes its words
     while True:   # this tool's thread waits, looking each second for Stop or the turn's end, which cancel the room
         try:
             filled = job.result(timeout=1)

@@ -1,0 +1,97 @@
+# The ready-made workouts: five complete thirty-minute sessions, one of each kind, written and recorded once and
+# shipped with HarmonicFitness, so a new listener can train before their own coach is ready: on a computer while the
+# local voice downloads, and on the web before they've added any key. Nobody here is a real person.
+#
+# Each is built like a demo (docs/demos/demos.toml, the `demos` skill): an invented listener's folder in
+# docs/demos/listeners/<slug>/, the workout skill followed as that listener, every command through
+# ./harmonicfitness demos run <slug> ... Unlike a demo, the whole workout is rendered, on ElevenLabs's stock voices.
+# ./harmonicfitness ready is the command: the list, a listener's copy, and (maintainer only) publish and upload.
+#
+# Being made for no one, a ready-made workout can't be screened against anyone's injuries. Each is low impact
+# (no jumping), bodyweight with a chair and a towel, at a novice's doses with a harder option said for each
+# movement, and its opening says plainly that it isn't adapted to injuries: skip anything that hurts.
+
+version = 1            # raise by one each time the set is re-made; the published list carries it
+built = ""             # the day the set was built
+engine = ""            # the engine's VERSION it was built with
+service = "elevenlabs"
+model = "eleven_v4"    # as the demos: ElevenLabs's more natural model, never eleven_v4_turbo
+bucket = "harmonicfitness-media"   # ready/v<version>/<slug>.mp3 on the app's public Fly (Tigris) bucket
+minutes = 30
+kit = "a sturdy chair, a towel, and a little floor space"
+brief = "--minutes 30 --kit home --avoid impact --level novice"   # each workout adds its --goal (and --target)
+# Each [[workout]]: its invented ask (what the session answers, and what the review judges it against), the formats
+# its stories lean on, the coach (a demo coach's stock voice), and the card the app shows.
+check_in = "Normal: nothing sore, medium energy."   # every ready-made workout's, since it's made for no one
+
+# Given to the writer for every ready-made workout, beside the workout skill's rules: these play for years, for
+# anyone, so they must be the best workouts HarmonicFitness makes.
+writing_rules = [
+  "No name: never address the listener by name, and never say 'our first session together' or look back on a log. Anyone may be listening.",
+  "The opening, in the coach's own words: who they are (\"I'm Priya\"); that this is a ready-made thirty-minute workout made by AI, not made for them today; that it isn't adapted to any injury, so skip or ease off anything that hurts, and stop for sharp pain, dizziness or chest pain; what to have ready (a sturdy chair, a towel, a little floor space); that every movement has an easier and a harder way.",
+  "No dates, days of the week, months, seasons, holidays, weather or news: every line must sound right in any year.",
+  "Only evergreen stories, in varied formats, each fact checked against two sources and kept in the day's research sheet. Broad, warm topics anyone enjoys: no politics, religion, diets or weight loss, and nothing about bodies' looks.",
+  "Low impact throughout: no jumping, so it suits any room, any floor and neighbours below.",
+  "Novice doses, with a harder option said for every movement, once, in the setup (\"if that's easy, ...\") and an easier one where it helps.",
+  "Write the whole workout to the skill's standard and lint it clean: it is rendered in full and heard as it stands, so read it through once more as a listener hearing it cold.",
+]
+
+[[workout]]
+slug = "ready-full-body"
+ask = "I'm new to all this and I've got thirty minutes at home. Give me a good all-round workout I can actually do."
+stories = ["myth_or_fact", "inside_the_move", "number"]   # knowledge/content.toml's formats, varied across the five
+order = 1
+kind = "full-body workout"          # the app's request types (web/client/src/lib/request.ts TYPES)
+title = "Full body"
+coach = "Coach Bea"
+coach_file = "coaches/bea.md"
+about = "Every major muscle, a steady build and an easy finish: the best first one."
+brief = '--goal general --minutes 30 --kit home --avoid impact --level novice --coach "Coach Bea"'
+
+[[workout]]
+slug = "ready-strength"
+ask = "Thirty minutes, just a chair and the floor. I want to get properly stronger, not just sweaty."
+stories = ["how_they_trained", "explainer", "brain_teaser"]   # knowledge/content.toml's formats, varied across the five
+order = 2
+kind = "strength workout"
+title = "Strength"
+coach = "Coach Desmond"
+coach_file = "coaches/desmond.md"
+about = "Legs, push and pull with a chair: slow, controlled sets that leave you stronger."
+brief = '--goal strength --minutes 30 --kit home --avoid impact --level novice --coach "Coach Desmond"'
+
+[[workout]]
+slug = "ready-cardio"
+ask = "Get my heart going for thirty minutes, but no jumping: I live upstairs from someone."
+stories = ["serial", "this_or_that", "quiz"]   # knowledge/content.toml's formats, varied across the five
+order = 3
+kind = "cardio workout"
+title = "Cardio"
+coach = "Coach Desmond"
+coach_file = "coaches/desmond.md"
+about = "Get your heart rate up with no jumping: intervals that suit any room."
+brief = '--goal conditioning --minutes 30 --kit home --avoid impact --level novice --coach "Coach Desmond"'
+
+[[workout]]
+slug = "ready-mobility"
+ask = "I sit all day and everything feels tight. Thirty minutes to loosen up my hips, back and shoulders."
+stories = ["profile", "explainer", "reflection"]   # knowledge/content.toml's formats, varied across the five
+order = 4
+kind = "mobility session"
+title = "Mobility"
+coach = "Coach Priya"
+coach_file = "coaches/priya.md"
+about = "Hips, back and shoulders, slowly: for a stiff day, or after sitting too long."
+brief = '--goal mobility --minutes 30 --kit home --avoid impact --level novice --coach "Coach Priya"'
+
+[[workout]]
+slug = "ready-core"
+ask = "Thirty minutes on my core, and something smarter than endless crunches."
+stories = ["number", "myth_or_fact", "memory_game"]   # knowledge/content.toml's formats, varied across the five
+order = 5
+kind = "core workout"
+title = "Core"
+coach = "Coach Priya"
+coach_file = "coaches/priya.md"
+about = "A strong middle, from the inside out: bracing, holding and turning, kind to the back."
+brief = '--goal targeted --target core --minutes 30 --kit home --avoid impact --level novice --coach "Coach Priya"'

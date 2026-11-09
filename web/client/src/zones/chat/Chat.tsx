@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatLine, Later, Offer, StartInfo } from "../../lib/api";
+import type { ChatLine, Later, Offer, Plan, StartInfo } from "../../lib/api";
 import { clockAt } from "../../lib/format";
 import { writerRank } from "../../lib/keys";
 import { readDraft, keepDraft } from "../../lib/draft";
@@ -15,6 +15,7 @@ import { Notice } from "../../ui/Notice";
 import { Starter } from "../Starter";
 import { LaterOffer, RecordOffer, Scheduled } from "./Offers";
 import { Working } from "./Working";
+import { ReadyWorkouts } from "../Ready";
 
 /** The language-model key a new listener adds first. */
 export type KeyNeeded = { name: string; service: string; voice: boolean }[];
@@ -54,6 +55,8 @@ type Props = {
   working: boolean;
   /** What the coach has done so far this turn, oldest first. */
   steps?: Step[];
+  /** The workout's plan, once its timing is settled: shown while its words are written. */
+  plan?: Plan | null;
   error: string | null;
   noKey: boolean;
   /** Resolves false when the line was refused, so the box gets its text back. `startAt`: the starter's picked time. */
@@ -69,7 +72,7 @@ type Props = {
 
 /** What each first key gives, in a line. */
 const PICK_NOTES: Record<string, string> = {
-  gemini: "Writes your workouts and voices your coach, with six coaches to choose from. Free key; the cheapest",
+  gemini: "Writes your workouts and voices your coach, with six coaches to choose from. The cheapest; Google asks for 5 USD of prepaid credit to start",
   openrouter: "Writes your workouts and voices your coach: six coaches with ElevenLabs voices. One bill",
   anthropic: "Writes your workouts; then choose a coach, who needs a voice key",
   openai: "Writes your workouts; then choose a coach, who needs a voice key",
@@ -92,11 +95,12 @@ function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: str
           </Button>
         ))}
       </div>
+      <ReadyWorkouts intro="Try one now, before any key: a ready-made workout" />
     </div>
   );
 }
 
-export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop, onOpenKeys, coachBar = null,
+export function Chat({ lines, working, steps = [], plan = null, error, noKey, onSend, onStop, onOpenKeys, coachBar = null,
   first = {}, offers = {} }: Props) {
   const { needsKey = null, onAddKey, waiting = null, onResume, start = null, starting = false, onCoach, coachError,
     onOpenCoaches, startError = null, onRetryStart } = first;
@@ -154,7 +158,7 @@ export function Chat({ lines, working, steps = [], error, noKey, onSend, onStop,
         {later && later.usd != null && !later.done && !later.due && new Date(later.at).getTime() > Date.now() && !offer
           && !working && !scheduled && <LaterOffer later={later} onSchedule={onSchedule} />}
         {later && scheduled && <Scheduled later={later} onCancel={onCancel} />}
-        {working && <Working steps={steps} stopping={stopping} />}
+        {working && <Working steps={steps} plan={plan} stopping={stopping} />}
       </div>
       {error && (
         <div className="chat-error">

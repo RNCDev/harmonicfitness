@@ -56,11 +56,17 @@ def manifest(path=None):
 
 
 def demo(slug, m=None):
-    """The [[demo]] named `slug`; UsageError naming the seven when there's none."""
+    """The [[demo]] named `slug`, or a ready-made workout's (docs/demos/ready.toml, built the same way); UsageError
+    naming the seven when there's neither."""
     m = m or manifest()
     for d in m.get("demo", []):
         if d.get("slug") == slug:
             return d
+    if slug.startswith("ready-"):
+        import ready
+        found = ready.planned(slug)
+        if found is not None:
+            return found
     names = ", ".join(d.get("slug", "?") for d in m.get("demo", []))
     raise errors.UsageError(f"No demo \"{slug}\" in docs/demos/demos.toml (there are: {names}).")
 

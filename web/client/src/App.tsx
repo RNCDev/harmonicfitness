@@ -7,7 +7,7 @@ import { Sky, type SkyKind } from "./ui/Sky";
 import { useConversation } from "./lib/conversation";
 import { KeyAskContext, type KeyAsk } from "./lib/keyAsk";
 import { hasModelKey, keyRows } from "./lib/keys";
-import { stepsOf } from "./lib/steps";
+import { planOf, stepsOf } from "./lib/steps";
 import { useSaved } from "./lib/useAction";
 import { usePage } from "./lib/usePage";
 import { useStartInfo } from "./lib/useStartInfo";
@@ -92,6 +92,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const needsKey = keyNeeded(keys);
   const { conv, working, error, noKey, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation();
   const steps = stepsOf(job?.stages ?? []);
+  const plan = planOf(job?.stages ?? []);
   const { start, error: startError, reload: reloadStart, coaches, coachBar, chooseCoach, coachError } = useStartInfo(keys);
 
   // the settings that switch at once and save behind, put back with the reason if the server refuses
@@ -151,7 +152,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
           onRetry={reloadStart} onCoach={(slug) => void chooseCoach(slug)}
           onAddKey={addVoiceKey} onOpenSettings={() => setDrawer(true)} onClose={() => go("chat")} error={coachError} />}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
-        <Chat lines={conv?.lines ?? []} working={working} steps={steps} error={error} noKey={noKey}
+        <Chat lines={conv?.lines ?? []} working={working} steps={steps} plan={plan} error={error} noKey={noKey}
           onSend={send} onStop={halt} onOpenKeys={() => setDrawer(true)} coachBar={coachBar}
           first={{
             needsKey, onAddKey: addKey, start, starting: start === null && keys !== null,

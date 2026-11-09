@@ -1,5 +1,5 @@
 // The Settings drawer, in three parts: tabs at the top, one per section (the keys, what's used most; the listener's
-// level; recording; the background behind the page, called the sky in the code, with its credit; their files); the
+// level; recording; the private podcast feed; the background behind the page, called the sky in the code, with its credit; their files); the
 // chosen section alone; and the account at the foot (who is signed in, the password, another device, signing out,
 // deleting it, the version). While it's open it holds the keyboard: Tab stays
 // inside, Escape closes it, and the page behind can't be reached.
@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import QRCode from "qrcode";
 import { api, ApiError, NotSignedIn, type DeviceLink, type KeyState, type Level, type LevelState } from "../lib/api";
 import { clockAt } from "../lib/format";
+import { LEVEL_NAMES } from "../lib/levels";
 import { optimistic, useAction } from "../lib/useAction";
 import { useResource } from "../lib/useResource";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -159,8 +160,6 @@ function RecordBox({ on, onChange, error }: { on: boolean; onChange: (on: boolea
   );
 }
 
-/** Each level's short name, over the sentence a listener would say. */
-const LEVEL_NAMES: Record<Level, string> = { novice: "New or returning", experienced: "Some experience", advanced: "Experienced" };
 
 /** The listener's level, picked by the sentence that fits them, as three cards side by side: it sets the movements, the doses and how much the
  *  coach explains. Novice until one is chosen, as the planning assumes. Chosen at once, then saved; put back if refused. */
@@ -210,6 +209,72 @@ function LevelBox() {
   );
 }
 
+/** The private podcast feed: a link a podcast app follows, so each new workout lands on the phone by itself. Off
+ *  until turned on; a new link stops the old one, as turning it off does. */
+function FeedBox() {
+  const res = useResource(api.feed, "Your podcast link couldn't be loaded.");
+  const url = res.data?.url ?? null;
+  const [copied, setCopied] = useState(false);
+  const [confirm, setConfirm] = useState<"new" | "off" | null>(null);
+  const make = useAction(async () => {
+    const r = await api.makeFeed();
+    res.set(() => r);
+    setConfirm(null);
+    setCopied(false);
+  }, { fallback: "Couldn't make a link. Try again." });
+  const stop = useAction(async () => {
+    await api.stopFeed();
+    res.set(() => ({ url: null }));
+    setConfirm(null);
+  }, { fallback: "Couldn't turn it off. Try again." });
+
+  async function copy(link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch {
+      setCopied(false);   // no clipboard here: the link is on the page to copy by hand
+    }
+  }
+
+  return (
+    <section className="cx-box cx-sec" id="cx-feed" aria-labelledby="cx-feed-h">
+      <h3 className="head cx-h" id="cx-feed-h">Podcast</h3>
+      <p className="cx-s">Follow your workouts in a podcast app, and each new one arrives on your phone by itself, ready to play
+        offline. The feed holds your three newest workouts; your app keeps the ones it has downloaded.</p>
+      <Loadable value={res.data} error={res.error} onRetry={res.reload} what="your podcast link" room={90}>
+        {() => url ? (
+          <>
+            <p className="link"><code>{url}</code></p>
+            <div className="act-row">
+              <Button variant="secondary" onClick={() => void copy(url)}>{copied ? "Copied" : "Copy the link"}</Button>
+              <Button variant="text" onClick={() => setConfirm("new")}>Make a new link</Button>
+              <Button variant="text" danger onClick={() => setConfirm("off")}>Turn it off</Button>
+            </div>
+            {confirm && (<>
+              <ConfirmInline question={confirm === "new" ? "Make a new link?" : "Turn the podcast off?"}
+                confirm={confirm === "new" ? "Make a new link" : "Turn it off"} keep="Keep this link"
+                busy={make.busy || stop.busy}
+                onConfirm={() => void (confirm === "new" ? make.run() : stop.run())}
+                onKeep={() => { setConfirm(null); make.clear(); stop.clear(); }} />
+              <p className="cx-s">The link you have now stops working, in every app that follows it.</p>
+            </>)}
+            <p className="cx-s">In your podcast app, choose to follow a show by its link (in Apple Podcasts: Library, then
+              Follow a Show by URL) and paste it. Keep it to yourself: anyone with the link can hear your workouts.</p>
+          </>
+        ) : (
+          <div className="act-row">
+            <Button variant="secondary" busy={make.busy} busyLabel="Making a link…" onClick={() => void make.run()}>
+              Make my podcast link
+            </Button>
+          </div>
+        )}
+      </Loadable>
+      <Notice tone="error">{make.error ?? stop.error}</Notice>
+    </section>
+  );
+}
+
 function SkyBox({ sky, onSky, error }: { sky: SkyKind; onSky: (sky: SkyKind) => void; error?: string | null }) {
   return (
     <section className="cx-box cx-sec" id="cx-sky" aria-labelledby="cx-sky-h">
@@ -242,6 +307,7 @@ export function Settings({ username, version, open, onClose, onSignOut, onDelete
     { id: "cx-keys", name: "Keys" },
     { id: "cx-level", name: "Level" },
     ...(onAutoRecord ? [{ id: "cx-rec", name: "Recording" }] : []),
+    { id: "cx-feed", name: "Podcast" },
     ...(onSky ? [{ id: "cx-sky", name: "Background" }] : []),
     { id: "cx-files", name: "Files" },
   ];
@@ -269,6 +335,7 @@ export function Settings({ username, version, open, onClose, onSignOut, onDelete
           <KeysBox onKeys={onKeys} />
           <LevelBox />
           {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} error={autoRecordError} />}
+          {shown === "cx-feed" && <FeedBox />}{/* loaded when opened: most visits to Settings never need it */}
           {onSky && <SkyBox sky={sky} onSky={onSky} error={skyError} />}
           <section className="cx-box cx-sec" id="cx-files" aria-labelledby="cx-files-h">
             <h3 className="head cx-h" id="cx-files-h">Your files</h3>

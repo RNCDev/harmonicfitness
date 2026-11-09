@@ -28,6 +28,13 @@
 .fl { display: inline-block; animation: flip var(--t-flip) var(--ease-flip) both; transform-origin: 50% 60% }
 @keyframes flip { from { transform: perspective(200px) rotateX(-90deg); opacity: 0 } to { transform: none; opacity: 1 } }
 .starter .hint { margin: var(--s-4) 0 0; font-size: var(--fs-md) }
+/* a new listener's first questions, above the request (Starter's AboutYou) */
+.about { border: 0; margin: 0 0 var(--s-6); padding: 0; display: grid; gap: var(--s-3); max-width: 40em; min-width: 0 }
+.about legend { padding: 0; margin-bottom: var(--s-2) }
+.about > .label { margin: var(--s-1) 0 0 }
+.about .field .hint { margin: 0; font-size: var(--fs-sm) }
+.about .level-opts { margin: 0 }
+.starter .about-note { max-width: 40em; font-size: var(--fs-sm) }
 .start-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3) var(--s-4h); margin: var(--s-6h) 0 0 }
 .go.start { font-size: var(--fs-d1); padding: var(--s-4h) var(--s-6) }
 .start-note { font-size: var(--fs-md); color: var(--text-muted); max-width: 26em }
@@ -131,3 +138,12 @@
     content: ""; position: absolute; left: 50%; top: 50%; width: var(--hit); height: var(--hit); transform: translate(-50%, -50%);
   }
 }
+
+/* the ready-made workouts (Ready.tsx): on the welcome card before any key, and on a new listener's first screen */
+.ready { margin-top: var(--s-6); display: grid; gap: var(--s-2); max-width: 40em }
+.ready-h { margin: 0 }
+.ready-note { margin: 0 }
+.ready-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-4) }
+.ready-row { display: grid; gap: var(--s-1h); padding-top: var(--s-3); border-top: 1px solid var(--border) }
+.ready-row p { margin: 0 }
+.ready-by { color: var(--text-2); font-size: var(--fs-sm) }

@@ -1,7 +1,9 @@
 // What the coach is doing while a turn runs: a running clock, the latest steps, what it's thinking about now, and a
 // note when a step runs long.
 import { useEffect, useRef, useState } from "react";
+import type { Plan } from "../../lib/api";
 import type { Step } from "../../lib/steps";
+import { PlanTable } from "./Offers";
 
 const SHOWN_STEPS = 6;
 
@@ -25,9 +27,10 @@ function elapsed(since: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
 }
 
-/** "Your coach is working…" with a running clock, the coach's latest steps, and what it's thinking about now.
- * The chat's log already announces what's added to it, so this says nothing more on its own. */
-export function Working({ steps, stopping }: { steps: Step[]; stopping: boolean }) {
+/** "Your coach is working…" with a running clock, the coach's latest steps, and what it's thinking about now, and
+ * once the workout's timing is settled, its plan, while the words are written. The chat's log already announces
+ * what's added to it, so this says nothing more on its own. */
+export function Working({ steps, plan = null, stopping }: { steps: Step[]; plan?: Plan | null; stopping: boolean }) {
   const [since] = useState(() => Date.now());
   const [, tick] = useState(0);
   const began = useRef(new Map<string, number>());   // when each running step was first seen
@@ -65,6 +68,7 @@ export function Working({ steps, stopping }: { steps: Step[]; stopping: boolean 
         </ul>
       )}
       {current && <p className="think-hint">{longWait(current)}</p>}
+      {plan && <PlanTable plan={plan} caption="Your workout, while the words are written" />}
     </div>
   );
 }

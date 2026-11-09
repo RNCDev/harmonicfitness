@@ -27,9 +27,13 @@ def _model_lines():
                                            filename))
         lines.append(f"  {repo}/{filename}: " + ("downloaded" if here else
                                                   f"not downloaded (about {voices.SIZES_GB[repo]} GB in all)"))
-    here = all(os.path.exists(os.path.join(voices.CHECK_DIR, f)) for f in voices.CHECK_FILES)
-    lines.append(f"  {voices.CHECK_MODEL[0]} (the take checker): " + ("downloaded" if here else
-                 f"not downloaded (about {voices.SIZES_GB[voices.CHECK_MODEL[0]]} GB)"))
+    if voices.checker_present():
+        state = "downloaded"
+    elif voices.checker_downloading():
+        state = "downloading now (a build waits for it, then checks every line)"
+    else:
+        state = f"not downloaded (about {voices.SIZES_GB[voices.CHECK_MODEL[0]]} GB; ./harmonicfitness setup --local fetches it)"
+    lines.append(f"  {voices.CHECK_MODEL[0]} (the take checker): {state}")
     return lines
 
 

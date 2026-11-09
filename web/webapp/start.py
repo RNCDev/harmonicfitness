@@ -274,6 +274,8 @@ def shape(files: dict[str, bytes], keyed, coaches: list, coverage: dict | None, 
         "limits": _limits(health),
         "suggest": _suggest(coverage, goals),
         "setup_quick": setup == "quick",
+        # no level yet: the first screen asks the quick start's first questions with the request
+        "new": not profile.get("experience"),
     }
 
 

@@ -143,7 +143,7 @@ describe("the chat", () => {
     expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
     const picks = screen.getAllByRole("button").filter((b) => b.classList.contains("welcome-pick"));
     expect(picks.map((b) => b.querySelector(".welcome-pick-name")?.textContent)).toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"]);
-    expect(picks[1]).toHaveTextContent("six coaches to choose from. Free key");
+    expect(picks[1]).toHaveTextContent("six coaches to choose from. The cheapest; Google asks for 5 USD of prepaid credit");
     expect(picks[0]).toHaveTextContent("six coaches with ElevenLabs voices");
     expect(picks[2]).toHaveTextContent("then choose a coach");
     expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
@@ -180,6 +180,13 @@ describe("the chat", () => {
   it("reads a step from before ids as done", () => {
     expect(stepsOf([{ stage: "folder" }, { stage: "step", text: "Old", failed: false }]))
       .toEqual([{ text: "Old", failed: false, running: false, think: false, key: "i0" }]);
+  });
+
+  it("shows the workout's plan while its words are written", () => {
+    const plan = { rows: [{ what: "Air squat", kind: "movement" as const, segments: 2, seconds: 100 }], seconds: 100 };
+    render(<Chat {...base} working steps={stepsOf([{ stage: "step", text: "Writing your script", id: 1, state: "running" }])}
+      plan={plan} />);
+    expect(screen.getByRole("table", { name: "Your workout, while the words are written" })).toHaveTextContent("Air squat");
   });
 
   it("shows what the coach is thinking about only while it thinks", () => {

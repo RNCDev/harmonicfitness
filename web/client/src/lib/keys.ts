@@ -43,3 +43,13 @@ const SERVICE_NAMES: Record<string, string> = {
   fish: "Fish Audio", elevenlabs: "ElevenLabs", gemini: "Gemini", inworld: "Inworld", openrouter: "OpenRouter",
 };
 export const serviceName = (service: string) => SERVICE_NAMES[service] ?? service;
+
+/** Said once, before the first recording (on its Record card, or on the first screen's form for a new listener): where the script goes, and what that means. */
+export function privacyNote(service: string): string {
+  const name = serviceName(service);
+  return `Recording sends the script to ${name}, and it can mention your injuries ("easy on that left knee").`
+    + (service === "gemini"
+      ? " On Gemini's free tier, Google may use what it's sent to improve its models, with human review; a paid key doesn't."
+      : "")
+    + " Your key is stored encrypted on this site, never shown again, and removed in Settings.";
+}

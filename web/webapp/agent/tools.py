@@ -126,6 +126,9 @@ class Deps:
     # the writers' room started by a clean skeleton (agent._chain): its future, cancelled when the turn ends
     room_job: object = field(default=None, repr=False)
     ended: threading.Event = field(default_factory=threading.Event, repr=False)   # set as the turn's run ends
+    # a job event other than a step, for the chat (the skeleton's plan while the writers' room fills it): (stage,
+    # **fields); None in tests
+    event: Callable[..., None] | None = field(default=None, repr=False)
 
 
 class ToolResult(BaseModel):
@@ -838,6 +841,26 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
                        "The page now shows the listener a Record button with that price. End your turn: say in a "
                        "line that the script is ready and checked (the button shows the price: don't say it). Don't build again "
                        "until they approve."))
+
+
+PLAN_ROWS = 40   # a plan's rows shown while the writers write: far more than any workout has
+
+
+def show_plan(deps: Deps, path: str) -> None:
+    """The clean skeleton's plan, worked out by the engine from its own segments, shown in the chat while the
+    writers' room fills it (a minute or three), so the listener sees the workout's shape before its words. A plan
+    that can't be worked out is simply not shown: the Record card shows it again with the price."""
+    full, _ = _mine(deps, path)
+    if deps.event is None or full is None:
+        return
+    try:
+        r = engine.run(deps.engine_root, deps.home, ["get", "plan", "--draft", full, "--json"], extra_env=deps.keys,
+                       timeout=TIMEOUT, cancel=deps.cancel)
+        plan = json.loads(r.stdout) if r.code == 0 else None
+        if isinstance(plan, dict) and isinstance(plan.get("rows"), list) and 0 < len(plan["rows"]) <= PLAN_ROWS:
+            deps.event("plan", plan=plan)
+    except Exception:  # noqa: BLE001 - a preview the turn can do without
+        pass
 
 
 def _offer_notes(deps: Deps, draft: str) -> Callable[[], dict]:

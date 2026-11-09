@@ -46,6 +46,9 @@ CHECK_MODEL = ("istupakov/parakeet-tdt-0.6b-v3-onnx", "8f23f0c03c8761650bdb5b40a
 CHECK_FILES = ["config.json", "vocab.txt", "nemo128.onnx", "encoder-model.onnx", "encoder-model.onnx.data",
                "decoder_joint-model.onnx"]
 CHECK_DIR = os.path.join(paths.MODELS, "parakeet-tdt-0.6b-v3-onnx")
+# Held by download() for its whole run (setup fetches Pocket first, then the checker), so a build that needs the
+# checker meanwhile waits for that download rather than fetching the same files a second time alongside it.
+CHECK_LOCK = os.path.join(paths.MODELS, ".take-checker.lock")
 # The line a web service's voice design speaks (tools/audition.py's auditions, tools/coachmake.py's make).
 DESIGN_LINE = ("Okay, set your feet. Chest up, elbows in, and press. Good. Stay with it, two more. "
                "Breathe out as you drive. That's the pace we want.")
@@ -279,15 +282,43 @@ def clip_seconds(text, v, rate=None):
     return weight(text) / (rate if rate is not None else pace(v)[0]) + EDGE
 
 
+def checker_present():
+    """Whether every file of the take checker is in models/."""
+    return all(os.path.exists(os.path.join(CHECK_DIR, f)) for f in CHECK_FILES)
+
+
+def checker_downloading():
+    """Whether another process is fetching the models now (download(), from setup in the background): its
+    lock is held. A lock left by a process that ended is free, so this never holds a build back for good."""
+    if not os.path.exists(CHECK_LOCK):
+        return False
+    with open(CHECK_LOCK, "a", encoding="utf-8") as f:
+        if not locks.acquire(f, block=False):
+            return True
+        locks.release(f)
+    return False
+
+
 def download(v=None):
-    """Fetch the local voice's model files and the take checker at their pinned revisions, into models/. Files
-    already there aren't fetched again."""
+    """Fetch the local voice's model files, then the take checker, at their pinned revisions, into models/. Files
+    already there aren't fetched again. One download at a time (CHECK_LOCK): a build that needs the checker waits
+    for this one to finish, and every take is checked."""
     from huggingface_hub import hf_hub_download, snapshot_download
-    print(f"Pocket TTS ({POCKET_REPO}, about {SIZES_GB[POCKET_REPO]} GB)", flush=True)
-    for repo, filename, rev in POCKET_FILES:
-        hf_hub_download(repo, filename, revision=rev)
-    print(f"The take checker ({CHECK_MODEL[0]}, about {SIZES_GB[CHECK_MODEL[0]]} GB)", flush=True)
-    snapshot_download(CHECK_MODEL[0], revision=CHECK_MODEL[1], local_dir=CHECK_DIR, allow_patterns=CHECK_FILES)
+    os.makedirs(paths.MODELS, exist_ok=True)
+    with open(CHECK_LOCK, "a", encoding="utf-8") as lock:   # one download at a time, and builds know it's running
+        locks.acquire(lock)
+        try:
+            print(f"Pocket TTS ({POCKET_REPO}, about {SIZES_GB[POCKET_REPO]} GB)", flush=True)
+            for repo, filename, rev in POCKET_FILES:
+                hf_hub_download(repo, filename, revision=rev)
+            if checker_present():
+                print(f"The take checker ({CHECK_MODEL[0]})", flush=True)
+            else:
+                print(f"The take checker ({CHECK_MODEL[0]}, about {SIZES_GB[CHECK_MODEL[0]]} GB)", flush=True)
+            snapshot_download(CHECK_MODEL[0], revision=CHECK_MODEL[1], local_dir=CHECK_DIR,
+                              allow_patterns=CHECK_FILES)
+        finally:
+            locks.release(lock)
 
 
 def write_wav(path, pcm, rate=24000):

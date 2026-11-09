@@ -1,0 +1,8 @@
+# A ready-made workout's listener settings (docs/demos/ready.toml): invented, nobody real. Built on ElevenLabs.
+schema = 6
+setup = "full"
+render = ["elevenlabs"]
+cloud_max_chars = 30000
+deliver_to = ""
+words_per_minute = 165
+bed = "off"

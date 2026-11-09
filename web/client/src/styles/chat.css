@@ -38,7 +38,7 @@
 .m.md pre code { background: none; padding: 0 }
 .m.md table { border-collapse: collapse; margin: 0 0 .7em; font-size: var(--fs-md); display: block; overflow-x: auto; max-width: 100% }
 /* a table in the chat: the coach's Markdown, and the plan on a Record card */
-.m.md :is(th, td), .m.offer .plan :is(th, td) { border-bottom: 1px solid var(--border); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left; vertical-align: top }
+.m.md :is(th, td), .m:is(.offer, .thinking) .plan :is(th, td) { border-bottom: 1px solid var(--border); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left; vertical-align: top }
 .m.md th { font-weight: 600; color: var(--text-2) }
 .m.offer, .m.audio, .welcome {
   display: grid; gap: var(--s-1h); padding: var(--s-5) var(--s-5); border-radius: var(--radius-sheet); background: var(--surface-raised); width: 100%; max-width: 40em;
@@ -48,10 +48,11 @@
 .welcome p + p { margin-top: var(--s-1h) }
 .m.offer .go, .welcome .go { justify-self: start; margin-top: var(--s-3) }
 .m.offer { box-shadow: inset 0 0 0 1px var(--border-strong), var(--lift) }
-.m.offer table.plan { border-collapse: collapse; margin: var(--s-2) 0; font-size: var(--fs-md); width: 100%; max-width: 28em }
-.m.offer .plan thead th { font-weight: 600; color: var(--text-2) }
-.m.offer .plan td:nth-child(n+2), .m.offer .plan th:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; width: 4.5em }
-.m.offer .plan tfoot th, .m.offer .plan tfoot td { border-bottom: 0; font-weight: 600 }
+.m:is(.offer, .thinking) table.plan { border-collapse: collapse; margin: var(--s-2) 0; font-size: var(--fs-md); width: 100%; max-width: 28em }
+.m:is(.offer, .thinking) .plan thead th { font-weight: 600; color: var(--text-2) }
+.m:is(.offer, .thinking) .plan :is(td, th):nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; width: 4.5em }
+.m.thinking .plan caption { caption-side: top; text-align: left; font-size: var(--fs-sm); color: var(--text-2); padding-bottom: var(--s-1h) }
+.m:is(.offer, .thinking) .plan tfoot :is(th, td) { border-bottom: 0; font-weight: 600 }
 .welcome h2 { margin: 0 0 var(--s-2); font: 700 var(--fs-welcome)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
 .welcome { margin: auto 0 0 }
 .welcome-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--s-2h); margin-top: var(--s-4) }

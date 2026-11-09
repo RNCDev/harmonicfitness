@@ -2,7 +2,7 @@
 // (Schedule it), and one scheduled (Cancel).
 import type { Later, Offer, Plan } from "../../lib/api";
 import { count, dollars, mss, timeOfDay } from "../../lib/format";
-import { serviceName } from "../../lib/keys";
+import { privacyNote, serviceName } from "../../lib/keys";
 import { Quiet, useAction } from "../../lib/useAction";
 import { ahead } from "../../lib/when";
 import { Button } from "../../ui/Button";
@@ -13,9 +13,10 @@ function useApproval(act?: () => Promise<boolean> | void) {
 }
 
 /** The plan, from the draft's own segments: each movement's sets and time, then the rests and the talk. */
-function PlanTable({ plan }: { plan: Plan }) {
+export function PlanTable({ plan, caption }: { plan: Plan; caption?: string }) {
   return (
     <table className="plan">
+      {caption && <caption>{caption}</caption>}
       <thead><tr><th scope="col">Part</th><th scope="col">Sets</th><th scope="col">Time</th></tr></thead>
       <tbody>
         {plan.rows.map((r) => (
@@ -25,16 +26,6 @@ function PlanTable({ plan }: { plan: Plan }) {
       <tfoot><tr><th scope="row">Total</th><td /><td>{mss(plan.seconds)}</td></tr></tfoot>
     </table>
   );
-}
-
-/** Said once, on the card before the first recording: where the script goes, and what that means. */
-function privacyNote(service: string): string {
-  const name = serviceName(service);
-  return `Recording sends the script to ${name}, and it can mention your injuries ("easy on that left knee").`
-    + (service === "gemini"
-      ? " On Gemini's free tier, Google may use what it's sent to improve its models, with human review; a paid key doesn't."
-      : "")
-    + " Your key is stored encrypted on this site, never shown again, and removed in Settings.";
 }
 
 export function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promise<boolean> | void }) {

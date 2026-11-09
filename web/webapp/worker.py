@@ -633,7 +633,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home,
                       keys=dict(ctx.keys, **({"TZ": zone} if zone else {})), today=today,
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
-                      cancel=ctx.cancel, picked=picked,
+                      cancel=ctx.cancel, picked=picked, event=lambda stage, **fields: ctx.say(stage, **fields),
                       log=lambda text: print(f"worker: job {ctx.job_id} {text}", file=sys.stderr, flush=True))
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     opening = next((x.get("text") for x in conv.lines if x.get("role") == "user"), None)
@@ -646,6 +646,10 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     deps.approved = conv.offer if record else None
     deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)
     deps.auto_record = auto and not record
+    # a new listener's first screen said that their first workout records as soon as it's written, where its script
+    # goes and that their key pays: that one records with no Record card, once (this conversation's first recording)
+    if agent.about_me(opening) and not record and not any(isinstance(x, dict) and x.get("audio") for x in conv.lines):
+        deps.auto_record = True
     deps.later = conv.later if conv.later and not conv.offer else None
     if ctx.args.get("scheduled") is True:   # "Schedule it" approved one recording, up to its ceiling
         deps.scheduled_run = True

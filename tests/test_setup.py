@@ -89,6 +89,19 @@ class Doctor(unittest.TestCase):
             self.assertIn("This computer", out.stdout)
             self.assertIn("once ./harmonicfitness setup", out.stdout)
 
+    def test_doctor_says_the_take_checker_is_downloading_or_missing(self):
+        from unittest import mock
+        import doctor
+        import voices
+        with mock.patch.object(voices, "checker_present", return_value=False), \
+                mock.patch.object(voices, "checker_downloading", return_value=True):
+            self.assertIn("downloading now", doctor._model_lines()[-1])
+        with mock.patch.object(voices, "checker_present", return_value=False), \
+                mock.patch.object(voices, "checker_downloading", return_value=False):
+            self.assertIn("not downloaded", doctor._model_lines()[-1])
+        with mock.patch.object(voices, "checker_present", return_value=True):
+            self.assertTrue(doctor._model_lines()[-1].endswith("downloaded"))
+
     def test_doctor_py_flags_a_missing_delivery_folder(self):
         import doctor
         with tempfile.TemporaryDirectory() as d:

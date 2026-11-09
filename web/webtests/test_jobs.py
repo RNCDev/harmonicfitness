@@ -728,6 +728,53 @@ class Turn(JobsCase):
         self.assertEqual(media.get(self.conn, uk, audio["id"])[1], b"ID3fake-mp3")
         self.conn.rollback()
 
+    def test_a_new_listeners_first_screen_records_their_first_workout_without_asking(self):
+        """The first screen's form said the first workout records as soon as it's written: no Record card for it."""
+        from webapp import spend
+        uk = self.user()
+        first = ("Hey, coach Reed, I'd like a 10-minute full-body workout at home, right now. Nothing's bothering me "
+                 "today. About me: call me Sam. I'm new to this, or it's been a long while. At home I have no "
+                 "equipment: bodyweight only.")
+        cid = self.start(uk, first)
+        real = worker.engine.run
+        built = []
+
+        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            if argv[:2] == ["get", "cost"]:
+                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
+            if argv and argv[0] == "build":
+                if "--lint-only" in argv:
+                    return worker.engine.Result(0, "ok\nSends 1,500 characters to the voice service", "")
+                built.append(argv)
+                os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
+                with open(os.path.join(home, "workouts", "w", "Workout 10 min.mp3"), "wb") as f:
+                    f.write(b"ID3fake-mp3")
+                return worker.engine.Result(0, "built", "")
+            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
+
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 10 min", "--coach", "Coach Reed"]
+
+        def script(messages, info):
+            if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
+                return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id=f"b{len(messages)}")])
+            return ModelResponse(parts=[TextPart("Done.")])
+        with mock.patch.object(worker.engine, "run", side_effect=engine_run):
+            job, conv = self.run_turn(uk, script, cid, line=first)
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(built[0][-2:], ["--max-chars", "1500"])   # recorded at once, within its price
+        self.assertIsNone(conv.offer)
+        self.assertEqual(spend.used(self.conn, uk, today()), 1500)
+        self.conn.rollback()
+        # the next workout in this conversation waits for Record, as every later one does
+        built.clear()
+        self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "Another one, please.", None))
+        self.conn.commit()
+        with mock.patch.object(worker.engine, "run", side_effect=engine_run):
+            job, conv = self.run_turn(uk, script, cid, line="Another one, please.")
+        self.assertEqual(self.state(job), ("done", None))
+        self.assertEqual(built, [])
+        self.assertIsNotNone(conv.offer)
+
     def test_record_without_asking_past_the_allowance_offers_record(self):
         from webapp import keystore, spend
         uk = self.user()

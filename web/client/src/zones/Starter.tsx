@@ -1,21 +1,27 @@
 // The first screen: a request with blanks, filled in from what the app knows about the listener. Tap a blank for
 // its choices (a list under it, ui/Popover.tsx); the new words roll in like a scoreboard (ui/Flap.tsx). The second
 // line says what to go easy on, picked from the body chart (BodyChart.tsx). "Plan my workout" sends the request
-// (lib/request.ts) as the first message; its answers stand in for the check-in.
+// (lib/request.ts) as the first message; its answers stand in for the check-in. A new listener (no level yet) also
+// answers the setup's first questions here, in one go (AboutYou), so the chat asks none of them, and their first
+// workout records as soon as it's written: the form says where the script goes and that it's charged to their key.
 import { useRef, useState } from "react";
-import type { StartInfo } from "../lib/api";
+import type { Level as Experience, StartInfo } from "../lib/api";
 import { dayPart } from "../lib/format";
-import { areaName, kitWords, MINUTES, requestParts, sentence, suggested, TYPES, whenWords, type Level, type SlotKey }
-  from "../lib/request";
+import { privacyNote } from "../lib/keys";
+import { LEVEL_NAMES, LEVEL_SAID, LEVELS } from "../lib/levels";
+import { aboutMe, areaName, kitWords, MINUTES, requestParts, sentence, suggested, TYPES, whenWords, type About,
+  type Level, type SlotKey } from "../lib/request";
 import { Quiet, useAction } from "../lib/useAction";
 import { ahead, slots, withOffset } from "../lib/when";
 import { Button } from "../ui/Button";
+import { Field } from "../ui/Field";
 import { Flap } from "../ui/Flap";
 import { Icon } from "../ui/icons";
 import { Notice } from "../ui/Notice";
 import { Popover } from "../ui/Popover";
 import { RequestLine } from "../ui/RequestLine";
 import { BodyChart } from "./BodyChart";
+import { ReadyWorkouts } from "./Ready";
 
 /** Each blank's list, as a screen reader names it. */
 const LIST_NAMES: Record<SlotKey, string> = { coach: "Coach", minutes: "Length", place: "Where", type: "Workout", when: "When",
@@ -42,6 +48,38 @@ const OTHER: { label: string; about: string; line: string; quick?: boolean }[] =
   { label: "Finish setting me up", about: "Answer the rest of the setup questions, for workouts that fit you better.",
     line: "Finish setting me up.", quick: true },
 ];
+
+/** A new listener's answers to the setup's first questions: what to call them, their level, what's at home. */
+function AboutYou({ name, level, home, service, onName, onLevel, onHome }: {
+  name: string; level: Experience; home: string; service?: string;
+  onName: (v: string) => void; onLevel: (v: Experience) => void; onHome: (v: string) => void;
+}) {
+  return (
+    <fieldset className="about">
+      <legend className="label">First, about you</legend>
+      <Field id="about-name" label="What should your coach call you?" hint="Leave it empty for no name.">
+        <input className="input" type="text" autoComplete="given-name" maxLength={40} value={name}
+          onChange={(e) => onName(e.target.value)} />
+      </Field>
+      <p className="label" id="about-level">Which sounds like you?</p>
+      <div className="level-opts" role="radiogroup" aria-labelledby="about-level">
+        {LEVELS.map((l) => (
+          <Button key={l} variant="bare" className="level-card" role="radio" aria-checked={level === l}
+            onClick={() => onLevel(l)}>
+            <span className="level-name">{LEVEL_NAMES[l]}</span>
+            <span className="level-said">{LEVEL_SAID[l]}</span>
+          </Button>
+        ))}
+      </div>
+      <Field id="about-home" label="What do you have at home to train with?"
+        hint="Dumbbells, bands, a bench… Leave it empty for none: your workouts use bodyweight until you say.">
+        <input className="input" type="text" maxLength={200} value={home} onChange={(e) => onHome(e.target.value)} />
+      </Field>
+      <p className="start-note about-note">Your first workout records as soon as it's written, charged to your own key
+        (usually less than 1 USD).{service ? " " + privacyNote(service) : ""}</p>
+    </fieldset>
+  );
+}
 
 type Props = {
   info: StartInfo | null;
@@ -72,6 +110,11 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
   const [body, setBody] = useState<Record<string, Level> | null>(null);
   /** A time picked for the workout (null: right now). */
   const [at, setAt] = useState<Date | null>(null);
+  // a new listener's answers to the setup's first questions (AboutYou)
+  const [aboutName, setAboutName] = useState("");
+  const [aboutLevel, setAboutLevel] = useState<Experience>("novice");
+  const [aboutHome, setAboutHome] = useState("");
+  const isNew = info?.new === true;
   const [open, setOpen] = useState<SlotKey | null>(null);
   const wrap = useRef<HTMLElement>(null);
   const anchor = useRef<HTMLButtonElement | null>(null);
@@ -118,7 +161,8 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
   const begin = useAction(async () => {
     // a time already passed while the page sat open is a workout now
     const later = at && at.getTime() > Date.now() + 20 * 60000 ? at : null;
-    const line = sentence({ ...v, when: whenWords(later) });
+    const about: About = { name: aboutName, said: LEVEL_SAID[aboutLevel], home: aboutHome };
+    const line = sentence({ ...v, when: whenWords(later) }) + (isNew ? " " + aboutMe(about) : "");
     if ((await onStart(line, later ? withOffset(later) : undefined)) === false) throw new Quiet();
   }, { hold: true });
 
@@ -148,6 +192,8 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
 
   return (
     <section className="starter" ref={wrap} aria-label="Plan a workout" aria-busy={!info}>
+      {isNew && <AboutYou name={aboutName} level={aboutLevel} home={aboutHome} service={shownCoach?.service}
+        onName={setAboutName} onLevel={setAboutLevel} onHome={setAboutHome} />}
       <p className="label eyebrow">{dayPart(new Date())}{shownCoach ? ` · Coach ${shownCoach.first}, voiced by ${shownCoach.service_name}` : ""}</p>
       <RequestLine parts={requestParts(v)} className="mad" blank={(p) => (
         <Slot k={p.key!} label={p.label!} text={p.blank!} open={open === p.key} onOpen={openSlot} tone={p.tone} />
@@ -182,6 +228,7 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
           ))}
         </ul>
       </nav>
+      {isNew && <ReadyWorkouts />}
       {open && open !== "body" && (
         <Popover kind="listbox" anchor={anchor.current} host={wrap} onClose={close} label={LIST_NAMES[open]}>
           {options.map((o) => (

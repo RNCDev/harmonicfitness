@@ -108,11 +108,13 @@ def speaker(voice):
     if voice.get("backend") == "cloud":
         import cloud
         return cloud.speaker(voice)
-    import torch
     try:
+        import torch
         from pocket_tts import TTSModel
     except ImportError as e:
-        raise errors.EngineError("Pocket TTS isn't installed in this environment: run ./harmonicfitness setup.") from e
+        raise errors.EngineError("The local voice (Pocket TTS on PyTorch) isn't installed in this environment yet: "
+                                 "./harmonicfitness setup --local installs it (if it's running now, wait for it to "
+                                 "finish).") from e
     found = _version("pocket-tts")
     if found and found != voices.POCKET_VERSION:
         raise errors.EngineError(f"pocket-tts {found} is installed; the coaches' voice files are made for "
@@ -175,8 +177,7 @@ def listener():
     except ImportError as e:
         raise errors.EngineError("The take checker isn't installed in this environment: run ./harmonicfitness setup, or "
                          "build with --no-check.") from e
-    missing = [f for f in voices.CHECK_FILES if not os.path.exists(os.path.join(voices.CHECK_DIR, f))]
-    if missing:
+    if not voices.checker_present():   # fetched here, or, while setup is fetching it, waited for (download's lock)
         try:
             voices.download()
         except Exception as e:

@@ -1,4 +1,5 @@
 // A turn's progress, as the chat shows it.
+import type { Plan } from "./api";
 
 /** A step of the coach's turn: running while its tool works, then done (or failed). A thinking step (the model
  * working between tools) shows only while it runs. `key` tells one step from another across updates. */
@@ -26,4 +27,13 @@ export function stepsOf(events: { stage: string; [field: string]: unknown }[]): 
     out.push(step);
   }
   return out;
+}
+
+/** The workout's plan, shown while the writers' room writes its words: the newest "plan" event's, if any. */
+export function planOf(events: { stage: string; [field: string]: unknown }[]): Plan | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const p = events[i].stage === "plan" ? (events[i].plan as Plan | undefined) : undefined;
+    if (p && Array.isArray(p.rows) && p.rows.length > 0 && typeof p.seconds === "number") return p;
+  }
+  return null;
 }

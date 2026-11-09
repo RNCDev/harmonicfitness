@@ -2,6 +2,52 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.74.0] - 2026-11-09
+
+A shorter road to the first workout, and a private podcast feed. Five ready-made thirty-minute workouts, written and reviewed here and to be recorded once on ElevenLabs, will play at once: on the web before any key, on a computer while the local voice downloads. On the web a new listener answers the setup's first questions on the first screen in one go, and their first workout records as soon as it's written. While the words are written the chat shows the workout's plan. A Podcast tab in Settings gives a private link that puts each new workout on the phone by itself. On a computer, the download starts as setup does, and choosing a coach is one listening step. `ROADMAP.md` says what's planned next.
+
+### Added
+- **A private podcast feed** (web, Settings' **Podcast** tab):
+  - `POST`, `GET` and `DELETE /api/feed` make, show and stop the link. `GET /feed/<token>.xml` serves the RSS, with the iTunes tags and blocked from directories, and `GET /feed/<token>/<id>.mp3` serves each workout, with byte ranges.
+  - The feed lists the three workouts the site keeps; a podcast app downloads each as it arrives.
+  - Only the token's sha256 finds the user, and the token is sealed with their data key (migration 018, `webapp/feed.py`).
+  - A new link stops the old one. Artwork: `podcast-cover.png`, from `assets/brand/make.py`.
+- **A new listener's first screen asks the quick start's first questions:**
+  - It asks what to call them, which level sounds like them and what's at home, above the request (`Starter.tsx`'s `AboutYou`, `GET /api/start`'s `new`).
+  - The answers go after the request as one "About me:" line. The agent takes that as the round answered and asks none of the questions in the chat.
+  - That conversation's first recording runs with no Record card (`agent.about_me`). The form already said it records at once, on their key, and where the script goes.
+- **The plan while the words are written:** a clean skeleton's plan (`get plan --draft`) is sent as a `plan` job event as the writers' room starts (`tools.show_plan`), and the chat shows it under the coach's steps.
+- **Ready-made workouts** (`./harmonicfitness ready`, `tools/ready.py`): five thirty-minute sessions, one each of full body, strength, cardio, mobility and core.
+  - Each is bodyweight with a chair and a towel, low impact, at novice doses with a harder option for every movement.
+  - They're written like the demos, as invented listeners (`docs/demos/ready.toml`, `docs/demos/listeners/ready-*/`; `demos home` and `demos run` take their slugs), to be recorded whole on the demos' ElevenLabs stock voices.
+  - Each script went through two rounds of review, one judge for rhythm and engagement and one for workout quality against its invented ask. Those rounds brought timed sets where the cues ask for slow reps, the full stop and heart rules in each coach's own words, a varied set, and no balancing on a chair that's against the wall.
+  - They're made for no one, so the opening and the list say they aren't adapted to any injury.
+  - `ready` lists them, and `ready file <slug>` fetches one into `me/workouts/.ready/`, checked against `knowledge/ready.json` (`--deliver` copies it to the delivery folders).
+  - The maintainer's `ready publish` and `ready upload` put the whole set on the media bucket as `ready/v<version>/` and write `knowledge/ready.json` and `web/client/src/ready.json`.
+  - On the web they're listed on the welcome card, before any key, and on a new listener's first screen (`zones/Ready.tsx`).
+  - Locally, setup offers one while the download runs.
+- `doctor` says when the take checker is downloading.
+- `ROADMAP.md`: smarter workouts (closing the loop after each workout, training blocks, feedback that sticks), music, tuning (still to be shaped), and later ideas.
+
+### Changed
+- **The take checker downloads one at a time** (`models/.take-checker.lock`): a build that needs it waits for setup's download, instead of starting a second, then checks every line.
+- **Setup starts the local download as a new listener's quick start begins,** so it runs while they answer the questions.
+- **Choosing a coach is one listening step:** one sample per style (Andy, Maya, Theo, Claire) and one question; a style's other coaches only on request. "Switch coach" works the same way.
+- **The hand-off from the session that downloads HarmonicFitness is one step** with the exact words to type. In a terminal it's one line: `cd ~/harmonicfitness && claude "set up HarmonicFitness"`.
+- A build on a computer where the local engine is still installing says so, instead of failing on an import.
+
+### Fixed
+- The web welcome card no longer calls Gemini's key free: it says Google asks for 5 USD of prepaid credit, as the setup skill does.
+- The web agent no longer says an MP3 is kept 24 hours: the site keeps the three newest workouts, and the agent points to the podcast feed for the phone.
+
+### For forks
+Minor, because the web app's database and the engine's commands change. After pulling:
+- **Web database:** migration 018 adds `users.feed_hash` and `users.feed_token` for the podcast feed. The web service applies it as it starts, as with every migration. Deploy the web service before running `python -m webapp.admin` against the new code.
+- **`HARMONICFITNESS_BASE_URL`** must be the address podcast apps can reach, since every feed link is built from it.
+- **A new command, `ready`.** A fork with its own command of that name should rename it.
+- **Ready-made workouts:** the scripts and their invented listeners ship, but the recordings don't yet. `knowledge/ready.json` doesn't exist until the set is recorded and `./harmonicfitness ready upload` runs with the bucket's keys. Until then `ready` says none are published, and the web app shows no list.
+- **The setup skill and the coach skill changed.** Run `./harmonicfitness harness sync` if you keep your own copies of `.agents/skills/`.
+
 ## [0.73.0] - 2026-11-08
 
 The engine's tests now pass on Windows and a Mac as well as Linux, and CI runs them on all three. Three tests failed on Windows (two setup tests and a path check), and others leaned on the system's text encoding, which is UTF-8 on a Mac and cp1252 on Windows. Minor, since the repository now fixes LF line endings in every checkout (see For forks).

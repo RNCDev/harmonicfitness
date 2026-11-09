@@ -40,11 +40,12 @@ def edit(files, path, old, new):
 class Shape(unittest.TestCase):
     def test_starter_template(self):
         r = shape(coverage=COVERAGE_EMPTY)
-        self.assertEqual(set(r), {"coaches", "kits", "minutes", "limits", "suggest", "setup_quick"})
+        self.assertEqual(set(r), {"coaches", "kits", "minutes", "limits", "suggest", "setup_quick", "new"})
         self.assertEqual(r["minutes"], start.FIRST_MINUTES)   # no level yet: the quick start's ten-minute workout
         self.assertEqual(r["limits"], [])
         self.assertIsNone(r["suggest"])
         self.assertTrue(r["setup_quick"])
+        self.assertTrue(r["new"])   # no level yet: the first screen asks the quick start's first questions
         self.assertEqual([k["id"] for k in r["kits"]], ["home", "bodyweight", "hotel-room", "hotel-gym", "full-gym"])
         self.assertEqual(r["kits"][0], {"id": "home", "label": "home", "preset": False})
         self.assertEqual(r["kits"][2], {"id": "hotel-room", "label": "a hotel room", "preset": True})
@@ -156,6 +157,10 @@ class Shape(unittest.TestCase):
                           ("full-gym", True)])
         self.assertEqual(kits[3]["label"], "a hotel gym")
 
+    def test_not_new_once_they_have_a_level(self):
+        files = edit(folder.seed(ROOT), "profile.md", 'experience = ""', 'experience = "novice"')
+        self.assertFalse(shape(files=files)["new"])
+
     def test_setup_full(self):
         files = edit(folder.seed(ROOT), "settings.toml", 'setup = "quick"', 'setup = "full"')
         self.assertFalse(shape(files=files)["setup_quick"])
@@ -250,7 +255,7 @@ class Route(test_api.ApiCase):
         r = self.client.get("/api/start")
         self.assertEqual(r.status_code, 200)
         body = r.json()
-        self.assertEqual(set(body), {"coaches", "kits", "minutes", "limits", "suggest", "setup_quick"})
+        self.assertEqual(set(body), {"coaches", "kits", "minutes", "limits", "suggest", "setup_quick", "new"})
         self.assertEqual(body["coaches"][0]["slug"], "coach-fraser-gemini")   # the first of Gemini's six by name
         self.assertTrue(body["coaches"][0]["ready"] and body["coaches"][0]["current"])
         self.assertEqual(body["minutes"], start.FIRST_MINUTES)   # no level yet: the first workout
