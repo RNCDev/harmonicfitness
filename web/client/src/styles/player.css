@@ -27,4 +27,3 @@
 .seek-tick { position: absolute; top: 50%; width: 2px; height: 8px; margin-top: -4px; background: var(--text-muted); pointer-events: none }
 .p-time { flex: none; font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap }
 .player.on .p-time { color: var(--sample) }
-.demo-controls .p-time { min-width: 74px }

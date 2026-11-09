@@ -40,12 +40,12 @@ select.input { padding-right: var(--s-2) }
 .mark { display: flex; align-items: center; gap: var(--s-2h); line-height: var(--lh-solid); color: var(--text) }
 .mark svg { flex: none; display: block }
 .mark .ver { font-size: var(--fs-sm); color: var(--text-muted); align-self: flex-end; font-variant-numeric: tabular-nums }
-/* underlined words: a quiet button, the resume line's words, the demos' "About" */
-.quiet, .resume-h, .demo-more > button {
+/* underlined words: a quiet button, the resume line's words */
+.quiet, .resume-h {
   color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong);
 }
 .quiet { font-size: var(--fs-md); text-align: left }
-.quiet:hover:not(:disabled), .demo-more > button:hover:not(:disabled) { color: var(--text-strong); text-decoration-color: currentColor }
+.quiet:hover:not(:disabled) { color: var(--text-strong); text-decoration-color: currentColor }
 .quiet.danger { color: var(--danger); text-decoration-color: var(--danger) }
 
 /* the outlined family: a thin line that brightens under the pointer, quieter than the cream .go */

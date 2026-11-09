@@ -45,10 +45,8 @@
   --fs-sm: 13px; --fs-md: 15px; --fs-body: 16px; --fs-lg: 18px;
   --fs-d1: 22px; --fs-d2: 24px; --fs-d3: 30px; --fs-d4: 34px;   /* the display face's headings */
   /* the display face at its largest, growing with the window */
-  --fs-request: clamp(38px, 4.8vw, 70px);        /* the request on the first screen */
-  --fs-request-demo: clamp(30px, 3.5vw, 54px);   /* the same request, in the sign-in page's demos */
+  --fs-request: clamp(38px, 4.8vw, 70px);        /* the request on the first screen, and the sign-in page's demos */
   --fs-hero: clamp(48px, 6vw, 76px);             /* a page with one short task: sign in, choose a password */
-  --fs-hero-pair: clamp(40px, 3.4vw, 52px);      /* the same, beside the demos */
   --fs-welcome: clamp(32px, 3.6vw, 44px);        /* the welcome card */
   --track-tight: .02em; --track-head: .05em; --track-wide: .1em; --track-btn: .14em; --track-label: .16em;
   /* line heights: set solid, a heading's, a control's or a short note's, and running text */

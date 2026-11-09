@@ -10,13 +10,14 @@
   .else { margin-top: var(--s-6h) }
   .start-row { margin-top: var(--s-5) }
   .solo { padding: var(--s-6) var(--s-4h) var(--s-7) }
-  .solo-pair .solo-task { max-width: none; padding-top: var(--s-5h); border-top: 1px solid var(--border) }
+  .solo-landing { padding: var(--s-5) var(--s-4) var(--s-6) }
   .demos .demo-req { font-size: var(--fs-d3) }
-  .demo-nav { width: 100%; justify-content: space-between }
+  .ready.ready-panel { padding: var(--s-4) }
 }
 
 /* a phone: Coaches and Logs as icons, so the header keeps Settings in view */
 @media (max-width: 480px) {
+  .solo-actions .go, .solo-actions .top-btn { padding-inline: var(--s-2h); letter-spacing: var(--track-wide) }
   .top-label { display: none }
   .top-btn.page-toggle { width: var(--control); height: var(--control); padding: 0; justify-content: center }   /* as square as Settings */
 }

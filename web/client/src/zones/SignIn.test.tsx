@@ -4,6 +4,8 @@ import { SignIn } from "./SignIn";
 
 function serve(registration: boolean, signIn: { status: number; body?: unknown }) {
   const calls: { url: string; body: unknown }[] = [];
+  const kept = new Map<string, string>();   // this browser's storage, fresh for each test
+  vi.stubGlobal("localStorage", { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => kept.set(k, v) });
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (url === "/api/auth") {
@@ -23,6 +25,24 @@ describe("the sign-in page", () => {
     expect(await screen.findByText("0.20.0 (75da105)")).toBeInTheDocument();
     expect(screen.getByText("Workouts for your earbuds, written and voiced fresh each time you ask")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Workouts other people asked for" })).toBeInTheDocument();   // the demos
+    expect(screen.getByRole("heading", { name: "Full workouts, free" })).toBeInTheDocument();   // the free workouts
+    expect(screen.queryByLabelText("Username")).toBeNull();   // the form waits behind Sign in
+  });
+
+  it("opens on the form for someone who has signed in here before, and goes back to the front", async () => {
+    serve(false, { status: 204 });
+    const done = vi.fn();
+    const { unmount } = render(<SignIn onSignedIn={done} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ana" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "long enough" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(done).toHaveBeenCalled());
+    unmount();
+    render(<SignIn onSignedIn={() => {}} />);
+    expect(screen.getByLabelText("Username")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hear a demo, or play a free workout" }));
+    expect(screen.getByRole("region", { name: "Workouts other people asked for" })).toBeInTheDocument();
   });
 
   it("offers an account only when registration is open", async () => {
@@ -40,6 +60,7 @@ describe("the sign-in page", () => {
     const calls = serve(false, { status: 400, body: { detail: "Wrong username or password." } });
     const done = vi.fn();
     render(<SignIn onSignedIn={done} />);
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ana" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "not right" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));

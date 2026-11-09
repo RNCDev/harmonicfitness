@@ -10,46 +10,53 @@
 .auth .go { align-self: flex-start; margin-top: var(--s-1h) }
 .auth > .notice.err { font-size: var(--fs-md) }
 
-/* the sign-in page: the demos in the wide column, the form beside them (stacked under them on a phone) */
-.solo.solo-pair { margin: 0; max-width: 1360px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-6h) clamp(var(--s-6h), 6vw, var(--s-9)) }
-.solo-pair .solo-beside { flex: 999 1 520px; min-width: 0 }   /* the demos, then the ready-made workouts */
-.solo-pair .solo-task { flex: 1 1 300px; max-width: 380px; padding-top: var(--s-1h) }
-.solo-pair h1 { font-size: var(--fs-hero-pair) }
+/* the sign-in page's front: Sign in and Make an account in the header, the demo on the left, the free workouts on the
+   right, both from the same line (stacked on a tablet) */
+.solo-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2) }
+.solo-actions .go { font-size: var(--fs-md); padding: var(--s-3) var(--s-3h) }
+.solo-landing { width: 100%; max-width: 1640px; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  align-items: start; gap: var(--s-6h) clamp(var(--s-6h), 4vw, var(--s-8)); padding: var(--s-6h) var(--gut) var(--s-7) }
 
-/* the demos (Demos.tsx): each ask as the request, in its coral and cream, one at a time */
-.demos .demo-eyebrow { margin: 0 0 var(--s-2h); max-width: 46ch }
-.demos .demo-lede { margin: 0 0 var(--s-6h); max-width: 52ch; color: var(--text-2); font-size: var(--fs-lg); line-height: var(--lh-body) }
+/* the demos (Demos.tsx): one ask as the request, in its coral and cream, who asked, the player, then the others' names */
+.demos { display: grid; gap: var(--s-4h); min-width: 0 }
+.demos .demo-eyebrow { margin: 0 }
 .demo-slides { display: grid }   /* every slide in one cell: the tallest sets the height, so nothing jumps */
 .demo-slide { grid-area: 1 / 1; visibility: hidden }
 .demo-slide.on { visibility: visible }
-.demos .demo-who { margin: 0 0 var(--s-2h) }
+.demos .demo-who { margin: 0 0 var(--s-3) }
 .demo-who b { color: var(--text); font-weight: 600 }
 .demo-who span { color: var(--text-2) }
-.demos .demo-req { margin: 0; font: 500 var(--fs-request-demo)/var(--lh-head) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase; color: var(--request-fixed) }
+.demos .demo-req { margin: 0; font: 600 var(--fs-request)/var(--lh-tight) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase; color: var(--request-fixed); text-wrap: balance }
 .demos .demo-req-2 { margin-top: var(--s-2) }
-.demo-slide:not(.turn) .fl { animation: none }   /* the words flip in only as a demo turns, as the request's do */
+.demo-glue { white-space: nowrap }   /* a blank and the comma or full stop after it stay on one line */
+.demo-slide:not(.turn) .fl { animation: none }   /* the words flip in only as the ask changes, as the request's do */
+.demos .demo-note { margin: var(--s-4) 0 0; max-width: 62ch; color: var(--text-2); font-size: var(--fs-md) }
+.demo-note b { color: var(--text); font-weight: 500 }
+.demo-player { max-width: 620px }
+.demo-player .p-time { min-width: 74px }
+.demo-people { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) }
+.demo-people .label { margin-right: var(--s-2); color: var(--text-muted) }
+.demo-chip { min-height: var(--control-sm); padding: 0 var(--s-3h); border-radius: var(--radius-pill); color: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--border); font-size: var(--fs-md); transition: color var(--t-fast), box-shadow var(--t-fast) }
+.demo-chip:hover:not(:disabled) { color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--border-strong) }
+.demo-chip[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1px var(--accent) }
+.demo-free { display: none; justify-self: start; color: var(--text); font-size: var(--fs-md); text-decoration-color: var(--accent); text-underline-offset: var(--s-1) }
 
-.demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3h) var(--s-5); margin-top: var(--s-5h) }
-.demo-controls .player { flex: 1 1 260px; max-width: 440px }
-.demo-nav { display: flex; align-items: center; gap: var(--s-1) }
-.icon-btn { width: var(--hit); height: var(--hit); display: grid; place-items: center; color: var(--text-2) }
-.demo-dots { display: flex; align-items: center; margin: 0 var(--s-1h) }
-.demo-dot { width: calc(var(--hit) / 2); height: var(--hit); display: grid; place-items: center }
-.demo-dot::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--border-strong); transition: width var(--t-fast), background-color var(--t-fast) }
-.demo-dot:hover:not(:disabled)::before { background: var(--text-muted) }
-.demo-dot[aria-current="true"]::before { width: var(--tick); background: var(--action) }
+/* the free workouts (Ready.tsx's panel): a sheet with the brand's line along its top */
+.ready.ready-panel { margin: 0; max-width: none; gap: var(--s-3); padding: var(--s-5); background: var(--panel);
+  box-shadow: inset 0 2px 0 var(--accent), inset 0 0 0 1px var(--border); border-radius: var(--radius-sheet); min-width: 0 }
+.ready-big { margin: 0; font: 800 var(--fs-d4)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
+.ready-big span { color: var(--accent) }
+.ready-panel .ready-note { color: var(--text-2) }
+.ready-panel .ready-list { gap: 0 }
+.ready-panel .ready-row { gap: var(--s-1); padding: var(--s-3) 0 }
+.ready-panel .ready-row:last-child { padding-bottom: 0 }
+.ready-panel .ready-t .head { font-size: var(--fs-d1) }
+.ready-play { display: flex; align-items: center; gap: var(--s-4) }
+.ready-play .player { flex: 1 }
+.ready-play a { color: var(--text-muted); white-space: nowrap }
 
-.demo-more { margin-top: var(--s-4h) }
-.demo-more > button { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--control); font-size: var(--fs-md) }
-.demo-more > button svg { width: 12px; height: 12px; transition: transform var(--t-fast) }
-.demo-more > button[aria-expanded="true"] svg { transform: rotate(90deg) }
-.demo-detail { margin-top: var(--s-2h); padding: var(--s-4h) var(--s-4h); max-width: 640px; background: var(--panel); box-shadow: var(--lift); font-size: var(--fs-md); animation: rise var(--t-fast) ease-out }
-.demo-detail dl { display: grid; grid-template-columns: 76px 1fr; gap: var(--s-1h) var(--s-3h); margin: 0 }
-.demo-detail dt { padding-top: var(--s-1); font-size: var(--fs-sm) }
-.demo-detail dd { margin: 0; color: var(--text-2) }
-.demos .demo-changed { margin: var(--s-3h) 0 0; padding-top: var(--s-3); border-top: 1px solid var(--border); color: var(--text-2) }
-.demo-changed b { color: var(--text); font-weight: 500 }
-.demo-moments { list-style: none; margin: var(--s-3h) 0 0; padding: var(--s-3) 0 0; border-top: 1px solid var(--border); display: grid; gap: 2px }
-.demo-moments button { display: flex; align-items: baseline; gap: var(--s-3); min-height: var(--control-sm); text-align: left; color: var(--text-2) }
-.demo-moments button:hover:not(:disabled) { color: var(--text-strong) }
-.demo-at { flex: none; width: var(--control-sm); color: var(--sample); font-variant-numeric: tabular-nums }
+@media (max-width: 1000px) {
+  .solo-landing { grid-template-columns: minmax(0, 1fr); padding-top: var(--s-6) }
+  .demo-free { display: inline }
+}

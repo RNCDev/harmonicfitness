@@ -20,7 +20,7 @@ describe("the app", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(fetched).toEqual(["/api/me"]);
     answer(new Response(null, { status: 401 }));
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
     expect(fetched.filter((u) => u.startsWith("/api/keys") || u.startsWith("/api/conversations"))).toEqual([]);
   });
 

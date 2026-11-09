@@ -203,16 +203,16 @@ one command.</p>
 
 <!-- 7. the home page -->
 <h2>The home page</h2>
-<p class="sub">Built in 0.65.0: the sign-in page's wide column, the form beside it (<code>web/client/src/zones/Demos.tsx</code>).</p>
+<p class="sub">Built in 0.65.0, laid out again in 0.75.0: the sign-in page's front, the demo on the left and the free
+  workouts on the right, with Sign in and Make an account in the header (<code>web/client/src/zones/Demos.tsx</code>).</p>
 <ul class="sub">
   <li><b>One ask at a time, as the app's own request.</b> Each demo reads as the two lines a listener sends
     ("Hey, coach Priya, I'd like a 30-minute full-body workout in a hotel room, right now. Go easy on my left knee
-    today."), the blanks in cream, from <code>[demo.request]</code>. Above it, who asked and what they're into. Arrows
-    and dots move through the seven; it turns every ten seconds until someone plays, taps or tabs in, and never for
-    anyone who asks for less motion.</li>
+    today."), the fixed words in coral and the blanks in cream, from <code>[demo.request]</code>. A blank keeps the
+    comma or full stop after it, so neither starts a line. Above it, who asked and what they're into; under it, what
+    changed for an injury, or which workout the clip is from.</li>
   <li><b>Two minutes to play</b>, straight from the bucket, with the moments marked on the line.</li>
-  <li><b>Behind one tap:</b> their ask in their own words, who they are, their kit and injury, what changed for them,
-    and the moments, each jumping the clip to it.</li>
+  <li><b>The seven names</b> under the player pick another. Nothing turns on its own.</li>
   <li><b>The data:</b> <code>./harmonicfitness demos web</code> writes <code>web/client/src/demos.json</code> from
     <code>demos.toml</code> (the cards, the requests, each clip's address), and the client builds with it. A test
     fails when it's out of step, and another when a request uses words the app's own lists don't offer.</li>

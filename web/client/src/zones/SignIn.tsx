@@ -1,5 +1,7 @@
-// Signed out: sign in, or make an account when registration is open. Also the screen that asks
-// for a password when an account has none (one from before passwords, or after a reset link).
+// Signed out: the front page (a demo to hear and the free workouts, with Sign in and Make an account in the header),
+// then the form to sign in, or make an account when registration is open. Someone who has signed in on this browser
+// before starts at the form. Also the screen that asks for a password when an account has none (one from before
+// passwords, or after a reset link).
 import { useEffect, useState } from "react";
 import { Demos } from "./Demos";
 import { ReadyWorkouts } from "./Ready";
@@ -18,7 +20,13 @@ const USERNAME = /^[a-z0-9][a-z0-9_.-]{2,31}$/;
 export const badName = (name: string) => (USERNAME.test(name.trim().toLowerCase()) ? null
   : "Use 3 to 32 letters, numbers, dots, dashes or underscores, starting with a letter or number.");
 
+/** Set once someone signs in here, so the next visit opens on the form. Browser storage can refuse: then it's the front. */
+const RETURNING = "harmonicfitness.returning";
+const returning = () => { try { return localStorage.getItem(RETURNING) === "1"; } catch { return false; } };
+const remember = () => { try { localStorage.setItem(RETURNING, "1"); } catch { /* the front next time */ } };
+
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
+  const [front, setFront] = useState(() => !returning());
   const [mode, setMode] = useState<"in" | "new">("in");
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState("");
@@ -39,18 +47,28 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const go = useAction(async () => {
     if (fresh && (tooShort(password) || badName(username))) throw new Quiet();
     await (fresh ? api.register : api.signIn)(username, password);
+    remember();
     onSignedIn();
   });
 
   const switchTo = (m: "in" | "new") => {
+    setFront(false);
     setMode(m);
     form.reset();
     go.clear();
   };
 
+  if (front) {
+    return (
+      <Solo version={version} actions={<>
+        <Button variant="header" onClick={() => switchTo("in")}>Sign in</Button>
+        {open && <Button variant="primary" className="solo-join" onClick={() => switchTo("new")}>Make an account</Button>}
+      </>} landing={<><Demos /><ReadyWorkouts panel /></>} />
+    );
+  }
+
   return (
-    <Solo version={version} beside={<div className="solo-beside"><Demos />
-      <ReadyWorkouts intro="Or press play on a full workout: no account needed" /></div>}>
+    <Solo version={version}>
       <h1>{fresh ? "Make an account" : "Sign in"}</h1>
       <form className="auth" onSubmit={(e) => form.submit(e, () => void go.run())} noValidate>
         <Field id="signin-username" label="Username" error={nameWrong ?? go.errorFor("username")}
@@ -81,6 +99,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           <p className="hint">Forgot your password? Ask the person who runs this site to send you a reset link.</p>
         </>
       )}
+      <p><Button variant="text" onClick={() => setFront(true)}>Hear a demo, or play a free workout</Button></p>
     </Solo>
   );
 }

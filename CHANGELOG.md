@@ -2,6 +2,30 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.75.0] - 2026-11-09
+
+A new front for the sign-in page. It had three things asking for attention at once (the form, a turning carousel of demos and the free workouts below the fold), and its large request wrapped with a lone comma or full stop on a line of its own. Now the page fits in one screen on a laptop: one demo request on the left, with its player and the seven names to pick another, and the free workouts in their own panel on the right. Sign in and Make an account move to the header.
+
+### Changed
+- **The sign-in page's front** (`zones/SignIn.tsx`, `ui/Solo.tsx`'s `landing` and `actions`):
+  - Sign in and Make an account (when registration is open) sit at the header's right and open the form. The form has a link back to the front.
+  - Someone who has signed in on that browser before opens on the form (`localStorage`, `harmonicfitness.returning`). Where browser storage is refused, it's the front.
+  - Below 1000 pixels wide the two columns stack, and a link under the demo jumps to the free workouts.
+- **The demos** (`zones/Demos.tsx`):
+  - Each request shows at the first screen's size, the fixed words in coral and the blanks in cream.
+  - A blank keeps the comma or full stop after it, so neither starts a line.
+  - Under the request, what changed for an injury, or which workout the two minutes come from.
+  - The seven names under the player pick another. The arrows, dots, ten-second turning and the "About" panel are gone; the moments are still marked on the player's line.
+- **The free workouts on the sign-in page** are a panel of their own, "Full workouts, free", with the brand's coral line along its top (`ReadyWorkouts`'s `panel`). Elsewhere they show as before.
+
+### Removed
+- The tokens `--fs-request-demo` and `--fs-hero-pair`, which nothing uses now.
+
+### For forks
+- `Solo`'s `beside` prop is gone: a page beside a task now passes `landing` (the whole width) and `actions` (the header's buttons).
+- A stylesheet that used `--fs-request-demo` or `--fs-hero-pair` takes `--fs-request` or `--fs-hero` instead.
+- Tests that sign in from the sign-in page click the header's **Sign in** first, or set `harmonicfitness.returning` to `1` in `localStorage`.
+
 ## [0.74.0] - 2026-11-09
 
 A shorter road to the first workout, and a private podcast feed. Five ready-made thirty-minute workouts, recorded once on ElevenLabs, play at once: on the sign-in page with no account, on the web before any key, and on a computer while the local voice downloads. On the web a new listener answers the setup's first questions on the first screen in one go, and their first workout records as soon as it's written. While the words are written the chat shows the workout's plan. A Podcast tab in Settings gives a private link that puts each new workout on the phone by itself. On a computer, the download starts as setup does, and choosing a coach is one listening step. `ROADMAP.md` says what's planned next.
