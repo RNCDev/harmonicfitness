@@ -20,6 +20,16 @@ class CodesTest(unittest.TestCase):
         self.assertEqual(codes.of_error(refused.message), "key_refused")
         self.assertIsNone(codes.of_error(providers.explain("anthropic", RuntimeError()).message))
 
+    def test_a_stored_code_wins_over_the_words(self):
+        self.assertEqual(codes.of_status({"error": "the words changed", "code": "key_refused"}), "key_refused")
+        self.assertEqual(codes.of_status({"error": worker.NO_MODEL_KEY, "code": None}), "no_model_key")   # an old job
+        self.assertIsNone(codes.of_status({"error": "interrupted", "code": None}))
+
+    def test_a_turn_s_stop_carries_its_code(self):
+        from pydantic_ai import ModelHTTPError
+        self.assertEqual(worker._provider_stop("google", ModelHTTPError(403, "m", None)).code, "key_refused")
+        self.assertIsNone(worker._provider_stop("google", ModelHTTPError(500, "m", None)).code)
+
     def test_other_errors_have_none(self):
         for error in (None, "", "interrupted", worker.TOO_LONG, worker.STOPPED, worker.UNEXPECTED):
             self.assertIsNone(codes.of_error(error))

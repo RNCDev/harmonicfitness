@@ -151,15 +151,17 @@ def finish(conn, uk: UserKey, job_id: int, result: dict) -> bool:
         (_seal(uk, result, _aad(uk, job_id, "result")), job_id, uk.user_id)).rowcount == 1)
 
 
-def fail(conn, uk: UserKey | None, job_id: int, error: str, result: dict | None = None) -> bool:
+def fail(conn, uk: UserKey | None, job_id: int, error: str, result: dict | None = None,
+         code: str | None = None) -> bool:
     """A queued or running job failed. `error` is plain text: the web layer's own words, nothing
     personal and nothing from the engine; what the engine said goes in the sealed `result` (which
-    needs `uk`; with no result, `uk` may be None, as when the user's key couldn't be read). Commits."""
+    needs `uk`; with no result, `uk` may be None, as when the user's key couldn't be read). `code` is what the page
+    can offer for it (codes.py), stored beside the words (migration 020). Commits."""
     sealed = None if result is None else _seal(uk, result, _aad(uk, job_id, "result"))
     return _done(conn, lambda: conn.execute(
-        "update jobs set state = 'failed', error = %s, result = %s, finished_at = now() "
+        "update jobs set state = 'failed', error = %s, error_code = %s, result = %s, finished_at = now() "
         "where id = %s and state in ('queued', 'running')",
-        (error, sealed, job_id)).rowcount == 1)
+        (error, code, sealed, job_id)).rowcount == 1)
 
 
 def reap(conn, stale_after: int = 120) -> list[int]:
@@ -237,9 +239,9 @@ def result(conn, uk: UserKey, job_id: int) -> dict | None:
 
 
 def status(conn, uk: UserKey, job_id: int) -> dict:
-    """{'kind', 'state', 'error'} of the user's job. No commit."""
-    row = conn.execute("select kind, state, error from jobs where id = %s and user_id = %s",
+    """{'kind', 'state', 'error', 'code'} of the user's job (`code`: the stored error code, or None). No commit."""
+    row = conn.execute("select kind, state, error, error_code from jobs where id = %s and user_id = %s",
                        (job_id, uk.user_id)).fetchone()
     if row is None:
         raise LookupError("no such job")
-    return {"kind": row[0], "state": row[1], "error": row[2]}
+    return {"kind": row[0], "state": row[1], "error": row[2], "code": row[3]}

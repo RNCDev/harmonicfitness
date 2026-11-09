@@ -51,12 +51,14 @@ NEVER_WRITE_BACK = frozenset()   # the check-in may change health.md, with the l
 
 class JobFailed(Exception):
     """A job that failed in a way the worker expected. `error` is plain, non-personal wording; `detail`
-    (what the engine said, say) is stored sealed in the job's result."""
+    (what the engine said, say) is stored sealed in the job's result; `code` is what the page can offer for it
+    (codes.py), stored beside the words."""
 
-    def __init__(self, error: str, detail: dict | None = None):
+    def __init__(self, error: str, detail: dict | None = None, code: str | None = None):
         super().__init__(error)
         self.error = error
         self.detail = detail
+        self.code = code
 
 
 @dataclass
@@ -447,9 +449,11 @@ RESTARTED = "the site restarted while it ran; send a message to carry on"   # a 
 
 
 class _Stop(Exception):
-    """A turn that fails with `message`: the conversation goes failed with it, then the job."""
+    """A turn that fails with `message`: the conversation goes failed with it, then the job (with `code`, what the
+    page can offer for it)."""
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, code: str | None = None):
+        self.code = code
         super().__init__(message)
         self.message = message
 
@@ -501,6 +505,12 @@ def _save_clips(ctx: Ctx, clips: dict) -> None:
     except BaseException:
         _quietly_rollback(ctx.conn)
         raise
+
+
+def _provider_stop(provider: str, e: Exception) -> "_Stop":
+    """A provider's failure, in explain's words; a refused key carries the code that offers Settings."""
+    failed = providers.explain(provider, e)
+    return _Stop(failed.message, codes.KEY_REFUSED_CODE if failed.kind == "auth" else None)
 
 
 def _agent_line(conv: conversations.Conversation, text: str) -> list:
@@ -704,7 +714,7 @@ def turn(ctx: Ctx) -> dict:
         return _turn(ctx, conv, kept)
     except _Stop as e:
         _fail_conversation(ctx, conv, e.message, kept)
-        raise JobFailed(e.message) from None
+        raise JobFailed(e.message, code=e.code) from None
     except Exception:
         try:
             _fail_conversation(ctx, conv, UNEXPECTED, kept)
@@ -724,12 +734,12 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     ctx.conn.commit()
     provider = providers.pick(ctx.settings.providers, stored, chosen)
     if provider is None:
-        raise _Stop(NO_MODEL_KEY)
+        raise _Stop(NO_MODEL_KEY, codes.NO_KEY_CODE)
     try:
         model = providers.model_for(provider, providers.stored_key(stored, provider))
     except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
         log.failure(f"job {ctx.job_id} model client failed", e)
-        raise _Stop(providers.explain(provider, e).message) from None
+        raise _provider_stop(provider, e) from None
     del stored   # the model key lives only in the model client from here on
 
     ctx.say("folder")
@@ -871,7 +881,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
         log.failure(f"job {ctx.job_id} turn stopped", e)
         keep_clips()
-        raise _Stop(providers.explain(provider, e).message) from None
+        raise _provider_stop(provider, e) from None
     finally:
         background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed
 
@@ -1036,7 +1046,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
         outcome = ("done", handler(ctx))
     except JobFailed as e:
         _quietly_rollback(ctx.conn if ctx else conn)
-        outcome = ("failed", e.error, e.detail)
+        outcome = ("failed", e.error, e.detail, e.code)
     except Exception as e:  # noqa: BLE001 - only the type is logged: the message may be personal
         _quietly_rollback(ctx.conn if ctx else conn)
         log.failure(f"job {job.id} stopped", e)
@@ -1066,7 +1076,8 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
             error = _complete(work, uk, job.id, outcome[1], ctx)
             if error is not None:
                 _lost(work, job.id, ctx, error)
-        elif not jobs.fail(work, uk, job.id, outcome[1], outcome[2] if uk is not None else None):
+        elif not jobs.fail(work, uk, job.id, outcome[1], outcome[2] if uk is not None else None,
+                           code=outcome[3] if len(outcome) > 3 else None):
             print(f"worker: job {job.id} was no longer running", file=sys.stderr)
     finally:
         if ctx is not None:

@@ -19,7 +19,17 @@ FEEDBACK_MAX = 1000
 
 
 class Refused(Exception):
-    """The engine refused the request (an unknown workout, a script not kept); its message says why."""
+    """The engine refused the request (an unknown workout, a script not kept); its message says why, and `kind`
+    what the route answers: "not_found" (404) for a workout or script that isn't there, else "invalid" (400)."""
+
+    def __init__(self, message: str, kind: str = "invalid"):
+        super().__init__(message)
+        self.kind = kind
+
+
+NOT_FOUND = ("no logged workout", "no script")   # the engine's words for a workout or script that isn't there
+SAID = (1, 64)   # the engine's exits whose last line is its reason for a person; any other is a fault of its own
+DIDNT_WORK = "That didn't work. Try again in a minute."
 
 
 def _run(engine_root: str, files: dict[str, bytes], argv: list[str]):
@@ -36,9 +46,14 @@ def _run(engine_root: str, files: dict[str, bytes], argv: list[str]):
 
 
 def _ok(result) -> str:
+    """The engine's output, or Refused: with its reason when it refused the request (exit 1 or 64), else (a crash,
+    a timeout) a plain sentence, never the engine's own last line, which may be a traceback's."""
     if result.code != 0:
+        if result.code not in SAID:
+            raise Refused(DIDNT_WORK, "failed")
         lines = [x for x in (result.stderr or result.stdout or "").strip().splitlines() if x.strip()]
-        raise Refused(lines[-1] if lines else "That didn't work.")
+        reason = lines[-1] if lines else DIDNT_WORK
+        raise Refused(reason, "not_found" if any(w in reason for w in NOT_FOUND) else "invalid")
     return result.stdout
 
 

@@ -74,6 +74,19 @@ class Calls(unittest.TestCase):
             files.update(changed)
         self.assertEqual(workouts.listing(ROOT, files)[0]["feedback"], ["--help", "-_- too hard"])
 
+    def test_an_engine_crash_never_reaches_the_page(self):
+        from unittest import mock
+        crash = workouts.engine.Result(70, "", "Traceback (most recent call last):\nKeyError: 'my knee'\n")
+        with mock.patch.object(workouts.engine, "run", return_value=crash):
+            with self.assertRaises(workouts.Refused) as got:
+                workouts.listing(ROOT, listener_files())
+        self.assertEqual((str(got.exception), got.exception.kind), (workouts.DIDNT_WORK, "failed"))
+
+    def test_an_unknown_workout_is_not_found(self):
+        with self.assertRaises(workouts.Refused) as got:
+            workouts.script(ROOT, listener_files(), "zzz999")
+        self.assertEqual(got.exception.kind, "not_found")
+
     def test_a_listener_without_a_log_has_no_workouts(self):
         self.assertEqual(workouts.listing(ROOT, {}), [])
 

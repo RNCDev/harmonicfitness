@@ -34,12 +34,13 @@ import anyio
 import psycopg
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, \
     RedirectResponse, Response, StreamingResponse
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, codes, config, conversations, db, engine, feed, folder, jobs, keystore, media, \
+from . import APP_NAME, auth, codes, config, conversations, db, engine, feed, folder, jobs, keystore, log, media, \
     providers, \
     level, spend, start, store, \
     worker, workouts
@@ -288,6 +289,59 @@ IMPORT_MAX_TOTAL = 30_000_000    # bytes of every file, unpacked
 IMPORT_MAX_FILES = 2_000
 
 
+# Every refusal's body (0.76.0): `detail` as before (the words, or a validation error's list), and `error` beside it,
+# the same shape on every route: a code the page can branch on, the words, and the form's box it's about. The page
+# reads `code` and `field` at the top too, as it always has.
+ERROR_CODES = {400: "invalid", 401: "not_signed_in", 403: "forbidden", 404: "not_found", 405: "not_allowed",
+               409: "conflict", 410: "gone", 413: "too_large", 416: "bad_range", 422: "invalid", 429: "too_many",
+               500: "internal"}
+INTERNAL = "Something went wrong on the site's side. Try again in a minute."
+
+
+def error_body(status: int, detail, code: str | None = None, field: str | None = None) -> dict:
+    """A refusal's body: {"detail", "error": {"code", "message", "field"}}, with `code` and `field` at the top when
+    given."""
+    message = detail if isinstance(detail, str) else "That request isn't right."
+    body = {"detail": detail, "error": {"code": code or ERROR_CODES.get(status, "error"), "message": message,
+                                        "field": field}}
+    if code:
+        body["code"] = code
+    if field:
+        body["field"] = field
+    return body
+
+
+class _Errors:
+    """An error no route caught is a 500 in the usual shape, logged by type and frames only (log.failure): never its
+    message, which may hold a listener's words, never a traceback in the response (pure ASGI, so a stream is untouched).
+    One raised after a response began is logged and the response ends."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        started = False
+
+        async def sending(message):
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+        try:
+            await self.app(scope, receive, sending)
+        except Exception as e:  # noqa: BLE001 - the one place an unexpected error ends: logged, then a 500
+            route = scope.get("route")
+            log.failure(f"web {scope.get('method', '')} {getattr(route, 'path', 'a route')}", e)
+            if started:
+                return
+            body = json.dumps(error_body(500, INTERNAL)).encode()
+            await send({"type": "http.response.start", "status": 500,
+                        "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+            await send({"type": "http.response.body", "body": body})
+
+
 class _BodyLimit:
     """No request body over its route's limit reaches the app, or the server's memory (pure ASGI, so a stream is
     untouched): a declared Content-Length over it is refused at once, and a body sent in chunks is read only up to
@@ -310,7 +364,7 @@ class _BodyLimit:
 
     @staticmethod
     async def _refuse(send, words: str) -> None:
-        body = json.dumps({"detail": words}).encode()
+        body = json.dumps(error_body(413, words)).encode()
         await send({"type": "http.response.start", "status": 413,
                     "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
         await send({"type": "http.response.body", "body": body})
@@ -468,7 +522,7 @@ def folder_from_zip(data: bytes) -> tuple[dict[str, bytes], int]:
 def _refused(status: int, message: str, field: str) -> JSONResponse:
     """A refusal about one box of a form: `detail` says why, as every refusal does, and `field` names the box (the
     request's own key: "username", "password", "current", "new"), so the page can say it there."""
-    return JSONResponse({"detail": message, "field": field}, status)
+    return JSONResponse(error_body(status, message, field=field), status)
 
 
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
@@ -516,13 +570,19 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app = FastAPI(title=APP_NAME, lifespan=lifespan, docs_url=None, redoc_url=None,
                   openapi_url=None)
     app.add_middleware(_BodyLimit)
-    app.add_middleware(_Headers, secure=_secure(settings))   # added last, so it runs first: a 413 gets the security headers too
+    app.add_middleware(_Errors)
+    app.add_middleware(_Headers, secure=_secure(settings))   # added last, so it runs first: a 413 or 500 gets them too
 
     @app.exception_handler(RequestValidationError)
     def invalid(_request: Request, e: RequestValidationError):
         """422 without pydantic's `input` (and `ctx`), which would echo a key or a password."""
         errors = [{k: v for k, v in err.items() if k not in ("input", "ctx")} for err in e.errors()]
-        return JSONResponse({"detail": errors}, 422)
+        return JSONResponse(error_body(422, errors), 422)
+
+    @app.exception_handler(StarletteHTTPException)
+    def refused(_request: Request, e: StarletteHTTPException):
+        """Every HTTPException in the one shape (error_body)."""
+        return JSONResponse(error_body(e.status_code, e.detail), e.status_code, headers=getattr(e, "headers", None))
 
     # ---- dependencies ---------------------------------------------------------------------
 
@@ -650,7 +710,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             session_token = await anyio.to_thread.run_sync(work)
         except auth.Refused:
             if is_json:
-                return JSONResponse({"detail": "This link has expired or was already used."}, 410)
+                return JSONResponse(error_body(410, "This link has expired or was already used."), 410)
             return HTMLResponse(_refused_page(), 410, headers={"Cache-Control": "no-store"})
         r = RedirectResponse("/", status_code=303)
         r.set_cookie(COOKIE, session_token, max_age=settings.session_days * 86400, path="/",
@@ -888,8 +948,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         try:
             out = call(settings.engine_root, files, *args)
         except workouts.Refused as e:
-            raise HTTPException(404 if "no logged workout" in str(e) or "no script" in str(e) else 400,
-                                str(e)) from None
+            raise HTTPException({"not_found": 404, "failed": 502}.get(e.kind, 400), str(e)) from None
         if not change:
             return out
         with connection() as conn:
@@ -1249,7 +1308,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
                 raise HTTPException(429, "too many jobs waiting")
             job_id = jobs.enqueue(conn, uk, body.kind, args)   # commits, releasing the lock
-        return {"id": job_id}
+        return {"id": job_id, "job_id": job_id}   # job_id as every other route names it; id kept for older pages
 
     @app.post("/api/balances", status_code=202, **post)
     def post_balances(uk: User):
@@ -1285,7 +1344,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 raise HTTPException(404, "no such job") from None
             finally:
                 conn.rollback()
-        return {"id": job_id, "state": st["state"], "error": st["error"], "code": codes.of_error(st["error"]),
+        return {"id": job_id, "state": st["state"], "error": st["error"], "code": codes.of_status(st),
                 "result": res}
 
     @app.get("/api/jobs/{job_id}/events")
@@ -1372,7 +1431,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                 conn.rollback()
         if providers.pick(settings.providers, have, chosen) is None:
             name = providers.PROVIDERS[chosen if chosen in settings.providers else settings.providers[0]].name
-            return JSONResponse({"detail": f"Add a key for {name} in Settings first.", "code": codes.NO_KEY_CODE}, 409)
+            return JSONResponse(error_body(409, f"Add a key for {name} in Settings first.", code=codes.NO_KEY_CODE), 409)
         later = later_from(body.start_at)
         with turn_transaction(uk) as conn:
             cid = conversations.create(conn, uk, body.line, later)
@@ -1578,7 +1637,7 @@ async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey
                     last_sent = time.monotonic()
                     yield f"id: {event_id}\ndata: {json.dumps(body)}\n\n"
                 if st["state"] in ("done", "failed"):
-                    end = {"state": st["state"], "error": st["error"], "code": codes.of_error(st["error"])}
+                    end = {"state": st["state"], "error": st["error"], "code": codes.of_status(st)}
                     yield f"event: state\ndata: {json.dumps(end)}\n\n"
                     return
             notified = await run(wait, min(WAIT_SLICE, POLL_EVERY, KEEP_ALIVE))

@@ -17,6 +17,12 @@ def key_refused(name: str) -> str:
     return f"{name}{KEY_REFUSED}"
 
 
+def of_status(status: dict) -> str | None:
+    """The code for a job as jobs.status reads it: the one stored beside its error (0.76.0), else, for a job failed
+    before that, the one its words imply."""
+    return status.get("code") or of_error(status.get("error"))
+
+
 def of_error(error: str | None) -> str | None:
     """The code for a job's error, when the page has something to offer for it (Open Settings): "no_model_key" or
     "key_refused"; None for every other error."""

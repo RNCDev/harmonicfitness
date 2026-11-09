@@ -121,7 +121,9 @@ class SignIn(ApiCase):
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/context").json()])
         r = self.register("FRESH.ONE", client=self.other_client())
         self.assertEqual(r.status_code, 409)
-        self.assertEqual(r.json(), {"detail": "That username is taken.", "field": "username"})
+        self.assertEqual(r.json(), {"detail": "That username is taken.", "field": "username",
+                                    "error": {"code": "conflict", "message": "That username is taken.",
+                                              "field": "username"}})
         r = self.register("pw", "short", client=self.other_client())
         self.assertEqual((r.status_code, r.json()["field"]), (400, "username"))   # the name is checked first
         r = self.register("another.one", "short", client=self.other_client())
@@ -1257,7 +1259,8 @@ class BodyLimit(ApiCase):
 
     def test_a_declared_length_over_the_limit_is_refused_before_the_route(self):
         r = self.client.post("/api/link/redeem", content=b"x" * 70_000, headers=self.origin())
-        self.assertEqual((r.status_code, r.json()), (413, {"detail": "That request is too large."}))
+        self.assertEqual((r.status_code, r.json()["detail"], r.json()["error"]["code"]),
+                         (413, "That request is too large.", "too_large"))
         self.assertEqual(r.headers["x-content-type-options"], "nosniff")
 
     def test_a_chunked_body_is_read_only_up_to_the_limit(self):
@@ -1284,6 +1287,42 @@ class BodyLimit(ApiCase):
         r = self.client.post("/api/link/redeem", content=f"token={t}".encode(), follow_redirects=False,
                              headers={**self.origin(), "Content-Type": "application/x-www-form-urlencoded"})
         self.assertEqual(r.status_code, 303)
+
+
+class Errors(ApiCase):
+    """Every refusal in one shape, and an unexpected error never shows what it held (0.76.0)."""
+
+    def test_each_refusal_has_the_same_shape(self):
+        for r, status, code in ((self.client.get("/api/me"), 401, "not_signed_in"),
+                                (self.client.get("/api/nothing-here"), 404, "not_found"),
+                                (self.client.post("/api/sign-in", json={"username": 1}, headers=self.origin()),
+                                 422, "invalid"),
+                                (self.client.post("/api/sign-in", json={}), 403, "forbidden")):
+            with self.subTest(status=status):
+                self.assertEqual(r.status_code, status)
+                body = r.json()
+                self.assertIn("detail", body)
+                self.assertEqual(body["error"]["code"], code)
+                self.assertIsInstance(body["error"]["message"], str)
+
+    def test_an_unexpected_error_is_a_500_that_says_nothing_it_held(self):
+        self.signed_in()
+        with mock.patch.object(api.worker, "clean_key", side_effect=RuntimeError("sk-the-listener-key-1234")), \
+                mock.patch("sys.stderr") as err:
+            r = self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
+        self.assertEqual(r.status_code, 500)
+        self.assertEqual(r.json()["error"]["code"], "internal")
+        logged = "".join(str(c) for c in err.mock_calls)
+        self.assertIn("RuntimeError [", logged)
+        self.assertNotIn("sk-the-listener-key", logged + r.text)
+        self.assertEqual(r.headers["x-content-type-options"], "nosniff")
+
+    def test_a_job_post_names_its_job_as_every_route_does(self):
+        self.signed_in()
+        r = self.client.post("/api/jobs", json={"kind": "brief", "goal": "strength", "minutes": 20,
+                                                "preset": "bodyweight", "today": today()}, headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        self.assertEqual(r.json()["id"], r.json()["job_id"])
 
 
 class Media(ApiCase):

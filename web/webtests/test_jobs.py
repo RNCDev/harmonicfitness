@@ -990,6 +990,7 @@ class Turn(JobsCase):
         state, error = self.state(job)
         self.assertEqual(state, "failed")
         self.assertIn("Claude refused the key", error)
+        self.assertEqual(jobs.status(self.conn, uk, job)["code"], "key_refused")   # stored beside the words (0.76.0)
         self.assertEqual(conv.state, "failed")
         self.assertIn("Claude refused the key", conv.lines[-1]["text"])
         stored = repr((error, conv.lines, jobs.result(self.conn, uk, job), err.mock_calls))
