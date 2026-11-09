@@ -1430,3 +1430,44 @@ class StepTimes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class History(unittest.TestCase):
+    """What a turn saves of the model's side (0.76.0): no instructions, and a long conversation's old results short."""
+
+    def messages(self, results: int, size: int):
+        from pydantic_ai.messages import (ModelRequest, ModelResponse, TextPart, ToolCallPart, ToolReturnPart,
+                                          UserPromptPart)
+        out = []
+        for i in range(results):
+            out += [ModelRequest(parts=[UserPromptPart(content=f"turn {i}")], instructions="I" * 50_000),
+                    ModelResponse(parts=[ToolCallPart("run", {"args": ["brief"]}, tool_call_id=f"c{i}")]),
+                    ModelRequest(parts=[ToolReturnPart("run", "B" * size, tool_call_id=f"c{i}")],
+                                 instructions="I" * 50_000),
+                    ModelResponse(parts=[TextPart(f"done {i}")])]
+        return out
+
+    def test_the_instructions_are_never_saved(self):
+        from webapp import agent as agent_mod
+        kept = agent_mod.compact(self.messages(2, 100), earlier=4)
+        dumped = agent_mod.ModelMessagesTypeAdapter.dump_json(kept)
+        self.assertNotIn(b"IIIII", dumped)
+        self.assertEqual(len(kept), 8)
+        self.assertEqual(agent_mod._usable(agent_mod.ModelMessagesTypeAdapter.validate_json(dumped)), kept)
+
+    def test_a_long_conversation_keeps_this_turn_whole_and_shortens_earlier_results(self):
+        from pydantic_ai.messages import ToolReturnPart
+        from webapp import agent as agent_mod
+        messages = self.messages(6, 90_000)
+        kept = agent_mod.compact(messages, earlier=20)   # five earlier turns, and this one
+        returns = [p for m in kept for p in getattr(m, "parts", []) if isinstance(p, ToolReturnPart)]
+        self.assertEqual(len(returns), 6)                                # every call still has its result
+        self.assertTrue(all(r.content.startswith("(an earlier result of 90,000") for r in returns[:5]))
+        self.assertEqual(returns[5].content, "B" * 90_000)              # this turn's, whole
+        self.assertLess(len(agent_mod.ModelMessagesTypeAdapter.dump_json(kept)), 110_000)   # this turn and little else
+
+    def test_a_short_conversation_keeps_every_result(self):
+        from pydantic_ai.messages import ToolReturnPart
+        from webapp import agent as agent_mod
+        kept = agent_mod.compact(self.messages(3, 5_000), earlier=8)
+        self.assertTrue(all(p.content == "B" * 5_000 for m in kept for p in getattr(m, "parts", [])
+                            if isinstance(p, ToolReturnPart)))

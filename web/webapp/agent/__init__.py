@@ -977,6 +977,33 @@ def _usable(history):
     return history if called <= returned else None
 
 
+# Past this many characters of saved history, earlier turns' long tool results are shortened (0.76.0)
+HISTORY_MOST = 400_000
+LONG_RESULT = 2_000   # a tool result longer than this, from an earlier turn, is what gets shortened
+LEFT_OUT = "(an earlier result of {n:,} characters, left out to keep the conversation short: run it again if needed)"
+
+
+def compact(messages: list, earlier: int) -> list:
+    """The history as it is saved (0.76.0). Every request's instructions are dropped: each run sends its own, and
+    kept they were the whole instructions again for every model request, a megabyte or two a workout. Once the rest
+    passes HISTORY_MOST characters, the long tool results of turns before this one (messages[:earlier]) are
+    shortened to a line saying so; this turn's are kept whole, and every call keeps its result, so the history
+    stays one a model can go on from."""
+    out = [replace(m, instructions=None) if isinstance(m, ModelRequest) and m.instructions else m
+           for m in messages]
+    if len(ModelMessagesTypeAdapter.dump_json(out)) <= HISTORY_MOST:
+        return out
+
+    def shorter(m):
+        if not isinstance(m, ModelRequest):
+            return m
+        parts = [replace(p, content=LEFT_OUT.format(n=len(text)))
+                 if isinstance(p, ToolReturnPart) and len(text := str(p.content)) > LONG_RESULT else p
+                 for p in m.parts]
+        return replace(m, parts=parts)
+    return [shorter(m) for m in out[:earlier]] + out[earlier:]
+
+
 def native_tools(model) -> list:
     """The writer's web search, where its model supports it; none for a model that doesn't (a test's own)."""
     try:
@@ -1045,4 +1072,6 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     searches = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts) + deps.room_searches
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,
              "output_tokens": u.output_tokens, "searches": searches}
-    return TurnOutcome(history_json=result.all_messages_json().decode("utf-8"), reply=result.output, usage=usage)
+    kept = compact(result.all_messages(), len(history or ()))
+    return TurnOutcome(history_json=ModelMessagesTypeAdapter.dump_json(kept).decode("utf-8"), reply=result.output,
+                       usage=usage)
