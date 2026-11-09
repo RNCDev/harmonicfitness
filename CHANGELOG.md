@@ -24,7 +24,7 @@ A shorter road to the first workout, and a private podcast feed. Five ready-made
   - They're made for no one, so the opening and the list say they aren't adapted to any injury.
   - `ready` lists them, and `ready file <slug>` fetches one into `me/workouts/.ready/`, checked against `knowledge/ready.json` (`--deliver` copies it to the delivery folders).
   - The maintainer's `ready publish` and `ready upload` put the whole set on the media bucket as `ready/v<version>/` and write `knowledge/ready.json` and `web/client/src/ready.json`.
-  - On the web they're listed on the welcome card, before any key, and on a new listener's first screen (`zones/Ready.tsx`).
+  - On the web they're listed on the sign-in page (no account needed, below the demo clips), on the welcome card before any key, and on a new listener's first screen (`zones/Ready.tsx`).
   - Locally, setup offers one while the download runs.
 - `doctor` says when the take checker is downloading.
 - `ROADMAP.md`: smarter workouts (closing the loop after each workout, training blocks, feedback that sticks), music, tuning (still to be shaped), and later ideas.
@@ -37,6 +37,7 @@ A shorter road to the first workout, and a private podcast feed. Five ready-made
 - A build on a computer where the local engine is still installing says so, instead of failing on an import.
 
 ### Fixed
+- **Long ElevenLabs builds no longer stop partway** (`cloud.audio_pcm`). A reply was taken for an error message whenever its first byte was `{`, `[` or `<`, but raw PCM can start with any byte, so about one line in eighty-five was refused. A full-length workout almost always met one, and stopped with "the service answered with text, not audio". Now a reply counts as a message only when it reads whole as JSON or a web page; a reply typed as text is still refused by its type.
 - The web welcome card no longer calls Gemini's key free: it says Google asks for 5 USD of prepaid credit, as the setup skill does.
 - The web agent no longer says an MP3 is kept 24 hours: the site keeps the three newest workouts, and the agent points to the podcast feed for the phone.
 

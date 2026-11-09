@@ -2,6 +2,7 @@
 // for a password when an account has none (one from before passwords, or after a reset link).
 import { useEffect, useState } from "react";
 import { Demos } from "./Demos";
+import { ReadyWorkouts } from "./Ready";
 import { api } from "../lib/api";
 import { Quiet, useAction } from "../lib/useAction";
 import { useChecked } from "../lib/useChecked";
@@ -48,7 +49,8 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   };
 
   return (
-    <Solo version={version} beside={<Demos />}>
+    <Solo version={version} beside={<div className="solo-beside"><Demos />
+      <ReadyWorkouts intro="Or press play on a full workout: no account needed" /></div>}>
       <h1>{fresh ? "Make an account" : "Sign in"}</h1>
       <form className="auth" onSubmit={(e) => form.submit(e, () => void go.run())} noValidate>
         <Field id="signin-username" label="Username" error={nameWrong ?? go.errorFor("username")}

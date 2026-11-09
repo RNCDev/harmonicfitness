@@ -12,8 +12,8 @@
 # movement, and its opening says plainly that it isn't adapted to injuries: skip anything that hurts.
 
 version = 1            # raise by one each time the set is re-made; the published list carries it
-built = ""             # the day the set was built
-engine = ""            # the engine's VERSION it was built with
+built = "2026-11-09"   # the day the set was built
+engine = "0.74.0"      # the engine's VERSION it was built with
 service = "elevenlabs"
 model = "eleven_v4"    # as the demos: ElevenLabs's more natural model, never eleven_v4_turbo
 bucket = "harmonicfitness-media"   # ready/v<version>/<slug>.mp3 on the app's public Fly (Tigris) bucket

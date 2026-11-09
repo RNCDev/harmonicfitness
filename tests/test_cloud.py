@@ -1392,6 +1392,22 @@ class AudioProof(unittest.TestCase):
         self.refused(pcm, expect="wav", content_type="audio/wav")
         self.refused(b"\x1f\x8b\x08\x00" + bytes(20000), expect="wav")   # gzip
 
+    def test_raw_pcm_that_starts_like_text_is_still_audio(self):
+        """Raw samples begin with any byte: { [ < and spaces included. Only a reply that reads whole as JSON or a
+        page, or is typed as text, is a message (the first-byte test this replaced stopped long ElevenLabs builds)."""
+        pcm = tone_pcm(0.3)
+        for first in (b"{", b"[", b"<", b" \n{", b"[ o\x00j\x00j\x00"):
+            data = first + pcm[len(first):]
+            self.assertEqual(cloud.audio_pcm(data, expect="pcm", content_type="audio/pcm"), data, first)
+            self.assertEqual(cloud.audio_pcm(data, expect="pcm", content_type=None), data, first)
+        self.assertIn("quota", self.refused(b'{"detail": {"message": "quota exceeded"}}', expect="pcm",
+                                            content_type="audio/pcm"))
+        self.refused(b"[1, 2, 3]", expect="pcm")
+        self.refused(b"<!DOCTYPE html><html><body>Bad gateway</body></html>", expect="pcm")
+        self.refused(b"<html><body>502</body></html>", expect="pcm", content_type="application/octet-stream")
+        self.refused(b"Service unavailable", expect="pcm", content_type="text/plain")
+        self.refused(b'{"error": "x"}', expect="wav", content_type="application/json")
+
     def test_a_broken_wav_is_the_services_fault_not_a_crash(self):
         eight_bit = bytearray(tone_wav(0.3))
         at = eight_bit.find(b"fmt ")

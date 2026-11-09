@@ -424,6 +424,28 @@ def _raw_ok(content_type):
     return content_type is None or content_type.startswith("audio/") or content_type == "application/octet-stream"
 
 
+def _is_text(data):
+    """Whether a reply is a message rather than audio: it reads whole as JSON or as a page. Raw PCM starts with any
+    byte at all ({, [ and < included), so a first byte proves nothing; a first-byte test once refused about one
+    ElevenLabs line in eighty-five, enough to stop most full-length workouts partway. (A reply typed as text that
+    isn't JSON or a page is refused below, by its type.)"""
+    head = data[:64].lstrip()
+    if head[:1] not in (b"{", b"[", b"<"):
+        return False
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    if head[:1] == b"<":
+        lower = text.lstrip()[:200].lower()
+        return lower.startswith(("<!doctype", "<html", "<?xml", "<error", "<body")) or "</" in text[:4096]
+    try:
+        json.loads(text)
+    except ValueError:
+        return False
+    return True
+
+
 def audio_pcm(data, rate_hint=SR, service=None, *, expect="wav", content_type=None):
     """16-bit mono PCM at 24 kHz from what a service sent, proven to be audio. `expect` is what was asked for:
     "wav", "mp3" or "pcm" (raw 16-bit mono at rate_hint); `content_type` the reply's (content_type(headers)),
@@ -431,8 +453,7 @@ def audio_pcm(data, rate_hint=SR, service=None, *, expect="wav", content_type=No
     taken only when raw PCM was asked for and the reply is typed as audio or bytes. Anything else (text, a
     compressed or cut-off stream, a WAV that can't be read, under MIN_AUDIO of sound) raises ServiceError:
     never cached as noise, paid for once and replayed in every build."""
-    head = data[:64].lstrip()
-    if not data or head[:1] in (b"{", b"[", b"<"):
+    if not data or _is_text(data):
         raise ServiceError("bad_request", service, "the service answered with text, not audio: "
                            + _message(data)[:200] if data else "the service answered with no audio")
     if data[:4] == b"RIFF":

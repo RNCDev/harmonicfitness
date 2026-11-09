@@ -12,7 +12,7 @@
 
 /* the sign-in page: the demos in the wide column, the form beside them (stacked under them on a phone) */
 .solo.solo-pair { margin: 0; max-width: 1360px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-6h) clamp(var(--s-6h), 6vw, var(--s-9)) }
-.solo-pair .demos { flex: 999 1 520px; min-width: 0 }
+.solo-pair .solo-beside { flex: 999 1 520px; min-width: 0 }   /* the demos, then the ready-made workouts */
 .solo-pair .solo-task { flex: 1 1 300px; max-width: 380px; padding-top: var(--s-1h) }
 .solo-pair h1 { font-size: var(--fs-hero-pair) }
 
