@@ -1,0 +1,61 @@
+{
+ "version": 1,
+ "url": "https://harmonicfitness-media.fly.storage.tigris.dev",
+ "workouts": [
+  {
+   "slug": "ready-full-body",
+   "order": 1,
+   "title": "Full body",
+   "kind": "full-body workout",
+   "coach": "Coach Bea",
+   "minutes": 30,
+   "about": "Every major muscle, a steady build and an easy finish: the best first one.",
+   "bytes": 21623427,
+   "sha256": "459c5dba3ed8b4625c25f872015bb788ea6ceea870e228ed7f05fef45233519d"
+  },
+  {
+   "slug": "ready-strength",
+   "order": 2,
+   "title": "Strength",
+   "kind": "strength workout",
+   "coach": "Coach Desmond",
+   "minutes": 30,
+   "about": "Legs, push and pull with a chair: slow, controlled sets that leave you stronger.",
+   "bytes": 21702054,
+   "sha256": "d6225c15e6575451ed9158df2cae7563af12d623ad6601b515adbb0f7cb80d3f"
+  },
+  {
+   "slug": "ready-cardio",
+   "order": 3,
+   "title": "Cardio",
+   "kind": "cardio workout",
+   "coach": "Coach Desmond",
+   "minutes": 30,
+   "about": "Get your heart rate up with no jumping: intervals that suit any room.",
+   "bytes": 21442564,
+   "sha256": "4993217c1544ccfd3c9dbbd06249913334112e22f2681eabf50dd6d5e394c789"
+  },
+  {
+   "slug": "ready-mobility",
+   "order": 4,
+   "title": "Mobility",
+   "kind": "mobility session",
+   "coach": "Coach Priya",
+   "minutes": 30,
+   "about": "Hips, back and shoulders, slowly: for a stiff day, or after sitting too long.",
+   "bytes": 22228516,
+   "sha256": "85cfac5f3933ebd7b2534423c00d5b15c10584e9566fb095ebf74a82fe07fae4"
+  },
+  {
+   "slug": "ready-core",
+   "order": 5,
+   "title": "Core",
+   "kind": "core workout",
+   "coach": "Coach Priya",
+   "minutes": 30,
+   "about": "A strong middle, from the inside out: bracing, holding and turning, kind to the back.",
+   "bytes": 21715296,
+   "sha256": "2979bdca7aa774f921622c07d4b6fd2b1028f8c904a660034cb5733d13ae2af3"
+  }
+ ]
+}
