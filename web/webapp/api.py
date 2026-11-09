@@ -278,6 +278,75 @@ class _Headers:
         await self.app(scope, receive, sending)
 
 
+IMPORT_MAX_ZIP = 10_000_000      # bytes of ZIP
+IMPORT_MAX_FILE = 2_000_000      # bytes of one file, unpacked
+IMPORT_MAX_TOTAL = 30_000_000    # bytes of every file, unpacked
+IMPORT_MAX_FILES = 2_000
+
+
+class _BodyLimit:
+    """No request body over its route's limit reaches the app, or the server's memory (pure ASGI, so a stream is
+    untouched): a declared Content-Length over it is refused at once, and a body sent in chunks is read only up to
+    it, then 413. A body within the limit is handed on as it came. Requests without a body (GET, HEAD, a stream)
+    pass straight through."""
+
+    DEFAULT = 64_000
+    TOO_LARGE = "That request is too large."
+    # path -> (bytes, the refusal's words); everything else takes DEFAULT
+    LIMITS = {
+        "/api/import": (IMPORT_MAX_ZIP, f"That ZIP is over {IMPORT_MAX_ZIP // 1_000_000} MB."),
+        # base64 of IMPORT_MAX_TOTAL, with the JSON around it
+        "/api/sync/write": (IMPORT_MAX_TOTAL * 4 // 3 + 2_000_000,
+                            f"Over {IMPORT_MAX_TOTAL // 1_000_000} MB in one sync; send it in parts."),
+        "/api/sync/read": (512_000, TOO_LARGE),   # up to 500 paths of 400 characters
+    }
+
+    def __init__(self, app):
+        self.app = app
+
+    @staticmethod
+    async def _refuse(send, words: str) -> None:
+        body = json.dumps({"detail": words}).encode()
+        await send({"type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") in ("GET", "HEAD", "OPTIONS"):
+            return await self.app(scope, receive, send)
+        limit, words = self.LIMITS.get(scope.get("path", ""), (self.DEFAULT, self.TOO_LARGE))
+        declared = dict(scope.get("headers") or []).get(b"content-length")
+        try:
+            if declared is not None and int(declared) > limit:
+                return await self._refuse(send, words)
+        except ValueError:
+            return await self._refuse(send, words)
+        parts, size = [], 0
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":   # the client went away: let the app see it
+                parts = None
+                break
+            chunk = message.get("body", b"")
+            size += len(chunk)
+            if size > limit:
+                return await self._refuse(send, words)
+            parts.append(chunk)
+            if not message.get("more_body"):
+                break
+        if parts is None:
+            return await self.app(scope, receive, send)
+        body, sent = b"".join(parts), False
+
+        async def replay():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+        await self.app(scope, replay, send)
+
+
 def _link_page(token: str) -> str:
     t = html.escape(token, quote=True)
     title = html.escape(f"Sign in to {APP_NAME}")
@@ -340,12 +409,6 @@ def _byte_range(header: str | None, size: int):
         return None
     end = min(end, size - 1)
     return () if start > end or start >= size else (start, end)
-
-
-IMPORT_MAX_ZIP = 10_000_000      # bytes of ZIP
-IMPORT_MAX_FILE = 2_000_000      # bytes of one file, unpacked
-IMPORT_MAX_TOTAL = 30_000_000    # bytes of every file, unpacked
-IMPORT_MAX_FILES = 2_000
 
 
 def folder_from_zip(data: bytes) -> tuple[dict[str, bytes], int]:
@@ -448,7 +511,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     app = FastAPI(title=APP_NAME, lifespan=lifespan, docs_url=None, redoc_url=None,
                   openapi_url=None)
-    app.add_middleware(_Headers)
+    app.add_middleware(_BodyLimit)
+    app.add_middleware(_Headers)   # added last, so it runs first: a 413 gets the security headers too
 
     @app.exception_handler(RequestValidationError)
     def invalid(_request: Request, e: RequestValidationError):

@@ -1244,6 +1244,40 @@ class Import(ApiCase):
         self.assertEqual((r.status_code, r.json()["detail"]), (400, "That isn't a ZIP file."))
 
 
+class BodyLimit(ApiCase):
+    """No body over its route's limit is read into memory (0.76.0)."""
+
+    def test_a_declared_length_over_the_limit_is_refused_before_the_route(self):
+        r = self.client.post("/api/link/redeem", content=b"x" * 70_000, headers=self.origin())
+        self.assertEqual((r.status_code, r.json()), (413, {"detail": "That request is too large."}))
+        self.assertEqual(r.headers["x-content-type-options"], "nosniff")
+
+    def test_a_chunked_body_is_read_only_up_to_the_limit(self):
+        def chunks():
+            for _ in range(20):
+                yield b"x" * 10_000
+        r = self.client.post("/api/link/redeem", content=chunks(), headers=self.origin())
+        self.assertEqual(r.status_code, 413)
+
+    def test_the_import_keeps_its_own_words(self):
+        self.signed_in()
+        r = self.client.post("/api/import", content=b"x" * (api.IMPORT_MAX_ZIP + 1), headers=self.origin())
+        self.assertEqual((r.status_code, r.json()["detail"]), (413, "That ZIP is over 10 MB."))
+
+    def test_the_largest_sync_read_still_fits(self):
+        self.signed_in()
+        paths = [f"workouts/{i:03d}/" + "a" * 380 + ".md" for i in range(500)]
+        r = self.client.post("/api/sync/read", json={"paths": paths}, headers=self.origin())
+        self.assertEqual(r.status_code, 200, r.text)
+
+    def test_a_body_within_the_limit_reaches_the_route_whole(self):
+        user_id, _ = self.make_user()
+        t = token_of(auth.device_link(self.conn, self.settings, user_id).url)
+        r = self.client.post("/api/link/redeem", content=f"token={t}".encode(), follow_redirects=False,
+                             headers={**self.origin(), "Content-Type": "application/x-www-form-urlencoded"})
+        self.assertEqual(r.status_code, 303)
+
+
 class Media(ApiCase):
     MP3 = bytes(range(256)) * 40
 
