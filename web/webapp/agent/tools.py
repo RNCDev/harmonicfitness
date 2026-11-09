@@ -274,8 +274,11 @@ FETCHERS = frozenset({"feeds", "topics", "youtube", "content"})
 
 
 def _keys(deps: Deps, argv: list[str]) -> dict:
-    """The listener's keys for an engine command's environment: none for a command that fetches pages."""
-    return {} if argv and argv[0] in FETCHERS else deps.keys
+    """The listener's keys for an engine command's environment: none for a command that fetches pages, which keeps
+    only the listener's clock (TZ), for today's date."""
+    if argv and argv[0] in FETCHERS:
+        return {k: v for k, v in deps.keys.items() if k == "TZ"}
+    return deps.keys
 
 
 def _plain_run(deps: Deps, argv: list[str]) -> ToolResult:

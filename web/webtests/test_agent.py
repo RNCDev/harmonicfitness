@@ -87,14 +87,14 @@ class Run(AgentCase):
         self.assertNotIn(os.path.realpath(self.home), r.output + r.error)
 
     def test_a_command_that_fetches_pages_gets_no_key(self):
-        self.deps.keys = {"FISH_AUDIO_API_KEY": "k" * 20}
+        self.deps.keys = {"FISH_AUDIO_API_KEY": "k" * 20, "TZ": "LCL-5"}
         with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "", "")) as run:
             for args in (["topics", "add", "F1", "--feed", "https://example.org/feed"], ["youtube", "abc"],
                          ["content", "plan"], ["check"]):
                 tools.run(self.deps, args)
         envs = {c.args[2][0]: c.kwargs["extra_env"] for c in run.call_args_list}
-        self.assertEqual((envs["topics"], envs["youtube"], envs["content"]), ({}, {}, {}))
-        self.assertEqual(envs["check"], {"FISH_AUDIO_API_KEY": "k" * 20})
+        self.assertEqual((envs["topics"], envs["youtube"], envs["content"]), ({"TZ": "LCL-5"},) * 3)   # the clock only
+        self.assertEqual(envs["check"], {"FISH_AUDIO_API_KEY": "k" * 20, "TZ": "LCL-5"})
 
     def test_leading_wrapper_is_forgiven(self):
         self.assertIn(tools.run(self.deps, ["./harmonicfitness", "check"]).code, (0, 1))

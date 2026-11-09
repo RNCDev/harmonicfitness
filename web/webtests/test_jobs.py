@@ -2,6 +2,8 @@ import datetime
 import json
 import os
 import sys
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -407,11 +409,35 @@ class LostJobs(JobsCase):
         def broken():
             raise psycopg.OperationalError("no route")
 
-        with mock.patch("sys.stderr"):
+        hold = threading.Event()
+        real = worker.engine.run
+
+        def slow_brief(*a, **k):   # the job outlasts every heartbeat try
+            hold.wait(1)
+            return real(*a, **k)
+        with mock.patch("sys.stderr"), mock.patch.object(worker, "HEARTBEAT_RETRY_WAIT", 0.05), \
+                mock.patch.object(worker.engine, "run", side_effect=slow_brief):
             job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(worker.run_one(self.conn, self.settings, connect=broken))
         self.assertEqual(set(store.read_all(self.conn, uk)), before)
         self.assertEqual(self.state(job), ("failed", "interrupted"))
+        self.conn.rollback()
+
+    def test_a_heartbeat_that_fails_once_is_tried_again(self):
+        _, uk = self.seeded_user()
+        tries = []
+        real = self.connect
+
+        def flaky():
+            tries.append(1)
+            if len(tries) == 1:
+                raise psycopg.OperationalError("a moment's outage")
+            return real()
+        with mock.patch("sys.stderr"), mock.patch.object(worker, "HEARTBEAT_RETRY_WAIT", 0.05), \
+                mock.patch.object(worker, "HEARTBEAT_EVERY", 0.1):
+            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            self.assertTrue(worker.run_one(self.conn, self.settings, connect=flaky))
+        self.assertEqual(self.state(job), ("done", None))
         self.conn.rollback()
 
     def test_hung_heartbeat_connect_never_blocks(self):
@@ -968,7 +994,7 @@ class Turn(JobsCase):
         real = worker.engine.run
 
         def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
-            seen.append(dict(extra_env))
+            seen.append((argv[0], dict(extra_env)))
             return real(root, home, argv, extra_env=extra_env, timeout=timeout)
 
         def script(messages, info):
@@ -984,8 +1010,12 @@ class Turn(JobsCase):
         # step 1 up front (5 runs and the route), then the model's two; and the story writer, which starts as the brief
         # is saved (its content plan and feeds), when it gets that far before the turn ends
         self.assertGreaterEqual(len(seen), 2 + 6)
-        for env in seen:   # the voice key, and the listener's clock (TZ): never the model's key
-            self.assertEqual({k: v for k, v in env.items() if k != "TZ"}, {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})
+        from webapp.agent import tools as agent_tools
+        for command, env in seen:   # the voice key, and the listener's clock (TZ): never the model's key
+            # and no key at all for a command that fetches pages (0.76.0)
+            want = {} if command in agent_tools.FETCHERS else {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"}
+            self.assertIn("TZ", env, command)
+            self.assertEqual({k: v for k, v in env.items() if k != "TZ"}, want, command)
             self.assertRegex(env.get("TZ", ""), r"^LCL[+-]\d+(:\d\d)?$")
             self.assertNotIn(MODEL_KEY, env.values())
         self.conn.rollback()
@@ -1298,3 +1328,78 @@ class Clock(unittest.TestCase):
         self.assertEqual(worker.listener_zone("2026-11-02 Monday 03:16", utc), "LCL-9")      # Tokyo, the next day
         for bad in ("soon", "2026-11-01 13:16", "2026-11-05 Thursday 13:16", None):
             self.assertIsNone(worker.listener_zone(bad, utc), bad)
+
+
+class Resilience(JobsCase):
+    """0.76.0: what a job made survives a dropped connection, events never commit the job's own work, a deploy stops a
+    job cleanly, and the main lane outlives an unexpected error."""
+
+    def handler(self, fn):
+        patch = mock.patch.dict(worker.HANDLERS, {"brief": fn})
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_a_job_whose_connection_dropped_is_still_finished_and_saved(self):
+        _, uk = self.seeded_user()
+
+        def dropped(ctx):
+            ctx.conn.close()   # the database closed it mid-job, as it does now and then
+            ctx.retrying(lambda: (store.put(ctx.conn, ctx.uk, "notes/made.md", b"paid for"), ctx.conn.commit()))
+            ctx.save({}, {})
+            return {"ok": True}
+        self.handler(dropped)
+        main = self.connect()
+        self.addCleanup(main.close)
+        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        with mock.patch("sys.stderr"):
+            self.assertTrue(worker.run_one(main, self.settings, connect=self.connect))
+        self.assertEqual(self.state(job), ("done", None))   # done now, not reaped two minutes on
+        self.assertEqual(store.read_one(self.conn, uk, "notes/made.md")[1], b"paid for")
+        self.conn.rollback()
+
+    def test_a_progress_line_never_commits_the_job_s_own_work(self):
+        _, uk = self.seeded_user()
+
+        def half_done(ctx):
+            store.put(ctx.conn, ctx.uk, "notes/half.md", b"not yet")   # not committed
+            ctx.say("step", text="Working", failed=False)
+            ctx.conn.rollback()
+            return {"ok": True}
+        self.handler(half_done)
+        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        self.assertTrue(self.run_one())
+        self.assertIsNone(store.read_one(self.conn, uk, "notes/half.md"))
+        self.assertIn("step", [b["stage"] for _, b in jobs.events(self.conn, uk, job)])
+        self.conn.rollback()
+
+    def test_a_deploy_stops_a_long_job_cleanly(self):
+        _, uk = self.make_user()
+
+        def long(ctx):
+            ctx.cancel.wait(10)
+            raise worker.JobFailed(ctx.why_stopped())
+        self.handler(long)
+        stopping = threading.Event()
+        stopping.set()   # SIGTERM came in while it ran
+        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        with mock.patch("sys.stderr"), mock.patch.object(worker, "DRAIN_SECONDS", 0.2), \
+                mock.patch.object(worker, "STOP_POLL", 0.05):
+            began = time.monotonic()
+            self.assertTrue(worker.run_one(self.conn, self.settings, connect=self.connect, stopping=stopping))
+        self.assertLess(time.monotonic() - began, 5)
+        self.assertEqual(self.state(job), ("failed", worker.RESTARTED))
+        self.conn.rollback()
+
+    def test_the_main_lane_outlives_an_unexpected_error(self):
+        stopping = threading.Event()
+        runs = []
+
+        def serve(settings, stop, lane="main"):
+            runs.append(lane)
+            if len(runs) == 1:
+                raise KeyError("a bug")
+            stop.set()
+        with mock.patch.object(worker, "serve", side_effect=serve), mock.patch.object(worker, "RECONNECT_WAIT", 0), \
+                mock.patch("sys.stderr"):
+            worker._lane(self.settings, stopping, "main")
+        self.assertEqual(runs, ["main", "main"])

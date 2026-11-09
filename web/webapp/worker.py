@@ -9,6 +9,7 @@ HARMONICFITNESS_HOME at a folder that doesn't exist, so the engine's libraries n
 """
 import dataclasses
 import datetime
+import functools
 import importlib
 import json
 import os
@@ -30,6 +31,11 @@ import psycopg
 from . import clipcache, codes, config, conversations, db, engine, folder, jobs, keystore, media, providers, spend, store
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
+HEARTBEAT_TRIES = 3       # a heartbeat that fails is tried again on a new connection, this many tries in all
+HEARTBEAT_RETRY_WAIT = 5  # seconds between those tries: all of them well inside reap's 120
+# seconds a job may run on after the worker is told to stop (SIGTERM, a deploy) before it's stopped as Stop does:
+# fly.toml's kill_timeout (300) less a minute for it to end cleanly
+DRAIN_SECONDS = 240
 STOP_POLL = 2             # seconds between the heartbeat's looks for the listener's Stop
 CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
 JOIN_SLACK = 5            # seconds past CONNECT_TIMEOUT that stopping the heartbeat may wait
@@ -63,11 +69,71 @@ class Ctx:
     cancel: threading.Event = field(default_factory=threading.Event)   # the listener's Stop
     on_lost: Callable[[str], None] | None = None   # run with the job's error (then committed) when the handler returned but the job wasn't done
     started: dict = field(default_factory=dict, repr=False)   # {step id: when it started}: the log says how long each took
+    # opens another connection to the database (run_one's): job events get one of their own, and the job's work a
+    # fresh one when the database dropped the first (0.76.0). None (tests): events share `conn`, as before.
+    connect: Callable[[], Any] | None = field(default=None, repr=False)
+    events_conn: Any = field(default=None, repr=False)
+    events_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    # one user of `conn` at a time: the handler, a recording's reserve and checkpoint (run from the build's thread)
+    db_lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    opened: list = field(default_factory=list, repr=False)   # connections this job opened, closed by close()
+    lost: threading.Event = field(default_factory=threading.Event)      # the heartbeat lost the job: it was stopped
+    drained: threading.Event = field(default_factory=threading.Event)   # the worker's own stop stopped it
+
+    def why_stopped(self) -> str:
+        """The words for a job that `cancel` stopped: the listener's Stop, a lost heartbeat, or a deploy."""
+        return INTERRUPTED if self.lost.is_set() else RESTARTED if self.drained.is_set() else STOPPED
 
     def say(self, stage: str, **fields) -> None:
-        """A job event, committed now so a stream sees it live. It commits the connection's pending
-        work too, so a handler doesn't call it in the middle of a transaction of its own."""
-        jobs.event(self.conn, self.uk, self.job_id, {"stage": stage, **fields})
+        """A job event, committed now so a stream sees it live, on the events' own connection (autocommit), so it
+        never commits or rolls back the job's own work, from whichever thread says it. A dropped connection is
+        opened again once. Without `connect` (tests) it goes on `conn`, committing what's pending there."""
+        body = {"stage": stage, **fields}
+        if self.connect is None:
+            jobs.event(self.conn, self.uk, self.job_id, body)
+            return
+        with self.events_lock:
+            for attempt in (1, 2):
+                try:
+                    if self.events_conn is None or self.events_conn.closed:
+                        self.events_conn = self.connect()
+                        self.events_conn.autocommit = True
+                        self.opened.append(self.events_conn)
+                    jobs.event(self.events_conn, self.uk, self.job_id, body)
+                    return
+                except psycopg.OperationalError:
+                    _quietly_close(self.events_conn)
+                    self.events_conn = None
+            # a progress line never fails a job: what the job saves, it saves on its own connection
+            print(f"worker: job {self.job_id} couldn't send a progress line", file=sys.stderr, flush=True)
+
+    def fresh(self) -> None:
+        """The job's work on a new connection: the old one was dropped (the database closes one now and then)."""
+        if self.connect is None:
+            raise psycopg.OperationalError("no way to open another connection")
+        _quietly_close(self.conn)
+        self.conn = self.connect()
+        self.opened.append(self.conn)
+
+    def retrying(self, work: Callable[[], Any]) -> Any:
+        """`work` (which uses self.conn and commits), done again once on a fresh connection when the database dropped
+        the first: what a recording paid for is saved, not lost with the folder. `work` must be safe to repeat: each
+        save here writes over the versions it read, or upserts."""
+        with self.db_lock:
+            try:
+                return work()
+            except psycopg.OperationalError:
+                print(f"worker: job {self.job_id} lost the database mid-way; saving again on a new connection",
+                      file=sys.stderr, flush=True)
+                self.fresh()
+                return work()
+
+    def close(self) -> None:
+        """Close the connections this job opened (never run_one's own)."""
+        for c in self.opened:
+            _quietly_close(c)
+        self.opened.clear()
+        self.events_conn = None
 
     def key_env(self) -> dict[str, str]:
         """{key_var: value} for each of the user's keys whose service the engine knows, for a job's
@@ -84,6 +150,26 @@ class Ctx:
         """Files to write back to the store: run_one writes them in the same transaction that marks the
         job done, and only while it is still running, then says "saved" with the conflicts."""
         self.pending = (changes, base)
+
+
+def _quietly_close(conn) -> None:
+    try:
+        if conn is not None:
+            conn.close()
+    except Exception:  # noqa: BLE001 - closing a connection that's gone
+        pass
+
+
+def _quietly_rollback(conn) -> None:
+    """Roll back, when the connection still can: one the database dropped can't, and needn't."""
+    try:
+        conn.rollback()
+    except psycopg.Error:
+        pass
+
+
+def _usable(conn) -> bool:
+    return conn is not None and not conn.closed and not getattr(conn, "broken", False)
 
 
 # ---- the engine's own lists -------------------------------------------------------------------
@@ -352,6 +438,8 @@ ANSWER_NOT_OPEN = "that answer didn't match the open question; send a message in
 CANT_FINISH = "the coach stopped on a step it can't finish here; send a message to carry on"
 UNEXPECTED = "the job stopped unexpectedly"
 STOPPED = "you stopped it"
+INTERRUPTED = "interrupted"   # jobs.reap's word, and a lost heartbeat's
+RESTARTED = "the site restarted while it ran; send a message to carry on"   # a deploy stopped it (DRAIN_SECONDS)
 
 
 class _Stop(Exception):
@@ -399,6 +487,16 @@ def check_turn(args: dict) -> str | None:
     except _Stop as e:
         return e.message
     return None
+
+
+def _save_clips(ctx: Ctx, clips: dict) -> None:
+    """The recording's new clips kept, committed (rolled back when it fails, so it can be done again)."""
+    try:
+        clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
+        ctx.conn.commit()
+    except BaseException:
+        _quietly_rollback(ctx.conn)
+        raise
 
 
 def _agent_line(conv: conversations.Conversation, text: str) -> list:
@@ -512,20 +610,26 @@ def _keep_audio(ctx: Ctx, written: dict[str, str], done: set[str] | None = None)
     it), less those in `done` (kept
     already this turn; each kept one is added to it). Committed now, so the chat can link them as soon as
     the turn is saved."""
-    kept = []
+    kept, now = [], []
     done = set() if done is None else done
-    for path, name in new_audio(ctx.home, written):
-        if path in done:
-            continue
-        done.add(path)
-        with open(path, "rb") as f:
-            body = f.read(media.MAX_BYTES + 1)
-        try:
-            kept.append(media.put(ctx.conn, ctx.uk, name, body, _build_id(path)))
-        except ValueError:
-            continue
+    try:
+        for path, name in new_audio(ctx.home, written):
+            if path in done:
+                continue
+            now.append(path)
+            with open(path, "rb") as f:
+                body = f.read(media.MAX_BYTES + 1)
+            try:
+                kept.append(media.put(ctx.conn, ctx.uk, name, body, _build_id(path)))
+            except ValueError:
+                continue
+        if kept:
+            ctx.conn.commit()
+    except BaseException:   # nothing counted as kept: a retry (ctx.retrying) keeps them all again
+        _quietly_rollback(ctx.conn)
+        raise
+    done.update(now)
     if kept:
-        ctx.conn.commit()
         ctx.say("step", text="Your audio is ready", failed=False)
     return kept
 
@@ -658,13 +762,14 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
 
     def reserve(chars: int) -> bool:
         """Today's allowance, reserved for a recording made without the Record button (as its endpoint does)."""
-        try:
-            fits = spend.reserve(ctx.conn, ctx.uk, today, chars, spend.daily_cap())
-            ctx.conn.commit()
-            return fits
-        except Exception:  # noqa: BLE001 - then the Record button is offered, as without the setting
-            ctx.conn.rollback()
-            return False
+        with ctx.db_lock:
+            try:
+                fits = spend.reserve(ctx.conn, ctx.uk, today, chars, spend.daily_cap())
+                ctx.conn.commit()
+                return fits
+            except Exception:  # noqa: BLE001 - then the Record button is offered, as without the setting
+                _quietly_rollback(ctx.conn)
+                return False
     deps.reserve = reserve
     # re-recording pays only for changes; a turn that may record on its own needs them too
     clips = clipcache.load(ctx.conn, ctx.uk, ctx.home) if record or deps.auto_record else None
@@ -676,15 +781,23 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
 
     def checkpoint() -> None:
         """What the recording made, kept now (the files written back, the clips, the MP3), so a turn
-        that later stops or fails loses none of it: the coach designed for it, above all, paid for once."""
+        that later stops or fails loses none of it: the coach designed for it, above all, paid for once. A dropped
+        connection is opened again and the save made once more (ctx.retrying)."""
+        changes = folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK)
+
+        def save() -> set:
+            try:
+                got = set(store.write_back(ctx.conn, ctx.uk, changes, base))
+                if clips is not None:
+                    clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
+                ctx.conn.commit()
+                return got
+            except BaseException:
+                _quietly_rollback(ctx.conn)
+                raise
         try:
-            changes = folder.harvest(ctx.home, written, never=NEVER_WRITE_BACK)
-            conflicts = set(store.write_back(ctx.conn, ctx.uk, changes, base))
-            if clips is not None:
-                clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
-            ctx.conn.commit()
+            conflicts = ctx.retrying(save)
         except Exception as e:  # noqa: BLE001 - the turn's own save at the end tries again
-            ctx.conn.rollback()
             print(f"worker: job {ctx.job_id} checkpoint failed: {type(e).__name__}", file=sys.stderr)
             return
         for path, body in changes.items():   # what the end of the turn compares against from here on
@@ -698,7 +811,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                 base[path] = base.get(path, 0) + 1
         if clips is not None:
             clips.update(clipcache.current(ctx.home))
-        kept.extend(_keep_audio(ctx, written, kept_paths))
+        with ctx.db_lock:
+            kept.extend(ctx.retrying(lambda: _keep_audio(ctx, written, kept_paths)))
     deps.checkpoint = checkpoint
 
     def keep_clips() -> None:
@@ -707,10 +821,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         if clips is None:
             return
         try:
-            clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
-            ctx.conn.commit()
+            ctx.retrying(lambda: _save_clips(ctx, clips))
         except Exception as e:  # noqa: BLE001 - the turn has failed already; this only saves money next time
-            ctx.conn.rollback()
             print(f"worker: job {ctx.job_id} keeping clips failed: {type(e).__name__}", file=sys.stderr)
     ctx.say("thinking")
     # a history that's only the site's topics opener: the first turn that reads step 1, should it now be a workout
@@ -748,7 +860,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     except agent.TurnError as e:
         keep_clips()
         raise _Stop({agent.NOT_OPEN: ANSWER_NOT_OPEN, agent.TIMED_OUT: TOO_LONG,
-                     agent.STOPPED: STOPPED}.get(e.reason, CANT_FINISH)) from None
+                     agent.STOPPED: ctx.why_stopped()}.get(e.reason, CANT_FINISH)) from None
     except UsageLimitExceeded:
         keep_clips()
         raise _Stop(TOO_LONG) from None
@@ -760,10 +872,9 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed
 
     if clips is not None:
-        clipcache.save(ctx.conn, ctx.uk, ctx.home, clips)
-        ctx.conn.commit()
+        ctx.retrying(lambda: _save_clips(ctx, clips))
     lines = conv.lines if outcome.reply is None else _agent_line(conv, outcome.reply)
-    kept.extend(_keep_audio(ctx, written, kept_paths))
+    kept.extend(ctx.retrying(lambda: _keep_audio(ctx, written, kept_paths)))
     for audio in kept:
         lines = lines + [{"role": "agent", "text": "", "audio": audio}]
     later = conv.later
@@ -792,36 +903,75 @@ HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn, "bal
 # ---- the loop ---------------------------------------------------------------------------------
 
 class _Heartbeat(threading.Thread):
-    """Marks one job alive every HEARTBEAT_EVERY seconds, on a connection of its own. `lost` is set
-    when the job was no longer running or the heartbeat couldn't be written: the job may have been
-    reaped, so its files are not written back."""
+    """Marks one job alive every HEARTBEAT_EVERY seconds, on a connection of its own, and looks for the listener's
+    Stop. A heartbeat that can't be written is tried again on a new connection, HEARTBEAT_TRIES times in all, well
+    inside jobs.reap's two minutes (0.76.0: one error used to end it for good, the job spending on unwatched). When
+    the job was no longer running, or every try failed, `lost` is set and the job is stopped (`cancel`): it may have
+    been reaped, so its files are not written back, and nothing more is spent on it.
 
-    def __init__(self, connect: Callable[[], Any], job_id: int, cancel: threading.Event | None = None):
+    `stopping` is the worker's own stop (SIGTERM, a deploy): a job still running DRAIN_SECONDS after it is stopped
+    as Stop stops it, so it ends cleanly (clips kept, the conversation told) before the host kills the machine."""
+
+    def __init__(self, connect: Callable[[], Any], job_id: int, cancel: threading.Event | None = None,
+                 stopping: threading.Event | None = None):
         super().__init__(daemon=True, name=f"heartbeat-{job_id}")
         self.connect, self.job_id = connect, job_id
         self.halt, self.lost = threading.Event(), threading.Event()
         self.cancel = cancel if cancel is not None else threading.Event()   # set when the listener presses Stop
+        self.stopping = stopping
+        self.drained = threading.Event()   # set when the worker's stop ended the job
+
+    def _beat(self, conn) -> tuple[Any, bool | None]:
+        """(the connection, whether the job is still running), or (None, None) after HEARTBEAT_TRIES failures."""
+        for attempt in range(HEARTBEAT_TRIES):
+            try:
+                if conn is None:
+                    conn = self.connect()
+                if not self.cancel.is_set() and jobs.stop_requested(conn, self.job_id):
+                    self.cancel.set()
+                return conn, jobs.heartbeat(conn, self.job_id)
+            except Exception as e:  # noqa: BLE001 - tried again on a new connection; only the type is logged
+                print(f"worker: heartbeat for job {self.job_id} failed ({type(e).__name__}), try {attempt + 1} of "
+                      f"{HEARTBEAT_TRIES}", file=sys.stderr, flush=True)
+                _quietly_close(conn)
+                conn = None
+                if self.halt.wait(HEARTBEAT_RETRY_WAIT):
+                    return None, True   # the job ended meanwhile
+        return None, None
 
     def run(self) -> None:
         conn = None
         try:
-            conn = self.connect()
             waited, step = 0.0, min(STOP_POLL, HEARTBEAT_EVERY)
-            while not self.halt.wait(step):
+            stop_at = None
+            conn, alive = self._beat(None)
+            while alive and not self.halt.wait(step):
                 waited += step
-                if not self.cancel.is_set() and jobs.stop_requested(conn, self.job_id):
-                    self.cancel.set()
+                if self.stopping is not None and self.stopping.is_set() and not self.cancel.is_set():
+                    stop_at = stop_at or time.monotonic() + DRAIN_SECONDS
+                    if time.monotonic() >= stop_at:
+                        print(f"worker: job {self.job_id} still running {DRAIN_SECONDS}s after the worker was "
+                              "told to stop: stopping it", file=sys.stderr, flush=True)
+                        self.drained.set()
+                        self.cancel.set()
                 if waited >= HEARTBEAT_EVERY:
                     waited = 0.0
-                    if not jobs.heartbeat(conn, self.job_id):
-                        self.lost.set()
-                        return
-        except Exception as e:  # noqa: BLE001 - the job carries on, but won't write back
-            self.lost.set()
-            print(f"worker: heartbeat for job {self.job_id} stopped: {type(e).__name__}", file=sys.stderr)
+                    conn, alive = self._beat(conn)
+                elif conn is not None and not self.cancel.is_set():   # between beats, only the listener's Stop
+                    try:
+                        if jobs.stop_requested(conn, self.job_id):
+                            self.cancel.set()
+                    except Exception:  # noqa: BLE001 - the next beat opens a new connection
+                        _quietly_close(conn)
+                        conn = None
+            if not alive and not self.halt.is_set():
+                self.lost.set()
+                self.cancel.set()   # nothing more is spent on a job whose result can't be kept
+                print(f"worker: heartbeat for job {self.job_id} lost: "
+                      + ("it was no longer running" if alive is False else "the database didn't answer"),
+                      file=sys.stderr, flush=True)
         finally:
-            if conn is not None:
-                conn.close()
+            _quietly_close(conn)
 
     def stop(self) -> None:
         """Stop it; a hung connect never blocks the worker for long (the thread is a daemon)."""
@@ -829,9 +979,11 @@ class _Heartbeat(threading.Thread):
         self.join(timeout=CONNECT_TIMEOUT + JOIN_SLACK)
 
 
-def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None = None, lane: str = "main") -> bool:
+def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None = None, lane: str = "main",
+            stopping: threading.Event | None = None) -> bool:
     """Reap stale jobs, claim one in `lane` and run it; whether a job ran. `connect` opens the heartbeat's
-    own connection (default: settings.database_url). Only the main lane reaps and sweeps."""
+    own connection (default: settings.database_url), and the job's others. Only the main lane reaps and sweeps.
+    `stopping` is the worker's own stop: a job still running DRAIN_SECONDS after it is set is stopped."""
     _uv_cache()
     connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT))
     if lane == "main":
@@ -842,7 +994,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
     if job is None:
         return False
     cancel = threading.Event()
-    beat = _Heartbeat(connect, job.id, cancel)
+    beat = _Heartbeat(connect, job.id, cancel, stopping)
     beat.start()
     home = None
     uk = None
@@ -856,29 +1008,49 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
         handler = HANDLERS.get(job.kind)
         if handler is None:
             raise JobFailed("unknown job kind")
-        ctx = Ctx(conn=conn, uk=uk, job_id=job.id, args=args, settings=settings, home=home, cancel=cancel)
+        ctx = Ctx(conn=conn, uk=uk, job_id=job.id, args=args, settings=settings, home=home, cancel=cancel,
+                  connect=connect, lost=beat.lost, drained=beat.drained)
         ctx.keys = ctx.key_env()   # every handler passes ctx.keys as the engine's extra_env
         outcome = ("done", handler(ctx))
     except JobFailed as e:
-        conn.rollback()
+        _quietly_rollback(ctx.conn if ctx else conn)
         outcome = ("failed", e.error, e.detail)
     except Exception as e:  # noqa: BLE001 - only the type is logged: the message may be personal
-        conn.rollback()
+        _quietly_rollback(ctx.conn if ctx else conn)
         print(f"worker: job {job.id} stopped: {type(e).__name__}", file=sys.stderr)
     finally:
         beat.stop()
         if home is not None:
             shutil.rmtree(home, ignore_errors=True)
-    if outcome[0] == "done" and beat.lost.is_set():
-        print(f"worker: job {job.id} lost its heartbeat; nothing written back", file=sys.stderr)
-        outcome = ("failed", "interrupted", None)
-        _lost(conn, job.id, ctx, "interrupted")
-    if outcome[0] == "done":
-        error = _complete(conn, uk, job.id, outcome[1], ctx)
-        if error is not None:
-            _lost(conn, job.id, ctx, error)
-    elif not jobs.fail(conn, uk, job.id, outcome[1], outcome[2] if uk is not None else None):
-        print(f"worker: job {job.id} was no longer running", file=sys.stderr)
+    # the job is finished on a connection that works: the handler's own (a fresh one, if it had to open one), else
+    # a new one when the database dropped it, so the job is failed or done now rather than reaped two minutes on
+    work = ctx.conn if ctx is not None else conn
+    if not _usable(work):
+        try:
+            work = connect()
+            if ctx is not None:
+                ctx.conn = work
+                ctx.opened.append(work)
+        except psycopg.Error:
+            if ctx is not None:
+                ctx.close()
+            raise
+    try:
+        if outcome[0] == "done" and beat.lost.is_set():
+            print(f"worker: job {job.id} lost its heartbeat; nothing written back", file=sys.stderr)
+            outcome = ("failed", "interrupted", None)
+            _lost(work, job.id, ctx, "interrupted")
+        if outcome[0] == "done":
+            error = _complete(work, uk, job.id, outcome[1], ctx)
+            if error is not None:
+                _lost(work, job.id, ctx, error)
+        elif not jobs.fail(work, uk, job.id, outcome[1], outcome[2] if uk is not None else None):
+            print(f"worker: job {job.id} was no longer running", file=sys.stderr)
+    finally:
+        if ctx is not None:
+            ctx.close()
+        elif work is not conn:
+            _quietly_close(work)
     return True
 
 
@@ -939,16 +1111,16 @@ def main() -> int:
         print(f"worker: {e}", file=sys.stderr)
         return 3
     # enrichment's own lane: a second loop, so working out what feedback teaches never waits behind a workout
-    side = threading.Thread(target=_side_lane, args=(settings, stopping, "enrich"), daemon=True, name="enrich-lane")
+    side = threading.Thread(target=_lane, args=(settings, stopping, "enrich"), daemon=True, name="enrich-lane")
     side.start()
-    serve(settings, stopping)
+    _lane(settings, stopping, "main")
     side.join(timeout=ENRICH_TIMEOUT)
     return 0
 
 
-def _side_lane(settings: config.Settings, stopping: threading.Event, lane: str) -> None:
-    """A lane's loop, run again after anything that stops it (logged, by type), until `stopping`: the main loop's
-    stop ends the process and Fly restarts it, but a side lane that died alone would leave its jobs queued."""
+def _lane(settings: config.Settings, stopping: threading.Event, lane: str) -> None:
+    """A lane's loop, run again after anything that stops it (logged, by type), until `stopping`: the main lane too
+    (0.76.0), so one unexpected error never ends the worker with everyone's jobs left queued."""
     while not stopping.is_set():
         try:
             serve(settings, stopping, lane=lane)
@@ -964,7 +1136,7 @@ def serve(settings: config.Settings, stopping: threading.Event, connect: Callabl
     connection (it does, about hourly), it reconnects rather than exiting; a job running then fails as
     any interrupted job does."""
     connect = connect or _connect
-    run = run or run_one
+    run = run or functools.partial(run_one, stopping=stopping)
     conn = listen = None
     try:
         while not stopping.is_set():
