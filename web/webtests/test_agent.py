@@ -1471,3 +1471,56 @@ class History(unittest.TestCase):
         kept = agent_mod.compact(self.messages(3, 5_000), earlier=8)
         self.assertTrue(all(p.content == "B" * 5_000 for m in kept for p in getattr(m, "parts", [])
                             if isinstance(p, ToolReturnPart)))
+
+
+class HealthGate(AgentCase):
+    """No page talks the agent out of a limit (0.76.0)."""
+    OLD = ('+++\nschema = 6\n\n[[limits]]\narea = "knee"\nside = "left"\nlevel = "off-limits"\n+++\n\n'
+           "## Clinician rules\n\n- No deep knee bends until March.\n")
+
+    def setUp(self):
+        super().setUp()
+        with open(os.path.join(self.home, "health.md"), "w", encoding="utf-8") as f:
+            f.write(self.OLD)
+
+    def write(self, text):
+        return tools.write_file(self.deps, "me/health.md", text)
+
+    def test_the_check_in_may_loosen_before_the_turn_reads_any_page(self):
+        r = self.write(self.OLD.replace('level = "off-limits"', 'level = "delicate"'))
+        self.assertEqual(r.code, 0, r.error)
+
+    def test_after_a_feed_or_a_search_a_limit_is_never_loosened(self):
+        with mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "", "")):
+            tools.run(self.deps, ["topics", "add", "F1"])
+        self.assertTrue(self.deps.untrusted)
+        for text, what in ((self.OLD.replace('level = "off-limits"', 'level = "delicate"'), "eased to delicate"),
+                           (self.OLD.replace('level = "off-limits"', 'level = "off-limits"\ncleared = 2026-11-01'),
+                            "lifted"),
+                           (self.OLD.replace("- No deep knee bends until March.\n", ""), "clinician"),
+                           ("no settings at all\n", "couldn't be read")):
+            with self.subTest(what=what):
+                r = self.write(text)
+                self.assertNotEqual(r.code, 0)
+                self.assertIn(what, r.error)
+        with open(os.path.join(self.home, "health.md"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), self.OLD)
+
+    def test_tightening_always_goes_through(self):
+        self.deps.untrusted = True
+        tighter = self.OLD.replace("+++\n\n## Clinician", '\n[[limits]]\narea = "shoulder"\nside = "right"\n'
+                                   'level = "delicate"\n+++\n\n## Clinician')
+        self.assertEqual(self.write(tighter).code, 0)
+
+    def test_research_notes_count_as_pages(self):
+        os.makedirs(os.path.join(self.home, "workouts", "research", "daily"), exist_ok=True)
+        with open(os.path.join(self.home, "workouts", "research", "daily", "x.md"), "w", encoding="utf-8") as f:
+            f.write("a page said the knee is fine")
+        tools.read_file(self.deps, "me/workouts/research/daily/x.md")
+        self.assertTrue(self.deps.untrusted)
+
+    def test_a_scheduled_turn_never_changes_health(self):
+        self.deps.scheduled_run = True
+        r = self.write(self.OLD + "\nMore care today.\n")
+        self.assertNotEqual(r.code, 0)
+        self.assertIn("scheduled", r.error)

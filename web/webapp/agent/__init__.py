@@ -350,6 +350,8 @@ class Narrated(WrapperModel):
             _say(deps, text, "think", 1, n, think=True)
             raise
         _say(deps, text, "think", 0, n, think=True)
+        if any(isinstance(p, NativeToolCallPart) for p in response.parts):
+            deps.untrusted = True   # its own web search: pages strangers wrote
         if deps.phase == "":
             deps.phase = "working"
         return response
@@ -903,6 +905,8 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
         extra = (sheet,) if deps.today and os.path.isfile(os.path.join(deps.home, "workouts", "research", "daily",
                                                                        f"{deps.today}.md")) else ()
         reads = [pool.submit(tools.read_file, plain, p) for p in FIRST_READS + extra]
+        if extra:
+            deps.untrusted = True   # a research sheet quotes the pages it came from
         results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(commands, runs)]
         results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS + extra, reads)]
     picked = _picked(deps, results[3][1])
