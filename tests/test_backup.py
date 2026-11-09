@@ -123,7 +123,7 @@ class Backup(unittest.TestCase):
 
     def test_a_failed_add_is_never_nothing_to_commit(self):
         new_repo(self.home)
-        open(os.path.join(self.home, ".git", "index.lock"), "w").close()   # a git that died mid-way left it
+        open(os.path.join(self.home, ".git", "index.lock"), "wb").close()   # a git that died mid-way left it
         with self.assertRaises(backup.errors.HarmonicFitnessError) as got:
             run(self.home, push=False)
         self.assertIn("couldn't stage the changes", str(got.exception))
