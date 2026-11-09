@@ -38,6 +38,7 @@ import errors  # noqa: E402
 import fileio  # noqa: E402
 import frontmatter  # noqa: E402
 import locks  # noqa: E402
+import store  # noqa: E402
 import paths  # noqa: E402
 
 KINDS = ("topic", "venue", "taste", "movement", "effort")
@@ -342,12 +343,12 @@ def apply(p=None, today: Optional[datetime.date] = None) -> List[str]:
     for path, lines in ((paths.CONTENT_MD, content_lines(lr)), (paths.TRAINING, training_lines(lr))):
         if not os.path.exists(path):
             continue
-        with open(path, encoding="utf-8") as f:
-            text = f.read()
-        new = _replace_section(text, lines)
-        if new != text:
-            fileio.atomic_write(path, new)
-            written.append(path)
+        with locks.file_lock(path):   # as every writer of these files takes it
+            text = store.read_raw(path)
+            new = _replace_section(text, lines)
+            if new != text:
+                fileio.atomic_write(path, new)
+                written.append(path)
     return written
 
 

@@ -157,19 +157,21 @@ def _rewrite_jsonl(path, keep):
 
 
 def _remove_lines(path, section_name, drop):
-    """Remove the `- ` lines under `## <section_name>` in log.md that `drop` accepts; returns how many."""
-    text = sessionlog.log(path)
-    lines = text.splitlines()
-    start = heading_index(lines, section_name)
-    if start is None:
-        return 0
-    end = next((i for i in range(start + 1, len(lines)) if heading(lines[i]) is not None), len(lines))
-    gone = [i for i in range(start + 1, end) if lines[i].startswith("- ") and drop(lines[i])]
-    for i in reversed(gone):
-        del lines[i]
-    if gone:
-        write(path, "\n".join(lines) + "\n")
-    return len(gone)
+    """Remove the `- ` lines under `## <section_name>` in log.md that `drop` accepts; returns how many. Under log.md's
+    lock (as log-session takes it), so a session logged at the same moment is never lost."""
+    with locks.file_lock(path):
+        text = sessionlog.log(path)
+        lines = text.splitlines()
+        start = heading_index(lines, section_name)
+        if start is None:
+            return 0
+        end = next((i for i in range(start + 1, len(lines)) if heading(lines[i]) is not None), len(lines))
+        gone = [i for i in range(start + 1, end) if lines[i].startswith("- ") and drop(lines[i])]
+        for i in reversed(gone):
+            del lines[i]
+        if gone:
+            write(path, "\n".join(lines) + "\n")
+        return len(gone)
 
 
 def delete(targets, files=False, log_path=None) -> List[str]:
@@ -223,16 +225,17 @@ def feedback(target, text: str, log_path=None) -> str:
         raise errors.UsageError("feedback is one line")
     log_path = log_path or paths.LOG
     line = f"- {_tag(target)}: {text}"
-    lines = sessionlog.log(log_path).splitlines()
-    start = heading_index(lines, "Feedback")
-    if start is None:
-        lines += ["", "## Feedback", ""]
-        start = len(lines) - 2
-    end = next((i for i in range(start + 1, len(lines)) if heading(lines[i]) is not None), len(lines))
-    last = max([i for i in range(start + 1, end) if lines[i].strip()], default=start)
-    insert = [line] if last != start else ["", line]
-    lines[last + 1:last + 1] = insert
-    write(log_path, "\n".join(lines) + "\n")
+    with locks.file_lock(log_path):   # read, changed and written as one: nothing else lands in between
+        lines = sessionlog.log(log_path).splitlines()
+        start = heading_index(lines, "Feedback")
+        if start is None:
+            lines += ["", "## Feedback", ""]
+            start = len(lines) - 2
+        end = next((i for i in range(start + 1, len(lines)) if heading(lines[i]) is not None), len(lines))
+        last = max([i for i in range(start + 1, end) if lines[i].strip()], default=start)
+        insert = [line] if last != start else ["", line]
+        lines[last + 1:last + 1] = insert
+        write(log_path, "\n".join(lines) + "\n")
     return line
 
 
@@ -251,11 +254,12 @@ def rate(target, rating: str, log_path=None) -> str:
         raise errors.UsageError(f"a rating is one of {', '.join(RATINGS)} or none")
     log_path = log_path or paths.LOG
     prefix = f"- {_tag(target)}: {RATED}"
-    cleared = _remove_lines(log_path, "Feedback", lambda line: line.startswith(prefix))
-    _rating_signals(target, rating)
-    if rating == "none":
-        return "Cleared the rating." if cleared else "There was no rating to clear."
-    return f"Added: {feedback(target, RATED + rating, log_path)}"
+    with locks.file_lock(log_path):   # the old rating out and the new one in, with nothing between
+        cleared = _remove_lines(log_path, "Feedback", lambda line: line.startswith(prefix))
+        _rating_signals(target, rating)
+        if rating == "none":
+            return "Cleared the rating." if cleared else "There was no rating to clear."
+        return f"Added: {feedback(target, RATED + rating, log_path)}"
 
 
 def _rating_signals(target, rating: str) -> None:

@@ -50,6 +50,49 @@ class Workouts(unittest.TestCase):
     def titles(self):
         return [r["title"] for r in __import__("content").told()]
 
+    def test_feedback_written_at_the_same_moment_is_never_lost(self):
+        import threading
+        target = self.w.pick(["ccc333"], self.w.logged())[0]
+        errors_seen = []
+
+        def write(n):
+            try:
+                for i in range(12):
+                    self.w.feedback(target, f"note {n}-{i}")
+            except Exception as e:  # noqa: BLE001 - reported by the assertion below
+                errors_seen.append(e)
+        threads = [threading.Thread(target=write, args=(n,)) for n in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors_seen, [])
+        with open(paths.LOG, encoding="utf-8") as f:
+            text = f.read()
+        self.assertEqual(sum(f"note {n}-{i}" in text for n in range(4) for i in range(12)), 48)
+        self.assertEqual(len(self.w.logged()), 3)   # the sessions themselves untouched
+
+    def test_every_writer_of_the_listener_s_files_takes_its_lock(self):
+        import context
+        import interests
+        import locks
+        taken = []
+        real = locks.file_lock
+
+        def recording(path):
+            taken.append(os.path.basename(path))
+            return real(path)
+        target = self.w.pick(["ccc333"], self.w.logged())[0]
+        with mock.patch.object(locks, "file_lock", side_effect=recording):
+            self.w.feedback(target, "fine")
+            self.w.rate(target, "positive")
+            context.set_experience("advanced")
+            context.add_feed("A blog", "rss", "https://example.org/feed")
+            context.add_topic_lines(["Chess: endgames"])
+            interests.apply()
+        for name in ("log.md", "profile.md", "content.md", "training.md"):
+            self.assertIn(name, taken)
+
     def test_the_list_is_newest_first(self):
         got = self.w.listing(self.w.logged())
         self.assertIn("15 min", got[0])

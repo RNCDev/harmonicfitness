@@ -45,6 +45,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
 import fileio  # noqa: E402
+import locks  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 # the readers that moved out by job (frontmatter, store, health, sessionlog, records) are reached in their own
@@ -355,6 +356,11 @@ def set_experience(level, path=None):
     if level not in catalog.LEVELS:
         raise errors.UsageError(f"unknown level \"{level}\" (choose from: {', '.join(catalog.LEVELS)})")
     path = path or paths.PROFILE
+    with locks.file_lock(path):
+        _set_experience(level, path)
+
+
+def _set_experience(level, path):
     try:
         text = read_raw(path, "profile").lstrip("\ufeff")
     except FileNotFoundError:
@@ -464,6 +470,13 @@ def _content_text(path):
 
 
 def add_topic_lines(lines, venue=False, path=None):
+    """Add topic lines to content.md under its lock (see _add_topic_lines)."""
+    path = path or paths.CONTENT_MD
+    with locks.file_lock(path):
+        return _add_topic_lines(lines, venue, path)
+
+
+def _add_topic_lines(lines, venue, path):
     """Add each "Name: what about it" line under `## Topics` in content.md (`## Venues` with `venue`), every other
     line kept: a name already there, in any case, is left as it is, and the template's [hint] lines in that
     section go once a real one is in. A file without the section gets it at the end. [(name, added)] in order;
@@ -511,9 +524,14 @@ def add_topic_lines(lines, venue=False, path=None):
 
 
 def add_feed(label, kind, value, path=None):
-    """Add a [[feeds]] table (label, kind, value) at the end of content.md's settings, every other line kept. False
-    when a feed with that value is there already (nothing written)."""
+    """Add a [[feeds]] table (label, kind, value) at the end of content.md's settings, every other line kept, under
+    its lock. False when a feed with that value is there already (nothing written)."""
     path = path or paths.CONTENT_MD
+    with locks.file_lock(path):
+        return _add_feed(label, kind, value, path)
+
+
+def _add_feed(label, kind, value, path):
     if kind not in FEED_KINDS:
         raise errors.UsageError(f"unknown feed kind \"{kind}\" (choose from: {', '.join(FEED_KINDS)})")
     m, text = _content_text(path)

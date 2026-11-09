@@ -21,6 +21,7 @@ password goes to the app and nowhere else.
     ./harmonicfitness sync --prefer web
 """
 import base64
+import contextlib
 import datetime
 import fnmatch
 import hashlib
@@ -33,6 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import fileio  # noqa: E402
 import keys  # noqa: E402
+import locks  # noqa: E402
 import paths  # noqa: E402
 import webpull  # noqa: E402
 
@@ -119,6 +121,16 @@ def _inside(home, rel):
     if not target.startswith(root + os.sep):
         raise errors.HarmonicFitnessError(f"The web app named a file outside me/: {rel!r}")
     return target
+
+
+# The context files the engine's writers change under a lock (locks.file_lock): sync takes the same one around
+# replacing or removing them, so neither a sync nor a writer loses the other's change (0.76.0)
+LOCKED = frozenset({"profile.md", "training.md", "content.md", "settings.toml", "health.md", "log.md"})
+
+
+def _locked(home, rel):
+    """The context file's lock while sync replaces it, for one of LOCKED; nothing for any other file."""
+    return locks.file_lock(_inside(home, rel)) if rel in LOCKED else contextlib.nullcontext()
 
 
 def load_state(home, account_key):
@@ -253,11 +265,13 @@ def sync(account, home=None, prefer=None, dry_run=False, site=None, now=None):
             if p not in fetched:   # gone from the site since the listing: the next sync sees it
                 continue
             version, data = fetched[p]
-            fileio.atomic_write(_inside(home, p), data)
+            with _locked(home, p):
+                fileio.atomic_write(_inside(home, p), data)
             new_state[p] = {"version": version, "sha": sha(data)}
         for p in todo["delete_here"]:
             try:
-                os.remove(_inside(home, p))
+                with _locked(home, p):
+                    os.remove(_inside(home, p))
             except FileNotFoundError:
                 pass
         if todo["conflict"]:
