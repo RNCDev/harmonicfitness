@@ -2,6 +2,22 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.78.1] - 2026-11-09
+
+A tidy-up: the docs checked against the code, and code nothing used taken out.
+
+### Changed
+- **The page's header shows the release alone** ("0.78.0"); the deployed commit ("0.78.0 (fceddc1)") is only at the foot of Settings, where it's for checking a deploy, not for a stranger on the sign-in page.
+- **The docs match the code again:** `SCHEMA` lives in `tools/store.py` (CLAUDE.md said `context.py`); the trainer's review runs up to three rounds (docs/index.html said twice); `docs/demos/` holds the ready-made set too, and its page lists `ready.toml`, the `ready-*` listeners and `demos web`; the style guide names the colour roles the app's stylesheets use; the README's coaches paragraph no longer lists all twenty-five by name (`coaches list` does); the template's `.gitignore` and `settings.toml` notes point at what exists; the roadmap says what the brief and the web app already do with feedback.
+
+### Removed
+- **Two routes nothing called:** `GET /api/options` (the goals, presets and lengths a brief takes; neither the page nor the tools asked for them) and `GET /api/context` (`./harmonicfitness sync` reads `/api/sync`).
+- **Dead code:** `paths.CHECKS`, `voices.write_wav`, `agent.UNFINISHABLE`; the coach-maker's unused `work` argument to `asr.transcribe` and `design.py`'s copies of `write_wav` and `transcribe`; `CORAL` and `WORDMARK_H` in the generated `brand.ts` (`assets/brand/make.py` no longer writes them; the retired wordmark files themselves stay); and `export` on twenty-odd client names only their own file uses.
+
+### For forks
+- A client of your own that read `GET /api/options` or `GET /api/context` gets a 404: read `/api/start` for the request's choices and `/api/sync` for the file listing. `AppState.options` and `webapp.api.MINUTES` are gone.
+- `tools/coachmaker/asr.transcribe(wavs)` takes no second argument.
+
 ## [0.78.0] - 2026-11-09
 
 The front-end audit: the web client already kept to its own rules, so this closes where the rules stopped looking. Every failure now says so, the phone gets full-size tap targets and its safe edges, lines and weights become tokens, and the two largest files are split by job. A minor release because the maintainer asked for one: files move and the client's tests ask more of a fork's code.
