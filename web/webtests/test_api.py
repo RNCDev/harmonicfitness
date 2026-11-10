@@ -1410,11 +1410,83 @@ class Media(ApiCase):
         self.assertEqual(self.client.get("/api/media/00000000-0000-0000-0000-000000000000").status_code, 401)
 
     def test_sealed_at_rest(self):
+        """In chunks since 0.77.0: each sealed, none in plain."""
         _, uk = self.signed_in()
         self.kept(uk)
-        body = bytes(self.conn.execute("select body from media").fetchone()[0])
+        rows = [bytes(b) for (b,) in self.conn.execute("select c.body from media_chunks c join media m on m.id = c.media_id "
+                                                       "where m.user_id = %s", (uk.user_id,))]
         self.conn.rollback()
-        self.assertNotIn(self.MP3[:64], body)
+        self.assertTrue(rows)
+        self.assertFalse(any(self.MP3[:64] in b for b in rows))
+
+    def chunked(self, uk, size=10_000, chunk=1000):
+        from webapp import media
+        body = bytes((n * 7) % 251 for n in range(size))
+        with mock.patch.object(media, "CHUNK", chunk):
+            audio = media.put(self.conn, uk, "Workout", body, build_id="big")
+        self.conn.commit()
+        return audio, body
+
+    def test_an_mp3_is_kept_in_chunks_and_a_range_opens_only_its_own(self):
+        from webapp import media
+        _, uk = self.signed_in()
+        audio, body = self.chunked(uk)
+        self.assertEqual(self.conn.execute("select count(*), min(n), max(n) from media_chunks where media_id = %s",
+                                           (audio["id"],)).fetchone(), (10, 0, 9))
+        self.assertIsNone(self.conn.execute("select body from media where id = %s", (audio["id"],)).fetchone()[0])
+        self.conn.rollback()
+        opened = []
+        real = media.crypto.open_
+
+        def counting(key, sealed, aad):
+            opened.append(aad)
+            return real(key, sealed, aad)
+        with mock.patch.object(media.crypto, "open_", counting):
+            p = self.client.get(f"/api/media/{audio['id']}", headers={"Range": "bytes=1990-3010"})
+        self.assertEqual((p.status_code, p.content), (206, body[1990:3011]))
+        self.assertEqual((p.headers["content-range"], p.headers["content-length"]), (f"bytes 1990-3010/{len(body)}", "1021"))
+        mine = f"{uk.user_id}:media:{audio['id']}:".encode()
+        self.assertEqual(sorted(a[len(mine):] for a in opened if a.startswith(mine)), [b"1", b"2", b"3"])
+        whole = self.client.get(f"/api/media/{audio['id']}")
+        self.assertEqual((whole.status_code, whole.content, whole.headers["content-length"]), (200, body, "10000"))
+        self.assertEqual(media.get(self.conn, uk, audio["id"])[1], body)
+        self.assertEqual(self.client.get(f"/api/media/{audio['id']}", headers={"Range": "bytes=-5"}).content, body[-5:])
+
+    def test_an_mp3_kept_whole_before_0_77_still_plays(self):
+        import uuid
+        from webapp import crypto, media
+        _, uk = self.signed_in()
+        mid = uuid.uuid4()
+        self.conn.execute("insert into media (id, user_id, name, body, bytes, build_id) values (%s, %s, 'Old', %s, %s, 'o')",
+                          (mid, uk.user_id, crypto.seal(uk.key, self.MP3, f"{uk.user_id}:media:{mid}".encode()),
+                           len(self.MP3)))
+        self.conn.commit()
+        self.assertEqual(self.client.get(f"/api/media/{mid}").content, self.MP3)
+        p = self.client.get(f"/api/media/{mid}", headers={"Range": "bytes=10-19"})
+        self.assertEqual((p.status_code, p.content), (206, self.MP3[10:20]))
+        self.assertEqual(media.get(self.conn, uk, str(mid))[1], self.MP3)
+
+    def test_a_podcast_apps_head_gets_the_headers_only(self):
+        _, uk = self.signed_in()
+        audio, body = self.chunked(uk)
+        url = self.client.post("/api/feed", headers=self.origin()).json()["url"]
+        token = url.rsplit("/", 1)[1][:-len(".xml")]
+        h = self.other_client().head(f"/feed/{token}/{audio['id']}.mp3")
+        self.assertEqual((h.status_code, h.content, h.headers["content-length"]), (200, b"", str(len(body))))
+        self.assertEqual(h.headers["accept-ranges"], "bytes")
+
+    def test_a_replaced_mp3s_chunks_go_with_it(self):
+        from webapp import media
+        _, uk = self.signed_in()
+        big, _ = self.chunked(uk)
+        for n in range(3):
+            media.put(self.conn, uk, f"Workout {n}", self.MP3, build_id=f"n{n}")
+        self.conn.commit()
+        self.assertEqual(self.conn.execute("select count(*) from media_chunks where media_id = %s",
+                                           (big["id"],)).fetchone()[0], 0)
+        self.assertEqual(self.conn.execute("select count(*) from media_chunks c join media m on m.id = c.media_id "
+                                           "where m.user_id = %s", (uk.user_id,)).fetchone()[0], 3)
+        self.conn.rollback()
 
 
 class Feed(ApiCase):

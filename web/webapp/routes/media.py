@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi import Path as PathParam
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 
 from .. import feed, media, store
 from .state import POST, AppState, St, User, read, tx
@@ -34,24 +34,38 @@ def _byte_range(header: str | None, size: int):
     return () if start > end or start >= size else (start, end)
 
 
-def mp3(request: Request, found, download: bool = False) -> Response:
-    """A kept MP3 (media.get's), inline for a player or as a download, honouring a byte range (Safari's player
+def mp3(st: AppState, request: Request, uk: store.UserKey, mid: str, found, download: bool = False) -> Response:
+    """A kept MP3 (media.describe's), inline for a player or as a download, honouring a byte range (Safari's player
     and podcast apps ask for them). The browser may keep it until it expires, or a day for a workout's (private:
-    never a shared cache)."""
-    name, body, expires = found
+    never a shared cache). Streamed a chunk at a time, each read on a pooled connection of its own, so a slow
+    player never holds one; a HEAD gets the headers alone."""
+    name, size, expires, chunk = found
     left = 86_400 if expires is None else \
         max(0, int((expires - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
     safe = "".join(c if c.isalnum() or c in " -_." else "_" for c in name).strip() or "workout"
     headers = {"Cache-Control": f"private, max-age={left}", "Accept-Ranges": "bytes",
                "Content-Disposition": f'{"attachment" if download else "inline"}; filename="{safe}.mp3"'}
-    part = _byte_range(request.headers.get("range"), len(body))
-    if part is None:
-        return Response(body, media_type="audio/mpeg", headers=headers)
+    part = _byte_range(request.headers.get("range"), size)
     if part == ():
-        return Response(status_code=416, headers={"Content-Range": f"bytes */{len(body)}"})
-    start, end = part
-    return Response(body[start:end + 1], status_code=206, media_type="audio/mpeg",
-                    headers={**headers, "Content-Range": f"bytes {start}-{end}/{len(body)}"})
+        return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+    status, (start, end) = (200, (0, size - 1)) if part is None else (206, part)
+    if status == 206:
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    headers["Content-Length"] = str(end - start + 1 if size else 0)
+    if request.method == "HEAD" or not size:
+        return Response(status_code=status, media_type="audio/mpeg", headers=headers)
+
+    def pieces():
+        at = start
+        while at <= end:
+            to = min(end, (at // chunk + 1) * chunk - 1)
+            with read(st) as conn:
+                data = media.read_range(conn, uk, mid, at, to)
+            if not data:   # replaced by a newer workout meanwhile: the answer ends short
+                return
+            yield data
+            at += len(data)
+    return StreamingResponse(pieces(), status_code=status, media_type="audio/mpeg", headers=headers)
 
 
 @router.get("/api/media/{mid}")
@@ -60,10 +74,10 @@ def get_media(st: St, uk: User, request: Request, mid: Annotated[str, PathParam(
     """An MP3, the user's own, while it's kept (a workout's until three newer ones replace it, any other for
     24 hours): inline for the player, or as a download."""
     with read(st) as conn:
-        found = media.get(conn, uk, mid)
+        found = media.describe(conn, uk, mid)
     if found is None:
         raise HTTPException(404, "That audio is no longer kept, or isn't yours.")
-    return mp3(request, found, download)
+    return mp3(st, request, uk, mid, found, download)
 
 
 # ---- the private podcast feed -----------------------------------------------------------
@@ -122,8 +136,8 @@ def podcast_episode(st: St, request: Request, token: Annotated[str, PathParam(ma
     """One of the feed's workouts, while the site keeps it."""
     with read(st) as conn:
         uk = feed_user(st, conn, token)
-        found = media.get(conn, uk, mid) if uk else None
+        found = media.describe(conn, uk, mid) if uk else None
     # a workout's only: a coach's sample in the chat isn't in the feed
     if found is None or found[2] is not None:
         raise HTTPException(404, "That workout is no longer kept, or the feed's link has changed.")
-    return mp3(request, found)
+    return mp3(st, request, uk, mid, found)
