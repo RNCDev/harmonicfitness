@@ -19,7 +19,6 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import NativeToolCallPart
 
-from ..providers import cache_settings
 from . import tools
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -473,11 +472,6 @@ def _thinking(model, level: str) -> dict | None:
     return thinking_settings(model, level)
 
 
-def _settings(model, level: str) -> dict | None:
-    """A writer's model settings: its thinking level and its prompt caching; None when there are neither."""
-    return dict(_thinking(model, level) or {}, **cache_settings(model)) or None
-
-
 async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: str, capabilities=(), history=None):
     """One writer's call; cut off by Gemini's own deadline (504, thinking too long), it's
     asked again a level lower, as it is when it runs past its PATIENCE. Only a model with a thinking level is asked
@@ -488,7 +482,7 @@ async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: s
     try:
         result = await asyncio.wait_for(
             agent.run(prompt, model=model, instructions=guides(deps.engine_root)[who],
-                      model_settings=_settings(model, level), usage=usage, capabilities=list(capabilities),
+                      model_settings=_thinking(model, level), usage=usage, capabilities=list(capabilities),
                       message_history=history),
             timeout=PATIENCE.get(who) if lower else None)
     except (ModelHTTPError, asyncio.TimeoutError) as e:

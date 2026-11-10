@@ -23,7 +23,6 @@ from pydantic_ai.messages import (ModelRequest, ModelResponse, NativeToolCallPar
 from pydantic_ai.models.wrapper import WrapperModel
 
 from .. import config
-from ..providers import cache_settings
 from . import tools, writers
 from .tools import Deps, ToolResult
 from .writers import is_gemini, thinking_settings, web_copy
@@ -355,8 +354,7 @@ class Narrated(WrapperModel):
         n = _begin(deps, text, "think", think=True)
         level = thinking_level(self.wrapped, deps.phase, deps.writers)
         if level:
-            model_settings = dict(model_settings or {}, **(thinking_settings(self.wrapped, level) or {}))
-        model_settings = dict(model_settings or {}, **cache_settings(self.wrapped)) or model_settings
+            model_settings = dict(model_settings or {}, **thinking_settings(self.wrapped, level))
         try:
             response = await super().request(messages, model_settings, model_request_parameters)
         except BaseException:
