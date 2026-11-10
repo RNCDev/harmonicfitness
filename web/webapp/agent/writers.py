@@ -447,6 +447,12 @@ def is_gemini(model) -> bool:
     return name == "GoogleModel" or (name == "OpenRouterModel" and str(model.model_name).startswith("google/"))
 
 
+# OpenRouter's reasoning effort for each of Gemini's thinking levels. Through OpenRouter "medium" thinks far longer
+# than Gemini direct's MEDIUM (4,800 to 9,500 tokens on agent requests, the trainer past its patience), while "low"
+# matches it; HIGH is never asked of a three-writer turn.
+OPENROUTER_EFFORT: dict[str, str] = {"HIGH": "medium", "MEDIUM": "low", "LOW": "low"}
+
+
 def thinking_settings(model, level: str | None) -> dict | None:
     """The model settings that set a Gemini model's thinking at `level` (HIGH, MEDIUM or LOW): Google's own
     thinking level, or OpenRouter's reasoning effort, which it passes on to Gemini as that level. None for any other
@@ -455,7 +461,7 @@ def thinking_settings(model, level: str | None) -> dict | None:
         return None
     if type(model).__name__ == "GoogleModel":
         return {"google_thinking_config": {"thinking_level": level}}
-    return {"openrouter_reasoning": {"effort": level.lower()}}
+    return {"openrouter_reasoning": {"effort": OPENROUTER_EFFORT[level]}}
 
 
 def _thinking(model, level: str) -> dict | None:
