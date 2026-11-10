@@ -17,6 +17,7 @@ import bucket  # noqa: E402
 import cloud  # noqa: E402
 import errors  # noqa: E402
 import media  # noqa: E402
+import net  # noqa: E402
 import ready  # noqa: E402
 import webpull  # noqa: E402
 
@@ -40,8 +41,9 @@ class _Redirects(http.server.BaseHTTPRequestHandler):
             self.wfile.write(BODY)
             return
         host = "localhost" if "host=localhost" in self.path else "127.0.0.1"
+        to = "ftp://127.0.0.1/elsewhere" if "to=ftp" in self.path else f"http://{host}:{port}/elsewhere"
         self.send_response(302)
-        self.send_header("Location", f"http://{host}:{port}/elsewhere")
+        self.send_header("Location", to)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -132,6 +134,65 @@ class Bases(unittest.TestCase):
     def test_each_module_accepts_the_bases_it_did(self):
         for url, want in BASES.items():
             self.assertEqual(self.accepts(url), want, url)
+
+
+class Opener(ServerCase):
+    """tools/net.py: the one place the engine opens a web address."""
+
+    def test_never_raises_redirected_with_the_target(self):
+        with self.assertRaises(net.Redirected) as cm:
+            net.opener("never").open(self.base + "/x", timeout=10)
+        self.assertEqual(cm.exception.url, self.base + "/elsewhere")
+        self.assertEqual(cm.exception.status, 302)
+        self.assertIsInstance(cm.exception, OSError)
+
+    def test_same_host_follows_only_to_the_same_host(self):
+        with net.opener("same-host").open(self.base + "/x", timeout=10) as r:
+            self.assertEqual(r.read(), BODY)
+        with self.assertRaises(net.Redirected):
+            net.opener("same-host").open(self.base + "/x?host=localhost", timeout=10)
+
+    def test_web_follows_only_to_http_or_https(self):
+        with net.opener("web").open(self.base + "/x?host=localhost", timeout=10) as r:
+            self.assertEqual(r.read(), BODY)
+        with self.assertRaises(ValueError):
+            net.opener("web").open(self.base + "/x?to=ftp", timeout=10)
+
+    def test_any_follows_anywhere(self):
+        with net.opener("any").open(self.base + "/x?host=localhost", timeout=10) as r:
+            self.assertEqual(r.read(), BODY)
+
+    def test_an_unknown_follow_is_refused(self):
+        with self.assertRaises(ValueError):
+            net.opener("sometimes")
+
+    def test_a_callers_https_handler_is_the_only_one(self):
+        """feeds' vetted handler must be the one that opens https: a second, plain one would go round its check."""
+        import urllib.request
+
+        class Mine(urllib.request.HTTPSHandler):
+            pass
+        o = net.opener("never", Mine(context=net.tls_context()))
+        self.assertEqual([type(h) for h in o.handlers if isinstance(h, urllib.request.HTTPSHandler)], [Mine])
+        plain = net.opener("never")
+        self.assertEqual(len([h for h in plain.handlers if isinstance(h, urllib.request.HTTPSHandler)]), 1)
+
+    def test_tls_context_is_made_once(self):
+        import ssl
+        self.assertIsInstance(net.tls_context(), ssl.SSLContext)
+        self.assertIs(net.tls_context(), net.tls_context())
+
+    def test_read_capped(self):
+        import io
+        self.assertEqual(net.read_capped(io.BytesIO(b"12345"), 5), b"12345")
+        with self.assertRaises(net.TooLarge):
+            net.read_capped(io.BytesIO(b"123456"), 5)
+
+    def test_allowed_base(self):
+        for url, want in (("https://x", True), ("HTTPS://x", True), ("http://localhost:8000", True),
+                          ("http://127.0.0.1:9", True), ("http://[::1]:8000", True), ("http://example.org", False),
+                          ("ftp://x", False), ("", False)):
+            self.assertEqual(net.allowed_base(url), want, url)
 
 
 if __name__ == "__main__":
