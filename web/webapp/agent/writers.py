@@ -16,7 +16,7 @@ from dataclasses import replace
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import NativeToolCallPart
 
 from . import tools
@@ -420,6 +420,17 @@ def _stock(deps, plan: str) -> str:
     return "\n\n".join(out)
 
 
+def transient(e: BaseException) -> bool:
+    """A failure worth carrying on past, as the places' coaching only: a server error, a 429 that isn't a quota, a
+    timeout or a dropped connection. A refused key, a quota, a usage limit or a bug is the turn's, as providers.explain
+    tells them apart."""
+    from ..providers import _QUOTA_WORDS
+    if isinstance(e, ModelHTTPError):
+        body = str(e.body).lower()
+        return e.status_code >= 500 or (e.status_code == 429 and not any(w in body for w in _QUOTA_WORDS))
+    return isinstance(e, (ModelAPIError, TimeoutError, ConnectionError, asyncio.TimeoutError))
+
+
 def logline(deps, text: str) -> None:
     """A line for the worker's log: what the room did and how long it took, never what it read or wrote."""
     if getattr(deps, "log", None) is not None:
@@ -658,8 +669,12 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         if got is None:
             try:
                 got = await stories(deps, model, usage, path, max(1, round(sum(s for _, _, s, _ in segs) / 60)), search)
-            except Exception:  # noqa: BLE001 - research failed twice (a 504 both times, 2026-11-09): coaching only
-                logline(deps, "research failed twice: every place gets coaching only")
+            except Exception as e:  # noqa: BLE001 - narrowed below: only a transient failure is carried past
+                if not transient(e):   # a refused key, a quota, a usage limit, a bug: as before, the turn's
+                    raise
+                # a 504 both times, 2026-11-09: coaching only
+                logline(deps, "research failed twice: every place gets coaching only" if job is not None else
+                        "research failed: every place gets coaching only")
                 return []
         if len(got) < len(rests):
             plan = await asyncio.to_thread(tools.run, plain, ["content", "plan", "--minutes",

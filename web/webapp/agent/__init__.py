@@ -587,8 +587,11 @@ def run(ctx: RunContext[Deps], args: list[str]) -> ToolResult:
         deps.lint_failed = result.code != 0
         deps.phase = "lint_failed" if result.code != 0 else ("linted" if "--lint-only" in args else "priced")
         offer = deps.offer
-        if (deps.phase == "priced" and deps.auto_record and offer and offer.get("draft") == rest[1]
-                and not deps.recorded and deps.reserve is not None and deps.reserve(int(offer.get("chars") or 0))):
+        asked = (deps.phase == "priced" and deps.auto_record and offer and offer.get("draft") == rest[1]
+                 and not deps.recorded and deps.reserve is not None)
+        if asked and not deps.reserve(int(offer.get("chars") or 0)):
+            deps.allowance_refused = True   # the closing line says why the Record button is there
+        elif asked:
             # Record without asking (Settings): approved as the Record button would, today's allowance reserved
             # first; past the allowance the offer stays, and the button says why
             deps.approved, deps.offer = offer, None
@@ -1059,6 +1062,8 @@ def native_tools(model) -> list:
 
 
 CLOSING = "Your script is written and checked. Press Record when you're ready."
+CLOSING_ALLOWANCE = ("Your script is written and checked, but today's allowance is used up, so it waits for your "
+                     "Record.")
 CLOSING_OVER = ("Your script is written and checked, but it came out longer than planned, so it waits for your "
                 "Record.")
 
@@ -1076,7 +1081,17 @@ def closing_reply(deps: Deps) -> str:
     """The coach's line a turn closed in code ends on."""
     offer = deps.offer or {}
     over = deps.ceiling is not None and int(offer.get("chars") or 0) > deps.ceiling
-    return CLOSING_OVER if over else CLOSING
+    if over:
+        return CLOSING_OVER
+    return CLOSING_ALLOWANCE if deps.allowance_refused else CLOSING
+
+
+def carry_log(deps: Deps, offer: dict | None, record: bool) -> None:
+    """A turn that starts on a conversation's open offer keeps that offer's log: a revision (edit_segments) sends no
+    `log`, and the new price copies `pending_log` onto its offer only for the same draft (tools' price checks
+    `--draft`), so the session is still logged at Record. The Record turn has its own: the approved offer's."""
+    if not record and offer and offer.get("log"):
+        deps.pending_log = list(offer["log"])
 
 
 def _run_loop(coro):

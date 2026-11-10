@@ -770,11 +770,70 @@ class Research(DraftCase):
             draft, note = asyncio.run(writers.write(self.deps, model, RunUsage(), self.DRAFT,
                                                     name="Workout A", coach="Coach Freya"))
         self.assertIn("@@ 60 | Rest after squats", draft)
-        self.assertIn("room research failed twice: every place gets coaching only", lines)
+        self.assertIn("room research failed: every place gets coaching only", lines)
+        self.assertNotIn("room research failed twice: every place gets coaching only", lines)
         self.assertEqual(self.deps.told, {"draft": self.DRAFT, "items": []})
         self.assertIn("told 0 stories", note)
         host = next(p for p in prompts if "# The plan" in p and "No story here" in p)
         self.assertIn("No story here", host)
+
+    def written(self, researcher, early_failed=False):
+        """The room written with `researcher`; the worker's log lines, or the error the room raised."""
+        import asyncio
+        from concurrent.futures import Future
+        from pydantic_ai.usage import RunUsage
+        self.skeleton()
+        lines = []
+        self.deps.log = lines.append
+        if early_failed:   # the researcher started as the brief was saved, and failed
+            job = Future()
+            job.set_exception(RuntimeError("504"))
+            self.deps.content_job, self.deps.content_for = job, self.DRAFT
+        writers, model, _ = self.room(researcher)
+        patch, calls = self.fake()
+        with patch:
+            asyncio.run(writers.write(self.deps, model, RunUsage(), self.DRAFT, name="Workout A", coach="Coach Freya"))
+        return lines
+
+    def test_research_failing_after_the_early_run_failed_says_twice(self):
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        def boom():
+            raise ModelHTTPError(504, "google/gemini", {"error": "down"})
+        lines = self.written(boom, early_failed=True)
+        self.assertIn("room research failed twice: every place gets coaching only", lines)
+
+    def test_a_timeout_or_a_dropped_connection_is_coaching_only_too(self):
+        from pydantic_ai.exceptions import ModelAPIError
+        for exc in (TimeoutError("slow"), ModelAPIError("google/gemini", "connection reset")):
+            def boom(exc=exc):
+                raise exc
+            self.assertIn("room research failed: every place gets coaching only", self.written(boom))
+
+    def test_a_429_without_quota_words_is_coaching_only(self):
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        def busy():
+            raise ModelHTTPError(429, "google/gemini", {"error": "slow down"})
+        self.assertIn("room research failed: every place gets coaching only", self.written(busy))
+
+    def test_a_refused_key_or_a_quota_stops_the_turn(self):
+        from pydantic_ai.exceptions import ModelHTTPError
+        for status, body in ((401, {"error": "bad key"}), (403, {"error": "no"}),
+                             (429, {"error": "you exceeded your current quota"}),
+                             (400, {"error": "billing hard limit reached"})):
+            def refused(status=status, body=body):
+                raise ModelHTTPError(status, "google/gemini", body)
+            with self.assertRaises(ModelHTTPError):
+                self.written(refused)
+
+    def test_a_usage_limit_stops_the_turn(self):
+        from pydantic_ai.exceptions import UsageLimitExceeded
+
+        def over():
+            raise UsageLimitExceeded("too many requests")
+        with self.assertRaises(UsageLimitExceeded):
+            self.written(over)
 
     def test_stop_still_stops_the_room_while_research_is_written(self):
         import asyncio
@@ -1353,6 +1412,63 @@ class Closes(DraftCase):
             return ModelResponse(parts=[TextPart(after)])
         return script
 
+    def test_edit_segments_keeps_the_log_and_falls_back_to_the_brief_coach(self):
+        self.draft()
+        self.deps.brief_coach = self.COACH
+        patch, calls = self.fake()
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("edit_segments", {
+                    "path": self.DRAFT, "edits": [{"number": 3, "text": "@@ 30 | Close\nAll done.\n"}],
+                    "log": self.FIELDS.model_dump()}, tool_call_id="e1")])
+            return ModelResponse(parts=[TextPart("ok")])
+        with patch:
+            agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertEqual(self.deps.pending_log, tools.log_argv(self.DRAFT, self.COACH, self.FIELDS))
+
+    def fresh(self):
+        """A later turn's Deps, as the worker makes one."""
+        return tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY, now=f"{TODAY} Wednesday 08:05",
+                          writers="three", brief_coach=self.COACH)
+
+    def test_a_revision_turn_carries_the_previous_offer_s_log(self):
+        patch, calls = self.fake()
+        with patch:
+            agent.run_turn(FunctionModel(self.turn()), self.deps, None, "go")
+        first = self.deps.offer
+        log = first["log"]
+        deps = self.fresh()
+        agent.carry_log(deps, first, record=False)   # as the worker seeds it from the conversation's offer
+        self.assertEqual(deps.pending_log, log)
+
+        def revise(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("edit_segments", {
+                    "path": self.DRAFT, "edits": [{"number": 3, "text": "@@ 30 | Close\nAll done.\n"}],
+                    "build_name": "Workout A", "coach": self.COACH}, tool_call_id="e1")])
+            raise AssertionError("a model request after the price")
+        with patch:
+            agent.run_turn(FunctionModel(revise), deps, None, "make it shorter")
+        self.assertEqual(deps.offer["log"], log)
+        self.assertTrue(agent.closed(deps))
+
+    def test_a_log_for_another_draft_is_not_carried_into_the_new_offer(self):
+        deps = self.fresh()
+        agent.carry_log(deps, {"draft": "me/workouts/b/b.draft.txt",
+                               "log": tools.log_argv("me/workouts/b/b.draft.txt", self.COACH, self.FIELDS)},
+                        record=False)
+        self.draft()
+        patch, calls = self.fake()
+        with patch:
+            tools.run(deps, ["build", self.DRAFT, "Workout A", "--coach", self.COACH])
+        self.assertNotIn("log", deps.offer)
+
+    def test_the_record_turn_does_not_seed_a_log(self):
+        deps = self.fresh()
+        agent.carry_log(deps, {"draft": self.DRAFT, "log": ["log-session"]}, record=True)
+        self.assertIsNone(deps.pending_log)
+
     def test_a_clean_price_closes_the_turn_without_another_request(self):
         patch, calls = self.fake()
         with patch:
@@ -1389,6 +1505,31 @@ class Closes(DraftCase):
         self.assertEqual(out.reply, "Your script is written and checked, but it came out longer than planned, so it "
                                     "waits for your Record.")
         self.assertEqual(out.usage["requests"], 2)
+
+    def test_a_run_whose_allowance_was_refused_says_it_waits_for_record(self):
+        self.deps.auto_record, self.deps.reserve = True, (lambda chars: False)
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn()), self.deps, None, "go")
+        self.assertIsNone(self.deps.recorded)
+        self.assertEqual(out.reply, "Your script is written and checked, but today's allowance is used up, so it "
+                                    "waits for your Record.")
+
+    def test_the_ceiling_line_wins_over_the_allowance_line(self):
+        self.deps.scheduled_run, self.deps.auto_record, self.deps.ceiling = True, True, 2500
+        self.deps.reserve = lambda chars: False
+        self.deps.later = {"at": "2026-11-04T12:00:00+00:00", "local": "2026-11-04 Wednesday 07:00", "offset": -300}
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn()), self.deps, None, "go")
+        self.assertEqual(out.reply, agent.CLOSING_OVER)
+
+    def test_without_auto_record_the_plain_ready_line_stays(self):
+        self.deps.reserve = lambda chars: False
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn()), self.deps, None, "go")
+        self.assertEqual(out.reply, agent.CLOSING)
 
     def test_the_next_turn_reads_a_closed_turns_history(self):
         patch, calls = self.fake()

@@ -86,6 +86,7 @@ class Deps:
     pending_log: list | None = None
     logged: str | None = None
     topics: bool = False             # a topics job (topics add): no workout skill, no web search, no feeds
+    allowance_refused: bool = False   # Record without asking was asked for, and today's allowance refused it
     auto_record: bool = False        # Settings' Record without asking: a clean price records at once
     # reserves characters from today's allowance (and commits), as the Record button does; whether it fit
     reserve: Callable[[int], bool] | None = field(default=None, repr=False)

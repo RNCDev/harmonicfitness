@@ -639,6 +639,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     deps.coach = agent.audition_open(ctx.home)
     record = ctx.args.get("record") is True   # the listener pressed Record: the offer is approved
     deps.approved = conv.offer if record else None
+    agent.carry_log(deps, conv.offer, record)   # a revision's new offer keeps the session's log
     deps.chars_left = ctx.settings.daily_chars - spend.used(ctx.conn, ctx.uk, today)
     deps.auto_record = auto and not record
     # a new listener's first screen said that their first workout records as soon as it's written, where its script
