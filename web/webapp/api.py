@@ -51,13 +51,6 @@ POLL_EVERY = 5            # seconds between status reads without a NOTIFY (fail 
 WAIT_SLICE = 1.0          # seconds a stream blocks at most, so a client gone away is noticed soon
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 JOB_ID = PathParam(ge=1, le=2**63 - 1)
-# (attempts, seconds): failed sign-ins per username and per address; registrations per address
-# and across everyone
-LOGIN_PER_NAME = (10, 15 * 60)
-LOGIN_PER_ADDRESS = (50, 15 * 60)
-REGISTER_PER_ADDRESS = (10, 60 * 60)   # every attempt counts, taken names too
-REGISTER_ALL = (50, 60 * 60)
-CONFIRM_PER_USER = (10, 15 * 60)       # wrong passwords a signed-in user may give (a new password, deleting the account)
 HSTS = (b"strict-transport-security", b"max-age=31536000")
 
 
@@ -172,18 +165,6 @@ def later_from(start_at: str | None, utc: datetime.datetime | None = None) -> di
 
 
 STILL_WORKING = "Still working on the last message."
-
-
-class Credentials(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    username: Annotated[StrictStr, StringConstraints(max_length=200)]
-    password: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)]
-
-
-class NewPassword(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    current: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)] | None = None
-    new: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)]
 
 
 KEY_MIN = 16     # shorter values escape engine.scrub (8+ only) and are never real keys
@@ -398,25 +379,6 @@ class _BodyLimit:
         await self.app(scope, replay, send)
 
 
-def _link_page(token: str) -> str:
-    t = html.escape(token, quote=True)
-    title = html.escape(f"Sign in to {APP_NAME}")
-    return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
-            f'<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f'<meta name="robots" content="noindex">'
-            f"<title>{title}</title></head>\n<body>"
-            f'<form method="post" action="/api/link/redeem">'
-            f'<input type="hidden" name="token" value="{t}">'
-            f'<button type="submit">{title}</button></form></body></html>\n')
-
-
-def _refused_page() -> str:
-    return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
-            f'<meta name="robots" content="noindex">'
-            f"<title>{html.escape(APP_NAME)}</title></head>\n<body><p>This link has expired or "
-            f"was already used.</p></body></html>\n")
-
-
 def stock_sample_url(engine_root: str, slug: str) -> str | None:
     """A stock coach's sample on the media bucket, from coaches/samples.json (tools/media.py writes it), or None.
     Only an https:// address counts."""
@@ -439,7 +401,6 @@ def build_version(engine_root: str, env=os.environ) -> str:
         v = "unknown"
     sha = (env.get("HARMONICFITNESS_COMMIT") or "").strip()[:7]
     return f"{v} ({sha})" if sha else v
-
 
 
 def _byte_range(header: str | None, size: int):
@@ -512,11 +473,6 @@ def folder_from_zip(data: bytes) -> tuple[dict[str, bytes], int]:
         raise ValueError("That ZIP has no profile.md: zip the me folder itself.")
     return files, left_out
 
-def _refused(status: int, message: str, field: str) -> JSONResponse:
-    """A refusal about one box of a form: `detail` says why, as every refusal does, and `field` names the box (the
-    request's own key: "username", "password", "current", "new"), so the page can say it there."""
-    return JSONResponse(error_body(status, message, field=field), status)
-
 
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
                client_dist: str | os.PathLike | None = None) -> FastAPI:
@@ -579,151 +535,31 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     # ---- dependencies ---------------------------------------------------------------------
 
-    def same_origin(request: Request) -> None:
-        """CSRF: a POST must come from our own origin."""
-        sent = request.headers.get("origin")
-        if sent is None:
-            referer = request.headers.get("referer")
-            sent = _origin(referer) if referer else None
-        if sent is None or sent.lower() != origin:
-            raise HTTPException(403, "cross-origin request refused")
-
-    def session(request: Request) -> store.UserKey:
-        token = request.cookies.get(COOKIE)
-        if not token:
-            raise HTTPException(401, "not signed in")
-        with connection() as conn:
-            user_id = auth.user_for(conn, settings, token)
-            if user_id is None:
-                raise HTTPException(401, "not signed in")
-            uk = store.user_key(conn, settings, user_id)
-            conn.rollback()
-            return uk
-
-    User = Annotated[store.UserKey, Depends(session)]
-    post = {"dependencies": [Depends(same_origin)]}
-    login_name, login_addr = Throttle(*LOGIN_PER_NAME), Throttle(*LOGIN_PER_ADDRESS)
-    confirms = Throttle(*CONFIRM_PER_USER)
+    from .routes import auth as authroutes, state as routestate
+    st = routestate.AppState(
+        settings=settings, connection=connection, open_stream=open_stream, options=options, services=services,
+        version=version, dist=dist, origin=origin,
+        throttles={"login_name": Throttle(*authroutes.LOGIN_PER_NAME),
+                   "login_addr": Throttle(*authroutes.LOGIN_PER_ADDRESS),
+                   "reg_addr": Throttle(*authroutes.REGISTER_PER_ADDRESS),
+                   "reg_all": Throttle(*authroutes.REGISTER_ALL),
+                   "confirms": Throttle(*authroutes.CONFIRM_PER_USER)})
+    app.state.hf = st
+    User = routestate.User
+    post = routestate.POST
+    confirms = st.throttles["confirms"]
 
     def confirming(uk: store.UserKey) -> str:
-        """The throttle's key for a signed-in user's password checks; 429 once they've given too many wrong."""
-        key = str(uk.user_id)
-        if confirms.full(key):
-            raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
-        return key
-    reg_addr, reg_all = Throttle(*REGISTER_PER_ADDRESS), Throttle(*REGISTER_ALL)
+        return routestate.confirming(st, uk)
 
-    def signed_in(token: str, status: int = 204) -> Response:
-        r = Response(status_code=status)
-        r.set_cookie(COOKIE, token, max_age=settings.session_days * 86400, path="/",
-                     secure=_secure(settings), httponly=True, samesite="lax")
-        return r
 
     @app.get("/healthz")
     def healthz():
         """For the host's health check: no session, no database."""
         return {"ok": True, "version": version}
 
-    # ---- sign-in ----------------------------------------------------------------------------
+    app.include_router(authroutes.router)
 
-    @app.get("/api/auth")
-    def auth_info():
-        """What the sign-in page offers."""
-        return {"app_name": APP_NAME, "registration": settings.registration, "version": version}
-
-    @app.post("/api/register", status_code=201, **post)
-    def register(request: Request, body: Annotated[Credentials, Body()]):
-        if not settings.registration:
-            raise HTTPException(403, "New accounts are closed for now.")
-        addr = _address(request)
-        if reg_addr.full(addr) or reg_all.full("all"):
-            raise HTTPException(429, "Too many new accounts just now. Try again in an hour.")
-        reg_addr.hit(addr)
-        try:
-            with connection() as conn:
-                token = auth.register(conn, settings, body.username, body.password)
-        except auth.Invalid as e:
-            return _refused(400, str(e), e.field)
-        except auth.Taken:
-            return _refused(409, "That username is taken.", "username")
-        reg_all.hit("all")
-        return signed_in(token, 201)
-
-    @app.post("/api/sign-in", status_code=204, **post)
-    def sign_in(request: Request, body: Annotated[Credentials, Body()]):
-        name, addr = body.username.strip().lower(), _address(request)
-        if login_name.full(name) or login_addr.full(addr):
-            raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
-        try:
-            with connection() as conn:
-                token = auth.sign_in(conn, settings, body.username, body.password)
-        except auth.WrongPassword:
-            login_name.hit(name)
-            login_addr.hit(addr)
-            raise HTTPException(400, "Wrong username or password.") from None
-        return signed_in(token)
-
-    @app.post("/api/password", status_code=204, **post)
-    def password(request: Request, uk: User, body: Annotated[NewPassword, Body()]):
-        key = confirming(uk)
-        try:
-            with connection() as conn:
-                auth.set_password(conn, uk.user_id, body.current, body.new,
-                                  keep_session=request.cookies.get(COOKIE))
-        except auth.Invalid as e:
-            return _refused(400, str(e), "new" if e.field == "password" else e.field)
-        except auth.WrongPassword:
-            confirms.hit(key)
-            return _refused(400, "Your current password isn't right.", "current")
-        return Response(status_code=204)
-
-    @app.get("/link/{token}", response_class=HTMLResponse)
-    def link_page(token: str):
-        """A page whose button signs in; opening it (as a link preview does) uses nothing up."""
-        return HTMLResponse(_link_page(token), headers={"Cache-Control": "no-store"})
-
-    @app.post("/api/link/redeem", **post)
-    async def redeem(request: Request):
-        raw = await request.body()
-        is_json = request.headers.get("content-type", "").split(";")[0].strip() == "application/json"
-        try:
-            if is_json:
-                token = json.loads(raw).get("token")
-            else:
-                token = (parse_qs(raw.decode("utf-8")).get("token") or [None])[0]
-        except (ValueError, AttributeError):
-            token = None
-        if not isinstance(token, str) or not token:
-            raise HTTPException(400, "a token is needed")
-
-        def work():
-            with connection() as conn:
-                return auth.redeem(conn, settings, token)
-        try:
-            session_token = await anyio.to_thread.run_sync(work)
-        except auth.Refused:
-            if is_json:
-                return JSONResponse(error_body(410, "This link has expired or was already used."), 410)
-            return HTMLResponse(_refused_page(), 410, headers={"Cache-Control": "no-store"})
-        r = RedirectResponse("/", status_code=303)
-        r.set_cookie(COOKIE, session_token, max_age=settings.session_days * 86400, path="/",
-                     secure=_secure(settings), httponly=True, samesite="lax")
-        return r
-
-    @app.post("/api/sign-out", status_code=204, **post)
-    def sign_out(request: Request, uk: User):
-        with connection() as conn:
-            auth.sign_out(conn, request.cookies[COOKIE])
-        start.forget(uk.user_id)
-        r = Response(status_code=204)
-        r.delete_cookie(COOKIE, path="/", secure=_secure(settings), httponly=True, samesite="lax")
-        return r
-
-    @app.post("/api/device-link", **post)
-    def device_link(uk: User):
-        with connection() as conn:
-            link = auth.device_link(conn, settings, uk.user_id)
-        return {"url": link.url, "expires_at": link.expires_at.isoformat()}
 
     # ---- the signed-in API ------------------------------------------------------------------
 

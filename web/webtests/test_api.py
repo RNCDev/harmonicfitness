@@ -11,6 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from webapp import routes  # noqa: E402
+import webapp.routes.auth  # noqa: E402,F401
 from webapp import api, auth, config, conversations, db, enginelib, folder, jobs, keystore, spend, store, turns, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
@@ -150,7 +152,7 @@ class SignIn(ApiCase):
             self.assertEqual(r.status_code, 204)         # sign-in still works when closed
 
     def test_registration_throttled_per_address(self):
-        for i in range(api.REGISTER_PER_ADDRESS[0]):
+        for i in range(routes.auth.REGISTER_PER_ADDRESS[0]):
             r = self.register(f"many{i}", client=self.other_client(),
                               **{"X-Forwarded-For": "6.6.6.6, 10.0.0.1"})
             self.assertEqual(r.status_code, 201)
@@ -179,7 +181,7 @@ class SignIn(ApiCase):
         self.register("target", client=self.other_client())
         c = self.other_client()
         body = {"username": "target", "password": "wrong guess"}
-        for _ in range(api.LOGIN_PER_NAME[0]):
+        for _ in range(routes.auth.LOGIN_PER_NAME[0]):
             self.assertEqual(c.post("/api/sign-in", json=body, headers=self.origin()).status_code, 400)
         body["password"] = "long enough"
         r = c.post("/api/sign-in", json=body, headers=self.origin())
@@ -1531,7 +1533,7 @@ class Account(ApiCase):
     def test_wrong_passwords_on_a_session_are_throttled(self):
         self.registered()
         self.conn.rollback()
-        for _ in range(api.CONFIRM_PER_USER[0]):
+        for _ in range(routes.auth.CONFIRM_PER_USER[0]):
             r = self.client.post("/api/account/delete", json={"password": "not it"}, headers=self.origin())
             self.assertEqual(r.status_code, 400)
         r = self.client.post("/api/account/delete", json={"password": "long enough"}, headers=self.origin())
