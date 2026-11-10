@@ -42,7 +42,6 @@ import json
 import os
 import re
 import socket
-import ssl
 import sys
 import urllib.parse
 import urllib.request
@@ -53,6 +52,7 @@ import cli  # noqa: E402
 import errors  # noqa: E402
 import context  # noqa: E402
 import fileio  # noqa: E402
+import net  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 USER_AGENT = "harmonicfitness feeds (personal workout audio; github.com/RNCDev/harmonicfitness)"
@@ -79,39 +79,7 @@ def config(profile):
     return context.feed_sources(profile)
 
 
-MACOS_ROOTS = "/etc/ssl/cert.pem"
-
-
-def ssl_context():
-    """Verified TLS. A python.org Python ships without root certificates until its
-    Install Certificates step runs, so fall back to certifi, then to macOS's bundle."""
-    try:
-        import certifi
-        return ssl.create_default_context(cafile=certifi.where())
-    except ImportError:
-        pass
-    paths = ssl.get_default_verify_paths()
-    has_roots = paths.cafile or (paths.capath and os.path.isdir(paths.capath) and os.listdir(paths.capath))
-    if not has_roots and os.path.exists(MACOS_ROOTS):
-        return ssl.create_default_context(cafile=MACOS_ROOTS)
-    return ssl.create_default_context()
-
-
-_TLS = None
-
-
-def _check_scheme(url):
-    scheme = urllib.parse.urlsplit(url).scheme.lower()
-    if scheme not in ("http", "https"):
-        raise ValueError(f"only http and https addresses are fetched, not {scheme or 'this'}: {url[:80]}")
-
-
-class _WebOnlyRedirects(urllib.request.HTTPRedirectHandler):
-    """Follows a redirect only to another http or https address (the default handler would follow ftp too)."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        _check_scheme(urllib.parse.urljoin(req.full_url, newurl))
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+_check_scheme = net.check_scheme   # http or https only, each redirect too
 
 
 class PrivateAddress(OSError):
@@ -170,14 +138,11 @@ class _VettedHTTPSHandler(urllib.request.HTTPSHandler):
 def _open(req):
     """The answer to `req`, every redirect hop checked for its scheme; on the web client's worker, every connection
     (each redirect's too) made only to a public address, and never through a proxy."""
-    global _TLS
-    if _TLS is None:
-        _TLS = ssl_context()
     if paths.WEB:
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _WebOnlyRedirects, _VettedHTTPHandler,
-                                             _VettedHTTPSHandler(context=_TLS))
+        opener = net.opener("web", urllib.request.ProxyHandler({}), _VettedHTTPHandler,
+                            _VettedHTTPSHandler(context=net.tls_context()))
     else:
-        opener = urllib.request.build_opener(_WebOnlyRedirects, urllib.request.HTTPSHandler(context=_TLS))
+        opener = net.opener("web")
     return opener.open(req, timeout=TIMEOUT)
 
 
