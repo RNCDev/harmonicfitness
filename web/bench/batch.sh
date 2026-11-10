@@ -18,7 +18,7 @@ today="$(date +%Y-%m-%d)"
 if [ ! -f "$BASE/.prepared-$today" ]; then
   rm -rf "$BASE"; mkdir -p "$REPO/.bench"
   rsync -a --exclude .env --exclude .audio-cache --exclude coaches "$HOME_DIR/" "$BASE/"
-  HARMONICFITNESS_HOME="$BASE" ./harmonicfitness feeds > /dev/null
+  HARMONICFITNESS_HOME="$BASE" ./harmonicfitness feeds > /dev/null || true   # a home with no feeds (an invented listener) exits 1
   touch "$BASE/.prepared-$today"
 fi
 export PYDANTIC_AI_NO_BANNER=1
