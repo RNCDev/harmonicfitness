@@ -2,6 +2,40 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.78.0] - 2026-11-09
+
+The front-end audit: the web client already kept to its own rules, so this closes where the rules stopped looking. Every failure now says so, the phone gets full-size tap targets and its safe edges, lines and weights become tokens, and the two largest files are split by job. A minor release because the maintainer asked for one: files move and the client's tests ask more of a fork's code.
+
+### Added
+- **A page that breaks while drawing says so** (`ui/Boundary.tsx`), with a way to reload, where React left a blank sky. It wraps the whole app and each signed-in page, so a broken Logs page leaves the chat and a running workout on screen.
+- **Stop and Cancel ask first.** Stop throws away a plan that may have taken minutes, and sits where Send was a moment before; it now asks "Stop, and lose this workout's plan?" with focus on Keep going. Cancelling a scheduled workout asks too. Every delete already did.
+
+### Fixed
+- **No failure is silent any more.** A list that fails to read again after a change keeps what it showed and says so above it, with Try again (`Loadable`; it used to say nothing). A play the browser refuses says "This didn't play." A copy the browser refuses selects the podcast link and says so. A scheduled workout's check that fails three times running says the page has lost touch (the workout is still scheduled), and takes it back once a check works.
+- **A phone's controls are a fingertip's size.** The header's Settings, Coaches and Logs buttons (40 px), the demo chips (36 px) and both Close buttons now take a 44 px tap area on a touch screen, as the tokens said every control would. A theme test holds every control drawn under `--hit` to that rule.
+- **The page keeps clear of a phone's notch and home bar** (`viewport-fit=cover`, the `--safe-*` tokens on the page and the Settings drawer); nothing changes on a computer.
+- **Focus.** Opening Logs or Coaches puts focus on its title; closing it puts focus back on the button that opened it. The text box to write in shows the same 2 px ring as every other control (it had 1 px). Close is named "Close, back to the chat", so a voice command for "Close" finds it.
+- **One look for what's chosen:** a 2 px coral ring (a demo chip had 1 px).
+- **The web player page's stand-in tokens** (used without `web/`) had `--fs-md` at 14 px; they now equal the app's, and a test holds them so. Its rules take their spacing, line heights and lines from the tokens.
+- **The first screen on a slow connection** shows the mark and "Loading HarmonicFitness…" after a moment, where it was the sky alone.
+
+### Changed
+- **Lines, weights and layers are tokens.** A border drawn as an inset shadow is a geometry token and a colour (`box-shadow: var(--ring) var(--border)`: `--ring`, `--ring-strong`, `--line-top|bottom|left`, `--mark-top|bottom|left`, `--halo`, `--halo-wide`, `--fade-edge`); weights are `--w-regular` to `--w-heavy`; `z-index: 0` is `--z-base`. `theme.test.ts` refuses a typed shadow, weight (in `font-weight` or the `font` shorthand) or layer.
+- **Every colour by its role.** Five palette colours the stylesheets named directly have roles (`--surface-selected`, `--surface-hover`, `--underline-idle`, `--mark-off`, `--mark-done`), and the theme test now bans every palette name, read from `tokens.css` itself. `--s-9` and `--z-over`, never used, are gone.
+- **Settings and Logs are folders.** `zones/settings/` holds the drawer and a file per section (`KeysBox`, `LevelBox`, `RecordBox`, `FeedBox`, `SkyBox`, `FilesBox`, `Account`); `zones/logs/` holds `Logs`, `WorkoutRow` and `FeedbackForm`. A workout's script loads through `useResource`, its feedback follow-up through `lib/useFeedbackNote.ts`, and its sort and filters are `lib/arrange.ts`.
+- **Shared pieces for what was typed out twice:** `ui/Section.tsx`, `ui/PageHeader.tsx`, `ui/LevelCards.tsx`, `Failed` (in `ui/Notice.tsx`), `FlipWords` (in `ui/Flap.tsx`), and `LinkButton` and `FileButton` (`ui/ActionLink.tsx`) for Download your files and Bring in a folder.
+- **Loads and actions go through the hooks:** sign-in's account check is a `useResource`, choosing who writes is a `useAction`, and the Logs list re-reads with the new `useResource.refresh`.
+- **Forms:** a refused note on a workout is said under its box; every submit button that waits names what it's doing ("Saving…", "Planning…"); the balance check is a status. The sentences for a failure the server didn't explain are in `lib/messages.ts`.
+- **The written guides match the code:** `theme.css`'s header no longer says "No accent colour" (coral marks what's chosen), the style guide says the app ships its faces, lists the line and weight tokens, and a test holds its swatches to `tokens.css`.
+
+### For forks
+- Moved: `zones/Settings.tsx` → `zones/settings/Settings.tsx`, `zones/KeysBox.tsx` → `zones/settings/KeysBox.tsx`, `zones/Logs.tsx` → `zones/logs/Logs.tsx` (with their tests). `arrange` moved from `Logs.tsx` to `lib/arrange.ts`, `balanceText` from `KeysBox.tsx` to `lib/keys.ts`.
+- New tokens, in `tokens.css` and `docs/tokens.css` (copy the file): `--ring`, `--ring-strong`, `--line-*`, `--mark-*`, `--halo`, `--halo-wide`, `--fade-edge`, `--w-*`, `--z-base`, `--safe-*`, and the five roles above. Removed: `--s-9`, `--z-over`.
+- A fork's stylesheet must now draw every `box-shadow` from tokens (`var(--ring) var(--border)`, not `inset 0 0 0 1px var(--rule)`), set every weight and `z-index` from a token, name no palette colour (use a role), and give any control sized at `--control`, `--control-sm` or `--chip` a tap area in `primitives.css`'s `pointer: coarse` rule. A script that asks about the window's width uses `lib/breakpoints.ts`.
+- `layers.test.ts` now also refuses: a button's look (`go`, `act`, `quiet`…) or a shared piece's class (`cx-sec`, `page-top`, `level-card`, `failed`) on any element outside `ui/`; a `let|const live|alive|mounted` flag or an `api.*` call in a bare `useEffect` outside `lib/`; `"Couldn't …"` outside `lib/messages.ts`; a raw `aria-busy` line outside `ui/`; and a submit `Button` with `busy` but no `busyLabel`. The custom-button list is `slot`, `opt` and `bdot`.
+- `Loadable` shows `error` above a value it already has (it used to hide it); `Notice` takes `inline` for a span; `useResource` returns `refresh`. The Close buttons' name is "Close, back to the chat".
+- `tools/webcopy.py`'s `FALLBACK_TOKENS` must equal the app's tokens (`test_tokens`).
+
 ## [0.77.2] - 2026-11-09
 
 ### Fixed
