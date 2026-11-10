@@ -4,7 +4,7 @@
 
 Per run: seconds from the brief to the price, to the writers' room, in it and after it; the fixes the agent made
 after the room; each writer's seconds; what the opening leaves out (the made-by-AI line, the stop rule); names in a told story that none
-of the researcher's notes hold (fabrication candidates); greetings or goodbyes mid-session. Per label: the medians,
+of the researcher's notes hold (fabrication candidates); greetings or goodbyes mid-session; weekday, month, season or weather words the listener never wants (`never_said`). Per label: the medians,
 and the host's words against what it was asked, by kind of segment.
 """
 import json
@@ -53,7 +53,8 @@ def names(text):
 
 
 def fidelity(r):
-    known = " ".join(json.dumps(w["output"]) + " " + w["prompt"] for w in r["writers"] if w["who"] == "research").lower()
+    known = " ".join(json.dumps(w["output"]) + " " + w["prompt"] for w in r["writers"]
+                     if w["who"] in ("research", "top-up")).lower()
     draft = r["draft"] or ""
     unknown = sorted({n for s in STORY.findall(draft) for n in names(s) if n.lower() not in known})
     odd = []
@@ -65,6 +66,37 @@ def fidelity(r):
         if re.search(r"\b(that's a wrap|see you next time|great work today|that's the session|until next time)\b", plain):
             odd.append(f"#{i} wrap-up")
     return unknown, odd
+
+
+WEEKDAYS = "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split()
+MONTHS = "January February March April June July August September October November December".split()  # not May: a verb
+SEASONS = "spring summer autumn winter".split()
+WEATHER = "rain rainy raining sunny snow snowy snowing cloudy windy humid forecast".split()
+
+
+def never_said(draft, content_md):
+    """The weekday, month, season and weather words a script says when the listener's `## Never bring up` section
+    names the day, the date, the season or the weather. Only the spoken lines are read, `@@` lines aside."""
+    m = re.search(r"^## Never bring up\s*\n(.*?)(?=^## |\Z)", content_md, re.MULTILINE | re.DOTALL)
+    rule = m.group(1).lower() if m else ""
+    words = []
+    if re.search(r"day of the week|weekday", rule):
+        words += WEEKDAYS
+    if re.search(r"\bdate\b", rule):
+        words += MONTHS
+    if "season" in rule:
+        words += SEASONS
+    if "weather" in rule:
+        words += WEATHER
+    if not words:
+        return []
+    spoken = re.sub(r"^@@.*$", " ", draft or "", flags=re.MULTILINE)
+    spoken = re.sub(r"\[[^\]]*\]", " ", spoken)
+    found = []
+    for w in re.findall(r"[A-Za-z]+", spoken):
+        if w.lower() in {x.lower() for x in words} and w not in found:
+            found.append(w)
+    return found
 
 
 def words_by_kind(r):
@@ -119,6 +151,11 @@ def facts(path):
         if "research was ready" in ln["line"]:
             writers_s["research wait"] = [0.0]
     unknown, odd = fidelity(r)
+    try:
+        with open(os.path.join(os.path.dirname(path), "home", "content.md"), encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        content = ""   # a run kept without its home (the committed examples) has no rule to read
     return {"run": os.path.basename(os.path.dirname(path)), "priced": bool(r["offer"]), "total": round(end, 1),
             "from_brief": round(end - brief, 1) if brief is not None else None,
             "to_room": round(room_start - brief, 1) if room_start and brief is not None else None,
@@ -128,7 +165,8 @@ def facts(path):
             "reviews": len(writers_s.get("review", [])),
             "writers": {k: round(sum(v), 1) for k, v in writers_s.items()},
             "opening": opening(r["draft"]) if r["draft"] else ["no draft"],
-            "not_in_notes": unknown, "one_voice": odd, "lint_clean": bool(r["final_lint"]) and "Fix and rerun" not in r["final_lint"],
+            "not_in_notes": unknown, "one_voice": odd,
+            "never_said": never_said(r["draft"], content), "lint_clean": bool(r["final_lint"]) and "Fix and rerun" not in r["final_lint"],
             "error": last["error"]}, words_by_kind(r)
 
 

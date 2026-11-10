@@ -64,6 +64,16 @@ Set the rule before the runs:
 - A change to what a writer does is kept only if the median holds or drops and quality holds in every run: priced,
   every must-say line in, the sides right, no story fact outside its notes, one voice start to finish.
 
+### The gate
+
+`.venv/bin/python web/bench/compare.py <baseline-label> <candidate-label>` prints, per label, the medians of writing
+cost, requests, input tokens and seconds from the brief to the price, and how many runs fail a quality check, then
+`GATE: pass` or `GATE: fail (<reasons>)`. It passes only when every candidate run is compliant (priced, final lint
+clean, and nothing from `summarize.py`'s opening, story-names, one-voice and `never_said` checks: the weekday,
+month, season or weather words a listener's `## Never bring up` rules out) and the median writing cost is no higher
+than the baseline's. Bench Jo, whose rules the clips need, with `HARMONICFITNESS_HOME=docs/demos/listeners/jo`:
+`batch.sh` keeps one prepared copy per home, so Jo's and `me/`'s never share a folder.
+
 ## Results
 
 ### 0.78.1 (2026-11-10): where the tokens go, Gemini and Opus

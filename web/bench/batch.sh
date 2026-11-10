@@ -5,7 +5,7 @@
 #   web/bench/batch.sh <label> <minutes> <runs> [run_one.py options: --engine <root>, --set NAME=VALUE]
 #
 # Output goes to .bench/out/<label>/<n>/ (git-ignored, and refused by the privacy hook: each run holds a copy of
-# the listener's files). The first batch of the day prepares .bench/base: a copy of me/ without its key file or
+# the listener's files). The first batch of the day prepares .bench/base-<home's folder name>: a copy of me/ without its key file or
 # clip cache, with today's feeds fetched once, so every run reads the same sheet. Don't start a batch near
 # midnight: a run's menu is dated by the day it began.
 set -e
@@ -13,11 +13,11 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO"
 label=$1; minutes=$2; runs=$3; shift 3
 HOME_DIR="${HARMONICFITNESS_HOME:-$REPO/me}"
-BASE="$REPO/.bench/base"
+BASE="$REPO/.bench/base-$(basename "$HOME_DIR")"   # one per home: Jo's copy and me/'s never share a folder
 today="$(date +%Y-%m-%d)"
 if [ ! -f "$BASE/.prepared-$today" ]; then
   rm -rf "$BASE"; mkdir -p "$REPO/.bench"
-  rsync -a --exclude .env --exclude .audio-cache "$HOME_DIR/" "$BASE/"
+  rsync -a --exclude .env --exclude .audio-cache --exclude coaches "$HOME_DIR/" "$BASE/"
   HARMONICFITNESS_HOME="$BASE" ./harmonicfitness feeds > /dev/null
   touch "$BASE/.prepared-$today"
 fi
