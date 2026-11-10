@@ -1514,18 +1514,19 @@ class ThirtyMinuteScripts(DraftCase):
         from webapp.agent import writers
         gemini, claude = OpenRouterModel("google/gemini-3.8-flash"), OpenRouterModel("anthropic/claude-opus-5.5")
         self.assertEqual(agent.thinking_level(gemini, "brief"), "MEDIUM")
-        self.assertEqual(writers.thinking_settings(gemini, "MEDIUM"), {"openrouter_reasoning": {"effort": writers.OPENROUTER_EFFORT["MEDIUM"]}})
+        self.assertEqual(writers.thinking_settings(gemini, "MEDIUM"), {"openrouter_reasoning": {"max_tokens": 4000}})
         self.assertIsNone(agent.thinking_level(claude, "brief"))   # any other model: its provider's default
         self.assertIsNone(writers.thinking_settings(claude, "LOW"))
 
-    def test_openrouter_gemini_effort_follows_the_table(self):
+    def test_openrouter_gemini_reasoning_follows_the_table(self):
         class OpenRouterModel:   # named as pydantic-ai's
             model_name = "google/gemini-3.8-flash"
         from webapp.agent import writers
         gemini = OpenRouterModel()
-        self.assertEqual(writers.OPENROUTER_EFFORT, {"HIGH": "medium", "MEDIUM": "low", "LOW": "low"})
-        for level, effort in writers.OPENROUTER_EFFORT.items():
-            self.assertEqual(writers.thinking_settings(gemini, level), {"openrouter_reasoning": {"effort": effort}})
+        self.assertEqual(writers.OPENROUTER_REASONING, {"HIGH": {"max_tokens": 8000}, "MEDIUM": {"max_tokens": 4000},
+                                                        "LOW": {"effort": "low"}})
+        for level, reasoning in writers.OPENROUTER_REASONING.items():
+            self.assertEqual(writers.thinking_settings(gemini, level), {"openrouter_reasoning": reasoning})
 
     def test_step_one_brings_todays_research_sheet(self):
         daily = os.path.join(self.home, "workouts", "research", "daily")
