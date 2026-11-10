@@ -17,6 +17,8 @@ coaches/.auditions/
 coaches/*/.made.json
 coaches/*/.made.wav
 workouts/.logs/*.log
+# This computer's note of which GitHub remote it confirmed private (./harmonicfitness backup): its own, never pushed.
+workouts/.logs/backup-remote.json
 # Stock-voice samples, and ./harmonicfitness migrate's backups (git has the history).
 coaches/.samples/
 .backup-*/

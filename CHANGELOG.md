@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.77.2] - 2026-11-09
+
+### Fixed
+- **`backup` no longer pushes this computer's note of its private remote.** `workouts/.logs/backup-remote.json` was meant to stay on the computer, but the template's `.gitignore` never left it out: every backup committed it, and since the note is rewritten after each commit, `me/` always showed it changed. The template now leaves it out, and `./harmonicfitness setup` adds the rule to an older folder's `.gitignore` and stops tracking the file (the next backup commits that).
+
+### For forks
+- `me.example/.gitignore` gains `workouts/.logs/backup-remote.json`. A listener's own `me/` gets it from `setup`; run it once, or add the line and `git rm --cached` the file yourself.
+
 ## [0.77.1] - 2026-11-09
 
 ### Fixed

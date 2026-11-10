@@ -238,6 +238,15 @@ class Template(unittest.TestCase):
         for rule in ("workouts/.audio-cache/*", "!workouts/.audio-cache/voice-pace.json", "*.mp3"):
             self.assertIn(rule, lines)
 
+    def test_the_computers_note_of_its_private_remote_is_never_pushed(self):
+        """backup.py's own note (0.77.2): the template leaves it out, and setup adds the rule to an older folder's."""
+        rule = "workouts/.logs/backup-remote.json"
+        with open(os.path.join(paths.EXAMPLE, ".gitignore"), encoding="utf-8") as f:
+            self.assertIn(rule, f.read().split("\n"))
+        with open(os.path.join(paths.ROOT, "tools", "setup.sh"), encoding="utf-8") as f:
+            self.assertIn(f"grep -qxF '{rule}'", f.read())
+        self.assertTrue(backup._memory_path("/h").replace(os.sep, "/").endswith(rule))
+
 
 class Visibility(unittest.TestCase):
     """Without gh (Claude Code on the web), GitHub's API still says whether a repo is public."""

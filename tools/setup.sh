@@ -119,6 +119,11 @@ if [ -e "$CONTEXT/profile.md" ]; then
     printf '%s\n' "# API keys for cloud voices (./harmonicfitness keys): never committed, never pushed." ".env" >> "$CONTEXT/.gitignore"
     echo "   .gitignore now leaves out .env, where cloud voice keys go"
   fi
+  if ! grep -qxF 'workouts/.logs/backup-remote.json' "$CONTEXT/.gitignore"; then
+    printf '%s\n' "# This computer's note of which GitHub remote it confirmed private (./harmonicfitness backup): its own, never pushed." "workouts/.logs/backup-remote.json" >> "$CONTEXT/.gitignore"
+    git -C "$CONTEXT" rm -q --cached --ignore-unmatch workouts/.logs/backup-remote.json 2>/dev/null || true
+    echo "   .gitignore now leaves out the backup's note of your private remote"
+  fi
 else
   mkdir -p "$CONTEXT"
   cp -R "$ROOT/me.example/." "$CONTEXT/"
