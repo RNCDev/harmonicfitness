@@ -646,7 +646,11 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
             except Exception:  # noqa: BLE001 - the early run failed: write them now instead
                 logline(deps, "research: the early run failed, written now")
         if got is None:
-            got = await stories(deps, model, usage, path, max(1, round(sum(s for _, _, s, _ in segs) / 60)), search)
+            try:
+                got = await stories(deps, model, usage, path, max(1, round(sum(s for _, _, s, _ in segs) / 60)), search)
+            except Exception:  # noqa: BLE001 - research failed twice (a 504 both times, 2026-11-09): coaching only
+                logline(deps, "research failed twice: every place gets coaching only")
+                return []
         if len(got) < len(rests):
             plan = await asyncio.to_thread(tools.run, plain, ["content", "plan", "--minutes",
                                                               str(max(1, round(sum(s for _, _, s, _ in segs) / 60)))])

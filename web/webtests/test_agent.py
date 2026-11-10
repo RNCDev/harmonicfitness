@@ -726,6 +726,69 @@ class DraftCase(AgentCase):
         return mock.patch.object(tools.engine, "run", side_effect=run), calls
 
 
+class Research(DraftCase):
+    """A failed research call never fails the turn (0.79.0): the places get coaching only."""
+    SKELETON = ("movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[count 3 go]\n\n"
+                "@@ 60 | Rest after squats\n\n@@ 30 | Close\n")
+    REPORT = ("Skeleton: 4 segments, 180 s. Word budgets with Coach Freya (about 147 words a minute):\n"
+              "  #  secs budget words to write  label\n  1    30     70     0       70  Welcome\n"
+              "  2    60    140     0      140  Squats\n  3    60    140     0      140  Rest after squats\n"
+              "  4    30     70     0       70  Close\n")
+
+    def skeleton(self):
+        tools.write_file(self.deps, self.DRAFT, self.SKELETON)
+        tools.write_file(self.deps, "me/workouts/a/a.brief.md", "# Brief\n\n## The listener\n\nSam.\n\n## Today's limits\n\nNone.\n")
+        self.deps.reports[self.DRAFT] = self.REPORT
+
+    def room(self, researcher):
+        """The room's models: `researcher` answers (or raises) for the researcher, the others reply with nothing."""
+        from pydantic_ai.models.function import AgentInfo
+        from webapp.agent import writers
+        prompts = []
+
+        def reply(messages, info: AgentInfo):
+            props = info.output_tools[0].parameters_json_schema["properties"]
+            if "stories" in props:
+                return researcher()
+            prompts.append(messages[-1].parts[-1].content)
+            return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"segments": []})])
+        return writers, FunctionModel(reply), prompts
+
+    def test_the_room_writes_coaching_only_when_research_fails_twice(self):
+        import asyncio
+        from pydantic_ai.exceptions import ModelHTTPError
+        from pydantic_ai.usage import RunUsage
+        self.skeleton()
+        lines = []
+        self.deps.log = lines.append
+
+        def boom():
+            raise ModelHTTPError(504, "google/gemini", {"error": "rate limited"})
+        writers, model, prompts = self.room(boom)
+        patch, calls = self.fake()
+        with patch:
+            draft, note = asyncio.run(writers.write(self.deps, model, RunUsage(), self.DRAFT,
+                                                    name="Workout A", coach="Coach Freya"))
+        self.assertIn("@@ 60 | Rest after squats", draft)
+        self.assertIn("room research failed twice: every place gets coaching only", lines)
+        self.assertEqual(self.deps.told, {"draft": self.DRAFT, "items": []})
+        self.assertIn("told 0 stories", note)
+        host = next(p for p in prompts if "# The plan" in p and "No story here" in p)
+        self.assertIn("No story here", host)
+
+    def test_stop_still_stops_the_room_while_research_is_written(self):
+        import asyncio
+        from pydantic_ai.usage import RunUsage
+        self.skeleton()
+
+        def stopped():
+            raise asyncio.CancelledError()
+        writers, model, _ = self.room(stopped)
+        patch, _ = self.fake()
+        with patch, self.assertRaises(asyncio.CancelledError):
+            asyncio.run(writers.write(self.deps, model, RunUsage(), self.DRAFT, name="Workout A", coach="Coach Freya"))
+
+
 class Faster(DraftCase):
     """0.48.0: fewer round trips and smaller fixes on the way to a priced script."""
 
