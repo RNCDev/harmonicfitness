@@ -82,6 +82,9 @@
   border-radius: var(--radius-control); background: var(--panel); box-shadow: var(--ring) var(--border-strong);
 }
 .chat-form:focus-within { box-shadow: var(--focus-ring-inset) }   /* the one ring, as every other control's */
+/* Stop asking first: the question takes a row of its own, above the box, so the box keeps its width */
+.chat-form:has(.chat-stop) { flex-wrap: wrap }
+.chat-stop { flex-basis: 100%; order: -1; padding-block: var(--s-1h) }
 .chat-form textarea {
   flex: 1; min-width: 0; resize: none; font: inherit; padding: var(--s-2h) 0; border: 0; background: transparent; color: inherit;
   min-height: var(--control); max-height: 30vh; outline: none; field-sizing: content;
