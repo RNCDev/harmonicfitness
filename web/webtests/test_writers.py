@@ -51,10 +51,10 @@ class Plan(unittest.TestCase):
         # Gemini's host writes about 1.4 times the words it is asked for, so it's asked for less of each budget
         GoogleModel = type("GoogleModel", (), {})
         gemini, other = GoogleModel(), object()
-        self.assertEqual(writers.AIMS["gemini"], 0.7)
-        self.assertEqual(writers.aim(gemini), 0.7)
+        self.assertEqual(writers.AIMS["gemini"], 0.82)
+        self.assertEqual(writers.aim(gemini), 0.82)
         self.assertEqual(writers.aim(other), 0.85)
-        self.assertEqual(writers.asked(3, ["text"], {3: 100}, gemini), 70)
+        self.assertEqual(writers.asked(3, ["text"], {3: 100}, gemini), 82)
         self.assertEqual(writers.asked(3, ["text"], {3: 100}, other), 85)
         self.assertEqual(writers.asked(3, ["[hold]"], {3: 100}, gemini), 100)   # a bare hold keeps the whole budget
 
