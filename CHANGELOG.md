@@ -2,6 +2,25 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.76.1] - 2026-11-09
+
+The web server's structural part of the back-end audit, with no change in behaviour: every route keeps its method, path, statuses, body and headers. The web process no longer imports the worker, `create_app`'s thousand lines are routers, and one rule decides who commits a transaction.
+
+### Changed (no change in behaviour)
+- **The web process never imports the worker.** What both use moved out of `worker.py`: the engine's modules and lists to `webapp/enginelib.py`, a turn's arguments to `webapp/turns.py`. A test keeps it so.
+- **The routes are routers** in `webapp/routes/`, one per area (`auth`, `account`, `files`, `logs`, `media`, `settings`, `jobs`, `conversations`, `client`), included in the order they were matched before; a test pins the route table and its order. `api.py` keeps the app: its middleware, its one shape of refusal and its connections.
+- **One rule for who commits.** No function that reads or writes data commits or rolls back: its caller does, a route through `routes.state`'s `tx` (commits on the way out) or `read` (never does), either rolling back on any raise; the worker loop for its jobs. Only the job queue's single-step units of work, the sweeps and the migrations commit their own. A test keeps it so. A session older than a day is still renewed, and an expired one still deleted, when the answer is 401.
+- `HARMONICFITNESS_DAILY_CHARS` and `HARMONICFITNESS_WRITERS` are read once, when the service starts (`config.Settings.daily_chars`, `.writers`), not on each request or turn.
+
+### For forks
+- Release A of two: no SQL, migration or job argument changed, so a worker on 0.76.0 keeps running beside a 0.76.1 web service during a deploy.
+- `worker._engine_modules`, `engine_lists`, `engine_services`, `engine_keys` and `clean_key` are `enginelib.modules`, `lists`, `services`, `keys` and `clean_key`.
+- `worker.check_turn`, `_turn_request`, `_today`, `local_clock`, `api_when` and `TURN_ARGS`, `TURN_NOW`, `MAX_LINE` are in `turns` (`check`, `request`, `day`, `local_clock`, `said_when`), raising `turns.Invalid`; the worker turns that into its own `_Stop` or `JobFailed`, with the same words. `api.said_when` is `turns.said_when`.
+- `spend.daily_cap()` is gone: read `settings.daily_chars`. `agent.run_turn` no longer reads `HARMONICFITNESS_WRITERS`: the worker sets `Deps.writers` from `settings.writers` (`config.WRITERS`; `agent.WRITERS` is the same tuple).
+- Routes moved out of `api.create_app` into `routes/<area>.py`, each a `router` (`account` has a second, `late`, for the level and the account's delete, included after the Logs routes where they always were). `routes.state` has `AppState` (on `app.state.hf`), `state`, `tx`, `read`, `session`, `same_origin`, `User`, `POST`, `confirming`, `COOKIE`, `MAX_QUEUED`, `JOB_ID` and `Day`.
+- Names that moved with their routes: `api.POLL_EVERY`, `KEEP_ALIVE`, `WAIT_SLICE` and `_stream` to `routes.jobs`; `api.later_from`, `LEAD`, `FURTHEST`, `RECORD_LINE`, `STILL_WORKING` and the turn bodies to `routes.conversations`; `api.stock_sample_url` to `routes.account`; the throttle limits (`LOGIN_PER_NAME`, `LOGIN_PER_ADDRESS`, `REGISTER_PER_ADDRESS`, `REGISTER_ALL`, `CONFIRM_PER_USER`) to `routes.auth`; `api._workout_call` is `routes.logs.workout_call`; `api.folder_from_zip` and `IMPORT_MAX_*` to `folder`. `api.Throttle`, `error_body`, `ERROR_CODES`, `_BodyLimit`, `build_version`, `create_app` and `create_app_from_env` stay.
+- `auth.register`, `sign_in`, `set_password`, `device_link`, `reset_link`, `redeem`, `user_for` and `sign_out` no longer commit or roll back: run them in a transaction and commit it (`python -m webapp.admin reset-password` does). `jobs.enqueue` is gone: `jobs.add` in the caller's transaction, then commit.
+
 ## [0.76.0] - 2026-11-09
 
 The back-end audit's fixes. A recording the listener paid for survives a dropped database connection and a deploy; the clip cache keeps saving money; nothing a stranger wrote can loosen an injury limit; the engine on the web fetches only public addresses; and the site stops keeping what nobody can use. A minor release because the maintainer asked for one: the database gains two migrations, every refusal's body gains a field, and `sync` and `backup` refuse what they used to let through.
