@@ -7,11 +7,11 @@ All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The fo
 The engine's structural part of the back-end audit: every web request the engine makes goes through one module, `tools/net.py`, and `knowledge/services.toml` is read on first use. Release B of two, after 0.76.1's web server.
 
 ### Changed
-- **One place for the engine's web requests** (`tools/net.py`): `cloud`, `feeds`, `webpull`, `bucket`, `media`, `ready` and `backup` open addresses only through `net.opener`, which carries verified TLS and follows a redirect only as each says. A test keeps it so (`test_imports`). Each still says a refused redirect in its own words, as before: `cloud` a `ServiceError`, `webpull` "The web app redirected to ...", `bucket` "The bucket refused ...: HTTP 302."
+- **One place for the engine's web requests** (`tools/net.py`): `cloud`, `feeds`, `webpull`, `bucket`, `media`, `ready` and `backup` open addresses only through `net.opener`, which carries verified TLS and follows a redirect only as each says. A test keeps it so (`test_imports`). Each still says a refused redirect in its own words, as before: `cloud` a `ServiceError`, `webpull` "The web app redirected to ...", `bucket` "The bucket refused ...: HTTP 302." A relative `Location` is now named by the host it resolves to, where `cloud` and `webpull` echoed the raw path.
 - **`services.toml` is read on first use, not at import:** `keys` and `cloud` build `SERVICE_VARS`, `KEY_PAGES`, `SECRET_VARS`, `SERVICES` and `ROUTES` when first asked, so a command that reaches a damaged file through them stops with exit 1 (`SettingsError`), not a traceback. `routes` and `audition` still read it as they load.
 
 ### Fixed
-- **`webpull`, `bucket`, `media` and `ready` verify TLS against certifi's bundle** (or macOS's, on a Python that has none), as `cloud` and `feeds` did; they had the interpreter's own, which a python.org Python ships empty. `feeds` falls back the same way when certifi's file can't be read.
+- **`webpull`, `bucket`, `media`, `ready` and `backup` verify TLS against certifi's bundle** (or macOS's, on a Python that has none), as `cloud` and `feeds` did; they had the interpreter's own, which a python.org Python ships empty. `feeds` falls back the same way when certifi's file can't be read.
 - **`backup` follows a redirect only on GitHub's own host.** Its visibility check carries `GH_TOKEN`, and urllib passes the token on to wherever a redirect points; it followed one anywhere.
 - **`http://[::1]` counts as this computer for a base address in `cloud` and `media`** (`HARMONICFITNESS_<SERVICE>_URL`, `HARMONICFITNESS_MEDIA_URL`), as it already did for `webpull`'s `HARMONIC_URL`: all three decide with `net.allowed_base`.
 
