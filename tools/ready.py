@@ -25,6 +25,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import fileio  # noqa: E402
+import net  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
@@ -114,7 +115,7 @@ def file(slug, listing=None, opener=None):
         return out
     address = url(w, listing)
     try:
-        with (opener or urllib.request.urlopen)(address, timeout=120) as r:
+        with (opener or net.opener("any").open)(address, timeout=120) as r:   # any redirect: the SHA-256 is checked
             body = r.read()
     except (urllib.error.URLError, OSError) as e:
         raise errors.HarmonicFitnessError(f"The ready-made {w.get('title', slug)} couldn't be fetched from {address}: "
