@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from webapp import routes  # noqa: E402
 import webapp.routes.account  # noqa: E402,F401
 import webapp.routes.auth  # noqa: E402,F401
+import webapp.routes.conversations  # noqa: E402,F401
 import webapp.routes.jobs  # noqa: E402,F401
 from webapp import api, auth, config, conversations, db, enginelib, folder, jobs, keystore, spend, store, turns, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402

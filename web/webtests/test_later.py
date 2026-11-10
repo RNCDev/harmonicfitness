@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from fastapi import HTTPException  # noqa: E402
 
-from webapp import api, turns  # noqa: E402
+from webapp.routes import conversations  # noqa: E402
+from webapp import turns  # noqa: E402
 
 UTC = datetime.timezone.utc
 NOON = datetime.datetime(2026, 11, 3, 17, 0, tzinfo=UTC)   # noon in New York
@@ -18,19 +19,19 @@ NOON = datetime.datetime(2026, 11, 3, 17, 0, tzinfo=UTC)   # noon in New York
 
 class PickedTime(unittest.TestCase):
     def test_a_time_later_today_is_kept_on_the_listeners_clock(self):
-        later = api.later_from("2026-11-03T19:30:00-05:00", NOON)
+        later = conversations.later_from("2026-11-03T19:30:00-05:00", NOON)
         self.assertEqual(later, {"at": "2026-11-04T00:30:00+00:00", "local": "2026-11-03 Tuesday 19:30",
                                  "offset": -300})
         self.assertEqual(turns.said_when(later["local"]), "Tuesday at 19:30")
 
     def test_none_picked_or_inside_the_lead_is_a_workout_now(self):
-        self.assertIsNone(api.later_from(None, NOON))
-        self.assertIsNone(api.later_from("2026-11-03T12:10:00-05:00", NOON))   # ten minutes off: at once
+        self.assertIsNone(conversations.later_from(None, NOON))
+        self.assertIsNone(conversations.later_from("2026-11-03T12:10:00-05:00", NOON))   # ten minutes off: at once
 
     def test_a_time_past_a_day_without_an_offset_or_unreadable_is_refused(self):
         for bad in ("2026-11-04T13:00:00-05:00", "2026-11-03T19:30:00", "seven thirty"):
             with self.assertRaises(HTTPException, msg=bad) as e:
-                api.later_from(bad, NOON)
+                conversations.later_from(bad, NOON)
             self.assertEqual(e.exception.status_code, 422)
 
 
