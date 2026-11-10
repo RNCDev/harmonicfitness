@@ -4,6 +4,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { mss } from "../lib/format";
 import { Icon } from "./icons";
+import { Notice } from "./Notice";
 
 export function PlayButton({ playing, onClick, label, large = false }: {
   playing: boolean; onClick: () => void; label: string; large?: boolean;
@@ -66,6 +67,8 @@ export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({
   const [on, setOn] = useState(false);
   const [at, setAt] = useState(0);
   const [length, setLength] = useState(0);
+  /** The browser refused to play (a file it can't open, or no sound allowed yet): said under the player. */
+  const [refused, setRefused] = useState(false);
   const said = useRef({ onPlaying, onTouch });
   said.current = { onPlaying, onTouch };
 
@@ -78,7 +81,7 @@ export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({
     if (!a) return;
     if (!a.paused) a.pause();
     if (lazy) a.removeAttribute("src");
-    setOn(false); setAt(0); setLength(0);
+    setOn(false); setAt(0); setLength(0); setRefused(false);
   }, [src, lazy]);
   useEffect(() => {
     const mine = audio.current;   // the ref is cleared before the cleanup runs
@@ -93,7 +96,12 @@ export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({
   const start = (a: HTMLAudioElement) => {
     if (now && now !== a && !now.paused) now.pause();
     now = a;
-    void a.play()?.catch(() => setOn(false));
+    setRefused(false);
+    void a.play()?.catch((e: unknown) => {
+      setOn(false);
+      // a pause before the play began isn't a refusal
+      if (!(e instanceof DOMException && e.name === "AbortError")) setRefused(true);
+    });
   };
   const toggle = () => {
     said.current.onTouch?.();
@@ -120,6 +128,7 @@ export const AudioPlayer = forwardRef<AudioHandle, Props>(function AudioPlayer({
       <Seek at={at} length={length} label={`${label}, position`} ticks={ticks}
         onSeek={(t) => { said.current.onTouch?.(); const a = audio.current; if (a && length) { a.currentTime = t; setAt(t); } }} />
       <PlayTime at={at} length={length} playing={on} idle={idle} />
+      <Notice tone="error" className="player-refused">{refused ? "This didn't play. Try again in a moment." : null}</Notice>
     </div>
   );
 });

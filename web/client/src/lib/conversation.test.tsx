@@ -28,7 +28,7 @@ vi.mock("./api", async (orig) => {
   };
 });
 
-import { isHistory, resumable, useConversation } from "./conversation";
+import { isHistory, LOST_TOUCH, resumable, useConversation } from "./conversation";
 
 
 const conv = (over: Partial<Conversation>): Conversation => ({
@@ -61,6 +61,21 @@ describe("useConversation", () => {
     expect(isHistory(conv({ state: "scheduled", updated_at: yesterday() }))).toBe(false);
     await act(async () => { vi.advanceTimersByTime(31000); });
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(51));
+  });
+
+  it("says when a scheduled conversation can't be read three times running, and takes it back once one is", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    m.latest.mockResolvedValue(conv({ state: "scheduled", later: { at: new Date().toISOString(), local: "x" } }));
+    m.conversation.mockRejectedValue(new TypeError("Failed to fetch"));
+    const { result } = renderHook(() => useConversation());
+    await waitFor(() => expect(result.current.conv?.state).toBe("scheduled"));
+    await act(async () => { vi.advanceTimersByTime(61000); });
+    expect(result.current.error).toBeNull();   // two misses: quiet
+    await act(async () => { vi.advanceTimersByTime(30000); });
+    await waitFor(() => expect(result.current.error).toBe(LOST_TOUCH));
+    m.conversation.mockResolvedValue(conv({ state: "scheduled", later: { at: new Date().toISOString(), local: "x" } }));
+    await act(async () => { vi.advanceTimersByTime(30000); });
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 
   it("opens a scheduled workout that was written while the page was closed", async () => {

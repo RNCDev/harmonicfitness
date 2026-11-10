@@ -11,6 +11,7 @@ import { keepLineBreaks } from "../../lib/lines";
 import type { Step } from "../../lib/steps";
 import { AudioFile } from "../../ui/AudioFile";
 import { Button } from "../../ui/Button";
+import { ConfirmInline } from "../../ui/ConfirmInline";
 import { Notice } from "../../ui/Notice";
 import { Starter } from "../Starter";
 import { LaterOffer, RecordOffer, Scheduled } from "./Offers";
@@ -107,7 +108,9 @@ export function Chat({ lines, working, steps = [], plan = null, error, noKey, on
   const { offer = null, onRecord, later = null, scheduled = false, onSchedule, onCancel } = offers;
   const [text, setText] = useState(readDraft);
   const [stopping, setStopping] = useState(false);
-  useEffect(() => { if (!working) setStopping(false); }, [working]);
+  /** Stop was pressed once: it asks before the plan so far is thrown away. */
+  const [askStop, setAskStop] = useState(false);
+  useEffect(() => { if (!working) { setStopping(false); setAskStop(false); } }, [working]);
   const log = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
@@ -179,8 +182,13 @@ export function Chat({ lines, working, steps = [], plan = null, error, noKey, on
               send();
             }
           }} />
-        {working && onStop && !stopping && (
-          <Button variant="stop" onClick={() => { setStopping(true); onStop(); }}>Stop</Button>
+        {working && onStop && !stopping && !askStop && (
+          <Button variant="stop" onClick={() => setAskStop(true)}>Stop</Button>
+        )}
+        {working && onStop && !stopping && askStop && (
+          <ConfirmInline className="chat-stop" question="Stop, and lose this workout's plan?" confirm="Stop it"
+            keep="Keep going" onConfirm={() => { setAskStop(false); setStopping(true); onStop(); }}
+            onKeep={() => { setAskStop(false); box.current?.focus(); }} />
         )}
         <Button type="submit" variant="primary" disabled={working || scheduled || !!needsKey || !text.trim()}>Send</Button>
       </form>

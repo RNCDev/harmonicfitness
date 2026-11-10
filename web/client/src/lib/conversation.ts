@@ -7,6 +7,9 @@ import { localDate, localNow } from "./when";
 const RELOAD_DELAYS = [1000, 3000, 6000];
 /** How often a scheduled conversation is read again, to see its writing begin. */
 const SCHEDULED_EVERY = 30000;
+/** Reads of a scheduled conversation that fail in a row before the page says so. */
+const SCHEDULED_MISSES = 3;
+export const LOST_TOUCH = "Can't reach HarmonicFitness just now. Your workout is still scheduled; this page keeps checking.";
 
 const when = () => {
   const d = new Date();
@@ -105,12 +108,21 @@ export function useConversation() {
   }, [job?.id, job?.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A scheduled conversation is read again now and then: once its writing begins, it's working, and followed.
+  // A read that fails is tried at the next tick; after a few in a row the page says it has lost touch (the
+  // workout is still on the server's schedule), and the next read that works takes the words back.
   const scheduled = conv?.state === "scheduled";
   useEffect(() => {
     if (!scheduled || id === undefined) return;
+    let missed = 0;
     const t = setInterval(() => {
-      api.conversation(id).then((c) => { if (c.state !== "scheduled") adopt(c); }, () => {
-        /* read again at the next tick; a lost session has gone to sign-in */
+      api.conversation(id).then((c) => {
+        if (missed >= SCHEDULED_MISSES) setError(null);
+        missed = 0;
+        if (c.state !== "scheduled") adopt(c);
+      }, (e) => {
+        if (e instanceof NotSignedIn) return;   // api.ts has sent the page to sign-in
+        missed += 1;
+        if (missed === SCHEDULED_MISSES) setError(LOST_TOUCH);
       });
     }, SCHEDULED_EVERY);
     return () => clearInterval(t);

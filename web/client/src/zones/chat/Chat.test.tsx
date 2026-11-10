@@ -91,6 +91,8 @@ describe("the chat", () => {
     expect(screen.getByText(/Scheduled for/)).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).not.toHaveBeenCalled();   // it asks first
+    fireEvent.click(screen.getByRole("button", { name: "Cancel it" }));
     expect(onCancel).toHaveBeenCalled();
     rerender(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]}
       offers={{ later: { ...later, at: new Date(Date.now() - 60000).toISOString() } }} />);
@@ -113,10 +115,16 @@ describe("the chat", () => {
     expect(screen.getByText("Your coach asked you something.")).toBeInTheDocument();
   });
 
-  it("Stop says it's stopping and asks once", () => {
+  it("Stop asks before it throws the plan away, then says it's stopping and asks the server once", () => {
     const onStop = vi.fn();
     render(<Chat {...base} working onStop={onStop} />);
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(onStop).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Keep going" })).toHaveFocus();   // Enter never stops by accident
+    fireEvent.click(screen.getByRole("button", { name: "Keep going" }));
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop it" }));
     expect(onStop).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/Stopping…/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();

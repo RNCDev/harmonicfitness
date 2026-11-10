@@ -21,6 +21,23 @@ afterEach(() => vi.restoreAllMocks());
 const button = (name: string) => screen.getByRole("button", { name });
 
 describe("the audio player", () => {
+  it("says so when the browser refuses to play, and forgets it on the next try", async () => {
+    play.mockImplementationOnce(() => Promise.reject(new DOMException("no", "NotSupportedError")));
+    render(<AudioPlayer src="/a.mp3" label="Nora's sample" />);
+    await act(async () => { fireEvent.click(button("Play Nora's sample")); });
+    expect(screen.getByRole("alert")).toHaveTextContent("This didn't play.");
+    expect(button("Play Nora's sample")).toBeInTheDocument();
+    await act(async () => { fireEvent.click(button("Play Nora's sample")); });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says nothing when a play is cut short by a pause", async () => {
+    play.mockImplementationOnce(() => Promise.reject(new DOMException("paused", "AbortError")));
+    render(<AudioPlayer src="/a.mp3" label="Nora's sample" />);
+    await act(async () => { fireEvent.click(button("Play Nora's sample")); });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("plays one clip at a time across the page: starting one pauses the other", () => {
     const { container } = render(<><AudioPlayer src="/a.mp3" label="Nora's sample" /><AudioPlayer src="/b.mp3" label="Leah's sample" /></>);
     const [nora, leah] = container.querySelectorAll("audio");

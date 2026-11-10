@@ -5,7 +5,9 @@ import { count, dollars, mss, timeOfDay } from "../../lib/format";
 import { privacyNote, serviceName } from "../../lib/keys";
 import { Quiet, useAction } from "../../lib/useAction";
 import { ahead } from "../../lib/when";
+import { useState } from "react";
 import { Button } from "../../ui/Button";
+import { ConfirmInline } from "../../ui/ConfirmInline";
 
 /** An approval button: busy from the tap until its screen goes; a refusal (false) gives it back. */
 function useApproval(act?: () => Promise<boolean> | void) {
@@ -65,6 +67,8 @@ export function LaterOffer({ later, onSchedule }: { later: Later; onSchedule?: (
 /** A scheduled workout, waiting for its time; Cancel takes it back before the writing begins. */
 export function Scheduled({ later, onCancel }: { later: Later; onCancel?: () => Promise<boolean> | void }) {
   const stop = useApproval(onCancel);
+  /** Cancel was pressed once: it asks before the workout is taken off the schedule. */
+  const [asking, setAsking] = useState(false);
   const at = new Date(later.at);
   const due = later.due ? new Date(later.due) : null;
   return (
@@ -72,7 +76,10 @@ export function Scheduled({ later, onCancel }: { later: Later; onCancel?: () => 
       <p>Scheduled for <strong>{ahead(at)}</strong>{later.coach ? ` with ${later.coach}` : ""}.</p>
       <p className="cx-s">{due ? `Writing starts at ${timeOfDay(due)}` : "Writing starts fifteen minutes before"}, on
         our side, so you can close this page. The workout appears here, ready to play, by {timeOfDay(at)}.</p>
-      <Button variant="outline" busy={stop.busy} busyLabel="Cancelling…" onClick={() => void stop.run()}>Cancel</Button>
+      {!asking
+        ? <Button variant="outline" onClick={() => setAsking(true)}>Cancel</Button>
+        : <ConfirmInline question="Cancel this scheduled workout?" confirm="Cancel it" keep="Keep it" busy={stop.busy}
+            onConfirm={() => void stop.run()} onKeep={() => setAsking(false)} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 /* The small player the demos and the Coaches page share. Part of theme.css, which imports every part in order. */
 /* ---------- the player: a round blue button, a line to seek along, the time (the demos and the Coaches page) ---------- */
-.player { display: flex; align-items: center; gap: var(--s-2h); min-width: 0 }
+.player { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2h); min-width: 0 }
+.player-refused { flex-basis: 100% }   /* a refused play, on a line of its own under the controls */
 .player audio { display: none }
 .play {
   flex: none; width: var(--control-sm); height: var(--control-sm); border-radius: 50%; display: grid; place-items: center; cursor: pointer;

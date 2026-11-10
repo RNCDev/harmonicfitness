@@ -11,6 +11,7 @@ import { planOf, stepsOf } from "./lib/steps";
 import { useSaved } from "./lib/useAction";
 import { usePage } from "./lib/usePage";
 import { useStartInfo } from "./lib/useStartInfo";
+import { Boundary } from "./ui/Boundary";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/icons";
 import { Solo } from "./ui/Solo";
@@ -147,12 +148,14 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
             <Icon name="gear" size={18} weight={1.7} />
           </Button>
         </header>
-        {page === "logs" && <Logs onClose={() => go("chat")} />}
-        {page === "coaches" && <CoachesPage coaches={start && !startError ? coaches : null} loadError={startError}
-          onRetry={reloadStart} onCoach={(slug) => void chooseCoach(slug)}
-          onAddKey={addVoiceKey} onOpenSettings={() => setDrawer(true)} onClose={() => go("chat")} error={coachError} />}
+        {page === "logs" && <Boundary key="logs" what="The Logs page"><Logs onClose={() => go("chat")} /></Boundary>}
+        {page === "coaches" && <Boundary key="coaches" what="The Coaches page">
+          <CoachesPage coaches={start && !startError ? coaches : null} loadError={startError}
+            onRetry={reloadStart} onCoach={(slug) => void chooseCoach(slug)}
+            onAddKey={addVoiceKey} onOpenSettings={() => setDrawer(true)} onClose={() => go("chat")} error={coachError} />
+        </Boundary>}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
-        <Chat lines={conv?.lines ?? []} working={working} steps={steps} plan={plan} error={error} noKey={noKey}
+        <Boundary what="The chat"><Chat lines={conv?.lines ?? []} working={working} steps={steps} plan={plan} error={error} noKey={noKey}
           onSend={send} onStop={halt} onOpenKeys={() => setDrawer(true)} coachBar={coachBar}
           first={{
             needsKey, onAddKey: addKey, start, starting: start === null && keys !== null,
@@ -164,7 +167,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
             offer: !working ? conv?.offer ?? null : null, onRecord: record,
             later: conv && conv.state !== "failed" ? conv.later ?? null : null, scheduled: conv?.state === "scheduled",
             onSchedule: schedule, onCancel: cancel,
-          }} />
+          }} /></Boundary>
       </div>
       <KeyAskContext.Provider value={openRow}>
         <Settings username={me.username} version={me.version} open={drawer} onClose={closeDrawer}

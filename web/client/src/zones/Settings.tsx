@@ -214,13 +214,15 @@ function LevelBox() {
 function FeedBox() {
   const res = useResource(api.feed, "Your podcast link couldn't be loaded.");
   const url = res.data?.url ?? null;
-  const [copied, setCopied] = useState(false);
+  /** null until Copy is pressed; then whether the clipboard took it. */
+  const [copied, setCopied] = useState<boolean | null>(null);
+  const shownLink = useRef<HTMLElement>(null);
   const [confirm, setConfirm] = useState<"new" | "off" | null>(null);
   const make = useAction(async () => {
     const r = await api.makeFeed();
     res.set(() => r);
     setConfirm(null);
-    setCopied(false);
+    setCopied(null);
   }, { fallback: "Couldn't make a link. Try again." });
   const stop = useAction(async () => {
     await api.stopFeed();
@@ -233,7 +235,11 @@ function FeedBox() {
       await navigator.clipboard.writeText(link);
       setCopied(true);
     } catch {
-      setCopied(false);   // no clipboard here: the link is on the page to copy by hand
+      // no clipboard here: the link is selected, to copy by hand
+      setCopied(false);
+      const el = shownLink.current;
+      const sel = window.getSelection?.();
+      if (el && sel) { const r = document.createRange(); r.selectNodeContents(el); sel.removeAllRanges(); sel.addRange(r); }
     }
   }
 
@@ -245,7 +251,7 @@ function FeedBox() {
       <Loadable value={res.data} error={res.error} onRetry={res.reload} what="your podcast link" room={90}>
         {() => url ? (
           <>
-            <p className="link"><code>{url}</code></p>
+            <p className="link"><code ref={shownLink}>{url}</code></p>
             <div className="act-row">
               <Button variant="secondary" onClick={() => void copy(url)}>{copied ? "Copied" : "Copy the link"}</Button>
               <Button variant="text" onClick={() => setConfirm("new")}>Make a new link</Button>
@@ -270,6 +276,7 @@ function FeedBox() {
           </div>
         )}
       </Loadable>
+      <Notice className="cx-s">{copied === false && "This browser didn't let the page copy. The link is selected: copy it from there."}</Notice>
       <Notice tone="error">{make.error ?? stop.error}</Notice>
     </section>
   );

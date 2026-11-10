@@ -142,6 +142,17 @@ describe("the podcast feed", () => {
     expect(await screen.findByText("https://app.test/feed/new.xml")).toBeInTheDocument();
   });
 
+  it("says so when the browser won't copy, and selects the link to copy by hand", async () => {
+    vi.spyOn(api, "feed").mockResolvedValue({ url: URL });
+    Object.defineProperty(navigator, "clipboard", { configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new DOMException("no", "NotAllowedError")) } });
+    openOn();
+    fireEvent.click(await screen.findByRole("button", { name: "Copy the link" }));
+    expect(await screen.findByText(/didn't let the page copy/)).toBeInTheDocument();
+    expect(window.getSelection()?.toString()).toBe(URL);
+    expect(screen.getByRole("button", { name: "Copy the link" })).toBeInTheDocument();
+  });
+
   it("turns off, after asking", async () => {
     vi.spyOn(api, "feed").mockResolvedValue({ url: URL });
     const stop = vi.spyOn(api, "stopFeed").mockResolvedValue(undefined);

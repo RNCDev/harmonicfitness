@@ -6,9 +6,12 @@ import "@fontsource/ibm-plex-sans-condensed/500.css";
 import "@fontsource/ibm-plex-sans-condensed/600.css";
 import "./theme.css";
 import { App } from "./App";
+import { Boundary } from "./ui/Boundary";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <Boundary>
+      <App />
+    </Boundary>
   </StrictMode>,
 );

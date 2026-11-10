@@ -24,24 +24,33 @@ export function Empty({ children, action }: { children: ReactNode; action?: Reac
   );
 }
 
+/** The reason something didn't load, and Try again (with `onRetry`). */
+export function Failed({ error, onRetry, quiet = false }: { error: string; onRetry?: () => void; quiet?: boolean }) {
+  return (
+    <div className="failed">
+      <Notice tone="error">{error}</Notice>
+      {onRetry && <Button variant={quiet ? "text" : "secondary"} onClick={onRetry}>Try again</Button>}
+    </div>
+  );
+}
+
 /** A section's content once it's in: until then a line saying what's loading, in the room the content will take,
- * so nothing below it jumps; on failure, the error and Try again (with `onRetry`). `isEmpty` and `empty` show the
+ * so nothing below it jumps; on failure, the error and Try again (with `onRetry`). A later read that fails keeps
+ * the content and says so above it, so a list is never out of date without a word. `isEmpty` and `empty` show the
  * empty state in place of the content. */
 export function Loadable<T>({ value, error, what, room = 0, onRetry, isEmpty, empty, children }: {
   value: T | null | undefined; error?: string | null; what: string; room?: number; onRetry?: () => void;
   isEmpty?: (v: T) => boolean; empty?: ReactNode; children: (v: T) => ReactNode;
 }) {
   if (value !== null && value !== undefined) {   // an empty answer is not an answer
-    return <>{isEmpty?.(value) && empty !== undefined ? empty : children(value)}</>;
-  }
-  if (error) {
     return (
-      <div className="failed">
-        <Notice tone="error">{error}</Notice>
-        {onRetry && <Button onClick={onRetry}>Try again</Button>}
-      </div>
+      <>
+        {error && <Failed error={error} onRetry={onRetry} quiet />}
+        {isEmpty?.(value) && empty !== undefined ? empty : children(value)}
+      </>
     );
   }
+  if (error) return <Failed error={error} onRetry={onRetry} />;
   return (
     <span className="hold" style={{ ["--hold" as string]: `${room}px` }}>
       <Notice tone="busy">{`Loading ${what}…`}</Notice>
