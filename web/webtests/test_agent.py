@@ -1087,6 +1087,54 @@ class Faster(DraftCase):
         self.assertEqual(self.deps.logged, self.DRAFT)
         self.assertIn("The site logged the session", out.history_json)
 
+    SKELETON = "movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[hold]\n\n@@ 30 | Close\n"
+    FIELDS = tools.LogFields(format="circuit", topics="Jazz", loads="push-up = bodyweight")
+
+    def skeleton_turn(self, **extra):
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("write_file", {
+                    "path": self.DRAFT, "content": self.SKELETON, "build_name": "Workout A",
+                    "coach": "Coach Freya", **extra}, tool_call_id="w1")])
+            return ModelResponse(parts=[TextPart("ok")])
+        return script
+
+    def test_a_skeleton_written_with_log_fields_keeps_the_log(self):
+        patch, calls = self.logging_fake()
+        fields = self.FIELDS
+        with patch:
+            out = agent.run_turn(FunctionModel(self.skeleton_turn(log=fields.model_dump())), self.deps, None, "go")
+        want = tools.log_argv(self.DRAFT, "Coach Freya", fields)
+        self.assertEqual(want, ["log-session", "--draft", self.DRAFT, "--coach", "Coach Freya", "--format", "circuit",
+                                "--topics", "Jazz", "--loads", "push-up = bodyweight"])
+        self.assertEqual(self.deps.pending_log, want)
+        self.assertIn("The session's log is kept", out.history_json)
+        self.draft()   # the words written, the build priced: the offer carries the log
+        with patch:
+            tools.run(self.deps, ["build", self.DRAFT, "Workout A", "--coach", "Coach Freya"])
+        self.assertEqual(self.deps.offer["log"], want)
+
+    def test_without_log_fields_nothing_changes(self):
+        patch, calls = self.logging_fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.skeleton_turn()), self.deps, None, "go")
+        self.assertIsNone(self.deps.pending_log)
+        self.assertNotIn("The session's log is kept", out.history_json)
+
+    def test_log_fields_are_ignored_when_one_writer_writes(self):
+        self.deps.writers = "one"
+        patch, calls = self.logging_fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.skeleton_turn(log=self.FIELDS.model_dump())), self.deps, None, "go")
+        self.assertIsNone(self.deps.pending_log)
+        self.assertNotIn("The session's log is kept", out.history_json)
+
+    def test_the_instructions_ask_for_log_fields_with_the_skeleton_only_in_three_writer_mode(self):
+        three, one = agent.preamble("three"), agent.preamble("one")
+        self.assertIn("Pass `log` with that `write_file`", three)
+        self.assertNotIn("run `log-session` for the draft", three)
+        self.assertNotIn("Pass `log`", one)
+
     def test_a_log_session_after_the_site_logged_it_runs_nothing(self):
         self.deps.logged = self.DRAFT
         patch, calls = self.logging_fake()

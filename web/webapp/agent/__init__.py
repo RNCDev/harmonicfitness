@@ -620,6 +620,22 @@ def _start_stories(ctx: RunContext[Deps], args: list[str]) -> None:
         deps.loop)
 
 
+LOG_WITH_SKELETON = ("The session's log is kept: the site logs it once the recording is made. Send no log-session "
+                     "for it.")
+
+
+def _keep_log(ctx: RunContext[Deps], path: object, written: ToolResult, coach: str | None,
+              log: tools.LogFields | None) -> ToolResult:
+    """Three writers only: the log's fields come with the skeleton's write, and code keeps the session log (the
+    site runs it once the recording is made), so the agent spends no request on `log-session`."""
+    deps = ctx.deps
+    coach = coach or deps.brief_coach
+    if log is None or deps.writers != "three" or written.code != 0 or not (isinstance(path, str) and coach):
+        return written
+    deps.pending_log = tools.log_argv(path, coach, log)
+    return written.model_copy(update={"output": written.output + "\n" + LOG_WITH_SKELETON})
+
+
 def _then_build(ctx: RunContext[Deps], path: object, written: ToolResult, name: str | None,
                 coach: str | None) -> ToolResult:
     """A draft written with its build's name and coach is built at once, as `run build` would (its lint, then its
@@ -652,7 +668,7 @@ def _then_build(ctx: RunContext[Deps], path: object, written: ToolResult, name: 
 
 @AGENT.tool(sequential=True)
 def write_file(ctx: RunContext[Deps], path: str, content: str, build_name: str | None = None,
-               coach: str | None = None) -> ToolResult:
+               coach: str | None = None, log: tools.LogFields | None = None) -> ToolResult:
     """Write (create or replace) a text file in the listener's folder, me/... only. For a draft, pass its build's
     name and coach too, and the build runs right after the write (its lint, then its price when clean), its
     result in this reply: no separate `run build`. A draft with no words yet is the skeleton: its result gives each
@@ -661,6 +677,7 @@ def write_file(ctx: RunContext[Deps], path: str, content: str, build_name: str |
         and tools.is_skeleton(content)
     result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed, skeleton), "write_file",
                    lambda: tools.write_file(ctx.deps, path, content))
+    result = _keep_log(ctx, path, result, coach, log)
     if isinstance(path, str) and path.endswith(".draft.txt"):
         ctx.deps.phase = "draft"
     return _chain(ctx, path, _then_build(ctx, path, result, build_name, coach), build_name, coach)
@@ -668,13 +685,14 @@ def write_file(ctx: RunContext[Deps], path: str, content: str, build_name: str |
 
 @AGENT.tool(sequential=True)
 def edit_segments(ctx: RunContext[Deps], path: str, edits: list[tools.SegmentEdit], build_name: str | None = None,
-                  coach: str | None = None) -> ToolResult:
+                  coach: str | None = None, log: tools.LogFields | None = None) -> ToolResult:
     """Replace segments of a draft, all in one call: each edit is a segment's place from 1 (the lint's # column)
     and the whole new segment, its `@@ <seconds> | <label>` line first. Every fix one lint names goes in one call,
     instead of writing the draft again. Pass the build's name and coach, and the build runs right after (its lint,
-    then its price when clean), its result in this reply."""
+    then its price when clean), its result in this reply. With three writers, `log` is as `write_file`'s."""
     result = _step(ctx.deps, _write_step(path, ctx.deps.lint_failed), "edit_segments",
                    lambda: tools.edit_segments(ctx.deps, path, list(edits)))
+    result = _keep_log(ctx, path, result, coach, log)
     ctx.deps.phase = "draft"
     return _chain(ctx, path, _then_build(ctx, path, result, build_name, coach), build_name, coach)
 

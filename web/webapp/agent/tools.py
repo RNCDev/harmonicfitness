@@ -458,6 +458,19 @@ class SegmentEdit(BaseModel):
     text: str = Field(description="the whole new segment, its own @@ <seconds> | <label> line first")
 
 
+class LogFields(BaseModel):
+    """What log-session takes, carried on the skeleton's write so the site logs the session once it's recorded."""
+    format: str = Field(description="the session method, as log-session's --format takes it")
+    topics: str = Field(description="the content plan's topics")
+    loads: str = Field(description="'<movement> = <load and tempo>; ...', as the plan has them")
+
+
+def log_argv(path: str, coach: str, fields: LogFields) -> list[str]:
+    """The log-session the agent would have sent: the engine takes each value as given, so nothing is quoted."""
+    return ["log-session", "--draft", path, "--coach", coach, "--format", fields.format,
+            "--topics", fields.topics, "--loads", fields.loads]
+
+
 SECONDS = re.compile(r"^@@\s*(\d+)\s*\|", re.MULTILINE)
 EDIT_MAX = 40   # segments one edit may carry
 
