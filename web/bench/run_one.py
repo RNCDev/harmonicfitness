@@ -85,7 +85,9 @@ def main() -> None:
 
     now = datetime.datetime.now()
     deps = agent.Deps(engine_root=engine, home=home, keys={"GEMINI_API_KEY": key}, today=now.strftime("%Y-%m-%d"),
-                      now=now.strftime("%Y-%m-%d %A %H:%M"), say=say, log=log)
+                      now=now.strftime("%Y-%m-%d %A %H:%M"), say=say, log=log,
+                      writers=os.environ["HARMONICFITNESS_WRITERS"]   # as the worker sets it (settings.writers)
+                      if os.environ["HARMONICFITNESS_WRITERS"] in agent.WRITERS else "three")
     turns, history, line = [], None, LINE.format(minutes=a.minutes)
     for turn in range(3):
         began = time.monotonic()
