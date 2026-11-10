@@ -11,4 +11,5 @@
 /* the top of every page: its name and one line under it, Close at the right (as Settings has) */
 .page-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-4); margin-bottom: var(--s-5) }
 .page-top h1 { font-size: var(--fs-d4); line-height: var(--lh-solid); letter-spacing: var(--track-btn) }
+.page-top h1:focus { outline: 0 }   /* focus lands here as the page opens, to start there; a title is nothing to act on */
 .page-note, .page-count { color: var(--text-muted); font-size: var(--fs-md); margin: var(--s-2) 0 0 }

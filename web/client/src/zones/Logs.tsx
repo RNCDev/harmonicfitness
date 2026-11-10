@@ -12,6 +12,7 @@ import { ConfirmInline } from "../ui/ConfirmInline";
 import { Field } from "../ui/Field";
 import { Icon } from "../ui/icons";
 import { Empty, Loadable, Notice } from "../ui/Notice";
+import { PageHeader } from "../ui/PageHeader";
 
 type Sort = "newest" | "oldest" | "longest" | "shortest" | "best" | "worst";
 type RatingFilter = "all" | Rating | "unrated";
@@ -75,15 +76,11 @@ export function Logs({ onClose }: { onClose: () => void }) {
 
   return (
     <section className="page" aria-labelledby="logs-title">
-      <div className="page-top">
-        <div>
-          <h1 className="head" id="logs-title">Logs</h1>
-          {list && list.length > 0 && <p className="page-count">
-            {shown.length === list.length ? `${list.length} ${list.length === 1 ? "workout" : "workouts"}`
-              : `${shown.length} of ${list.length} workouts`}</p>}
-        </div>
-        <Button variant="bare" className="page-close" aria-label="Back to the chat" onClick={onClose}>Close</Button>
-      </div>
+      <PageHeader id="logs-title" title="Logs" onClose={onClose}>
+        {list && list.length > 0 && <p className="page-count">
+          {shown.length === list.length ? `${list.length} ${list.length === 1 ? "workout" : "workouts"}`
+            : `${shown.length} of ${list.length} workouts`}</p>}
+      </PageHeader>
       <div className="logs-controls">
         <Field id="logs-search" label="Search" hideLabel className="logs-search">
           <input className="input" type="search" placeholder="Search movements, topics, feedback" value={q}

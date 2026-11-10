@@ -126,9 +126,11 @@ describe("the app", () => {
     // an empty list says what will show here, and offers the way there
     expect(await screen.findByText("Your workouts show here once you've recorded one.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Plan a workout" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Back to the chat" }));
+    expect(screen.getByRole("heading", { name: "Logs" })).toHaveFocus();   // the page starts where it opened
+    fireEvent.click(screen.getByRole("button", { name: "Close, back to the chat" }));
     expect(window.location.hash).toBe("");
     expect(screen.queryByRole("heading", { name: "Logs" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Logs" })).toHaveFocus();   // back on the button that opened it
 
     const gear = screen.getByRole("button", { name: "Settings" });
     gear.focus();

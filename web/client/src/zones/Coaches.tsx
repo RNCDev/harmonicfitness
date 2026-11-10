@@ -9,6 +9,7 @@ import type { StartCoach } from "../lib/api";
 import { an, dollars } from "../lib/format";
 import { Button } from "../ui/Button";
 import { Empty, Loadable, Notice } from "../ui/Notice";
+import { PageHeader } from "../ui/PageHeader";
 import { AudioPlayer, type AudioHandle } from "../ui/Player";
 
 /** "about $1.60 a workout", or nothing when the cost isn't known. */
@@ -159,15 +160,11 @@ export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClos
   const any = coaches?.some((c) => c.ready);
   return (
     <section className="page wide" aria-labelledby="coaches-title">
-      <div className="page-top">
-        <div>
-          <h1 className="head" id="coaches-title">Coaches</h1>
-          <p className="page-note">{any
-            ? "Tap a coach to hear them, then choose the one you like."
-            : "Tap a coach to hear them, then add the key for the coaches you like."}</p>
-        </div>
-        <Button variant="bare" className="page-close" aria-label="Back to the chat" onClick={onClose}>Close</Button>
-      </div>
+      <PageHeader id="coaches-title" title="Coaches" onClose={onClose}>
+        <p className="page-note">{any
+          ? "Tap a coach to hear them, then choose the one you like."
+          : "Tap a coach to hear them, then add the key for the coaches you like."}</p>
+      </PageHeader>
       <Notice tone="error">{error}</Notice>
       <Loadable value={coaches} error={loadError} onRetry={onRetry} what="the coaches">
         {(list) => <CoachGallery coaches={list} onCoach={onCoach} onAddKey={onAddKey} onOpenSettings={onOpenSettings} />}

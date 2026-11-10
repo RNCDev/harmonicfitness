@@ -10,7 +10,9 @@
 @keyframes drift-back { from { transform: translateX(-1440px) } to { transform: translateX(0) } }
 
 /* ---------- frame: the header over the work, the sky behind ---------- */
-.app { position: relative; height: 100vh; height: 100dvh; display: flex; flex-direction: column }
+/* the page runs under a phone's notch and home bar (viewport-fit=cover), so the sky does; the work keeps inside them */
+.app { position: relative; height: 100vh; height: 100dvh; display: flex; flex-direction: column;
+  padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l) }
 .work { position: relative; z-index: var(--z-raised); flex: 1; min-height: 0; display: flex; flex-direction: column }
 .work-top { display: flex; align-items: center; gap: var(--s-2h); padding: var(--s-5) var(--gut) 0; min-height: calc(var(--control) + var(--s-5)) }
 .top-gap { flex: 1 }

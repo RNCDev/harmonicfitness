@@ -92,9 +92,10 @@ select.input { padding-right: var(--s-2) }
 .failed .notice, .empty .page-note { margin: 0 }
 
 /* ---------- a fingertip's target: on a touch screen, a small control's tap area grows to --hit around it ---------- */
+/* every control drawn smaller than --hit is named here (theme.test.ts holds the list against the stylesheet) */
 @media (pointer: coarse) {
-  .rate-btn, .play, .keys-bill { position: relative }
-  .rate-btn::after, .play::after, .keys-bill::after {
+  .rate-btn, .play, .keys-bill, .top-btn, .demo-chip, .page-close, .ctx-close { position: relative }
+  .rate-btn::after, .play::after, .keys-bill::after, .top-btn::after, .demo-chip::after, .page-close::after, .ctx-close::after {
     content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, var(--hit)); height: max(100%, var(--hit));
     transform: translate(-50%, -50%);
   }

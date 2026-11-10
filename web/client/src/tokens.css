@@ -67,6 +67,9 @@
      smaller pieces: a round play or a rating, the large play, a chart's dot, a count's badge, a box to tick */
   --hit: 44px; --control: 40px; --control-sm: 36px; --control-lg: 52px; --chip: 30px; --badge: 26px; --tick: 18px;
   --dot: 11px;
+  /* a phone's own edges (the notch, the home bar): nothing on a computer; the page keeps its controls inside them */
+  --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px);
 
   /* focus: one ring, outside a control or (where the outside is clipped) just inside it */
   --focus-ring: 2px solid var(--ink); --focus-offset: 3px; --focus-inset: -2px;

@@ -81,7 +81,7 @@
   display: flex; gap: var(--s-2); align-items: flex-end; padding: var(--s-1h) var(--s-1h) var(--s-1h) var(--s-4);
   border-radius: var(--radius-control); background: var(--panel); box-shadow: inset 0 0 0 1px var(--border-strong);
 }
-.chat-form:focus-within { box-shadow: inset 0 0 0 1px var(--text) }
+.chat-form:focus-within { box-shadow: var(--focus-ring-inset) }   /* the one ring, as every other control's */
 .chat-form textarea {
   flex: 1; min-width: 0; resize: none; font: inherit; padding: var(--s-2h) 0; border: 0; background: transparent; color: inherit;
   min-height: var(--control); max-height: 30vh; outline: none; field-sizing: content;

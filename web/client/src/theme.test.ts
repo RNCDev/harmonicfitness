@@ -71,6 +71,24 @@ describe("theme.css", () => {
     expect(broken(all(/outline:\s*\d+px solid[^;}]*/g))).toEqual([]);
   });
 
+  it("gives every control drawn under a fingertip's size a full tap area on a touch screen", () => {
+    // the rule in primitives.css that grows a small control's tap area to --hit
+    const prim = strip(PARTS["./styles/primitives.css"]);
+    const coarse = prim.slice(prim.indexOf("@media (pointer: coarse)"));
+    const grown = new Set([...coarse.slice(0, coarse.indexOf("}")).matchAll(/\.([\w-]+)/g)].map((m) => m[1]));
+    // what's sized below --hit but isn't tapped alone: a text field (40px, set by --control), the seek line, the body
+    // chart's dots and rows (request.css grows its own), and the switch inside its whole-row label
+    const OWN = /^(input|seek|bdot|barea|switch)$/;
+    const SMALL = /(?:^|[;{\s])(?:width|height|min-height)\s*:\s*var\(--(?:control|control-sm|chip)\)/;
+    const small = each.flatMap(([p, css]) => [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)]
+      .filter((m) => SMALL.test(m[2]))
+      // the element sized is the selector's last part; one with no class there (a textarea) is a text field
+      .flatMap((m) => m[1].split(",").map((s) => s.trim().split(/[\s>+~]+/).pop()!.match(/^\.([\w-]+)/)?.[1] ?? "")
+        .filter(Boolean)
+        .filter((c) => !OWN.test(c) && !grown.has(c)).map((c) => `${p}: .${c}`)));
+    expect(small).toEqual([]);
+  });
+
   it("rounds corners only by the corner tokens (or a circle)", () => {
     expect(broken((css) => (css.match(/border-radius:\s*[^;}]+/g) ?? []).map((d) => d.trim())
       .filter((d) => !/^border-radius:\s*(var\(--radius-(control|sheet|pill)\)|50%|inherit)$/.test(d)))).toEqual([]);

@@ -88,6 +88,14 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const gear = useRef<HTMLButtonElement>(null);
   const [page, go] = usePage();
   const toggle = (p: "logs" | "coaches") => go(page === p ? "chat" : p);
+  // a page that closes gives focus back to the header button that opened it
+  const pageButtons = { logs: useRef<HTMLButtonElement>(null), coaches: useRef<HTMLButtonElement>(null) };
+  const lastPage = useRef(page);
+  useEffect(() => {
+    const was = lastPage.current;
+    lastPage.current = page;
+    if (page === "chat" && was !== "chat") pageButtons[was].current?.focus();
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
   const [keys, setKeys] = useState<KeyState[] | null>(null);
   const [openRow, setOpenRow] = useState<KeyAsk | null>(null);
   const needsKey = keyNeeded(keys);
@@ -133,12 +141,14 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
             <Icon name="plus" size={14} weight={3.4} />
             New workout
           </Button>}
-          <Button variant="header" className="new page-toggle" pressed={page === "coaches"} title="Hear and choose your coach"
+          <Button ref={pageButtons.coaches} variant="header" className="new page-toggle" pressed={page === "coaches"}
+            title="Hear and choose your coach"
             aria-label="Coaches" onClick={() => toggle("coaches")}>
             <Icon name="coaches" size={16} />
             <span className="top-label">Coaches</span>
           </Button>
-          <Button variant="header" className="new page-toggle" pressed={page === "logs"} title="Your past workouts"
+          <Button ref={pageButtons.logs} variant="header" className="new page-toggle" pressed={page === "logs"}
+            title="Your past workouts"
             aria-label="Logs" onClick={() => toggle("logs")}>
             <Icon name="logs" size={16} />
             <span className="top-label">Logs</span>

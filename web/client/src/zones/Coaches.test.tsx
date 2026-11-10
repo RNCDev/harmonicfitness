@@ -54,7 +54,7 @@ describe("the Coaches page", () => {
     fireEvent.click(screen.getByRole("button", { name: "OpenRouter" }));   // OpenRouter before Inworld
     expect(p.onAddKey).toHaveBeenCalledWith("openrouter");
     expect(screen.getAllByRole("button", { name: /^(OpenRouter|Inworld)$/ }).map((b) => b.textContent)).toEqual(["OpenRouter", "Inworld"]);
-    fireEvent.click(screen.getByRole("button", { name: "Back to the chat" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close, back to the chat" }));
     expect(p.onClose).toHaveBeenCalled();
   });
 

@@ -8,6 +8,7 @@
 .ctx {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(600px, 100vw); z-index: var(--z-drawer); background: var(--surface-drawer); color: var(--text);
   display: flex; flex-direction: column; overflow-y: auto; transform: translateX(105%); visibility: hidden;
+  padding: var(--safe-t) var(--safe-r) var(--safe-b) 0;
   box-shadow: inset 1px 0 0 var(--border), var(--lift);
   transition: transform var(--t-slide) var(--ease-slide), visibility var(--t-slide);
 }
