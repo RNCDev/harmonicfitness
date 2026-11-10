@@ -63,6 +63,7 @@ def median(rows, key):
 
 
 def gate(baseline, candidate):
+    baseline = [r for r in baseline if not provider_error(r)]
     done = [r for r in candidate if not provider_error(r)]
     errors = len(candidate) - len(done)
     note = f", {errors} provider error{'s' if errors != 1 else ''}" if errors else ""
@@ -72,8 +73,11 @@ def gate(baseline, candidate):
             reasons += [f"run {i} {p}" for p in problems(r)]
     if len(done) < MIN_COMPLETED:
         reasons.append(f"only {len(done)} completed runs, {MIN_COMPLETED} needed")
-    elif median(done, "cost") > median(baseline, "cost"):
-        reasons.append(f"median cost ${median(done, 'cost'):.3f} above ${median(baseline, 'cost'):.3f}")
+    else:
+        if median(done, "cost") > median(baseline, "cost"):
+            reasons.append(f"median cost ${median(done, 'cost'):.3f} above ${median(baseline, 'cost'):.3f}")
+        if median(done, "reviews") > median(baseline, "reviews"):
+            reasons.append(f"median review rounds {median(done, 'reviews'):g} above {median(baseline, 'reviews'):g}")
     return f"GATE: pass ({len(done)} completed{note})" if not reasons else f"GATE: fail ({'; '.join(reasons)}{note})"
 
 
@@ -83,7 +87,8 @@ def show(label, rows):
     lines += [f"  run {r['run']} not completed: {r['error']}" for r in rows if provider_error(r)]
     rows = done
     for name, key, fmt in (("writing cost $", "cost", "{:.3f}"), ("requests", "requests", "{:.0f}"),
-                           ("input tokens", "input", "{:,.0f}"), ("seconds, brief to price", "from_brief", "{:.0f}")):
+                           ("input tokens", "input", "{:,.0f}"), ("seconds, brief to price", "from_brief", "{:.0f}"),
+                           ("review rounds", "reviews", "{:g}")):
         lines.append(f"  median {name:25}{fmt.format(median(rows, key))}")
     lines.append(f"  runs failing a check     {sum(1 for r in rows if problems(r))} of {len(rows)}")
     return "\n".join(lines)

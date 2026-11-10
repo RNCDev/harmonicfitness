@@ -81,6 +81,16 @@ class Gate(unittest.TestCase):
         self.assertIn("GATE: fail", out)
         self.assertIn("completed", out)
 
+    def test_gate_fails_when_the_median_review_rounds_are_higher(self):
+        base = [{**OK, "reviews": 1}] * 3
+        self.assertIn("review rounds", compare.gate(base, [{**OK, "reviews": 2}] * 3))
+        self.assertEqual(compare.gate(base, [{**OK, "reviews": 1}] * 3), "GATE: pass (3 completed)")
+
+    def test_baseline_median_ignores_its_provider_error_runs(self):
+        err = {**OK, "priced": False, "cost": 0.0, "error": "status_code: 503"}
+        base = [OK, OK, err, err, err]   # a median over all five would be 0.0 and fail everything
+        self.assertEqual(compare.gate(base, [OK] * 3), "GATE: pass (3 completed)")
+
     def test_gate_fails_when_the_median_cost_is_higher(self):
         self.assertIn("cost", compare.gate(self.base, [{**OK, "cost": 0.30}] * 3))
 
