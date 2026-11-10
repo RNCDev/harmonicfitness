@@ -2,6 +2,23 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.77.0] - 2026-11-09
+
+The back-end audit's scaling part: what a request costs no longer grows with the number of listeners or the length of their history. A progress stream holds no connection, a small question reads only the files it needs, a player's seek opens one megabyte rather than the whole MP3, and one listener's recording no longer makes everyone else's turn wait. A minor release because the maintainer asked for one: three migrations, and the worker runs more than one turn at once.
+
+### Changed
+- **Progress streams share one listener** (`webapp/streams.py`). Each stream used to hold its own database connection and one of the web server's 40 threads for its whole life, so about forty open at once stopped the site answering. Now one thread holds one connection that listens for every job's events and wakes the streams following each; a stream reads its job through the pool in short calls, and still reads its status every five seconds in case an event was sent while the listener was reconnecting. A listener may have three streams open; a fourth ends their oldest, which the browser opens again fifteen seconds on, from its last event, so nothing is missed.
+- **A request reads only the files it needs.** `sync`'s listing comes from each file's sealed SHA-256 (migration 021), not from opening every file; `sync`'s read opens only the files named; the Logs page's calls leave out the listener's coaches and research stock, which they never read, and its workout list is kept until a file changes.
+- **MP3s are kept in sealed 1 MB chunks** (migration 022). A player's or podcast app's byte range opens only the chunks it covers, and the answer streams a chunk at a time, never holding a connection for a slow player. An MP3 kept before is read as before until newer ones replace it.
+- **The worker runs two turns at once** (`HARMONICFITNESS_WORKER_SLOTS`, 1 to 4, default 2), so one listener's fifteen-to-thirty-minute recording no longer holds up another's message or scheduled workout. A balance check has a lane of its own (migration 023) and never waits behind a turn; that lane does the sweeps. One recording renders at a time in a worker (a turn waiting for one keeps its clock, and Stop still works), and the first step's engine commands run at most three at once across its turns. On a deploy the worker waits for every lane's job to finish or drain.
+
+### For forks
+- Migrations 021 (`context_files.digest`), 022 (`media_chunks`, `media.chunk_bytes`, `media.body` nullable) and 023 (`one_running_job_per_user` now leaves out `balances`; `one_running_quick_per_user`) apply at the web service's start. All add; a 0.76.2 worker keeps working beside them during the deploy, only waiting longer for a balance check.
+- During the deploy a 0.76.2 web process still writes files without a digest: such a file's digest no longer opens at its version, and `sync` hashes its body instead, so nothing is taken as in step that isn't. 0.77.0 also keeps each new MP3 whole in `media.body` so a 0.76.2 web process can still play it; the next release stops writing it.
+- New: `store.read_many`, `read_where`, `digests`; `media.describe`, `read_range`, `CHUNK`; `streams.Hub` and `Sub` on `AppState.hub` (`open_stream` is now the listener's connection); `workouts.needed`, `LEFT_OUT`, `kept_listing`, `keep_listing`, `forget`; `jobs.QUICK` and the `quick` lane; `config.Settings.worker_slots`, `config.MAX_SLOTS`; `worker.lanes`, `STOP_SLACK`, and `run_one(upkeep=)`, `serve(upkeep=)`; `agent.PREFETCH_AT_ONCE`; `agent.tools.RECORDING`; `routes.jobs.CLOSED_RETRY_MS`.
+- `routes.jobs._stream` takes the app's state, not a connection opener. `media.get` still returns the whole MP3, from either form.
+- `HARMONICFITNESS_WORKER_SLOTS=1` runs one turn at a time, as before. Two at once hasn't been measured on the 1 GB worker yet; watch its memory after the deploy.
+
 ## [0.76.2] - 2026-11-09
 
 The engine's structural part of the back-end audit: every web request the engine makes goes through one module, `tools/net.py`, and `knowledge/services.toml` is read on first use. Release B of two, after 0.76.1's web server.

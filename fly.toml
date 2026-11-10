@@ -37,7 +37,8 @@ kill_timeout = 300
     timeout = "5s"
     grace_period = "30s"
 
-# A job runs the engine (and ffmpeg) beside the worker: 1 GB each.
+# A job runs the engine (and ffmpeg) beside the worker: 1 GB each. The worker runs two turns at once (0.77.0) but
+# renders one recording at a time; HARMONICFITNESS_WORKER_SLOTS=1 (fly secrets) runs one turn at a time, as before.
 [[vm]]
   size = "shared-cpu-1x"
   memory = "1gb"
