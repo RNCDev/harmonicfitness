@@ -1221,6 +1221,113 @@ class Faster(DraftCase):
         self.assertFalse(any(a[0] == "build" and "--lint-only" not in a for a in calls))
 
 
+class Closes(DraftCase):
+    """The turn closes at the price in code: the page shows the plan and the price, so no model request is spent
+    only to say the script is ready."""
+    SKELETON = "movements: air-squat\n\n@@ 30 | Welcome\n\n@@ 60 | Squats\n[hold]\n\n@@ 30 | Close\n"
+    FIELDS = tools.LogFields(format="circuit", topics="Jazz", loads="push-up = bodyweight")
+    COACH = "Coach Freya"
+
+    def write(self, tid, content, **extra):
+        return ModelResponse(parts=[ToolCallPart("write_file", {
+            "path": self.DRAFT, "content": content, "build_name": "Workout A", "coach": self.COACH, **extra},
+            tool_call_id=tid)])
+
+    def turn(self, log=True, after=None):
+        """The skeleton (with the log's fields when `log`), then the words, built and priced. A request after the
+        price fails the test, unless `after` gives its reply."""
+        def script(messages, info):
+            returns = parts(messages, ToolReturnPart)
+            if not returns:
+                return self.write("w1", self.SKELETON, **({"log": self.FIELDS.model_dump()} if log else {}))
+            if len(returns) == 1:
+                return self.write("w2", self.TEXT)
+            if after is None:
+                raise AssertionError("a model request after the price")
+            return ModelResponse(parts=[TextPart(after)])
+        return script
+
+    def test_a_clean_price_closes_the_turn_without_another_request(self):
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn()), self.deps, None, "go")
+        self.assertEqual(self.deps.offer["log"], tools.log_argv(self.DRAFT, self.COACH, self.FIELDS))
+        self.assertTrue(agent.closed(self.deps))
+        self.assertEqual(out.reply, "Your script is written and checked. Press Record when you're ready.")
+        self.assertEqual(out.reply, agent.closing_reply(self.deps))
+        self.assertEqual(out.usage["requests"], 2)   # the skeleton's, then the one that called the build
+        saved = ModelMessagesTypeAdapter.validate_json(out.history_json)
+        self.assertIsInstance(saved[-1], ModelResponse)
+        self.assertEqual([p.content for p in saved[-1].parts if isinstance(p, TextPart)], [out.reply])
+        self.assertIn("Not recorded yet", out.history_json)
+
+    def test_record_without_asking_records_before_the_turn_closes(self):
+        self.deps.auto_record, self.deps.reserve = True, (lambda chars: True)
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn(after="Recorded: it's in your workouts.")), self.deps,
+                                 None, "go")
+        self.assertEqual(self.deps.recorded, self.DRAFT)
+        self.assertFalse(agent.closed(self.deps))
+        self.assertEqual(out.reply, "Recorded: it's in your workouts.")
+        self.assertEqual(out.usage["requests"], 3)
+
+    def test_a_scheduled_price_over_the_ceiling_says_it_waits(self):
+        self.deps.later = {"at": "2026-11-04T12:00:00+00:00", "local": "2026-11-04 Wednesday 07:00", "offset": -300}
+        self.deps.scheduled_run, self.deps.auto_record, self.deps.ceiling = True, True, 2500
+        self.deps.reserve = lambda chars: True
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn()), self.deps, None, "go")
+        self.assertIsNone(self.deps.recorded)
+        self.assertEqual(out.reply, "Your script is written and checked, but it came out longer than planned, so it "
+                                    "waits for your Record.")
+        self.assertEqual(out.usage["requests"], 2)
+
+    def test_the_next_turn_reads_a_closed_turns_history(self):
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn()), self.deps, None, "go")
+        seen = []
+
+        def second(messages, info):
+            seen.append(messages)
+            return ModelResponse(parts=[TextPart("It's ready when you are.")])
+        deps = tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY, now=f"{TODAY} Wednesday 08:05",
+                          writers="three")   # a fresh turn, as the worker makes one
+        out2 = agent.run_turn(FunctionModel(second), deps, out.history_json, "what's in it?")
+        self.assertEqual(out2.reply, "It's ready when you are.")
+        first = seen[0]
+        self.assertTrue(any("Not recorded yet" in str(p.content) for p in parts(first, ToolReturnPart)))
+        self.assertIn(agent.closing_reply(self.deps), [p.content for p in parts(first, TextPart)])
+
+    def test_without_a_kept_log_the_model_closes_as_now(self):
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn(log=False, after="ready")), self.deps, None, "go")
+        self.assertNotIn("log", self.deps.offer)
+        self.assertFalse(agent.closed(self.deps))
+        self.assertEqual(out.reply, "ready")
+
+    def test_a_one_writer_turn_with_a_kept_log_is_not_closed_by_code(self):
+        self.deps.writers = "one"
+        self.deps.pending_log = tools.log_argv(self.DRAFT, self.COACH, self.FIELDS)
+        patch, calls = self.fake()
+        with patch:
+            out = agent.run_turn(FunctionModel(self.turn(after="ready")), self.deps, None, "go")
+        self.assertEqual(self.deps.offer["log"], tools.log_argv(self.DRAFT, self.COACH, self.FIELDS))
+        self.assertFalse(agent.closed(self.deps))
+        self.assertEqual(out.reply, "ready")
+
+    def test_a_session_already_logged_closes_too(self):
+        self.deps.phase, self.deps.offer = "priced", {"draft": self.DRAFT, "chars": 3000}
+        self.assertFalse(agent.closed(self.deps))
+        self.deps.logged = self.DRAFT
+        self.assertTrue(agent.closed(self.deps))
+        self.deps.recorded = self.DRAFT
+        self.assertFalse(agent.closed(self.deps))
+
+
 class ThirtyMinuteScripts(DraftCase):
     """0.49.4: a write that builds, long paragraphs split by the site, the feeds sheet with `run feeds`."""
 

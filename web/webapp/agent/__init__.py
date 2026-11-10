@@ -1048,6 +1048,27 @@ def native_tools(model) -> list:
     return [SEARCH] if WebSearchTool in supported else []
 
 
+CLOSING = "Your script is written and checked. Press Record when you're ready."
+CLOSING_OVER = ("Your script is written and checked, but it came out longer than planned, so it waits for your "
+                "Record.")
+
+
+def closed(deps: Deps) -> bool:
+    """Three writers only: the script is priced, nothing was recorded this turn, and the session's log is kept (or
+    already logged), so nothing is left for the model to do: the turn ends in code, the Record card showing the plan
+    and the price, and the request that would only say so is never sent."""
+    offer = deps.offer
+    return (deps.writers == "three" and deps.phase == "priced" and bool(offer) and not deps.recorded
+            and (bool(offer.get("log")) or deps.logged == offer.get("draft")))
+
+
+def closing_reply(deps: Deps) -> str:
+    """The coach's line a turn closed in code ends on."""
+    offer = deps.offer or {}
+    over = deps.ceiling is not None and int(offer.get("chars") or 0) > deps.ceiling
+    return CLOSING_OVER if over else CLOSING
+
+
 def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
              answer: tuple[str, dict] | None = None, context: str | None = None) -> TurnOutcome:
     """One run of the agent on the user's line, after `context` (prefetch's text) when given.
@@ -1084,10 +1105,23 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
                     deps.cancel.set()
                 return
     threading.Thread(target=watch, daemon=True).start()
+
+    async def go():   # the run, node by node: before each model request, a turn with nothing left closes in code
+        async with AGENT.iter(prompt, model=Narrated(model, deps), deps=deps, message_history=history,
+                              usage_limits=LIMITS, cancellation_token=token,
+                              capabilities=[] if deps.topics else [NativeTool(t) for t in native_tools(model)]) as run:
+            node = run.next_node
+            while not Agent.is_end_node(node):   # the run's end: the model's reply is in
+                if Agent.is_model_request_node(node) and closed(deps):
+                    # the request it would send holds the tools' results (the price among them): kept, and
+                    # answered by the coach's closing line, so the history goes on from a finished turn
+                    reply = closing_reply(deps)
+                    ending = ([node.request] if node.request.parts else []) + [ModelResponse(parts=[TextPart(reply)])]
+                    return run.all_messages() + ending, reply, run.usage, run.new_messages()
+                node = await run.next(node)
+            return run.all_messages(), run.result.output, run.usage, run.new_messages()
     try:
-        result = AGENT.run_sync(prompt, model=Narrated(model, deps), deps=deps, message_history=history,
-                                usage_limits=LIMITS, cancellation_token=token,
-                                capabilities=[] if deps.topics else [NativeTool(t) for t in native_tools(model)])
+        messages, reply, u, new = asyncio.run(go())
     except RunCancelled:
         if not expired.is_set() and deps.cancel is not None and deps.cancel.is_set():
             raise TurnError("stopped", STOPPED) from None
@@ -1100,10 +1134,9 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
             deps.content_job.cancel()
         if deps.room_job is not None:   # and so does a writers' room a clean skeleton started
             deps.room_job.cancel()
-    u = result.usage
-    searches = sum(isinstance(p, NativeToolCallPart) for m in result.new_messages() for p in m.parts) + deps.room_searches
+    searches = sum(isinstance(p, NativeToolCallPart) for m in new for p in m.parts) + deps.room_searches
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,
              "output_tokens": u.output_tokens, "searches": searches}
-    kept = compact(result.all_messages(), len(history or ()))
-    return TurnOutcome(history_json=ModelMessagesTypeAdapter.dump_json(kept).decode("utf-8"), reply=result.output,
+    kept = compact(messages, len(history or ()))
+    return TurnOutcome(history_json=ModelMessagesTypeAdapter.dump_json(kept).decode("utf-8"), reply=reply,
                        usage=usage)
