@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from webapp import api, auth, config, conversations, db, folder, jobs, keystore, spend, store, worker  # noqa: E402
+from webapp import api, auth, config, conversations, db, enginelib, folder, jobs, keystore, spend, store, turns, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
 
@@ -490,7 +490,7 @@ class Keys(ApiCase):
         self.signed_in()
         body = self.client.get("/api/keys").json()
         self.assertEqual([k["service"] for k in body if k["kind"] == "voice"],
-                         list(worker.engine_services(ROOT)))
+                         list(enginelib.services(ROOT)))
         for k in body:
             self.assertFalse(k["set"])
             self.assertIsNone(k["updated_at"])
@@ -503,7 +503,7 @@ class Keys(ApiCase):
         self.assertEqual([k["name"] for k in body[:4]], ["Claude", "ChatGPT", "Gemini", "OpenRouter"])
         self.assertIn("anthropic", body[0]["key_page"])
         self.assertTrue(all(k["kind"] == "voice" for k in body[4:]))
-        self.assertEqual([k["service"] for k in body[4:]], list(worker.engine_services(ROOT)))
+        self.assertEqual([k["service"] for k in body[4:]], list(enginelib.services(ROOT)))
         self.assertTrue(all(k["writer"] is False for k in body[:4]))   # none chosen, none keyed
         self.assertTrue(all("writer" not in k for k in body[4:]))
         # OpenRouter's one key: its model row names the voice service's billing page, and can say its balance
@@ -698,14 +698,14 @@ class Keys(ApiCase):
 
     def test_guard_leaves_sys_path_alone(self):
         self.signed_in()
-        worker.clean_key(ROOT, "FISH_AUDIO_API_KEY", " x ")
+        enginelib.clean_key(ROOT, "FISH_AUDIO_API_KEY", " x ")
         tools = os.path.abspath(os.path.join(ROOT, "tools"))
         self.assertEqual(sys.path.count(tools), 1)
         self.assertEqual(sys.path[-1], tools)
 
     def test_engine_bug_is_a_500_and_stores_nothing(self):
         _, uk = self.signed_in()
-        keys = worker.engine_keys(ROOT)
+        keys = enginelib.keys(ROOT)
         quiet = TestClient(self.app, base_url=self.base_url, raise_server_exceptions=False)
         quiet.cookies.update(self.client.cookies)
         with mock.patch.object(keys, "clean_value", side_effect=RuntimeError("boom")):
@@ -874,7 +874,7 @@ class Conversations(ApiCase):
         args = jobs.args(self.conn, uk, job)
         self.assertEqual((args["scheduled"], args["offset"]), (True, -300))
         self.assertIn("12,000 characters", args["line"])
-        self.assertIsNone(worker.check_turn(args))
+        self.assertIsNone(turns.check(args))
         self.conn.rollback()
         claimed = jobs.claim(self.conn)
         self.assertTrue(claimed is None or claimed.id != job)   # not due: no worker takes it
@@ -1307,7 +1307,7 @@ class Errors(ApiCase):
 
     def test_an_unexpected_error_is_a_500_that_says_nothing_it_held(self):
         self.signed_in()
-        with mock.patch.object(api.worker, "clean_key", side_effect=RuntimeError("sk-the-listener-key-1234")), \
+        with mock.patch.object(enginelib, "clean_key", side_effect=RuntimeError("sk-the-listener-key-1234")), \
                 mock.patch("sys.stderr") as err:
             r = self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
         self.assertEqual(r.status_code, 500)

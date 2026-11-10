@@ -6,20 +6,20 @@ Reading is in-process, from the engine's own modules (as start.py reads the file
 changed, for the caller to write back. With none set the engine plans as a novice, so that's what shows."""
 import tomllib
 
-from . import worker
+from . import enginelib
 from .workouts import Refused, _ok, _run
 
 
 def parts(engine_root: str) -> tuple[str, ...]:
     """The files `current` reads (the profile's four), so a caller can fetch only those."""
-    ctx, = worker._engine_modules(engine_root, "context")
+    ctx, = enginelib.modules(engine_root, "context")
     return tuple(ctx.PROFILE_PARTS)
 
 
 def current(engine_root: str, files: dict[str, bytes]) -> dict:
     """{"level", "set", "choices": [{"level", "said"}]}: the level the engine reads (its home file first), else
     novice with "set" false."""
-    fm, ctx, catalog = worker._engine_modules(engine_root, "frontmatter", "context", "catalog")
+    fm, ctx, catalog = enginelib.modules(engine_root, "frontmatter", "context", "catalog")
     found = None
     for part in ctx.PROFILE_PARTS:   # profile.md, its home, first: the home file wins
         text = (files.get(part) or b"").decode("utf-8", errors="replace")

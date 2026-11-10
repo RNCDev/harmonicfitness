@@ -10,7 +10,6 @@ HARMONICFITNESS_HOME at a folder that doesn't exist, so the engine's libraries n
 import dataclasses
 import datetime
 import functools
-import importlib
 import json
 import os
 import re
@@ -21,15 +20,14 @@ import tempfile
 import threading
 import time
 import tomllib
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, codes, config, conversations, db, engine, folder, jobs, keystore, log, media, providers, \
-    retention, spend, store
+from . import clipcache, codes, config, conversations, db, engine, enginelib, folder, jobs, keystore, log, media, \
+    providers, retention, spend, store, turns
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 HEARTBEAT_TRIES = 3       # a heartbeat that fails is tried again on a new connection, this many tries in all
@@ -146,7 +144,7 @@ class Ctx:
         extra_env only. Commits, so no transaction stays open across the engine run."""
         stored = keystore.open_all(self.conn, self.uk)
         self.conn.commit()
-        services = engine_services(self.settings.engine_root)
+        services = enginelib.services(self.settings.engine_root)
         for legacy, shared in providers.SHARED_KEY.items():   # a model key stored before 0.25.2 voices too
             if legacy in stored and shared not in stored:
                 stored[shared] = stored[legacy]
@@ -180,77 +178,6 @@ def _usable(conn) -> bool:
 
 # ---- the engine's own lists -------------------------------------------------------------------
 
-_lists: dict[str, tuple[frozenset, frozenset]] = {}
-
-
-def _no_home() -> str:
-    while True:
-        path = os.path.join(tempfile.gettempdir(), f"wt-no-context-{uuid.uuid4().hex}")
-        if not os.path.exists(path):
-            return path
-
-
-def _engine_modules(engine_root: str, *names: str) -> list:
-    """The named engine modules, imported with HARMONICFITNESS_HOME pointed at a folder that doesn't exist,
-    `tools/` appended last on sys.path, and each module's origin checked to be inside the engine."""
-    home = os.environ.get("HARMONICFITNESS_HOME", "")
-    if not home or os.path.exists(home):
-        os.environ["HARMONICFITNESS_HOME"] = _no_home()
-    tools = os.path.abspath(os.path.join(engine_root, "tools"))
-    if tools not in sys.path:
-        sys.path.append(tools)   # after everything else, so no engine module shadows another
-    before = list(sys.path)
-    try:
-        mods = [importlib.import_module(n) for n in names]
-    finally:
-        sys.path[:] = before   # some engine modules (keys) put tools/ first on import: undo that
-    for mod in mods:
-        where = os.path.abspath(mod.__file__)
-        if os.path.dirname(where) != tools and os.path.dirname(os.path.dirname(where)) != tools:
-            raise RuntimeError(f"{mod.__name__} was imported from outside the engine")
-    return mods
-
-
-def engine_lists(engine_root: str) -> tuple[frozenset, frozenset]:
-    """(session goals, kit presets) from the engine's tools/sessions.py and tools/catalog.py."""
-    if engine_root not in _lists:
-        catalog, sessions = _engine_modules(engine_root, "catalog", "sessions")
-        _lists[engine_root] = (frozenset(sessions.load().goals),
-                               frozenset(catalog.load(extra=[]).presets))
-    return _lists[engine_root]
-
-
-_services: dict[str, dict[str, dict]] = {}
-
-
-def engine_services(engine_root: str) -> dict[str, dict]:
-    """{service: {"name", "key_var", "key_page", "billing_page", "reports"}} from knowledge/services.toml, in its
-    order; `reports`: whether the service's module can say what's left on the account (balance())."""
-    if engine_root not in _services:
-        services, = _engine_modules(engine_root, "services")
-        table = services.settings()
-        modules = _engine_modules(engine_root, *(f"services.{k}" for k in table))
-        _services[engine_root] = {k: {**{f: v[f] for f in ("name", "key_var", "key_page", "billing_page")},
-                                      "reports": hasattr(m, "balance")}
-                                  for (k, v), m in zip(table.items(), modules)}
-    return _services[engine_root]
-
-
-def engine_keys(engine_root: str):
-    """The engine's keys module (imported under the guard)."""
-    return _engine_modules(engine_root, "keys")[0]
-
-
-def clean_key(engine_root: str, var: str, value: str) -> str | None:
-    """The engine's keys.clean_value (stripped); None when it refuses the value as a key (BadKey).
-    Anything else it raises is a bug and propagates."""
-    keys = engine_keys(engine_root)
-    try:
-        return keys.clean_value(var, value)
-    except keys.BadKey:
-        return None
-
-
 def _uv_cache() -> None:
     """uv's cache outside every user's folder (the engine runs with HOME set to one)."""
     os.environ.setdefault("UV_CACHE_DIR", os.path.join(tempfile.gettempdir(), "wt-uv-cache"))
@@ -264,7 +191,7 @@ BRIEF_ARGS = {"goal", "minutes", "preset", "today"}
 def _brief_request(args: dict, settings: config.Settings) -> tuple[str, int, str, str]:
     if not isinstance(args, dict) or set(args) != BRIEF_ARGS:
         raise JobFailed("invalid request: needs goal, minutes, preset and today")
-    goals, presets = engine_lists(settings.engine_root)
+    goals, presets = enginelib.lists(settings.engine_root)
     goal, minutes, preset, today = args["goal"], args["minutes"], args["preset"], args["today"]
     if not isinstance(goal, str) or goal not in goals:
         raise JobFailed("invalid request: unknown goal")
@@ -273,18 +200,6 @@ def _brief_request(args: dict, settings: config.Settings) -> tuple[str, int, str
     if not isinstance(preset, str) or preset not in presets:
         raise JobFailed("invalid request: unknown preset")
     return goal, minutes, preset, _today(today)
-
-
-def _today(today: object) -> str:
-    """The request's `today`, checked: a date within a day of the worker's own (UTC)."""
-    try:
-        day = datetime.date.fromisoformat(today) if isinstance(today, str) and len(today) == 10 else None
-    except ValueError:
-        day = None
-    now = datetime.datetime.now(datetime.timezone.utc).date()
-    if day is None or abs((day - now).days) > 1:
-        raise JobFailed("invalid request: today must be a date within a day of today")
-    return day.isoformat()
 
 
 def brief(ctx: Ctx) -> dict:
@@ -435,9 +350,6 @@ def _date_ok(day: str) -> bool:
         return False
 
 
-TURN_ARGS = {"conversation_id", "line", "answer", "today", "now"}
-TURN_NOW = re.compile(r"\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}", re.ASCII)
-MAX_LINE = 4000
 NO_MODEL_KEY = codes.NO_MODEL_KEY
 TOO_LONG = "this turn ran too long; try again with less to do"
 ANSWER_NOT_OPEN = "that answer didn't match the open question; send a message instead"
@@ -459,42 +371,19 @@ class _Stop(Exception):
 
 
 def _turn_request(args: dict) -> tuple[str | None, tuple[str, dict] | None, str, str]:
-    """(line, answer, today, now), checked; exactly one of line or answer. A scheduled turn (0.60.0) also carries
-    `scheduled` and the listener's `offset` from UTC in minutes; its today and now are when it was due."""
-    if (set(args) - {"record", "scheduled", "offset"} != TURN_ARGS or args.get("record", False) not in (True, False)
-            or args.get("scheduled", False) not in (True, False)
-            or ("scheduled" in args) != ("offset" in args)
-            or ("offset" in args and not (type(args["offset"]) is int and abs(args["offset"]) <= 14 * 60))):
-        raise _Stop("invalid request: needs conversation_id, line, answer, today and now")
-    line, answer = args["line"], args["answer"]
-    if (line is None) == (answer is None):
-        raise _Stop("invalid request: give exactly one of line or answer")
-    if line is not None and not (isinstance(line, str) and 0 < len(line.strip()) and len(line) <= MAX_LINE):
-        raise _Stop("invalid request: line must be a message")
-    if answer is not None:
-        if not (isinstance(answer, dict) and set(answer) == {"tool_call_id", "values"}
-                and isinstance(answer["tool_call_id"], str) and answer["tool_call_id"]
-                and isinstance(answer["values"], dict)):
-            raise _Stop("invalid request: answer needs tool_call_id and values")
-        answer = (answer["tool_call_id"], answer["values"])
+    """turns.request, with what it refuses as a turn that fails with its words."""
     try:
-        today = _today(args["today"])
-    except JobFailed as e:
-        raise _Stop(e.error) from None
-    now = args["now"]
-    if not (isinstance(now, str) and TURN_NOW.fullmatch(now) and now.startswith(today)):
-        raise _Stop("invalid request: now must be like 2026-10-28 Wednesday 08:00, on today")
-    return line, answer, today, now
+        return turns.request(args)
+    except turns.Invalid as e:
+        raise _Stop(e.message) from None
 
 
-def check_turn(args: dict) -> str | None:
-    """What's wrong with a turn job's args, in the worker's own words, or None: the API checks a turn
-    with this before it queues one."""
+def _today(today: object) -> str:
+    """turns.day, with what it refuses as a job that fails with its words."""
     try:
-        _turn_request(args)
-    except _Stop as e:
-        return e.message
-    return None
+        return turns.day(today)
+    except turns.Invalid as e:
+        raise JobFailed(e.message) from None
 
 
 def _save_clips(ctx: Ctx, clips: dict) -> None:
@@ -671,19 +560,6 @@ def _step(ctx: Ctx, text: str, tool: str, code: int | None, step: int | None = N
             **({"kind": kind} if kind else {}))
 
 
-def api_when(local: str) -> str:
-    """"Wednesday at 07:00" from "2026-11-04 Wednesday 07:00"."""
-    parts = local.split(" ")
-    return f"{parts[1]} at {parts[2]}" if len(parts) == 3 else local
-
-
-def local_clock(offset: int, utc: datetime.datetime | None = None) -> tuple[str, str]:
-    """(today, now) on the listener's clock, `offset` minutes east of UTC, as their page would send them."""
-    at = (utc or datetime.datetime.now(datetime.timezone.utc)).astimezone(
-        datetime.timezone(datetime.timedelta(minutes=offset)))
-    return at.strftime("%Y-%m-%d"), at.strftime("%Y-%m-%d %A %H:%M")
-
-
 def turn(ctx: Ctx) -> dict:
     """One agent turn on the user's folder and language-model key, saved to their conversation. A scheduled
     turn wakes its conversation first, on the listener's clock as it is now."""
@@ -692,7 +568,7 @@ def turn(ctx: Ctx) -> dict:
     if type(cid) is not int:
         raise JobFailed("invalid request: needs conversation_id, line, answer, today and now")
     if args.get("scheduled") is True and type(args.get("offset")) is int:
-        today, now = local_clock(args["offset"])
+        today, now = turns.local_clock(args["offset"])
         ctx.args = args = dict(args, today=today, now=now)
         woke = conversations.wake(ctx.conn, ctx.uk, cid, ctx.job_id)
         due = jobs.due_at(ctx.conn, ctx.job_id)
@@ -748,7 +624,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
     zone = listener_zone(now)   # the engine's clock is the listener's: the brief's time, today's date for the menu
-    deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home,
+    deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, writers=ctx.settings.writers,
                       keys=dict(ctx.keys, **({"TZ": zone} if zone else {})), today=today,
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
                       cancel=ctx.cancel, picked=picked, event=lambda stage, **fields: ctx.say(stage, **fields),
@@ -762,7 +638,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     deps.coach = agent.audition_open(ctx.home)
     record = ctx.args.get("record") is True   # the listener pressed Record: the offer is approved
     deps.approved = conv.offer if record else None
-    deps.chars_left = spend.daily_cap() - spend.used(ctx.conn, ctx.uk, today)
+    deps.chars_left = ctx.settings.daily_chars - spend.used(ctx.conn, ctx.uk, today)
     deps.auto_record = auto and not record
     # a new listener's first screen said that their first workout records as soon as it's written, where its script
     # goes and that their key pays: that one records with no Record card, once (this conversation's first recording)
@@ -778,7 +654,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         """Today's allowance, reserved for a recording made without the Record button (as its endpoint does)."""
         with ctx.db_lock:
             try:
-                fits = spend.reserve(ctx.conn, ctx.uk, today, chars, spend.daily_cap())
+                fits = spend.reserve(ctx.conn, ctx.uk, today, chars, ctx.settings.daily_chars)
                 ctx.conn.commit()
                 return fits
             except Exception:  # noqa: BLE001 - then the Record button is offered, as without the setting
@@ -858,7 +734,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
             except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
                 log.failure(f"job {ctx.job_id} prefetch failed", e)
         if deps.later and not deps.scheduled_run and first:   # the page's picked time, said plainly for the check-in
-            note = (f"This workout is for later: {api_when(deps.later.get('local', ''))}, the listener's time. Do the "
+            note = (f"This workout is for later: {turns.said_when(deps.later.get('local', ''))}, the listener's time. Do the "
                     "check-in now; once nothing's left to ask, call schedule_workout and end your turn with the plan "
                     "in a line. The brief, the research and the script come fifteen minutes before their time.")
             context = f"{context}\n\n{note}" if context else note
@@ -1132,7 +1008,7 @@ def main() -> int:
         return 2
     engine.not_dumpable()   # Linux: the engine child can't read our environment via /proc
     _uv_cache()
-    engine_lists(settings.engine_root)
+    enginelib.lists(settings.engine_root)
     stopping = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stopping.set())
     try:

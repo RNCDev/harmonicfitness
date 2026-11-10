@@ -22,7 +22,7 @@ import tomllib
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
-from . import engine, folder, worker
+from . import engine, enginelib, folder
 
 MINUTES_DEFAULT, MINUTES_MIN, MINUTES_MAX = 25, 10, 60
 FIRST_MINUTES = 10   # the setup skill's quick start ends with a ten-minute workout
@@ -242,9 +242,9 @@ _mods: dict[str, list] = {}
 
 
 def _modules(engine_root: str) -> list:
-    """The engine's frontmatter, context and sessionlog modules, imported (under worker's guard) once."""
+    """The engine's frontmatter, context and sessionlog modules, imported (under enginelib's guard) once."""
     if engine_root not in _mods:
-        _mods[engine_root] = worker._engine_modules(engine_root, "frontmatter", "context", "sessionlog")
+        _mods[engine_root] = enginelib.modules(engine_root, "frontmatter", "context", "sessionlog")
     return _mods[engine_root]
 
 
@@ -252,7 +252,7 @@ def shape(files: dict[str, bytes], keyed, coaches: list, coverage: dict | None, 
           presets, goals, services: list[str], chosen: tuple[str, str] | None = None) -> dict:
     """The response, from the listener's files (path -> bytes), the services with a stored key, `coaches
     list --json`'s coaches and `coverage --json` (None when it didn't run); `presets`, `goals` and
-    `services` are the engine's lists (worker.engine_lists, worker.engine_services); `chosen` is the coach
+    `services` are the engine's lists (enginelib.lists, enginelib.services); `chosen` is the coach
     picked on the web app, as (slug, day), or None."""
     fm, ctx, _ = _modules(engine_root)
     profile, _ = _front(fm, _text(files, "profile.md"))
@@ -293,7 +293,7 @@ def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, 
     """Blocking: the listener's files (over the starter template, so the engine always sees a whole folder)
     in a temporary folder, the two engine reads (side by side: both only read), then `shape`. Neither
     command's output leaves here."""
-    goals, presets = worker.engine_lists(engine_root)
+    goals, presets = enginelib.lists(engine_root)
     with tempfile.TemporaryDirectory(prefix="wt-start-") as tmp:
         home = os.path.join(tmp, "me")
         os.mkdir(home)
@@ -305,4 +305,4 @@ def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, 
     coaches = listed.get("coaches") if listed else None
     return shape(files, keyed, coaches if isinstance(coaches, list) else [], coverage,
                  engine_root=engine_root, presets=presets, goals=goals,
-                 services=list(worker.engine_services(engine_root)), chosen=chosen)
+                 services=list(enginelib.services(engine_root)), chosen=chosen)

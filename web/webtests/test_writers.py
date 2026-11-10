@@ -432,20 +432,12 @@ class Switch(unittest.TestCase):
             self.assertIn("edit_segments", seen[0])
 
     def test_a_turn_has_three_writers_unless_the_setting_says_one(self):
-        def reply(messages, info):
-            return ModelResponse(parts=[TextPart("ok")])
+        from webapp import config
+        env = {"DATABASE_URL": "x", "HARMONICFITNESS_BASE_URL": "https://x",
+               "HARMONICFITNESS_MASTER_KEY": "A" * 43 + "="}
         for setting, want in ((None, "three"), ("one", "one"), ("nonsense", "three")):
-            deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00")
-            old = os.environ.pop("HARMONICFITNESS_WRITERS", None)
-            if setting:
-                os.environ["HARMONICFITNESS_WRITERS"] = setting
-            try:
-                agent.run_turn(FunctionModel(reply), deps, None, "hi")
-            finally:
-                os.environ.pop("HARMONICFITNESS_WRITERS", None)
-                if old is not None:
-                    os.environ["HARMONICFITNESS_WRITERS"] = old
-            self.assertEqual(deps.writers, want, setting)
+            settings = config.load(dict(env, **({"HARMONICFITNESS_WRITERS": setting} if setting else {})))
+            self.assertEqual(settings.writers, want, setting)
 
     def test_contractions_leave_a_clause_ending_verb_alone(self):
         self.assertEqual(tools.contract("Stay where you are or drop a plate.")[0], "Stay where you are or drop a plate.")

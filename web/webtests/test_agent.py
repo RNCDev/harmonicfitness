@@ -41,7 +41,7 @@ class AgentCase(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.home, True)
         folder.materialize(folder.seed(ROOT), self.home)
         self.deps = tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY,
-                               now=f"{TODAY} Wednesday 08:00")
+                               now=f"{TODAY} Wednesday 08:00", writers="three")   # as the worker sets it
 
 
 class ShowPlan(AgentCase):
@@ -1015,7 +1015,8 @@ class Faster(DraftCase):
 
         # the Record button's turn: a fresh turn, with only the offer to go on
         offer = self.deps.offer
-        self.deps = tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY, now=f"{TODAY} Wednesday 08:00")
+        self.deps = tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY, now=f"{TODAY} Wednesday 08:00",
+                               writers="three")
         self.deps.approved = offer
         before = len(calls)
         with patch:

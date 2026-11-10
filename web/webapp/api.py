@@ -40,10 +40,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
     RedirectResponse, Response, StreamingResponse
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, codes, config, conversations, db, engine, feed, folder, jobs, keystore, log, media, \
-    providers, \
-    level, spend, start, store, \
-    worker, workouts
+from . import APP_NAME, auth, codes, config, conversations, db, engine, enginelib, feed, folder, jobs, keystore, log, \
+    media, providers, level, spend, start, store, turns, workouts
 
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -120,7 +118,7 @@ class BriefJob(BaseModel):
 
 
 Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
-Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # the worker's check_turn says the rest
+Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # turns.check says the rest
 Line = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
 
 class Confirm(BaseModel):
@@ -171,11 +169,6 @@ def later_from(start_at: str | None, utc: datetime.datetime | None = None) -> di
         raise HTTPException(422, "Pick a time in the next 24 hours.")
     return {"at": at.astimezone(datetime.timezone.utc).isoformat(), "local": at.strftime("%Y-%m-%d %A %H:%M"),
             "offset": int(off.total_seconds() // 60)}
-
-
-def said_when(local: str) -> str:
-    """"Wednesday at 07:00" from a plan's "2026-11-04 Wednesday 07:00"."""
-    return worker.api_when(local)
 
 
 STILL_WORKING = "Still working on the last message."
@@ -529,11 +522,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                client_dist: str | os.PathLike | None = None) -> FastAPI:
     """The app. `connect` (tests) opens a connection; without it requests use a pool of
     settings.database_url and an event stream opens its own connection to it."""
-    goals, presets = worker.engine_lists(settings.engine_root)
+    goals, presets = enginelib.lists(settings.engine_root)
     options = {"minutes": list(MINUTES), "goals": sorted(goals), "presets": sorted(presets)}
-    services = worker.engine_services(settings.engine_root)
+    services = enginelib.services(settings.engine_root)
     version = build_version(settings.engine_root)
-    worker.engine_keys(settings.engine_root)    # a broken import fails at startup
+    enginelib.keys(settings.engine_root)    # a broken import fails at startup
     dist = Path(client_dist) if client_dist is not None else CLIENT_DIST
     origin = _origin(settings.base_url)
     pool = None
@@ -1263,7 +1256,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.put("/api/keys/{service}", status_code=204, **post)
     def put_key(uk: User, service: str, body: Annotated[KeyBody, Body()]):
         info = known(service)
-        value = worker.clean_key(settings.engine_root, info["key_var"], body.key)
+        value = enginelib.clean_key(settings.engine_root, info["key_var"], body.key)
         if not value or len(value) < KEY_MIN:
             raise HTTPException(400, f"That doesn't look like a {info['name']} key: it has a space, "
                                      "a line break or a symbol in it. Paste it again.")
@@ -1371,7 +1364,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         args = {"conversation_id": cid, "line": line, "answer": answer, "today": today, "now": now}
         if record:
             args["record"] = True
-        problem = worker.check_turn(args)
+        problem = turns.check(args)
         if problem is not None:
             raise HTTPException(422, problem)
         return args
@@ -1491,7 +1484,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             c = healed(conn, uk, cid)
             if c.state not in ("idle", "failed") or not c.offer:
                 raise HTTPException(409, "There's no recording waiting for you here.")
-            cap = spend.daily_cap()
+            cap = settings.daily_chars
             if not spend.reserve(conn, uk, body.today, int(c.offer.get("chars") or 0), cap):
                 raise HTTPException(409, f"That's over today's allowance of {cap:,} characters of recording. "
                                          "A shorter workout fits, or try again tomorrow.")
@@ -1517,14 +1510,14 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
             if at <= now:
                 raise HTTPException(409, "That time has passed: ask for the workout again.")
             due = max(now, at - LEAD)
-            when = said_when(later.get("local", ""))
-            today, local_now = worker.local_clock(int(later.get("offset") or 0), now)
+            when = turns.said_when(later.get("local", ""))
+            today, local_now = turns.local_clock(int(later.get("offset") or 0), now)
             line = (f"(From the site; the listener isn't here.) It's time for the workout they scheduled for {when}: "
                     "write it now from the check-in above, then build it. Their Schedule it approved one recording "
                     f"of up to {int(later.get('ceiling_chars') or 0):,} characters, so a clean price records on its "
                     "own. Ask nothing: where anything is open, take your pick and say so in your last line.")
             args = dict(turn_args(cid, line, None, today, local_now), scheduled=True, offset=int(later.get("offset") or 0))
-            problem = worker.check_turn(args)
+            problem = turns.check(args)
             if problem is not None:
                 raise HTTPException(422, problem)
             if not conversations.schedule(conn, uk, cid, f"Schedule it for {when}.", due.isoformat()):

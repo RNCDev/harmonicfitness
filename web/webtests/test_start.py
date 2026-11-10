@@ -6,12 +6,12 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import folder, start, worker  # noqa: E402
+from webapp import enginelib, folder, start  # noqa: E402
 from webtests import test_api  # noqa: E402
 from webtests.test_api import ROOT  # noqa: E402
 
-GOALS, PRESETS = worker.engine_lists(ROOT)
-SERVICES = list(worker.engine_services(ROOT))
+GOALS, PRESETS = enginelib.lists(ROOT)
+SERVICES = list(enginelib.services(ROOT))
 
 
 def web(name, slug, service, shipped=True, placeholder=True):

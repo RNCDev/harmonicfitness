@@ -83,6 +83,12 @@ class Config(unittest.TestCase):
         with self.assertRaises(config.ConfigError):
             config.load(env(HARMONICFITNESS_REGISTRATION="maybe"))
 
+    def test_daily_allowance(self):
+        from webapp import spend
+        for raw, want in ((None, spend.DEFAULT_DAILY_CHARS), ("5000", 5000), ("-3", 0), ("lots", spend.DEFAULT_DAILY_CHARS)):
+            extra = {} if raw is None else {"HARMONICFITNESS_DAILY_CHARS": raw}
+            self.assertEqual(config.load(env(**extra)).daily_chars, want, raw)
+
     def test_engine_root_override(self):
         self.assertEqual(config.load(env(HARMONICFITNESS_ENGINE_ROOT="/x")).engine_root, "/x")
 

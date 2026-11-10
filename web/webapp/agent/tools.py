@@ -102,7 +102,7 @@ class Deps:
     # next ask is scaled by how much of that one the writer delivered
     asks: dict[str, tuple[int, int]] = field(default_factory=dict)
     # who writes the script's words: "three" (the writers' room: a trainer, a researcher, a host and the trainer's review, `write_script`; the
-    # site's way since 0.51.0, which run_turn sets) or "one" (this agent, in passes; HARMONICFITNESS_WRITERS=one)
+    # site's way since 0.51.0, which the worker sets from settings.writers) or "one" (this agent, in passes; HARMONICFITNESS_WRITERS=one)
     writers: str = "one"
     # each skeleton's last lint report, by its draft's path: the word budgets the writers write to
     reports: dict[str, str] = field(default_factory=dict)

@@ -5,7 +5,10 @@ import os
 from dataclasses import dataclass, field
 from typing import Mapping
 
+from . import spend
+
 ROLES = ("web", "worker")
+WRITERS = ("one", "three")   # who writes a script's words: the agent, in passes, or the writers' room
 
 
 class ConfigError(Exception):
@@ -22,6 +25,8 @@ class Settings:
     session_days: int = 90
     registration: bool = True
     providers: tuple[str, ...] = ("anthropic", "openai", "google", "openrouter")
+    daily_chars: int = spend.DEFAULT_DAILY_CHARS   # each listener's daily allowance for recordings
+    writers: str = "three"       # who writes a script's words (WRITERS)
 
 
 def _required(env: Mapping[str, str], name: str) -> str:
@@ -29,6 +34,19 @@ def _required(env: Mapping[str, str], name: str) -> str:
     if not value:
         raise ConfigError(f"{name} is not set")
     return value
+
+
+def _daily_chars(env: Mapping[str, str]) -> int:
+    try:
+        return max(0, int(env.get("HARMONICFITNESS_DAILY_CHARS", spend.DEFAULT_DAILY_CHARS)))
+    except ValueError:
+        return spend.DEFAULT_DAILY_CHARS
+
+
+def _writers(env: Mapping[str, str]) -> str:
+    """Three writers write the script (0.51.0); HARMONICFITNESS_WRITERS=one has the agent write it, in passes."""
+    wanted = env.get("HARMONICFITNESS_WRITERS", "three")
+    return wanted if wanted in WRITERS else "three"
 
 
 def load(env: Mapping[str, str]) -> Settings:
@@ -52,4 +70,4 @@ def load(env: Mapping[str, str]) -> Settings:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return Settings(database_url=database_url, master_key=master, base_url=base_url,
                     role=role, engine_root=root, registration=reg == "open",
-                    providers=tuple(providers.offered(env)))
+                    providers=tuple(providers.offered(env)), daily_chars=_daily_chars(env), writers=_writers(env))

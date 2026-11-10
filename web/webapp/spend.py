@@ -1,7 +1,6 @@
 """Each listener's daily allowance for recordings: characters a voice service may be sent, reserved when
 they approve a recording. Nothing commits here: the caller does."""
 import datetime
-import os
 
 DEFAULT_DAILY_CHARS = 180_000  # a 30-minute workout is about 20,000; HARMONICFITNESS_DAILY_CHARS changes it
 
@@ -19,9 +18,3 @@ def reserve(conn, uk, day: str, chars: int, cap: int) -> bool:
     return conn.execute("update spend set chars = chars + %s where user_id = %s and day = %s and chars + %s <= %s",
                         (chars, uk.user_id, d, chars, cap)).rowcount == 1
 
-
-def daily_cap(env=os.environ) -> int:
-    try:
-        return max(0, int(env.get("HARMONICFITNESS_DAILY_CHARS", DEFAULT_DAILY_CHARS)))
-    except ValueError:
-        return DEFAULT_DAILY_CHARS

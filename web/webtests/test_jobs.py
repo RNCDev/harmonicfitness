@@ -840,7 +840,7 @@ class Turn(JobsCase):
         from webapp import keystore, spend
         uk = self.user()
         keystore.set_auto_record(self.conn, uk, True)
-        self.assertTrue(spend.reserve(self.conn, uk, today(), spend.daily_cap() - 1000, spend.daily_cap()))
+        self.assertTrue(spend.reserve(self.conn, uk, today(), self.settings.daily_chars - 1000, self.settings.daily_chars))
         self.conn.commit()
         cid = self.start(uk)
         real = worker.engine.run

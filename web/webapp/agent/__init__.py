@@ -22,6 +22,7 @@ from pydantic_ai.messages import (ModelRequest, ModelResponse, NativeToolCallPar
                                  UserPromptPart)
 from pydantic_ai.models.wrapper import WrapperModel
 
+from .. import config
 from . import tools, writers
 from .tools import Deps, ToolResult
 from .writers import web_copy
@@ -73,7 +74,7 @@ with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "instructions
     INSTRUCTIONS = _f.read()
 # who writes the words: the instructions mark what differs (<!-- writers: one --> ... <!-- writers: end -->)
 WRITERS_BLOCK = re.compile(r"<!-- writers: (one|three) -->(.*?)<!-- writers: end -->", re.DOTALL)
-WRITERS = ("one", "three")
+WRITERS = config.WRITERS
 
 
 def preamble(writers: str = "one") -> str:
@@ -868,7 +869,7 @@ def _picked(deps: Deps, listed: ToolResult) -> str | None:
         text = ""
     except (ValueError, KeyError, TypeError, OSError):
         return None
-    from .. import start   # start imports worker, which imports this package
+    from .. import start   # the engine's modules, imported only when a turn needs them
     return coach["name"] if start.chosen_holds(coach, day, start.logged(deps.engine_root, text)) else None
 
 
@@ -1026,9 +1027,6 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     UsageLimitExceeded and provider errors propagate; the caller decides what they mean."""
     if answer is not None or not prompt:
         raise TurnError("this coach asks its questions in the chat; send a message", NOT_OPEN)
-    # three writers write the script (0.51.0); HARMONICFITNESS_WRITERS=one has this agent write it, in passes
-    wanted = os.environ.get("HARMONICFITNESS_WRITERS", "three")
-    deps.writers = wanted if wanted in WRITERS else "three"
     history = None
     if history_json:
         try:
