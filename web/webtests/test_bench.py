@@ -106,3 +106,19 @@ class AgainstTheCommittedRuns(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HostAgainstBudget(unittest.TestCase):
+    def test_the_hosts_words_are_counted_against_the_skeletons_budgets(self):
+        report = "Skeleton: 2 segments\n  #  secs budget words to write  label\n  1    60    100     0      100  A\n  2    60    100     0      100  B\n"
+        result = {"writers": [
+            {"who": "host", "output": {"segments": [{"number": 1, "text": "x " * 50}]}},
+            {"who": "review", "output": {}},
+            {"who": "host", "output": {"segments": [{"number": 1, "text": "one two three [pause 2s] four " * 10 + "[story] a b [/story]"},
+                                                    {"number": 2, "text": "w " * 60}]}}]}
+        commands = [{"t": 1, "argv": ["build", "d", "n", "--lint-only"], "output": report, "error": "no words yet"},
+                    {"t": 5, "argv": ["build", "d", "n", "--lint-only"], "output": "other", "error": ""}]
+        self.assertAlmostEqual(summarize.host_against_budget(result, commands), (40 + 2 + 60) / 200)
+
+    def test_no_host_or_no_skeleton_report_is_no_ratio(self):
+        self.assertIsNone(summarize.host_against_budget({"writers": []}, []))

@@ -148,6 +148,19 @@ def words_by_kind(r):
     return out
 
 
+def host_against_budget(r, commands):
+    """The last host's words (outside markers) over the skeleton's word budgets, from the lint report of the last
+    skeleton the room was given; None without a host or that report."""
+    hosts = [w for w in r["writers"] if w["who"] == "host"]
+    skeleton = [c for c in commands if c["argv"][:1] == ["build"] and "--lint-only" in c["argv"]
+                and "no words yet" in (c["error"] or "")]
+    if not hosts or not skeleton:
+        return None
+    budget = sum(writers.budgets(skeleton[-1]["output"]).values())
+    words = sum(len(re.sub(r"\[[^\]]*\]", " ", seg["text"]).split()) for seg in hosts[-1]["output"]["segments"])
+    return words / budget if budget else None
+
+
 def facts(path):
     with open(path, encoding="utf-8") as f:
         r = json.load(f)
@@ -172,6 +185,12 @@ def facts(path):
             writers_s["research wait"] = [0.0]
     unknown, odd = fidelity(r)
     try:
+        with open(os.path.join(os.path.dirname(path), "commands.jsonl"), encoding="utf-8") as f:
+            commands = [json.loads(ln) for ln in f if ln.strip()]
+    except OSError:
+        commands = []
+    against = host_against_budget(r, commands)
+    try:
         with open(os.path.join(os.path.dirname(path), "home", "content.md"), encoding="utf-8") as f:
             content = f.read()
     except OSError:
@@ -183,6 +202,7 @@ def facts(path):
             "after_room": round(end - room_end, 1) if room_end else None,
             "fixes_after": sum(1 for e in after if e["tool"] == "edit_segments"),
             "reviews": len(writers_s.get("review", [])),
+            "host_vs_budget": round(against, 2) if against is not None else None,
             "writers": {k: round(sum(v), 1) for k, v in writers_s.items()},
             "opening": opening(r["draft"]) if r["draft"] else ["no draft"],
             "not_in_notes": unknown, "one_voice": odd,
@@ -209,6 +229,9 @@ def main(labels):
             vals = [f[k] for f in ok if f[k] is not None]
             if vals:
                 print(f"  median {k}: {statistics.median(vals):.1f}  ({', '.join(f'{v:.0f}' for v in vals)})")
+        vals = [f["host_vs_budget"] for f in ok if f["host_vs_budget"] is not None]
+        if vals:
+            print(f"  host words against the budget, median: {statistics.median(vals):.2f}  ({', '.join(f'{v:.2f}' for v in vals)})")
         for w in ("research", "research wait", "top-up", "trainer", "host", "review"):
             vals = [f["writers"][w] for f in ok if w in f["writers"]]
             if vals:

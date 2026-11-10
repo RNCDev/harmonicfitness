@@ -31,10 +31,11 @@ SMALLEST_STORY = 40
 # to SMALLEST_STORY: a session of thirty-second rests with the floor in full carried no story at all.
 COACHING_FLOOR = 60
 STORY_WORDS = 140      # what a story is asked to run to, before the skeleton says how long each rest is
-# Gemini's coach wrote 9 to 23 percent over the words it was asked for (0.50.3's loop), and paragraph breaks add
-# time of their own: it's asked for this share of each segment's words (all of them where a bare [hold] keeps the
-# segment its length, since a word short there is a second of silence)
-COACH_AIM = 0.85
+# The host writes over the words it is asked for, and paragraph breaks add time of their own, so it's asked for this
+# share of each segment's words (all of them where a bare [hold] keeps the segment its length, since a word short
+# there is a second of silence). Gemini's wrote about 1.4 times the ask at 0.85 (the bench's 2026-11-10 runs: 1.23 to
+# 1.53), so it's asked for 0.85 / 1.4 = 0.6 of the budget less a little, 0.7, to land near the budget itself.
+AIMS = {"gemini": 0.7, "other": 0.85}
 SILENCE = 8.0          # draft.MAX_SILENCE: a fixed hold or pause past it is refused, so the coach talks through it
 PLACE = re.compile(r"[ \t]*\[story\]\s*\[/story\]", re.IGNORECASE)   # a skeleton's mark for a piece told during the work
 STORY_REST = re.compile(r"\b(rest|transition|recover\w*)\b", re.IGNORECASE)
@@ -314,10 +315,15 @@ def pieces_for(minutes: int) -> int:
     return max(2, round(minutes / 2.6))
 
 
-def asked(n: int, body: list[str], budget: dict) -> int:
+def aim(model) -> float:
+    """The share of a segment's budget the host is asked for, by model family."""
+    return AIMS["gemini" if is_gemini(model) else "other"]
+
+
+def asked(n: int, body: list[str], budget: dict, model) -> int:
     """The words the host is asked for in segment `n`: a share of its budget, since the host writes long (all of
     them where a bare [hold] keeps the segment its length, since a word short there is a second of silence)."""
-    return round(budget.get(n, 0) * (1 if "[hold]" in "\n".join(body) else COACH_AIM))
+    return round(budget.get(n, 0) * (1 if "[hold]" in "\n".join(body) else aim(model)))
 
 
 def shares(n: int, words: int, budget: dict, rests: dict) -> tuple[int, int]:
@@ -340,7 +346,7 @@ def place(told: list, rests: dict, marked: set) -> dict:
     return out
 
 
-def _plan_table(segs: list, budget: dict, rests: dict, marked: frozenset = frozenset()) -> str:
+def _plan_table(segs: list, budget: dict, rests: dict, marked: frozenset = frozenset(), model=None) -> str:
     """The plan as the trainer reads it: each segment's time, label, words and markers, and where a story goes and
     how many of the words are left for the coaching around it (0.59.0: without the words, notes ran as long as the
     segment, and the host wrote about as many words as the notes held)."""
@@ -348,7 +354,7 @@ def _plan_table(segs: list, budget: dict, rests: dict, marked: frozenset = froze
     for n, (_, label, secs, body) in enumerate(segs, 1):
         marks = " ".join(m for m in tools.MARK.findall("\n".join(body))
                          if m.lower() not in ("[story]", "[/story]")) or "none"
-        words = asked(n, body, budget)
+        words = asked(n, body, budget, model)
         size = f" About {words} words."
         if n in rests:
             coaching, story = shares(n, words, budget, rests)
@@ -361,7 +367,7 @@ def _plan_table(segs: list, budget: dict, rests: dict, marked: frozenset = froze
 
 
 def host_plan(segs: list, budget: dict, notes: dict[int, str], placed: dict, marked: frozenset = frozenset(),
-              rests: dict | None = None) -> str:
+              rests: dict | None = None, model=None) -> str:
     """The plan as the host reads it: each segment's time, label, words and markers, the trainer's notes, and the
     story told there, as the researcher's notes, with its share of the words (`rests`: slots' (coach, story) words),
     so a story is told whole rather than summed up and the rest padded with breathing lines."""
@@ -369,7 +375,7 @@ def host_plan(segs: list, budget: dict, notes: dict[int, str], placed: dict, mar
     for n, (_, label, secs, body) in enumerate(segs, 1):
         marks = " ".join(m for m in tools.MARK.findall("\n".join(body))
                          if m.lower() not in ("[story]", "[/story]")) or "none"
-        words = asked(n, body, budget)
+        words = asked(n, body, budget, model)
         story = placed.get(n)
         share = ""
         if story is not None and rests and n in rests and budget.get(n):
@@ -625,7 +631,7 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
     trainer_prompt = (
         f"Now: {deps.now}.\n\n# The brief\n\n{coach_brief(brief, ids)}\n\n# The coaching notes\n\n"
         f"{about.output.strip()}\n\n# The plan\n\n{head[0] if head else ''}\n"
-        f"{_plan_table(segs, budget, rests, frozenset(marked))}")
+        f"{_plan_table(segs, budget, rests, frozenset(marked), model)}")
 
     async def the_stories() -> list[Told]:   # started as the brief was saved, or written now; topped up to the places
         job = deps.content_job if deps.content_job is not None and deps.content_for == path else None
@@ -659,7 +665,7 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n# The weather\n\n{weather}\n\n"
         f"# The plan\n\nThis coach says about {rate:.1f} words a second, so each segment's words fill its seconds: a "
         f"hold or pause you add takes {rate:.1f} words a second from them.\n\n"
-        f"{host_plan(segs, budget, notes, placed, frozenset(marked), rests)}")
+        f"{host_plan(segs, budget, notes, placed, frozenset(marked), rests, model)}")
     hosted = await _ask(deps, "host", HOST, model, host_prompt, usage, LEVEL["host"])
     edits, unasked = without_unasked(hosted.output.segments, placed)
     if unasked:

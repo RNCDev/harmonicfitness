@@ -47,6 +47,17 @@ class Plan(unittest.TestCase):
     def test_budgets_are_read_from_the_skeletons_report(self):
         self.assertEqual(writers.budgets(REPORT), {1: 147, 2: 118, 3: 219, 4: 118, 5: 49, 6: 140})
 
+    def test_the_host_is_asked_less_on_gemini(self):
+        # Gemini's host writes about 1.4 times the words it is asked for, so it's asked for less of each budget
+        GoogleModel = type("GoogleModel", (), {})
+        gemini, other = GoogleModel(), object()
+        self.assertEqual(writers.AIMS["gemini"], 0.7)
+        self.assertEqual(writers.aim(gemini), 0.7)
+        self.assertEqual(writers.aim(other), 0.85)
+        self.assertEqual(writers.asked(3, ["text"], {3: 100}, gemini), 70)
+        self.assertEqual(writers.asked(3, ["text"], {3: 100}, other), 85)
+        self.assertEqual(writers.asked(3, ["[hold]"], {3: 100}, gemini), 100)   # a bare hold keeps the whole budget
+
     def test_only_a_rest_long_enough_carries_a_story(self):
         _, segs = writers.split(SKELETON)
         rests = writers.slots(segs, writers.budgets(REPORT))
@@ -68,14 +79,14 @@ class Plan(unittest.TestCase):
         budget = writers.budgets(REPORT)
         rests = writers.slots(segs, budget)
         table = writers._plan_table(segs, budget, rests)
-        words = round(219 * writers.COACH_AIM)
+        words = round(219 * writers.AIMS['other'])
         coaching, story = writers.shares(3, words, budget, rests)
         row = next(r for r in table.split("\n") if r.startswith("#3 "))
         self.assertIn(f"About {words} words: {story} for a story, told in the rest, and {coaching} for the coaching "
                       "around it.", row)
         self.assertEqual(coaching + story, words)
         two = next(r for r in table.split("\n") if r.startswith("#2 "))
-        self.assertIn(f"About {round(118 * writers.COACH_AIM)} words. Markers: [count 3 go].", two)
+        self.assertIn(f"About {round(118 * writers.AIMS['other'])} words. Markers: [count 3 go].", two)
 
     def test_the_host_gets_each_segments_words_markers_notes_and_story(self):
         _, segs = writers.split(SKELETON)
@@ -83,7 +94,7 @@ class Plan(unittest.TestCase):
         plan = writers.host_plan(segs, budget, {2: "Knees over the toes.\nTen reps, two in the tank."},
                                  {3: told(3, "Why it's theirs: their team.\nThe Flyers won four to two.")})
         two = plan.split("## #2 ", 1)[1].split("## #3 ", 1)[0]
-        self.assertIn(f"Write about {round(118 * writers.COACH_AIM)} words. Markers, in order: [count 3 go].", two)
+        self.assertIn(f"Write about {round(118 * writers.AIMS['other'])} words. Markers, in order: [count 3 go].", two)
         self.assertIn("Knees over the toes.", two)
         three = plan.split("## #3 ", 1)[1].split("## #4 ", 1)[0]
         self.assertIn("Tell this story here (in the rest; quick_hit, -):\nWhy it's theirs: their team.", three)
@@ -95,7 +106,7 @@ class Plan(unittest.TestCase):
         rests = writers.slots(segs, budget)
         plan = writers.host_plan(segs, budget, {}, {3: told(3, "The Flyers won four to two.")}, frozenset(), rests)
         three = plan.split("## #3 ", 1)[1].split("## #4 ", 1)[0]
-        words = round(budget[3] * writers.COACH_AIM)
+        words = round(budget[3] * writers.AIMS['other'])
         self.assertIn(f"Write about {words} words. About {round(words * rests[3][1] / budget[3])} of them are the "
                       "story, told whole", three)
         self.assertIn(f"and about {writers.shares(3, words, budget, rests)[0]} the coaching around it", three)
