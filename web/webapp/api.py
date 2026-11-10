@@ -114,10 +114,6 @@ Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # turns.check says the rest
 Line = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
 
-class Confirm(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    password: Annotated[StrictStr, StringConstraints(min_length=1, max_length=1024)]
-
 
 class TurnWhen(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -206,21 +202,6 @@ class SyncChange(BaseModel):
 class SyncWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
     changes: Annotated[list[SyncChange], Field(max_length=500)]
-
-
-class FeedbackBody(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    text: Annotated[str, Field(min_length=1, max_length=1000)]
-
-
-class RatingBody(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    rating: Literal["positive", "neutral", "negative", "none"]
-
-
-class LevelBody(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    level: Literal["novice", "experienced", "advanced"]
 
 
 class CoachBody(BaseModel):
@@ -379,19 +360,6 @@ class _BodyLimit:
         await self.app(scope, replay, send)
 
 
-def stock_sample_url(engine_root: str, slug: str) -> str | None:
-    """A stock coach's sample on the media bucket, from coaches/samples.json (tools/media.py writes it), or None.
-    Only an https:// address counts."""
-    try:
-        data = json.loads(Path(engine_root, "coaches", "samples.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    url = str(data.get("url") or "").rstrip("/")
-    if slug not in (data.get("samples") or {}) or not url.startswith("https://"):
-        return None
-    return f"{url}/coaches/{slug}/sample.mp3"
-
-
 def build_version(engine_root: str, env=os.environ) -> str:
     """What the page shows, so a deploy is visible: the engine's VERSION and the deployed commit
     (HARMONICFITNESS_COMMIT, baked in at build from GIT_COMMIT_SHA), as "0.20.0 (75da105)"."""
@@ -535,7 +503,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     # ---- dependencies ---------------------------------------------------------------------
 
-    from .routes import auth as authroutes, state as routestate
+    from .routes import account, auth as authroutes, logs, state as routestate
     st = routestate.AppState(
         settings=settings, connection=connection, open_stream=open_stream, options=options, services=services,
         version=version, dist=dist, origin=origin,
@@ -547,10 +515,6 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app.state.hf = st
     User = routestate.User
     post = routestate.POST
-    confirms = st.throttles["confirms"]
-
-    def confirming(uk: store.UserKey) -> str:
-        return routestate.confirming(st, uk)
 
 
     @app.get("/healthz")
@@ -563,81 +527,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     # ---- the signed-in API ------------------------------------------------------------------
 
-    @app.get("/api/me")
-    def me(uk: User):
-        with connection() as conn:
-            name, pw = conn.execute("select username, password_hash is not null from users "
-                                    "where id = %s", (uk.user_id,)).fetchone()
-            sky = keystore.sky(conn, uk)
-            auto = keystore.auto_record(conn, uk)
-            conn.rollback()
-        return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": version, "sky": sky,
-                "auto_record": auto}
+    app.include_router(account.router)
 
-    @app.get("/api/options")
-    def get_options(uk: User):
-        return options
-
-    coach_slug = re.compile(r"coach-[a-z0-9-]{1,60}")
-
-    @app.get("/api/coaches/{slug}/sample.mp3")
-    def coach_sample(uk: User, slug: str, request: Request):
-        """A coach's sample for the gallery: the listener's own copy (me/coaches/<slug>/sample.mp3, kept with
-        their files), which wins as their coach does, else a stock coach's from the media bucket (a redirect to
-        the address coaches/samples.json lists), which plays before the listener has a key."""
-        if not coach_slug.fullmatch(slug):
-            raise HTTPException(404, "no such coach")
-        with connection() as conn:
-            try:
-                own = store.read_one(conn, uk, f"coaches/{slug}/sample.mp3")
-            finally:
-                conn.rollback()
-        # no-cache: the browser asks again each time (a 304 by its ETag when unchanged), so a re-recorded sample
-        # is heard at once, never a day-old copy
-        if own is not None:
-            version, body = own
-            tag = f'"own-{version:x}-{len(body):x}"'
-        else:
-            path = Path(settings.engine_root, "coaches", slug, "sample.mp3")
-            if not path.is_file():   # a stock coach's sample is on the media bucket, listed in coaches/samples.json
-                url = stock_sample_url(settings.engine_root, slug)
-                if url is None:
-                    raise HTTPException(404, "no sample for this coach")
-                return RedirectResponse(url, status_code=307, headers={"Cache-Control": "public, max-age=3600"})
-            st = path.stat()
-            tag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
-        headers = {"Cache-Control": "private, no-cache", "ETag": tag}
-        if tag in (request.headers.get("if-none-match") or ""):
-            return Response(status_code=304, headers=headers)
-        if own is not None:
-            return Response(own[1], media_type="audio/mpeg", headers=headers)
-        return FileResponse(path, media_type="audio/mpeg", headers=headers)
-
-    @app.get("/api/start")
-    async def start_screen(uk: User):
-        """What the first screen's sentence is filled in with: the web coaches (current first), the kits,
-        the usual length, today's limits, a suggestion from the log, and whether setup is still quick. Kept
-        per listener until a file, a key, the chosen coach or the day changes (start.cached)."""
-        def work() -> dict:
-            with connection() as conn:
-                try:
-                    mark = store.fingerprint(conn, uk)
-                    have = keystore.listing(conn, uk)
-                    chosen = keystore.coach(conn, uk)
-                    # as in GET /api/keys: a model key stored under a provider's own id voices its shared service too
-                    keyed = {s for s in services
-                             if s in have or any(p in have for p, t in providers.SHARED_KEY.items() if t == s)}
-                    made_from = (mark, frozenset(keyed), chosen, datetime.date.today().isoformat())
-                    kept = start.cached(uk.user_id, made_from)
-                    if kept is not None:
-                        return kept
-                    files = {p: body for p, (_, body) in store.read_all(conn, uk).items()}
-                finally:
-                    conn.rollback()
-            answer = start.gather(settings.engine_root, files, keyed, chosen)
-            start.remember(uk.user_id, made_from, answer)
-            return answer
-        return await anyio.to_thread.run_sync(work)
 
     @app.get("/api/context")
     def context(uk: User):
@@ -765,133 +656,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         return Response(buf.getvalue(), media_type="application/zip", headers={
             "Content-Disposition": f'attachment; filename="harmonicfitness-me-{day}.zip"', "Cache-Control": "no-store"})
 
-    def _workout_call(uk: store.UserKey, call, *args, change: bool = False):
-        """Run a Logs-page call on the listener's files; a change is written back against the versions read
-        (a conflict, from a turn saving at the same moment, is a 409 to try again)."""
-        with connection() as conn:
-            try:
-                read = store.read_all(conn, uk)
-            finally:
-                conn.rollback()
-        files = {p: body for p, (_, body) in read.items()}
-        try:
-            out = call(settings.engine_root, files, *args)
-        except workouts.Refused as e:
-            raise HTTPException({"not_found": 404, "failed": 502}.get(e.kind, 400), str(e)) from None
-        if not change:
-            return out
-        with connection() as conn:
-            try:
-                conflicts = store.write_back(conn, uk, out, {p: v for p, (v, _) in read.items()})
-                if conflicts:
-                    conn.rollback()
-                    raise HTTPException(409, "Your files changed at the same moment. Try again.")
-                conn.commit()
-            except HTTPException:
-                raise
-            except Exception:
-                conn.rollback()
-                raise
-        return None
+    app.include_router(logs.router)
 
-    @app.get("/api/workouts")
-    async def list_workouts(uk: User):
-        """The logged workouts, newest first: date, length, kit, coach, format, movements, topics, build id,
-        feedback, rating, whether a script is kept, and its MP3 while the site keeps it (`audio`: the three newest)."""
-        rows = await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.listing))
 
-        def kept() -> dict[str, dict]:
-            with connection() as conn:
-                try:
-                    return media.by_build(conn, uk)
-                finally:
-                    conn.rollback()
-        audio = await anyio.to_thread.run_sync(kept)
-        for row in rows:   # the MP3 still kept (the newest three workouts') for a workout, to play or download from Logs
-            if isinstance(row, dict) and row.get("build_id") in audio:
-                row["audio"] = audio[row["build_id"]]
-        return {"workouts": rows}
+    app.include_router(account.late)   # after the Logs routes, where these were
 
-    @app.get("/api/workouts/{ref}/script")
-    async def workout_script(uk: User, ref: Annotated[str, PathParam(max_length=40)]):
-        text = await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.script, ref))
-        return {"script": text}
-
-    @app.post("/api/workouts/{ref}/feedback", status_code=202, **post)
-    async def workout_feedback(uk: User, ref: Annotated[str, PathParam(max_length=40)],
-                               body: Annotated[FeedbackBody, Body()]):
-        """The feedback line, saved; then an enrich job, in its own lane, works out what it teaches (interests the
-        next workouts lean on) on the listener's writer key. {"job_id"}: poll /api/jobs/{id} for its summary."""
-        await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.add_feedback, ref, body.text,
-                                                             change=True))
-
-        def queue() -> int | None:
-            with connection() as conn:   # without a writer key there's no one to work it out: nothing queued
-                if providers.pick(settings.providers, keystore.listing(conn, uk), keystore.writer(conn, uk)) is None:
-                    conn.rollback()
-                    return None
-                # within the queued-jobs cap, as every other job is (0.76.0): the feedback itself is saved either way
-                conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
-                if conn.execute("select count(*) from jobs where user_id = %s and state = 'queued' and kind = 'enrich'",
-                                (uk.user_id,)).fetchone()[0] >= MAX_QUEUED:
-                    conn.rollback()
-                    return None
-                return jobs.enqueue(conn, uk, "enrich", {"ref": workouts.check_ref(ref), "text": body.text,
-                                                         "today": datetime.date.today().isoformat()})
-        return {"job_id": await anyio.to_thread.run_sync(queue)}
-
-    @app.put("/api/workouts/{ref}/rating", status_code=204, **post)
-    async def workout_rating(uk: User, ref: Annotated[str, PathParam(max_length=40)],
-                             body: Annotated[RatingBody, Body()]):
-        await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.rate, ref, body.rating, change=True))
-        return Response(status_code=204)
-
-    @app.delete("/api/workouts/{ref}", status_code=204, **post)
-    async def workout_delete(uk: User, ref: Annotated[str, PathParam(max_length=40)]):
-        await anyio.to_thread.run_sync(lambda: _workout_call(uk, workouts.delete, ref, change=True))
-        return Response(status_code=204)
-
-    @app.get("/api/level")
-    async def get_level(uk: User):
-        """The listener's level (novice when none is set) and the three to choose from, each as they'd say it.
-        Only the profile's files are read, not all of them: Settings asks for this on every page load."""
-        def work() -> dict:
-            with connection() as conn:
-                try:
-                    files = {p: got[1] for p in level.parts(settings.engine_root)
-                             if (got := store.read_one(conn, uk, p)) is not None}
-                finally:
-                    conn.rollback()
-            return level.current(settings.engine_root, files)
-        return await anyio.to_thread.run_sync(work)
-
-    @app.put("/api/level", status_code=204, **post)
-    async def put_level(uk: User, body: Annotated[LevelBody, Body()]):
-        """Set the level in the listener's profile, every other line kept."""
-        await anyio.to_thread.run_sync(lambda: _workout_call(uk, level.choose, body.level, change=True))
-        return Response(status_code=204)
-
-    @app.post("/api/account/delete", status_code=204, **post)
-    def delete_account(uk: User, body: Annotated[Confirm, Body()]):
-        """Delete the account and everything it holds: files, keys, chats, audio, kept clips, jobs. Needs the
-        password; nothing can bring it back."""
-        key = confirming(uk)
-        with connection() as conn:
-            try:
-                row = conn.execute("select password_hash from users where id = %s for update",
-                                   (uk.user_id,)).fetchone()
-                if row is None or not auth.verify_password(body.password, row[0]):
-                    confirms.hit(key)
-                    raise HTTPException(400, "That password isn't right.")
-                conn.execute("delete from users where id = %s", (uk.user_id,))
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
-        start.forget(uk.user_id)
-        r = Response(status_code=204)
-        r.delete_cookie(COOKIE, path="/")
-        return r
 
     def mp3(request: Request, found, download: bool = False) -> Response:
         """A kept MP3 (media.get's), inline for a player or as a download, honouring a byte range (Safari's player

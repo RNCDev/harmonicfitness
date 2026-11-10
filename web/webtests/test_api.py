@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from fastapi.testclient import TestClient  # noqa: E402
 
 from webapp import routes  # noqa: E402
+import webapp.routes.account  # noqa: E402,F401
 import webapp.routes.auth  # noqa: E402,F401
 from webapp import api, auth, config, conversations, db, enginelib, folder, jobs, keystore, spend, store, turns, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
@@ -1568,8 +1569,8 @@ class CoachSamples(ApiCase):
             for url, want in (("http://example.com", None), ("https://m.example", "https://m.example/coaches/coach-x/sample.mp3")):
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump({"url": url, "samples": {"coach-x": {}}}, f)
-                self.assertEqual(api.stock_sample_url(d, "coach-x"), want)
-            self.assertIsNone(api.stock_sample_url(d, "coach-y"))
+                self.assertEqual(routes.account.stock_sample_url(d, "coach-x"), want)
+            self.assertIsNone(routes.account.stock_sample_url(d, "coach-y"))
 
     def test_their_own_coachs_sample_plays_from_their_files(self):
         _, uk = self.signed_in()
