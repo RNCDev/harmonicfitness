@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 
 import errors
+import net
 
 ENDPOINT = "https://fly.storage.tigris.dev"
 REGION = "auto"
@@ -63,23 +64,20 @@ def signed_headers(method, url, body, access, secret, content_type, now=None):
     return headers
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs):   # a redirect is never followed, so signed headers go nowhere else
-        return None
-
-
 def put(key, body, content_type="audio/mpeg", env=os.environ, opener=None):
     """Upload `body` to `key` in the bucket; returns its public URL. HarmonicFitnessError names a refusal."""
     access, secret, bucket, endpoint = _credentials(env)
     url = f"{endpoint}/{bucket}/{urllib.parse.quote(key)}"
     headers = signed_headers("PUT", url, body, access, secret, content_type)
     req = urllib.request.Request(url, data=body, method="PUT", headers=headers)
-    opener = opener or urllib.request.build_opener(_NoRedirect)
+    opener = opener or net.opener("never")   # a redirect is never followed, so signed headers go nowhere else
     try:
         with opener.open(req, timeout=120) as r:
             r.read()
     except urllib.error.HTTPError as e:
         raise errors.HarmonicFitnessError(f"The bucket refused {key}: HTTP {e.code}.") from None
+    except net.Redirected as e:   # a redirect is a refusal, as the bucket's other answers are
+        raise errors.HarmonicFitnessError(f"The bucket refused {key}: HTTP {e.status}.") from None
     except (urllib.error.URLError, OSError) as e:
         raise errors.HarmonicFitnessError(f"The bucket couldn't be reached for {key}: {e}.") from None
     return public_url(key, bucket)
