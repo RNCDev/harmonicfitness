@@ -44,6 +44,36 @@ class AgentCase(unittest.TestCase):
                                now=f"{TODAY} Wednesday 08:00", writers="three")   # as the worker sets it
 
 
+class AddMissingGo(AgentCase):
+    """A skeleton set's [reps N] with no go before it gets its go from code, as the lint names the fix."""
+    DRAFT = "me/workouts/a/a.draft.txt"
+
+    def test_a_bare_reps_gets_its_go(self):
+        self.assertEqual(tools.add_missing_go("@@ 45 | Push-up set 1, 10 reps\n[reps 10]\n"),
+                         ("@@ 45 | Push-up set 1, 10 reps\n[count 3 go] [reps 10]\n", 1))
+
+    def test_a_set_with_its_go_is_left_alone(self):
+        text = "@@ 45 | Set 1\n[count 3 go] [reps 10]\n\n@@ 45 | Set 2\n[count 5 go] [reps 8]\n"
+        self.assertEqual(tools.add_missing_go(text), (text, 0))
+
+    def test_a_full_draft_is_never_touched(self):
+        text = "@@ 45 | Set 1\nKeep it steady now.\n[reps 10]\n"
+        self.assertEqual(tools.add_missing_go(text), (text, 0))
+
+    def test_a_three_writer_write_adds_it_and_says_so(self):
+        r = tools.write_file(self.deps, self.DRAFT, "movements: push-up\n\n@@ 45 | Push-up set 1, 10 reps\n[reps 10]\n")
+        with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
+            self.assertIn("[count 3 go] [reps 10]", f.read())
+        self.assertIn("Added the go before 1 sets' reps", r.output)
+
+    def test_a_one_writer_skeleton_is_not_normalized(self):
+        self.deps.writers = "one"
+        r = tools.write_file(self.deps, self.DRAFT, "movements: push-up\n\n@@ 45 | Push-up set 1, 10 reps\n[reps 10]\n")
+        with open(os.path.join(self.home, "workouts", "a", "a.draft.txt"), encoding="utf-8") as f:
+            self.assertNotIn("count 3 go", f.read())
+        self.assertNotIn("Added the go", r.output)
+
+
 class ShowPlan(AgentCase):
     """A clean skeleton's plan goes to the chat while the writers' room fills it (tools.show_plan)."""
     PLAN = {"rows": [{"what": "Air squat", "kind": "movement", "segments": 2, "seconds": 100}], "seconds": 100}

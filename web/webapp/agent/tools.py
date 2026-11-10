@@ -359,13 +359,16 @@ def write_file(deps: Deps, path: str, content: str) -> ToolResult:
         if refused:
             return _refuse(refused)
     split = 0
+    went = 0
     note = ""
     if rel.endswith(".draft.txt"):
         content, split = split_long(content)
         content, _ = contract(content)
         if is_skeleton(content):
+            if deps.writers == "three":
+                content, went = add_missing_go(content)
             content, note = settle_clock(content, _request_seconds(full))
-            note += long_rests(content)
+            note += long_rests(content) + _go_note(went)
             deps.skeletons[rel] = segments_of(content)
         else:
             content, note = hold_clock(content, deps.skeletons.get(rel), _request_seconds(full))
@@ -663,6 +666,29 @@ def _contract_words(text: str) -> tuple[str, int]:
     return text, n
 
 
+GO = re.compile(r"\[(?:count\s+\d+\s+|cue\s+)(?:go|switch(?:\s+sides)?)\s*\]|\b(?:go|switch)\b", re.IGNORECASE)
+REPS = re.compile(r"\[reps\s+\d+\s*\]", re.IGNORECASE)   # as tools/tts_build.py reads a set's go and reps
+
+
+def add_missing_go(skeleton: str) -> tuple[str, int]:
+    """A skeleton with `[count 3 go] ` put before each `[reps N]` whose segment has no go before or after it (the
+    lint's own fix, which it names exactly), and how many were added. Only a skeleton is changed."""
+    if not is_skeleton(skeleton):
+        return skeleton, 0
+    out, added = [], 0
+    for seg in re.split(r"(?m)^(?=@@\s*\d+\s*\|)", skeleton):
+        m = REPS.search(seg)
+        if m and not GO.search(seg[:m.start()]) and not GO.search(seg[m.end():]):
+            seg = seg[:m.start()] + "[count 3 go] " + seg[m.start():]   # the segment's first reps; its go then serves the rest
+            added += 1
+        out.append(seg)
+    return "".join(out), added
+
+
+def _go_note(n: int) -> str:
+    return f" Added the go before {n} sets' reps." if n else ""
+
+
 def contract(text: str) -> tuple[str, int]:
     """A draft with its stiff forms contracted ("let us" to "let's", "that is one" to "that's one") in its spoken
     lines, never the movements: or @@ lines nor inside a marker; and how many."""
@@ -807,8 +833,11 @@ def edit_segments(deps: Deps, path: str, edits: list) -> ToolResult:
     if len(new) > WRITE_LIMIT:
         return _refuse(f"too long: at most {WRITE_LIMIT} characters")
     if is_skeleton(new):
+        went = 0
+        if deps.writers == "three":
+            new, went = add_missing_go(new)
         new, note = settle_clock(new, _request_seconds(full))
-        note += long_rests(new)
+        note += long_rests(new) + _go_note(went)
         deps.skeletons[rel] = segments_of(new)
     else:
         new, note = hold_clock(new, deps.skeletons.get(rel), _request_seconds(full))
