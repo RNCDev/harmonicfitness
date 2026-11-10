@@ -1,6 +1,7 @@
 // What the first screen's request is filled in with (GET /api/start), and choosing the coach in it.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, NotSignedIn, plainError, type KeyState, type StartInfo } from "./api";
+import { SAID } from "./messages";
 import { localDate } from "./when";
 import { optimistic } from "./useAction";
 
@@ -29,7 +30,7 @@ export function useStartInfo(keys: KeyState[] | null) {
     api.start().then((s) => { if (asked.current?.n === n) { setStart(s); setError(null); } }, (e) => {
       if (e instanceof NotSignedIn || asked.current?.n !== n) return;
       setStart((s) => s ?? NO_START);
-      setError(plainError(e, "Couldn't load your coaches."));
+      setError(plainError(e, SAID.coaches));
     });
   }, [keySig, again]);
   const reload = useCallback(() => setAgain((n) => n + 1), []);
@@ -42,7 +43,7 @@ export function useStartInfo(keys: KeyState[] | null) {
     const mark = (current: string | undefined) => setStart((s) => s && {
       ...s, coaches: s.coaches.map((c) => ({ ...c, current: c.slug === current })) });
     setCoachError(await optimistic(before, slug, mark, () => api.setCoach(slug, localDate(new Date())),
-      "That coach couldn't be chosen just now. Try again."));
+      SAID.coach));
   }, [start]);
 
   const coaches = start?.coaches ?? [];

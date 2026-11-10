@@ -7,6 +7,7 @@ import data from "../demos.json";
 import { listAnd as list, seconds as secs } from "../lib/format";
 import { requestParts, type Part, type RequestValues } from "../lib/request";
 import { Button } from "../ui/Button";
+import { FlipWords } from "../ui/Flap";
 import { AudioPlayer } from "../ui/Player";
 import { RequestLine } from "../ui/RequestLine";
 
@@ -18,12 +19,6 @@ type Demo = {
 };
 
 export const DEMOS = data.demos as Demo[];
-
-/** A run of words, each its own span so a change flips them in one after another. */
-function Words({ text, from }: { text: string; from: number }) {
-  return <>{text.split(/(\s+)/).map((w, i) => /^\s+$/.test(w) ? w :
-    <span key={i} className="fl" style={{ animationDelay: `${(from + i / 2) * 22}ms` }}>{w}</span>)}</>;
-}
 
 /** A demo's request as the app's own (lib/request.ts), so the two never read differently. */
 function values(d: Demo): RequestValues {
@@ -48,9 +43,9 @@ function glued(lines: Part[][]): { lines: Part[][]; tails: Map<Part, string> } {
 
 function Request({ d }: { d: Demo }) {
   const { lines, tails } = glued(requestParts(values(d)));
-  return <RequestLine parts={lines} className="demo-req" fixed={(t, at) => <Words text={t} from={at} />}
+  return <RequestLine parts={lines} className="demo-req" fixed={(t, at) => <FlipWords text={t} from={at} />}
     blank={(p, at) => <span className="demo-glue"><span className={`blank${p.tone === "off" ? " off" : ""}`}>
-      <Words text={p.blank!} from={at} /></span>{tails.get(p)}</span>} />;
+      <FlipWords text={p.blank!} from={at} /></span>{tails.get(p)}</span>} />;
 }
 
 export function Demos() {

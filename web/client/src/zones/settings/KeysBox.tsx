@@ -4,46 +4,31 @@
 // keys wait behind a link. Add, replace or remove. A key is never shown again. A set key shows what's left on its
 // account where the service says, else a link to its billing page, beside its name.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, NotSignedIn, plainError, type Balance, type KeyState } from "../lib/api";
-import { balance, count, shortDay } from "../lib/format";
-import { useKeyAsk } from "../lib/keyAsk";
-import { keyRows, writerRank, type KeyRowState } from "../lib/keys";
-import { useAction } from "../lib/useAction";
-import { useBalances } from "../lib/useBalances";
-import { useResource } from "../lib/useResource";
-import { Button } from "../ui/Button";
-import { ConfirmInline } from "../ui/ConfirmInline";
-import { Field } from "../ui/Field";
-import { Icon } from "../ui/icons";
-import { Loadable, Notice } from "../ui/Notice";
+import { api, type Balance, type KeyState } from "../../lib/api";
+import { shortDay } from "../../lib/format";
+import { useKeyAsk } from "../../lib/keyAsk";
+import { balanceText, keyRows, writerRank, type KeyRowState } from "../../lib/keys";
+import { useAction } from "../../lib/useAction";
+import { useBalances } from "../../lib/useBalances";
+import { SAID } from "../../lib/messages";
+import { useResource } from "../../lib/useResource";
+import { Button } from "../../ui/Button";
+import { ConfirmInline } from "../../ui/ConfirmInline";
+import { Field } from "../../ui/Field";
+import { Icon } from "../../ui/icons";
+import { Loadable, Notice } from "../../ui/Notice";
+import { Section } from "../../ui/Section";
 
 const setOn = (iso: string | null) => (shortDay(iso) ? `Key added ${shortDay(iso)}` : "Key added");
 
 /** A balance check's state for one row: still asking, its answer, or nothing to say. */
 export type BalanceState = "checking" | Balance | null;
 
-/** What's left, in a few words: dollars of credit, or this period's credits. Null when there's nothing to show. */
-export function balanceText(b: Balance): { text: string; title: string } | null {
-  if (!b.ok) return null;
-  if (typeof b.usd === "number") {
-    return { text: `${balance(b.usd)} left`,
-      title: "API credit left" };
-  }
-  if (typeof b.used === "number" && typeof b.limit === "number") {
-    const left = Math.max(0, b.limit - b.used);
-    const resets = typeof b.resets === "number"
-      ? `, resets ${shortDay(new Date(b.resets * 1000))}` : "";
-    return { text: `${count(left)} credits left`,
-      title: `${count(b.used)} of ${count(b.limit)} credits used this period${resets}` };
-  }
-  return null;
-}
-
 /** The balance where the service says it, else a link icon to its billing page. */
 function BalanceTag({ k, balance }: { k: KeyRowState; balance: BalanceState }) {
   if (!k.set || !k.billing_page) return null;
   const link = { href: k.billing_page, target: "_blank", rel: "noopener noreferrer" };
-  if (k.reports && balance === "checking") return <span className="keys-bal">Checking balance…</span>;
+  if (k.reports && balance === "checking") return <Notice tone="busy" inline className="keys-bal">Checking balance…</Notice>;
   const shown = k.reports && balance && balance !== "checking" ? balanceText(balance) : null;
   if (shown) return <a className="keys-bal" {...link} title={`${shown.title}. Open ${k.name} billing`}>{shown.text}</a>;
   return (
@@ -140,7 +125,7 @@ function KeyRow({ k, open, balance, onChanged, onChoose }: {
               value={value} onChange={(e) => setValue(e.target.value)} />
           </Field>
           <span className="keys-actions">
-            <Button type="submit" variant="primary" busy={save.busy} disabled={value === ""}>Save</Button>
+            <Button type="submit" variant="primary" busy={save.busy} busyLabel="Saving…" disabled={value === ""}>Save</Button>
             <Button variant="outline" onClick={close} disabled={save.busy}>Cancel</Button>
             <a className="keys-get" href={k.key_page} target="_blank" rel="noopener noreferrer">
               Get a key <Icon name="billing" size={14} weight={2.25} />
@@ -162,9 +147,8 @@ type Props = {
 export function KeysBox({ onKeys }: Props) {
   // a row asked for from elsewhere (lib/keyAsk.ts): its service, and `choose` also makes it the writer
   const openRow = useKeyAsk();
-  const res = useResource(api.keys, "Couldn't load your keys.");
+  const res = useResource(api.keys, SAID.keys);
   const keys = res.data, setKeys = res.set;
-  const [error, setError] = useState<string | null>(null);
   const report = useRef(onKeys);
   report.current = onKeys;
 
@@ -175,14 +159,9 @@ export function KeysBox({ onKeys }: Props) {
 
   // the row opened by hand, after choosing a writer with no key yet
   const [opened, setOpened] = useState<{ service: string; n: number } | null>(null);
+  const pick = useAction(api.setWriter, { fallback: SAID.writer });
   async function choose(service: string, open: boolean) {
-    setError(null);
-    try {
-      await api.setWriter(service);
-    } catch (e) {
-      if (!(e instanceof NotSignedIn)) setError(plainError(e, "Couldn't save that. Try again."));
-      return;
-    }
+    if (!(await pick.run(service))) return;
     const keyless = !keyRows(keys ?? []).find((r) => r.service === service)?.set;
     setKeys((all) => all && all.map((x) => (x.kind === "model" ? { ...x, writer: x.service === service } : x)));
     if (open || keyless) setOpened((o) => ({ service, n: (o?.n ?? 0) + 1 }));
@@ -228,10 +207,9 @@ export function KeysBox({ onKeys }: Props) {
   );
 
   return (
-    <section className="cx-box cx-sec" id="cx-keys" aria-labelledby="cx-keys-h">
-      <h3 className="head cx-h" id="cx-keys-h">Keys</h3>
+    <Section id="cx-keys" title="Keys">
       <p className="cx-s">Keys are encrypted, never shown again, and sent only to their own service.</p>
-      <Notice tone="error">{error}</Notice>
+      <Notice tone="error">{pick.error}</Notice>
       <Loadable value={keys} error={res.error} onRetry={res.reload} what="your keys" room={180}>
         {() => (
           <>
@@ -249,6 +227,6 @@ export function KeysBox({ onKeys }: Props) {
           </>
         )}
       </Loadable>
-    </section>
+    </Section>
   );
 }

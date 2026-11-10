@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 import type { Level as Experience, StartInfo } from "../lib/api";
 import { dayPart } from "../lib/format";
 import { privacyNote } from "../lib/keys";
-import { LEVEL_NAMES, LEVEL_SAID, LEVELS } from "../lib/levels";
+import { LEVEL_SAID, LEVELS } from "../lib/levels";
 import { aboutMe, areaName, kitWords, MINUTES, requestParts, sentence, suggested, TYPES, whenWords, type About,
   type Level, type SlotKey } from "../lib/request";
 import { Quiet, useAction } from "../lib/useAction";
@@ -17,7 +17,8 @@ import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Flap } from "../ui/Flap";
 import { Icon } from "../ui/icons";
-import { Notice } from "../ui/Notice";
+import { LevelCards } from "../ui/LevelCards";
+import { Failed, Notice } from "../ui/Notice";
 import { Popover } from "../ui/Popover";
 import { RequestLine } from "../ui/RequestLine";
 import { BodyChart } from "./BodyChart";
@@ -62,15 +63,8 @@ function AboutYou({ name, level, home, service, onName, onLevel, onHome }: {
           onChange={(e) => onName(e.target.value)} />
       </Field>
       <p className="label" id="about-level">Which sounds like you?</p>
-      <div className="level-opts" role="radiogroup" aria-labelledby="about-level">
-        {LEVELS.map((l) => (
-          <Button key={l} variant="bare" className="level-card" role="radio" aria-checked={level === l}
-            onClick={() => onLevel(l)}>
-            <span className="level-name">{LEVEL_NAMES[l]}</span>
-            <span className="level-said">{LEVEL_SAID[l]}</span>
-          </Button>
-        ))}
-      </div>
+      <LevelCards choices={LEVELS.map((l) => ({ level: l, said: LEVEL_SAID[l] }))} value={level} onChoose={onLevel}
+        labelledBy="about-level" />
       <Field id="about-home" label="What do you have at home to train with?"
         hint="Dumbbells, bands, a bench… Leave it empty for none: your workouts use bodyweight until you say.">
         <input className="input" type="text" maxLength={200} value={home} onChange={(e) => onHome(e.target.value)} />
@@ -200,16 +194,11 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
       )} />
       {hint && <p className="hint">Suggested because of your log: {hint}.</p>}
       <div className="start-row">
-        <Button variant="primary" size="lg" onClick={() => void begin.run()} busy={begin.busy}
+        <Button variant="primary" size="lg" onClick={() => void begin.run()} busy={begin.busy} busyLabel="Planning…"
           disabled={ready.length === 0}>{at ? "Plan it for later" : "Plan my workout"}</Button>
         {ready.length === 0 && info && !loadError && <span className="start-note">Add a voice key in Settings first.</span>}
       </div>
-      {loadError && (
-        <div className="failed">
-          <Notice tone="error">{loadError}</Notice>
-          {onRetry && <Button onClick={onRetry}>Try again</Button>}
-        </div>
-      )}
+      {loadError && <Failed error={loadError} onRetry={onRetry} />}
       <Notice tone="error">{coachError}</Notice>
       <nav className="else" aria-label="Other things you can do">
         <p className="label else-h">Or ask for something else</p>

@@ -4,14 +4,18 @@
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 
-export function Notice({ tone = "status", className, children }: {
-  tone?: "error" | "status" | "done" | "busy"; className?: string; children: ReactNode;
+export function Notice({ tone = "status", inline = false, className, children }: {
+  tone?: "error" | "status" | "done" | "busy";
+  /** Inside a line of text (a key's row): a span, not a paragraph. */
+  inline?: boolean;
+  className?: string; children: ReactNode;
 }) {
   if (children === null || children === undefined || children === false || children === "") return null;
   const cls = `notice${tone === "error" ? " err" : tone === "busy" ? " busy" : tone === "done" ? " done" : ""}${className ? " " + className : ""}`;
-  if (tone === "error") return <p className={cls} role="alert">{children}</p>;
-  if (tone === "busy") return <p className={cls} role="status" aria-busy="true">{children}</p>;
-  return <p className={cls} role="status">{children}</p>;
+  const Tag = inline ? "span" : "p";
+  if (tone === "error") return <Tag className={cls} role="alert">{children}</Tag>;
+  if (tone === "busy") return <Tag className={cls} role="status" aria-busy="true">{children}</Tag>;
+  return <Tag className={cls} role="status">{children}</Tag>;
 }
 
 /** An empty list: a sentence on what will appear here, and the one action that gets there. */

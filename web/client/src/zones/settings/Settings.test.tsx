@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { api, ApiError, type LevelState } from "../lib/api";
+import { api, ApiError, type LevelState } from "../../lib/api";
 import { Settings } from "./Settings";
 
 vi.mock("./KeysBox", () => ({ KeysBox: () => null }));

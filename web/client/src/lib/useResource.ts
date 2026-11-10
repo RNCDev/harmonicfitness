@@ -14,6 +14,9 @@ export type Resource<T> = {
   reload: () => void;
   /** Change the answer here, as a save changes it on the server. */
   set: (update: (data: T | null) => T | null) => void;
+  /** Ask again after a change, keeping the answer shown until the new one is in; a failure is said in `error`
+   * (Loadable shows it above the answer it keeps). */
+  refresh: () => Promise<void>;
 };
 
 export function useResource<T>(load: () => Promise<T>, fallback: string, deps: unknown[] = []): Resource<T> {
@@ -33,5 +36,17 @@ export function useResource<T>(load: () => Promise<T>, fallback: string, deps: u
   }, [n, fallback, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = useCallback((update: (data: T | null) => T | null) => setData(update), []);
-  return { data, error, reload, set };
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
+  const said = useRef(fallback);
+  said.current = fallback;
+  const refresh = useCallback(async () => {
+    try {
+      const d = await latest.current();
+      if (mounted.current) { setData(d); setError(null); }
+    } catch (e) {
+      if (mounted.current && !(e instanceof NotSignedIn)) setError(plainError(e, said.current));
+    }
+  }, []);
+  return { data, error, reload, set, refresh };
 }

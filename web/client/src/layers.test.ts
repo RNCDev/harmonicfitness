@@ -53,9 +53,9 @@ describe("the client's layers", () => {
   });
 
   it("draws every button outside ui/ through Button, so pressed, busy and disabled work the same", () => {
-    // the custom widgets, each with a look of its own: a request's blank, a picker's option, the body chart's dots, a
-    // coach card's whole-card button, the demos' dots. This list only shrinks.
-    const CUSTOM = /^(slot|opt|bdot|cg-choose|demo-dot)$/;
+    // the custom widgets, each with a look of its own: a request's blank, a picker's option, the body chart's dots.
+    // This list only shrinks.
+    const CUSTOM = /^(slot|opt|bdot)$/;
     const bad = Object.entries(SOURCES).filter(([p]) => !p.startsWith("./ui/")).flatMap(([p, src]) =>
       [...src.matchAll(/<button\b[^>]*/g)].map((m) => m[0])
         .filter((tag) => !CUSTOM.test(tag.match(/className=(?:"|\{`)([\w-]+)/)?.[1] ?? ""))
@@ -63,9 +63,33 @@ describe("the client's layers", () => {
     expect(bad).toEqual([]);
   });
 
-  it("keeps the shared looks in ui/: no raw button outside it takes go, quiet, act or icon-btn", () => {
-    const LOOKS = /<button\b[^>]*className=(?:"|\{`)[^"`]*\b(go|quiet|act|icon-btn|top-btn|tile)\b/;
+  it("keeps the shared looks in ui/: no element outside it takes a button's look, or a shared piece's", () => {
+    // a button's looks (Button), and the pieces ui/ draws: a settings section, a page's header, the level cards,
+    // a failed load. A link or a file picker drawn as a button is ui/ActionLink.tsx's.
+    const LOOKS = /<(?!Button\b)\w+\b[^>]*className=(?:"|\{`)[^"`]*(?<![\w-])(go|quiet|act|icon-btn|top-btn|tile|cx-sec|page-top|level-card|failed)(?![\w-])/;
     const bad = Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./ui/") && LOOKS.test(src)).map(([p]) => p);
+    expect(bad).toEqual([]);
+  });
+
+  it("says a failure's fallback words in lib/messages.ts alone", () => {
+    const bad = Object.entries(SOURCES).filter(([p, src]) => p !== "./lib/messages.ts" && /["'`]Couldn't /.test(src))
+      .map(([p]) => p);
+    expect(bad).toEqual([]);
+  });
+
+  it("says what's loading through Notice or Loadable: no page marks its own busy line", () => {
+    const bad = Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./ui/") && /<(p|span|div)\b[^>]*aria-busy=/.test(src)
+      && !/<div className="app" aria-busy="true">/.test(src.match(/<(p|span|div)\b[^>]*aria-busy=[^>]*>/)?.[0] ?? ""))
+      .map(([p]) => p);
+    expect(bad).toEqual([]);
+  });
+
+  it("names what a submit button is doing while it waits (busyLabel), not just its dots", () => {
+    // a tag's attributes run to the first ">" that isn't an arrow's
+    const tags = (src: string) => [...src.matchAll(/<Button\b(?:[^>]|=>)*>/g)].map((m) => m[0]);
+    const bad = Object.entries(SOURCES).flatMap(([p, src]) => tags(src)
+      .filter((t) => /type="submit"/.test(t) && /\bbusy=/.test(t) && !/\bbusyLabel=/.test(t))
+      .map((t) => `${p}: ${t.slice(0, 70)}`));
     expect(bad).toEqual([]);
   });
 
@@ -75,8 +99,10 @@ describe("the client's layers", () => {
     expect(bad).toEqual([]);
   });
 
-  it("loads data through lib/: no page keeps its own still-mounted flag", () => {
-    const bad = Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./lib/") && /let live = true/.test(src))
+  it("loads data through lib/: no page keeps its own still-mounted flag, or asks the server in a bare effect", () => {
+    const FLAG = /\b(?:let|const)\s+(?:live|alive|mounted)\b(?:\s*=\s*(?:true|useRef\(\s*true\s*\)))?/;
+    const BARE = /useEffect\(\s*\(\)\s*=>\s*\{?\s*api\.\w+\(/;
+    const bad = Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./lib/") && (FLAG.test(src) || BARE.test(src)))
       .map(([p]) => p);
     expect(bad).toEqual([]);
   });

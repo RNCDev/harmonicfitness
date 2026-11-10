@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { arrange, Logs } from "./Logs";
-import { api, ApiError, type Workout } from "../lib/api";
+import { Logs } from "./Logs";
+import { arrange } from "../../lib/arrange";
+import { api, ApiError, type Workout } from "../../lib/api";
 
-vi.mock("../lib/api", async (orig) => {
-  const real = await orig<typeof import("../lib/api")>();
+vi.mock("../../lib/api", async (orig) => {
+  const real = await orig<typeof import("../../lib/api")>();
   return { ...real, api: { workouts: vi.fn(), workoutScript: vi.fn(), workoutFeedback: vi.fn(),
     rateWorkout: vi.fn(), deleteWorkout: vi.fn() } };
 });

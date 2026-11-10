@@ -11,13 +11,15 @@ import { planOf, stepsOf } from "./lib/steps";
 import { useSaved } from "./lib/useAction";
 import { usePage } from "./lib/usePage";
 import { useStartInfo } from "./lib/useStartInfo";
+import { SAID } from "./lib/messages";
 import { Boundary } from "./ui/Boundary";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/icons";
+import { Notice } from "./ui/Notice";
 import { Solo } from "./ui/Solo";
 import { Chat, type KeyNeeded } from "./zones/chat/Chat";
-import { Settings } from "./zones/Settings";
-import { Logs } from "./zones/Logs";
+import { Settings } from "./zones/settings/Settings";
+import { Logs } from "./zones/logs/Logs";
 import { CoachesPage } from "./zones/Coaches";
 
 /** With no language-model key yet: the ones to choose from, to write the workouts. */
@@ -40,8 +42,18 @@ function Unreachable({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-/** While the page asks who is signed in: nothing else asks the server until it knows. */
+/** How long the first screen is the sky alone, so a quick answer doesn't flash words. */
+const LOADING_SHOWN_AFTER = 600;
+
+/** While the page asks who is signed in: nothing else asks the server until it knows. The sky at first; past a
+ * moment, the mark and the words, so a slow connection never shows a page with nothing on it. */
 function Loading() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), LOADING_SHOWN_AFTER);
+    return () => clearTimeout(t);
+  }, []);
+  if (slow) return <Solo><Notice tone="busy">Loading HarmonicFitness…</Notice></Solo>;
   return (
     <div className="app" aria-busy="true">
       <Sky />
@@ -106,9 +118,9 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
 
   // the settings that switch at once and save behind, put back with the reason if the server refuses
   const [sky, chooseSky, skyError] = useSaved<SkyKind>(me.sky ?? "flow", api.setSky,
-    "That background didn't save. Try again.");
+    SAID.sky);
   const [autoRecord, chooseAutoRecord, autoRecordError] = useSaved(me.auto_record ?? false, api.setAutoRecord,
-    "That didn't save. Try again.");
+    SAID.notSaved);
 
   const closeDrawer = useCallback(() => setDrawer(false), []);
 

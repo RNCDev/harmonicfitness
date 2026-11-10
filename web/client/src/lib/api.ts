@@ -1,5 +1,6 @@
 // The server's JSON API and a job's event stream.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SAID } from "./messages";
 
 /** The product's name, in one place on this side. */
 export const APP_NAME = "HarmonicFitness";
@@ -208,7 +209,7 @@ export const api = {
 };
 
 /** A message for a person, from a failed call: the server's words, or `fallback` when it never answered. */
-export function plainError(e: unknown, fallback = "Couldn't reach the server."): string {
+export function plainError(e: unknown, fallback = SAID.unreachable): string {
   if (e instanceof ApiError && e.status === 422) return "Check what you typed and try again.";
   if (e instanceof ApiError) return e.message || fallback;
   return fallback;

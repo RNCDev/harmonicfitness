@@ -13,6 +13,13 @@ function words(text: string): [number, number][] {
   return out;
 }
 
+/** A run of words that flip in one after another when they change (the sign-in page's demos): each its own span,
+ * `from` words after the first of the line, so a line's words follow the line before. */
+export function FlipWords({ text, from, stagger = 22 }: { text: string; from: number; stagger?: number }) {
+  return <>{text.split(/(\s+)/).map((w, i) => /^\s+$/.test(w) ? w :
+    <span key={i} className="fl" style={{ animationDelay: `${(from + i / 2) * stagger}ms` }}>{w}</span>)}</>;
+}
+
 export function Flap({ text, stagger = 22 }: { text: string; stagger?: number }) {
   const [shown, setShown] = useState<string[]>(() => [...text]);
   const [roll, setRoll] = useState(0);

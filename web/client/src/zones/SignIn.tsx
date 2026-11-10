@@ -2,12 +2,13 @@
 // then the form to sign in, or make an account when registration is open. Someone who has signed in on this browser
 // before starts at the form. Also the screen that asks for a password when an account has none (one from before
 // passwords, or after a reset link).
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Demos } from "./Demos";
 import { ReadyWorkouts } from "./Ready";
 import { api } from "../lib/api";
 import { Quiet, useAction } from "../lib/useAction";
 import { useChecked } from "../lib/useChecked";
+import { useResource } from "../lib/useResource";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Notice } from "../ui/Notice";
@@ -28,18 +29,13 @@ const remember = () => { try { localStorage.setItem(RETURNING, "1"); } catch { /
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [front, setFront] = useState(() => !returning());
   const [mode, setMode] = useState<"in" | "new">("in");
-  const [open, setOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const form = useChecked();
-  const [version, setVersion] = useState("");
-
-  useEffect(() => {
-    api.authInfo().then((a) => {
-      setOpen(a.registration);
-      setVersion(a.version ?? "");
-    }, () => setOpen(false));
-  }, []);
+  // whether accounts can be made here, and the version: until the server says, or if it can't, sign-in only
+  const info = useResource(api.authInfo, "");
+  const open = info.data?.registration ?? false;
+  const version = info.data?.version ?? "";
 
   const fresh = mode === "new";
   const short = fresh ? form.check(tooShort, password) : null;

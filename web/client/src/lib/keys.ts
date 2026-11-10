@@ -1,6 +1,7 @@
 // The keys, as the pages use them: a service's rows merged into one, whether a writer is set, and the order
 // a new listener meets them in.
-import type { KeyState } from "./api";
+import type { Balance, KeyState } from "./api";
+import { balance, count, shortDay } from "./format";
 
 /** One row: a service's key, and whether it writes the workouts (model), voices a coach (voice), or both. */
 export type KeyRowState = KeyState & { voice: boolean };
@@ -52,4 +53,22 @@ export function privacyNote(service: string): string {
       ? " On Gemini's free tier, Google may use what it's sent to improve its models, with human review; a paid key doesn't."
       : "")
     + " Your key is stored encrypted on this site, never shown again, and removed in Settings.";
+}
+
+/** What's left on a key's account, in a few words: dollars of credit, or this period's credits. Null when there's
+ * nothing to show. */
+export function balanceText(b: Balance): { text: string; title: string } | null {
+  if (!b.ok) return null;
+  if (typeof b.usd === "number") {
+    return { text: `${balance(b.usd)} left`,
+      title: "API credit left" };
+  }
+  if (typeof b.used === "number" && typeof b.limit === "number") {
+    const left = Math.max(0, b.limit - b.used);
+    const resets = typeof b.resets === "number"
+      ? `, resets ${shortDay(new Date(b.resets * 1000))}` : "";
+    return { text: `${count(left)} credits left`,
+      title: `${count(b.used)} of ${count(b.limit)} credits used this period${resets}` };
+  }
+  return null;
 }

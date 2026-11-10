@@ -2,6 +2,7 @@
 // (api.ts sends the page to sign-in itself).
 import { useCallback, useRef, useState } from "react";
 import { ApiError, NotSignedIn, plainError } from "./api";
+import { SAID } from "./messages";
 
 /** Thrown by an action's work to end it without an error: the caller already said what happened. */
 export class Quiet extends Error {}
@@ -10,7 +11,7 @@ export class Quiet extends Error {}
  * action whose screen goes away on its own (a recording starting). `field` is the form box a refusal is about,
  * when the server named one: the form says the error under that box instead of above the button. */
 export function useAction<A extends unknown[]>(work: (...a: A) => Promise<unknown>,
-  { fallback = "Couldn't reach the server.", hold = false }: { fallback?: string; hold?: boolean } = {}) {
+  { fallback = SAID.unreachable, hold = false }: { fallback?: string; hold?: boolean } = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [field, setField] = useState<string | null>(null);
@@ -41,7 +42,7 @@ export function useAction<A extends unknown[]>(work: (...a: A) => Promise<unknow
 
 /** Change a value at once, save it, and put it back if the server refuses: the error, or null once saved. */
 export async function optimistic<T>(before: T, next: T, show: (v: T) => void, save: () => Promise<unknown>,
-  failed = "That didn't save. Try again."): Promise<string | null> {
+  failed = SAID.notSaved): Promise<string | null> {
   show(next);
   try {
     await save();
