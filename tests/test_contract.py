@@ -185,6 +185,27 @@ class ErrorChannel(unittest.TestCase):
             self.assertIn("x", err.getvalue())
         self.assertEqual(errors.CoachError("named").code, "named")   # read like SystemExit's code
 
+    def test_a_damaged_services_file_is_a_clean_exit(self):
+        """keys and cloud read knowledge/services.toml on first use, not at import, so a damaged file is the reason a
+        command stops (exit 1), never a traceback. A process of its own: keys and cloud are imported afresh there."""
+        import subprocess
+        code = (
+            "import sys\n"
+            f"sys.path.insert(0, {os.path.join(paths.ROOT, 'tools')!r})\n"
+            "import services\n"
+            "def damaged():\n"
+            "    raise services.SettingsError(\"services.toml isn't valid TOML\")\n"
+            "services.settings = damaged\n"
+            "import keys, cloud, cli\n"
+            "def main():\n"
+            "    return len(keys.SERVICE_VARS)\n"
+            "sys.exit(cli.run(main))\n")
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8",
+                             env={**os.environ, "HARMONICFITNESS_HOME": os.path.join(tempfile.gettempdir(), "absent")})
+        self.assertEqual(out.returncode, cli.ISSUES, out.stderr)
+        self.assertIn("SettingsError", out.stderr)   # its words withheld: the key scrubber needs the same file
+        self.assertNotIn("Traceback", out.stderr)
+
     def test_an_engine_bug_is_70_with_its_traceback_scrubbed(self):
         from unittest import mock
         self.assertEqual(cli.BUG, 70)   # EX_SOFTWARE: the skills stop and report, never edit the draft

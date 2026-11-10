@@ -94,8 +94,20 @@ def services():
     return service_modules.settings()
 
 
-SERVICES = tuple(services())   # the web services, in services.toml's order: the one list of them
-ROUTES = ("local", *SERVICES)  # every route: this computer's own engine, then each web service
+# SERVICES (the web services, in services.toml's order: the one list of them) and ROUTES (every route: this
+# computer's own engine, then each web service) are read from services.toml on first use, not at import, so a
+# damaged file is the reason a command stops (exit 1), never a traceback.
+@functools.cache
+def _services_tuple() -> tuple:
+    return tuple(services())
+
+
+def __getattr__(name):
+    if name == "SERVICES":
+        return _services_tuple()
+    if name == "ROUTES":
+        return ("local", *_services_tuple())
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def base_url(service):
@@ -577,8 +589,8 @@ def powered_by(service, model):
 def service_module(name):
     """The module that speaks to web service `name` (tools/services/<name>.py, the contract in
     tools/services/__init__.py): the one place a service is looked up by name."""
-    if name not in SERVICES:
-        raise errors.CoachError(f"No web service '{name}': the services are {', '.join(SERVICES)}.")
+    if name not in _services_tuple():
+        raise errors.CoachError(f"No web service '{name}': the services are {', '.join(_services_tuple())}.")
     return importlib.import_module(f"services.{name}")
 
 

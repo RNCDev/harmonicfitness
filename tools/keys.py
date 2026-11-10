@@ -13,6 +13,7 @@ file themselves: `./harmonicfitness keys init <service>` makes the line for them
     ./harmonicfitness keys open            # open me/.env in the system's editor, to paste a key
     ./harmonicfitness keys upload          # send them to your key store on the web app (tools/webkeys.py)
 """
+import functools
 import os
 import re
 import subprocess
@@ -23,8 +24,6 @@ import errors  # noqa: E402
 import services  # noqa: E402  (knowledge/services.toml; not cloud.py, which reads keys)
 import paths  # noqa: E402
 
-SERVICE_VARS = {s: v["key_var"] for s, v in services.settings().items()}    # knowledge/services.toml
-KEY_PAGES = {s: v["key_page"] for s, v in services.settings().items()}
 LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 COMMENT_RE = re.compile(r"\s+#.*$")   # an inline comment after the value
 
@@ -39,9 +38,10 @@ class BadKey(errors.HarmonicFitnessError):
 
 
 def _var(service):
-    if service not in SERVICE_VARS:
-        raise errors.HarmonicFitnessError(f"No cloud voice service '{service}'. The services: {', '.join(SERVICE_VARS)}.")
-    return SERVICE_VARS[service]
+    if service not in _service_vars():
+        raise errors.HarmonicFitnessError(f"No cloud voice service '{service}'. "
+                                          f"The services: {', '.join(_service_vars())}.")
+    return _service_vars()[service]
 
 
 def _read(path):
@@ -86,15 +86,44 @@ ACCOUNT_VARS = ("HARMONIC_USERNAME", "HARMONIC_PASSWORD", "HARMONIC_URL")
 # Keys only the web app uses, to write workouts there (keys upload sends them; the engine never does). Gemini's
 # and OpenRouter's keys write there too, under their voice service's name.
 WRITER_VARS = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
-SECRET_VARS = tuple(SERVICE_VARS.values()) + tuple(WRITER_VARS.values()) + ("HARMONIC_PASSWORD",)
+# SERVICE_VARS (service -> its key's variable), KEY_PAGES (service -> where a key is made) and SECRET_VARS (every
+# variable whose value is scrubbed) come from knowledge/services.toml, read on first use, not at import: a damaged
+# file is then the reason a command stops (exit 1), never a traceback.
+_FROM_SERVICES = ("SERVICE_VARS", "KEY_PAGES", "SECRET_VARS")
+
+
+@functools.cache
+def _from_services() -> dict:
+    table = services.settings()
+    service_vars = {s: v["key_var"] for s, v in table.items()}
+    return {"SERVICE_VARS": service_vars, "KEY_PAGES": {s: v["key_page"] for s, v in table.items()},
+            "SECRET_VARS": tuple(service_vars.values()) + tuple(WRITER_VARS.values()) + ("HARMONIC_PASSWORD",)}
+
+
+def _service_vars() -> dict:
+    return _from_services()["SERVICE_VARS"]
+
+
+def _key_pages() -> dict:
+    return _from_services()["KEY_PAGES"]
+
+
+def _secret_vars() -> tuple:
+    return _from_services()["SECRET_VARS"]
+
+
+def __getattr__(name):
+    if name in _FROM_SERVICES:
+        return _from_services()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def raw_values(path=None):
     """Every key value (and the web app password) as set, cleaned or not (for scrubbing them out of messages):
     the environment's, then the file's."""
-    found = [os.environ.get(var) for var in SECRET_VARS]
+    found = [os.environ.get(var) for var in _secret_vars()]
     file_values = _read(path or paths.ENV_FILE)
-    found += [file_values.get(var) for var in SECRET_VARS]
+    found += [file_values.get(var) for var in _secret_vars()]
     return [v for v in found if v]
 
 
@@ -150,7 +179,8 @@ def init(service, path=None):
     _make_file(path)
     if var not in _read(path):
         with open(path, "a", encoding="utf-8") as f:
-            f.write(f"\n# {service}: get a key at {KEY_PAGES[service]}, then paste it after the = (no quotes needed).\n"
+            f.write(f"\n# {service}: get a key at {_key_pages()[service]}, then paste it after the = "
+                    "(no quotes needed).\n"
                     f"{var}=\n")
     if os.name != "nt":
         os.chmod(path, 0o600)
@@ -159,11 +189,12 @@ def init(service, path=None):
 
 def web_instructions(service=None):
     """What to do on Claude Code on the web, where a key file wouldn't outlast the session."""
-    names = [SERVICE_VARS[service]] if service else list(SERVICE_VARS.values())
+    names = [_service_vars()[service]] if service else list(_service_vars().values())
     return ("On Claude Code on the web, a key in a file here would be gone when the session ends. Set it in the "
             "cloud environment's settings instead, under Environment variables, as one line:\n"
             + "\n".join(f"  {n}=<your key>" for n in names)
-            + (f"\n(get one at {KEY_PAGES[service]})." if service else "\n(the service you use, one line each).")
+            + (f"\n(get one at {_key_pages()[service]})." if service
+               else "\n(the service you use, one line each).")
             + " Never paste it into the chat. A new session picks it up; ./harmonicfitness keys then says it's set.")
 
 
@@ -197,7 +228,7 @@ def main(argv=None):
     ap = cli.ArgumentParser(prog="harmonicfitness keys", description=__doc__)
     sub = ap.add_subparsers(dest="cmd")
     i = sub.add_parser("init", help="add the service's key line to me/.env (making the file if needed)")
-    i.add_argument("service", choices=list(SERVICE_VARS))
+    i.add_argument("service", choices=list(_service_vars()))
     sub.add_parser("open", help="open me/.env in the system's editor, to paste a key")
     # `keys upload` is tools/webkeys.py's (the dispatcher sends it there), above this module and webpull
     args = ap.parse_args(argv)
@@ -215,10 +246,10 @@ def main(argv=None):
         return errors.OK
     if args.cmd == "init":
         path = init(args.service)
-        print(f"Paste your {args.service} key after {SERVICE_VARS[args.service]}= in {os.path.abspath(path)} "
-              f"(get one at {KEY_PAGES[args.service]}), and save. To remove it later, delete that line.")
+        print(f"Paste your {args.service} key after {_service_vars()[args.service]}= in {os.path.abspath(path)} "
+              f"(get one at {_key_pages()[args.service]}), and save. To remove it later, delete that line.")
         return errors.OK
-    for service in SERVICE_VARS:
+    for service in _service_vars():
         try:   # get(), not is_set(): the listing is where a key that can't be read is named
             state = f"set ({where(service)})" if get(service) is not None else "not set"
         except BadKey:
