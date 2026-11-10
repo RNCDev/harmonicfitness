@@ -143,6 +143,24 @@ MOVED = {
 }
 
 
+class WebRequests(unittest.TestCase):
+    def test_web_requests_go_through_net(self):
+        """Every web request the engine makes goes through tools/net.py's opener (verified TLS, redirects followed only
+        as the caller says): no module opens an address with urllib on its own. youtube's y.urlopen is yt-dlp's."""
+        import re
+        pattern = re.compile(r"urllib\.request\.(urlopen|build_opener)|(?<![\w.])urlopen\(|HTTPRedirectHandler")
+        found = []
+        for here, _, names in os.walk(TOOLS):
+            for name in names:
+                path = os.path.join(here, name)
+                if not name.endswith(".py") or os.path.samefile(path, os.path.join(TOOLS, "net.py")):
+                    continue
+                with open(path, encoding="utf-8") as f:
+                    found += [f"{os.path.relpath(path, TOOLS)}:{n}" for n, line in enumerate(f, 1)
+                              if pattern.search(line)]
+        self.assertEqual(found, [])
+
+
 class ContextReexports(unittest.TestCase):
     def test_moved_names_are_reached_in_their_own_modules(self):
         import re

@@ -2,6 +2,25 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.76.2] - 2026-11-09
+
+The engine's structural part of the back-end audit: every web request the engine makes goes through one module, `tools/net.py`, and `knowledge/services.toml` is read on first use. Release B of two, after 0.76.1's web server.
+
+### Changed
+- **One place for the engine's web requests** (`tools/net.py`): `cloud`, `feeds`, `webpull`, `bucket`, `media`, `ready` and `backup` open addresses only through `net.opener`, which carries verified TLS and follows a redirect only as each says. A test keeps it so (`test_imports`). Each still says a refused redirect in its own words, as before: `cloud` a `ServiceError`, `webpull` "The web app redirected to ...", `bucket` "The bucket refused ...: HTTP 302."
+- **`services.toml` is read on first use, not at import:** `keys` and `cloud` build `SERVICE_VARS`, `KEY_PAGES`, `SECRET_VARS`, `SERVICES` and `ROUTES` when first asked, so a command that reaches a damaged file through them stops with exit 1 (`SettingsError`), not a traceback. `routes` and `audition` still read it as they load.
+
+### Fixed
+- **`webpull`, `bucket`, `media` and `ready` verify TLS against certifi's bundle** (or macOS's, on a Python that has none), as `cloud` and `feeds` did; they had the interpreter's own, which a python.org Python ships empty. `feeds` falls back the same way when certifi's file can't be read.
+- **`backup` follows a redirect only on GitHub's own host.** Its visibility check carries `GH_TOKEN`, and urllib passes the token on to wherever a redirect points; it followed one anywhere.
+- **`http://[::1]` counts as this computer for a base address in `cloud` and `media`** (`HARMONICFITNESS_<SERVICE>_URL`, `HARMONICFITNESS_MEDIA_URL`), as it already did for `webpull`'s `HARMONIC_URL`: all three decide with `net.allowed_base`.
+
+### For forks
+- `tools/net.py` is new (a leaf): `opener(follow, *handlers)` with `follow` one of `never`, `web`, `same-host`, `any`; `Redirected` (an `OSError`, with `url` and `status`), `TooLarge`, `tls_context()`, `check_scheme`, `allowed_base`, `read_capped`. It isn't `http.py`, which would shadow the standard library's `http` package from `tools/`.
+- Gone: `cloud._NoRedirect`, `webpull._NoRedirect`, `bucket._NoRedirect`, `feeds._WebOnlyRedirects`, `feeds.ssl_context`, `feeds._TLS`, `feeds.MACOS_ROOTS` (`net.MACOS_ROOTS`) and `cloud.LOCAL_HOSTS`/`media.LOCAL_HOSTS` (`net.LOCAL_HOSTS`, which adds `::1`). `feeds._check_scheme` is now `net.check_scheme` under its old name. `cloud._open`, `cloud._tls` and `feeds._open` keep their names.
+- A test that patched `urllib.request.urlopen` for `backup`, `media` or `ready` patches `net.opener` (or passes `opener=`) instead.
+- `keys.SERVICE_VARS`, `KEY_PAGES`, `SECRET_VARS` and `cloud.SERVICES`, `ROUTES` are module `__getattr__` names: read them as attributes (`keys.SERVICE_VARS`); `from keys import SERVICE_VARS` still works, and `mock.patch.object` on them no longer changes what the module itself reads.
+
 ## [0.76.1] - 2026-11-09
 
 The web server's structural part of the back-end audit, with no change in behaviour: every route keeps its method, path, statuses, body and headers. The web process no longer imports the worker, `create_app`'s thousand lines are routers, and one rule decides who commits a transaction.
