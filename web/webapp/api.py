@@ -42,6 +42,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, S
 
 from . import APP_NAME, auth, codes, config, conversations, db, engine, enginelib, feed, folder, jobs, keystore, log, \
     media, providers, level, spend, start, store, turns, workouts
+from .folder import IMPORT_MAX_TOTAL, IMPORT_MAX_ZIP
 
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -187,23 +188,6 @@ class AutoRecordBody(BaseModel):
     on: StrictBool
 
 
-class SyncRead(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    paths: Annotated[list[Annotated[str, Field(min_length=1, max_length=400)]], Field(max_length=500)]
-
-
-class SyncChange(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    path: Annotated[str, Field(min_length=1, max_length=400)]
-    base: int | None = None   # the version the computer last saw; None for a file new to the site
-    body: str | None = None   # base64; None deletes
-
-
-class SyncWrite(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    changes: Annotated[list[SyncChange], Field(max_length=500)]
-
-
 class CoachBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     # a coach's folder name: one from `coaches list`, or a folder brought in from a ZIP; never a path
@@ -236,12 +220,6 @@ class _Headers:
                 message = {**message, "headers": headers}
             await send(message)
         await self.app(scope, receive, sending)
-
-
-IMPORT_MAX_ZIP = 10_000_000      # bytes of ZIP
-IMPORT_MAX_FILE = 2_000_000      # bytes of one file, unpacked
-IMPORT_MAX_TOTAL = 30_000_000    # bytes of every file, unpacked
-IMPORT_MAX_FILES = 2_000
 
 
 # Every refusal's body (0.76.0): `detail` as before (the words, or a validation error's list), and `error` beside it,
@@ -391,57 +369,6 @@ def _byte_range(header: str | None, size: int):
     return () if start > end or start >= size else (start, end)
 
 
-def folder_from_zip(data: bytes) -> tuple[dict[str, bytes], int]:
-    """(path -> bytes, how many entries were left out) from a ZIP of a me/ folder. The ZIP may hold the
-    folder's files at its top or inside one folder (me/, harmonicfitness-me/...). Raises ValueError with
-    a sentence for a person."""
-    import io
-    import stat
-    import zipfile
-    try:
-        z = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile:
-        raise ValueError("That isn't a ZIP file.") from None
-    entries = [i for i in z.infolist() if not i.is_dir()]
-    if len(entries) > IMPORT_MAX_FILES:
-        raise ValueError(f"That ZIP holds more than {IMPORT_MAX_FILES} files.")
-    names = [i.filename for i in entries]
-    tops = {n.split("/", 1)[0] for n in names if not n.startswith("__MACOSX/")}
-    strip = ""
-    if ("profile.md" not in names and len(tops) == 1 and next(iter(tops)) not in ("", ".", "..")
-            and f"{next(iter(tops))}/profile.md" in names):
-        strip = f"{next(iter(tops))}/"   # the folder itself was zipped
-    files, left_out, total = {}, 0, 0
-    for info in entries:
-        path = info.filename[len(strip):] if info.filename.startswith(strip) else info.filename
-        mode = info.external_attr >> 16
-        parts = path.split("/")
-        if (stat.S_ISLNK(mode) or folder.skipped(path) or parts[0].startswith(".backup") or parts[0] == ".git"
-                or "__MACOSX" in parts or parts[-1].startswith("._")):
-            left_out += 1
-            continue
-        try:
-            store.check_path(path)
-        except ValueError:
-            left_out += 1
-            continue
-        if info.file_size > IMPORT_MAX_FILE:
-            left_out += 1
-            continue
-        total += info.file_size
-        if total > IMPORT_MAX_TOTAL:
-            raise ValueError(f"That folder is over {IMPORT_MAX_TOTAL // 1_000_000} MB unpacked.")
-        with z.open(info) as f:
-            body = f.read(IMPORT_MAX_FILE + 1)
-        if len(body) > IMPORT_MAX_FILE:
-            left_out += 1
-            continue
-        files[path] = body
-    if "profile.md" not in files:
-        raise ValueError("That ZIP has no profile.md: zip the me folder itself.")
-    return files, left_out
-
-
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
                client_dist: str | os.PathLike | None = None) -> FastAPI:
     """The app. `connect` (tests) opens a connection; without it requests use a pool of
@@ -503,7 +430,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     # ---- dependencies ---------------------------------------------------------------------
 
-    from .routes import account, auth as authroutes, logs, state as routestate
+    from .routes import account, auth as authroutes, files, logs, state as routestate
     st = routestate.AppState(
         settings=settings, connection=connection, open_stream=open_stream, options=options, services=services,
         version=version, dist=dist, origin=origin,
@@ -530,135 +457,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app.include_router(account.router)
 
 
-    @app.get("/api/context")
-    def context(uk: User):
-        with connection() as conn:
-            try:
-                rows = store.listing(conn, uk)
-            finally:
-                conn.rollback()
-        return [{"path": p, "version": v, "updated_at": u.isoformat()} for p, v, u in rows]
-
-    def _syncable(path: str) -> bool:
-        try:
-            store.check_path(path)
-        except ValueError:
-            return False
-        return not folder.skipped(path) and not path.startswith(folder.AUDITIONS)
-
-    @app.get("/api/sync")
-    def sync_listing(uk: User):
-        """Every file `./harmonicfitness sync` keeps in step: its path, version and sha256 (the bodies come
-        from /api/sync/read, only those the computer lacks)."""
-        import hashlib
-        with connection() as conn:
-            try:
-                files = store.read_all(conn, uk)
-            finally:
-                conn.rollback()
-        return {"files": [{"path": p, "version": v, "sha256": hashlib.sha256(b).hexdigest()}
-                          for p, (v, b) in files.items() if _syncable(p)]}
-
-    @app.post("/api/sync/read", **post)
-    def sync_read(uk: User, body: SyncRead):
-        """The named files' bodies (base64) and versions; a path the site doesn't hold is left out."""
-        import base64
-        with connection() as conn:
-            try:
-                files = store.read_all(conn, uk)
-            finally:
-                conn.rollback()
-        return {"files": [{"path": p, "version": files[p][0], "body": base64.b64encode(files[p][1]).decode("ascii")}
-                          for p in dict.fromkeys(body.paths) if p in files and _syncable(p)]}
-
-    @app.post("/api/sync/write", **post)
-    def sync_write(uk: User, body: SyncWrite):
-        """Each change applied only over the version the computer last saw (`base`): a file changed on the
-        site since is a conflict, left as the site has it. Returns each written path's new version (None:
-        deleted), the conflicts, and the paths refused (one the site doesn't keep, or too large)."""
-        import base64
-        import binascii
-        changes, base, refused, total = {}, {}, [], 0
-        for c in body.changes:
-            if not _syncable(c.path) or c.path in changes:
-                refused.append(c.path)
-                continue
-            if c.body is None:
-                data = None
-            else:
-                try:
-                    data = base64.b64decode(c.body, validate=True)
-                except (binascii.Error, ValueError):
-                    refused.append(c.path)
-                    continue
-                if len(data) > IMPORT_MAX_FILE:
-                    refused.append(c.path)
-                    continue
-                total += len(data)
-            if total > IMPORT_MAX_TOTAL:
-                raise HTTPException(413, f"Over {IMPORT_MAX_TOTAL // 1_000_000} MB in one sync; send it in parts.")
-            changes[c.path] = data
-            if c.base is not None:
-                base[c.path] = c.base
-        with connection() as conn:
-            try:
-                conflicts = store.write_back(conn, uk, changes, base)
-                versions = {p: v for p, v, _ in store.listing(conn, uk)}
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
-        written = {p: versions.get(p) for p in changes if p not in conflicts}
-        return {"written": written, "conflicts": sorted(conflicts), "refused": sorted(refused)}
-
-    @app.post("/api/import", **post)
-    async def import_folder(uk: User, request: Request):
-        """A ZIP of the listener's me/ folder, brought in once: every file kept as it is, over the
-        starter files of the same name. Key files, audio, caches, logs and backups are left out."""
-        body = await request.body()
-        if len(body) > IMPORT_MAX_ZIP:
-            raise HTTPException(413, f"That ZIP is over {IMPORT_MAX_ZIP // 1_000_000} MB.")
-        try:
-            files, left_out = folder_from_zip(body)
-        except ValueError as e:
-            raise HTTPException(400, str(e)) from None
-        if not files:
-            raise HTTPException(400, "That ZIP holds none of your folder's files.")
-
-        def save() -> None:
-            with connection() as conn:
-                try:
-                    for path in sorted(files):
-                        store.put(conn, uk, path, files[path])
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-                    raise
-        await anyio.to_thread.run_sync(save)
-        return {"imported": len(files), "left_out": left_out}
-
-    @app.get("/api/export")
-    def export(uk: User):
-        """Every file of the listener's folder as a ZIP, the same layout as me/ on a computer (unzip it as
-        me/ and HarmonicFitness on a computer reads it). Keys are never in it: they aren't files here."""
-        import io
-        import zipfile
-        with connection() as conn:
-            try:
-                files = store.read_all(conn, uk)
-            finally:
-                conn.rollback()
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for path in sorted(files):
-                z.writestr(f"me/{path}", files[path][1])
-        day = datetime.date.today().isoformat()
-        return Response(buf.getvalue(), media_type="application/zip", headers={
-            "Content-Disposition": f'attachment; filename="harmonicfitness-me-{day}.zip"', "Cache-Control": "no-store"})
-
+    app.include_router(files.router)
     app.include_router(logs.router)
-
-
     app.include_router(account.late)   # after the Logs routes, where these were
 
 

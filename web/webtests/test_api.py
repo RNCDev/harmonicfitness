@@ -1221,19 +1221,19 @@ class Import(ApiCase):
               "me/.git/config": "g", "__MACOSX/me/._profile.md": "junk", "me/coaches/c/persona.md": "coach"}
 
     def test_reads_the_folder_and_leaves_out_the_rest(self):
-        files, left_out = api.folder_from_zip(zip_of(self.FOLDER))
+        files, left_out = folder.folder_from_zip(zip_of(self.FOLDER))
         self.assertEqual(sorted(files), ["coaches/c/persona.md", "log.md", "profile.md"])
         self.assertEqual(left_out, 6)
         self.assertNotIn(".env", files)
 
     def test_files_at_the_top_work_too(self):
-        files, _ = api.folder_from_zip(zip_of({"profile.md": "p", "health.md": "h"}))
+        files, _ = folder.folder_from_zip(zip_of({"profile.md": "p", "health.md": "h"}))
         self.assertEqual(sorted(files), ["health.md", "profile.md"])
 
     def test_refuses_what_isnt_a_folder(self):
         for data in (b"not a zip", zip_of({"notes.txt": "x"}), zip_of({"../profile.md": "x"})):
             with self.assertRaises(ValueError):
-                api.folder_from_zip(data)
+                folder.folder_from_zip(data)
 
     def test_import_replaces_the_starter_files(self):
         user_id, uk = self.signed_in()
@@ -1275,7 +1275,7 @@ class BodyLimit(ApiCase):
 
     def test_the_import_keeps_its_own_words(self):
         self.signed_in()
-        r = self.client.post("/api/import", content=b"x" * (api.IMPORT_MAX_ZIP + 1), headers=self.origin())
+        r = self.client.post("/api/import", content=b"x" * (folder.IMPORT_MAX_ZIP + 1), headers=self.origin())
         self.assertEqual((r.status_code, r.json()["detail"]), (413, "That ZIP is over 10 MB."))
 
     def test_the_largest_sync_read_still_fits(self):
