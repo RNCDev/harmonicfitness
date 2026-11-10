@@ -2,6 +2,39 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.79.0] - 2026-11-10
+
+Leaner script writing. A token bench measured where a workout's writing spends (`docs/benchmark-script-writing/`). The cuts it pointed to are made, each kept only when three bench runs held every quality check. A 15-minute workout on Gemini now costs about 14 cents to write, down from 18, in 9 model requests rather than 11. OpenRouter now writes with Gemini too, at about 11 cents.
+
+### Added
+- **The token bench.** `web/bench/run_one.py` records every model request (`requests.jsonl`: who asked, the agent's phase, the size sent, the provider's usage), every engine command (`commands.jsonl`) and the draft as each lint read it (`drafts/`). It takes `--provider`, `--model` and `--line`, so it can run for an invented listener rather than `me/`.
+- **The bench's tools.** `web/bench/tokens.py` prints a run's tokens and cost by step. `web/bench/compare.py` is the gate a change must pass: every completed run priced and clean, median cost no higher, and review rounds no more than the baseline. `summarize.py` also checks the coaching against the listener's "never bring up", reads the top-up's notes, and prints the host's words against the budget.
+- **The findings and the plan**, in `docs/benchmark-script-writing/`: six recorded runs (two on Gemini, two on Opus, two through OpenRouter), what each step costs, the cuts ranked, and what they mean for a credit price.
+
+### Changed
+- **A three-writer turn ends at the price, in code.** The two requests the agent spent only to say the script was ready are gone.
+  - The page already shows the plan and the price on the Record card.
+  - The closing line is saved as the coach's reply. It has three forms: ready, longer than a scheduled ceiling, or today's allowance used up.
+  - `run_turn` runs the agent with `AGENT.iter` on a loop of its own. The loop ends without waiting on the researcher's engine command.
+- **The skeleton carries the session's log.** The agent passes `log` (format, topics, loads) with the skeleton's `write_file` and sends no `log-session`. A later turn that revises the same draft keeps the log.
+- **Code adds the go a skeleton set left out** (`[count 3 go]` before a bare `[reps N]`), as the lint names it, so the agent doesn't re-send its conversation to fix it.
+- **Smaller requests from the agent.** The three-writer agent carries only "The draft" and "Markers" from `tts-rules.md`; the writers read the rest.
+- **Gemini's host is asked for 0.7 of a segment's words** (0.85 for other models), since it wrote about 1.4 times what it was asked. The review now usually passes in one round.
+- **OpenRouter writes with `google/gemini-3.8-flash`**, not Claude Sonnet.
+  - Its thinking runs on a token budget: 4,000 at MEDIUM, 8,000 at HIGH, effort low at LOW.
+  - OpenRouter's effort "medium" ran past the trainer's patience, and "low" thought nothing.
+
+### Fixed
+- **A research call that fails on a temporary error no longer loses the workout.** This covers a 5xx, a 429 that isn't a quota, a timeout and a dropped connection. Every place gets coaching instead of a story. A refused key, a quota or the usage cap still stops the turn.
+
+### For forks
+- `run_turn` no longer calls `AGENT.run_sync`. A fork that wraps it, or calls it from a thread with a running event loop, must use a thread without one.
+- The `write_file` and `edit_segments` agent tools take `log: tools.LogFields`. A fork's three-writer instructions should ask for it with the skeleton and drop the separate `log-session`.
+- `writers.asked(n, body, budget, model)` takes the model. `COACH_AIM` is now `AIMS` (`"gemini"`, `"other"`).
+- `writers.thinking_settings` maps OpenRouter's Gemini through `OPENROUTER_REASONING`.
+- `HARMONICFITNESS_PROVIDERS` is unchanged, but a listener who chose OpenRouter now gets Gemini, not Claude.
+- `web/bench/batch.sh` keeps one prepared copy per home (`.bench/base-<folder>`).
+
 ## [0.78.1] - 2026-11-09
 
 A tidy-up: the docs checked against the code, and code nothing used taken out.
