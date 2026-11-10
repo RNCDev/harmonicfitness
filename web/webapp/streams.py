@@ -54,11 +54,15 @@ class Hub:
         self._gen = 0                       # the running thread's; a thread whose number is past stops
         self._thread: threading.Thread | None = None
         self.listening = threading.Event()  # the current thread's LISTEN has run on a live connection
+        self._closed = False                # the app has shut down: no thread starts again
 
     def subscribe(self, user_id, job_id: int, loop: asyncio.AbstractEventLoop) -> Sub:
         """A stream's Sub, once the hub is listening (or READY_WAIT has passed). Blocks: call it off the loop."""
         sub = Sub(user_id, job_id, loop)
         with self._lock:
+            if self._closed:
+                sub.closed = True
+                return sub
             mine = self._users.setdefault(user_id, [])
             mine.append(sub)
             self._jobs.setdefault(job_id, set()).add(sub)
@@ -87,6 +91,7 @@ class Hub:
     def close(self) -> None:
         """Stop the thread (the app's shutdown)."""
         with self._lock:
+            self._closed = True
             thread, self._thread = self._thread, None
             self._gen += 1
             self._jobs.clear()

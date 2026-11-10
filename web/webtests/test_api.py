@@ -1433,7 +1433,9 @@ class Media(ApiCase):
         audio, body = self.chunked(uk)
         self.assertEqual(self.conn.execute("select count(*), min(n), max(n) from media_chunks where media_id = %s",
                                            (audio["id"],)).fetchone(), (10, 0, 9))
-        self.assertIsNone(self.conn.execute("select body from media where id = %s", (audio["id"],)).fetchone()[0])
+        # kept whole too, for one release, so a 0.76.2 web process still plays it during the deploy
+        whole = self.conn.execute("select body from media where id = %s", (audio["id"],)).fetchone()[0]
+        self.assertEqual(media.crypto.open_(uk.key, bytes(whole), f"{uk.user_id}:media:{audio['id']}".encode()), body)
         self.conn.rollback()
         opened = []
         real = media.crypto.open_

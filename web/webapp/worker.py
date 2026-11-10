@@ -1042,7 +1042,7 @@ def main() -> int:
 
 def lanes(settings: config.Settings) -> list[tuple[str, str, bool]]:
     """(thread name, lane, whether it reaps and sweeps) of each loop the worker runs: the quick lane (balance
-    checks, briefs), enrichment's own, and settings.worker_slots main-lane loops (0.77.0), so one listener's
+    checks), enrichment's own, and settings.worker_slots main-lane loops (0.77.0), so one listener's
     recording never holds up another's turn."""
     return [("quick-lane", "quick", True), ("enrich-lane", "enrich", False),
             *((f"main-{n}", "main", False) for n in range(1, settings.worker_slots + 1))]

@@ -103,6 +103,27 @@ class Hub(DBCase):
         with self._patch_backoff():
             self.drive(body)
 
+    def test_a_closed_hub_starts_no_listener(self):
+        self.hub.close()
+        async def body():
+            loop = asyncio.get_running_loop()
+            sub = await asyncio.to_thread(self.hub.subscribe, uuid.uuid4(), 1, loop)
+            self.assertTrue(sub.closed)
+        self.drive(body)
+        self.assertEqual(self.opened, [])
+
+    def test_a_closed_stream_asks_the_browser_to_wait_before_reopening(self):
+        from types import SimpleNamespace
+
+        from webapp.routes import jobs as jobroutes
+        self.hub.close()   # every subscribe now comes back closed, as the listener's oldest does
+        st = SimpleNamespace(hub=self.hub)
+        uk = SimpleNamespace(user_id=uuid.uuid4())
+
+        async def body():
+            return [line async for line in jobroutes._stream(st, uk, 1, 0)]
+        self.assertEqual(self.drive(body), [f"retry: {jobroutes.CLOSED_RETRY_MS}\n\n"])
+
     def _patch_backoff(self):
         from unittest import mock
         return mock.patch.object(streams, "RECONNECT_WAIT", 0.1)

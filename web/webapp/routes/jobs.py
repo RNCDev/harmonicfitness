@@ -20,6 +20,7 @@ router = APIRouter()
 
 KEEP_ALIVE = 15           # seconds between keep-alive comments on an event stream
 POLL_EVERY = 5            # seconds between status reads without a NOTIFY (fail and reap send none)
+CLOSED_RETRY_MS = 15_000  # how long a browser waits to reopen a stream the listener's fourth closed
 WAIT_SLICE = 1.0          # seconds a stream blocks at most, so a client gone away is noticed soon
 
 
@@ -131,5 +132,6 @@ async def _stream(st: AppState, uk: store.UserKey, job_id: int, after: int):
             if now - last_sent >= KEEP_ALIVE:
                 last_sent = now
                 yield ": keep-alive\n\n"
+        yield f"retry: {CLOSED_RETRY_MS}\n\n"   # closed for the listener's fourth: not straight back
     finally:
         st.hub.unsubscribe(sub)

@@ -292,6 +292,20 @@ class Reads(DBCase):
         self.conn.commit()
         self.assertEqual(store.digests(self.conn, uk)["log.md"], (1, hashlib.sha256(b"log").hexdigest()))
 
+    def test_a_write_that_leaves_the_digest_behind_is_hashed_from_its_body(self):
+        """A 0.76.2 process writing during a deploy bumps the version and body but not the digest: the stale digest
+        must never be listed, or sync would take the file as in step and later overwrite it."""
+        import hashlib
+        uk = self.files()
+        sealed = store.crypto.seal(uk.key, b"newer", store._aad(uk, "log.md"))
+        self.conn.execute("update context_files set body = %s, version = version + 1 where user_id = %s and "
+                          "path_hash = %s", (sealed, uk.user_id, store._path_hash(uk, "log.md")))   # as 0.76.2 does
+        self.conn.commit()
+        self.assertEqual(store.digests(self.conn, uk)["log.md"], (2, hashlib.sha256(b"newer").hexdigest()))
+        store.put(self.conn, uk, "log.md", b"put")   # and a new write brings it back in step
+        self.conn.commit()
+        self.assertEqual(store.digests(self.conn, uk)["log.md"], (3, hashlib.sha256(b"put").hexdigest()))
+
     def test_a_digest_is_bound_to_its_path(self):
         uk = self.files()
         row = self.conn.execute("select digest from context_files where user_id = %s and path_hash = %s",
@@ -299,8 +313,8 @@ class Reads(DBCase):
         self.conn.execute("update context_files set digest = %s where user_id = %s and path_hash = %s",
                           (row[0], uk.user_id, store._path_hash(uk, "workouts/a/x.txt")))
         self.conn.commit()
-        with self.assertRaises(Exception):
-            store.digests(self.conn, uk)
+        import hashlib   # a digest that won't open is never trusted: the body is hashed instead
+        self.assertEqual(store.digests(self.conn, uk)["workouts/a/x.txt"], (1, hashlib.sha256(b"x").hexdigest()))
         self.conn.rollback()
 
 

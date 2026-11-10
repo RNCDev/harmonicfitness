@@ -261,7 +261,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         from psycopg_pool import ConnectionPool
         pool = ConnectionPool(settings.database_url, min_size=1, max_size=10, open=False,
                               check=ConnectionPool.check_connection)
-        open_stream = lambda: psycopg.connect(settings.database_url)  # noqa: E731
+        open_stream = lambda: psycopg.connect(settings.database_url, connect_timeout=10, keepalives=1,  # noqa: E731
+                                              keepalives_idle=60, keepalives_interval=10, keepalives_count=3)
     else:
         open_stream = connect
 

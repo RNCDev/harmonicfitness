@@ -4,7 +4,7 @@ in the chat) for 24 hours. None of these commit, except sweep: the caller does.
 
 Since 0.77.0 an MP3 is kept in chunks of CHUNK bytes (media_chunks), each sealed bound to its place, so a byte range
 opens only the chunks it covers. A row kept before then holds the whole MP3 in media.body (chunk_bytes null); both
-are read."""
+are read. 0.77.0 writes media.body too, for the web processes still on 0.76.2 during its deploy."""
 import datetime
 import uuid
 
@@ -49,9 +49,12 @@ def put(conn, uk: UserKey, name: str, body: bytes, build_id: str | None = None) 
     # clock_timestamp, not now(): two kept in one transaction still sort newest first
     row = conn.execute(
         "insert into media (id, user_id, name, body, bytes, chunk_bytes, created_at, expires_at, build_id) "
-        "values (%s, %s, %s, null, %s, %s, clock_timestamp(), "
+        "values (%s, %s, %s, %s, %s, %s, clock_timestamp(), "
         "case when %s::text is null then now() + %s end, %s) returning expires_at",
-        (mid, uk.user_id, name[:200], len(body), CHUNK, build, KEEP, build)).fetchone()
+        # kept whole as well, for 0.77.0 only: a 0.76.2 web process, still serving during the deploy, reads only
+        # media.body; nothing of 0.77.0 reads it for a chunked row. The next release stops writing it.
+        (mid, uk.user_id, name[:200], crypto.seal(uk.key, body, _aad(uk, mid)), len(body), CHUNK, build, KEEP,
+         build)).fetchone()
     with conn.cursor() as cur:
         cur.executemany("insert into media_chunks (media_id, n, body) values (%s, %s, %s)",
                         [(mid, n, crypto.seal(uk.key, body[at:at + CHUNK], _chunk_aad(uk, mid, n)))
