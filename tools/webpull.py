@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import fileio  # noqa: E402
 import keys  # noqa: E402
+import net  # noqa: E402
 import paths  # noqa: E402
 
 DEFAULT_URL = "https://harmonicfitness.fly.dev"
@@ -45,20 +46,11 @@ class SignInRefused(errors.HarmonicFitnessError):
     exit_code = errors.SERVICE
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """The app's API never redirects; following one could send the session somewhere else."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise errors.HarmonicFitnessError(f"The web app redirected to {urllib.parse.urlsplit(newurl).netloc}; "
-                                          f"not followed (HTTP {code}). Check HARMONIC_URL.")
-
-
 def base_url(raw):
     """The app's address, checked: https, or http only on this computer."""
     url = (raw or DEFAULT_URL).strip().rstrip("/")
     parts = urllib.parse.urlsplit(url)
-    local = parts.hostname in ("localhost", "127.0.0.1", "::1")
-    if parts.scheme != "https" and not (parts.scheme == "http" and local) or not parts.netloc:
+    if not net.allowed_base(url) or not parts.netloc:
         raise errors.UsageError(f"HARMONIC_URL must be an https address (got {url!r}).")
     return f"{parts.scheme}://{parts.netloc}"
 
@@ -68,7 +60,7 @@ class App:
 
     def __init__(self, url, opener=None):
         self.url = url
-        self.opener = opener or urllib.request.build_opener(_NoRedirect)
+        self.opener = opener or net.opener("never")   # the app's API never redirects: one could send the session away
         self.session = None
 
     def _request(self, method, path, body=None):
@@ -87,6 +79,9 @@ class App:
                 return r.status, r.headers, r.read()
         except urllib.error.HTTPError as e:
             return e.code, e.headers, e.read()
+        except net.Redirected as e:
+            raise errors.HarmonicFitnessError(f"The web app redirected to {urllib.parse.urlsplit(e.url).netloc}; "
+                                              f"not followed (HTTP {e.status}). Check HARMONIC_URL.") from None
         except (urllib.error.URLError, OSError) as e:
             raise errors.HarmonicFitnessError(f"Couldn't reach the web app at {self.url}: "
                                               f"{getattr(e, 'reason', e)}") from None
