@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from webapp import routes  # noqa: E402
 import webapp.routes.account  # noqa: E402,F401
 import webapp.routes.auth  # noqa: E402,F401
+import webapp.routes.jobs  # noqa: E402,F401
 from webapp import api, auth, config, conversations, db, enginelib, folder, jobs, keystore, spend, store, turns, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase  # noqa: E402
@@ -458,7 +459,7 @@ class Api(ApiCase):
                 conn.close()
         timer = threading.Timer(0.5, later)
         timer.start()
-        with mock.patch.object(api, "POLL_EVERY", 0.2):
+        with mock.patch.object(routes.jobs, "POLL_EVERY", 0.2):
             events = self.read_stream(job)
         timer.join()
         self.assertEqual(events, [(None, "state", {"state": "failed", "error": "interrupted", "code": None})])
@@ -473,7 +474,7 @@ class Api(ApiCase):
             conn.close()
         timer = threading.Timer(1.0, later)
         timer.start()
-        with mock.patch.object(api, "KEEP_ALIVE", 0.3), mock.patch.object(api, "POLL_EVERY", 0.1):
+        with mock.patch.object(routes.jobs, "KEEP_ALIVE", 0.3), mock.patch.object(routes.jobs, "POLL_EVERY", 0.1):
             with self.client.stream("GET", f"/api/jobs/{job}/events") as r:
                 lines = list(r.iter_lines())
         timer.join()
@@ -1190,7 +1191,7 @@ class Disconnect(ApiCase):
         session = auth.redeem(self.conn, self.settings,
                               token_of(auth.device_link(self.conn, self.settings, user_id).url))
         job = jobs.enqueue(self.conn, uk, "brief", {})   # stays queued: the stream never ends
-        with mock.patch.object(api, "KEEP_ALIVE", 0.1), mock.patch.object(api, "POLL_EVERY", 0.1):
+        with mock.patch.object(routes.jobs, "KEEP_ALIVE", 0.1), mock.patch.object(routes.jobs, "POLL_EVERY", 0.1):
             with httpx.Client(base_url=f"http://127.0.0.1:{port}",
                               cookies={"wt_session": session}) as c:
                 with c.stream("GET", f"/api/jobs/{job}/events") as r:

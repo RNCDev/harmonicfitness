@@ -47,9 +47,6 @@ from .folder import IMPORT_MAX_TOTAL, IMPORT_MAX_ZIP
 COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
 MAX_QUEUED = 3            # queued jobs a user may have at once (a guard against a stuck button)
-KEEP_ALIVE = 15           # seconds between keep-alive comments on an event stream
-POLL_EVERY = 5            # seconds between status reads without a NOTIFY (fail and reap send none)
-WAIT_SLICE = 1.0          # seconds a stream blocks at most, so a client gone away is noticed soon
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 JOB_ID = PathParam(ge=1, le=2**63 - 1)
 HSTS = (b"strict-transport-security", b"max-age=31536000")
@@ -100,15 +97,6 @@ def _origin(url: str) -> str:
 
 def _secure(settings: config.Settings) -> bool:
     return not settings.base_url.startswith(("http://localhost", "http://127.0.0.1"))
-
-
-class BriefJob(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    kind: Literal["brief"]
-    goal: StrictStr
-    minutes: StrictInt
-    preset: StrictStr
-    today: Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 
 
 Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
@@ -381,6 +369,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
 
     from .routes import account, auth as authroutes, files, logs, media as mediaroutes, \
         settings as settingsroutes, state as routestate
+    from .routes import jobs as jobsroutes
     st = routestate.AppState(
         settings=settings, connection=connection, open_stream=open_stream, options=options, services=services,
         version=version, dist=dist, origin=origin,
@@ -418,78 +407,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app.include_router(settingsroutes.router)
 
 
-    @app.post("/api/jobs", status_code=202, **post)
-    def post_job(uk: User, body: Annotated[BriefJob, Body()]):
-        args = {"goal": body.goal, "minutes": body.minutes, "preset": body.preset,
-                "today": body.today}
-        with connection() as conn:
-            try:
-                # the user's row, locked, serialises this count against the user's other posts
-                conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
-                queued = conn.execute("select count(*) from jobs where user_id = %s and "
-                                      "state = 'queued'", (uk.user_id,)).fetchone()[0]
-            except Exception:
-                conn.rollback()
-                raise
-            if queued >= MAX_QUEUED:
-                conn.rollback()
-                raise HTTPException(429, "too many jobs waiting")
-            job_id = jobs.enqueue(conn, uk, body.kind, args)   # commits, releasing the lock
-        return {"id": job_id, "job_id": job_id}   # job_id as every other route names it; id kept for older pages
+    app.include_router(jobsroutes.router)
 
-    @app.post("/api/balances", status_code=202, **post)
-    def post_balances(uk: User):
-        """Ask what's left on each keyed voice service's account: a worker job (only the worker opens a key),
-        read with GET /api/jobs/{id}. One at a time: a check already waiting or running is returned as it is."""
-        with connection() as conn:
-            try:
-                conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
-                row = conn.execute("select id from jobs where user_id = %s and kind = 'balances' and "
-                                   "state in ('queued', 'running') order by id desc limit 1",
-                                   (uk.user_id,)).fetchone()
-                if row is not None:
-                    conn.rollback()
-                    return {"id": row[0]}
-                queued = conn.execute("select count(*) from jobs where user_id = %s and "
-                                      "state = 'queued'", (uk.user_id,)).fetchone()[0]
-            except Exception:
-                conn.rollback()
-                raise
-            if queued >= MAX_QUEUED:
-                conn.rollback()
-                raise HTTPException(429, "too many jobs waiting")
-            job_id = jobs.enqueue(conn, uk, "balances", {})   # commits, releasing the lock
-        return {"id": job_id}
-
-    @app.get("/api/jobs/{job_id}")
-    def get_job(uk: User, job_id: Annotated[int, JOB_ID]):
-        with connection() as conn:
-            try:
-                st = jobs.status(conn, uk, job_id)
-                res = jobs.result(conn, uk, job_id)
-            except LookupError:
-                raise HTTPException(404, "no such job") from None
-            finally:
-                conn.rollback()
-        return {"id": job_id, "state": st["state"], "error": st["error"], "code": codes.of_status(st),
-                "result": res}
-
-    @app.get("/api/jobs/{job_id}/events")
-    def job_events(request: Request, uk: User, job_id: Annotated[int, JOB_ID]):
-        with connection() as conn:
-            try:
-                jobs.status(conn, uk, job_id)
-            except LookupError:
-                raise HTTPException(404, "no such job") from None
-            finally:
-                conn.rollback()
-        try:
-            after = max(0, int(request.headers.get("last-event-id", "0")))
-        except ValueError:
-            after = 0
-        return StreamingResponse(_stream(open_stream, uk, job_id, after),
-                                 media_type="text/event-stream",
-                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
     # ---- conversations ----------------------------------------------------------------------
 
@@ -727,54 +646,6 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         return FileResponse(root / "index.html", headers={"Cache-Control": "no-cache"})
 
     return app
-
-
-async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey, job_id: int,
-                  after: int):
-    """The job's events after `after`, then a `state` event once it is done or failed.
-
-    LISTEN comes before the first read, so an event committed between them still wakes us. Each
-    round reads the status first and the events after it: complete() writes its events in the
-    same transaction that marks the job done, so a done status means every event is readable."""
-    run = anyio.to_thread.run_sync
-    conn = await run(open_conn)
-    try:
-        conn.autocommit = True
-        await run(lambda: conn.execute("listen job_events"))
-        channel = str(job_id)
-
-        def read():
-            st = jobs.status(conn, uk, job_id)
-            return st, jobs.events(conn, uk, job_id, after)
-
-        def wait(seconds: float) -> bool:
-            return any(n.payload == channel
-                       for n in conn.notifies(timeout=seconds, stop_after=1))
-
-        check, last_read, last_sent = True, 0.0, time.monotonic()
-        while True:
-            if check:
-                try:
-                    st, evs = await run(read)
-                except LookupError:
-                    return
-                last_read = time.monotonic()
-                for event_id, body in evs:
-                    after = event_id
-                    last_sent = time.monotonic()
-                    yield f"id: {event_id}\ndata: {json.dumps(body)}\n\n"
-                if st["state"] in ("done", "failed"):
-                    end = {"state": st["state"], "error": st["error"], "code": codes.of_status(st)}
-                    yield f"event: state\ndata: {json.dumps(end)}\n\n"
-                    return
-            notified = await run(wait, min(WAIT_SLICE, POLL_EVERY, KEEP_ALIVE))
-            now = time.monotonic()
-            check = notified or now - last_read >= POLL_EVERY
-            if now - last_sent >= KEEP_ALIVE:
-                last_sent = now
-                yield ": keep-alive\n\n"
-    finally:
-        conn.close()
 
 
 def create_app_from_env() -> FastAPI:
