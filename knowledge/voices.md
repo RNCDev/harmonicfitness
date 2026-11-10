@@ -3,7 +3,7 @@
 A coach is a person: a name ("Coach Maya", never a model's or a service's name), how they talk, and how they sound. There are two kinds, set by `kind` in the coach's `persona.md`:
 
 - **A local coach** (`kind = "local"`): one of the ten HarmonicFitness ships, made once by the maintainer and spoken on this computer by Pocket TTS from the coach's saved voice file. Listeners choose one; they don't make one. A local coach renders only locally.
-- **A web coach** (`kind = "web"`): an original voice a web service designed from a description and saved in the listener's own account there (Fish Audio, ElevenLabs, Gemini or Inworld), or one of OpenRouter's stock voices, chosen by ear. It speaks only through that service, by its saved (or stock) voice, and a service's voice is the same voice on every request, so the coach sounds like the same person from session to session. It's never copied from a recording. A listener makes their own with the coach skill.
+- **A web coach** (`kind = "web"`): an original voice a web service designed from a description and saved in the listener's own account there (Fish Audio, ElevenLabs, Gemini or Inworld), or one of OpenRouter's or Gemini's own ready-made voices, chosen by ear. It speaks only through that service, by its saved (or stock) voice, and a service's voice is the same voice on every request, so the coach sounds like the same person from session to session. It's never copied from a recording. A listener makes their own with the coach skill.
 
 A coach is not a tuned model: the models are used exactly as published.
 

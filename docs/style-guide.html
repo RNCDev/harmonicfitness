@@ -124,6 +124,10 @@ three tones of cream for text.</p>
   <div class="sw" style="--s:#9DBEDD"><i></i><div><b>--blue</b><code>#9DBEDD</code><span>Dusk blue: coach samples, the current coach.</span></div></div>
   <div class="sw" style="--s:#E3907D"><i></i><div><b>--stop</b><code>#E3907D</code><span>Something stopped or refused.</span></div></div>
 </div>
+<div class="note">These are the palette. The app's stylesheets never name it: they use the roles made from it
+(<code>--text</code>, <code>--text-muted</code>, <code>--surface</code>, <code>--surface-raised</code>,
+<code>--border</code>, <code>--action</code>, <code>--danger</code>, <code>--sample</code>, <code>--accent</code>…),
+so a second theme would redefine the roles alone. <code>theme.test.ts</code> refuses a palette name in a rule.</div>
 
 <h3 class="spaced">Layer colours, in diagrams</h3>
 <p class="sub">Each folder has one colour, the same on every docs page. Always put the folder's name beside its

@@ -1,5 +1,5 @@
 # For keeping this context folder as its own private git repo, which `./harmonicfitness backup`
-# commits and pushes after each workout (README, "Back up me/"). Everything else is kept:
+# commits and pushes after each workout (README, "Your files": Back it up). Everything else is kept:
 # profile, health, log, drafts, research, and your coaches with their measured pace.
 
 # Rendered clips: large, and any build makes them again. The measured pace stays.

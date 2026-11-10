@@ -6,7 +6,7 @@ HarmonicFitness turns a request for a workout into a narrated MP3 for earbuds, w
 
 Priorities, in order: safe for the listener's body today, clean to the ear, worth listening to.
 
-The README is for people (what it is, how to start, costs); `docs/index.html` is the one-page map of how the parts connect, `docs/style-guide.html` the house style for words, terms and visuals, and `docs/demos/` the plan and files for the home page's demo clips.
+The README is for people (what it is, how to start, costs); `docs/index.html` is the one-page map of how the parts connect, `docs/style-guide.html` the house style for words, terms and visuals, and `docs/demos/` the plan and files for the home page's demo clips and the five ready-made workouts.
 
 ## What runs when
 
@@ -41,7 +41,7 @@ HarmonicFitness runs under Claude Code and under ChatGPT's Codex, on the listene
 ## The listener's files, as the tools see them
 
 - **One reader and writer.** Paths come from `tools/paths.py`; the context files are read and written only through `tools/context.py` and the modules it delegates to (`frontmatter`, `store`, `health`, `sessionlog`, `records`), each reached in its own module, never through `context` (`test_imports` checks).
-- **Format.** Each Markdown file opens with a TOML block between `+++` lines naming its format (`schema = 6`); `settings.toml` is plain TOML. A format change raises `SCHEMA` in `tools/context.py` and adds a step to `tools/migrate.py`, except a format the web client must keep reading (it can't migrate): that one reads both ways and migrate converts it as a folder step with no schema change.
+- **Format.** Each Markdown file opens with a TOML block between `+++` lines naming its format (`schema = 6`); `settings.toml` is plain TOML. A format change raises `SCHEMA` in `tools/store.py` and adds a step to `tools/migrate.py`, except a format the web client must keep reading (it can't migrate): that one reads both ways and migrate converts it as a folder step with no schema change.
 - **The profile is four files** that `context.profile()` reads as one; each setting has a home file (`SETTING_HOMES`), which wins, and `check` notes a setting written twice:
   - `profile.md`: `name`, `experience`, and who they are.
   - `training.md`: `likes`, `dislikes`, `[[kits]]` (with `weights` and `unit`), the default session.

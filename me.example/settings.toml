@@ -1,4 +1,4 @@
-# HarmonicFitness's settings for this listener: the setup stage, how audio is made, a web build's ceiling, where finished MP3s go, and the speaking rate. The tools read them; setup writes them.
+# HarmonicFitness's settings for this listener: the setup stage, how audio is made, where finished MP3s go, and the speaking rate (setup adds a web build's character ceiling, cloud_max_chars, once a web coach is chosen). The tools read them; setup writes them.
 schema = 6
 # "quick" until the second half of setup is done (interests, feeds, delivery, your own coach): until then ./harmonicfitness check lists what's left as notes. Say "finish setting me up" to do it.
 setup = "quick"

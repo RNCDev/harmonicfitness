@@ -140,12 +140,13 @@ listener here is invented, and each file says so on its first line.</p>
 <pre class="files">docs/demos/
   index.html            <i>this page</i>
   demos.toml            <i>the seven: ask, check-in answers, brief flags, coach, the clip, the card</i>
+  ready.toml            <i>the five ready-made workouts, recorded whole (<code>./harmonicfitness ready</code>)</i>
   coaches/<i>&lt;name&gt;</i>.md      <i>Priya, Desmond and Bea, each a stock voice by its ID</i>
-  listeners/<i>&lt;slug&gt;</i>/      <i>one invented listener each, and its own context folder</i>
+  listeners/<i>&lt;slug&gt;</i>/      <i>one invented listener each (and <code>ready-*</code>, one per ready-made workout), with its own context folder</i>
     profile.md  training.md  content.md  health.md  log.md  settings.toml
     workouts/           <i>research, the brief and menu, the full draft and the clip's draft</i>
 .claude/skills/demos/   <i>the steps (copied for Codex to .agents/skills/demos/)</i>
-tools/demos.py          <i>./harmonicfitness demos: list, home, run, excerpt, publish, upload</i>
+tools/demos.py          <i>./harmonicfitness demos: list, home, run, excerpt, publish, upload, web</i>
 tests/test_demos.py     <i>the shipped set reads clean; each step, with no network</i></pre>
 <div class="note"><b>Checked on 2026-11-04 against engine 0.63.0:</b> <code>./harmonicfitness check</code> reads all seven
 listeners clean, and each demo's brief screens with its flags (menus of forty-nine to a hundred and forty-eight

@@ -4,7 +4,7 @@ What's planned beyond the current release, in rough order. Each section is a fut
 
 ## Smarter workouts: progress you can feel
 
-Each workout is carefully planned and screened for safety, but little carries from one week to the next. The brief passes the language model the last loads, the newest feedback line and the past seven days' counts, and leaves progression to it. This release makes the weeks add up.
+Each workout is carefully planned and screened for safety, but little carries from one week to the next. The brief passes the language model the last loads, the newest feedback line, an effort lean learned from feedback and the past seven days' counts, and leaves the progression itself to it. This release makes the weeks add up.
 
 ### 1. Close the loop after each workout
 - **Now:**
@@ -18,7 +18,7 @@ Each workout is carefully planned and screened for safety, but little carries fr
     - One thing to change.
   - Write the answers into the log: effort to `rpe`, plus what was actually done beside what was prescribed.
   - Progress from what was done.
-  - Turn "too hard" or "too easy" into the effort signal automatically (`interests add --source feedback`), so it no longer depends on the language model remembering to.
+  - Turn "too hard" or "too easy" into the effort signal automatically on a computer too (`interests add --source feedback`), as the web app's feedback job already does, so it no longer depends on the language model remembering to.
 - **Where:** `tools/logsession.py`, `tools/sessionlog.py`, `tools/workoutlog.py`, `tools/brief.py`, the web app's Logs page and a post-recording card in the chat.
 
 ### 2. A training block, not just a session

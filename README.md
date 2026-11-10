@@ -99,7 +99,7 @@ cd me && git init && git add -A && git commit -m "My harmonicfitness" && gh repo
 
 ## Coaches and voices
 
-A coach is a person's name, how they talk and how they sound. Twenty-five stock coaches ship with it, so you can start at once: **ten local coaches** for a voice on your computer (Andy, Marcus, Theo, Sam and Callum; Maya, Claire, Rosa, Helen and Kate, each with a 45-second sample to choose by ear), **twelve ready-made web coaches**, six on OpenRouter (Graham, Jonah, Leah, Nora, Rowan, Tess) and six on Gemini (Fraser, Freya, June, Miles, Ruby, Wade), each with a sample to hear, and **one stock web coach each** for Fish Audio, ElevenLabs and Inworld (Reed, Ellis and Owen), designed in your account the first time it's used. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
+A coach is a person's name, how they talk and how they sound. Twenty-five stock coaches ship with it, so you can start at once: **ten local coaches** for a voice on your computer and **twelve ready-made web coaches** (six on OpenRouter, six on Gemini), each with a 45-second sample to choose by ear, and **one stock web coach each** for Fish Audio, ElevenLabs and Inworld, designed in your account the first time it's used. `./harmonicfitness coaches list` names them all. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
 - **A web coach** is an original voice a service designs from your description and saves in your account. You hear candidates from every service you have a key for, pick by ear, and name the ones you keep.
 - **A local coach** is one of the ten: a voice designed once for HarmonicFitness, with its counts and cues recorded and checked by ear, spoken on your computer by Pocket TTS. It sounds the same in every workout.
 
@@ -137,7 +137,7 @@ HarmonicFitness is free and open source. If it gets you moving, you can [buy me 
 
 ## Versioning
 
-HarmonicFitness follows [Semantic Versioning](https://semver.org) and is pre-1.0: a 0.X.0 release may break something (its "For forks" note says what to do), a 0.x.Y release doesn't. The numbering restarted at 0.16.0 (it was 16.0.0); older releases were renumbered to match (`CHANGELOG.md` has the table). Each release is tagged `vX.Y.Z` on GitHub; `CHANGELOG.md` says what changed, and a release's "For forks" note says what to do after pulling it. `ROADMAP.md` says what's planned next.
+HarmonicFitness follows [Semantic Versioning](https://semver.org) and is pre-1.0: a 0.X.0 release may break something (its "For forks" note says what to do), a 0.x.Y release doesn't. The numbering restarted at 0.16.0 (it was 16.0.0); older releases were renumbered to match (`CHANGELOG.md` has the table). Each release from 0.1.0 on is tagged `vX.Y.Z` on GitHub; `CHANGELOG.md` says what changed, and a release's "For forks" note says what to do after pulling it. `ROADMAP.md` says what's planned next.
 
 ## License
 
