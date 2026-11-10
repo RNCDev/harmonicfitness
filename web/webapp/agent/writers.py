@@ -34,8 +34,8 @@ STORY_WORDS = 140      # what a story is asked to run to, before the skeleton sa
 # The host writes over the words it is asked for, and paragraph breaks add time of their own, so it's asked for this
 # share of each segment's words (all of them where a bare [hold] keeps the segment its length, since a word short
 # there is a second of silence). Gemini's wrote about 1.4 times the ask at 0.85 (the bench's 2026-11-10 runs: 1.23 to
-# 1.53); asked for 0.7 it wrote 0.85 of the budget (0.77 to 1.01), so 0.82 aims at the budget itself.
-AIMS = {"gemini": 0.82, "other": 0.85}
+# 1.53), so it's asked for 0.85 / 1.4 = 0.6 of the budget less a little, 0.7, to land near the budget itself.
+AIMS = {"gemini": 0.7, "other": 0.85}
 SILENCE = 8.0          # draft.MAX_SILENCE: a fixed hold or pause past it is refused, so the coach talks through it
 PLACE = re.compile(r"[ \t]*\[story\]\s*\[/story\]", re.IGNORECASE)   # a skeleton's mark for a piece told during the work
 STORY_REST = re.compile(r"\b(rest|transition|recover\w*)\b", re.IGNORECASE)
