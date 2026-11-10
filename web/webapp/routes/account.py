@@ -11,7 +11,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
 
-from .. import APP_NAME, auth, keystore, level, providers, start, store
+from .. import APP_NAME, auth, keystore, level, providers, start, store, workouts
 from .logs import workout_call
 from .state import COOKIE, POST, St, User, confirming, read, tx
 
@@ -145,6 +145,7 @@ def delete_account(st: St, uk: User, body: Annotated[Confirm, Body()]):
             raise HTTPException(400, "That password isn't right.")
         conn.execute("delete from users where id = %s", (uk.user_id,))
     start.forget(uk.user_id)
+    workouts.forget(uk.user_id)
     r = Response(status_code=204)
     r.delete_cookie(COOKIE, path="/")
     return r

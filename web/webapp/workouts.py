@@ -1,14 +1,19 @@
 """The Logs page: the listener's logged workouts, each one's script, feedback, a rating, and delete.
 
-Every call writes the listener's files to a temporary folder and runs the engine's `workouts` command there in
+Every call writes the listener's files (those `needed` takes: never their coaches or the research stock, which the
+`workouts` command never reads) to a temporary folder and runs the engine's `workouts` command there in
 its own process (as `start.gather` does), so HARMONICFITNESS_HOME is never set in this one. A change (feedback,
 a rating, a delete) comes back as the files it changed, for the caller to write back against the versions it
 read. Nothing here opens a key.
 """
+import copy
 import json
 import os
 import re
 import tempfile
+import threading
+import time
+from collections import OrderedDict
 
 from . import engine, folder
 
@@ -25,6 +30,48 @@ class Refused(Exception):
     def __init__(self, message: str, kind: str = "invalid"):
         super().__init__(message)
         self.kind = kind
+
+
+# what the engine's `workouts` command never reads (tools/workoutlog.py and what it calls): left out of its folder
+LEFT_OUT = ("coaches/", "workouts/research/daily/", "workouts/research/videos/", "workouts/research/puzzles/",
+            "workouts/research/reserve/")
+KEEP_SECONDS = 3600   # how long a listing is kept for a listener whose files don't change
+KEEP_USERS = 256      # listings kept at once; the least recently asked goes first
+_kept: OrderedDict = OrderedDict()   # user id -> (the files' fingerprint, when, the listing)
+_kept_lock = threading.Lock()
+
+
+def needed(path: str) -> bool:
+    """Whether a Logs call's folder holds this file."""
+    return not path.startswith(LEFT_OUT)
+
+
+def kept_listing(user_id, fingerprint: str) -> list[dict] | None:
+    """The listing kept for this listener, if their files are as they were (store.fingerprint), else None. A copy:
+    the caller adds to its rows."""
+    with _kept_lock:
+        entry = _kept.get(user_id)
+        if entry is None:
+            return None
+        if entry[0] != fingerprint or time.monotonic() - entry[1] > KEEP_SECONDS:
+            del _kept[user_id]
+            return None
+        _kept.move_to_end(user_id)
+        return copy.deepcopy(entry[2])
+
+
+def keep_listing(user_id, fingerprint: str, rows: list[dict]) -> None:
+    with _kept_lock:
+        _kept[user_id] = (fingerprint, time.monotonic(), copy.deepcopy(rows))
+        _kept.move_to_end(user_id)
+        while len(_kept) > KEEP_USERS:
+            _kept.popitem(last=False)
+
+
+def forget(user_id) -> None:
+    """Drop the listener's kept listing (signing out, deleting the account)."""
+    with _kept_lock:
+        _kept.pop(user_id, None)
 
 
 NOT_FOUND = ("no logged workout", "no script")   # the engine's words for a workout or script that isn't there

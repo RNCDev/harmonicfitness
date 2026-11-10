@@ -48,22 +48,21 @@ def _syncable(path: str) -> bool:
 @router.get("/api/sync")
 def sync_listing(st: St, uk: User):
     """Every file `./harmonicfitness sync` keeps in step: its path, version and sha256 (the bodies come
-    from /api/sync/read, only those the computer lacks)."""
-    import hashlib
+    from /api/sync/read, only those the computer lacks). From each file's sealed digest: no body is opened."""
     with read(st) as conn:
-        files = store.read_all(conn, uk)
-    return {"files": [{"path": p, "version": v, "sha256": hashlib.sha256(b).hexdigest()}
-                      for p, (v, b) in files.items() if _syncable(p)]}
+        files = store.digests(conn, uk)
+    return {"files": [{"path": p, "version": v, "sha256": d} for p, (v, d) in files.items() if _syncable(p)]}
 
 
 @router.post("/api/sync/read", **POST)
 def sync_read(st: St, uk: User, body: SyncRead):
     """The named files' bodies (base64) and versions; a path the site doesn't hold is left out."""
     import base64
+    asked = [p for p in dict.fromkeys(body.paths) if _syncable(p)]
     with read(st) as conn:
-        files = store.read_all(conn, uk)
+        files = store.read_many(conn, uk, asked)
     return {"files": [{"path": p, "version": files[p][0], "body": base64.b64encode(files[p][1]).decode("ascii")}
-                      for p in dict.fromkeys(body.paths) if p in files and _syncable(p)]}
+                      for p in asked if p in files]}
 
 
 @router.post("/api/sync/write", **POST)

@@ -1,5 +1,6 @@
 import os
 import sys
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -239,6 +240,68 @@ class Store(DBCase):
         s = config.Settings(database_url="x", master_key=MASTER, base_url="https://x")
         self.assertEqual(store.user_key(self.conn, s, uid), uk)
         self.assertNotIn(uk.key.hex(), repr(uk))
+
+
+
+class Reads(DBCase):
+    """Reading only what a request needs (0.77.0): some files, or only their digests."""
+
+    def files(self):
+        _, uk = self.make_user()
+        for path, body in (("log.md", b"log"), ("coaches/c/sample.mp3", b"\xff" * 50), ("workouts/a/x.txt", b"x")):
+            store.put(self.conn, uk, path, body)
+        self.conn.commit()
+        return uk
+
+    def test_read_many_reads_only_the_paths_asked_for(self):
+        uk = self.files()
+        self.assertEqual(store.read_many(self.conn, uk, ["log.md", "workouts/a/x.txt", "absent.md"]),
+                         {"log.md": (1, b"log"), "workouts/a/x.txt": (1, b"x")})
+        self.assertEqual(store.read_many(self.conn, uk, []), {})
+        with self.assertRaises(ValueError):
+            store.read_many(self.conn, uk, ["../x"])
+
+    def test_read_where_opens_only_the_bodies_kept(self):
+        uk = self.files()
+        opened = []
+        real = store.crypto.open_
+
+        def counting(key, sealed, aad):
+            opened.append(aad)
+            return real(key, sealed, aad)
+        with mock.patch.object(store.crypto, "open_", counting):
+            got = store.read_where(self.conn, uk, lambda p: not p.startswith("coaches/"))
+        self.assertEqual(got, {"log.md": (1, b"log"), "workouts/a/x.txt": (1, b"x")})
+        self.assertFalse(any(a.endswith(b":coaches/c/sample.mp3") for a in opened))
+        self.assertEqual(list(got), sorted(got))
+
+    def test_digests_are_sealed_and_match_the_bodies(self):
+        import hashlib
+        uk = self.files()
+        store.write_back(self.conn, uk, {"log.md": b"log 2"}, {"log.md": 1})
+        self.conn.commit()
+        want = {p: (v, hashlib.sha256(b).hexdigest()) for p, (v, b) in store.read_all(self.conn, uk).items()}
+        self.assertEqual(store.digests(self.conn, uk), want)
+        for (raw,) in self.conn.execute("select digest from context_files where user_id = %s", (uk.user_id,)):
+            self.assertNotIn(bytes(raw), {bytes.fromhex(d) for _, d in want.values()})   # never in plain
+
+    def test_a_row_without_a_digest_is_hashed_from_its_body(self):
+        import hashlib
+        uk = self.files()
+        self.conn.execute("update context_files set digest = null where user_id = %s", (uk.user_id,))
+        self.conn.commit()
+        self.assertEqual(store.digests(self.conn, uk)["log.md"], (1, hashlib.sha256(b"log").hexdigest()))
+
+    def test_a_digest_is_bound_to_its_path(self):
+        uk = self.files()
+        row = self.conn.execute("select digest from context_files where user_id = %s and path_hash = %s",
+                                (uk.user_id, store._path_hash(uk, "log.md"))).fetchone()
+        self.conn.execute("update context_files set digest = %s where user_id = %s and path_hash = %s",
+                          (row[0], uk.user_id, store._path_hash(uk, "workouts/a/x.txt")))
+        self.conn.commit()
+        with self.assertRaises(Exception):
+            store.digests(self.conn, uk)
+        self.conn.rollback()
 
 
 if __name__ == "__main__":

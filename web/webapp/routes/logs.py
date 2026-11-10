@@ -25,10 +25,10 @@ class RatingBody(BaseModel):
 
 
 def workout_call(st: AppState, uk: store.UserKey, call, *args, change: bool = False):
-    """Run a Logs-page call on the listener's files; a change is written back against the versions read
-    (a conflict, from a turn saving at the same moment, is a 409 to try again)."""
+    """Run a Logs-page call on the listener's files (those workouts.needed takes); a change is written back against
+    the versions read (a conflict, from a turn saving at the same moment, is a 409 to try again)."""
     with read(st) as conn:
-        held = store.read_all(conn, uk)
+        held = store.read_where(conn, uk, workouts.needed)
     files = {p: body for p, (_, body) in held.items()}
     try:
         out = call(st.settings.engine_root, files, *args)
@@ -46,7 +46,15 @@ def workout_call(st: AppState, uk: store.UserKey, call, *args, change: bool = Fa
 async def list_workouts(st: St, uk: User):
     """The logged workouts, newest first: date, length, kit, coach, format, movements, topics, build id,
     feedback, rating, whether a script is kept, and its MP3 while the site keeps it (`audio`: the three newest)."""
-    rows = await anyio.to_thread.run_sync(lambda: workout_call(st, uk, workouts.listing))
+    def listed() -> list:   # kept per listener until a file changes
+        with read(st) as conn:
+            mark = store.fingerprint(conn, uk)
+        rows = workouts.kept_listing(uk.user_id, mark)
+        if rows is None:
+            rows = workout_call(st, uk, workouts.listing)
+            workouts.keep_listing(uk.user_id, mark, rows)
+        return rows
+    rows = await anyio.to_thread.run_sync(listed)
 
     def kept() -> dict[str, dict]:
         with read(st) as conn:

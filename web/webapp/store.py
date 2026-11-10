@@ -65,6 +65,15 @@ def _open_path(uk: UserKey, sealed) -> str:
     return crypto.open_(uk.key, bytes(sealed), _path_aad(uk)).decode("utf-8")
 
 
+def _digest_aad(uk: UserKey, path: str) -> bytes:
+    return f"{uk.user_id}:context_files:digest:{path}".encode()
+
+
+def _seal_digest(uk: UserKey, path: str, body: bytes) -> bytes:
+    """The body's SHA-256, sealed: never stored in plain, where it would confirm a guess at what a file says."""
+    return crypto.seal(uk.key, hashlib.sha256(body).digest(), _digest_aad(uk, path))
+
+
 def read_all(conn, uk: UserKey) -> dict[str, tuple[int, bytes]]:
     rows = conn.execute("select path, version, body from context_files where user_id = %s",
                         (uk.user_id,)).fetchall()
@@ -72,6 +81,51 @@ def read_all(conn, uk: UserKey) -> dict[str, tuple[int, bytes]]:
     for sealed_path, v, b in rows:
         p = _open_path(uk, sealed_path)
         out[p] = (v, crypto.open_(uk.key, bytes(b), _aad(uk, p)))
+    return dict(sorted(out.items()))
+
+
+def read_many(conn, uk: UserKey, paths) -> dict[str, tuple[int, bytes]]:
+    """{path: (version, body)} of the named files the user has, by path; the rest are left out."""
+    wanted = {_path_hash(uk, check_path(p)): p for p in paths}
+    if not wanted:
+        return {}
+    rows = conn.execute("select path_hash, version, body from context_files where user_id = %s and path_hash = any(%s)",
+                        (uk.user_id, list(wanted))).fetchall()
+    out = {}
+    for h, v, b in rows:
+        p = wanted[bytes(h)]
+        out[p] = (v, crypto.open_(uk.key, bytes(b), _aad(uk, p)))
+    return dict(sorted(out.items()))
+
+
+def read_where(conn, uk: UserKey, keep) -> dict[str, tuple[int, bytes]]:
+    """{path: (version, body)} of the files whose path `keep` takes: the paths are opened first, and only the kept
+    bodies are read and opened."""
+    rows = conn.execute("select path_hash, path from context_files where user_id = %s", (uk.user_id,)).fetchall()
+    wanted = {bytes(h): p for h, sealed in rows if keep(p := _open_path(uk, sealed))}
+    if not wanted:
+        return {}
+    rows = conn.execute("select path_hash, version, body from context_files where user_id = %s and path_hash = any(%s)",
+                        (uk.user_id, list(wanted))).fetchall()
+    out = {}
+    for h, v, b in rows:
+        p = wanted[bytes(h)]
+        out[p] = (v, crypto.open_(uk.key, bytes(b), _aad(uk, p)))
+    return dict(sorted(out.items()))
+
+
+def digests(conn, uk: UserKey) -> dict[str, tuple[int, str]]:
+    """{path: (version, the body's SHA-256 in hex)} of every file, by path: from the sealed digest, or the body for
+    a row written before 0.77.0."""
+    rows = conn.execute("select path, version, digest, case when digest is null then body end from context_files "
+                        "where user_id = %s", (uk.user_id,)).fetchall()
+    out = {}
+    for sealed, v, d, b in rows:
+        p = _open_path(uk, sealed)
+        if d is not None:
+            out[p] = (v, crypto.open_(uk.key, bytes(d), _digest_aad(uk, p)).hex())
+        else:
+            out[p] = (v, hashlib.sha256(crypto.open_(uk.key, bytes(b), _aad(uk, p))).hexdigest())
     return dict(sorted(out.items()))
 
 
@@ -123,14 +177,14 @@ def write_back(conn, uk: UserKey, changes: dict[str, bytes | None],
             sealed = crypto.seal(uk.key, body, _aad(uk, path))
             if at is None:
                 n = conn.execute(
-                    "insert into context_files (user_id, path_hash, path, version, body) "
-                    "values (%s, %s, %s, 1, %s) on conflict do nothing",
-                    (uk.user_id, h, _seal_path(uk, path), sealed)).rowcount
+                    "insert into context_files (user_id, path_hash, path, version, body, digest) "
+                    "values (%s, %s, %s, 1, %s, %s) on conflict do nothing",
+                    (uk.user_id, h, _seal_path(uk, path), sealed, _seal_digest(uk, path, body))).rowcount
             else:
                 n = conn.execute(
-                    "update context_files set body = %s, version = version + 1, "
+                    "update context_files set body = %s, digest = %s, version = version + 1, "
                     "updated_at = now() where user_id = %s and path_hash = %s and version = %s",
-                    (sealed, uk.user_id, h, at)).rowcount
+                    (sealed, _seal_digest(uk, path, body), uk.user_id, h, at)).rowcount
         if n != 1:
             conflicts.append(path)
     return conflicts
@@ -141,8 +195,8 @@ def put(conn, uk: UserKey, path: str, body: bytes) -> int:
     check_path(path)
     sealed = crypto.seal(uk.key, body, _aad(uk, path))
     return conn.execute(
-        "insert into context_files (user_id, path_hash, path, version, body) "
-        "values (%s, %s, %s, 1, %s) "
-        "on conflict (user_id, path_hash) do update set body = excluded.body, "
+        "insert into context_files (user_id, path_hash, path, version, body, digest) "
+        "values (%s, %s, %s, 1, %s, %s) "
+        "on conflict (user_id, path_hash) do update set body = excluded.body, digest = excluded.digest, "
         "version = context_files.version + 1, updated_at = now() returning version",
-        (uk.user_id, _path_hash(uk, path), _seal_path(uk, path), sealed)).fetchone()[0]
+        (uk.user_id, _path_hash(uk, path), _seal_path(uk, path), sealed, _seal_digest(uk, path, body))).fetchone()[0]

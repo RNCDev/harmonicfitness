@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
 
-from .. import APP_NAME, auth, start
+from .. import APP_NAME, auth, start, workouts
 from ..api import _address, _secure, error_body
 from .state import COOKIE, POST, AppState, St, User, confirming, tx
 
@@ -164,6 +164,7 @@ def sign_out(st: St, request: Request, uk: User):
     with tx(st) as conn:
         auth.sign_out(conn, request.cookies[COOKIE])
     start.forget(uk.user_id)
+    workouts.forget(uk.user_id)
     r = Response(status_code=204)
     r.delete_cookie(COOKIE, path="/", secure=_secure(st.settings), httponly=True, samesite="lax")
     return r

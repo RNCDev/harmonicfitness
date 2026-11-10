@@ -91,6 +91,22 @@ class Calls(unittest.TestCase):
     def test_a_listener_without_a_log_has_no_workouts(self):
         self.assertEqual(workouts.listing(ROOT, {}), [])
 
+    def test_what_the_calls_leave_out_changes_nothing(self):
+        """The Logs calls read only workouts.needed's files (0.77.0): the same answers and changes as from all."""
+        full = listener_files()
+        full.update({"coaches/coach-x/persona.md": b"+++\nschema = 5\n+++\n", "coaches/coach-x/sample.mp3": b"ID3" * 9,
+                     "workouts/research/reserve/piece.md": b"a piece", "workouts/research/daily/2026-10-30.md": b"d",
+                     "workouts/research/videos/v.md": b"v", "workouts/research/puzzles/p.md": b"p"})
+        some = {p: b for p, b in full.items() if workouts.needed(p)}
+        self.assertFalse(any(p.startswith(("coaches/", "workouts/research/reserve/")) for p in some))
+        self.assertIn("log.md", some)
+        self.assertEqual(workouts.listing(ROOT, some), workouts.listing(ROOT, full))
+        self.assertEqual(workouts.script(ROOT, some, "ccc333"), workouts.script(ROOT, full, "ccc333"))
+        for call, args in ((workouts.rate, ("ccc333", "positive")), (workouts.add_feedback, ("ccc333", "hard")),
+                           (workouts.delete, ("ccc333",))):
+            with self.subTest(call=call.__name__):
+                self.assertEqual(call(ROOT, some, *args), call(ROOT, full, *args))
+
 
 class Routes(test_api.ApiCase):
     def test_the_logs_routes(self):
@@ -155,6 +171,26 @@ class Routes(test_api.ApiCase):
             media.put(self.conn, uk, "Workout", b"ID3later", build_id=build)
         self.conn.commit()
         self.assertNotIn("audio", self.client.get("/api/workouts").json()["workouts"][0])
+
+    def test_the_listing_is_kept_until_a_file_changes(self):
+        from unittest import mock
+        _, uk = self.signed_in()
+        store.write_back(self.conn, uk, listener_files(), {})
+        self.conn.commit()
+        real, runs = workouts._run, []
+
+        def counting(root, files, argv):
+            runs.append((argv, set(files)))
+            return real(root, files, argv)
+        with mock.patch.object(workouts, "_run", counting):
+            first = self.client.get("/api/workouts").json()
+            self.assertEqual(self.client.get("/api/workouts").json(), first)
+            self.assertEqual(len(runs), 1)
+            self.assertFalse(any(p.startswith("coaches/") for p in runs[0][1]))
+            r = self.client.put("/api/workouts/ccc333/rating", json={"rating": "positive"}, headers=self.origin())
+            self.assertEqual(r.status_code, 204, r.text)
+            self.assertEqual(self.client.get("/api/workouts").json()["workouts"][0]["rating"], "positive")
+        self.assertEqual([a[0] for a, _ in runs], ["workouts", "workouts", "workouts"])
 
     def test_the_logs_routes_need_a_session_and_same_origin(self):
         self.assertEqual(self.client.get("/api/workouts").status_code, 401)
