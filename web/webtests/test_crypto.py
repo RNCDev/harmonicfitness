@@ -83,6 +83,12 @@ class Config(unittest.TestCase):
         with self.assertRaises(config.ConfigError):
             config.load(env(HARMONICFITNESS_REGISTRATION="maybe"))
 
+    def test_worker_slots(self):
+        """Main-lane loops a worker runs (0.77.0): two by default, one to four."""
+        for raw, want in ((None, 2), ("1", 1), ("3", 3), ("0", 1), ("9", config.MAX_SLOTS), ("lots", 2)):
+            extra = {} if raw is None else {"HARMONICFITNESS_WORKER_SLOTS": raw}
+            self.assertEqual(config.load(env(**extra)).worker_slots, want, raw)
+
     def test_daily_allowance(self):
         from webapp import spend
         for raw, want in ((None, spend.DEFAULT_DAILY_CHARS), ("5000", 5000), ("-3", 0), ("lots", spend.DEFAULT_DAILY_CHARS)):

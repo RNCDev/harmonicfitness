@@ -2,8 +2,9 @@
 
 A job's args, result and events are JSON sealed with its user's data key; `error` is plain text
 and holds only wording of the web layer's own (never the engine's output or anything personal).
-The database keeps one running job per user in each lane (the partial unique indexes one_running_job_per_user
-and, for enrichment's own lane, one_running_enrich_per_user: migration 015).
+The database keeps one running job per user in each lane (the partial unique indexes one_running_job_per_user,
+one_running_enrich_per_user for enrichment's own lane, migration 015, and one_running_quick_per_user for the quick
+lane, migration 023).
 A job that dies is failed by `reap`, never requeued: it may already have reached a paid service.
 
 Transactions: as everywhere in webapp/, a function that reads or writes data never commits or rolls back; its
@@ -70,11 +71,17 @@ def add(conn, uk: UserKey, kind: str, args: dict, not_before=None) -> int:
     return job_id
 
 
-LANES = ("main", "enrich")   # enrich: enrichment's own lane, beside a turn; main: every other kind
+LANES = ("main", "enrich", "quick")   # enrich: enrichment's own lane, beside a turn; quick: QUICK; main: the rest
+QUICK = ("balances",)                # quick jobs, never behind a turn (0.77.0): the Settings balance check
+_OWN_LANE = ("enrich", *QUICK)
 
 
 def _in_lane(lane: str, alias: str) -> str:
-    return f"{alias}.kind = 'enrich'" if lane == "enrich" else f"{alias}.kind <> 'enrich'"
+    if lane == "enrich":
+        return f"{alias}.kind = 'enrich'"
+    if lane == "quick":
+        return f"{alias}.kind in ({', '.join(repr(k) for k in QUICK)})"
+    return f"{alias}.kind not in ({', '.join(repr(k) for k in _OWN_LANE)})"
 
 
 def claim(conn, lane: str = "main", _tries: int = 3) -> Job | None:

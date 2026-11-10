@@ -866,6 +866,20 @@ def _flag(args: list[str], name: str) -> str | None:
     return None
 
 
+RECORDING = threading.Lock()   # one recording at a time in a worker (0.77.0): its render and encode are the memory
+WAIT_SLICE = 0.5               # seconds between looks at the listener's Stop while another recording finishes
+
+
+def _one_recording(cancel: threading.Event | None, waiting: Callable[[], None]) -> bool:
+    """Wait for the worker's other recording to finish, calling `waiting` meanwhile (the turn's clock waits too);
+    False when the listener stopped first."""
+    while not RECORDING.acquire(timeout=WAIT_SLICE):
+        if cancel is not None and cancel.is_set():
+            return False
+        waiting()
+    return True
+
+
 def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
     """A full build sends the script to a paid voice service, so it runs only once the listener has
     approved this draft with this coach, within the price they saw: until then it's priced and offered."""
@@ -879,9 +893,16 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
         if _flag(args, "--max-chars") is None:
             argv = argv + ["--max-chars", str(cap)]
         timeout = build_timeout(argv[1])
-        if deps.extend_turn is not None:   # the turn's own clock never cuts the recording short
-            deps.extend_turn(timeout + TURN_FINISH)
-        r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=timeout, cancel=deps.cancel)
+        def extend() -> None:   # the turn's own clock never cuts the recording short, nor its wait for another
+            if deps.extend_turn is not None:
+                deps.extend_turn(timeout + TURN_FINISH)
+        extend()
+        if not _one_recording(deps.cancel, extend):
+            return _result(engine.STOPPED, "", "stopped\n")
+        try:
+            r = engine.run(deps.engine_root, deps.home, argv, extra_env=deps.keys, timeout=timeout, cancel=deps.cancel)
+        finally:
+            RECORDING.release()
         if r.code in MADE_MP3:
             deps.recorded = draft   # the agent's run tool saves it (deps.checkpoint) once its steps are said
         out, err = (_mine_text(deps, t) for t in (r.stdout, r.stderr))

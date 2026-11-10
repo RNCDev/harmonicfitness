@@ -163,6 +163,41 @@ class Run(AgentCase):
         argv, timeout = calls[-1]
         self.assertEqual((argv[-2:], timeout), (["--max-chars", "3000"], tools.BUILD_TIMEOUT))
 
+    def test_one_recording_at_a_time_in_a_worker(self):
+        """Two turns recording at once (worker slots, 0.77.0) render one after the other: rendering is the memory
+        a worker has least of. A Stop while waiting ends it without sending anything."""
+        import copy
+        import threading
+        import time
+        from unittest import mock
+        live, most, started = [0], [0], []
+
+        def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+            if "--max-chars" in argv:
+                live[0] += 1
+                most[0] = max(most[0], live[0])
+                started.append(argv)
+                time.sleep(0.3)
+                live[0] -= 1
+            return tools.engine.Result(0, "recorded", "")
+        approved = {"draft": "me/workouts/a/a.draft.txt", "coach": "Coach Reed", "chars": 3000}
+        mine, theirs = copy.copy(self.deps), copy.copy(self.deps)
+        mine.approved, theirs.approved = dict(approved), dict(approved)
+        with mock.patch.object(tools.engine, "run", side_effect=run):
+            both = [threading.Thread(target=tools.run, args=(d, list(self.BUILD))) for d in (mine, theirs)]
+            for t in both:
+                t.start()
+            for t in both:
+                t.join()
+            self.assertEqual((len(started), most[0]), (2, 1))
+            with tools.RECORDING:   # another turn is recording: this one waits, and the listener presses Stop
+                stopped = copy.copy(self.deps)
+                stopped.approved, stopped.cancel = dict(approved), threading.Event()
+                threading.Timer(0.2, stopped.cancel.set).start()
+                r = tools.run(stopped, list(self.BUILD))
+        self.assertEqual(r.code, tools.engine.STOPPED)
+        self.assertEqual(len(started), 2)
+
     def write_draft(self, *seconds):
         path = os.path.join(self.home, "workouts", "a", "a.draft.txt")
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -504,6 +539,32 @@ class Prefetch(AgentCase):
         with mock.patch.object(agent, "needs_setup", return_value=False):
             text = agent.prefetch(self.deps, "I'd like to change my equipment.")
             self.assertFalse(text.startswith((agent.TASK_FIRST, agent.SETUP_FIRST, agent.COACH_FIRST)))
+
+    def test_two_turns_prefetching_run_at_most_the_workers_cap_of_engine_commands(self):
+        """Worker slots (0.77.0) can start two turns at once: their step-one commands share one cap."""
+        import copy
+        import threading
+        import time
+        from unittest import mock
+        live, most = [0], [0]
+        lock = threading.Lock()
+        real = agent.tools.run
+
+        def run(deps, args):
+            with lock:
+                live[0] += 1
+                most[0] = max(most[0], live[0])
+            time.sleep(0.1)
+            with lock:
+                live[0] -= 1
+            return real(deps, args)
+        with mock.patch.object(agent.tools, "run", side_effect=run):
+            both = [threading.Thread(target=agent.prefetch, args=(copy.copy(self.deps),)) for _ in range(2)]
+            for t in both:
+                t.start()
+            for t in both:
+                t.join()
+        self.assertEqual(most[0], agent.PREFETCH_AT_ONCE)
 
     def test_what_a_first_message_asks_for(self):
         cases = {"Set me up": "setup", "finish setting me up": "setup", "I want a new coach": "coach",

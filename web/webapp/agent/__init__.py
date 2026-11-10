@@ -890,6 +890,16 @@ TASK_FIRST = ("This listener isn't set up yet, and asked for one thing. Do only 
               "them up when they want a first workout.")
 
 
+PREFETCH_AT_ONCE = 3   # step one's engine commands running at once in a worker, across its turns (0.77.0)
+_prefetching = threading.BoundedSemaphore(PREFETCH_AT_ONCE)
+
+
+def _capped(deps: Deps, args: list[str]) -> ToolResult:
+    """tools.run within the worker's cap on step one's engine commands."""
+    with _prefetching:
+        return tools.run(deps, args)
+
+
 def prefetch(deps: Deps, line: str | None = None) -> str:
     """Step 1's commands and reads, run at once; returned as text for the first message. A listener not set up
     yet gets the setup questions only with a workout (or when they ask to be set up): a coach, or any one job
@@ -904,7 +914,7 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
     step = _begin(deps, label, "prefetch")
     commands = first_runs(line)
     with ThreadPoolExecutor(max_workers=len(commands) + len(FIRST_READS)) as pool:
-        runs = [pool.submit(tools.run, plain, a) for a in commands]
+        runs = [pool.submit(_capped, plain, a) for a in commands]
         sheet = f"me/workouts/research/daily/{deps.today}.md"   # a research sheet a computer wrote today
         extra = (sheet,) if deps.today and os.path.isfile(os.path.join(deps.home, "workouts", "research", "daily",
                                                                        f"{deps.today}.md")) else ()
@@ -926,7 +936,7 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
         name = picked
     if name:
         results.append((f"./harmonicfitness get route --coach \"{name}\"",
-                        tools.run(plain, ["get", "route", "--coach", name])))
+                        _capped(plain, ["get", "route", "--coach", name])))
     results.append(("today's workout folders (a new workout's stem takes -2, -3 when one is taken)",
                     ToolResult(code=0, output=_todays_folders(deps))))
     _say(deps, label, "prefetch", 0, step)

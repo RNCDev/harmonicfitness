@@ -35,6 +35,7 @@ HEARTBEAT_RETRY_WAIT = 5  # seconds between those tries: all of them well inside
 # seconds a job may run on after the worker is told to stop (SIGTERM, a deploy) before it's stopped as Stop does:
 # fly.toml's kill_timeout (300) less a minute for it to end cleanly
 DRAIN_SECONDS = 240
+STOP_SLACK = 45           # seconds past DRAIN_SECONDS a stopping worker waits for its other loops' jobs to end
 STOP_POLL = 2             # seconds between the heartbeat's looks for the listener's Stop
 CONNECT_TIMEOUT = 10      # seconds, for the heartbeat's connection
 JOIN_SLACK = 5            # seconds past CONNECT_TIMEOUT that stopping the heartbeat may wait
@@ -883,13 +884,14 @@ def _sweep_due() -> bool:
 
 
 def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None = None, lane: str = "main",
-            stopping: threading.Event | None = None) -> bool:
+            stopping: threading.Event | None = None, upkeep: bool | None = None) -> bool:
     """Reap stale jobs, claim one in `lane` and run it; whether a job ran. `connect` opens the heartbeat's
-    own connection (default: settings.database_url), and the job's others. Only the main lane reaps and sweeps.
+    own connection (default: settings.database_url), and the job's others. Only a lane with `upkeep` reaps and
+    sweeps (the worker gives it to the quick lane, never busy long; called alone, the main lane has it).
     `stopping` is the worker's own stop: a job still running DRAIN_SECONDS after it is set is stopped."""
     _uv_cache()
     connect = connect or (lambda: psycopg.connect(settings.database_url, connect_timeout=CONNECT_TIMEOUT, **KEEPALIVES))
-    if lane == "main":
+    if upkeep if upkeep is not None else lane == "main":
         jobs.reap(conn)
         if _sweep_due():
             media.sweep(conn)
@@ -1010,7 +1012,12 @@ def main() -> int:
     _uv_cache()
     enginelib.lists(settings.engine_root)
     stopping = threading.Event()
-    signal.signal(signal.SIGTERM, lambda *_: stopping.set())
+    stopped_at = [float("inf")]
+
+    def stop(*_) -> None:
+        stopped_at[0] = min(stopped_at[0], time.monotonic())
+        stopping.set()
+    signal.signal(signal.SIGTERM, stop)
     try:
         if not db.wait_for_migrations(lambda: psycopg.connect(settings.database_url,
                                                               connect_timeout=CONNECT_TIMEOUT),
@@ -1019,27 +1026,41 @@ def main() -> int:
     except db.MigrationsPending as e:
         print(f"worker: {e}", file=sys.stderr)
         return 3
-    # enrichment's own lane: a second loop, so working out what feedback teaches never waits behind a workout
-    side = threading.Thread(target=_lane, args=(settings, stopping, "enrich"), daemon=True, name="enrich-lane")
-    side.start()
-    _lane(settings, stopping, "main")
-    side.join(timeout=ENRICH_TIMEOUT)
+    *others, last = lanes(settings)
+    threads = [threading.Thread(target=_lane, args=(settings, stopping, lane, upkeep), daemon=True, name=name)
+               for name, lane, upkeep in others]
+    for t in threads:
+        t.start()
+    _lane(settings, stopping, last[1], last[2])   # the last main slot, on this thread
+    # the other loops' jobs finish too: a deploy's drain stops each DRAIN_SECONDS after SIGTERM, inside fly.toml's
+    # kill_timeout, so none is cut off for reap to find
+    deadline = stopped_at[0] + DRAIN_SECONDS + STOP_SLACK
+    for t in threads:
+        t.join(timeout=max(0.0, deadline - time.monotonic()))
     return 0
 
 
-def _lane(settings: config.Settings, stopping: threading.Event, lane: str) -> None:
+def lanes(settings: config.Settings) -> list[tuple[str, str, bool]]:
+    """(thread name, lane, whether it reaps and sweeps) of each loop the worker runs: the quick lane (balance
+    checks, briefs), enrichment's own, and settings.worker_slots main-lane loops (0.77.0), so one listener's
+    recording never holds up another's turn."""
+    return [("quick-lane", "quick", True), ("enrich-lane", "enrich", False),
+            *((f"main-{n}", "main", False) for n in range(1, settings.worker_slots + 1))]
+
+
+def _lane(settings: config.Settings, stopping: threading.Event, lane: str, upkeep: bool | None = None) -> None:
     """A lane's loop, run again after anything that stops it (logged, by type), until `stopping`: the main lane too
     (0.76.0), so one unexpected error never ends the worker with everyone's jobs left queued."""
     while not stopping.is_set():
         try:
-            serve(settings, stopping, lane=lane)
+            serve(settings, stopping, lane=lane, **({} if upkeep is None else {"upkeep": upkeep}))
         except Exception as e:  # noqa: BLE001 - only the type: the message may be personal
             log.failure(f"the {lane} lane stopped, starting it again", e)
             stopping.wait(RECONNECT_WAIT)
 
 
 def serve(settings: config.Settings, stopping: threading.Event, connect: Callable[[config.Settings], tuple] | None = None,
-          run: Callable[..., bool] | None = None, lane: str = "main") -> None:
+          run: Callable[..., bool] | None = None, lane: str = "main", upkeep: bool | None = None) -> None:
     """Run jobs until `stopping` is set, waiting on NOTIFY between them. When the database closes the
     connection (it does, about hourly), it reconnects rather than exiting; a job running then fails as
     any interrupted job does."""
@@ -1058,7 +1079,8 @@ def serve(settings: config.Settings, stopping: threading.Event, connect: Callabl
                 if conn is None:
                     conn, listen = connect(settings)
                     opened = time.monotonic()
-                if run(conn, settings, **({"lane": lane} if lane != "main" else {})):
+                kw = {**({"lane": lane} if lane != "main" else {}), **({} if upkeep is None else {"upkeep": upkeep})}
+                if run(conn, settings, **kw):
                     continue
                 for _ in listen.notifies(timeout=IDLE_WAIT, stop_after=1):
                     pass

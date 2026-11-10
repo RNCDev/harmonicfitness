@@ -27,6 +27,7 @@ class Settings:
     providers: tuple[str, ...] = ("anthropic", "openai", "google", "openrouter")
     daily_chars: int = spend.DEFAULT_DAILY_CHARS   # each listener's daily allowance for recordings
     writers: str = "three"       # who writes a script's words (WRITERS)
+    worker_slots: int = 2        # main-lane loops a worker runs side by side (1 to MAX_SLOTS)
 
 
 def _required(env: Mapping[str, str], name: str) -> str:
@@ -47,6 +48,17 @@ def _writers(env: Mapping[str, str]) -> str:
     """Three writers write the script (0.51.0); HARMONICFITNESS_WRITERS=one has the agent write it, in passes."""
     wanted = env.get("HARMONICFITNESS_WRITERS", "three")
     return wanted if wanted in WRITERS else "three"
+
+
+MAX_SLOTS = 4   # main-lane loops a worker may run: each turn's engine and the model's answers share its memory
+
+
+def _worker_slots(env: Mapping[str, str]) -> int:
+    """HARMONICFITNESS_WORKER_SLOTS: turns a worker runs at once (0.77.0); 1 is how it ran before."""
+    try:
+        return min(MAX_SLOTS, max(1, int(env.get("HARMONICFITNESS_WORKER_SLOTS", 2))))
+    except ValueError:
+        return 2
 
 
 def load(env: Mapping[str, str]) -> Settings:
@@ -70,4 +82,5 @@ def load(env: Mapping[str, str]) -> Settings:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return Settings(database_url=database_url, master_key=master, base_url=base_url,
                     role=role, engine_root=root, registration=reg == "open",
-                    providers=tuple(providers.offered(env)), daily_chars=_daily_chars(env), writers=_writers(env))
+                    providers=tuple(providers.offered(env)), daily_chars=_daily_chars(env), writers=_writers(env),
+                    worker_slots=_worker_slots(env))

@@ -1,4 +1,5 @@
 import datetime
+import dataclasses
 import json
 import os
 import sys
@@ -39,8 +40,8 @@ class JobsCase(DBCase):
     def connect(self):
         return db.connect(dbcase.URL, schema=self.schema)
 
-    def run_one(self):
-        return worker.run_one(self.conn, self.settings, connect=self.connect)
+    def run_one(self, lane="main"):
+        return worker.run_one(self.conn, self.settings, connect=self.connect, lane=lane)
 
     def seeded_user(self):
         user_id, uk = self.make_user()
@@ -174,7 +175,7 @@ class Worker(JobsCase):
             return worker.engine.Result(0, out, "")
         job = enqueue(self.conn, uk, "balances", {})
         with mock.patch.object(worker.engine, "run", side_effect=record):
-            self.assertTrue(self.run_one())
+            self.assertTrue(self.run_one("quick"))
         self.assertEqual(self.state(job), ("done", None))
         self.assertEqual(seen, [(["balances", "--json"], {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})])
         self.assertEqual(jobs.result(self.conn, uk, job), {"balances": {"fish": {"ok": True, "usd": 12.50},
@@ -186,11 +187,11 @@ class Worker(JobsCase):
         _, uk = self.seeded_user()
         with mock.patch.object(worker.engine, "run", return_value=worker.engine.Result(0, "not json", "")):
             job = enqueue(self.conn, uk, "balances", {})
-            self.run_one()
+            self.run_one("quick")
             self.assertEqual(self.state(job), ("failed", "the engine's answer couldn't be read"))
         with mock.patch.object(worker.engine, "run", side_effect=AssertionError("engine ran")):
             job = enqueue(self.conn, uk, "balances", {"x": 1})
-            self.run_one()
+            self.run_one("quick")
             self.assertTrue(self.state(job)[1].startswith("invalid request: "))
         self.conn.rollback()
 
@@ -1285,6 +1286,74 @@ class Lanes(JobsCase):
         with self.assertRaises(psycopg.errors.UniqueViolation):
             self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
         self.conn.rollback()
+
+
+class QuickLane(JobsCase):
+    """A balance check runs in a lane of its own (0.77.0), never behind a turn."""
+
+    def test_a_balance_check_runs_beside_a_turn_one_at_a_time(self):
+        _, uk = self.make_user()
+        turn = enqueue(self.conn, uk, "turn", {})
+        balances = enqueue(self.conn, uk, "balances", {})
+        again = enqueue(self.conn, uk, "balances", {})
+        self.assertEqual(jobs.claim(self.conn).id, turn)                # the main lane never takes a quick job
+        self.assertIsNone(jobs.claim(self.conn))
+        self.assertIsNone(jobs.claim(self.conn, "enrich"))
+        self.assertEqual(jobs.claim(self.conn, "quick").id, balances)   # beside the running turn
+        self.assertIsNone(jobs.claim(self.conn, "quick"))               # one quick job a listener at once
+        self.conn.execute("update jobs set state = 'done' where id = %s", (balances,))
+        self.conn.commit()
+        self.assertEqual(jobs.claim(self.conn, "quick").id, again)
+
+    def test_the_unique_index_holds_one_quick_job_a_listener(self):
+        _, uk = self.make_user()
+        a, b = enqueue(self.conn, uk, "balances", {}), enqueue(self.conn, uk, "balances", {})
+        t = enqueue(self.conn, uk, "turn", {})
+        self.conn.execute("update jobs set state = 'running' where id = any(%s)", ([a, t],))
+        self.conn.commit()
+        with self.assertRaises(psycopg.errors.UniqueViolation):
+            self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
+        self.conn.rollback()
+
+
+class Slots(JobsCase):
+    """Several main-lane loops in one worker (HARMONICFITNESS_WORKER_SLOTS, 0.77.0)."""
+
+    def test_the_lanes_a_worker_runs(self):
+        plan = worker.lanes(dataclasses.replace(self.settings, worker_slots=3))
+        self.assertEqual([(lane, upkeep) for _, lane, upkeep in plan],
+                         [("quick", True), ("enrich", False), ("main", False), ("main", False), ("main", False)])
+        self.assertEqual(len({name for name, _, _ in plan}), 5)
+
+    def test_two_listeners_turns_run_side_by_side(self):
+        _, a = self.make_user()
+        _, b = self.make_user()
+        first, second = enqueue(self.conn, a, "turn", {}), enqueue(self.conn, b, "turn", {})
+        other = self.connect()
+        self.addCleanup(other.close)
+        self.assertEqual(jobs.claim(self.conn).id, first)
+        self.assertEqual(jobs.claim(other).id, second)   # a second slot isn't held up by the first's
+
+    def test_only_the_upkeep_lane_reaps_and_sweeps(self):
+        from unittest import mock
+        with mock.patch.object(jobs, "reap") as reap, mock.patch.object(worker, "_sweep_due", return_value=False):
+            worker.run_one(self.conn, self.settings, connect=self.connect, upkeep=False)
+            reap.assert_not_called()
+            worker.run_one(self.conn, self.settings, connect=self.connect, lane="quick", upkeep=True)
+            reap.assert_called_once()
+            worker.run_one(self.conn, self.settings, connect=self.connect)   # the main lane alone, as before
+            self.assertEqual(reap.call_count, 2)
+
+    def test_serve_passes_the_lane_and_its_upkeep(self):
+        stopping = threading.Event()
+        seen = []
+
+        def run(conn, settings, **kw):
+            seen.append(kw)
+            stopping.set()
+            return True
+        worker.serve(None, stopping, connect=lambda s: (mock.Mock(), mock.Mock()), run=run, lane="main", upkeep=False)
+        self.assertEqual(seen, [{"upkeep": False}])
 
 
 class Enrich(JobsCase):
