@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.77.1] - 2026-11-09
+
+### Fixed
+- **`sync` works again for a copy first synced before 0.71.2.** The site still kept that copy's `workouts/.logs/backup-remote.json`, which `sync` has kept to the computer since 0.71.2 and, since 0.76.0, refuses to be named: every sync stopped with "The web app named a file it never keeps" and nothing was synced. The sync routes now never list or read what `sync` keeps to the computer (`folder.LOCAL_ONLY`, held in step with `tools/websync.py`'s by `test_sync`).
+
+### For forks
+- `webapp/folder.py` has `LOCAL_ONLY` and `local_only(path)`; `routes.files._syncable` leaves those paths out.
+
 ## [0.77.0] - 2026-11-09
 
 The back-end audit's scaling part: what a request costs no longer grows with the number of listeners or the length of their history. A progress stream holds no connection, a small question reads only the files it needs, a player's seek opens one megabyte rather than the whole MP3, and one listener's recording no longer makes everyone else's turn wait. A minor release because the maintainer asked for one: three migrations, and the worker runs more than one turn at once.

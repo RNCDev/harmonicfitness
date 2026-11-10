@@ -26,9 +26,22 @@ class SkipLists(unittest.TestCase):
             sys.path.remove(os.path.join(ROOT, "tools"))
         self.assertEqual(websync.SKIP, folder.SKIP)
         self.assertEqual(websync.COACH_SAMPLE.pattern, folder.COACH_SAMPLE.pattern)   # and the one MP3 both keep
+        self.assertEqual(websync.LOCAL_ONLY, folder.LOCAL_ONLY)   # and what the computer keeps to itself
 
 
 class Routes(test_api.ApiCase):
+    def test_a_file_the_computer_keeps_to_itself_is_never_listed(self):
+        """A copy synced before 0.71.2 still holds the backup's remote note; listed, it stops every sync (0.77.1)."""
+        _, uk = self.signed_in()
+        store.write_back(self.conn, uk, {"log.md": b"log", "workouts/.logs/backup-remote.json": b"{}",
+                                         "web/sync-state.json": b"{}"}, {})
+        self.conn.commit()
+        listed = [f["path"] for f in self.client.get("/api/sync").json()["files"]]
+        self.assertEqual(listed, ["log.md"])
+        r = self.client.post("/api/sync/read", headers=self.origin(),
+                             json={"paths": ["workouts/.logs/backup-remote.json", "log.md"]})
+        self.assertEqual([f["path"] for f in r.json()["files"]], ["log.md"])
+
     def test_list_read_write(self):
         _, uk = self.signed_in()
         store.write_back(self.conn, uk, {"log.md": b"log", "workouts/w/w.draft.txt": b"draft"}, {})

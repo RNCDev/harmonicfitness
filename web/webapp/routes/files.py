@@ -42,7 +42,7 @@ def _syncable(path: str) -> bool:
         store.check_path(path)
     except ValueError:
         return False
-    return not folder.skipped(path) and not path.startswith(folder.AUDITIONS)
+    return not folder.skipped(path) and not path.startswith(folder.AUDITIONS) and not folder.local_only(path)
 
 
 @router.get("/api/sync")

@@ -19,6 +19,29 @@ SKIP = (
     "*.mp3", "*.wav", "*.log", "*.log.1", ".gitignore", ".DS_Store", ".cache/",
 )
 
+# What `./harmonicfitness sync` keeps on the computer alone (tools/websync.py's LOCAL_ONLY, which test_sync holds in
+# step): it refuses a whole sync whose listing names one, so the sync routes never list or read one. A copy synced
+# before 0.71.2 still holds the backup's remote note, and listing it stopped every sync (0.77.1).
+LOCAL_ONLY = ("web/", "coaches/.auditions/", ".git/", ".backup-*", "*.bundle", "workouts/.logs/backup-remote.json")
+
+
+def local_only(path: str) -> bool:
+    """Whether `sync` keeps this path to the computer, matched as websync.skipped matches it (case-blind too)."""
+    for rel in {path, path.lower()}:
+        parts = rel.split("/")
+        for pat in LOCAL_ONLY:
+            if pat.endswith("/"):
+                prefix = pat.split("/")[:-1]
+                if parts[:len(prefix)] == prefix and len(parts) > len(prefix):
+                    return True
+            elif "/" in pat:
+                if fnmatch.fnmatchcase(rel, pat):
+                    return True
+            elif fnmatch.fnmatchcase(parts[-1], pat) or fnmatch.fnmatchcase(parts[0], pat):
+                return True
+    return False
+
+
 # A coach's audition spans turns (the candidates, then the listener's pick), so its files are kept until
 # forget-audition removes them: the narrative beside the auditions, and in each audition's folder its
 # candidates list, narrative and each candidate's WAV (which keep sends to the service) and MP3.
