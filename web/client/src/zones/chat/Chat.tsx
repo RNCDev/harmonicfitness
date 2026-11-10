@@ -23,7 +23,7 @@ export type KeyNeeded = { name: string; service: string; voice: boolean }[];
 
 /** What the first screen shows before any line: the welcome (no key yet), the conversation waiting from earlier
  * today, or the request. */
-export type FirstScreen = {
+type FirstScreen = {
   /** No language-model key yet: the keys to choose from, in place of the request, and the choosing. */
   needsKey?: KeyNeeded | null;
   onAddKey?: (service: string) => void;

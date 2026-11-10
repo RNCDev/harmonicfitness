@@ -352,12 +352,10 @@ def _client_ts(word: Word) -> None:
 
     forms = {k: {"width": MARK_W, "height": MARK_H, "segments": shape(mark(k))} for k in LADDER}
     bx0, by0, bx1, by1 = word.bounds
-    segs, lw, dx, width, ltop, top, bottom = word_h_layout(word)
     CLIENT_TS.write_text(
         "// Made by assets/brand/make.py: the mark's segments and the wordmark's outlines. Don't edit by hand.\n"
         "// A segment's `ch` is its channel (L, R, or M for the middle bar, always lit) and `fb` its place\n"
         "// counted from the bottom; `lit` is the still mark's reading.\n"
-        f'export const CORAL = "{CORAL}";\n'
         f"export const FITNESS_OPACITY = {FITNESS_OPACITY};\n"
         f"export const UNLIT = {UNLIT};\n"
         "export type Segment = { x: number; y: number; w: number; h: number; rx: number; fill: string; "
@@ -366,12 +364,7 @@ def _client_ts(word: Word) -> None:
         f"export const MARK: Record<\"full\" | \"mid\" | \"small\", Form> = {json.dumps(forms)};\n"
         f"export const WORDMARK = {{\n  width: {fmt(bx1 - bx0)},\n  height: {fmt(by1 - by0)},\n"
         f'  harmonic: "{shift_path(word.h + word.armonic, -bx0, -by0)}",\n'
-        f'  fitness: "{shift_path(word.fitness, -bx0, -by0)}",\n}};\n'
-        f"export const WORDMARK_H = {{\n  width: {fmt(width)},\n  height: {fmt(bottom - top)},\n"
-        f"  letter: {json.dumps({'width': round(lw, 2), 'height': round(word.cap, 2), 'segments': shape(segs)})},\n"
-        f"  letterY: {fmt(ltop - top)},\n"
-        f'  armonic: "{shift_path(word.armonic, dx, -top)}",\n'
-        f'  fitness: "{shift_path(word.fitness, dx, -top)}",\n}};\n')
+        f'  fitness: "{shift_path(word.fitness, -bx0, -by0)}",\n}};\n')
 
 
 if __name__ == "__main__":

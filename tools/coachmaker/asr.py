@@ -10,6 +10,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common  # noqa: E402
 
 
-def transcribe(wavs, work=None):
-    """{wav path: what was heard}. `work` is kept for the callers' sake; nothing is written there now."""
+def transcribe(wavs):
+    """{wav path: what was heard}."""
     return common.transcribe(list(wavs))

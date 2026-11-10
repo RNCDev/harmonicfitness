@@ -22,7 +22,7 @@ import { Section } from "../../ui/Section";
 const setOn = (iso: string | null) => (shortDay(iso) ? `Key added ${shortDay(iso)}` : "Key added");
 
 /** A balance check's state for one row: still asking, its answer, or nothing to say. */
-export type BalanceState = "checking" | Balance | null;
+type BalanceState = "checking" | Balance | null;
 
 /** The balance where the service says it, else a link icon to its billing page. */
 function BalanceTag({ k, balance }: { k: KeyRowState; balance: BalanceState }) {

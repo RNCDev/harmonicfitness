@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { NotSignedIn, plainError } from "./api";
 
-export type Resource<T> = {
+type Resource<T> = {
   /** The answer, null until it's in. */
   data: T | null;
   /** Why the last ask failed, in words for a person; null while it's fine. */

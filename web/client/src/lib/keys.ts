@@ -31,7 +31,7 @@ export function hasModelKey(keys: KeyState[] | null): boolean | null {
 }
 
 /** The writers that also voice coaches, in the order they're offered: first, ahead of the rest. */
-export const FIRST = ["openrouter", "gemini"];
+const FIRST = ["openrouter", "gemini"];
 
 /** Where a service sorts: the writers that voice first, then any other voice, then writers alone. */
 export function writerRank(service: string, voice: boolean): number {

@@ -5,12 +5,12 @@ import type { Level } from "./request";
 
 /** A side's state: fine, go easy, keep off. */
 export type Mark = "clear" | Level;
-export const MARKS: Mark[] = ["clear", "easy", "off"];
+const MARKS: Mark[] = ["clear", "easy", "off"];
 export const MARK_WORDS: Record<Mark, string> = { clear: "ok", easy: "go easy", off: "keep off" };
 
 const rank = (m: Mark) => MARKS.indexOf(m);
 /** "knee" from "left knee". */
-export const baseArea = (key: string) => key.replace(/^(left|right) /, "");
+const baseArea = (key: string) => key.replace(/^(left|right) /, "");
 
 /** A side's mark in `marks`; a mark with no side holds both sides. */
 export function markIn(marks: Record<string, Level>, key: string): Mark {

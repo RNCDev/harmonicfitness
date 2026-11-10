@@ -28,7 +28,7 @@ from .tools import Deps, ToolResult
 from .writers import web_copy
 
 __all__ = ["AGENT", "Deps", "LIMITS", "audition_open", "prefetch", "wants_coach", "start_feeds", "NOT_OPEN", "STOPPED", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
-           "UNFINISHABLE", "run_turn"]
+           "run_turn"]
 
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
 # The writer's own web search (Gemini's Google Search, Claude's, ChatGPT's, OpenRouter's), billed by its provider
@@ -961,7 +961,6 @@ def start_feeds(deps: Deps, pool: ThreadPoolExecutor) -> Future:
 
 
 NOT_OPEN = "not_open"            # TurnError.reason: an answer to a question (this agent asks in the chat)
-UNFINISHABLE = "unfinishable"    # TurnError.reason: kept for the worker's wording
 TIMED_OUT = "timed_out"          # TurnError.reason: the turn ran past TURN_SECONDS and was cancelled
 STOPPED = "stopped"              # TurnError.reason: the listener pressed Stop
 

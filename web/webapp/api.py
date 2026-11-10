@@ -39,7 +39,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import APP_NAME, config, db, engine, enginelib, log, streams
 from .folder import IMPORT_MAX_TOTAL, IMPORT_MAX_ZIP
 
-MINUTES = [10, 15, 20, 25, 30, 45]
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 HSTS = (b"strict-transport-security", b"max-age=31536000")
 
@@ -249,8 +248,6 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                client_dist: str | os.PathLike | None = None) -> FastAPI:
     """The app. `connect` (tests) opens a connection; without it requests use a pool of
     settings.database_url, and the job events listener (streams.Hub) opens its own connection to it."""
-    goals, presets = enginelib.lists(settings.engine_root)
-    options = {"minutes": list(MINUTES), "goals": sorted(goals), "presets": sorted(presets)}
     services = enginelib.services(settings.engine_root)
     version = build_version(settings.engine_root)
     enginelib.keys(settings.engine_root)    # a broken import fails at startup
@@ -313,7 +310,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     from .routes import account, auth as authroutes, client, conversations as conversationroutes, files, \
         jobs as jobroutes, logs, media as mediaroutes, settings as settingroutes, state as routestate
     app.state.hf = routestate.AppState(
-        settings=settings, connection=connection, open_stream=open_stream, options=options, services=services,
+        settings=settings, connection=connection, open_stream=open_stream, services=services,
         version=version, dist=dist, origin=origin,
         throttles={"login_name": Throttle(*authroutes.LOGIN_PER_NAME),
                    "login_addr": Throttle(*authroutes.LOGIN_PER_ADDRESS),

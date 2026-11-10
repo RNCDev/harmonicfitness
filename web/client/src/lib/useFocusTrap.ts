@@ -6,7 +6,7 @@ import { useEffect, useRef, type RefObject } from "react";
 const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), "
   + "textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
-export function focusables(root: HTMLElement): HTMLElement[] {
+function focusables(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.closest("[hidden], [inert]"));
 }
 

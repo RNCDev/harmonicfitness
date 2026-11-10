@@ -10,7 +10,7 @@ import { AudioPlayer } from "../ui/Player";
 type ReadyWorkout = { slug: string; order: number; title: string; kind: string; coach: string; minutes: number;
   about: string; audio: string };
 
-export const READY = (data.workouts as ReadyWorkout[]).slice().sort((a, b) => a.order - b.order);
+const READY = (data.workouts as ReadyWorkout[]).slice().sort((a, b) => a.order - b.order);
 
 export function ReadyWorkouts({ intro = "Or start now with a ready-made workout", panel = false }: {
   intro?: string; panel?: boolean;

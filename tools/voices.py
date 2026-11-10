@@ -320,8 +320,3 @@ def download(v=None):
         finally:
             locks.release(lock)
 
-
-def write_wav(path, pcm, rate=24000):
-    """16-bit mono PCM to a .wav file (tools/wav.py)."""
-    import wav
-    wav.write_wav(path, pcm, rate)

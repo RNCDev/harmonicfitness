@@ -28,7 +28,6 @@ class AppState:
     settings: config.Settings
     connection: Callable[[], Any]         # a contextmanager: a pooled connection, or the tests' own
     open_stream: Callable[[], psycopg.Connection]   # the job events listener's connection
-    options: dict
     services: dict[str, dict]
     version: str
     dist: Path

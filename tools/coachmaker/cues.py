@@ -366,7 +366,7 @@ def make(slugs, rerender=True, singles=False):
             continue
         beats = beat_takes(slug, takes)
         heard = asr.transcribe([p for p in takes.values() if os.path.exists(p) and "countdown" not in p]
-                               + list(beats.values()), os.path.join(WORK, slug, "asr"))
+                               + list(beats.values()))
         got = choose(slug, takes, heard, beats)
         missing = [k for k in ["countdown", *CUES] if k not in got or got[k].get("unverified")]
         report[slug] = {"chosen": {k: v["seed"] for k, v in got.items()},
@@ -388,7 +388,7 @@ def make_singles(slug, takes, report):
     if takes is None:
         takes = {(f"n-{w}", s_): os.path.join(WORK, slug, "takes", str(s_), f"n-{w}.wav") for w in NUMBERS for s_ in SEEDS}
     pads = padded(slug, takes)
-    heard = asr.transcribe(list(pads.values()), os.path.join(WORK, slug, "asr-singles"))
+    heard = asr.transcribe(list(pads.values()))
     got = choose_singles(takes, heard, pads)
     r = report.setdefault(slug, {"chosen": {}, "passing": {}, "seconds": {}, "missing": []})
     if got["pieces"] is None:

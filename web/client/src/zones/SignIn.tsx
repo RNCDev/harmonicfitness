@@ -18,7 +18,7 @@ import { Solo } from "../ui/Solo";
 /** The server's rule for a new username (web/webapp/auth.py USERNAME), checked here too, as you type once you've
  * tried, so it's said under the box before anything is sent. */
 const USERNAME = /^[a-z0-9][a-z0-9_.-]{2,31}$/;
-export const badName = (name: string) => (USERNAME.test(name.trim().toLowerCase()) ? null
+const badName = (name: string) => (USERNAME.test(name.trim().toLowerCase()) ? null
   : "Use 3 to 32 letters, numbers, dots, dashes or underscores, starting with a letter or number.");
 
 /** Set once someone signs in here, so the next visit opens on the form. Browser storage can refuse: then it's the front. */

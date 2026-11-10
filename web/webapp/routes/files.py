@@ -30,13 +30,6 @@ class SyncWrite(BaseModel):
     changes: Annotated[list[SyncChange], Field(max_length=500)]
 
 
-@router.get("/api/context")
-def context(st: St, uk: User):
-    with read(st) as conn:
-        rows = store.listing(conn, uk)
-    return [{"path": p, "version": v, "updated_at": u.isoformat()} for p, v, u in rows]
-
-
 def _syncable(path: str) -> bool:
     try:
         store.check_path(path)

@@ -111,18 +111,9 @@ def to_clip(raw):
     return np.clip(a * gain, -32768, 32767).astype("<i2").tobytes()
 
 
-def write_wav(path, pcm):
-    import wav
-    wav.write_wav(path, pcm, verify.SR)
-
-
 def to_mp3(wav, mp3):
     subprocess.run([ffmpeg_tool.exe(), "-y", "-v", "error", "-i", wav, "-c:a", "libmp3lame", "-b:a", "128k", mp3],
                    check=True)
-
-
-def transcribe(wavs):
-    return asr.transcribe(wavs, os.path.join(WORK, "asr"))
 
 
 def load_takes():
@@ -208,7 +199,7 @@ def main(argv=None):
             key = f"{t['slug']}/{name}-{t['seed']}"
             wav = t["wav"].replace(".raw.wav", ".wav")
             pcm = to_clip(t["wav"])
-            write_wav(wav, pcm)
+            common.write_wav(wav, pcm)
             mp3 = os.path.join(LISTEN, t["slug"], f"{name}-{t['seed']}.mp3")
             os.makedirs(os.path.dirname(mp3), exist_ok=True)
             to_mp3(wav, mp3)
@@ -219,7 +210,7 @@ def main(argv=None):
                           "text": t.get("text") or r["script"],
                           "device": rec.get("gpu"), "runtime": rec.get("runtime")}
             fresh.append(key)
-    heard = transcribe([takes[k]["wav"] for k in fresh])
+    heard = asr.transcribe([takes[k]["wav"] for k in fresh])
     for k in fresh:
         t = takes[k]
         if heard.get(t["wav"]) is not None:

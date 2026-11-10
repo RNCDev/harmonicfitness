@@ -6,7 +6,7 @@ import { mss } from "../lib/format";
 import { Icon } from "./icons";
 import { Notice } from "./Notice";
 
-export function PlayButton({ playing, onClick, label, large = false }: {
+function PlayButton({ playing, onClick, label, large = false }: {
   playing: boolean; onClick: () => void; label: string; large?: boolean;
 }) {
   return (
@@ -17,7 +17,7 @@ export function PlayButton({ playing, onClick, label, large = false }: {
 }
 
 /** The line to seek along, with `ticks` (seconds) marked on it. Disabled until the clip's length is known. */
-export function Seek({ at, length, onSeek, label, ticks = [] }: {
+function Seek({ at, length, onSeek, label, ticks = [] }: {
   at: number; length: number; onSeek: (t: number) => void; label: string; ticks?: number[];
 }) {
   return (
@@ -33,7 +33,7 @@ export function Seek({ at, length, onSeek, label, ticks = [] }: {
 }
 
 /** "0:12 / 0:45" while it plays or has played, else its length; `idle` before the length is known. */
-export function PlayTime({ at, length, playing, idle = "" }: { at: number; length: number; playing: boolean; idle?: string }) {
+function PlayTime({ at, length, playing, idle = "" }: { at: number; length: number; playing: boolean; idle?: string }) {
   return <span className="p-time">{length ? (playing || at > 0 ? `${mss(at)} / ${mss(length)}` : mss(length)) : idle}</span>;
 }
 

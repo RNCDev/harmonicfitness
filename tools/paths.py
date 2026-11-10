@@ -65,7 +65,6 @@ MY_MOVEMENTS = os.path.join(HOME, "movements.toml")   # the listener's private m
 ENV_FILE = (os.path.abspath(os.path.expanduser(os.environ["HARMONICFITNESS_KEYS"])) if os.environ.get("HARMONICFITNESS_KEYS")
             else os.path.join(HOME, ".env"))
 WORKOUTS = os.path.join(HOME, "workouts")
-CHECKS = os.path.join(WORKOUTS, "checks")             # smoke tests and builds of drafts outside a workout folder
 RESEARCH = os.path.join(WORKOUTS, "research")
 DAILY = os.path.join(RESEARCH, "daily")               # each day's research sheet and feeds
 VIDEOS = os.path.join(RESEARCH, "videos")

@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { checkBalances, type Balance } from "./api";
 
-export type Balances = Record<string, Balance> | "checking" | null;
+type Balances = Record<string, Balance> | "checking" | null;
 
 export function useBalances(asking: string): Balances {
   const [balances, setBalances] = useState<Balances>(null);

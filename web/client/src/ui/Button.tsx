@@ -22,7 +22,7 @@ const LOOK = {
 /** The cream button's sizes: `lg` for the first screen's one action, `sm` to close a panel. */
 const SIZE = { md: "", lg: "start", sm: "done" } as const;
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: keyof typeof LOOK; size?: keyof typeof SIZE; danger?: boolean; busy?: boolean; busyLabel?: string;
   /** A toggle: on or off (aria-pressed). Leave it out for a plain button. */
   pressed?: boolean;

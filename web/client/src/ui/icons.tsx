@@ -24,7 +24,7 @@ const FILLED = {
   pause: <path d="M6.75 4.5h3.9v15h-3.9zM13.35 4.5h3.9v15h-3.9z" />,
 } satisfies Record<string, ReactNode>;
 
-export type IconName = keyof typeof LINE | keyof typeof FILLED;
+type IconName = keyof typeof LINE | keyof typeof FILLED;
 
 /** An icon `size` pixels square. Line icons share one weight; `weight` thickens a small one so it still reads. */
 export function Icon({ name, size = 16, weight = 1.75, className }: { name: IconName; size?: number; weight?: number;

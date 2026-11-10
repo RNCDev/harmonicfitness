@@ -2,7 +2,7 @@
 // back button closes it. The Settings drawer and the pickers are moments, not places: they stay out of it.
 import { useCallback, useEffect, useState } from "react";
 
-export type Page = "chat" | "logs" | "coaches";
+type Page = "chat" | "logs" | "coaches";
 const PAGES: Page[] = ["logs", "coaches"];
 
 function read(): Page {

@@ -25,7 +25,7 @@ export type Me = { app_name: string; username: string; has_password: boolean; ve
 /** The listener's level (novice when none is set), and the three to choose from as a listener would say each. */
 export type LevelState = { level: Level; set: boolean; choices: { level: Level; said: string }[] };
 export type Level = "novice" | "experienced" | "advanced";
-export type AuthInfo = { app_name: string; registration: boolean; version: string };
+type AuthInfo = { app_name: string; registration: boolean; version: string };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
   service: string; name: string; key_page: string; set: boolean; updated_at: string | null;
@@ -40,8 +40,8 @@ export type KeyState = {
 export type Balance = { ok: boolean; usd?: number; used?: number; limit?: number; resets?: number | null;
   kind?: string };
 export type Stage = { stage: string; [field: string]: unknown };
-export type JobState = "queued" | "running" | "done" | "failed";
-export type JobView = {
+type JobState = "queued" | "running" | "done" | "failed";
+type JobView = {
   id: number;
   state: JobState;
   error: string | null;
@@ -55,7 +55,7 @@ export type JobView = {
 export type Audio = { id: string; name: string; expires_at: string | null; gone?: boolean };
 export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
 /** The plan the engine worked out from the draft's own segments (`get plan`), so its times add up. */
-export type PlanRow = { what: string; kind: "movement" | "rest" | "talk"; segments: number; seconds: number };
+type PlanRow = { what: string; kind: "movement" | "rest" | "talk"; segments: number; seconds: number };
 export type Plan = { rows: PlanRow[]; seconds: number };
 /** `first`: no script has gone to a voice service yet, so the card says where it goes. */
 export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean;
@@ -83,7 +83,7 @@ export type StartCoach = { slug: string; name: string; first: string; service: s
   /** Who makes the voices, where the service is a go-between: OpenRouter's "ElevenLabs". */
   powered_by?: string | null };
 export type StartKit = { id: string; label: string; preset: boolean };
-export type StartLimit = { area: string; side: string | null; level: "delicate" | "off-limits" };
+type StartLimit = { area: string; side: string | null; level: "delicate" | "off-limits" };
 export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: number; limits: StartLimit[];
   suggest: { goal: string; target?: string | null; reason: string } | null; setup_quick: boolean;
   /** No level yet: the first screen asks the setup's first questions with the request. */
@@ -292,7 +292,7 @@ export function useJob() {
 
 /** How waiting on a background job ended: its result once done, else why there is none. "gone": the screen that
  * asked closed first. */
-export type JobEnd = { state: "done"; result: unknown } | { state: "failed" | "timeout" | "gone" };
+type JobEnd = { state: "done"; result: unknown } | { state: "failed" | "timeout" | "gone" };
 
 /** Wait for a worker job, reading it every `every` ms for at most `within` ms, while `live()` holds. The one
  * polling loop on this side: the balance check and the feedback's summary both use it. A failed read ends it as

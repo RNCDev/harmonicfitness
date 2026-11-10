@@ -98,7 +98,7 @@ class SignIn(ApiCase):
 
     def test_requires_session(self):
         self.assertEqual(self.client.get("/api/me").status_code, 401)
-        for path in ("/api/options", "/api/context", "/api/jobs/1", "/api/jobs/1/events"):
+        for path in ("/api/sync", "/api/jobs/1", "/api/jobs/1/events"):
             self.assertEqual(self.client.get(path).status_code, 401, path)
         for path in ("/api/jobs", "/api/sign-out", "/api/device-link", "/api/password"):
             self.assertEqual(self.client.post(path, json={}, headers=self.origin()).status_code,
@@ -123,7 +123,7 @@ class SignIn(ApiCase):
         self.assertEqual(self.client.get("/api/me").json(),
                          {"app_name": "HarmonicFitness", "username": "fresh.one",
                           "has_password": True, "version": VERSION, "sky": "flow", "auto_record": False})
-        self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/context").json()])
+        self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/sync").json()["files"]])
         r = self.register("FRESH.ONE", client=self.other_client())
         self.assertEqual(r.status_code, 409)
         self.assertEqual(r.json(), {"detail": "That username is taken.", "field": "username",
@@ -344,24 +344,6 @@ class Hsts(ApiCase):
 
 
 class Api(ApiCase):
-    def test_options_lists_goals(self):
-        self.signed_in()
-        body = self.client.get("/api/options").json()
-        self.assertIn("strength", body["goals"])
-        self.assertIn("bodyweight", body["presets"])
-        self.assertEqual(body["minutes"], [10, 15, 20, 25, 30, 45])
-
-    def test_context_lists_names_only(self):
-        user_id, uk = self.signed_in()
-        store.write_back(self.conn, uk, folder.seed(ROOT), {})
-        self.conn.commit()
-        body = self.client.get("/api/context").json()
-        paths = {f["path"] for f in body}
-        self.assertIn("profile.md", paths)
-        for f in body:
-            self.assertEqual(set(f), {"path", "version", "updated_at"})
-            datetime.datetime.fromisoformat(f["updated_at"])
-
     def test_post_job_validates_shape(self):
         self.signed_in()
         good = {"kind": "brief", "goal": "strength", "minutes": 20, "preset": "bodyweight",

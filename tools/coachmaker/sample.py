@@ -36,7 +36,7 @@ for slug in sys.argv[2:]:
             import wav
             wav.write_wav(p, pcm, 24000)
             pcms[(i, s)], wavs[(i, s)] = pcm, p
-    heard = asr.transcribe(list(wavs.values()), os.path.join(work, "asr"))
+    heard = asr.transcribe(list(wavs.values()))
     chosen, report = {}, []
     for i, text in enumerate(lines):
         best = None

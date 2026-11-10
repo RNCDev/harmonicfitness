@@ -6,7 +6,7 @@ import type { Plan } from "./api";
 export type Step = { text: string; failed?: boolean; running?: boolean; think?: boolean; key?: string;
   /** What a running step waits on, for the note on a long wait (the server's codes.step_kind). */
   kind?: StepKind };
-export type StepKind = "think" | "recording" | "voice";
+type StepKind = "think" | "recording" | "voice";
 const KINDS: StepKind[] = ["think", "recording", "voice"];
 
 /** A turn's job events as its steps, oldest first: an event with an id updates that step (it's said as it

@@ -53,10 +53,6 @@ def me(st: St, uk: User):
             "auto_record": auto}
 
 
-@router.get("/api/options")
-def get_options(st: St, uk: User):
-    return st.options
-
 coach_slug = re.compile(r"coach-[a-z0-9-]{1,60}")
 
 
