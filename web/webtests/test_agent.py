@@ -153,6 +153,19 @@ class Run(AgentCase):
             return tools.engine.Result(0, "recorded", "")
         return mock.patch.object(tools.engine, "run", side_effect=run), calls
 
+    def test_three_writer_turns_carry_only_the_drafts_guides(self):
+        """The agent writes only the skeleton: of tts-rules.md it keeps the draft's format and the markers; the
+        voice rules are the writers'. A one-writer turn carries the whole file."""
+        three = agent.skill_text(ROOT, writers="three")
+        one = agent.skill_text(ROOT, writers="one")
+        for kept in ("# What a voice can read", "## The draft", "## Markers"):
+            self.assertIn(kept, three)
+        for cut in ("## Characters", "## Numbers and abbreviations", "## Local and web voices",
+                    "## Words that trip a voice"):
+            self.assertNotIn(cut, three)
+            self.assertIn(cut, one)
+        self.assertLess(len(three), len(one))
+
     BUILD = ["build", "me/workouts/a/a.draft.txt", "Workout A", "--coach", "Coach Reed"]
 
     def test_a_full_build_is_priced_and_offered_first(self):

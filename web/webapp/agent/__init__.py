@@ -87,6 +87,14 @@ PREAMBLE = preamble("one")
 
 # With three writers this agent designs and fixes the script but writes none of it: script.md's craft is theirs
 CRAFT = "\n## Getting the workout done"
+# ... and of tts-rules.md only the draft's format and the markers: what a voice can read is the writers'
+SKELETON_RULES = ("The draft", "Markers")
+
+
+def skeleton_rules(text: str) -> str:
+    """tts-rules.md's opening (before its first `## `) and the `## ` sections the skeleton is written by."""
+    head, *rest = re.split(r"^(?=## )", text, flags=re.MULTILINE)
+    return "".join([head] + [part for part in rest if part[3:].split("\n", 1)[0].strip() in SKELETON_RULES]).rstrip()
 
 
 @functools.lru_cache(maxsize=8)
@@ -94,7 +102,7 @@ def skill_text(engine_root: str, setup: bool = False, coach: bool = False, write
                topics: bool = False) -> str:
     """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet, and the
     coach skill while a coach is being made), so the web follows the same steps as the CLI, less the passages
-    marked for a computer only; with three writers, script.md only up to its craft, which the writers read."""
+    marked for a computer only; with three writers, script.md only up to its craft and tts-rules.md only its draft and markers: the rest is the writers'."""
     parts = []
     if topics and not (setup or coach):   # a topics job: the preamble's own rule is all it needs, read in a moment
         return ""
@@ -103,6 +111,8 @@ def skill_text(engine_root: str, setup: bool = False, coach: bool = False, write
             text = web_copy(f.read())
         if writers == "three" and rel == "knowledge/script.md" and CRAFT in text:
             text = text[:text.index(CRAFT)]
+        if writers == "three" and rel == "knowledge/tts-rules.md":
+            text = skeleton_rules(text)
         parts.append(f"<file path=\"{rel}\">\n{text}\n</file>")
     return "\n\n".join(parts)
 
