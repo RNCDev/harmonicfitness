@@ -8,6 +8,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from webapp import folder, store, workouts  # noqa: E402
+from webapp.routes import state as routestate  # noqa: E402
 from webtests import test_api  # noqa: E402
 from webtests.test_api import ROOT  # noqa: E402
 
@@ -114,7 +115,7 @@ class Routes(test_api.ApiCase):
             self.assertEqual(r.status_code, 202, r.text)
         self.assertIsNone(r.json()["job_id"])
         self.assertEqual(self.conn.execute("select count(*) from jobs where kind = 'enrich' and state = 'queued'")
-                         .fetchone()[0], test_api.api.MAX_QUEUED)
+                         .fetchone()[0], routestate.MAX_QUEUED)
         self.conn.rollback()
         row = self.client.get("/api/workouts").json()["workouts"][0]
         self.assertEqual((row["rating"], row["feedback"]), ("negative", ["too long", "note 2", "note 3", "note 4"]))

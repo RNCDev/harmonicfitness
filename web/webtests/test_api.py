@@ -768,8 +768,11 @@ class Keys(ApiCase):
         self.assertEqual(ctx.key_env(), {"GEMINI_API_KEY": "AIzaold123def456abcd"})
 
     def test_api_never_opens_keys(self):
-        with open(api.__file__, encoding="utf-8") as f:
-            self.assertNotIn("open_all", f.read())
+        here = os.path.dirname(api.__file__)
+        for name in ["api.py"] + [os.path.join("routes", n) for n in os.listdir(os.path.join(here, "routes"))
+                                  if n.endswith(".py")]:
+            with open(os.path.join(here, name), encoding="utf-8") as f:
+                self.assertNotIn("open_all", f.read(), name)
 
 
 QUESTION = {"questions": [

@@ -2,6 +2,9 @@
 
     uvicorn webapp.api:create_app_from_env --factory --no-access-log   (run from web/)
 
+The routes are in routes/, a router per area, included by create_app in the order they're matched; this module
+holds the app itself: its middleware, its one shape of error, and its connections.
+
 Every route under /api but sign-in, registration and a link's redeem needs the session cookie
 `wt_session` (else 401). Failed sign-ins and registrations are throttled in memory (one web
 process), by username and by client address.
@@ -18,37 +21,26 @@ on that same connection (each read its own transaction, so it sees every commit)
 when the stream ends or the client goes away.
 """
 import collections
-import datetime
-import html
 import json
 import os
-import re
 import threading
 import time
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
-from typing import Annotated, Callable, Literal
-from urllib.parse import parse_qs, urlsplit
+from typing import Callable
+from urllib.parse import urlsplit
 
-import anyio
 import psycopg
-from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi import Path as PathParam
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, \
-    RedirectResponse, Response, StreamingResponse
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints
 
-from . import APP_NAME, auth, codes, config, conversations, db, engine, enginelib, feed, folder, jobs, keystore, log, \
-    media, providers, level, spend, start, store, turns, workouts
+from . import APP_NAME, config, db, engine, enginelib, log
 from .folder import IMPORT_MAX_TOTAL, IMPORT_MAX_ZIP
 
-COOKIE = "wt_session"
 MINUTES = [10, 15, 20, 25, 30, 45]
-MAX_QUEUED = 3            # queued jobs a user may have at once (a guard against a stuck button)
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
-JOB_ID = PathParam(ge=1, le=2**63 - 1)
 HSTS = (b"strict-transport-security", b"max-age=31536000")
 
 
@@ -312,12 +304,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         """Every HTTPException in the one shape (error_body)."""
         return JSONResponse(error_body(e.status_code, e.detail), e.status_code, headers=getattr(e, "headers", None))
 
-    # ---- dependencies ---------------------------------------------------------------------
+    # ---- the routes, in the order they're matched -------------------------------------------
 
-    from .routes import account, auth as authroutes, files, logs, media as mediaroutes, \
-        settings as settingsroutes, state as routestate
-    from .routes import conversations as conversationsroutes, jobs as jobsroutes
-    st = routestate.AppState(
+    from .routes import account, auth as authroutes, client, conversations as conversationroutes, files, \
+        jobs as jobroutes, logs, media as mediaroutes, settings as settingroutes, state as routestate
+    app.state.hf = routestate.AppState(
         settings=settings, connection=connection, open_stream=open_stream, options=options, services=services,
         version=version, dist=dist, origin=origin,
         throttles={"login_name": Throttle(*authroutes.LOGIN_PER_NAME),
@@ -325,10 +316,6 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                    "reg_addr": Throttle(*authroutes.REGISTER_PER_ADDRESS),
                    "reg_all": Throttle(*authroutes.REGISTER_ALL),
                    "confirms": Throttle(*authroutes.CONFIRM_PER_USER)})
-    app.state.hf = st
-    User = routestate.User
-    post = routestate.POST
-
 
     @app.get("/healthz")
     def healthz():
@@ -336,47 +323,15 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         return {"ok": True, "version": version}
 
     app.include_router(authroutes.router)
-
-
-    # ---- the signed-in API ------------------------------------------------------------------
-
     app.include_router(account.router)
-
-
     app.include_router(files.router)
     app.include_router(logs.router)
-    app.include_router(account.late)   # after the Logs routes, where these were
-
-
+    app.include_router(account.late)   # after the Logs routes, where these always were
     app.include_router(mediaroutes.router)
-
-
-    app.include_router(settingsroutes.router)
-
-
-    app.include_router(jobsroutes.router)
-
-
-    app.include_router(conversationsroutes.router)
-
-
-    # ---- the built client -------------------------------------------------------------------
-
-    @app.get("/{path:path}", include_in_schema=False)
-    def client(path: str):
-        if path in ("api", "feed") or path.startswith(("api/", "link/", "feed/")):
-            raise HTTPException(404, "not found")
-        if not dist.is_dir():
-            if path == "":
-                return PlainTextResponse(f"{APP_NAME}'s client isn't built yet: "
-                                         "run npm run build in web/client.")
-            raise HTTPException(404, "not found")
-        root = dist.resolve()
-        wanted = (root / path).resolve()
-        if path and wanted.is_relative_to(root) and wanted.is_file():
-            return FileResponse(wanted)
-        return FileResponse(root / "index.html", headers={"Cache-Control": "no-cache"})
-
+    app.include_router(settingroutes.router)
+    app.include_router(jobroutes.router)
+    app.include_router(conversationroutes.router)   # /api/conversations/latest before /api/conversations/{cid}
+    app.include_router(client.router)   # its catch-all last
     return app
 
 
