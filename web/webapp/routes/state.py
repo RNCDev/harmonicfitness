@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Callable, Iterator
 import psycopg
 from fastapi import Depends, HTTPException, Request
 from fastapi import Path as PathParam
+from pydantic import StrictStr, StringConstraints
 
 from .. import auth, config, store
 from ..api import _origin
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 COOKIE = "wt_session"
 MAX_QUEUED = 3            # queued jobs a user may have at once (a guard against a stuck button)
 JOB_ID = PathParam(ge=1, le=2**63 - 1)
+Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 
 
 @dataclass
