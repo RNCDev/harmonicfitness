@@ -100,8 +100,10 @@ class Redirects(ServerCase):
             with open(ready.file("w", listing=listing), "rb") as f:
                 self.assertEqual(f.read(), BODY)
 
-    def test_backup_follows_a_redirect(self):
+    def test_backup_follows_a_redirect_only_on_the_same_host(self):
+        """It carries GH_TOKEN: before 0.76.2 it followed a redirect anywhere."""
         self.assertEqual(backup._api_visibility("o/r", api=self.base + "/repos/"), "PUBLIC")
+        self.assertIsNone(backup._api_visibility("o/r?host=localhost", api=self.base + "/repos/"))
 
 
 # each module's answer for a base address: True accepted, False refused. Before 0.76.2 only webpull took http://[::1];

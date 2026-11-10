@@ -24,6 +24,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cli  # noqa: E402
 import errors  # noqa: E402
+import net  # noqa: E402
 import paths  # noqa: E402
 from paths import show  # noqa: E402
 
@@ -114,8 +115,8 @@ def _api_visibility(slug, api=None):
     if token:
         headers["Authorization"] = f"Bearer {token.strip()}"
     req = urllib.request.Request((api or API) + slug, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+    try:   # a redirect is followed only on GitHub's own host: the token goes with it
+        with net.opener("same-host").open(req, timeout=15) as r:
             data = json.loads(r.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError):
         return None

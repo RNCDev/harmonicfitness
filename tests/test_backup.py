@@ -205,9 +205,9 @@ class Backup(unittest.TestCase):
         def fake_urlopen(req, timeout=None):
             seen["auth"] = req.get_header("Authorization")
             return Answer()
-        import urllib.request
+        import types
         with mock.patch.dict(os.environ, {"GH_TOKEN": "ghp_test_token"}), \
-                mock.patch.object(urllib.request, "urlopen", fake_urlopen):
+                mock.patch.object(backup.net, "opener", lambda follow: types.SimpleNamespace(open=fake_urlopen)):
             self.assertEqual(backup._api_visibility("x/harmonicfitness-me"), "PRIVATE")
         self.assertEqual(seen["auth"], "Bearer ghp_test_token")
 
