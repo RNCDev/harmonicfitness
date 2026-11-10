@@ -36,6 +36,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
 import keys  # noqa: E402
+import net  # noqa: E402
 import paths  # noqa: E402
 import voice  # noqa: E402
 from redact import scrub  # noqa: E402,F401  (cloud.scrub, as before: it lives in the leaf module redact.py)
@@ -55,7 +56,6 @@ TRIM_DB = -40.0
 TRIM_LEVEL = 10 ** (TRIM_DB / 20) * 32767   # in 16-bit samples
 TRIM_KEEP = 0.04                            # seconds kept at each end
 MIN_AUDIO = 0.1             # seconds: an answer holding less isn't a spoken line
-LOCAL_HOSTS = ("127.0.0.1", "localhost")   # where an address override may use plain http (the tests' fakes)
 # The stop signal of the render this code runs for: a threading.Event that render sets when it's stopping (no
 # retry, no new attempt). One per render, never shared: stop_on sets it in the render's own context, and
 # speaker() carries it into the worker threads that speak.
@@ -100,13 +100,12 @@ ROUTES = ("local", *SERVICES)  # every route: this computer's own engine, then e
 
 def base_url(service):
     """The service's API address. HARMONICFITNESS_<SERVICE>_URL points it elsewhere (the tests' fake servers), but only
-    at an https:// address or this computer (127.0.0.1, localhost): a stray setting never sends a key in the
-    clear, or anywhere off this machine unencrypted."""
+    at an https:// address or this computer (localhost, 127.0.0.1, ::1: net.allowed_base): a stray setting never
+    sends a key in the clear, or anywhere off this machine unencrypted."""
     var = f"HARMONICFITNESS_{service.upper()}_URL"
     override = os.environ.get(var)
     if override:
-        parts = urllib.parse.urlsplit(override)
-        if parts.scheme.lower() != "https" and (parts.scheme.lower() != "http" or parts.hostname not in LOCAL_HOSTS):
+        if not net.allowed_base(override):
             raise ServiceError("bad_request", service, f"{var} is set to an address that isn't https:// or this "
                                                        f"computer, so nothing was sent: unset it")
         return override.rstrip("/")
@@ -219,20 +218,16 @@ def _short(retry_after):
         return False
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """None of the services' APIs redirects, and following one would send the key to wherever it points."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        host = urllib.parse.urlsplit(newurl).hostname or newurl[:80]
-        fp.close()
-        raise ServiceError("unavailable", getattr(req, "harmonicfitness_service", None),
-                           f"redirected to {host}; not followed (HTTP {code})", status=code)
-
-
 def _open(req, timeout):
-    """The answer to `req`, through an opener that never follows a redirect (plain http stays, for the fakes)."""
-    opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=_tls()))
-    return opener.open(req, timeout=timeout)
+    """The answer to `req`, through an opener that never follows a redirect (plain http stays, for the fakes): none
+    of the services' APIs redirects, and following one would send the key to wherever it points."""
+    opener = net.opener("never", urllib.request.HTTPSHandler(context=_tls()))
+    try:
+        return opener.open(req, timeout=timeout)
+    except net.Redirected as e:
+        host = urllib.parse.urlsplit(e.url).hostname or e.url[:80]
+        raise ServiceError("unavailable", getattr(req, "harmonicfitness_service", None),
+                           f"redirected to {host}; not followed (HTTP {e.status})", status=e.status) from None
 
 
 def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, sleep=None, idempotent=True,

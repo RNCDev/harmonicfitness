@@ -104,12 +104,13 @@ class Redirects(ServerCase):
         self.assertEqual(backup._api_visibility("o/r", api=self.base + "/repos/"), "PUBLIC")
 
 
-# each module's answer for a base address, as it was before 0.76.2: True accepted, False refused
+# each module's answer for a base address: True accepted, False refused. Before 0.76.2 only webpull took http://[::1];
+# now each decides with net.allowed_base, so all three agree
 BASES = {
     "https://x": (True, True, True),
     "HTTPS://x": (True, True, True),
     "http://localhost:8000": (True, True, True),
-    "http://[::1]:8000": (False, True, False),
+    "http://[::1]:8000": (True, True, False),
     "http://example.org": (False, False, False),
     "ftp://x": (False, False, False),
 }
