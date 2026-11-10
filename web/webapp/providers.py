@@ -108,6 +108,18 @@ def model_for(provider: str, key: str):
     raise KeyError(provider)
 
 
+def cache_settings(model) -> dict:
+    """The model settings that cache a Claude model's repeated input (its instructions, and the conversation up to the
+    last message, which the next request repeats): on Claude's own key or through OpenRouter ("anthropic/..."). Any
+    other model gets {}: Gemini caches on its own. Checked by class name so no SDK is imported here."""
+    name = type(model).__name__
+    if name == "AnthropicModel":
+        return {"anthropic_cache_instructions": True, "anthropic_cache_messages": True}
+    if name == "OpenRouterModel" and str(model.model_name).startswith("anthropic/"):
+        return {"openrouter_cache_instructions": True, "openrouter_cache_messages": True}
+    return {}
+
+
 class ProviderFailed(Exception):
     def __init__(self, message: str, kind: str):
         super().__init__(message)

@@ -100,6 +100,23 @@ def _anthropic_model(status, body):
                           provider=AnthropicProvider(anthropic_client=client)), seen
 
 
+class CacheSettings(unittest.TestCase):
+    def test_anthropic_caches_instructions_and_messages(self):
+        self.assertEqual(providers.cache_settings(providers.model_for("anthropic", "k" * 20)),
+                         {"anthropic_cache_instructions": True, "anthropic_cache_messages": True})
+
+    def test_claude_through_openrouter_caches(self):
+        from pydantic_ai.models.openrouter import OpenRouterModel
+        m = providers.model_for("openrouter", "k" * 20)
+        claude = OpenRouterModel("anthropic/claude-opus-5.5", provider=m._provider)
+        self.assertEqual(providers.cache_settings(claude),
+                         {"openrouter_cache_instructions": True, "openrouter_cache_messages": True})
+
+    def test_other_models_get_nothing(self):
+        for pid in ("openai", "google", "openrouter"):
+            self.assertEqual(providers.cache_settings(providers.model_for(pid, "k" * 20)), {})
+
+
 class Explain(unittest.TestCase):
     def _run(self, status, body):
         m, seen = _anthropic_model(status, body)
