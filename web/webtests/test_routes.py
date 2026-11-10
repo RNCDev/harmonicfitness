@@ -5,7 +5,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import conversations, spend  # noqa: E402
+from webapp import conversations, db, spend  # noqa: E402
+from webtests import dbcase  # noqa: E402
 from webtests import test_api  # noqa: E402
 from webtests.test_api import today  # noqa: E402
 
@@ -103,6 +104,33 @@ class Routes(test_api.ApiCase):
         after = conversations.load(self.conn, uk, cid)
         self.conn.rollback()
         self.assertEqual((after.version, after.state), (before.version, before.state))
+
+    def test_a_session_is_renewed_and_the_renewal_kept(self):
+        user_id, _ = self.signed_in()
+        self.conn.execute("update sessions set renewed_at = now() - interval '2 days' where user_id = %s", (user_id,))
+        self.conn.commit()
+        before = self.renewed(user_id)
+        self.assertEqual(self.client.get("/api/me").status_code, 200)
+        self.assertGreater(self.renewed(user_id), before)
+
+    def test_an_expired_session_is_deleted_though_the_answer_is_401(self):
+        user_id, _ = self.signed_in()
+        self.conn.execute("update sessions set expires_at = now() - interval '1 minute' where user_id = %s", (user_id,))
+        self.conn.commit()
+        self.assertEqual(self.client.get("/api/me").status_code, 401)
+        fresh = db.connect(dbcase.URL, schema=self.schema)
+        try:
+            self.assertIsNone(fresh.execute("select 1 from sessions where user_id = %s", (user_id,)).fetchone())
+        finally:
+            fresh.close()
+
+    def renewed(self, user_id):
+        """The session's renewed_at, read on a connection of its own (so only what was committed)."""
+        fresh = db.connect(dbcase.URL, schema=self.schema)
+        try:
+            return fresh.execute("select renewed_at from sessions where user_id = %s", (user_id,)).fetchone()[0]
+        finally:
+            fresh.close()
 
 
 if __name__ == "__main__":

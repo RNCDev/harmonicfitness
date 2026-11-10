@@ -164,13 +164,11 @@ def conversation_history(st: St, uk: User, cid: Annotated[int, JOB_ID]):
     """The model's side of a conversation, for its owner only (`./harmonicfitness pull` saves it as
     history.json): every request and response, each tool call with its arguments and result, and their
     times. The page never shows it."""
-    with st.connection() as conn:
+    with read(st) as conn:
         try:
             c = conversations.load(conn, uk, cid)
         except LookupError:
             raise HTTPException(404, "no such conversation") from None
-        finally:
-            conn.rollback()
     try:
         history = json.loads(c.history) if c.history else []
     except ValueError:

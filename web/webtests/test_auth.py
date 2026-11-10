@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from webapp import auth, config, db, store  # noqa: E402
 from webtests import dbcase  # noqa: E402
-from webtests.dbcase import MASTER, DBCase  # noqa: E402
+from webtests.dbcase import MASTER, DBCase, committed, enqueue  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -54,21 +54,21 @@ class Auth(DBCase):
         return row[0]
 
     def test_register_creates_seeded_user_signed_in(self):
-        st = auth.register(self.conn, self.s, " NewOne ", "long enough")
+        st = committed(auth.register, self.conn, self.s, " NewOne ", "long enough")
         uid = self.uid("newone")
-        self.assertEqual(auth.user_for(self.conn, self.s, st), uid)
+        self.assertEqual(committed(auth.user_for, self.conn, self.s, st), uid)
         uk = store.user_key(self.conn, self.s, uid)
         self.assertIn("profile.md", store.read_all(self.conn, uk))
         self.conn.rollback()
 
     def test_register_refuses_taken_and_bad(self):
-        auth.register(self.conn, self.s, "taken", "long enough")
+        committed(auth.register, self.conn, self.s, "taken", "long enough")
         with self.assertRaises(auth.Taken):
-            auth.register(self.conn, self.s, "TAKEN", "other password")
+            committed(auth.register, self.conn, self.s, "TAKEN", "other password")
         with self.assertRaises(auth.Invalid):
-            auth.register(self.conn, self.s, "shortpw", "1234567")
+            committed(auth.register, self.conn, self.s, "shortpw", "1234567")
         with self.assertRaises(auth.Invalid):
-            auth.register(self.conn, self.s, "x", "long enough")
+            committed(auth.register, self.conn, self.s, "x", "long enough")
         n = self.conn.execute("select count(*) from users where username in ('taken', 'shortpw')"
                               ).fetchone()[0]
         self.conn.rollback()
@@ -76,7 +76,7 @@ class Auth(DBCase):
 
     def test_new_users_key_is_bound_to_its_id(self):
         from webapp import crypto
-        auth.register(self.conn, self.s, "bound", "long enough")
+        committed(auth.register, self.conn, self.s, "bound", "long enough")
         uid, wrapped, version = self.conn.execute(
             "select id, wrapped_key, key_version from users where username = 'bound'").fetchone()
         self.conn.rollback()
@@ -88,65 +88,65 @@ class Auth(DBCase):
             crypto.unwrap(MASTER, bytes(wrapped), other, version)
 
     def test_sign_in(self):
-        auth.register(self.conn, self.s, "signer", "long enough")
-        st = auth.sign_in(self.conn, self.s, "Signer", "long enough")
-        self.assertEqual(auth.user_for(self.conn, self.s, st), self.uid("signer"))
+        committed(auth.register, self.conn, self.s, "signer", "long enough")
+        st = committed(auth.sign_in, self.conn, self.s, "Signer", "long enough")
+        self.assertEqual(committed(auth.user_for, self.conn, self.s, st), self.uid("signer"))
         for name, pw in (("signer", "wrong one!"), ("nobody", "long enough"), ("x", "y"),
                          (None, None), ("signer", "x" * 5000)):
             with self.assertRaises(auth.WrongPassword):
-                auth.sign_in(self.conn, self.s, name, pw)
+                committed(auth.sign_in, self.conn, self.s, name, pw)
 
     def test_no_password_never_signs_in(self):
         uid, _ = self.make_user("nopw")
         with self.assertRaises(auth.WrongPassword):
-            auth.sign_in(self.conn, self.s, "nopw", "")
+            committed(auth.sign_in, self.conn, self.s, "nopw", "")
 
     def test_set_password(self):
-        st = auth.register(self.conn, self.s, "changer", "first password")
+        st = committed(auth.register, self.conn, self.s, "changer", "first password")
         uid = self.uid("changer")
-        other = auth.sign_in(self.conn, self.s, "changer", "first password")
+        other = committed(auth.sign_in, self.conn, self.s, "changer", "first password")
         with self.assertRaises(auth.WrongPassword):
-            auth.set_password(self.conn, uid, "not it", "second password", keep_session=st)
+            committed(auth.set_password, self.conn, uid, "not it", "second password", keep_session=st)
         with self.assertRaises(auth.Invalid):
-            auth.set_password(self.conn, uid, "first password", "short", keep_session=st)
-        auth.set_password(self.conn, uid, "first password", "second password", keep_session=st)
-        self.assertEqual(auth.user_for(self.conn, self.s, st), uid)     # this one stays
-        self.assertIsNone(auth.user_for(self.conn, self.s, other))     # every other ends
-        auth.sign_in(self.conn, self.s, "changer", "second password")
+            committed(auth.set_password, self.conn, uid, "first password", "short", keep_session=st)
+        committed(auth.set_password, self.conn, uid, "first password", "second password", keep_session=st)
+        self.assertEqual(committed(auth.user_for, self.conn, self.s, st), uid)     # this one stays
+        self.assertIsNone(committed(auth.user_for, self.conn, self.s, other))     # every other ends
+        committed(auth.sign_in, self.conn, self.s, "changer", "second password")
 
     def test_first_password_needs_no_current(self):
         uid, _ = self.make_user("first")
-        auth.set_password(self.conn, uid, None, "brand new one")
-        auth.sign_in(self.conn, self.s, "first", "brand new one")
+        committed(auth.set_password, self.conn, uid, None, "brand new one")
+        committed(auth.sign_in, self.conn, self.s, "first", "brand new one")
 
     def test_reset_link(self):
-        auth.register(self.conn, self.s, "forgot", "lost it now")
+        committed(auth.register, self.conn, self.s, "forgot", "lost it now")
         uid = self.uid("forgot")
-        old = auth.sign_in(self.conn, self.s, "forgot", "lost it now")
-        link = auth.reset_link(self.conn, self.s, "Forgot")
+        old = committed(auth.sign_in, self.conn, self.s, "forgot", "lost it now")
+        link = committed(auth.reset_link, self.conn, self.s, "Forgot")
         self.assertTrue(link.url.startswith("https://wt.test/link/"))
-        self.assertIsNone(auth.user_for(self.conn, self.s, old))
+        self.assertIsNone(committed(auth.user_for, self.conn, self.s, old))
         with self.assertRaises(auth.WrongPassword):
-            auth.sign_in(self.conn, self.s, "forgot", "lost it now")
+            committed(auth.sign_in, self.conn, self.s, "forgot", "lost it now")
         hours = self.conn.execute("select extract(epoch from expires_at - now())/3600 from "
                                   "sign_in_links where user_id = %s and used_at is null",
                                   (uid,)).fetchone()[0]
         self.conn.rollback()
         self.assertTrue(23 < hours <= 24, hours)
-        st = auth.redeem(self.conn, self.s, token_of(link.url))
-        self.assertEqual(auth.user_for(self.conn, self.s, st), uid)
-        auth.set_password(self.conn, uid, None, "found again")
+        st = committed(auth.redeem, self.conn, self.s, token_of(link.url))
+        self.assertEqual(committed(auth.user_for, self.conn, self.s, st), uid)
+        committed(auth.set_password, self.conn, uid, None, "found again")
         with self.assertRaises(LookupError):
-            auth.reset_link(self.conn, self.s, "ghost")
+            committed(auth.reset_link, self.conn, self.s, "ghost")
 
     def test_unknown_refused(self):
         with self.assertRaises(auth.Refused):
-            auth.redeem(self.conn, self.s, "nope")
+            committed(auth.redeem, self.conn, self.s, "nope")
 
     def test_tokens_stored_hashed(self):
         uid, _ = self.make_user()
-        t = token_of(auth.device_link(self.conn, self.s, uid).url)
-        st = auth.redeem(self.conn, self.s, t)
+        t = token_of(committed(auth.device_link, self.conn, self.s, uid).url)
+        st = committed(auth.redeem, self.conn, self.s, t)
         for tok, table in ((t, "sign_in_links"), (st, "sessions")):
             for (h,) in self.conn.execute(f"select token_hash from {table}").fetchall():
                 self.assertNotIn(tok.encode(), bytes(h))
@@ -155,21 +155,21 @@ class Auth(DBCase):
 
     def test_device_link_signs_in_same_user(self):
         uid, _ = self.make_user()
-        t = token_of(auth.device_link(self.conn, self.s, uid).url)
-        st = auth.redeem(self.conn, self.s, t)
-        self.assertEqual(auth.user_for(self.conn, self.s, st), uid)
+        t = token_of(committed(auth.device_link, self.conn, self.s, uid).url)
+        st = committed(auth.redeem, self.conn, self.s, t)
+        self.assertEqual(committed(auth.user_for, self.conn, self.s, st), uid)
         with self.assertRaises(auth.Refused):
-            auth.redeem(self.conn, self.s, t)
-        t2 = token_of(auth.device_link(self.conn, self.s, uid).url)
+            committed(auth.redeem, self.conn, self.s, t)
+        t2 = token_of(committed(auth.device_link, self.conn, self.s, uid).url)
         self.conn.execute("update sign_in_links set expires_at = now() - interval '1 second' "
                           "where used_at is null")
         self.conn.commit()
         with self.assertRaises(auth.Refused):
-            auth.redeem(self.conn, self.s, t2)
+            committed(auth.redeem, self.conn, self.s, t2)
 
     def test_device_link_lasts_ten_minutes(self):
         uid, _ = self.make_user()
-        link = auth.device_link(self.conn, self.s, uid)
+        link = committed(auth.device_link, self.conn, self.s, uid)
         mins, stored = self.conn.execute(
             "select extract(epoch from expires_at - now())/60, expires_at from sign_in_links "
             "where user_id = %s", (uid,)).fetchone()
@@ -180,38 +180,38 @@ class Auth(DBCase):
 
     def test_session_renews_on_use(self):
         uid, _ = self.make_user()
-        st = auth.redeem(self.conn, self.s, token_of(auth.device_link(self.conn, self.s, uid).url))
+        st = committed(auth.redeem, self.conn, self.s, token_of(committed(auth.device_link, self.conn, self.s, uid).url))
         self.conn.execute("update sessions set expires_at = now() + interval '10 days', "
                           "renewed_at = now() - interval '2 days' where user_id = %s", (uid,))
         self.conn.commit()
-        self.assertEqual(auth.user_for(self.conn, self.s, st), uid)
+        self.assertEqual(committed(auth.user_for, self.conn, self.s, st), uid)
         days = self.conn.execute("select extract(epoch from expires_at - now())/86400 "
                                  "from sessions where user_id = %s", (uid,)).fetchone()[0]
         self.assertTrue(89 < days < 91, days)
 
     def test_session_not_renewed_within_a_day(self):
         uid, _ = self.make_user()
-        st = auth.redeem(self.conn, self.s, token_of(auth.device_link(self.conn, self.s, uid).url))
+        st = committed(auth.redeem, self.conn, self.s, token_of(committed(auth.device_link, self.conn, self.s, uid).url))
         self.conn.execute("update sessions set expires_at = now() + interval '10 days' where user_id = %s", (uid,))
         self.conn.commit()
-        auth.user_for(self.conn, self.s, st)
+        committed(auth.user_for, self.conn, self.s, st)
         days = self.conn.execute("select extract(epoch from expires_at - now())/86400 "
                                  "from sessions where user_id = %s", (uid,)).fetchone()[0]
         self.assertTrue(days < 11)
 
     def test_expired_session_is_none(self):
         uid, _ = self.make_user()
-        st = auth.redeem(self.conn, self.s, token_of(auth.device_link(self.conn, self.s, uid).url))
+        st = committed(auth.redeem, self.conn, self.s, token_of(committed(auth.device_link, self.conn, self.s, uid).url))
         self.conn.execute("update sessions set expires_at = now() - interval '1 second' where user_id = %s", (uid,))
         self.conn.commit()
-        self.assertIsNone(auth.user_for(self.conn, self.s, st))
-        self.assertIsNone(auth.user_for(self.conn, self.s, "unknown"))
+        self.assertIsNone(committed(auth.user_for, self.conn, self.s, st))
+        self.assertIsNone(committed(auth.user_for, self.conn, self.s, "unknown"))
 
     def test_sign_out(self):
         uid, _ = self.make_user()
-        st = auth.redeem(self.conn, self.s, token_of(auth.device_link(self.conn, self.s, uid).url))
-        auth.sign_out(self.conn, st)
-        self.assertIsNone(auth.user_for(self.conn, self.s, st))
+        st = committed(auth.redeem, self.conn, self.s, token_of(committed(auth.device_link, self.conn, self.s, uid).url))
+        committed(auth.sign_out, self.conn, st)
+        self.assertIsNone(committed(auth.user_for, self.conn, self.s, st))
 
 
 class Admin(DBCase):

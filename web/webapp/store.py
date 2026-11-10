@@ -3,6 +3,10 @@
 A row holds no plain path: `path_hash` (an HMAC of the path under a subkey of the user's data key)
 finds it, `path` is the path sealed, and the body is sealed bound to the plain path, so a body
 can't be moved to another path.
+
+Transactions: nothing here commits or rolls back. That's the rule for every function in webapp/ that reads or
+writes data: its caller owns the transaction (a route through routes.state's tx or read, the worker loop for its
+jobs). Only the job queue's single-step units of work, the sweeps and the migrations commit their own (jobs.py).
 """
 import hashlib
 import hmac

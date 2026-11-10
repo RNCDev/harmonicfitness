@@ -26,10 +26,13 @@ def main(argv=None, env=None) -> int:
                       file=sys.stderr)
                 return 1
             try:
-                print(auth.reset_link(conn, settings, name).url)
+                link = auth.reset_link(conn, settings, name)
             except LookupError:
+                conn.rollback()
                 print("No user with that username.", file=sys.stderr)
                 return 1
+            conn.commit()
+            print(link.url)
         finally:
             conn.close()
     except (config.ConfigError, ValueError) as e:

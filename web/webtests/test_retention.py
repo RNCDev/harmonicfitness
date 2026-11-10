@@ -7,7 +7,7 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from webapp import conversations, jobs, retention, worker  # noqa: E402
-from webtests.dbcase import DBCase  # noqa: E402
+from webtests.dbcase import DBCase, enqueue  # noqa: E402
 
 
 class Sweep(DBCase):
@@ -18,7 +18,7 @@ class Sweep(DBCase):
         _, self.uk = self.make_user()
 
     def job(self, state="done", days_ago=0):
-        job_id = jobs.enqueue(self.conn, self.uk, "brief", {})
+        job_id = enqueue(self.conn, self.uk, "brief", {})
         self.conn.execute("update jobs set state = %s, finished_at = now() - make_interval(days => %s) where id = %s",
                           (state, days_ago, job_id))
         self.conn.commit()

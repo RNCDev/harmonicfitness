@@ -44,12 +44,11 @@ def stock_sample_url(engine_root: str, slug: str) -> str | None:
 
 @router.get("/api/me")
 def me(st: St, uk: User):
-    with st.connection() as conn:
+    with read(st) as conn:
         name, pw = conn.execute("select username, password_hash is not null from users "
                                 "where id = %s", (uk.user_id,)).fetchone()
         sky = keystore.sky(conn, uk)
         auto = keystore.auto_record(conn, uk)
-        conn.rollback()
     return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": st.version, "sky": sky,
             "auto_record": auto}
 

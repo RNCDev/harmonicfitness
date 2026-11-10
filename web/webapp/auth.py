@@ -4,6 +4,9 @@ Passwords are hashed with scrypt (the standard library's). Session and link toke
 bytes, URL-safe base64; only their sha256 is stored. A one-time link signs a device in ("add a
 device", 10 minutes) or lets someone who forgot their password set a new one (made by the admin
 command, 24 hours); either way it ends in an ordinary session.
+
+Nothing here commits or rolls back: the caller owns the transaction (a route's routes.state.tx; the admin
+command's own commit).
 """
 import base64
 import datetime
@@ -118,76 +121,50 @@ def _session(conn, settings, user_id) -> str:
 
 
 def register(conn, settings, raw_username, password) -> str:
-    """A new account, its seeded files and a session token. Raises Invalid or Taken."""
+    """A new account, its seeded files and a session token. Raises Invalid or Taken. No commit."""
     name = username(raw_username)
     pw_hash = hash_password(_check_password(password))
-    try:
-        new_id = uuid.uuid4()
-        plain, wrapped = crypto.new_data_key(settings.master_key, new_id, KEY_VERSION)
-        row = conn.execute(
-            "insert into users (id, username, password_hash, wrapped_key, key_version) "
-            "values (%s, %s, %s, %s, %s) on conflict (username) do nothing returning id",
-            (new_id, name, pw_hash, wrapped, KEY_VERSION)).fetchone()
-        if row is None:
-            conn.rollback()
-            raise Taken(name)
-        uk = store.UserKey(user_id=new_id, key=plain)
-        if store.write_back(conn, uk, dict(folder.seed(settings.engine_root)), {}):
-            raise RuntimeError("seeding a new user conflicted")
-        token = _session(conn, settings, new_id)
-        conn.commit()
-        return token
-    except Taken:
-        raise
-    except Exception:
-        conn.rollback()
-        raise
+    new_id = uuid.uuid4()
+    plain, wrapped = crypto.new_data_key(settings.master_key, new_id, KEY_VERSION)
+    row = conn.execute(
+        "insert into users (id, username, password_hash, wrapped_key, key_version) "
+        "values (%s, %s, %s, %s, %s) on conflict (username) do nothing returning id",
+        (new_id, name, pw_hash, wrapped, KEY_VERSION)).fetchone()
+    if row is None:
+        raise Taken(name)
+    uk = store.UserKey(user_id=new_id, key=plain)
+    if store.write_back(conn, uk, dict(folder.seed(settings.engine_root)), {}):
+        raise RuntimeError("seeding a new user conflicted")
+    return _session(conn, settings, new_id)
 
 
 def sign_in(conn, settings, raw_username, password) -> str:
-    """A session token for a right username and password, else WrongPassword."""
+    """A session token for a right username and password, else WrongPassword. No commit."""
     try:
         name = username(raw_username)
     except Invalid:
         name = None
     pw = password if isinstance(password, str) and len(password) <= PASSWORD_MAX else ""
-    try:
-        row = None
-        if name is not None:
-            row = conn.execute("select id, password_hash from users where username = %s",
-                               (name,)).fetchone()
-        if not verify_password(pw, row[1] if row else None):
-            conn.rollback()
-            raise WrongPassword()
-        token = _session(conn, settings, row[0])
-        conn.commit()
-        return token
-    except WrongPassword:
-        raise
-    except Exception:
-        conn.rollback()
-        raise
+    row = None
+    if name is not None:
+        row = conn.execute("select id, password_hash from users where username = %s",
+                           (name,)).fetchone()
+    if not verify_password(pw, row[1] if row else None):
+        raise WrongPassword()
+    return _session(conn, settings, row[0])
 
 
 def set_password(conn, user_id, current, new, keep_session: str | None = None) -> None:
-    """Change the password; `current` is needed only when one is set. Every other session ends."""
+    """Change the password; `current` is needed only when one is set. Every other session ends. No commit."""
     pw_hash = hash_password(_check_password(new))
-    try:
-        stored = conn.execute("select password_hash from users where id = %s for update",
-                              (user_id,)).fetchone()[0]
-        if stored is not None and not verify_password(current if isinstance(current, str)
-                                                      else "", stored):
-            conn.rollback()
-            raise WrongPassword()
-        conn.execute("update users set password_hash = %s where id = %s", (pw_hash, user_id))
-        conn.execute("delete from sessions where user_id = %s and token_hash <> %s",
-                     (user_id, _hash(keep_session or "")))
-        conn.commit()
-    except WrongPassword:
-        raise
-    except Exception:
-        conn.rollback()
-        raise
+    stored = conn.execute("select password_hash from users where id = %s for update",
+                          (user_id,)).fetchone()[0]
+    if stored is not None and not verify_password(current if isinstance(current, str)
+                                                  else "", stored):
+        raise WrongPassword()
+    conn.execute("update users set password_hash = %s where id = %s", (pw_hash, user_id))
+    conn.execute("delete from sessions where user_id = %s and token_hash <> %s",
+                 (user_id, _hash(keep_session or "")))
 
 
 def _link(settings, token: str) -> str:
@@ -204,79 +181,51 @@ def _new_link(conn, settings, user_id, interval: str, amount) -> SignInLink:
 
 
 def device_link(conn, settings, user_id) -> SignInLink:
-    """A one-time sign-in link for another device, and when it expires."""
-    try:
-        link = _new_link(conn, settings, user_id, "make_interval(mins => %s)", DEVICE_MINUTES)
-        conn.commit()
-        return link
-    except Exception:
-        conn.rollback()
-        raise
+    """A one-time sign-in link for another device, and when it expires. No commit."""
+    return _new_link(conn, settings, user_id, "make_interval(mins => %s)", DEVICE_MINUTES)
 
 
 def reset_link(conn, settings, raw_username) -> SignInLink:
     """For a forgotten password: clears it and returns a one-time sign-in link (LookupError if
-    no such user). Signed in by the link, the person sets a new password without the old one."""
+    no such user). Signed in by the link, the person sets a new password without the old one. No commit."""
     name = username(raw_username)
-    try:
-        row = conn.execute("update users set password_hash = null where username = %s "
-                           "returning id", (name,)).fetchone()
-        if row is None:
-            conn.rollback()
-            raise LookupError(name)
-        conn.execute("delete from sessions where user_id = %s", (row[0],))
-        link = _new_link(conn, settings, row[0], "make_interval(hours => %s)", RESET_HOURS)
-        conn.commit()
-        return link
-    except LookupError:
-        raise
-    except Exception:
-        conn.rollback()
-        raise
+    row = conn.execute("update users set password_hash = null where username = %s "
+                       "returning id", (name,)).fetchone()
+    if row is None:
+        raise LookupError(name)
+    conn.execute("delete from sessions where user_id = %s", (row[0],))
+    return _new_link(conn, settings, row[0], "make_interval(hours => %s)", RESET_HOURS)
 
 
 def redeem(conn, settings, token: str) -> str:
-    try:
-        row = conn.execute(
-            "update sign_in_links set used_at = now() where token_hash = %s and used_at is null "
-            "and expires_at > now() returning user_id", (_hash(str(token)),)).fetchone()
-        if row is None:
-            conn.rollback()
-            raise Refused("This link has expired or was already used.")
-        session = _session(conn, settings, row[0])
-        conn.commit()
-        return session
-    except Refused:
-        raise
-    except Exception:
-        conn.rollback()
-        raise
+    """A session for a one-time link that's live and unused (and the link used up), else Refused. No commit."""
+    row = conn.execute(
+        "update sign_in_links set used_at = now() where token_hash = %s and used_at is null "
+        "and expires_at > now() returning user_id", (_hash(str(token)),)).fetchone()
+    if row is None:
+        raise Refused("This link has expired or was already used.")
+    return _session(conn, settings, row[0])
 
 
 def user_for(conn, settings, session_token: str):
+    """The session's user, or None; an expired session is deleted, and one older than a day renewed. No commit:
+    the caller commits either, even when it then refuses the request."""
     h = _hash(str(session_token))
-    try:
-        row = conn.execute("select user_id, expires_at > now(), renewed_at < now() - interval "
-                           "'1 day' from sessions where token_hash = %s", (h,)).fetchone()
-        if row is None:
-            conn.rollback()
-            return None
-        user_id, live, stale = row
-        if not live:
-            conn.execute("delete from sessions where token_hash = %s", (h,))
-            conn.commit()
-            return None
-        if stale:
-            conn.execute("update sessions set expires_at = now() + make_interval(days => %s), "
-                         "renewed_at = now() where token_hash = %s",
-                         (settings.session_days, h))
-        conn.commit()
-        return user_id
-    except Exception:
-        conn.rollback()
-        raise
+    row = conn.execute("select user_id, expires_at > now(), renewed_at < now() - interval "
+                       "'1 day' from sessions where token_hash = %s", (h,)).fetchone()
+    if row is None:
+        return None
+    user_id, live, stale = row
+    if not live:
+        conn.execute("delete from sessions where token_hash = %s", (h,))
+        return None
+    if stale:
+        conn.execute("update sessions set expires_at = now() + make_interval(days => %s), "
+                     "renewed_at = now() where token_hash = %s",
+                     (settings.session_days, h))
+    return user_id
 
 
 def sign_out(conn, session_token: str) -> None:
+    """No commit."""
     conn.execute("delete from sessions where token_hash = %s", (_hash(str(session_token)),))
-    conn.commit()

@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
 
 from .. import codes, jobs, store
-from .state import JOB_ID, MAX_QUEUED, POST, St, User
+from .state import JOB_ID, MAX_QUEUED, POST, St, User, read, tx
 
 router = APIRouter()
 
@@ -36,19 +36,14 @@ class BriefJob(BaseModel):
 def post_job(st: St, uk: User, body: Annotated[BriefJob, Body()]):
     args = {"goal": body.goal, "minutes": body.minutes, "preset": body.preset,
             "today": body.today}
-    with st.connection() as conn:
-        try:
-            # the user's row, locked, serialises this count against the user's other posts
-            conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
-            queued = conn.execute("select count(*) from jobs where user_id = %s and "
-                                  "state = 'queued'", (uk.user_id,)).fetchone()[0]
-        except Exception:
-            conn.rollback()
-            raise
+    with tx(st) as conn:   # commits the job, releasing the lock
+        # the user's row, locked, serialises this count against the user's other posts
+        conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
+        queued = conn.execute("select count(*) from jobs where user_id = %s and "
+                              "state = 'queued'", (uk.user_id,)).fetchone()[0]
         if queued >= MAX_QUEUED:
-            conn.rollback()
             raise HTTPException(429, "too many jobs waiting")
-        job_id = jobs.enqueue(conn, uk, body.kind, args)   # commits, releasing the lock
+        job_id = jobs.add(conn, uk, body.kind, args)
     return {"id": job_id, "job_id": job_id}   # job_id as every other route names it; id kept for older pages
 
 
@@ -56,50 +51,40 @@ def post_job(st: St, uk: User, body: Annotated[BriefJob, Body()]):
 def post_balances(st: St, uk: User):
     """Ask what's left on each keyed voice service's account: a worker job (only the worker opens a key),
     read with GET /api/jobs/{id}. One at a time: a check already waiting or running is returned as it is."""
-    with st.connection() as conn:
-        try:
-            conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
-            row = conn.execute("select id from jobs where user_id = %s and kind = 'balances' and "
-                               "state in ('queued', 'running') order by id desc limit 1",
-                               (uk.user_id,)).fetchone()
-            if row is not None:
-                conn.rollback()
-                return {"id": row[0]}
-            queued = conn.execute("select count(*) from jobs where user_id = %s and "
-                                  "state = 'queued'", (uk.user_id,)).fetchone()[0]
-        except Exception:
-            conn.rollback()
-            raise
+    with tx(st) as conn:   # commits the job, releasing the lock
+        conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
+        row = conn.execute("select id from jobs where user_id = %s and kind = 'balances' and "
+                           "state in ('queued', 'running') order by id desc limit 1",
+                           (uk.user_id,)).fetchone()
+        if row is not None:
+            return {"id": row[0]}
+        queued = conn.execute("select count(*) from jobs where user_id = %s and "
+                              "state = 'queued'", (uk.user_id,)).fetchone()[0]
         if queued >= MAX_QUEUED:
-            conn.rollback()
             raise HTTPException(429, "too many jobs waiting")
-        job_id = jobs.enqueue(conn, uk, "balances", {})   # commits, releasing the lock
+        job_id = jobs.add(conn, uk, "balances", {})
     return {"id": job_id}
 
 
 @router.get("/api/jobs/{job_id}")
 def get_job(st: St, uk: User, job_id: Annotated[int, JOB_ID]):
-    with st.connection() as conn:
+    with read(st) as conn:
         try:
             status = jobs.status(conn, uk, job_id)
             res = jobs.result(conn, uk, job_id)
         except LookupError:
             raise HTTPException(404, "no such job") from None
-        finally:
-            conn.rollback()
     return {"id": job_id, "state": status["state"], "error": status["error"], "code": codes.of_status(status),
             "result": res}
 
 
 @router.get("/api/jobs/{job_id}/events")
 def job_events(st: St, request: Request, uk: User, job_id: Annotated[int, JOB_ID]):
-    with st.connection() as conn:
+    with read(st) as conn:
         try:
             jobs.status(conn, uk, job_id)
         except LookupError:
             raise HTTPException(404, "no such job") from None
-        finally:
-            conn.rollback()
     try:
         after = max(0, int(request.headers.get("last-event-id", "0")))
     except ValueError:

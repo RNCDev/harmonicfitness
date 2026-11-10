@@ -6,10 +6,26 @@ import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import crypto, db, store  # noqa: E402
+from webapp import crypto, db, jobs, store  # noqa: E402
 
 URL = os.environ.get("HARMONICFITNESS_TEST_DATABASE_URL", "").strip()
 MASTER = bytes(range(32))
+
+
+def committed(fn, conn, *args, **kwargs):
+    """fn(conn, ...) in a transaction of its own, as a route's tx holds one: committed, or rolled back on a raise."""
+    try:
+        out = fn(conn, *args, **kwargs)
+        conn.commit()
+        return out
+    except BaseException:
+        conn.rollback()
+        raise
+
+
+def enqueue(conn, uk, kind: str, args: dict) -> int:
+    """A queued job, committed (what a route's POST does)."""
+    return committed(jobs.add, conn, uk, kind, args)
 
 
 class DBCase(unittest.TestCase):

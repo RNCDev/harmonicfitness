@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import jobs, keystore, media, providers, store, workouts
-from .state import MAX_QUEUED, POST, AppState, St, User, read
+from .state import MAX_QUEUED, POST, AppState, St, User, read, tx
 
 router = APIRouter()
 
@@ -36,18 +36,9 @@ def workout_call(st: AppState, uk: store.UserKey, call, *args, change: bool = Fa
         raise HTTPException({"not_found": 404, "failed": 502}.get(e.kind, 400), str(e)) from None
     if not change:
         return out
-    with st.connection() as conn:
-        try:
-            conflicts = store.write_back(conn, uk, out, {p: v for p, (v, _) in held.items()})
-            if conflicts:
-                conn.rollback()
-                raise HTTPException(409, "Your files changed at the same moment. Try again.")
-            conn.commit()
-        except HTTPException:
-            raise
-        except Exception:
-            conn.rollback()
-            raise
+    with tx(st) as conn:
+        if store.write_back(conn, uk, out, {p: v for p, (v, _) in held.items()}):
+            raise HTTPException(409, "Your files changed at the same moment. Try again.")
     return None
 
 
@@ -82,18 +73,16 @@ async def workout_feedback(st: St, uk: User, ref: Annotated[str, PathParam(max_l
                                                          change=True))
 
     def queue() -> int | None:
-        with st.connection() as conn:   # without a writer key there's no one to work it out: nothing queued
+        with tx(st) as conn:   # without a writer key there's no one to work it out: nothing queued
             if providers.pick(st.settings.providers, keystore.listing(conn, uk), keystore.writer(conn, uk)) is None:
-                conn.rollback()
                 return None
             # within the queued-jobs cap, as every other job is (0.76.0): the feedback itself is saved either way
             conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
             if conn.execute("select count(*) from jobs where user_id = %s and state = 'queued' and kind = 'enrich'",
                             (uk.user_id,)).fetchone()[0] >= MAX_QUEUED:
-                conn.rollback()
                 return None
-            return jobs.enqueue(conn, uk, "enrich", {"ref": workouts.check_ref(ref), "text": body.text,
-                                                     "today": datetime.date.today().isoformat()})
+            return jobs.add(conn, uk, "enrich", {"ref": workouts.check_ref(ref), "text": body.text,
+                                                 "today": datetime.date.today().isoformat()})
     return {"job_id": await anyio.to_thread.run_sync(queue)}
 
 

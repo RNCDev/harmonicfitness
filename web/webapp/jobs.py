@@ -6,10 +6,12 @@ The database keeps one running job per user in each lane (the partial unique ind
 and, for enrichment's own lane, one_running_enrich_per_user: migration 015).
 A job that dies is failed by `reap`, never requeued: it may already have reached a paid service.
 
-Transactions: every function that writes (enqueue, claim, heartbeat, finish, complete, fail, reap,
-event) commits its own work, but `add`, which queues a job in the caller's transaction (so a job and
-what it belongs to commit together). The readers (args, result, events, status) run in the caller's transaction
-and don't commit.
+Transactions: as everywhere in webapp/, a function that reads or writes data never commits or rolls back; its
+caller owns the transaction (a route's routes.state.tx). `add` queues a job in the caller's transaction, so a job
+and what it belongs to commit together; so do cancel_queued and request_stop. The exceptions are the queue's
+single-step units of work, which the worker loop calls one at a time: claim, heartbeat, stop_requested, finish,
+fail, reap, event and complete each commit their own work (through _done, or as they go). The readers (args,
+result, events, status, due_at) run in the caller's transaction.
 """
 import json
 from dataclasses import dataclass
@@ -66,11 +68,6 @@ def add(conn, uk: UserKey, kind: str, args: dict, not_before=None) -> int:
                  (_seal(uk, args, _aad(uk, job_id, "args")), job_id))
     conn.execute("select pg_notify('jobs_queued', '')")
     return job_id
-
-
-def enqueue(conn, uk: UserKey, kind: str, args: dict) -> int:
-    """Queue a job and wake the workers (NOTIFY jobs_queued). Commits."""
-    return _done(conn, lambda: add(conn, uk, kind, args))
 
 
 LANES = ("main", "enrich")   # enrich: enrichment's own lane, beside a turn; main: every other kind

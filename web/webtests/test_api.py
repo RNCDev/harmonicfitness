@@ -18,7 +18,7 @@ import webapp.routes.conversations  # noqa: E402,F401
 import webapp.routes.jobs  # noqa: E402,F401
 from webapp import api, auth, config, conversations, db, enginelib, folder, jobs, keystore, spend, store, turns, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
-from webtests.dbcase import MASTER, DBCase  # noqa: E402
+from webtests.dbcase import MASTER, DBCase, committed, enqueue  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 VERSION = open(os.path.join(ROOT, "VERSION"), encoding="utf-8").read().strip()
@@ -73,7 +73,7 @@ class ApiCase(DBCase):
         """A user and a client carrying its session cookie."""
         user_id, uk = self.make_user()
         client = client or self.client
-        t = token_of(auth.device_link(self.conn, self.settings, user_id).url)
+        t = token_of(committed(auth.device_link, self.conn, self.settings, user_id).url)
         r = client.post("/api/link/redeem", json={"token": t}, headers=self.origin(),
                         follow_redirects=False)
         self.assertEqual(r.status_code, 303)
@@ -219,7 +219,7 @@ class SignIn(ApiCase):
 
     def test_first_password_after_reset(self):
         user_id, _ = self.make_user("resetme")
-        link = auth.reset_link(self.conn, self.settings, "resetme")
+        link = committed(auth.reset_link, self.conn, self.settings, "resetme")
         r = self.client.post("/api/link/redeem", data={"token": token_of(link.url)},
                              headers=self.origin(), follow_redirects=False)
         self.assertEqual(r.status_code, 303)
@@ -230,7 +230,7 @@ class SignIn(ApiCase):
 
     def test_link_get_does_not_redeem(self):
         user_id, _ = self.make_user()
-        t = token_of(auth.device_link(self.conn, self.settings, user_id).url)
+        t = token_of(committed(auth.device_link, self.conn, self.settings, user_id).url)
         for _ in range(2):
             r = self.client.get(f"/link/{t}")
             self.assertEqual(r.status_code, 200)
@@ -250,7 +250,7 @@ class SignIn(ApiCase):
 
     def test_link_redeem(self):
         user_id, _ = self.make_user()
-        t = token_of(auth.device_link(self.conn, self.settings, user_id).url)
+        t = token_of(committed(auth.device_link, self.conn, self.settings, user_id).url)
         r = self.client.post("/api/link/redeem", data={"token": t}, headers=self.origin(),
                              follow_redirects=False)
         self.assertEqual((r.status_code, r.headers["location"]), (303, "/"))
@@ -392,7 +392,7 @@ class Api(ApiCase):
 
     def test_other_users_job_is_404(self):
         _, uk_a = self.make_user()
-        job = jobs.enqueue(self.conn, uk_a, "brief", {"goal": "strength"})
+        job = enqueue(self.conn, uk_a, "brief", {"goal": "strength"})
         jobs.event(self.conn, uk_a, job, {"stage": "folder"})
         self.signed_in()
         for path in (f"/api/jobs/{job}", f"/api/jobs/{job}/events", "/api/jobs/999999999",
@@ -402,7 +402,7 @@ class Api(ApiCase):
 
     def test_job_status_and_result(self):
         _, uk = self.signed_in()
-        job = jobs.enqueue(self.conn, uk, "brief", {"goal": "strength"})
+        job = enqueue(self.conn, uk, "brief", {"goal": "strength"})
         self.assertEqual(self.client.get(f"/api/jobs/{job}").json(),
                          {"id": job, "state": "queued", "error": None, "code": None, "result": None})
         jobs.claim(self.conn)
@@ -449,7 +449,7 @@ class Api(ApiCase):
 
     def test_stream_ends_when_job_fails_without_notify(self):
         _, uk = self.signed_in()
-        job = jobs.enqueue(self.conn, uk, "brief", {})
+        job = enqueue(self.conn, uk, "brief", {})
         jobs.claim(self.conn)
 
         def later():
@@ -467,7 +467,7 @@ class Api(ApiCase):
 
     def test_keep_alive(self):
         _, uk = self.signed_in()
-        job = jobs.enqueue(self.conn, uk, "brief", {})
+        job = enqueue(self.conn, uk, "brief", {})
         jobs.claim(self.conn)
         def later():
             conn = self.connect()
@@ -1192,9 +1192,9 @@ class Disconnect(ApiCase):
         while not server.started and time.monotonic() < deadline:
             time.sleep(0.02)
         user_id, uk = self.make_user()
-        session = auth.redeem(self.conn, self.settings,
-                              token_of(auth.device_link(self.conn, self.settings, user_id).url))
-        job = jobs.enqueue(self.conn, uk, "brief", {})   # stays queued: the stream never ends
+        session = committed(auth.redeem, self.conn, self.settings,
+                              token_of(committed(auth.device_link, self.conn, self.settings, user_id).url))
+        job = enqueue(self.conn, uk, "brief", {})   # stays queued: the stream never ends
         with mock.patch.object(routes.jobs, "KEEP_ALIVE", 0.1), mock.patch.object(routes.jobs, "POLL_EVERY", 0.1):
             with httpx.Client(base_url=f"http://127.0.0.1:{port}",
                               cookies={"wt_session": session}) as c:
@@ -1291,7 +1291,7 @@ class BodyLimit(ApiCase):
 
     def test_a_body_within_the_limit_reaches_the_route_whole(self):
         user_id, _ = self.make_user()
-        t = token_of(auth.device_link(self.conn, self.settings, user_id).url)
+        t = token_of(committed(auth.device_link, self.conn, self.settings, user_id).url)
         r = self.client.post("/api/link/redeem", content=f"token={t}".encode(), follow_redirects=False,
                              headers={**self.origin(), "Content-Type": "application/x-www-form-urlencoded"})
         self.assertEqual(r.status_code, 303)

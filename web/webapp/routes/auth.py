@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
 
 from .. import APP_NAME, auth, start
 from ..api import _address, _secure, error_body
-from .state import COOKIE, POST, AppState, St, User, confirming
+from .state import COOKIE, POST, AppState, St, User, confirming, tx
 
 router = APIRouter()
 
@@ -84,7 +84,7 @@ def register(st: St, request: Request, body: Annotated[Credentials, Body()]):
         raise HTTPException(429, "Too many new accounts just now. Try again in an hour.")
     st.throttles["reg_addr"].hit(addr)
     try:
-        with st.connection() as conn:
+        with tx(st) as conn:
             token = auth.register(conn, st.settings, body.username, body.password)
     except auth.Invalid as e:
         return _refused(400, str(e), e.field)
@@ -100,7 +100,7 @@ def sign_in(st: St, request: Request, body: Annotated[Credentials, Body()]):
     if st.throttles["login_name"].full(name) or st.throttles["login_addr"].full(addr):
         raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
     try:
-        with st.connection() as conn:
+        with tx(st) as conn:
             token = auth.sign_in(conn, st.settings, body.username, body.password)
     except auth.WrongPassword:
         st.throttles["login_name"].hit(name)
@@ -113,7 +113,7 @@ def sign_in(st: St, request: Request, body: Annotated[Credentials, Body()]):
 def password(st: St, request: Request, uk: User, body: Annotated[NewPassword, Body()]):
     key = confirming(st, uk)
     try:
-        with st.connection() as conn:
+        with tx(st) as conn:
             auth.set_password(conn, uk.user_id, body.current, body.new,
                               keep_session=request.cookies.get(COOKIE))
     except auth.Invalid as e:
@@ -145,7 +145,7 @@ async def redeem(st: St, request: Request):
         raise HTTPException(400, "a token is needed")
 
     def work():
-        with st.connection() as conn:
+        with tx(st) as conn:
             return auth.redeem(conn, st.settings, token)
     try:
         session_token = await anyio.to_thread.run_sync(work)
@@ -161,7 +161,7 @@ async def redeem(st: St, request: Request):
 
 @router.post("/api/sign-out", status_code=204, **POST)
 def sign_out(st: St, request: Request, uk: User):
-    with st.connection() as conn:
+    with tx(st) as conn:
         auth.sign_out(conn, request.cookies[COOKIE])
     start.forget(uk.user_id)
     r = Response(status_code=204)
@@ -171,6 +171,6 @@ def sign_out(st: St, request: Request, uk: User):
 
 @router.post("/api/device-link", **POST)
 def device_link(st: St, uk: User):
-    with st.connection() as conn:
+    with tx(st) as conn:
         link = auth.device_link(conn, st.settings, uk.user_id)
     return {"url": link.url, "expires_at": link.expires_at.isoformat()}

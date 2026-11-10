@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from webapp import config, db, folder, jobs, keystore, store, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
-from webtests.dbcase import MASTER, DBCase  # noqa: E402
+from webtests.dbcase import MASTER, DBCase, committed, enqueue  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
@@ -74,7 +74,7 @@ class Queue(JobsCase):
 
     def test_args_and_events_are_sealed(self):
         _, uk = self.make_user()
-        job = jobs.enqueue(self.conn, uk, "brief", {"goal": "strength", "secret": "left ankle"})
+        job = enqueue(self.conn, uk, "brief", {"goal": "strength", "secret": "left ankle"})
         raw = bytes(self.conn.execute("select args from jobs where id = %s", (job,)).fetchone()[0])
         self.assertNotIn(b"left ankle", raw)
         self.assertEqual(jobs.args(self.conn, uk, job)["secret"], "left ankle")
@@ -89,20 +89,20 @@ class Queue(JobsCase):
     def test_one_job_per_user(self):
         _, a = self.make_user()
         _, b = self.make_user()
-        first = jobs.enqueue(self.conn, a, "brief", {})
-        jobs.enqueue(self.conn, a, "brief", {})
+        first = enqueue(self.conn, a, "brief", {})
+        enqueue(self.conn, a, "brief", {})
         claimed = jobs.claim(self.conn)
         self.assertEqual(claimed.id, first)
         self.assertIsNone(jobs.claim(self.conn))
-        other = jobs.enqueue(self.conn, b, "brief", {})
+        other = enqueue(self.conn, b, "brief", {})
         self.assertEqual(jobs.claim(self.conn).id, other)
         self.assertIsNone(jobs.claim(self.conn))
 
     def test_stale_running_job_fails_and_frees_user(self):
         _, uk = self.make_user()
-        stale = jobs.enqueue(self.conn, uk, "brief", {})
+        stale = enqueue(self.conn, uk, "brief", {})
         self.assertEqual(jobs.claim(self.conn).id, stale)
-        later = jobs.enqueue(self.conn, uk, "brief", {})
+        later = enqueue(self.conn, uk, "brief", {})
         self.conn.execute("update jobs set heartbeat_at = now() - interval '5 minutes' where id = %s",
                           (stale,))
         self.conn.commit()
@@ -115,7 +115,7 @@ class Queue(JobsCase):
 
     def test_fresh_heartbeat_is_not_reaped(self):
         _, uk = self.make_user()
-        job = jobs.enqueue(self.conn, uk, "brief", {})
+        job = enqueue(self.conn, uk, "brief", {})
         jobs.claim(self.conn)
         self.conn.execute("update jobs set heartbeat_at = now() - interval '5 minutes' where id = %s",
                           (job,))
@@ -127,7 +127,7 @@ class Queue(JobsCase):
 
     def test_finish_after_reap_changes_nothing(self):
         _, uk = self.make_user()
-        job = jobs.enqueue(self.conn, uk, "brief", {})
+        job = enqueue(self.conn, uk, "brief", {})
         jobs.claim(self.conn)
         self.conn.execute("update jobs set heartbeat_at = now() - interval '5 minutes' where id = %s",
                           (job,))
@@ -142,7 +142,7 @@ class Worker(JobsCase):
     def test_brief_job_end_to_end(self):
         _, uk = self.seeded_user()
         before = set(store.read_all(self.conn, uk))
-        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        job = enqueue(self.conn, uk, "brief", self.brief_args())
         self.assertTrue(self.run_one())
         self.assertEqual(self.state(job), ("done", None))
         result = jobs.result(self.conn, uk, job)
@@ -172,7 +172,7 @@ class Worker(JobsCase):
         def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
             seen.append((argv, dict(extra_env)))
             return worker.engine.Result(0, out, "")
-        job = jobs.enqueue(self.conn, uk, "balances", {})
+        job = enqueue(self.conn, uk, "balances", {})
         with mock.patch.object(worker.engine, "run", side_effect=record):
             self.assertTrue(self.run_one())
         self.assertEqual(self.state(job), ("done", None))
@@ -185,11 +185,11 @@ class Worker(JobsCase):
     def test_balances_job_fails_on_an_unreadable_answer_or_args(self):
         _, uk = self.seeded_user()
         with mock.patch.object(worker.engine, "run", return_value=worker.engine.Result(0, "not json", "")):
-            job = jobs.enqueue(self.conn, uk, "balances", {})
+            job = enqueue(self.conn, uk, "balances", {})
             self.run_one()
             self.assertEqual(self.state(job), ("failed", "the engine's answer couldn't be read"))
         with mock.patch.object(worker.engine, "run", side_effect=AssertionError("engine ran")):
-            job = jobs.enqueue(self.conn, uk, "balances", {"x": 1})
+            job = enqueue(self.conn, uk, "balances", {"x": 1})
             self.run_one()
             self.assertTrue(self.state(job)[1].startswith("invalid request: "))
         self.conn.rollback()
@@ -201,12 +201,12 @@ class Worker(JobsCase):
         with mock.patch.object(worker.engine, "run", side_effect=AssertionError("engine ran")):
             for over in bad:
                 with self.subTest(over=over):
-                    job = jobs.enqueue(self.conn, uk, "brief", self.brief_args(**over))
+                    job = enqueue(self.conn, uk, "brief", self.brief_args(**over))
                     self.assertTrue(self.run_one())
                     state, error = self.state(job)
                     self.assertEqual(state, "failed")
                     self.assertTrue(error.startswith("invalid request: "), error)
-            job = jobs.enqueue(self.conn, uk, "brief", {"goal": "strength"})
+            job = enqueue(self.conn, uk, "brief", {"goal": "strength"})
             self.run_one()
             self.assertEqual(self.state(job)[0], "failed")
         self.conn.rollback()
@@ -214,7 +214,7 @@ class Worker(JobsCase):
     def test_engine_failure_fails_the_job_and_writes_nothing(self):
         _, uk = self.seeded_user()
         before = store.read_all(self.conn, uk)
-        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        job = enqueue(self.conn, uk, "brief", self.brief_args())
         fake = worker.engine.Result(1, "", "something about the listener\n")
         with mock.patch.object(worker.engine, "run", return_value=fake):
             self.run_one()
@@ -235,9 +235,9 @@ class Worker(JobsCase):
             seen.append(dict(extra_env))
             return worker.engine.Result(1, "", "")
         with mock.patch.object(worker.engine, "run", side_effect=record):
-            jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            enqueue(self.conn, uk, "brief", self.brief_args())
             self.run_one()
-            jobs.enqueue(self.conn, other, "brief", self.brief_args())
+            enqueue(self.conn, other, "brief", self.brief_args())
             self.run_one()
         self.assertEqual(seen, [{"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"}, {}])
         self.conn.rollback()
@@ -250,7 +250,7 @@ class Worker(JobsCase):
         _, uk = self.seeded_user()
         keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
         self.conn.commit()
-        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        job = enqueue(self.conn, uk, "brief", self.brief_args())
         with mock.patch.object(worker.engine, "run",
                                side_effect=lambda root, *a, **k: real_run(fake, *a, **k)):
             self.run_one()
@@ -274,9 +274,9 @@ class Worker(JobsCase):
             raise RuntimeError("something personal")
 
         with mock.patch.dict(worker.HANDLERS, {"brief": ok, "boom": boom}):
-            good = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            good = enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(self.run_one())
-            bad = jobs.enqueue(self.conn, uk, "boom", {})
+            bad = enqueue(self.conn, uk, "boom", {})
             with mock.patch("sys.stderr") as err:
                 self.assertTrue(self.run_one())
         self.assertEqual(self.state(good)[0], "done")
@@ -292,7 +292,7 @@ class Worker(JobsCase):
 
     def test_unknown_kind_fails(self):
         _, uk = self.make_user()
-        job = jobs.enqueue(self.conn, uk, "nonsense", {})
+        job = enqueue(self.conn, uk, "nonsense", {})
         self.assertTrue(self.run_one())
         self.assertEqual(self.state(job), ("failed", "unknown job kind"))
         self.conn.rollback()
@@ -317,7 +317,7 @@ class Worker(JobsCase):
 
         with mock.patch.dict(worker.HANDLERS, {"slow": slow}), \
                 mock.patch.object(worker, "HEARTBEAT_EVERY", 0.1):
-            job = jobs.enqueue(self.conn, uk, "slow", {})
+            job = enqueue(self.conn, uk, "slow", {})
             self.run_one()
         self.assertEqual(seen, [True])
         self.assertEqual(self.state(job)[0], "done")
@@ -406,7 +406,7 @@ class LostJobs(JobsCase):
 
         with mock.patch.dict(worker.HANDLERS, {"brief": reaped_meanwhile}), \
                 mock.patch("sys.stderr") as err:
-            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            job = enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(self.run_one())
         files, stages = self.files_and_events(uk, job)
         self.assertEqual(files, before)
@@ -429,7 +429,7 @@ class LostJobs(JobsCase):
                 mock.patch.object(worker, "HEARTBEAT_EVERY", 0.05), \
                 mock.patch.object(jobs, "heartbeat", return_value=False), \
                 mock.patch("sys.stderr"):
-            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            job = enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(self.run_one())
         files, stages = self.files_and_events(uk, job)
         self.assertEqual(files, before)
@@ -452,7 +452,7 @@ class LostJobs(JobsCase):
             return real(*a, **k)
         with mock.patch("sys.stderr"), mock.patch.object(worker, "HEARTBEAT_RETRY_WAIT", 0.05), \
                 mock.patch.object(worker.engine, "run", side_effect=slow_brief):
-            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            job = enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(worker.run_one(self.conn, self.settings, connect=broken))
         self.assertEqual(set(store.read_all(self.conn, uk)), before)
         self.assertEqual(self.state(job), ("failed", "interrupted"))
@@ -470,7 +470,7 @@ class LostJobs(JobsCase):
             return real()
         with mock.patch("sys.stderr"), mock.patch.object(worker, "HEARTBEAT_RETRY_WAIT", 0.05), \
                 mock.patch.object(worker, "HEARTBEAT_EVERY", 0.1):
-            job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+            job = enqueue(self.conn, uk, "brief", self.brief_args())
             self.assertTrue(worker.run_one(self.conn, self.settings, connect=flaky))
         self.assertEqual(self.state(job), ("done", None))
         self.conn.rollback()
@@ -489,7 +489,7 @@ class LostJobs(JobsCase):
         with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
                 mock.patch.object(worker, "CONNECT_TIMEOUT", 0), \
                 mock.patch.object(worker, "JOIN_SLACK", 0.2), mock.patch("sys.stderr"):
-            job = jobs.enqueue(self.conn, uk, "noop", {})
+            job = enqueue(self.conn, uk, "noop", {})
             t = time.monotonic()
             self.assertTrue(worker.run_one(self.conn, self.settings, connect=hung))
         self.assertLess(time.monotonic() - t, 5)
@@ -500,7 +500,7 @@ class LostJobs(JobsCase):
         _, uk = self.make_user()
         with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
                 mock.patch.object(worker.psycopg, "connect") as connect:
-            jobs.enqueue(self.conn, uk, "noop", {})
+            enqueue(self.conn, uk, "noop", {})
             self.assertTrue(worker.run_one(self.conn, self.settings))
         self.assertEqual(connect.call_args.kwargs["connect_timeout"], worker.CONNECT_TIMEOUT)
         self.conn.rollback()
@@ -559,7 +559,7 @@ class Turn(JobsCase):
 
     def enqueue_turn(self, uk, cid, args):
         """A turn job recorded as the conversation's own, as the API queues one."""
-        job = jobs.enqueue(self.conn, uk, "turn", args)
+        job = enqueue(self.conn, uk, "turn", args)
         conversations.set_job(self.conn, uk, cid, job)
         self.conn.commit()
         return job
@@ -1064,7 +1064,7 @@ class Turn(JobsCase):
         self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
         self.assertEqual((conv.state, conv.version, conv.lines), (before.state, before.version, before.lines))
         _, other = self.make_user()
-        job = jobs.enqueue(self.conn, other, "turn", self.turn_args(cid, "mine now"))
+        job = enqueue(self.conn, other, "turn", self.turn_args(cid, "mine now"))
         self.run_one()
         self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
         self.conn.rollback()
@@ -1072,8 +1072,8 @@ class Turn(JobsCase):
     def test_a_turn_that_isnt_the_conversations_job_is_left_alone(self):
         uk = self.user()
         cid = self.start(uk)
-        job = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go"))
-        other = jobs.enqueue(self.conn, uk, "brief", {})
+        job = enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go"))
+        other = enqueue(self.conn, uk, "brief", {})
         conversations.set_job(self.conn, uk, cid, other)   # still working, but on another job's turn
         self.conn.commit()
         before = conversations.load(self.conn, uk, cid)
@@ -1119,7 +1119,7 @@ class Turn(JobsCase):
                 self.assertEqual(state, "failed")
                 self.assertTrue(error.startswith("invalid request: "), error)
                 self.assertEqual(conv.state, "failed")
-        job = jobs.enqueue(self.conn, uk, "turn", {"conversation_id": "1"})
+        job = enqueue(self.conn, uk, "turn", {"conversation_id": "1"})
         self.run_one()
         self.assertTrue(self.state(job)[1].startswith("invalid request: "))
         self.conn.rollback()
@@ -1223,7 +1223,7 @@ class Turn(JobsCase):
         def reaped_then_replaced(ctx):
             self.conn.execute("update jobs set state = 'failed', error = 'interrupted', "
                               "finished_at = now() where id = %s", (ctx.job_id,))
-            newer.append(jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, "again")))
+            newer.append(enqueue(self.conn, uk, "turn", self.turn_args(cid, "again")))
             conversations.set_job(self.conn, uk, cid, newer[0])   # healed and begun anew meanwhile
             self.conn.commit()
         job, conv = self.lost_after_handler(uk, cid, reaped_then_replaced)
@@ -1235,7 +1235,7 @@ class Turn(JobsCase):
     def test_a_stop_of_an_old_job_leaves_a_newer_turn_alone(self):
         uk = self.user()
         cid = self.start(uk)
-        old = jobs.enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go", now="08:00"))
+        old = enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go", now="08:00"))
         conversations.set_job(self.conn, uk, cid, None)   # not this job's turn
         self.conn.commit()
         with mock.patch.object(providers, "model_for", side_effect=AssertionError("the model ran")):
@@ -1264,9 +1264,9 @@ class Turn(JobsCase):
 class Lanes(JobsCase):
     def test_enrichment_runs_beside_a_turn_and_one_at_a_time(self):
         _, uk = self.make_user()
-        turn = jobs.enqueue(self.conn, uk, "turn", {})
-        first = jobs.enqueue(self.conn, uk, "enrich", {})
-        second = jobs.enqueue(self.conn, uk, "enrich", {})
+        turn = enqueue(self.conn, uk, "turn", {})
+        first = enqueue(self.conn, uk, "enrich", {})
+        second = enqueue(self.conn, uk, "enrich", {})
         self.assertEqual(jobs.claim(self.conn).id, turn)                # the main lane never takes an enrich job
         self.assertEqual(jobs.claim(self.conn, "enrich").id, first)     # beside the running turn
         self.assertIsNone(jobs.claim(self.conn, "enrich"))              # but one enrichment at a time
@@ -1279,7 +1279,7 @@ class Lanes(JobsCase):
 
     def test_the_unique_indexes_hold_one_running_job_a_lane(self):
         _, uk = self.make_user()
-        a, b = jobs.enqueue(self.conn, uk, "enrich", {}), jobs.enqueue(self.conn, uk, "enrich", {})
+        a, b = enqueue(self.conn, uk, "enrich", {}), enqueue(self.conn, uk, "enrich", {})
         self.conn.execute("update jobs set state = 'running' where id = %s", (a,))
         self.conn.commit()
         with self.assertRaises(psycopg.errors.UniqueViolation):
@@ -1300,7 +1300,7 @@ class Enrich(JobsCase):
         return uk
 
     def run_enrich(self, uk, output, text=TEXT):
-        job = jobs.enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": text, "today": today()})
+        job = enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": text, "today": today()})
         seen = []
 
         def model(messages, info):
@@ -1339,7 +1339,7 @@ class Enrich(JobsCase):
 
     def test_without_a_writer_key_there_is_nothing_to_note(self):
         uk = self.user(key=False)
-        job = jobs.enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": self.TEXT, "today": today()})
+        job = enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": self.TEXT, "today": today()})
         with mock.patch.object(providers, "model_for") as model_for:
             self.assertTrue(worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich"))
         model_for.assert_not_called()
@@ -1350,7 +1350,7 @@ class Enrich(JobsCase):
         uk = self.user()
         for args in ({"ref": "../x", "text": "hi", "today": today()}, {"ref": "ccc333", "text": " ", "today": today()},
                      {"ref": "ccc333", "text": "hi", "today": "soon"}):
-            job = jobs.enqueue(self.conn, uk, "enrich", args)
+            job = enqueue(self.conn, uk, "enrich", args)
             worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich")
             self.assertEqual(self.state(job)[0], "failed", args)
         self.conn.rollback()
@@ -1386,7 +1386,7 @@ class Resilience(JobsCase):
         self.handler(dropped)
         main = self.connect()
         self.addCleanup(main.close)
-        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        job = enqueue(self.conn, uk, "brief", self.brief_args())
         with mock.patch("sys.stderr"):
             self.assertTrue(worker.run_one(main, self.settings, connect=self.connect))
         self.assertEqual(self.state(job), ("done", None))   # done now, not reaped two minutes on
@@ -1402,7 +1402,7 @@ class Resilience(JobsCase):
             ctx.conn.rollback()
             return {"ok": True}
         self.handler(half_done)
-        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        job = enqueue(self.conn, uk, "brief", self.brief_args())
         self.assertTrue(self.run_one())
         self.assertIsNone(store.read_one(self.conn, uk, "notes/half.md"))
         self.assertIn("step", [b["stage"] for _, b in jobs.events(self.conn, uk, job)])
@@ -1417,7 +1417,7 @@ class Resilience(JobsCase):
         self.handler(long)
         stopping = threading.Event()
         stopping.set()   # SIGTERM came in while it ran
-        job = jobs.enqueue(self.conn, uk, "brief", self.brief_args())
+        job = enqueue(self.conn, uk, "brief", self.brief_args())
         with mock.patch("sys.stderr"), mock.patch.object(worker, "DRAIN_SECONDS", 0.2), \
                 mock.patch.object(worker, "STOP_POLL", 0.05):
             began = time.monotonic()

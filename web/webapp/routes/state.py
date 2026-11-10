@@ -79,13 +79,12 @@ def session(request: Request) -> store.UserKey:
     token = request.cookies.get(COOKIE)
     if not token:
         raise HTTPException(401, "not signed in")
-    with st.connection() as conn:
+    with tx(st) as conn:   # a renewal, or an expired session's delete, is kept even when the answer is 401
         user_id = auth.user_for(conn, st.settings, token)
-        if user_id is None:
-            raise HTTPException(401, "not signed in")
-        uk = store.user_key(conn, st.settings, user_id)
-        conn.rollback()
-        return uk
+        uk = store.user_key(conn, st.settings, user_id) if user_id is not None else None
+    if uk is None:
+        raise HTTPException(401, "not signed in")
+    return uk
 
 
 User = Annotated[store.UserKey, Depends(session)]
