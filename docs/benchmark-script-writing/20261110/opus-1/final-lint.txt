@@ -1,0 +1,32 @@
+  #  secs words guide spoken  fill  label
+  1    55   128   145   49.1   89%  Welcome and the rules
+  2    80   221   194   93.6  117%  Warm-up, marching in place, sixty seconds easy  <-- runs 13.6s long
+  3    45    70    45   43.0   96%  Push-up set 1, 10 reps, bodyweight
+  4    40    85    33   47.5  119%  Lateral lunge set 1, right side only, 10 reps, bodyweight  <-- runs 7.5s long
+  5    50    51    36   39.9   80%  Glute bridge set 1, 15 reps, bodyweight, light  <-- ends 10.1s early
+  6    40    76    30   43.1  108%  Prone y t w raise set 1, 10 reps, bodyweight
+  7    65   138   170   51.1   79%  Rest  <-- ends 13.9s early
+  8    35    45    39   36.9  105%  Push-up set 2, 10 reps, bodyweight
+  9    30    44    28   36.3  121%  Lateral lunge set 2, right side only, 10 reps, bodyweight  <-- runs 6.3s long
+ 10    45    55    39   51.2  114%  Glute bridge set 2, 15 reps, bodyweight, light  <-- runs 6.2s long
+ 11    35    46    50   32.7   93%  Prone y t w raise set 2, 10 reps, bodyweight
+ 12    50   146   115   63.5  127%  Forearm plank, forty seconds, bodyweight  <-- runs 13.5s long
+ 13    65   145   168   60.9   94%  Rest
+ 14    35    42    50   31.8   91%  Push-up set 3, 10 reps, bodyweight
+ 15    30    44    36   32.8  109%  Lateral lunge set 3, right side only, 10 reps, bodyweight
+ 16    45    48    39   48.5  108%  Glute bridge set 3, 15 reps, bodyweight, light
+ 17    35    48    38   37.6  107%  Prone y t w raise set 3, 10 reps, bodyweight
+ 18    50   125   131   46.8   94%  Cool-down, figure-four stretch, thirty seconds a side
+ 19    70   148   176   55.7   80%  Cool-down, belly breathing, sixty seconds  <-- ends 14.3s early
+
+Planned 15.0 min | 1705 words | 15.0 min of talk, counts and fixed holds predicted with Coach Freya (12.51 chars/s, estimated until its first render)
+Predicted length 15.2 min, +1.1% of plan (within 4.0% is fine: the lint aims inside the render's limit, leaving room for the voice)
+Coach Freya speaks this draft's words at about 163 a minute; the guide column is the words that fill each segment at that rate, around its holds, counts and chimes
+Sends 8,968 characters to the voice service
+8 segment(s) far off their slots; not blocking: the total is within its limit, so leave them as they are
+
+Menu check (me/workouts/2026-11-10-strength-15/2026-11-10-strength-15.menu.json):
+  warning: segment "Lateral lunge set 1, right side only, 10 reps, bodyweight" (line 46): "Lateral lunges on the right side only today, the left leg resting, and training the good side still helps the sore one a little" puts lateral lunge on the left side, but today's menu allows it on the right side only; keep that segment to the right side
+
+Exported 81 paragraphs to me/workouts/2026-11-10-strength-15/Workout 2026-11-10 Strength 15 min.txt
+

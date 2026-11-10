@@ -1,0 +1,46 @@
+movements: glute-bridge, push-up, prone-y-t-w-raise, dead-bug, box-breathing
+@@ 115 | Opening and Warm-up
+[pause 2s]
+
+@@ 50 | Glute bridge set 1, 12 reps, bodyweight
+[count 3 go] [reps 12]
+
+@@ 40 | Rest
+
+@@ 50 | Push-up set 1, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 40 | Rest
+
+@@ 50 | Prone Y T W raise set 1, 8 reps, bodyweight
+[count 3 go] [reps 8]
+
+@@ 40 | Rest
+
+@@ 50 | Dead bug set 1, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 40 | Rest
+
+@@ 50 | Glute bridge set 2, 12 reps, bodyweight
+[count 3 go] [reps 12]
+
+@@ 40 | Rest
+
+@@ 50 | Push-up set 2, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 40 | Rest
+
+@@ 50 | Prone Y T W raise set 2, 8 reps, bodyweight
+[count 3 go] [reps 8]
+
+@@ 40 | Rest
+
+@@ 50 | Dead bug set 2, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 45 | Transition
+
+@@ 60 | Cool-down: Box breathing
+[hold 5s]

@@ -1,0 +1,53 @@
+movements: marching in place, push-up, lateral lunge, glute bridge, prone y t w raise, forearm plank, figure-four stretch, belly breathing
+
+@@ 55 | Welcome and the rules
+
+@@ 80 | Warm-up, marching in place, sixty seconds easy
+[count 3 go] [story] [/story]
+
+@@ 45 | Push-up set 1, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 40 | Lateral lunge set 1, right side only, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 50 | Glute bridge set 1, 15 reps, bodyweight, light
+[count 3 go] [reps 15]
+
+@@ 40 | Prone y t w raise set 1, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 65 | Rest
+
+@@ 35 | Push-up set 2, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 30 | Lateral lunge set 2, right side only, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 45 | Glute bridge set 2, 15 reps, bodyweight, light
+[count 3 go] [reps 15]
+
+@@ 35 | Prone y t w raise set 2, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 50 | Forearm plank, forty seconds, bodyweight
+[count 3 go] [story] [/story]
+
+@@ 65 | Rest
+
+@@ 35 | Push-up set 3, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 30 | Lateral lunge set 3, right side only, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 45 | Glute bridge set 3, 15 reps, bodyweight, light
+[count 3 go] [reps 15]
+
+@@ 35 | Prone y t w raise set 3, 10 reps, bodyweight
+[count 3 go] [reps 10]
+
+@@ 50 | Cool-down, figure-four stretch, thirty seconds a side
+
+@@ 70 | Cool-down, belly breathing, sixty seconds

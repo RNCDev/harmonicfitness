@@ -1,0 +1,58 @@
+movements: marching in place, arm circles, glute bridge, incline push-up, towel door row, figure-four stretch, box breathing
+
+@@ 50 | Welcome and rules
+
+@@ 45 | Warm-up marching in place, 40 seconds, easy
+[count 3 go] [story] [/story]
+
+@@ 30 | Warm-up arm circles, 25 seconds
+[count 3 go] [hold]
+
+@@ 50 | Glute bridge set 1, 15 reps, bodyweight, light
+[count 3 go] [reps 15]
+
+@@ 30 | Rest
+
+@@ 55 | Incline push-up set 1, 40 seconds, hands on chair against wall
+[count 3 go] [hold]
+
+@@ 30 | Rest
+
+@@ 55 | Towel door row set 1, 40 seconds, towel round door handle
+[count 3 go] [hold]
+
+@@ 30 | Rest
+
+@@ 40 | Glute bridge set 2, 15 reps, bodyweight, light
+[count 3 go] [reps 15]
+
+@@ 30 | Rest
+
+@@ 50 | Incline push-up set 2, 40 seconds, hands on chair
+[count 3 go] [story] [/story]
+
+@@ 30 | Rest
+
+@@ 50 | Towel door row set 2, 40 seconds, towel round door handle
+[count 3 go] [story] [/story]
+
+@@ 30 | Rest
+
+@@ 40 | Glute bridge set 3, 15 reps, bodyweight, light
+[count 3 go] [reps 15]
+
+@@ 30 | Rest
+
+@@ 50 | Incline push-up set 3, 40 seconds, hands on chair
+[count 3 go] [hold]
+
+@@ 30 | Rest
+
+@@ 50 | Towel door row set 3, 40 seconds, towel round door handle
+[count 3 go] [hold]
+
+@@ 50 | Cool-down figure-four stretch, 20 seconds each side
+[count 3 go] [hold 5s]
+
+@@ 45 | Cool-down box breathing, 40 seconds
+[count 3 go] [hold]

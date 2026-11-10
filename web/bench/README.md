@@ -33,6 +33,15 @@ web/bench/batch.sh <label> <minutes> <runs> [--engine <checkout>] [--set NAME=VA
 - `--set` changes one of the writers' settings for the run: `LEVEL.trainer=LOW`, `STORY_WORDS=100`.
 - Don't start a batch near midnight: a run's menu is dated by the day it began, so a run that crosses midnight
   fails its build.
+- `--provider openrouter --model anthropic/claude-opus-5.5` writes with another provider's model (the OpenRouter
+  key from the key file; the Gemini key still prices the coach), and `--line` gives another request sentence, for
+  a home the default sentence doesn't fit. To bench an invented listener rather than `me/`, run with
+  `HARMONICFITNESS_HOME=docs/demos/listeners/<slug>` and `HARMONICFITNESS_KEYS=me/.env`: only then may a run's
+  files leave `.bench/`.
+
+Every run also writes `requests.jsonl` (each model request: who asked, the agent's phase, the size sent, the
+provider's usage as it came back), `commands.jsonl` (each engine command) and `drafts/` (the draft as each lint
+read it). `.venv/bin/python web/bench/tokens.py <run-dir>...` prints a run's tokens and estimated cost by step.
 
 `summarize.py` prints, for each run:
 - seconds from the brief to the price, to the writers' room, in it and after it;
@@ -56,6 +65,13 @@ Set the rule before the runs:
   every must-say line in, the sides right, no story fact outside its notes, one voice start to finish.
 
 ## Results
+
+### 0.78.1 (2026-11-10): where the tokens go, Gemini and Opus
+
+Two 15-minute runs on Gemini 3.8 Flash and two on Opus 5.5 through OpenRouter, for the invented listener Jo, every
+request recorded: [docs/benchmark-script-writing/20261110/](../../docs/benchmark-script-writing/20261110/README.md).
+All four priced and linted clean. Writing cost $0.17 and $0.21 on Gemini, $2.12 and $2.09 on Opus. On Gemini the
+agent's own requests sent three quarters of the input tokens.
 
 ### 0.70.1 (2026-11-08): a set's go before its reps, the reminder once
 

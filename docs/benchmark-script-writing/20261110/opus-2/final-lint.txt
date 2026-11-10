@@ -1,0 +1,35 @@
+  #  secs words guide spoken  fill  label
+  1    50   153   128   58.3  117%  Welcome and rules  <-- runs 8.3s long
+  2    45   107   103   50.0  111%  Warm-up marching in place, 40 seconds, easy  <-- runs 5.0s long
+  3    30    55    64   30.7  102%  Warm-up arm circles, 25 seconds
+  4    50    77    53   57.9  116%  Glute bridge set 1, 15 reps, bodyweight, light  <-- runs 7.9s long
+  5    30    70    76   28.2   94%  Rest
+  6    55   126   128   52.6   96%  Incline push-up set 1, 40 seconds, hands on chair against wall
+  7    30    79    75   32.7  109%  Rest
+  8    55   128   127   52.7   96%  Towel door row set 1, 40 seconds, towel round door handle
+  9    30    74    75   29.4   98%  Rest
+ 10    40    29    19   43.7  109%  Glute bridge set 2, 15 reps, bodyweight, light
+ 11    30    75    75   30.5  102%  Rest
+ 12    50   113   117   49.1   98%  Incline push-up set 2, 40 seconds, hands on chair
+ 13    30    75    75   29.9  100%  Rest
+ 14    50   119   117   47.3   95%  Towel door row set 2, 40 seconds, towel round door handle
+ 15    30    75    75   32.1  107%  Rest
+ 16    40    29    19   44.0  110%  Glute bridge set 3, 15 reps, bodyweight, light  <-- runs 4.0s long
+ 17    30    73    75   30.2  101%  Rest
+ 18    50   105   114   44.9   90%  Incline push-up set 3, 40 seconds, hands on chair
+ 19    30    75    75   31.9  106%  Rest
+ 20    50   103   113   41.9   84%  Towel door row set 3, 40 seconds, towel round door handle
+ 21    50    91   101   47.4   95%  Cool-down figure-four stretch, 20 seconds each side
+ 22    45    99   100   44.6   99%  Cool-down box breathing, 40 seconds
+
+Planned 15.0 min | 1930 words | 15.2 min of talk, counts and fixed holds predicted with Coach Freya (12.51 chars/s, estimated until its first render)
+Predicted length 15.5 min, +3.2% of plan (within 4.0% is fine: the lint aims inside the render's limit, leaving room for the voice)
+Coach Freya speaks this draft's words at about 160 a minute; the guide column is the words that fill each segment at that rate, around its holds, counts and chimes
+Sends 10,557 characters to the voice service
+4 segment(s) far off their slots; not blocking: the total is within its limit, so leave them as they are
+
+Menu check (me/workouts/2026-11-10-strength-15/2026-11-10-strength-15.menu.json):
+  warning: the script names "push-up" (push-up) but the movements: line doesn't; add it
+
+Exported 130 paragraphs to me/workouts/2026-11-10-strength-15/Workout 2026-11-10 Strength 15 min.txt
+

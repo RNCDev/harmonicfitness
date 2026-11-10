@@ -1,0 +1,32 @@
+  #  secs words guide spoken  fill  label
+  1   110   238   266   93.2   85%  Warm-up
+  2    50    80    76   51.1  102%  Glute bridge set 1, 12 reps, bodyweight
+  3    35    77    83   33.2   95%  Rest
+  4    50    94    77   53.8  108%  Glute bridge set 2, 12 reps, bodyweight
+  5    35    64    83   26.0   74%  Rest  <-- ends 9.0s early
+  6    50    83    77   50.3  101%  Glute bridge set 3, 12 reps, bodyweight
+  7    35    56    83   28.0   80%  Transition  <-- ends 7.0s early
+  8    45    60    70   37.3   83%  Push-up set 1, 10 reps, bodyweight
+  9    35    79    83   31.4   90%  Rest
+ 10    45    77    69   47.6  106%  Push-up set 2, 10 reps, bodyweight
+ 11    35    62    83   28.2   80%  Rest
+ 12    45    63    69   42.6   95%  Push-up set 3, 10 reps, bodyweight
+ 13    35    65    83   31.2   89%  Transition
+ 14    45    65    70   38.8   86%  Towel door row set 1, 10 reps, bodyweight
+ 15    35    72    83   30.3   87%  Rest
+ 16    45    53    70   35.1   78%  Towel door row set 2, 10 reps, bodyweight  <-- ends 9.9s early
+ 17    35    57    83   29.0   83%  Rest
+ 18    45    48    70   33.7   75%  Towel door row set 3, 10 reps, bodyweight  <-- ends 11.3s early
+ 19    50    60    71   44.7   89%  Dead bug set 1, 8 reps, bodyweight
+ 20    40    73    54   45.9  115%  Cool-down box breathing  <-- runs 5.9s long
+
+Planned 15.0 min | 1526 words | 13.5 min of talk, counts and fixed holds predicted with Coach Freya (12.51 chars/s, estimated until its first render)
+Predicted length 14.7 min, -1.9% of plan (within 4.0% is fine: the lint aims inside the render's limit, leaving room for the voice)
+Coach Freya speaks this draft's words at about 148 a minute; the guide column is the words that fill each segment at that rate, around its holds, counts and chimes
+Sends 8,881 characters to the voice service
+5 segment(s) far off their slots; not blocking: the total is within its limit, so leave them as they are
+
+Menu check: every movement is on today's menu (5 declared).
+
+Exported 76 paragraphs to me/workouts/2026-11-10-strength-15/Workout 2026-11-10 Strength 15 min.txt
+

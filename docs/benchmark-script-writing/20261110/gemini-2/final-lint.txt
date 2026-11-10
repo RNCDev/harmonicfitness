@@ -1,0 +1,31 @@
+  #  secs words guide spoken  fill  label
+  1   115   220   280   87.7   76%  Opening and Warm-up  <-- ends 27.3s early
+  2    50    99    76   55.5  111%  Glute bridge set 1, 12 reps, bodyweight  <-- runs 5.5s long
+  3    40   106    94   49.0  123%  Rest  <-- runs 9.0s long
+  4    50    60    82   40.6   81%  Push-up set 1, 10 reps, bodyweight
+  5    40   105    94   43.3  108%  Rest
+  6    50    69    90   37.3   75%  Prone Y T W raise set 1, 8 reps, bodyweight  <-- ends 12.7s early
+  7    40    97    95   40.3  101%  Rest
+  8    50    80    45   63.3  127%  Dead bug set 1, 10 reps, bodyweight  <-- runs 13.3s long
+  9    40   102    94   42.7  107%  Rest
+ 10    50    55    79   39.0   78%  Glute bridge set 2, 12 reps, bodyweight  <-- ends 11.0s early
+ 11    40   101    95   44.1  110%  Rest  <-- runs 4.1s long
+ 12    50    52    82   37.7   75%  Push-up set 2, 10 reps, bodyweight  <-- ends 12.3s early
+ 13    40   106    94   48.3  121%  Rest  <-- runs 8.3s long
+ 14    50    57    90   34.1   68%  Prone Y T W raise set 2, 8 reps, bodyweight  <-- ends 15.9s early
+ 15    40   104    95   46.0  115%  Rest  <-- runs 6.0s long
+ 16    50    68    45   59.4  119%  Dead bug set 2, 10 reps, bodyweight  <-- runs 9.4s long
+ 17    45   119   106   54.1  120%  Transition  <-- runs 9.1s long
+ 18    60    91    66   69.0  115%  Cool-down: Box breathing  <-- runs 9.0s long
+
+Planned 15.0 min | 1691 words | 14.9 min of talk, counts and fixed holds predicted with Coach Freya (12.51 chars/s, estimated until its first render)
+Predicted length 15.2 min, +1.4% of plan (within 4.0% is fine: the lint aims inside the render's limit, leaving room for the voice)
+Coach Freya speaks this draft's words at about 149 a minute; the guide column is the words that fill each segment at that rate, around its holds, counts and chimes
+Sends 9,822 characters to the voice service
+14 segment(s) far off their slots; not blocking: the total is within its limit, so leave them as they are
+
+Menu check (me/workouts/2026-11-10-strength-15/2026-11-10-strength-15.menu.json):
+  warning: the script names "long exhales" (long-exhale-breathing) but the movements: line doesn't; add it
+
+Exported 76 paragraphs to me/workouts/2026-11-10-strength-15/Workout 2026-11-10 Strength 15 min.txt
+

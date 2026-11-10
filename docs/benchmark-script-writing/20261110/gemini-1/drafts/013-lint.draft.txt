@@ -1,0 +1,31 @@
+movements: glute-bridge, push-up, towel-door-row, dead-bug, box-breathing
+@@ 110 | Warm-up
+@@ 50 | Glute bridge set 1, 12 reps, bodyweight
+[count 3 go] [reps 12]
+@@ 35 | Rest
+@@ 50 | Glute bridge set 2, 12 reps, bodyweight
+[count 3 go] [reps 12]
+@@ 35 | Rest
+@@ 50 | Glute bridge set 3, 12 reps, bodyweight
+[count 3 go] [reps 12]
+@@ 35 | Transition
+@@ 45 | Push-up set 1, 10 reps, bodyweight
+[count 3 go] [reps 10]
+@@ 35 | Rest
+@@ 45 | Push-up set 2, 10 reps, bodyweight
+[count 3 go] [reps 10]
+@@ 35 | Rest
+@@ 45 | Push-up set 3, 10 reps, bodyweight
+[count 3 go] [reps 10]
+@@ 35 | Transition
+@@ 45 | Towel door row set 1, 10 reps, bodyweight
+[count 3 go] [reps 10]
+@@ 35 | Rest
+@@ 45 | Towel door row set 2, 10 reps, bodyweight
+[count 3 go] [reps 10]
+@@ 35 | Rest
+@@ 45 | Towel door row set 3, 10 reps, bodyweight
+[count 3 go] [reps 10]
+@@ 50 | Dead bug set 1, 8 reps, bodyweight
+[count 3 go] [reps 8]
+@@ 40 | Cool-down box breathing
