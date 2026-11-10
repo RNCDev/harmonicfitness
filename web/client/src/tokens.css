@@ -48,13 +48,15 @@
   --fs-request: clamp(38px, 4.8vw, 70px);        /* the request on the first screen, and the sign-in page's demos */
   --fs-hero: clamp(48px, 6vw, 76px);             /* a page with one short task: sign in, choose a password */
   --fs-welcome: clamp(32px, 3.6vw, 44px);        /* the welcome card */
+  /* weights: the text's, a label's or a button's, a strong word's, a heading's, the sign-in page's free count */
+  --w-regular: 400; --w-medium: 500; --w-strong: 600; --w-bold: 700; --w-heavy: 800;
   --track-tight: .02em; --track-head: .05em; --track-wide: .1em; --track-btn: .14em; --track-label: .16em;
   /* line heights: set solid, a heading's, a control's or a short note's, and running text */
   --lh-solid: 1; --lh-tight: 1.1; --lh-head: 1.2; --lh-ui: 1.4; --lh-body: 1.55;
 
   /* space: steps of 4 and 8, with the half steps the layout uses */
   --s-1: 4px; --s-1h: 6px; --s-2: 8px; --s-2h: 10px; --s-3: 12px; --s-3h: 14px; --s-4: 16px; --s-4h: 20px;
-  --s-5: 24px; --s-5h: 28px; --s-6: 32px; --s-6h: 40px; --s-7: 48px; --s-8: 72px; --s-9: 96px;
+  --s-5: 24px; --s-5h: 28px; --s-6: 32px; --s-6h: 40px; --s-7: 48px; --s-8: 72px;
   --gut: clamp(20px, 4vw, 56px);
   --page: 64rem;                                  /* a page's column: Logs */
   --page-wide: 84rem;                             /* a page that compares side by side: Coaches */
@@ -62,6 +64,14 @@
 
   /* corners: controls are square, sheets (cards, panels, bubbles, menus) a little round, a pill fully */
   --radius-control: 0; --radius-sheet: 2px; --radius-pill: 999px;
+
+  /* lines: drawn as inset shadows, so they take no room; each is its geometry, and a rule adds the colour
+     (box-shadow: var(--ring) var(--border)). A ring around, a hairline on one side, a mark (2px) on one side; the
+     strong ring and a mark say what's chosen, in --accent. Then a glow around a dot, and a soft edge that fades. */
+  --ring: inset 0 0 0 1px; --ring-strong: inset 0 0 0 2px;
+  --line-top: inset 0 1px 0; --line-bottom: inset 0 -1px 0; --line-left: inset 1px 0 0;
+  --mark-top: inset 0 2px 0; --mark-bottom: inset 0 -2px 0; --mark-left: inset 2px 0 0;
+  --halo: 0 0 0 4px; --halo-wide: 0 0 0 8px; --fade-edge: 0 0 24px 18px;
 
   /* sizes: a fingertip's target (every control on a touch screen takes at least this), a control's height, and the
      smaller pieces: a round play or a rating, the large play, a chart's dot, a count's badge, a box to tick */
@@ -76,7 +86,7 @@
   --focus-ring-inset: inset 0 0 0 2px var(--ink);
 
   /* layers, motion */
-  --z-raised: 1; --z-over: 2; --z-menu: 5; --z-dialog: 60; --z-scrim: 65; --z-drawer: 70;
+  --z-base: 0; --z-raised: 1; --z-menu: 5; --z-dialog: 60; --z-scrim: 65; --z-drawer: 70;
   --t-fast: .15s; --t-flip: .3s; --t-slide: .28s; --t-pulse: 1.5s; --t-sky: 1.2s; --t-drift: 120s; --t-drift-back: 200s; --ease-slide: cubic-bezier(.2, .8, .2, 1);
   --ease-flip: cubic-bezier(.3, 1.45, .6, 1);
   /* how strongly a thing shows: switched off, busy, quieter, a faint mark */
@@ -89,6 +99,8 @@
   --surface: var(--paper); --surface-raised: var(--sheet); --surface-2: var(--sheet-2); --surface-drawer: var(--drawer);
   --action: var(--ink); --on-action: var(--paper); --danger: var(--stop); --danger-surface: var(--stop-tint);
   --sample: var(--blue); --sample-strong: var(--blue-hi); --sample-surface: var(--blue-tint);
+  --surface-selected: var(--selected); --surface-hover: var(--hover-row);
+  --underline-idle: var(--dim); --mark-off: var(--mute-fill); --mark-done: var(--step-done);
   --request-fixed: var(--coral);
   --accent: var(--coral);   /* a small mark of the brand on what's chosen: a tab, a level, a switch, a background */
 

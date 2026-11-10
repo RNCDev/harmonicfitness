@@ -2,10 +2,10 @@
 /* ---------- the request ---------- */
 /* the request at the top, the other asks anchored at the bottom, just above the message box */
 .starter { position: relative; margin: 0; padding: clamp(var(--s-2), 3vh, var(--s-6)) 0 var(--s-2); flex: 1 0 auto; display: flex; flex-direction: column }
-.eyebrow, .demo-eyebrow { font-size: var(--fs-md); font-weight: 500 }
+.eyebrow, .demo-eyebrow { font-size: var(--fs-md); font-weight: var(--w-medium) }
 .eyebrow { margin: 0 0 var(--s-4h) }
 .mad {
-  margin: 0; font: 500 var(--fs-request)/var(--lh-head) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase;
+  margin: 0; font: var(--w-medium) var(--fs-request)/var(--lh-head) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase;
   color: var(--request-fixed);
 }
 .mad-2 { margin-top: var(--s-2h) }
@@ -13,7 +13,7 @@
    keep off. On the first screen each is a button (.slot) that opens its choices. */
 .blank, .slot {
   color: var(--text-slot); padding: 0 2px; margin: 0 -1px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
-  background: linear-gradient(var(--dim), var(--dim)) 0 100% / 100% 2px no-repeat;
+  background: linear-gradient(var(--underline-idle), var(--underline-idle)) 0 100% / 100% 2px no-repeat;
 }
 .blank.off { background-image: linear-gradient(var(--danger), var(--danger)) }
 .slot {
@@ -57,20 +57,20 @@
 .else-a.lead .else-go { opacity: var(--o-muted); transform: none }
 .else-a.lead .else-d { color: var(--text-2) }
 .else-a:hover:not(:disabled) .else-d { color: var(--text-2) }
-.else-t { font-weight: 600; font-size: var(--fs-body); transition: color var(--t-fast) }
+.else-t { font-weight: var(--w-strong); font-size: var(--fs-body); transition: color var(--t-fast) }
 .else-d { font-size: var(--fs-md); color: var(--text-muted); line-height: var(--lh-ui) }
 .else-a:hover:not(:disabled) .else-t { color: var(--text-strong) }
 .pick {
   position: absolute; z-index: var(--z-menu); min-width: 220px; max-height: min(420px, 60vh); overflow-y: auto;
   padding: var(--s-1h); border-radius: var(--radius-sheet); background: var(--surface-2);
-  box-shadow: var(--lift), inset 0 0 0 1px var(--border-strong); display: grid; animation: rise var(--t-fast) ease-out;
+  box-shadow: var(--lift), var(--ring) var(--border-strong); display: grid; animation: rise var(--t-fast) ease-out;
   font: var(--fs-body)/var(--lh-body) var(--font); letter-spacing: 0; text-transform: none;
 }
 @keyframes rise { from { opacity: 0; transform: translateY(-4px) } }
 .opt { text-align: left; padding: var(--s-2h) var(--s-3); border-radius: var(--radius-control); font-size: var(--fs-body) }
-.opt:hover:not(:disabled) { background: var(--hover-row) }
-.opt:focus-visible { background: var(--hover-row); outline: var(--focus-ring); outline-offset: var(--focus-inset) }
-.opt.on { font-weight: 600; color: var(--text-strong) }
+.opt:hover:not(:disabled) { background: var(--surface-hover) }
+.opt:focus-visible { background: var(--surface-hover); outline: var(--focus-ring); outline-offset: var(--focus-inset) }
+.opt.on { font-weight: var(--w-strong); color: var(--text-strong) }
 .opt.on::after {
   content: ""; display: inline-block; width: var(--dot); height: 6px; margin-left: var(--s-2h); vertical-align: 3px;
   border: solid currentColor; border-width: 0 0 2px 2px; transform: rotate(-45deg);
@@ -79,7 +79,7 @@
   position: fixed; z-index: var(--z-dialog); left: 50%; top: 50%; transform: translate(-50%, -50%); animation: none;
   width: min(600px, calc(100vw - 2 * var(--s-4))); max-height: calc(100dvh - 2 * var(--s-4)); overflow-y: auto; padding: var(--s-6) var(--s-6);
   grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s-6h); align-items: stretch;
-  box-shadow: var(--lift), inset 0 0 0 1px var(--border-strong);
+  box-shadow: var(--lift), var(--ring) var(--border-strong);
 }
 /* the dimmed page behind the body chart: an element, so a press on it closes the chart */
 .pick-scrim { position: fixed; inset: 0; z-index: var(--z-dialog); background: var(--scrim) }
@@ -102,12 +102,12 @@
 .barea:first-letter { text-transform: uppercase }
 .bdot {
   width: var(--chip); height: var(--chip); border-radius: 50%; justify-self: center; display: grid; place-items: center;
-  font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--track-tight); color: var(--text-muted);
+  font-size: var(--fs-sm); font-weight: var(--w-strong); letter-spacing: var(--track-tight); color: var(--text-muted);
 }
 .bdot:hover:not(:disabled) { color: var(--text) }
 .bdot:active:not(:disabled) { transform: scale(.9) }
 .bdot.easy { background: var(--action); color: var(--on-action); box-shadow: none }
-.bdot.off { background: var(--mute-fill); color: var(--text-strong); box-shadow: none }
+.bdot.off { background: var(--mark-off); color: var(--text-strong); box-shadow: none }
 .bdot:disabled { outline: 1px dashed var(--text-muted); outline-offset: var(--focus-offset) }
 .bdot.both { grid-column: 2 / 4 }
 .bsum { border-top: 1px solid var(--border); padding-top: var(--s-4); font-size: var(--fs-md); line-height: var(--lh-ui) }

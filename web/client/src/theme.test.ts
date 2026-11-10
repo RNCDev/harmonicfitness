@@ -6,8 +6,10 @@
 import { describe, expect, it } from "vitest";
 import theme from "./theme.css?raw";
 import tokens from "./tokens.css?raw";
+import breakpoints from "./lib/breakpoints.ts?raw";
 
 const PARTS = import.meta.glob("./styles/*.css", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const SCRIPTS = import.meta.glob(["./**/*.{ts,tsx}", "!./**/*.test.{ts,tsx}"], { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
 const each = Object.entries(PARTS).map(([path, css]) => [path, strip(css)] as const);
 /** What each part breaks of one rule: "part: what", so a failure says where. */
@@ -50,8 +52,23 @@ describe("theme.css", () => {
   });
 
   it("names each colour by its role: the palette is tokens.css's own, never a rule's", () => {
-    const PALETTE = /var\(--(ink|ink-2|ink-3|ink-hi|ink-slot|rule|line|paper|sheet|sheet-2|drawer|stop|stop-tint|blue|blue-hi|blue-tint|coral)\)/g;
+    const PALETTE = new RegExp(`var\\(--(${[...strip(tokens).slice(0, strip(tokens).indexOf("--hover:"))
+      .matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1].slice(2)).join("|")})\\)`, "g");
+    expect(PALETTE.source).toContain("selected");   // every colour named before the tints is the palette
     expect(broken(all(PALETTE))).toEqual([]);
+  });
+
+  it("draws every line, ring and lift from the tokens: a geometry and a colour, never typed", () => {
+    // each part of a shadow is a token (a geometry, then its colour, or transparent as a glow fades), or none
+    expect(broken((css) => (css.match(/box-shadow:[^;}]+/g) ?? []).map((d) => d.trim())
+      .filter((d) => !d.replace(/^box-shadow:/, "").split(",")
+        .every((part) => /^\s*(none|(var\(--[\w-]+\)\s*)+(transparent)?)\s*$/.test(part))))).toEqual([]);
+  });
+
+  it("sets weights and layers only from their tokens", () => {
+    expect(broken(all(/font-weight:\s*\d+/g))).toEqual([]);
+    expect(broken(all(/font:\s*\d{3}\b/g))).toEqual([]);
+    expect(broken(all(/z-index:\s*-?\d+/g))).toEqual([]);
   });
 
   it("sizes a control only by the size tokens (a hairline, a small mark under 16px, or a layout width may be typed)", () => {
@@ -97,6 +114,14 @@ describe("theme.css", () => {
   it("changes layout only at the four breakpoints tokens.css names", () => {
     expect(broken((css) => [...css.matchAll(/@media[^{]*?\((?:max|min)-width:\s*(\d+)px\)/g)].map((m) => m[1])
       .filter((w) => !["480", "640", "760", "1000"].includes(w)))).toEqual([]);
+    // the script asks about the window only through lib/breakpoints.ts, at one of the same four, which the
+    // stylesheet uses too
+    const widths = [...breakpoints.matchAll(/\((?:max|min)-width:\s*(\d+)px\)/g)].map((m) => m[1]);
+    expect(widths.length).toBeGreaterThan(0);
+    for (const w of widths) expect(each.some(([, css]) => css.includes(`(max-width: ${w}px)`))).toBe(true);
+    const asking = Object.entries(SCRIPTS).filter(([p, src]) => p !== "./lib/breakpoints.ts" && /matchMedia\(\s*["'`]\((?:max|min)-width/.test(src))
+      .map(([p]) => p);
+    expect(asking).toEqual([]);
   });
 
   it("never gives a disabled control a hover look, and lifts on hover only where a pointer hovers", () => {

@@ -4,61 +4,61 @@
   scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent }
 .m { max-width: 46em; margin: 0 }
 .m.a { align-self: flex-start }
-.m.md, .m.thinking { background: var(--veil); box-shadow: 0 0 24px 18px var(--veil) }
+.m.md, .m.thinking { background: var(--veil); box-shadow: var(--fade-edge) var(--veil) }
 .m.u {
   align-self: flex-end; max-width: 34em; background: var(--surface-2); color: var(--text); padding: var(--s-3) var(--s-4);
-  border-radius: var(--radius-sheet); white-space: pre-wrap; box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: var(--radius-sheet); white-space: pre-wrap; box-shadow: var(--ring) var(--border);
 }
 .m.thinking { color: var(--text-2); min-width: 16em }
-.think-head { margin: 0; font-weight: 600; color: var(--text) }
-.think-head .clock { font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-left: var(--s-1h) }
+.think-head { margin: 0; font-weight: var(--w-strong); color: var(--text) }
+.think-head .clock { font-weight: var(--w-regular); color: var(--text-muted); font-variant-numeric: tabular-nums; margin-left: var(--s-1h) }
 .steps { list-style: none; margin: var(--s-2h) 0 0; padding: 0; font-size: var(--fs-md); position: relative }
 .steps::before { content: ""; position: absolute; left: var(--s-1); top: var(--s-2); bottom: var(--s-2); width: 1px; background: var(--border) }
 .steps li { position: relative; padding: var(--s-1) 0 var(--s-1) var(--s-5); color: var(--text-muted) }
-.steps li::before { content: ""; position: absolute; left: 0; top: var(--s-2); width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--step-done) }
+.steps li::before { content: ""; position: absolute; left: 0; top: var(--s-2); width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--mark-done) }
 .steps li.bad::before { background: var(--danger) }
-.steps li.now { color: var(--text); font-weight: 500 }
-.steps li.now::before { background: var(--action); box-shadow: 0 0 0 4px var(--glow); animation: pulse var(--t-pulse) ease-in-out infinite }
+.steps li.now { color: var(--text); font-weight: var(--w-medium) }
+.steps li.now::before { background: var(--action); box-shadow: var(--halo) var(--glow); animation: pulse var(--t-pulse) ease-in-out infinite }
 .steps li.more::before { background: transparent }
-.steps li.think { color: var(--text-2); font-weight: 400 }
-.steps li.think::before { background: transparent; box-shadow: inset 0 0 0 2px var(--text); animation: breathe var(--t-pulse) ease-in-out infinite }
+.steps li.think { color: var(--text-2); font-weight: var(--w-regular) }
+.steps li.think::before { background: transparent; box-shadow: var(--ring-strong) var(--text); animation: breathe var(--t-pulse) ease-in-out infinite }
 @keyframes breathe { 50% { transform: scale(.7) } }
-.step-t { margin-left: var(--s-1h); font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; font-weight: 400 }
+.step-t { margin-left: var(--s-1h); font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; font-weight: var(--w-regular) }
 .think-hint { margin: var(--s-2) 0 0 var(--s-5); font-size: var(--fs-md); color: var(--text-muted) }
-@keyframes pulse { 50% { box-shadow: 0 0 0 8px transparent } }
+@keyframes pulse { 50% { box-shadow: var(--halo-wide) transparent } }
 .m.md > :first-child { margin-top: 0 }
 .m.md > :last-child { margin-bottom: 0 }
 .m.md p, .m.md ul, .m.md ol { margin: 0 0 .7em }
 .m.md ul, .m.md ol { padding-left: 1.3em }
 .m.md h1, .m.md h2, .m.md h3, .m.md h4 { font-size: var(--fs-d1); line-height: var(--lh-head); margin: 1em 0 .4em }
 .m.md hr { border: 0; border-top: 1px solid var(--border); margin: 1em 0 }
-.m.md blockquote { margin: 0 0 .7em; padding: var(--s-2) var(--s-3h); background: var(--surface-raised); border-left: 0; box-shadow: inset 0 0 0 1px var(--border) }
+.m.md blockquote { margin: 0 0 .7em; padding: var(--s-2) var(--s-3h); background: var(--surface-raised); border-left: 0; box-shadow: var(--ring) var(--border) }
 .m.md code { font-size: .9em; background: var(--surface-2); border-radius: var(--radius-sheet); padding: 0 var(--s-1); overflow-wrap: anywhere }
 .m.md pre { overflow-x: auto; background: var(--surface-raised); padding: var(--s-3); border-radius: var(--radius-sheet) }
 .m.md pre code { background: none; padding: 0 }
 .m.md table { border-collapse: collapse; margin: 0 0 .7em; font-size: var(--fs-md); display: block; overflow-x: auto; max-width: 100% }
 /* a table in the chat: the coach's Markdown, and the plan on a Record card */
 .m.md :is(th, td), .m:is(.offer, .thinking) .plan :is(th, td) { border-bottom: 1px solid var(--border); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left; vertical-align: top }
-.m.md th { font-weight: 600; color: var(--text-2) }
+.m.md th { font-weight: var(--w-strong); color: var(--text-2) }
 .m.offer, .m.audio, .welcome {
   display: grid; gap: var(--s-1h); padding: var(--s-5) var(--s-5); border-radius: var(--radius-sheet); background: var(--surface-raised); width: 100%; max-width: 40em;
-  box-shadow: inset 0 0 0 1px var(--border), var(--lift);
+  box-shadow: var(--ring) var(--border), var(--lift);
 }
 .m.offer p, .welcome p { margin: 0 }
 .welcome p + p { margin-top: var(--s-1h) }
 .m.offer .go, .welcome .go { justify-self: start; margin-top: var(--s-3) }
-.m.offer { box-shadow: inset 0 0 0 1px var(--border-strong), var(--lift) }
+.m.offer { box-shadow: var(--ring) var(--border-strong), var(--lift) }
 .m:is(.offer, .thinking) table.plan { border-collapse: collapse; margin: var(--s-2) 0; font-size: var(--fs-md); width: 100%; max-width: 28em }
-.m:is(.offer, .thinking) .plan thead th { font-weight: 600; color: var(--text-2) }
+.m:is(.offer, .thinking) .plan thead th { font-weight: var(--w-strong); color: var(--text-2) }
 .m:is(.offer, .thinking) .plan :is(td, th):nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; width: 4.5em }
 .m.thinking .plan caption { caption-side: top; text-align: left; font-size: var(--fs-sm); color: var(--text-2); padding-bottom: var(--s-1h) }
-.m:is(.offer, .thinking) .plan tfoot :is(th, td) { border-bottom: 0; font-weight: 600 }
-.welcome h2 { margin: 0 0 var(--s-2); font: 700 var(--fs-welcome)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
+.m:is(.offer, .thinking) .plan tfoot :is(th, td) { border-bottom: 0; font-weight: var(--w-strong) }
+.welcome h2 { margin: 0 0 var(--s-2); font: var(--w-bold) var(--fs-welcome)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
 .welcome { margin: auto 0 0 }
 .welcome-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--s-2h); margin-top: var(--s-4) }
 .step-note { display: block; max-width: 46ch; margin: var(--s-1) 0 var(--s-4h); font-size: var(--fs-body) }
 .welcome-pick { display: grid; gap: var(--s-1); text-align: left; padding: var(--s-4) var(--s-4h); border-radius: var(--radius-control) }
-.welcome-pick:hover:not(:disabled) { background: var(--selected) }
+.welcome-pick:hover:not(:disabled) { background: var(--surface-selected) }
 .welcome-pick-name { font-size: var(--fs-d2); line-height: var(--lh-tight) }
 .welcome-pick-note { font-size: var(--fs-md); color: var(--text-2); line-height: var(--lh-ui) }
 
@@ -76,10 +76,10 @@
   gap: var(--s-2) var(--s-3); align-items: center; justify-content: space-between;
 }
 .chat-error .notice { font-size: var(--fs-md); color: var(--text) }
-.chat-error .go.alt { color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger) }
+.chat-error .go.alt { color: var(--danger); box-shadow: var(--ring) var(--danger) }
 .chat-form {
   display: flex; gap: var(--s-2); align-items: flex-end; padding: var(--s-1h) var(--s-1h) var(--s-1h) var(--s-4);
-  border-radius: var(--radius-control); background: var(--panel); box-shadow: inset 0 0 0 1px var(--border-strong);
+  border-radius: var(--radius-control); background: var(--panel); box-shadow: var(--ring) var(--border-strong);
 }
 .chat-form:focus-within { box-shadow: var(--focus-ring-inset) }   /* the one ring, as every other control's */
 .chat-form textarea {
@@ -89,7 +89,7 @@
 .chat-form textarea::placeholder { color: var(--text-muted) }
 .chat-form textarea:disabled { color: var(--text-muted); cursor: not-allowed }
 .chat-form .go { padding: var(--s-3) var(--s-4h); font-size: var(--fs-lg) }
-.chat-form .go.stop { background: transparent; color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger) }
+.chat-form .go.stop { background: transparent; color: var(--danger); box-shadow: var(--ring) var(--danger) }
 .chat-form .go.stop:hover:not(:disabled) { background: var(--danger); color: var(--on-action) }
 /* a quiet line above the request, never a card: the request stays the one thing on the screen */
 .resume {

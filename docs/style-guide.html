@@ -137,7 +137,7 @@ colour, so the colour is never the only cue.</p>
 
 <!-- TYPE -->
 <h2 id="type">Type</h2>
-<p class="sub">Two faces, both free on Google Fonts. Headings are tall and loud; body text is narrow and calm.</p>
+<p class="sub">Two free faces: the app ships them with its page, these docs load them from Google Fonts. Headings are tall and loud; body text is narrow and calm.</p>
 <div class="card type-card">
   <div class="type-row"><div class="meta"><b>Display</b>Big Shoulders Display, 700, uppercase, +0.02 to 0.05 em</div>
     <div class="sample-display">Twenty-five minutes</div></div>
@@ -158,8 +158,10 @@ body text under about 64 characters wide.</div>
 <h3 class="spaced">Space, corners and sizes</h3>
 <p class="sub">All in <code>tokens.css</code>; the app's stylesheet types none of them by hand (<code>theme.test.ts</code>).</p>
 <ul class="card plain">
-  <li><b>Space:</b> steps of 4 and 8 px (<code>--s-1</code> to <code>--s-9</code>), with half steps at 6, 10, 14, 20, 28 and 40.</li>
+  <li><b>Space:</b> steps of 4 and 8 px (<code>--s-1</code> to <code>--s-8</code>), with half steps at 6, 10, 14, 20, 28 and 40.</li>
   <li><b>Corners:</b> controls are square (<code>--radius-control</code>); cards, panels, bubbles and menus are 2 px round (<code>--radius-sheet</code>); a pill is fully round.</li>
+  <li><b>Lines:</b> drawn as inset shadows, a geometry token and a colour: a 1 px ring around (<code>--ring</code>) or a hairline on one side (<code>--line-*</code>). What's chosen takes a 2 px ring (<code>--ring-strong</code>) or, on a tab, a 2 px mark under it (<code>--mark-bottom</code>), in coral.</li>
+  <li><b>Weights:</b> <code>--w-regular</code> 400, <code>--w-medium</code> 500, <code>--w-strong</code> 600, <code>--w-bold</code> 700 and <code>--w-heavy</code> 800, the last only for the sign-in page's free count.</li>
   <li><b>A fingertip:</b> on a touch screen every control takes a tap at least 44 px across (<code>--hit</code>); a control is 40 px tall (<code>--control</code>).</li>
   <li><b>Breakpoints:</b> 480 (a phone), 640 (narrow), 760 (a tablet) and 1000 px (wide), and no others.</li>
 </ul>

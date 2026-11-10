@@ -6,13 +6,13 @@ label.act:has(input:disabled) { opacity: var(--disabled); cursor: not-allowed }
 
 /* ---------- labels: the small uppercase line over a section or a field ---------- */
 .label {
-  display: block; margin: 0; font-size: var(--fs-sm); font-weight: 600; line-height: var(--lh-head); letter-spacing: var(--track-label);
+  display: block; margin: 0; font-size: var(--fs-sm); font-weight: var(--w-strong); line-height: var(--lh-head); letter-spacing: var(--track-label);
   text-transform: uppercase; color: var(--text-muted);
 }
 
 /* ---------- headings in the display face ---------- */
 .head, .m.md :is(h1, h2, h3, h4) {
-  margin: 0; font-family: var(--display); font-weight: 700; line-height: var(--lh-tight); letter-spacing: var(--track-head); text-transform: uppercase;
+  margin: 0; font-family: var(--display); font-weight: var(--w-bold); line-height: var(--lh-tight); letter-spacing: var(--track-head); text-transform: uppercase;
 }
 
 /* ---------- notices: an error, a note, or something on its way ---------- */
@@ -27,13 +27,13 @@ label.act:has(input:disabled) { opacity: var(--disabled); cursor: not-allowed }
 .field { display: grid; gap: var(--s-1h); min-width: 0 }
 .input {
   font: inherit; font-size: var(--fs-body); color: var(--text); background: var(--surface); border: 0; border-radius: var(--radius-control);
-  box-shadow: inset 0 0 0 1px var(--border-strong); padding: var(--s-2h) var(--s-3); min-height: var(--hit); width: 100%;
+  box-shadow: var(--ring) var(--border-strong); padding: var(--s-2h) var(--s-3); min-height: var(--hit); width: 100%;
   letter-spacing: 0; text-transform: none;
 }
 select.input { padding-right: var(--s-2) }
 .input:focus-visible { outline: none; box-shadow: var(--focus-ring-inset) }
-.input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--danger) }
-.input[aria-invalid="true"]:focus-visible { box-shadow: inset 0 0 0 2px var(--danger) }
+.input[aria-invalid="true"] { box-shadow: var(--ring) var(--danger) }
+.input[aria-invalid="true"]:focus-visible { box-shadow: var(--ring-strong) var(--danger) }
 .hint { margin: 0; font-size: var(--fs-md); color: var(--text-muted) }
 
 /* ---------- buttons ---------- */
@@ -50,22 +50,22 @@ select.input { padding-right: var(--s-2) }
 
 /* the outlined family: a thin line that brightens under the pointer, quieter than the cream .go */
 .outlined {
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  box-shadow: var(--ring) var(--border-strong);
   transition: box-shadow var(--t-fast), background-color var(--t-fast), color var(--t-fast), transform var(--t-fast);
 }
 .outlined:hover:not(:disabled) {
-  box-shadow: inset 0 0 0 1px var(--text-2); color: var(--text-strong);
+  box-shadow: var(--ring) var(--text-2); color: var(--text-strong);
 }
 .act {
-  display: inline-flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3h); font-size: var(--fs-md); font-weight: 500; line-height: var(--lh-ui);
+  display: inline-flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3h); font-size: var(--fs-md); font-weight: var(--w-medium); line-height: var(--lh-ui);
   color: var(--text); text-decoration: none; text-align: left; cursor: pointer;
 }
 .act:hover:not(:disabled) { background: var(--hover) }
 .act:focus-visible, .act:has(:focus-visible) { outline: var(--focus-ring); outline-offset: var(--focus-offset) }
-.act.danger { color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger-line) }
-.act.danger:hover:not(:disabled) { color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); background: var(--danger-wash) }
+.act.danger { color: var(--danger); box-shadow: var(--ring) var(--danger-line) }
+.act.danger:hover:not(:disabled) { color: var(--danger); box-shadow: var(--ring) var(--danger); background: var(--danger-wash) }
 .go {
-  display: inline-block; font: 700 var(--fs-lg)/var(--lh-solid) var(--display); letter-spacing: var(--track-btn); text-transform: uppercase;
+  display: inline-block; font: var(--w-bold) var(--fs-lg)/var(--lh-solid) var(--display); letter-spacing: var(--track-btn); text-transform: uppercase;
   background: var(--action); color: var(--on-action); border-radius: var(--radius-control); padding: var(--s-3h) var(--s-5); white-space: nowrap; text-decoration: none;
   transition: background-color var(--t-fast), transform var(--t-fast);
 }
@@ -73,7 +73,7 @@ select.input { padding-right: var(--s-2) }
 .go:active:not(:disabled) { transform: translateY(1px) }
 .go.alt {
   background: transparent; color: var(--text-2);
-  font: 500 var(--fs-md)/var(--lh-solid) var(--font); letter-spacing: var(--track-btn); padding: var(--s-4) var(--s-5);
+  font: var(--w-medium) var(--fs-md)/var(--lh-solid) var(--font); letter-spacing: var(--track-btn); padding: var(--s-4) var(--s-5);
 }
 .go.alt:hover:not(:disabled) { background: transparent }
 .go.danger { background: var(--danger); color: var(--on-action) }
@@ -81,7 +81,7 @@ select.input { padding-right: var(--s-2) }
 
 /* ---------- chosen: one look per shape ---------- */
 /* a picture or card to pick (a tile): ringed while it's the one */
-.tile[aria-pressed="true"], .tile[aria-pressed="true"]:hover:not(:disabled) { box-shadow: inset 0 0 0 2px var(--text) }
+.tile[aria-pressed="true"], .tile[aria-pressed="true"]:hover:not(:disabled) { box-shadow: var(--ring-strong) var(--text) }
 
 /* ---------- a button at work: it keeps its words (or says what it's doing) and shows it's busy, not switched off ---------- */
 :is(button, .act)[aria-busy="true"]:disabled { opacity: var(--o-busy); cursor: progress }

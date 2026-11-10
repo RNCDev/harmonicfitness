@@ -36,7 +36,7 @@
 .logs-feedback { list-style: none; margin: 0; padding: 0 0 0 var(--s-3); border-left: 2px solid var(--border-strong); display: grid; gap: var(--s-1); font-size: var(--fs-md) }
 .logs-noted { margin: var(--s-1h) 0 0; font-size: var(--fs-md); color: var(--text-2); font-style: italic }
 .logs-rate { display: flex; flex: none; gap: var(--s-1h) }
-.rate-btn { width: var(--control-sm); height: var(--control-sm); display: grid; place-items: center; font: 600 var(--fs-lg)/var(--lh-solid) var(--font); color: var(--text-muted); border-radius: 50% }
+.rate-btn { width: var(--control-sm); height: var(--control-sm); display: grid; place-items: center; font: var(--w-strong) var(--fs-lg)/var(--lh-solid) var(--font); color: var(--text-muted); border-radius: 50% }
 .rate-btn:hover:not(:disabled) { color: var(--text-strong); background: var(--hover) }
 .rate-btn[aria-pressed="true"] { color: var(--on-action); background: var(--action); box-shadow: none }
 .rate-btn[aria-pressed="true"]:hover:not(:disabled) { color: var(--on-action); box-shadow: none }
@@ -46,7 +46,7 @@
 .logs-actions .notice { color: var(--text-muted) }
 .logs-script {
   white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow-y: auto; background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--border); padding: var(--s-4) var(--s-4h); font-size: var(--fs-md); line-height: var(--lh-body); color: var(--text-2);
+  box-shadow: var(--ring) var(--border); padding: var(--s-4) var(--s-4h); font-size: var(--fs-md); line-height: var(--lh-body); color: var(--text-2);
 }
 .logs-script p { margin: 0 }
 .logs-note-form { display: flex; gap: var(--s-2h); align-items: center }

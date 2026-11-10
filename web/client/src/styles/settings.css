@@ -9,7 +9,7 @@
   position: fixed; top: 0; right: 0; bottom: 0; width: min(600px, 100vw); z-index: var(--z-drawer); background: var(--surface-drawer); color: var(--text);
   display: flex; flex-direction: column; overflow-y: auto; transform: translateX(105%); visibility: hidden;
   padding: var(--safe-t) var(--safe-r) var(--safe-b) 0;
-  box-shadow: inset 1px 0 0 var(--border), var(--lift);
+  box-shadow: var(--line-left) var(--border), var(--lift);
   transition: transform var(--t-slide) var(--ease-slide), visibility var(--t-slide);
 }
 /* visible at once on opening, so focus can move in; hidden only once it has slid out */
@@ -20,13 +20,13 @@
 .ctx-close:hover:not(:disabled), .page-close:hover:not(:disabled) { color: var(--text-strong) }
 
 /* the tabs: a row of words, the chosen one underlined */
-.cx-tabs { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); padding: 0 var(--s-6h); box-shadow: inset 0 -1px 0 var(--border) }
+.cx-tabs { display: flex; flex-wrap: wrap; gap: 0 var(--s-5); padding: 0 var(--s-6h); box-shadow: var(--line-bottom) var(--border) }
 .cx-tabs button {
-  padding: var(--s-3) 0; font-size: var(--fs-md); font-weight: 500; color: var(--text-muted);
+  padding: var(--s-3) 0; font-size: var(--fs-md); font-weight: var(--w-medium); color: var(--text-muted);
   transition: color var(--t-fast), box-shadow var(--t-fast);
 }
 .cx-tabs button:hover:not(:disabled) { color: var(--text) }
-.cx-tabs button[aria-current="true"], .cx-tabs button[aria-current="true"]:hover:not(:disabled) { color: var(--text); box-shadow: inset 0 -2px 0 var(--text) }
+.cx-tabs button[aria-current="true"], .cx-tabs button[aria-current="true"]:hover:not(:disabled) { color: var(--text); box-shadow: var(--mark-bottom) var(--text) }
 .cx-tabs button:focus-visible { outline: none; box-shadow: var(--focus-ring-inset) }
 
 /* the chosen section alone; its name is the tab's, so its heading is for screen readers only */
@@ -41,7 +41,7 @@
 .cx-sec > :is(.level-opts + .cx-s, .switch + .switch-note) { margin-top: calc(var(--s-2) * -1) }   /* a choice's note sits with the choice */
 
 /* the account: who and the version, then one row of worded actions, then what another device means */
-.cx-foot { display: grid; gap: var(--s-4); padding: var(--s-5) var(--s-6h) var(--s-6); background: var(--surface); box-shadow: inset 0 1px 0 var(--border) }
+.cx-foot { display: grid; gap: var(--s-4); padding: var(--s-5) var(--s-6h) var(--s-6); background: var(--surface); box-shadow: var(--line-top) var(--border) }
 .cx-foot-who { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2) var(--s-4) }
 .cx-foot-who .cx-s { margin: 0 }
 /* one row of worded actions, evenly spaced, deleting at the far end in brick */
@@ -57,7 +57,7 @@
 .keys-group { margin-top: var(--s-2) }
 .keys-group:first-of-type { margin-top: 0 }
 .keys-group > [role=radiogroup], .keys-group > div { margin-top: var(--s-2); border-top: 1px solid var(--border) }
-.keys-h { margin: 0 0 var(--s-1); font-size: var(--fs-sm); font-weight: 600; line-height: var(--lh-head); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-muted) }
+.keys-h { margin: 0 0 var(--s-1); font-size: var(--fs-sm); font-weight: var(--w-strong); line-height: var(--lh-head); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-muted) }
 .keys-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-1) var(--s-5);
   padding: var(--s-2h) var(--s-3); border-bottom: 1px solid var(--border);
@@ -69,7 +69,7 @@
 .keys-label > :is(.keys-bal, .keys-bill) { margin-left: auto }
 .keys-row > .keys-actions:not(.confirm) { grid-column: 2; grid-row: 1; justify-self: end }
 .keys-row > .confirm { margin-top: 2px }
-.keys-row .keys-name { font-weight: 600 }
+.keys-row .keys-name { font-weight: var(--w-strong) }
 .keys-bal { font-size: var(--fs-md); color: var(--text-muted); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums }
 a.keys-bal:hover { color: var(--text); text-decoration: underline }
 .keys-bill { display: inline-flex; align-items: center; padding: var(--s-1); margin: -4px 0; color: var(--text-muted) }
@@ -79,10 +79,10 @@ a.keys-bal:hover { color: var(--text); text-decoration: underline }
 .keys-note { margin: 0 }
 .keys-tag { font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap }
 /* the writer in use: tinted, with a mark of the brand at its edge and in its tag */
-.keys-row.writer.on { color: var(--text); background: var(--selected); box-shadow: inset 2px 0 0 var(--accent) }
+.keys-row.writer.on { color: var(--text); background: var(--surface-selected); box-shadow: var(--mark-left) var(--accent) }
 .keys-use {
-  font-size: var(--fs-sm); font-weight: 600; letter-spacing: var(--track-head); padding: 0 var(--s-1h); color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent); white-space: nowrap
+  font-size: var(--fs-sm); font-weight: var(--w-strong); letter-spacing: var(--track-head); padding: 0 var(--s-1h); color: var(--accent);
+  box-shadow: var(--ring) var(--accent); white-space: nowrap
 }
 /* a writer to pick: the whole row is its button (the name's, stretched), its links and buttons on top */
 .keys-row.writer { position: relative }
@@ -100,7 +100,7 @@ a.keys-bal:hover { color: var(--text); text-decoration: underline }
   text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong)
 }
 a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColor }
-.keys-edit .label { font-size: var(--fs-md); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-2) }
+.keys-edit .label { font-size: var(--fs-md); font-weight: var(--w-regular); letter-spacing: 0; text-transform: none; color: var(--text-2) }
 
 /* asking before something goes: the question, then the brick button and the way back */
 .confirm { display: inline-flex; flex-wrap: wrap; gap: var(--s-2h) var(--s-3h); align-items: center }
@@ -112,11 +112,11 @@ a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColo
 .level-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin: 0 0 var(--s-1) }
 .level-card {
   display: grid; align-content: start; gap: var(--s-1h); padding: var(--s-3) var(--s-3h) var(--s-3h); text-align: left; min-width: 0;
-  box-shadow: inset 0 0 0 1px var(--border-strong); transition: background-color var(--t-fast), box-shadow var(--t-fast);
+  box-shadow: var(--ring) var(--border-strong); transition: background-color var(--t-fast), box-shadow var(--t-fast);
 }
-.level-card:hover:not(:disabled) { background: var(--hover); box-shadow: inset 0 0 0 1px var(--text-2) }
-.level-card[aria-checked="true"], .level-card[aria-checked="true"]:hover:not(:disabled) { background: var(--selected); box-shadow: inset 0 0 0 2px var(--accent) }
-.level-name { font-size: var(--fs-md); font-weight: 600; line-height: var(--lh-head); color: var(--text) }
+.level-card:hover:not(:disabled) { background: var(--hover); box-shadow: var(--ring) var(--text-2) }
+.level-card[aria-checked="true"], .level-card[aria-checked="true"]:hover:not(:disabled) { background: var(--surface-selected); box-shadow: var(--ring-strong) var(--accent) }
+.level-name { font-size: var(--fs-md); font-weight: var(--w-strong); line-height: var(--lh-head); color: var(--text) }
 .level-said { font-size: var(--fs-sm); line-height: var(--lh-ui); color: var(--text-2) }
 @media (max-width: 480px) { .level-opts { grid-template-columns: minmax(0, 1fr) } }
 
@@ -125,7 +125,7 @@ a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColo
 .switch input {
   appearance: none; flex-shrink: 0; width: calc(var(--tick) * 2); height: var(--tick); margin: 0; cursor: pointer; border-radius: var(--radius-pill);
   background: radial-gradient(circle closest-side, var(--text-muted) 70%, transparent 76%) left center / var(--tick) var(--tick) no-repeat, var(--surface);
-  box-shadow: inset 0 0 0 1px var(--border-strong); transition: background-color var(--t-fast);
+  box-shadow: var(--ring) var(--border-strong); transition: background-color var(--t-fast);
 }
 .switch input:checked {
   background: radial-gradient(circle closest-side, var(--on-action) 70%, transparent 76%) right center / var(--tick) var(--tick) no-repeat, var(--accent);
@@ -138,7 +138,7 @@ a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColo
 .sky-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin: 0 0 var(--s-1) }
 .sky-opt { display: grid; gap: var(--s-1h); text-align: left; padding: var(--s-1h) var(--s-1h) var(--s-2); min-width: 0 }
 .sky-mini { display: block; width: 100%; height: auto; background: var(--surface); color: var(--text) }
-.sky-opt-name { font-weight: 500; font-size: var(--fs-md); line-height: var(--lh-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.sky-opt-name { font-weight: var(--w-medium); font-size: var(--fs-md); line-height: var(--lh-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .sky-credit { margin-top: 2px; font-size: var(--fs-sm); color: var(--text-muted) }
 .sky-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px }
 
@@ -152,8 +152,8 @@ a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColo
 .link { margin: 0; font-size: var(--fs-sm); overflow-wrap: anywhere }
 
 /* the brand's ember, here and there: on what's chosen in Settings */
-.cx-tabs button[aria-current="true"], .cx-tabs button[aria-current="true"]:hover:not(:disabled) { box-shadow: inset 0 -2px 0 var(--accent) }
-.sky-opt[aria-pressed="true"], .sky-opt[aria-pressed="true"]:hover:not(:disabled) { box-shadow: inset 0 0 0 2px var(--accent) }
+.cx-tabs button[aria-current="true"], .cx-tabs button[aria-current="true"]:hover:not(:disabled) { box-shadow: var(--mark-bottom) var(--accent) }
+.sky-opt[aria-pressed="true"], .sky-opt[aria-pressed="true"]:hover:not(:disabled) { box-shadow: var(--ring-strong) var(--accent) }
 
 /* a phone: a narrower margin, and the tabs closer, so they keep to one line */
 @media (max-width: 480px) {

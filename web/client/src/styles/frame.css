@@ -1,6 +1,6 @@
 /* The sky behind every page, and the header over the work. Part of theme.css, which imports every part in order. */
 /* ---------- the sky: fixed behind everything ---------- */
-.sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden }
+.sky { position: fixed; inset: 0; z-index: var(--z-base); pointer-events: none; overflow: hidden }
 .sky > svg, .sky > canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: var(--o-muted); transition: opacity var(--t-sky) ease }
 .sky.busy > svg, .sky.busy > canvas { opacity: 1 }
 .flow path { fill: none; stroke: var(--text); stroke-width: 1 }
@@ -17,12 +17,12 @@
 .work-top { display: flex; align-items: center; gap: var(--s-2h); padding: var(--s-5) var(--gut) 0; min-height: calc(var(--control) + var(--s-5)) }
 .top-gap { flex: 1 }
 .top-btn {
-  white-space: nowrap; font: 500 var(--fs-md)/var(--lh-solid) var(--font); letter-spacing: var(--track-btn); text-transform: uppercase; padding: var(--s-3) var(--s-3h);
+  white-space: nowrap; font: var(--w-medium) var(--fs-md)/var(--lh-solid) var(--font); letter-spacing: var(--track-btn); text-transform: uppercase; padding: var(--s-3) var(--s-3h);
   color: var(--text-2); border-radius: var(--radius-control); background: var(--veil-light);
 }
 .top-btn.new { display: inline-flex; align-items: center; gap: var(--s-2); padding-left: var(--s-3) }
 .top-btn.icon { width: var(--control); height: var(--control); padding: 0; display: grid; place-items: center; letter-spacing: 0 }
-.top-btn[aria-pressed="true"] { color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--text) }
+.top-btn[aria-pressed="true"] { color: var(--text-strong); box-shadow: var(--ring) var(--text) }
 
 .chat { flex: 1; min-height: 0; width: min(100%, 1480px + 2 * var(--gut)); display: flex; flex-direction: column; padding: 0 var(--gut) var(--s-5) }
 /* a conversation: one column in the middle; the log scrolls the full width, so its bar sits at the window's edge */
@@ -33,5 +33,5 @@
   display: flex; align-items: center; gap: var(--s-2h); padding: var(--s-3h) 0 var(--s-3); border-bottom: 1px solid var(--border);
   font-size: var(--fs-md); letter-spacing: var(--track-btn); text-transform: uppercase; color: var(--text-muted);
 }
-.coachbar b { font-weight: 600; color: var(--text-2) }
+.coachbar b { font-weight: var(--w-strong); color: var(--text-2) }
 .coachbar small { margin-left: auto; font-size: var(--fs-sm) }

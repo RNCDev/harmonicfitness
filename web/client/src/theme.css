@@ -1,10 +1,11 @@
 /* Moonrise: a night sky behind every page, after Ansel Adams' "Moonrise, Hernandez". A near-black ground and a
    faint moving pattern after Book of Shapes (chosen under Background in Settings). Dark only.
    Two families: Big Shoulders Display, tall and narrow, in capitals for headings, the request and buttons; and
-   IBM Plex Sans Condensed for everything else. No accent colour: cream is the one action on each screen, greys
-   say the rest, and a muted brick is kept for "keep off" and errors. The logo's coral is the request's fixed words.
-   Every colour, size, space, corner, layer and duration comes from tokens.css; theme.test.ts refuses a literal
-   colour, a typed size or a tint in any of the parts. */
+   IBM Plex Sans Condensed for everything else. Cream is the one action on each screen, greys say the rest, and a
+   muted brick is kept for "keep off" and errors. The logo's coral is the request's fixed words and one accent: a
+   small mark on what's chosen (--accent), never something to act on.
+   Every colour, size, space, corner, line, weight, layer and duration comes from tokens.css; theme.test.ts refuses
+   a literal colour, a typed size, a hand-drawn line or a tint in any of the parts. */
 @import "./tokens.css";
 @import "./styles/base.css";
 @import "./styles/primitives.css";

@@ -5,7 +5,7 @@
 .player audio { display: none }
 .play {
   flex: none; width: var(--control-sm); height: var(--control-sm); border-radius: 50%; display: grid; place-items: center; cursor: pointer;
-  color: var(--sample); background: var(--sample-surface); box-shadow: inset 0 0 0 1px var(--sample-line);
+  color: var(--sample); background: var(--sample-surface); box-shadow: var(--ring) var(--sample-line);
   transition: background-color var(--t-fast), color var(--t-fast);
 }
 .play:hover:not(:disabled), .player.on .play { background: var(--sample); color: var(--on-action) }

@@ -171,6 +171,42 @@ class Player(unittest.TestCase):
         defined = set(re.findall(r"(--[\w-]+):", css))
         self.assertEqual(used - defined, set())
 
+    def test_the_stand_in_tokens_are_the_apps(self):
+        """Each token the page carries without web/ has the app's value (the display face may leave out the
+        variable font's family, which only the app ships)."""
+        def values(css):
+            return {m.group(1): " ".join(m.group(2).split()) for m in re.finditer(r"(--[\w-]+):\s*([^;]+);", css)}
+        app = values(read(TOKENS))
+        drift = {k: (v, app.get(k)) for k, v in values(webcopy.FALLBACK_TOKENS).items()
+                 if k != "--display" and v != app.get(k)}
+        self.assertEqual(drift, {})
+
+    def test_the_player_page_types_no_size(self):
+        """Its own rules take spacing, line heights, weights and lines from the tokens, as the app's do."""
+        rules = webcopy.PAGE[webcopy.PAGE.index("{tokens}") + len("{tokens}"):webcopy.PAGE.index("</style>")]
+        self.assertEqual(re.findall(r"(?:margin|padding|gap)[\w-]*:[^;}]*?\b(?:[3-9]|\d{2,})px", rules), [])
+        self.assertEqual(re.findall(r"font:[^;}]*\/\s*[\d.]+", rules), [])
+        self.assertEqual(re.findall(r"font:\s*\d{3}\b", rules), [])
+        self.assertEqual(re.findall(r"box-shadow:[^;}]*\dpx", rules), [])
+
+
+class Guide(unittest.TestCase):
+    def test_each_swatch_is_the_token_it_names(self):
+        """The style guide's swatches are typed by hand: each one's colour is its own code, and the token it names
+        (or, for a brand colour, some token) has that value."""
+        guide = read(os.path.join(ROOT, "docs", "style-guide.html"))
+        css = read(TOKENS)
+        hexes = {h.upper() for h in re.findall(r"--[\w-]+:\s*(#[0-9A-Fa-f]{6})", css)}
+        swatches = re.findall(r'<div class="sw" style="--s:(#[0-9A-Fa-f]{6})"><i></i><div><b>([^<]+)</b><code>(#[0-9A-Fa-f]{6})</code>',
+                              guide)
+        self.assertGreater(len(swatches), 10)
+        for drawn, name, said in swatches:
+            self.assertEqual(drawn.upper(), said.upper(), name)
+            if name.startswith("--"):
+                self.assertEqual(token(css, name[2:]), said.upper(), name)
+            else:
+                self.assertIn(said.upper(), hexes, name)
+
 
 if __name__ == "__main__":
     unittest.main()

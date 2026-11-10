@@ -1,12 +1,12 @@
 /* A page with one short task (sign in, a password, unreachable), and the sign-in page's demos. Part of theme.css, which imports every part in order. */
 /* ---------- signed out, unreachable ---------- */
 .solo { margin: auto 0 0; width: 100%; max-width: calc(30rem + 2 * var(--gut)); padding: var(--s-7) var(--gut) var(--s-8) }
-.solo h1 { font: 700 var(--fs-hero)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase; margin: 0 0 var(--s-3h) }
+.solo h1 { font: var(--w-bold) var(--fs-hero)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase; margin: 0 0 var(--s-3h) }
 .solo p { color: var(--text-2); margin: 0 0 var(--s-5) }
 .solo .hint { margin: -4px 0 var(--s-1) }
 .solo .auth { margin-bottom: var(--s-5h) }
 .auth { display: flex; flex-direction: column; gap: var(--s-3h); margin-top: var(--s-4) }
-.auth .label { font-size: var(--fs-md); font-weight: 500; letter-spacing: var(--track-btn); color: var(--text-2) }
+.auth .label { font-size: var(--fs-md); font-weight: var(--w-medium); letter-spacing: var(--track-btn); color: var(--text-2) }
 .auth .go { align-self: flex-start; margin-top: var(--s-1h) }
 .auth > .notice.err { font-size: var(--fs-md) }
 
@@ -24,28 +24,28 @@
 .demo-slide { grid-area: 1 / 1; visibility: hidden }
 .demo-slide.on { visibility: visible }
 .demos .demo-who { margin: 0 0 var(--s-3) }
-.demo-who b { color: var(--text); font-weight: 600 }
+.demo-who b { color: var(--text); font-weight: var(--w-strong) }
 .demo-who span { color: var(--text-2) }
-.demos .demo-req { margin: 0; font: 600 var(--fs-request)/var(--lh-tight) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase; color: var(--request-fixed); text-wrap: balance }
+.demos .demo-req { margin: 0; font: var(--w-strong) var(--fs-request)/var(--lh-tight) var(--display); letter-spacing: var(--track-tight); text-transform: uppercase; color: var(--request-fixed); text-wrap: balance }
 .demos .demo-req-2 { margin-top: var(--s-2) }
 .demo-glue { white-space: nowrap }   /* a blank and the comma or full stop after it stay on one line */
 .demo-slide:not(.turn) .fl { animation: none }   /* the words flip in only as the ask changes, as the request's do */
 .demos .demo-note { margin: var(--s-4) 0 0; max-width: 62ch; color: var(--text-2); font-size: var(--fs-md) }
-.demo-note b { color: var(--text); font-weight: 500 }
+.demo-note b { color: var(--text); font-weight: var(--w-medium) }
 .demo-player { max-width: 620px }
 .demo-player .p-time { min-width: 74px }
 .demo-people { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) }
 .demo-people .label { margin-right: var(--s-2); color: var(--text-muted) }
 .demo-chip { min-height: var(--control-sm); padding: 0 var(--s-3h); border-radius: var(--radius-pill); color: var(--text-2);
-  box-shadow: inset 0 0 0 1px var(--border); font-size: var(--fs-md); transition: color var(--t-fast), box-shadow var(--t-fast) }
-.demo-chip:hover:not(:disabled) { color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--border-strong) }
-.demo-chip[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1px var(--accent) }
+  box-shadow: var(--ring) var(--border); font-size: var(--fs-md); transition: color var(--t-fast), box-shadow var(--t-fast) }
+.demo-chip:hover:not(:disabled) { color: var(--text-strong); box-shadow: var(--ring) var(--border-strong) }
+.demo-chip[aria-pressed="true"] { color: var(--text); box-shadow: var(--ring-strong) var(--accent) }
 .demo-free { display: none; justify-self: start; color: var(--text); font-size: var(--fs-md); text-decoration-color: var(--accent); text-underline-offset: var(--s-1) }
 
 /* the free workouts (Ready.tsx's panel): a sheet with the brand's line along its top */
 .ready.ready-panel { margin: 0; max-width: none; gap: var(--s-3); padding: var(--s-5); background: var(--panel);
-  box-shadow: inset 0 2px 0 var(--accent), inset 0 0 0 1px var(--border); border-radius: var(--radius-sheet); min-width: 0 }
-.ready-big { margin: 0; font: 800 var(--fs-d4)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
+  box-shadow: var(--mark-top) var(--accent), var(--ring) var(--border); border-radius: var(--radius-sheet); min-width: 0 }
+.ready-big { margin: 0; font: var(--w-heavy) var(--fs-d4)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
 .ready-big span { color: var(--accent) }
 .ready-panel .ready-note { color: var(--text-2) }
 .ready-panel .ready-list { gap: 0 }

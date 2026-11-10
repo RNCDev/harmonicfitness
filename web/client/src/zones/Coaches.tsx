@@ -6,6 +6,7 @@
 // plays and who is coaching you.
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import type { StartCoach } from "../lib/api";
+import { isNarrow } from "../lib/breakpoints";
 import { an, dollars } from "../lib/format";
 import { Button } from "../ui/Button";
 import { Empty, Loadable, Notice } from "../ui/Notice";
@@ -103,7 +104,7 @@ export function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { c
     playNext.current = true;
     setPicked(slug);
     // on a narrow screen the stage sits above the tiles: bring it into view
-    if (window.matchMedia?.("(max-width: 760px)").matches) side.current?.scrollIntoView?.({ block: "nearest" });
+    if (isNarrow()) side.current?.scrollIntoView?.({ block: "nearest" });
   };
 
   if (coaches.length === 0) {
