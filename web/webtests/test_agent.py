@@ -1636,6 +1636,44 @@ class TurnClock(AgentCase):
         self.assertEqual(out.reply, "Recorded.")
         self.assertIsNone(self.deps.extend_turn)   # the clock ends with its turn
 
+    def test_stop_during_a_request_stops_the_turn(self):
+        import asyncio
+        self.deps.cancel = threading.Event()
+
+        async def slow(messages, info):
+            self.deps.cancel.set()   # the listener presses Stop while the model thinks
+            await asyncio.sleep(2.0)
+            return ModelResponse(parts=[TextPart("Hello.")])
+        with self.assertRaises(agent.TurnError) as caught:
+            agent.run_turn(FunctionModel(slow), self.deps, None, "go")
+        self.assertEqual(caught.exception.reason, agent.STOPPED)
+
+    def test_a_turn_ends_without_waiting_for_the_researcher_s_engine_command(self):
+        """A turn that saved the brief (the researcher's engine command still running in a thread) and ends on a
+        question replies at once: the command's thread is left to finish on its own."""
+        import asyncio
+        import time
+        release = threading.Event()
+        self.addCleanup(release.set)
+
+        async def stories(*args, **kwargs):   # the researcher's `content plan`, slow
+            await asyncio.to_thread(release.wait, 5.0)
+            return []
+
+        def script(messages, info):
+            if not parts(messages, ToolReturnPart):
+                return ModelResponse(parts=[ToolCallPart("run", {"args": [
+                    "brief", "--goal", "strength", "--minutes", "15", "--save", "me/workouts/a/a.draft.txt"]},
+                    tool_call_id="b1")])
+            return ModelResponse(parts=[TextPart("Which kit do you have today?")])
+        began = time.monotonic()
+        with mock.patch.object(agent.writers, "stories", stories), \
+                mock.patch.object(tools.engine, "run", return_value=tools.engine.Result(0, "brief saved", "")):
+            out = agent.run_turn(FunctionModel(script), self.deps, None, "go")
+        self.assertIsNotNone(self.deps.content_job)   # the researcher had started
+        self.assertEqual(out.reply, "Which kit do you have today?")
+        self.assertLess(time.monotonic() - began, 2.0)
+
 
 
 class StepTimes(unittest.TestCase):

@@ -1069,6 +1069,26 @@ def closing_reply(deps: Deps) -> str:
     return CLOSING_OVER if over else CLOSING
 
 
+def _run_loop(coro):
+    """`coro` run on a loop of its own, as asyncio.run does, except at the end: what's still running (the
+    researcher, a room) is cancelled and settles, but the threads it started its engine commands in aren't joined
+    (asyncio.run waits on them, up to an engine command's whole timeout): the turn replies at once and they finish
+    on their own."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        try:
+            left = asyncio.all_tasks(loop)
+            for task in left:
+                task.cancel()
+            if left:
+                loop.run_until_complete(asyncio.gather(*left, return_exceptions=True))
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            loop.close()   # its default executor shut down without waiting
+
+
 def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
              answer: tuple[str, dict] | None = None, context: str | None = None) -> TurnOutcome:
     """One run of the agent on the user's line, after `context` (prefetch's text) when given.
@@ -1121,7 +1141,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
                 node = await run.next(node)
             return run.all_messages(), run.result.output, run.usage, run.new_messages()
     try:
-        messages, reply, u, new = asyncio.run(go())
+        messages, reply, u, new = _run_loop(go())
     except RunCancelled:
         if not expired.is_set() and deps.cancel is not None and deps.cancel.is_set():
             raise TurnError("stopped", STOPPED) from None
