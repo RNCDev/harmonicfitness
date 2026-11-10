@@ -12,6 +12,7 @@ import os
 import re
 import statistics
 import sys
+import unicodedata
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(REPO, "web")]
@@ -52,11 +53,29 @@ def names(text):
     return found
 
 
+NUMBER_WORDS = set("""zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen
+sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred thousand first second
+third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth fourteenth fifteenth sixteenth
+seventeenth eighteenth nineteenth twentieth thirtieth fortieth fiftieth sixtieth seventieth eightieth ninetieth
+hundredth thousandth""".split())
+
+
+def fold(text):
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
+
+
+def number_name(name):
+    """A name made only of number words or ordinals ("Thirtieth", "X-One": hyphen parts a letter or a number word)."""
+    parts = name.lower().split("-")
+    return all(len(p) == 1 or p in NUMBER_WORDS for p in parts)
+
+
 def fidelity(r):
-    known = " ".join(json.dumps(w["output"]) + " " + w["prompt"] for w in r["writers"]
-                     if w["who"] in ("research", "top-up")).lower()
+    known = fold(" ".join(json.dumps(w["output"], ensure_ascii=False) + " " + w["prompt"] for w in r["writers"]
+                          if w["who"] in ("research", "top-up")))
     draft = r["draft"] or ""
-    unknown = sorted({n for s in STORY.findall(draft) for n in names(s) if n.lower() not in known})
+    unknown = sorted({n for s in STORY.findall(draft) for n in names(s)
+                      if fold(n) not in known and not number_name(n)})
     odd = []
     segs = re.split(r"^@@.*$", draft, flags=re.MULTILINE)[1:]
     for i, body in enumerate(segs[1:-1], 2):
@@ -90,7 +109,8 @@ def never_said(draft, content_md):
         words += WEATHER
     if not words:
         return []
-    spoken = re.sub(r"^@@.*$", " ", draft or "", flags=re.MULTILINE)
+    spoken = STORY.sub(" ", draft or "")   # the rule is about the present; a story carries historical dates
+    spoken = re.sub(r"^@@.*$", " ", spoken, flags=re.MULTILINE)
     spoken = re.sub(r"\[[^\]]*\]", " ", spoken)
     found = []
     for w in re.findall(r"[A-Za-z]+", spoken):

@@ -9,6 +9,7 @@ higher than the baseline's. A run is compliant when it is priced, its final lint
 names, voice and never-bring-up checks of summarize.py find nothing.
 """
 import os
+import re
 import statistics
 import sys
 
@@ -16,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import summarize  # noqa: E402
 import tokens  # noqa: E402
 
+MIN_COMPLETED = 3
+PROVIDER_ERROR = re.compile(r"status_code: (?:5\d\d|429)\b")
 CHECKS = ("opening", "not_in_notes", "one_voice", "never_said")
 
 
@@ -49,24 +52,36 @@ def problems(row):
     return out
 
 
+def provider_error(row):
+    """True when the run ended on the model provider's 5xx or 429 before any price: not completed, not non-compliant."""
+    return not row.get("priced") and bool(PROVIDER_ERROR.search(row.get("error") or ""))
+
+
 def median(rows, key):
     vals = [r[key] for r in rows if r.get(key) is not None]
     return statistics.median(vals) if vals else 0.0
 
 
 def gate(baseline, candidate):
+    done = [r for r in candidate if not provider_error(r)]
+    errors = len(candidate) - len(done)
+    note = f", {errors} provider error{'s' if errors != 1 else ''}" if errors else ""
     reasons = []
     for i, r in enumerate(candidate, 1):
-        reasons += [f"run {i} {p}" for p in problems(r)]
-    if not candidate:
-        reasons.append("no candidate runs")
-    elif median(candidate, "cost") > median(baseline, "cost"):
-        reasons.append(f"median cost ${median(candidate, 'cost'):.3f} above ${median(baseline, 'cost'):.3f}")
-    return "GATE: pass" if not reasons else f"GATE: fail ({'; '.join(reasons)})"
+        if not provider_error(r):
+            reasons += [f"run {i} {p}" for p in problems(r)]
+    if len(done) < MIN_COMPLETED:
+        reasons.append(f"only {len(done)} completed runs, {MIN_COMPLETED} needed")
+    elif median(done, "cost") > median(baseline, "cost"):
+        reasons.append(f"median cost ${median(done, 'cost'):.3f} above ${median(baseline, 'cost'):.3f}")
+    return f"GATE: pass ({len(done)} completed{note})" if not reasons else f"GATE: fail ({'; '.join(reasons)}{note})"
 
 
 def show(label, rows):
-    lines = [f"## {label}  ({len(rows)} runs)"]
+    done = [r for r in rows if not provider_error(r)]
+    lines = [f"## {label}  ({len(rows)} runs, {len(done)} completed)"]
+    lines += [f"  run {r['run']} not completed: {r['error']}" for r in rows if provider_error(r)]
+    rows = done
     for name, key, fmt in (("writing cost $", "cost", "{:.3f}"), ("requests", "requests", "{:.0f}"),
                            ("input tokens", "input", "{:,.0f}"), ("seconds, brief to price", "from_brief", "{:.0f}")):
         lines.append(f"  median {name:25}{fmt.format(median(rows, key))}")

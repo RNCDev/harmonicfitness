@@ -24,7 +24,27 @@ class NeverSaid(unittest.TestCase):
         self.assertEqual(summarize.never_said(draft, DAY_RULE), ["rainy", "winter"])
 
 
+    def test_a_weekday_in_a_story_is_not_flagged_but_in_the_coaching_is(self):
+        story = "@@ 50 | Rest\n[story] On Sunday night in nineteen seventy it happened. [/story]\n"
+        self.assertEqual(summarize.never_said(story, DAY_RULE), [])
+        self.assertEqual(summarize.never_said("@@ 50 | Welcome\nIt is Sunday.\n" + story, DAY_RULE), ["Sunday"])
+
+
 class NotInNotes(unittest.TestCase):
+    def check(self, notes, story):
+        w = [{"who": "research", "prompt": "", "output": {"s": notes}}]
+        return summarize.fidelity({"draft": f"@@ 60 | A\n@@ 60 | B\n[story] {story} [/story]\n@@ 60 | C\n", "writers": w})[0]
+
+    def test_number_words_and_ordinals_are_not_names(self):
+        self.assertEqual(self.check("nothing", "It was on the Thirtieth, aboard X-One, then Two."), [])
+
+    def test_accents_are_folded(self):
+        self.assertEqual(self.check("they met at a cafe", "They met at the Café."), [])
+
+    def test_a_real_unknown_name_is_still_flagged(self):
+        self.assertEqual(self.check("nothing", "It was Margaret Hamilton."), ["Hamilton", "Margaret"])
+
+
     def test_a_top_up_storys_names_count_as_noted(self):
         writers = [{"who": "research", "prompt": "", "output": {"stories": [{"text": "Miles Davis at Thirtieth Street"}]}},
                    {"who": "top-up", "prompt": "", "output": {"stories": [{"text": "Margaret Hamilton wrote the code"}]}}]
@@ -41,13 +61,25 @@ class Gate(unittest.TestCase):
     base = [OK, {**OK, "cost": 0.22}, {**OK, "cost": 0.18}]
 
     def test_gate_passes_when_every_run_is_compliant_and_no_dearer(self):
-        self.assertEqual(compare.gate(self.base, [{**OK, "cost": 0.15}] * 3), "GATE: pass")
+        self.assertEqual(compare.gate(self.base, [{**OK, "cost": 0.15}] * 3), "GATE: pass (3 completed)")
 
     def test_gate_fails_when_any_candidate_run_is_not_compliant(self):
-        self.assertIn("GATE: fail", compare.gate(self.base, [OK, {**OK, "lint_clean": False}]))
+        self.assertIn("GATE: fail", compare.gate(self.base, [OK, OK, {**OK, "lint_clean": False}]))
 
     def test_gate_fails_on_a_flagged_check(self):
         self.assertIn("never_said", compare.gate(self.base, [OK, {**OK, "never_said": ["Tuesday"]}]))
+
+    def test_a_provider_error_run_is_not_a_failure(self):
+        err = {**OK, "priced": False, "lint_clean": False, "opening": ["no draft"], "error": "ModelHTTPError: status_code: 504, body"}
+        out = compare.gate(self.base, [OK, OK, OK, err])
+        self.assertTrue(out.startswith("GATE: pass"))
+        self.assertIn("1 provider error", out)
+
+    def test_too_few_completed_runs_fails(self):
+        err = {**OK, "priced": False, "error": "ModelHTTPError: status_code: 429, body"}
+        out = compare.gate(self.base, [OK, OK, err])
+        self.assertIn("GATE: fail", out)
+        self.assertIn("completed", out)
 
     def test_gate_fails_when_the_median_cost_is_higher(self):
         self.assertIn("cost", compare.gate(self.base, [{**OK, "cost": 0.30}] * 3))
