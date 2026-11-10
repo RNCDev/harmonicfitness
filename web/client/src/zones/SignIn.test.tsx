@@ -22,7 +22,8 @@ describe("the sign-in page", () => {
   it("shows the deployed version", async () => {
     serve(false, { status: 204 });
     render(<SignIn onSignedIn={() => {}} />);
-    expect(await screen.findByText("0.20.0 (75da105)")).toBeInTheDocument();
+    expect(await screen.findByText("0.20.0")).toBeInTheDocument();
+    expect(screen.queryByText(/75da105/)).toBeNull();   // the deployed commit is for Settings' foot, not a stranger
     expect(screen.getByText("Workouts for your earbuds, written and voiced fresh each time you ask")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Workouts other people asked for" })).toBeInTheDocument();   // the demos
     expect(screen.getByRole("heading", { name: "Full workouts, free" })).toBeInTheDocument();   // the free workouts

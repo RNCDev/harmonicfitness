@@ -14,7 +14,8 @@ describe("the logo", () => {
     expect(screen.getByRole("img", { name: "HarmonicFitness" })).toBeInTheDocument();
     expect(container.querySelector(".mark-name .meter")).toBeNull();
     expect(container.querySelectorAll(".mark-name rect")).toHaveLength(0);
-    expect(screen.getByText("0.46.1 (abc1234)")).toBeInTheDocument();
+    expect(screen.getByText("0.46.1")).toBeInTheDocument();   // the release alone: the commit is Settings' to show
+    expect(screen.queryByText(/abc1234/)).toBeNull();
   });
 
   it("draws the wordmark in the text colour, FITNESS lighter", () => {

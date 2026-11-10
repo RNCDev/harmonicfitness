@@ -70,7 +70,11 @@ export function Meter({ form = "mid", height, live = false, className }: {
   );
 }
 
-/** The wordmark, with the version beside it when given. */
+/** The release a version names, without the deployed commit the server adds ("0.78.0 (fceddc1)" → "0.78.0"): the
+ * commit is the maintainer's, shown only at the foot of Settings. */
+export const release = (version: string) => version.replace(/\s*\([^)]*\)\s*$/, "");
+
+/** The wordmark, with the release beside it when given. */
 export function Mark({ version }: { version?: string }) {
   return (
     <div className="mark">
@@ -79,7 +83,7 @@ export function Mark({ version }: { version?: string }) {
         <path d={WORDMARK.harmonic} fill="currentColor" />
         <path d={WORDMARK.fitness} fill="currentColor" opacity={FITNESS_OPACITY} />
       </svg>
-      {version && <span className="ver">{version}</span>}
+      {version && <span className="ver">{release(version)}</span>}
     </div>
   );
 }
