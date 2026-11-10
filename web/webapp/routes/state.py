@@ -14,6 +14,7 @@ from .. import auth, config, store
 from ..api import _origin
 
 if TYPE_CHECKING:
+    from .. import streams
     from ..api import Throttle
 
 COOKIE = "wt_session"
@@ -26,13 +27,14 @@ Day = Annotated[StrictStr, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 class AppState:
     settings: config.Settings
     connection: Callable[[], Any]         # a contextmanager: a pooled connection, or the tests' own
-    open_stream: Callable[[], psycopg.Connection]   # an event stream's own connection
+    open_stream: Callable[[], psycopg.Connection]   # the job events listener's connection
     options: dict
     services: dict[str, dict]
     version: str
     dist: Path
     origin: str
     throttles: "dict[str, Throttle]"      # login_name, login_addr, reg_addr, reg_all, confirms
+    hub: "streams.Hub"                    # the one job events listener every progress stream shares
 
 
 def state(request: Request) -> AppState:

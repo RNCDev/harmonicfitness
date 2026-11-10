@@ -1168,6 +1168,8 @@ class Disconnect(ApiCase):
     """A real server (TestClient buffers a whole response, so it can't hang up mid-stream)."""
 
     def test_client_going_away_closes_the_stream_connection(self):
+        """Since 0.77.0 the connection a stream waits on is the shared listener's (opened on its own thread, named
+        job-events): the last stream leaving closes it."""
         import socket
 
         import httpx
@@ -1176,7 +1178,7 @@ class Disconnect(ApiCase):
 
         def tracking():
             conn = self.connect()
-            opened.append(conn)
+            opened.append((threading.current_thread().name, conn))
             return conn
         app = api.create_app(self.settings, connect=tracking, client_dist=self.dist)
         sock = socket.socket()
@@ -1201,13 +1203,13 @@ class Disconnect(ApiCase):
                 with c.stream("GET", f"/api/jobs/{job}/events") as r:
                     self.assertEqual(r.status_code, 200)
                     self.assertEqual(next(r.iter_lines()), ": keep-alive")
-                    stream_conn = opened[-1]
+                    stream_conn = next(c for name, c in opened if name == "job-events")
                     self.assertFalse(stream_conn.closed)
             deadline = time.monotonic() + 5
             while not stream_conn.closed and time.monotonic() < deadline:
                 time.sleep(0.05)
         self.assertTrue(stream_conn.closed)
-        self.assertTrue(all(conn.closed for conn in opened))
+        self.assertTrue(all(conn.closed for _, conn in opened))
 
 
 def zip_of(entries: dict) -> bytes:

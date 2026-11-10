@@ -1,20 +1,20 @@
 """Jobs: a brief, a balance check, a job's status and its event stream.
 
-An event stream holds one connection of its own for its whole life, in autocommit: it LISTENs on job_events and
-reads the job's status and events on that same connection (each read its own transaction, so it sees every commit),
-and closes it when the stream ends or the client goes away."""
+An event stream holds no connection or thread of its own (0.77.0): it waits on the app's one listener
+(webapp/streams.py) for a NOTIFY naming its job, and reads the job's status and events through the pool in short
+calls, each its own transaction, so it sees every commit."""
+import asyncio
 import json
 import time
-from typing import Annotated, Callable, Literal
+from typing import Annotated, Literal
 
 import anyio
-import psycopg
 from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
 
 from .. import codes, jobs, store
-from .state import JOB_ID, MAX_QUEUED, POST, St, User, read, tx
+from .state import JOB_ID, MAX_QUEUED, POST, AppState, St, User, read, tx
 
 router = APIRouter()
 
@@ -89,38 +89,31 @@ def job_events(st: St, request: Request, uk: User, job_id: Annotated[int, JOB_ID
         after = max(0, int(request.headers.get("last-event-id", "0")))
     except ValueError:
         after = 0
-    return StreamingResponse(_stream(st.open_stream, uk, job_id, after),
+    return StreamingResponse(_stream(st, uk, job_id, after),
                              media_type="text/event-stream",
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
-async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey, job_id: int,
-                  after: int):
+async def _stream(st: AppState, uk: store.UserKey, job_id: int, after: int):
     """The job's events after `after`, then a `state` event once it is done or failed.
 
-    LISTEN comes before the first read, so an event committed between them still wakes us. Each
-    round reads the status first and the events after it: complete() writes its events in the
-    same transaction that marks the job done, so a done status means every event is readable."""
+    It joins the listener before the first read, so an event committed between them still wakes it. Each round
+    reads the status first and the events after it: complete() writes its events in the same transaction that
+    marks the job done, so a done status means every event is readable. A stream the listener closed (the
+    listener's fourth) just ends: the browser opens it again from its last event."""
     run = anyio.to_thread.run_sync
-    conn = await run(open_conn)
+    loop = asyncio.get_running_loop()
+    sub = await run(lambda: st.hub.subscribe(uk.user_id, job_id, loop))
     try:
-        conn.autocommit = True
-        await run(lambda: conn.execute("listen job_events"))
-        channel = str(job_id)
-
-        def read():
-            st = jobs.status(conn, uk, job_id)
-            return st, jobs.events(conn, uk, job_id, after)
-
-        def wait(seconds: float) -> bool:
-            return any(n.payload == channel
-                       for n in conn.notifies(timeout=seconds, stop_after=1))
+        def read_now():
+            with read(st) as conn:
+                return jobs.status(conn, uk, job_id), jobs.events(conn, uk, job_id, after)
 
         check, last_read, last_sent = True, 0.0, time.monotonic()
-        while True:
+        while not sub.closed:
             if check:
                 try:
-                    st, evs = await run(read)
+                    status, evs = await run(read_now)
                 except LookupError:
                     return
                 last_read = time.monotonic()
@@ -128,15 +121,15 @@ async def _stream(open_conn: Callable[[], psycopg.Connection], uk: store.UserKey
                     after = event_id
                     last_sent = time.monotonic()
                     yield f"id: {event_id}\ndata: {json.dumps(body)}\n\n"
-                if st["state"] in ("done", "failed"):
-                    end = {"state": st["state"], "error": st["error"], "code": codes.of_status(st)}
+                if status["state"] in ("done", "failed"):
+                    end = {"state": status["state"], "error": status["error"], "code": codes.of_status(status)}
                     yield f"event: state\ndata: {json.dumps(end)}\n\n"
                     return
-            notified = await run(wait, min(WAIT_SLICE, POLL_EVERY, KEEP_ALIVE))
+            notified = await sub.wait(min(WAIT_SLICE, POLL_EVERY, KEEP_ALIVE))
             now = time.monotonic()
             check = notified or now - last_read >= POLL_EVERY
             if now - last_sent >= KEEP_ALIVE:
                 last_sent = now
                 yield ": keep-alive\n\n"
     finally:
-        conn.close()
+        st.hub.unsubscribe(sub)

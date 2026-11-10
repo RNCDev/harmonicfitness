@@ -36,7 +36,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import APP_NAME, config, db, engine, enginelib, log
+from . import APP_NAME, config, db, engine, enginelib, log, streams
 from .folder import IMPORT_MAX_TOTAL, IMPORT_MAX_ZIP
 
 MINUTES = [10, 15, 20, 25, 30, 45]
@@ -248,7 +248,7 @@ def build_version(engine_root: str, env=os.environ) -> str:
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
                client_dist: str | os.PathLike | None = None) -> FastAPI:
     """The app. `connect` (tests) opens a connection; without it requests use a pool of
-    settings.database_url and an event stream opens its own connection to it."""
+    settings.database_url, and the job events listener (streams.Hub) opens its own connection to it."""
     goals, presets = enginelib.lists(settings.engine_root)
     options = {"minutes": list(MINUTES), "goals": sorted(goals), "presets": sorted(presets)}
     services = enginelib.services(settings.engine_root)
@@ -277,6 +277,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         finally:
             conn.close()
 
+    hub = streams.Hub(open_stream)
+
     @asynccontextmanager
     async def lifespan(_app):
         if pool is not None:
@@ -284,6 +286,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
         try:
             yield
         finally:
+            hub.close()
             if pool is not None:
                 pool.close()
 
@@ -315,7 +318,8 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                    "login_addr": Throttle(*authroutes.LOGIN_PER_ADDRESS),
                    "reg_addr": Throttle(*authroutes.REGISTER_PER_ADDRESS),
                    "reg_all": Throttle(*authroutes.REGISTER_ALL),
-                   "confirms": Throttle(*authroutes.CONFIRM_PER_USER)})
+                   "confirms": Throttle(*authroutes.CONFIRM_PER_USER)},
+        hub=hub)
 
     @app.get("/healthz")
     def healthz():
