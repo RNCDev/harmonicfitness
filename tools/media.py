@@ -14,9 +14,8 @@ import urllib.request
 
 import errors
 import fileio
+import net
 import paths
-
-LOCAL_HOSTS = ("127.0.0.1", "localhost")
 
 
 def manifest_path():
@@ -35,8 +34,7 @@ def manifest(path=None):
 def base_url(m=None):
     override = os.environ.get("HARMONICFITNESS_MEDIA_URL")
     url = (override or (m or manifest())["url"]).rstrip("/")
-    parts = urllib.parse.urlsplit(url)
-    if parts.scheme != "https" and not (parts.scheme == "http" and parts.hostname in LOCAL_HOSTS):
+    if not net.allowed_base(url):
         raise errors.UsageError(f"The media address {url!r} isn't https:// or this computer, so nothing was fetched.")
     return url
 
@@ -67,7 +65,7 @@ def sample_file(slug, m=None, opener=None):
         return out
     url = sample_url(slug, m)
     try:
-        with (opener or urllib.request.urlopen)(url, timeout=60) as r:
+        with (opener or net.opener("any").open)(url, timeout=60) as r:   # any redirect: the SHA-256 is checked
             body = r.read()
     except (urllib.error.URLError, OSError) as e:
         raise errors.HarmonicFitnessError(f"{slug}'s sample couldn't be fetched from {url}: {e}.") from None

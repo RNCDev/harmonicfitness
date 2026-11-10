@@ -110,7 +110,7 @@ BASES = {
     "https://x": (True, True, True),
     "HTTPS://x": (True, True, True),
     "http://localhost:8000": (True, True, True),
-    "http://[::1]:8000": (True, True, False),
+    "http://[::1]:8000": (True, True, True),
     "http://example.org": (False, False, False),
     "ftp://x": (False, False, False),
 }
