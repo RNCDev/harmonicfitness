@@ -1246,6 +1246,17 @@ class ThirtyMinuteScripts(DraftCase):
         self.assertEqual(agent.thinking_level(GoogleModel(), "priced"), "LOW")
         self.assertIsNone(agent.thinking_level(object(), "draft"))   # other providers keep their default
 
+    def test_gemini_through_openrouter_thinks_at_the_same_levels(self):
+        class OpenRouterModel:   # named as pydantic-ai's
+            def __init__(self, name):
+                self.model_name = name
+        from webapp.agent import writers
+        gemini, claude = OpenRouterModel("google/gemini-3.8-flash"), OpenRouterModel("anthropic/claude-opus-5.5")
+        self.assertEqual(agent.thinking_level(gemini, "brief"), "MEDIUM")
+        self.assertEqual(writers.thinking_settings(gemini, "MEDIUM"), {"openrouter_reasoning": {"effort": "medium"}})
+        self.assertIsNone(agent.thinking_level(claude, "brief"))   # any other model: its provider's default
+        self.assertIsNone(writers.thinking_settings(claude, "LOW"))
+
     def test_step_one_brings_todays_research_sheet(self):
         daily = os.path.join(self.home, "workouts", "research", "daily")
         os.makedirs(daily, exist_ok=True)

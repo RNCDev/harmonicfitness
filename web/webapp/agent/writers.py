@@ -434,8 +434,26 @@ def _tokens(result) -> tuple[int, int]:
     return got_in, got_out
 
 
+def is_gemini(model) -> bool:
+    """A Gemini model, on a Gemini key (GoogleModel) or through OpenRouter ("google/..."): the models whose thinking
+    the harness sets by step."""
+    name = type(model).__name__
+    return name == "GoogleModel" or (name == "OpenRouterModel" and str(model.model_name).startswith("google/"))
+
+
+def thinking_settings(model, level: str | None) -> dict | None:
+    """The model settings that set a Gemini model's thinking at `level` (HIGH, MEDIUM or LOW): Google's own
+    thinking level, or OpenRouter's reasoning effort, which it passes on to Gemini as that level. None for any other
+    model, which thinks at its provider's default."""
+    if not level or not is_gemini(model):
+        return None
+    if type(model).__name__ == "GoogleModel":
+        return {"google_thinking_config": {"thinking_level": level}}
+    return {"openrouter_reasoning": {"effort": level.lower()}}
+
+
 def _thinking(model, level: str) -> dict | None:
-    return {"google_thinking_config": {"thinking_level": level}} if type(model).__name__ == "GoogleModel" else None
+    return thinking_settings(model, level)
 
 
 async def _ask(deps, who: str, agent: Agent, model, prompt: str, usage, level: str, capabilities=(), history=None):

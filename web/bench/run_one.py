@@ -130,7 +130,7 @@ def main() -> None:
                                                         if "thinking" in k or "reasoning" in k}}
         try:
             resp = await orig_request(self, messages, model_settings, model_request_parameters)
-        except Exception as e:
+        except BaseException as e:   # a call given up past its patience is cancelled: still sent, and maybe billed
             row.update(seconds=round(stamp() - began, 2), error=f"{type(e).__name__}: {e}"[:300])
             requests.append(row)
             raise

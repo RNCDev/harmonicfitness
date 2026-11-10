@@ -1,0 +1,44 @@
+movements: marching-in-place, arm-circles, glute-bridge, push-up, standing-calf-raise, shoulder-rolls, seated-hamstring-stretch
+@@ 90 | Welcome and safety
+@@ 60 | Marching in place
+[hold 55s]
+@@ 45 | Arm circles
+[hold 40s]
+@@ 15 | Transition to floor
+@@ 45 | Glute bridge set 1, 12 reps
+[count 3 go]
+[reps 12]
+[hold 27s]
+@@ 45 | Rest
+@@ 45 | Push-up set 1, 10 reps
+[count 3 go]
+[reps 10]
+[hold 22s]
+@@ 45 | Rest
+@@ 45 | Glute bridge set 2, 12 reps
+[count 3 go]
+[reps 12]
+[hold 27s]
+@@ 45 | Rest
+@@ 45 | Push-up set 2, 10 reps
+[count 3 go]
+[reps 10]
+[hold 22s]
+@@ 45 | Rest
+@@ 45 | Standing calf raise set 1, 15 reps
+[count 3 go]
+[reps 15]
+[hold 33s]
+@@ 45 | Rest
+@@ 45 | Standing calf raise set 2, 15 reps
+[count 3 go]
+[reps 15]
+[hold 33s]
+@@ 55 | Rest
+@@ 45 | Shoulder rolls
+[hold 40s]
+@@ 60 | Seated hamstring stretch
+[hold 25s]
+[cue switch sides]
+[hold 25s]
+@@ 35 | Cool-down and close

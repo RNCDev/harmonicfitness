@@ -1,0 +1,227 @@
+{
+ "minutes": 15,
+ "provider": "openrouter",
+ "model": "google/gemini-3.8-flash",
+ "line": "Hey, coach Freya, I'd like a 15-minute strength workout in a hotel room, right now. Go easy on my left knee today.",
+ "set": [],
+ "turns": [
+  {
+   "turn": 0,
+   "start": 0.0,
+   "seconds": 115.63,
+   "reply": null,
+   "usage": {},
+   "error": "ModelHTTPError: status_code: 504, model_name: google/gemini-3.8-flash, body: {'message': 'The operation was aborted', 'code': 504, 'metadata': {'provider_name': 'Google', 'previous_errors': [{'code': 429, 'message': 'Provider returned error', 'provider_name': 'Google AI Studio', 'raw': 'google/gemini-3.8-flash is temporarily rate-limited upstream. Please retry shortly, or add your own provider key to use your own limits: https://openrouter.ai/workspaces/default/byok'}]}}",
+   "priced": false
+  }
+ ],
+ "events": [
+  {
+   "t": 0.0,
+   "text": "Reading your profile and today's limits",
+   "tool": "prefetch",
+   "code": null,
+   "step": 1,
+   "think": false
+  },
+  {
+   "t": 0.2,
+   "text": "Reading your profile and today's limits",
+   "tool": "prefetch",
+   "code": 0,
+   "step": 1,
+   "think": false
+  },
+  {
+   "t": 0.21,
+   "text": "Reading your message",
+   "tool": "think",
+   "code": null,
+   "step": 2,
+   "think": true
+  },
+  {
+   "t": 4.98,
+   "text": "Reading your message",
+   "tool": "think",
+   "code": 0,
+   "step": 2,
+   "think": true
+  },
+  {
+   "t": 4.98,
+   "text": "Working out today's safe moves",
+   "tool": "run brief",
+   "code": null,
+   "step": 3,
+   "think": false
+  },
+  {
+   "t": 5.11,
+   "text": "Working out today's safe moves",
+   "tool": "run brief",
+   "code": 0,
+   "step": 3,
+   "think": false
+  },
+  {
+   "t": 5.11,
+   "text": "Planning your script",
+   "tool": "think",
+   "code": null,
+   "step": 4,
+   "think": true
+  },
+  {
+   "t": 36.06,
+   "text": "Planning your script",
+   "tool": "think",
+   "code": 0,
+   "step": 4,
+   "think": true
+  },
+  {
+   "t": 36.07,
+   "text": "Reading the coaching notes",
+   "tool": "run movements",
+   "code": null,
+   "step": 5,
+   "think": false
+  },
+  {
+   "t": 36.16,
+   "text": "Reading the coaching notes",
+   "tool": "run movements",
+   "code": 0,
+   "step": 5,
+   "think": false
+  },
+  {
+   "t": 36.16,
+   "text": "Planning your script",
+   "tool": "think",
+   "code": null,
+   "step": 6,
+   "think": true
+  },
+  {
+   "t": 89.35,
+   "text": "Planning your script",
+   "tool": "think",
+   "code": 0,
+   "step": 6,
+   "think": true
+  },
+  {
+   "t": 89.35,
+   "text": "Logging the session",
+   "tool": "run log-session",
+   "code": null,
+   "step": 7,
+   "think": false
+  },
+  {
+   "t": 89.42,
+   "text": "Logging the session",
+   "tool": "run log-session",
+   "code": 0,
+   "step": 7,
+   "think": false
+  },
+  {
+   "t": 89.42,
+   "text": "Planning your script",
+   "tool": "think",
+   "code": null,
+   "step": 8,
+   "think": true
+  },
+  {
+   "t": 100.6,
+   "text": "Planning your script",
+   "tool": "think",
+   "code": 0,
+   "step": 8,
+   "think": true
+  },
+  {
+   "t": 100.6,
+   "text": "Planning the script's timing",
+   "tool": "write_file",
+   "code": null,
+   "step": 9,
+   "think": false
+  },
+  {
+   "t": 100.6,
+   "text": "Planning the script's timing",
+   "tool": "write_file",
+   "code": 0,
+   "step": 9,
+   "think": false
+  },
+  {
+   "t": 100.6,
+   "text": "Planning the script's timing",
+   "tool": "run build --lint-only",
+   "code": null,
+   "step": 10,
+   "think": false
+  },
+  {
+   "t": 100.78,
+   "text": "Planning the script's timing",
+   "tool": "run build --lint-only",
+   "code": 1,
+   "step": 10,
+   "think": false
+  },
+  {
+   "t": 100.78,
+   "text": "Writing your script: a few minutes, so feel free to step away",
+   "tool": "write_script",
+   "code": null,
+   "step": 11,
+   "think": false
+  },
+  {
+   "t": 115.63,
+   "text": "Writing your script: a few minutes, so feel free to step away",
+   "tool": "write_script",
+   "code": 1,
+   "step": 11,
+   "think": false
+  }
+ ],
+ "room": [
+  {
+   "t": 19.9,
+   "line": "room research LOW failed 14.8s (ModelHTTPError)"
+  },
+  {
+   "t": 100.78,
+   "line": "room skeleton clean: straight to the writers"
+  },
+  {
+   "t": 100.84,
+   "line": "room notes and feeds 0.1s"
+  },
+  {
+   "t": 100.84,
+   "line": "room research: the early run failed, written now"
+  },
+  {
+   "t": 115.63,
+   "line": "room research LOW failed 14.7s (ModelHTTPError)"
+  }
+ ],
+ "offer": null,
+ "draft_path": "me/workouts/2026-11-10-strength-15/2026-11-10-strength-15.draft.txt",
+ "draft": "movements: arm circles, seated twist, glute bridge, push-up, prone lat pulldown, seated hamstring stretch, box breathing\n\n@@ 45 | Welcome\n\n@@ 45 | Arm circles warm-up, 30 seconds\n[count 3 go]\n\n@@ 45 | Seated twist warm-up, 30 seconds\n[count 3 go]\n\n@@ 45 | Glute bridge set 1, 40 seconds, bodyweight\n[count 3 go]\n\n@@ 30 | Rest\n\n@@ 45 | Push-up set 1, 40 seconds, bodyweight\n[count 3 go]\n\n@@ 30 | Rest\n\n@@ 45 | Prone lat pulldown set 1, 40 seconds, bodyweight\n[count 3 go]\n\n@@ 30 | Rest\n\n@@ 45 | Glute bridge set 2, 40 seconds, bodyweight\n[count 3 go] [story] [/story]\n\n@@ 30 | Rest\n\n@@ 45 | Push-up set 2, 40 seconds, bodyweight\n[count 3 go] [story] [/story]\n\n@@ 30 | Rest\n\n@@ 45 | Prone lat pulldown set 2, 40 seconds, bodyweight\n[count 3 go] [story] [/story]\n\n@@ 30 | Rest\n\n@@ 45 | Glute bridge set 3, 40 seconds, bodyweight\n[count 3 go]\n\n@@ 30 | Rest\n\n@@ 45 | Push-up set 3, 40 seconds, bodyweight\n[count 3 go]\n\n@@ 30 | Rest\n\n@@ 45 | Prone lat pulldown set 3, 40 seconds, bodyweight\n[count 3 go]\n\n@@ 60 | Seated hamstring stretch cool-down, 45 seconds\n[count 3 go]\n\n@@ 60 | Box breathing cool-down, 45 seconds\n[count 3 go]\n",
+ "final_lint": "",
+ "final_lint_code": null,
+ "writers": [],
+ "history": null,
+ "requests_counted": 0,
+ "requests_recorded": 6
+}

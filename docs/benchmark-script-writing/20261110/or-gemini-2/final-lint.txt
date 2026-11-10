@@ -1,0 +1,31 @@
+  #  secs words guide spoken  fill  label
+  1    90   202   230   76.5   85%  Welcome and safety
+  2    60   126   152   50.3   84%  Marching in place
+  3    45    97   112   41.1   91%  Arm circles
+  4    15    32    38   11.3   76%  Transition to floor  <-- ends 3.7s early
+  5    45   115    33   61.9  138%  Glute bridge set 1, 12 reps  <-- runs 16.9s long
+  6    45   110   112   45.9  102%  Rest
+  7    45   103    39   57.3  127%  Push-up set 1, 10 reps  <-- runs 12.3s long
+  8    45   104   112   43.9   98%  Rest
+  9    45    89    33   52.9  118%  Glute bridge set 2, 12 reps  <-- runs 7.9s long
+ 10    45    94   112   38.0   85%  Rest
+ 11    45    86    39   52.1  116%  Push-up set 2, 10 reps  <-- runs 7.1s long
+ 12    45    95   112   39.4   88%  Rest
+ 13    45   105    25   58.3  129%  Standing calf raise set 1, 15 reps  <-- runs 13.3s long
+ 14    45   103   112   39.9   89%  Rest
+ 15    45    84    25   52.4  116%  Standing calf raise set 2, 15 reps  <-- runs 7.4s long
+ 16    55   106   138   45.4   83%  Rest
+ 17    45    92   113   38.5   86%  Shoulder rolls
+ 18    60   128   148   49.1   82%  Seated hamstring stretch
+ 19    35    82    88   30.6   87%  Cool-down and close
+
+Planned 15.0 min | 1953 words | 14.7 min of talk, counts and fixed holds predicted with Coach Freya (12.51 chars/s, estimated until its first render)
+Predicted length 15.1 min, +0.9% of plan (within 4.0% is fine: the lint aims inside the render's limit, leaving room for the voice)
+Coach Freya speaks this draft's words at about 157 a minute; the guide column is the words that fill each segment at that rate, around its holds, counts and chimes
+Sends 10,915 characters to the voice service
+7 segment(s) far off their slots; not blocking: the total is within its limit, so leave them as they are
+
+Menu check: every movement is on today's menu (7 declared).
+
+Exported 105 paragraphs to me/workouts/2026-11-10-strength-15/Workout 2026-11-10 Strength 15 min.txt
+

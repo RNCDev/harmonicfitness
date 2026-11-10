@@ -49,3 +49,23 @@ room: review                             2    33,104        0   7,581   3,930   
 agent turn 0: priced                     1    45,369        0     124      61    0      3   0.184
 total                                    9   282,919    8,748  44,031  25,172   10    515   2.104
 OpenRouter's own figure: $2.086
+
+docs/benchmark-script-writing/20261110/or-gemini-1
+                                       req        in   cached     out   think srch      s   $ est
+agent turn 0: (start)                    1    15,639        0     461     345    0      5   0.013
+room: research                           2         0        0       0       0    0     29   0.000
+agent turn 0: brief                      3    94,888        0  16,126  15,504    0     95   0.132
+total                                    6   110,527        0  16,587  15,849    0    130   0.145
+OpenRouter's own figure: $0.145
+
+docs/benchmark-script-writing/20261110/or-gemini-2
+                                       req        in   cached     out   think srch      s   $ est
+agent turn 0: (start)                    1    15,639        0     116       0    0      3   0.012
+agent turn 0: brief                      3    75,257   40,108     616       0    0      9   0.032
+room: research                           1     4,339        0   1,201       0    4     13   0.064
+room: trainer                            1     8,990        0   1,375       0    0     13   0.012
+room: host                               1     8,787        0   4,186   1,316    0     34   0.022
+room: review                             1     9,326        0     279       0    0      6   0.008
+agent turn 0: priced                     2    59,326   32,073     185       0    0      5   0.024
+total                                   10   181,664   72,181   7,958   1,316    4     82   0.173
+OpenRouter's own figure: $0.173

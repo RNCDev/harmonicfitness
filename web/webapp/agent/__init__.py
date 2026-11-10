@@ -25,7 +25,7 @@ from pydantic_ai.models.wrapper import WrapperModel
 from .. import config
 from . import tools, writers
 from .tools import Deps, ToolResult
-from .writers import web_copy
+from .writers import is_gemini, thinking_settings, web_copy
 
 __all__ = ["AGENT", "Deps", "LIMITS", "audition_open", "prefetch", "wants_coach", "start_feeds", "NOT_OPEN", "STOPPED", "TIMED_OUT", "TURN_SECONDS", "TurnError", "TurnOutcome",
            "run_turn"]
@@ -322,7 +322,7 @@ def thinking_level(model, phase: str, writers: str = "one") -> str | None:
     """HIGH, MEDIUM or LOW for a Gemini model, by the turn's phase; None for any other provider (its default). With
     the writers' room the request after the skeleton only hands it to write_script (or fixes its clock): no stories
     to write, so no HIGH (one thought for 32 s, 2026-11-02)."""
-    if type(model).__name__ != "GoogleModel":
+    if not is_gemini(model):
         return None
     if phase in THINK_HARDEST and writers == "three":
         return "MEDIUM"
@@ -344,7 +344,7 @@ class Narrated(WrapperModel):
         n = _begin(deps, text, "think", think=True)
         level = thinking_level(self.wrapped, deps.phase, deps.writers)
         if level:
-            model_settings = dict(model_settings or {}, google_thinking_config={"thinking_level": level})
+            model_settings = dict(model_settings or {}, **thinking_settings(self.wrapped, level))
         try:
             response = await super().request(messages, model_settings, model_request_parameters)
         except BaseException:

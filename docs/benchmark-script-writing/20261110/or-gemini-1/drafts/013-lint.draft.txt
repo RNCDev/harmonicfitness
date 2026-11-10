@@ -1,0 +1,58 @@
+movements: arm circles, seated twist, glute bridge, push-up, prone lat pulldown, seated hamstring stretch, box breathing
+
+@@ 45 | Welcome
+
+@@ 45 | Arm circles warm-up, 30 seconds
+[count 3 go]
+
+@@ 45 | Seated twist warm-up, 30 seconds
+[count 3 go]
+
+@@ 45 | Glute bridge set 1, 40 seconds, bodyweight
+[count 3 go]
+
+@@ 30 | Rest
+
+@@ 45 | Push-up set 1, 40 seconds, bodyweight
+[count 3 go]
+
+@@ 30 | Rest
+
+@@ 45 | Prone lat pulldown set 1, 40 seconds, bodyweight
+[count 3 go]
+
+@@ 30 | Rest
+
+@@ 45 | Glute bridge set 2, 40 seconds, bodyweight
+[count 3 go] [story] [/story]
+
+@@ 30 | Rest
+
+@@ 45 | Push-up set 2, 40 seconds, bodyweight
+[count 3 go] [story] [/story]
+
+@@ 30 | Rest
+
+@@ 45 | Prone lat pulldown set 2, 40 seconds, bodyweight
+[count 3 go] [story] [/story]
+
+@@ 30 | Rest
+
+@@ 45 | Glute bridge set 3, 40 seconds, bodyweight
+[count 3 go]
+
+@@ 30 | Rest
+
+@@ 45 | Push-up set 3, 40 seconds, bodyweight
+[count 3 go]
+
+@@ 30 | Rest
+
+@@ 45 | Prone lat pulldown set 3, 40 seconds, bodyweight
+[count 3 go]
+
+@@ 60 | Seated hamstring stretch cool-down, 45 seconds
+[count 3 go]
+
+@@ 60 | Box breathing cool-down, 45 seconds
+[count 3 go]

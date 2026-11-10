@@ -27,8 +27,10 @@ PROVIDERS: dict[str, Provider] = {p.id: p for p in (
              "https://platform.openai.com/settings/organization/billing/overview"),
     Provider("google", "Gemini", "gemini-3.8-flash", "https://aistudio.google.com/apikey",
              "https://aistudio.google.com/billing"),
-    # OpenRouter: one key for any model; the same key voices its stock-voice coaches (one id, one row)
-    Provider("openrouter", "OpenRouter", "anthropic/claude-sonnet-5.5", "https://openrouter.ai/settings/keys",
+    # OpenRouter: one key for any model; the same key voices its stock-voice coaches (one id, one row). It writes
+    # with Gemini 3.8 Flash, as the Gemini key does, at the same thinking levels (writers.thinking_settings): a
+    # 15-minute workout cost 17 to 21 cents on Gemini and about $2.10 on Opus (docs/benchmark-script-writing/)
+    Provider("openrouter", "OpenRouter", "google/gemini-3.8-flash", "https://openrouter.ai/settings/keys",
              "https://openrouter.ai/settings/credits"),
 )}
 

@@ -137,6 +137,24 @@ Two runs per model show the spread, not a reliable average.
   rather than every step.
 - **Both:** hold the host to its length, so the review passes in one round.
 
+## Afterwards: OpenRouter switched to Gemini 3.8 Flash
+
+The OpenRouter provider then moved from Claude Sonnet 5.5 to `google/gemini-3.8-flash`, at the site's Gemini
+thinking levels sent as OpenRouter's reasoning effort. Two runs on the same request:
+
+- **or-gemini-1 failed.** Both of the researcher's calls (the only ones with web search) came back 504, after Google
+  rate-limited OpenRouter's shared pool (429). The agent's three skeleton requests at "medium" thought for 4,800,
+  9,500 and 1,200 tokens, where Gemini direct at MEDIUM reported none. It cost $0.15 for nothing.
+- **or-gemini-2 passed:** priced, lint exit 0, a single review round, $0.17 by OpenRouter's own figure, 182 seconds.
+  - The trainer at "medium" ran past its 110-second patience and was asked again at LOW. The abandoned call isn't
+    in the token counts (the recorder logs a cancelled request from here on), and OpenRouter may still bill it.
+  - The trainer at LOW is the setting that dropped a limit's self-check in 0.69.1.
+  - The researcher's four searches cost about 6¢ through OpenRouter. On a Gemini key they would fall inside Google's
+    free 5,000 a month.
+
+So OpenRouter's effort levels aren't Gemini's thinking levels, and the shared upstream can refuse at busy times. Both
+go into the efficiency plan ([../plan.md](../plan.md)).
+
 ## Files
 
 One folder per run:

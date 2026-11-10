@@ -51,7 +51,7 @@ class ModelFor(unittest.TestCase):
         from pydantic_ai.models.openrouter import OpenRouterModel
         m = providers.model_for("openrouter", "k" * 20)
         self.assertIsInstance(m, OpenRouterModel)
-        self.assertEqual(m.model_name, "anthropic/claude-sonnet-5.5")
+        self.assertEqual(m.model_name, "google/gemini-3.8-flash")
         self.assertEqual((m.client.max_retries, str(m.client.base_url).rstrip("/")), (0, "https://openrouter.ai/api/v1"))
 
     def test_google_never_retries_and_times_out_at_180s(self):
